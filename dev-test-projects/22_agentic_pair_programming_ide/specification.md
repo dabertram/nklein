@@ -205,3 +205,861 @@ If that slice holds, broad IDE UI, more languages, and live LSP/model adapters a
 ## E9. Why this is a great !Klein challenge
 
 It stresses **decomposition** (determinism core → context provenance → patch transaction → conflict model → privacy gate → verification loop → routing), **determinism under weak models** (the engine is deterministic; the model is fenced and its garbage is rejected), **governance** (scope containment + privacy non-leak + audit + reversibility as tested invariants), and **trust-preserving restraint** (no-clobber and stale-reasoning guards). It is the cleanest demonstration of the thesis that a *weak local model becomes a safe pair-programmer when the IDE owns the transaction boundary and the provenance, and the model merely proposes.* A swarm can build it seam-by-seam, each with a crisp invariant and a deterministic fixture.
+
+---
+
+## Small-model build guide (3B-ready)
+
+This section makes the project mechanically buildable by a 3B local model with minimal reasoning. The model follows; this guide does the thinking. All acceptance tests run offline with zero live dependencies.
+
+### 1. Glossary & ground rules
+
+**Domain terms**
+- **EditOperation**: a typed structural patch `{format, targetFile, baseHash, hunks|wholeContent, planStepRef, verificationTargetRef}`. The LLM produces candidate text; the patch engine owns truth.
+- **baseHash**: `sha256` of the target file's content at the moment the plan step began. Used for conflict detection.
+- **CheckpointId**: an opaque string identifying a point in the edit transaction log from which the workspace can be restored byte-identically.
+- **ContextPack**: an immutable snapshot — ordered list of `{path, excerptRange, reason, source, freshnessTs, contentHash, tokenCost}` plus a total `tokenBudget`. Every included file has a reason.
+- **PlanStep**: `{id, description, dependsOn, riskLabel, requiredContext, verificationTargetRef, status}`.
+- **MergeDecision**: the user-facing record of a 3-way conflict between base/human/agent versions of a file. Never auto-resolved.
+- **PrivacyBlock**: the event raised when a file matching a deny-glob or secret detector is requested for model context. Requires an explicit audited override.
+- **FixtureWorkspace**: a deterministic in-repo directory `test/fixtures/workspace/` containing TypeScript source files for testing.
+- **FixtureLSP**: a deterministic implementation of `LanguageService` returning canned diagnostics/references from JSON files.
+- **FixtureModel**: a deterministic implementation of `ModelClient` keyed by `sha256(contextPackHash)` → canned patch text.
+- **SEARCH/REPLACE format**: a patch format where the model emits a block with `<<<<<<< SEARCH` and `>>>>>>> REPLACE` delimiters.
+- **Loop detection**: when a model requests the same file batch K times without progress, inject a synthesized summary instead of the raw files.
+
+**Stack**
+- Language: TypeScript (strict mode, no `any`)
+- Runtime: Node.js 20+
+- Test runner: Vitest (`npm test` runs `vitest run`)
+- Key libraries: `tree-sitter` + `tree-sitter-typescript` for symbol graph; `zod` for schemas; `fast-check` for property tests
+- No live LSP server, no live model, no network, no `Date.now()`, no `Math.random()` in core
+
+**Acceptance command** (project root):
+```
+npm test
+```
+
+**Determinism rules (imperative)**
+1. Never call `Date.now()`, `new Date()`, `setTimeout`, or `Math.random()` in `src/`. Use injected `Clock` and `Prng`.
+2. Never import a live language-server or model client in `src/core/`, `src/patch/`, `src/context/`, `src/privacy/`. Use adapter interfaces.
+3. All fixture files live in `test/fixtures/`. Throw (do not fetch) on a missing fixture.
+4. Same `(seed, fixtureWorkspace, fixtureLSP, modelFixture)` ⇒ byte-identical context packs, plan, patches, verification.
+5. `npm test` must pass from a cold clone with no environment variables set.
+
+---
+
+### 2. The explicit task graph for the FIRST vertical slice
+
+The first slice (≈ 38 cards) proves the spine on **one fixture workspace** (5-file TypeScript app) with **one refactor task** plus the **prepared user-edit conflict** and **secret-file** fixtures. Build in this exact order.
+
+---
+
+**`S01` — Core types & interfaces**
+dependsOn: none
+files: `src/types.ts`
+interface:
+```typescript
+export type EditFormat = "search-replace" | "whole-file" | "unified-diff";
+export type PlanStatus = "pending" | "in-progress" | "done" | "failed" | "cancelled";
+export type MergeDecisionStatus = "pending" | "human-chose-theirs" | "human-chose-ours" | "human-merged";
+export type PrivacyBlockReason = "deny-glob" | "gitignore" | "high-entropy-secret";
+export interface Clock { now(): number; }
+export interface Prng { next(): number; }
+export interface EditOperation {
+  id: string; format: EditFormat; targetFile: string; baseHash: string;
+  searchBlock?: string; replaceBlock?: string; wholeContent?: string;
+  planStepRef: string; verificationTargetRef: string;
+}
+export interface PlanStep {
+  id: string; description: string; dependsOn: string[];
+  riskLabel: "low"|"medium"|"high"; requiredContextPaths: string[];
+  verificationTargetRef: string; status: PlanStatus;
+}
+export interface ContextEntry {
+  path: string; excerptRange: [number, number] | null;
+  reason: string; source: "pin"|"symbol-graph"|"failing-test"|"dependency-path"|"open-editor";
+  freshnessTs: number; contentHash: string; tokenCost: number;
+}
+export interface ContextPack {
+  id: string; entries: ContextEntry[]; totalTokenCost: number; tokenBudget: number;
+}
+```
+how to implement: create `src/types.ts`; define every type above; export all.
+acceptance: `test/types.test.ts` imports each export; asserts `typeof EditOperation !== "undefined"` (smoke). `npm test` green.
+
+---
+
+**`S02` — Virtual clock & seeded PRNG**
+dependsOn: `S01`
+files: `src/clock.ts`, `src/prng.ts`, `test/clock.test.ts`, `test/prng.test.ts`
+interface:
+```typescript
+export class FixedClock implements Clock { constructor(private ts: number) {} now() { return this.ts; } }
+export class SeededPrng implements Prng {
+  constructor(private seed: number) {}
+  next(): number { /* xorshift32 */ }
+}
+```
+how to implement: same xorshift32 approach as in project 21. Test that `SeededPrng(99)` called 3 times returns the same sequence every run.
+acceptance: deterministic sequence asserted.
+
+---
+
+**`S03` — Append-only event log & checkpoints**
+dependsOn: `S01`, `S02`
+files: `src/event-log.ts`, `test/event-log.test.ts`
+interface:
+```typescript
+export type IdeEvent =
+  | { type: "edit-applied"; payload: EditOperation; ts: number }
+  | { type: "edit-rejected"; payload: { opId: string; reason: string }; ts: number }
+  | { type: "user-decision"; payload: { kind: string; data: unknown }; ts: number }
+  | { type: "checkpoint"; payload: { checkpointId: string; workspaceSnapshot: Record<string, string> }; ts: number };
+export class EventLog {
+  constructor(private clock: Clock) {}
+  append(event: Omit<IdeEvent, "ts">): void {}
+  snapshot(checkpointId: string): Record<string, string> | undefined {}  // returns workspace at that checkpoint
+  events(): readonly IdeEvent[] {}
+}
+```
+how to implement:
+1. Store events in a private array; stamp `ts = clock.now()`.
+2. `snapshot(checkpointId)` finds the most recent `checkpoint` event with matching `checkpointId`; returns its `workspaceSnapshot`.
+3. Test: append an edit, then a checkpoint, then another edit. `snapshot(id)` returns the workspace state at the checkpoint (not the later edit).
+acceptance: checkpoint lookup returns the right snapshot; events array is frozen.
+
+---
+
+**`S04` — Content hash utility**
+dependsOn: none
+files: `src/hash.ts`, `test/hash.test.ts`
+interface:
+```typescript
+export function sha256Hex(content: string): string {}
+export function hashWorkspace(files: Record<string, string>): string {}
+// hashWorkspace: sort keys, hash concatenation of "path:hash\n" pairs
+```
+how to implement: use `crypto.createHash("sha256")`. Test that the same string always produces the same hash. Test that two different strings produce different hashes.
+acceptance: deterministic hashes; `npm test` green.
+
+---
+
+**`S05` — Fixture workspace**
+dependsOn: `S04`
+files: `test/fixtures/workspace/src/app.ts`, `test/fixtures/workspace/src/user.ts`, `test/fixtures/workspace/src/db.ts`, `test/fixtures/workspace/src/utils.ts`, `test/fixtures/workspace/src/config.ts`, `test/fixtures/workspace/.env`
+interface: none (fixture files)
+how to implement:
+1. Create 5 TypeScript files forming a minimal layered app (app → user, user → db, db → config, utils standalone). Each file has 20–40 lines.
+2. `app.ts`: imports from `user.ts`, has `function main()`.
+3. `user.ts`: exports `interface User { id: string; email: string; }` and `function getUser(id: string): User`.
+4. `db.ts`: exports `function queryDb(sql: string): unknown[]`.
+5. `config.ts`: exports `const DB_URL = "postgres://localhost/app"`.
+6. `utils.ts`: exports `function formatDate(ts: number): string`.
+7. `.env`: contains `API_KEY=sk-test-abc123` (high-entropy secret for the privacy test).
+acceptance: all 6 files exist; `test/fixtures/workspace/.env` contains `API_KEY=`.
+
+---
+
+**`S06` — Fixture LSP adapter**
+dependsOn: `S01`, `S05`
+files: `src/adapters/lsp-fixture-adapter.ts`, `test/fixtures/lsp/diagnostics.json`, `test/fixtures/lsp/references.json`, `test/fixtures/lsp/rename-workspace-edit.json`
+interface:
+```typescript
+export interface LanguageService {
+  getDiagnostics(file: string, content: string): Promise<Diagnostic[]>;
+  getReferences(file: string, symbol: string): Promise<Reference[]>;
+  getRenameEdit(file: string, symbol: string, newName: string): Promise<WorkspaceEdit>;
+}
+export interface Diagnostic { file: string; line: number; message: string; severity: "error"|"warning"; }
+export interface Reference { file: string; line: number; symbol: string; }
+export interface WorkspaceEdit { changes: Record<string, Array<{range:[number,number,number,number]; newText: string}>>; }
+export class LspFixtureAdapter implements LanguageService {
+  constructor(private fixturesDir: string) {}
+  // reads JSON files; keyed by file+symbol; throws on missing
+}
+```
+how to implement:
+1. Create `test/fixtures/lsp/diagnostics.json`: `{"src/user.ts": [{"line":5,"message":"Type 'string' is not assignable to 'number'","severity":"error"}]}`.
+2. Create `test/fixtures/lsp/references.json`: `{"src/user.ts:getUser": [{"file":"src/app.ts","line":3,"symbol":"getUser"}]}`.
+3. Create `test/fixtures/lsp/rename-workspace-edit.json`: `{"src/user.ts:getUser:getUserById": {"changes":{"src/app.ts":[{"range":[3,0,3,7],"newText":"getUserById"}]}}}`.
+4. Adapter reads and returns the canned data.
+5. Test: `getDiagnostics("src/user.ts", "...")` returns the canned diagnostic.
+acceptance: fixture loads; missing key throws; no network.
+
+---
+
+**`S07` — Tree-sitter symbol graph & personalized PageRank context builder**
+dependsOn: `S04`, `S05`
+files: `src/context/symbol-graph.ts`, `src/context/pagerank.ts`, `test/symbol-graph.test.ts`
+interface:
+```typescript
+export interface SymbolNode { name: string; file: string; startLine: number; endLine: number; }
+export interface SymbolGraph {
+  nodes: SymbolNode[];
+  edges: Array<{from: string; to: string}>; // "file:symbol" → "file:symbol"
+}
+export function buildSymbolGraph(files: Record<string, string>): SymbolGraph {}
+export function personalizedPageRank(
+  graph: SymbolGraph,
+  pinnedFiles: string[],  // 50x weight bias
+  maxNodes: number
+): SymbolNode[] {}
+```
+how to implement:
+1. `buildSymbolGraph`: use tree-sitter to extract all function/class/interface definitions and import relationships.
+2. `personalizedPageRank`: implement a simplified 10-iteration PageRank where pinned-file nodes start with 50× weight; return top `maxNodes` by final rank.
+3. Test: build graph from fixture workspace; pinning `src/app.ts` should rank `getUser` (imported by app) in top 3.
+acceptance: symbol graph has >5 nodes from the fixture workspace; PageRank with `app.ts` pinned returns `getUser` in results.
+
+---
+
+**`S08` — Immutable ContextPack builder**
+dependsOn: `S01`, `S02`, `S04`, `S07`
+files: `src/context/context-builder.ts`, `test/context-builder.test.ts`
+interface:
+```typescript
+export function buildContextPack(opts: {
+  pinnedFiles: string[]; failingTestFiles: string[];
+  workspace: Record<string, string>; symbolGraph: SymbolGraph;
+  tokenBudget: number; clock: Clock;
+}): ContextPack {}
+export function isContextPackStale(pack: ContextPack, currentWorkspace: Record<string, string>): boolean {}
+```
+how to implement:
+1. `buildContextPack`: run `personalizedPageRank`; select top symbols up to `tokenBudget`; for each selected file, create a `ContextEntry` with `contentHash = sha256Hex(workspace[file])`, `reason = "symbol-graph"`, `tokenCost = Math.ceil(content.length / 4)`.
+2. `isContextPackStale`: for each entry, recompute `sha256Hex(currentWorkspace[entry.path])` — if any differs from `entry.contentHash`, return `true`.
+3. Test: build a pack; mutate one workspace file; assert `isContextPackStale` returns `true`.
+4. Test: same workspace, same inputs → identical pack (determinism).
+acceptance: stale detection works; pack is deterministic with same seed.
+
+---
+
+**`S09` — Secret detector & privacy gate**
+dependsOn: `S01`, `S04`
+files: `src/privacy/secret-detector.ts`, `src/privacy/privacy-gate.ts`, `test/privacy-gate.test.ts`
+interface:
+```typescript
+export function detectSecret(content: string): boolean {}
+// Shannon entropy > 4.5 AND length > 20 AND matches /[A-Za-z0-9+/=_\-]{20,}/ → true
+
+export interface PrivacyGateResult { allowed: boolean; reason?: PrivacyBlockReason; }
+export function checkPrivacyGate(
+  filePath: string, content: string,
+  denyGlobs: string[], gitignorePaths: string[]
+): PrivacyGateResult {}
+```
+how to implement:
+1. Shannon entropy: `H = -Σ p(c) * log2(p(c))` over character frequencies. If H > 4.5 and string matches the regex → secret.
+2. `checkPrivacyGate`: deny-glob match (use `minimatch`) → `{allowed:false, reason:"deny-glob"}`; gitignore path → `{allowed:false, reason:"gitignore"}`; secret detected → `{allowed:false, reason:"high-entropy-secret"}`.
+3. Test: `API_KEY=sk-test-abc123` in `.env` → detected as secret.
+4. Test: `const x = "hello"` → not a secret.
+5. Test: a file in `.gitignore` → blocked with `reason:"gitignore"`.
+acceptance: all three test cases pass; `npm test` green.
+
+---
+
+**`S10` — Context pack privacy filter**
+dependsOn: `S08`, `S09`
+files: `src/context/context-privacy-filter.ts`, `test/context-privacy-filter.test.ts`
+interface:
+```typescript
+export interface PrivacyFilterResult {
+  pack: ContextPack; blockedPaths: Array<{path: string; reason: PrivacyBlockReason}>;
+}
+export function applyPrivacyFilter(
+  pack: ContextPack, workspace: Record<string, string>,
+  denyGlobs: string[], gitignorePaths: string[]
+): PrivacyFilterResult {}
+```
+how to implement:
+1. For each entry in `pack.entries`, run `checkPrivacyGate`.
+2. If blocked: remove from pack, add to `blockedPaths`.
+3. The returned pack never contains a forbidden file.
+4. Test: a pack containing `.env` → `.env` removed; `blockedPaths` has one entry with `reason:"high-entropy-secret"`.
+5. Test: a file not matching any deny pattern → included unchanged.
+acceptance: privacy non-leak invariant: `.env` never appears in the filtered pack.
+
+---
+
+**`S11` — Patch engine: SEARCH/REPLACE apply**
+dependsOn: `S01`, `S04`
+files: `src/patch/patch-engine.ts`, `test/patch-engine.test.ts`
+interface:
+```typescript
+export type ApplyResult =
+  | { status: "applied"; newContent: string; newHash: string }
+  | { status: "ambiguous"; reason: string }
+  | { status: "not-found"; reason: string }
+  | { status: "requires-human-review"; reason: string };
+
+export function applySearchReplace(
+  originalContent: string, searchBlock: string, replaceBlock: string
+): ApplyResult {}
+
+export function applyWholeFile(replaceBlock: string): ApplyResult {}
+```
+how to implement:
+1. `applySearchReplace`: find `searchBlock` in `originalContent`. If not found → `"not-found"`. If found more than once → `"ambiguous"`. If found exactly once → replace and return `"applied"`.
+2. `applyWholeFile`: always returns `"applied"` with `newContent = replaceBlock`.
+3. Test: exact match → `"applied"`.
+4. Test: search block not present → `"not-found"`.
+5. Test: search block present twice → `"ambiguous"`.
+acceptance: all three test cases green; ambiguous match NEVER applies to the wrong location.
+
+---
+
+**`S12` — Patch engine: scope containment**
+dependsOn: `S01`, `S11`
+files: `src/patch/scope-guard.ts`, `test/scope-guard.test.ts`
+interface:
+```typescript
+export function assertInScope(filePath: string, approvedPaths: Set<string>): void {
+  // throws Error("out-of-scope write: " + filePath) if not in approvedPaths
+}
+export function applyEditWithScopeCheck(
+  op: EditOperation, approvedPaths: Set<string>,
+  workspace: Record<string, string>
+): ApplyResult {}
+```
+how to implement:
+1. `assertInScope`: if `filePath` not in `approvedPaths` → throw.
+2. `applyEditWithScopeCheck`: call `assertInScope` first, then dispatch to `applySearchReplace` or `applyWholeFile`.
+3. Test: applying to an out-of-scope file throws.
+4. Test: applying to an in-scope file succeeds.
+acceptance: scope containment enforced; out-of-scope attempt throws and leaves workspace unchanged.
+
+---
+
+**`S13` — Patch engine: lint-before-apply (TypeScript syntax check)**
+dependsOn: `S11`
+files: `src/patch/lint-guard.ts`, `test/lint-guard.test.ts`
+interface:
+```typescript
+export function lintTypeScript(content: string): { valid: boolean; errors: string[] } {}
+```
+how to implement:
+1. Use tree-sitter to parse the content; if parsing produces an `ERROR` node at the top level → invalid.
+2. If the content contains an unmatched `{` or `(` — count open/close parens — → invalid.
+3. Test: valid TS function → `{valid: true}`.
+4. Test: `"function foo( {"` (unmatched paren) → `{valid: false}`.
+acceptance: both cases green; syntactically broken edits are rejected before apply.
+
+---
+
+**`S14` — Rollback and checkpoint restore**
+dependsOn: `S03`, `S04`, `S11`, `S12`
+files: `src/patch/rollback.ts`, `test/rollback.test.ts`
+interface:
+```typescript
+export function createCheckpoint(log: EventLog, workspaceSnapshot: Record<string, string>): string {
+  // appends a checkpoint event, returns checkpointId
+}
+export function restoreCheckpoint(
+  log: EventLog, checkpointId: string
+): Record<string, string> | undefined {}
+```
+how to implement:
+1. `createCheckpoint`: generates `checkpointId = sha256Hex(JSON.stringify(workspaceSnapshot))`, appends a `checkpoint` event, returns the id.
+2. `restoreCheckpoint`: finds the checkpoint event in the log; returns the stored workspace snapshot.
+3. Test: apply 2 edits, create checkpoint, apply 2 more, restore → workspace matches the snapshot at the checkpoint.
+4. Test: replaying all events from the checkpoint reproduces the same workspace.
+acceptance: byte-identical restore from checkpoint; replay produces the same result.
+
+---
+
+**`S15` — 3-way conflict model**
+dependsOn: `S01`, `S04`, `S11`
+files: `src/patch/conflict-model.ts`, `test/conflict-model.test.ts`
+interface:
+```typescript
+export type ConflictResult =
+  | { kind: "clean"; mergedContent: string }
+  | { kind: "merge-decision"; decision: MergeDecision };
+export interface MergeDecision {
+  filePath: string; baseContent: string; humanContent: string; agentContent: string;
+  status: MergeDecisionStatus;
+}
+export function threeWayMerge(opts: {
+  filePath: string; baseContent: string; humanContent: string; agentContent: string;
+}): ConflictResult {}
+```
+how to implement:
+1. If `humanContent === baseContent` (human made no change) → `{kind:"clean", mergedContent: agentContent}`.
+2. If `agentContent === baseContent` (agent made no change) → `{kind:"clean", mergedContent: humanContent}`.
+3. If both changed AND the changed ranges overlap (same line numbers modified) → `{kind:"merge-decision"}`.
+4. If both changed AND non-overlapping lines → attempt a simple line-level merge: apply both diffs; if successful → `{kind:"clean"}`, else → `{kind:"merge-decision"}`.
+5. Test: only human changed → clean (agent's version).
+6. Test: only agent changed → clean (agent's version applied).
+7. Test: both changed the same line → `"merge-decision"`.
+acceptance: human change is NEVER lost in any test case; concurrent edit always surfaces `"merge-decision"` when lines overlap.
+
+---
+
+**`S16` — Pre-apply conflict check**
+dependsOn: `S04`, `S11`, `S15`
+files: `src/patch/pre-apply-check.ts`, `test/pre-apply-check.test.ts`
+interface:
+```typescript
+export type PreApplyResult =
+  | { action: "apply"; content: string }
+  | { action: "merge-decision"; decision: MergeDecision }
+  | { action: "reject-stale-base"; reason: string };
+export function preApplyCheck(
+  op: EditOperation, currentContent: string
+): PreApplyResult {}
+```
+how to implement:
+1. Compute `currentHash = sha256Hex(currentContent)`.
+2. If `currentHash === op.baseHash` → proceed to apply (no human edit).
+3. If `currentHash !== op.baseHash` → a human edit occurred; load base content from the checkpoint; call `threeWayMerge`.
+4. Test: base hash matches → `"apply"`.
+5. Test: base hash mismatches (human edit) → `"merge-decision"`.
+acceptance: no-clobber invariant: human edit always triggers `"merge-decision"`, never `"apply"`.
+
+---
+
+**`S17` — Fixture workspace user-edit conflict fixture**
+dependsOn: `S05`, `S16`
+files: `test/fixtures/conflict/user-edit.json`
+interface: none (fixture)
+how to implement:
+1. Create `test/fixtures/conflict/user-edit.json` with: `{baseHash: "<hash_of_app.ts>", humanEdit: "// human was here\n" + <app.ts content>, agentEdit: <app.ts with a refactored function>}`.
+2. The `baseHash` must be the real `sha256Hex` of the fixture `app.ts` content.
+3. Test: load this fixture, call `preApplyCheck` with mismatched hash → `"merge-decision"` returned.
+acceptance: the conflict fixture triggers the no-clobber path every time.
+
+---
+
+**`S18` — Fixture model adapter (recorded trace)**
+dependsOn: `S01`, `S04`, `S08`
+files: `src/adapters/model-fixture-adapter.ts`, `test/fixtures/model-responses.json`, `test/model-fixture-adapter.test.ts`
+interface:
+```typescript
+export interface ModelClient {
+  proposeEdit(contextPack: ContextPack, instruction: string): Promise<string>;
+  // returns candidate patch text (SEARCH/REPLACE or whole-file format)
+}
+export class ModelFixtureAdapter implements ModelClient {
+  constructor(private goldenPath: string) {}
+  // key = sha256Hex(contextPack.id + "|" + instruction)
+  // throws if key missing
+}
+```
+how to implement:
+1. Create `test/fixtures/model-responses.json` with at least 2 entries (one for the refactor task, one for the loop-detection synthesis).
+2. `proposeEdit`: hash `contextPack.id + "|" + instruction`; look up; throw on missing.
+3. Test: valid context pack + instruction → returns canned patch text.
+4. Test: unknown input → throws with the hash in the message.
+acceptance: fixture lookup works; missing key throws; no network.
+
+---
+
+**`S19` — Loop detection & synthesis injection**
+dependsOn: `S01`, `S08`, `S18`
+files: `src/routing/loop-detector.ts`, `test/loop-detector.test.ts`
+interface:
+```typescript
+export class LoopDetector {
+  constructor(private threshold: number) {} // e.g. 3 repetitions
+  record(batchFingerprint: string): void {}
+  isLooping(batchFingerprint: string): boolean {}
+  reset(batchFingerprint: string): void {}
+}
+export function computeBatchFingerprint(requestedPaths: string[]): string {
+  // sort paths, sha256Hex(paths.join(","))
+}
+```
+how to implement:
+1. Track `Map<fingerprint, count>`.
+2. `record`: increment count.
+3. `isLooping`: return `count >= threshold`.
+4. `reset`: set count to 0.
+5. Test: record the same fingerprint 3 times → `isLooping` returns `true`.
+6. Test: record 3 different fingerprints → none are looping.
+7. Test: advancing calls (different paths each time) never trigger loop detection.
+acceptance: loop detected at threshold; distinct requests never false-trigger.
+
+---
+
+**`S20` — Token budget accounting & context redaction**
+dependsOn: `S08`, `S09`
+files: `src/routing/token-budget.ts`, `test/token-budget.test.ts`
+interface:
+```typescript
+export function accountTokens(pack: ContextPack, budget: number): ContextPack {
+  // trim entries from the pack so totalTokenCost <= budget; preserve highest-PageRank entries
+}
+export function redactSecrets(content: string): string {
+  // replace high-entropy substrings matching secret pattern with "[REDACTED]"
+}
+```
+how to implement:
+1. `accountTokens`: sort entries by decreasing `tokenCost` value (proxy for importance); greedily include until budget; return trimmed pack.
+2. `redactSecrets`: find substrings matching `/[A-Za-z0-9+/=_\-]{20,}/g` with entropy > 4.5; replace with `"[REDACTED]"`.
+3. Test: a pack with total cost 2000 trimmed to budget 1000 — assert `totalTokenCost <= 1000`.
+4. Test: `redactSecrets("API_KEY=sk-test-abc123456789xyz")` → contains `"[REDACTED]"`.
+acceptance: budget honored; secret redacted from context.
+
+---
+
+**`S21` — Verification orchestrator (fixture-based)**
+dependsOn: `S01`, `S02`, `S06`
+files: `src/verification/verification-orchestrator.ts`, `test/fixtures/verification-runs.json`, `test/verification-orchestrator.test.ts`
+interface:
+```typescript
+export interface VerificationRun {
+  command: string; cwd: string; status: "passed"|"failed"; durationMs: number;
+  failureSignature: string | null; changedFiles: string[];
+}
+export interface VerificationLog {
+  runs: VerificationRun[]; planStepRef: string; linkedChangedFiles: string[];
+}
+export class VerificationOrchestrator {
+  constructor(private fixturesDir: string, private clock: Clock) {}
+  runChecks(planStepRef: string, changedFiles: string[]): VerificationLog {}
+}
+```
+how to implement:
+1. Create `test/fixtures/verification-runs.json` with canned command results (2 passing, 1 failing).
+2. `runChecks`: look up canned results by command; stamp `durationMs` using clock; link `failureSignature` to `changedFiles`.
+3. Test: a failing run → `VerificationLog` contains a run with `status:"failed"` and the `planStepRef` set.
+4. Test: failure is linked back to the correct `changedFiles`.
+acceptance: verification results are deterministic; failure-to-plan-step linkage works.
+
+---
+
+**`S22` — Plan editor with diagnostic loop update**
+dependsOn: `S01`, `S21`
+files: `src/plan/plan-editor.ts`, `test/plan-editor.test.ts`
+interface:
+```typescript
+export class PlanEditor {
+  constructor(private steps: PlanStep[]) {}
+  getStep(id: string): PlanStep | undefined {}
+  updateStepStatus(id: string, status: PlanStatus): void {}
+  narrowRepair(failedStepId: string, failureSig: string): PlanStep {}
+  // creates a new sub-step linked as repair for the failed step
+  allSteps(): PlanStep[] {}
+}
+```
+how to implement:
+1. `narrowRepair`: creates a new `PlanStep` with `id = failedStepId + "-repair"`, `dependsOn = [failedStepId]`, `description = "Repair: " + failureSig`.
+2. Test: a type error after a patch → `narrowRepair` creates a repair step referencing the failed step.
+3. Test: updating step status to `"done"` is reflected in `allSteps()`.
+acceptance: plan updates reactively to diagnostics; repair step links correctly.
+
+---
+
+**`S23` — Integration test: 5-file refactor task**
+dependsOn: `S03`–`S22`
+files: `test/integration/refactor-task.test.ts`
+interface: none
+how to implement:
+1. Set up: load fixture workspace, fixture LSP, fixture model.
+2. Build a context pack with `src/user.ts` pinned.
+3. Apply privacy filter — `.env` must be excluded.
+4. Create a plan with 2 steps (rename `getUser` → `getUserById` in `user.ts` and `app.ts`).
+5. Propose edit via fixture model → SEARCH/REPLACE patch.
+6. Apply patch with scope check (only `user.ts` and `app.ts` in scope).
+7. Run verification → canned result.
+8. Create a checkpoint.
+9. Assert: context pack has `src/user.ts` and `src/app.ts`; `.env` absent; patch applied; checkpoint exists.
+acceptance: end-to-end refactor completes; privacy gate excludes `.env`; scope gate allows only the two planned files.
+
+---
+
+**`S24` — Integration test: concurrent user edit (no-clobber)**
+dependsOn: `S15`, `S16`, `S17`, `S23`
+files: `test/integration/concurrent-edit.test.ts`
+interface: none
+how to implement:
+1. Load the `user-edit` conflict fixture.
+2. Start a plan step with `baseHash` = hash of original `app.ts`.
+3. Simulate human edit: change `app.ts` content so its hash differs.
+4. Attempt to apply the agent's patch.
+5. Assert: `preApplyCheck` returns `"merge-decision"`.
+6. Assert: the human's bytes are present in `decision.humanContent`.
+7. Assert: the original file is NOT overwritten.
+acceptance: no-clobber invariant holds; human edit is preserved as a merge decision.
+
+---
+
+**`S25` — Integration test: secret-file privacy block**
+dependsOn: `S09`, `S10`, `S23`
+files: `test/integration/secret-file.test.ts`
+interface: none
+how to implement:
+1. Attempt to include `.env` in the context pack.
+2. Run privacy filter.
+3. Assert: `.env` is in `blockedPaths` with `reason: "high-entropy-secret"`.
+4. Assert: the filtered pack contains no entry with `path` ending in `.env`.
+5. Assert: a `PrivacyBlock` event is in the event log.
+acceptance: secret never reaches the model; event log records the block.
+
+---
+
+**`S26` — Integration test: ambiguous patch → requires-human-review**
+dependsOn: `S11`, `S13`, `S23`
+files: `test/integration/ambiguous-patch.test.ts`
+interface: none
+how to implement:
+1. Create a fixture file with the `searchBlock` text appearing twice.
+2. Call `applySearchReplace` with that file and a SEARCH block matching both occurrences.
+3. Assert: result is `"ambiguous"`.
+4. Assert: the original file is UNCHANGED.
+acceptance: ambiguous match never applies; files untouched.
+
+---
+
+**`S27` — Integration test: loop detection → synthesis injection**
+dependsOn: `S19`, `S20`, `S23`
+files: `test/integration/loop-detection.test.ts`
+interface: none
+how to implement:
+1. Set `LoopDetector` threshold to 3.
+2. Simulate the same file-batch request 3 times (same `computeBatchFingerprint` result).
+3. On the 3rd call, `isLooping` returns `true`.
+4. Assert: a synthesis summary is injected instead of the raw batch.
+5. Assert: `record` is called 3 times with the same fingerprint; `isLooping` is `true` on the 3rd.
+acceptance: loop is detected at exactly 3 repetitions; synthesis is injected.
+
+---
+
+**`S28` — Context-pack determinism property test**
+dependsOn: `S08`
+files: `test/property/context-pack-determinism.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random sets of pinned files (subsets of the 5 fixture files) and budgets.
+2. Call `buildContextPack` twice with the same inputs.
+3. Assert the two packs are `JSON.stringify`-equal.
+4. Run with 200 examples.
+acceptance: byte-identical packs for all 200 examples.
+
+---
+
+**`S29` — No-clobber property test**
+dependsOn: `S15`, `S16`
+files: `test/property/no-clobber.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random `{baseContent, humanEdit, agentEdit}` strings where `humanEdit !== baseContent`.
+2. Compute `op.baseHash = sha256Hex(baseContent)`, `currentContent = humanEdit`.
+3. Assert `preApplyCheck` never returns `{action:"apply"}` when `sha256Hex(humanEdit) !== op.baseHash`.
+4. Run with 300 examples.
+acceptance: human edit is never silently overwritten in any fuzz case.
+
+---
+
+**`S30` — Transaction reversibility property test**
+dependsOn: `S03`, `S14`
+files: `test/property/transaction-reversibility.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate sequences of 1–5 edits (random content) and a checkpoint position.
+2. Create checkpoint at position K, apply more edits, then restore.
+3. Assert workspace matches the K-th snapshot byte-identically.
+4. Run with 200 examples.
+acceptance: restore is always byte-identical to the checkpoint snapshot.
+
+---
+
+**`S31` — Scope containment property test**
+dependsOn: `S12`
+files: `test/property/scope-containment.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random `{approvedPaths: string[], attemptedPath: string}` where `attemptedPath` is NOT in `approvedPaths`.
+2. Assert `assertInScope(attemptedPath, approvedPaths)` always throws.
+3. Run with 300 examples.
+acceptance: no out-of-scope write ever succeeds.
+
+---
+
+**`S32` — Privacy non-leak property test**
+dependsOn: `S09`, `S10`
+files: `test/property/privacy-non-leak.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random context packs including `.env` in some entries.
+2. Apply `applyPrivacyFilter` with `.env` in deny-globs.
+3. Assert no entry in the filtered pack has `path` ending in `.env`.
+4. Run with 200 examples.
+acceptance: forbidden files never appear in the filtered pack.
+
+---
+
+**`S33` — Loop-breaking property test**
+dependsOn: `S19`
+files: `test/property/loop-breaking.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random batches. Repeat the same fingerprint exactly `threshold` times, then a different one.
+2. Assert: looping is detected at exactly `threshold`; the different fingerprint is NOT a loop.
+3. Fuzz threshold from 2–5.
+4. Run with 200 examples.
+acceptance: loop detection fires at exact threshold; distinct requests never false-trigger.
+
+---
+
+**`S34` — Stale-context guard property test**
+dependsOn: `S08`
+files: `test/property/stale-context.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: build a context pack; generate a mutation to one workspace file.
+2. Assert `isContextPackStale` returns `true` after the mutation.
+3. Assert `isContextPackStale` returns `false` when no file changes.
+4. Run with 200 examples.
+acceptance: stale reasoning is always detected.
+
+---
+
+**`S35` — Apply-safety property test**
+dependsOn: `S11`
+files: `test/property/apply-safety.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate a SEARCH block that appears 0 or 2+ times in random content.
+2. Assert: 0 occurrences → `"not-found"`. 2+ occurrences → `"ambiguous"`. Original content unchanged.
+3. Run with 200 examples.
+acceptance: ambiguous/missing search blocks never apply.
+
+---
+
+**`S36` — Plan↔edit↔verification traceability test**
+dependsOn: `S21`, `S22`
+files: `test/integration/traceability.test.ts`
+interface: none
+how to implement:
+1. After the refactor integration test: assert every `EditOperation` has a non-empty `planStepRef`.
+2. Assert every `VerificationRun` has a non-empty `planStepRef`.
+3. Assert every failing run's `failureSignature` is linked to a `changedFiles` entry.
+acceptance: no orphaned edits or verification runs.
+
+---
+
+**`S37` — npm test wiring**
+dependsOn: `S01`–`S36`
+files: `package.json`, `vitest.config.ts`, `tsconfig.json`
+how to implement: same as project 21. `npm test` runs `vitest run`; strict TypeScript. `npm test` exits 0.
+acceptance: all tests pass; no skipped tests.
+
+---
+
+**`S38` — Knowledge-debt register**
+dependsOn: `S37`
+files: `KNOWLEDGE_DEBT.md`
+how to implement: list the 6 items from E8 (3-way merge semantics, secret detection FN/FP, LSP capability variance, edit-format model-dependence, artifact privacy, benchmark caveat) with risk level, action gate, and mitigation.
+acceptance: file exists; `npm test` still green.
+
+---
+
+### 3. The decomposition method for the rest
+
+**Recipe** (same pattern as project 21):
+1. Identify the feature; find its new types (card N+0).
+2. Create the fixture file(s) (card N+1).
+3. Implement the pure core function (card N+2).
+4. Write the unit test (card N+3 or merged with N+2).
+5. Add a property test if there is an invariant (card N+4).
+6. Wire into an integration test (card N+5).
+7. State explicit dependsOn for every card.
+
+**Worked example A — Live LSP adapter**
+- `LA01` — Define `TypeScriptLspAdapter implements LanguageService` using `vscode-languageserver` library. dependsOn: `S06`.
+- `LA02` — Ensure `npm test` still uses only the fixture adapter (live adapter exercised by `npm run test:live` only). dependsOn: `LA01`.
+- `LA03` — Test: interface conformance (fixture and live adapter implement identical `LanguageService` shape). dependsOn: `LA02`.
+
+**Worked example B — Unified diff format support**
+- `UD01` — Add `"unified-diff"` to `EditFormat` in `src/types.ts`. dependsOn: `S01`.
+- `UD02` — Implement `applyUnifiedDiff(content: string, patch: string): ApplyResult` in `src/patch/unified-diff-apply.ts`. dependsOn: `UD01`, `S11`.
+- `UD03` — Test with a fixture unified diff that adds 3 lines. dependsOn: `UD02`.
+- `UD04` — Property: an ambiguous unified diff (matches multiple locations) → `"requires-human-review"`. dependsOn: `UD03`.
+
+**Worked example C — Post-patch type-error diagnostic loop**
+- `DE01` — Extend `VerificationOrchestrator` to return LSP diagnostics after apply. dependsOn: `S21`, `S06`.
+- `DE02` — Extend `PlanEditor.narrowRepair` to consume a `Diagnostic` and create a targeted repair step. dependsOn: `S22`, `DE01`.
+- `DE03` — Integration test: introduce a type error via a bad patch → verification returns the diagnostic → `narrowRepair` creates a repair step. dependsOn: `DE02`.
+
+---
+
+### 4. Per-task implementation conventions
+
+**File layout**
+```
+src/
+  types.ts           # all shared types/interfaces
+  clock.ts           # FixedClock
+  prng.ts            # SeededPrng
+  hash.ts            # sha256Hex, hashWorkspace
+  event-log.ts       # EventLog
+  adapters/          # LspFixtureAdapter, ModelFixtureAdapter
+  context/           # symbol-graph, pagerank, context-builder, context-privacy-filter
+  patch/             # patch-engine, scope-guard, lint-guard, rollback, conflict-model, pre-apply-check
+  privacy/           # secret-detector, privacy-gate
+  routing/           # loop-detector, token-budget
+  verification/      # verification-orchestrator
+  plan/              # plan-editor
+test/
+  fixtures/          # workspace/, lsp/, model-responses.json, conflict/, verification-runs.json
+  integration/       # end-to-end tests
+  property/          # fast-check property tests
+  *.test.ts          # unit tests
+```
+
+**Test snippet**
+```typescript
+// test/patch-engine.test.ts
+import { describe, it, expect } from "vitest";
+import { applySearchReplace } from "../src/patch/patch-engine.js";
+
+describe("applySearchReplace", () => {
+  it("returns ambiguous when search block appears twice", () => {
+    const content = "foo\nbar\nfoo\n";
+    const result = applySearchReplace(content, "foo", "baz");
+    expect(result.status).toBe("ambiguous");
+  });
+});
+```
+
+**Definition of done for any card**
+1. `npm test` green.
+2. No `any` types.
+3. No live LSP, model, or network calls in tests.
+4. Every fixture file committed to repo.
+5. Every exported function has an explicit TypeScript return type.
+6. The card has exactly one responsibility.
+
+---
+
+### 5. Common pitfalls for a weak model on THIS project
+
+**Pitfall 1 — Overwriting the human edit (no-clobber violation)**
+A 3B model may implement `applyEditWithScopeCheck` without calling `preApplyCheck` first, directly replacing the file. The `S24` and `S29` tests will catch this.
+Fix: ALWAYS call `preApplyCheck` before any apply. If the base hash mismatches, route to `threeWayMerge`. Never write a file without a hash check.
+
+**Pitfall 2 — Using `Date.now()` for context pack freshness**
+A 3B model may write `freshnessTs: Date.now()` in `buildContextPack`. This makes the stale-context test flaky.
+Fix: pass `clock.now()` everywhere. Grep for `Date.now` before committing.
+
+**Pitfall 3 — Missing the entropy threshold in `detectSecret`**
+A 3B model may implement `detectSecret` with only a regex (no entropy check), causing `const apiUrl = "https://api.example.com/v1/users"` to be treated as a secret.
+Fix: the entropy threshold (4.5) is the load-bearing guard against false positives. Test both high-entropy secrets AND normal strings.
+
+**Pitfall 4 — Applying an ambiguous SEARCH block to the first match**
+A 3B model may implement `applySearchReplace` to apply at the first occurrence when the block matches multiple times. This silently corrupts the file.
+Fix: count occurrences BEFORE replacing. If count > 1 → return `"ambiguous"`. Never apply. The `S26` and `S35` tests enforce this.
+
+**Pitfall 5 — Forgetting `planStepRef` on EditOperation**
+A 3B model may create `EditOperation` objects without setting `planStepRef`, making the traceability test (`S36`) fail.
+Fix: `planStepRef` is required in the `EditOperation` type. Any function that creates an `EditOperation` must accept a `planStepRef` parameter.
+
+**Pitfall 6 — Loop detection keying on content instead of batch fingerprint**
+A 3B model may key loop detection on file content rather than path fingerprint. A file that changes content between turns would then not be recognized as the same loop.
+Fix: `computeBatchFingerprint` keys on sorted path names only, not content. Two requests for `["src/user.ts", "src/app.ts"]` in different orders produce the SAME fingerprint.
+
+**Pitfall 7 — Creating fixture files at test runtime instead of committing them**
+A 3B model may write code that auto-generates `test/fixtures/model-responses.json` on first run by calling an LLM. This breaks CI.
+Fix: all fixture files must be committed to the repo before `npm test` runs. The fixture adapter THROWS (never fetches) on a missing key.

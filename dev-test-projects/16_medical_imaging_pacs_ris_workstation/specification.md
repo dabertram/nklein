@@ -167,3 +167,972 @@ Maintain a live, *action-gating* knowledge-debt ledger (owner / risk / forcing-t
 ## E8. Why this is a great !Klein challenge
 
 It is the most *structurally unforgiving* of the healthcare set: the domain itself punishes hand-waving. A small/quantized model cannot bluff a hierarchy invariant (orphans get rejected), cannot bluff geometry (the anisotropic fixture has one right millimeter answer), cannot bluff a hanging-protocol selection (each modality fixture expects a specific layout), and cannot bluff report immutability (the mutation attempt must be refused). It stresses **deep dependency-ordered decomposition** (geometry and the metadata model must exist before measurements, which must exist before reports), **deterministic numeric correctness under weak models** (patient-coordinate math is exactly where a fallible model needs a property test to keep it honest), **conservative safety defaults** (the merge engine must prefer *block + flag* over a confident wrong guess — the small-model north star), and **immutable, total audit** across a multi-actor radiology workflow. The win condition is a PACS/RIS *core* where every measurement is real-mm, every study is provably on the right patient, every prior hangs by rule, and no finalized report can change — which is precisely the discipline that separates "a medical-imaging app a small model wrote" from "a foundation a radiologist could trust." Build the metadata model + geometry + hanging-protocol + immutable-report seams first; the viewer is projection.
+
+---
+
+## Small-model build guide (3B-ready)
+
+> This section is a mechanical build guide for a ~3B-parameter model running via !Klein. Every card is small enough to implement and verify in isolation. Follow the cards in order; never skip a dependency. The parent section (E6) listed 10 high-level steps; this guide expands the first vertical slice into 18 small cards (R01–R18) and gives repeatable recipes for the remaining breadth.
+
+---
+
+### 1. Glossary & ground rules
+
+**Domain terms**
+
+| Term | Meaning in this project |
+|---|---|
+| Patient entity | Top of the DICOM information hierarchy. Identified by `PatientID (0010,0020)`. |
+| Study entity | A set of images acquired in one session. Identified by `StudyInstanceUID`. Links to one Patient. |
+| Series entity | A set of images in one acquisition sequence within a Study. Identified by `SeriesInstanceUID`. Has a `Modality`. |
+| Instance entity | One image/object (a SOP Instance). Identified by `SOPInstanceUID`. Belongs to one Series. |
+| AccessionNumber | The workflow linking key (`0008,0050`). Ties the order → worklist entry → image tags → report. |
+| Modality | Acquisition type: `CT`, `MR`, `XR` (X-ray), `US` (ultrasound), `PT` (PET), `NM`, etc. |
+| IPP | `ImagePositionPatient (0020,0032)`: 3D mm coordinates of the top-left voxel in patient (LPS) space. |
+| IOP | `ImageOrientationPatient (0020,0037)`: two unit vectors (row direction, column direction) in LPS space. |
+| PixelSpacing | `(0028,0030)`: physical row/column spacing in mm. Two values; may be anisotropic (row ≠ col). |
+| LPS | Left-Posterior-Superior: the standard DICOM patient coordinate system. +X = Left, +Y = Posterior, +Z = Superior. |
+| SOP Class | Defines the type of DICOM object (e.g. CT Image, MR Image, Structured Report). |
+| SOPInstanceUID | Globally unique identifier for one image instance. |
+| Hanging Protocol | A rule that selects which images to display, in what layout, with which priors. |
+| Prior | A previous study used for comparison. Selected by same modality + same body part, most recent. |
+| STAT flag | Priority marker for urgent studies. Must dominate the worklist ranking. |
+| TAT / SLA | Turnaround time / service-level agreement for worklist completion. |
+| CTDIvol | Volume CT Dose Index (mGy): dose metric per CT acquisition, referenced to a 16/32-cm phantom. |
+| DLP | Dose-Length Product (mGy·cm) = CTDIvol × scan length. |
+| SSDE | Size-Specific Dose Estimate: CTDIvol scaled by patient size proxy. |
+| DRL | Diagnostic Reference Level: the population-median reference for CTDIvol/DLP. |
+| RADPEER | ACR peer-review concordance scale: 1 (agree) → 4 (major clinically-significant discrepancy). |
+| AuditEvent | Append-only record of every study access and workflow transition. Never mutated or deleted. |
+| Clock | An injected interface `{ now(): Date }`. All time-dependent logic reads this, never `Date.now()`. |
+| BurnedInAnnotation | DICOM tag `(0028,0301)`: `'YES'` means PHI text is baked into pixel data — cannot de-identify with header-only stripping. |
+
+**Stack**
+
+- Language: TypeScript (strict mode, no `any`).
+- Runtime: Node.js.
+- Test runner: Vitest (or Jest; whatever `npm test` is wired to).
+- No real DICOM binaries in tests. All tests use metadata + tiny numeric fixture matrices.
+- All fixtures live under `src/fixtures/` as plain TypeScript objects.
+- Pixel data loading: `PixelDataLoader` adapter in `src/adapters/pixel-data-loader.ts`. Tests never call it.
+
+**Acceptance command (run after every card)**
+
+```
+npm test
+```
+
+Must exit 0. Zero network calls. No real DICOM binaries. Deterministic on any machine.
+
+**Determinism rules (imperative)**
+
+1. Never call `Date.now()`, `new Date()` (no argument), or `Math.random()` in production modules.
+2. All time reads go through the injected `Clock` interface defined in `src/core/clock.ts`.
+3. All geometry functions are pure: same inputs → same outputs. No floating-point non-determinism issues exist here because tests use exact rational inputs (spacings like `0.5`, `1.2`) with exact expected outputs computed by hand.
+4. For floating-point comparisons use `expect(result).toBeCloseTo(expected, 6)` (6 decimal places).
+5. Audit events are appended to an in-memory array; never update or delete an entry.
+6. Sort collections before asserting contents.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first slice covers E6 steps 1–10. Cards R01–R18 below implement them in strict dependency order.
+
+---
+
+**R01 — Core type definitions**
+dependsOn: none
+files: `src/core/types.ts`
+
+interface (write these exact exports):
+```ts
+export type PatientId = string & { readonly __brand: 'PatientId' };
+export type StudyInstanceUID = string & { readonly __brand: 'StudyInstanceUID' };
+export type SeriesInstanceUID = string & { readonly __brand: 'SeriesInstanceUID' };
+export type SOPInstanceUID = string & { readonly __brand: 'SOPInstanceUID' };
+export type AccessionNumber = string & { readonly __brand: 'AccessionNumber' };
+export type Modality = 'CT' | 'MR' | 'XR' | 'US' | 'PT' | 'NM' | 'SR';
+export type ReportStatus = 'draft' | 'preliminary' | 'final' | 'amended';
+export type WorklistStatus = 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+export type IdentityMergeStatus = 'pending' | 'confirmed' | 'rejected' | 'quarantined';
+export type CriticalResultTier = 'critical' | 'urgent' | 'routine';
+export type CriticalResultStatus = 'notified' | 'acknowledged' | 'escalated';
+export type RadpeerScore = 1 | 2 | 3 | 4;
+
+// LPS coordinate type — always 3D patient-space millimeters
+export type LpsPoint = { x: number; y: number; z: number };
+
+// Pixel index pair (row index i, column index j) — always integers
+export type PixelIndex = { i: number; j: number };
+
+// Image plane attributes (from DICOM Image Plane Module)
+export type ImagePlane = {
+  ipp: LpsPoint;             // ImagePositionPatient: top-left voxel center in mm
+  iop: { rowDir: LpsPoint; colDir: LpsPoint };  // ImageOrientationPatient: two unit vectors
+  pixelSpacing: { rowMm: number; colMm: number }; // row and column spacing in mm
+};
+```
+
+how to implement:
+1. Create `src/core/types.ts`.
+2. Copy the exact definitions above. All UIDs are branded strings.
+3. Export everything at file level, no default exports.
+
+acceptance: `test/types.test.ts` — compile-only; import and assign a literal to each typed variable. `npm test` → green.
+
+---
+
+**R02 — Injected Clock + FixedClock**
+dependsOn: R01
+files: `src/core/clock.ts`, `src/core/fixed-clock.ts`, `test/fixed-clock.test.ts`
+
+interface:
+```ts
+export interface Clock { now(): Date; }
+export class FixedClock implements Clock {
+  constructor(private readonly fixedTime: Date) {}
+  now(): Date { return new Date(this.fixedTime.getTime()); }
+}
+```
+
+acceptance: `new FixedClock(new Date('2025-01-15T08:00:00Z')).now().toISOString() === '2025-01-15T08:00:00.000Z'`. Two calls return equal values, distinct objects. `npm test` → green.
+
+---
+
+**R03 — Append-only AuditLog**
+dependsOn: R01, R02
+files: `src/core/audit-log.ts`, `test/audit-log.test.ts`
+
+interface:
+```ts
+export type AuditActionType = 'study-access' | 'worklist-update' | 'identity-merge' | 'identity-unmerge' |
+  'report-transition' | 'critical-result-notification' | 'critical-result-acknowledged' |
+  'critical-result-escalated' | 'dose-event';
+export type AuditEventRecord = {
+  id: string;
+  actionType: AuditActionType;
+  occurredAt: Date;
+  patientId: PatientId;
+  actorId: string;
+  studyInstanceUID?: StudyInstanceUID;
+  details: Record<string, string>;
+};
+
+export class AuditLog {
+  append(event: Omit<AuditEventRecord, 'id'>): AuditEventRecord;
+  getAll(): readonly AuditEventRecord[];
+  getByPatient(patientId: PatientId): readonly AuditEventRecord[];
+}
+```
+
+how to implement:
+1. Create `src/core/audit-log.ts`. Sequential counter IDs. Never mutate/delete.
+2. Create `test/audit-log.test.ts`.
+
+acceptance:
+- Appending two events → IDs `'1'`, `'2'`.
+- `getByPatient` filters correctly.
+- Returned array is a copy (mutating it does not alter the store).
+Run `npm test` → green.
+
+---
+
+**R04 — DICOM hierarchy domain model**
+dependsOn: R01, R03
+files: `src/core/dicom-model.ts`, `test/dicom-model.test.ts`
+
+interface:
+```ts
+export type DicomPatient = { patientId: PatientId; name: string; birthDate: string; sex?: 'M' | 'F' | 'O' };
+export type DicomStudy = {
+  studyInstanceUID: StudyInstanceUID;
+  patientId: PatientId;
+  accessionNumber: AccessionNumber;
+  studyDate: string;   // YYYYMMDD
+  studyDescription: string;
+  modalities: Modality[];   // all modalities present in this study
+};
+export type DicomSeries = {
+  seriesInstanceUID: SeriesInstanceUID;
+  studyInstanceUID: StudyInstanceUID;
+  modality: Modality;
+  seriesNumber: number;
+  bodyPart: string;
+  seriesDescription: string;
+};
+export type DicomInstance = {
+  sopInstanceUID: SOPInstanceUID;
+  seriesInstanceUID: SeriesInstanceUID;
+  instanceNumber: number;
+  imagePlane?: ImagePlane;    // absent for non-image SOP classes (e.g. SR)
+  burnedInAnnotation: boolean;
+};
+```
+
+how to implement:
+1. Create `src/core/dicom-model.ts` with the four types above.
+2. No logic in this file — just types. The parser (R05) enforces referential integrity.
+3. Create `test/dicom-model.test.ts` — compile-only: instantiate one of each type, assign to typed variables.
+
+acceptance: Compiles with no errors. `npm test` → green.
+
+---
+
+**R05 — DICOM metadata parser (fixture JSON → validated hierarchy)**
+dependsOn: R01, R03, R04
+files: `src/core/dicom-parser.ts`, `src/fixtures/dicom-fixtures.ts`, `test/dicom-parser.test.ts`
+
+interface:
+```ts
+// The fixture JSON shape — mirrors what the adapter would produce from real DICOM headers
+export type DicomFixtureTree = {
+  patient: DicomPatient;
+  studies: {
+    study: DicomStudy;
+    series: {
+      series: DicomSeries;
+      instances: DicomInstance[];
+    }[];
+  }[];
+};
+
+export type ParseResult =
+  | { valid: true; patient: DicomPatient; studies: DicomStudy[]; series: DicomSeries[]; instances: DicomInstance[] }
+  | { valid: false; errors: string[] };
+
+// Parse and validate. Rejects:
+// - any instance whose seriesInstanceUID has no corresponding DicomSeries
+// - any series whose studyInstanceUID has no corresponding DicomStudy
+// - any study whose patientId has no corresponding DicomPatient
+export function parseDicomTree(tree: DicomFixtureTree): ParseResult;
+```
+
+how to implement:
+1. Create `src/core/dicom-parser.ts`.
+2. Flatten the nested structure into arrays. Then do three referential-integrity checks:
+   - Every `DicomInstance.seriesInstanceUID` must appear in the series array.
+   - Every `DicomSeries.studyInstanceUID` must appear in the studies array.
+   - Every `DicomStudy.patientId` must match the fixture patient.
+3. If any check fails, return `{ valid: false, errors: [...] }` listing the offending UIDs.
+4. Create `src/fixtures/dicom-fixtures.ts` with at least:
+   - A valid tree: 1 patient, 2 studies (one CT with 2 series of 3 instances each; one MR with 1 series), with `imagePlane` set on CT instances (anisotropic `pixelSpacing: { rowMm: 0.5, colMm: 1.2 }`).
+   - A malformed tree: one instance with a `seriesInstanceUID` that has no matching series.
+5. Create `test/dicom-parser.test.ts`.
+
+acceptance:
+- Valid fixture → `{ valid: true }` with correct counts (6 CT instances + 1 MR series etc.).
+- Malformed fixture (orphan instance) → `{ valid: false, errors: [... mentions the orphan UID ...] }`.
+- `parseDicomTree` does not throw on malformed input; it returns the error result.
+Run `npm test` → green.
+
+---
+
+**R06 — Patient-coordinate geometry module**
+dependsOn: R01
+files: `src/core/geometry.ts`, `test/geometry.test.ts`
+
+interface:
+```ts
+// Convert pixel index (i, j) to LPS patient-space coordinates in mm.
+// Formula: P = IPP + i * (rowDir * colSpacing) + j * (colDir * rowSpacing)
+// NOTE: DICOM PixelSpacing[0] = rowSpacing (physical distance between rows = column pitch),
+//       PixelSpacing[1] = colSpacing (physical distance between columns = row pitch).
+export function pixelToPatient(pixel: PixelIndex, plane: ImagePlane): LpsPoint;
+
+// Euclidean distance between two LPS points in mm.
+export function lengthMm(a: LpsPoint, b: LpsPoint): number;
+
+// Angle in degrees between two vectors (a→b) and (a→c) in patient space.
+export function angleDeg(a: LpsPoint, b: LpsPoint, c: LpsPoint): number;
+
+// Area of a rectangle defined by two corner points (A and B diagonally opposite),
+// given the image plane (row and column directions define the rectangle sides).
+// Result in mm². Assumes the rectangle sides are aligned with row/col directions.
+export function rectAreaMm2(a: LpsPoint, b: LpsPoint, plane: ImagePlane): number;
+
+// Marker for a measurement made without valid pixel spacing — cannot be compared.
+export type FlaggedMeasurement = { value: null; reason: 'spacing-absent' };
+export type Measurement = { value: number; unit: 'mm' | 'mm2' | 'deg' } | FlaggedMeasurement;
+
+// Compute length, returning FlaggedMeasurement if plane is missing or spacing is zero.
+export function measureLength(a: PixelIndex, b: PixelIndex, plane: ImagePlane | undefined): Measurement;
+```
+
+how to implement:
+1. Create `src/core/geometry.ts`.
+2. `pixelToPatient`:
+   ```
+   P.x = ipp.x + i * (iop.rowDir.x * plane.pixelSpacing.colMm) + j * (iop.colDir.x * plane.pixelSpacing.rowMm)
+   P.y = ipp.y + i * (iop.rowDir.y * plane.pixelSpacing.colMm) + j * (iop.colDir.y * plane.pixelSpacing.rowMm)
+   P.z = ipp.z + i * (iop.rowDir.z * plane.pixelSpacing.colMm) + j * (iop.colDir.z * plane.pixelSpacing.rowMm)
+   ```
+   Note: `i` advances along rows (so multiplied by `colMm` — the spacing between rows = column pitch); `j` advances along columns (so multiplied by `rowMm` — the spacing between columns = row pitch). This follows DICOM convention.
+3. `lengthMm`: `Math.sqrt((b.x-a.x)**2 + (b.y-a.y)**2 + (b.z-a.z)**2)`.
+4. `angleDeg`: compute vectors `u = b - a` and `v = c - a`, use `Math.acos(dot(u,v)/(|u|*|v|)) * 180/Math.PI`.
+5. `rectAreaMm2`: `Math.abs(lengthMm(a, {x:a.x+(b.x-a.x),y:a.y,z:a.z}) * lengthMm(a, {x:a.x,y:a.y+(b.y-a.y),z:a.z}))` — for an axis-aligned rectangle this simplifies; for a general rectangle use the cross-product magnitude. Simpler: `|a.x - b.x| * |a.y - b.y|` only for a perfectly axis-aligned case; use the general approach `lengthMm(a, projectedB) * lengthMm(a, projectedC)` if needed. For this project the fixture keeps it simple: `Math.abs((b.x-a.x) * plane.pixelSpacing.rowMm * (b.y-a.y) * plane.pixelSpacing.colMm)` — override if you compute it differently as long as the acceptance test passes.
+6. `measureLength`: if `!plane || plane.pixelSpacing.rowMm === 0 || plane.pixelSpacing.colMm === 0`, return `{ value: null, reason: 'spacing-absent' }`. Otherwise convert pixels to patient space and return `{ value: lengthMm(...), unit: 'mm' }`.
+7. Create `test/geometry.test.ts`.
+
+acceptance (compute expected values by hand for these fixtures):
+- `pixelToPatient({ i: 0, j: 0 }, isotropicPlane)` returns the IPP exactly (when i=j=0, P = IPP).
+- Isotropic plane (spacing 1.0mm, identity IOP): `pixelToPatient({ i: 3, j: 4 }, ...)`. With identity IOP (rowDir={1,0,0}, colDir={0,1,0}), IPP={0,0,0}: P = {i*colSpacing, j*rowSpacing, 0} = {3, 4, 0}.
+- Anisotropic plane (rowMm=0.5, colMm=1.2, identity IOP, IPP={0,0,0}): `pixelToPatient({ i: 2, j: 3 }, ...)` = {2*1.2, 3*0.5, 0} = {2.4, 1.5, 0}. `lengthMm` of the two points: `Math.sqrt(2.4**2 + 1.5**2)` ≈ 2.833.
+- `measureLength({i:0,j:0}, {i:2,j:3}, anisotropicPlane)` returns `{ value: ~2.833, unit: 'mm' }` (within 0.001).
+- `measureLength({i:0,j:0}, {i:1,j:1}, undefined)` returns `{ value: null, reason: 'spacing-absent' }`.
+- All geometric checks use `toBeCloseTo(expected, 4)` to handle floating-point.
+Run `npm test` → green.
+
+---
+
+**R07 — Worklist item model + prioritization engine**
+dependsOn: R01, R02, R04
+files: `src/core/worklist.ts`, `src/fixtures/worklist-fixtures.ts`, `test/worklist.test.ts`
+
+interface:
+```ts
+export type WorklistItem = {
+  id: string;
+  patientId: PatientId;
+  accessionNumber: AccessionNumber;
+  studyInstanceUID: StudyInstanceUID;
+  modality: Modality;
+  bodyPart: string;
+  subspecialty: string;
+  status: WorklistStatus;
+  statFlag: boolean;         // STAT = highest priority
+  slaDueAt: Date;            // SLA deadline for completion
+  receivedAt: Date;
+  unreadComparisonAvailable: boolean;
+  radiologistAvailable: boolean;
+  site: string;
+};
+
+// Rank worklist items deterministically.
+// Priority rules (highest first):
+//  1. statFlag === true  (STAT always first)
+//  2. slaDueAt <= clock.now() (SLA breached — escalate routine to near-STAT)
+//  3. Earlier receivedAt (older studies first within the same tier)
+// Returns a new sorted array; does not mutate the input.
+export function prioritizeWorklist(items: WorklistItem[], clock: Clock): WorklistItem[];
+```
+
+how to implement:
+1. Create `src/core/worklist.ts`.
+2. `prioritizeWorklist`: sort by (STAT first, then SLA-breached first, then oldest receivedAt first). Use a stable sort. Never mutate the input array.
+3. Create `src/fixtures/worklist-fixtures.ts` with 4+ items: one STAT CT, one routine MR (SLA breached), one routine US (SLA not breached), one routine XR (SLA not breached, newer than US).
+4. Create `test/worklist.test.ts`.
+
+acceptance:
+- The STAT CT item is always first regardless of receivedAt.
+- Among non-STAT items, the SLA-breached MR comes before the non-breached items.
+- Among non-STAT, non-breached items, the older (earlier receivedAt) US comes before the newer XR.
+- Calling `prioritizeWorklist` twice with the same inputs returns arrays with the same order (deterministic).
+Run `npm test` → green.
+
+---
+
+**R08 — Hanging protocol engine**
+dependsOn: R01, R04, R07
+files: `src/core/hanging-protocol.ts`, `src/fixtures/hanging-protocol-fixtures.ts`, `test/hanging-protocol.test.ts`
+
+interface:
+```ts
+export type HangingProtocolDef = {
+  id: string;
+  modality: Modality;
+  bodyPart: string;        // '*' means any body part
+  layout: { rows: number; cols: number };
+  displaySets: { label: string; seriesFilter: (s: DicomSeries) => boolean }[];
+  priorSelectionStrategy: 'most-recent-same-modality-same-body-part' | 'none';
+  syncGroups: { type: 'scroll' | 'window' | 'zoom'; displaySetLabels: string[] }[];
+  windowPreset?: { center: number; width: number };
+};
+
+export type HangingProtocolResult =
+  | { matched: true; protocol: HangingProtocolDef; selectedPrior: DicomStudy | null; missingPrior: boolean }
+  | { matched: false; reason: string };
+
+// Select the best hanging protocol for a given study + available priors.
+// If the protocol wants a prior but none is available: return matched:true, missingPrior:true, selectedPrior:null.
+// If no protocol matches: return matched:false.
+export function selectHangingProtocol(
+  study: DicomStudy,
+  availablePriors: DicomStudy[],
+  protocols: HangingProtocolDef[]
+): HangingProtocolResult;
+```
+
+how to implement:
+1. Create `src/core/hanging-protocol.ts`.
+2. `selectHangingProtocol`:
+   - Find protocols where `protocol.modality === study.modalities[0]` and (`protocol.bodyPart === '*'` or `protocol.bodyPart === study.series[0]?.bodyPart` — use the study's series list for body part).
+   - If none found → `{ matched: false, reason: 'no protocol for modality/body-part' }`.
+   - Select the most specific match (body-part-specific beats `'*'`).
+   - If `priorSelectionStrategy === 'most-recent-same-modality-same-body-part'`: filter `availablePriors` by same modality + same body part; sort by `studyDate` descending; take the first. If none: `missingPrior: true`, `selectedPrior: null`.
+3. Create `src/fixtures/hanging-protocol-fixtures.ts` with 4 protocol definitions: CT chest, MR brain, XR chest, US abdomen.
+4. Create `test/hanging-protocol.test.ts` using the fixture protocols and fixture studies.
+
+acceptance (four modality fixtures):
+- A CT chest study with one available CT chest prior → `matched: true`, `selectedPrior !== null`, `missingPrior: false`.
+- A CT chest study with no available priors → `matched: true`, `selectedPrior: null`, `missingPrior: true`.
+- An MR brain study → selects the MR brain protocol (layout, sync groups).
+- An XR hand study (no specific protocol) → falls back to XR `bodyPart: '*'` if one exists, or `matched: false` if not.
+- A cross-modality mismatch: passing CT study to selectHangingProtocol with only an MR brain protocol → `matched: false`.
+Run `npm test` → green.
+
+---
+
+**R09 — Identity reconciliation + conservative merge**
+dependsOn: R01, R03, R04
+files: `src/core/identity-reconciliation.ts`, `src/fixtures/identity-fixtures.ts`, `test/identity-reconciliation.test.ts`
+
+interface:
+```ts
+export type DemographicRecord = { patientId: PatientId; name: string; birthDate: string; sex?: string };
+export type MergeEvidence = { field: string; sourceValue: string; targetValue: string; match: boolean };
+export type MergeProposal = {
+  id: string;
+  sourcePatientId: PatientId;
+  targetPatientId: PatientId;
+  evidence: MergeEvidence[];
+  matchScore: number;        // 0.0–1.0: fraction of compared fields that match
+  status: IdentityMergeStatus;
+  authorizedBy?: string;
+  mergedAt?: Date;
+  reversedAt?: Date;
+};
+
+// Compute evidence by comparing demographics field-by-field.
+// Threshold: matchScore < 0.8 → status: 'quarantined'; matchScore >= 0.8 but any critical field (name/birthDate) mismatches → still 'quarantined'.
+// Status 'pending' means proposed but not yet authorized.
+// Never auto-confirm; only the explicit `confirmMerge` call may set status to 'confirmed'.
+export function proposeMerge(source: DemographicRecord, target: DemographicRecord): MergeProposal;
+
+// Confirm a 'pending' or 'quarantined' proposal. Requires authorizedBy.
+// Returns a new proposal with status 'confirmed', mergedAt: clock.now(). Appends an AuditEvent.
+export function confirmMerge(proposal: MergeProposal, authorizedBy: string, clock: Clock, auditLog: AuditLog): MergeProposal;
+
+// Reverse a 'confirmed' merge. Returns a new proposal with status 'rejected', reversedAt: clock.now(). Appends an AuditEvent.
+export function reverseMerge(proposal: MergeProposal, authorizedBy: string, clock: Clock, auditLog: AuditLog): MergeProposal;
+```
+
+how to implement:
+1. Create `src/core/identity-reconciliation.ts`.
+2. `proposeMerge`: compare `name` (case-insensitive), `birthDate` (exact), `sex` (if both present). Compute `matchScore = matchingFields / totalComparedFields`. If `matchScore < 0.8` OR name mismatches OR birthDate mismatches → `status: 'quarantined'`. Else `status: 'pending'`. Never `'confirmed'` from `proposeMerge`.
+3. `confirmMerge`: throw if `proposal.status` is not `'pending'` or `'quarantined'`; return new proposal with `status: 'confirmed'`, `mergedAt: clock.now()`; append AuditEvent `'identity-merge'`.
+4. `reverseMerge`: throw if `proposal.status !== 'confirmed'`; return new proposal with `status: 'rejected'`, `reversedAt: clock.now()`; append AuditEvent `'identity-unmerge'`.
+5. Create `src/fixtures/identity-fixtures.ts` with: (a) two patients with identical demographics (should → `pending`); (b) two patients with one-character name difference ("John Smith" vs. "John Smyth") and same DOB (should → `quarantined`); (c) a "John Doe / Unknown" trauma patient and a real patient (should → `quarantined`).
+6. Create `test/identity-reconciliation.test.ts`.
+
+acceptance:
+- Exact match demographics → `proposeMerge` returns `status: 'pending'`, `matchScore === 1.0`.
+- One-character name mismatch → `status: 'quarantined'`.
+- `confirmMerge` on a `quarantined` proposal → succeeds (status `'confirmed'`) with an AuditEvent.
+- `confirmMerge` on an already-`'confirmed'` proposal → throws.
+- `reverseMerge` on `'confirmed'` → status `'rejected'`, second AuditEvent appended.
+- Auto-confirm never happens: `proposeMerge` never returns `'confirmed'` regardless of inputs.
+Run `npm test` → green.
+
+---
+
+**R10 — Report lifecycle (draft → preliminary → final → addendum)**
+dependsOn: R01, R02, R03
+files: `src/core/report-lifecycle.ts`, `test/report-lifecycle.test.ts`
+
+interface:
+```ts
+export type RadiologyReport = {
+  id: string;
+  studyInstanceUID: StudyInstanceUID;
+  patientId: PatientId;
+  status: ReportStatus;
+  radiologistId: string;
+  createdAt: Date;
+  finalizedAt?: Date;
+  content: string;   // report text
+  versionId: string;
+  addenda: ReportAddendum[];
+};
+export type ReportAddendum = {
+  id: string;
+  parentVersionId: string;
+  authorId: string;
+  reason: string;
+  addedAt: Date;
+  content: string;
+};
+
+// Transition draft → preliminary. Throws if not draft.
+export function submitPreliminary(report: RadiologyReport, clock: Clock, auditLog: AuditLog): RadiologyReport;
+
+// Transition preliminary → final. Throws if not preliminary.
+export function finalizeReport(report: RadiologyReport, clock: Clock, auditLog: AuditLog): RadiologyReport;
+
+// Add an addendum to a final report. Throws if not final.
+// Returns a new report with addendum appended. Original unchanged.
+export function addAddendum(report: RadiologyReport, authorId: string, reason: string, content: string, clock: Clock, auditLog: AuditLog): RadiologyReport;
+
+// Attempt direct in-place edit of a final report. MUST THROW with message 'final reports are immutable'.
+export function attemptDirectEdit(report: RadiologyReport, newContent: string): never;
+```
+
+how to implement:
+1. Create `src/core/report-lifecycle.ts`.
+2. Each transition: check current status, throw on invalid transition, return a new object (never mutate), append AuditEvent `'report-transition'` with `details: { from, to }`.
+3. `addAddendum`: if `report.status !== 'final'` throw; else return `{ ...report, addenda: [...report.addenda, newAddendum] }`.
+4. `attemptDirectEdit`: always throws `Error('final reports are immutable')`.
+5. Create `test/report-lifecycle.test.ts`.
+
+acceptance:
+- `draft → preliminary → final`: each step succeeds, returns new object with updated status; each step appends one AuditEvent.
+- Calling `finalizeReport` on a draft report (skipping preliminary) throws.
+- After finalization, `addAddendum` succeeds and the original report object has `addenda.length === 0`.
+- `attemptDirectEdit` always throws `'final reports are immutable'`.
+- After K addenda, the finalized content (`report.content`) is unchanged (reconstruct the original by accessing the base report's `content`).
+Run `npm test` → green.
+
+---
+
+**R11 — Critical-result notification state machine**
+dependsOn: R01, R02, R03, R10
+files: `src/core/critical-result.ts`, `test/critical-result.test.ts`
+
+interface:
+```ts
+export type CriticalResult = {
+  id: string;
+  reportId: string;
+  studyInstanceUID: StudyInstanceUID;
+  patientId: PatientId;
+  tier: CriticalResultTier;
+  status: CriticalResultStatus;
+  notifiedAt: Date;
+  acknowledgedAt?: Date;
+  escalatedAt?: Date;
+  slaDueAt: Date;   // notifiedAt + tier SLA: critical=1h, urgent=4h, routine=24h
+};
+
+export const CRITICAL_RESULT_SLA_MS: Record<CriticalResultTier, number> = {
+  critical: 60 * 60 * 1000,        // 1 hour
+  urgent: 4 * 60 * 60 * 1000,      // 4 hours
+  routine: 24 * 60 * 60 * 1000,    // 24 hours
+};
+
+// Create a new CriticalResult. Appends an AuditEvent.
+export function notifyCriticalResult(reportId: string, studyUID: StudyInstanceUID, patientId: PatientId, tier: CriticalResultTier, notifiedBy: string, clock: Clock, auditLog: AuditLog): CriticalResult;
+
+// Acknowledge. Throws if already acknowledged. Returns new CriticalResult. Appends AuditEvent.
+export function acknowledgeCriticalResult(result: CriticalResult, acknowledgedBy: string, clock: Clock, auditLog: AuditLog): CriticalResult;
+
+// Check escalation: if status !== 'acknowledged' AND clock.now() > slaDueAt → return escalated. Appends AuditEvent.
+export function checkEscalation(result: CriticalResult, clock: Clock, auditLog: AuditLog): CriticalResult;
+```
+
+how to implement:
+1. Create `src/core/critical-result.ts` with the constant and three functions.
+2. `notifyCriticalResult`: compute `slaDueAt = new Date(clock.now().getTime() + CRITICAL_RESULT_SLA_MS[tier])`. Append `'critical-result-notification'` AuditEvent.
+3. `acknowledgeCriticalResult`: throw if `result.status !== 'notified'`; return new result with `status: 'acknowledged'`, `acknowledgedAt: clock.now()`. Append `'critical-result-acknowledged'`.
+4. `checkEscalation`: if `result.status !== 'acknowledged'` AND `clock.now() > result.slaDueAt` → return new result with `status: 'escalated'`, `escalatedAt: clock.now()`; append `'critical-result-escalated'`. Otherwise return the result unchanged.
+5. Create `test/critical-result.test.ts`.
+
+acceptance:
+- `critical` tier: `slaDueAt` is exactly 1 hour after `notifiedAt`.
+- `checkEscalation` on a `notified` result with clock 61 minutes after notification → `status: 'escalated'`, AuditEvent appended.
+- `checkEscalation` on an `acknowledged` result (any time) → no escalation, status unchanged.
+- `acknowledgeCriticalResult` on an already-acknowledged result throws.
+Run `npm test` → green.
+
+---
+
+**R12 — Dose & quality tracker**
+dependsOn: R01, R03, R04
+files: `src/core/dose-tracker.ts`, `src/fixtures/dose-fixtures.ts`, `test/dose-tracker.test.ts`
+
+interface:
+```ts
+export type CtDoseEvent = {
+  id: string;
+  studyInstanceUID: StudyInstanceUID;
+  patientId: PatientId;
+  modality: 'CT';
+  ctdiVol: number;     // mGy, measured
+  dlp: number;         // mGy·cm = ctdiVol × scanLengthCm
+  ssde?: number;       // optional: CTDIvol × size-scaling factor (placeholder)
+  drlCtdiVol: number;  // Diagnostic Reference Level for this protocol
+  drlDlp: number;
+  exceedsDrl: boolean; // ctdiVol > drlCtdiVol OR dlp > drlDlp
+  flags: DoseQualityFlag[];
+};
+export type DoseQualityFlag = 'repeated-study' | 'missing-metadata' | 'rejected-image' | 'burned-in-phi' | 'protocol-deviation';
+
+// Evaluate a CT acquisition for dose/quality flags.
+export function evaluateDoseEvent(
+  studyUID: StudyInstanceUID,
+  patientId: PatientId,
+  ctdiVol: number,
+  dlp: number,
+  drlCtdiVol: number,
+  drlDlp: number,
+  burnedInAnnotation: boolean,
+  missingMetadata: boolean,
+  rejectedImages: number,
+  auditLog: AuditLog,
+  clock: Clock
+): CtDoseEvent;
+```
+
+how to implement:
+1. Create `src/core/dose-tracker.ts`.
+2. `evaluateDoseEvent`:
+   - `exceedsDrl = ctdiVol > drlCtdiVol || dlp > drlDlp`.
+   - Collect `flags`: if `burnedInAnnotation` → `'burned-in-phi'`; if `missingMetadata` → `'missing-metadata'`; if `rejectedImages > 0` → `'rejected-image'`.
+   - Append AuditEvent `'dose-event'`.
+3. Create `src/fixtures/dose-fixtures.ts` with one normal CT dose (within DRL) and one over-DRL CT dose.
+4. Create `test/dose-tracker.test.ts`.
+
+acceptance:
+- Over-DRL fixture: `exceedsDrl === true`.
+- Within-DRL fixture: `exceedsDrl === false`.
+- `burnedInAnnotation: true` → `flags` includes `'burned-in-phi'`.
+- Each call appends exactly one AuditEvent.
+Run `npm test` → green.
+
+---
+
+**R13 — De-identification export adapter (fixture-only)**
+dependsOn: R01, R04
+files: `src/adapters/deidentification-adapter.ts`, `test/deidentification.test.ts`
+
+interface:
+```ts
+// The 18 HIPAA Safe Harbor identifiers relevant to DICOM headers:
+export const HIPAA_18_TAGS_TO_STRIP = [
+  'patientName', 'patientBirthDate', 'patientAddress', 'patientPhoneNumber',
+  'patientId', 'accessionNumber', 'studyDate',     // date: retain year only → 'YYYY0101'
+  'studyDescription',  // may contain patient name
+  // (list the remaining as comment placeholders; these 8 cover the test cases)
+];
+
+export type DeidentifiedStudy = Omit<DicomStudy, 'patientId' | 'accessionNumber' | 'studyDescription'> & {
+  pseudoId: string;           // random-looking but deterministic within a batch
+  studyYearOnly: string;      // YYYY0101 from studyDate
+  deidentified: true;
+};
+
+// Returns a deidentified study if safe to export (burnedInAnnotation === false on all instances).
+// Returns null + reason if any instance has burnedInAnnotation === true.
+export type DeidentResult =
+  | { safe: true; study: DeidentifiedStudy }
+  | { safe: false; reason: 'burned-in-phi'; studyInstanceUID: StudyInstanceUID };
+
+export function deidentifyStudy(
+  study: DicomStudy,
+  instances: DicomInstance[],
+  batchIndex: number   // used for deterministic pseudo-id generation
+): DeidentResult;
+```
+
+how to implement:
+1. Create `src/adapters/deidentification-adapter.ts`.
+2. Check `instances.some(i => i.burnedInAnnotation)` → if true return `{ safe: false, reason: 'burned-in-phi', studyInstanceUID: study.studyInstanceUID }`.
+3. Build `DeidentifiedStudy`: strip the listed fields, retain modalities, set `studyYearOnly: study.studyDate.slice(0, 4) + '0101'`, set `pseudoId: 'DEID-' + batchIndex.toString().padStart(4, '0')`, set `deidentified: true`.
+4. Create `test/deidentification.test.ts`.
+
+acceptance:
+- A study with no burned-in instances → `{ safe: true }`, `deidentified: true`, `pseudoId` set, `studyDate` not present.
+- A study with one burned-in instance → `{ safe: false, reason: 'burned-in-phi' }`.
+- `deidentifiedStudy.patientId` does not exist (field stripped).
+Run `npm test` → green.
+
+---
+
+**R14 — RADPEER discrepancy review**
+dependsOn: R01, R10
+files: `src/core/discrepancy-review.ts`, `test/discrepancy-review.test.ts`
+
+interface:
+```ts
+// RADPEER 4-point concordance scale:
+// 1 = agree / minor variant, clinically insignificant
+// 2 = disagree, but not expected to affect management
+// 3 = disagree, and may have affected management
+// 4 = disagree, and likely affected management (clinically significant discrepancy)
+export type DiscrepancyReview = {
+  id: string;
+  reportId: string;
+  reviewerId: string;
+  radpeerScore: RadpeerScore;
+  comment: string;
+  reviewedAt: Date;
+};
+
+export function submitDiscrepancyReview(
+  reportId: string,
+  reviewerId: string,
+  radpeerScore: RadpeerScore,
+  comment: string,
+  clock: Clock,
+  auditLog: AuditLog
+): DiscrepancyReview;
+```
+
+how to implement:
+1. Create `src/core/discrepancy-review.ts`.
+2. `submitDiscrepancyReview`: create the record, append `'report-transition'` AuditEvent with `details: { radpeerScore: String(radpeerScore) }`, return the record.
+3. Create `test/discrepancy-review.test.ts`.
+
+acceptance:
+- A score-4 review is created with the correct `radpeerScore` and timestamp from the clock.
+- Exactly one AuditEvent is appended per call.
+Run `npm test` → green.
+
+---
+
+**R15 — Seeded imaging-day fixture**
+dependsOn: R01 through R14
+files: `src/fixtures/imaging-day.ts`, `test/imaging-day.test.ts`
+
+interface:
+```ts
+export const IMAGING_DAY: {
+  patients: DicomPatient[];
+  studies: DicomStudy[];
+  series: DicomSeries[];
+  instances: DicomInstance[];     // at least one with burnedInAnnotation: true
+  worklistItems: WorklistItem[];  // includes one STAT item
+  mergeProposals: { source: DemographicRecord; target: DemographicRecord }[];  // one ambiguous pair
+};
+```
+
+how to implement:
+1. Create `src/fixtures/imaging-day.ts` covering all E4 adversarial scenarios:
+   - CT study with anisotropic pixelSpacing `{ rowMm: 0.5, colMm: 1.2 }` (for the anisotropic-measurement-trap test).
+   - MR brain study with a prior MR brain study (for the missing-prior test: a second CT chest study with no prior).
+   - An XR study.
+   - A US study.
+   - One instance with `burnedInAnnotation: true`.
+   - One STAT worklist item.
+   - Two demographic records with a one-character name difference (the wrong-patient merge risk).
+2. Create `test/imaging-day.test.ts`.
+
+acceptance:
+- `IMAGING_DAY` type-checks.
+- At least one instance has `burnedInAnnotation: true`.
+- At least one worklist item has `statFlag: true`.
+- At least two studies have different modalities.
+Run `npm test` → green.
+
+---
+
+**R16 — Adversarial scenario integration tests (E4)**
+dependsOn: R01 through R15
+files: `test/adversarial.test.ts`
+
+interface: No new production code. Integration test.
+
+how to implement: Create `test/adversarial.test.ts` and test each E4 scenario:
+
+1. **Anisotropic measurement trap**: use the CT instance with `pixelSpacing: { rowMm: 0.5, colMm: 1.2 }`. Measure between `{ i:0, j:0 }` and `{ i:2, j:3 }`. Expected patient-mm Euclidean distance (by hand: P_a={0,0,0}, P_b={2*1.2, 3*0.5, 0}={2.4,1.5,0}, distance=√(2.4²+1.5²)=√(5.76+2.25)=√8.01≈2.832). Assert `measureLength` returns `value ≈ 2.832` (within 0.001). Assert that pixel-counting (i=2,j=3, spacing=1.0 → 3.606) is wrong — the test checks the correct formula, not the pixel-count shortcut.
+
+2. **Wrong-patient merge risk**: use `IMAGING_DAY.mergeProposals[0]` (name mismatch). Assert `proposeMerge` returns `status: 'quarantined'`.
+
+3. **Missing prior**: use the CT chest study from `IMAGING_DAY` that has no prior CT chest. `selectHangingProtocol` with only an MR prior available → `missingPrior: true`, `selectedPrior: null`.
+
+4. **Finalized-report mutation attempt**: create a report, transition to final, call `attemptDirectEdit` → throws `'final reports are immutable'`.
+
+5. **Unacknowledged critical result**: notify a `'critical'` result, advance clock by 2 hours, call `checkEscalation` → `status: 'escalated'`. Notify the same tier, acknowledge it, advance clock by 2 hours, call `checkEscalation` → status still `'acknowledged'`.
+
+6. **Burned-in-PHI export**: call `deidentifyStudy` with one burned-in instance → `safe: false`.
+
+7. **STAT jumps the queue**: `prioritizeWorklist([routine-older, stat-newer, routine-sla-breached, ...], clock)` → STAT item is at index 0 regardless of receivedAt.
+
+8. **Orphan instance rejected**: construct a `DicomFixtureTree` with an instance whose `seriesInstanceUID` is not in the series list → `parseDicomTree` returns `valid: false`.
+
+acceptance: All 8 scenario assertions pass. `npm test` → green.
+
+---
+
+**R17 — Property-based invariant tests (E5)**
+dependsOn: R01 through R16
+files: `test/invariants.test.ts`
+
+interface: No new production code. Property tests.
+
+how to implement: Create `test/invariants.test.ts` and test E5 invariants:
+
+1. **Hierarchy referential integrity (fuzz)**: generate 10 trees with randomly dropped series entries (using a seeded RNG — simple LCG, seed=42). Assert `parseDicomTree` returns `valid: false` for all of them.
+
+2. **Geometry correctness**: for 5 pairs of `{rowMm, colMm}` spacings — `(1,1)`, `(0.5,0.5)`, `(0.5,1.2)`, `(2,0.5)`, `(0.9,0.7)` — and identity IOP, compute `pixelToPatient({i:3,j:4}, plane)` and assert against the analytic value `{3*colMm, 4*rowMm, 0}` (within 1e-6). Assert `measureLength` gives the same result as the closed-form Euclidean distance.
+
+3. **Report immutability**: for a finalized report with 3 addenda, assert the base `report.content` is character-for-character identical to the content before finalization. Assert `addenda.length === 3`.
+
+4. **Merge reversibility**: propose + confirm + reverse a merge. Assert the final status is `'rejected'`, `reversedAt` is set, and the AuditLog has exactly 2 events (one merge, one unmerge).
+
+5. **Critical-result closed-loop**: create 5 results at different tiers; advance clock past each SLA; assert every unacknowledged one escalates; acknowledge 2 of them before the clock advances — assert those 2 do not escalate.
+
+6. **Audit totality**: run all adversarial scenarios from R16 in sequence with a single `AuditLog` instance. Assert `auditLog.getAll().length > 0` and every event has a non-empty `patientId`.
+
+acceptance: All invariant assertions pass. `npm test` → green.
+
+---
+
+**R18 — Full flagship integration test**
+dependsOn: R01 through R17
+files: `test/integration.test.ts`
+
+interface: No new production code.
+
+how to implement: Create `test/integration.test.ts` and run the E3 "flagship test":
+
+1. Parse `IMAGING_DAY` through `parseDicomTree` → assert `valid: true`.
+2. `prioritizeWorklist(IMAGING_DAY.worklistItems, clock)` → assert STAT item is first.
+3. For each study in `IMAGING_DAY`, call `selectHangingProtocol` → assert each returns a valid `HangingProtocolResult` (no unhandled crash).
+4. Compute `measureLength` on the anisotropic CT instance → assert correct mm value.
+5. The ambiguous merge proposal from `IMAGING_DAY.mergeProposals[0]` → `proposeMerge` returns `'quarantined'`; manually confirm → status `'confirmed'`; reverse → status `'rejected'`.
+6. Create a preliminary CT report → finalize → add one addendum → assert original content unchanged and `addenda.length === 1`.
+7. Notify a `'critical'` result → advance clock past SLA → `checkEscalation` → assert `'escalated'`.
+8. Deidentify a study with the burned-in instance → assert `safe: false`.
+9. Assert `auditLog.getAll()` has at least one entry per major workflow step (study parse does not create audit events, but merge/report/critical-result do).
+10. Assert zero network calls (the test runs with no network — there are none to check, but the reader should note: if any import tries to fetch, Vitest will error on the network call).
+
+acceptance: All 10 steps pass. `npm test` → green.
+
+---
+
+### 3. Decomposition method for the rest of the spec
+
+After the first slice (R01–R18) passes, expand remaining breadth using this recipe:
+
+**Recipe: one feature cluster = one dependency group of 2–4 small cards**
+
+For each remaining feature:
+1. **Types extension card**: add new types to `src/core/types.ts` or a new `src/core/<feature>-types.ts`.
+2. **Pure-logic card**: one module in `src/core/`, no I/O.
+3. **Fixture card**: add fixture data to `src/fixtures/`.
+4. **Acceptance card**: `test/<feature>.test.ts` with the three most load-bearing assertions.
+
+**Worked example A — HL7 v2 ORM order intake adapter**
+
+Break into 3 cards:
+- `R19` — `OrmOrder` type: `{ messageType: 'ORM^O01'; patientId: string; accessionNumber: string; modality: string; scheduledDate: string; priority: 'STAT' | 'ROUTINE' }`. dependsOn: R01. files: `src/core/hl7-types.ts`. Acceptance: type-checks.
+- `R20` — `parseOrmToWorklistItem(msg: OrmOrder): WorklistItem`. dependsOn: R07, R19. files: `src/adapters/hl7-order-adapter.ts`. Maps `priority: 'STAT'` → `statFlag: true`, computes `slaDueAt` from scheduledDate + 4h for STAT / 24h for routine. Acceptance: STAT ORM → `statFlag: true`, `slaDueAt` is 4h after scheduled; ROUTINE ORM → `statFlag: false`.
+- `R21` — Fixture canned ORM messages + adapter smoke test. dependsOn: R20. files: `src/fixtures/hl7-fixtures.ts`, `test/hl7-order.test.ts`. Acceptance: one STAT and one ROUTINE ORM each produce the correct `WorklistItem`.
+
+**Worked example B — Measurement timepoint comparison**
+
+Break into 2 cards:
+- `R22` — `compareTimepoints(measurementA: Measurement, studyA: DicomStudy, measurementB: Measurement, studyB: DicomStudy): { delta: number | null; unit: 'mm'; studyADate: string; studyBDate: string; spacingMismatch: boolean }`. If either measurement is `FlaggedMeasurement` (value null) or both spacing values differ by > 10% → set `spacingMismatch: true`, `delta: null`. Otherwise `delta = measurementB.value - measurementA.value`. dependsOn: R06. files: `src/core/timepoint-comparison.ts`. Acceptance: two valid measurements → correct delta; one flagged → `delta: null`.
+- `R23` — Fixture: a lesion measured at 12mm on the prior MR brain and 15mm on the current MR brain (using the fixture planes with known spacing). `compareTimepoints` → `delta === 3` (within 0.001). dependsOn: R22, R15. files: `test/timepoint-comparison.test.ts`. Acceptance: delta is 3.0 (±0.001).
+
+**Worked example C — Worklist SLA tracking over time**
+
+Break into 2 cards:
+- `R24` — Extend `WorklistItem` with `completedAt?: Date`. Add `completeWorklistItem(item, clock, auditLog) → WorklistItem` that sets `status: 'completed'`, `completedAt: clock.now()`. Append `'worklist-update'` AuditEvent. dependsOn: R07. files: `src/core/worklist.ts` (edit). Acceptance: calling complete sets `status === 'completed'` and appends AuditEvent.
+- `R25` — Property test: for a fixed set of 10 items at various `slaDueAt` offsets from the clock, assert that after prioritization all SLA-breached items (non-STAT) precede all non-breached non-STAT items. dependsOn: R07, R24. files: `test/worklist-sla.test.ts`. Acceptance: verified for 10 generated cases.
+
+---
+
+### 4. Per-task implementation conventions
+
+**File/folder layout**
+
+```
+src/
+  core/             # pure domain logic — no I/O, no binaries
+    types.ts        # R01: all shared type definitions
+    clock.ts        # R02
+    fixed-clock.ts
+    audit-log.ts    # R03
+    dicom-model.ts  # R04
+    dicom-parser.ts # R05
+    geometry.ts     # R06
+    worklist.ts     # R07
+    hanging-protocol.ts  # R08
+    identity-reconciliation.ts  # R09
+    report-lifecycle.ts  # R10
+    critical-result.ts  # R11
+    dose-tracker.ts # R12
+    discrepancy-review.ts  # R14
+  adapters/         # named I/O boundary adapters — tests use fixture implementations
+    deidentification-adapter.ts  # R13
+    pixel-data-loader.ts         # stub (never called in tests)
+  fixtures/         # static deterministic data
+    dicom-fixtures.ts
+    hanging-protocol-fixtures.ts
+    worklist-fixtures.ts
+    dose-fixtures.ts
+    identity-fixtures.ts
+    imaging-day.ts
+test/               # one file per card
+```
+
+**Naming conventions**
+- UIDs: branded strings (`StudyInstanceUID`, `SeriesInstanceUID`, `SOPInstanceUID`).
+- Coordinates: always `LpsPoint` with `{x,y,z}` — never bare `[x,y,z]` arrays.
+- Spacings: always `{ rowMm, colMm }` — never a bare `[row, col]` tuple (avoids index confusion).
+- Report transitions: always return a new object; never mutate.
+
+**How to write a geometry test**
+
+```ts
+// test/geometry.test.ts
+import { describe, it, expect } from 'vitest';
+import { pixelToPatient } from '../src/core/geometry.js';
+
+describe('pixelToPatient', () => {
+  it('identity IOP, isotropic 1mm: pixel (3,4) → patient (3,4,0)', () => {
+    const plane = {
+      ipp: { x: 0, y: 0, z: 0 },
+      iop: { rowDir: { x: 1, y: 0, z: 0 }, colDir: { x: 0, y: 1, z: 0 } },
+      pixelSpacing: { rowMm: 1, colMm: 1 },
+    };
+    const pt = pixelToPatient({ i: 3, j: 4 }, plane);
+    expect(pt.x).toBeCloseTo(3, 6);
+    expect(pt.y).toBeCloseTo(4, 6);
+    expect(pt.z).toBeCloseTo(0, 6);
+  });
+});
+```
+
+**How to keep it deterministic**
+- All fixture acquisition times: `'20250115'` (YYYYMMDD string for DICOM dates).
+- All clock values: `new FixedClock(new Date('2025-01-15T08:00:00Z'))`.
+- Seeded LCG for fuzz tests: `let seed = 42; const rng = () => { seed = (seed * 1664525 + 1013904223) % 2**32; return seed / 2**32; };`.
+- Float comparisons: always `toBeCloseTo(expected, 4)` (4 decimal places minimum for geometric values).
+
+**Definition of done for any card**
+1. `npm test` exits 0.
+2. `tsc --noEmit` exits 0.
+3. Test file has at least one passing assertion per exported function.
+4. No production module calls `Date.now()`, `Math.random()`, or makes any network call.
+5. No `any` type in production files.
+6. No real DICOM binaries anywhere in the test suite.
+
+---
+
+### 5. Common pitfalls for a weak model on this project
+
+**Pitfall 1 — Getting the pixelSpacing row/col convention backwards**
+`PixelSpacing[0]` in DICOM is the *row spacing* (distance between rows = the column pitch — how far you move in the column direction when you advance one row). `PixelSpacing[1]` is the *column spacing*. The formula `P = IPP + i * (rowDir * colSpacing) + j * (colDir * rowSpacing)` uses `i` (row index) multiplied by `colMm` (column pitch) — this is the correct DICOM convention. A model that multiplies `i * rowMm` will produce wrong patient coordinates on anisotropic fixtures. The R16 anisotropic fixture test is designed to catch exactly this: with `{ rowMm: 0.5, colMm: 1.2 }`, `i=2, j=3`, the correct answer is `P = {2*1.2, 3*0.5, 0} = {2.4, 1.5, 0}` — not `{2*0.5, 3*1.2, 0} = {1.0, 3.6, 0}`.
+
+**Pitfall 2 — Auto-confirming identity merges**
+The most dangerous silent mistake: `proposeMerge` should never return `status: 'confirmed'`. Only `confirmMerge` may do that. A model that treats `matchScore >= 0.8` as an automatic confirm will fail the adversarial test (the wrong-patient merge with `matchScore = 0.85` from a one-field mismatch must still be quarantined if name or birthDate mismatches). The fix: `proposeMerge` returns `'quarantined'` whenever any critical field (name, birthDate) mismatches — regardless of `matchScore`.
+
+**Pitfall 3 — Mutating a finalized report**
+A 3B model will try to update `report.status = 'amended'` in place. This breaks the immutability invariant (R17 §3). Every transition function must `return { ...report, ... }` — a new object. The `Object.isFrozen` check is optional but `attemptDirectEdit` is a hard test that throws on purpose; if the model turns it into a silent edit, R16 test 4 fails.
+
+**Pitfall 4 — Orphan instances silently flattening the hierarchy**
+A model that does `instances.push(...tree.series.flatMap(s => s.instances))` without checking referential integrity will accept malformed trees. The R16 test 8 (orphan instance rejected) catches this. The parser must explicitly check every instance's `seriesInstanceUID` against the series set before accepting the tree.
+
+**Pitfall 5 — Using real wall-clock time in escalation and SLA logic**
+If `checkEscalation` or `checkSla` calls `new Date()` instead of `clock.now()`, the test will pass at one time of day and fail at another. The tell-tale: a test that fails only when run "too close to the SLA deadline." Every time read must be through the injected `Clock`.
+
+**Pitfall 6 — Cross-modality prior selection**
+The hanging-protocol engine must reject an MR prior when the study is a CT. A model that selects the most recent prior by `studyDate` without checking modality + body part will fail the E4 cross-modality fixture. The guard is: `availablePriors.filter(p => p.modalities.includes(study.modalities[0]) && matchesBodyPart(p, study))`.
+
+**Pitfall 7 — Missing `burned-in-phi` guard in de-identification**
+A model that strips DICOM headers without checking `BurnedInAnnotation` will return `safe: true` for a study with PHI burned into pixels. The R13 test catches this — the function must check `instances.some(i => i.burnedInAnnotation)` before returning `safe: true`.
+
+**Pitfall 8 — Forgetting the dependency order for geometry → measurements → reports**
+The geometry module (R06) must exist before measurements can be tested, which must exist before R16's anisotropic fixture test can run. A model that tries to write `test/adversarial.test.ts` before R06 is implemented will get compile errors. Follow the card order: R01 → R02 → R03 → R04 → R05 → R06 → R07 → R08 → R09 → R10 → R11 → R12 → R13 → R14 → R15 → R16 → R17 → R18.

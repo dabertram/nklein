@@ -189,3 +189,756 @@ If that slice holds under randomized fault schedules, more SQL, more isolation l
 ## F12. Why this is a great !Klein challenge
 
 This is the *purest* test of **determinism under hard safety invariants** in the whole batch. Distributed-systems correctness is exactly where confident-but-wrong code from a weak model is most dangerous and least detectable by eyeballing — and the antidote is structural: make every nondeterminism injectable, replay the adversary from a seed, and assert machine-checkable safety properties (no committed entry lost; linearizability; exactly-once; serializability) that a bluff *cannot* pass. The Raft current-term commit rule, write-skew-under-SI, and checkpoint-restore-double-count are precisely the seams agents hand-wave, and the property tests make hand-waving fail loudly. It decomposes in crisp dependency order (simulator → consensus → MVCC/2PC → isolation → stream → planner), each layer landing against an invariant. The reward is a small, *correct*, replayable distributed database — the kind of legible, determinism-first, safety-grounded system !Klein exists to prove buildable even when the brain driving the build is small and fallible.
+
+---
+
+## Small-model build guide (3B-ready)
+
+### 1. Glossary & ground rules
+
+**Domain terms**
+- **DST (Deterministic Simulation Testing)** — the entire cluster runs as a single-threaded simulation; all nondeterminism (timers, network, disk, crashes) is injectable. `runCluster(seed, faults)` produces an identical event log on every run.
+- **Logical time** — a monotonically increasing integer owned by the simulator's priority queue. No wall clock.
+- **Seeded PRNG** — a deterministic pseudo-random number generator initialized from an integer seed. All randomness (election timeouts, jitter, fault timing) draws from it.
+- **Event log** — the authoritative append-only record of everything that happened in a simulation run (messages sent/received, elections, commits, crashes, disk writes). State is a fold over the log.
+- **Term** — Raft's logical election epoch. A leader in term T is invalid in term T+1. Every message carries the sender's current term.
+- **Commit index** — the highest log index known to be committed (replicated on a majority of nodes). Entries at or below this index are durable.
+- **Log Matching** — Raft invariant: if two logs share an entry at (index, term), all entries up to that index are identical.
+- **Current-term commit rule** — a Raft leader commits an entry from its current term by majority count; entries from prior terms commit only *indirectly* when a current-term entry is committed (see F2).
+- **MVCC** — Multi-Version Concurrency Control. Each key has a list of versioned values; reads see the version visible at their snapshot timestamp.
+- **Snapshot isolation (SI)** — a transaction reads a consistent point-in-time; writes are invisible until commit; write skew is possible.
+- **SSI (Serializable Snapshot Isolation)** — extends SI to detect dangerous read-write conflicts and abort one transaction to prevent write skew.
+- **2PC (two-phase commit)** — Prewrite (lock and stage each shard) + Commit (make all shards permanent). If the coordinator crashes after Prewrite but before Commit, participants must resolve the fate without the coordinator.
+- **Watermark** — in stream processing, a timestamp T flowing through the stream declaring "no events with `eventTime < T` will arrive later." Windows fire based on event time using watermarks.
+- **Checkpoint barrier** — a special record injected at stream sources; when all inputs of an operator have received the barrier, the operator snapshots its state.
+- **Exactly-once** — effectively once: replay-from-checkpoint + deterministic processing + idempotent/transactional output ensures no double-count and no loss.
+
+**Stack**
+- Language: TypeScript (strict, no `any`)
+- Runtime: Node.js 20+
+- Test runner: Vitest (`npm test` = `vitest run`)
+- No real threads, sockets, OS processes, or `Date.now()` anywhere in core (explicit non-goal)
+- All communication between simulated nodes is via the simulator's message queue
+- Fixtures in `src/fixtures/` as `export const` TypeScript objects
+
+**Acceptance command**
+```
+npm test        # vitest run — green, no skipped tests
+```
+
+**Determinism rules (imperative)**
+1. Zero calls to `Date.now()`, `setTimeout`, `setInterval`, `Math.random()`, or any async I/O in `src/`.
+2. The simulator advances logical time by processing events from a sorted priority queue.
+3. All randomness uses a seeded LCG (provide the implementation — no external library needed):
+```ts
+export function createLCG(seed: number) {
+  let s = seed >>> 0;
+  return () => { s = Math.imul(s, 1664525) + 1013904223 >>> 0; return s; };
+}
+```
+4. Every test passes a fixed seed to `createSimulator(seed)`.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first slice targets F10 items 1–8 in strict dependency order.
+
+---
+
+**`S01` — Simulator types + event queue**
+dependsOn: none
+files: `src/sim/types.ts`, `src/sim/simulator.ts`, `test/simulator.test.ts`
+
+interface:
+```ts
+// src/sim/types.ts
+export interface SimEvent {
+  scheduledAt: number;   // logical time
+  targetNodeId: string;
+  payload: unknown;
+}
+
+export interface NodeState {
+  nodeId: string;
+  isAlive: boolean;
+  diskLog: unknown[];    // persisted entries (survive crash/restart)
+  volatileState: unknown; // lost on crash
+}
+
+export type MessageHandler = (nodeId: string, payload: unknown, sim: Simulator) => void;
+export type PRNG = () => number;
+
+// src/sim/simulator.ts
+export interface Simulator {
+  scheduleAt(time: number, targetNodeId: string, payload: unknown): void;
+  scheduleAfter(delayTicks: number, targetNodeId: string, payload: unknown): void;
+  now(): number;
+  advanceTo(targetTime: number): void;
+  // Processes all events with scheduledAt <= targetTime in order.
+  addNode(nodeId: string, handler: MessageHandler): void;
+  crashNode(nodeId: string): void;
+  restartNode(nodeId: string): void;
+  partitionLink(fromNodeId: string, toNodeId: string): void;   // drop messages on this link
+  healLink(fromNodeId: string, toNodeId: string): void;
+  prng: PRNG;
+  eventLog: SimEvent[];   // append-only; the authoritative record
+}
+
+export function createSimulator(seed: number): Simulator;
+```
+
+how to implement:
+1. Create `src/sim/types.ts` with types above.
+2. Create `src/sim/simulator.ts`. Use a sorted array as the priority queue (sort by `scheduledAt`).
+3. `advanceTo`: pop events with `scheduledAt <= targetTime`; if the link is partitioned or node is crashed, drop the message (don't call handler); otherwise call the node's handler.
+4. `crashNode`: mark `isAlive = false`; clear volatile state; keep disk log.
+5. `restartNode`: mark `isAlive = true`; restore from disk log only.
+6. `prng`: the LCG from the determinism rules section, seeded with the constructor `seed`.
+
+acceptance: `test/simulator.test.ts`:
+- `scheduleAt(5, "n1", msg)` → `advanceTo(4)` does NOT deliver; `advanceTo(5)` delivers.
+- Crashed node does not receive messages.
+- Partitioned link: message from A to B is dropped; B to A is also dropped.
+- `eventLog.length` grows with each delivered event.
+- `createSimulator(42)` run twice → same sequence of `prng()` outputs.
+
+---
+
+**`S02` — Seeded PRNG + determinism proof**
+dependsOn: `S01`
+files: `test/determinism.property.test.ts`
+
+how to implement:
+1. Create `test/determinism.property.test.ts`.
+2. Build two simulators with the same seed. Schedule identical events. Call `advanceTo(1000)` on both.
+3. Assert `simA.eventLog` deeply equals `simB.eventLog`.
+4. Repeat with seed 1, 2, 3.
+
+acceptance: All 3 seeds produce identical logs between the two simulators.
+
+---
+
+**`S03` — Raft log entry + node types**
+dependsOn: `S01`
+files: `src/raft/types.ts`, `test/raft-types.test.ts`
+
+interface:
+```ts
+// src/raft/types.ts
+export interface LogEntry {
+  index: number;   // 1-based
+  term: number;
+  command: unknown;
+}
+
+export type NodeRole = 'follower' | 'candidate' | 'leader';
+
+export interface RaftPersistent {
+  currentTerm: number;
+  votedFor: string | null;
+  log: LogEntry[];
+}
+
+export interface RaftVolatile {
+  role: NodeRole;
+  leaderId: string | null;
+  commitIndex: number;
+  lastApplied: number;
+  // Leader-only:
+  nextIndex: Record<string, number>;   // nodeId → next log index to send
+  matchIndex: Record<string, number>;  // nodeId → highest replicated index
+  votesReceived: Set<string>;
+}
+
+export type RaftMessage =
+  | { type: 'RequestVote';   term: number; candidateId: string; lastLogIndex: number; lastLogTerm: number }
+  | { type: 'RequestVoteReply'; term: number; voteGranted: boolean; voterId: string }
+  | { type: 'AppendEntries'; term: number; leaderId: string; prevLogIndex: number; prevLogTerm: number; entries: LogEntry[]; leaderCommit: number }
+  | { type: 'AppendEntriesReply'; term: number; success: boolean; followerId: string; matchIndex: number }
+  | { type: 'ClientWrite'; command: unknown; clientId: string; requestSeq: number }
+  | { type: 'Tick' };
+```
+
+how to implement:
+1. Create `src/raft/types.ts` with the interfaces above.
+2. Acceptance: `tsc --noEmit` passes. `test/raft-types.test.ts` constructs one of each message type and asserts the `type` field.
+
+---
+
+**`S04` — Raft election**
+dependsOn: `S01`, `S03`
+files: `src/raft/node.ts`, `test/raft-election.test.ts`
+
+interface:
+```ts
+// src/raft/node.ts
+export function createRaftNode(
+  nodeId: string,
+  peerIds: string[],
+  sim: Simulator,
+  electionTimeoutRange: [number, number], // [min, max] ticks
+): void;
+// Registers a message handler on sim for nodeId.
+// On 'Tick': if follower and no heartbeat received in electionTimeout ticks, start election.
+// On 'RequestVote': grant vote if term >= currentTerm and log is up-to-date; update currentTerm.
+// On 'RequestVoteReply': collect votes; if majority, become leader.
+// On 'AppendEntries' with empty entries: reset election timer (heartbeat).
+```
+
+how to implement:
+1. Create `src/raft/node.ts`.
+2. Election: on timeout, increment `currentTerm`, set `votedFor = self`, send `RequestVote` to all peers.
+3. `RequestVote` granting rule: `term > currentTerm` OR (`term == currentTerm` and haven't voted). Plus: candidate's log is at least as up-to-date (higher last term, or same last term and longer log).
+4. On becoming leader: send immediate `AppendEntries` (heartbeat) to all peers.
+
+acceptance: `test/raft-election.test.ts`:
+- 3-node cluster; tick until leader elected; assert exactly one leader.
+- Split vote (even partition): eventually one leader via randomized timeouts.
+- After partition heals, a valid leader is elected within bounded ticks.
+- Only one leader per term (election safety).
+
+---
+
+**`S05` — Raft log replication + the current-term commit rule**
+dependsOn: `S04`
+files: `src/raft/node.ts` (extend), `test/raft-replication.test.ts`
+
+interface: Extend `createRaftNode` to handle `AppendEntries` (non-heartbeat), `AppendEntriesReply`, and `ClientWrite`.
+
+commit rule (implement exactly as stated in the spec):
+```
+A leader commits an entry at index i ONLY when:
+  1. entries[i].term === currentTerm  (CURRENT term, not a prior term)
+  2. matchIndex[node] >= i for a majority of nodes (including self)
+When a current-term entry commits, all prior entries at lower indices also commit
+(Log Matching Property makes them safe).
+```
+
+how to implement:
+1. Extend `src/raft/node.ts`.
+2. On `ClientWrite`: append `{ index: log.length+1, term: currentTerm, command }` to log; send `AppendEntries` to all peers.
+3. On `AppendEntriesReply(success=true)`: update `matchIndex[followerId]`; find the highest index i where `matchIndex` majority AND `log[i].term === currentTerm`; set `commitIndex = i`.
+4. On `AppendEntries`: check `prevLogIndex`/`prevLogTerm` consistency (reject if mismatch); append entries; update `commitIndex = min(leaderCommit, lastNewIndex)`.
+
+acceptance: `test/raft-replication.test.ts`:
+- Write 3 commands; all committed entries present on all nodes after `advanceTo`.
+- **The Figure-8 scenario** (the critical test): 5-node cluster; leader L1 in term 1 replicates an entry to 2 followers but not the other 2 before crashing. L2 wins election in term 2, replicates a new entry to a majority (which does NOT include L1's old entry on a majority). L1's old entry is NOT committed. Only L2's term-2 entry commits. Assert `commitIndex` for the old entry is never set.
+- Leader change mid-replication: client write commits exactly once despite a failover.
+
+---
+
+**`S06` — MVCC storage engine**
+dependsOn: none (pure; no simulator dependency)
+files: `src/storage/mvcc.ts`, `test/mvcc.test.ts`
+
+interface:
+```ts
+export type Timestamp = number;  // logical, from simulator
+
+export interface MVCCStore {
+  write(key: string, value: string, ts: Timestamp): void;
+  // Creates a new version (key, ts, value). Throws if ts <= max existing ts for key.
+
+  read(key: string, snapshotTs: Timestamp): string | null;
+  // Returns the value of the most-recent version with version.ts <= snapshotTs.
+  // Returns null if no such version.
+
+  readRange(keyMin: string, keyMax: string, snapshotTs: Timestamp): Array<{key: string; value: string}>;
+  // All keys in [keyMin, keyMax] visible at snapshotTs.
+
+  latestTs(key: string): Timestamp | null;
+  // Highest timestamp among all versions for key, or null.
+
+  gc(beforeTs: Timestamp): void;
+  // Remove all versions strictly older than beforeTs except the most recent per key.
+}
+
+export function createMVCCStore(): MVCCStore;
+```
+
+how to implement:
+1. Create `src/storage/mvcc.ts`.
+2. Internal: `Map<string, Array<{ts: Timestamp; value: string}>>` sorted by ts ascending.
+3. `read`: binary search for largest ts <= snapshotTs.
+4. `gc`: for each key, keep the most recent version, remove others with ts < beforeTs.
+
+acceptance: `test/mvcc.test.ts`:
+- `write(k, v1, 10)` then `write(k, v2, 20)`: `read(k, 15)` = v1, `read(k, 20)` = v2.
+- `read(k, 5)` before any write = null.
+- `readRange` returns only keys visible at snapshotTs.
+- `gc(15)` removes v1 but keeps v2.
+- Writing at ts=10 when latest is ts=20 throws.
+
+---
+
+**`S07` — Single-partition transaction + snapshot isolation**
+dependsOn: `S06`
+files: `src/txn/transaction.ts`, `test/transaction-si.test.ts`
+
+interface:
+```ts
+export interface Transaction {
+  txnId: string;
+  snapshotTs: Timestamp;
+  writeSet: Map<string, string>;  // key → new value (staged, not committed)
+  readSet: Map<string, Timestamp>;  // key → version timestamp read (for SSI)
+  status: 'active' | 'committed' | 'aborted';
+}
+
+export interface TxnManager {
+  begin(snapshotTs: Timestamp): Transaction;
+  read(txn: Transaction, key: string): string | null;
+  // Read from snapshotTs; buffer in readSet for SSI tracking.
+  write(txn: Transaction, key: string, value: string): void;
+  // Stage in writeSet; does not touch MVCCStore yet.
+  commit(txn: Transaction, commitTs: Timestamp, store: MVCCStore): 'ok' | 'conflict';
+  // Under SI: always 'ok' (no conflict check).
+  // Apply writeSet to store at commitTs.
+  abort(txn: Transaction): void;
+}
+
+export function createTxnManager(): TxnManager;
+```
+
+how to implement:
+1. Create `src/txn/transaction.ts`.
+2. `begin`: create transaction with `snapshotTs`, empty sets, status `'active'`.
+3. `read`: check `writeSet` first (read-your-own-writes), then `store.read(key, snapshotTs)`.
+4. `commit` under SI: apply all `writeSet` writes to `store` at `commitTs`; return `'ok'`.
+5. `abort`: set `status = 'aborted'`.
+
+acceptance: `test/transaction-si.test.ts`:
+- T1 begins at ts=10, T2 begins at ts=10. Both read key k = "0". T1 writes k="1" commits at ts=20. T2 still reads k="0" (snapshot ts=10). T2 writes k="2" commits at ts=30 — both commits succeed (SI allows write skew). Assert both committed.
+- Read-your-own-writes: write key in txn, read back → get the written value without committing.
+
+---
+
+**`S08` — Write skew demo + SSI prevention**
+dependsOn: `S07`
+files: `src/txn/ssi.ts`, `test/ssi.test.ts`
+
+interface:
+```ts
+export function commitSSI(
+  txn: Transaction,
+  allActiveTxns: Transaction[],
+  commitTs: Timestamp,
+  store: MVCCStore,
+): 'ok' | 'conflict';
+// Serializable Snapshot Isolation conflict check:
+// For each key K in txn.readSet:
+//   if any OTHER committed transaction wrote K with commitTs in (txn.snapshotTs, commitTs]:
+//     return 'conflict' (abort — dangerous read-write dependency detected).
+// If no conflict: apply writeSet, return 'ok'.
+```
+
+how to implement:
+1. Create `src/txn/ssi.ts`.
+2. `commitSSI`: for each key in `readSet`, call `store.latestTs(key)`; if `latestTs > txn.snapshotTs` (written by another txn after our snapshot), return `'conflict'`.
+
+acceptance: `test/ssi.test.ts`:
+- **Write skew under SI**: two txns both read key `"balance"="100"` at ts=0; both decide to write `"50"` (each deducting 50). Both commit under SI → both succeed → balance reads "50" twice (write skew demonstrated). Assert both committed.
+- **SSI prevents it**: same scenario using `commitSSI`. The second to commit detects the conflict → returns `'conflict'`. Only one commit succeeds. Assert store has exactly one final write.
+
+---
+
+**`S09` — 2PC multi-partition transaction**
+dependsOn: `S07`, `S01`
+files: `src/txn/two-phase-commit.ts`, `test/two-phase-commit.test.ts`
+
+interface:
+```ts
+export interface Shard {
+  shardId: string;
+  store: MVCCStore;
+}
+
+export type TwoPCState = 'prewriting' | 'committed' | 'aborted' | 'resolving';
+
+export interface TwoPCCoordinator {
+  txnId: string;
+  shards: Shard[];
+  primaryKey: string;   // one key designated as the "lock" anchor (Percolator-style)
+  writeSet: Map<string, string>;
+  state: TwoPCState;
+}
+
+export function prepareWrite(coord: TwoPCCoordinator, store: MVCCStore, prepareTs: Timestamp): boolean;
+// Phase 1: for each key in writeSet, write a "lock" marker to the store at prepareTs.
+// Returns false if any key already has a conflicting lock (abort early).
+
+export function commitWrite(coord: TwoPCCoordinator, store: MVCCStore, commitTs: Timestamp): void;
+// Phase 2: replace lock markers with actual values; update primaryKey to 'committed'.
+
+export function resolveOrphanedLocks(
+  coord: TwoPCCoordinator,
+  store: MVCCStore,
+  now: Timestamp,
+  lockTtl: number,
+): 'committed' | 'aborted';
+// Called when coordinator crashed post-prewrite:
+// Check primaryKey in store. If primaryKey is 'committed' → replay commitWrite.
+// If primaryKey lock is older than lockTtl → abort (clean up locks).
+```
+
+how to implement:
+1. Create `src/txn/two-phase-commit.ts`.
+2. Represent a lock as `write(key, "__LOCK__:txnId", prepareTs)`.
+3. `commitWrite`: overwrite lock entries with actual values.
+4. `resolveOrphanedLocks`: check primary key value; if it is `"__LOCK__:txnId"` and time > prepareTs + lockTtl → abort by deleting locks (write tombstones).
+
+acceptance: `test/two-phase-commit.test.ts`:
+- Normal flow: prepareWrite + commitWrite → all keys updated.
+- Conflict: another txn writes one key between prewrite and commit → prepareWrite returns false.
+- **Crash recovery**: call prepareWrite, skip commitWrite (simulate crash), then call resolveOrphanedLocks with expired TTL → state = 'aborted'. Locks cleaned up, original values preserved.
+
+---
+
+**`S10` — Idempotent client request deduplication**
+dependsOn: `S04`
+files: `src/raft/client-dedup.ts`, `test/client-dedup.test.ts`
+
+interface:
+```ts
+export interface ClientRequest {
+  clientId: string;
+  requestSeq: number;  // monotonically increasing per client
+  command: unknown;
+}
+
+export interface ClientDedupStore {
+  getResult(clientId: string, requestSeq: number): unknown | null;
+  recordResult(clientId: string, requestSeq: number, result: unknown): void;
+}
+
+export function createClientDedupStore(): ClientDedupStore;
+// Used in Raft state machine: before applying a command, check dedup store.
+// If already seen: return prior result. Else: apply and record.
+```
+
+how to implement:
+1. Create `src/raft/client-dedup.ts` with a `Map<string, Map<number, unknown>>`.
+2. `getResult(clientId, seq)`: look up `clientId → seq → result`.
+3. `recordResult`: store.
+
+acceptance: `test/client-dedup.test.ts`:
+- First request `(c1, seq=1)` → `getResult` returns null; after `recordResult`, returns the value.
+- Same `(c1, seq=1)` again → returns prior result (deduplication).
+- Different seq → null (not deduplicated).
+
+---
+
+**`S11` — Stream processor: event-time windows + watermarks**
+dependsOn: `S01`
+files: `src/stream/types.ts`, `src/stream/window-processor.ts`, `test/window-processor.test.ts`
+
+interface:
+```ts
+// src/stream/types.ts
+export interface StreamEvent {
+  eventTime: number;     // logical time from the event source
+  processingTime: number; // logical time of arrival at processor
+  key: string;           // group-by key
+  value: string;
+}
+
+export interface Watermark { timestamp: number; }
+
+export type StreamRecord = { kind: 'event'; event: StreamEvent } | { kind: 'watermark'; wm: Watermark };
+
+export interface WindowResult {
+  key: string;
+  windowStart: number;
+  windowEnd: number;
+  events: StreamEvent[];
+}
+
+// src/stream/window-processor.ts
+export interface WindowProcessor {
+  ingest(record: StreamRecord): WindowResult[];
+  // On 'watermark': fire all windows with windowEnd <= wm.timestamp; return results; discard fired windows.
+  // On 'event': buffer in the appropriate window bucket. Late events (eventTime < current watermark) → discard.
+  state(): Map<string, StreamEvent[]>;  // key → buffered events for current window
+}
+
+export function createWindowProcessor(windowSizeSeconds: number): WindowProcessor;
+```
+
+how to implement:
+1. Create `src/stream/types.ts` and `src/stream/window-processor.ts`.
+2. `WindowProcessor` maintains `Map<string, StreamEvent[]>` per key.
+3. On event: compute `windowEnd = ceil(event.eventTime / windowSizeSeconds) * windowSizeSeconds`. Buffer under `key`.
+4. On watermark: fire all windows where `windowEnd <= wm.timestamp`; return `WindowResult`s; clear those buckets.
+5. Late events: if `eventTime < lastSeenWatermark.timestamp`, discard (don't add to buffer).
+
+acceptance: `test/window-processor.test.ts`:
+- Events e1(t=1), e2(t=3) in 5-second window; watermark(t=5) fires window → result contains both.
+- Watermark at t=4 doesn't fire 5-second window.
+- Late event (arrives after watermark t=5, with eventTime=3) → discarded.
+- Two keys → two independent window results.
+
+---
+
+**`S12` — Stream checkpoint + restore**
+dependsOn: `S11`
+files: `src/stream/checkpoint.ts`, `test/stream-checkpoint.test.ts`
+
+interface:
+```ts
+export interface CheckpointState {
+  processorState: Map<string, StreamEvent[]>;
+  lastWatermarkTs: number;
+  inputOffset: number;  // how many records have been processed
+}
+
+export function takeCheckpoint(processor: WindowProcessor, lastWatermarkTs: number, inputOffset: number): CheckpointState;
+
+export function restoreFromCheckpoint(checkpoint: CheckpointState, windowSizeSeconds: number): WindowProcessor;
+// Creates a new WindowProcessor pre-loaded with checkpoint.processorState.
+// Replaying records from inputOffset onwards must yield identical results.
+```
+
+how to implement:
+1. Create `src/stream/checkpoint.ts`.
+2. `takeCheckpoint`: snapshot `processor.state()`, record `lastWatermarkTs` and `inputOffset`.
+3. `restoreFromCheckpoint`: create a new `WindowProcessor`, populate its state from `checkpoint.processorState`.
+
+acceptance: `test/stream-checkpoint.test.ts` (the exactly-once test):
+1. Process events 1–5 through the window processor; take a checkpoint at offset 5.
+2. Process 2 more events; fire a watermark; capture `resultsA`.
+3. Restore from checkpoint (offset 5). Replay events 1–7 but skip the first 5 (start from offset 5). Fire same watermark; capture `resultsB`.
+4. Assert `resultsA` deeply equals `resultsB` — no double-count, no loss.
+
+---
+
+**`S13` — Simple cost-based query planner**
+dependsOn: `S06`
+files: `src/planner/query-plan.ts`, `src/planner/planner.ts`, `test/planner.test.ts`
+
+interface:
+```ts
+// src/planner/query-plan.ts
+export type PhysicalPlan =
+  | { type: 'FullScan'; table: string; estimatedRows: number }
+  | { type: 'IndexScan'; table: string; index: string; estimatedRows: number }
+  | { type: 'Filter'; input: PhysicalPlan; predicate: string; selectivity: number }
+  | { type: 'NestedLoopJoin'; outer: PhysicalPlan; inner: PhysicalPlan }
+  | { type: 'HashJoin'; outer: PhysicalPlan; inner: PhysicalPlan };
+
+export function estimateCost(plan: PhysicalPlan): number;
+// FullScan: estimatedRows * 1.0
+// IndexScan: estimatedRows * 0.1
+// Filter: estimateCost(input) * selectivity
+// Join: estimateCost(outer) + estimateCost(outer) * estimateCost(inner)
+
+// src/planner/planner.ts
+export interface QueryContext {
+  tables: Record<string, { rowCount: number; indexes: string[] }>;
+}
+
+export interface SimpleQuery {
+  table: string;
+  filterColumn: string | null;
+  filterSelectivity: number;  // 0.0–1.0; 0.01 = high selectivity (good for index)
+  joinTable: string | null;
+}
+
+export function planQuery(query: SimpleQuery, ctx: QueryContext): PhysicalPlan;
+// Decision rule:
+//   If filterSelectivity < 0.1 AND the table has an index on filterColumn: use IndexScan.
+//   Otherwise: FullScan.
+//   If joinTable: wrap in a HashJoin (outer=filtered table, inner=FullScan of joinTable).
+```
+
+how to implement:
+1. Create `src/planner/query-plan.ts` and `src/planner/planner.ts`.
+2. `planQuery`: check selectivity and index availability; build the plan tree.
+3. `estimateCost`: recursive cost computation.
+
+acceptance: `test/planner.test.ts`:
+- High-selectivity filter (0.01) + indexed column → `IndexScan`.
+- Low-selectivity filter (0.9) → `FullScan`.
+- Same table, same filter but no index → `FullScan` even with high selectivity.
+- `estimateCost(IndexScan) < estimateCost(FullScan)` for same estimated row count.
+
+---
+
+**`S14` — Consensus safety property test (the most important test)**
+dependsOn: `S04`, `S05`
+files: `test/consensus-safety.property.test.ts`
+
+how to implement:
+1. Create `test/consensus-safety.property.test.ts`.
+2. `runSafetyCheck(seed: number, faultSchedule: FaultSchedule)`:
+   - Create 5-node cluster under the simulator with the given seed.
+   - Apply faults: partition node 1 from nodes 2-3 at t=10; heal at t=30; crash node 4 at t=20; restart at t=40.
+   - Issue 5 client writes at t=5, 8, 12, 15, 25.
+   - Advance to t=200.
+   - Collect all `commitIndex` values across nodes.
+   - Collect all `log[i]` values across nodes for i <= commitIndex.
+   - Assert: for every committed index i, ALL nodes that have log[i] have the SAME command. (State Machine Safety)
+   - Assert: at most one leader per term at any point (scan the event log).
+3. Run with 3 different seeds.
+
+acceptance: All 3 seeds pass both invariants.
+
+---
+
+**`S15` — Full seed scenario integration test**
+dependsOn: `S04`, `S05`, `S07`, `S08`, `S11`, `S12`, `S13`
+files: `test/seed-scenario.test.ts`
+
+how to implement:
+1. Create `test/seed-scenario.test.ts`.
+2. Run the following sequence in a single test (using the simulator):
+   - 3-node cluster, seed=1.
+   - Write 3 rows.
+   - Partition node 1 from node 2 at t=20; write a row; assert it doesn't commit (no majority).
+   - Heal partition at t=40; assert the row eventually commits.
+   - Demonstrate write skew under SI (S08 fixture).
+   - Demonstrate SSI prevents it.
+   - Process 5 stream events; fire watermark; assert window result.
+   - Take checkpoint; simulate crash; restore; replay last 2 events; assert same result (no double-count).
+   - Run a query with high-selectivity filter → IndexScan chosen.
+3. Assert all invariants pass: committed entries survive leader change; exactly-once stream; SSI prevents write skew.
+
+acceptance: Test passes end-to-end with seed=1.
+
+---
+
+### 3. The decomposition method for the remaining breadth
+
+After S01–S15 are green, apply this recipe for every remaining feature:
+
+**Recipe for one feature cluster:**
+1. Identify which F9 invariant it exercises.
+2. Write the acceptance assertion first: "After X, invariant F9.N must hold."
+3. Split into at most 3 cards: (a) types, (b) core logic, (c) simulator integration + property test.
+4. Every card tests offline with `npm test`.
+
+**Worked example 1 — Raft snapshots (InstallSnapshot)**
+- Types card `SN01`: `Snapshot = { lastIncludedIndex, lastIncludedTerm, state: Record<string, string> }`.
+- Logic card `SN02` dependsOn `S05`, `S06`: `takeSnapshot(commitIndex, log, store)` → `Snapshot`. `applySnapshot(snap, node)` truncates log and loads state.
+- Integration card `SN03`: A follower that lags 100+ entries receives an `InstallSnapshot` message; assert it catches up and has identical committed state. Assert no entry before `lastIncludedIndex` is in the log.
+
+**Worked example 2 — CRDT G-Counter (AP data)**
+- Types card `CR01`: `GCounter = { counts: Record<string, number> }` (one slot per node ID).
+- Logic card `CR02`: `increment(gc, nodeId)` → new counter. `merge(a, b)` → `{ counts: max(a[k], b[k]) for each k }`. `value(gc)` → `Σ counts`.
+- Property test: generate any sequence of increments and merges; assert `merge(merge(a,b), c) equals merge(a, merge(b,c))` (associativity) and `merge(a, a) equals a` (idempotency). Assert `value` is the same regardless of merge order (strong eventual consistency).
+
+**Worked example 3 — ReadIndex linearizable reads**
+- Types card `RI01`: `ReadIndexRequest = { clientId, requestSeq, readKey }`.
+- Logic card `RI02` dependsOn `S04`: In leader handler: on `ReadIndex`, record `pendingRead = { commitIndex: currentCommitIndex, readKey }`. Send a round of heartbeats (AppendEntries to majority). On receiving majority `AppendEntriesReply`, if `appliedIndex >= pendingRead.commitIndex`, serve the read from `store.read(readKey, commitTs)`. Otherwise defer.
+- Test: leader receives a `ReadIndex` after a stale leader might exist; assert the read is not served until after the heartbeat round confirms leadership.
+
+---
+
+### 4. Per-task implementation conventions
+
+**Folder layout**
+```
+src/
+  sim/
+    types.ts
+    simulator.ts
+  raft/
+    types.ts
+    node.ts
+    client-dedup.ts
+  storage/
+    mvcc.ts
+  txn/
+    transaction.ts
+    ssi.ts
+    two-phase-commit.ts
+  stream/
+    types.ts
+    window-processor.ts
+    checkpoint.ts
+  planner/
+    query-plan.ts
+    planner.ts
+test/
+  simulator.test.ts
+  determinism.property.test.ts
+  raft-types.test.ts
+  raft-election.test.ts
+  raft-replication.test.ts
+  mvcc.test.ts
+  transaction-si.test.ts
+  ssi.test.ts
+  two-phase-commit.test.ts
+  client-dedup.test.ts
+  window-processor.test.ts
+  stream-checkpoint.test.ts
+  planner.test.ts
+  consensus-safety.property.test.ts
+  seed-scenario.test.ts
+```
+
+**How to write a test in Vitest**
+```ts
+import { describe, it, expect } from 'vitest';
+import { createMVCCStore } from '../src/storage/mvcc.js';
+
+describe('mvcc', () => {
+  it('reads correct version at snapshot', () => {
+    const store = createMVCCStore();
+    store.write('k', 'v1', 10);
+    store.write('k', 'v2', 20);
+    expect(store.read('k', 15)).toBe('v1');
+    expect(store.read('k', 20)).toBe('v2');
+  });
+});
+```
+
+**Seeded LCG (copy into test files)**
+```ts
+function createLCG(seed: number) {
+  let s = seed >>> 0;
+  return () => { s = Math.imul(s, 1664525) + 1013904223 >>> 0; return s; };
+}
+```
+
+**Keeping it deterministic**
+- Simulator time is a `number` (integer ticks). Never `Date.now()`.
+- Network partition: the simulator's `partitionLink` set is checked before delivery.
+- Tests call `sim.advanceTo(N)` directly; no awaiting, no callbacks.
+- Election timeouts are sampled from the seeded PRNG: `timeout = min + (prng() % (max - min))`.
+- Stream event times are always fixed integers in test fixtures.
+
+**Definition of done for any card**
+1. `tsc --noEmit` exits 0.
+2. `npm test` green.
+3. No `any` in `src/`.
+4. No `Date.now()`, `setTimeout`, `setInterval`, `Math.random()`, or async in `src/`.
+5. Every acceptance assertion from the card is a named `it(...)` block.
+
+---
+
+### 5. Common pitfalls for a weak model on THIS project
+
+**Pitfall 1 — Using `async/await` or `setTimeout` in the simulator**
+A 3B model will reach for `async function step()` and `await sleep(ms)`. This makes the test non-deterministic. The entire simulator is synchronous: `advanceTo(N)` is a while-loop processing the priority queue until all events with `scheduledAt <= N` are consumed. No Promises, no real timers, no async.
+
+**Pitfall 2 — The current-term commit rule (the Figure-8 bug)**
+A model will count replicas for *any* log entry and mark it committed when a majority has it. This is wrong. An old-term entry (from a prior leader) MUST NOT be committed by majority count — only the act of committing a *current-term* entry makes prior entries safe. The `test/raft-replication.test.ts` Figure-8 scenario tests this directly: the old-term entry should remain uncommitted even when a majority has it.
+
+**Pitfall 3 — Treating write skew as a bug to prevent at the SI level**
+A model will add conflict checking to `commit()` (the SI path) to prevent write skew. The spec explicitly says SI *allows* write skew (demonstrate it in `S07`); SSI *prevents* it (demonstrate that in `S08`). Keep SI and SSI as separate functions with separate test cases.
+
+**Pitfall 4 — Stream processor using `Date.now()` for window boundaries**
+Window boundaries are computed from `eventTime` (an integer from the stream), not from the system clock. A model will write `windowEnd = Date.now() + windowSizeMs`. Instead: `windowEnd = Math.ceil(event.eventTime / windowSizeSeconds) * windowSizeSeconds`. All integers.
+
+**Pitfall 5 — Checkpoint-restore double-count**
+A model will restore the processor, then replay ALL events from the beginning. This causes double-counting for events before the checkpoint. The restore must skip the first `inputOffset` events. The `test/stream-checkpoint.test.ts` test catches this: results after a proper restore must exactly equal results from a clean run.
+
+**Pitfall 6 — 2PC coordinator crash leaves locks forever**
+A model will prewrite locks but then not implement `resolveOrphanedLocks`. The 2PC test (`S09`) verifies that after a simulated coordinator crash and TTL expiry, locks are cleaned up and the original values are still readable. Forget this and the test for the crash-recovery case fails.
+
+**Pitfall 7 — MVCC `read` returning a value from after the snapshot timestamp**
+A model will return `latestVersion` unconditionally. The snapshot read must return the most-recent version with `ts <= snapshotTs`. The test in `S06` checks `read(k, 15)` returns v1 (ts=10) not v2 (ts=20).
+
+**Pitfall 8 — Missing the property test for consensus safety**
+A model will write example-based tests (one specific failure scenario) and not generalize. The `S14` property test runs 3 seeds. If only seed=1 is tested and the Figure-8 scenario uses seed=2, the bug goes undetected. Run all 3 seeds.

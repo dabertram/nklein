@@ -189,3 +189,844 @@ If that slice holds, compliance workflows, more conventions, more message types,
 ## B12. Why this is a great !Klein challenge
 
 It is the cleanest possible test of **determinism under hard invariants with weak models**. The defining property (money conservation over an immutable, bitemporal, exact-arithmetic ledger) is *unforgiving and machine-checkable*: a small local model cannot bluff a balanced journal or a penny-perfect allocation — the property test fails instantly. That makes the work **legible to decompose** (kernel → bitemporality → loan → payments → reconciliation → audit, in strict dependency order) and **safe to build with fallible models**, because every step lands against a conservation law rather than a vibe. The reward for getting the spine right is that every later feature — statements, more conventions, compliance workflows, the operator UI — is honest breadth on a foundation that *cannot* silently lose money.
+
+---
+
+## Small-model build guide (3B-ready)
+
+### 1. Glossary & ground rules
+
+**Domain terms**
+- **Minor units** — integer cents (or smallest currency division). `$1.23` is stored as `123`. Never use `number` for money; use `bigint` or a fixed-scale wrapper.
+- **Journal** — a balanced set of ledger entries, all belonging to one economic event. Every journal must satisfy Σ(debit amounts) = Σ(credit amounts) per currency before it is accepted. Rejected journals are never stored.
+- **Entry** — one half of a double-entry move: `{ entryId, journalId, accountId, direction: 'debit'|'credit', amount: bigint, currency: string, effectiveAt: string, postedAt: string, sequence: number }`. Entries are append-only; the `amount` field is never mutated after posting.
+- **Effective date** — the calendar date on which the economic event is *deemed to have occurred* (e.g. a payment the member mailed on June 28 effective June 28 even if posted July 2).
+- **Posting date** — the calendar date the entry was *recorded* in the system.
+- **Known-at date** — the wall-clock date at which you are querying. `balanceAsOf(effectiveDate, knownAtDate)` answers "what would the balance have been on effectiveDate, as known on knownAtDate?"
+- **Reversal** — a correcting journal whose debit/credit directions are swapped vs the original, linked by `reversesJournalId`. Never deletes the original.
+- **Allocation waterfall** — the ordered policy that splits a payment across fees, accrued interest, principal, escrow, and suspense. Configurable per loan product.
+- **Suspense account** — a special ledger account that receives money that cannot be fully allocated (partial payment, overpayment, unknown loan). Suspense is a real account; conservation still holds.
+- **Day-count convention** — the formula for computing the periodic interest rate from an annual rate: `30/360` (each month = 30 days, year = 360), `Actual/360` (real days / 360), `Actual/365` (real days / 365).
+- **DPD** — days-past-due. Current = 0, 1–29, 30–59, 60–89, 90+ are the delinquency buckets.
+- **Idempotency key** — a client-supplied string that uniquely identifies a payment instruction. Duplicate delivery of the same key posts exactly once.
+- **EndToEndId** — an ISO 20022 identifier that travels with a payment through every message (pain.001 → camt.053). The primary reconciliation key.
+- **Maker-checker** — a segregation-of-duties rule: the user who *initiates* a high-impact action cannot be the one who *approves* it.
+
+**Stack**
+- Language: TypeScript (strict mode, no `any`)
+- Runtime: Node.js 20+
+- Test runner: Vitest (`npm test` = `vitest run`)
+- Money math: `bigint` throughout; zero `number` for currency amounts
+- Date handling: ISO-8601 date strings (`"2026-06-30"`) compared lexicographically; no `Date.now()`; inject a virtual clock as a `() => string` function
+- No external DB, no network calls, no live APIs in tests
+
+**Acceptance command**
+```
+npm test        # runs vitest run — must be green with no skipped tests
+```
+
+**Determinism rules (imperative)**
+1. Never call `Date.now()`, `new Date()`, or `Math.random()` anywhere in core modules. Use an injected clock.
+2. Never use `number` for money. Use `bigint`.
+3. All fixtures live in `src/fixtures/` and are plain TypeScript objects, not fetched from URLs.
+4. Every test is pure: same inputs → same outputs, always.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first slice targets B10 items 1–4 (double-entry kernel → bitemporality → one loan end-to-end → idempotent payments → reconciliation → audit → statement). Build in strict dependency order.
+
+---
+
+**`S01` — Money value object**
+dependsOn: none
+files: `src/money.ts`, `test/money.test.ts`
+
+interface:
+```ts
+export type Currency = string; // e.g. "USD"
+export type MinorUnits = bigint;
+export interface Money { amount: MinorUnits; currency: Currency; }
+export function money(amount: bigint, currency: Currency): Money;
+export function addMoney(a: Money, b: Money): Money;  // throws if currencies differ
+export function negateMoney(m: Money): Money;          // flips sign
+export function zeroMoney(currency: Currency): Money;
+export function moneyEq(a: Money, b: Money): boolean;
+```
+
+how to implement:
+1. Create `src/money.ts`.
+2. `money(amount, currency)` returns `{ amount, currency }`.
+3. `addMoney` checks `a.currency === b.currency`, throws `"currency mismatch"` otherwise, returns `{ amount: a.amount + b.amount, currency: a.currency }`.
+4. `negateMoney` returns `{ amount: -m.amount, currency: m.currency }`.
+5. `zeroMoney` returns `{ amount: 0n, currency }`.
+6. `moneyEq` returns `a.amount === b.amount && a.currency === b.currency`.
+7. Export all.
+
+acceptance: `test/money.test.ts` asserts:
+- `addMoney(money(100n,"USD"), money(23n,"USD")).amount === 123n`
+- `addMoney(money(10n,"USD"), money(5n,"EUR"))` throws
+- `negateMoney(money(50n,"USD")).amount === -50n`
+- `moneyEq(money(0n,"USD"), zeroMoney("USD")) === true`
+Run `npm test` → green. No I/O, no randomness.
+
+---
+
+**`S02` — Ledger entry & journal types**
+dependsOn: `S01`
+files: `src/ledger-types.ts`, `test/ledger-types.test.ts`
+
+interface:
+```ts
+export type Direction = 'debit' | 'credit';
+export type EntryStatus = 'pending' | 'posted';
+
+export interface LedgerEntry {
+  entryId: string;
+  journalId: string;
+  accountId: string;
+  direction: Direction;
+  amount: bigint;       // always positive; sign is in direction
+  currency: string;
+  effectiveAt: string;  // ISO-8601 date "YYYY-MM-DD"
+  postedAt: string;     // ISO-8601 date when recorded
+  sequence: number;     // monotonically increasing global sequence
+  status: EntryStatus;
+  discardedAt: string | null; // set on reversal, never deleted
+}
+
+export interface Journal {
+  journalId: string;
+  entries: LedgerEntry[];
+  reversesJournalId: string | null;
+  createdAt: string;
+}
+```
+
+how to implement:
+1. Create `src/ledger-types.ts` with these exact interfaces, exported.
+2. No logic — types only.
+3. In `test/ledger-types.test.ts` import and construct a sample Journal with two entries and assert the fields are present.
+
+acceptance: TypeScript compiles clean (`tsc --noEmit`). `test/ledger-types.test.ts` constructs a sample journal, asserts `journal.entries.length === 2`, and `journal.reversesJournalId === null`.
+
+---
+
+**`S03` — Journal balance validator**
+dependsOn: `S01`, `S02`
+files: `src/journal-validator.ts`, `test/journal-validator.test.ts`
+
+interface:
+```ts
+export type ValidationResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
+export function validateJournalBalance(entries: LedgerEntry[]): ValidationResult;
+// Returns ok:true iff for every currency:
+//   sum(debits) === sum(credits)
+// Returns ok:false with a reason string otherwise.
+```
+
+how to implement:
+1. Create `src/journal-validator.ts`.
+2. Iterate `entries`, accumulate `Map<currency, bigint>` for net balance (debit adds, credit subtracts).
+3. If all net balances are `0n`, return `{ ok: true }`.
+4. Otherwise return `{ ok: false, reason: "unbalanced: USD net 100" }` (include currency and amount).
+
+acceptance: `test/journal-validator.test.ts` asserts:
+- Two entries (debit 100 USD, credit 100 USD) → `ok: true`
+- Two entries (debit 100 USD, credit 90 USD) → `ok: false`, reason includes "USD"
+- Mixed currencies: (debit 100 USD, credit 100 USD, debit 50 EUR, credit 50 EUR) → `ok: true`
+- Mixed currencies, EUR unbalanced → `ok: false`
+
+---
+
+**`S04` — Append-only ledger store**
+dependsOn: `S02`, `S03`
+files: `src/ledger-store.ts`, `test/ledger-store.test.ts`
+
+interface:
+```ts
+export interface LedgerStore {
+  postJournal(journal: Journal): void;
+  // Throws "unbalanced journal" if validateJournalBalance fails.
+  // Throws "journal already posted" if journalId exists.
+  // Sets all entries' status to 'posted' and assigns postedAt.
+  // Never deletes or mutates a posted entry's amount/direction/accountId/effectiveAt.
+
+  allEntries(): ReadonlyArray<LedgerEntry>;
+  // Returns all posted entries in sequence order.
+
+  entriesForAccount(accountId: string): ReadonlyArray<LedgerEntry>;
+}
+
+export function createLedgerStore(): LedgerStore;
+```
+
+how to implement:
+1. Create `src/ledger-store.ts` with an in-memory array `entries: LedgerEntry[]`.
+2. `postJournal`: call `validateJournalBalance`; throw if `!ok`. Check journalId uniqueness; throw if duplicate. Append entries (status = `'posted'`, `postedAt` set to clock). Mutate no field after append.
+3. `allEntries`: return `[...entries]` sorted by `sequence`.
+4. `entriesForAccount`: filter by `accountId`.
+
+acceptance: `test/ledger-store.test.ts` asserts:
+- Posting a balanced journal stores its entries; `allEntries().length` grows.
+- Posting an unbalanced journal throws.
+- Posting the same `journalId` twice throws.
+- After posting, `allEntries()` returns entries with `status === 'posted'`.
+
+---
+
+**`S05` — Balance-as-fold (simple, then bitemporal)**
+dependsOn: `S04`
+files: `src/balance.ts`, `test/balance.test.ts`
+
+interface:
+```ts
+export function balanceOf(
+  store: LedgerStore,
+  accountId: string,
+  currency: string,
+): bigint;
+// Simple fold: sum all posted, non-discarded entries for the account+currency.
+// Debit = +, Credit = - (for asset accounts; callers handle sign convention).
+// If no entries, returns 0n.
+
+export function balanceAsOf(
+  store: LedgerStore,
+  accountId: string,
+  currency: string,
+  effectiveAt: string,   // only entries with entry.effectiveAt <= effectiveAt
+  knownAt: string,       // only entries with entry.postedAt <= knownAt
+                         // AND (entry.discardedAt IS NULL OR entry.discardedAt > knownAt)
+): bigint;
+```
+
+how to implement:
+1. Create `src/balance.ts`.
+2. `balanceOf`: filter entries by `accountId`, `currency`, `status === 'posted'`, `discardedAt === null`; sum with debit=+ credit=-.
+3. `balanceAsOf`: same but also filter `entry.effectiveAt <= effectiveAt` and `entry.postedAt <= knownAt` and `(entry.discardedAt === null || entry.discardedAt > knownAt)`.
+4. Both return `bigint`.
+
+acceptance: `test/balance.test.ts` asserts:
+- Two debit entries of 100 → `balanceOf` returns `200n`.
+- `balanceAsOf` with `effectiveAt` before an entry's effectiveAt excludes that entry.
+- `balanceAsOf` with `knownAt` before an entry's `postedAt` excludes it.
+- After marking `discardedAt = "2026-07-05"`, `balanceAsOf(…, knownAt="2026-07-04")` still includes the entry; `knownAt="2026-07-06"` excludes it. This is the bitemporal immutability property.
+
+---
+
+**`S06` — Reversal / correction entry**
+dependsOn: `S04`, `S05`
+files: `src/reversal.ts`, `test/reversal.test.ts`
+
+interface:
+```ts
+export function buildReversalJournal(
+  original: Journal,
+  newJournalId: string,
+  postedAt: string,
+  clock: () => string,
+): Journal;
+// Returns a new Journal with every entry's direction flipped,
+// reversesJournalId = original.journalId,
+// new entryIds, same accountIds/amounts/currencies/effectiveAt.
+
+export function markDiscarded(
+  store: LedgerStore,
+  journalId: string,
+  discardedAt: string,
+): void;
+// Sets discardedAt on all entries belonging to journalId.
+// Does NOT delete them.
+```
+
+how to implement:
+1. Create `src/reversal.ts`.
+2. `buildReversalJournal`: copy each entry, swap direction, assign new `entryId` (e.g. `"rev-" + original.entryId`), set `reversesJournalId`.
+3. `markDiscarded`: find entries in `store` by `journalId` and set `discardedAt`.
+
+acceptance: `test/reversal.test.ts` asserts:
+- `buildReversalJournal` returns a journal with all directions flipped.
+- Posting the reversal keeps both journals in the store.
+- After `markDiscarded`, `balanceOf` returns `0n` for the account (original + reversal net to zero).
+- `allEntries()` still contains both the original and reversal entries (no deletion).
+
+---
+
+**`S07` — Idempotency key registry**
+dependsOn: `S04`
+files: `src/idempotency.ts`, `test/idempotency.test.ts`
+
+interface:
+```ts
+export interface IdempotencyStore {
+  checkAndReserve(key: string): 'new' | 'duplicate';
+  // 'new' = first time seen; marks key as reserved.
+  // 'duplicate' = seen before; caller should return prior result without re-posting.
+}
+
+export function createIdempotencyStore(): IdempotencyStore;
+```
+
+how to implement:
+1. Create `src/idempotency.ts` with an in-memory `Set<string>`.
+2. `checkAndReserve`: if key is in set return `'duplicate'`; otherwise add to set and return `'new'`.
+
+acceptance: `test/idempotency.test.ts` asserts:
+- First call with key `"pay-001"` returns `'new'`.
+- Second call with same key returns `'duplicate'`.
+- Different key returns `'new'`.
+
+---
+
+**`S08` — Loan schedule types & amortization math**
+dependsOn: `S01`
+files: `src/loan-types.ts`, `src/amortization.ts`, `test/amortization.test.ts`
+
+interface:
+```ts
+// src/loan-types.ts
+export type DayCountConvention = '30/360' | 'Actual/360' | 'Actual/365';
+
+export interface LoanTerms {
+  loanId: string;
+  principalMinorUnits: bigint;
+  annualRateBps: number;     // basis points, e.g. 600 = 6.00%
+  termMonths: number;
+  convention: DayCountConvention;
+  originationDate: string;   // ISO-8601
+}
+
+export interface ScheduledPayment {
+  periodNumber: number;
+  dueDate: string;
+  paymentMinorUnits: bigint;
+  interestMinorUnits: bigint;
+  principalMinorUnits: bigint;
+  remainingBalanceMinorUnits: bigint;
+}
+
+// src/amortization.ts
+export function buildAmortizationSchedule(terms: LoanTerms): ScheduledPayment[];
+// Returns one ScheduledPayment per period.
+// All arithmetic in bigint (minor units).
+// Periodic rate for 30/360: annualRate / 12.
+// Periodic rate for Actual/360: annualRate * (actualDaysInPeriod / 360).
+// Periodic rate for Actual/365: annualRate * (actualDaysInPeriod / 365).
+// Standard formula: M = P * i / (1 - (1+i)^-n), computed in floating point
+//   then rounded to bigint; residual rounding error absorbed in final payment.
+
+export function daysBetween(a: string, b: string): number;
+// Returns the number of calendar days from a to b (ISO-8601 strings).
+```
+
+how to implement:
+1. Create `src/loan-types.ts` with types.
+2. Create `src/amortization.ts`.
+3. Implement `daysBetween` using `Date.parse` difference in milliseconds divided by 86400000, floored.
+4. Implement `buildAmortizationSchedule`:
+   a. Compute periodic rate based on convention.
+   b. Compute monthly payment `M` as a `number` using the standard formula.
+   c. Loop over `termMonths`, computing `interest = balance * periodicRate` as `number`, converting to `bigint` by rounding, then `principal = payment - interest`.
+   d. On the last period, set payment = remaining balance + accrued interest (absorbs rounding).
+5. Each period's `dueDate` = origination + N months (use `daysBetween` helper for Actual conventions).
+
+acceptance: `test/amortization.test.ts` asserts for a `$12,000` loan, 12% annual, 12 months, `30/360`:
+- Schedule has 12 entries.
+- All `paymentMinorUnits` values are within ±1 cent of each other (rounding absorbed in last).
+- `remainingBalanceMinorUnits` of last entry = `0n`.
+- `Σ(interestMinorUnits) + Σ(principalMinorUnits) === 12 * nominal_payment` (within ±12 cents rounding budget).
+
+---
+
+**`S09` — Payment allocation waterfall**
+dependsOn: `S01`, `S08`
+files: `src/allocation-policy.ts`, `test/allocation-policy.test.ts`
+
+interface:
+```ts
+export type AllocationBucket = 'fees' | 'interest' | 'principal' | 'escrow' | 'suspense';
+
+export interface AllocationPolicy {
+  order: AllocationBucket[];  // e.g. ['fees','interest','principal','escrow','suspense']
+}
+
+export interface AllocationResult {
+  buckets: Record<AllocationBucket, bigint>;
+  // Each key is how many minor units went there.
+  // Σ(values) === paymentAmount exactly.
+}
+
+export function allocatePayment(
+  paymentAmount: bigint,
+  outstanding: Partial<Record<AllocationBucket, bigint>>,
+  policy: AllocationPolicy,
+): AllocationResult;
+// Applies paymentAmount to buckets in policy.order.
+// For each bucket, takes min(paymentAmount_remaining, outstanding[bucket] ?? 0n).
+// Any remainder after all buckets goes to 'suspense'.
+// Conservation guarantee: Σ result === paymentAmount.
+```
+
+how to implement:
+1. Create `src/allocation-policy.ts`.
+2. Loop through `policy.order`; apply `min(remaining, outstanding[bucket] ?? 0n)` each time.
+3. After the loop, if `remaining > 0n`, add to `suspense`.
+4. Assert (in production code, not just tests) that `Σ(buckets values) === paymentAmount`; throw if violated.
+
+acceptance: `test/allocation-policy.test.ts` asserts:
+- Payment of 150, outstanding `{fees:50, interest:60, principal:200}` with order `fees→interest→principal→suspense` → `{fees:50n, interest:60n, principal:40n, suspense:0n}`.
+- Payment of 50, same outstanding → `{fees:50n, interest:0n, principal:0n, suspense:0n}`.
+- Payment of 500 → `{fees:50n, interest:60n, principal:200n, suspense:190n}`.
+- Conservation: sum of all result buckets === payment amount for all cases.
+
+---
+
+**`S10` — Post a payment through the ledger**
+dependsOn: `S04`, `S07`, `S09`
+files: `src/payment-poster.ts`, `test/payment-poster.test.ts`
+
+interface:
+```ts
+export interface PostPaymentArgs {
+  idempotencyKey: string;
+  paymentAmount: bigint;
+  currency: string;
+  effectiveAt: string;
+  loanAccountId: string;
+  outstanding: Partial<Record<AllocationBucket, bigint>>;
+  policy: AllocationPolicy;
+  actorId: string;
+}
+
+export interface PostPaymentResult {
+  status: 'posted' | 'duplicate';
+  journalId: string | null;
+  allocation: AllocationResult | null;
+}
+
+export function postPayment(
+  args: PostPaymentArgs,
+  store: LedgerStore,
+  idempotency: IdempotencyStore,
+  clock: () => string,
+): PostPaymentResult;
+```
+
+how to implement:
+1. Create `src/payment-poster.ts`.
+2. Check idempotency; if `'duplicate'` return early with `status: 'duplicate'`.
+3. Call `allocatePayment`.
+4. Build a balanced journal: for each non-zero bucket, one credit entry from `loanAccountId` + one debit to the bucket's ledger account (e.g. `"interest-income"`, `"fees-receivable"`).
+5. Call `store.postJournal(journal)`.
+6. Return `status: 'posted'`, journalId, allocation.
+
+acceptance: `test/payment-poster.test.ts` asserts:
+- A payment posts a journal whose entries balance.
+- Same idempotency key twice returns `'duplicate'` and the store has only one journal.
+- Allocation amounts match expected waterfall output.
+
+---
+
+**`S11` — Loan DPD state machine**
+dependsOn: `S08`
+files: `src/dpd.ts`, `test/dpd.test.ts`
+
+interface:
+```ts
+export type DPDBucket = 'Current' | '1-29' | '30-59' | '60-89' | '90+';
+
+export function computeDPD(
+  scheduledDueDate: string,
+  lastPaymentDate: string | null,
+  asOfDate: string,
+): number;
+// Returns the number of days past due as of asOfDate.
+// If lastPaymentDate >= scheduledDueDate, return 0.
+// If lastPaymentDate is null, days past due = daysBetween(scheduledDueDate, asOfDate).
+
+export function dpd_bucket(dpd: number): DPDBucket;
+// 0 → 'Current', 1–29 → '1-29', 30–59 → '30-59', 60–89 → '60-89', ≥90 → '90+'
+```
+
+how to implement:
+1. Create `src/dpd.ts`, import `daysBetween` from `S08`.
+2. `computeDPD`: if `lastPaymentDate !== null && lastPaymentDate >= scheduledDueDate` return 0. Otherwise return `max(0, daysBetween(scheduledDueDate, asOfDate))`.
+3. `dpd_bucket`: simple if/else chain.
+
+acceptance: `test/dpd.test.ts` asserts:
+- Paid on due date → DPD = 0 → `'Current'`.
+- 15 days late, no payment → DPD = 15 → `'1-29'`.
+- 35 days late → `'30-59'`.
+- 95 days late → `'90+'`.
+
+---
+
+**`S12` — Payoff quote**
+dependsOn: `S05`, `S08`, `S09`
+files: `src/payoff.ts`, `test/payoff.test.ts`
+
+interface:
+```ts
+export interface PayoffQuote {
+  principalOutstanding: bigint;
+  accruedInterestUnposted: bigint;
+  outstandingFees: bigint;
+  suspenseBalance: bigint;       // amount to credit back
+  totalDue: bigint;              // principal + accrued - suspense + fees
+  goodThroughDate: string;       // same as quoteDate
+  quoteDate: string;
+}
+
+export function buildPayoffQuote(
+  balance: LedgerStore,
+  loanAccountId: string,
+  scheduleInterestAccruedToDate: bigint,  // already posted accrued interest
+  unpostedAccruedInterest: bigint,        // interest accrued but not yet journaled
+  outstandingFees: bigint,
+  suspenseBalance: bigint,
+  quoteDate: string,
+): PayoffQuote;
+```
+
+how to implement:
+1. Create `src/payoff.ts`.
+2. Derive `principalOutstanding` from `balanceOf(store, loanAccountId, "USD")`.
+3. `totalDue = principalOutstanding + unpostedAccruedInterest + outstandingFees - suspenseBalance`.
+4. Return the struct with all fields.
+
+acceptance: `test/payoff.test.ts` asserts with a fixture ledger:
+- `totalDue = principalOutstanding + unpostedAccruedInterest + outstandingFees - suspenseBalance`.
+- No floating-point values in output.
+
+---
+
+**`S13` — camt.053 reconciliation engine**
+dependsOn: `S07`
+files: `src/reconciliation.ts`, `src/fixtures/camt053.ts`, `test/reconciliation.test.ts`
+
+interface:
+```ts
+export type ReconciliationOutcome =
+  | 'matched'
+  | 'amount-mismatch'
+  | 'duplicate'
+  | 'stale'
+  | 'unmatched'
+  | 'manual-review';
+
+export interface CamtEntry {
+  endToEndId: string;
+  amount: bigint;
+  currency: string;
+  valueDate: string;
+}
+
+export interface ExpectedPosting {
+  endToEndId: string;
+  amount: bigint;
+  currency: string;
+  expectedByDate: string;
+}
+
+export interface ReconciliationLineItem {
+  endToEndId: string;
+  outcome: ReconciliationOutcome;
+  reason: string;
+}
+
+export function reconcileBatch(
+  camtEntries: CamtEntry[],
+  expected: ExpectedPosting[],
+  processedIds: Set<string>,  // previously seen EndToEndIds
+  asOfDate: string,
+): ReconciliationLineItem[];
+```
+
+how to implement:
+1. Create `src/reconciliation.ts`.
+2. Build a map of `expected` by `endToEndId`.
+3. For each `camtEntry`:
+   - If `processedIds.has(endToEndId)` → `'duplicate'`.
+   - If not in expected → `'unmatched'`.
+   - If amounts differ → `'amount-mismatch'`.
+   - If `asOfDate > expectedByDate + 30 days` → `'stale'`.
+   - Else → `'matched'`.
+4. Any expected entry with no matching camt entry → `'stale'` if past due date.
+5. Create `src/fixtures/camt053.ts` with at least 5 fixture entries covering all 5 outcomes.
+
+acceptance: `test/reconciliation.test.ts` asserts:
+- The fixture batch produces exactly: 1 matched, 1 amount-mismatch, 1 duplicate, 1 stale, 1 unmatched.
+- Running the same fixture twice produces identical outcomes (replay determinism).
+
+---
+
+**`S14` — Audit event log**
+dependsOn: `S04`
+files: `src/audit.ts`, `test/audit.test.ts`
+
+interface:
+```ts
+export interface AuditEvent {
+  eventId: string;
+  actorId: string;
+  actionType: string;       // e.g. "POST_JOURNAL", "REVERSE_JOURNAL", "PLACE_HOLD"
+  targetId: string;         // journalId, loanId, etc.
+  timestamp: string;
+  reason: string;
+  beforeRef: string | null; // reference to prior state (journalId, snapshotId)
+  afterRef: string;         // reference to new state
+}
+
+export interface AuditLog {
+  append(event: AuditEvent): void;
+  all(): ReadonlyArray<AuditEvent>;
+  forTarget(targetId: string): ReadonlyArray<AuditEvent>;
+}
+
+export function createAuditLog(): AuditLog;
+```
+
+how to implement:
+1. Create `src/audit.ts` with an in-memory array.
+2. `append` pushes to the array (no deduplication, no mutation).
+3. `all` returns a copy.
+4. `forTarget` filters by `targetId`.
+
+acceptance: `test/audit.test.ts` asserts:
+- After 3 appends, `all().length === 3`.
+- `forTarget` returns only the matching events.
+- Appended events are never mutated (deep-equal the original object).
+
+---
+
+**`S15` — Maker-checker authority gate**
+dependsOn: `S14`
+files: `src/maker-checker.ts`, `test/maker-checker.test.ts`
+
+interface:
+```ts
+export interface AuthorityGate {
+  submitForApproval(
+    initiatorId: string,
+    actionType: string,
+    targetId: string,
+    reason: string,
+  ): string; // returns pendingActionId
+
+  approve(
+    approverId: string,
+    pendingActionId: string,
+    audit: AuditLog,
+    clock: () => string,
+  ): { ok: true } | { ok: false; reason: string };
+  // Returns ok:false if approverId === initiatorId (self-approval blocked).
+  // On success, appends an audit event.
+}
+
+export function createAuthorityGate(): AuthorityGate;
+```
+
+how to implement:
+1. Create `src/maker-checker.ts`.
+2. Store pending actions in a `Map<string, { initiatorId, actionType, targetId, reason }>`.
+3. `approve`: look up pending action; if `approverId === initiatorId`, return `{ ok: false, reason: "self-approval not permitted" }`; otherwise emit audit event and remove from pending.
+
+acceptance: `test/maker-checker.test.ts` asserts:
+- Approver different from initiator → `ok: true`.
+- Approver same as initiator → `ok: false`, reason includes "self-approval".
+- Approved action appears in audit log.
+
+---
+
+**`S16` — Golden statement fixture**
+dependsOn: `S05`, `S08`, `S14`
+files: `src/statement.ts`, `src/fixtures/statement-fixture.ts`, `test/statement.test.ts`
+
+interface:
+```ts
+export interface Statement {
+  loanId: string;
+  periodStart: string;
+  periodEnd: string;
+  openingBalance: bigint;
+  closingBalance: bigint;
+  interestCharged: bigint;
+  feeCharged: bigint;
+  paymentsReceived: bigint;
+  minimumDue: bigint;       // 0n for now; mark as debt to compute
+  activityLines: Array<{ date: string; description: string; amount: bigint }>;
+}
+
+export function generateStatement(
+  store: LedgerStore,
+  loanAccountId: string,
+  periodStart: string,
+  periodEnd: string,
+  knownAt: string,
+): Statement;
+```
+
+how to implement:
+1. Create `src/statement.ts`.
+2. Opening balance = `balanceAsOf(store, loanAccountId, "USD", periodStart, knownAt)`.
+3. Closing balance = `balanceAsOf(store, loanAccountId, "USD", periodEnd, knownAt)`.
+4. Activity lines = entries where `effectiveAt >= periodStart && effectiveAt <= periodEnd && postedAt <= knownAt`.
+5. Sum interest/fee/payment lines by `actionType` annotation on entry (use `journalId` prefix convention or a tag field on the entry).
+6. `minimumDue = 0n` — mark as knowledge debt.
+
+acceptance: `test/statement.test.ts`:
+- Uses `src/fixtures/statement-fixture.ts` (a fixture ledger with known entries).
+- Asserts `openingBalance`, `closingBalance`, `activityLines.length` against known values.
+- Running the same fixture twice produces identical output (determinism check).
+
+---
+
+**`S17` — Conservation property test**
+dependsOn: `S04`, `S10`
+files: `test/conservation.property.test.ts`
+
+interface: N/A — this is a property test.
+
+how to implement:
+1. Create `test/conservation.property.test.ts`.
+2. Write a function `runRandomLedgerSequence(seed: number)`:
+   - Build a deterministic sequence of 20–50 journals (using a simple LCG seeded PRNG), each balanced.
+   - Post them all.
+   - Assert Σ(all debit amounts) === Σ(all credit amounts) for each currency.
+3. Run with 5 different seeds in the test.
+4. Also test that posting one *unbalanced* journal (debits ≠ credits) is rejected before any entry is stored.
+
+acceptance: All 5 seeds pass; unbalanced journal throws. No I/O, no randomness outside the seeded PRNG.
+
+---
+
+### 3. The decomposition method for the remaining breadth
+
+After the first slice (S01–S17) is green, use this recipe for every remaining feature:
+
+**Recipe for one feature cluster:**
+1. Identify the feature's inputs (what domain types does it consume?).
+2. Identify the feature's output (what does it produce — a new type, a new store entry, a new report?).
+3. Check which existing cards define those types. List them as `dependsOn`.
+4. Split the feature into at most 3 cards: (a) types-only, (b) pure logic, (c) ledger-wired integration + test.
+5. Write the interface section first (exact TypeScript). Then write the numbered recipe. Then write the acceptance test assertions.
+6. Every card must have an acceptance test that runs with `npm test` without any live system.
+
+**Worked example 1 — Compliance hold state machine (B6)**
+- Types card `C01`: `HoldStatus = 'under-review'|'frozen'|'released'`; `ComplianceHold = { holdId, accountId, status, ownerId, reason, placedAt, expiresAt, auditNoteRetentionDate }`.
+- Logic card `C02` dependsOn `C01`, `S14`: `placeHold(store, audit, clock)`, `releaseHold(holdId, approverId, …)` — `releaseHold` requires maker-checker (from `S15`); a frozen account's debit gate returns `{ allowed: false }`.
+- Integration card `C03` dependsOn `C02`, `S10`: `postPayment` checks hold status before posting; test that a frozen account's payment is blocked with a reason.
+
+**Worked example 2 — Delinquency roll-rate report (B3)**
+- Types card `R01`: `DelinquencySnapshot = { loanId, asOfDate, dpd: number, bucket: DPDBucket }`.
+- Logic card `R02` dependsOn `S11`, `S05`: `buildPortfolioDelinquencyReport(loans, store, asOfDate)` → `DelinquencySnapshot[]`. Pure function — no DB, no I/O.
+- Test card (integrated into `R02`): fixture with a current loan, a 30-DPD loan, a 90-DPD loan. Assert bucket assignments and count.
+
+**Worked example 3 — Negative amortization cap check (B3)**
+- Types extension (add to `LoanTerms`): `negAmCapPct: number` (e.g. 125 means 125% of original principal), `recastAtMonth: number`.
+- Logic card `N01` dependsOn `S08`: `checkNegAmCap(terms, currentBalance): { breached: boolean; action: 'recast'|'none' }`. When `currentBalance > terms.principalMinorUnits * BigInt(terms.negAmCapPct) / 100n`, set `breached: true`.
+- Test: fixture loan with a tiny payment that causes neg-am; assert balance grows; at cap, assert `breached: true`.
+
+---
+
+### 4. Per-task implementation conventions
+
+**Folder layout**
+```
+src/
+  money.ts
+  ledger-types.ts
+  ledger-store.ts
+  journal-validator.ts
+  balance.ts
+  reversal.ts
+  idempotency.ts
+  loan-types.ts
+  amortization.ts
+  allocation-policy.ts
+  payment-poster.ts
+  dpd.ts
+  payoff.ts
+  reconciliation.ts
+  audit.ts
+  maker-checker.ts
+  statement.ts
+  fixtures/
+    camt053.ts
+    statement-fixture.ts
+test/
+  money.test.ts
+  ledger-types.test.ts
+  ... (one test file per src file)
+  conservation.property.test.ts
+```
+
+**How to write a test in Vitest**
+```ts
+import { describe, it, expect } from 'vitest';
+import { money, addMoney } from '../src/money.js';
+
+describe('money', () => {
+  it('adds same currency', () => {
+    const result = addMoney(money(100n, 'USD'), money(23n, 'USD'));
+    expect(result.amount).toBe(123n);
+  });
+  it('throws on currency mismatch', () => {
+    expect(() => addMoney(money(10n, 'USD'), money(5n, 'EUR'))).toThrow('currency mismatch');
+  });
+});
+```
+
+**Keeping it deterministic**
+- Inject `clock: () => string` everywhere a timestamp is needed. In tests, pass `() => "2026-06-30"`.
+- No `Date.now()`, `new Date()`, or `Math.random()` in any `src/` file.
+- Use a seeded LCG for the conservation property test (provide the implementation in the test file itself, no external library needed):
+```ts
+function lcg(seed: number) { let s = seed; return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return s; }; }
+```
+
+**Definition of done for any card**
+1. TypeScript compiles clean: `tsc --noEmit` exits 0.
+2. `npm test` is green, including the new test file.
+3. No `any` types in `src/`.
+4. No `number` used for a money amount in `src/`.
+5. No `Date.now()` or `Math.random()` in `src/`.
+6. The test file contains at least the assertions listed in the card's acceptance section.
+
+---
+
+### 5. Common pitfalls for a weak model on THIS project
+
+**Pitfall 1 — Using `number` for money**
+A 3B model will reach for `number` because it is familiar. The test catches it only if the fixture uses amounts that reveal floating-point drift (e.g. `0.1 + 0.2 !== 0.3`). Precaution: enforce `bigint` in the `Money` interface (TypeScript's type system prevents accidental `number` assignment). In `S01`, the type signature `amount: MinorUnits` where `MinorUnits = bigint` means the compiler rejects `number`. Never accept `number` in any function that touches currency.
+
+**Pitfall 2 — Storing balance as a field instead of deriving it**
+The model will want to write `account.balance += payment`. The `LedgerStore` interface deliberately has no `account` object with a `balance` field. The model must write `balanceOf(store, accountId, currency)` — a fold. Reinforce this by making `LedgerStore` not expose any mutable `account` type at all.
+
+**Pitfall 3 — Confusing effective date and posting date in the bitemporal query**
+A model will conflate the two axes and write `entry.effectiveAt <= knownAt` instead of the two-axis filter. The `S05` acceptance test is explicit: an entry with `effectiveAt = "2026-06-28"` and `postedAt = "2026-07-02"` must appear in `balanceAsOf("2026-07-31", "2026-07-31")` but NOT in `balanceAsOf("2026-06-30", "2026-06-30")`.
+
+**Pitfall 4 — Forgetting to validate journal balance at write time**
+A model may validate balance in the test only, not in `postJournal`. The `LedgerStore.postJournal` must call `validateJournalBalance` and throw — so an unbalanced journal can never enter the log, ever, from any call site.
+
+**Pitfall 5 — Implementing allocation order as a hard-coded if/else chain**
+The waterfall order must be data-driven (the `AllocationPolicy.order` array). Hard-coding `fees then interest then principal` breaks the "configurable" requirement and will fail a test that uses a different order. Make `allocatePayment` loop over `policy.order`.
+
+**Pitfall 6 — Forgetting the conservation assertion inside `allocatePayment`**
+After the loop, `Σ(result buckets)` must exactly equal `paymentAmount`. A model will forget this guard. Add the assertion inside the function body (throw if violated), not just in the test.
+
+**Pitfall 7 — Not handling the `30/360` convention correctly for month-end dates**
+Under `30/360`, both month-end dates (28th, 29th, 30th, 31st) have special handling. For the first slice, use the simple formula: treat every month as exactly 30 days and the year as 360. Mark full end-of-month rules as knowledge debt (B11). Do not attempt to implement the ISDA 30/360 variant in the first slice.
+
+**Pitfall 8 — Implementing `camt.053` parsing from scratch**
+Fixtures should be plain TypeScript `CamtEntry[]` objects, not XML strings. The spec says "model as parsed fixtures" — never write an XML parser. The fixture in `src/fixtures/camt053.ts` exports a `const` array.
+
+**Pitfall 9 — Forgetting the `discardedAt` check in `balanceOf`**
+The simple `balanceOf` (not bitemporal) should also exclude entries whose `discardedAt` is non-null. A model will write the filter for `status === 'posted'` but omit `discardedAt === null`. The reversal test (`S06`) catches this only if the assertion checks `balanceOf` *after* marking the reversal as discarded.
+
+**Pitfall 10 — Missing conservation in the property test seed loop**
+A model will write the conservation test using only a few hard-coded journals. The point is to generate 20–50 journals from a seed so the invariant is tested over many configurations. Use the LCG provided in the conventions section and parameterize the loop count.

@@ -197,3 +197,884 @@ If that slice is deterministic, hard-constraint-safe, 4D-deconflicted, and conti
 ## E12. Why this is a great !Klein challenge
 
 This is a **4D-safety-reasoning crucible** that punishes exactly the shortcuts a small local model takes by default: it will want waypoints to equal a plan, batteries to be infinite, "collision avoidance" to be spatial-only, and "safety" to be a warning string — and here each of those turns a test red. The real value is "can good decomposition + hard-constraint gates + invariant tests make a *fallible* model produce a **deterministic, energy-feasible, 4D-deconflicted, contingency-complete** mission planner." It stresses multi-agent coordination (CBBA swarm allocation, 4D deconfliction), reasoning in time-coupled space (operation volumes, separation minima, conformance monitoring), hard-constraint-before-optimization discipline (feasibility rejection with explainable reasons), and the off-nominal lifecycle that defines real autonomy (lost link, low battery, geofence breach → safe action) — all replayable from a seed so a near-miss or an emergency landing is a reproducible test, not a crash. The reward is legible and serious: a headless mission that replays bit-for-bit, a feasibility engine that *rejects* the unsafe plan with a reason, a deconfliction layer that separates two drones in space-time, and a contingency manager that lands a low-battery drone safely. **Build the kernel + UTM/conformance model + 4D deconfliction + feasibility/contingency (E1–E5, E9) first; earn the rest.**
+
+---
+
+## Small-model build guide (3B-ready)
+
+> This section is the mechanical on-ramp. A 3B model reading this must be able to follow it card-by-card without needing to be clever. Every card is independently implementable and verifiable. Read E1–E12 above first; this section operationalizes them.
+
+---
+
+### 1. Glossary & ground rules
+
+**Domain terms:**
+- **Tick** — integer logical time unit. Never use `Date.now()`, `performance.now()`, or `setTimeout` in any core module. A mission is simulated by advancing ticks.
+- **Grid coordinate** — integer `(x, y, alt)` tuple. Positions are on a fixed integer grid, never floating-point. This is what "explicit geospatial and temporal primitives with deterministic fixture maps" means.
+- **Altitude band** — an integer range `[minAlt, maxAlt]` (in grid units). Operations must remain within their assigned altitude band.
+- **OIV (Operational Intent Volume)** — the 4D claim a mission makes on airspace: a 3D bounding box + a tick range `[startTick, endTick]`. Two OIVs conflict if they overlap in both space AND time.
+- **Separation minimum** — the minimum spatial distance between two OIVs at any overlapping tick (an integer grid-unit buffer, e.g. 3 units). Two OIVs are deconflicted if their spatial extent plus the buffer never overlaps during their time overlap.
+- **Conformance state** — `conforming | nonconforming | contingent`. A drone is conforming while inside its OIV; nonconforming if it deviates outside; contingent when executing an emergency procedure.
+- **Contingency volume** — an additional 4D volume reserved alongside the OIV for use when the drone enters a contingency state (larger, to cover RTH or emergency procedures).
+- **USS (UAS Service Supplier)** — in real UTM, the entity that manages a drone's OIV and communicates with other USSs. In tests, modeled as a fixture "other-USS" that provides external reservations (no live network).
+- **Event log** — append-only array of typed events. Flight state is a fold over the log.
+- **Telemetry frame** — a message from the drone reporting position, SOC, link quality, payload status, and conformance state. Flight state updates from telemetry, not from commands.
+- **Command ack** — drone's acknowledgement of a command (may be rejected, delayed, or lost).
+- **RTH (Return to Home)** — the drone autonomously returns to its launch/recovery site, triggered by contingency.
+- **CBBA (Consensus-Based Bundle Algorithm)** — a distributed multi-drone task allocation algorithm. In tests, run synchronously with fixed agent order (deterministic).
+- **CBAA** — CBBA variant for single-task assignment (simpler, use this for the first slice).
+- **Coverage obligation** — a set of grid cells a mission pattern must fly over with the payload active. A cell is covered only if the drone was conforming and the payload was active at the required altitude.
+
+**Stack:**
+- Language: TypeScript (strict mode, `noImplicitAny: true`)
+- Runtime: Node.js (no browser globals in core)
+- Test runner: `npm test` runs Vitest or Jest (whichever is in `package.json`)
+- No external geospatial libraries — all coordinate math uses integer arithmetic
+- No network, no hardware I/O in tests — fixture maps, scenarios, and telemetry sequences are TypeScript objects in `test/fixtures/`
+
+**Ground rules:**
+1. Never use `Math.random()` in `src/core/` — use the seeded PRNG from `src/core/prng.ts`.
+2. Never use `Date.now()` or wall-clock time in core.
+3. All positions and distances are integer grid units — never JavaScript `number` floats for spatial math.
+4. Flight state updates from telemetry events only, not from command dispatch.
+5. Safety (geofence, altitude, comms) is checked as a hard constraint before any plan is approved.
+6. Every acceptance test runs offline. No network, no hardware.
+7. The acceptance command is `npm test`. It must pass green before a card is done.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first vertical slice covers E1–E5, E8 (coverage report), and E9 from the v2 section. It has **18 cards** (D01–D18). Build them in order.
+
+---
+
+**D01 — Project scaffold & TypeScript config**
+dependsOn: none
+files: `package.json`, `tsconfig.json`, `src/core/.gitkeep`, `test/.gitkeep`
+
+interface: configuration only.
+
+how to implement:
+1. Create `package.json` with `"type": "module"`, `"test": "vitest run"`, dev dependencies: `vitest`, `typescript`.
+2. `tsconfig.json`: `"strict": true`, `"noImplicitAny": true`, `"target": "ES2022"`, `"module": "NodeNext"`, `"moduleResolution": "NodeNext"`.
+
+acceptance: `npm test` exits 0. No TypeScript errors.
+
+---
+
+**D02 — Seeded split-PRNG**
+dependsOn: D01
+files: `src/core/prng.ts`, `test/core/prng.test.ts`
+
+interface:
+```typescript
+// src/core/prng.ts
+export type PrngState = { s0: bigint; s1: bigint };
+export type PrngStream = { state: PrngState; streamId: number };
+
+export function createPrng(seed: bigint): PrngState;
+export function splitStream(root: PrngState, streamId: number): PrngStream;
+export function nextUint32(stream: PrngStream): { value: number; next: PrngStream };
+export function nextIntBelow(stream: PrngStream, max: number): { value: number; next: PrngStream };
+// nextIntIn(min, max): integer in [min, max]
+export function nextIntIn(stream: PrngStream, min: number, max: number): { value: number; next: PrngStream };
+```
+
+how to implement:
+1. SplitMix64 in bigints.
+2. `splitStream`: seed from `root.s0 ^ BigInt(streamId)`.
+3. All pure (return next state).
+
+acceptance:
+- `createPrng(7n)` called twice returns identical states.
+- `nextUint32` called 50 times produces identical sequence on re-run.
+- `splitStream(root, 1)` and `splitStream(root, 2)` produce different outputs.
+
+---
+
+**D03 — Integer geospatial primitives**
+dependsOn: D01
+files: `src/core/geo.ts`, `test/core/geo.test.ts`
+
+interface:
+```typescript
+// src/core/geo.ts
+export type GridCoord = { x: number; y: number; alt: number }; // all integers
+export type BoundingBox3D = { minX: number; maxX: number; minY: number; maxY: number; minAlt: number; maxAlt: number };
+
+// Integer Chebyshev distance (max of x/y/alt deltas) — never use Math.sqrt
+export function chebyshevDist(a: GridCoord, b: GridCoord): number;
+// Euclidean-squared distance (integer, no sqrt): (dx*dx + dy*dy + dz*dz)
+export function euclideanSq(a: GridCoord, b: GridCoord): number;
+// Axis-aligned bounding box for a list of coords
+export function boundingBoxOf(coords: GridCoord[]): BoundingBox3D;
+// Returns true if two bounding boxes overlap in all three dimensions
+export function boxesOverlap3D(a: BoundingBox3D, b: BoundingBox3D): boolean;
+// Returns true if point is inside box (inclusive)
+export function pointInBox(p: GridCoord, box: BoundingBox3D): boolean;
+// Separation check: do two 3D boxes maintain at least minSeparation in EVERY dimension?
+export function separationSatisfied(a: BoundingBox3D, b: BoundingBox3D, minSeparation: number): boolean;
+```
+
+how to implement:
+1. All integer arithmetic — no `Math.sqrt`, no floats.
+2. `chebyshevDist`: `Math.max(|dx|, |dy|, |dz|)` — note: `Math.max` and `Math.abs` are pure deterministic functions on integers and are fine to use.
+3. `separationSatisfied`: boxes are separated if `a.maxX + minSeparation <= b.minX` OR `b.maxX + minSeparation <= a.minX` (etc. for all axes).
+4. Write `test/core/geo.test.ts`.
+
+acceptance:
+- `chebyshevDist({x:0,y:0,alt:0}, {x:3,y:1,alt:2})` returns `3`.
+- `euclideanSq({x:0,y:0,alt:0}, {x:3,y:4,alt:0})` returns `25`.
+- Two boxes that overlap in XY but not in alt: `boxesOverlap3D` returns `false`.
+- Two boxes with a gap of exactly `minSeparation`: `separationSatisfied` returns `true`.
+- Two boxes with a gap of `minSeparation - 1`: `separationSatisfied` returns `false`.
+
+---
+
+**D04 — Core domain types**
+dependsOn: D03
+files: `src/core/types.ts`
+
+interface:
+```typescript
+// src/core/types.ts
+export type Tick = number;
+export type DroneId = string;
+export type MissionId = string;
+export type GeofenceId = string;
+export type OperationId = string;
+export type WaypointId = string;
+
+export type ConformanceState = 'conforming' | 'nonconforming' | 'contingent';
+export type DroneStatus = 'grounded' | 'preflight' | 'flying' | 'rthing' | 'landed' | 'fault' | 'lost-link';
+export type PayloadStatus = 'off' | 'active' | 'fault';
+
+export type Drone = {
+  id: DroneId;
+  position: GridCoord;
+  altBand: { minAlt: number; maxAlt: number };
+  soc: number;             // integer 0–100
+  maxSoc: number;          // typically 100
+  payloadMassKg: number;   // integer
+  commsRangeUnits: number; // integer grid units
+  status: DroneStatus;
+  payloadStatus: PayloadStatus;
+  conformanceState: ConformanceState;
+  activeMissionId: MissionId | null;
+};
+
+export type Waypoint = { id: WaypointId; coord: GridCoord };
+export type FlightSegmentKind = 'climb' | 'cruise' | 'hover' | 'descent';
+export type FlightSegment = { from: Waypoint; to: Waypoint; kind: FlightSegmentKind; durationTicks: number };
+
+export type OIV = {
+  operationId: OperationId;
+  droneId: DroneId;
+  box: BoundingBox3D;     // spatial extent
+  startTick: Tick;
+  endTick: Tick;
+};
+
+export type ContingencyVolume = {
+  operationId: OperationId;
+  box: BoundingBox3D;
+  startTick: Tick;
+  endTick: Tick;
+  procedures: ContingencyProcedure[];
+};
+
+export type ContingencyTrigger = 'lost-link' | 'low-battery' | 'geofence-breach-risk' | 'wind-shift' | 'obstacle' | 'emergency';
+export type ContingencyAction = 'hold' | 'rth' | 'land-nearest' | 'reroute' | 'emergency-land';
+export type ContingencyProcedure = { trigger: ContingencyTrigger; action: ContingencyAction; targetCoord?: GridCoord };
+
+export type GeofenceKind = 'keep-out' | 'keep-in' | 'dynamic';
+export type Geofence = { id: GeofenceId; kind: GeofenceKind; box: BoundingBox3D; activeTicks?: [Tick, Tick] };
+
+export type MissionStatus = 'planning' | 'submitted' | 'approved' | 'active' | 'completed' | 'aborted';
+export type Mission = {
+  id: MissionId;
+  droneId: DroneId;
+  waypoints: Waypoint[];
+  segments: FlightSegment[];
+  oiv: OIV;
+  contingencyVolume: ContingencyVolume;
+  status: MissionStatus;
+  coverageObligation: GridCoord[];  // cells that must be overflown with payload active
+};
+
+export type WindState = { direction: number; speedUnits: number }; // integer direction (0–7 compass) and integer speed
+
+export type FlightEvent =
+  | { type: 'MissionSubmitted'; tick: Tick; missionId: MissionId; droneId: DroneId }
+  | { type: 'DeconflictionResult'; tick: Tick; missionId: MissionId; passed: boolean; conflictingOperationId?: OperationId }
+  | { type: 'Cleared'; tick: Tick; missionId: MissionId }
+  | { type: 'CommandAcked'; tick: Tick; droneId: DroneId; commandId: string }
+  | { type: 'CommandRejected'; tick: Tick; droneId: DroneId; commandId: string; reason: string }
+  | { type: 'TelemetryFrame'; tick: Tick; droneId: DroneId; position: GridCoord; soc: number; linkQuality: number; payloadStatus: PayloadStatus; status: DroneStatus }
+  | { type: 'Deviation'; tick: Tick; droneId: DroneId; deviationVector: GridCoord }
+  | { type: 'ConformanceStateChanged'; tick: Tick; droneId: DroneId; from: ConformanceState; to: ConformanceState }
+  | { type: 'ContingencyTriggered'; tick: Tick; droneId: DroneId; trigger: ContingencyTrigger; action: ContingencyAction }
+  | { type: 'GeofenceBreachRisk'; tick: Tick; droneId: DroneId; geofenceId: GeofenceId }
+  | { type: 'EmergencyLanding'; tick: Tick; droneId: DroneId; coord: GridCoord }
+  | { type: 'ReservationGranted'; tick: Tick; operationId: OperationId }
+  | { type: 'CoverageCellCompleted'; tick: Tick; droneId: DroneId; cell: GridCoord };
+
+export type FlightState = {
+  tick: Tick;
+  drones: Map<DroneId, Drone>;
+  missions: Map<MissionId, Mission>;
+  geofences: Map<GeofenceId, Geofence>;
+  reservations: Map<OperationId, OIV>;
+  externalReservations: OIV[];   // fixture "other-USS" feed
+  wind: WindState;
+  eventLog: FlightEvent[];
+  prngStreams: Record<string, PrngStream>;
+};
+
+export type MissionScenario = {
+  drones: Drone[];
+  missions: Mission[];
+  geofences: Geofence[];
+  externalReservations: OIV[];
+  wind: WindState;
+  seed: bigint;
+};
+```
+
+how to implement:
+1. Create `src/core/types.ts` — types only.
+2. Write trivial `test/core/types.test.ts` that creates one instance of each type.
+
+acceptance: TypeScript compiles, `npm test` → green.
+
+---
+
+**D05 — Flight state initialization & event fold**
+dependsOn: D02, D04
+files: `src/core/state.ts`, `test/core/state.test.ts`
+
+interface:
+```typescript
+// src/core/state.ts
+export function initFlightState(scenario: MissionScenario): FlightState;
+export function applyEvent(state: FlightState, event: FlightEvent): FlightState;
+export function foldEvents(initial: FlightState, events: FlightEvent[]): FlightState;
+export function hashFlightState(state: FlightState): string;
+// Serialize Maps to sorted arrays, bigints to strings, then djb2/FNV-1a hash.
+```
+
+how to implement:
+1. `initFlightState`: index drones/missions/geofences into Maps, tick=0, empty log, init PRNG streams.
+2. `applyEvent`: pattern-match, return new state (never mutate).
+   - `TelemetryFrame`: update drone position, soc, status, payloadStatus.
+   - `ConformanceStateChanged`: update `drone.conformanceState`.
+   - `CoverageCellCompleted`: mark the cell as done in the mission's coverage tracking.
+3. `hashFlightState`: sorted-keys serialization.
+
+acceptance:
+- `initFlightState` with 2 drones has `state.drones.size === 2`.
+- `hashFlightState` is identical on two calls with the same state.
+- `TelemetryFrame` event correctly updates drone position.
+
+---
+
+**D06 — Snapshot / restore**
+dependsOn: D05
+files: `src/core/snapshot.ts`, `test/core/snapshot.test.ts`
+
+interface:
+```typescript
+export type Snapshot = { tick: number; data: string };
+export function takeSnapshot(state: FlightState): Snapshot;
+export function restoreSnapshot(snap: Snapshot): FlightState;
+```
+
+how to implement: same pattern as warehouse W05 — serialize sorted Maps, bigints as strings; reconstruct on restore.
+
+acceptance:
+- `hashFlightState(restoreSnapshot(takeSnapshot(state))) === hashFlightState(state)`.
+- Restore at tick 10, apply 5 more events, hash matches no-restore + same 5 events.
+
+---
+
+**D07 — OIV 4D overlap detector**
+dependsOn: D03, D04
+files: `src/core/deconfliction.ts`, `test/core/deconfliction.test.ts`
+
+interface:
+```typescript
+// src/core/deconfliction.ts
+export type ConflictResult =
+  | { conflict: false }
+  | { conflict: true; conflictingOperationId: OperationId; reason: string };
+
+export function detectOIVConflict(
+  proposed: OIV,
+  existing: OIV,
+  separationMinUnits: number
+): ConflictResult;
+// Conflict if time ranges overlap AND spatial boxes don't satisfy separation.
+// Time overlap: proposed.startTick <= existing.endTick AND proposed.endTick >= existing.startTick.
+// Spatial separation: separationSatisfied(proposed.box, existing.box, separationMinUnits) must be true.
+
+export function checkAgainstAll(
+  proposed: OIV,
+  allReservations: OIV[],
+  externalReservations: OIV[],
+  separationMinUnits: number
+): ConflictResult;
+// Check against all existing + external. Return first conflict found.
+// Check external first, then internal (deterministic: check in operationId sorted order).
+```
+
+how to implement:
+1. Time overlap: `start1 <= end2 && end1 >= start2` (integer comparison).
+2. Spatial: call `separationSatisfied` from D03.
+3. `checkAgainstAll`: sort both lists by `operationId` before iterating — never iterate unsorted.
+4. Write `test/core/deconfliction.test.ts`.
+
+acceptance:
+- Two OIVs that overlap in space but not time: `conflict: false`.
+- Two OIVs that overlap in time but not space (separation satisfied): `conflict: false`.
+- Two OIVs overlapping in both space and time: `conflict: true`.
+- An OIV that overlaps an external reservation: `conflict: true` with the external operationId.
+- Identical calls produce identical results (determinism).
+
+---
+
+**D08 — Flight feasibility engine**
+dependsOn: D03, D04
+files: `src/core/feasibility.ts`, `test/core/feasibility.test.ts`
+
+interface:
+```typescript
+// src/core/feasibility.ts
+export type FeasibilityViolation = {
+  kind: 'battery-reserve' | 'no-fly-zone' | 'keep-in-violation' | 'altitude-band' | 'comms-range';
+  reason: string;
+  segmentIndex?: number;
+  geofenceId?: string;
+};
+
+export type FeasibilityResult =
+  | { feasible: true }
+  | { feasible: false; violations: FeasibilityViolation[] };
+
+// Energy model: each segment costs `segmentCostSoc(segment, windState, payloadMassKg)` SOC points.
+// Reserve requirement: after all segments, must have soc > reserveSocPercent (e.g. 20)
+//   PLUS enough to fly from last waypoint to home coord.
+export function segmentCostSoc(
+  segment: FlightSegment,
+  wind: WindState,
+  payloadMassKg: number
+): number; // integer SOC points consumed
+
+export function checkFeasibility(
+  drone: Drone,
+  mission: Mission,
+  geofences: Map<GeofenceId, Geofence>,
+  homeCoord: GridCoord,
+  wind: WindState,
+  reserveSocPercent: number
+): FeasibilityResult;
+// Checks in order (all violations collected, not just first):
+// 1. Battery: sum segmentCostSoc for all segments + RTH cost >= drone.soc - reserveSocPercent.
+// 2. No-fly zones (keep-out): any waypoint inside a keep-out geofence.
+// 3. Keep-in: any waypoint outside the keep-in geofence (if one exists).
+// 4. Altitude bands: any waypoint outside drone.altBand.
+// 5. Comms range: any waypoint beyond drone.commsRangeUnits from homeCoord.
+```
+
+how to implement:
+1. `segmentCostSoc`: base cost per segment kind (climb=3, cruise=2, hover=4, descent=1) per 10 ticks, multiplied by `1 + payloadMassKg / 20` (integer division), then add wind penalty `windSpeedUnits / 10` per 10 ticks for headwind (direction opposing segment direction). All integer.
+2. `checkFeasibility`: collect all violations, return `{ feasible: false, violations }` if any found.
+3. Check geofences by comparing waypoint coords to geofence boxes using `pointInBox`.
+4. Write `test/core/feasibility.test.ts`.
+
+acceptance:
+- A drone with soc=30, reserve=20, segments costing 25 total: `feasible: false`, violation kind `'battery-reserve'`.
+- A waypoint inside a keep-out geofence: `feasible: false`, kind `'no-fly-zone'`.
+- A waypoint outside altitude band: `feasible: false`, kind `'altitude-band'`.
+- A waypoint beyond comms range: `feasible: false`, kind `'comms-range'`.
+- All four violations detected in a single plan.
+- A plan with no violations: `feasible: true`.
+
+---
+
+**D09 — Conformance state machine**
+dependsOn: D04, D05
+files: `src/core/conformance.ts`, `test/core/conformance.test.ts`
+
+interface:
+```typescript
+// src/core/conformance.ts
+export function checkConformance(
+  drone: Drone,
+  mission: Mission,
+  currentTick: Tick
+): { inVolume: boolean; deviationVec: GridCoord | null };
+// Checks if drone.position is inside mission.oiv.box at currentTick.
+// Returns the deviation vector (position - nearest OIV boundary) if outside, else null.
+
+export function transitionConformanceState(
+  current: ConformanceState,
+  inVolume: boolean,
+  contingencyTriggered: boolean
+): ConformanceState;
+// conforming + inVolume=true → conforming
+// conforming + inVolume=false → nonconforming
+// nonconforming + contingencyTriggered → contingent
+// contingent stays contingent (only manual reset)
+
+export function monitorConformance(
+  state: FlightState,
+  missionId: MissionId
+): FlightEvent[];
+// Per tick: check conformance, emit ConformanceStateChanged if state changes, emit Deviation if outside.
+```
+
+how to implement:
+1. `checkConformance`: use `pointInBox(drone.position, mission.oiv.box)`. Compute deviationVec as component-wise difference from the nearest boundary point.
+2. `transitionConformanceState`: pure function, state machine transitions as above.
+3. `monitorConformance`: call both, collect events.
+4. Write `test/core/conformance.test.ts`.
+
+acceptance:
+- Drone inside OIV at the right tick: `inVolume: true`.
+- Drone 1 unit outside OIV: `inVolume: false`, `deviationVec` points outward.
+- Transition from conforming → nonconforming when drone exits OIV.
+- Transition to contingent when contingency is triggered while nonconforming.
+- A conforming drone stays conforming even with minor random telemetry jitter if the OIV has a buffer.
+
+---
+
+**D10 — Contingency manager**
+dependsOn: D04, D05, D08, D09
+files: `src/core/contingency.ts`, `test/core/contingency.test.ts`
+
+interface:
+```typescript
+// src/core/contingency.ts
+export function selectContingencyAction(
+  drone: Drone,
+  mission: Mission,
+  trigger: ContingencyTrigger,
+  currentTick: Tick,
+  geofences: Map<GeofenceId, Geofence>,
+  wind: WindState
+): ContingencyAction;
+// Deterministic decision tree:
+// lost-link: use mission's pre-planned lost-link procedure action.
+// low-battery: if RTH feasible (checkFeasibility with RTH segment), 'rth'; else 'land-nearest'.
+// geofence-breach-risk: if reroutable (stub: always 'reroute' in this slice), 'reroute'; else 'rth'.
+// wind-shift: re-check feasibility; if infeasible, 'rth'; else 'hold' (wait for re-plan).
+// emergency: 'emergency-land'.
+
+export function applyContingency(
+  state: FlightState,
+  droneId: DroneId,
+  trigger: ContingencyTrigger,
+  action: ContingencyAction,
+  targetCoord: GridCoord | null,
+  tick: Tick
+): FlightState;
+// Emits ContingencyTriggered event, updates drone status, emits ConformanceStateChanged to 'contingent'.
+```
+
+how to implement:
+1. `selectContingencyAction`: pure decision tree using pre-planned procedures from `mission.contingencyVolume.procedures`.
+2. `applyContingency`: emit events, return new state via `applyEvent`.
+3. Write `test/core/contingency.test.ts`.
+
+acceptance:
+- A drone with `lost-link` trigger: action matches its pre-planned lost-link procedure.
+- A drone with `low-battery` and enough SOC for RTH: action is `'rth'`.
+- A drone with `low-battery` and SOC below RTH cost: action is `'land-nearest'`.
+- After `applyContingency`, drone's `conformanceState === 'contingent'` and a `ContingencyTriggered` event is in the log.
+- Two identical inputs produce the same action (determinism).
+
+---
+
+**D11 — Telemetry simulator (fixture transport)**
+dependsOn: D02, D04, D05
+files: `src/core/telemetry.ts`, `test/core/telemetry.test.ts`
+
+interface:
+```typescript
+// src/core/telemetry.ts
+export type TelemetryPolicy = {
+  // Pure: given drone state and PRNG stream, produce the next telemetry frame.
+  // Adds small integer jitter to position (±1 unit) and SOC (±1) from the PRNG stream.
+  simulate(drone: Drone, tick: Tick, stream: PrngStream): { frame: TelemetryFrame; nextStream: PrngStream };
+};
+
+export type TelemetryFrame = {
+  droneId: DroneId;
+  tick: Tick;
+  position: GridCoord;
+  soc: number;
+  linkQuality: number;   // integer 0–100
+  payloadStatus: PayloadStatus;
+  status: DroneStatus;
+};
+
+export function defaultTelemetryPolicy(scenario?: { lostLinkAtTick?: Tick; lostLinkDroneId?: DroneId }): TelemetryPolicy;
+// Default: normal telemetry with ±1 integer jitter.
+// If scenario provided: force link quality to 0 for lostLinkDroneId after lostLinkAtTick.
+```
+
+how to implement:
+1. `simulate`: use `nextIntIn(stream, -1, 1)` three times for x/y/alt jitter (integer). SOC: use `nextIntIn(stream, -1, 0)` (drain only, never charge).
+2. `defaultTelemetryPolicy`: if the lost-link scenario applies, return `linkQuality: 0` and `status: 'lost-link'` after the trigger tick.
+3. Write `test/core/telemetry.test.ts`.
+
+acceptance:
+- Two runs with the same seed produce identical telemetry sequences.
+- Jitter is within ±1 units of the drone's planned position.
+- Lost-link policy: `linkQuality === 0` after the trigger tick for the specified drone.
+- SOC decreases each tick (never increases in the fixture).
+
+---
+
+**D12 — CBAA single-task allocation (deterministic)**
+dependsOn: D04, D05, D08
+files: `src/core/allocation.ts`, `test/core/allocation.test.ts`
+
+interface:
+```typescript
+// src/core/allocation.ts
+export type AllocationTask = {
+  taskId: string;
+  requiredCoverage: GridCoord[];
+  targetCoord: GridCoord;
+  priority: number;
+};
+
+export type AllocationBid = {
+  droneId: DroneId;
+  taskId: string;
+  score: number;       // higher = better fit
+  feasible: boolean;
+};
+
+// CBAA: each drone bids on each task. Winner = highest feasible score. Tiebreak = droneId.
+export function runCBAA(
+  drones: Map<DroneId, Drone>,
+  tasks: AllocationTask[],
+  missions: Map<MissionId, Mission>,
+  geofences: Map<GeofenceId, Geofence>,
+  homeCoord: GridCoord,
+  wind: WindState
+): Map<string, DroneId>; // taskId -> winning droneId (only for feasible assignments)
+// Score = 100 - chebyshevDist(drone.position, task.targetCoord) - (100 - drone.soc).
+// Sort drones by droneId before iterating (deterministic).
+// A drone that is infeasible for a task (per checkFeasibility) has bid score = -Infinity.
+```
+
+how to implement:
+1. Compute all bids: for each drone (sorted by droneId), for each task, compute score and check feasibility.
+2. Per task, choose the drone with the highest feasible score; tiebreak by droneId (lexicographically smallest).
+3. Write `test/core/allocation.test.ts`.
+
+acceptance:
+- A drone with `soc=5` is never assigned a task requiring `battery-reserve`.
+- The nearest feasible drone wins the task.
+- Two identical inputs produce identical assignments.
+- A task with no feasible drone produces no entry in the result map.
+
+---
+
+**D13 — Survey grid coverage pattern generator**
+dependsOn: D03, D04
+files: `src/core/patterns.ts`, `test/core/patterns.test.ts`
+
+interface:
+```typescript
+// src/core/patterns.ts
+export type SurveyGridParams = {
+  minX: number; maxX: number;
+  minY: number; maxY: number;
+  altitude: number;    // integer, must be within drone's altBand
+  stepSize: number;    // integer, distance between rows (boustrophedon pattern)
+};
+
+export function generateSurveyGrid(params: SurveyGridParams): { waypoints: Waypoint[]; coverageObligation: GridCoord[] };
+// Boustrophedon (back-and-forth) pattern: rows at y = minY, minY+stepSize, ..., maxY.
+// Alternates direction each row (left-to-right, then right-to-left, etc.).
+// Deterministic: always starts at minX, row order is minY to maxY.
+// Coverage obligation = all integer (x,y) grid cells within the surveyed rectangle at the given altitude.
+```
+
+how to implement:
+1. Loop over y from minY to maxY step by stepSize.
+2. Alternate x direction each row.
+3. Each waypoint is `{coord: {x, y, alt: altitude}}`.
+4. Coverage obligation = all `{x, y, alt}` cells within the bounding box.
+5. Write `test/core/patterns.test.ts`.
+
+acceptance:
+- A 3×3 grid (minX=0, maxX=2, minY=0, maxY=2, stepSize=1) produces 9 waypoints covering all cells.
+- Waypoints alternate direction each row.
+- Two calls with same params produce identical waypoints (determinism).
+
+---
+
+**D14 — Coverage report**
+dependsOn: D04, D05, D13
+files: `src/core/coverage.ts`, `test/core/coverage.test.ts`
+
+interface:
+```typescript
+// src/core/coverage.ts
+export type CoverageReport = {
+  completed: GridCoord[];   // cells confirmed covered (drone conforming + payload active + correct altitude)
+  missed: GridCoord[];      // cells in obligation not yet covered
+  invalid: GridCoord[];     // cells "covered" while nonconforming or payload off or wrong altitude
+};
+
+export function computeCoverage(
+  mission: Mission,
+  state: FlightState
+): CoverageReport;
+// Scan event log for CoverageCellCompleted events for this mission.
+// A cell is completed only if a CoverageCellCompleted event exists AND the corresponding
+// TelemetryFrame at that tick shows payloadStatus='active' AND the drone was 'conforming'.
+// Remaining cells from coverageObligation are 'missed'.
+// Any cell covered while nonconforming is 'invalid'.
+```
+
+how to implement:
+1. Scan the event log for `CoverageCellCompleted` events matching this mission's droneId.
+2. Cross-reference each with the `TelemetryFrame` at the same tick.
+3. Build the three lists.
+4. Write `test/core/coverage.test.ts`.
+
+acceptance:
+- A mission where the drone flew all cells conforming: `completed.length === coverageObligation.length`, `missed.length === 0`.
+- A drone that diverted mid-mission: some cells appear in `missed`.
+- A drone that flew a cell nonconforming: cell appears in `invalid`, not `completed`.
+
+---
+
+**D15 — Seed scenario fixture & adversarial fixtures**
+dependsOn: D03, D04
+files: `test/fixtures/seed-scenario.ts`, `test/fixtures/conflict-fixture.ts`, `test/fixtures/wind-shift-fixture.ts`, `test/fixtures/lost-link-fixture.ts`
+
+interface: TypeScript `const` objects conforming to `MissionScenario`.
+
+how to implement:
+1. `seed-scenario.ts`: a 10×10×4-unit grid, 2 drones, a 4×4 survey area, one keep-out geofence (a 2×2 box), one keep-in geofence (the full grid), one external reservation (a fixture OIV that conflicts spatially with a naively-submitted mission), wind = speed 2 from the west, `seed = 77n`.
+2. `conflict-fixture.ts`: two drones planning overlapping OIVs at the same ticks (strategic deconfliction must reject one and propose a time-shift).
+3. `wind-shift-fixture.ts`: a drone mid-mission when wind speed jumps from 2 to 8 at tick 20 (feasibility check must re-evaluate and trigger RTH).
+4. `lost-link-fixture.ts`: a drone that loses link at tick 15 (telemetry linkQuality drops to 0); contingency manager must trigger the pre-planned lost-link procedure.
+
+acceptance: all fixtures compile cleanly as TypeScript.
+
+---
+
+**D16 — Mission flight simulation runner**
+dependsOn: D07, D08, D09, D10, D11, D12, D13
+files: `src/core/flight.ts`, `test/core/flight.test.ts`
+
+interface:
+```typescript
+// src/core/flight.ts
+export type FlightResult = { stateHash: string; eventLog: FlightEvent[]; coverageReports: Map<MissionId, CoverageReport> };
+
+export function flyMission(
+  scenario: MissionScenario,
+  maxTicks: number
+): FlightResult;
+// Main simulation loop per tick:
+// 1. Update wind (from scenario — deterministic, no stochastic wind in first slice).
+// 2. Collect telemetry frames (from TelemetryPolicy), apply as TelemetryFrame events.
+// 3. Monitor conformance (monitorConformance) for each active drone. Emit state change events.
+// 4. Check geofence breach risk (any waypoint in next segment inside dynamic keep-out). Emit GeofenceBreachRisk if so.
+// 5. Check contingency triggers: lost link (linkQuality=0), low battery (soc<20), geofence-breach-risk event just emitted.
+// 6. Apply contingencies (applyContingency) for triggered drones.
+// 7. Emit CoverageCellCompleted for any cell the drone flew over while conforming + payload active.
+// 8. Advance tick.
+```
+
+how to implement:
+1. Implement the 8-step tick loop.
+2. All state updates via `applyEvent`.
+3. Telemetry drives state; never update drone position directly.
+4. Write `test/core/flight.test.ts` with the seed scenario.
+
+acceptance:
+- `flyMission(seedScenario, 50)` completes without error.
+- `hashFlightState` is stable across two runs with the same seed.
+- At least one `CoverageCellCompleted` event appears in the log.
+
+---
+
+**D17 — Adversarial fixture tests**
+dependsOn: D07, D10, D14, D16, D15
+files: `test/integration/adversarial.test.ts`
+
+interface: tests only.
+
+how to implement:
+1. **Conflict test**: submit two missions from `conflictFixture`. Check that `DeconflictionResult` is emitted with `passed: false` for the conflicting mission, and a re-submitted version with time-shifted OIV passes.
+2. **Wind-shift test**: run `flyMission(windShiftFixture, 60)`. Assert a `ContingencyTriggered` event with trigger `'wind-shift'` and action `'rth'` appears after tick 20.
+3. **Lost-link test**: run `flyMission(lostLinkFixture, 40)`. Assert a `ContingencyTriggered` event with trigger `'lost-link'` appears at or after tick 15, and the drone never violates any geofence while contingent.
+
+acceptance: all three tests pass green. `npm test` → green.
+
+---
+
+**D18 — Golden replay + global invariants integration test**
+dependsOn: D16–D17
+files: `test/integration/golden-replay.test.ts`
+
+interface: tests only.
+
+how to implement:
+1. Run `flyMission(seedScenario, 80)` twice.
+2. **Pin** `stateHash` and `eventLogHash` as constants.
+3. Assert both hashes are identical across runs.
+4. Assert invariants:
+   a. **Hard-constraint inviolability**: no drone position (from any `TelemetryFrame`) is inside a keep-out geofence. Assert using `pointInBox` for every `TelemetryFrame` event.
+   b. **Energy monotonicity**: drone SOC never increases (only decreases or stays same) during flight segments — scan `TelemetryFrame` events and assert each SOC <= prior SOC.
+   c. **Conformance correctness**: after any `ConformanceStateChanged` to `'nonconforming'`, a `ContingencyTriggered` or further state change appears within 3 ticks.
+   d. **No cleared OIV conflicts**: all OIVs that received a `Cleared` event have no mutual conflicts (check with `detectOIVConflict` over all pairs).
+5. Run again from a snapshot taken at tick 40; assert final hash matches.
+
+acceptance: all assertions pass. Pinned hashes are stable. `npm test` → green. Gate for the entire first slice.
+
+---
+
+### 3. The decomposition method for the rest
+
+Use this repeatable recipe to expand remaining features into the same card shape:
+
+**Recipe:**
+1. Identify what **new types** the feature needs. Card cluster A (types-only card).
+2. Identify what **pure spatial/temporal computation** it adds. Card cluster B (logic card).
+3. Identify what **new event types** it emits and how `applyEvent` extends. Card cluster C.
+4. Identify what **hard-constraint check** or **invariant** it must satisfy. Card cluster D.
+5. Write one offline acceptance test per card before implementing.
+
+**Worked example 1 — Full CBBA multi-task allocation (replacing CBAA, E6):**
+- **CB01** (types): Add `DroneBundle = { taskIds: string[]; totalScore: number }` to `src/core/allocation.ts`. acceptance: TypeScript compiles.
+- **CB02** (logic): Implement `buildBundle(drone, tasks, geofences, wind): DroneBundle` in `src/core/allocation.ts`. A drone greedily adds tasks to its bundle in order of marginal score gain, respecting feasibility after each addition. acceptance: a drone with soc=80 and 3 tasks can bundle 2 tasks before becoming infeasible; a drone with soc=20 bundles 0 tasks.
+- **CB03** (logic + consensus): Implement `runCBBA(drones, tasks, geofences, wind, maxRounds): Map<string, DroneId>`. Each round: every drone builds its bundle; drones compare bundles (in sorted droneId order); conflicts resolved by highest-score bid wins. acceptance: 3 drones, 4 tasks — all tasks assigned, no two drones assigned the same task; identical inputs produce identical assignments.
+
+**Worked example 2 — Dynamic geofence activation mid-mission (E4/E5):**
+- **DG01** (types): Add `DynamicGeofenceActivated | DynamicGeofenceDeactivated` to `FlightEvent`. files: `src/core/types.ts`.
+- **DG02** (logic): Extend `checkFeasibility` to accept `activeTick: Tick` and reject any waypoint whose arrival tick falls within a dynamic geofence's `activeTicks` window. acceptance: a plan that would arrive at a restricted node during the active window is rejected with `'no-fly-zone'` violation.
+- **DG03** (integration): In `flyMission`, at each tick check if any `Geofence` with kind `'dynamic'` is now active (its `activeTicks` range contains the current tick). If so, check conformance immediately and emit `GeofenceBreachRisk` for any in-flight drone whose current segment intersects it. acceptance: the dynamic-geofence adversarial fixture produces a `GeofenceBreachRisk` event at the correct tick, followed by a `ContingencyTriggered`.
+
+**Worked example 3 — Corridor inspection pattern (E6):**
+- **CI01** (logic): Implement `generateCorridorInspection(start: GridCoord, end: GridCoord, altitude: number, sideOffsetUnits: number): { waypoints: Waypoint[]; coverageObligation: GridCoord[] }` in `src/core/patterns.ts`. The corridor follows a straight line from start to end, making passes at ±sideOffsetUnits perpendicular to the corridor axis. Tiebreak: when multiple cells have the same distance, process in x-then-y order. acceptance: a 10-unit corridor with sideOffset=1 produces waypoints covering a 3×10 strip; two calls with same params produce identical results.
+- **CI02** (integration): Create a corridor-inspection fixture mission and run it through `flyMission`. Assert all corridor cells appear in `CoverageCellCompleted` events when the drone flies conforming. acceptance: `computeCoverage` on the corridor fixture returns `missed.length === 0`.
+
+---
+
+### 4. Per-task implementation conventions
+
+**File/folder layout:**
+```
+src/
+  core/
+    prng.ts           # seeded PRNG (D02)
+    geo.ts            # integer geospatial primitives (D03)
+    types.ts          # domain types (D04)
+    state.ts          # flight state init, event fold, hash (D05)
+    snapshot.ts       # snapshot/restore (D06)
+    deconfliction.ts  # OIV 4D overlap detector (D07)
+    feasibility.ts    # flight feasibility engine (D08)
+    conformance.ts    # conformance state machine (D09)
+    contingency.ts    # contingency manager (D10)
+    telemetry.ts      # fixture telemetry simulator (D11)
+    allocation.ts     # CBAA/CBBA task allocation (D12)
+    patterns.ts       # mission pattern generators (D13)
+    coverage.ts       # coverage report (D14)
+    flight.ts         # flight simulation runner (D16)
+test/
+  core/               # unit tests (one file per src/core/ module)
+  integration/        # golden-replay.test.ts, adversarial.test.ts
+  fixtures/           # TypeScript fixture objects — no file I/O
+```
+
+**Naming conventions:**
+- Functions that return new state are named `apply*` (never mutate).
+- Functions that check constraints are named `check*` and return a result type.
+- Pattern generators are named `generate*`.
+- Fixture files are TypeScript `const` objects conforming to the domain types.
+
+**Minimal test snippet:**
+```typescript
+// test/core/deconfliction.test.ts
+import { describe, it, expect } from 'vitest';
+import { detectOIVConflict } from '../../src/core/deconfliction.js';
+
+describe('OIV deconfliction', () => {
+  it('finds conflict when space and time both overlap', () => {
+    const a: OIV = { operationId: 'op1', droneId: 'd1', box: {minX:0,maxX:5,minY:0,maxY:5,minAlt:10,maxAlt:20}, startTick: 0, endTick: 10 };
+    const b: OIV = { operationId: 'op2', droneId: 'd2', box: {minX:2,maxX:7,minY:2,maxY:7,minAlt:12,maxAlt:18}, startTick: 5, endTick: 15 };
+    expect(detectOIVConflict(a, b, 0)).toMatchObject({ conflict: true });
+  });
+});
+```
+
+**Keeping it deterministic — checklist for every card:**
+- [ ] No `Math.random()` in `src/core/` — `grep -r 'Math.random' src/core/`
+- [ ] No `Date.now()` in `src/core/` — `grep -r 'Date.now' src/core/`
+- [ ] All positions are integer grid coordinates — no `number` floats for spatial math.
+- [ ] Flight state updates from `TelemetryFrame` events only, not from commands.
+- [ ] Feasibility hard-constraint checks run before any deconfliction approval.
+- [ ] All collection iteration is sorted before processing.
+
+**Definition of done for any card:**
+1. All listed files exist.
+2. Exported types/functions match the card's interface exactly.
+3. Card's acceptance tests pass green.
+4. `npm test` (all tests) passes green.
+5. `grep -r 'Math.random\|Date.now' src/core/` returns nothing.
+
+---
+
+### 5. Common pitfalls for a weak model on this project
+
+**Pitfall 1 — Treating waypoints as sufficient for safety**
+A 3B will check that each waypoint is outside a no-fly zone but will not check that the **path between waypoints** avoids it. A straight-line segment can clip a geofence corner.
+Fix: `checkFeasibility` must check all waypoints AND check that the interpolated segment between consecutive waypoints doesn't cross a keep-out box. Use `boxesOverlap3D` on the bounding box of each segment against each geofence. The adversarial fixture includes a geofence that a waypoint-only check would miss.
+
+**Pitfall 2 — Using floats for spatial math**
+A 3B will compute distances with `Math.sqrt(dx*dx + dy*dy)` or angles with `Math.atan2`. These are float operations and diverge across platforms.
+Fix: Use `euclideanSq` (integer) for distance-squared comparisons, and `chebyshevDist` for range checks. For separation checks, use axis-aligned bounding boxes with integer comparisons only. The golden-replay test will catch float-induced divergence because the state hash will differ across runs.
+
+**Pitfall 3 — Flight state updating from commands instead of telemetry**
+A 3B will set `drone.position = mission.waypoints[nextIdx].coord` when a waypoint command is dispatched, then a lost-link or wind-shift diverges from reality.
+Fix: `drone.position` only updates when a `TelemetryFrame` event is applied by `applyEvent`. The lost-link adversarial test verifies that a drone with `linkQuality=0` is detected via telemetry, not assumed to be at its commanded position.
+
+**Pitfall 4 — OIV conflict check skipping the external-USS feed**
+A 3B implements `checkAgainstAll` but only checks internal reservations, missing the fixture `externalReservations`. The test will show a cleared mission that conflicts with the external reservation.
+Fix: `checkAgainstAll` checks `externalReservations` first (sorted by operationId), then internal. The adversarial conflict test (D17) submits a mission that overlaps only an external reservation.
+
+**Pitfall 5 — Battery reserve computed without the RTH leg**
+A 3B sums segment costs and checks `soc > reserveSocPercent`, ignoring the cost of flying back to the home coord. A plan that exactly uses up the reserve while far from home will succeed the feasibility check but strand the drone.
+Fix: `checkFeasibility` computes the RTH segment cost from the last waypoint to `homeCoord` and adds it to the total before comparing against reserve. The feasibility test includes a case where the plan is feasible without RTH but infeasible with it.
+
+**Pitfall 6 — Conformance state machine bypassed mid-mission**
+A 3B monitors conformance only at the start and end of a mission, missing deviations that happen during flight.
+Fix: `monitorConformance` is called every tick in `flyMission`. The adversarial wind-shift test verifies that a deviation that starts at tick 20 produces a `ConformanceStateChanged` event at or before tick 21.
+
+**Pitfall 7 — CBAA producing different assignments on re-run due to Map iteration**
+A 3B computes bids by iterating `drones.values()` without sorting, producing different assignment orders on different runs.
+Fix: Sort drones by `droneId` before iterating in `runCBAA`. The allocation test asserts identical assignments across two identical calls.
+
+**Pitfall 8 — Contingency action not pre-planned (and thus undefined)**
+A 3B implements `selectContingencyAction` but the mission fixture's `contingencyVolume.procedures` array is empty, so the function returns `undefined` for a lost-link trigger and the simulation crashes.
+Fix: `generateSurveyGrid` (and all pattern generators) must also produce a `ContingencyVolume` with default procedures for every trigger type. The fixture scenario includes pre-planned procedures for all five trigger kinds. If `procedures` is empty for a trigger, fall back to `'emergency-land'` (the safest default), never `undefined`.
+
+**Pitfall 9 — `hashFlightState` missing OIV serialization**
+A 3B serializes `state.reservations` as `{}` because it is a `Map<OperationId, OIV>`. Two states with different reservations hash to the same value.
+Fix: Convert every `Map` to a sorted `[key, value][]` array before stringifying. The snapshot test (D06) will catch this because `restoreSnapshot(takeSnapshot(state))` will produce a different hash.
+
+**Pitfall 10 — Wind penalty computed using float division**
+A 3B writes `windPenalty = windSpeed / 3.7 * segmentCost`, using decimal constants and float arithmetic for energy estimation.
+Fix: All coefficients must be integer constants. Use integer division: `windPenalty = Math.floor((windSpeed * segmentCost) / 10)`. The `Math.floor` of an integer expression is deterministic. The golden-replay test will catch any float-induced divergence.

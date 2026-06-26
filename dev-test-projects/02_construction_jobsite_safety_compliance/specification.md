@@ -184,3 +184,868 @@ The agents must keep a live, *action-gating* knowledge-debt ledger (hiding debt 
 ## E9. Why this is a great !Klein challenge
 
 It is small enough to *finish a real slice* yet it punishes the two failure modes weak agents fall into hardest: **(a) modeling a safety authorization as a status flag** instead of a multi-axis temporal-spatial-control predicate, and **(b) treating offline sync as last-write-wins** instead of a causal, conflict-preserving, provenance-total reconciliation. Both are *deterministically testable* (virtual clock + seeded command-shuffle), so a swarm of small local models is graded on **discovering the right invariants and refusing to lose safety data**, not on cleverness. The whole thing is explainable-from-source-facts by construction (event-sourced + cited rule reasons), which is exactly the auditability discipline !Klein exists to prove — at a tier where a governed small model can plausibly land the entire spine green.
+
+---
+
+## Small-model build guide (3B-ready)
+
+This section makes the spec mechanically buildable by a ~3B parameter local model. Every card below is small enough to implement and verify in isolation. Follow the dependency order exactly — do not skip ahead.
+
+### 1. Glossary & ground rules
+
+**Domain terms:**
+
+- **Site** — a named physical jobsite with a unique id; contains zones and hosts crews.
+- **Zone** — a named spatial sub-region of a site; has an id, adjacency list (other zone ids it borders), and no coordinate data.
+- **Crew** — a named group of workers operating at a site under a contractor; has a typed role (foreman, competent-person, attendant, entry-supervisor, operator).
+- **Worker** — an individual with an id, name, role, and certifications list.
+- **Permit** — a typed authorization (hot-work | confined-space | loto | excavation | crane-lift | roof-work) with fields: id, type, siteId, zoneIds[], crewId, authorizedRosterIds[], issuedAt (number/epoch), expiresAt (number/epoch), workWindowStart, workWindowEnd, controlState (object), prerequisitePermitIds[], checklistVersionId, and status (projection-only — never a stored field; always computed from the authorization predicate).
+- **Inspection** — versioned checklist run against a site/zone; has checklistVersionId, completedAt, items (id, passed, severity, evidenceRef?), signoffById.
+- **Observation** — a hazard or near-miss observation; has id, siteId, zoneId, reporterId, observedAt (clock), severity, corrective actions, and closeoutAt?.
+- **CorrectiveAction** — linked to an Observation or Incident; has id, dueAt (clock), assigneeId, closedAt?.
+- **Incident** — any harm or near-miss event; has id, siteId, zoneId, occurredAt (clock), type (near-miss | first-aid | recordable | dart | fatality), timeline (event fold), witnesses[], equipmentIds[], evidenceRefs[], permitIdAtTime?, icamFactors.
+- **Command** — an immutable field action carrying: id (uuid-style string), actor (workerId), causalStamp (version-vector object), targetEntityId, targetBaseVersion (number), payload (typed union by command kind), clientCreatedAt (device wall-clock, metadata only — never used for ordering).
+- **AcceptanceDecision** — typed server response to a Command: `Accepted | AcceptedReordered | ConflictHeld | RejectedSafetyGate`. Stored as an event in the log.
+- **Version vector** — a `Record<string, number>` mapping actor id → logical clock; used for causal ordering without trusting device wall-clocks.
+- **Virtual clock** — an injected `Clock` object with a single method `now(): number` returning milliseconds since epoch. All permit expiry, window checks, escalation timers, and corrective-action aging use `clock.now()`, never `Date.now()`.
+- **Safety-critical field** — a field whose divergent concurrent edit must never be silently resolved: sign-offs, chosen controls, acceptable-entry-conditions, atmospheric readings, LOTO isolation-point verification status.
+- **TRIR** — Total Recordable Incident Rate = (recordable cases × 200,000) / hours worked.
+- **DART rate** — Days Away, Restricted, or Transferred rate = (DART cases × 200,000) / hours worked.
+- **ICAM** — Incident Cause Analysis Method; four factor buckets: Absent/Failed Defences, Individual/Team Actions, Task/Environmental Conditions, Organisational Factors.
+- **Hierarchy of controls** — Elimination > Substitution > Engineering > Administrative > PPE.
+- **HoC rank** — integer 1–5 matching the above order (1 = strongest).
+- **1904 recordable** — an OSHA-defined injury/illness category; includes death, days-away, restricted duty/transfer, medical treatment beyond first aid, loss of consciousness.
+- **Checklist version** — a string id (e.g. `"cs-confined-space-v2"`) that is immutable once issued; a new version gets a new id.
+
+**Stack:**
+
+- Language: TypeScript (strict mode, no `any`).
+- Runtime: Node.js 20+.
+- Test runner: Vitest (`npm test` runs `vitest run`).
+- No build step required for tests (ts-node or `vitest` with `@vitest/runner` handles TypeScript directly via `vite.config.ts` or `vitest.config.ts`).
+- No external runtime dependencies beyond Node built-ins and `vitest`; all domain logic is pure functions.
+- Fixture data lives in `src/fixtures/` as `.ts` files exporting typed constants — never JSON files (keep type-safety).
+- Adapter interfaces live in `src/adapters/`; deterministic implementations live in `src/adapters/fixture/`.
+
+**Acceptance command (exact steps):**
+
+```
+cd <project-root>
+npm install        # first time only
+npm test           # runs vitest run — must exit 0 with all suites green
+```
+
+No network, no GPS, no camera, no live LLM, no `Date.now()` on any rule path.
+
+**Determinism rules (imperative):**
+
+1. Never call `Date.now()`, `new Date()`, or `Math.random()` in any domain module. Use the injected `Clock` for time and the seeded PRNG from `src/lib/prng.ts` for any randomness.
+2. Never import from a network adapter in a test. Use the fixture adapter in `src/adapters/fixture/`.
+3. Every command is identified by its id. Replaying an already-applied command id is a no-op (idempotency).
+4. The command log is append-only. Projections are folds over the log; they never mutate log entries.
+5. A safety-critical field that diverges must produce `ConflictHeld`; no code path may auto-resolve it.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first vertical slice covers E7 items 1–6: domain core, confined-space authorization engine, offline reconciler, 1904 classifier, incident timeline, and risk-ranking dashboard view-model. Build exactly these 16 cards in order.
+
+---
+
+**`S01` — Project scaffold and virtual clock**
+
+dependsOn: none
+
+files: `package.json`, `tsconfig.json`, `vitest.config.ts`, `src/lib/clock.ts`, `test/lib/clock.test.ts`
+
+interface:
+```ts
+// src/lib/clock.ts
+export interface Clock { now(): number }
+export class RealClock implements Clock { now() { return Date.now() } }
+export class ManualClock implements Clock {
+  constructor(private _now: number) {}
+  now() { return this._now }
+  advance(ms: number) { this._now += ms }
+  set(ts: number) { this._now = ts }
+}
+```
+
+how to implement:
+1. Create `package.json` with `{ "type": "module", "scripts": { "test": "vitest run" }, "devDependencies": { "vitest": "^1.6.0", "typescript": "^5.4.0" } }`.
+2. Create `tsconfig.json` with `strict: true`, `moduleResolution: bundler`, `target: ES2022`.
+3. Create `vitest.config.ts` that simply exports `defineConfig({})`.
+4. Create `src/lib/clock.ts` with the two classes above.
+5. Create `test/lib/clock.test.ts`.
+
+acceptance: `test/lib/clock.test.ts` asserts: `new ManualClock(1000).now() === 1000`; after `advance(500)`, `now() === 1500`; after `set(0)`, `now() === 0`. Run `npm test` → green.
+
+---
+
+**`S02` — Seeded PRNG**
+
+dependsOn: `S01`
+
+files: `src/lib/prng.ts`, `test/lib/prng.test.ts`
+
+interface:
+```ts
+// src/lib/prng.ts
+export class SeededRng {
+  constructor(seed: number) {}
+  next(): number          // returns float in [0,1), deterministic
+  nextInt(max: number): number  // integer in [0, max)
+  shuffle<T>(arr: T[]): T[]     // Fisher-Yates in-place, returns same array
+}
+```
+
+how to implement:
+1. Use a simple LCG (linear congruential generator): `state = (state * 1664525 + 1013904223) & 0xFFFFFFFF`.
+2. `next()` returns `state / 0x100000000`.
+3. `nextInt(max)` returns `Math.floor(this.next() * max)`.
+4. `shuffle` applies Fisher-Yates using `nextInt`.
+
+acceptance: `test/lib/prng.test.ts` asserts: `new SeededRng(42).next()` is the same value across three separate calls with seed 42; `shuffle([1,2,3,4,5])` with seed 99 produces a specific known permutation (hard-code it in the test after computing it once). Run `npm test` → green.
+
+---
+
+**`S03` — Core domain types**
+
+dependsOn: `S01`
+
+files: `src/domain/types.ts`, `test/domain/types.test.ts`
+
+interface (excerpt — write all fields listed in the glossary):
+```ts
+// src/domain/types.ts
+export type PermitType = 'hot-work' | 'confined-space' | 'loto' | 'excavation' | 'crane-lift' | 'roof-work'
+export type WorkerRole = 'foreman' | 'competent-person' | 'attendant' | 'entry-supervisor' | 'operator' | 'worker'
+export type ControlHierarchyRank = 1 | 2 | 3 | 4 | 5  // 1=Elimination...5=PPE
+export type CommandKind =
+  | 'sign-pretask' | 'update-control' | 'update-acceptable-entry-conditions'
+  | 'update-atmospheric-reading' | 'verify-loto-point' | 'log-incident' | 'close-corrective-action'
+
+export interface Site { id: string; name: string; zoneIds: string[] }
+export interface Zone { id: string; siteId: string; name: string; adjacentZoneIds: string[] }
+export interface Worker { id: string; name: string; role: WorkerRole; certifications: string[] }
+export interface Crew { id: string; siteId: string; contractorName: string; memberIds: string[]; foremanId: string }
+
+export interface AtmosphericReading {
+  o2Percent: number; lelPercent: number; coAsPpm: number; h2sAsPpm: number
+  testedBy: string; testedAt: number; testerInitials: string
+}
+
+export interface ConfinedSpaceControlState {
+  lotoPointsVerified: Record<string, boolean>   // isolationPointId -> verified
+  atmosphericReadings: AtmosphericReading[]
+  attendantId: string | null
+  entrySupId: string | null
+  authorizedEntrantIds: string[]
+  periodicRetestIntervalMs: number
+}
+
+export interface Permit {
+  id: string; type: PermitType; siteId: string; zoneIds: string[]
+  crewId: string; authorizedRosterIds: string[]
+  issuedAt: number; expiresAt: number
+  workWindowStart: number; workWindowEnd: number
+  controlState: ConfinedSpaceControlState  // union with other types later
+  prerequisitePermitIds: string[]
+  checklistVersionId: string
+}
+
+export interface VersionVector { [actorId: string]: number }
+
+export type CommandPayload =
+  | { kind: 'sign-pretask'; signerId: string; planId: string }
+  | { kind: 'update-control'; permitId: string; controlHocRank: ControlHierarchyRank; description: string }
+  | { kind: 'update-acceptable-entry-conditions'; permitId: string; conditions: string }
+  | { kind: 'update-atmospheric-reading'; permitId: string; reading: AtmosphericReading }
+  | { kind: 'verify-loto-point'; permitId: string; isolationPointId: string; verifiedBy: string }
+  | { kind: 'log-incident'; incident: Omit<Incident, 'id'> }
+  | { kind: 'close-corrective-action'; caId: string; closedBy: string }
+
+export interface Command {
+  id: string; actor: string; causalStamp: VersionVector
+  targetEntityId: string; targetBaseVersion: number
+  payload: CommandPayload; clientCreatedAt: number
+}
+
+export type AcceptanceStatus = 'Accepted' | 'AcceptedReordered' | 'ConflictHeld' | 'RejectedSafetyGate'
+export interface AcceptanceDecision {
+  commandId: string; status: AcceptanceStatus
+  conflictingVersionA?: CommandPayload; conflictingVersionB?: CommandPayload
+  reason?: string; resolvedBy?: string; resolvedAt?: number
+}
+
+export interface Incident {
+  id: string; siteId: string; zoneId: string; occurredAt: number
+  type: 'near-miss' | 'first-aid' | 'recordable' | 'dart' | 'fatality'
+  witnessIds: string[]; equipmentIds: string[]; evidenceRefs: EvidenceRef[]
+  permitIdAtTime?: string; icamFactors: IcamFactors; timeline: IncidentEvent[]
+}
+export interface EvidenceRef {
+  id: string; contentHash: string; captureTime: number; capturingActor: string
+  mimeType: string; sizeBytes: number; description: string
+}
+export interface IcamFactors {
+  absentFailedDefences: string[]; individualTeamActions: string[]
+  taskEnvironmentalConditions: string[]; organisationalFactors: string[]
+}
+export interface IncidentEvent {
+  eventId: string; occurredAt: number; learnedAt: number
+  learnedLate: boolean; description: string; evidenceRefs: EvidenceRef[]
+}
+
+export interface CorrectiveAction {
+  id: string; linkedToId: string; dueAt: number; assigneeId: string
+  description: string; closedAt?: number
+}
+
+export interface ObservationRecord {
+  id: string; siteId: string; zoneId: string; reporterId: string
+  observedAt: number; severity: 'low' | 'medium' | 'high' | 'critical'
+  description: string; correctiveActionIds: string[]
+}
+```
+
+how to implement:
+1. Create `src/domain/types.ts` with all types above.
+2. Create `test/domain/types.test.ts` that imports each type and asserts a few literal assignments compile (use `satisfies` keyword to catch shape errors without runtime overhead).
+
+acceptance: `test/domain/types.test.ts` constructs one `Command` literal and one `Permit` literal using `satisfies Command` / `satisfies Permit`; TypeScript compilation with `tsc --noEmit` succeeds; `npm test` → green.
+
+---
+
+**`S04` — Append-only command/event log**
+
+dependsOn: `S03`
+
+files: `src/domain/event-log.ts`, `test/domain/event-log.test.ts`
+
+interface:
+```ts
+// src/domain/event-log.ts
+export interface LogEntry {
+  seqNo: number          // monotone, assigned at append time
+  command: Command
+  decision: AcceptanceDecision
+}
+export class EventLog {
+  append(command: Command, decision: AcceptanceDecision): LogEntry
+  entries(): readonly LogEntry[]           // chronological by seqNo
+  findByCommandId(id: string): LogEntry | undefined
+  entriesForEntity(entityId: string): readonly LogEntry[]
+}
+```
+
+how to implement:
+1. Store entries in a private `LogEntry[]`.
+2. `append` assigns the next seqNo (start at 1), pushes, and returns the entry.
+3. `entries()` returns a frozen copy (use `Object.freeze` on the array reference).
+4. `findByCommandId` does a linear scan (acceptable at this scale).
+5. `entriesForEntity` filters where `command.targetEntityId === entityId`.
+
+acceptance: `test/domain/event-log.test.ts` asserts: appending two commands yields seqNos 1 and 2; `entries()` length is 2; `findByCommandId` with the first id returns the right entry; `findByCommandId` with an unknown id returns `undefined`; `entriesForEntity` returns only the matching entry. Run `npm test` → green.
+
+---
+
+**`S05` — Fixtures: confined-space permit scenario**
+
+dependsOn: `S03`, `S04`
+
+files: `src/fixtures/confined-space-scenario.ts`
+
+interface: exports typed constants used by authorization, reconciler, and incident tests.
+
+```ts
+// src/fixtures/confined-space-scenario.ts
+export const CLOCK_EPOCH = 1_700_000_000_000   // fixed ms epoch for all tests
+
+export const SITE_A: Site = { id: 'site-a', name: 'Alpha Construction Site', zoneIds: ['zone-1','zone-2'] }
+export const ZONE_1: Zone = { id: 'zone-1', siteId: 'site-a', name: 'Utility Vault', adjacentZoneIds: ['zone-2'] }
+export const ZONE_2: Zone = { id: 'zone-2', siteId: 'site-a', name: 'Adjacent Excavation', adjacentZoneIds: ['zone-1'] }
+
+export const WORKER_ATTD: Worker = { id: 'w-attd', name: 'Alice Attendant', role: 'attendant', certifications: ['confined-space-entry'] }
+export const WORKER_ENTSUP: Worker = { id: 'w-sup', name: 'Bob Supervisor', role: 'entry-supervisor', certifications: ['confined-space-entry'] }
+export const WORKER_ENTRANT: Worker = { id: 'w-ent', name: 'Carol Entrant', role: 'worker', certifications: ['confined-space-entry'] }
+export const WORKER_COMP: Worker = { id: 'w-comp', name: 'Dan Competent', role: 'competent-person', certifications: ['confined-space-entry','loto'] }
+
+// A valid confined-space permit: issued at epoch, expires 8h later, window is the full 8h
+export const PERMIT_CS_VALID: Permit = {
+  id: 'permit-cs-1', type: 'confined-space',
+  siteId: 'site-a', zoneIds: ['zone-1'],
+  crewId: 'crew-1',
+  authorizedRosterIds: ['w-attd','w-sup','w-ent','w-comp'],
+  issuedAt: CLOCK_EPOCH,
+  expiresAt: CLOCK_EPOCH + 8 * 3600 * 1000,
+  workWindowStart: CLOCK_EPOCH,
+  workWindowEnd: CLOCK_EPOCH + 8 * 3600 * 1000,
+  controlState: {
+    lotoPointsVerified: { 'iso-pt-1': true, 'iso-pt-2': true },
+    atmosphericReadings: [{
+      o2Percent: 20.9, lelPercent: 0, coAsPpm: 0, h2sAsPpm: 0,
+      testedBy: 'w-comp', testedAt: CLOCK_EPOCH, testerInitials: 'DC'
+    }],
+    attendantId: 'w-attd', entrySupId: 'w-sup',
+    authorizedEntrantIds: ['w-ent'],
+    periodicRetestIntervalMs: 30 * 60 * 1000   // 30 min
+  },
+  prerequisitePermitIds: ['permit-loto-1'],
+  checklistVersionId: 'cs-confined-space-v1'
+}
+```
+
+how to implement:
+1. Create `src/fixtures/confined-space-scenario.ts`.
+2. Import all types from `src/domain/types.ts`.
+3. Define each constant above, plus a `PERMIT_LOTO_VALID` (type: `'loto'`) with `issuedAt: CLOCK_EPOCH, expiresAt: CLOCK_EPOCH + 8h`, both isolation points verified.
+4. Export everything; no logic, just data.
+
+acceptance: compile check: `tsc --noEmit` passes; a trivial test `import { PERMIT_CS_VALID } from '../src/fixtures/confined-space-scenario'; expect(PERMIT_CS_VALID.type).toBe('confined-space')` passes. `npm test` → green.
+
+---
+
+**`S06` — Temporal-spatial authorization predicate (confined-space)**
+
+dependsOn: `S03`, `S05`
+
+files: `src/domain/authorization.ts`, `test/domain/authorization.test.ts`
+
+interface:
+```ts
+// src/domain/authorization.ts
+export type AuthorizationResult =
+  | { status: 'Valid' }
+  | { status: 'Invalid'; reasons: string[] }
+  | { status: 'Conflicting'; otherPermitId: string; overlapDescription: string }
+
+export interface AuthorizationContext {
+  atTime: number                          // clock.now() at the moment of action
+  inZoneId: string
+  byWorkerId: string
+  byCrewId: string
+  otherLivePermits: Permit[]              // for conflict check
+  clock: Clock
+  prereqPermits: Permit[]                 // permits that are prerequisites
+}
+
+export function authorizeConfinedSpaceEntry(
+  permit: Permit,
+  ctx: AuthorizationContext
+): AuthorizationResult
+```
+
+how to implement:
+1. **Temporal check:** if `ctx.atTime < permit.issuedAt` return Invalid(`"permit not yet active"`); if `ctx.atTime > permit.expiresAt` return Invalid(`"permit expired"`); if `ctx.atTime < permit.workWindowStart || ctx.atTime > permit.workWindowEnd` return Invalid(`"outside authorized work window"`).
+2. **Atmospheric freshness check:** find the latest reading in `permit.controlState.atmosphericReadings` (sort by `testedAt`); if `ctx.atTime - latestReading.testedAt > permit.controlState.periodicRetestIntervalMs` return Invalid(`"atmospheric retest overdue"`); check `o2Percent` in [19.5, 23.5], `lelPercent <= 10`, return Invalid with cited values if outside.
+3. **Spatial check:** if `!permit.zoneIds.includes(ctx.inZoneId)` return Invalid(`"work in unauthorized zone zone-X"`).
+4. **Roster/role check:** if `!permit.authorizedRosterIds.includes(ctx.byWorkerId)` return Invalid(`"worker not on authorized roster"`); if `permit.controlState.attendantId === null` return Invalid(`"no attendant assigned"`); if `permit.controlState.entrySupId === null` return Invalid(`"no entry supervisor assigned"`).
+5. **LOTO prerequisite:** for each `prereqPermitId` in `permit.prerequisitePermitIds`, find it in `ctx.prereqPermits`; for each, check all `lotoPointsVerified` values are `true`; if any false return Invalid(`"LOTO isolation point not verified: iso-pt-X"`).
+6. **Conflict check:** for each permit in `ctx.otherLivePermits` that is not this permit, check if it is a `'confined-space'` type with overlapping `zoneIds` and overlapping `[issuedAt, expiresAt]` time windows; if so return `Conflicting(otherPermitId, "zone+time overlap")`.
+7. If all checks pass, return `{ status: 'Valid' }`.
+
+acceptance: `test/domain/authorization.test.ts` tests (each is an independent `it` block):
+- Valid: valid permit + `atTime = CLOCK_EPOCH + 1h` + correct zone/roster → `'Valid'`.
+- Expired: `atTime = CLOCK_EPOCH + 9h` (past `expiresAt`) → `Invalid` with reason containing `"expired"`.
+- Stale retest: modify `testedAt` to `atTime - 31min` (past 30min interval) → Invalid with `"retest overdue"`.
+- Bad O₂: reading with `o2Percent = 18.0` → Invalid with `"o2"` in reason.
+- Wrong zone: `inZoneId = 'zone-2'` → Invalid with `"unauthorized zone"`.
+- Not on roster: `byWorkerId = 'unknown-w'` → Invalid.
+- LOTO not verified: prereq permit has `lotoPointsVerified: { 'iso-pt-1': false, ... }` → Invalid with `"LOTO"` in reason.
+- Monotonicity invariant: start from Valid; add atmospheric reading outside threshold → result becomes Invalid (never Valid again from that blocked fact). Verified by: run `authorizeConfinedSpaceEntry` with valid context, confirm Valid; add blocking fact to the same permit copy, run again, confirm Invalid.
+Run `npm test` → green.
+
+---
+
+**`S07` — Zone-time conflict check (conflicting-work)**
+
+dependsOn: `S06`
+
+files: `src/domain/conflict-check.ts`, `test/domain/conflict-check.test.ts`
+
+interface:
+```ts
+// src/domain/conflict-check.ts
+export interface ConflictCheckResult {
+  conflicting: boolean
+  otherPermitId?: string
+  reason?: string
+}
+export function checkConflictingWork(
+  permit: Permit,
+  zone: Zone,
+  otherPermits: Permit[],
+  zoneMap: Record<string, Zone>
+): ConflictCheckResult
+```
+
+how to implement:
+1. Build a set of zone ids to check: `permit.zoneIds` plus all adjacent zone ids found in `zoneMap`.
+2. For each `otherPermit` in `otherPermits` (exclude same id): if any of `otherPermit.zoneIds` is in the expanded set AND the time windows `[permit.issuedAt, permit.expiresAt]` and `[otherPermit.issuedAt, otherPermit.expiresAt]` overlap (i.e. `permit.issuedAt < otherPermit.expiresAt && otherPermit.issuedAt < permit.expiresAt`), return `{ conflicting: true, otherPermitId: otherPermit.id, reason: "zone-time overlap with permit-X" }`.
+3. Otherwise return `{ conflicting: false }`.
+
+acceptance: `test/domain/conflict-check.test.ts`:
+- No conflict: hot-work permit in zone-1 with no overlapping permits in zone-1 or zone-2 → `conflicting: false`.
+- Same-zone overlap: add an excavation permit also in zone-1 with overlapping time → `conflicting: true`.
+- Adjacent-zone overlap: hot-work in zone-1, excavation in zone-2 (adjacent) with overlapping time → `conflicting: true` (the seed scenario's "excavation permit conflict").
+- No overlap (different time): same zones but `otherPermit.issuedAt > permit.expiresAt` → `conflicting: false`.
+Run `npm test` → green.
+
+---
+
+**`S08` — Version-vector causal ordering**
+
+dependsOn: `S02`, `S03`
+
+files: `src/domain/version-vector.ts`, `test/domain/version-vector.test.ts`
+
+interface:
+```ts
+// src/domain/version-vector.ts
+export type VV = Record<string, number>
+
+export function vvMerge(a: VV, b: VV): VV          // element-wise max
+export function vvIncrement(vv: VV, actorId: string): VV  // returns new VV
+export function vvCausallyBefore(a: VV, b: VV): boolean   // a happened-before b
+export function vvConcurrent(a: VV, b: VV): boolean       // neither before the other
+```
+
+how to implement:
+1. `vvMerge`: for all keys in both, take `Math.max`.
+2. `vvIncrement`: returns `{ ...vv, [actorId]: (vv[actorId] ?? 0) + 1 }`.
+3. `vvCausallyBefore(a, b)`: true if for every key in `a`, `a[key] <= (b[key] ?? 0)`, and there exists at least one key where `a[key] < (b[key] ?? 0)`.
+4. `vvConcurrent(a, b)`: `!vvCausallyBefore(a, b) && !vvCausallyBefore(b, a) && a !== b` (use deep compare of values).
+
+acceptance: `test/domain/version-vector.test.ts`:
+- `vvMerge({a:1, b:2}, {a:3, b:1})` → `{a:3, b:2}`.
+- `vvCausallyBefore({a:1}, {a:2})` → true; `vvCausallyBefore({a:2}, {a:1})` → false.
+- `vvConcurrent({a:1}, {b:1})` → true (neither actor knows the other).
+- `vvConcurrent({a:1,b:1}, {a:1,b:1})` → false (identical).
+Run `npm test` → green.
+
+---
+
+**`S09` — Offline command reconciler**
+
+dependsOn: `S04`, `S08`
+
+files: `src/domain/reconciler.ts`, `test/domain/reconciler.test.ts`
+
+interface:
+```ts
+// src/domain/reconciler.ts
+const SAFETY_CRITICAL_KINDS: Set<CommandKind> = new Set([
+  'update-control', 'update-acceptable-entry-conditions',
+  'update-atmospheric-reading', 'verify-loto-point', 'sign-pretask'
+])
+
+export interface ReconcilerState {
+  entityVersions: Record<string, number>          // entityId -> current logical version
+  acceptedCommands: Record<string, Command>       // commandId -> command (for idempotency)
+}
+
+export function reconcileCommand(
+  cmd: Command,
+  existing: ReconcilerState,
+  log: EventLog,
+  clock: Clock
+): { decision: AcceptanceDecision; nextState: ReconcilerState }
+```
+
+how to implement:
+1. **Idempotency:** if `cmd.id` is in `existing.acceptedCommands`, return `Accepted` immediately without modifying state (replay is a no-op).
+2. **Retrieve concurrent commands:** get all log entries for `cmd.targetEntityId` where the entry's command's `causalStamp` is concurrent with `cmd.causalStamp` (use `vvConcurrent`).
+3. **Safety-critical divergence check:** if any concurrent command has a `payload.kind` in `SAFETY_CRITICAL_KINDS` AND the same `payload.kind` as `cmd.payload`, and the payloads are not deep-equal → return `ConflictHeld` with both versions verbatim, no state change.
+4. **Safe merge:** if concurrent commands exist but none conflict on safety-critical fields, return `AcceptedReordered`.
+5. **Normal acceptance:** if no concurrent commands, return `Accepted`.
+6. In all Accepted/AcceptedReordered cases: increment `entityVersions[cmd.targetEntityId]`; add to `acceptedCommands`.
+
+acceptance: `test/domain/reconciler.test.ts`:
+- Idempotency: submit same command twice; second returns `Accepted` immediately; `entityVersions` increments only once.
+- Normal acceptance: sequential commands with causal dependency → all `Accepted`.
+- Concurrent non-critical fields: two concurrent commands updating independent non-safety fields → both `AcceptedReordered`, no conflict.
+- Safety-critical conflict: two concurrent commands both updating `acceptable-entry-conditions` to different values → first `Accepted`, second `ConflictHeld` with both payloads preserved verbatim.
+- Shuffle determinism: take a fixed list of 5 commands (mix of concurrent and sequential), shuffle with `SeededRng(1).shuffle([...])`, replay; the set of held conflicts and the final `entityVersions` must be identical to the un-shuffled result. (Use `JSON.stringify` sorted-key compare.)
+Run `npm test` → green.
+
+---
+
+**`S10` — OSHA 1904 recordability classifier**
+
+dependsOn: `S03`
+
+files: `src/domain/recordability.ts`, `test/domain/recordability.test.ts`
+
+interface:
+```ts
+// src/domain/recordability.ts
+export type TreatmentLevel =
+  | 'first-aid-only'
+  | 'medical-treatment'    // beyond first aid
+  | 'restricted-duty'
+  | 'days-away'
+  | 'loss-of-consciousness'
+  | 'fatality'
+
+export type RecordabilityClass =
+  | 'not-recordable'
+  | 'recordable'
+  | 'dart'                // Days Away, Restricted, or Transfer
+  | 'fatality'
+
+export interface IncidentClassificationInput {
+  treatmentLevel: TreatmentLevel
+  daysAwayFromWork: number
+  restrictedDaysOrTransfer: number
+  lossOfConsciousness: boolean
+  privacyCase: boolean      // if true, omit worker name from 300-log
+}
+
+export interface RecordabilityResult {
+  classification: RecordabilityClass
+  isDart: boolean
+  is300LogEntry: boolean
+  privacyCase: boolean
+  citedCriteria: string[]   // which criteria triggered classification
+}
+
+export function classifyRecordability(input: IncidentClassificationInput): RecordabilityResult
+```
+
+how to implement:
+1. `'fatality'` → `{ classification: 'fatality', isDart: false, is300LogEntry: true, citedCriteria: ['fatality'] }`.
+2. `'days-away'` with `daysAwayFromWork > 0` → `{ classification: 'dart', isDart: true, ... }`.
+3. `'restricted-duty'` with `restrictedDaysOrTransfer > 0` → `{ classification: 'dart', isDart: true, ... }`.
+4. `lossOfConsciousness === true` → `{ classification: 'recordable', isDart: false, ... }`.
+5. `'medical-treatment'` → `{ classification: 'recordable', isDart: false, ... }`.
+6. `'first-aid-only'` → `{ classification: 'not-recordable', isDart: false, is300LogEntry: false, ... }`.
+7. Always populate `privacyCase` from input.
+
+acceptance: `test/domain/recordability.test.ts`:
+- First-aid-only → `not-recordable`.
+- Medical-treatment → `recordable`, `isDart: false`.
+- Days-away=2 → `dart`, `isDart: true`.
+- Reclassification test: call classifier with `first-aid-only` → `not-recordable`; call again with same data but `treatmentLevel: 'medical-treatment'` (simulating a follow-up upgrade) → `recordable`; confirm the result changed and `citedCriteria` cites `'medical-treatment'`.
+- Privacy case: same input with `privacyCase: true` → `privacyCase` in result is `true`.
+Run `npm test` → green.
+
+---
+
+**`S11` — 300-Log projection**
+
+dependsOn: `S10`, `S04`
+
+files: `src/domain/log-300.ts`, `test/domain/log-300.test.ts`
+
+interface:
+```ts
+// src/domain/log-300.ts
+export interface Log300Entry {
+  caseNo: number
+  incidentId: string
+  injuryDate: number           // clock timestamp
+  recordedWithinWindow: boolean  // was it recorded within 7 calendar days?
+  recordedAt: number
+  classification: RecordabilityClass
+  isDart: boolean
+  privacyCase: boolean
+  workerIdOrPrivate: string    // worker id, or 'PRIVACY' if privacyCase
+  citedCriteria: string[]
+}
+
+export function projectLog300(
+  log: EventLog,
+  clock: Clock
+): Log300Entry[]
+```
+
+how to implement:
+1. Fold over `log.entries()` looking for commands with `payload.kind === 'log-incident'`.
+2. For each, call `classifyRecordability` using the incident's data.
+3. Skip `not-recordable` incidents.
+4. Compute `recordedWithinWindow`: the command's `clientCreatedAt` minus `incident.occurredAt` <= `7 * 24 * 3600 * 1000`.
+5. Assign monotone `caseNo` starting at 1.
+6. For upgrade events (a second `log-incident` command for same incidentId with higher treatmentLevel), update the existing entry (find by incidentId, replace classification). Do not add a duplicate entry.
+
+acceptance: `test/domain/log-300.test.ts`:
+- One recordable incident → one 300-log entry; `caseNo === 1`.
+- First-aid-only incident → zero entries.
+- Upgrade scenario: first command logs `first-aid-only` → no entry; second command (same `targetEntityId`, later `causalStamp`) logs `medical-treatment` for same incident → one entry with `recordable` classification.
+- 7-day window: incident at `CLOCK_EPOCH`, recorded at `CLOCK_EPOCH + 8 * 86400 * 1000` → `recordedWithinWindow: false`.
+Run `npm test` → green.
+
+---
+
+**`S12` — Incident timeline builder**
+
+dependsOn: `S03`, `S04`, `S05`
+
+files: `src/domain/incident-timeline.ts`, `test/domain/incident-timeline.test.ts`
+
+interface:
+```ts
+// src/domain/incident-timeline.ts
+export interface IncidentTimeline {
+  incidentId: string
+  events: IncidentEvent[]        // chronological by occurredAt
+  permitStateAtTime: Permit | null    // permit active at occurredAt
+  icamFactors: IcamFactors
+  learnedLateFacts: Array<{ factDescription: string; learnedAt: number; changedIcamBucket?: string }>
+}
+
+export function buildIncidentTimeline(
+  incidentId: string,
+  log: EventLog,
+  permits: Permit[],
+  clock: Clock
+): IncidentTimeline
+```
+
+how to implement:
+1. Gather all log entries for `incidentId` (by `targetEntityId`).
+2. Build the events list from `payload.kind === 'log-incident'` entries; sort by `occurredAt`.
+3. For each event, check if it arrived late: if its `command.causalStamp` is causally-before an already-processed event for the same incident, mark `learnedLate: true` and add to `learnedLateFacts`.
+4. Find the permit active at `incident.occurredAt`: scan `permits` where `issuedAt <= occurredAt <= expiresAt` and `zoneIds` includes the incident's `zoneId`.
+5. Return the assembled `IncidentTimeline`.
+
+acceptance: `test/domain/incident-timeline.test.ts`:
+- Simple timeline: two events for the same incident in causal order → `learnedLateFacts` is empty; events sorted by `occurredAt`.
+- Late-learned fact: replay a sign-off command with an earlier causal stamp *after* the incident is logged → that event appears in `learnedLateFacts` with `learnedLate: true`.
+- Permit linkage: include `PERMIT_CS_VALID` from fixtures; incident at `CLOCK_EPOCH + 1h` in zone-1 → `permitStateAtTime` is the permit.
+- Re-fold determinism: fold the same log twice; both results are deep-equal.
+Run `npm test` → green.
+
+---
+
+**`S13` — Zone risk-score view-model**
+
+dependsOn: `S03`, `S04`, `S10`, `S12`
+
+files: `src/domain/risk-dashboard.ts`, `test/domain/risk-dashboard.test.ts`
+
+interface:
+```ts
+// src/domain/risk-dashboard.ts
+export interface ZoneRisk {
+  zoneId: string; siteId: string
+  riskScore: number                 // higher = more urgent; computed, not stored
+  openCorrectiveActionsCount: number
+  agingCriticalActions: number      // critical actions past their dueAt
+  pendingConflicts: number          // unresolved ConflictHeld decisions
+  pendingPermitExpirations: number  // permits expiring within 2h
+  repeatOffenderCrewId?: string     // crew with most missed-signature escalations
+}
+
+export function computeZoneRisk(
+  zoneId: string,
+  siteId: string,
+  log: EventLog,
+  permits: Permit[],
+  clock: Clock
+): ZoneRisk
+```
+
+how to implement:
+1. Scan log entries for `targetEntityId` matching `zoneId` or for permits in this zone.
+2. Count open corrective actions: `log-incident` commands that have no `close-corrective-action` paired.
+3. Count aging critical actions: open corrective actions where `clock.now() > dueAt`.
+4. Count pending `ConflictHeld` decisions: entries with `decision.status === 'ConflictHeld'` and `resolvedBy === undefined`.
+5. Count permits expiring in next 2h: permits where `expiresAt - clock.now() <= 2 * 3600 * 1000 && expiresAt > clock.now()`.
+6. Compute `riskScore`: `agingCriticalActions * 10 + pendingConflicts * 8 + openCorrectiveActionsCount * 2 + pendingPermitExpirations * 5`. (Configurable weights, but these are the defaults.)
+7. Find `repeatOffenderCrewId`: across the log, count missed-signature escalations per crew; return the crew with the highest count if it exceeds zero.
+
+acceptance: `test/domain/risk-dashboard.test.ts`:
+- Empty log → all counts 0, riskScore 0.
+- One aging critical action (`dueAt` in the past) → `agingCriticalActions === 1`, `riskScore >= 10`.
+- Two zones: zone-1 has an aging critical action (score 10), zone-2 has no open items (score 0) → zone-1 sorts first.
+- Repeat offender: same crewId accumulates 3 missed-signature events → `repeatOffenderCrewId` is set.
+Run `npm test` → green.
+
+---
+
+**`S14` — Command-shuffle determinism property test**
+
+dependsOn: `S09`, `S02`
+
+files: `test/domain/reconciler-property.test.ts`
+
+interface: no new exports; test-only.
+
+how to implement:
+1. Create a fixed multiset of 8 commands (mix of safe-merge and safety-critical-conflict pairs, including a duplicate command to test idempotency) using the fixtures from `S05`.
+2. Use `SeededRng(42).shuffle([...commandList])` to get a shuffled order.
+3. Replay the shuffled multiset through the reconciler, collecting decisions.
+4. Replay the original order.
+5. Assert: the final `entityVersions` from both replays are deep-equal; the set of `ConflictHeld` decision commandIds is identical (use `Set` comparison); the set of `Accepted` commandIds is identical.
+
+acceptance: the test in `test/domain/reconciler-property.test.ts` passes with no `it.only` shortcuts. Run `npm test` → green.
+
+---
+
+**`S15` — No-silent-loss-of-safety-data invariant test**
+
+dependsOn: `S09`, `S04`
+
+files: `test/domain/no-silent-loss.test.ts`
+
+interface: no new exports; test-only.
+
+how to implement:
+1. Enumerate all `ConflictHeld` decisions in a test log where two concurrent safety-critical commands diverged.
+2. For each, assert that `decision.conflictingVersionA` and `decision.conflictingVersionB` are both non-null and not equal.
+3. Assert that no `Accepted` or `AcceptedReordered` decision exists for a command that was concurrent with a safety-critical divergence on the same field (i.e., no silent auto-resolution).
+4. Specifically: create the scenario from E5 item 3 (two foremen both offline, both change `acceptable-entry-conditions` to different values); run reconciler; scan log; assert exactly one `ConflictHeld` entry and zero entries where one version was silently discarded.
+
+acceptance: `test/domain/no-silent-loss.test.ts` passes. This is the structural invariant test. Run `npm test` → green.
+
+---
+
+**`S16` — Seed scenario integration test (two sites, excavation conflict, near-miss)**
+
+dependsOn: `S06`, `S07`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`
+
+files: `src/fixtures/seed-scenario.ts`, `test/integration/seed-scenario.test.ts`
+
+interface: `src/fixtures/seed-scenario.ts` exports a second site (`SITE_B`), a second crew (`CREW_B` with subcontractor name), an excavation permit (`PERMIT_EXC`), and a sequence of commands that:
+- Subcontractor handoff: `CREW_B` takes over zone-2 from `CREW_A`.
+- Excavation permit conflict: `PERMIT_EXC` covers zone-2 during the same time window as `PERMIT_CS_VALID` in zone-1 (adjacent zone) → triggers conflicting-work.
+- Near-miss: an incident in zone-1 with `type: 'near-miss'`, a valid confined-space permit active at time, and one late-arriving sign-off command.
+
+how to implement:
+1. In `src/fixtures/seed-scenario.ts`, define all above entities.
+2. In `test/integration/seed-scenario.test.ts`:
+   a. Check authorization of `PERMIT_CS_VALID` with `otherLivePermits: [PERMIT_EXC]` → `Conflicting`.
+   b. Run the full near-miss command sequence through the reconciler; assert no `ConflictHeld` (no diverging edits) and no silent loss.
+   c. Build the incident timeline; assert the late sign-off appears with `learnedLate: true`.
+   d. Run the 300-log projection; assert the near-miss does NOT appear (near-miss is not an OSHA recordable unless it meets criteria — default: near-miss with no injury is `not-recordable`).
+   e. Compute zone risk for zone-1; assert `pendingPermitExpirations >= 0` and the risk score is a number.
+   f. Run the command-shuffle on the seed command sequence and assert deterministic output.
+
+acceptance: all assertions in the integration test pass. `npm test` → all suites green.
+
+---
+
+### 3. The decomposition method for the remaining breadth
+
+After the first slice is green, expand the remaining permit types, checklist engine, pre-task planning, and dashboard using this repeatable recipe:
+
+**Recipe for any new card cluster:**
+
+1. **Identify the rule/invariant** — what is the domain truth this feature must uphold? State it as a one-sentence invariant before writing any code.
+2. **Define the interface first** — write the TypeScript function signature and return type in a new `src/domain/<feature>.ts` file before the implementation.
+3. **Write the test before the implementation** — one test file per card, with the acceptance assertions named in the card.
+4. **Wire to the event log** — if the feature depends on new command kinds, add them to `CommandPayload` in `src/domain/types.ts` first (that is a new S01-style card).
+5. **Keep it a pure function** — no clock calls except via injected `Clock`; no network; no `Date.now()`.
+
+**Worked example A — Hot-work permit (rule-pack breadth):**
+
+> The hot-work permit adds fire-watch duration as a *configurable, jurisdiction-dependent* parameter (OSHA 30 min vs. NFPA 51B 60 min).
+
+- `H01` — Add `'hot-work'` control state type (`hotWorkControlState: { fireWatchStartedAt: number | null; fireWatchEndedAt: number | null; fireWatchDurationRequiredMs: number }`). files: `src/domain/types.ts` (extend `ControlState` union). dependsOn: `S03`.
+- `H02` — `authorizeHotWork(permit, ctx): AuthorizationResult` in `src/domain/authorization.ts`. Temporal/spatial/roster checks same as `S06`. Additional: if `ctx.atTime > permit.expiresAt` and `fireWatchEndedAt === null`, return Invalid(`"fire watch period still required"`); if `fireWatchDurationRequiredMs` elapsed without `fireWatchEndedAt`, return Invalid(`"fire watch not completed"`). test: `test/domain/authorization-hotwork.test.ts` with NFPA-60min and OSHA-30min variants. dependsOn: `H01`, `S06`.
+- `H03` — Integration: hot-work permit inside a confined space requires `prerequisitePermitIds` to include a confined-space permit id. A test that creates both permits, wires the prerequisite, and confirms authorization passes only with both valid. dependsOn: `H02`, `S06`.
+
+**Worked example B — Pre-task planning workflow:**
+
+> Pre-task plan must capture hazards, assigned controls (with HoC rank), sign-offs, and flag any missed signatures as escalations.
+
+- `P01` — Add types: `PreTaskPlan { id, siteId, zoneId, crewId, plannedAt, hazards: Hazard[], signoffs: Signoff[] }`, `Hazard { id, description, chosenControl: string, hocRank: ControlHierarchyRank }`, `Signoff { workerId, signedAt, commandId }`. Add `CommandPayload` variant `sign-pretask`. files: `src/domain/types.ts`. dependsOn: `S03`.
+- `P02` — `evaluatePreTaskPlan(plan, expectedSigners, clock): PlanEvaluation` where `PlanEvaluation = { complete: boolean, missedSigners: string[], weakControls: Array<{hazardId, reason}> }`. Weak control: `hocRank === 5` (PPE only) when a higher-rank control was not documented as infeasible. test: `test/domain/pretask.test.ts`. dependsOn: `P01`.
+- `P03` — Missed-signature escalation: if `clock.now() > plannedAt + escalationThresholdMs` and `missedSigners.length > 0`, emit escalation events. Tested by advancing the clock past threshold. dependsOn: `P02`.
+
+**Worked example C — Corrective-action aging risk score:**
+
+> Risk score must rise monotonically as high-severity corrective actions age past their due date.
+
+- `R01` — Pure function `computeActionAgeScore(actions: CorrectiveAction[], clock: Clock): number`. Score = sum of `(clock.now() - action.dueAt) / 3600000` (hours overdue) × severity multiplier (critical=10, high=5, medium=2, low=1). test: two actions, one 3h overdue critical (30 pts), one 1h overdue medium (2 pts) → 32. dependsOn: `S03`.
+- `R02` — Wire into `computeZoneRisk` (replace the hard-coded count with the aging score). Regression test: zone with 0 open actions → score 0; zone with 1 aging critical → score > 0. dependsOn: `R01`, `S13`.
+
+---
+
+### 4. Per-task implementation conventions
+
+**File/folder layout:**
+```
+src/
+  lib/           # clock.ts, prng.ts — zero-domain utilities
+  domain/        # all pure domain functions and types
+  fixtures/      # typed .ts constant files for test data
+  adapters/      # interface definitions for external boundaries
+    fixture/     # deterministic adapter implementations
+test/
+  lib/           # unit tests for lib modules
+  domain/        # unit tests for domain modules (one file per domain module)
+  integration/   # cross-module integration tests (seed scenario, etc.)
+```
+
+**Naming:**
+- Source files: `kebab-case.ts`.
+- Test files: `<source-name>.test.ts` in the parallel `test/` tree.
+- Exported functions: `camelCase`; exported types/interfaces: `PascalCase`.
+- Fixture constants: `SCREAMING_SNAKE_CASE`.
+- Adapter interfaces: `I<Name>Adapter` (e.g. `IClockAdapter`, `INotificationSink`).
+- Fixture adapters: `Fixture<Name>Adapter` (e.g. `FixtureClockAdapter` = `ManualClock`).
+
+**How to write a test in Vitest (minimal template):**
+```ts
+// test/domain/authorization.test.ts
+import { describe, it, expect } from 'vitest'
+import { authorizeConfinedSpaceEntry } from '../../src/domain/authorization.js'
+import { PERMIT_CS_VALID, CLOCK_EPOCH, ZONE_1, WORKER_ENTRANT } from '../../src/fixtures/confined-space-scenario.js'
+import { ManualClock } from '../../src/lib/clock.js'
+
+describe('authorizeConfinedSpaceEntry', () => {
+  it('returns Valid for a fully-compliant context', () => {
+    const clock = new ManualClock(CLOCK_EPOCH + 3600_000)
+    const result = authorizeConfinedSpaceEntry(PERMIT_CS_VALID, {
+      atTime: clock.now(), inZoneId: ZONE_1.id,
+      byWorkerId: WORKER_ENTRANT.id, byCrewId: 'crew-1',
+      otherLivePermits: [], prereqPermits: [], clock
+    })
+    expect(result.status).toBe('Valid')
+  })
+})
+```
+
+**Keeping tests deterministic:**
+- Always pass a `ManualClock` with a known starting value.
+- Never use `Math.random()` — use `SeededRng`.
+- Never import from `src/adapters/` live adapters in tests — only `src/adapters/fixture/`.
+- All fixture data is in `src/fixtures/*.ts` — import them directly.
+
+**Definition of done for any card:**
+1. All types compile with `tsc --noEmit` (no errors).
+2. The card's test file runs green: `npm test` exits 0.
+3. No `any` types in the card's source file.
+4. No `Date.now()`, `Math.random()`, or network calls in the card's source.
+5. Every function that takes a time argument accepts `number` (milliseconds epoch), not `Date`.
+
+---
+
+### 5. Common pitfalls for a weak model on this project
+
+**Pitfall 1 — Modeling permit validity as a stored status flag.**
+A 3B model will try to add a `status: 'valid' | 'expired' | 'invalid'` field to the `Permit` type and update it in a mutation. This is wrong: permit validity is a *predicate over a fact-set* evaluated at a specific time. The authorization functions (`S06`, `S07`) take a `Permit` (immutable data) and compute validity — they do not mutate it. Mitigation: the `Permit` type in `S03` has no `status` field; the comment in `S03`'s interface explicitly says "status is projection-only — never a stored field." If the model adds a `status` field, the type test in `S03` should fail to compile (do not add `status` to the type).
+
+**Pitfall 2 — Using `Date.now()` or wall-clock ordering instead of version vectors.**
+A 3B model will sort commands by `clientCreatedAt` (the device wall-clock) and use that as causal order. This is explicitly wrong: field devices have skewed clocks. Mitigation: the `Command` type in `S03` names the field `clientCreatedAt` and the docstring says "metadata only — never used for ordering." The reconciler (`S09`) uses `causalStamp` (version vector) for ordering. The clock-skewed adversarial fixture in `S05` (a device 40 minutes fast) specifically tests that wall-clock order disagrees with causal order and the system picks causal.
+
+**Pitfall 3 — Auto-resolving a `ConflictHeld` with last-write-wins.**
+A 3B will see two concurrent updates and pick the one with the higher logical clock or more recent `clientCreatedAt`, silently discarding the other. The no-silent-loss test (`S15`) directly catches this: it asserts that both versions are present in `ConflictHeld.conflictingVersionA` and `.conflictingVersionB`, and that no Accepted decision exists for either without a `resolvedBy` event. Mitigation: include the exact text "preserve both versions verbatim" in the reconciler docstring.
+
+**Pitfall 4 — Forgetting that a `ConflictHeld` blocks authorization.**
+After a safety-critical divergence produces a `ConflictHeld`, the permit's authorization must block (entry is not permitted while the conflict is unresolved). A 3B will compute authorization from just the `Permit` data without consulting pending conflicts. The authorization function in `S06` must accept the `EventLog` or a pre-computed conflict list as part of the `AuthorizationContext` and check for unresolved conflicts on the target permit. Mitigation: the `AuthorizationContext` type includes a `pendingConflicts: AcceptanceDecision[]` field; the authorization function checks it.
+
+**Pitfall 5 — Forgetting atmospheric-retest freshness check.**
+The adversarial scenario (E5 item 5: confined-space permit with lapsed periodic retest) requires checking that the *latest* atmospheric reading is within `periodicRetestIntervalMs` of `atTime`. A 3B will check the atmospheric *thresholds* (O₂, LEL) but forget the *staleness* check. Mitigation: the acceptance test for `S06` includes an explicit stale-retest case with `testedAt = atTime - 31min` when the interval is 30 min.
+
+**Pitfall 6 — Collapsing zone-time conflict into a simple zone-intersection check.**
+The conflicting-work check (`S07`) requires checking *adjacent* zones, not just the exact permit zones, because work drifts into adjacent areas. A model will only check `permit.zoneIds.includes(otherZoneId)`. Mitigation: the `checkConflictingWork` function explicitly expands the zone set with adjacency in step 2 of the implementation recipe, and the adjacent-zone test case in `S07` acceptance verifies it.
+
+**Pitfall 7 — Treating `sign-pretask` commands as non-safety-critical.**
+A 3B will classify `sign-pretask` as a safe-merge field (it is "just a signature"). But a sign-off is a safety-load-bearing field: if two foremen both sign-off to *different* plans, or one signs off and another rescinds, that is a safety-critical divergence. Mitigation: `SAFETY_CRITICAL_KINDS` in `S09` includes `'sign-pretask'`; the reconciler-property test (`S14`) includes a sign-pretask conflict case.
+
+**Pitfall 8 — Missing the 300-Log upgrade path.**
+The 1904 classifier is stateless (pure function), but the 300-Log projection must handle an upgrade event (first-aid → recordable). A 3B will create a new 300-Log entry on the second command instead of updating the existing one. Mitigation: the `S11` upgrade scenario test explicitly asserts `log300Entries.length === 1` after two commands for the same incident (not 2).

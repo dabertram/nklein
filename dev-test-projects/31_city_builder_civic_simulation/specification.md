@@ -248,3 +248,842 @@ If the coupled spine is real on a small map, every later service, density tier, 
 ## C15. Why this is a great !Klein challenge
 
 This stresses exactly what !Klein must prove with small local models: **decomposition** of a deeply-coupled system where the dependency order (kernel → fields → coupled loops → traffic → utilities → budget/RCI → advisors → presentation) is unforgiving and the coupling itself is the point; **determinism under weak models** (the conservation, stability, and replay invariants are pass/fail and catch any fuzzy shortcut — a model cannot bluff "the city kind of grows"); **explainability discipline** (the advisor-soundness invariant forces every generated claim to be metric-grounded, the precise antidote to LLM hallucination — a beautiful fit for proving a small model can be *honest*); and **stable feedback engineering** (the coupled loops must be bounded and convergent, not chaotic). The field/scan/coupling spine is rich enough to be a genuine master-tier test yet decomposable enough for a swarm to build a real coupled slice. Build the kernel, field engine, the land-value/pollution/traffic loop, the power cascade, the advisor soundness, and the conservation invariants first (C1–C5, C8, C12–C13); earn the rest.
+
+---
+
+## Small-model build guide (3B-ready)
+
+This section makes the spec mechanically buildable by a tiny (~3B-parameter) local model. Every card is sized for one focused implementation step. Follow it literally; do not infer unstated requirements.
+
+### 1. Glossary & ground rules
+
+**Domain terms:**
+- **Tick** — one logical simulation step. Never use `Date.now()` or `performance.now()` in `src/core/` or `src/sim/`. The virtual tick counter in `WorldState.tick` is the only time source.
+- **Fixed** — a branded integer type (`number & { __fixed: true }`) with scale factor 100 (i.e. `toFixed(1.5) === 150`). All field values and budget figures in `src/core/` use Fixed. Never use raw `number` arithmetic in simulation code.
+- **Calendar** — a day/month/year counter mapped onto ticks. `TICKS_PER_MONTH = 30` (balance constant; document). Budget ticks (tax collection, service-cost debit) happen at calendar month boundaries.
+- **Tile** — the basic grid unit. Each tile has coordinates `(x, y)` (integer). A tile holds a `ZoneType` and a `BuildingState`. The map is a 2D array of tiles, never a live query.
+- **Field** — a named 2D array of Fixed values, one entry per tile. The eight authoritative fields are: `PopulationDensity`, `LandValue`, `Pollution`, `TrafficDensity`, `PowerGrid`, `FireCoverage`, `RateOfGrowth`, `Crime`.
+- **Scan** — a full pass over the field updating all tiles for that field. Scans happen on a fixed schedule (not every tick). The field reads the *previous generation* of its inputs, never the same-generation values, so coupling is stable and order-independent within a generation.
+- **Generation** — even/odd tick-set. Field A and field B can read each other safely because they both read the `prev` (last committed) value, not the in-progress `next` value. After all scans in a generation complete, `prev = next`.
+- **ZoneType** — `'none' | 'residential' | 'commercial' | 'industrial' | 'civic' | 'park'`.
+- **BuildingState** — `'empty' | 'construction' | 'thriving' | 'stable' | 'declining' | 'abandoned' | 'burned' | 'flooded' | 'unpowered'`.
+- **RCI demand** — three independent pressure gauges (residential, commercial, industrial) each a Fixed in [0, 1000]. Growth happens in zones where zone type matches the highest-pressure demand.
+- **Power flood-fill** — a BFS from all powered plant tiles over conductive tiles. A tile is powered if reachable from a plant in the BFS. Run the flood-fill every `POWER_SCAN_INTERVAL` ticks.
+- **Trip** — a demand unit: a residential zone tries to send a commuter to a commercial or industrial zone. A trip succeeds if a destination zone is reachable within the `TRIP_RANGE` tiles. A failed trip contributes to abandonment pressure.
+- **Double-entry treasury** — `world.treasury = fold(world.ledger, ZERO_FIXED)`. Every tax credit and service-cost debit posts to the ledger. Never mutate `world.treasury` directly; always use `postLedger`.
+- **Population conservation** — `Σ(residents in all zones) = total_population`. When a zone abandons, its population emigrates (added to `world.emigratedTotal`) or moves to another zone (increment another zone's population). Never silently drop population.
+- **Advisor claim** — a typed record `{ ruleId: string; metric: string; value: Fixed; threshold: Fixed; implicatedCells: Coord[]; causalChain: string[] }`. No natural-language string without a backing claim. The anti-hallucination test asserts no message fires without a satisfied metric condition.
+- **Mayor action log** — the append-only list of commands (`ZoneTile`, `BuildRoad`, `BuildPlant`, `SetBudget`, `SetTaxRate`, …) with tick timestamps. The log + seed is the save file.
+
+**Stack:**
+- Language: TypeScript (strict mode, no `any`).
+- Runtime: Node.js (current LTS).
+- Test runner: Vitest (`npm test` runs `vitest run`).
+- No DOM or canvas in `src/core/` or `src/sim/`. Renderer in `src/renderer/`.
+- All acceptance tests: pure in-memory, no network, no `Date.now()`, no `Math.random()`.
+
+**Acceptance command (plain steps):**
+1. `cd` to the project root.
+2. Run `npm test`.
+3. All Vitest suites pass; exit code 0. No test uses the network, filesystem, or wall-clock time.
+
+**Determinism rules (imperative):**
+- Never call `Math.random()` in `src/`. Use `createSeededPrng(seed)` threaded explicitly.
+- Never call `Date.now()` in `src/`.
+- Use Fixed arithmetic in `src/core/`; convert to float only in `src/renderer/`.
+- All field scans iterate tiles in ascending `(y * width + x)` index order — never hash-iteration order.
+- The double-generation (prev/next) discipline for fields is mandatory: scans read `prev`, write `next`; swap at generation boundary. Never read and write the same generation's values.
+- Never mutate `world.treasury` directly. Use `postLedger`.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first slice covers C1 (kernel) + C2 (cellular field engine) + C3 (land-value/pollution/crime loop) + C4 (trip-generation traffic + one transit line) + C5 (power flood-fill + cascade) + C6 (budget + tax) + C7 (RCI demand + growth) + C8 (advisor claim engine) + C9 (one seeded disaster) + C0/C12 (replay/save) + C10 (polished slice view). Target: ~47 cards.
+
+---
+
+**`C01` — Fixed-point newtype and field value helpers**
+dependsOn: none
+files: `src/core/fixed.ts`, `test/core/fixed.test.ts`
+interface:
+```ts
+export type Fixed = number & { __fixed: true };
+export function toFixed(n: number): Fixed;     // Math.round(n * 100) as Fixed
+export function fromFixed(f: Fixed): number;   // f / 100
+export function addFixed(a: Fixed, b: Fixed): Fixed;
+export function subFixed(a: Fixed, b: Fixed): Fixed;
+export function mulFixed(a: Fixed, scalar: number): Fixed; // scalar is integer
+export function divFixed(a: Fixed, divisor: number): Fixed; // truncates
+export function clampFixed(f: Fixed, lo: Fixed, hi: Fixed): Fixed;
+export const ZERO_FIXED: Fixed;
+export const FIELD_MAX: Fixed; // = toFixed(100) = 10000; max value for any field
+```
+how to implement: scale = 100. `toFixed(50.5) === 5050`. Integer arithmetic throughout.
+acceptance:
+- `toFixed(1) === 100`
+- `addFixed(toFixed(30), toFixed(70)) === toFixed(100)`
+- `clampFixed(toFixed(120), ZERO_FIXED, FIELD_MAX) === FIELD_MAX`
+- `mulFixed(toFixed(3), 4) === toFixed(12)`
+Run `npm test` → green.
+
+---
+
+**`C02` — Seeded PRNG**
+dependsOn: none
+files: `src/core/prng.ts`, `test/core/prng.test.ts`
+interface:
+```ts
+export interface SeededPrng { next(): number; nextInt(lo: number, hi: number): number; }
+export function createSeededPrng(seed: number): SeededPrng;
+```
+how to implement: xorshift32 or mulberry32. No `Math.random()`.
+acceptance: identical sequences for two instances with same seed; `nextInt` always in range.
+Run `npm test` → green.
+
+---
+
+**`C03` — World state, tile grid, and virtual clock**
+dependsOn: `C01`, `C02`
+files: `src/core/world.ts`, `src/core/tile.ts`, `test/core/world.test.ts`
+interface:
+```ts
+// tile.ts
+export type ZoneType = 'none' | 'residential' | 'commercial' | 'industrial' | 'civic' | 'park';
+export type BuildingState = 'empty' | 'construction' | 'thriving' | 'stable' | 'declining' | 'abandoned' | 'burned' | 'flooded' | 'unpowered';
+export interface Tile { x: number; y: number; zone: ZoneType; building: BuildingState; population: number; }
+export type Coord = { x: number; y: number };
+
+// world.ts
+export interface WorldState {
+  tick: number;
+  seed: number;
+  calendar: { tick: number; day: number; month: number; year: number };
+  width: number; height: number;
+  tiles: Tile[];    // flat array; index = y * width + x
+  ledger: LedgerEntry[];
+  treasury: Fixed;
+  emigratedTotal: number;
+  immigratedTotal: number;
+  prng: SeededPrng;
+}
+export interface LedgerEntry { tick: number; amount: Fixed; description: string; }
+export const TICKS_PER_MONTH = 30; // balance constant
+export function createWorld(seed: number, width: number, height: number): WorldState;
+export function getTile(world: WorldState, x: number, y: number): Tile;
+export function setTile(world: WorldState, x: number, y: number, patch: Partial<Tile>): void;
+export function advanceTick(world: WorldState): void; // increments tick; updates calendar; full logic in C15
+```
+how to implement: flat tile array, index = y * width + x. `createWorld` initializes all tiles to `{ zone:'none', building:'empty', population:0 }`.
+acceptance:
+- `createWorld(1, 10, 10).tiles.length === 100`
+- `getTile(world, 5, 3) === world.tiles[3 * 10 + 5]`
+- After `TICKS_PER_MONTH` advanceTick calls, `world.calendar.month` advances.
+Run `npm test` → green.
+
+---
+
+**`C04` — World-state hash**
+dependsOn: `C03`
+files: `src/core/hash.ts`, `test/core/hash.test.ts`
+interface:
+```ts
+export function hashWorldState(world: WorldState): string;
+```
+how to implement: stable JSON (arrays are already ordered; just skip the PRNG internal state from the hash by serializing `prng.next()` as a placeholder), djb2/FNV-1a hash.
+acceptance: identical worlds → identical hash; tick 0 ≠ tick 1; stable on two calls.
+Run `npm test` → green.
+
+---
+
+**`C05` — Named field engine (double-generation scan discipline)**
+dependsOn: `C03`, `C01`
+files: `src/core/fields.ts`, `test/core/fields.test.ts`
+interface:
+```ts
+export type FieldName = 'PopulationDensity' | 'LandValue' | 'Pollution' | 'TrafficDensity' | 'PowerGrid' | 'FireCoverage' | 'RateOfGrowth' | 'Crime';
+export interface FieldStore {
+  prev: Map<FieldName, Fixed[]>;  // prev[name] is a flat array of length width*height
+  next: Map<FieldName, Fixed[]>;
+}
+export function createFieldStore(width: number, height: number): FieldStore;
+export function readField(store: FieldStore, name: FieldName, x: number, y: number, width: number): Fixed;
+// reads from store.prev
+export function writeField(store: FieldStore, name: FieldName, x: number, y: number, width: number, value: Fixed): void;
+// writes to store.next
+export function commitGeneration(store: FieldStore): void;
+// swaps prev = next; resets next to zeros
+export function assertFieldConservation(store: FieldStore, name: FieldName, expectedTotal: Fixed, width: number, height: number): void;
+// throws if sum of prev[name] !== expectedTotal
+```
+how to implement:
+1. `createFieldStore`: initialize both prev and next to zero-filled arrays for all 8 field names.
+2. `readField` indexes `prev[name][y * width + x]`.
+3. `writeField` indexes `next[name][y * width + x]`.
+4. `commitGeneration`: for each name, `prev[name] = next[name].slice()`, then reset `next[name]` to all zeros.
+5. `assertFieldConservation`: sum all entries in `prev[name]`; assert equals `expectedTotal`.
+acceptance:
+- Write 50 to (0,0) in `LandValue`; before commit: `readField('LandValue', 0, 0)` still reads 0 (prev is unchanged). After `commitGeneration`: reads 50.
+- After commit, the `next` generation is all zeros.
+- `assertFieldConservation` throws when sum is wrong.
+Run `npm test` → green.
+
+---
+
+**`C06` — Scan schedule constant**
+dependsOn: `C05`
+files: `src/core/scan-schedule.ts`, `test/core/scan-schedule.test.ts`
+interface:
+```ts
+export const SCAN_INTERVALS: Record<FieldName, number> = {
+  PowerGrid: 10,
+  TrafficDensity: 5,
+  Pollution: 15,
+  LandValue: 20,
+  Crime: 20,
+  FireCoverage: 10,
+  PopulationDensity: 3,
+  RateOfGrowth: 30,
+};
+// A field scan runs when: world.tick % SCAN_INTERVALS[name] === 0
+export function shouldScanField(fieldName: FieldName, tick: number): boolean;
+```
+how to implement: trivial modulo. `SCAN_INTERVALS` is the single constant; reordering it is a breaking change.
+acceptance:
+- `shouldScanField('PowerGrid', 0) === true`
+- `shouldScanField('PowerGrid', 5) === false`
+- `shouldScanField('PowerGrid', 10) === true`
+- `shouldScanField('TrafficDensity', 5) === true`
+Run `npm test` → green.
+
+---
+
+**`C07` — Pollution diffusion scan**
+dependsOn: `C05`, `C06`, `C03`
+files: `src/core/scan-pollution.ts`, `test/core/scan-pollution.test.ts`
+interface:
+```ts
+export function runPollutionScan(world: WorldState, fields: FieldStore): void;
+// Reads industrial zone presence and traffic density from fields.prev;
+// writes pollution to fields.next.
+// Formula per tile:
+//   source = (tile.zone === 'industrial') ? toFixed(40) : ZERO_FIXED
+//   trafficContrib = mulFixed(readField(fields, 'TrafficDensity', x, y, world.width), 1) / 10  (integer division)
+//   rawPollution = source + trafficContrib
+//   diffused = average of rawPollution with 4 neighbors (clamped to map bounds)
+//   writeField(fields, 'Pollution', x, y, world.width, clampFixed(diffused, ZERO_FIXED, FIELD_MAX))
+// Iteration order: ascending index (y * width + x)
+```
+how to implement:
+1. Loop tiles in index order.
+2. Read industrial status from `world.tiles[idx].zone`.
+3. Compute `diffused` using neighbor reads from `fields.prev`.
+4. Write to `fields.next`.
+acceptance:
+- A 3×3 map with all industrial tiles: Pollution is > 0 everywhere after scan + commit.
+- A map with no industrial, no traffic: Pollution stays 0.
+- Two identical worlds run through 10 pollution scans → identical field values (determinism).
+Run `npm test` → green.
+
+---
+
+**`C08` — Land-value scan (reads Pollution, FireCoverage, Terrain from prev)**
+dependsOn: `C07`, `C06`
+files: `src/core/scan-land-value.ts`, `test/core/scan-land-value.test.ts`
+interface:
+```ts
+export function runLandValueScan(world: WorldState, fields: FieldStore): void;
+// Formula per tile:
+//   terrain = toFixed(50) // flat bonus; KNOWLEDGE_DEBT: terrain height map not in first slice
+//   pollution_penalty = mulFixed(readField(fields,'Pollution',x,y,w), 1) (reads prev)
+//   coverage_bonus = mulFixed(readField(fields,'FireCoverage',x,y,w), 1)
+//   raw = terrain - pollution_penalty + coverage_bonus
+//   writeField(fields,'LandValue',x,y,w, clampFixed(raw, ZERO_FIXED, FIELD_MAX))
+// Iteration: ascending index order
+```
+how to implement: pure field-reads from `prev`, writes to `next`. Neighbors not needed (single-tile formula; neighborhood averaging is an extension).
+acceptance:
+- A tile with Pollution=0 and FireCoverage=0: LandValue = terrain_bonus = 5000 (toFixed(50)).
+- A tile with high Pollution (100 ≈ toFixed(100) = 10000): LandValue is reduced.
+- Deterministic across two runs.
+Run `npm test` → green.
+
+---
+
+**`C09` — Crime scan (reads PopulationDensity, LandValue, police coverage stub)**
+dependsOn: `C08`
+files: `src/core/scan-crime.ts`, `test/core/scan-crime.test.ts`
+interface:
+```ts
+export function runCrimeScan(world: WorldState, fields: FieldStore): void;
+// Formula per tile:
+//   density_factor = readField(fields,'PopulationDensity',x,y,w)
+//   lv = readField(fields,'LandValue',x,y,w)
+//   low_lv_bonus = subFixed(FIELD_MAX, lv)  // high crime when low land value
+//   raw = divFixed(addFixed(density_factor, low_lv_bonus), 2)
+//   writeField(fields,'Crime',x,y,w, clampFixed(raw, ZERO_FIXED, FIELD_MAX))
+// Iteration: ascending index
+```
+how to implement: pure reads from prev, writes to next.
+acceptance:
+- A tile with LandValue = 0 and density > 0: Crime is high.
+- A tile with LandValue = FIELD_MAX and low density: Crime is low.
+- Crime↔LandValue feedback loop test: run 5 coupled scan cycles (crime scan → LV scan → repeat); assert values converge (do not oscillate past [ZERO_FIXED, FIELD_MAX]).
+Run `npm test` → green.
+
+---
+
+**`C10` — Power flood-fill scan**
+dependsOn: `C05`, `C06`, `C03`
+files: `src/core/scan-power.ts`, `test/core/scan-power.test.ts`
+interface:
+```ts
+export function runPowerScan(world: WorldState, fields: FieldStore): void;
+// BFS from all tiles where tile.building === 'plant' (power plant).
+// A tile is conductive if: tile.zone !== 'none' OR tile has a power-line marker (use tile.zone === 'civic' as proxy for power line in MVP).
+// Sets PowerGrid field: powered tiles = FIELD_MAX (10000); unpowered = ZERO_FIXED.
+// Iteration order for BFS queue: enqueue neighbors in ascending-index order.
+```
+how to implement:
+1. Seed BFS with all plant tiles (ascending index order).
+2. For each dequeued tile, mark `writeField('PowerGrid', ..., FIELD_MAX)`; enqueue conductive neighbors not yet visited, in ascending-index order.
+3. All unvisited tiles get ZERO_FIXED.
+acceptance:
+- A plant at (0,0) in a 5×5 grid of civic tiles: all tiles powered after scan+commit.
+- A non-conductive gap (zone='none', non-plant) breaks connectivity; tiles beyond the gap are unpowered.
+- BFS is deterministic: same map → same PowerGrid field on two runs.
+Run `npm test` → green.
+
+---
+
+**`C11` — Power cascade (unpowered service degrades coverage)**
+dependsOn: `C10`
+files: `src/core/cascade-power.ts`, `test/core/cascade-power.test.ts`
+interface:
+```ts
+export function applyPowerCascade(world: WorldState, fields: FieldStore): void;
+// For every tile with a fire-station building (tile.building === 'fire_station'):
+//   if readField(fields,'PowerGrid',x,y,w) === ZERO_FIXED:
+//     set FireCoverage for that tile and neighbors within FIRE_STATION_RANGE to ZERO_FIXED (unpowered)
+export const FIRE_STATION_RANGE = 3; // tiles; balance constant
+```
+how to implement: iterate tiles ascending; for unpowered stations, zero-out FireCoverage in a radius in `fields.next`.
+acceptance:
+- A powered fire station covers its neighbors (FireCoverage > 0 after cascade + commit).
+- An unpowered fire station: all tiles in its range have FireCoverage = 0 after cascade.
+- `assertFieldConservation` does not need to hold for FireCoverage (it is a coverage field, not a conserved quantity) — document this.
+Run `npm test` → green.
+
+---
+
+**`C12` — Trip-generation traffic scan**
+dependsOn: `C05`, `C06`, `C03`
+files: `src/core/scan-traffic.ts`, `test/core/scan-traffic.test.ts`
+interface:
+```ts
+export const TRIP_RANGE = 8;    // tiles; balance constant
+export const MAX_ROAD_CAPACITY = toFixed(80); // field units; balance constant
+export function runTrafficScan(world: WorldState, fields: FieldStore): void;
+// For each residential tile with population > 0:
+//   generate 1 trip attempt; search for a commercial or industrial tile within TRIP_RANGE (Manhattan distance)
+//   if found: success — contribute toFixed(10) to TrafficDensity on all tiles along the Manhattan path (ascending-index order)
+//   if not found: record a failed trip on the tile (use a scratch counter; see below)
+// After all residential tiles processed, for each tile:
+//   if TrafficDensity > MAX_ROAD_CAPACITY: tile is congested (store as a boolean in world.congestionMap)
+// Scratch counter: add 'tripFailures: number' to WorldState (initialized to 0; reset each scan)
+```
+how to implement:
+1. Collect residential tiles with population > 0; sort by ascending index.
+2. For each, BFS/scan within TRIP_RANGE tiles for a commercial or industrial tile.
+3. On success, add toFixed(10) to each tile on the direct Manhattan path in `fields.next['TrafficDensity']`.
+4. On failure, increment `world.tripFailures`.
+5. After all trips, compute `congestionMap` (a `Set<number>` of tile indices where traffic > capacity); store in `WorldState`.
+acceptance:
+- A residential tile adjacent to a commercial tile: 0 trip failures; TrafficDensity > 0 on the path.
+- A residential tile with no commercial/industrial within TRIP_RANGE: trip fails.
+- Two identical worlds → identical TrafficDensity and identical `tripFailures` (determinism).
+Run `npm test` → green.
+
+---
+
+**`C13` — RCI demand and growth/abandonment pass**
+dependsOn: `C08`, `C12`, `C11`, `C03`
+files: `src/core/scan-rci.ts`, `test/core/scan-rci.test.ts`
+interface:
+```ts
+export interface RciDemand { residential: Fixed; commercial: Fixed; industrial: Fixed; }
+export function computeRciDemand(world: WorldState, fields: FieldStore): RciDemand;
+// residential demand = FIELD_MAX - average(TrafficDensity) + average(LandValue) (balance heuristic)
+// commercial demand = population / 10 (simplified; KNOWLEDGE_DEBT: real model is more complex)
+// industrial demand = toFixed(50) - average(Pollution) * 0.5 (industry dislikes own pollution)
+// All values clamped to [ZERO_FIXED, FIELD_MAX]
+
+export function runGrowthPass(world: WorldState, fields: FieldStore, demand: RciDemand, prng: SeededPrng): void;
+// For each tile with a matching zone (residential/commercial/industrial):
+//   if demand[zone] > toFixed(60) and tile.building in ['empty','stable','declining'] and powered:
+//     if prng.nextInt(0, 9) < 3: grow building state one step (empty→construction→stable→thriving)
+//   if demand[zone] < toFixed(30) and tile.building in ['thriving','stable']:
+//     decline building state (thriving→stable→declining→abandoned)
+//   on 'abandoned': population on tile → add to world.emigratedTotal; set tile.population = 0
+// Iteration: ascending index; prng use is deterministic
+```
+how to implement: iterate tiles ascending index order. Use the passed `prng` (never `Math.random()`).
+acceptance:
+- A residential tile with demand=80 grows from 'empty' toward 'thriving' over 30 ticks.
+- A residential tile with demand=20 declines from 'thriving' toward 'abandoned'.
+- On abandonment, `world.emigratedTotal` increments by the tile's former population.
+- Two runs with same seed → identical final tile states.
+Run `npm test` → green.
+
+---
+
+**`C14` — Double-entry treasury and tax collection**
+dependsOn: `C03`, `C01`
+files: `src/core/ledger.ts`, `src/core/budget.ts`, `test/core/ledger.test.ts`
+interface:
+```ts
+// ledger.ts
+export function postLedger(world: WorldState, amount: Fixed, description: string): void;
+// amount > 0 = revenue, < 0 = cost; updates world.treasury = world.treasury + amount; appends to world.ledger
+export function assertLedgerBalance(world: WorldState): void;
+// throws if world.treasury !== fold(world.ledger)
+
+// budget.ts
+export interface BudgetState {
+  taxRates: { residential: Fixed; commercial: Fixed; industrial: Fixed }; // Fixed 0–100 (percentage)
+  serviceAllocations: Record<string, Fixed>; // service name → funding as % of base cost
+}
+export function collectTaxes(world: WorldState, budget: BudgetState, fields: FieldStore): void;
+// Revenue = Σ(tile.population * taxRate / 100) for each zone type; post to ledger
+export function deductServiceCosts(world: WorldState, budget: BudgetState): void;
+// Cost per service = baseCost * serviceAllocations[service] / 100; post negative amounts to ledger
+```
+how to implement:
+1. `postLedger` never modifies `world.treasury` directly — it only appends to ledger and adds `amount` to treasury; the only source of truth for treasury is the fold.
+2. `collectTaxes` iterates tiles ascending index; accumulates by zone type; one `postLedger` call per zone type per collection.
+acceptance:
+- Post +100, -30: treasury = 70; `assertLedgerBalance` passes.
+- Corrupt treasury to 0: `assertLedgerBalance` throws.
+- `collectTaxes` on a 10-tile residential map with 5 population each and 10% tax rate: total revenue = 10*5*0.10 = 5.0 → toFixed(5).
+Run `npm test` → green.
+
+---
+
+**`C15` — Full phased tick dispatcher**
+dependsOn: `C06`, `C07`, `C08`, `C09`, `C10`, `C11`, `C12`, `C13`, `C14`
+files: `src/core/tick.ts`, `test/core/tick-order.test.ts`
+interface:
+```ts
+export function runTick(world: WorldState, fields: FieldStore, budget: BudgetState, prng: SeededPrng): void;
+// Ordered phases each tick:
+// 1. For each field, if shouldScanField(name, world.tick): run its scan (reads prev, writes next)
+// 2. applyPowerCascade (writes FireCoverage in next)
+// 3. commitGeneration(fields)  ← ONLY after all scans are done for this tick
+// 4. If world.tick % TICKS_PER_MONTH === 0: collectTaxes; deductServiceCosts
+// 5. runGrowthPass (reads committed prev fields)
+// 6. world.tick++; update calendar
+```
+how to implement:
+1. All scans write to `fields.next`.
+2. `commitGeneration` is called exactly once per tick, after ALL scan writes are done.
+3. Growth pass reads `fields.prev` (which is now the committed next from step 3).
+4. Budget ticks at calendar month boundary only.
+acceptance: `test/core/tick-order.test.ts` asserts:
+- Land value depends on pollution: zone an industrial tile; run 40 ticks; assert nearby residential tiles have lower LandValue than tiles far from industry.
+- Population conservation: run 100 ticks with declining demand; assert `emigratedTotal + totalPopulationInTiles === initial_total`.
+- Determinism: two worlds with identical setup → identical `hashWorldState` at ticks 10, 20, 50.
+Run `npm test` → green.
+
+---
+
+**`C16` — Population conservation invariant**
+dependsOn: `C15`, `C13`
+files: `src/core/pop-conservation.ts`, `test/core/pop-conservation.test.ts`
+interface:
+```ts
+export function totalPopulationInTiles(world: WorldState): number;
+export function assertPopulationConservation(world: WorldState, initialTotal: number): void;
+// throws if totalPopulationInTiles + world.emigratedTotal - world.immigratedTotal !== initialTotal
+```
+how to implement: sum `tile.population` across all tiles.
+acceptance:
+- After 200 ticks with mixed growth/decline: `assertPopulationConservation` holds at every tick check.
+Run `npm test` → green.
+
+---
+
+**`C17` — Advisor claim engine (C8)**
+dependsOn: `C15`, `C01`
+files: `src/core/advisor.ts`, `test/core/advisor.test.ts`
+interface:
+```ts
+export interface AdvisorClaim {
+  ruleId: string;
+  metric: string;
+  value: Fixed;
+  threshold: Fixed;
+  implicatedCells: Coord[];
+  causalChain: string[];      // ordered list of metric names, e.g. ['Pollution', 'LandValue', 'abandonment']
+}
+export type AdvisorRule = (world: WorldState, fields: FieldStore) => AdvisorClaim | null;
+
+// Built-in rules:
+export const RULE_HIGH_POLLUTION: AdvisorRule;
+// Fires when any tile's Pollution > toFixed(70); implicatedCells = tiles above threshold; causalChain = ['Pollution']
+
+export const RULE_LOW_FIRE_COVERAGE: AdvisorRule;
+// Fires when any tile with population > 0 has FireCoverage === ZERO_FIXED; causalChain = ['FireCoverage']
+
+export const RULE_ABANDONMENT_WAVE: AdvisorRule;
+// Fires when world.emigratedTotal increased by > 50 in the last TICKS_PER_MONTH; causalChain = ['PopulationDensity','LandValue','tripFailures']
+
+export function runAdvisorEngine(world: WorldState, fields: FieldStore, rules: AdvisorRule[]): AdvisorClaim[];
+// Returns only claims for which the rule fired (returned non-null). Order: rules run in input-array order.
+```
+how to implement:
+1. Each rule is a pure function: no side effects, no natural-language generation, just structured claims.
+2. `runAdvisorEngine` maps over rules, filters nulls.
+3. The `causalChain` is a hardcoded field-name sequence in each rule, not generated text.
+acceptance:
+- A city with no industry and no fire stations down: `RULE_HIGH_POLLUTION` fires = false; `RULE_LOW_FIRE_COVERAGE` fires = false.
+- Force Pollution > toFixed(70) on tile (2,2): `RULE_HIGH_POLLUTION` fires, `implicatedCells` includes (2,2).
+- A city with all fire stations powered: `RULE_LOW_FIRE_COVERAGE` fires = false.
+- **Anti-hallucination test**: generate 20 random world states with seeded PRNG; assert every returned claim has `value >= threshold` for its metric.
+Run `npm test` → green.
+
+---
+
+**`C18` — Seeded disaster: fire incident**
+dependsOn: `C10`, `C11`, `C03`, `C02`
+files: `src/core/disaster-fire.ts`, `test/core/disaster-fire.test.ts`
+interface:
+```ts
+export interface FireEvent {
+  tick: number;
+  originTile: Coord;
+}
+export function scheduleFire(world: WorldState, tick: number, origin: Coord): FireEvent;
+export function applyFireSpread(world: WorldState, fields: FieldStore, event: FireEvent): void;
+// Each spread step: for each burning tile, neighbors with FireCoverage < toFixed(30) have a 30% chance (via world.prng) of catching fire (building state → 'burned').
+// A tile with FireCoverage >= toFixed(30) never spreads fire (protected).
+// Run one spread step per call.
+```
+how to implement:
+1. Use `world.prng.nextInt(0, 9) < 3` for the 30% chance — deterministic via seeded PRNG.
+2. Iterate neighbors in ascending-index order.
+3. Only tiles with `building !== 'empty' && building !== 'burned'` can catch fire.
+acceptance:
+- A city with no fire coverage: fire spreads to neighbors after 3 spread steps.
+- A city with full fire coverage (FireCoverage = FIELD_MAX): fire does not spread beyond origin.
+- Two runs with same seed → identical spread pattern (determinism).
+Run `npm test` → green.
+
+---
+
+**`C19` — Command log and replay skeleton**
+dependsOn: `C03`, `C04`
+files: `src/core/command-log.ts`, `test/core/command-log.test.ts`
+interface:
+```ts
+export type MayorCommand =
+  | { kind: 'ZoneTile'; tick: number; x: number; y: number; zone: ZoneType }
+  | { kind: 'BuildRoad'; tick: number; x: number; y: number }
+  | { kind: 'BuildPlant'; tick: number; x: number; y: number }
+  | { kind: 'BuildFireStation'; tick: number; x: number; y: number }
+  | { kind: 'SetTaxRate'; tick: number; zone: ZoneType; rate: Fixed }
+  | { kind: 'SetServiceAllocation'; tick: number; service: string; pct: Fixed };
+export interface CommandLog { commands: MayorCommand[]; seed: number; }
+export function createCommandLog(seed: number): CommandLog;
+export function appendCommand(log: CommandLog, cmd: MayorCommand): void;
+export function replayCommandLog(
+  log: CommandLog,
+  totalTicks: number,
+  applyCommand: (world: WorldState, fields: FieldStore, budget: BudgetState, cmd: MayorCommand) => void,
+  width: number, height: number,
+): { world: WorldState; fields: FieldStore };
+```
+how to implement: create fresh world + fields; loop ticks; apply commands at matching tick; call `runTick`.
+acceptance:
+- Empty log, 10 ticks → `world.tick === 10`.
+- Two replays → identical `hashWorldState`.
+Run `npm test` → green.
+
+---
+
+**`C20` — Coupling-causality fixture (C11 base scenario: industry near residential)**
+dependsOn: `C15`, `C07`, `C08`
+files: `test/core/coupling-causality.test.ts`
+interface: (test only)
+how to implement:
+1. Create a 10×10 world; place industrial zone at (5,5); place residential zone at (5,3); run 60 ticks.
+2. Assert that Pollution at (5,4) is higher than at (5,0) after 60 ticks (pollution diffuses toward residential).
+3. Assert that LandValue at (5,3) (near industry) is lower than at (5,0) (far from industry) after 60 ticks.
+4. Assert `assertPopulationConservation` holds throughout.
+acceptance: all assertions pass. Run `npm test` → green.
+
+---
+
+**`C21` — Blackout cascade fixture (C11 base scenario)**
+dependsOn: `C15`, `C10`, `C11`
+files: `test/core/blackout-cascade.test.ts`
+interface: (test only)
+how to implement:
+1. Build a city with a plant, 2 fire stations (powered), some residential zones.
+2. At tick 20, remove the plant (set tile.building to 'empty'); run 10 more ticks.
+3. Assert: after the power scan runs (tick 20 + SCAN_INTERVAL), PowerGrid is ZERO_FIXED everywhere.
+4. Assert: after the cascade runs, FireCoverage is ZERO_FIXED for all tiles.
+5. Assert: `assertLedgerBalance` still holds throughout.
+acceptance: all assertions pass. Run `npm test` → green.
+
+---
+
+**`C22` — Underfunded fire incident fixture (C11 base scenario)**
+dependsOn: `C18`, `C15`, `C14`
+files: `test/core/fire-underfunded.test.ts`
+interface: (test only)
+how to implement:
+1. Build a city with full funding: fire spreads origin→1 neighbor only (coverage stops it).
+2. Repeat with fire service allocation set to 0% (no coverage): fire spreads to 3+ neighbors.
+3. Assert the difference in spread is deterministic across two runs with same seed.
+acceptance: all assertions pass. Run `npm test` → green.
+
+---
+
+**`C23` — Advisor anti-hallucination canary (C12 invariant 4)**
+dependsOn: `C17`
+files: `test/core/advisor-anti-hallucination.test.ts`
+interface: (test only)
+how to implement:
+1. Run 50 randomized world states (seeded PRNG, seed 77); for each, call `runAdvisorEngine` with all built-in rules.
+2. For every returned `AdvisorClaim`, assert `claim.value >= claim.threshold` (the condition that triggered it is real).
+3. Force a world state with all metrics below their thresholds; assert 0 claims fire.
+acceptance: all assertions pass. Run `npm test` → green.
+
+---
+
+**`C24` — Migration conservation chaos pass (C12 invariant 2)**
+dependsOn: `C16`, `C15`
+files: `test/core/migration-conservation.test.ts`
+interface: (test only)
+how to implement: 300-tick randomized run (seeded PRNG seed 55); call `assertPopulationConservation` every tick.
+acceptance: all 300 assertions pass. Run `npm test` → green.
+
+---
+
+**`C25` — Determinism canary (C12 invariant 3)**
+dependsOn: `C19`
+files: `test/core/determinism.test.ts`
+interface: (test only)
+how to implement: replay same 200-tick command log twice; check `hashWorldState` at ticks 50, 100, 200 — identical.
+acceptance: all assertions pass. Run `npm test` → green.
+
+---
+
+**`C26` — Save/load equivalence**
+dependsOn: `C19`
+files: `test/core/save-load.test.ts`
+interface: (test only)
+how to implement: run to tick 100 (hashA); replay to tick 50 then continue to tick 100 (hashB); assert hashA === hashB.
+acceptance: passes. Run `npm test` → green.
+
+---
+
+**`C27` — Feedback-loop stability test (C12 invariant 5)**
+dependsOn: `C15`, `C09`
+files: `test/core/feedback-stability.test.ts`
+interface: (test only)
+how to implement:
+1. Run a 200-tick scenario with heavy industrial zoning; collect Crime and LandValue for tile (3,3) each tick.
+2. Assert both series stay within [ZERO_FIXED, FIELD_MAX] throughout (no runaway divergence).
+3. Assert the series are eventually monotonically converging: the 20-tick moving average of Crime at tick 180-200 differs by less than 10% from the average at tick 160-180.
+acceptance: all assertions pass. Run `npm test` → green.
+
+---
+
+**`C28` — Renderer abstraction boundary**
+dependsOn: `C15`
+files: `src/renderer/render-types.ts`, `test/renderer/render-boundary.test.ts`
+interface:
+```ts
+export interface TileRenderState { x: number; y: number; zone: ZoneType; building: BuildingState; landValue: number; pollution: number; traffic: number; powered: boolean; }
+export interface AdvisorRenderState { ruleId: string; message: string; cells: Coord[]; }
+export interface RenderSnapshot { tick: number; tiles: TileRenderState[]; treasury: number; claims: AdvisorRenderState[]; }
+export function buildRenderSnapshot(world: WorldState, fields: FieldStore, claims: AdvisorClaim[]): RenderSnapshot;
+// Converts Fixed to float; never mutates world or fields.
+```
+how to implement: map tiles + fields → TileRenderState (convert Fixed to float via `fromFixed`); convert claims to display records.
+acceptance: snapshot from world with 4 tiles returns 4 tile render states; two calls = same result.
+Run `npm test` → green.
+
+---
+
+**`C29` — Polished city view scaffold (C10)**
+dependsOn: `C28`
+files: `src/renderer/interpolation.ts`, `src/renderer/canvas-renderer.ts`, `test/renderer/interpolation.test.ts`
+interface:
+```ts
+export function interpolateSnapshot(prev: RenderSnapshot, next: RenderSnapshot, alpha: number): RenderSnapshot;
+// No per-tile interpolation needed for fields (they snap at scan boundaries); interpolate advisory panel fade-in only.
+export interface CityRenderer { drawFrame(snap: RenderSnapshot, canvas: HTMLCanvasElement): void; }
+export function createCityRenderer(): CityRenderer;
+// drawFrame: draw colored tile grid (zone colors), building state indicators, overlay toggle-able fields,
+// time controls, budget panel, advisor panel. Non-empty visuals — not a letter grid.
+```
+how to implement: minimal colored tile-grid rendering with zone colors and building state overlays. No `requestAnimationFrame` inside the renderer.
+acceptance: `interpolateSnapshot` returns prev at alpha=0, next at alpha=1; renderer does not throw on a valid snapshot.
+Run `npm test` → green.
+
+---
+
+**`C30` — Full slice integration test (C13 green gate)**
+dependsOn: `C15`, `C20`, `C21`, `C22`, `C23`, `C24`, `C25`, `C26`, `C27`, `C29`
+files: `test/integration/slice.test.ts`
+interface: (test only)
+how to implement:
+1. Build a 15×15 city with residential, commercial, industrial, a plant, and a fire station; run 300 ticks.
+2. Assert coupling causality: industry near residential lowers LandValue within 30 ticks.
+3. Assert population conservation at every tick.
+4. Assert treasury = ledger fold at every tick.
+5. Assert two replays → identical hash at ticks 100, 200, 300.
+6. Assert advisor engine fires at least one valid claim with metric-backed evidence.
+acceptance: all assertions pass. Run `npm test` → green.
+
+---
+
+### 3. The decomposition method for the rest
+
+After the first slice is green, use this recipe for all remaining content (additional services, deeper transit, disasters, full RCI density upgrades, more advisor rules).
+
+**Repeatable decomposition recipe:**
+1. Name the feature in one sentence. Identify which first-slice types it builds on (field name, scan, entity type).
+2. Write the new TypeScript interfaces in full.
+3. List which conservation invariants (money, population) it must preserve.
+4. Break into 2–5 focused cards: types first, scan/logic second, integration wiring third, acceptance last.
+5. For each card: id, title, dependsOn, files, interface, numbered recipe, acceptance.
+6. No card adds more than ~100 lines of production code.
+
+**Worked example A — Police coverage field (C5 extension):**
+- Card `PC01` — `PoliceCoverage` field scan: add 'PoliceCoverage' to `FieldName` union. Scan reads `Crime` and number of police station tiles; writes coverage radius as radial influence. Accept: a police station at (3,3) raises PoliceCoverage within 3 tiles of it.
+- Card `PC02` — Crime suppression by police: update `runCrimeScan` to subtract `PoliceCoverage` from the raw crime value (reads prev generation). Accept: a fully-policed tile has Crime = 0 regardless of density.
+- Card `PC03` — Power cascade for police: extend `applyPowerCascade` to also zero PoliceCoverage when a police station is unpowered. Accept: unpowered station → PoliceCoverage drops → Crime rises in that area (coupling test).
+
+**Worked example B — Water/sewage utility (C5 extension):**
+- Card `WT01` — `WaterCoverage` field: flood-fill from water pump tiles (similar to power scan). Pumps require power (read PowerGrid from prev). Accept: a powered pump covers tiles in a radius; an unpowered pump covers nothing.
+- Card `WT02` — Service degradation: tiles without WaterCoverage have building health penalty (building state can degrade faster). Accept: unpowered pump cascades to zero WaterCoverage within the scan window.
+- Card `WT03` — Conservation check: water coverage is not a conserved quantity; document explicitly. Hospital-coverage requires both power and water (a `HospitalCoverage` rule: reads `PowerGrid` AND `WaterCoverage` from prev). Accept: a powered but water-less hospital has zero effective coverage.
+
+**Worked example C — Flood disaster (C9 extension):**
+- Card `FL01` — `FloodEvent` type: `{ tick, affectedTiles: Coord[] }` — tiles in a designated floodplain. Seeded: the affected-tile set is drawn from `world.prng` at schedule time. Accept: type-checks; two schedules with same seed → same tiles.
+- Card `FL02` — `applyFloodDamage(world, event)`: for each affected tile, set `building = 'flooded'`; population → emigrated. Accept: population conservation holds; tiles are flooded, not silently cleared.
+- Card `FL03` — Floodplain risk fixture: place residential on designated floodplain tiles; trigger the flood; assert disproportionate damage vs identical city on non-floodplain tiles. Accept: flooded tiles ≥ non-flooded tiles by a measurable margin; conservation holds for both.
+
+---
+
+### 4. Per-task implementation conventions
+
+**Folder layout:**
+```
+src/
+  core/           # pure sim logic; no DOM, no network
+    fixed.ts
+    prng.ts
+    world.ts
+    tile.ts
+    hash.ts
+    fields.ts
+    scan-schedule.ts
+    scan-pollution.ts
+    scan-land-value.ts
+    scan-crime.ts
+    scan-power.ts
+    scan-traffic.ts
+    scan-rci.ts
+    cascade-power.ts
+    advisor.ts
+    ledger.ts
+    budget.ts
+    disaster-fire.ts
+    command-log.ts
+    tick.ts
+    pop-conservation.ts
+  renderer/       # view layer; float allowed; never writes WorldState
+    render-types.ts
+    interpolation.ts
+    canvas-renderer.ts
+test/
+  core/
+  renderer/
+  integration/
+```
+
+**Naming conventions:**
+- Types: PascalCase. Pure functions: camelCase verb-noun. Scan functions: `run<FieldName>Scan`. Constants: SCREAMING_SNAKE_CASE with `// balance constant` comment. Test files: mirror source, `.test.ts`.
+
+**How to write a test (Vitest):**
+```ts
+import { describe, it, expect } from 'vitest';
+import { createWorld, getTile } from '../../src/core/world.js';
+
+describe('tile grid', () => {
+  it('initial tile is empty', () => {
+    const world = createWorld(1, 10, 10);
+    expect(getTile(world, 0, 0).building).toBe('empty');
+  });
+});
+```
+
+**How to keep it deterministic:**
+- Always iterate tiles in ascending `y * width + x` index order — never Object.keys or Map iteration without sort.
+- Fields read from `prev`, write to `next`; `commitGeneration` is called exactly once per tick after all scans.
+- Use `world.prng` (seeded) for any randomness in disasters or growth rolls.
+- The renderer reads `RenderSnapshot` (plain converted floats); it never writes back into `WorldState` or `FieldStore`.
+- Balance constants get a `// balance constant; KNOWLEDGE_DEBT: source = <reference>` comment.
+
+**How to wire a fixture adapter:**
+```ts
+// Test setup: deterministic world with scripted initial state
+const world = createWorld(42, 10, 10);
+const fields = createFieldStore(10, 10);
+const budget: BudgetState = { taxRates: { residential: toFixed(10), commercial: toFixed(10), industrial: toFixed(10) }, serviceAllocations: {} };
+// Zone tile directly (no UI):
+world.tiles[0].zone = 'industrial';
+// Run the scan manually:
+runPollutionScan(world, fields);
+commitGeneration(fields);
+```
+
+**Definition of done for any card:**
+- All files in `files` compile with `tsc --noEmit`.
+- All acceptance tests pass under `npm test`.
+- No `Math.random()`, `Date.now()`, or `any` introduced in `src/core/`.
+- No I/O in any test.
+- `assertLedgerBalance` and `assertPopulationConservation` still pass after integration.
+- Every new balance constant has a `// balance constant` comment.
+
+---
+
+### 5. Common pitfalls for a weak model on this project
+
+**Pitfall 1 — Reading `fields.next` instead of `fields.prev` in a scan.**
+A 3B model will write a scan that reads the current tick's already-updated values ("seeing its own writes"), creating order-dependent nondeterminism. The double-generation discipline (C05) is the fix: scans always call `readField` (which reads `prev`) and `writeField` (which writes `next`). The determinism canary test (C25) catches this because two runs with different scan orderings will diverge.
+
+**Pitfall 2 — Calling `commitGeneration` inside a scan instead of after all scans.**
+If a model commits after each individual scan, later scans in the same tick see the current tick's outputs rather than the previous tick's. The tick dispatcher (C15) must call `commitGeneration` exactly once, after ALL scans have finished writing to `next`. The coupling-causality test (C20) fails if this is wrong.
+
+**Pitfall 3 — Silently zeroing population on abandonment instead of moving it to `emigratedTotal`.**
+A 3B model will set `tile.population = 0` on abandonment without incrementing `emigratedTotal`. `assertPopulationConservation` (C16) catches this immediately. Fix: always `world.emigratedTotal += tile.population; tile.population = 0`.
+
+**Pitfall 4 — Mutating `world.treasury` directly instead of using `postLedger`.**
+A model may write `world.treasury = addFixed(world.treasury, amount)` directly in a tax or cost function. This bypasses the ledger and breaks `assertLedgerBalance`. Fix: every financial change goes through `postLedger`. The chaos-pass test (C24) and the integration test (C30) run `assertLedgerBalance` every tick and will fail.
+
+**Pitfall 5 — Advisor rules generating text without a backing `AdvisorClaim`.**
+A 3B model will be tempted to return a string from an advisor rule ("Things look bad!"). The anti-hallucination test (C23) asserts that every returned `AdvisorClaim` has `claim.value >= claim.threshold`. Fix: rules return `null` or a fully-structured `AdvisorClaim`; never return a claim without checking the metric condition first.
+
+**Pitfall 6 — Using `Math.random()` for disaster or growth probability rolls.**
+A model will write `if (Math.random() < 0.3)` for fire spread. This breaks the determinism canary (C25) and the disaster tests. Fix: always use `world.prng.nextInt(0, 9) < 3` (exactly as documented in C18).
+
+**Pitfall 7 — Non-deterministic tile iteration via `for...in` or unordered Map.**
+A 3B model will iterate `world.tiles` or a Map with `for...in` or `Object.keys`, which may not be in insertion order in all engines. Fix: always `for (let i = 0; i < world.tiles.length; i++)` — the flat array guarantees ascending index order.
+
+**Pitfall 8 — Feedback loop divergence from unclamped field writes.**
+A model may write a scan that adds values without clamping, allowing Pollution or Crime to exceed `FIELD_MAX`. After many ticks, multiplication by an unclamped large value produces astronomically-large LandValue penalties, causing all land value to collapse to zero and all populations to abandon. Fix: every `writeField` call must wrap the value in `clampFixed(..., ZERO_FIXED, FIELD_MAX)`. The stability test (C27) catches this if missed.

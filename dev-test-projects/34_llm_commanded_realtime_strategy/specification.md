@@ -227,3 +227,676 @@ Each item gets an owner, a risk note, and an **expert-review/designer-review** f
 ## E11. Why this is a great !Klein challenge
 
 It stresses the exact capabilities !Klein must prove with small local models — and is unusually *on-thesis* because the game itself is "a sandboxed, fog-bounded LLM commander steering a deterministic world," which is a microcosm of governed agency. It demands **deep, dependency-ordered decomposition** (the deterministic kernel, fog projection, and validator seam *must* be built and invariant-tested before any LLM or rendering depends on them), **determinism under weak authorship** (the agents cannot fudge fixed-point math, fog filtering, or tie-breaking — the replay and fog-leak invariants catch it instantly), **a clean nondeterministic-actor boundary** (the single hardest seam — isolating the LLM behind an observation→intent→validator air gap so `npm test` stays reproducible — is precisely the discipline !Klein applies to its own agents: bounded perception, structured action, validated side effects), and **legible reasoning** (every intent and rejection is evidence-backed and auditable). It is a delight to watch a swarm of small models build: a real RTS where you can replay any match, switch to the enemy's fog perspective, and watch its plans — provably formed only from what it could legally see. Build the kernel + fog projection + validator seam + scripted-commander slice (E1–E4, E9) first; earn the rest.
+
+---
+
+## Small-model build guide (3B-ready)
+
+> This section exists so a ~3B local model can follow the spec mechanically. Every card below is independently implementable and verifiable with `npm test`. The 3B must **follow** these instructions, not reason about them.
+
+### 1. Glossary & ground rules
+
+**Domain terms**
+
+| Term | Meaning in this project |
+|---|---|
+| Tick | One fixed simulation step. 1 tick = 1/16 second of game time. All unit positions, timers, and command queues advance by ticks. |
+| FP | Fixed-point integer. Use Q16 = integer × 65536. All positions, velocities, damage, harvest amounts, and timers are FP. Never raw floats in core. |
+| Seed | A 32-bit unsigned integer. All randomness derives from it. Same seed + same commands = identical match. |
+| Checksum | A hash of the full simulation state at a tick. Two runs from the same seed must produce identical checksums. |
+| Commander | The interface that drives a faction's strategy. Three implementations: `ScriptedCommander` (deterministic, used in all tests), `ReplayCommander` (replays recorded intents), `LiveLLMCommander` (production only, never on `npm test` path). |
+| Intent | A typed structured action emitted by a commander: `expand`, `attack`, `defend`, `tech`, `harass`, `scout`, `retreat`, `ping_ally`, `say`. |
+| Validator | The only bridge from intent to simulation state. Checks legality; rejects with a structured reason + audit record if illegal. Text never mutates state directly. |
+| Fog of war | Per-player visibility state. Three values per cell per player: `hidden`, `explored`, `visible`. |
+| Last-known | An enemy unit the player has seen but no longer has line of sight to. Appears as a ghost in the observation; position/type is stale. |
+| Observation | The immutable, per-player, fog-filtered snapshot of the game state. The only thing a commander may act on. |
+| Decoy | A seeded false expansion report placed in a player's observation to simulate in-game feints. |
+| APM cap | Actions per minute limit on a commander. Enforced by the validator/scheduler (difficulty knob). |
+| Command log | The ordered list of player + commander intents applied so far. Replay = fold log over initial state. |
+| LUT trig | Look-up table trigonometry (integer arrays for sin/cos). Never call `Math.sin`/`Math.cos` in the sim core. |
+| ScriptedCommander | A deterministic policy (state-machine) that produces legal intents from an observation, used in all acceptance tests. |
+| ReplayCommander | Re-emits intents from a stored intent log — used to verify replay determinism. |
+| LiveLLMCommander | Wraps a live LLM behind the `Commander` interface. Only exercised in opt-in smoke tests, never in `npm test`. |
+
+**Stack**
+
+- Language: TypeScript (strict mode, no `any`)
+- Runtime: Node.js 20+
+- Test runner: `npm test` runs `vitest run`
+- Key helpers: `src/fp.ts` (FP math), `src/prng.ts` (PRNG tree), `src/lut.ts` (trig LUT)
+- Layout: `src/` for sim core; `src/commanders/` for commander implementations; `src/adapters/` for LLM stubs; `test/` for tests; `test/fixtures/` for seeded scenarios
+
+**Ground rules (imperative)**
+
+1. Never call `Date.now()`, `Math.random()`, `setTimeout`, or `setInterval` inside `src/` core sim modules.
+2. All unit positions, velocities, damage, harvest, and timers are FP integers. Never store them as `number` floats in simulation state.
+3. Process entities (units, buildings, projectiles) in ascending stable-id order. Never iterate a `Map` or `Set` for order-sensitive processing.
+4. A commander may only read from an `Observation` object (fog-filtered). It must not receive or reference `GroundTruthState` directly.
+5. Text from a commander's `say` intent never mutates game state — only validator-approved structured intents do.
+6. `npm test` must pass with **zero live model calls** — `LiveLLMCommander` is only exercised behind an env-var gate.
+7. All acceptance tests use `ScriptedCommander` or `ReplayCommander`.
+8. Stubs for live LLM go in `src/adapters/llm.fixture.ts` with a deterministic implementation alongside.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first slice targets: **E1 (deterministic kernel) + E2 (fog projection with fog-leak test) + E3 (intent schema + validator) + E4 (Commander interface + ScriptedCommander + ReplayCommander) + E9 (seed mission: expansion race + decoy + enemy assault, deterministic end-to-end)**. The live LLM adapter is a typed stub only — no live calls.
+
+Cards are in strict dependency order.
+
+---
+
+**`R01` — Project scaffold and TypeScript config**
+dependsOn: none
+files: `package.json`, `tsconfig.json`, `vitest.config.ts`, `src/types.ts`
+interface:
+```ts
+// src/types.ts
+export type FP = number;         // Q16: integer × 65536
+export type Tick = number;       // non-negative integer
+export type Seed = number;       // uint32
+export type EntityId = number;   // stable, monotonically assigned
+export type TileIndex = number;  // row-major grid index
+export type PlayerId = "player" | "enemy" | "ally";
+```
+how to implement: same scaffold pattern. `"test": "vitest run"` in `package.json`. `"strict": true`, `"noImplicitAny": true` in `tsconfig.json`.
+acceptance: `npm test` exits 0. `tsc --noEmit` has no errors.
+
+---
+
+**`R02` — Fixed-point arithmetic and LUT trig**
+dependsOn: `R01`
+files: `src/fp.ts`, `src/lut.ts`, `test/fp.test.ts`
+interface:
+```ts
+// src/fp.ts — Q16: integer × 65536
+export const FP_SCALE = 65536;
+export function toFP(n: number): FP      // Math.round(n * FP_SCALE)
+export function fromFP(fp: FP): number   // fp / FP_SCALE
+export function fpAdd(a: FP, b: FP): FP
+export function fpSub(a: FP, b: FP): FP  // throws if result < 0
+export function fpMul(a: FP, b: FP): FP  // Math.trunc((a * b) / FP_SCALE)
+export function fpDiv(a: FP, b: FP): FP  // Math.trunc((a * FP_SCALE) / b)
+export function fpClamp(v: FP, lo: FP, hi: FP): FP
+export function fpAbs(v: FP): FP
+
+// src/lut.ts — integer sin/cos in Q16 for 360 discrete degrees
+export function lutSin(degrees: number): FP  // degrees is integer [0, 359]
+export function lutCos(degrees: number): FP
+```
+how to implement: `lutSin`/`lutCos`: at module load, build an array `LUT_SIN[360]` where `LUT_SIN[i] = Math.round(Math.sin(i * Math.PI / 180) * FP_SCALE)` — this is computed once at startup, not called in the sim loop. The sim uses `lutSin(degrees)` (integer lookup), never `Math.sin`.
+acceptance: `test/fp.test.ts` asserts: `fpMul(toFP(3), toFP(4))` = `toFP(12)`; `fpSub(toFP(2), toFP(3))` throws; `lutSin(90)` = `FP_SCALE` (= `toFP(1)`); `lutCos(0)` = `FP_SCALE`; `lutSin(0) === 0`. `npm test` green.
+
+---
+
+**`R03` — Seeded PRNG tree**
+dependsOn: `R01`
+files: `src/prng.ts`, `test/prng.test.ts`
+interface:
+```ts
+// src/prng.ts
+export type PrngStream = { name: string; state: number };
+export type PrngTree = {
+  damage: PrngStream;
+  ability: PrngStream;
+  decoy: PrngStream;
+  commander: PrngStream;
+  misc: PrngStream;
+};
+export function createPrngTree(rootSeed: Seed): PrngTree
+export function nextUint32(stream: PrngStream): number
+export function nextIntBelow(stream: PrngStream, n: number): number
+```
+how to implement: xorshift32; each stream seeded from `rootSeed + streamIndex`.
+acceptance: two `createPrngTree(99)` produce identical `damage` sequences. Different streams differ. `nextIntBelow` always in `[0, n)`. `npm test` green.
+
+---
+
+**`R04` — Map grid, unit model, and entity registry**
+dependsOn: `R01`, `R02`
+files: `src/map.ts`, `src/unit.ts`, `test/unit.test.ts`
+interface:
+```ts
+// src/map.ts
+export type MapCell = { index: TileIndex; walkable: boolean; elevation: FP };
+export type MapGrid = { width: number; height: number; cells: MapCell[] };
+export function createMapGrid(width: number, height: number): MapGrid
+export function cellNeighbors(grid: MapGrid, idx: TileIndex): TileIndex[]  // 4-connected
+
+// src/unit.ts
+export type UnitType = "worker" | "soldier" | "ranged";
+export type Unit = {
+  id: EntityId;
+  owner: PlayerId;
+  type: UnitType;
+  positionFP: { x: FP; y: FP };   // tile-space position Q16
+  hpFP: FP;                        // current HP Q16
+  maxHpFP: FP;                     // max HP Q16
+  orderQueue: Order[];
+};
+export type Order = { kind: "move"; targetTile: TileIndex } | { kind: "attack"; targetId: EntityId } | { kind: "harvest"; resourceId: EntityId };
+export function createUnit(id: EntityId, owner: PlayerId, type: UnitType, startTile: TileIndex, grid: MapGrid): Unit
+export function nextEntityId(used: EntityId[]): EntityId
+```
+how to implement: `createUnit` places unit at tile center (tile index → FP pixel coords). `positionFP` = `{x: toFP(col), y: toFP(row)}`. `orderQueue = []`.
+acceptance: `createUnit` initializes at correct position; `nextEntityId([1,3,5])` returns 6; `cellNeighbors` at corner returns 2. `npm test` green.
+
+---
+
+**`R05` — Simulation clock and tick loop skeleton**
+dependsOn: `R01`, `R03`, `R04`
+files: `src/clock.ts`, `src/sim.ts`, `test/sim.test.ts`
+interface:
+```ts
+// src/clock.ts
+export type SimClock = { tick: Tick; matchTimeMs: number };
+export function createClock(): SimClock
+export function advanceClock(clock: SimClock): SimClock  // tick += 1; matchTimeMs += 62 (1/16 s in ms)
+
+// src/sim.ts
+export type MatchState = {
+  clock: SimClock;
+  map: MapGrid;
+  units: Unit[];           // sorted by id
+  resources: ResourceNode[]; // see R06
+  prngTree: PrngTree;
+  commandLog: IntentLog;
+};
+export function createMatchState(seed: Seed, map: MapGrid, units: Unit[]): MatchState
+export function stepMatch(state: MatchState, pendingIntents: ValidatedIntent[]): MatchState
+  // 1. Apply intents in id order
+  // 2. Advance unit positions one step toward their order target
+  // 3. Resolve combat for units in attack orders
+  // 4. Advance clock
+```
+how to implement: `stepMatch` returns a new `MatchState` (immutable). Process units in `id` order. Stub out combat and movement for now (move 1 FP unit per tick toward target).
+acceptance: `createMatchState` has clock at tick 0. Two `stepMatch` calls advance clock to tick 2. `units` array is sorted by id. `npm test` green.
+
+---
+
+**`R06` — Resource nodes and economy**
+dependsOn: `R01`, `R02`, `R04`, `R05`
+files: `src/economy.ts`, `test/economy.test.ts`
+interface:
+```ts
+// src/economy.ts
+export type ResourceNode = {
+  id: EntityId;
+  tileIndex: TileIndex;
+  resourceType: "minerals" | "vespene";
+  stockFP: FP;   // remaining resource, Q16
+};
+export type PlayerEconomy = {
+  playerId: PlayerId;
+  mineralsFP: FP;
+  vespeneFP: FP;
+};
+export function harvestResource(
+  node: ResourceNode,
+  economy: PlayerEconomy,
+  amountFP: FP,
+): { node: ResourceNode; economy: PlayerEconomy }
+  // node.stockFP -= amountFP (fpSub — throws if negative)
+  // economy.mineralsFP += amountFP (if resource is minerals)
+// Conservation: node.stockFP + economy.mineralsFP change by equal and opposite amounts
+export function spendMinerals(economy: PlayerEconomy, costFP: FP): PlayerEconomy
+  // economy.mineralsFP -= costFP (fpSub — throws if insufficient)
+```
+how to implement: immutable returns. `fpSub` is the conservation guard.
+acceptance: `test/economy.test.ts` asserts: harvesting 10 minerals decreases `node.stockFP` by `toFP(10)` and increases `economy.mineralsFP` by `toFP(10)`. Over-harvesting throws. `spendMinerals` beyond balance throws. `npm test` green.
+
+---
+
+**`R07` — Deterministic pathfinding (A* with tie-break)**
+dependsOn: `R01`, `R04`
+files: `src/pathfinding.ts`, `test/pathfinding.test.ts`
+interface:
+```ts
+// src/pathfinding.ts
+export type Path = TileIndex[];
+export function findPath(map: MapGrid, from: TileIndex, to: TileIndex): Path | null
+  // A* on 4-connected grid; Manhattan heuristic.
+  // Tie-break: equal f-score nodes → expand the one with lower TileIndex first.
+export function moveToward(unitPos: { x: FP; y: FP }, targetTile: TileIndex, map: MapGrid, speedFP: FP): { x: FP; y: FP }
+  // Move unitPos by speedFP toward the center of targetTile; clamp to tile center if within speedFP.
+```
+how to implement: standard A*. Open set = sorted array by `(f, tileIndex)`. The secondary sort key (`tileIndex` ascending) is the determinism tie-break.
+acceptance: straight corridor path found. Blocked corridor returns null. Two calls produce identical paths. `moveToward` moves by exactly `speedFP` per call. `npm test` green.
+
+---
+
+**`R08` — Fog of war projection**
+dependsOn: `R01`, `R04`, `R05`, `R06`
+files: `src/fog.ts`, `test/fog.test.ts`
+interface:
+```ts
+// src/fog.ts
+export type CellVisibility = "hidden" | "explored" | "visible";
+export type FogState = {
+  playerId: PlayerId;
+  visibility: CellVisibility[];  // one per MapCell, indexed by TileIndex
+  lastKnownEnemies: Map<EntityId, { tileIndex: TileIndex; type: UnitType; observedAtTick: Tick }>;
+};
+export type Observation = {
+  playerId: PlayerId;
+  tick: Tick;
+  visibleUnits: Unit[];          // enemy units currently in visible cells (live data)
+  lastKnownGhosts: Array<{ id: EntityId; tileIndex: TileIndex; type: UnitType; staleTick: Tick }>;
+  visibleResources: ResourceNode[];
+  ownUnits: Unit[];              // player's own units (always visible)
+  fogState: FogState;            // read-only snapshot of visibility
+  decoyReports: DecoyReport[];   // seeded false reports (see R09)
+};
+export type DecoyReport = { tileIndex: TileIndex; fakeUnitType: UnitType; seed: number };
+export function computeFogState(playerId: PlayerId, units: Unit[], map: MapGrid, sightRange: number): FogState
+  // For each unit owned by playerId: mark cells within sightRange (Manhattan) as "visible".
+  // Previously visible but now out of range: "explored".
+  // Never seen: "hidden".
+export function buildObservation(
+  playerId: PlayerId,
+  groundTruth: MatchState,
+  fog: FogState,
+  tick: Tick,
+  decoys: DecoyReport[],
+): Observation
+  // Returns ONLY what playerId can legally see.
+  // Enemy units in "hidden" cells: excluded from visibleUnits.
+  // Enemy units last seen but now in "explored" cells: added to lastKnownGhosts.
+  // Enemy units in "visible" cells: included in visibleUnits (live data).
+  // OWN units: always included in ownUnits.
+  // Caller must NOT pass GroundTruthState directly to a commander — only Observation.
+```
+how to implement: `computeFogState` iterates each owned unit, computes reachable cells within `sightRange`, sets to `"visible"`. Previously `"visible"` cells not reachable this tick become `"explored"`. `buildObservation` filters the ground truth by checking cell visibility per unit. Use ascending entity-id order for all lists.
+acceptance: `test/fog.test.ts` asserts:
+- An enemy unit in a `"hidden"` cell does not appear in `visibleUnits`.
+- The same unit in a `"visible"` cell does appear.
+- After the player moves away, the unit becomes a `lastKnownGhost` with the last observed position.
+- Two calls on same state produce identical observations (determinism).
+- A `DecoyReport` appears in `decoyReports` regardless of fog state.
+- `npm test` green.
+
+---
+
+**`R09` — Seeded decoy report generator**
+dependsOn: `R01`, `R03`, `R08`
+files: `src/decoys.ts`, `test/decoys.test.ts`
+interface:
+```ts
+// src/decoys.ts
+export function generateDecoys(
+  prng: PrngStream,    // decoy stream
+  map: MapGrid,
+  tick: Tick,
+  count: number,
+): DecoyReport[]
+  // Generates `count` seeded DecoyReports at random (non-occupied) tile indices.
+  // fakeUnitType is randomly selected from ["soldier", "worker", "ranged"].
+  // Same seed → same decoys.
+```
+how to implement: draw tile indices and unit types from `prng`. Filter out already-occupied tiles (accept any random tile for now; caller verifies legality).
+acceptance: two calls with same prng state produce same decoys. Decoy tile indices are valid cell indices. `npm test` green.
+
+---
+
+**`R10` — Fog-leak property test**
+dependsOn: `R08`, `R09`, `R05`
+files: `test/fog_leak.test.ts`
+interface: (test file only)
+how to implement:
+1. Create a match with player owning 2 units (sight range = 3 tiles) and enemy owning 3 units scattered on the map.
+2. For each tick 0–20, build the player's observation.
+3. **Property test**: for every `unit` in `observation.visibleUnits`, assert `fog.visibility[unit.tileIndex] === "visible"`.
+4. For every enemy unit NOT in a visible cell, assert it is absent from `visibleUnits` (may be in `lastKnownGhosts` or absent entirely).
+5. Assert that `observation` contains no reference to enemy units in `"hidden"` cells.
+acceptance: all assertions green across 20 ticks, `npm test` green. This is the E2 fog-soundness invariant test — it must stay green for all future changes.
+
+---
+
+**`R11` — Intent schema and typed intent log**
+dependsOn: `R01`, `R04`
+files: `src/intents.ts`, `test/intents.test.ts`
+interface:
+```ts
+// src/intents.ts
+export type Intent =
+  | { kind: "expand"; baseId: EntityId; locationHint: TileIndex }
+  | { kind: "attack"; targetRegion: TileIndex; forceRatio: FP }
+  | { kind: "defend"; region: TileIndex }
+  | { kind: "tech"; branch: string }
+  | { kind: "harass"; targetTile: TileIndex }
+  | { kind: "scout"; area: TileIndex }
+  | { kind: "retreat"; squadId: EntityId }
+  | { kind: "ping_ally"; location: TileIndex; request: string }
+  | { kind: "say"; channel: "broadcast" | "ally"; text: string };
+export type SubmittedIntent = { commanderId: PlayerId; intent: Intent; submittedAtTick: Tick };
+export type IntentLog = SubmittedIntent[];
+export type ValidatedIntent = SubmittedIntent & { validationId: string };
+export type RejectedIntent = SubmittedIntent & { reason: string; auditId: string };
+export function appendIntent(log: IntentLog, entry: SubmittedIntent): IntentLog
+export function intentsAtTick(log: IntentLog, tick: Tick): SubmittedIntent[]
+```
+how to implement: immutable array operations.
+acceptance: `appendIntent` does not mutate original. `intentsAtTick` filters correctly. `npm test` green.
+
+---
+
+**`R12` — Intent validator**
+dependsOn: `R01`, `R04`, `R08`, `R11`
+files: `src/validator.ts`, `test/validator.test.ts`
+interface:
+```ts
+// src/validator.ts
+export type ValidationResult =
+  | { ok: true; validatedIntent: ValidatedIntent }
+  | { ok: false; rejection: RejectedIntent };
+export function validateIntent(
+  intent: SubmittedIntent,
+  observation: Observation,   // commander's legal view only
+  economy: PlayerEconomy,
+  tick: Tick,
+  apmTracker: ApmTracker,
+): ValidationResult
+// Rejection rules (each produces a distinct reason string):
+// 1. "fog_violation": intent references a unit/tile the commander cannot legally observe
+//    (unit not in visibleUnits or lastKnownGhosts)
+// 2. "insufficient_resources": intent requires minerals/vespene the economy cannot afford
+// 3. "illegal_unit_type": intent references a unit type not unlocked by current tech
+// 4. "apm_cap_exceeded": commander has exceeded its APM budget for this tick window
+// 5. "malformed_intent": intent.kind is not a known value
+// On rejection: produce a RejectedIntent with a non-empty reason and auditId = `rej_${tick}_${counter}`
+export type ApmTracker = { windowTicks: number; maxIntents: number; recentIntents: Tick[] };
+export function createApmTracker(windowTicks: number, maxIntents: number): ApmTracker
+export function checkApmCap(tracker: ApmTracker, tick: Tick): { allowed: boolean; updated: ApmTracker }
+```
+how to implement: each rule is a guard clause returning early with the rejection. Check fog rule: for `attack` or `harass` intents, verify the `targetRegion` or `targetTile` is within the observation's visible or last-known tiles. For `expand`, verify `locationHint` is not a `"hidden"` cell. `ApmTracker` prunes `recentIntents` older than `tick - windowTicks` on each check.
+acceptance: `test/validator.test.ts` asserts:
+- An `attack` intent targeting a `"hidden"` cell is rejected with `reason === "fog_violation"`.
+- An `expand` intent to a visible tile with sufficient minerals is accepted.
+- An `expand` intent with insufficient minerals is rejected with `reason === "insufficient_resources"`.
+- An intent with `kind = "unknown_action"` is rejected with `reason === "malformed_intent"`.
+- Exceeding APM cap is rejected with `reason === "apm_cap_exceeded"`.
+- Every rejected intent has a non-empty `auditId`.
+- No mutation of game state occurs for any rejected intent.
+- `npm test` green.
+
+---
+
+**`R13` — Commander interface, ScriptedCommander, and ReplayCommander**
+dependsOn: `R01`, `R08`, `R11`, `R12`
+files: `src/commanders/commander.ts`, `src/commanders/scripted.ts`, `src/commanders/replay.ts`, `test/commanders.test.ts`
+interface:
+```ts
+// src/commanders/commander.ts
+export interface Commander {
+  id: PlayerId;
+  // Called each tick with the commander's observation. Returns 0 or more intents.
+  // Must never receive GroundTruthState.
+  act(observation: Observation, tick: Tick): Intent[];
+}
+
+// src/commanders/scripted.ts
+// A deterministic state-machine commander used in all tests.
+export type ScriptedPhase = "expand" | "attack" | "tech" | "defend";
+export function createScriptedCommander(id: PlayerId, prng: PrngStream): Commander
+  // Phase logic: expand for first 480 ticks; attack if ownUnits.length >= 5; else defend.
+  // Emits one intent per tick (or none). Uses prng for any tie-breaks.
+
+// src/commanders/replay.ts
+export function createReplayCommander(id: PlayerId, recordedIntents: SubmittedIntent[]): Commander
+  // Replays the recorded intents at the exact ticks they were originally submitted.
+  // Returns the intent if tick matches, else empty array.
+
+// src/adapters/llm.fixture.ts (stub only — not wired to any live model)
+export function createLiveCommander(id: PlayerId): Commander
+  // Throws "LiveLLMCommander: not available in test mode" if called without env var ENABLE_LIVE_LLM=true
+```
+how to implement: `ScriptedCommander` checks `observation.ownUnits.length` and the current phase to select an intent. `ReplayCommander` scans `recordedIntents` for the current tick and returns matching intents.
+acceptance: `test/commanders.test.ts` asserts:
+- `ScriptedCommander` produces at least one `expand` intent in the first 480 ticks.
+- Two `ScriptedCommander`s with the same seed produce identical intent sequences over 1000 ticks (determinism).
+- `ReplayCommander` emits the exact same intents as the `ScriptedCommander` that recorded them.
+- `createLiveCommander` throws in test mode.
+- `npm test` green.
+
+---
+
+**`R14` — Match state checksum and snapshot/restore**
+dependsOn: `R05`, `R06`, `R07`, `R08`, `R11`
+files: `src/snapshot.ts`, `test/snapshot.test.ts`
+interface:
+```ts
+// src/snapshot.ts
+export function checksumMatch(state: MatchState): string
+  // djb2 hash of JSON.stringify({tick, unit_ids, unit_hps, resource_stocks, economy_minerals})
+export function takeSnapshot(state: MatchState): string   // JSON.stringify(state)
+export function restoreSnapshot(snap: string): MatchState
+```
+how to implement: `checksumMatch` hashes a minimal projection (tick + sorted unit ids + their HPs + resource stocks). `takeSnapshot`/`restoreSnapshot` are JSON round-trips. Note: `Map` objects in `FogState.lastKnownEnemies` must be serialized as sorted arrays.
+acceptance: same-state → same checksum twice. `restoreSnapshot(takeSnapshot(state))` has identical checksum. `npm test` green.
+
+---
+
+**`R15` — Seed mission: expansion race + decoy + scripted enemy assault**
+dependsOn: `R01`–`R14`
+files: `src/scenarios/seed_mission.ts`, `test/seed_mission.test.ts`
+interface:
+```ts
+// src/scenarios/seed_mission.ts
+export type MissionResult = {
+  checksums: string[];          // one per 100-tick checkpoint
+  validatedIntents: ValidatedIntent[];
+  rejectedIntents: RejectedIntent[];
+  enemyObservationLog: Array<{ tick: Tick; visibleUnitCount: number; ghostCount: number }>;
+};
+export function runSeedMission(seed: Seed, ticks: number): MissionResult
+// Setup:
+//   Player: 3 workers at tile 5, 1200 minerals
+//   Enemy: 3 soldiers at tile 45 (far side of 8×8 map), ScriptedCommander(enemy, prng.commander)
+//   1 decoy: generated by generateDecoys at tick 0 (count=1)
+//   Player fog range = 3 tiles; Enemy fog range = 3 tiles
+// Each tick:
+//   1. Compute player fog + enemy fog
+//   2. Build player observation + enemy observation (independently filtered)
+//   3. Commander acts on its observation → intents
+//   4. Validate intents (player economy, enemy observation)
+//   5. Apply validated intents to match state
+//   6. Step match
+//   7. Record checksum every 100 ticks
+//   8. Log enemy observation stats
+```
+how to implement: wire all prior modules. The decoy appears in the enemy's observation. The enemy `ScriptedCommander` will attack once it has enough units — assert this happens deterministically.
+acceptance: `test/seed_mission.test.ts` asserts:
+- `runSeedMission(42, 2000)` completes without error.
+- `result.checksums` has 20 entries.
+- Two calls with seed=42 produce identical checksums (determinism).
+- `result.enemyObservationLog` never contains a unit with `fog.visibility === "hidden"` (fog-soundness — cross-check against ground truth).
+- `result.validatedIntents` is non-empty.
+- Any intent in `result.rejectedIntents` has a non-empty `reason` and `auditId`.
+- `npm test` green.
+
+---
+
+**`R16` — Determinism + snapshot/restore + adapter-independence tests**
+dependsOn: `R15`, `R14`, `R13`
+files: `test/determinism.test.ts`
+interface: (test file only)
+how to implement:
+1. Run `runSeedMission(42, 2000)` twice. Assert all 20 checksums identical.
+2. Snapshot/restore mid-match: run 1000 ticks, take snapshot, run 1000 more → `checksums[10..19]`. Restore snapshot, run 1000 more → assert same `checksums[10..19]`.
+3. Record intents from the scripted-commander run. Create a `ReplayCommander` from those intents. Run the full match with `ReplayCommander` instead. Assert identical checksums.
+4. Assert the simulation produces no unit HP < 0 at any checkpoint (non-negativity invariant).
+acceptance: all assertions green, `npm test` green.
+
+---
+
+### Summary of first-slice cards
+
+| id | title |
+|---|---|
+| R01 | Project scaffold and TypeScript config |
+| R02 | Fixed-point arithmetic and LUT trig |
+| R03 | Seeded PRNG tree |
+| R04 | Map grid, unit model, and entity registry |
+| R05 | Simulation clock and tick loop skeleton |
+| R06 | Resource nodes and economy |
+| R07 | Deterministic pathfinding (A* with tie-break) |
+| R08 | Fog of war projection |
+| R09 | Seeded decoy report generator |
+| R10 | Fog-leak property test |
+| R11 | Intent schema and typed intent log |
+| R12 | Intent validator |
+| R13 | Commander interface, ScriptedCommander, ReplayCommander |
+| R14 | Match state checksum and snapshot/restore |
+| R15 | Seed mission: expansion race + decoy + enemy assault |
+| R16 | Determinism + snapshot/restore + adapter-independence tests |
+
+**16 first-slice cards.**
+
+---
+
+### 3. The decomposition method for the rest
+
+After the first slice passes, expand features with this recipe:
+
+**Step 1 — Identify the new mechanic's invariant.**
+Example: tech tree → invariant: a unit type cannot be produced unless its prerequisite is unlocked. State this before writing any code.
+
+**Step 2 — Types-and-interface card.**
+One small card with the exported types and function signatures. No implementation.
+
+**Step 3 — Pure-function implementation card.**
+All FP, no floats, no `Math.random()`. Reference `fp.ts` and `prng.ts`.
+
+**Step 4 — Invariant test card.**
+Property test: assert the invariant holds for all inputs in a fuzz loop.
+
+**Step 5 — Wire into MatchState and the tick loop.**
+One card adds the new state field to `MatchState`, calls the new step, and ensures `checksumMatch` covers it.
+
+**Step 6 — Validator guard (if the feature has legal-action implications).**
+Add a new rejection rule to `validateIntent` (one guard clause) and a test asserting it fires.
+
+**Step 7 — Scenario fixture card.**
+A function in `src/scenarios/` exercising the feature end-to-end.
+
+---
+
+**Worked example 1: Tech tree + unit production**
+- `T01` — `src/tech.ts` types: `TechTree {unlocked: Set<string>}`, `TechNode {id: string; cost: FP; prerequisite: string | null}`. dependsOn: R01, R02.
+- `T02` — `researchTech(tree, nodeId, economy, techCatalog)`: checks prerequisite unlocked, spends minerals (fpSub — conservation), adds `nodeId` to `unlocked`. dependsOn: T01, R06.
+- `T03` — Test: researching without prerequisite throws; after prerequisite, succeeds; economy decreases correctly. dependsOn: T02.
+- `T04` — Add validator rule: `tech` intent with unmet prerequisite → `"illegal_unit_type"` rejection. dependsOn: T03, R12.
+- `T05` — Scenario: enemy ScriptedCommander researches tech in phase 2, then produces advanced unit. Assert the unit only appears after research. dependsOn: T04, R15.
+
+**Worked example 2: Combat resolution**
+- `CB01` — `src/combat.ts`: `resolveCombat(attacker: Unit, defender: Unit, prng: PrngStream): {attackerDmg: FP; defenderDmg: FP}`. Uses a damage roll via `nextIntBelow(prng.damage, maxDmg - minDmg + 1) + minDmg`. dependsOn: R02, R03.
+- `CB02` — Test: same seed → same damage roll. Damage is always in `[minDmg, maxDmg]`. HP never goes negative after a kill (clamped to 0). dependsOn: CB01.
+- `CB03` — Wire into `stepMatch`: for each unit with `kind === "attack"` order, call `resolveCombat` if target is in range. Remove units with `hp === 0`. dependsOn: CB02, R05.
+
+**Worked example 3: Cooperative ally intent sharing**
+- `A01` — `src/ally.ts`: `AllyPlan {proposedRoute: TileIndex[]; resourceReservation: FP; tick: Tick}`. Function `receivePlayerPing(ping: Intent, allyObservation: Observation): AllyPlan`. dependsOn: R08, R11.
+- `A02` — Test: a `ping_ally` from player at tile X produces an `AllyPlan` with a route from ally base to X (via `findPath`). dependsOn: A01, R07.
+- `A03` — `resolveResourceConflict(playerPlan, allyPlan, economy)`: if both plans reserve more than `economy.mineralsFP`, reduce ally reservation first (deterministic: ally defers). dependsOn: A02, R06.
+- `A04` — Wire into `stepMatch`: ally commander receives ping intents, produces an `AllyPlan`, logs its reservation. dependsOn: A03, R05.
+
+---
+
+### 4. Per-task implementation conventions
+
+**File/folder layout**
+```
+src/
+  types.ts              — FP, Tick, Seed, EntityId, TileIndex, PlayerId
+  fp.ts                 — Q16 fixed-point math
+  lut.ts                — integer trig LUT
+  prng.ts               — PRNG tree
+  map.ts                — MapGrid, MapCell
+  unit.ts               — Unit, Order, UnitType
+  clock.ts              — SimClock
+  sim.ts                — MatchState, stepMatch
+  economy.ts            — ResourceNode, PlayerEconomy
+  pathfinding.ts        — A* with tie-break
+  fog.ts                — FogState, Observation, buildObservation
+  decoys.ts             — generateDecoys
+  intents.ts            — Intent, IntentLog, ValidatedIntent, RejectedIntent
+  validator.ts          — validateIntent, ApmTracker
+  snapshot.ts           — checksumMatch, takeSnapshot, restoreSnapshot
+  commanders/
+    commander.ts        — Commander interface
+    scripted.ts         — ScriptedCommander
+    replay.ts           — ReplayCommander
+  adapters/
+    llm.fixture.ts      — LiveLLMCommander stub (throws in test mode)
+  scenarios/
+    seed_mission.ts
+test/
+  *.test.ts
+  fixtures/
+```
+
+**Naming**
+- FP fields end in `FP` (e.g. `hpFP`, `mineralsFP`) to distinguish from display values.
+- Commander implementations live in `src/commanders/` — never inline commander logic in `sim.ts`.
+- All intents are structured objects, never strings or untyped objects.
+
+**Writing a test (vitest snippet)**
+```ts
+// test/validator.test.ts
+import { describe, it, expect } from "vitest";
+import { validateIntent, createApmTracker } from "../src/validator.js";
+import { buildObservation } from "../src/fog.js";
+// ... setup ground truth, fog, economy ...
+
+describe("intent validator — fog violation", () => {
+  it("rejects attack on hidden cell", () => {
+    const intent = { commanderId: "enemy" as PlayerId, intent: { kind: "attack", targetRegion: hiddenTile, forceRatio: toFP(1) }, submittedAtTick: 0 };
+    const result = validateIntent(intent, enemyObservation, enemyEconomy, 0, tracker);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.rejection.reason).toBe("fog_violation");
+  });
+});
+```
+
+**Determinism rules**
+- Always sort `Unit[]` by `id` before processing in `stepMatch`.
+- Use `prng` streams as explicit arguments — never as module-level singletons.
+- The `Observation` object is immutable — commanders read from it but must not store a reference that outlives the tick.
+
+**The LLM adapter boundary (critical)**
+- `LiveLLMCommander` in `src/adapters/llm.fixture.ts` must throw if `process.env.ENABLE_LIVE_LLM !== "true"`.
+- Test code never imports `LiveLLMCommander` directly — it only imports from `src/commanders/commander.ts`.
+- Any test that touches the `Commander` interface uses `createScriptedCommander` or `createReplayCommander`.
+
+**Definition of done (any card)**
+1. `npm test` is green.
+2. `tsc --noEmit` has zero errors.
+3. At least one test asserts the key invariant (fog-soundness, resource conservation, intent legality, or determinism).
+4. No `Math.random()`, `Date.now()`, `Math.sin`, or raw floats in sim-state computations.
+5. No `any` types.
+6. No commander receives `MatchState` directly — only `Observation`.
+
+---
+
+### 5. Common pitfalls for a weak model on THIS project
+
+**Pitfall 1: Using floats for unit positions**
+The model will write `unit.x += 0.5 * velocity`. On different machines or with different JS engine versions, this can produce different sub-pixel positions, causing different combat ranges or pathfinding grid snaps, desynchronizing replays. Fix: all positions are Q16 FP integers. Use `fpAdd(unit.positionFP.x, speedFP)` and `fpClamp` to tile boundaries.
+
+**Pitfall 2: Commander receiving ground truth instead of Observation**
+The model may wire `stepMatch` to call `commander.act(matchState, tick)` directly. This leaks all enemy positions and breaks fog soundness — the fog-leak property test (R10) immediately fails. Fix: `commander.act` must only receive an `Observation`. The `buildObservation` function is the sole bridge; `MatchState` is never passed to a commander.
+
+**Pitfall 3: Using `Math.sin`/`Math.cos` in the damage or movement calculations**
+The model will write `Math.cos(angleRad)` for area-of-effect spread or projectile arcs. This is not reproducible across platforms. Fix: use `lutCos(degrees)` from `src/lut.ts` for all angular calculations. The LUT is built once at startup from `Math.cos` but is then a static integer array.
+
+**Pitfall 4: Validator that only checks the first rejection rule**
+The model may implement `validateIntent` with an early return after the first rule and miss adding subsequent rules. A fog-sound intent that is unaffordable then passes incorrectly. Fix: check all rules in order as explicit guard clauses, each returning a distinct rejection. The `test/validator.test.ts` tests each rule in isolation.
+
+**Pitfall 5: ReplayCommander mismatching ticks**
+The model may implement `ReplayCommander.act` to return all recorded intents at once, not filtering by tick. This causes all actions to fire on tick 0 and the rest to be silent, making the replay match differ from the original. Fix: `createReplayCommander` filters `recordedIntents` by `submittedAtTick === tick` in `act()` and returns only those.
+
+**Pitfall 6: Nondeterministic fog.lastKnownEnemies Map iteration**
+The model may use `Map.entries()` to build `lastKnownGhosts` in arbitrary insertion order. If the Map is rebuilt from a snapshot in a different order, the ghost list differs and the checksum breaks. Fix: always serialize `lastKnownEnemies` as a sorted array (by entity id) in `takeSnapshot`, and rebuild the Map in that order in `restoreSnapshot`.
+
+**Pitfall 7: "Say" intents mutating state**
+The model may implement `commander.act` to return a `say` intent and then have the validator write the text to a game-log data structure, which the checksum then hashes. A live LLM with different text would then produce a different checksum. Fix: `say` intents are *presentation only* — they are never written to `MatchState` and never included in `checksumMatch`. They are recorded in a separate `chatLog` structure that is excluded from checksums.

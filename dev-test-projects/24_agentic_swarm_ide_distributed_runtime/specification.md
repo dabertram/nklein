@@ -217,3 +217,869 @@ If that slice holds, more roles, more model profiles, richer telemetry UI, and l
 ## E9. Why this is a great !Klein challenge
 
 It is the batch's purest test of **multi-agent coordination, isolation, and determinism** — the exact problems the host product solves. It stresses **decomposition** (kernel → DAG → sandbox → router → contracts → merge → recovery), **determinism under weak models** (deterministic replay of a whole swarm; coordination logic owns correctness, not any model), **governance and safety** (host-path/secret isolation totality, evidence-gated merges, idempotent failover with fencing, no-silent-drop), and **long-running distributed correctness** (event sourcing + chaos mode). It demonstrates the thesis that **many weak local agents become a trustworthy software factory only when an isolated, contract-driven, evidence-gated, event-sourced kernel coordinates them** — and watching a swarm decompose and build *that* is exactly the showcase this batch exists to produce.
+
+---
+
+## Small-model build guide (3B-ready)
+
+This section makes the project mechanically buildable by a 3B local model with minimal reasoning. The model follows; this guide does the thinking. All acceptance tests run offline with zero live dependencies.
+
+### 1. Glossary & ground rules
+
+**Domain terms**
+- **TaskCard**: a unit of work with `{id, type, status, dependsOn, acceptanceCriteria, ownerAgentId, riskLabel, promotionGate}`.
+- **PromotionGate**: the condition a task must meet before it can advance (e.g., "implementation requires an accepted InterfaceContract").
+- **InterfaceContract**: `{name, version, apiShape, dataSchemas, owner, status: proposed|accepted|deprecated}`. Published before implementation branches diverge. The anti-drift spine.
+- **Sandbox**: a per-task isolated workspace with scripted, seeded command results. Agents see only `/workspaces/<taskId>` — never a host path.
+- **Host path**: any path containing `/private/`, `/var/folders/`, `/tmp/`, `/home/`, `~`, or the install directory. Must never appear in agent-facing strings.
+- **Workspace-relative path**: a path starting with `.` or a relative segment (e.g., `./src/app.ts`). The only path format agents see.
+- **FencingToken**: a monotonically increasing integer. A task write is rejected if the writer's token < the current token for that task.
+- **MergeCandidate**: `{patches, baseCommit, fileHashes, touchedSymbols, testEvidence, contractConformance, conflictMetadata}`.
+- **EntityOverlap**: two patches modify the same function/class (true semantic conflict) vs. just the same file at different lines (false line-conflict).
+- **Fixture agent**: a deterministic implementation of `Agent` that returns scripted actions from JSON files, keyed by `(agentId, turn)`.
+- **Fixture sandbox**: a scripted `Sandbox` that returns canned command results from JSON files, never executes real commands.
+- **Loop fingerprint**: `sha256Hex(JSON.stringify(sortedToolInputFields))` — the FULL input, not a lossy summary. Two inputs collide only if genuinely identical.
+
+**Stack**
+- Language: TypeScript (strict mode, no `any`)
+- Runtime: Node.js 20+
+- Test runner: Vitest (`npm test` = `vitest run`)
+- Key libraries: `tree-sitter` + `tree-sitter-typescript` for entity-level overlap; `zod` for schemas; `fast-check` for property tests
+- No live agents, no live sandboxes, no network, no `Date.now()`, no `Math.random()` in core.
+
+**Acceptance command**: `npm test` from project root. Must exit 0, all tests green.
+
+**Determinism rules (imperative)**
+1. Never call `Date.now()`, `new Date()`, `setTimeout`, or `Math.random()` in `src/`. Use injected `Clock` and `Prng`.
+2. Never import a live agent, sandbox, or model in `src/orchestration/`, `src/sandbox/`, `src/contracts/`, `src/merge/`. Use adapter interfaces.
+3. All fixture files live in `test/fixtures/`. Throw on missing fixture (never fetch).
+4. Same `(seed, goal, agent/model fixtures, repo fixture)` ⇒ byte-identical event log and merge decisions.
+5. `npm test` passes from a cold clone with no environment variables.
+6. NEVER use host paths in agent-facing strings. Run the leak scanner after every change to `src/sandbox/`.
+
+---
+
+### 2. The explicit task graph for the FIRST vertical slice
+
+The first slice (≈ 51 cards) proves the spine on **one goal fixture** (API + UI + SDK + tests) with the **overlap**, **contract-conflict**, **host-path-leak**, and **degraded-agent** fixtures. Build in order; do not start a card until all `dependsOn` are green.
+
+---
+
+**`S01` — Core types & interfaces**
+dependsOn: none
+files: `src/types.ts`
+interface:
+```typescript
+export type TaskStatus = "pending"|"in-progress"|"done"|"failed"|"quarantined"|"cancelled";
+export type ContractStatus = "proposed"|"accepted"|"deprecated";
+export type MergeDecision = "accepted"|"rework-requested"|"salvaged"|"quarantined";
+export type LoopKind = "repeated-read"|"repeated-tool-call"|"hallucinated-file"|"malformed-call"|"command-spiral";
+export interface Clock { now(): number; }
+export interface Prng { next(): number; }
+export interface TaskCard {
+  id: string; type: "planning"|"research"|"interface-design"|"implementation"|"verification"|"integration";
+  status: TaskStatus; dependsOn: string[]; acceptanceCriteria: string[];
+  ownerAgentId: string | null; riskLabel: "low"|"medium"|"high"|"critical";
+  promotionGate: string | null;
+}
+export interface InterfaceContract {
+  name: string; version: string; apiShape: object; dataSchemas: object;
+  migrationContract: string | null; owner: string; status: ContractStatus;
+}
+export interface Patch {
+  taskId: string; fileHashes: Record<string, string>; touchedSymbols: string[];
+  testEvidence: string[]; content: string;
+}
+export interface FencingToken { taskId: string; token: number; }
+```
+how to implement: create `src/types.ts`; define all above; export all. Smoke test.
+acceptance: `test/types.test.ts` imports all; `npm test` green.
+
+---
+
+**`S02` — Virtual clock & seeded PRNG**
+dependsOn: `S01`
+files: `src/clock.ts`, `src/prng.ts`
+interface: same as prior projects (FixedClock + SeededPrng xorshift32).
+acceptance: deterministic sequence asserted.
+
+---
+
+**`S03` — Content hash utility**
+dependsOn: none
+files: `src/hash.ts`, `test/hash.test.ts`
+interface: `sha256Hex(s: string): string`. Same as prior projects.
+acceptance: same string → same hash; different strings → different hashes.
+
+---
+
+**`S04` — Event-sourced swarm kernel**
+dependsOn: `S01`, `S02`, `S03`
+files: `src/orchestration/swarm-kernel.ts`, `test/swarm-kernel.test.ts`
+interface:
+```typescript
+export type SwarmEvent =
+  | { type: "task-created"; payload: TaskCard; ts: number }
+  | { type: "task-status"; payload: { taskId: string; status: TaskStatus }; ts: number }
+  | { type: "contract-published"; payload: InterfaceContract; ts: number }
+  | { type: "contract-status"; payload: { name: string; version: string; status: ContractStatus }; ts: number }
+  | { type: "patch-submitted"; payload: Patch; ts: number }
+  | { type: "merge-decision"; payload: { patchId: string; decision: MergeDecision; reason: string }; ts: number }
+  | { type: "loop-detected"; payload: { agentId: string; kind: LoopKind; fingerprint: string }; ts: number }
+  | { type: "lease-acquired"; payload: { taskId: string; agentId: string; token: number; expiresAt: number }; ts: number }
+  | { type: "lease-expired"; payload: { taskId: string; token: number }; ts: number }
+  | { type: "fencing-rejected"; payload: { taskId: string; attemptedToken: number; currentToken: number }; ts: number };
+export class SwarmKernel {
+  constructor(private clock: Clock) {}
+  append(event: Omit<SwarmEvent, "ts">): void {}
+  events(): readonly SwarmEvent[] {}
+  replay(events: readonly SwarmEvent[]): void {}  // reconstruct state from log
+  currentTasks(): readonly TaskCard[] {}  // fold
+  currentContracts(): readonly InterfaceContract[] {}  // fold
+}
+```
+how to implement:
+1. Private array with timestamps; fold methods.
+2. `replay`: reset internal state, replay events one by one.
+3. Test: create 2 tasks, update 1 status, replay → same state.
+4. Test: two calls to `replay(same events)` produce identical `currentTasks()`.
+acceptance: replay produces identical state; deterministic.
+
+---
+
+**`S05` — Decomposition-governance DAG**
+dependsOn: `S01`, `S04`
+files: `src/orchestration/dag.ts`, `test/dag.test.ts`
+interface:
+```typescript
+export function detectCycles(tasks: TaskCard[]): string[][] {}
+// returns list of cycles (each cycle is an array of task ids), empty array if none
+
+export function topologicalOrder(tasks: TaskCard[]): TaskCard[] {}
+// throws if cycle detected; returns tasks in dependency order
+
+export function criticalPath(tasks: TaskCard[]): TaskCard[] {}
+// longest dependency chain; schedule these first
+```
+how to implement:
+1. `detectCycles`: DFS with grey/black coloring; collect back edges.
+2. `topologicalOrder`: Kahn's algorithm (BFS with in-degree tracking); throws on cycle.
+3. `criticalPath`: dynamic programming over the DAG.
+4. Test: 4 tasks with `A→B→C`, `A→D`; topological order has A first; critical path is A→B→C.
+5. Test: adding a cycle `C→A` causes `detectCycles` to return `[["A","B","C"]]` and `topologicalOrder` to throw.
+acceptance: cycle detection and topological order work; throws on cycle.
+
+---
+
+**`S06` — Promotion gate checker**
+dependsOn: `S01`, `S04`, `S05`
+files: `src/orchestration/promotion-gate.ts`, `test/promotion-gate.test.ts`
+interface:
+```typescript
+export function checkPromotionGate(task: TaskCard, contracts: InterfaceContract[]): boolean {}
+// "implementation" type requires an accepted contract with the same name as task.promotionGate
+// "integration" type requires task.status === "done" (green verification)
+export function blockUngatedPromotion(task: TaskCard, contracts: InterfaceContract[]): void {
+  // throws Error("promotion-gate-failed: ...") if gate not satisfied
+}
+```
+how to implement:
+1. For `type === "implementation"`: gate passes if `contracts.some(c => c.name === task.promotionGate && c.status === "accepted")`.
+2. Test: implementation task with accepted contract → gate passes.
+3. Test: implementation task with only `proposed` contract → gate fails.
+acceptance: research→implementation requires accepted contract; ungated promotion blocked.
+
+---
+
+**`S07` — Host-path recovery layer**
+dependsOn: `S03`
+files: `src/sandbox/host-path-recovery.ts`, `test/host-path-recovery.test.ts`
+interface:
+```typescript
+export const HOST_PATH_PATTERNS = [
+  /\/private\/var\/folders\/[^\s]*/g,
+  /\/var\/folders\/[^\s]*/g,
+  /\/tmp\/nklein-[^\s]*/g,
+  /\/home\/[^/\s]+\/[^\s]*/g,
+  /~\/[^\s]*/g,
+];
+export function redactHostPaths(text: string): string {
+  // replace all matches with workspace-relative equivalent: "cd /private/var/.../T/foo && cmd" → "cd . && cmd"
+}
+export function containsHostPath(text: string): boolean {}
+```
+how to implement:
+1. `containsHostPath`: test any pattern matches.
+2. `redactHostPaths`: for each match, replace `cd <hostpath> &&` with `cd . &&`; replace bare host paths with the filename/basename only.
+3. Test: `"cd /private/var/folders/abc123/T/nklein-task1 && ls"` → `"cd . && ls"`.
+4. Test: a normal workspace-relative path `"./src/app.ts"` → unchanged.
+acceptance: host paths are redacted; workspace-relative paths pass through.
+
+---
+
+**`S08` — Leak scanner harness**
+dependsOn: `S07`
+files: `src/sandbox/leak-scanner.ts`, `test/leak-scanner.test.ts`
+interface:
+```typescript
+export function scanForLeaks(agentFacingStrings: string[]): Array<{index: number; match: string}> {}
+// returns all host-path matches across all strings with their index
+export function assertNoLeaks(agentFacingStrings: string[]): void {
+  // throws Error("HOST_PATH_LEAK_DETECTED: ...") if any match found
+}
+```
+how to implement:
+1. `scanForLeaks`: iterate strings; apply `containsHostPath`; collect all matches.
+2. `assertNoLeaks`: throw if any match.
+3. Test: a set of strings containing a host path → throws.
+4. Test: a set of workspace-relative strings → no throw.
+acceptance: any host path in agent-facing strings is detected and rejected.
+
+---
+
+**`S09` — Fixture sandbox**
+dependsOn: `S07`, `S08`
+files: `src/adapters/sandbox-fixture-adapter.ts`, `test/fixtures/sandboxes/task-api/commands.json`, `test/fixtures/sandboxes/task-ui/commands.json`
+interface:
+```typescript
+export interface Sandbox {
+  taskId: string; workspaceRoot: string;  // always "/workspaces/<taskId>" — never a host path
+  execute(command: string): Promise<SandboxResult>;
+  readFile(path: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
+  listFiles(): Promise<string[]>;
+}
+export interface SandboxResult { stdout: string; stderr: string; exitCode: number; }
+export class SandboxFixtureAdapter implements Sandbox {
+  constructor(public taskId: string, private commandFixtures: Record<string, SandboxResult>) {}
+  get workspaceRoot(): string { return `/workspaces/${this.taskId}`; }
+  // throws if command not in fixtures
+}
+```
+how to implement:
+1. Create `test/fixtures/sandboxes/task-api/commands.json`: `{"npm test": {"stdout":"All tests passed","stderr":"","exitCode":0}, "tsc": {"stdout":"","stderr":"","exitCode":0}}`.
+2. Create `test/fixtures/sandboxes/task-ui/commands.json` similarly.
+3. `execute`: look up command; throw if missing; run `assertNoLeaks([result.stdout, result.stderr])` on output (redact before returning to agent).
+4. `workspaceRoot` always returns the workspace-relative form.
+5. Test: `execute("npm test")` returns canned result; `workspaceRoot` does not contain `/private/`.
+acceptance: sandbox never exposes host paths; commands return canned results.
+
+---
+
+**`S10` — Fixture agent adapter**
+dependsOn: `S01`, `S03`, `S09`
+files: `src/adapters/agent-fixture-adapter.ts`, `test/fixtures/agents/implementer-api.json`, `test/fixtures/agents/implementer-ui.json`, `test/fixtures/agents/degraded-agent.json`
+interface:
+```typescript
+export interface AgentAction {
+  type: "read-files"|"write-file"|"execute-command"|"submit-patch"|"publish-contract"|"request-context"|"done";
+  payload: object;
+}
+export interface Agent {
+  id: string; roleType: "implementer"|"architect"|"reviewer"|"integrator"|"test-author";
+  nextAction(context: AgentContext): Promise<AgentAction>;
+}
+export interface AgentContext { taskId: string; scopedFiles: string[]; turn: number; }
+export class AgentFixtureAdapter implements Agent {
+  constructor(public id: string, public roleType: Agent["roleType"], private fixturePath: string) {}
+  // key = `turn-${context.turn}`; returns scripted action; throws if missing
+}
+```
+how to implement:
+1. Create `test/fixtures/agents/implementer-api.json`: `{"turn-0": {"type":"read-files","payload":{"paths":["src/api.ts"]}}, "turn-1": {"type":"submit-patch","payload":{"content":"..."}}, "turn-2": {"type":"done","payload":{}}}`.
+2. Create `test/fixtures/agents/degraded-agent.json`: `{"turn-0": {"type":"read-files","payload":{"paths":["src/api.ts"]}}, "turn-1": {"type":"read-files","payload":{"paths":["src/api.ts"]}}, "turn-2": {"type":"read-files","payload":{"paths":["src/api.ts"]}}}` (same request 3 times = loop).
+3. Test: turn-0 returns `read-files`; turn-2 returns `done`.
+acceptance: scripted actions returned; missing turn throws.
+
+---
+
+**`S11` — Context router**
+dependsOn: `S01`, `S09`, `S10`
+files: `src/orchestration/context-router.ts`, `test/context-router.test.ts`
+interface:
+```typescript
+export function routeContext(opts: {
+  taskId: string; agentId: string; requestedPaths: string[];
+  allTaskIds: string[]; taskOwnerships: Map<string, string>;  // taskId → ownerAgentId
+  availablePaths: string[];
+}): { allowedPaths: string[]; deniedPaths: string[]; reason: Record<string, string> } {}
+```
+how to implement:
+1. An agent may only access files in its own task's workspace OR files in `contracts/` (shared).
+2. Files in another task's workspace → denied; reason: `"cross-task-isolation"`.
+3. `deniedPaths`: all paths not in `allowedPaths`.
+4. Test: agent A requests its own files → all allowed.
+5. Test: agent A requests a file belonging to task B → denied.
+6. Test: agent A requests `contracts/api-v1.json` → allowed (shared).
+acceptance: cross-task isolation enforced; no agent reads another task's branch.
+
+---
+
+**`S12` — Interface contract board**
+dependsOn: `S01`, `S04`
+files: `src/contracts/contract-board.ts`, `test/contract-board.test.ts`
+interface:
+```typescript
+export class ContractBoard {
+  constructor(private kernel: SwarmKernel) {}
+  publish(contract: InterfaceContract): void {}
+  accept(name: string, version: string): void {}
+  deprecate(name: string, version: string): void {}
+  detectConflicts(contracts: InterfaceContract[]): Array<{a: InterfaceContract; b: InterfaceContract; reason: string}> {}
+  conformanceCheck(patch: Patch, contractName: string): { conformant: boolean; violations: string[] } {}
+}
+```
+how to implement:
+1. `publish`: append `contract-published` event.
+2. `accept`/`deprecate`: append `contract-status` events.
+3. `detectConflicts`: compare `apiShape` of all `proposed` contracts; flag if two contracts with different `version` claim the same endpoint/shape with incompatible schemas (simple: same `name`, different `apiShape` keys overlap).
+4. `conformanceCheck`: check if the patch's `touchedSymbols` include any symbol referenced in the contract's `apiShape`; if so, verify the patch content contains the expected function signature (simple string search).
+5. Test: two contracts claiming the same API name with conflicting schemas → conflict detected.
+6. Test: a patch touching the contract's API entry point with the correct signature → conformant.
+7. Test: a patch with the wrong signature → non-conformant.
+acceptance: conflicts caught before merge; conformance check works.
+
+---
+
+**`S13` — Entity-level overlap detection**
+dependsOn: `S03`
+files: `src/merge/entity-overlap.ts`, `test/entity-overlap.test.ts`
+interface:
+```typescript
+export interface EntityRange { entityName: string; startLine: number; endLine: number; file: string; }
+export function extractEntityRanges(fileContent: string, filePath: string): EntityRange[] {}
+// uses tree-sitter to find function/class ranges
+
+export function detectOverlap(
+  patchA: Patch, patchB: Patch,
+  fileContents: Record<string, string>
+): { kind: "false-line-conflict" | "true-semantic-conflict" | "no-overlap"; entities: string[] } {}
+```
+how to implement:
+1. `extractEntityRanges`: tree-sitter walk for `function_declaration`, `class_declaration`, `method_definition`; return name + line range.
+2. `detectOverlap`:
+   - If neither patch touches the same file → `"no-overlap"`.
+   - If they touch the same file: compare entity ranges. If same entity (same `entityName` in same `file`) modified by both → `"true-semantic-conflict"`.
+   - If same file, different entities (no entity range overlap) → `"false-line-conflict"`.
+3. Test: two patches modify `function handleRequest` in the same file → `"true-semantic-conflict"`.
+4. Test: patch A modifies `function handleRequest`, patch B modifies `function sendResponse` in the same file → `"false-line-conflict"`.
+5. Test: patches touch different files → `"no-overlap"`.
+acceptance: semantic conflict vs. false conflict correctly distinguished.
+
+---
+
+**`S14` — Merge judge**
+dependsOn: `S01`, `S04`, `S12`, `S13`
+files: `src/merge/merge-judge.ts`, `test/merge-judge.test.ts`
+interface:
+```typescript
+export function judgePatches(opts: {
+  patches: Patch[]; fileContents: Record<string, string>;
+  contracts: InterfaceContract[]; verificationResults: Record<string, "passed"|"failed">;
+}): Array<{patch: Patch; decision: MergeDecision; reason: string; savedPatches?: Patch[]}> {}
+```
+how to implement:
+1. For each patch:
+   - Run `conformanceCheck` against relevant contracts → if non-conformant → `"rework-requested"`.
+   - Check `verificationResults[patch.taskId]` → if `"failed"` → attempt salvage (separate non-overlapping parts), else `"quarantined"`.
+   - Run `detectOverlap` between this patch and all others → if `"true-semantic-conflict"` → `"rework-requested"`.
+   - If `"false-line-conflict"` → auto-resolve (both accepted).
+   - If all checks pass → `"accepted"`.
+2. Test: conformance failure → `"rework-requested"`.
+3. Test: verification failure → `"quarantined"` or `"salvaged"`.
+4. Test: false-line-conflict → both patches `"accepted"`.
+5. Test: true semantic conflict → `"rework-requested"`.
+acceptance: no true semantic conflict or conformance failure is ever `"accepted"`.
+
+---
+
+**`S15` — Loop & failure recovery**
+dependsOn: `S01`, `S03`, `S04`
+files: `src/orchestration/loop-recovery.ts`, `test/loop-recovery.test.ts`
+interface:
+```typescript
+export function computeToolFingerprint(toolInput: object): string {
+  // sha256Hex of key-order-independent JSON: sort all keys recursively
+}
+export class LoopGuard {
+  constructor(private kernel: SwarmKernel, private threshold: number) {}
+  record(agentId: string, kind: LoopKind, fingerprint: string): void {}
+  isLooping(agentId: string, fingerprint: string): boolean {}
+  // threshold consecutive identical fingerprints for the same agent → looping
+}
+export function repairMalformedToolCall(rawText: string): object | null {
+  // attempt to extract JSON from narrated tool call text like "<tool_call>{...}</tool_call>"
+  // returns parsed object or null if unrecoverable
+}
+```
+how to implement:
+1. `computeToolFingerprint`: `JSON.stringify(sortObjectKeys(input))` where `sortObjectKeys` recursively sorts all object keys; then `sha256Hex`.
+2. `LoopGuard.record`: append `loop-detected` event; track consecutive count per agent.
+3. `LoopGuard.isLooping`: return `count >= threshold`.
+4. `repairMalformedToolCall`: try `JSON.parse(rawText.replace(/<tool_call>/g,"").replace(/<\/tool_call>/g,""))`.
+5. Test: same fingerprint 3 times → `isLooping` returns `true`.
+6. Test: `computeToolFingerprint({b:1,a:2})` === `computeToolFingerprint({a:2,b:1})` (key-order-independent).
+7. Test: `repairMalformedToolCall('<tool_call>{"action":"read"}</tool_call>')` → `{action:"read"}`.
+8. Test degraded-agent fixture: 3 consecutive read-files with same paths → loop detected; NOT a false pause (different paths = different fingerprints).
+acceptance: loop detected at threshold; full-input fingerprint; advancing calls never false-trigger.
+
+---
+
+**`S16` — Fencing token & lease manager**
+dependsOn: `S01`, `S04`
+files: `src/orchestration/lease-manager.ts`, `test/lease-manager.test.ts`
+interface:
+```typescript
+export class LeaseManager {
+  constructor(private kernel: SwarmKernel, private clock: Clock) {}
+  acquire(taskId: string, agentId: string, durationMs: number): FencingToken {}
+  // returns token; appends lease-acquired event; increments token
+  validate(taskId: string, token: FencingToken): boolean {}
+  // returns false (fencing rejection) if token < current token for task
+  expire(taskId: string): void {}
+  // marks lease expired; increments token; appends lease-expired event
+  currentToken(taskId: string): number {}
+}
+```
+how to implement:
+1. Maintain per-task token counter (fold over kernel events).
+2. `acquire`: increment token; append `lease-acquired`; return new token.
+3. `validate`: compare token against current; if lower → append `fencing-rejected`; return `false`.
+4. `expire`: increment token; append `lease-expired`.
+5. Test: acquire token 1; validate token 1 → `true`. Expire task; validate token 1 → `false` (new token is 2).
+6. Test: two agents: agent A holds token 1; A expires; agent B acquires token 2; A tries to write with token 1 → rejected.
+acceptance: stale writer always rejected; exactly-once semantics enforced.
+
+---
+
+**`S17` — Host-path leak fixture**
+dependsOn: `S07`, `S09`
+files: `test/fixtures/sandboxes/host-path-error/commands.json`
+interface: none (fixture)
+how to implement:
+1. Create `test/fixtures/sandboxes/host-path-error/commands.json` with a canned error output containing a host path: `{"npm test": {"stdout":"", "stderr":"Cannot find module '/private/var/folders/abc/T/nklein-task99/node_modules'", "exitCode":1}}`.
+2. The `SandboxFixtureAdapter.execute` calls `redactHostPaths` on stderr before returning to the agent.
+3. Test: the returned `stderr` does NOT contain `/private/`; it contains a workspace-relative form.
+acceptance: host path in canned error output is redacted before reaching the agent.
+
+---
+
+**`S18` — Contract conflict fixture**
+dependsOn: `S12`
+files: `test/fixtures/contracts/api-v1.json`, `test/fixtures/contracts/api-v1-conflicting.json`
+interface: none (fixtures)
+how to implement:
+1. `api-v1.json`: `{name:"UserApi", version:"1.0", apiShape:{getUser: {input:"id:string", output:"User"}}, status:"proposed"}`.
+2. `api-v1-conflicting.json`: `{name:"UserApi", version:"1.0", apiShape:{getUser: {input:"id:number", output:"UserRecord"}}, status:"proposed"}` — same name+version, different types.
+3. Test: `detectConflicts([load(api-v1), load(api-v1-conflicting)])` → 1 conflict.
+acceptance: incompatible contracts detected before merge.
+
+---
+
+**`S19` — Overlap fixture (false-conflict + true-conflict)**
+dependsOn: `S13`
+files: `test/fixtures/patches/patch-api-v1.json`, `test/fixtures/patches/patch-api-v2-false.json`, `test/fixtures/patches/patch-api-v2-true.json`, `test/fixtures/repo/src/api.ts`
+interface: none (fixtures)
+how to implement:
+1. `test/fixtures/repo/src/api.ts`: a file with two functions: `function handleRequest(...)` and `function sendResponse(...)`.
+2. `patch-api-v1.json`: touches `handleRequest` in `src/api.ts`.
+3. `patch-api-v2-false.json`: touches `sendResponse` only → false conflict.
+4. `patch-api-v2-true.json`: also touches `handleRequest` → true semantic conflict.
+5. Test with `S13` assertions.
+acceptance: fixtures are committed; tests use them without network.
+
+---
+
+**`S20` — Malicious tool request fixture**
+dependsOn: `S11`, `S15`
+files: `test/fixtures/agents/malicious-agent.json`
+interface: none (fixture)
+how to implement:
+1. Create `test/fixtures/agents/malicious-agent.json`: `{"turn-0": {"type":"execute-command","payload":{"command":"rm -rf /"}}}`.
+2. The context router and tool scope policy must reject this.
+3. Add a `ToolPolicy` that blocks destructive shell commands: any command matching `/rm\s+-rf/` or `/sudo/` → reject.
+4. Test: the malicious action is refused by the policy; kernel records a `fencing-rejected`-style event.
+acceptance: unsafe action rejected; kernel records denial; audit preserved.
+
+---
+
+**`S21` — Integration test: swarm decomposes goal → DAG**
+dependsOn: `S04`, `S05`, `S06`, `S10`
+files: `test/integration/goal-decomposition.test.ts`
+interface: none
+how to implement:
+1. Define a goal: "Implement UserApi + UI + SDK + tests".
+2. Create 6 task cards (one per type: planning, research, interface-design, implementation[api], implementation[ui], verification). Set dependencies.
+3. Load into kernel; run `topologicalOrder`; assert planning comes first; assert both implementations depend on interface-design.
+4. Run `checkPromotionGate` for each implementation → fails (no accepted contract yet).
+5. Accept the contract; re-run → gates pass.
+6. Assert no cycles.
+acceptance: DAG is well-formed; promotion gates work; no ungated promotions.
+
+---
+
+**`S22` — Integration test: context isolation (no cross-task leak)**
+dependsOn: `S11`, `S21`
+files: `test/integration/context-isolation.test.ts`
+interface: none
+how to implement:
+1. Create 2 tasks: `task-api` and `task-ui` with distinct workspaces.
+2. Agent for `task-api` requests files in `task-ui`'s workspace.
+3. Assert: router denies; `deniedPaths` contains the cross-task file.
+4. Agent requests `contracts/api-v1.json` (shared) → allowed.
+5. Assert: no denied path appears in the agent's context.
+acceptance: cross-task isolation holds.
+
+---
+
+**`S23` — Integration test: host-path leak → redacted**
+dependsOn: `S17`, `S09`, `S08`
+files: `test/integration/host-path-leak.test.ts`
+interface: none
+how to implement:
+1. Create a `SandboxFixtureAdapter` with the host-path-error fixture.
+2. Execute `npm test`.
+3. Run `assertNoLeaks([result.stderr])` — no throw.
+4. Assert: the agent-facing `stderr` does NOT contain `/private/`.
+5. Assert: the agent recovers (no alternate-access loop started).
+acceptance: host path redacted from agent-facing output; leak scanner confirms.
+
+---
+
+**`S24` — Integration test: contract conflict → rework before merge**
+dependsOn: `S12`, `S18`, `S21`
+files: `test/integration/contract-conflict.test.ts`
+interface: none
+how to implement:
+1. Publish `api-v1.json` and `api-v1-conflicting.json` to the board (both proposed).
+2. Run `detectConflicts` → 1 conflict returned.
+3. Assert: the conflicting contract is NOT accepted.
+4. Assert: a `rework-requested` decision is in the kernel for the consumer task.
+acceptance: conflict detected before implementation merges.
+
+---
+
+**`S25` — Integration test: false-conflict → auto-resolved; true-conflict → rework**
+dependsOn: `S13`, `S14`, `S19`
+files: `test/integration/overlap-merge.test.ts`
+interface: none
+how to implement:
+1. Load `patch-api-v1` and `patch-api-v2-false`; run `judgePatches`.
+2. Assert: both decisions are `"accepted"` (false line-conflict → auto-resolved).
+3. Load `patch-api-v1` and `patch-api-v2-true`; run `judgePatches`.
+4. Assert: one decision is `"rework-requested"` (true semantic conflict).
+acceptance: entity-level merge distinguishes correctly.
+
+---
+
+**`S26` — Integration test: degraded agent → loop detected → synthesis injected**
+dependsOn: `S15`, `S10`
+files: `test/integration/loop-recovery.test.ts`
+interface: none
+how to implement:
+1. Use the `degraded-agent.json` fixture (same read-files request 3 turns in a row).
+2. Run the agent for 3 turns.
+3. Assert: `LoopGuard.isLooping` returns `true` on turn 3.
+4. Assert: the kernel has a `loop-detected` event.
+5. Assert: a synthesis is injected (implement `injectSynthesis` as a stub that returns a canned summary string, record it in the kernel).
+6. Assert: the agent does NOT make a 4th identical request (the run terminates safely).
+acceptance: loop detected; synthesis injected; no thrash; deterministic.
+
+---
+
+**`S27` — Integration test: failover idempotency with fencing**
+dependsOn: `S16`, `S04`
+files: `test/integration/failover-idempotency.test.ts`
+interface: none
+how to implement:
+1. Agent A acquires a lease for `task-api` (token=1); writes a patch; commits a side-effect event to kernel.
+2. Simulate kill: `leaseManager.expire("task-api")` (token increments to 2).
+3. Agent B acquires the lease (token=2).
+4. Agent A (stale) tries to write another patch with token=1 → `validate` returns `false`; kernel records `fencing-rejected`.
+5. Assert: no second side-effect event in kernel (idempotent).
+6. Agent B continues from durable branch evidence; completes.
+acceptance: stale writer rejected by fencing; no duplicate side effects.
+
+---
+
+**`S28` — Integration test: malicious tool request → refused + audited**
+dependsOn: `S20`, `S11`
+files: `test/integration/malicious-tool.test.ts`
+interface: none
+how to implement:
+1. Run the `malicious-agent.json` fixture for 1 turn.
+2. Assert: the `rm -rf /` command is blocked by tool policy.
+3. Assert: the kernel has a denial event.
+4. Assert: the agent's action is quarantined.
+5. Assert: no actual command was executed (sandbox fixture not called).
+acceptance: unsafe action refused; audited; sandbox untouched.
+
+---
+
+**`S29` — Property test: determinism/replay**
+dependsOn: `S04`
+files: `test/property/swarm-determinism.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random sequences of task/contract/patch events.
+2. Append to kernel; serialize events; call `replay`; compare `currentTasks()` and `currentContracts()`.
+3. Assert `JSON.stringify(a)` === `JSON.stringify(b)`.
+4. Run with 200 examples.
+acceptance: byte-identical replay in all 200 cases.
+
+---
+
+**`S30` — Property test: isolation totality**
+dependsOn: `S07`, `S08`
+files: `test/property/isolation-totality.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random strings including injected host path patterns.
+2. Call `redactHostPaths` on each.
+3. Assert `containsHostPath(redacted)` is `false`.
+4. Run with 500 examples.
+acceptance: no host path survives redaction.
+
+---
+
+**`S31` — Property test: context non-leak**
+dependsOn: `S11`
+files: `test/property/context-non-leak.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random task/agent assignments.
+2. For each agent, call `routeContext`; assert no path from another task's workspace is in `allowedPaths`.
+3. Run with 200 examples.
+acceptance: cross-task isolation holds across fuzz.
+
+---
+
+**`S32` — Property test: contract-before-merge**
+dependsOn: `S06`, `S12`
+files: `test/property/contract-before-merge.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate implementation tasks with random contracts (mix of proposed/accepted).
+2. Assert: `checkPromotionGate` passes only when there is an accepted contract with the matching name.
+3. Run with 200 examples.
+acceptance: no implementation merges without an accepted contract.
+
+---
+
+**`S33` — Property test: merge soundness**
+dependsOn: `S14`
+files: `test/property/merge-soundness.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate pairs of patches with true semantic conflicts.
+2. Assert `judgePatches` never returns `"accepted"` for a true-semantic-conflict pair.
+3. Run with 200 examples.
+acceptance: no true conflict ever accepted.
+
+---
+
+**`S34` — Property test: no-silent-drop**
+dependsOn: `S04`, `S14`
+files: `test/property/no-silent-drop.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate patch submissions; some pass, some fail verification.
+2. Assert: every patch has exactly one `merge-decision` event in the kernel (accepted/rework/salvaged/quarantined).
+3. Run with 200 examples.
+acceptance: no patch is ever silently discarded.
+
+---
+
+**`S35` — Property test: failover idempotency**
+dependsOn: `S16`
+files: `test/property/failover-idempotency.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random kill points in a task execution.
+2. At each kill point: expire lease; simulate stale-writer attempt.
+3. Assert: `validate(staleToken)` always returns `false` after expiry.
+4. Assert: the kernel never has more than 1 side-effect event per unique `(taskId, inputHash)`.
+5. Run with 200 examples.
+acceptance: exactly-once semantics across all kill points.
+
+---
+
+**`S36` — Property test: DAG well-formedness**
+dependsOn: `S05`
+files: `test/property/dag-well-formedness.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate random DAGs (acyclic by construction); occasionally inject a cycle.
+2. Assert: acyclic DAGs → `detectCycles` returns `[]`; `topologicalOrder` succeeds.
+3. Assert: cyclic DAGs → `detectCycles` returns non-empty; `topologicalOrder` throws.
+4. Run with 200 examples.
+acceptance: cycle detection and topological order work for all fuzz cases.
+
+---
+
+**`S37` — Property test: loop-recovery termination**
+dependsOn: `S15`
+files: `test/property/loop-recovery-termination.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate agent action sequences with repeated fingerprints (degraded) and advancing fingerprints (healthy).
+2. Assert: repeated sequences trigger loop at threshold; advancing sequences never trigger false loop.
+3. Run with 300 examples.
+acceptance: full-input fingerprint never false-pauses an advancing agent.
+
+---
+
+**`S38` — Property test: verification-gated integration**
+dependsOn: `S14`
+files: `test/property/verification-gated-integration.test.ts`
+interface: none
+how to implement:
+1. Use `fast-check`: generate patches with random verification results.
+2. Assert: a patch whose `verificationResults[taskId] === "failed"` is never `"accepted"` (only `"quarantined"` or `"salvaged"`).
+3. Run with 200 examples.
+acceptance: failing verification always blocks acceptance.
+
+---
+
+**`S39` — Chaos mode: inject sandbox outage + assert invariants**
+dependsOn: `S04`–`S38`
+files: `test/integration/chaos-mode.test.ts`
+interface: none
+how to implement:
+1. Create a sandbox fixture that fails on the first 2 commands, then succeeds.
+2. Run the swarm through the failing fixture.
+3. Assert invariants E6(1-10) from the spec still hold after the chaos run:
+   - (1) Replay produces identical event log.
+   - (2) No host paths in any agent-facing string.
+   - (3) No cross-task memory access.
+   - (4) No merge of a contract-violating patch.
+   - (5) No true semantic conflict ever accepted.
+   - (7) No duplicate side effects after failover.
+4. The chaos run must terminate deterministically.
+acceptance: all invariants hold under chaos; no non-termination.
+
+---
+
+**`S40` — Integration test: partial salvage**
+dependsOn: `S14`
+files: `test/integration/partial-salvage.test.ts`
+interface: none
+how to implement:
+1. Create a patch with 2 independent file changes: one passes verification, one fails.
+2. Run `judgePatches`.
+3. Assert: the good change is in `decision.savedPatches`; overall decision is `"salvaged"`.
+4. Assert: the risky/failing change is quarantined.
+5. Assert: nothing is silently dropped.
+acceptance: salvage produces safe parts; risky parts quarantined; no silent drop.
+
+---
+
+**`S41` — npm test wiring**
+dependsOn: `S01`–`S40`
+files: `package.json`, `vitest.config.ts`, `tsconfig.json`
+how to implement: `npm test` = `vitest run`; strict TypeScript; exits 0.
+acceptance: all tests pass; no skipped tests.
+
+---
+
+**`S42` — Knowledge-debt register**
+dependsOn: `S41`
+files: `KNOWLEDGE_DEBT.md`
+how to implement: list the 6 items from E8 (semantic merge language-specificity, sandbox boundary choice, contract negotiation protocol, distributed-correctness assumptions, merge judge intent, benchmark caveat) with risk level and mitigation.
+acceptance: file exists; `npm test` still green.
+
+---
+
+### 3. The decomposition method for the rest
+
+**Recipe** (same as prior projects):
+1. New types (N+0). 2. Fixture (N+1). 3. Core function (N+2). 4. Unit test (N+3). 5. Property test (N+4). 6. Wire into integration (N+5). Explicit `dependsOn` always.
+
+**Worked example A — Architect role**
+- `AR01` — Add `architect` to `AgentRoleType` in `src/types.ts`. dependsOn: `S01`.
+- `AR02` — Create `test/fixtures/agents/architect.json` with scripted decompose+contract-publish actions. dependsOn: `S10`.
+- `AR03` — Implement `ArchitectAgent implements Agent` that publishes a contract on turn 1. dependsOn: `AR01`, `AR02`, `S12`.
+- `AR04` — Integration test: architect publishes contract; implementation task gate passes. dependsOn: `AR03`, `S21`.
+
+**Worked example B — More language support (Python entity overlap)**
+- `PY01` — Add tree-sitter-python grammar; implement `extractEntityRanges` for Python files. dependsOn: `S13`.
+- `PY02` — Create `test/fixtures/repo/src/handler.py` with 2 functions. dependsOn: `S19`.
+- `PY03` — Test: overlap detection works for Python patches. dependsOn: `PY01`, `PY02`.
+
+**Worked example C — Telemetry UI projection**
+- `TU01` — Define `SwarmSnapshot` type: `{runningAgents, blockedTasks, loopingAgents, mergeQueue}`. dependsOn: `S01`.
+- `TU02` — Implement `projectSnapshot(kernel: SwarmKernel): SwarmSnapshot`. dependsOn: `TU01`, `S04`.
+- `TU03` — Test: after the goal-decomposition integration test, snapshot contains 6 tasks and 0 loops. dependsOn: `TU02`, `S21`.
+
+---
+
+### 4. Per-task implementation conventions
+
+**File layout**
+```
+src/
+  types.ts; clock.ts; prng.ts; hash.ts
+  orchestration/swarm-kernel.ts, dag.ts, promotion-gate.ts, context-router.ts, loop-recovery.ts, lease-manager.ts
+  sandbox/host-path-recovery.ts, leak-scanner.ts
+  contracts/contract-board.ts
+  merge/entity-overlap.ts, merge-judge.ts
+  adapters/sandbox-fixture-adapter.ts, agent-fixture-adapter.ts
+test/
+  fixtures/sandboxes/, agents/, contracts/, patches/, repo/
+  integration/
+  property/
+  *.test.ts
+```
+
+**Test snippet (lease + fencing)**
+```typescript
+// test/lease-manager.test.ts
+import { describe, it, expect } from "vitest";
+import { LeaseManager } from "../src/orchestration/lease-manager.js";
+import { SwarmKernel } from "../src/orchestration/swarm-kernel.js";
+import { FixedClock } from "../src/clock.js";
+
+describe("LeaseManager", () => {
+  it("rejects stale token after expiry", () => {
+    const kernel = new SwarmKernel(new FixedClock(1000));
+    const lm = new LeaseManager(kernel, new FixedClock(1000));
+    const token = lm.acquire("task-api", "agent-a", 5000);
+    lm.expire("task-api");
+    expect(lm.validate("task-api", token)).toBe(false);
+  });
+});
+```
+
+**Definition of done**: `npm test` green; no `any`; no live agents/sandboxes/network; all fixtures committed; explicit return types; single responsibility.
+
+---
+
+### 5. Common pitfalls for a weak model on THIS project
+
+**Pitfall 1 — Using a lossy loop-detection fingerprint**
+A 3B model may key loop detection on the `type` field only (e.g., `"read-files"`), so any two `read-files` calls with different paths collide. This false-pauses advancing agents.
+Fix: `computeToolFingerprint` hashes the ENTIRE input with sorted keys. Two calls fingerprint-collide only when ALL input fields are identical. The `S37` property test fuzzes this.
+
+**Pitfall 2 — Exposing host paths in agent-facing strings**
+A 3B model may write `workspaceRoot = process.cwd()` in `SandboxFixtureAdapter`. This leaks the host path.
+Fix: `workspaceRoot` always returns `/workspaces/${this.taskId}`. Run `assertNoLeaks` on every agent-facing string in `S30`. This is the most-relitigated boundary in the codebase.
+
+**Pitfall 3 — Accepting a merge with a true semantic conflict**
+A 3B model may implement `judgePatches` to accept the first patch and rework the second without checking entity-level overlap first.
+Fix: entity overlap detection runs BEFORE merge decision. `"true-semantic-conflict"` always results in `"rework-requested"` for at least one patch. The `S33` property test enforces this.
+
+**Pitfall 4 — Forgetting promotion gates**
+A 3B model may set an `"implementation"` task to `"in-progress"` without checking that an accepted contract exists.
+Fix: `blockUngatedPromotion` is called before any status change to `"in-progress"` for implementation tasks. The `S32` property test enforces this.
+
+**Pitfall 5 — Re-firing a committed side effect after failover**
+A 3B model may implement failover as "re-run the agent from scratch", causing side effects to fire twice.
+Fix: the `IdempotentRunner` pattern from project 23 applies here: before executing, check if the `(taskId, inputHash)` pair already has an event in the kernel. The `S35` property test enforces exactly-once semantics.
+
+**Pitfall 6 — Silently dropping a failed branch**
+A 3B model may simply delete a quarantined patch from the kernel without recording why.
+Fix: every patch decision is recorded in the kernel as a `merge-decision` event with `reason`. The `S34` property test asserts that every submitted patch has exactly one decision event.
+
+**Pitfall 7 — Generating fixture files at test runtime**
+A 3B model may try to generate `test/fixtures/agents/implementer-api.json` by running an agent. This requires a live model and breaks CI.
+Fix: all fixture files in `test/fixtures/` are committed to the repo. `AgentFixtureAdapter` throws on a missing turn. Never generate fixtures at test time.

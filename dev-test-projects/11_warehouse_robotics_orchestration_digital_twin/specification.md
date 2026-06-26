@@ -195,3 +195,857 @@ If that slice is deterministic, conservative, safe, and live, every later panel 
 ## E12. Why this is a great !Klein challenge
 
 This is a **multi-agent determinism-and-safety crucible** that punishes exactly the shortcuts a small local model takes by default: it will want robots to teleport, inventory to mutate on command, and "safety" to be a warning string — and here each of those turns a test red. The real value is "can good decomposition + invariant tests + a central safety kernel make a *fallible* model produce a **deterministic, conservative, provably-safe, deadlock-free** orchestrator." It stresses multi-agent coordination (MAPF/CBS, reservations), the intent-vs-reality discipline (command/telemetry duality, VDA 5050), conservation reasoning (double-entry inventory), liveness under adversarial maps (deadlock/livelock detection), and safety supremacy as a structural gate — all replayable from a seed so a deadlock or a near-miss is a reproducible test, not a field incident. The reward is legible and satisfying: a headless shift that replays bit-for-bit, an inventory ledger that *cannot* go unbalanced, a crossing that deadlocks and then provably un-wedges, and a protective-field stop that no throughput pressure can override. **Build the twin kernel + command/telemetry duality + safety kernel + conservation ledger (E1, E2, E5, E6, E9) first; earn the rest.**
+
+---
+
+## Small-model build guide (3B-ready)
+
+> This section is the mechanical on-ramp. A 3B model reading this must be able to follow it card-by-card without needing to be clever. Every card is independently implementable and verifiable. Read E1–E12 above first; this section operationalizes them.
+
+---
+
+### 1. Glossary & ground rules
+
+**Domain terms:**
+- **Tick** — integer logical time unit; the only time the simulation knows. Never use `Date.now()`, `performance.now()`, or `setTimeout` in any core module.
+- **Robot** — an autonomous mobile robot (AMR). It has a position (node), battery state-of-charge (SOC, integer 0–100), and a payload capacity.
+- **Node** — a discrete location in the warehouse map (think intersection or bay). Robots move from node to node along edges.
+- **Edge** — a directed connection between two nodes with a traversal cost (integer ticks). One-way aisles are modeled as edges in one direction only.
+- **Reservation** — a claim that robot R will occupy node N (or traverse edge E) during tick range [t_start, t_end]. The reservation table is the global concurrency lock.
+- **Event log** — append-only array of typed events. World state is a fold over the log. The log is truth; the projected world state is a derived view.
+- **WorldState** — the fold of the event log: robot positions, SOC, task states, tote locations, reservations, incidents, safety state.
+- **Telemetry frame** — a message from a robot reporting its current position, SOC, action status, and errors. World state updates from telemetry, not from commands.
+- **VDA-5050-style order** — an order decomposed into a sequence of nodes and edges the robot must traverse, plus stored actions at each node (pick, drop, wait). Used as the command model (fixture transport, no MQTT needed in tests).
+- **Command ack** — a robot's acknowledgement that it received and accepted an order. A command may be rejected (zone permission, low battery, fault).
+- **Reservation table** — a data structure keyed by `(node/edge, tick)` → `robotId | null`. Used by the MAPF planner to check and claim slots.
+- **CBS (Conflict-Based Search)** — a MAPF algorithm: plan each robot individually, then detect and resolve pairwise conflicts by adding constraints and replanning. Used for correctness on small maps.
+- **Prioritized planning** — faster MAPF fallback: plan robots in priority order, each respecting prior reservations.
+- **Deadlock** — a cycle in the resource wait-for graph: robot A waits for a node held by robot B, which waits for a node held by robot A (or a chain thereof).
+- **Livelock** — robots move but make no progress toward their goals (oscillating, mutually yielding).
+- **Double-entry ledger** — every SKU/tote quantity change is a balanced transfer: a debit from one location and a matching credit to another. The sum across all locations (including a `discrepancy` account) is invariant.
+- **Scan evidence** — a `ToteScanned` event with a tote ID and location. Inventory only changes when scan evidence is present in the event log.
+- **Safety field** — a virtual zone around a robot: outer warning field (triggers deceleration), inner protective field (triggers safety-rated stop). Size scales with speed.
+- **E-stop** — emergency stop: a command or detection event that halts all robots in a zone or fleet-wide. Pre-empts all throughput decisions.
+
+**Stack:**
+- Language: TypeScript (strict mode, `noImplicitAny: true`)
+- Runtime: Node.js (no browser globals in core)
+- Test runner: `npm test` runs all tests (e.g. Vitest or Jest — use whichever is in `package.json`)
+- No external planning libraries — CBS and Dijkstra are implemented from scratch
+- No network, no hardware I/O in tests — fixture maps, robots, and telemetry sequences are TypeScript objects in `test/fixtures/`
+
+**Ground rules (repeat these to yourself before every card):**
+1. Never use `Math.random()` in `src/core/` — use the seeded PRNG from `src/core/prng.ts` only.
+2. Never use `Date.now()` or wall-clock time in core.
+3. World state never updates from a command — only from telemetry/state messages in the event log.
+4. Inventory never changes without a `ToteScanned` event in the same transaction.
+5. Safety checks run before any allocation or traffic decision; they cannot be bypassed.
+6. Every acceptance test runs offline. No network, no robot hardware.
+7. The acceptance command is `npm test`. It must pass green before a card is done.
+
+---
+
+### 2. The explicit task graph for the first vertical slice
+
+The first vertical slice covers E1–E7, E9 from the v2 section. It has **17 cards** (W01–W17). Build them in order; each depends only on prior cards.
+
+---
+
+**W01 — Project scaffold & TypeScript config**
+dependsOn: none
+files: `package.json`, `tsconfig.json`, `src/core/.gitkeep`, `test/.gitkeep`
+
+interface: none (configuration only)
+
+how to implement:
+1. Create `package.json` with `"type": "module"`, a `"test"` script that runs Vitest (`vitest run`), and dev dependencies: `vitest`, `typescript`.
+2. Create `tsconfig.json` with `"strict": true`, `"noImplicitAny": true`, `"target": "ES2022"`, `"module": "NodeNext"`, `"moduleResolution": "NodeNext"`.
+3. Create placeholder directories.
+
+acceptance: `npm test` runs and exits 0 with "no test files found" (or equivalent). No TypeScript errors.
+
+---
+
+**W02 — Seeded split-PRNG**
+dependsOn: W01
+files: `src/core/prng.ts`, `test/core/prng.test.ts`
+
+interface:
+```typescript
+// src/core/prng.ts
+export type PrngState = { s0: bigint; s1: bigint };
+export type PrngStream = { state: PrngState; streamId: number };
+
+export function createPrng(seed: bigint): PrngState;
+export function splitStream(root: PrngState, streamId: number): PrngStream;
+// Pure: returns next value and next stream state.
+export function nextUint32(stream: PrngStream): { value: number; next: PrngStream };
+export function nextIntBelow(stream: PrngStream, max: number): { value: number; next: PrngStream };
+export function nextFloat01(stream: PrngStream): { value: number; next: PrngStream };
+// nextFloat01 is ONLY for display/logging, never for engine decisions that affect state.
+```
+
+how to implement:
+1. Implement SplitMix64 in bigints (standard mixing constants).
+2. `splitStream`: derive a new state by seeding from `root.s0 ^ BigInt(streamId)`.
+3. All functions are pure (return next state, never mutate).
+4. Write `test/core/prng.test.ts`.
+
+acceptance:
+- Two calls to `createPrng(99n)` produce identical states.
+- `nextUint32` called 50 times on the same stream produces the same sequence every run.
+- `splitStream(root, 1)` and `splitStream(root, 2)` produce different sequences.
+
+---
+
+**W03 — Core domain types**
+dependsOn: W01
+files: `src/core/types.ts`
+
+interface:
+```typescript
+// src/core/types.ts
+export type Tick = number;         // integer, never fractional
+export type RobotId = string;
+export type NodeId = string;
+export type EdgeId = string;       // "${fromNodeId}->${toNodeId}"
+export type ToteId = string;
+export type SkuId = string;
+export type LocationId = string;   // node id or a named location ('discrepancy', 'shipping', 'receiving')
+export type ZoneId = string;
+export type TaskId = string;
+
+export type NodeKind = 'aisle' | 'intersection' | 'pick-station' | 'pack-station' | 'charger' | 'storage' | 'human-only';
+export type MapNode = { id: NodeId; kind: NodeKind; zoneIds: ZoneId[]; x: number; y: number };
+export type MapEdge = { id: EdgeId; from: NodeId; to: NodeId; costTicks: number; oneWay: boolean };
+
+export type RobotStatus = 'idle' | 'moving' | 'executing-action' | 'charging' | 'fault' | 'safety-stopped';
+export type Robot = {
+  id: RobotId;
+  nodeId: NodeId;          // current node (last confirmed by telemetry)
+  soc: number;             // integer 0–100
+  maxSoc: number;          // typically 100
+  payloadCapacity: number; // integer kg
+  status: RobotStatus;
+  speed: number;           // integer, units/tick (for safety field sizing)
+};
+
+export type ToteStatus = 'placed' | 'in-transit' | 'lost' | 'at-discrepancy';
+export type Tote = { id: ToteId; locationId: LocationId; status: ToteStatus; skuQuantities: Record<SkuId, number> };
+
+export type TaskKind = 'pick' | 'move' | 'charge';
+export type TaskStatus = 'queued' | 'assigned' | 'in-progress' | 'completed' | 'failed' | 'escalated';
+export type Task = { id: TaskId; kind: TaskKind; robotId: RobotId | null; status: TaskStatus; fromNodeId: NodeId; toNodeId: NodeId; priority: number; toteId?: ToteId };
+
+export type ReservationKey = `${NodeId}@${number}` | `${EdgeId}@${number}`;
+export type ReservationTable = Map<ReservationKey, RobotId>;
+
+export type SafetyZoneKind = 'human-only' | 'speed-limited' | 'lockout' | 'emergency-stop';
+export type SafetyZoneState = { zoneId: ZoneId; kind: SafetyZoneKind; active: boolean; maxSpeed?: number };
+
+export type WorldEvent =
+  | { type: 'TaskAssigned'; tick: Tick; taskId: TaskId; robotId: RobotId }
+  | { type: 'MoveCommanded'; tick: Tick; robotId: RobotId; orderId: string; nodes: NodeId[] }
+  | { type: 'CommandAcked'; tick: Tick; robotId: RobotId; orderId: string }
+  | { type: 'CommandRejected'; tick: Tick; robotId: RobotId; orderId: string; reason: string }
+  | { type: 'TelemetryFrame'; tick: Tick; robotId: RobotId; nodeId: NodeId; soc: number; speed: number; status: RobotStatus }
+  | { type: 'ReservationGranted'; tick: Tick; robotId: RobotId; keys: ReservationKey[] }
+  | { type: 'ToteScanned'; tick: Tick; toteId: ToteId; locationId: LocationId; robotId: RobotId }
+  | { type: 'InventoryAdjusted'; tick: Tick; toteId: ToteId; fromLocation: LocationId; toLocation: LocationId; skuId: SkuId; qty: number }
+  | { type: 'SafetyStop'; tick: Tick; robotId: RobotId; reason: string }
+  | { type: 'IncidentRaised'; tick: Tick; subject: string; reason: string }
+  | { type: 'DeadlockDetected'; tick: Tick; involvedRobots: RobotId[] }
+  | { type: 'DeadlockResolved'; tick: Tick; involvedRobots: RobotId[] };
+
+export type WorldState = {
+  tick: Tick;
+  robots: Map<RobotId, Robot>;
+  nodes: Map<NodeId, MapNode>;
+  edges: Map<EdgeId, MapEdge>;
+  totes: Map<ToteId, Tote>;
+  tasks: Map<TaskId, Task>;
+  reservationTable: ReservationTable;
+  safetyZones: Map<ZoneId, SafetyZoneState>;
+  eventLog: WorldEvent[];
+  prngStreams: Record<string, PrngStream>;
+};
+
+export type WarehouseScenario = {
+  nodes: MapNode[];
+  edges: MapEdge[];
+  robots: Robot[];
+  totes: Tote[];
+  tasks: Task[];
+  safetyZones: SafetyZoneState[];
+  seed: bigint;
+};
+```
+
+how to implement:
+1. Create `src/core/types.ts` — types only, no logic.
+2. Write a trivial `test/core/types.test.ts` that imports all types and creates one instance of each to confirm TypeScript compilation.
+
+acceptance: `test/core/types.test.ts` compiles and passes. `npm test` → green.
+
+---
+
+**W04 — World state initialization & event fold**
+dependsOn: W02, W03
+files: `src/core/world.ts`, `test/core/world.test.ts`
+
+interface:
+```typescript
+// src/core/world.ts
+export function initWorldState(scenario: WarehouseScenario): WorldState;
+export function applyEvent(state: WorldState, event: WorldEvent): WorldState;
+export function foldEvents(initial: WorldState, events: WorldEvent[]): WorldState;
+export function hashWorldState(state: WorldState): string;
+// Deterministic hash: convert all Maps to sorted arrays, bigints to strings, then djb2/FNV-1a hash.
+```
+
+how to implement:
+1. `initWorldState`: index nodes/edges/robots/totes/tasks into Maps, set tick=0, empty event log, initialize PRNG streams with `splitStream`.
+2. `applyEvent`: pattern-match on `event.type`, return new state (never mutate).
+   - `TelemetryFrame`: update `robots.get(event.robotId)` with new position, SOC, speed, status.
+   - `CommandAcked`/`CommandRejected`: find task, update status.
+   - `ToteScanned`: mark tote status, update locationId.
+   - Other events: append to log only (effects applied by higher-level handlers).
+3. `hashWorldState`: serialize Maps deterministically (sort by key), serialize bigints as strings, hash.
+4. Write `test/core/world.test.ts`.
+
+acceptance: `test/core/world.test.ts` asserts:
+- `initWorldState` with a 3-robot scenario has `worldState.robots.size === 3`.
+- `hashWorldState` returns identical strings on two calls with the same state.
+- A `TelemetryFrame` event updates the robot's node and SOC correctly.
+
+---
+
+**W05 — Snapshot / restore**
+dependsOn: W04
+files: `src/core/snapshot.ts`, `test/core/snapshot.test.ts`
+
+interface:
+```typescript
+// src/core/snapshot.ts
+export type Snapshot = { tick: number; data: string };
+export function takeSnapshot(state: WorldState): Snapshot;
+export function restoreSnapshot(snap: Snapshot): WorldState;
+// restoreSnapshot(takeSnapshot(state)) must produce a state with the same hashWorldState().
+```
+
+how to implement:
+1. `takeSnapshot`: serialize Maps to sorted arrays, convert bigints to strings, `JSON.stringify`.
+2. `restoreSnapshot`: parse, reconstruct Maps and bigints.
+3. Write `test/core/snapshot.test.ts`.
+
+acceptance:
+- `hashWorldState(restoreSnapshot(takeSnapshot(state))) === hashWorldState(state)` for a non-trivial state (3 robots, 2 totes, 2 tasks).
+- Snapshot + apply 5 events + hash equals no-snapshot + apply same 5 events + hash.
+
+---
+
+**W06 — Warehouse map & pathfinding**
+dependsOn: W03
+files: `src/core/pathfinding.ts`, `test/core/pathfinding.test.ts`
+
+interface:
+```typescript
+// src/core/pathfinding.ts
+export type PathResult = { path: NodeId[]; costTicks: number } | { path: null; costTicks: null };
+
+export function findPath(
+  from: NodeId,
+  to: NodeId,
+  nodes: Map<NodeId, MapNode>,
+  edges: Map<EdgeId, MapEdge>,
+  blockedNodes: Set<NodeId>,
+  options?: { respectOneWay?: boolean }
+): PathResult;
+// Dijkstra over the node/edge graph. Edge cost = edge.costTicks.
+// Blocked nodes are impassable (other robots currently at the node).
+// One-way edges: if respectOneWay=true (default), only traverse edge.from→edge.to direction.
+// Tiebreak: when costs are equal, pick the node with lexicographically smaller id.
+```
+
+how to implement:
+1. Dijkstra with a min-heap (array + sort, or binary heap — no insertion-order-dependent Set).
+2. Build adjacency from edges: edge.from → [edge.to] (if one-way respected, not reverse).
+3. Tiebreak: on equal cost, sort by nodeId lexicographically.
+4. Write `test/core/pathfinding.test.ts` with the small-map fixture below.
+
+acceptance: `test/core/pathfinding.test.ts` uses a 4-node linear map (A→B→C→D):
+- Straight path A→D = 3 edges, cost = sum of edge costs.
+- Blocking node B forces A→... alternative route (add a bypass edge in the fixture).
+- One-way edge D→C: `findPath(A, C, ..., {respectOneWay: true})` cannot use C→D in reverse.
+- Two identical calls produce identical paths (determinism check).
+
+---
+
+**W07 — Fixture VDA-5050-style transport (command/telemetry duality)**
+dependsOn: W03, W04
+files: `src/core/transport.ts`, `test/core/transport.test.ts`
+
+interface:
+```typescript
+// src/core/transport.ts
+export type VdaOrder = {
+  orderId: string;
+  robotId: RobotId;
+  nodes: Array<{ nodeId: NodeId; actions: Array<{ type: 'pick' | 'drop' | 'wait'; toteId?: ToteId }> }>;
+  edges: EdgeId[];
+};
+
+export type RobotStateMessage = {
+  robotId: RobotId;
+  tick: Tick;
+  nodeId: NodeId;
+  soc: number;
+  speed: number;
+  status: RobotStatus;
+  lastOrderId: string | null;
+  orderStatus: 'none' | 'accepted' | 'rejected' | 'executing' | 'finished' | 'failed';
+  rejectionReason?: string;
+};
+
+export type FixtureTransport = {
+  // Deliver an order to a robot. Returns the robot's ack/reject synchronously (fixture: always synchronous).
+  sendOrder(order: VdaOrder, robotPolicy: RobotPolicy): CommandAckResult;
+  // Emit the robot's next telemetry frame given its current state and the scenario's PRNG.
+  getTelemetry(robotId: RobotId, currentState: WorldState, stream: PrngStream): { msg: RobotStateMessage; nextStream: PrngStream };
+};
+
+export type CommandAckResult = { acked: true } | { acked: false; reason: string };
+
+export type RobotPolicy = {
+  // Pure function: given the order and the robot's state, decide to ack or reject.
+  decide(order: VdaOrder, robot: Robot, zones: Map<ZoneId, SafetyZoneState>): CommandAckResult;
+};
+
+export function createFixtureTransport(): FixtureTransport;
+// Default policy: ack always unless zone permission denied or soc < 10.
+export function defaultRobotPolicy(): RobotPolicy;
+```
+
+how to implement:
+1. `createFixtureTransport`: returns an object that applies `robotPolicy.decide()` for `sendOrder`, and for `getTelemetry` emits a `RobotStateMessage` with small PRNG-driven SOC jitter (e.g. ±1 from the expected value).
+2. The key discipline: world state only updates when the test harness processes the `RobotStateMessage` into a `TelemetryFrame` event — not on `sendOrder`.
+3. Write `test/core/transport.test.ts`.
+
+acceptance:
+- A robot with `soc < 10` rejects an order.
+- A robot in a lockout zone rejects an order.
+- An acked order does NOT update `worldState` until the test calls `applyEvent(state, { type: 'TelemetryFrame', ... })` with the robot's reported position.
+- Two identical scenarios with the same seed produce the same telemetry sequences.
+
+---
+
+**W08 — Reservation table (MAPF prerequisite)**
+dependsOn: W03, W04
+files: `src/core/reservations.ts`, `test/core/reservations.test.ts`
+
+interface:
+```typescript
+// src/core/reservations.ts
+export function makeReservationKey(nodeOrEdgeId: string, tick: Tick): ReservationKey;
+export function checkConflict(
+  table: ReservationTable,
+  nodeOrEdgeId: string,
+  tick: Tick
+): RobotId | null;  // returns the occupying robot or null
+export function reservePath(
+  table: ReservationTable,
+  robotId: RobotId,
+  path: NodeId[],
+  startTick: Tick,
+  edgeCostMap: Map<EdgeId, number>
+): { table: ReservationTable; keys: ReservationKey[] };
+// Pure: returns new table with reservations added. Each node is reserved for the arrival tick.
+// Each edge is reserved for the traversal tick range.
+export function releaseReservations(table: ReservationTable, keys: ReservationKey[]): ReservationTable;
+```
+
+how to implement:
+1. `makeReservationKey`: returns `\`${nodeOrEdgeId}@${tick}\`` as a string.
+2. `reservePath`: compute arrival ticks for each node (sum of edge costs up to that node), add entries to the Map.
+3. All functions pure — return new Maps.
+4. Write `test/core/reservations.test.ts`.
+
+acceptance:
+- Reserve node N at tick 5 for robot A. `checkConflict(table, N, 5)` returns `'A'`.
+- Reserve node N at tick 5 for robot A, then attempt robot B at the same key. `checkConflict` returns `'A'` (no overwrite).
+- `releaseReservations` removes exactly the released keys, leaving others.
+
+---
+
+**W09 — MAPF prioritized planner**
+dependsOn: W06, W08
+files: `src/core/mapf.ts`, `test/core/mapf.test.ts`
+
+interface:
+```typescript
+// src/core/mapf.ts
+export type PlanRequest = { robotId: RobotId; from: NodeId; to: NodeId; priority: number };
+export type PlanResult = { robotId: RobotId; path: NodeId[]; reservations: ReservationKey[] } | { robotId: RobotId; path: null; reason: string };
+
+export function planPrioritized(
+  requests: PlanRequest[],
+  nodes: Map<NodeId, MapNode>,
+  edges: Map<EdgeId, MapEdge>,
+  existingReservations: ReservationTable,
+  startTick: Tick
+): { results: PlanResult[]; finalTable: ReservationTable };
+// Sorts requests by priority (higher first, then by robotId for tiebreak).
+// Plans each robot with Dijkstra against the growing reservation table.
+// A robot that cannot find a non-conflicting path gets path=null.
+```
+
+how to implement:
+1. Sort `requests` by `priority` descending, then `robotId` ascending (deterministic tiebreak).
+2. For each robot in sorted order: call `findPath` with currently-reserved nodes blocked; call `reservePath` to add its reservations; move to next robot.
+3. Write `test/core/mapf.test.ts` with the crossing-fixture.
+
+acceptance: `test/core/mapf.test.ts` uses a fixture with 2 robots approaching a single-node crossing:
+- Both robots get valid, non-conflicting paths (one waits one tick, the higher-priority one goes first).
+- Identical inputs produce identical plans across runs.
+- A robot with no path returns `path: null` (unreachable scenario).
+
+---
+
+**W10 — Deadlock detector**
+dependsOn: W08
+files: `src/core/deadlock.ts`, `test/core/deadlock.test.ts`
+
+interface:
+```typescript
+// src/core/deadlock.ts
+export type WaitForGraph = Map<RobotId, RobotId>; // robot -> the robot whose reservation it's waiting for
+
+export function buildWaitForGraph(
+  robots: Map<RobotId, Robot>,
+  reservationTable: ReservationTable,
+  robotTargetNodes: Map<RobotId, NodeId>  // where each robot wants to go next
+): WaitForGraph;
+
+export type DeadlockResult = { hasDeadlock: false } | { hasDeadlock: true; cycle: RobotId[] };
+
+export function detectDeadlock(graph: WaitForGraph): DeadlockResult;
+// Finds a directed cycle using DFS. Returns the cycle nodes in order.
+
+export function resolveDeadlock(
+  cycle: RobotId[],
+  robots: Map<RobotId, Robot>,
+  nodes: Map<NodeId, MapNode>,
+  edges: Map<EdgeId, MapEdge>
+): { withdrawRobotId: RobotId; holdingNodeId: NodeId };
+// Resolution: the lowest-priority robot in the cycle backs off to a holding node
+// (nearest non-contested node, found via findPath with length-1 search).
+```
+
+how to implement:
+1. `buildWaitForGraph`: for each robot whose target node is reserved by another robot, add an edge.
+2. `detectDeadlock`: iterative DFS (not recursive — to avoid stack overflow on large graphs). Return the first cycle found.
+3. `resolveDeadlock`: choose the robot with the smallest `priority` value (or lexicographically smallest id as tiebreak). Find it a nearby parking node via `findPath` limited to 2 hops.
+4. Write `test/core/deadlock.test.ts`.
+
+acceptance: `test/core/deadlock.test.ts` uses a 2-robot head-on fixture:
+- Robot A at node X wants node Y; robot B at node Y wants node X. `detectDeadlock` returns `{ hasDeadlock: true, cycle: ['A', 'B'] }` (or `['B', 'A']` — both are valid; assert `cycle.length === 2`).
+- A scenario with no cycle returns `{ hasDeadlock: false }`.
+- `resolveDeadlock` returns a robot to withdraw and a reachable holding node.
+
+---
+
+**W11 — Double-entry inventory ledger**
+dependsOn: W03
+files: `src/core/ledger.ts`, `test/core/ledger.test.ts`
+
+interface:
+```typescript
+// src/core/ledger.ts
+export type LedgerEntry = {
+  tick: Tick;
+  toteId: ToteId;
+  fromLocation: LocationId;
+  toLocation: LocationId;
+  skuId: SkuId;
+  qty: number;
+  scanEvidenceEventIndex: number; // index into eventLog of the ToteScanned event
+};
+
+export type Ledger = { entries: LedgerEntry[] };
+
+export function postTransfer(
+  ledger: Ledger,
+  state: WorldState,
+  toteId: ToteId,
+  fromLocation: LocationId,
+  toLocation: LocationId,
+  skuId: SkuId,
+  qty: number,
+  scanEvidenceIndex: number
+): Ledger;
+// Returns new ledger with the entry appended.
+// The caller must verify that a ToteScanned event at scanEvidenceIndex exists and matches.
+
+export function verifyConservation(
+  ledger: Ledger,
+  totes: Map<ToteId, Tote>
+): { balanced: boolean; discrepancy?: Record<SkuId, number> };
+// For each SKU: sum all quantities across all location totes.
+// Sum of all transfers should net to zero (each debit has a credit).
+// Discrepancy account is a real location; imbalances are there, not hidden.
+
+export function postException(
+  ledger: Ledger,
+  tick: Tick,
+  toteId: ToteId,
+  fromLocation: LocationId,
+  skuId: SkuId,
+  qty: number,
+  reason: string
+): Ledger;
+// A commanded pick with no scan-confirm: posts a debit from source to 'discrepancy'.
+```
+
+how to implement:
+1. `postTransfer`: append a `LedgerEntry`. Pure — return new ledger.
+2. `verifyConservation`: iterate entries, compute per-SKU net at each location, verify debits == credits.
+3. `postException`: debit from `fromLocation`, credit to `'discrepancy'` location.
+4. Write `test/core/ledger.test.ts`.
+
+acceptance: `test/core/ledger.test.ts` asserts:
+- Post one transfer of 5 units SkuA from locationX to locationY. `verifyConservation` returns `{ balanced: true }`.
+- Post a transfer without matching scan evidence (manually skip the check). `verifyConservation` catches the imbalance.
+- Post an exception (lost tote). The discrepancy location's balance increases by the exception quantity.
+- Total SKU quantity across all locations never changes from the initial inventory.
+
+---
+
+**W12 — Safety kernel**
+dependsOn: W03, W04
+files: `src/core/safety.ts`, `test/core/safety.test.ts`
+
+interface:
+```typescript
+// src/core/safety.ts
+export type SafetyCheckResult =
+  | { allowed: true }
+  | { allowed: false; reason: string; action: 'stop' | 'decelerate' };
+
+// Called BEFORE any allocation or traffic decision can proceed.
+export function checkSafetyPreMove(
+  robot: Robot,
+  targetNode: MapNode,
+  zones: Map<ZoneId, SafetyZoneState>,
+  nodeZoneIds: ZoneId[]  // zones the target node belongs to
+): SafetyCheckResult;
+// Rules:
+// 1. If any zone containing target is 'human-only' and active → stop, not allowed.
+// 2. If any zone is 'lockout' and active → stop, not allowed.
+// 3. If any zone is 'emergency-stop' and active → stop, not allowed.
+// 4. If any zone is 'speed-limited' and robot.speed > zone.maxSpeed → decelerate, not allowed at current speed.
+
+export function checkProtectiveField(
+  robot: Robot,
+  obstaclePresent: boolean  // true if a person/obstacle is detected in the protective field
+): SafetyCheckResult;
+// If obstacle in protective field → { allowed: false, reason: '...', action: 'stop' }.
+
+export function applyEmergencyStop(
+  state: WorldState,
+  scope: 'fleet' | ZoneId,
+  tick: Tick
+): WorldState;
+// Emits SafetyStop events for all robots in scope and updates their status to 'safety-stopped'.
+```
+
+how to implement:
+1. All functions pure; `applyEmergencyStop` returns new state with `SafetyStop` events applied.
+2. `checkSafetyPreMove`: iterate `nodeZoneIds`, check each active zone, return on first violation.
+3. Write `test/core/safety.test.ts`.
+
+acceptance: `test/core/safety.test.ts` asserts:
+- A robot attempting to enter a human-only zone gets `{ allowed: false, action: 'stop' }`.
+- A robot under lockout gets `{ allowed: false, action: 'stop' }`.
+- A robot in a normal zone gets `{ allowed: true }`.
+- A protective-field intrusion triggers stop.
+- `applyEmergencyStop('fleet', ...)` sets ALL robots to `status: 'safety-stopped'`.
+- A throughput-vs-safety conflict fixture: even with a high-priority rush task pending, a human-only zone check returns `allowed: false` (safety wins).
+
+---
+
+**W13 — Task allocation engine**
+dependsOn: W03, W04, W06, W12
+files: `src/core/allocation.ts`, `test/core/allocation.test.ts`
+
+interface:
+```typescript
+// src/core/allocation.ts
+export type AllocationScore = {
+  robotId: RobotId;
+  taskId: TaskId;
+  travelCostTicks: number;
+  socAfterTask: number;    // estimated SOC remaining after task + return-to-charger
+  feasible: boolean;       // false if SOC can't cover task + return-to-charger with reserve
+};
+
+export function scoreAllocations(
+  tasks: Task[],
+  robots: Map<RobotId, Robot>,
+  nodes: Map<NodeId, MapNode>,
+  edges: Map<EdgeId, MapEdge>,
+  zones: Map<ZoneId, SafetyZoneState>
+): AllocationScore[];
+// For each (task, robot) pair: compute travel cost via findPath, estimate SOC cost (1 SOC per 10 ticks),
+// check zone permissions, check feasibility (soc - estimatedCost >= 20% reserve).
+// Sort results: feasible first, then by travelCostTicks ascending, then robotId ascending (tiebreak).
+
+export function assignTask(
+  state: WorldState,
+  taskId: TaskId,
+  robotId: RobotId
+): WorldState;
+// Emits TaskAssigned event, updates task.robotId and task.status = 'assigned'. Pure.
+```
+
+how to implement:
+1. `scoreAllocations`: for each robot×task, call `findPath`, compute travel cost, subtract SOC estimate, check zone permissions via `checkSafetyPreMove`.
+2. Sort the output array deterministically.
+3. `assignTask`: emit `TaskAssigned` via `applyEvent`.
+4. Write `test/core/allocation.test.ts`.
+
+acceptance: `test/core/allocation.test.ts` asserts:
+- A low-battery robot (soc=15, needed cost=20) is marked `feasible: false`.
+- A high-priority task is scored but allocation still picks the nearest feasible robot.
+- A robot in a zone it cannot enter is excluded from that task's scores.
+- Allocation changes when a path is blocked (different robot wins when first-choice path is unavailable).
+
+---
+
+**W14 — Shift simulation runner**
+dependsOn: W07, W09, W10, W11, W12, W13
+files: `src/core/shift.ts`, `test/core/shift.test.ts`
+
+interface:
+```typescript
+// src/core/shift.ts
+export type ShiftResult = { worldHash: string; eventLog: WorldEvent[]; completedTasks: number };
+
+export function runShift(
+  scenario: WarehouseScenario,
+  maxTicks: number
+): ShiftResult;
+// Main simulation loop:
+// Each tick:
+//   1. Safety check: if any e-stop pending, apply it before anything else.
+//   2. Allocation: assign unassigned tasks to feasible robots.
+//   3. Planning: MAPF plan for assigned robots with no current path.
+//   4. Deadlock detection: if deadlock found, resolve (back off a robot, replan).
+//   5. Command dispatch: send VDA-5050-style orders to robots via FixtureTransport.
+//   6. Telemetry collection: get telemetry frames, apply as TelemetryFrame events.
+//   7. Inventory: process ToteScanned events into LedgerEntry via postTransfer.
+//   8. Tick increment.
+```
+
+how to implement:
+1. Implement the 8-step tick loop using the modules from W07–W13.
+2. All state updates go through `applyEvent` — never direct mutation.
+3. The main loop is deterministic: all operations happen in a fixed, sorted order.
+4. Write `test/core/shift.test.ts` with the small-map fixture (W15).
+
+acceptance: `test/core/shift.test.ts` (using fixture from W15):
+- `runShift` completes without error after 100 ticks.
+- At least one task is marked `completed`.
+- `hashWorldState` of the final state is stable across two runs with the same seed.
+
+---
+
+**W15 — Seed scenario fixture & adversarial fixtures**
+dependsOn: W03
+files: `test/fixtures/seed-scenario.ts`, `test/fixtures/deadlock-fixture.ts`, `test/fixtures/lost-tote-fixture.ts`, `test/fixtures/safety-fixture.ts`
+
+interface: TypeScript `const` fixture objects conforming to `WarehouseScenario`.
+
+how to implement:
+1. `seed-scenario.ts`: a 5×4 grid of nodes, 4 edges forming a crossing (the deadlock-prone junction), 3 robots, 1 charger, 1 human-only zone, 2 totes, 3 tasks (pick/move/charge), 1 rush task. `seed = 42n`.
+2. `deadlock-fixture.ts`: 2 robots, head-on at a single-node crossing — robot A at node X wants Y, robot B at Y wants X.
+3. `lost-tote-fixture.ts`: a pick task where the robot's telemetry confirms arrival at the pick node but no `ToteScanned` event follows (the tote is "lost").
+4. `safety-fixture.ts`: a human-only zone with a high-priority rush task targeting a node inside it.
+
+acceptance: all fixtures import cleanly and produce valid `WarehouseScenario` objects. TypeScript compiles.
+
+---
+
+**W16 — Adversarial fixture tests**
+dependsOn: W10, W11, W12, W14, W15
+files: `test/integration/adversarial.test.ts`
+
+interface: tests only.
+
+how to implement:
+1. **Deadlock test**: run `runShift(deadlockFixture, 50)`. Assert `DeadlockDetected` and `DeadlockResolved` events both appear in the event log. Assert all tasks eventually complete or are escalated (no wedge).
+2. **Lost tote test**: run the lost-tote scenario for 30 ticks. Assert a `ToteScanned` event is missing for the commanded pick. Assert an `IncidentRaised` event appears. Assert `verifyConservation(ledger)` shows a discrepancy account balance > 0.
+3. **Safety supremacy test**: run the safety fixture with a rush task targeting a human-only zone. Assert the robot never enters the human-only zone (no `TelemetryFrame` with that nodeId). Assert a `SafetyStop` event appears before any `TaskAssigned` to that node.
+
+acceptance: all three tests pass green. `npm test` → green.
+
+---
+
+**W17 — Golden replay + global invariants integration test**
+dependsOn: W14–W16
+files: `test/integration/golden-replay.test.ts`
+
+interface: tests only.
+
+how to implement:
+1. Run `runShift(seedScenario, 100)` twice with identical inputs.
+2. **Pin** both `worldHash` and `eventLogHash` values as constants in the test.
+3. Assert both hashes are identical across runs.
+4. Assert invariants for every tick (requires storing per-tick snapshots during the run):
+   a. **No collisions**: for every tick, no two robots share the same node (check reservations).
+   b. **Conservation**: `verifyConservation(ledger)` returns `{ balanced: true }` at the final state.
+   c. **Safety supremacy**: no robot with status other than `'safety-stopped'` is at a human-only node.
+   d. **Liveness**: all tasks in the scenario are either `completed` or `escalated` within 100 ticks.
+5. Run the same simulation from a snapshot taken at tick 50; assert the final hash matches.
+
+acceptance: all assertions pass. Pinned hashes are stable. `npm test` → green. This is the gate for the entire first slice.
+
+---
+
+### 3. The decomposition method for the rest
+
+Use this repeatable recipe to expand remaining features into the same card shape:
+
+**Recipe:**
+1. Identify what **new types** the feature needs. That is card cluster A (types-only).
+2. Identify what **pure computation** it adds. That is card cluster B (logic, pure functions).
+3. Identify what **new event types** it emits and how `applyEvent` extends. That is card cluster C (event/state).
+4. Identify what **safety check** or **invariant** it must satisfy. That is card cluster D (validation/property test).
+5. Write one offline acceptance test per card before implementing.
+
+**Worked example 1 — Livelock detector (E4):**
+- **LL01** (types): Add `LivelockDetected | LivelockResolved` to `WorldEvent`. files: `src/core/types.ts`. acceptance: TypeScript compiles.
+- **LL02** (logic): Implement `detectLivelock(robotHistory: Map<RobotId, NodeId[]>, window: number): RobotId[]` in `src/core/livelock.ts`. A robot is livelocked if its last `window` positions contain repeats with no net movement toward its goal. acceptance: a robot oscillating A→B→A→B over 10 ticks with goal=C is detected; a robot making progress is not.
+- **LL03** (integration): Call `detectLivelock` in the shift runner after deadlock resolution. If livelock detected, escalate task and re-auction. acceptance: a livelock fixture (two robots yielding to each other) eventually escalates, not wedges, within 50 ticks.
+
+**Worked example 2 — Opportunity charging (E7):**
+- **OC01** (types): Add `ChargeStarted | ChargeStopped | ChargerQueued` to `WorldEvent`. files: `src/core/types.ts`.
+- **OC02** (logic): Implement `scoreChargingNeed(robot: Robot, chargers: MapNode[], edges: Map<EdgeId, MapEdge>): { needed: boolean; urgency: number }` in `src/core/battery.ts`. Urgency increases as SOC drops; needed=true if soc < 30. acceptance: robot at soc=20 has urgency > robot at soc=50.
+- **OC03** (integration): In the allocation step, if a robot has `scoreChargingNeed.needed === true`, insert a charge task ahead of other tasks. Assert charger node has only one robot reserved at a time (single-occupancy charger reservation). acceptance: two low-battery robots converging on one charger: one gets the charger, the other queues without deadlocking.
+
+**Worked example 3 — CBS planner (replacing prioritized planning, E3):**
+- **CBS01** (types): Add `ConflictConstraint` type: `{ robotId, nodeOrEdge, tick }`. files: `src/core/mapf.ts` (extend).
+- **CBS02** (logic): Implement `detectConflict(paths: Map<RobotId, PlanResult[]>): ConflictConstraint | null` that finds the first (robotId, node, tick) collision across all planned paths. acceptance: given two paths that share node N at tick T, returns the conflict.
+- **CBS03** (integration): Implement `planCBS(requests, nodes, edges, reservations, startTick)` using CBS two-level search: plan all, find first conflict, add constraint to one robot, replan it, repeat until no conflicts (up to max iterations). acceptance: a 2-robot crossing scenario that prioritized-planning handles incorrectly (or leaves a conflict) resolves with CBS.
+
+---
+
+### 4. Per-task implementation conventions
+
+**File/folder layout:**
+```
+src/
+  core/
+    prng.ts           # seeded PRNG (W02)
+    types.ts          # domain types (W03)
+    world.ts          # world state init, event fold, hash (W04)
+    snapshot.ts       # snapshot/restore (W05)
+    pathfinding.ts    # Dijkstra (W06)
+    transport.ts      # fixture VDA-5050-style transport (W07)
+    reservations.ts   # reservation table (W08)
+    mapf.ts           # MAPF prioritized/CBS planner (W09)
+    deadlock.ts       # deadlock detector/resolver (W10)
+    ledger.ts         # double-entry inventory ledger (W11)
+    safety.ts         # safety kernel (W12)
+    allocation.ts     # task allocation (W13)
+    shift.ts          # shift simulation runner (W14)
+test/
+  core/               # unit tests (one file per src/core/ module)
+  integration/        # golden-replay.test.ts, adversarial.test.ts
+  fixtures/           # TypeScript fixture objects — no file I/O
+```
+
+**Naming conventions:**
+- Functions that return new state are named `apply*` (never mutate in-place).
+- Functions that check a rule are named `check*` and return a result type, never throw.
+- Fixture files are TypeScript `const` objects, not JSON files.
+
+**Minimal test snippet:**
+```typescript
+// test/core/ledger.test.ts
+import { describe, it, expect } from 'vitest';
+import { postTransfer, verifyConservation } from '../../src/core/ledger.js';
+
+describe('Inventory ledger', () => {
+  it('stays balanced after a transfer', () => {
+    let ledger = { entries: [] };
+    ledger = postTransfer(ledger, /* ... */, 'toteA', 'pickBay1', 'packStation2', 'SKU-X', 3, 0);
+    expect(verifyConservation(ledger, /* totes */)).toEqual({ balanced: true });
+  });
+});
+```
+
+**Keeping it deterministic — checklist for every card:**
+- [ ] No `Math.random()` in `src/core/` — `grep -r 'Math.random' src/core/`
+- [ ] No `Date.now()` — `grep -r 'Date.now' src/core/`
+- [ ] No `Set`/`Map` iteration for state-affecting order — convert to sorted arrays.
+- [ ] World state updates only from telemetry events, never from command dispatch.
+- [ ] Inventory only changes when `ToteScanned` event is present.
+- [ ] Safety check called before any allocation decision in every tick.
+
+**Wiring a fixture adapter:**
+Fixtures are TypeScript `const` objects in `test/fixtures/`. Import them directly:
+```typescript
+import { seedScenario } from '../fixtures/seed-scenario.js';
+```
+No `fs.readFile`, no network. The fixture is code.
+
+**Definition of done for any card:**
+1. All listed files exist.
+2. Exported types/functions match the card's interface exactly (TypeScript check).
+3. Card's acceptance tests pass green.
+4. `npm test` (all tests) passes green.
+5. `grep -r 'Math.random\|Date.now' src/core/` returns nothing.
+
+---
+
+### 5. Common pitfalls for a weak model on this project
+
+**Pitfall 1 — Robots teleporting (world state updates from commands, not telemetry)**
+A 3B will write `robot.nodeId = order.nodes[lastIndex]` when dispatching an order. This breaks the intent/reality separation: a robot that rejects or stalls mid-edge would still appear at the destination.
+Fix: `robot.nodeId` only updates when a `TelemetryFrame` event is applied by `applyEvent`. The transport test (W07) and global invariant test (W17) both verify this by asserting that no-acked-order state change occurs without a subsequent telemetry event.
+
+**Pitfall 2 — Inventory mutating without scan evidence**
+A 3B will write `tote.locationId = destinationNode` when a pick task is assigned. The tote would "move" even if the robot stalls.
+Fix: `postTransfer` requires a `scanEvidenceIndex` pointing to a `ToteScanned` event. The lost-tote adversarial test (W16) verifies that a missing scan produces an exception, not a silent inventory update.
+
+**Pitfall 3 — Deadlock not detected because wait-for-graph uses Map iteration order**
+A 3B may build the wait-for-graph using `Map.entries()` iteration in indeterminate order, causing the DFS to miss cycles depending on insertion order.
+Fix: `buildWaitForGraph` must sort its traversal order (by robotId). The deadlock test (W16) uses a 2-robot fixture where the cycle must always be found within 1 tick regardless of insertion order.
+
+**Pitfall 4 — Safety check bypassed when allocation is "urgent"**
+A 3B may add an `if (task.priority === 'emergency') skip_safety_check()` path. This is exactly the antipattern the spec forbids.
+Fix: `checkSafetyPreMove` is called unconditionally before any movement decision in the shift runner (W14). The safety supremacy test (W16) verifies that even with a rush task, a human-only zone violation is rejected.
+
+**Pitfall 5 — Seeded PRNG drifts because a consumer was added**
+A 3B adding a new PRNG consumer (e.g. telemetry jitter for a new sensor) calls `nextUint32(sharedStream)` directly on a shared stream, shifting all subsequent rolls for other systems.
+Fix: Use `splitStream(rootState, uniqueStreamId)` for every new consumer. The golden replay test (W17) will catch drift: if the hash changes after adding a consumer, the consumer is sharing a stream it shouldn't.
+
+**Pitfall 6 — Ledger double-counting (transfer deducted twice)**
+A 3B may call `postTransfer` and also call `postException` for the same tote movement, creating two debit entries.
+Fix: `postTransfer` is only called when both a ToteScanned pick AND a ToteScanned putaway event exist. `postException` is only called when a pick scan exists but no putaway scan. `verifyConservation` will catch double-debits immediately.
+
+**Pitfall 7 — MAPF prioritized planner produces different orderings on different runs**
+A 3B sorts `PlanRequest` by `priority` but forgets the tiebreak when priorities are equal. Two robots with the same priority may plan in different order across runs.
+Fix: Sort by `priority` descending, then `robotId` ascending. The MAPF test (W09) asserts identical plans across two identical calls.
+
+**Pitfall 8 — `hashWorldState` serializing Maps as `{}`**
+`JSON.stringify(new Map())` returns `"{}"`. The hash of a state with 5 robots looks identical to one with 3 robots.
+Fix: Convert every `Map` to a sorted `[key, value][]` array before serializing. The snapshot test (W05) will catch this because `restoreSnapshot(takeSnapshot(state))` will produce a different hash if maps are lost.
+
+**Pitfall 9 — Deadlock resolution re-introduces deadlock**
+A 3B resolves a deadlock by backing off a robot to a holding node, but the holding node is already reserved by a third robot, creating a new deadlock.
+Fix: `resolveDeadlock` must check reservations on the candidate holding node before committing. Call `checkConflict(table, holdingNode, currentTick)` and try the next nearest node if conflicted. The deadlock adversarial test verifies the world eventually reaches all goals.
+
+**Pitfall 10 — Bigint serialization failing with `JSON.stringify`**
+`JSON.stringify({ seed: 42n })` throws `TypeError`. A 3B will hit this in snapshot/hash.
+Fix: Replace all bigints with `.toString()` before serializing; reconstruct with `BigInt(str)` on restore. The snapshot test (W05) will catch any serialization failure.
