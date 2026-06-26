@@ -1,14 +1,17 @@
-import { Clipboard, FlaskConical, Lightbulb, Play, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Clipboard, FlaskConical, Lightbulb, Play, Trash2 } from "lucide-react";
 import type React from "react";
+import { useState } from "react";
+import { DevTestRegistryPicker } from "@/components/project-nav/dev-test-registry-picker";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import type { RuntimeDevTestProjectPreset } from "@/runtime/types";
+import type { RuntimeDevTestProjectPreset, RuntimeDevTestRegistryEntry } from "@/runtime/types";
 
 /**
  * The developer dev-test-scenarios card for the project navigation sidebar, extracted from the oversized
  * `project-navigation-panel.tsx` (todo §5.U). Seeds a self-improvement project from the running checkout (with optional
  * notes) and the fixture preset projects (mid-task / complex-DAG / audio-VST / DAW-foundation), plus copy-evidence and
- * cleanup actions. Fully props-driven — all state + handlers are passed in — so it's self-contained.
+ * cleanup actions. Also exposes the full folder-based registry (45+ projects) via a searchable grouped picker.
+ * Fully props-driven — all state + handlers are passed in — so it's self-contained.
  */
 export function DevTestProjectCard({
 	disabled,
@@ -17,8 +20,12 @@ export function DevTestProjectCard({
 	isCreatingSelfImprovementProject,
 	evidencePath,
 	selfImprovementNotes,
+	registryEntries,
+	isRegistryLoading,
+	startingRegistryId,
 	onSelfImprovementNotesChange,
 	onRun,
+	onRunById,
 	onCopyEvidence,
 	onCleanup,
 	onCreateSelfImprovementProject,
@@ -29,17 +36,23 @@ export function DevTestProjectCard({
 	isCreatingSelfImprovementProject: boolean;
 	evidencePath: string | null;
 	selfImprovementNotes: string;
+	registryEntries: RuntimeDevTestRegistryEntry[];
+	isRegistryLoading: boolean;
+	startingRegistryId: string | null;
 	onSelfImprovementNotesChange: (value: string) => void;
 	onRun: (preset: RuntimeDevTestProjectPreset) => Promise<void>;
+	onRunById: (id: string) => Promise<void>;
 	onCopyEvidence: () => Promise<void>;
 	onCleanup: () => Promise<void>;
 	onCreateSelfImprovementProject: () => Promise<void>;
 }): React.ReactElement {
+	const [showRegistry, setShowRegistry] = useState(false);
 	const isRunningMidTask = runningPreset === "mid_task";
 	const isRunningComplexProject = runningPreset === "complex_dag";
 	const isRunningAudioVstProject = runningPreset === "audio_vst";
 	const isRunningDawFoundationProject = runningPreset === "daw_foundation";
 	const isBusy = disabled || isCreatingSelfImprovementProject;
+	const isAnyPresetRunning = runningPreset !== null;
 
 	return (
 		<div className="mt-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
@@ -53,6 +66,7 @@ export function DevTestProjectCard({
 				</div>
 			</div>
 			<div className="grid gap-2">
+				{/* Self-improvement section */}
 				<div className="rounded-md border border-border bg-surface-1 px-2 py-2">
 					<div className="mb-2 flex items-start gap-2">
 						<Lightbulb size={14} className="mt-0.5 shrink-0 text-status-gold" />
@@ -84,6 +98,36 @@ export function DevTestProjectCard({
 						{isCreatingSelfImprovementProject ? "Creating..." : "Create self-improvement project"}
 					</Button>
 				</div>
+
+				{/* Registry picker — collapsible, searchable, tier-grouped */}
+				<div className="rounded-md border border-border bg-surface-1 px-2 py-2">
+					<button
+						type="button"
+						className="mb-1.5 flex w-full items-center gap-1.5 text-left"
+						onClick={() => setShowRegistry((v) => !v)}
+					>
+						{showRegistry ? (
+							<ChevronDown size={12} className="shrink-0 text-text-tertiary" />
+						) : (
+							<ChevronRight size={12} className="shrink-0 text-text-tertiary" />
+						)}
+						<span className="text-[12px] font-semibold text-text-primary">
+							Registry ({registryEntries.length || "…"})
+						</span>
+						<span className="ml-auto text-[10px] text-text-tertiary">browse all projects</span>
+					</button>
+					{showRegistry ? (
+						<DevTestRegistryPicker
+							entries={registryEntries}
+							isLoading={isRegistryLoading}
+							startingId={startingRegistryId}
+							disabled={isBusy || isAnyPresetRunning || isCleaningUp}
+							onStart={onRunById}
+						/>
+					) : null}
+				</div>
+
+				{/* Legacy preset buttons */}
 				<Button
 					size="sm"
 					variant="default"
@@ -159,7 +203,7 @@ export function DevTestProjectCard({
 						size="sm"
 						variant="ghost"
 						icon={<Clipboard size={14} />}
-						disabled={isBusy || runningPreset !== null}
+						disabled={isBusy || isAnyPresetRunning}
 						onClick={() => {
 							void onCopyEvidence();
 						}}

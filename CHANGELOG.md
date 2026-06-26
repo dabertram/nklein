@@ -2,6 +2,8 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **You can now browse and start any of the 47 registry dev-test projects from the UI** (todo §5.X). The Dev Test Scenarios panel in developer mode now includes a collapsible **Registry** section with a search box and all projects grouped by tier. Each row shows the project title, its domain tags, and a **Start** button that creates the project and starts its seed card — the same flow as the four legacy preset buttons, which remain unchanged for back-compat.
+
 - **A corrupt config file no longer silently loses your settings** (fix). When `config.json` existed but contained invalid JSON (e.g. from a partial write or manual edit), the config loader treated it the same as a missing file — returning defaults, then overwriting the file on the next save, permanently destroying the user's preferences. Now the two cases are distinguished: a missing file still returns defaults silently (normal first-run), but a file that exists and cannot be parsed is diagnosed with a clear message, and the original bytes are preserved in a timestamped `.corrupt-<timestamp>.bak` sibling so nothing is lost.
 
 - **A model's context window is re-detected when it changes** (fix). When a model was reloaded/reconfigured with a different context window (e.g. in LM Studio), !Klein kept showing the old size: the model registry's effective window is `userOverride ?? observed ?? advertised`, and a previously **auto-observed** value (measured against the *old* window) masked the new **advertised** size — so the change went undetected. Now a changed advertised window clears the stale auto-observation (a user override stays, since it's intentional), so the new size takes effect immediately.

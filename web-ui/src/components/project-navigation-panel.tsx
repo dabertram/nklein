@@ -30,12 +30,14 @@ import {
 	cleanupDevTestProjects,
 	createDevTestProject,
 	createSelfImprovementProject,
+	listDevTestProjects,
 	migrateAccidentalProjectArtifacts,
 } from "@/runtime/runtime-config-query";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeAgentId,
 	RuntimeDevTestProjectPreset,
+	RuntimeDevTestRegistryEntry,
 	RuntimeNKleinProviderSettings,
 	RuntimeProjectSummary,
 } from "@/runtime/types";
@@ -101,6 +103,26 @@ export function ProjectNavigationPanel({
 	}>({ runningPreset: null, isCleaningUp: false, evidencePath: null });
 	const [selfImprovementNotes, setSelfImprovementNotes] = useState("");
 	const [isCreatingSelfImprovementProject, setIsCreatingSelfImprovementProject] = useState(false);
+	const [registryEntries, setRegistryEntries] = useState<RuntimeDevTestRegistryEntry[]>([]);
+	const [isRegistryLoading, setIsRegistryLoading] = useState(false);
+	const [startingRegistryId, setStartingRegistryId] = useState<string | null>(null);
+
+	// Load registry entries lazily — only when developer mode is active (DEV build).
+	// We use a ref-guard so the load fires once per mount, not on every render.
+	const registryLoadedRef = useRef(false);
+	useEffect(() => {
+		if (!import.meta.env.DEV || !developerModeEnabled || registryLoadedRef.current) {
+			return;
+		}
+		registryLoadedRef.current = true;
+		setIsRegistryLoading(true);
+		listDevTestProjects(currentProjectId)
+			.then((result) => setRegistryEntries(result.entries))
+			.catch(() => {
+				/* non-fatal — picker just shows empty */
+			})
+			.finally(() => setIsRegistryLoading(false));
+	}, [developerModeEnabled, currentProjectId]);
 	const [migratingProjectId, setMigratingProjectId] = useState<string | null>(null);
 	const projectsWithHealthIssues = sortedProjects.filter((project) => (project.healthIssues?.length ?? 0) > 0);
 	const isProjectRemovalPending = pendingProjectRemoval !== null && removingProjectId === pendingProjectRemoval.id;
@@ -454,7 +476,63 @@ export function ProjectNavigationPanel({
 							isCreatingSelfImprovementProject={isCreatingSelfImprovementProject}
 							evidencePath={devTestProjectState.evidencePath}
 							selfImprovementNotes={selfImprovementNotes}
+							registryEntries={registryEntries}
+							isRegistryLoading={isRegistryLoading}
+							startingRegistryId={startingRegistryId}
 							onSelfImprovementNotesChange={setSelfImprovementNotes}
+							onRunById={async (registryId) => {
+								setStartingRegistryId(registryId);
+								try {
+									const created = await createDevTestProject(currentProjectId, { registryId });
+									if (!created.ok || !created.project) {
+										throw new Error(created.error ?? "Could not create the dev test project.");
+									}
+									setDevTestProjectState((current) => ({
+										...current,
+										evidencePath: created.evidenceRootPath,
+									}));
+									onSelectProject(created.project.id);
+									if (created.task) {
+										const trpcClient = getRuntimeTrpcClient(created.project.id);
+										const started = await trpcClient.runtime.startTaskSession.mutate({
+											taskId: created.task.id,
+											prompt: created.task.prompt,
+											taskTitle: created.task.title,
+											filesLikelyTouched: created.task.filesLikelyTouched,
+											startInPlanMode: created.task.startInPlanMode,
+											baseRef: created.task.baseRef,
+											agentId: created.task.agentId,
+											nkleinSettings: created.task.nkleinSettings,
+										});
+										if (!started.ok) {
+											throw new Error(started.error ?? "Dev test task could not be started.");
+										}
+										const workspaceState = await fetchWorkspaceState(created.project.id);
+										const targetColumnId = created.task.startInPlanMode ? "planning" : "in_progress";
+										const moved = moveTaskToColumn(workspaceState.board, created.task.id, targetColumnId, {
+											insertAtTop: true,
+										});
+										if (moved.moved) {
+											await saveWorkspaceState(created.project.id, {
+												board: moved.board,
+												expectedRevision: workspaceState.revision,
+											});
+											await trpcClient.workspace.notifyStateUpdated.mutate();
+										}
+									}
+									showAppToast({
+										intent: "success",
+										icon: "check",
+										message: `Dev test project "${created.scenario?.title ?? registryId}" created.`,
+										timeout: 5000,
+									});
+								} catch (error) {
+									const message = error instanceof Error ? error.message : String(error);
+									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
+								} finally {
+									setStartingRegistryId(null);
+								}
+							}}
 							onRun={async (preset) => {
 								setDevTestProjectState((current) => ({ ...current, runningPreset: preset }));
 								try {

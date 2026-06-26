@@ -29,6 +29,7 @@ const BOARD_SURFACE_HORIZONTAL_CHROME_PX = 40;
 const cleanupDevTestProjectsMock = vi.hoisted(() => vi.fn());
 const createDevTestProjectMock = vi.hoisted(() => vi.fn());
 const createSelfImprovementProjectMock = vi.hoisted(() => vi.fn());
+const listDevTestProjectsMock = vi.hoisted(() => vi.fn().mockResolvedValue({ entries: [] }));
 const migrateAccidentalProjectArtifactsMock = vi.hoisted(() => vi.fn());
 const fetchNKleinCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
 
@@ -36,6 +37,7 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 	cleanupDevTestProjects: cleanupDevTestProjectsMock,
 	createDevTestProject: createDevTestProjectMock,
 	createSelfImprovementProject: createSelfImprovementProjectMock,
+	listDevTestProjects: listDevTestProjectsMock,
 	migrateAccidentalProjectArtifacts: migrateAccidentalProjectArtifactsMock,
 	fetchNKleinCodeIntelligenceStatus: fetchNKleinCodeIntelligenceStatusMock,
 }));

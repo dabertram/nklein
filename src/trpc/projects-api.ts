@@ -5,6 +5,7 @@ import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-co
 import type {
 	RuntimeBoardData,
 	RuntimeDevTestCleanupResponse,
+	RuntimeDevTestProjectRegistryResponse,
 	RuntimeDevTestProjectRequest,
 	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListResponse,
@@ -28,6 +29,7 @@ import {
 import { withAutonomousNKleinTimeoutSettings } from "../core/autonomous-timeout-defaults";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
+import { loadDevTestProjectRegistry, loadDevTestProjectScenario } from "../nklein-sdk/dev-test-project-registry";
 import {
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	resolveNKleinDevTestProjectScenario,
@@ -418,6 +420,18 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				} satisfies RuntimeProjectAddResponse;
 			}
 		},
+		listDevTestProjects: async (): Promise<RuntimeDevTestProjectRegistryResponse> => {
+			const entries = loadDevTestProjectRegistry();
+			return {
+				entries: entries.map((entry) => ({
+					id: entry.config.id,
+					title: entry.config.title,
+					...(entry.config.tier !== undefined ? { tier: entry.config.tier } : {}),
+					...(entry.config.tags !== undefined ? { tags: entry.config.tags } : {}),
+					...(entry.config.complexity !== undefined ? { complexity: entry.config.complexity } : {}),
+				})),
+			};
+		},
 		createDevTestProject: async (
 			_preferredWorkspaceId,
 			input?: RuntimeDevTestProjectRequest,
@@ -435,8 +449,10 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				};
 			}
 			try {
-				const preset = input?.preset ?? "mid_task";
-				const scenario = resolveNKleinDevTestProjectScenario(preset);
+				const scenario =
+					input?.registryId != null
+						? loadDevTestProjectScenario(input.registryId)
+						: resolveNKleinDevTestProjectScenario(input?.preset ?? "mid_task");
 				// §5.W: honor the user-configured workspace base dir (global setting) for where the dev-test project is
 				// created; null falls back to the env var / home default inside resolveSafeCreatedWorkspaceParentDir.
 				const globalConfig = await loadGlobalRuntimeConfig();

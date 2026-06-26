@@ -1333,10 +1333,12 @@ deep analysis:
         the spec, `tags` from "Domain pressure", `startInPlanMode: true`, `agentId: nklein`, `npm test`), plus
         `_ENHANCEMENT_GUIDELINES.md` + a `README.md` documenting the format. **45 folder-defined projects total; the
         repo references nothing under `~/Desktop`.** New `dev-test-project-registry.test.ts` (10 cases: discover /
-        validate / reject-malformed / load spec+prompt / preserve legacy fields). **UI follow-up (not yet wired):**
-        the registry is loadable but the project-nav `DevTestProjectCard` + `createDevTestProject` tRPC path still
-        only expose the 4 preset buttons (`runtimeDevTestProjectPresetSchema` enum); listing/starting an arbitrary
-        registry project by id needs a small contract + UI addition (verify live).
+        validate / reject-malformed / load spec+prompt / preserve legacy fields). **UI wiring (2026-06-26):** contract
+        extended (`runtimeDevTestRegistryEntrySchema` + `runtimeDevTestProjectRegistryResponseSchema`; `registryId`
+        field on create request), new `projects.listDevTestProjects` tRPC query, `createDevTestProject` accepts
+        `registryId` (resolves via `loadDevTestProjectScenario`), new `DevTestRegistryPicker` component (searchable
+        + tier-grouped collapsible list), wired into `DevTestProjectCard` + `project-navigation-panel`. 4 legacy
+        preset buttons kept for back-compat. Contract test in `dev-test-registry-contract.test.ts`.
   - [x] **CLI sweep orchestrator (2026-06-24)** — `nklein dev sweep` runs several dev-test presets in sequence
         (default = the parallel-fan-out set `wide_fanout,deep_chain,mixed_dag,many_small`, `--presets` overridable)
         and reports each run's classified terminal outcome. The orchestration core

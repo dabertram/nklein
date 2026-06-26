@@ -8,6 +8,7 @@ import type {
 	RuntimeDebugResetAllStateResponse,
 	RuntimeDevTestCleanupResponse,
 	RuntimeDevTestProjectPreset,
+	RuntimeDevTestProjectRegistryResponse,
 	RuntimeDevTestProjectResponse,
 	RuntimeExpandNKleinPlanTaskRequest,
 	RuntimeExpandNKleinPlanTaskResponse,
@@ -336,9 +337,14 @@ export async function resumeTask(workspaceId: string | null, taskId: string): Pr
 	return await trpcClient.runtime.resumeTask.mutate({ taskId });
 }
 
+export async function listDevTestProjects(workspaceId: string | null): Promise<RuntimeDevTestProjectRegistryResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.projects.listDevTestProjects.query();
+}
+
 export async function createDevTestProject(
 	workspaceId: string | null,
-	input?: { preset?: RuntimeDevTestProjectPreset },
+	input?: { preset?: RuntimeDevTestProjectPreset; registryId?: string },
 ): Promise<RuntimeDevTestProjectResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.projects.createDevTestProject.mutate(input);

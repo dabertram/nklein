@@ -1059,9 +1059,26 @@ export type RuntimeDevTestProjectPreset = z.infer<typeof runtimeDevTestProjectPr
 export const runtimeDevTestProjectRequestSchema = z
 	.object({
 		preset: runtimeDevTestProjectPresetSchema.optional(),
+		/** Registry project id — alternative to preset; start any folder-based registry project by id. */
+		registryId: z.string().min(1).optional(),
 	})
 	.optional();
 export type RuntimeDevTestProjectRequest = z.infer<typeof runtimeDevTestProjectRequestSchema>;
+
+/** Lightweight summary of a single registry project — safe for the browser bundle (no node:* imports). */
+export const runtimeDevTestRegistryEntrySchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	tier: z.string().optional(),
+	tags: z.array(z.string()).optional(),
+	complexity: z.number().optional(),
+});
+export type RuntimeDevTestRegistryEntry = z.infer<typeof runtimeDevTestRegistryEntrySchema>;
+
+export const runtimeDevTestProjectRegistryResponseSchema = z.object({
+	entries: z.array(runtimeDevTestRegistryEntrySchema),
+});
+export type RuntimeDevTestProjectRegistryResponse = z.infer<typeof runtimeDevTestProjectRegistryResponseSchema>;
 
 export const runtimeDevTestProjectResponseSchema = z.object({
 	ok: z.boolean(),

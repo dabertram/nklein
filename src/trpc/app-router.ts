@@ -12,6 +12,7 @@ import type {
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
 	RuntimeDevTestCleanupResponse,
+	RuntimeDevTestProjectRegistryResponse,
 	RuntimeDevTestProjectRequest,
 	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListRequest,
@@ -152,6 +153,7 @@ import {
 	runtimeConfigSaveRequestSchema,
 	runtimeDebugResetAllStateResponseSchema,
 	runtimeDevTestCleanupResponseSchema,
+	runtimeDevTestProjectRegistryResponseSchema,
 	runtimeDevTestProjectRequestSchema,
 	runtimeDevTestProjectResponseSchema,
 	runtimeDirectoryListRequestSchema,
@@ -587,6 +589,7 @@ export interface RuntimeTrpcContext {
 	};
 	projectsApi: {
 		listProjects: (preferredWorkspaceId: string | null) => Promise<RuntimeProjectsResponse>;
+		listDevTestProjects: () => Promise<RuntimeDevTestProjectRegistryResponse>;
 		addProject: (
 			preferredWorkspaceId: string | null,
 			input: RuntimeProjectAddRequest,
@@ -1164,6 +1167,9 @@ export const runtimeAppRouter = t.router({
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.projectsApi.addProject(ctx.requestedWorkspaceId, input);
 			}),
+		listDevTestProjects: t.procedure.output(runtimeDevTestProjectRegistryResponseSchema).query(async ({ ctx }) => {
+			return await ctx.projectsApi.listDevTestProjects();
+		}),
 		createDevTestProject: t.procedure
 			.input(runtimeDevTestProjectRequestSchema)
 			.output(runtimeDevTestProjectResponseSchema)
