@@ -1912,12 +1912,17 @@ deep analysis:
         now checks the right name + carries an `unhandledRejection` guard so a stray `session_stop` can't crash it.)
         **Still owed:** the MERGE/apply step (trusted runtime applying the result branch into the user's working tree) +
         a multi-card parallel decomposed run; then fold these harnesses into the §5.V e2e set.
-      - ⚠️ **Robustness:** the 360s decompose run crashed with an uncaught `[Error: session_stop]` promise rejection.
-        `session_stop` is a vendored-SDK signal (`vendor/nklein-sdk/core`); the kanban runtime has NO global
-        `unhandledRejection`/`uncaughtException` handler in `src/`/`packages/` (only the vendored hub-daemon has its own).
-        Likely harness-specific (the in-memory service's error handling differs from the host-backed product service), but
-        verify the PRODUCT runtime can't be crashed by a stopped/long session's rejection — and consider a logging-only
-        global handler in the runtime bootstrap (`cli.ts`/server start).
+      - ✅ **Robustness — ADDRESSED (2026-06-26).** The 360s decompose run crashed with an uncaught
+        `[Error: session_stop]` promise rejection (`session_stop` is a vendored-SDK signal); the runtime had NO global
+        `unhandledRejection` handler. **Fix:** `installRuntimeUnhandledRejectionGuard` (`src/server/runtime-process-guards.ts`),
+        installed in cli.ts's **serve branch only** (short-lived CLI commands keep Node's fail-fast default; tests don't
+        accumulate a listener) — it logs the rejection LOUDLY + captures it to telemetry (visible, not silently swallowed)
+        and keeps serving, so a stray rejection can't take a server hosting many sessions down. The pure handler
+        `handleRuntimeUnhandledRejection` is DI'd + unit-tested (4 cases: Error capture+log, non-Error wrap, log-before-
+        capture order, never-throws-even-if-deps-throw). NB the original crash was likely harness-specific (in-memory
+        service vs the host-backed product service); this guard hardens the real long-lived server against ANY stray
+        rejection regardless. *Deferred:* a source-level catch of `session_stop` in the SDK boundary (if it proves to be a
+        real product path, not just the stripped harness).
 - [~] **Chat e2e** — every chat function: sessions (create/select/delete/relabel), streaming, tools, knowledge fetch,
       memory, the (later) autonomous-work mode.
       **Contract-seam session-CRUD coverage DONE (2026-06-26, 23 tests, Suite 18 — `test/contract/chat-session-contract.test.ts`).**

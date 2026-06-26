@@ -37,6 +37,7 @@ import { disposeCliTelemetryService } from "./nklein-sdk/nklein-telemetry-servic
 import { disablePasscode, generateInternalToken, generatePasscode } from "./security/passcode-manager";
 import { resolveRemoteSecurityPolicy } from "./security/remote-security-policy";
 import { terminateProcessForTimeout } from "./server/process-termination";
+import { installRuntimeUnhandledRejectionGuard } from "./server/runtime-process-guards.js";
 import type { RuntimeStateHub } from "./server/runtime-state-hub";
 import { captureNodeException, flushNodeTelemetry } from "./telemetry/sentry-node.js";
 import type { TerminalSessionManager } from "./terminal/session-manager";
@@ -675,6 +676,17 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 		}
 		throw error;
 	}
+
+	// Resilience: a stray unhandled promise rejection (e.g. a vendored-SDK session_stop surfacing from a
+	// stopped/long session) must not crash the long-lived runtime and take every agent session down with
+	// it. Log + capture it and keep serving — installed only here, in the server path. (§5.V finding #3.)
+	installRuntimeUnhandledRejectionGuard({
+		capture: captureNodeException,
+		logError: (message) => {
+			console.error(message);
+		},
+	});
+
 	console.log(`!Klein running at ${runtime.url}`);
 	if (!options.noOpen && shouldAutoOpenBrowser) {
 		try {
