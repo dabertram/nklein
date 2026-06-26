@@ -162,3 +162,33 @@ export function buildTlsHardeningHeaders(hasTls: boolean): Record<string, string
 	}
 	return { "Strict-Transport-Security": "max-age=63072000; includeSubDomains" };
 }
+
+/**
+ * Content-Security-Policy for the runtime-served app (§5.Y #12).
+ *
+ * Key decisions:
+ * - `script-src 'self'` — the real XSS win. Vite externalises all scripts;
+ *   the only inline script was the SW registration in index.html, which is now
+ *   moved into main.tsx so this strict directive applies cleanly.
+ * - `style-src 'self' 'unsafe-inline'` — React inline `style={{}}` and Tailwind
+ *   need inline styles; there is no server-side nonce available here.
+ * - `connect-src 'self' ws: wss:` — same-origin tRPC + both plain and TLS
+ *   WebSocket (the runtime WS is same-origin, ws:/127… or wss://).
+ * - `img-src 'self' data: blob:` — the SVG favicon uses a data: URI; blob: is
+ *   for any dynamically created image URLs in the app.
+ * - `font-src 'self' data:` — any data: embedded fonts in built CSS.
+ * - `object-src 'none'` — no plugins.
+ * - `base-uri 'self'` — prevents a <base> injection from hijacking relative URLs.
+ * - `frame-ancestors 'none'` — redundant with X-Frame-Options: DENY but included
+ *   for CSP-aware browsers (CSP2+).
+ */
+export const APP_CONTENT_SECURITY_POLICY =
+	"default-src 'self'; " +
+	"script-src 'self'; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"img-src 'self' data: blob:; " +
+	"font-src 'self' data:; " +
+	"connect-src 'self' ws: wss:; " +
+	"object-src 'none'; " +
+	"base-uri 'self'; " +
+	"frame-ancestors 'none'";

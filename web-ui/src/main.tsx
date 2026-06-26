@@ -13,6 +13,12 @@ import "@/styles/globals.css";
 
 initializeSentry();
 
+// Register the PWA service worker (moved from index.html to allow a strict
+// script-src 'self' CSP — no inline scripts in the served HTML).
+if ("serviceWorker" in navigator) {
+	navigator.serviceWorker.register("/sw.js");
+}
+
 // Apply the persisted theme synchronously before first paint to prevent a flash.
 try {
 	migrateLegacyLocalStorageKeys();

@@ -2357,21 +2357,23 @@ deep analysis:
       workspace-relative path, fallback → tool name. **Redaction:** 4 layers (named secret flags `--token=…`, HTTP auth
       headers, known-secret env assignments, bare high-entropy tokens) + host-absolute paths suppressed; detail capped at
       512 chars. **Verified:** tsc + biome + 36 unit tests + 5 executor integration assertions + full fast gate green.
-- [~] **LOW #12 — runtime app served with no CSP / hardening headers.** Add a CSP tuned for the bundled FE + local API/
+- [x] **LOW #12 — runtime app served with no CSP / hardening headers.** Add a CSP tuned for the bundled FE + local API/
       WS, plus `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`; test the
       headers. (`dangerouslySetInnerHTML` is currently only Prism output, which escaped raw `<` in testing — defense in
       depth, not an active XSS.) **PARTIAL (2026-06-26):** added the three standard-safe headers — `X-Content-Type-Options:
       nosniff`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY` — to the asset response in `runtime-server.ts`
-      (gate-verified: tsc + 1799 fast tests). **Remaining:** the **CSP** (delicate — must allow the bundled FE + the local
-      API/WS without breaking the app; needs careful tuning + a live-load verify) and `Permissions-Policy`, plus a
-      header-presence assertion in the §5.V `server-responsiveness` contract suite (deferred to avoid the web-ui-dist test
-      fixture here).
+      (gate-verified: tsc + 1799 fast tests). **DONE (2026-06-26):** added the CSP (`script-src 'self'`; `style-src 'self'
+      'unsafe-inline'`; `connect-src 'self' ws: wss:`; `img-src 'self' data: blob:`; `font-src 'self' data:`;
+      `object-src 'none'`; `base-uri 'self'`; `frame-ancestors 'none'`). To enable strict `script-src 'self'` without a
+      nonce, the SW registration inline script was moved from `index.html` to `main.tsx` — built HTML now has zero inline
+      scripts. Live-verified: `web:build` + Playwright preview-load (root innerHTML 912 chars, 0 CSP violations).
+      Regression tests added to `test/runtime/security/remote-security-policy.test.ts`.
 > **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
 > ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
-> HTTPS-by-default + `--no-passcode` gating + HSTS), ~ #12 (headers in; CSP remains), ✅ #8 (folder-picker / addProject
+> HTTPS-by-default + `--no-passcode` gating + HSTS), ✅ #12 (headers + CSP), ✅ #8 (folder-picker / addProject
 > confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode), ✅ #5 (chat browse_url SSRF
 > guard in remote mode), ✅ #4 (NKlein file-tool + approval-policy workspace containment, defense-in-depth), ✅ #10 (nonce
-> handshake). **Remaining:** #6 (terminals hardening), #12 (CSP). Each fix gets a regression test.
+> handshake). **Remaining:** #6 (terminals hardening). Each fix gets a regression test.
 
 ### 5.J — LATER (deferred by decision)
 - **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from

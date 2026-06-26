@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	APP_CONTENT_SECURITY_POLICY,
 	buildTlsHardeningHeaders,
 	type RemoteSecurityPolicyInput,
 	resolveRemoteSecurityPolicy,
@@ -145,5 +146,46 @@ describe("buildTlsHardeningHeaders", () => {
 	it("returns a strong HSTS header when TLS is on", () => {
 		const headers = buildTlsHardeningHeaders(true);
 		expect(headers["Strict-Transport-Security"]).toBe("max-age=63072000; includeSubDomains");
+	});
+});
+
+describe("APP_CONTENT_SECURITY_POLICY (§5.Y #12)", () => {
+	it("is a non-empty string", () => {
+		expect(typeof APP_CONTENT_SECURITY_POLICY).toBe("string");
+		expect(APP_CONTENT_SECURITY_POLICY.length).toBeGreaterThan(0);
+	});
+
+	it("restricts scripts to same-origin only (key XSS win — no unsafe-inline/eval in script-src)", () => {
+		// script-src must be exactly 'self' — no unsafe-inline or unsafe-eval.
+		// Note: 'unsafe-inline' is intentionally present in style-src (React inline styles),
+		// so check the script-src directive specifically, not the whole header string.
+		const scriptSrcMatch = APP_CONTENT_SECURITY_POLICY.match(/script-src([^;]*)/);
+		if (!scriptSrcMatch) throw new Error("script-src directive not found in CSP");
+		const scriptSrcValue = scriptSrcMatch[1];
+		expect(scriptSrcValue).toContain("'self'");
+		expect(scriptSrcValue).not.toContain("'unsafe-inline'");
+		expect(scriptSrcValue).not.toContain("'unsafe-eval'");
+	});
+
+	it("allows inline styles needed by React and Tailwind", () => {
+		expect(APP_CONTENT_SECURITY_POLICY).toContain("style-src 'self' 'unsafe-inline'");
+	});
+
+	it("allows same-origin connections plus ws: and wss: for the runtime WebSocket", () => {
+		expect(APP_CONTENT_SECURITY_POLICY).toContain("connect-src 'self' ws: wss:");
+	});
+
+	it("allows data: URIs for the SVG favicon and embedded fonts", () => {
+		expect(APP_CONTENT_SECURITY_POLICY).toContain("img-src 'self' data: blob:");
+		expect(APP_CONTENT_SECURITY_POLICY).toContain("font-src 'self' data:");
+	});
+
+	it("blocks plugins and framing", () => {
+		expect(APP_CONTENT_SECURITY_POLICY).toContain("object-src 'none'");
+		expect(APP_CONTENT_SECURITY_POLICY).toContain("frame-ancestors 'none'");
+	});
+
+	it("locks base-uri to same-origin to prevent base-tag injection attacks", () => {
+		expect(APP_CONTENT_SECURITY_POLICY).toContain("base-uri 'self'");
 	});
 });

@@ -66,7 +66,7 @@ import {
 	validatePasscode,
 	validateSession,
 } from "../security/passcode-manager";
-import { buildTlsHardeningHeaders } from "../security/remote-security-policy";
+import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
 import { recordMergeHistory } from "../state/merge-history-store";
 import {
 	isWorkspaceStateLockError,
@@ -1057,10 +1057,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			res.writeHead(200, {
 				"Content-Type": asset.contentType,
 				"Cache-Control": "no-store",
-				// Defense-in-depth hardening headers for the served app (§5.Y #12); a tuned CSP is the delicate follow-up.
+				// Defense-in-depth hardening headers for the served app (§5.Y #12).
 				"X-Content-Type-Options": "nosniff",
 				"Referrer-Policy": "no-referrer",
 				"X-Frame-Options": "DENY",
+				"Content-Security-Policy": APP_CONTENT_SECURITY_POLICY,
 				// HSTS only when actually served over TLS (§5.Y #7).
 				...tlsHardeningHeaders,
 			});
