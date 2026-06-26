@@ -2370,8 +2370,11 @@ deep analysis:
         36-test dialog oracle + web:build. *(Live Playwright pass of the new nav still owed.)*
   - [ ] remaining regroup sections per the ~9-section plan: !Klein Provider & Models, Guardrails vs Agents boundary, Code
         Intelligence (keep reachable for non-!Klein users), relabel "Git Prompts" → "Git", Workspace/Project polish
-  - [ ] live-verify the regrouped settings nav end-to-end (Playwright): Agents item appears, scroll-spy jumps to each
-        section, General is lean, no visual breakage
+  - [x] **live-verified (2026-06-26, Playwright)** — booted `dev:full`, opened Settings (⌘⇧S), confirmed the **Agents**
+        nav entry renders (Boxes icon) alongside a retained **General**, clicking Agents scrolls the moved content (Docker
+        isolation + swarm guardrails + rulesets) into view, **zero console/page errors**. Reusable smoke at
+        [scripts/verify-settings-agents-nav.mts](scripts/verify-settings-agents-nav.mts); screenshot confirmed the clean
+        Agents section (isolation status, agent config + timeouts, isolation pool).
 - [x] **swarm stop/resume in the UI — ALREADY DONE** *(audit 2026-06-25)* — the board header already exposes it:
       [kanban-board.tsx](web-ui/src/components/kanban-board.tsx) has the `board.swarm-pause` control (Pause/Resume button +
       a "Paused" status driven by `swarmStopSignal`/`RuntimeSwarmStopSignal`). The §5.W "CLI-only" note was stale.
