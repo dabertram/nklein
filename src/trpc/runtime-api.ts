@@ -79,7 +79,6 @@ import {
 	parseTaskChatReloadRequest,
 	parseTaskChatSendRequest,
 	parseTaskContextImportRequest,
-	parseTaskEvidenceRequest,
 	parseTaskPauseRequest,
 	parseTaskSessionInputRequest,
 	parseTaskSessionStartRequest,
@@ -139,12 +138,9 @@ import { openInBrowser } from "../server/browser";
 import { readMergeHistory } from "../state/merge-history-store";
 import { readTaskRunSummaries } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
-import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
-import { getWorkspaceChanges, getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
-import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import {
 	mergeTaskWorktreesInDependencyOrder,
 	type TaskWorktreeAutoMergeStep,
@@ -164,7 +160,7 @@ import {
 	countActiveProjectTaskSessions,
 	createConcurrencyLimitStartError,
 } from "./runtime-api/task-concurrency-gate.js";
-import { buildTaskEvidencePromptBlock, renderWorkspaceChangesEvidence } from "./runtime-api/task-evidence-prompt.js";
+import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
 import { resolveEffectiveTaskTimeoutSettings } from "./runtime-api/task-timeout-settings.js";
 import {
 	handleGetKnowledgeToolUsageStats,
@@ -174,7 +170,7 @@ import {
 } from "./runtime-api/update-status.js";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
-const execFileAsync = promisify(execFile);
+const _execFileAsync = promisify(execFile);
 
 function withTaskPausedState(
 	summary: RuntimeTaskSessionSummary | null,
@@ -220,30 +216,6 @@ export interface CreateRuntimeApiDependencies {
 	 * test helpers that do not set it continue to work.
 	 */
 	isRemoteMode?: boolean;
-}
-
-function findTaskCard(board: RuntimeWorkspaceStateResponse["board"], taskId: string): RuntimeBoardCard | null {
-	for (const column of board.columns) {
-		const card = column.cards.find((candidate) => candidate.id === taskId);
-		if (card) {
-			return card;
-		}
-	}
-	return null;
-}
-
-async function resolveGitCommit(cwd: string, ref: string): Promise<string | null> {
-	try {
-		const { stdout } = await execFileAsync("git", ["rev-parse", ref], {
-			cwd,
-			timeout: 5_000,
-			maxBuffer: 128 * 1024,
-		});
-		const commit = stdout.trim();
-		return commit || null;
-	} catch {
-		return null;
-	}
 }
 
 function findBoardCardById(cards: readonly RuntimeBoardCard[], taskId: string): RuntimeBoardCard | null {
@@ -1706,113 +1678,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			};
 		},
 		collectTaskEvidence: async (workspaceScope, input): Promise<RuntimeTaskEvidenceResponse> => {
-			if (!workspaceScope) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "A workspace is required to collect task evidence.",
-				});
-			}
-			const body = parseTaskEvidenceRequest(input);
-			const state = await loadWorkspaceState(workspaceScope.workspacePath);
-			const task = findTaskCard(state.board, body.taskId);
-			if (!task) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: `Task ${body.taskId} was not found in this workspace.`,
-				});
-			}
-			const taskResultCommit = await resolveTaskResultBranchCommit({
-				repoPath: workspaceScope.workspacePath,
-				taskId: task.id,
+			return await handleCollectTaskEvidence(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
+				getEvidenceBundleRoot: deps.getEvidenceBundleRoot,
 			});
-			// Evidence is gathered from the project repo: a completed task's delta is its result branch (used for
-			// changesResult below), and an in-progress task has no host-visible working tree — work runs in its
-			// sandbox (worktrees retired, §5.A; the old fallback here would *create* a host worktree on miss).
-			const taskCwd = workspaceScope.workspacePath;
-			const [nkleinTaskSessionService, runtimeConfig, baseCommit, changesResult] = await Promise.all([
-				deps.getScopedNKleinTaskSessionService(workspaceScope),
-				deps.loadScopedRuntimeConfig(workspaceScope),
-				resolveGitCommit(workspaceScope.workspacePath, task.baseRef),
-				taskResultCommit
-					? getWorkspaceChangesBetweenRefs({
-							cwd: workspaceScope.workspacePath,
-							fromRef: task.baseRef,
-							toRef: taskResultCommit,
-						}).catch(() => null)
-					: getWorkspaceChanges(taskCwd)
-							.then((changes) => changes)
-							.catch(() => null),
-			]);
-			const messages = nkleinTaskSessionService.listMessages(task.id);
-			const diffPatch = renderWorkspaceChangesEvidence(changesResult);
-			const title = task.title?.trim() || task.id;
-			const summaryText = [
-				`Task: ${title} (${task.id})`,
-				`Workspace: ${workspaceScope.workspacePath}`,
-				`Task workspace: ${taskCwd}`,
-				`Base ref: ${task.baseRef}`,
-				`Base commit: ${baseCommit ?? "unknown"}`,
-				"",
-				"Prompt:",
-				task.prompt,
-			].join("\n");
-			const bundle = await createEvidenceBundle({
-				rootDir: deps.getEvidenceBundleRoot?.(),
-				scenario: `task-${task.id}-${title}`,
-				outcome: task.autoReviewStatus === "failed" ? "failed" : "unknown",
-				summary: summaryText,
-				models: [
-					task.nkleinSettings?.providerId && task.nkleinSettings?.modelId
-						? `${task.nkleinSettings.providerId}/${task.nkleinSettings.modelId}`
-						: "default",
-				],
-				metrics: [
-					{ label: "changedFiles", value: changesResult?.files.length ?? 0 },
-					{ label: "transcriptMessages", value: messages.length },
-					{ label: "baseRef", value: task.baseRef },
-					{ label: "baseCommit", value: baseCommit },
-				],
-				transcripts: [
-					{
-						taskId: task.id,
-						title,
-						messages,
-					},
-				],
-				diffPatch,
-				configSnapshot: {
-					task,
-					runtimeConfig: {
-						codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,
-						codeEmbeddingOverride: runtimeConfig.codeEmbeddingOverride,
-						effectiveCodeEmbeddingSettings: runtimeConfig.effectiveCodeEmbeddingSettings,
-						maxConcurrentTasks: runtimeConfig.maxConcurrentTasks,
-						lostHeartbeatPolicy: runtimeConfig.lostHeartbeatPolicy,
-					},
-					workspacePath: workspaceScope.workspacePath,
-					taskCwd,
-					baseCommit,
-				},
-			});
-			return {
-				bundlePath: bundle.bundlePath,
-				summaryPath: bundle.summaryPath,
-				files: {
-					...bundle.files,
-					transcripts: [...bundle.files.transcripts],
-				},
-				summaryText,
-				diffPatchText: diffPatch,
-				promptBlock: buildTaskEvidencePromptBlock({
-					task,
-					workspacePath: workspaceScope.workspacePath,
-					taskCwd,
-					baseCommit,
-					bundlePath: bundle.bundlePath,
-					transcriptCount: messages.length > 0 ? 1 : 0,
-					changeCount: changesResult?.files.length ?? 0,
-				}),
-			};
 		},
 		getNKleinMcpAuthStatuses: async (_workspaceScope) => {
 			const statuses = await nkleinMcpRuntimeService.getAuthStatuses();

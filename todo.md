@@ -2345,10 +2345,14 @@ deep analysis:
             `addConfiguredLocalModelRegistryEntries` helper → `src/trpc/runtime-api/model-registry.ts`, taking a
             `{ loadScopedRuntimeConfig, nkleinProviderService }` deps slice (service type =
             `ReturnType<typeof createNKleinProviderService>`); `runtime-api.ts` 2296 → 2135; test 87/87. (tsc caught a
-            wrong parse-fns import source — they live in `core/api-validation`, not `api-contract` — fixed.) **Remaining
-            high-value targets: the big stateful handlers** (`startTaskSession` ~280, `sendTaskChatMessage` ~115,
-            `recordNKleinPlanGap` ~140, `expandNKleinPlanTask` ~80, `collectTaskEvidence` ~108) — each its own deps
-            slice + the runtime-api test as oracle. **architecture #13** CI
+            wrong parse-fns import source — they live in `core/api-validation`, not `api-contract` — fixed.) **slice 4
+            DONE (2026-06-26): `collectTaskEvidence` (~108 lines) → `src/trpc/runtime-api/task-evidence.ts`** with its 2
+            co-moved local helpers (`findTaskCard` + `resolveGitCommit`, each handler-only) and a
+            `{ getScopedNKleinTaskSessionService, loadScopedRuntimeConfig, getEvidenceBundleRoot }` deps slice; clean
+            first try (~14 imports pre-scoped). **runtime-api.ts 2410 → 2005 this turn (−405 over 4 slices); test 87/87.**
+            **Remaining high-value targets: the bigger stateful handlers** (`startTaskSession` ~280, `sendTaskChatMessage`
+            ~115, `recordNKleinPlanGap` ~140, `expandNKleinPlanTask` ~80) — each its own deps slice + the runtime-api
+            test as oracle; `startTaskSession` is the largest + most interwoven (most closure deps). **architecture #13** CI
             boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — three slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
             as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
