@@ -21,6 +21,15 @@ import {
 	runtimeTaskNKleinSettingsSchema,
 	runtimeTimeoutMsSchema,
 } from "./runtime-config-api-contract.js";
+import {
+	runtimeContextBudgetBreakdownSchema,
+	runtimeModelPerformanceRoleSchema,
+	runtimeTaskSessionModeSchema,
+	runtimeTaskSessionReviewReasonSchema,
+	runtimeTaskSessionStateSchema,
+	runtimeTaskSessionSummarySchema,
+	runtimeTaskSessionUsageSchema,
+} from "./task-session-api-contract.js";
 
 // Board contract domain (task images, generated-from-plan, card review, focus chains, cards/columns/deps/data) (§5.X #2).
 export * from "./board-api-contract.js";
@@ -31,6 +40,8 @@ export * from "./chat-api-contract.js";
 export * from "./git-sync-api-contract.js";
 // Runtime/agent configuration primitives (core enums, NKlein/swarm settings, model-roles, agent rulesets) (§5.X #2).
 export * from "./runtime-config-api-contract.js";
+// Task-session contract domain (state/mode/usage/context-budget/model-perf-role/summary, hook activity) (§5.X #2).
+export * from "./task-session-api-contract.js";
 // Workspace file-operation contracts (status / change / changes / fuzzy search) live in their own module (§5.X #2).
 export * from "./workspace-files-api-contract.js";
 
@@ -55,108 +66,6 @@ export {
 	AGENT_RULESET_ROLES,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 } from "./agent-rulesets.js";
-
-export const runtimeTaskSessionStateSchema = z.enum([
-	"idle",
-	"queued",
-	"running",
-	"paused",
-	"awaiting_review",
-	"failed",
-	"interrupted",
-]);
-export type RuntimeTaskSessionState = z.infer<typeof runtimeTaskSessionStateSchema>;
-
-export const runtimeTaskSessionModeSchema = z.enum(["act", "plan"]);
-export type RuntimeTaskSessionMode = z.infer<typeof runtimeTaskSessionModeSchema>;
-
-export const runtimeTaskSessionReviewReasonSchema = z
-	.enum(["attention", "exit", "error", "interrupted", "hook"])
-	.nullable();
-export type RuntimeTaskSessionReviewReason = z.infer<typeof runtimeTaskSessionReviewReasonSchema>;
-
-export const runtimeTaskHookActivitySchema = z.object({
-	activityText: z.string().nullable().default(null),
-	toolName: z.string().nullable().default(null),
-	toolInputSummary: z.string().nullable().default(null),
-	// Lossless full-input fingerprint for the repeated-identical-tool-call guard (todo §5.O hardening) —
-	// distinct from the lossy human-facing `toolInputSummary`. Optional: only the two `tool_call` activity
-	// sites set it; absent/undefined everywhere else (and the guard falls back to the summary for back-compat).
-	toolInputFingerprint: z.string().nullable().optional(),
-	finalMessage: z.string().nullable().default(null),
-	hookEventName: z.string().nullable().default(null),
-	notificationType: z.string().nullable().default(null),
-	source: z.string().nullable().default(null),
-});
-export type RuntimeTaskHookActivity = z.infer<typeof runtimeTaskHookActivitySchema>;
-
-export const runtimeTaskTurnCheckpointSchema = z.object({
-	turn: z.number().int().positive(),
-	ref: z.string(),
-	commit: z.string(),
-	createdAt: z.number(),
-});
-export type RuntimeTaskTurnCheckpoint = z.infer<typeof runtimeTaskTurnCheckpointSchema>;
-
-export const runtimeTaskSessionUsageSchema = z.object({
-	inputTokens: z.number().int().nonnegative(),
-	outputTokens: z.number().int().nonnegative(),
-	cacheReadTokens: z.number().int().nonnegative().optional(),
-	cacheWriteTokens: z.number().int().nonnegative().optional(),
-});
-export type RuntimeTaskSessionUsage = z.infer<typeof runtimeTaskSessionUsageSchema>;
-
-export const runtimeContextBudgetBreakdownSchema = z.object({
-	systemPromptTokens: z.number().int().nonnegative(),
-	toolSchemaTokens: z.number().int().nonnegative(),
-	taskPromptTokens: z.number().int().nonnegative(),
-	userMessageTokens: z.number().int().nonnegative(),
-	includedFileContentTokens: z.number().int().nonnegative(),
-	otherHistoryTokens: z.number().int().nonnegative(),
-	reservedPromptOverheadTokens: z.number().int().nonnegative(),
-	reservedOutputTokens: z.number().int().nonnegative(),
-	usedWorkingTokens: z.number().int().nonnegative(),
-	freeWorkingTokens: z.number().int().nonnegative(),
-	effectiveContextWindow: z.number().int().positive(),
-	projectedTokens: z.number().int().nonnegative(),
-});
-export type RuntimeContextBudgetBreakdown = z.infer<typeof runtimeContextBudgetBreakdownSchema>;
-
-export const runtimeModelPerformanceRoleSchema = z.enum(["architect", "worker", "reviewer", "unknown"]);
-export type RuntimeModelPerformanceRole = z.infer<typeof runtimeModelPerformanceRoleSchema>;
-
-export const runtimeTaskSessionSummarySchema = z.object({
-	taskId: z.string(),
-	state: runtimeTaskSessionStateSchema,
-	mode: runtimeTaskSessionModeSchema.nullable().optional(),
-	// Resolved launch role (todo §5.G/§5.U): reviewer for a `<taskId>::review` session, architect for an
-	// explicit decomposition, worker otherwise. Stamped at start so the cockpit/telemetry don't re-infer it.
-	role: runtimeModelPerformanceRoleSchema.nullable().optional(),
-	agentId: runtimeAgentIdSchema.nullable(),
-	workspacePath: z.string().nullable(),
-	pid: z.number().nullable(),
-	startedAt: z.number().nullable(),
-	updatedAt: z.number(),
-	lastOutputAt: z.number().nullable(),
-	paused: z.boolean().optional(),
-	lastTokenAt: z.number().nullable().optional(),
-	lastHeartbeatAt: z.number().nullable().optional(),
-	heartbeatStatus: z.enum(["healthy", "stale", "lost"]).nullable().optional(),
-	providerId: z.string().nullable().optional(),
-	modelId: z.string().nullable().optional(),
-	endpoint: z.string().nullable().optional(),
-	sharedEndpointId: z.string().nullable().optional(),
-	reviewReason: runtimeTaskSessionReviewReasonSchema,
-	exitCode: z.number().nullable(),
-	lastHookAt: z.number().nullable().default(null),
-	latestHookActivity: runtimeTaskHookActivitySchema.nullable().default(null),
-	warningMessage: z.string().nullable().optional(),
-	latestUsage: runtimeTaskSessionUsageSchema.nullable().optional(),
-	contextBudgetBreakdown: runtimeContextBudgetBreakdownSchema.nullable().optional(),
-	latestTurnCheckpoint: runtimeTaskTurnCheckpointSchema.nullable().optional(),
-	previousTurnCheckpoint: runtimeTaskTurnCheckpointSchema.nullable().optional(),
-});
-export type RuntimeTaskSessionSummary = z.infer<typeof runtimeTaskSessionSummarySchema>;
 
 export const runtimeModelPerformanceOutcomeSchema = z.enum([
 	"completed",

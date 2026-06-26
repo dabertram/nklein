@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (4 domains, barrel 2614 → ~2170):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (5 domains, barrel 2614 → ~2070):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2361,13 +2361,16 @@ deep analysis:
             (3) `board-api-contract.ts` (task images, generated-from-plan, card review verdict/round/summary, focus
             chains, board card/column/dependency/data — imports its config primitives from module (2)); (4)
             `git-sync-api-contract.ts` (repo info, fetch/pull/push sync + summary/response, checkout, discard — a leaf;
-            barrel keeps a local import of the 2 it reuses). Modules (2)/(3)
+            barrel keeps a local import of the 2 it reuses); (5) `task-session-api-contract.ts` (session
+            state/mode/review-reason, hook activity, turn checkpoints, usage + context-budget, the model-perf-role enum,
+            and the per-card session summary — depends only on `runtimeAgentIdSchema` from (2)). Modules (2)/(3)/(5)
             are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
-            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`). **Next leaves**
-            (verify outbound refs first): extracting `runtimeTaskWorkspaceInfoRequestSchema` (the shared task-scope)
-            unblocks the git-history + terminal-ws tail domains (both ref it); then the task-session
-            (state/usage/budget/summary) + stats (model-perf, knowledge-tool usage) clusters look like clean tail leaves.
+            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`). **Next**
+            (now unblocked by (5)): model-performance + knowledge-tool-usage stats, workspace-state, and the
+            state-stream messages all reference the task-session summary / model-perf-role now in module (5), so they
+            import from it and extract cleanly; separately, extracting `runtimeTaskWorkspaceInfoRequestSchema` (the
+            shared task-scope) unblocks the git-history + terminal-ws tail domains (both ref it).
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
       TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
       moot) are kept below for history: Open questions to settle with the user before
