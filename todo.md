@@ -2139,7 +2139,8 @@ deep analysis:
             remaining ~3449 lines are the interwoven orchestration core (session lifecycle, turn execution, tool dispatch,
             event adaptation, message/summary recording) — not cleanly-separable guard seams.
       - **Audit input (2026-06-26): whole-repo anti-pattern findings captured at `.plan/docs/anti-patterns.md`** (the
-            §5.U analysis arm — 7 findings + a cross-cutting cleanup order). Next clean Phase-1 targets it hands us:
+            §5.U analysis arm — 7 findings + a cross-cutting cleanup order). **✅ DONE: #6 (constants DRY'd, `dbedf448`)
+            + #4 (inline type imports removed, `9492905b`).** Remaining clean Phase-1 targets it hands us:
             **#6** DRY the duplicated `*_MIN_CONTEXT_WINDOW_TOKENS = 32_000` (3 copies) + `80_000` fallback (4 copies)
             through the shared contract constant; **#4** replace inline/dynamic `import("…").Type` type annotations that
             violate the repo's no-inline-imports rule (runtime-api.ts:774/789, runtime-server.ts:904, terminal-state-
@@ -2168,6 +2169,61 @@ deep analysis:
 - [ ] **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition oracle), §5.H (native-core /
       core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side cleanup that also de-risks a port
       by shrinking the `@nkleinbot/*` coupling first).
+
+### 5.Y — Security hardening backlog *(raised 2026-06-26 from a static security review → `.plan/docs/security-issues.md`)*
+> A whole-repo static security review (runtime auth, tRPC procedures, chat tools, filesystem boundaries, sandbox
+> integration, Electron shell, frontend) surfaced 12 findings (1 Critical, 3 High, 6 Medium, 2 Low). It aligns directly
+> with the North Star (**strict Docker isolation; host access only with explicit opt-in**) — several findings are where
+> the *actual* boundary is weaker than that design intends. **Split by whether a fix is posture-neutral hardening (do
+> autonomously) or touches a deliberate §5.M/host-opt-in design choice (needs a user posture call — flagged ⚠️).** Full
+> evidence + file:line + remediation per finding in the audit doc.
+- [ ] **CRITICAL #1 ⚠️ — chat "safe" classifier auto-runs code-executing/file-writing commands.** The allowlist marks
+      `node -e`/`node --print` (arbitrary JS), `npm run <script>`/`npm test`, `npx biome format`, and `sed`/`awk`/`xargs`/
+      `tee` as **safe → auto-approved with no per-command confirmation** (`chat-command-safety.ts` + `runtime-api.ts`
+      confirm callback), so a prompt-injected turn can run host commands. **Clear-cut part (do now):** drop the
+      arbitrary-code/write vectors (`node -e`/`--print`, write-mode `sed -i`, `xargs`, `tee`) from the safe set + add the
+      false-safe regression tests the audit lists. **⚠️ Posture part (user):** should `npm run`/`npm test` stay
+      auto-safe (your G3b "build/test/inspect = safe" intent) or require confirmation (they can run arbitrary
+      project/script code)? Also consider argv-based exec instead of `shell:true`.
+- [ ] **HIGH #2 ⚠️ — `runtime.runCommand` is raw browser→host shell.** The endpoint accepts any command string and
+      spawns it with `shell:true` + `env:process.env` (`cli.ts`); the only real UI use is "open workspace in editor"
+      (a constrained client-built command). Fix: replace with typed intents (`openWorkspace({targetId})`) built from an
+      allowlist server-side; lock the raw endpoint behind a dev-only/local-only guard. (Posture: confirm the editor-open
+      UX still works.)
+- [ ] **HIGH #3 — chat workspace file tools escape via symlinks.** `resolveWithinWorkspace` is lexical-only, then reads/
+      lists/writes follow symlinks → a `repo/link -> ~/.ssh` lets `read_file`/`list_dir` escape even in read-only scopes.
+      Posture-neutral fix: `realpath` both root + target before every op, reject symlink components. **← clearest first
+      hardening (no UX/posture tradeoff).**
+- [ ] **HIGH #4 — NKlein file tools rely on caller sandboxing, don't enforce containment.** `write_file`/`edit_file`/
+      `read_large_file` accept absolute paths; protection is only the Docker proxy when present (home sessions are
+      host-cwd). Enforce workspace containment inside each tool + the approval policy; reject host-absolute/`..`/symlink
+      paths unless an explicit audited host session. (Ties to the "agents never see host" invariant.)
+- [ ] **MED #5 — chat `browse_url` SSRF.** Only checks http/https → can fetch `127.0.0.1`/RFC1918/link-local/cloud-
+      metadata. Block private/loopback/link-local/metadata ranges; re-check after redirects; disable in remote mode w/o
+      opt-in.
+- [ ] **MED #6 — internal bearer token propagated via `process.env` to all child processes** (terminals, sidecar,
+      sandbox, user commands inherit `NKLEIN_INTERNAL_AUTH_TOKEN`). Scrub it from spawned terminals/sidecars/sandbox/user
+      commands; pass only to the specific trusted subprocesses that need runtime-API access.
+- [ ] **MED #7 ⚠️ — remote mode can run plaintext HTTP + `--no-passcode`.** Require HTTPS for non-loopback binds by
+      default; gate insecure HTTP behind an explicit `--insecure-remote-http`; rename `--no-passcode` for remote to
+      something like `--dangerously-disable-remote-auth`. (Posture: do you use remote mode? sets priority for #7–#9.)
+- [ ] **MED #8 ⚠️ — folder picker / addProject expose broad host FS to remote users** (`filesystemRoot = "/"`, absolute
+      paths, arbitrary git-init). In remote mode, restrict browsing/creation to configured roots; return paths relative
+      to the allowed root.
+- [ ] **MED #9 — `runtime.openFile` opens arbitrary host paths/URLs** via the `open` package, no validation. Replace
+      with typed intents for known artifacts (data dir, evidence bundle, plan artifact) validated against a known root;
+      disable in remote/headless unless allowed.
+- [ ] **MED #10 — desktop shell trusts a spoofable `<title>!Klein</title>` health check** to attach its preload bridge.
+      Use an authenticated/nonce health check; don't expose the bridge to an unproven runtime.
+- [ ] **LOW #11 — host-action audit log records only `tool.name`, not the command/URL/cwd** (schema wants a real
+      summary). Record redacted command/URL/path/cwd + safety class + confirmation source.
+- [ ] **LOW #12 — runtime app served with no CSP / hardening headers.** Add a CSP tuned for the bundled FE + local API/
+      WS, plus `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `frame-ancestors 'none'`; test the
+      headers. (`dangerouslySetInnerHTML` is currently only Prism output, which escaped raw `<` in testing — defense in
+      depth, not an active XSS.)
+> **Suggested order (audit's + North-Star lens):** clear-cut hardening first (#3 symlink, #4 containment, #6 token
+> scrub, #1 clear-cut part, #5 SSRF, #11 audit detail, #12 CSP) → then the ⚠️ posture calls with the user (#1 npm-run,
+> #2 runtime.runCommand, #7/#8 remote-mode). Each fix gets a regression test (the audit specifies them).
 
 ### 5.J — LATER (deferred by decision)
 - **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
