@@ -2182,10 +2182,12 @@ deep analysis:
       NKlein SDK boundary (ties §5.R); (11) settings draft-model + section registry (**pairs with §5.W settings
       regrouping**); (12) shared test-harness package; (13) align CI with the boundaries. **Migration order:** fix CI
       boundary drift → contract domains → shared board domain → modularize tRPC → execution-backend ports → web-ui
-      feature slices → persistence → streaming projection. **⚡ Immediate clear-cut (do now):** CI (`.github/workflows/
-      test.yml`) calls a *missing* `check:cline-boundary` script (the real one is `check:nklein-boundary`), and
-      `.github/scripts/check-nklein-boundary.mjs` still checks stale `@clinebot`/`src/cline-sdk` — a concrete CI bug +
-      leftover Cline naming (ties the naming cleanup). **Guardrails (what-NOT-to-do):** don't split by line-count, no
+      feature slices → persistence → streaming projection. **✅ Immediate clear-cut (DONE 2026-06-26):** fixed the CI
+      script-name mismatch (`check:cline-boundary` → `check:nklein-boundary` in `test.yml`), the boundary script's stale
+      `src/cline-sdk` message → `src/nklein-sdk` (+ clarifying comment that the SDK is vendored at `vendor/nklein-sdk` and
+      the import rule is biome-enforced; the legacy `@clinebot` node_modules guard stays — that's the real upstream
+      package), and the issue-template links (Feature Requests `cline/kanban` → `nklein/kanban`; dropped the Cline
+      Discord). The deeper boundary-policy redesign (rec #10) stays backlogged. **Guardrails (what-NOT-to-do):** don't split by line-count, no
       thin pass-through wrappers, don't move web-ui to a package boundary before contracts are stable, keep the contracts
       package dependency-free.
 

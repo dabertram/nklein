@@ -55,8 +55,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Cline SDK boundary
-        run: npm run check:cline-boundary
+      - name: NKlein SDK boundary
+        run: npm run check:nklein-boundary
 
       - name: Typecheck
         run: npm run typecheck
