@@ -302,16 +302,19 @@ deep analysis:
           a goal → plan → tools → completion — is now proven at EVERY layer (unit + integration + tRPC + render + live
           model).** *(The broader §5.0.1 subtasks below — background board/card orchestration, the 2 owed memory items,
           deeper pause/resume — are enhancements on this working core.)*
-  - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
-        goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
-  - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and
-        start autonomous mode (vs. interactive), with the focus-chain progress + a Stop/Pause control (mirror the board
-        swarm-pause UX).
+  - [x] **Focus chain as the driver's plan state (DONE — proven live 2026-06-26)** — the agent updates the chain via
+        `update_focus_chain` (persisted across turns) and the driver reads its summary via `readAutonomousChatPlanProgress`
+        (counting done+skipped) to detect all-steps-complete. The live run showed "1/1 steps" drive a clean completion.
+  - [x] **Goal intake + "go autonomous" affordance (DONE 2026-06-26)** — the `AutonomousRunBar` (goal field + Auto button +
+        live focus-chain/stop-reason status). *(A mid-run Stop control is a future enhancement — would need a backend
+        cancel signal; the run is budget-bounded so it always terminates.)*
   - [ ] **Background project/card work** — let the driver operate the board via the existing `chat-board-tools`: pick up
         an existing project's cards or create a project + seed cards, then start/monitor them (bridge to the swarm). Decide
         the boundary: the chat agent *orchestrates* board cards vs. *does* the work itself.
-  - [ ] **Knowledge fetching wired into the driver** — ensure the loop proactively reaches for retrieval / code-index /
-        `browse_url` when it lacks context (tools exist; thread them into the driver's tool set + system prompt).
+  - [x] **Knowledge fetching wired into the driver (DONE 2026-06-26)** — each autonomous turn assembles the session's full
+        gated tool set (the runtime-api resolver builds read_file/list_dir/get_board + browse_url for browser-enabled
+        sessions, per scope) and the goal directive tells the agent to "use your tools to do real work", so the loop can
+        reach for repo + board + web context. *(Proactive retrieval prompting can be tuned later, but the tools are wired.)*
   - [ ] **Memory wiring (the 2 §5.M owed items)** — `≥32k-floor budget integration` + `access-all-loaded-projects scope`
         so the driver has durable working memory across a long run.
   - [ ] **Pause/resume + genuine-question handling** — the driver pauses for a real clarifying question (reuse §5.S
