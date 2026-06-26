@@ -288,9 +288,14 @@ deep analysis:
           "Auto" button (disabled while running / no session) + a compact live status line (working · N/M steps, or the
           final stop reason · turns). Render-verified: web:typecheck + web:build green (no chat component test exists to
           extend). *(No Stop control yet — the run is budget-bounded; mid-run cancel would need a backend signal.)*
-    - [ ] **live-verify** — a real small-model autonomous run end-to-end (boot the app + LM Studio, start a run from the
-          sidebar, watch the focus chain + tool work + stop reason); plus a quick browser render-check of the new
-          AutonomousRunBar. Needs the live browser + a loaded model — a focused verification pass.
+    - [x] **browser render-check (DONE 2026-06-26)** — booted `dev:full`, opened the chat sidebar + created a session,
+          confirmed the `AutonomousRunBar` renders (goal field + Auto button), the Auto button disables on an empty goal +
+          enables once a goal is typed, **zero console/page errors**. Reusable smoke at
+          [scripts/verify-chat-autonomous-ui.mts](scripts/verify-chat-autonomous-ui.mts); screenshot confirmed the bar sits
+          cleanly above the composer.
+    - [ ] **live-model run** — the final end-to-end verification: a real small-model autonomous run (LM Studio loaded),
+          started from the sidebar, watching the focus chain + tool work + the stop reason land. Needs a loaded local
+          model — a focused pass (the whole stack above is unit-tested + render-verified, so this confirms the live loop).
   - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
         goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
   - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and
