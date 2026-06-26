@@ -236,11 +236,15 @@ deep analysis:
       the focus chain ([chat-focus-chain.ts](src/chat/chat-focus-chain.ts)), and memory (short/long/consolidation) are
       built. What's missing is the **autonomous *driver* on top** — a goal-driven loop that self-paces across many turns
       without per-message input. Subtasks:
-  - [ ] **Driver loop `runAutonomousChatAgent`** (new `src/chat/chat-autonomous-loop.ts`) — pure, injected orchestration
-        (mirror `runChatAgentLoop`/the §5.B guardrail collaborators): given a **goal**, loop {read/refine focus chain →
-        run an agent turn toward the next pending step → update step status → check goal-done / budget / needs-user} until
-        done or paused. Bounded by a turn + wall-time budget (reuse `RUNTIME_SWARM_GUARDRAIL_BOUNDS`). Unit-tested with
-        fakes (completes-all-steps, budget-exhausts→pause, needs-user→pause, no-progress guard).
+  - [x] **Driver loop `runAutonomousChatAgent` (DONE 2026-06-26)** — `src/chat/chat-autonomous-loop.ts`: pure, injected
+        orchestration (mirrors `runChatAgentLoop` + the §5.B guardrail collaborators). Given a **goal**, runs turn after
+        turn {wall-time guard → `runTurn` toward the next step → on goal_complete/needs_user stop → else update the
+        no-progress streak + read focus-chain progress → stop if the plan is all-done} bounded by a turn + wall-time
+        budget + a repeated-no-tool-progress park. **6 stop reasons** map to the swarm-guardrail semantics: `completed`,
+        `paused_needs_user`, `budget_turns_exhausted`, `budget_wall_time_exhausted`, `stalled_no_progress`. `runTurn` +
+        `readPlanProgress` + the clock are injected → **7 unit tests** (each stop reason + streak-reset), tsc + biome green.
+        Live wiring (`runTurn` ← `runChatAgentLoop` with goal+plan+tools, `readPlanProgress` ← focus-chain summary) is the
+        next subtask.
   - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
         goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
   - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and
