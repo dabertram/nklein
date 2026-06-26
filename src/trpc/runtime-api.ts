@@ -5,7 +5,7 @@
 
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { rm, stat } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -101,7 +101,6 @@ import { resolveTaskTitle } from "../core/task-title.js";
 import { buildNKleinAdvisorRequest } from "../nklein-sdk/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-sdk/nklein-agent-sandbox";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../nklein-sdk/nklein-code-embeddings";
-import { getNKleinCodeIndexStatus } from "../nklein-sdk/nklein-code-index";
 import {
 	assertNKleinContextWindowPolicy,
 	isNKleinContextWindowPolicyError,
@@ -111,11 +110,6 @@ import {
 	applyNKleinPlanTaskReplacementArtifacts,
 } from "../nklein-sdk/nklein-decomposition-tool";
 import { writeNKleinDogfoodBacklog } from "../nklein-sdk/nklein-dogfood-engine";
-import {
-	DEFAULT_EMBEDDING_MODEL_MANIFEST,
-	getEmbeddingModelPath,
-	isEmbeddingModelInstalled,
-} from "../nklein-sdk/nklein-embedding-model-manager";
 import { scheduleNKleinEndpointStart } from "../nklein-sdk/nklein-endpoint-scheduler";
 import { runNKleinDevSmokeEval } from "../nklein-sdk/nklein-eval-harness";
 import { LocalLlmClient } from "../nklein-sdk/nklein-local-llm-client";
@@ -144,7 +138,6 @@ import {
 	updateNKleinPlanArtifactApplicationStatus,
 } from "../nklein-sdk/nklein-plan-artifacts";
 import { createNKleinProviderService, type ResolvedNKleinLaunchConfig } from "../nklein-sdk/nklein-provider-service";
-import { buildNKleinRepoMap } from "../nklein-sdk/nklein-repo-map";
 import { setNKleinLostHeartbeatPolicy } from "../nklein-sdk/nklein-session-state";
 import { isNKleinClearSlashCommand } from "../nklein-sdk/nklein-slash-commands";
 import { routeNKleinTask } from "../nklein-sdk/nklein-task-router";
@@ -174,6 +167,7 @@ import {
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
+import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
 import {
@@ -1755,117 +1749,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return { model };
 		},
 		getNKleinCodeIntelligenceStatus: async (workspaceScope) => {
-			if (!workspaceScope) {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "A workspace is required to inspect code intelligence status.",
-				});
-			}
-			const runtimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
-			const embeddingProvider = createNKleinCodeEmbeddingProviderFromSettings(
-				runtimeConfig.effectiveCodeEmbeddingSettings,
-			);
-			const [repoMapResult, codeIndexResult] = await Promise.allSettled([
-				buildNKleinRepoMap({ workspacePath: workspaceScope.workspacePath }),
-				getNKleinCodeIndexStatus({
-					workspacePath: workspaceScope.workspacePath,
-					embeddingProvider,
-				}),
-			]);
-			const repoMap =
-				repoMapResult.status === "fulfilled"
-					? {
-							filesScanned: repoMapResult.value.filesScanned,
-							symbols: repoMapResult.value.symbols.length,
-							tokenCount: repoMapResult.value.tokenCount,
-							truncated: repoMapResult.value.truncated,
-							available: repoMapResult.value.symbols.length > 0,
-							error: null,
-						}
-					: {
-							filesScanned: 0,
-							symbols: 0,
-							tokenCount: 0,
-							truncated: false,
-							available: false,
-							error:
-								repoMapResult.reason instanceof Error
-									? repoMapResult.reason.message
-									: String(repoMapResult.reason),
-						};
-			const codeIndex =
-				codeIndexResult.status === "fulfilled"
-					? {
-							...codeIndexResult.value,
-							error: null,
-						}
-					: {
-							cachePath: null,
-							cacheExists: false,
-							embeddingProvider: null,
-							embeddingModel: null,
-							updatedAt: null,
-							totalFiles: 0,
-							totalChunks: 0,
-							indexedFiles: 0,
-							indexedChunks: 0,
-							staleFiles: 0,
-							missingFiles: 0,
-							searchAvailable: false,
-							progress: {
-								phase: "error" as const,
-								startedAt: null,
-								updatedAt: Date.now(),
-								filesTotal: 0,
-								filesProcessed: 0,
-								chunksTotal: 0,
-								chunksProcessed: 0,
-								cacheHitCount: 0,
-								cacheMissCount: 0,
-								message:
-									codeIndexResult.reason instanceof Error
-										? codeIndexResult.reason.message
-										: String(codeIndexResult.reason),
-							},
-							error:
-								codeIndexResult.reason instanceof Error
-									? codeIndexResult.reason.message
-									: String(codeIndexResult.reason),
-						};
-			let embeddingModelFile: {
-				modelId: string;
-				label: string;
-				installed: boolean;
-				sizeBytes: number | null;
-				coreEnabled: boolean;
-			} | null = null;
-			if (runtimeConfig.effectiveCodeEmbeddingSettings.provider === "local_gguf") {
-				const manifest = DEFAULT_EMBEDDING_MODEL_MANIFEST;
-				const installed = await isEmbeddingModelInstalled(manifest);
-				const sizeBytes = installed
-					? await stat(getEmbeddingModelPath(manifest))
-							.then((info) => info.size)
-							.catch(() => null)
-					: null;
-				embeddingModelFile = {
-					modelId: manifest.id,
-					label: manifest.label,
-					installed,
-					sizeBytes,
-					coreEnabled: resolveKleinCorePyConfig().enabled,
-				};
-			}
-			return {
-				codeEmbeddingSettings: {
-					globalDefaults: runtimeConfig.codeEmbeddingDefaults,
-					projectOverride: runtimeConfig.codeEmbeddingOverride,
-					effective: runtimeConfig.effectiveCodeEmbeddingSettings,
-					source: runtimeConfig.codeEmbeddingOverride ? ("project" as const) : ("global" as const),
-				},
-				embeddingModelFile,
-				repoMap,
-				codeIndex,
-			};
+			return await handleGetNKleinCodeIntelligenceStatus(workspaceScope, {
+				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
+			});
 		},
 		getKleinCorePyHealth: async () => {
 			const config = resolveKleinCorePyConfig();

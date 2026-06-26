@@ -2332,8 +2332,14 @@ deep analysis:
             `chat-memory-store`, `chat-host-action-audit-store`, `chat-transcript-store`, `chat-session-store`,
             `merge-history-store`, `task-run-summary-store`; schema-invalid records now skip+log instead of silently
             trusted; 7 new tests; 1806 tests green; `82e1c25f`); **architecture #3** (tRPC router
-            composition) first slice DONE (update-status + runtime-stats procedures extracted to
-            `src/trpc/runtime-api/update-status.ts`, `178963d4`, contract suite green); **architecture #13** CI
+            composition) — slice 1 DONE (update-status + runtime-stats → `src/trpc/runtime-api/update-status.ts`,
+            `178963d4`); **slice 2 DONE (2026-06-26): `getNKleinCodeIntelligenceStatus` (~112 lines, read-only)
+            extracted to `src/trpc/runtime-api/code-intelligence-status.ts`** as a pure `handle…(workspaceScope, deps)`
+            taking a one-method deps slice (`loadScopedRuntimeConfig`) — the factory handler is now a thin call;
+            `runtime-api.ts` 2410 → 2296; runtime-api test 87/87 green. **Pattern for the runtime-api factory split
+            (don't re-derive):** the bulk is the BIG stateful handlers (startTaskSession ~280, sendTaskChatMessage ~115,
+            recordNKleinPlanGap ~140) which need a per-handler deps slice + the runtime-api test as the oracle; the thin
+            1-line provider/account delegations are NOT worth extracting (thin-shell anti-pattern). **architecture #13** CI
             boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — three slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
             as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
