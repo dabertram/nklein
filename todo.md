@@ -1735,9 +1735,15 @@ deep analysis:
       `useState` (the unified dirty/save path needs it). The 4 field-id consts + `LOCAL_SWARM_GUARDRAIL_ROWS` moved into the
       panel; the dialog's now-unused imports were biome-pruned. **dialog 4304 → 4086 (−218).** Verified: web:typecheck +
       36-test dialog oracle (its "surfaces local swarm guardrail limits" case renders the panel through the dialog and
-      asserts the input ids + seeded values) + web:build. Next clean pure-helper groups: model-role normalize/serialize
-      (needs `MODEL_ROLE_IDS` — heavily shared, 7 refs — so co-move the const + `ModelRoleId` type), command-display +
-      timeout-profile helpers; next sections: model-roles block, sandbox-pool fields, timeouts.
+      asserts the input ids + seeded values) + web:build.
+      **(5) the model-roles block → `model-roles-editor.tsx` (the `ModelRolesEditor` component, ~326 lines, was inline) +
+      shared `runtime-settings-model-roles.ts` (the role consts/labels + normalize/serialize, used by BOTH the editor and
+      the dialog's dirty/save path).** The 7 shared symbols (`MODEL_ROLE_IDS`/`ModelRoleId`/`MODEL_ROLE_LABELS` +
+      `normalizeModelRolesForSettings`/`serializeModelRoles`; the two inner normalizers stay module-private) moved to the
+      shared module; `REASONING_EFFORT_OPTIONS` (editor-only) moved into the editor; the editor's `React.X` type refs were
+      made explicit (`Dispatch`/`SetStateAction`/`ReactElement` imports). **dialog 4086 → 3709 (−377).** Verified:
+      web:typecheck + 36-test oracle + web:build. Next clean pure-helper groups: command-display + timeout-profile helpers;
+      next sections: sandbox-pool fields, timeouts.
 - [ ] **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
       large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
       (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable
