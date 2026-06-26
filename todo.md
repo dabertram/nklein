@@ -1889,8 +1889,15 @@ deep analysis:
         graph already used + the boundary schema's stated intent ("an omitted `title`"). Unit + tool-level regression tests
         added; 75 decomposition tests green. **Proven live (2026-06-26):** re-ran the harness post-fix — qwen3-8b now
         COMPLETES `decompose_project` (habit-tracker-core, 3 tasks: repo_map → read_files → **`Completed decompose_project`**,
-        no missing-title failure). A small local model grinds a project to a valid task graph. **Still owed (broader §5.V):**
-        a full-runtime decompose→deliver e2e that asserts the persisted task graph + the downstream run/review/merge.
+        no missing-title failure). A small local model grinds a project to a valid task graph.
+      - ✅ **NORTH-STAR — card completion: PROVEN (2026-06-26).** New `scripts/verify-task-completion.mts` runs a single
+        implementation card to a terminal state. qwen3-8b ran "create hello.txt …" to completion: created the file,
+        **"Result patch captured: nklein/tasks/verify-completion-1-…"** + a commit hash, and the session reached
+        **`awaiting_review`** — a small model did real implementation work that the result-branch capture delivered.
+        (Bug found + fixed while building the harness: it first checked for a `"review"`/`"completed"` state that doesn't
+        exist — the session's done-state is **`awaiting_review`**; the harness now checks the right name + carries an
+        `unhandledRejection` guard so a stray `session_stop` can't crash it.) **Still owed:** the final review→merge→deliver
+        stages end-to-end + a multi-card decomposed run (parallel lanes); then fold these harnesses into the §5.V e2e set.
       - ⚠️ **Robustness:** the 360s decompose run crashed with an uncaught `[Error: session_stop]` promise rejection.
         `session_stop` is a vendored-SDK signal (`vendor/nklein-sdk/core`); the kanban runtime has NO global
         `unhandledRejection`/`uncaughtException` handler in `src/`/`packages/` (only the vendored hub-daemon has its own).
