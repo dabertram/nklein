@@ -2360,8 +2360,12 @@ deep analysis:
             (the trivial local `reconcileRunningTaskBoardLane` adapter inlined to its `reconcileStartedTaskBoardLane`
             core call rather than co-moved, since it's shared by 3 handlers). **runtime-api.ts 2410 → 1665 this turn
             (−745, −31%, over 7 slices; 12 helper modules); test 87/87 each.** **Only remaining big target:
-            `startTaskSession` (~280) — the session-start orchestrator, the largest + most interwoven (biggest deps
-            slice + services), best done as its own focused pass with the runtime-api test as oracle.** **architecture #13** CI
+            `startTaskSession` (~283 lines, factory L741) — the session-start orchestrator, the largest + most
+            interwoven. Pre-scoped deps slice (~9): `{ taskStartQueue, refreshAgentSandboxStatus, getAgentSandboxStatus,
+            loadScopedRuntimeConfig, getScopedNKleinTaskSessionService, getLoadedScopedNKleinTaskSessionService,
+            broadcastTaskChatCleared, … }` + the factory-local `nkleinProviderService`. Highest-risk extraction (9-method
+            slice + 283 lines) — do as its OWN focused pass with the runtime-api test (87/87) as the oracle; don't rush
+            it at the tail of a long session. **architecture #13** CI
             boundary-drift fixed (`fe4e0343`); **anti-patterns #3 (lint ratchet) — three slices DONE:** (a) re-enabled
             `noExplicitAny` globally (was `off` at `biome.json:16`, directly contradicting the repo's #1 TS principle)
             as a hard `error` gate — the only 3 violations were a deeply-navigated JSON-Schema probe in one fuzz test,
