@@ -2511,11 +2511,14 @@ deep analysis:
       §6.5) reads to allow N concurrent sessions on a shared endpoint; `maxConcurrentTasks` (board cap) already has the
       global+project-override pattern (§5.W Phase 1). **What's NEW:** a per-PROVIDER cap, and expressing both as
       global-default + project-override **config** (not just a registry constraint). Build:
-  - [ ] **config shape** — add `providerConcurrency: Record<providerId, number>` + `modelConcurrency: Record<canonicalModelId, number>`
-        to the global runtime config, each with a `…Override` per-project field (mirror the `codeEmbeddingOverride` /
-        `maxConcurrentTasksOverride` template + the change-detection-registry drift guard, §5.U). `effectiveProviderConcurrency`
-        / `effectiveModelConcurrency` = override ?? global (per key), with the existing per-model registry
-        `maxConcurrentRequests` as the lowest-precedence fallback so today's setting still applies.
+  - [~] **config shape — RESOLUTION CORE DONE (2026-06-26):** [src/core/concurrency-config.ts](src/core/concurrency-config.ts)
+        — `ConcurrencyConfig` (`perProvider`/`perModel` maps) + `ConcurrencyOverride`, the `normalize*` writers
+        (clamp [1,256], drop blanks, null-when-empty override like the other §5.W overrides), and the precedence
+        resolvers: `resolveEffectiveProviderConcurrency` / `resolveEffectiveModelConcurrency` (override ?? global ??
+        the per-model registry `maxConcurrentRequests` fallback) + `resolveSessionConcurrencyCaps` (both grains as
+        independent gates). Pure, 14 unit tests, tsc + biome green. **Still owed:** thread the two maps + their
+        `…Override` per-project fields through `runtime-config.ts` (mirror the `codeEmbeddingOverride` template + the
+        change-detection-registry drift guard, §5.U) so the values persist + surface as effective config.
   - [ ] **scheduler enforcement** — extend `scheduleNKleinEndpointStart` to ALSO count running sessions **per provider**
         and hold a start when the provider cap is reached (today it only counts per shared endpoint + the per-model cap);
         source the per-model cap from `effectiveModelConcurrency` (fallback to the registry constraint). Unit-test:

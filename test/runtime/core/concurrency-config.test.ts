@@ -1,0 +1,115 @@
+import { describe, expect, it } from "vitest";
+import {
+	type ConcurrencyConfig,
+	normalizeConcurrencyConfig,
+	normalizeConcurrencyMap,
+	normalizeConcurrencyOverride,
+	resolveEffectiveModelConcurrency,
+	resolveEffectiveProviderConcurrency,
+	resolveSessionConcurrencyCaps,
+} from "../../../src/core/concurrency-config";
+
+describe("normalizeConcurrencyMap", () => {
+	it("drops blank keys + out-of-range values and clamps to [1, 256]", () => {
+		expect(
+			normalizeConcurrencyMap({ lmstudio: 4, ollama: 0, "  ": 3, bad: -2, huge: 9999, frac: 2.9, nope: "x" }),
+		).toEqual({ huge: 256, lmstudio: 4, frac: 2 });
+	});
+
+	it("returns an empty map for non-objects", () => {
+		expect(normalizeConcurrencyMap(null)).toEqual({});
+		expect(normalizeConcurrencyMap([1, 2])).toEqual({});
+		expect(normalizeConcurrencyMap("nope")).toEqual({});
+	});
+});
+
+describe("normalizeConcurrencyConfig", () => {
+	it("normalizes both grains", () => {
+		expect(
+			normalizeConcurrencyConfig({ perProvider: { lmstudio: 2 }, perModel: { "lmstudio:qwen3-8b:default": 3 } }),
+		).toEqual({ perProvider: { lmstudio: 2 }, perModel: { "lmstudio:qwen3-8b:default": 3 } });
+		expect(normalizeConcurrencyConfig(null)).toEqual({ perProvider: {}, perModel: {} });
+	});
+});
+
+describe("normalizeConcurrencyOverride (null-when-empty)", () => {
+	it("returns null when the override adds nothing", () => {
+		expect(normalizeConcurrencyOverride(null)).toBeNull();
+		expect(normalizeConcurrencyOverride({})).toBeNull();
+		expect(normalizeConcurrencyOverride({ perProvider: {}, perModel: { "": 1 } })).toBeNull();
+	});
+
+	it("keeps only the grains that have entries", () => {
+		expect(normalizeConcurrencyOverride({ perProvider: { lmstudio: 8 } })).toEqual({ perProvider: { lmstudio: 8 } });
+		expect(normalizeConcurrencyOverride({ perModel: { m: 2 }, perProvider: {} })).toEqual({ perModel: { m: 2 } });
+	});
+});
+
+describe("resolveEffectiveProviderConcurrency (override ?? global)", () => {
+	const global: ConcurrencyConfig = { perProvider: { lmstudio: 2, ollama: 4 }, perModel: {} };
+
+	it("project override beats the global default", () => {
+		expect(
+			resolveEffectiveProviderConcurrency("lmstudio", { global, override: { perProvider: { lmstudio: 6 } } }),
+		).toBe(6);
+	});
+
+	it("falls back to the global default when no override", () => {
+		expect(resolveEffectiveProviderConcurrency("ollama", { global })).toBe(4);
+	});
+
+	it("returns null when no layer sets a cap", () => {
+		expect(resolveEffectiveProviderConcurrency("unknown", { global })).toBeNull();
+	});
+});
+
+describe("resolveEffectiveModelConcurrency (override ?? global ?? registry fallback)", () => {
+	const global: ConcurrencyConfig = { perProvider: {}, perModel: { "p:a:default": 3 } };
+
+	it("uses the registry fallback when neither override nor global sets the model", () => {
+		expect(resolveEffectiveModelConcurrency("p:b:default", { global, registryFallback: 2 })).toBe(2);
+	});
+
+	it("global beats the registry fallback", () => {
+		expect(resolveEffectiveModelConcurrency("p:a:default", { global, registryFallback: 99 })).toBe(3);
+	});
+
+	it("override beats global + the registry fallback", () => {
+		expect(
+			resolveEffectiveModelConcurrency("p:a:default", {
+				global,
+				override: { perModel: { "p:a:default": 7 } },
+				registryFallback: 99,
+			}),
+		).toBe(7);
+	});
+
+	it("null when nothing applies", () => {
+		expect(resolveEffectiveModelConcurrency("p:z:default", { global })).toBeNull();
+	});
+});
+
+describe("resolveSessionConcurrencyCaps (both grains independent)", () => {
+	it("resolves provider + model caps from the right layers", () => {
+		const global: ConcurrencyConfig = {
+			perProvider: { lmstudio: 2 },
+			perModel: { "lmstudio:qwen3-8b:default": 1 },
+		};
+		expect(
+			resolveSessionConcurrencyCaps({
+				providerId: "lmstudio",
+				modelId: "lmstudio:coder:default",
+				global,
+				override: { perModel: { "lmstudio:coder:default": 4 } },
+				registryModelFallback: 9,
+			}),
+		).toEqual({ providerCap: 2, modelCap: 4 });
+	});
+
+	it("null caps when no layer constrains the session", () => {
+		expect(resolveSessionConcurrencyCaps({ providerId: "ollama", modelId: "ollama:x:default" })).toEqual({
+			providerCap: null,
+			modelCap: null,
+		});
+	});
+});
