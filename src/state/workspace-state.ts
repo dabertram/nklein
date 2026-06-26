@@ -1059,7 +1059,11 @@ export async function saveWorkspaceState(
 		) {
 			throw new WorkspaceStateConflictError(expectedRevision, currentMeta.revision);
 		}
-		const board = parsedPayload.board;
+		// Domain guard (todo §5.U M3): run the same normalization the load path applies, so a full board replacement from
+		// a stale/buggy UI can't persist illegal state (cards in unknown columns, self/dangling/duplicate dependencies).
+		// Idempotent for a valid board — the load already normalized it — so this only corrects malformed writes; OCC
+		// (expectedRevision) above remains the staleness guard.
+		const board = updateTaskDependencies(normalizeRuntimeBoardData(parsedPayload.board));
 		const sessions = parsedPayload.sessions ?? (await readWorkspaceSessions(context.workspaceId));
 		const nextRevision = currentMeta.revision + 1;
 		const nextMeta: WorkspaceStateMeta = {

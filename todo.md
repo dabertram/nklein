@@ -1620,9 +1620,13 @@ deep analysis:
       *(done — superseded by §5.X Phase 1 "M1 `DecompositionStallNudger`" (`85ffd63b`), which extracted exactly this.)*
 - [ ] **(M2, moderate) Unify the session-merge** so `buildWorkspaceStateSnapshot` is the one canonical live+persisted merge
       (today `loadState` layers live NKlein summaries on top separately — effective state depends on which fn the caller used).
-- [ ] **(M3, low-med) Guard the UI `saveState` write path** — `saveWorkspaceState` accepts a full board replacement bypassing
-      domain guards (only `expectedRevision` OCC protects it); run `normalizeRuntimeBoardData` + `updateTaskDependencies` on
-      the incoming board so a stale UI can't write illegal card positions/deps.
+- [x] **(M3, low-med) Guarded the UI `saveState` write path** (2026-06-26) — `saveWorkspaceState` now runs
+      `updateTaskDependencies(normalizeRuntimeBoardData(board))` on the incoming board (the same normalization every load
+      path applies) before persisting, so a stale/buggy/hostile UI can't write illegal state (cards in unknown columns,
+      non-canonical column set/order, self/dangling/duplicate dependencies the free-string dep schema accepts). Idempotent
+      for valid boards (load already normalized them), so OCC (`expectedRevision`) stays the staleness guard and valid saves
+      are unaffected. New integration test (`§5.U M3`) saves a malformed board and asserts the response + persisted board are
+      normalized; full workspace-state integration suite (16) green.
 - [ ] **(R1, risky — live verify) Extract `finalizeHeadlessAutoReviewTask`** (review→merge→complete→auto-start delivery gate)
       out of the `runtime-server` closure into a `TaskDeliveryOrchestrator`; verify against the full delivery-gate matrix.
 - [ ] **(R2, risky — live verify) Collapse the dual `onSummary` subscriptions** (hub + server) into one ordered event bus so

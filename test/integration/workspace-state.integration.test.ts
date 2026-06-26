@@ -157,6 +157,73 @@ describe.sequential("workspace-state integration", () => {
 		});
 	});
 
+	it("normalizes a malformed board on save so a stale UI can't persist illegal state (§5.U M3)", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-m3-");
+			try {
+				const workspacePath = join(sandboxRoot, "project-m3");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+
+				const now = Date.now();
+				const card = (id: string, title: string) => ({
+					id,
+					title,
+					prompt: title,
+					startInPlanMode: false,
+					baseRef: "main",
+					createdAt: now,
+					updatedAt: now,
+				});
+				// Schema-valid (column ids are the enum, task ids are free strings) but domain-illegal: a non-canonical
+				// column subset/order, plus a self-edge and a dangling edge the dependency schema happily accepts.
+				const malformed: RuntimeBoardData = {
+					columns: [
+						{ id: "in_progress", title: "In Progress", cards: [] },
+						{ id: "backlog", title: "Backlog", cards: [card("task-1", "Keep me")] },
+					],
+					dependencies: [
+						{ id: "dep-self", fromTaskId: "task-1", toTaskId: "task-1", createdAt: now },
+						{ id: "dep-ghost", fromTaskId: "task-1", toTaskId: "ghost", createdAt: now },
+					],
+				};
+
+				const saved = await saveWorkspaceState(workspacePath, {
+					board: malformed,
+					sessions: {},
+					expectedRevision: 0,
+				});
+
+				// The SAVE RESPONSE is normalized (proves the save-path guard — a fresh load normalizes regardless):
+				// columns canonicalized to the full ordered set, the valid card kept, both illegal deps filtered.
+				expect(saved.board.columns.map((column) => column.id)).toEqual([
+					"backlog",
+					"planning",
+					"in_progress",
+					"review",
+					"completed",
+					"trash",
+				]);
+				expect(saved.board.columns.find((column) => column.id === "backlog")?.cards[0]?.id).toBe("task-1");
+				expect(saved.board.dependencies).toHaveLength(0);
+
+				// And it's what actually persisted, not just the response.
+				const loaded = await loadWorkspaceState(workspacePath);
+				expect(loaded.board.columns.map((column) => column.id)).toEqual([
+					"backlog",
+					"planning",
+					"in_progress",
+					"review",
+					"completed",
+					"trash",
+				]);
+				expect(loaded.board.dependencies).toHaveLength(0);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
 	it("mirrors workspace state into the project for portable recovery", async () => {
 		await withTemporaryHome(async () => {
 			const { path: sandboxRoot, cleanup } = createTempDir("kanban-workspace-portable-");
