@@ -78,7 +78,6 @@
 			"linter": {
 				"rules": {
 					"a11y": {
-						"noNoninteractiveTabindex": "off",
 						"noStaticElementInteractions": "off",
 						"noSvgWithoutTitle": "off",
 						"useAriaPropsForRole": "off",

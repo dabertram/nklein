@@ -369,6 +369,7 @@ export function GitCommitListPanel({
 
 			<div
 				ref={commitListRef}
+				// biome-ignore lint/a11y/noNoninteractiveTabindex: intentional focusable scroll region — keyboard users focus the list to scroll it (arrow/page keys); this is the sanctioned WCAG scrollable-region exception.
 				tabIndex={0}
 				style={{
 					flex: "1 1 0",
