@@ -3106,11 +3106,14 @@ deep analysis:
       per-difficulty fitness + the learned **retry budget** + observed failure modes. The single source the scheduler reads.
 - [ ] **Task-difficulty estimate (ties §5.I#4).** Estimate a task's difficulty/size (objective text, expected file/
       context footprint, acceptance shape, bounce history) → the key into the fitness table.
-- [ ] **Automatic role→model assignment (DEFAULT mode) + parallel balancing (ties §6.5).** The swarm scheduler assigns
-      each ready task to the best *available* model by fitness × difficulty, keeping all loaded models busy in parallel;
-      a hard task may **wait** for a better (busy) model, or be **attempted by a lesser** one — a per-task / per-project
-      **policy dial** ("wait-for-best" vs "attempt-with-available"). Replaces the current one-model-per-role binding
-      (which becomes a manual override / pin).
+- [~] **Automatic role→model assignment (DEFAULT mode) + parallel balancing (ties §6.5).** **Selection core DONE
+      (2026-06-26):** `selectModelForTask` + `computeModelFitness` ([model-fitness.ts](src/core/model-fitness.ts)) — the
+      pure quality-gated, speed-weighted pick + the wait-for-best vs attempt-with-available policy (reserving strong
+      models for hard tasks falls out of the difficulty gate); 9 tests. **Still owed (wiring):** the swarm scheduler reads
+      it per ready task by fitness × difficulty, keeping all loaded models busy in parallel — a hard task may **wait** for
+      a better (busy) model, or be **attempted by a lesser** one (a per-task / per-project policy dial). Replaces the
+      current one-model-per-role binding (→ manual override / pin). Needs the fitness table (eval harness) + the
+      difficulty estimate populated first.
 - [ ] **Stubborn-failure escalation (drives the §5.AA ladder × all models).** On repeated failure, escalate through the
       §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding force, loop
       detect+salvage) AND across models (best → next-best → … → all), each attempt informed by the profile so known-bad
@@ -3132,6 +3135,55 @@ deep analysis:
       the escalation design already has the seam. Gated behind an explicit per-escalation user allow **and** the
       deliberate cloud-lockdown lift (a reviewed code change, never a feature toggle). Related idea to collect: a
       per-task "max local spend/time before offering cloud escalation" budget the user sets.
+
+### 5.AC — Online knowledge retrieval + intrinsic temporal awareness (the "knows today" lighthouse) *(2026-06-26, user — ACTIVE)*
+> **Vision (user, 2026-06-26):** two intertwined grounding features that make !Klein trustworthy where ChatGPT/other
+> agents repeatedly fail. **(A) Automatic ONLINE knowledge retrieval** — today the knowledge-retrieval skills check only
+> LOCAL knowledge (repo map / code index / embeddings); !Klein should ALSO automatically search + fetch from ONLINE
+> sources (docs, new versions, release notes, research papers, user experiences, insights) as a first-class agent skill.
+> **(B) Intrinsic TEMPORAL awareness — the lighthouse** — !Klein KNOWS the real current date/time (today / now / tomorrow)
+> and injects it authoritatively into EVERY agent context, so a model never hallucinates that "today is in the future" or
+> that a dated event "hasn't happened yet" (the classic training-cutoff confusion — e.g. believing Apple WWDC 2026 is
+> years away). Being grounded in real *now* lets !Klein judge whether retrieved online info is up-to-date or whether it's
+> worth searching FURTHER for newer versions/insights/papers. A genuine "leuchtturm" differentiator. Be creative.
+> **Invariants (hard line):** **LOCAL LLM only (#1)** — online retrieval fetches web DATA; it must NEVER reach a cloud
+> *model*. **Strict isolation (#2)** — the agent's online fetches go through a **network-enabled sandbox tier** (§5.L:
+> bridge network + allowlist, fail-closed), never the host. **≥32k floor (#3).** The real clock is trusted host-side
+> control-plane, injected into the agent context (the sandbox never provides "now").
+>
+> **Grounding finding (2026-06-26):** !Klein does NOT currently inject the current date into the agent/chat system prompt
+> — the SDK `<env>` block carries only "Working Directory"; every `new Date()` is a log/artifact timestamp. So a local
+> model reasons from its (past) training-cutoff prior with no authoritative "now" — exactly the user's failure mode. The
+> temporal-awareness core is genuinely missing; build it first.
+- [~] **Temporal-awareness context core (the lighthouse) — pure, DO FIRST.** `resolveTemporalAwareness(now)` +
+      `buildTemporalAwarenessPrompt(now)` ([temporal-awareness.ts](src/core/temporal-awareness.ts)): an authoritative
+      block — ISO + human date/time + weekday + relative anchors (today / tomorrow / yesterday / this year) + an explicit
+      rail: "this is the authoritative current date/time; your training data has a cutoff in the PAST; do NOT assume
+      events dated on/before this are still in the future or haven't happened; judge online info's freshness against this
+      now." Pure + clock-injected → unit-tested. **(core landed this turn; WIRING is the next item.)**
+- [ ] **Inject the temporal block into EVERY agent + chat turn.** Wire it into the board-agent system prompt
+      (`buildNKleinStartPromptParts` / the SDK `<env>` seam), the chat agent turn (`composeChatTurnContext`), decompose,
+      and review — so every model on every surface knows the real now. Re-anchor on long runs (like the §5.N focus chain).
+- [ ] **Freshness-judgment helper.** Given retrieved info carrying a date/version, compare to the real now → a verdict
+      (current / possibly-stale / search-newer) + a rail telling the agent to prefer the newest + search further when the
+      found info predates a likely-newer release. Pure + tested; feeds the retrieval loop.
+- [ ] **`web_search` tool (first-class, egress-gated).** A search tool (query → ranked results: title / url / snippet /
+      published-date) governed by the §5.L network tier (network-enabled sandbox ONLY; allowlist; fail-closed; NEVER a
+      cloud LLM). Backend = a USER-CONFIGURED local/permitted search endpoint (self-hosted SearxNG / a permitted search
+      API / DuckDuckGo-HTML) — the search PROVIDER is user-configured + egress-gated, not hardcoded cloud. Pairs with the
+      existing `browse_url` (§5.M G6) to fetch a chosen result.
+- [ ] **Retrieval loop (query → search → fetch → extract → synthesize → CITE).** An agent skill: formulate queries from
+      the task + `knowledgeDebt` (§5.B), search, fetch the top hits via `browse_url`, extract + synthesize, and cite
+      sources WITH their dates (freshness-judged). Record into the knowledge/tool-usage telemetry (§6.7, §5.B signal).
+- [ ] **Make the knowledge-retrieval TESTS cover ONLINE too (the user's observation).** The existing knowledge tests
+      check only local retrieval; add a deterministic test (mocked search/fetch) + a live `verify-*.mts` harness that
+      exercises the online path end-to-end (search → fetch → synthesize → cite a fresh source).
+- [ ] **Wire temporal + freshness into the researcher/architect roles.** The decompose/research pass uses "now" +
+      freshness to decide its knowledge is stale → trigger online retrieval (ties §5.B knowledge-acquisition mandate +
+      §5.L researcher tier). Surfaces inspectable "is this current?" reasoning.
+- *(cross-links)* §5.L (web/egress tiers + browser tool), §5.M G6 (`browse_url`), §5.B (knowledge-expansion loop +
+      `knowledgeDebt` + the decomposition knowledge signal), §6.7 (codebase-intelligence / knowledge telemetry), §5.AA/§5.AB
+      (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
