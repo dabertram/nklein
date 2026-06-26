@@ -5,8 +5,7 @@ import { planGapKindSchema } from "./plan-gap-kind.js";
 export type { PlanGapKind } from "./plan-gap-kind.js";
 
 // Board schemas the barrel's downstream schemas still reference directly (re-exported above via `export *`).
-import { runtimeBoardCardSchema, runtimeBoardDataSchema, runtimeTaskImageSchema } from "./board-api-contract.js";
-import { runtimeGitRepositoryInfoSchema, runtimeGitSyncSummarySchema } from "./git-sync-api-contract.js";
+import { runtimeBoardCardSchema, runtimeTaskImageSchema } from "./board-api-contract.js";
 // Config primitives the schemas below still reference directly (re-exported above via `export *`).
 import {
 	agentRulesetsConfigSchema,
@@ -26,6 +25,11 @@ import {
 	runtimeTaskSessionModeSchema,
 	runtimeTaskSessionSummarySchema,
 } from "./task-session-api-contract.js";
+import {
+	runtimeProjectSummarySchema,
+	runtimeWorkspaceMetadataSchema,
+	runtimeWorkspaceStateResponseSchema,
+} from "./workspace-projects-api-contract.js";
 
 // Board contract domain (task images, generated-from-plan, card review, focus chains, cards/columns/deps/data) (§5.X #2).
 export * from "./board-api-contract.js";
@@ -42,6 +46,8 @@ export * from "./task-session-api-contract.js";
 export * from "./telemetry-stats-api-contract.js";
 // Workspace file-operation contracts (status / change / changes / fuzzy search) live in their own module (§5.X #2).
 export * from "./workspace-files-api-contract.js";
+// Workspace + project state contract domain (workspace-state, projects, task/workspace metadata) (§5.X #2).
+export * from "./workspace-projects-api-contract.js";
 
 export const runtimeSlashCommandSchema = z.object({
 	name: z.string(),
@@ -64,95 +70,6 @@ export {
 	AGENT_RULESET_ROLES,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 } from "./agent-rulesets.js";
-
-export const runtimeWorkspaceStateResponseSchema = z.object({
-	repoPath: z.string(),
-	statePath: z.string(),
-	git: runtimeGitRepositoryInfoSchema,
-	board: runtimeBoardDataSchema,
-	sessions: z.record(z.string(), runtimeTaskSessionSummarySchema),
-	revision: z.number(),
-});
-export type RuntimeWorkspaceStateResponse = z.infer<typeof runtimeWorkspaceStateResponseSchema>;
-
-export const runtimeWorkspaceStateSaveRequestSchema = z.object({
-	board: runtimeBoardDataSchema,
-	sessions: z.record(z.string(), runtimeTaskSessionSummarySchema).optional(),
-	expectedRevision: z.number().int().nonnegative().optional(),
-});
-export type RuntimeWorkspaceStateSaveRequest = z.infer<typeof runtimeWorkspaceStateSaveRequestSchema>;
-
-export const runtimeWorkspaceStateConflictResponseSchema = z.object({
-	error: z.string(),
-	currentRevision: z.number(),
-});
-export type RuntimeWorkspaceStateConflictResponse = z.infer<typeof runtimeWorkspaceStateConflictResponseSchema>;
-
-export const runtimeWorkspaceStateNotifyResponseSchema = z.object({
-	ok: z.boolean(),
-});
-export type RuntimeWorkspaceStateNotifyResponse = z.infer<typeof runtimeWorkspaceStateNotifyResponseSchema>;
-
-export const runtimeProjectTaskCountsSchema = z.object({
-	backlog: z.number(),
-	planning: z.number().default(0),
-	in_progress: z.number(),
-	review: z.number(),
-	completed: z.number(),
-	trash: z.number(),
-});
-export type RuntimeProjectTaskCounts = z.infer<typeof runtimeProjectTaskCountsSchema>;
-
-export const runtimeProjectHealthIssueSchema = z.object({
-	kind: z.enum([
-		"task_worktree_project",
-		"missing_parent_workspace",
-		"pending_plan_artifacts",
-		"lost_session_pending_artifacts",
-	]),
-	severity: z.enum(["warning", "error"]),
-	title: z.string(),
-	message: z.string(),
-	taskId: z.string().nullable(),
-	parentWorkspaceId: z.string().nullable(),
-	parentWorkspacePath: z.string().nullable(),
-	artifactCount: z.number().int().nonnegative(),
-	canRemove: z.boolean(),
-	canMigrateArtifacts: z.boolean(),
-});
-export type RuntimeProjectHealthIssue = z.infer<typeof runtimeProjectHealthIssueSchema>;
-
-export const runtimeProjectSummarySchema = z.object({
-	id: z.string(),
-	path: z.string(),
-	name: z.string(),
-	taskCounts: runtimeProjectTaskCountsSchema,
-	gitRepositoryCreatedByKanban: z.boolean().optional(),
-	healthIssues: z.array(runtimeProjectHealthIssueSchema).optional(),
-});
-export type RuntimeProjectSummary = z.infer<typeof runtimeProjectSummarySchema>;
-
-export const runtimeTaskWorkspaceMetadataSchema = z.object({
-	taskId: z.string(),
-	path: z.string(),
-	exists: z.boolean(),
-	baseRef: z.string(),
-	branch: z.string().nullable(),
-	isDetached: z.boolean(),
-	headCommit: z.string().nullable(),
-	changedFiles: z.number().nullable(),
-	additions: z.number().nullable(),
-	deletions: z.number().nullable(),
-	stateVersion: z.number().int().nonnegative(),
-});
-export type RuntimeTaskWorkspaceMetadata = z.infer<typeof runtimeTaskWorkspaceMetadataSchema>;
-
-export const runtimeWorkspaceMetadataSchema = z.object({
-	homeGitSummary: runtimeGitSyncSummarySchema.nullable(),
-	homeGitStateVersion: z.number().int().nonnegative(),
-	taskWorkspaces: z.array(runtimeTaskWorkspaceMetadataSchema),
-});
-export type RuntimeWorkspaceMetadata = z.infer<typeof runtimeWorkspaceMetadataSchema>;
 
 export const runtimeNKleinMcpServerAuthStatusSchema = z.object({
 	serverName: z.string(),

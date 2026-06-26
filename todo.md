@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (6 domains, barrel 2614 → ~1890):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (7 domains, barrel 2614 → ~1800):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2365,12 +2365,15 @@ deep analysis:
             state/mode/review-reason, hook activity, turn checkpoints, usage + context-budget, the model-perf-role enum,
             and the per-card session summary — depends only on `runtimeAgentIdSchema` from (2)); (6)
             `telemetry-stats-api-contract.ts` (model-performance + knowledge-tool-usage stats — imports its session
-            telemetry primitives from (5); a pure `export *`, not used downstream). Modules (2)/(3)/(5)
+            telemetry primitives from (5); a pure `export *`, not used downstream); (7)
+            `workspace-projects-api-contract.ts` (workspace-state response/save/conflict/notify, project
+            task-counts/health/summary, task/workspace metadata — imports board-data/git/task-session from extracted
+            modules). Modules (2)/(3)/(5)/(7)
             are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
-            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`). **Next**:
-            workspace-state + the state-stream messages reference the task-session summary now in (5), so they import
-            from it and extract cleanly; then projects, the NKlein account/provider/model-registry cluster (the big
+            after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`). **Next**: the
+            state-stream messages reference workspace-state/projects/board/task-sessions (all now extracted), so they
+            extract once their refs are imported; then the NKlein account/provider/model-registry cluster (the big
             middle), plan-artifacts, acceptance, task-lifecycle, diagnostics, chat-messages; extracting
             `runtimeTaskWorkspaceInfoRequestSchema` (the shared task-scope) unblocks the git-history + terminal-ws tail.
 - [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
