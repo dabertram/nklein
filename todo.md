@@ -258,11 +258,22 @@ deep analysis:
           `runTurn`: per turn mints the control tools, builds the plan-then-execute / continue goal directive, calls the
           injected `runTurnWithControls`, maps via `interpretAutonomousTurnOutcome`). 5 unit tests; tsc+biome green. So the
           pure driver + both its injected deps now exist + are tested.
-    - [ ] **chat-service integration + entrypoint** — the only remaining wiring: implement `runTurnWithControls` in
-          `chat-service` (merge the control tools into the gated executor + offer their definitions to the model + run one
-          `runChatAgentTurn` with the goal directive), and an entrypoint that assembles `runAutonomousChatAgent({ goal,
-          budget })` with `buildAutonomousChatTurnRunner` + `readAutonomousChatPlanProgress` + the resolved swarm-guardrail
-          budget. Then the goal-intake UI + live-verify (the later subtasks).
+    - [x] **composition entrypoint `runAutonomousChatSession` (DONE 2026-06-26)** — `chat-autonomous-wiring.ts`: ties the
+          pure driver + the control-tool turn runner + `readPlanProgress` together, with the chat machinery injected
+          (`assembleTurnDeps` builds the per-turn gated tool deps WITH the control tools merged; `runAgentTurn` runs one
+          `runChatAgentTurn` against the goal directive). Unavailable model/workspace pauses the run via the needs_user
+          path instead of spinning the budget. 3 composition unit tests (unavailable→pause, declare_goal_complete→completed,
+          multi-turn→plan-all-done); tsc+biome green. **So the entire autonomous-agent logic is now built + tested behind
+          injected seams.**
+    - [ ] **runtime-api live provider + tRPC + background drive** — the only remaining backend wiring: provide
+          `assembleTurnDeps` (reuse the existing `buildChatAgentToolDepsResolver` chat assembly in `runtime-api.ts:284`,
+          adding the `extra` control tools to its `tools`/`definitions`) + `runAgentTurn` (`runChatAgentTurn` bound to the
+          session + token budget), then a tRPC procedure that drives `runAutonomousChatSession` in the background with the
+          resolved swarm-guardrail budget + streams the stop reason / focus-chain progress. *(Couples to the live runtime +
+          a new contract surface — a focused integration, do with fresh context.)*
+    - [ ] **goal-intake UI + live-verify** — sidebar "work autonomously" affordance (goal field + Start/Stop + focus-chain
+          progress, mirroring the board swarm-pause UX), then a real small-model autonomous run on a dev-test project
+          (Playwright + the loop).
   - [ ] **Focus chain as the driver's plan state** — wire `chat-focus-chain` so the driver seeds the checklist from the
         goal and advances steps (pending→in_progress→done/skipped) as it works; persists across turns.
   - [ ] **Goal intake + "go autonomous" affordance** (web-ui) — a way to hand the sidebar chat a high-level goal and

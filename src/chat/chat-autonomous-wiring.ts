@@ -1,12 +1,21 @@
 import { type FocusChain, summarizeFocusChain } from "../core/focus-chain";
-import type { ChatAgentLoopResult } from "./chat-agent-loop";
+import type { LocalLlmToolDefinition } from "../nklein-sdk/nklein-local-llm-client";
+import type { ChatAgentLoopResult, ChatAgentStep } from "./chat-agent-loop";
 import {
 	type AutonomousControlToolset,
 	createAutonomousControlTools,
 	interpretAutonomousTurnOutcome,
 } from "./chat-autonomous-control-tools";
-import type { AutonomousChatPlanProgress, AutonomousChatTurnOutcome } from "./chat-autonomous-loop";
+import {
+	type AutonomousChatAgentBudget,
+	type AutonomousChatAgentResult,
+	type AutonomousChatPlanProgress,
+	type AutonomousChatTurnOutcome,
+	runAutonomousChatAgent,
+} from "./chat-autonomous-loop";
 import { readChatFocusChain } from "./chat-focus-chain";
+import type { ChatAgentToolDeps } from "./chat-service";
+import type { ChatTool } from "./chat-tool-executor";
 
 /**
  * Live-wiring adapters that turn the pure `runAutonomousChatAgent` core (todo §5.0.1) into something runnable.
@@ -53,4 +62,54 @@ export function buildAutonomousChatTurnRunner(
 		const { loopResult } = await deps.runTurnWithControls({ goalDirective, controls, turnIndex });
 		return interpretAutonomousTurnOutcome(loopResult, controls.signals, controls.controlToolNames);
 	};
+}
+
+export interface AutonomousChatSessionDeps {
+	/** Build the per-turn agent tool deps with the control tools merged in (live: the runtime-api chat assembly +
+	 *  these extras). Returns null when there is no active workspace / loaded local model. */
+	assembleTurnDeps: (extra: {
+		tools: ChatTool[];
+		definitions: LocalLlmToolDefinition[];
+	}) => Promise<ChatAgentToolDeps | null>;
+	/** Run one tool-using chat turn (live: `runChatAgentTurn` bound to the session + token budget). */
+	runAgentTurn: (
+		input: { userMessage: string; maxIterations?: number },
+		toolDeps: ChatAgentToolDeps,
+	) => Promise<{ finalText: string; steps: ChatAgentStep[] }>;
+	/** Read the focus-chain plan progress (live: `readAutonomousChatPlanProgress(session.id)`). */
+	readPlanProgress: () => Promise<AutonomousChatPlanProgress>;
+	budget: AutonomousChatAgentBudget;
+	/** Per-turn inner-loop iteration cap, distinct from the driver's turn budget. */
+	maxIterationsPerTurn?: number;
+}
+
+/**
+ * The runnable autonomous chat run: composes the pure driver (`runAutonomousChatAgent`) with the control-tool turn
+ * runner and the injected chat machinery. Each turn assembles the gated tool deps WITH the control tools merged, runs
+ * one `runChatAgentTurn` against the goal directive, and maps the result; if the model/workspace is unavailable the
+ * turn pauses for the user (reusing the needs_user path) rather than spinning through the budget.
+ */
+export async function runAutonomousChatSession(
+	goal: string,
+	deps: AutonomousChatSessionDeps,
+): Promise<AutonomousChatAgentResult> {
+	const runTurn = buildAutonomousChatTurnRunner({
+		runTurnWithControls: async ({ goalDirective, controls }) => {
+			const toolDeps = await deps.assembleTurnDeps({ tools: controls.tools, definitions: controls.definitions });
+			if (!toolDeps) {
+				controls.signals.userQuestion =
+					"Autonomous work paused: no active workspace or loaded local model. Open a project / load a model, then resume.";
+				return { loopResult: { finalText: "", steps: [] } };
+			}
+			const turn = await deps.runAgentTurn(
+				{
+					userMessage: goalDirective,
+					...(deps.maxIterationsPerTurn ? { maxIterations: deps.maxIterationsPerTurn } : {}),
+				},
+				toolDeps,
+			);
+			return { loopResult: turn };
+		},
+	});
+	return runAutonomousChatAgent({ goal, budget: deps.budget }, { runTurn, readPlanProgress: deps.readPlanProgress });
 }
