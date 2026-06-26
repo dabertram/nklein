@@ -57,6 +57,11 @@ import {
 import { KleinCorePyHealthLine } from "@/components/klein-core-py-health-line";
 import { ModelPerformanceStatsDialog } from "@/components/model-performance-stats-dialog";
 import { type ParsedMcpSuggestion, parseMcpSuggestionText } from "@/components/runtime-settings-mcp-parsing";
+import {
+	findProviderCatalogItem,
+	formatProviderOptionLabel,
+	normalizeProviderId,
+} from "@/components/runtime-settings-provider-helpers";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
 import {
@@ -198,27 +203,6 @@ function normalizeModelRolesForSettings(modelRoles: RuntimeModelRoles | undefine
 
 function serializeModelRoles(modelRoles: RuntimeModelRoles | undefined): string {
 	return JSON.stringify(normalizeModelRolesForSettings(modelRoles));
-}
-
-function normalizeProviderId(value: string | null | undefined): string {
-	return value?.trim().toLowerCase() ?? "";
-}
-
-function findProviderCatalogItem(
-	providers: RuntimeNKleinProviderCatalogItem[],
-	providerId: string,
-): RuntimeNKleinProviderCatalogItem | null {
-	const normalizedProviderId = normalizeProviderId(providerId);
-	return providers.find((provider) => normalizeProviderId(provider.id) === normalizedProviderId) ?? null;
-}
-
-function formatProviderOptionLabel(provider: { id: string; name: string }): string {
-	const name = provider.name.trim();
-	const id = provider.id.trim();
-	if (!name || name.toLowerCase() === id.toLowerCase()) {
-		return id;
-	}
-	return `${name} (${id})`;
 }
 
 const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }> = [

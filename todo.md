@@ -1721,7 +1721,12 @@ deep analysis:
       unit test it never had. **Pattern (lowest-risk first):** pull the dialog's many **pure helper groups** (model-role
       normalize/serialize, swarm-guardrail input conversion, provider/command-display helpers, …) into focused modules
       before the stateful section/hook extractions — each is a behavior-preserving move verified by the existing 36-test
-      `runtime-settings-dialog.test.tsx` (the oracle) + `web:typecheck` + `web:build`. Verified green. 4430 → ~4360.
+      `runtime-settings-dialog.test.tsx` (the oracle) + `web:typecheck` + `web:build`. Verified green. **2 slices done:
+      (1) MCP-suggestion parsing → `runtime-settings-mcp-parsing.ts` (+7-case test); (2) provider-catalog helpers
+      (`normalizeProviderId` / `findProviderCatalogItem` / `formatProviderOptionLabel`) →
+      `runtime-settings-provider-helpers.ts`. dialog 4430 → 4341.** Next clean pure-helper groups: model-role
+      normalize/serialize (needs `MODEL_ROLE_IDS` — heavily shared, 7 refs — so co-move the const + `ModelRoleId` type),
+      swarm-guardrail input conversion, command-display + timeout-profile helpers; then the stateful section/hook work.
 - [ ] **Monolith-file inventory → decompose the rest** *(review-pass finding 2026-06-24; the user re-emphasized "no
       large monolith files")*. A line-count sweep surfaced the oversized files beyond the two already tracked above
       (`nklein-task-session-service.ts` ~3850, `runtime-settings-dialog.tsx` ~4095). Each below is its own landable
