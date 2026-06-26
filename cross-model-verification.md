@@ -35,8 +35,8 @@
 | auto-promote · `verify-autopromote-recovery` | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
 | strict-isolation · `verify-strict-isolation` | ✅ | · | · | · | · | · | · | · | · |
 | restart-resume · `verify-restart-resume-isolation` | ✅ | · | · | · | · | · | · | · | · |
-| chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ❌ | ❌ | ✅ | ◑ |
-| chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
+| chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | · | · | · | · | · | · | · | · |
 | chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | · | · | · | · | · | · | · | · |
 | chat read tools · `verify-chat-agent-tools` | · | ✅ | · | · | · | · | · | · | · |
@@ -62,6 +62,13 @@
 > tool call. **Confirmed architectural gap (hardening candidate, see §5.Z):** the chat path (`completeWithTools`) parses
 > only LM Studio's native `tool_calls` and has **no `recoverNarratedToolCalls`** (that lives only in the swarm/NKlein
 > agent path) — so a model that *narrates* its tool call as text in the chat surface is not recovered.
+>
+> **`*`** **phi-4-mini FLIPPED `❌`→`✅`** on BOTH chat tools after the §5.AA tool-set-reduction wiring landed
+> (`b4fc2522`): when the model returns no tool call with many tools offered, the chat adapter retries with only the
+> tool the instruction references — grounded in the diag that phi emits a clean structured call with 1 tool but drowns
+> with 6. run_command 34s + create_card 14s, both with the real side effect. **phi-4-reasoning-plus is still `❌`** —
+> it over-reasons and won't act even with 1 tool, so it needs the next ladder rungs (prompt simplification / native
+> `/api/v1/chat` endpoint iteration). The 7 already-passing models are unaffected (the retry only fires on a no-call).
 
 ## Run log
 
@@ -149,3 +156,13 @@
 - ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 8s · INCOMPLETE — see above.
 - ❌ **FAIL** · `microsoft/phi-4-reasoning-plus-m5max` · 20s · INCOMPLETE — see above.
   - matrix row: phi-4-mini-reasoning=❌ phi-4-reasoning-plus-m5max=❌
+
+### 2026-06-26 20:51:53 · verify-chat-create-card
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 14s · PASS ✓ the chat agent created a real board card at runtime.
+- ❌ **FAIL** · `microsoft/phi-4-reasoning-plus-m5max` · 56s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=✅ phi-4-reasoning-plus-m5max=❌
+
+### 2026-06-26 20:53:48 · verify-chat-command-exec
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 34s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ❌ **FAIL** · `microsoft/phi-4-reasoning-plus-m5max` · 55s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=✅ phi-4-reasoning-plus-m5max=❌

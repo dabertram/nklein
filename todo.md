@@ -3023,15 +3023,18 @@ deep analysis:
       keep the salvage when a delta window loops) and in the swarm session runtime / `AutonomyBudgetWatchdog` (when a
       finished session loops its final message → finalize/salvage instead of waiting out the wall-time guard). Extends
       the repeated-tool-call guard to repeated-final-message. (Folds in the §5.Z "final-answer-repeat watchdog".)
-- [~] **Task-complexity ladder — tool-set reduction on retry (grounded: phi, highest-value).** **Pure core DONE
-      (2026-06-26):** `selectToolsForAttempt` ([nklein-attempt-simplification.ts](src/nklein-sdk/nklein-attempt-simplification.ts))
-      narrows the offered tool set for attempt `level` — level 1 keeps only the tools the instruction references by name
-      (mention order), level 2 caps to the single first-referenced tool; a no-op when nothing is anchored. Pure +
-      generic; 7 unit tests. **Still owed (wiring + live proof):** in the chat adapter, when tools were offered but the
-      model returned no tool call AND the instruction names a tool it didn't call (a complexity-failure signal), retry
-      the call with the reduced set (level 1 → 2) — then live-verify phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command`
-      with NO regression for the 7 already-passing models. Then a single-step prompt + stripped preamble rung; learn each
-      model's complexity ceiling into the profile so a known-weak model starts simplified on attempt 0.
+- [x] **Task-complexity ladder — tool-set reduction on retry — WIRED + LIVE-PROVEN (2026-06-26).** `selectToolsForAttempt`
+      ([nklein-attempt-simplification.ts](src/nklein-sdk/nklein-attempt-simplification.ts)) narrows the offered tool set
+      for attempt `level` (level 1 = only the tools the instruction references — name / spaced / distinctive last word, so
+      "make a card" anchors `create_card`; level 2 = the single first-referenced; no-op when nothing is anchored).
+      **Wired into `createChatAgentModel`** (`b4fc2522`): when several tools were offered but the model returned no call
+      AND the instruction names a tool it didn't call, it retries with the reduced set (1→2) — fires only on that
+      complexity-failure signal, so a legit direct answer makes no extra calls. **LIVE-PROVEN: phi-4-mini flipped ❌→✅
+      on BOTH `run_command` (34s) + `create_card` (14s)** with the real side effects (the §5.AA thesis: shrink the ask →
+      the model delivers). The 7 already-passing models are unaffected (retry only on a no-call; unit-tested). 9 matcher
+      tests + 2 adapter retry tests. **Still owed (next rungs, for phi-4-reasoning-plus which over-reasons even with 1
+      tool):** single-step prompt + stripped-preamble rung; learn each model's complexity ceiling into the profile so a
+      known-weak model starts simplified on attempt 0.
 - [ ] **Endpoint-iteration adapter — native `/api/v1/chat` fallback.** A `LocalModelEndpointStrategy`: try OpenAI-compat
       first; on a no-call/malformed outcome, retry via the **native `/api/v1/chat`** (parse its structured `tool_call.*`
       + `reasoning.*` events — catches calls the OpenAI path misses for phi/deepseek). Record the winning endpoint per
