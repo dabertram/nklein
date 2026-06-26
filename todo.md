@@ -2169,6 +2169,25 @@ deep analysis:
 - [ ] **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition oracle), §5.H (native-core /
       core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side cleanup that also de-risks a port
       by shrinking the `@nkleinbot/*` coupling first).
+- [ ] **Target-structure roadmap (2026-06-26): `.plan/docs/architecture-and-structure-suggestions.md`** — the *target
+      shape* for this refactor (complements the anti-pattern audit's code-level findings). 13 recommendations: (1)
+      formalize the monorepo (npm workspaces; `apps/{web,desktop}` + `packages/{contracts,runtime,runtime-core,nklein-
+      integration,web-runtime-client,test-harness}`); (2) split `api-contract.ts` into contract-domain modules behind one
+      barrel (model = `chat-api-contract.ts`); (3) tRPC root = router composition, each domain router backed by an
+      application service; (4) execution backends as **ports + adapters** (a `TaskExecutionBackend` interface +
+      capability flags, replacing scattered `agentId === "nklein"` checks); (5) first-class session types; (6) web-ui →
+      **feature slices** (`features/{board,settings,chat,…}`); (7) extract a shared board-domain module (one source for
+      column defs + normalize + mutations, today duplicated runtime↔UI); (8) typed persistence stores (`src/persistence/`
+      — ties to anti-patterns/security #5); (9) runtime-state-hub → event-projection layer; (10) explicit + CI-enforced
+      NKlein SDK boundary (ties §5.R); (11) settings draft-model + section registry (**pairs with §5.W settings
+      regrouping**); (12) shared test-harness package; (13) align CI with the boundaries. **Migration order:** fix CI
+      boundary drift → contract domains → shared board domain → modularize tRPC → execution-backend ports → web-ui
+      feature slices → persistence → streaming projection. **⚡ Immediate clear-cut (do now):** CI (`.github/workflows/
+      test.yml`) calls a *missing* `check:cline-boundary` script (the real one is `check:nklein-boundary`), and
+      `.github/scripts/check-nklein-boundary.mjs` still checks stale `@clinebot`/`src/cline-sdk` — a concrete CI bug +
+      leftover Cline naming (ties the naming cleanup). **Guardrails (what-NOT-to-do):** don't split by line-count, no
+      thin pass-through wrappers, don't move web-ui to a package boundary before contracts are stable, keep the contracts
+      package dependency-free.
 
 ### 5.Y — Security hardening backlog *(raised 2026-06-26 from a static security review → `.plan/docs/security-issues.md`)*
 > A whole-repo static security review (runtime auth, tRPC procedures, chat tools, filesystem boundaries, sandbox
