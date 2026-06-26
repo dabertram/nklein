@@ -1310,6 +1310,13 @@ deep analysis:
 - [~] **Parallel multi-agent dev-test coverage** — DAGs that fan out widely to exercise the swarm/pool/merge/review/delivery under concurrency
   - [x] presets ship (`wide_fanout`/`deep_chain`/`mixed_dag`/`many_small`) for `nklein dev test-project`
         ([src/nklein-sdk/nklein-dev-test-project.ts](src/nklein-sdk/nklein-dev-test-project.ts)); unit-tested
+  - [x] **dev-test fixture specs enriched (2026-06-26)** — rewrote the in-repo dev-test `specification.md` bodies
+        (smoke, mid, complex-DAG, audio-VST, and all four fan-out presets) into better-specified mini-challenges
+        with explicit typed entities, validation rules, and **property-based invariants** (bounded/clamped scores,
+        partitioned bands, pure/total functions, valid-JSON round-trips, phase-aligned audio, correct DAG edges),
+        plus dependency-ordered build guidance — calibrated as great small-local-LLM dev-test material. Kept
+        deterministic (`npm test`, no live LLM/network), all scenario ids/titles + asserted prompt phrases intact,
+        and added orientation READMEs to the `smoke-ts-cli`/`audio-vst-synth` fixtures.
   - [x] **CLI sweep orchestrator (2026-06-24)** — `nklein dev sweep` runs several dev-test presets in sequence
         (default = the parallel-fan-out set `wide_fanout,deep_chain,mixed_dag,many_small`, `--presets` overridable)
         and reports each run's classified terminal outcome. The orchestration core
