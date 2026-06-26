@@ -42,7 +42,7 @@ export function selectToolsForAttempt<T extends NamedTool>(
 	}
 	const haystack = instruction.toLowerCase();
 	const mentioned = tools
-		.map((tool) => ({ tool, at: haystack.indexOf(tool.name.toLowerCase()) }))
+		.map((tool) => ({ tool, at: toolReferencePosition(tool.name, haystack) }))
 		.filter((entry) => entry.at >= 0)
 		.sort((a, b) => a.at - b.at);
 	if (mentioned.length === 0) {
@@ -55,6 +55,27 @@ export function selectToolsForAttempt<T extends NamedTool>(
 		reduced: selected.length < tools.length,
 		matchedNames: selected.map((tool) => tool.name),
 	};
+}
+
+/**
+ * Earliest position at which an instruction references a tool, or -1. Robust to natural language: matches the exact
+ * `snake_case` name, the spaced form (`create_card` → "create card"), and the distinctive last word (`card`,
+ * `command`, `file`, `board`, `chain`) so "make a card" anchors `create_card`. The last word must be ≥4 chars to
+ * avoid ambiguous short matches (e.g. `dir`); substring matching is intentional (a slightly-too-eager anchor just
+ * offers a relevant tool, which is harmless).
+ */
+function toolReferencePosition(toolName: string, haystack: string): number {
+	const name = toolName.toLowerCase();
+	const lastWord = name.split("_").at(-1) ?? name;
+	const candidates = [name, name.replace(/_/g, " "), ...(lastWord.length >= 4 ? [lastWord] : [])];
+	let best = -1;
+	for (const candidate of candidates) {
+		const at = haystack.indexOf(candidate);
+		if (at >= 0 && (best < 0 || at < best)) {
+			best = at;
+		}
+	}
+	return best;
 }
 
 /** The number of escalating simplification levels the ladder offers (0 = full, then narrower). */

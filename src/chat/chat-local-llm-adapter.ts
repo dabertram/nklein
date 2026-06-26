@@ -1,3 +1,4 @@
+import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-sdk/nklein-attempt-simplification";
 import type {
 	LocalLlmChatMessage,
 	LocalLlmCompletion,
@@ -96,15 +97,41 @@ export function createChatAgentModel(
 ): (messages: readonly ChatPromptMessage[], allowTools: boolean) => Promise<ChatAgentModelResponse> {
 	const sampling = options.sampling ?? DEFAULT_SAMPLING;
 	return async (messages, allowTools) => {
-		const { content, toolCalls } = await client.completeWithTools(
-			{ messages: messages.map((message) => ({ role: message.role, content: message.content })), sampling },
-			allowTools ? toolDefinitions : [],
-		);
+		const wire = messages.map((message) => ({ role: message.role, content: message.content }));
+		const offered = allowTools ? toolDefinitions : [];
+		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
+		// §5.AA task-complexity ladder: a model that returns NO tool call when several were offered AND the instruction
+		// names a tool it didn't call is likely drowning in tool-set complexity (grounded: phi-4 emits a clean call with
+		// 1 tool but fails with 6). Retry with a progressively narrowed set anchored on the instruction — shrink the ask
+		// instead of re-prompting. Only fires when there is a named-but-uncalled tool to anchor on (else no extra calls).
+		if (offered.length > 1 && response.toolCalls.length === 0) {
+			const instruction = lastUserText(messages);
+			for (let level = 1; level <= MAX_ATTEMPT_SIMPLIFICATION_LEVEL; level += 1) {
+				const selection = selectToolsForAttempt(offered, instruction, level);
+				if (!selection.reduced) {
+					break;
+				}
+				response = await client.completeWithTools({ messages: wire, sampling }, selection.tools);
+				if (response.toolCalls.length > 0) {
+					break;
+				}
+			}
+		}
 		return {
-			text: stripReasoning(content),
-			toolCalls: toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
+			text: stripReasoning(response.content),
+			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
 		};
 	};
+}
+
+/** The most recent user-authored instruction in the rendered prompt — the anchor for §5.AA tool-set narrowing. */
+function lastUserText(messages: readonly ChatPromptMessage[]): string {
+	for (let index = messages.length - 1; index >= 0; index -= 1) {
+		if (messages[index].role === "user") {
+			return messages[index].content;
+		}
+	}
+	return "";
 }
 
 /**

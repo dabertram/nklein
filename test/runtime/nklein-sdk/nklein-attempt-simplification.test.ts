@@ -51,4 +51,15 @@ describe("selectToolsForAttempt", () => {
 		const result = selectToolsForAttempt(TOOLS, "use CREATE_CARD now", 1);
 		expect(result.matchedNames).toEqual(["create_card"]);
 	});
+
+	it("anchors on natural language via the distinctive last word (no underscore: 'make a card')", () => {
+		const result = selectToolsForAttempt(TOOLS, "Please make a card titled X for me.", 1);
+		expect(result.matchedNames).toEqual(["create_card"]);
+		expect(result.reduced).toBe(true);
+	});
+
+	it("anchors 'run the command' onto run_command via its last word", () => {
+		const result = selectToolsForAttempt(TOOLS, "Now run the command for me, please.", 1);
+		expect(result.matchedNames).toEqual(["run_command"]);
+	});
 });

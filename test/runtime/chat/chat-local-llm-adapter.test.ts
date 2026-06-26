@@ -121,4 +121,58 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		const noText = appendChatToolExchange(base, { text: "", toolCalls: [] }, [{ callId: "c2", content: "x" }]);
 		expect(noText.map((m) => m.role)).toEqual(["user", "system"]);
 	});
+
+	const SIX_TOOLS: LocalLlmToolDefinition[] = [
+		"read_file",
+		"list_dir",
+		"get_board",
+		"update_focus_chain",
+		"create_card",
+		"run_command",
+	].map((name) => ({ name, description: name, parameters: { type: "object" } }));
+
+	it("§5.AA: retries with a reduced tool set when the model returns no call but the instruction names a tool", async () => {
+		const offeredCounts: number[] = [];
+		let callIndex = 0;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (_request, toolsArg) => {
+				offeredCounts.push(toolsArg.length);
+				callIndex += 1;
+				// First call (all 6 tools) → the model drowns and returns no tool call; the reduced retry → emits the call.
+				if (callIndex === 1) {
+					return {
+						content: "I am not sure which tool to use here.",
+						toolCalls: [],
+						finishReason: "stop",
+						raw: {},
+					};
+				}
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: 'Use create_card to make a card titled "X".' }], true);
+		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		// First attempt offered all 6; the retry offered just the 1 referenced tool (grounded: phi works with 1).
+		expect(offeredCounts).toEqual([6, 1]);
+	});
+
+	it("§5.AA: does NOT retry when the no-call reply references no tool by name (legit direct answer)", async () => {
+		const offeredCounts: number[] = [];
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (_request, toolsArg) => {
+				offeredCounts.push(toolsArg.length);
+				return { content: "Here is my direct answer.", toolCalls: [], finishReason: "stop", raw: {} };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: "Just explain how merging works." }], true);
+		expect(result.text).toBe("Here is my direct answer.");
+		expect(offeredCounts).toEqual([6]); // no anchor → no retry, no wasted calls
+	});
 });
