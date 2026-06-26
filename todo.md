@@ -2298,9 +2298,16 @@ deep analysis:
       `Strict-Transport-Security` (via the pure `buildTlsHardeningHeaders` helper, used in `runtime-server.ts`).
       **Tests:** 15 in `test/runtime/security/remote-security-policy.test.ts` (all 4 mandated scenarios + HSTS). Gate:
       tsc 0 · biome clean · 1842 fast tests green. CHANGELOG `## [Upcoming]` entry added (user-facing startup change).
-- [ ] **MED #8 ⚠️ — folder picker / addProject expose broad host FS to remote users** (`filesystemRoot = "/"`, absolute
+- [x] **MED #8 ⚠️ — folder picker / addProject expose broad host FS to remote users** (`filesystemRoot = "/"`, absolute
       paths, arbitrary git-init). In remote mode, restrict browsing/creation to configured roots; return paths relative
       to the allowed root.
+      **Done (2026-06-26):** `src/workspace/remote-path-confinement.ts` — pure `confineToAllowedRoots` + `resolveRemoteBrowseRoots`
+      helpers. `CreateProjectsApiDependencies` gains `isRemoteMode` + `allowedBrowseRoots`. In remote mode: `filesystemRoot`
+      narrows to `allowedBrowseRoots[0]` (home dir); `listDirectoryContents` rejects any path outside every allowed root;
+      `addProject` rejects both explicit paths and custom clone destinations outside allowed roots. Local mode fully unchanged.
+      `runtime-server.ts` computes roots once at startup from `loadGlobalRuntimeConfig().workspaceBaseDir`. Tests: 10 new
+      cases in `projects-api.test.ts` covering the pure helpers + API confinement in both modes. Gate: tsc 0 · biome clean ·
+      1860 fast tests green. CHANGELOG `## [Upcoming]` entry added.
 - [ ] **MED #9 — `runtime.openFile` opens arbitrary host paths/URLs** via the `open` package, no validation. Replace
       with typed intents for known artifacts (data dir, evidence bundle, plan artifact) validated against a known root;
       disable in remote/headless unless allowed.

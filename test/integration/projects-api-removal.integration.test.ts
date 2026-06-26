@@ -70,6 +70,8 @@ function createDeps(serverCwd: string): CreateProjectsApiDependencies {
 		buildProjectsPayload: async () => ({ currentProjectId: null, projects: [] }),
 		pickDirectoryPathFromSystemDialog: () => null,
 		serverCwd,
+		isRemoteMode: false,
+		allowedBrowseRoots: [],
 	};
 }
 

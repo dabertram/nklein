@@ -4,7 +4,7 @@ import { createServer as createHttpsServer } from "node:https";
 import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
-import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
+import { loadGlobalRuntimeConfig, loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
 import {
 	capabilitiesForTier,
 	DEFAULT_AGENT_CAPABILITY_TIER,
@@ -84,6 +84,7 @@ import { createRuntimeApi } from "../trpc/runtime-api";
 import { createRuntimeTaskStartQueue, type RuntimeTaskStartQueue } from "../trpc/runtime-task-start-queue";
 import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
+import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
 import { createTaskResultBranchRef, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
@@ -217,6 +218,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
 	// design) and log the rationale once, so it stops flooding the runtime log and burying the useful lines.
 	configureNKleinAiSdkWarnings(deps.warn);
+	// §5.Y #8: compute remote-mode confinement roots once at startup.
+	const isRemoteMode = isKanbanRemoteHost();
+	const globalConfig = await loadGlobalRuntimeConfig();
+	const allowedBrowseRoots = resolveRemoteBrowseRoots({
+		configuredWorkspaceBaseDir: globalConfig.workspaceBaseDir,
+	});
 	const webUiDir = getWebUiDir();
 	const startupAgentSandboxManager = new AgentSandboxManager();
 	let agentSandboxStatus = createCheckingAgentSandboxStatus();
@@ -871,6 +878,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				buildProjectsPayload: deps.workspaceRegistry.buildProjectsPayload,
 				pickDirectoryPathFromSystemDialog: deps.pickDirectoryPathFromSystemDialog,
 				serverCwd: process.cwd(),
+				isRemoteMode,
+				allowedBrowseRoots,
 			}),
 		};
 	};
@@ -880,8 +889,6 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		router: runtimeAppRouter,
 		createContext: async ({ req }) => await createTrpcContext(req),
 	});
-
-	const isRemoteMode = isKanbanRemoteHost();
 
 	const readRequestBody = (req: IncomingMessage, maxBytes = 4096): Promise<string> =>
 		new Promise((resolve, reject) => {

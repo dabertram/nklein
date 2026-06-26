@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
@@ -26,6 +26,7 @@ import {
 	createDevTestBoard,
 	createProjectsApi,
 } from "../../../src/trpc/projects-api";
+import { confineToAllowedRoots, resolveRemoteBrowseRoots } from "../../../src/workspace/remote-path-confinement";
 import { createGitTestEnv } from "../../utilities/git-env";
 
 function createTestCwd(): string {
@@ -159,6 +160,8 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 		buildProjectsPayload: vi.fn(async () => ({ currentProjectId: null, projects: [] })),
 		pickDirectoryPathFromSystemDialog: vi.fn(() => null),
 		serverCwd,
+		isRemoteMode: false,
+		allowedBrowseRoots: [],
 	};
 }
 
@@ -972,5 +975,193 @@ describe("addProject", () => {
 			expect(result.requiresTaskWorktreeProjectConfirmation).toBe(true);
 			expect(await listWorkspaceIndexEntries()).toHaveLength(0);
 		});
+	});
+});
+
+// ── Remote-mode path confinement (§5.Y #8) ───────────────────────────────────
+
+describe("remote-mode confinement — confineToAllowedRoots helper", () => {
+	it("allows an exact root match", () => {
+		const roots = ["/home/user", "/opt/workspace"];
+		expect(confineToAllowedRoots("/home/user", roots)).toEqual({ allowed: true, matchedRoot: "/home/user" });
+	});
+
+	it("allows a nested path inside a root", () => {
+		const roots = ["/home/user"];
+		expect(confineToAllowedRoots("/home/user/projects/foo", roots)).toEqual({
+			allowed: true,
+			matchedRoot: "/home/user",
+		});
+	});
+
+	it("rejects a path outside all roots", () => {
+		const roots = ["/home/user", "/opt/workspace"];
+		expect(confineToAllowedRoots("/etc/passwd", roots)).toEqual({ allowed: false, matchedRoot: null });
+	});
+
+	it("rejects a sibling-prefix path that shares the root's prefix string but is not nested", () => {
+		// /home/user2 must NOT match root /home/user
+		const roots = ["/home/user"];
+		expect(confineToAllowedRoots("/home/user2", roots)).toEqual({ allowed: false, matchedRoot: null });
+		expect(confineToAllowedRoots("/home/userfoo", roots)).toEqual({ allowed: false, matchedRoot: null });
+	});
+
+	it("resolves .. traversal before comparing (cannot escape via ../..)", () => {
+		const roots = ["/home/user"];
+		// /home/user/../../etc resolves to /etc — must be rejected
+		expect(confineToAllowedRoots("/home/user/../../etc", roots)).toEqual({ allowed: false, matchedRoot: null });
+	});
+
+	it("matches the first root and returns it", () => {
+		const roots = ["/home/user", "/opt/workspace"];
+		const result = confineToAllowedRoots("/opt/workspace/proj", roots);
+		expect(result).toEqual({ allowed: true, matchedRoot: "/opt/workspace" });
+	});
+});
+
+describe("remote-mode confinement — resolveRemoteBrowseRoots helper", () => {
+	it("always includes the home directory", () => {
+		const roots = resolveRemoteBrowseRoots({});
+		expect(roots.length).toBeGreaterThanOrEqual(1);
+		// All roots must be absolute
+		for (const r of roots) {
+			expect(r.startsWith("/")).toBe(true);
+		}
+	});
+
+	it("adds a configured workspace base dir when provided", () => {
+		const roots = resolveRemoteBrowseRoots({ configuredWorkspaceBaseDir: "/opt/workspaces" });
+		expect(roots).toContain(resolve("/opt/workspaces"));
+	});
+
+	it("does not duplicate roots when configuredWorkspaceBaseDir equals home", () => {
+		const roots = resolveRemoteBrowseRoots({ configuredWorkspaceBaseDir: homedir() });
+		const homePath = resolve(homedir());
+		expect(roots.filter((r) => r === homePath).length).toBe(1);
+	});
+
+	it("includes extra allowed roots", () => {
+		const roots = resolveRemoteBrowseRoots({ extraAllowedRoots: ["/mnt/nfs"] });
+		expect(roots).toContain(resolve("/mnt/nfs"));
+	});
+});
+
+describe("remote-mode confinement — listDirectoryContents", () => {
+	let testCwd: string;
+
+	beforeEach(() => {
+		testCwd = createTestCwd();
+	});
+
+	afterEach(() => {
+		rmSync(testCwd, { recursive: true, force: true });
+	});
+
+	it("local mode: full FS root is unchanged, no confinement applied", async () => {
+		const deps = createDefaultDeps(testCwd);
+		// isRemoteMode=false (default) — root should be the FS root
+		const api = createProjectsApi(deps);
+		const result = await api.listDirectoryContents(null, {});
+		expect(result.ok).toBe(true);
+		expect(result.rootPath).toBe(resolve(testCwd, "/"));
+	});
+
+	it("remote mode: rootPath is narrowed to the first allowed root", async () => {
+		const deps = createDefaultDeps(testCwd);
+		deps.isRemoteMode = true;
+		deps.allowedBrowseRoots = [testCwd];
+		const api = createProjectsApi(deps);
+		const result = await api.listDirectoryContents(null, {});
+		expect(result.ok).toBe(true);
+		expect(result.rootPath).toBe(resolve(testCwd));
+	});
+
+	it("remote mode: path inside allowed root is permitted", async () => {
+		const allowed = testCwd;
+		const sub = join(testCwd, "myproject");
+		mkdirSync(sub);
+		const deps = createDefaultDeps(testCwd);
+		deps.isRemoteMode = true;
+		deps.allowedBrowseRoots = [allowed];
+		const api = createProjectsApi(deps);
+		const result = await api.listDirectoryContents(null, { path: sub });
+		expect(result.ok).toBe(true);
+		expect(result.currentPath).toBe(sub);
+	});
+
+	it("remote mode: path outside every allowed root is rejected", async () => {
+		const deps = createDefaultDeps(testCwd);
+		deps.isRemoteMode = true;
+		deps.allowedBrowseRoots = [testCwd]; // only testCwd is allowed
+		const api = createProjectsApi(deps);
+		// /tmp itself is outside testCwd (which is a subdir of /tmp)
+		const outsidePath = dirname(testCwd);
+		const result = await api.listDirectoryContents(null, { path: outsidePath });
+		expect(result.ok).toBe(false);
+		expect(result.error).toMatch(/outside the allowed/);
+	});
+
+	it("remote mode: sibling-prefix path is rejected (not a parent/ancestor)", async () => {
+		const base = dirname(testCwd);
+		const sibling = join(base, "not-allowed-sibling");
+		mkdirSync(sibling, { recursive: true });
+		const deps = createDefaultDeps(testCwd);
+		deps.isRemoteMode = true;
+		deps.allowedBrowseRoots = [testCwd];
+		const api = createProjectsApi(deps);
+		const result = await api.listDirectoryContents(null, { path: sibling });
+		expect(result.ok).toBe(false);
+		expect(result.error).toMatch(/outside the allowed/);
+		rmSync(sibling, { recursive: true, force: true });
+	});
+});
+
+describe("remote-mode confinement — addProject", () => {
+	let testCwd: string;
+
+	beforeEach(() => {
+		testCwd = createTestCwd();
+	});
+
+	afterEach(() => {
+		rmSync(testCwd, { recursive: true, force: true });
+	});
+
+	it("local mode: addProject has no confinement restriction", async () => {
+		// In local mode, the existing validation runs (git check etc.), but no
+		// remote-confinement rejection fires. We just confirm no early rejection.
+		const deps = createDefaultDeps(testCwd);
+		deps.hasGitRepository = vi.fn(() => true);
+		const api = createProjectsApi(deps);
+		const result = await api.addProject(null, { path: testCwd });
+		// may succeed or fail for other reasons (workspace state), but must NOT
+		// be the remote-confinement error
+		expect(result.error ?? "").not.toMatch(/outside the allowed directories for remote mode/);
+	});
+
+	it("remote mode: path inside allowed root is accepted (proceeds to normal validation)", async () => {
+		const allowed = testCwd;
+		const sub = join(testCwd, "myrepo");
+		mkdirSync(sub);
+		initGitRepository(sub);
+		const deps = createDefaultDeps(testCwd);
+		deps.isRemoteMode = true;
+		deps.allowedBrowseRoots = [allowed];
+		deps.hasGitRepository = vi.fn(() => true);
+		const api = createProjectsApi(deps);
+		const result = await api.addProject(null, { path: sub });
+		// No remote-confinement rejection
+		expect(result.error ?? "").not.toMatch(/outside the allowed directories for remote mode/);
+	});
+
+	it("remote mode: path outside allowed roots is rejected", async () => {
+		const deps = createDefaultDeps(testCwd);
+		deps.isRemoteMode = true;
+		deps.allowedBrowseRoots = [testCwd]; // only testCwd allowed
+		const api = createProjectsApi(deps);
+		const outsidePath = dirname(testCwd); // parent of testCwd — outside
+		const result = await api.addProject(null, { path: outsidePath });
+		expect(result.ok).toBe(false);
+		expect(result.error).toMatch(/outside the allowed directories for remote mode/);
 	});
 });

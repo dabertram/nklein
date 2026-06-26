@@ -57,6 +57,7 @@ import {
 } from "../workspace/initialize-repo";
 import { isPathWithinRoot } from "../workspace/path-sandbox";
 import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
+import { confineToAllowedRoots } from "../workspace/remote-path-confinement";
 import { deleteTaskResultBranchesForRepo } from "../workspace/task-result-branches";
 import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/task-worktree";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
@@ -219,6 +220,18 @@ export interface CreateProjectsApiDependencies {
 	}>;
 	pickDirectoryPathFromSystemDialog: () => string | null;
 	serverCwd: string;
+	/**
+	 * When true the server is bound to a non-loopback interface (--host mode)
+	 * and path access must be confined to `allowedBrowseRoots`.
+	 */
+	isRemoteMode: boolean;
+	/**
+	 * The ordered set of allowed filesystem roots for remote-mode browsing and
+	 * project creation.  Computed by `resolveRemoteBrowseRoots` in
+	 * `runtime-server.ts` and passed in so the API layer stays pure/testable.
+	 * Ignored when `isRemoteMode` is false.
+	 */
+	allowedBrowseRoots: readonly string[];
 }
 
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
@@ -272,7 +285,12 @@ async function updateMigratedArtifactMetadata(input: {
 }
 
 export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeTrpcContext["projectsApi"] {
-	const filesystemRoot = resolve(deps.serverCwd, "/");
+	// In remote mode the filesystem root is narrowed to the first allowed root
+	// (home directory) so the folder picker starts there, not at `/`.  In local
+	// mode we keep the full FS root so existing behaviour is unchanged.
+	const filesystemRoot = deps.isRemoteMode
+		? (deps.allowedBrowseRoots[0] ?? resolve(deps.serverCwd, "/"))
+		: resolve(deps.serverCwd, "/");
 
 	return {
 		listProjects: async (preferredWorkspaceId) => {
@@ -284,6 +302,43 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 		},
 		addProject: async (preferredWorkspaceId, input) => {
 			const body = parseProjectAddRequest(input);
+
+			// Remote mode: reject project paths that fall outside every allowed root.
+			if (deps.isRemoteMode) {
+				const rawPath = body.path ?? "";
+				if (rawPath) {
+					const preferredWorkspaceContext = preferredWorkspaceId
+						? await loadWorkspaceContextById(preferredWorkspaceId)
+						: null;
+					const resolveBase =
+						preferredWorkspaceContext?.repoPath ?? deps.getActiveWorkspacePath() ?? process.cwd();
+					const resolved = deps.resolveProjectInputPath(rawPath, resolveBase);
+					const confinement = confineToAllowedRoots(resolved, deps.allowedBrowseRoots);
+					if (!confinement.allowed) {
+						return {
+							ok: false,
+							project: null,
+							error: "Access denied: the requested project path is outside the allowed directories for remote mode.",
+						} satisfies RuntimeProjectAddResponse;
+					}
+				}
+				if (body.gitUrl) {
+					// For git clones, check the custom destination path if one is provided.
+					const customDest = body.path ? body.path : null;
+					if (customDest) {
+						const resolved = deps.resolveProjectInputPath(customDest, deps.serverCwd);
+						const confinement = confineToAllowedRoots(resolved, deps.allowedBrowseRoots);
+						if (!confinement.allowed) {
+							return {
+								ok: false,
+								project: null,
+								error: "Access denied: the requested clone destination is outside the allowed directories for remote mode.",
+							} satisfies RuntimeProjectAddResponse;
+						}
+					}
+				}
+			}
+
 			const preferredWorkspaceContext = preferredWorkspaceId
 				? await loadWorkspaceContextById(preferredWorkspaceId)
 				: null;
@@ -1020,6 +1075,25 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 			const body = parseDirectoryListRequest(input);
 			const rootPath = filesystemRoot;
 			const requestedPath = body.path?.trim() || "";
+
+			// Remote mode: every resolved path must be within an allowed root.
+			// We check before the local rootPath sandbox so the error message is
+			// consistent regardless of whether the path is absolute or relative.
+			if (deps.isRemoteMode && requestedPath) {
+				const candidate = isAbsolute(requestedPath) ? requestedPath : resolve(rootPath, requestedPath);
+				const confinement = confineToAllowedRoots(candidate, deps.allowedBrowseRoots);
+				if (!confinement.allowed) {
+					return {
+						ok: false,
+						currentPath: rootPath,
+						parentPath: null,
+						rootPath,
+						entries: [],
+						error: "Access denied: path is outside the allowed directories for remote mode.",
+					} satisfies RuntimeDirectoryListResponse;
+				}
+			}
+
 			// Reject absolute paths that fall outside the sandbox
 			if (requestedPath && isAbsolute(requestedPath)) {
 				if (!isPathWithinRoot(rootPath, requestedPath)) {
