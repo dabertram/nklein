@@ -1,0 +1,15 @@
+I want to build a real agentic chat workspace operating system, not a fake MVP, chat skin, or demo harness.
+
+Read all of specification.md before planning. This is an intentionally large agentic-software dev-test challenge intended to stress complexity decomposition, domain knowledge management, runtime safety, evidence handling, and architectural judgment in small local LLM agents.
+
+Important domains: agentic chat, persistent memory, workspace state, tool mediation, document and code workflows, multi-modal evidence, permissioning, knowledge management.
+
+Create a dependency-linked implementation plan with roughly 100-120 cards before coding. Track knowledge debt explicitly: unclear standards, model limitations, security assumptions, privacy constraints, fixture limitations, user-trust tradeoffs, and places where expert review would be required in a real product.
+
+Build the real foundation first: typed domain model, deterministic core algorithms or policy engines, workflow state machines, trace and evidence data, fixture adapters, and golden tests. Do not start with decorative UI. Do not paper over hard agentic behavior with generic chat messages. Do not use live external services in acceptance tests.
+
+Prefer a smaller number of release-quality vertical slices over a broad set of placeholders. Every recommendation, tool action, state transition, score, merge decision, generated artifact, or report must be explainable from source facts and covered by deterministic tests.
+
+Be especially careful with trust boundaries: model context, memory, tool execution, repository writes, sandbox paths, hidden tests, secret data, and human approval states must be modeled explicitly.
+
+Acceptance command: npm test

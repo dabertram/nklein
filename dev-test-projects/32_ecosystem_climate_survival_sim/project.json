@@ -1,0 +1,18 @@
+{
+	"id": "32_ecosystem_climate_survival_sim",
+	"title": "Living Ecosystem and Climate Survival Simulation",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "32/35 game block",
+	"tags": [
+		"ecosystem simulation",
+		"climate systems",
+		"species behavior",
+		"food webs",
+		"resource cycles",
+		"survival strategy",
+		"procedural worlds",
+		"environmental presentation"
+	]
+}

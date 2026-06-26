@@ -1,0 +1,18 @@
+{
+	"id": "27_tactical_deckbuilder_roguelike_arena",
+	"title": "Tactical Deckbuilder Roguelike Arena",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "27/35 game block",
+	"tags": [
+		"deckbuilding games",
+		"tactical grid combat",
+		"roguelike runs",
+		"procedural encounters",
+		"card rules",
+		"status effects",
+		"encounter balance",
+		"combat presentation"
+	]
+}

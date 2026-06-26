@@ -1,0 +1,17 @@
+{
+	"id": "21_agentic_code_review_ci_guardian",
+	"title": "Agentic Code Review and CI Guardian Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "21/25",
+	"tags": [
+		"agentic code review",
+		"static analysis",
+		"CI triage",
+		"repository policy",
+		"test-impact analysis",
+		"patch risk scoring",
+		"developer trust workflows"
+	]
+}

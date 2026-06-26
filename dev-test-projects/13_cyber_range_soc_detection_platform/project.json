@@ -1,0 +1,17 @@
+{
+	"id": "13_cyber_range_soc_detection_platform",
+	"title": "Cyber Range and SOC Detection Engineering Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "13/20",
+	"tags": [
+		"security operations",
+		"telemetry normalization",
+		"detection rules",
+		"attack emulation",
+		"incident response",
+		"MITRE-style tactics",
+		"evidence chains"
+	]
+}

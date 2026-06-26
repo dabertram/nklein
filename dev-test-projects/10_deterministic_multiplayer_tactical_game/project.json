@@ -1,0 +1,17 @@
+{
+	"id": "10_deterministic_multiplayer_tactical_game",
+	"title": "Deterministic Multiplayer Tactical Game and Simulation Engine",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "10/20",
+	"tags": [
+		"turn-based tactics",
+		"deterministic simulation",
+		"netcode",
+		"fog of war",
+		"pathfinding",
+		"ability systems",
+		"replay verification"
+	]
+}

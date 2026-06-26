@@ -1,0 +1,13 @@
+{
+	"id": "habit-wide-fanout",
+	"title": "Wide fan-out formatter build",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"complexity": 66,
+	"filesLikelyTouched": [
+		"src/formatters",
+		"src/index.ts",
+		"test/formatters.test.js"
+	]
+}

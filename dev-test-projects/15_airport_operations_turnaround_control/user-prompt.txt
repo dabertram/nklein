@@ -1,0 +1,13 @@
+I want to build a real airport operations and turnaround control center, not a fake MVP or themed demo.
+
+Read all of specification.md before planning. This is a domain-heavy dev-test challenge intended to stress complexity decomposition, domain knowledge management, and architectural judgment in small local LLM agents.
+
+Important domains: airport operations, flight schedules, gate assignment, turnaround milestones, ground handling, baggage, disruption management.
+
+Create a dependency-linked implementation plan with roughly 40-44 cards before coding. Track knowledge debt explicitly: unclear standards, numerical assumptions, safety or compliance assumptions, fixture limitations, and places where expert review would be required in a real product.
+
+Build the real foundation first: typed domain model, deterministic core algorithms or policy engines, workflow state machines, fixture adapters, and golden tests. Do not start by making decorative UI. Do not paper over hard domain logic with hard-coded labels. Do not use live external services in acceptance tests.
+
+Prefer a smaller number of release-quality vertical slices over a broad set of placeholders. Every recommendation, decision, state transition, score, or report must be explainable from source facts and covered by deterministic tests.
+
+Acceptance command: npm test

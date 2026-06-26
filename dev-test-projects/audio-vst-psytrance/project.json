@@ -1,0 +1,14 @@
+{
+	"id": "audio-vst-psytrance",
+	"title": "Psytrance audio VST buildout",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "audio-vst-synth",
+	"complexity": 75,
+	"filesLikelyTouched": [
+		"src/plugin.ts",
+		"src/index.ts",
+		"test/plugin.test.js"
+	]
+}

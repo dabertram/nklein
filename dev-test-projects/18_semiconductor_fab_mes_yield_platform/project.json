@@ -1,0 +1,19 @@
+{
+	"id": "18_semiconductor_fab_mes_yield_platform",
+	"title": "Semiconductor Fab MES and Yield Analysis Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "18/20",
+	"tags": [
+		"semiconductor manufacturing",
+		"MES",
+		"wafer lots",
+		"process routes",
+		"equipment state",
+		"SPC",
+		"genealogy",
+		"yield analysis",
+		"hold/release"
+	]
+}

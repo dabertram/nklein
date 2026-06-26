@@ -1317,6 +1317,26 @@ deep analysis:
         plus dependency-ordered build guidance — calibrated as great small-local-LLM dev-test material. Kept
         deterministic (`npm test`, no live LLM/network), all scenario ids/titles + asserted prompt phrases intact,
         and added orientation READMEs to the `smoke-ts-cli`/`audio-vst-synth` fixtures.
+  - [x] **Folder-based dev-test-project registry + 36-project integration (2026-06-26)** — the dev-test scenario
+        prompts/specs no longer live as string constants. Each project is now a self-contained folder under the
+        repo-root [`dev-test-projects/<id>/`](dev-test-projects/) (`project.json` + `specification.md` +
+        `user-prompt.txt`); registering a prepared project is "add a folder + it's discovered" (no code change).
+        New loader [src/nklein-sdk/dev-test-project-registry.ts](src/nklein-sdk/dev-test-project-registry.ts)
+        discovers the folders, validates each `project.json` with a strict zod schema
+        (`devTestProjectConfigSchema`: `id/title/acceptanceCommand` + optional `agentId/fixtureTemplate/
+        startInPlanMode/tier/tags/enabled/complexity/specificationPath/filesLikelyTouched`), reads the two text
+        files, and builds the same `NKleinDevTestProjectScenario` objects the runner/UI/CLI already consume. The
+        9 named scenario constants in `nklein-dev-test-project.ts` are now **registry lookups by id** (byte-identical
+        `prompt`/`specification`/`complexity`/`templateName` — every existing dev-test/projects-api test stays green
+        unchanged). Migrated the 9 legacy in-code projects to folders, then **integrated all 36 enhanced specs from
+        the Desktop into the repo** (`NN_<name>/` folders with synthesized `project.json`: title from H1, `tier` from
+        the spec, `tags` from "Domain pressure", `startInPlanMode: true`, `agentId: nklein`, `npm test`), plus
+        `_ENHANCEMENT_GUIDELINES.md` + a `README.md` documenting the format. **45 folder-defined projects total; the
+        repo references nothing under `~/Desktop`.** New `dev-test-project-registry.test.ts` (10 cases: discover /
+        validate / reject-malformed / load spec+prompt / preserve legacy fields). **UI follow-up (not yet wired):**
+        the registry is loadable but the project-nav `DevTestProjectCard` + `createDevTestProject` tRPC path still
+        only expose the 4 preset buttons (`runtimeDevTestProjectPresetSchema` enum); listing/starting an arbitrary
+        registry project by id needs a small contract + UI addition (verify live).
   - [x] **CLI sweep orchestrator (2026-06-24)** — `nklein dev sweep` runs several dev-test presets in sequence
         (default = the parallel-fan-out set `wide_fanout,deep_chain,mixed_dag,many_small`, `--presets` overridable)
         and reports each run's classified terminal outcome. The orchestration core

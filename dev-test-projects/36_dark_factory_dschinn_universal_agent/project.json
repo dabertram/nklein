@@ -1,0 +1,25 @@
+{
+	"id": "36_dark_factory_dschinn_universal_agent",
+	"title": "Dark Factory Dschinn Universal Agent",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "36/36 master challenge",
+	"tags": [
+		"autonomous agent operating system",
+		"local GPU/unified-memory inference",
+		"blue-green brain updates",
+		"persistent user memory",
+		"software-product factory",
+		"market research",
+		"business automation",
+		"marketing/sales operations",
+		"self-improvement",
+		"plugin ecosystems",
+		"long-running multi-project orchestration",
+		"financial governance",
+		"cloud migration",
+		"hardware procurement",
+		"safety and audit"
+	]
+}

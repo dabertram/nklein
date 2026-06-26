@@ -1,0 +1,18 @@
+{
+	"id": "19_distributed_database_stream_processing_platform",
+	"title": "Distributed Database and Stream Processing Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "19/20",
+	"tags": [
+		"distributed systems",
+		"consensus",
+		"query planning",
+		"replication",
+		"transactions",
+		"stream processing",
+		"fault injection",
+		"observability"
+	]
+}

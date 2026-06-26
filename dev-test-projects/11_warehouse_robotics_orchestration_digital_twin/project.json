@@ -1,0 +1,17 @@
+{
+	"id": "11_warehouse_robotics_orchestration_digital_twin",
+	"title": "Warehouse Robotics Orchestration and Digital Twin Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "11/20",
+	"tags": [
+		"robotics orchestration",
+		"warehouse management",
+		"task allocation",
+		"traffic control",
+		"digital twin",
+		"safety zones",
+		"inventory movement"
+	]
+}

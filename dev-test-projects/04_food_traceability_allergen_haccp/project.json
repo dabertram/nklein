@@ -1,0 +1,17 @@
+{
+	"id": "04_food_traceability_allergen_haccp",
+	"title": "Food Traceability, Allergen, and HACCP Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "4/20",
+	"tags": [
+		"food manufacturing",
+		"HACCP",
+		"allergen controls",
+		"lot genealogy",
+		"recalls",
+		"supplier quality",
+		"labeling"
+	]
+}

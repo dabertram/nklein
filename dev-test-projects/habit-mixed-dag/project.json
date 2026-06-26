@@ -1,0 +1,13 @@
+{
+	"id": "habit-mixed-dag",
+	"title": "Mixed DAG feature slice",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"complexity": 72,
+	"filesLikelyTouched": [
+		"src/habit-score.ts",
+		"src/habit-insights.ts",
+		"src/index.ts"
+	]
+}

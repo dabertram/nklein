@@ -1,0 +1,12 @@
+{
+	"id": "small-model-smoke",
+	"title": "Small model smoke task",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"complexity": 35,
+	"filesLikelyTouched": [
+		"src/habit-score.ts",
+		"test/habit-score.test.js"
+	]
+}

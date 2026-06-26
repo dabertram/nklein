@@ -1,0 +1,18 @@
+{
+	"id": "26_chess_study_engine_arena",
+	"title": "Modern Chess Study, Engine, and Tournament Arena",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "26/35 game block",
+	"tags": [
+		"chess rules",
+		"legal move generation",
+		"PGN/FEN",
+		"engine analysis",
+		"opening study",
+		"tactics training",
+		"tournament presentation",
+		"replay UX"
+	]
+}

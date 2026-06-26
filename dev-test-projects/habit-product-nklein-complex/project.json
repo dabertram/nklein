@@ -1,0 +1,13 @@
+{
+	"id": "habit-product-nklein-complex",
+	"title": "Habit product !Klein buildout",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"complexity": 74,
+	"filesLikelyTouched": [
+		"src/habit-score.ts",
+		"src/habit-insights.ts",
+		"src/index.ts"
+	]
+}

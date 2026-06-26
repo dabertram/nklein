@@ -1,0 +1,17 @@
+{
+	"id": "14_carbon_accounting_energy_optimization",
+	"title": "Carbon Accounting and Industrial Energy Optimization Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "14/20",
+	"tags": [
+		"GHG accounting",
+		"industrial energy management",
+		"tariffs",
+		"demand response",
+		"emissions factors",
+		"measurement and verification",
+		"optimization"
+	]
+}

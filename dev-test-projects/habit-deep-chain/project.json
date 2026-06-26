@@ -1,0 +1,13 @@
+{
+	"id": "habit-deep-chain",
+	"title": "Deep dependency chain pipeline",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"complexity": 70,
+	"filesLikelyTouched": [
+		"src/pipeline",
+		"src/index.ts",
+		"test/pipeline.test.js"
+	]
+}

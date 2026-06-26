@@ -1,0 +1,13 @@
+{
+	"id": "habit-insights-mid",
+	"title": "Add habit insight summaries",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"complexity": 62,
+	"filesLikelyTouched": [
+		"src/habit-score.ts",
+		"src/habit-insights.ts",
+		"src/index.ts"
+	]
+}

@@ -1,0 +1,17 @@
+{
+	"id": "16_medical_imaging_pacs_ris_workstation",
+	"title": "Medical Imaging PACS/RIS Workstation Foundation",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "16/20",
+	"tags": [
+		"DICOM-like imaging",
+		"radiology workflow",
+		"hanging protocols",
+		"measurements",
+		"reporting",
+		"dose tracking",
+		"access control"
+	]
+}

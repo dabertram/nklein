@@ -1,0 +1,17 @@
+{
+	"id": "29_factory_automation_puzzle_sandbox",
+	"title": "Factory Automation Puzzle Sandbox",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "29/35 game block",
+	"tags": [
+		"factory automation",
+		"logistics puzzles",
+		"conveyor routing",
+		"resource transformation",
+		"blueprinting",
+		"simulation determinism",
+		"production-line presentation"
+	]
+}

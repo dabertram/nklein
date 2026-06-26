@@ -1,0 +1,18 @@
+{
+	"id": "34_llm_commanded_realtime_strategy",
+	"title": "Realtime Strategy with LLM Commanders and Cooperative AI Allies",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "34/35 game block",
+	"tags": [
+		"real-time strategy",
+		"squad tactics",
+		"economy",
+		"fog of war",
+		"deterministic simulation",
+		"LLM-controlled enemy commanders",
+		"cooperative AI allies",
+		"multiplayer-ready presentation"
+	]
+}

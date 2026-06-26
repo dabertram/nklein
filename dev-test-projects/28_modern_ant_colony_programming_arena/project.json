@@ -1,0 +1,18 @@
+{
+	"id": "28_modern_ant_colony_programming_arena",
+	"title": "Modern Ant Colony Programming Arena",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "28/35 game block",
+	"tags": [
+		"programmable agents",
+		"swarm simulation",
+		"ant-colony behavior",
+		"DSL design",
+		"tournament judging",
+		"pheromone fields",
+		"ecosystem hazards",
+		"visual simulation"
+	]
+}

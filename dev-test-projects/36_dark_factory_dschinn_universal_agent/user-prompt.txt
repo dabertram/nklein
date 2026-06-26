@@ -1,0 +1,19 @@
+I want to build the full master challenge: a real dark factory / Dschinn universal agent, not a fake chatbot, dashboard demo, or workflow toy.
+
+Read all of specification.md before planning. This is the maximal dev-test challenge intended to stress autonomous decomposition, local GPU/unified-memory inference, blue-green brain updates, persistent memory, market research, software-product creation, marketing, financial governance, plugin self-extension, self-improvement, long-running multi-project orchestration, and polished operator UX.
+
+The product should wipe away OpenClaw/Hermes-style setups by being more holistic: local-first but cloud-capable, chat-controlled but autonomously operating, two-brain update-safe, memory-rich, product-factory oriented, financially governed, evidence-led, and able to improve itself through plugins and tested code changes.
+
+Create a dependency-linked implementation plan with roughly 400-650 cards before coding. Track knowledge debt explicitly: current model landscape, model licensing, benchmark relevance, local hardware economics, cloud cost, financial/legal constraints, marketing compliance, payment safety, platform ToS, security boundaries, plugin supply-chain risk, memory ethics, and owner-approval policy.
+
+Build the real foundation first: typed domain model, two-brain lifecycle, model intelligence crawler fixtures, hardware profiler fixtures, persistent memory, project portfolio scheduler, opportunity research pipeline, product-factory workflow, financial governance ledger, tool gateway, plugin permission system, self-improvement lab, audit trail, and polished cockpit/chat view models.
+
+Do not start with decorative chat UI. Do not create an unrestricted money-moving bot. Do not depend on live payments, live ads, live cloud deployments, real purchases, live LLM calls, or uncontrolled web access for acceptance tests. Use deterministic adapters for all external systems.
+
+The system must be ambitious but governed: it can propose buying hardware, renting cloud GPUs, connecting frontier models, launching ads, publishing products, sending owner payouts, or reinvesting revenue only through explicit policies, budget limits, approvals, audit logs, and rollback/mitigation plans.
+
+Very strong presentation is mandatory. The owner needs a cockpit: brain room, market radar, product portfolio, factory pipeline, money room, self-improvement lab, approval queue, emergency stop, and chat control room.
+
+Prefer a smaller number of release-quality vertical slices over broad placeholder content. Every model update, spend proposal, product thesis, task priority, memory update, plugin install, public action, and self-improvement proposal must be explainable from source facts and covered by deterministic tests.
+
+Acceptance command: npm test

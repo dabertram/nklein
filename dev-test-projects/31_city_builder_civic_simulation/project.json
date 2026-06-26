@@ -1,0 +1,20 @@
+{
+	"id": "31_city_builder_civic_simulation",
+	"title": "City Builder Civic Simulation",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "31/35 game block",
+	"tags": [
+		"city simulation",
+		"zoning",
+		"transportation",
+		"utilities",
+		"land value",
+		"budgets",
+		"public services",
+		"disasters",
+		"civic dashboards",
+		"SimCity-like presentation"
+	]
+}

@@ -1,0 +1,18 @@
+{
+	"id": "22_agentic_pair_programming_ide",
+	"title": "Agentic Pair Programming IDE with Live Codebase Understanding",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "22/25",
+	"tags": [
+		"agentic IDEs",
+		"code intelligence",
+		"language-server orchestration",
+		"editor UX",
+		"context retrieval",
+		"test driving",
+		"refactoring safety",
+		"developer agency"
+	]
+}

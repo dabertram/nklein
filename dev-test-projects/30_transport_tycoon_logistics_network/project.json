@@ -1,0 +1,18 @@
+{
+	"id": "30_transport_tycoon_logistics_network",
+	"title": "Transport Tycoon Logistics Network Simulation",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "30/35 game block",
+	"tags": [
+		"transport networks",
+		"vehicle scheduling",
+		"cargo economics",
+		"pathfinding",
+		"timetables",
+		"infrastructure planning",
+		"logistics simulation",
+		"map presentation"
+	]
+}

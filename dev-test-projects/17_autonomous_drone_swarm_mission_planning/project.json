@@ -1,0 +1,17 @@
+{
+	"id": "17_autonomous_drone_swarm_mission_planning",
+	"title": "Autonomous Drone Swarm Mission Planning and UTM Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "17/20",
+	"tags": [
+		"autonomous drones",
+		"mission planning",
+		"airspace constraints",
+		"battery models",
+		"collision avoidance",
+		"UTM coordination",
+		"geofencing"
+	]
+}

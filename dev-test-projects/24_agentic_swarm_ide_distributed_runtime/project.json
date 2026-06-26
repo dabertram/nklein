@@ -1,0 +1,18 @@
+{
+	"id": "24_agentic_swarm_ide_distributed_runtime",
+	"title": "Agentic Swarm IDE and Distributed Runtime",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "24/25",
+	"tags": [
+		"multi-agent coding",
+		"distributed task orchestration",
+		"sandboxing",
+		"repository isolation",
+		"merge arbitration",
+		"model routing",
+		"evidence collection",
+		"live verification"
+	]
+}

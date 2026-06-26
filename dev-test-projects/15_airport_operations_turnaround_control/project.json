@@ -1,0 +1,17 @@
+{
+	"id": "15_airport_operations_turnaround_control",
+	"title": "Airport Operations and Turnaround Control Center",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "15/20",
+	"tags": [
+		"airport operations",
+		"flight schedules",
+		"gate assignment",
+		"turnaround milestones",
+		"ground handling",
+		"baggage",
+		"disruption management"
+	]
+}

@@ -1,0 +1,16 @@
+{
+	"id": "06_industrial_predictive_maintenance_historian",
+	"title": "Industrial Predictive Maintenance and Historian Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "6/20",
+	"tags": [
+		"industrial maintenance",
+		"time-series historians",
+		"vibration analysis",
+		"work orders",
+		"OPC UA-style tags",
+		"reliability engineering"
+	]
+}

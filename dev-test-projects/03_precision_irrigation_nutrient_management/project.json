@@ -1,0 +1,16 @@
+{
+	"id": "03_precision_irrigation_nutrient_management",
+	"title": "Precision Irrigation and Nutrient Management Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "3/20",
+	"tags": [
+		"agronomy",
+		"irrigation scheduling",
+		"soil water balance",
+		"fertigation planning",
+		"weather risk",
+		"sensor quality control"
+	]
+}

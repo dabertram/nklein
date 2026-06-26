@@ -1,0 +1,12 @@
+{
+	"id": "habit-many-small",
+	"title": "Many tiny cards stress",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"complexity": 58,
+	"filesLikelyTouched": [
+		"src/helpers",
+		"src/index.ts"
+	]
+}

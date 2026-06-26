@@ -1,0 +1,16 @@
+{
+	"id": "09_maritime_fleet_routing_compliance",
+	"title": "Maritime Fleet Routing and Compliance Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "9/20",
+	"tags": [
+		"voyage planning",
+		"maritime weather",
+		"fuel optimization",
+		"emissions areas",
+		"COLREG-style constraints",
+		"port operations"
+	]
+}

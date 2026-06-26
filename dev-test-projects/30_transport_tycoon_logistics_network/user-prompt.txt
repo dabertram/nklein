@@ -1,0 +1,15 @@
+I want to build a real transport tycoon logistics network simulation, not a fake MVP, mechanics stub, or ugly prototype.
+
+Read all of specification.md before planning. This is a game dev-test challenge intended to stress rules modeling, deterministic simulation, AI behavior, replayability, domain knowledge management, and polished interactive presentation in small local LLM agents.
+
+Important domains: transport networks, vehicle scheduling, cargo economics, pathfinding, timetables, infrastructure planning, logistics simulation, map presentation.
+
+Create a dependency-linked implementation plan with roughly 120-145 cards before coding. Track knowledge debt explicitly: unclear rules, balance assumptions, AI limitations, rendering tradeoffs, asset gaps, performance constraints, accessibility concerns, fixture limitations, and places where designer or domain expert review would be required in a real product.
+
+Build the real foundation first: typed game state, deterministic simulation or rules engine, command validation, replay/save fixtures, AI or policy adapters, presentation view models, and golden tests. Do not start with decorative UI that cannot play. Do not build a hidden engine with no polished player-facing presentation.
+
+Very nice presentation is mandatory. The first playable slice must look and feel like a real game: coherent art direction, readable controls, smooth feedback, strong layout, polished panels, useful overlays, and no raw debug tables as the main experience.
+
+Prefer a smaller number of release-quality vertical slices over broad placeholder content. Every simulation transition, AI decision, score, generated narrative, combat result, economy change, or recommendation must be explainable from source facts and covered by deterministic tests.
+
+Acceptance command: npm test

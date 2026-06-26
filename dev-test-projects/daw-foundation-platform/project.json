@@ -1,0 +1,15 @@
+{
+	"id": "daw-foundation-platform",
+	"title": "Modern DAW foundation buildout",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"fixtureTemplate": "daw-foundation",
+	"complexity": 100,
+	"specificationPath": "scripts/dev-fixtures/daw-foundation-spec.md",
+	"filesLikelyTouched": [
+		"src/timebase.ts",
+		"src/index.ts",
+		"test/timebase.test.js"
+	]
+}

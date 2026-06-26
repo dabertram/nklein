@@ -1,0 +1,17 @@
+{
+	"id": "05_emergency_dispatch_incident_command",
+	"title": "Emergency Dispatch and Incident Command Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "5/20",
+	"tags": [
+		"computer-aided dispatch",
+		"incident command",
+		"GIS",
+		"unit status",
+		"triage",
+		"mutual aid",
+		"radio log evidence"
+	]
+}

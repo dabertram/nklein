@@ -1,0 +1,19 @@
+{
+	"id": "33_colony_settlement_social_sim",
+	"title": "Colony Settlement Social Simulation",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "33/35 game block",
+	"tags": [
+		"colony management",
+		"agent needs",
+		"social simulation",
+		"construction",
+		"schedules",
+		"jobs",
+		"psychology",
+		"storytelling",
+		"presentation-rich simulation"
+	]
+}

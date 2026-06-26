@@ -1,0 +1,16 @@
+{
+	"id": "02_construction_jobsite_safety_compliance",
+	"title": "Construction Jobsite Safety and Compliance Control Room",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "2/20",
+	"tags": [
+		"jobsite safety",
+		"permits",
+		"hazard controls",
+		"incident reporting",
+		"offline field workflows",
+		"OSHA-style compliance evidence"
+	]
+}

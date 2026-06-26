@@ -1,0 +1,18 @@
+{
+	"id": "23_agentic_chat_workspace_operating_system",
+	"title": "Agentic Chat Workspace Operating System",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "23/25",
+	"tags": [
+		"agentic chat",
+		"persistent memory",
+		"workspace state",
+		"tool mediation",
+		"document and code workflows",
+		"multi-modal evidence",
+		"permissioning",
+		"knowledge management"
+	]
+}

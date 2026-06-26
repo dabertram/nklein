@@ -1,0 +1,1 @@
+Create a small implementation-card breakdown for the bug fix described in specification.md. Use specification.md as the authoritative product specification. Keep generated implementation cards independently reviewable and machine-checkable. Acceptance command: npm test.

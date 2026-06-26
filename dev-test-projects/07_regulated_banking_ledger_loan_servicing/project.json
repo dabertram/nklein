@@ -1,0 +1,17 @@
+{
+	"id": "07_regulated_banking_ledger_loan_servicing",
+	"title": "Regulated Banking Ledger and Loan Servicing Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "7/20",
+	"tags": [
+		"double-entry accounting",
+		"loan amortization",
+		"payments",
+		"compliance holds",
+		"statements",
+		"reconciliation",
+		"audit controls"
+	]
+}

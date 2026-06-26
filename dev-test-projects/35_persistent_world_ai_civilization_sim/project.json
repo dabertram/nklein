@@ -1,0 +1,19 @@
+{
+	"id": "35_persistent_world_ai_civilization_sim",
+	"title": "Persistent World AI Civilization Simulation Game",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "35/35 game block",
+	"tags": [
+		"persistent world simulation",
+		"grand strategy",
+		"city building",
+		"diplomacy",
+		"economics",
+		"ecology",
+		"LLM faction leaders",
+		"multiplayer governance",
+		"beautiful strategic presentation"
+	]
+}

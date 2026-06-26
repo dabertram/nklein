@@ -1,0 +1,18 @@
+{
+	"id": "12_gitlab_class_code_hosting_ci_platform",
+	"title": "GitLab-Class Code Hosting and CI Platform Foundation",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "12/20",
+	"tags": [
+		"Git hosting",
+		"merge requests",
+		"CI pipelines",
+		"runners",
+		"permissions",
+		"code review",
+		"release governance",
+		"auditability"
+	]
+}

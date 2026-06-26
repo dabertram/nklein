@@ -1,0 +1,18 @@
+{
+	"id": "25_self_improving_agentic_software_factory",
+	"title": "Self-Improving Agentic Software Factory and Evaluation Lab",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "25/25",
+	"tags": [
+		"agentic software engineering",
+		"benchmark design",
+		"automated evaluation",
+		"model routing",
+		"tool runtime safety",
+		"curriculum generation",
+		"software factory orchestration",
+		"governance"
+	]
+}

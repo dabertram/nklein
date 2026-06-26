@@ -1,0 +1,19 @@
+{
+	"id": "20_virtualized_microkernel_operating_system_lab",
+	"title": "Virtualized Microkernel Operating System and Hypervisor Lab",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "20/20",
+	"tags": [
+		"operating systems",
+		"virtualization",
+		"CPU emulation",
+		"microkernels",
+		"memory management",
+		"filesystems",
+		"process scheduling",
+		"networking",
+		"debugging"
+	]
+}

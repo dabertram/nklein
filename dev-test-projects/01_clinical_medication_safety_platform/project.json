@@ -1,0 +1,15 @@
+{
+	"id": "01_clinical_medication_safety_platform",
+	"title": "Clinical Medication Safety and Adherence Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "1/20",
+	"tags": [
+		"outpatient medication safety",
+		"drug interaction rules",
+		"caregiver workflows",
+		"refill logistics",
+		"audit trails"
+	]
+}

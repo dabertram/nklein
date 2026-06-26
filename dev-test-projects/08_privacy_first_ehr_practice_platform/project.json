@@ -1,0 +1,17 @@
+{
+	"id": "08_privacy_first_ehr_practice_platform",
+	"title": "Privacy-First EHR and Practice Operations Platform",
+	"acceptanceCommand": "npm test",
+	"agentId": "nklein",
+	"startInPlanMode": true,
+	"tier": "8/20",
+	"tags": [
+		"electronic health records",
+		"scheduling",
+		"clinical notes",
+		"FHIR-like resources",
+		"consent",
+		"privacy auditing",
+		"care plans"
+	]
+}
