@@ -6,6 +6,7 @@ export type { PlanGapKind } from "./plan-gap-kind.js";
 
 // Board schemas the barrel's downstream schemas still reference directly (re-exported above via `export *`).
 import { runtimeBoardCardSchema, runtimeBoardDataSchema, runtimeTaskImageSchema } from "./board-api-contract.js";
+import { runtimeGitRepositoryInfoSchema, runtimeGitSyncSummarySchema } from "./git-sync-api-contract.js";
 // Config primitives the schemas below still reference directly (re-exported above via `export *`).
 import {
 	agentRulesetsConfigSchema,
@@ -26,6 +27,8 @@ export * from "./board-api-contract.js";
 // Board-independent unified chat (todo §5.M) lives in its own contract module; re-exported here so the single
 // `@runtime-contract` alias (and `@/runtime/types` in the web-ui) surfaces the chat wire types too.
 export * from "./chat-api-contract.js";
+// Git sync contract domain (repo info, fetch/pull/push sync, checkout, discard) (§5.X #2).
+export * from "./git-sync-api-contract.js";
 // Runtime/agent configuration primitives (core enums, NKlein/swarm settings, model-roles, agent rulesets) (§5.X #2).
 export * from "./runtime-config-api-contract.js";
 // Workspace file-operation contracts (status / change / changes / fuzzy search) live in their own module (§5.X #2).
@@ -52,65 +55,6 @@ export {
 	AGENT_RULESET_ROLES,
 	DEFAULT_AGENT_RULESETS_CONFIG,
 } from "./agent-rulesets.js";
-
-export const runtimeGitRepositoryInfoSchema = z.object({
-	currentBranch: z.string().nullable(),
-	defaultBranch: z.string().nullable(),
-	branches: z.array(z.string()),
-});
-export type RuntimeGitRepositoryInfo = z.infer<typeof runtimeGitRepositoryInfoSchema>;
-
-export const runtimeGitSyncActionSchema = z.enum(["fetch", "pull", "push"]);
-export type RuntimeGitSyncAction = z.infer<typeof runtimeGitSyncActionSchema>;
-
-export const runtimeGitSyncSummarySchema = z.object({
-	currentBranch: z.string().nullable(),
-	upstreamBranch: z.string().nullable(),
-	changedFiles: z.number(),
-	additions: z.number(),
-	deletions: z.number(),
-	aheadCount: z.number(),
-	behindCount: z.number(),
-});
-export type RuntimeGitSyncSummary = z.infer<typeof runtimeGitSyncSummarySchema>;
-
-export const runtimeGitSummaryResponseSchema = z.object({
-	ok: z.boolean(),
-	summary: runtimeGitSyncSummarySchema,
-	error: z.string().optional(),
-});
-export type RuntimeGitSummaryResponse = z.infer<typeof runtimeGitSummaryResponseSchema>;
-
-export const runtimeGitSyncResponseSchema = z.object({
-	ok: z.boolean(),
-	action: runtimeGitSyncActionSchema,
-	summary: runtimeGitSyncSummarySchema,
-	output: z.string(),
-	error: z.string().optional(),
-});
-export type RuntimeGitSyncResponse = z.infer<typeof runtimeGitSyncResponseSchema>;
-
-export const runtimeGitCheckoutRequestSchema = z.object({
-	branch: z.string(),
-});
-export type RuntimeGitCheckoutRequest = z.infer<typeof runtimeGitCheckoutRequestSchema>;
-
-export const runtimeGitCheckoutResponseSchema = z.object({
-	ok: z.boolean(),
-	branch: z.string(),
-	summary: runtimeGitSyncSummarySchema,
-	output: z.string(),
-	error: z.string().optional(),
-});
-export type RuntimeGitCheckoutResponse = z.infer<typeof runtimeGitCheckoutResponseSchema>;
-
-export const runtimeGitDiscardResponseSchema = z.object({
-	ok: z.boolean(),
-	summary: runtimeGitSyncSummarySchema,
-	output: z.string(),
-	error: z.string().optional(),
-});
-export type RuntimeGitDiscardResponse = z.infer<typeof runtimeGitDiscardResponseSchema>;
 
 export const runtimeTaskSessionStateSchema = z.enum([
 	"idle",
