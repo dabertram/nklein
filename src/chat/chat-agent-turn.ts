@@ -1,4 +1,5 @@
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
+import { isTemporalContextRelevant } from "../core/temporal-awareness";
 import { stripNarratedToolCallMarkup } from "../nklein-sdk/nklein-narrated-tool-call";
 import {
 	type ChatAgentModelResponse,
@@ -88,7 +89,9 @@ export async function runChatAgentTurn(
 		},
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);
-	const prompt = renderChatTurnPrompt(context, input.userMessage, { now: (deps.now ?? (() => new Date()))() });
+	// The §5.AC date is relevance-gated (§5.AE JIT composition): inject only when the turn is temporal/freshness-relevant.
+	const now = isTemporalContextRelevant({ text: input.userMessage }) ? (deps.now ?? (() => new Date()))() : undefined;
+	const prompt = renderChatTurnPrompt(context, input.userMessage, now ? { now } : {});
 	// Re-anchor the agent's focus chain (todo §5.M G4): lead the turn with its current checklist so a small model
 	// stays on-plan, and offer `update_focus_chain` (wired into the tool set) to keep it current.
 	const focusChain = deps.readFocusChain ? await deps.readFocusChain(input.session.id) : null;

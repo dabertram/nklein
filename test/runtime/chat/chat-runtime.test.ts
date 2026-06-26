@@ -37,8 +37,10 @@ describe("runChatTurn", () => {
 	it("composes context, calls the model, and persists user + assistant messages in order", async () => {
 		const appended: Array<{ role: string; content: string }> = [];
 		let receivedPrompt: ChatPromptMessage[] = [];
+		// A temporally-relevant message ("latest") so the §5.AE relevance gate injects the date block.
+		const userMessage = "what is the latest version I should use?";
 		const result = await runChatTurn(
-			{ session: session({ goal: "Ship the feature" }), userMessage: "what next?", tokenBudget: 1000 },
+			{ session: session({ goal: "Ship the feature" }), userMessage, tokenBudget: 1000 },
 			{
 				readTranscript: async () => [
 					{ schemaVersion: 1, id: "p1", role: "user", content: "earlier q", createdAt: 1 },
@@ -59,13 +61,40 @@ describe("runChatTurn", () => {
 			},
 		);
 
-		expect(result.userMessage.content).toBe("what next?");
+		expect(result.userMessage.content).toBe(userMessage);
 		expect(result.assistantMessage.content).toBe("do step two");
 		expect(appended.map((m) => m.role)).toEqual(["user", "assistant"]);
 		// The temporal-awareness block leads (§5.AC), the goal follows, and the new message is last.
 		expect(receivedPrompt[0]?.content).toContain("<current_datetime>");
 		expect(receivedPrompt[1]?.content).toContain("Ship the feature");
-		expect(receivedPrompt.at(-1)).toEqual({ role: "user", content: "what next?" });
+		expect(receivedPrompt.at(-1)).toEqual({ role: "user", content: userMessage });
+	});
+
+	it("skips the date block for a non-temporal turn (§5.AE relevance gate — no token waste)", async () => {
+		let receivedPrompt: ChatPromptMessage[] = [];
+		await runChatTurn(
+			{
+				session: session({ goal: "Ship the feature" }),
+				userMessage: "implement a binary search",
+				tokenBudget: 1000,
+			},
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: appendMessageStub,
+				complete: async (prompt) => {
+					receivedPrompt = prompt;
+					return "ok";
+				},
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				now: () => new Date("2026-06-26T12:00:00Z"),
+			},
+		);
+		// No temporal/freshness signal → the date block is not injected even though a clock is available.
+		expect(receivedPrompt.some((m) => m.content.includes("<current_datetime>"))).toBe(false);
+		// The goal still leads.
+		expect(receivedPrompt[0]?.content).toContain("Ship the feature");
 	});
 
 	it("feeds query-matching recalled memories into the prompt (lexical fallback)", async () => {

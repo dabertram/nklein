@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildTemporalAwarenessPrompt, resolveTemporalAwareness } from "../../../src/core/temporal-awareness";
+import {
+	buildTemporalAwarenessPrompt,
+	isTemporalContextRelevant,
+	resolveTemporalAwareness,
+} from "../../../src/core/temporal-awareness";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -37,5 +41,45 @@ describe("buildTemporalAwarenessPrompt", () => {
 		expect(block).toContain("cutoff in the PAST");
 		expect(block).toContain("ground truth");
 		expect(block.toLowerCase()).toContain("freshness");
+	});
+});
+
+describe("isTemporalContextRelevant (§5.AE)", () => {
+	it("is true for temporal/freshness markers in the text", () => {
+		for (const text of [
+			"what is the latest version of React?",
+			"is this library deprecated?",
+			"summarize the news today",
+			"what changed recently in the API",
+			"give me the newest release notes",
+			"is package X up to date?",
+			"what happened at WWDC 2026",
+			"plan the work for next month",
+		]) {
+			expect(isTemporalContextRelevant({ text })).toBe(true);
+		}
+	});
+
+	it("is false for a plain coding task with no temporal signal", () => {
+		for (const text of [
+			"implement a binary search function",
+			"fix the null check in the parser",
+			"add a unit test for the focus chain",
+			"refactor the current implementation into smaller modules", // "current" alone is not a trigger
+		]) {
+			expect(isTemporalContextRelevant({ text })).toBe(false);
+		}
+	});
+
+	it("is true for a temporally-relevant role regardless of text", () => {
+		expect(isTemporalContextRelevant({ text: "do the thing", role: "retriever" })).toBe(true);
+		expect(isTemporalContextRelevant({ text: "do the thing", role: "researcher" })).toBe(true);
+		expect(isTemporalContextRelevant({ text: "do the thing", role: "worker" })).toBe(false);
+	});
+
+	it("is false for empty/absent input", () => {
+		expect(isTemporalContextRelevant({})).toBe(false);
+		expect(isTemporalContextRelevant({ text: "   " })).toBe(false);
+		expect(isTemporalContextRelevant({ text: null })).toBe(false);
 	});
 });

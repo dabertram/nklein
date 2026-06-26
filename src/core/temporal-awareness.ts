@@ -86,3 +86,30 @@ export function buildTemporalAwarenessPrompt(now: Date): string {
 		"</current_datetime>",
 	].join("\n");
 }
+
+/**
+ * Temporal/freshness markers that signal the date block is worth its tokens (todo §5.AE — just-in-time prompt
+ * composition). Deliberately curated to the words where knowing "now" actually helps: explicit time references and
+ * knowledge-freshness words. Bare common code-speak ("now"/"current"/"currently") is excluded — too frequent in
+ * ordinary coding prose to be a useful signal.
+ */
+const TEMPORAL_RELEVANCE_PATTERN =
+	/\b(?:today|tonight|tomorrow|yesterday|right now|as of|nowadays|latest|newest|recent(?:ly)?|up[ -]to[ -]date|out[ -]?dated|deprecated|this (?:year|month|week)|last (?:year|month|week)|next (?:year|month|week)|version|releases?|released|news|upcoming|20[2-9]\d)\b/i;
+
+/** Roles for which the date is intrinsically relevant (retrieval/freshness work) — extended by §5.AE's role catalog. */
+const TEMPORALLY_RELEVANT_ROLES: ReadonlySet<string> = new Set(["retriever", "researcher"]);
+
+/**
+ * Whether the §5.AC temporal/date fragment is worth injecting for this turn (todo §5.AE). The date grounds a
+ * retrieval/freshness/temporal task but is dead weight on a plain coding task, so rather than blanket-injecting it into
+ * every prompt (the token waste the user flagged), gate it on a relevance signal: a temporally-relevant role, or a
+ * temporal/freshness marker in the task text. Deliberately INCLUSIVE — a few false-positive tokens cost less than
+ * missing the date where it matters; a prompt with no temporal signal at all (the common coding case) correctly skips it.
+ */
+export function isTemporalContextRelevant(input: { text?: string | null; role?: string | null }): boolean {
+	if (input.role && TEMPORALLY_RELEVANT_ROLES.has(input.role)) {
+		return true;
+	}
+	const text = input.text?.trim();
+	return text ? TEMPORAL_RELEVANCE_PATTERN.test(text) : false;
+}

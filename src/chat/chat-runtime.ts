@@ -1,3 +1,4 @@
+import { isTemporalContextRelevant } from "../core/temporal-awareness";
 import type { ChatMemory } from "./chat-memory-store";
 import type { ChatSession } from "./chat-session-store";
 import type { ChatMessage } from "./chat-transcript-store";
@@ -68,7 +69,10 @@ export async function runChatTurn(
 		},
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);
-	const prompt = renderChatTurnPrompt(context, input.userMessage, { now: (deps.now ?? (() => new Date()))() });
+	// The §5.AC date is relevance-gated (§5.AE JIT composition): inject it only when this turn is temporal/freshness-
+	// relevant, so a plain coding chat doesn't pay for the block. Pure renderer stays mechanical (injects iff `now` given).
+	const now = isTemporalContextRelevant({ text: input.userMessage }) ? (deps.now ?? (() => new Date()))() : undefined;
+	const prompt = renderChatTurnPrompt(context, input.userMessage, now ? { now } : {});
 	const reply = await deps.complete(prompt, input.onToken);
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: reply });

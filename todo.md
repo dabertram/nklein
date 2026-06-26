@@ -3336,13 +3336,16 @@ deep analysis:
       construction / capability decomposition / autonomy-level taxonomy; synthesized into
       [.plan/docs/dynamic-roles-skills-research.md](.plan/docs/dynamic-roles-skills-research.md) with the skill-unit design,
       the dynamics-level mapping table, and the JIT-composition plan. (This section is its actionable backlog.)
-- [~] **First concrete step — relevance-gate the temporal/date fragment (the JIT-composition seed).** The §5.AC date is
-      the first "context fragment" to stop blanket-injecting: a pure `isTemporalContextRelevant({text, role})` predicate
-      (temporal/freshness markers in the task/message — today/now/latest/recent/version/release/deprecated/a 20xx year/… —
-      OR a temporally-relevant role like retriever/researcher) gates the board + chat injection, so a plain coding task no
-      longer pays for the date block. Lean inclusive (a few false-positive tokens beats missing it where it helps; must NOT
-      regress the §5.Z 9/9 grounding proof for temporally-relevant prompts). Pure + tested. *(See the "DONE" sub-item below
-      once landed.)*
+- [x] **First concrete step — relevance-gate the temporal/date fragment (the JIT-composition seed) — DONE (2026-06-26).**
+      The §5.AC date is no longer blanket-injected: `isTemporalContextRelevant({text, role})`
+      ([temporal-awareness.ts](src/core/temporal-awareness.ts)) — a curated temporal/freshness marker set
+      (today/now/latest/recent/version/release/deprecated/this-year/a 20xx year/… ; bare "current"/"now" excluded as too
+      common in coding prose) OR a temporally-relevant role (retriever/researcher) — gates the injection at BOTH board
+      start sites (on the card prompt) and the chat path (`runChatTurn` + `runChatAgentTurn`, on the user message; the pure
+      `renderChatTurnPrompt` stays mechanical — injects iff a clock is passed). A plain coding task no longer pays the ~120
+      tokens. Lean-inclusive by design. 8 predicate tests + a chat "skips the date for a non-temporal turn" test; **the
+      §5.Z 9/9 live grounding proof still PASSES** (its prompt has "today"+"2026" → still injects). tsc + biome + 2031 fast
+      tests green.
 - [ ] **`Skill` registry + the context-fragment catalog.** A small hand-authored set: each existing prompt block becomes a
       named fragment (`temporal`, `repo_map`/orientation, `focus_chain`, `refinement_preamble`, `efficiency_rules`,
       `freshness_rail`, `online_retrieval`), and each skill declares the fragments + tools it needs + its relevance. Pure +
