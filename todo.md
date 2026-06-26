@@ -2353,7 +2353,7 @@ deep analysis:
             **leaf-first** — each domain module imports only `z` + already-extracted modules and **NEVER back-imports
             from the barrel** (that would make a zod-const **load-order cycle** → `undefined` schema at eval); the barrel
             re-exports each domain via `export * from "./<domain>-api-contract.js"`; verify green every step (root `tsc` +
-            web `tsc` + `biome` + `test:fast` + contract suite). **Done (9 domains, barrel 2614 → ~1310, -50%):**
+            web `tsc` + `biome` + `test:fast` + contract suite). **Done (10 domains, barrel 2614 → ~1210, -54%):**
             (1) `workspace-files-api-contract.ts` (8 schemas — file status/change, working-copy/last-turn changes
             req+res, fuzzy search; a pure leaf nothing else referenced → plain `export *`); (2)
             `runtime-config-api-contract.ts` (~30 foundational symbols — core id/column/auto-review enums, NKlein
@@ -2372,18 +2372,18 @@ deep analysis:
             the task-workspace-info **task-scope** + project shortcuts — imports board-card + project-summary); (9)
             `nklein-provider-api-contract.ts` (the big middle, ~293 lines — oauth / provider-settings / account /
             catalog / models / endpoint-discovery / model-registry / code-intel — imports code-embedding +
-            reasoning-effort from (2)). Modules (2)/(3)/(5)/(7)/(8)/(9) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
+            reasoning-effort from (2)); (10) `nklein-provider-mutations-api-contract.ts` (provider capability,
+            add/update provider, oauth-login, device-auth, provider-settings-save — imports oauth/provider-settings from
+            (9) + reasoning-effort from (2); pure `export *`, not used downstream). Modules (2)/(3)/(5)/(7)/(8)/(9) are referenced widely downstream, so the barrel re-exports each AND keeps a local `import {…}` of the few
             symbols its remaining schemas still use (tsc-enumerated — the reliable way to find the local re-import set
             after any extraction; also drop now-unused barrel imports via `biome check --write --unsafe`).
             **MILESTONE (2026-06-26): the monolith is HALVED — all 9 major cohesive domains extracted + holistically
             verified (contract suite 272/272 + web:build ✓ + root/web tsc + biome each step).** **Remaining (the
-            ~1310-line long tail — smaller, more-interconnected endpoint contracts; fiddlier, best done deliberately):**
-            the provider mutations (add/update-provider, oauth/device-auth, provider-settings-save, ~L342–453) belong
-            **appended to module (9)** (they already use its provider-settings/oauth schemas → intra-module, no new
-            import); the **MCP** block (~L454–505) + the **state-stream** messages both need
-            `runtimeNKleinMcpServerAuthStatusSchema` (still in the barrel ~L83, with team-progress) extracted into a
-            small shared module first, and state-stream also needs `runtimeTaskChatMessageSchema` (a forward-ref) out
-            first. Cleaner remaining leaves: core-py-health / merge-history / advisor / dogfood / smoke-eval /
+            ~1210-line long tail — smaller, more-interconnected endpoint contracts; fiddlier, best done deliberately):**
+            the **MCP** block (~L449+) + the **state-stream** messages both need
+            `runtimeNKleinMcpServerAuthStatusSchema` (still in the barrel ~L82, with team-progress) extracted into a
+            small shared module first, and state-stream also needs `runtimeTaskChatMessageSchema` (a `z.lazy` forward-ref
+            at L158) out first. Cleaner remaining leaves: core-py-health / merge-history / advisor / dogfood / smoke-eval /
             task-evidence (~L218–340), command-run, context-import, open-file, debug/status, agent-def/sandbox, config,
             plan-artifacts/gap/expand, acceptance, worktree-merge, task-lifecycle (start/stop/pause/swarm-stop),
             diagnostics, session-input, terminal, git-history (imports task-scope from (8)).

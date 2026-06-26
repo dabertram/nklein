@@ -6,10 +6,7 @@ export type { PlanGapKind } from "./plan-gap-kind.js";
 
 // Board schemas the barrel's downstream schemas still reference directly (re-exported above via `export *`).
 import { runtimeTaskImageSchema } from "./board-api-contract.js";
-import {
-	runtimeNKleinOauthProviderSchema,
-	runtimeNKleinProviderSettingsSchema,
-} from "./nklein-provider-api-contract.js";
+import { runtimeNKleinProviderSettingsSchema } from "./nklein-provider-api-contract.js";
 import { runtimeProjectShortcutSchema, runtimeTaskWorkspaceInfoRequestSchema } from "./projects-api-contract.js";
 // Config primitives the schemas below still reference directly (re-exported above via `export *`).
 import {
@@ -45,6 +42,8 @@ export * from "./chat-api-contract.js";
 export * from "./git-sync-api-contract.js";
 // NKlein account/provider/model-registry domain (oauth/provider-settings/account/catalog/models/registry/code-intel) (§5.X #2).
 export * from "./nklein-provider-api-contract.js";
+// NKlein provider-mutation + auth domain (capability, add/update provider, oauth-login, device-auth, settings-save) (§5.X #2).
+export * from "./nklein-provider-mutations-api-contract.js";
 // Projects + dev-test contract domain (projects/dev-test/directory/remove/migration/worktree/task-scope/shortcuts) (§5.X #2).
 export * from "./projects-api-contract.js";
 // Runtime/agent configuration primitives (core enums, NKlein/swarm settings, model-roles, agent rulesets) (§5.X #2).
@@ -338,113 +337,6 @@ export const runtimeTaskEvidenceResponseSchema = z.object({
 	promptBlock: z.string(),
 });
 export type RuntimeTaskEvidenceResponse = z.infer<typeof runtimeTaskEvidenceResponseSchema>;
-
-export const runtimeNKleinProviderCapabilitySchema = z.enum([
-	"streaming",
-	"tools",
-	"reasoning",
-	"vision",
-	"prompt-cache",
-]);
-export type RuntimeNKleinProviderCapability = z.infer<typeof runtimeNKleinProviderCapabilitySchema>;
-
-export const runtimeNKleinAddProviderRequestSchema = z.object({
-	providerId: z.string(),
-	name: z.string(),
-	baseUrl: z.string(),
-	apiKey: z.string().nullable().optional(),
-	headers: z.record(z.string(), z.string()).optional(),
-	timeoutMs: z.number().int().positive().optional(),
-	models: z.array(z.string()),
-	defaultModelId: z.string().nullable().optional(),
-	modelsSourceUrl: z.string().nullable().optional(),
-	capabilities: z.array(runtimeNKleinProviderCapabilitySchema).optional(),
-});
-export type RuntimeNKleinAddProviderRequest = z.infer<typeof runtimeNKleinAddProviderRequestSchema>;
-
-export const runtimeNKleinAddProviderResponseSchema = runtimeNKleinProviderSettingsSchema;
-export type RuntimeNKleinAddProviderResponse = z.infer<typeof runtimeNKleinAddProviderResponseSchema>;
-
-export const runtimeNKleinUpdateProviderRequestSchema = z.object({
-	providerId: z.string(),
-	name: z.string().optional(),
-	baseUrl: z.string().optional(),
-	apiKey: z.string().nullable().optional(),
-	headers: z.record(z.string(), z.string()).nullable().optional(),
-	timeoutMs: z.number().int().positive().nullable().optional(),
-	models: z.array(z.string()).optional(),
-	defaultModelId: z.string().nullable().optional(),
-	modelsSourceUrl: z.string().nullable().optional(),
-	capabilities: z.array(runtimeNKleinProviderCapabilitySchema).optional(),
-});
-export type RuntimeNKleinUpdateProviderRequest = z.infer<typeof runtimeNKleinUpdateProviderRequestSchema>;
-
-export const runtimeNKleinUpdateProviderResponseSchema = runtimeNKleinProviderSettingsSchema;
-export type RuntimeNKleinUpdateProviderResponse = z.infer<typeof runtimeNKleinUpdateProviderResponseSchema>;
-
-export const runtimeNKleinOauthLoginRequestSchema = z.object({
-	provider: runtimeNKleinOauthProviderSchema,
-	baseUrl: z.string().nullable().optional(),
-});
-export type RuntimeNKleinOauthLoginRequest = z.infer<typeof runtimeNKleinOauthLoginRequestSchema>;
-
-export const runtimeNKleinOauthLoginResponseSchema = z.object({
-	ok: z.boolean(),
-	provider: runtimeNKleinOauthProviderSchema,
-	settings: runtimeNKleinProviderSettingsSchema.optional(),
-	error: z.string().optional(),
-});
-export type RuntimeNKleinOauthLoginResponse = z.infer<typeof runtimeNKleinOauthLoginResponseSchema>;
-
-export const runtimeNKleinDeviceAuthStartResponseSchema = z.object({
-	deviceCode: z.string(),
-	userCode: z.string(),
-	verificationUrl: z.string(),
-	expiresInSeconds: z.number(),
-	pollIntervalSeconds: z.number(),
-});
-export type RuntimeNKleinDeviceAuthStartResponse = z.infer<typeof runtimeNKleinDeviceAuthStartResponseSchema>;
-
-export const runtimeNKleinDeviceAuthCompleteRequestSchema = z.object({
-	deviceCode: z.string(),
-	expiresInSeconds: z.number(),
-	pollIntervalSeconds: z.number(),
-	baseUrl: z.string().nullable().optional(),
-});
-export type RuntimeNKleinDeviceAuthCompleteRequest = z.infer<typeof runtimeNKleinDeviceAuthCompleteRequestSchema>;
-
-export const runtimeNKleinDeviceAuthCompleteResponseSchema = runtimeNKleinOauthLoginResponseSchema;
-export type RuntimeNKleinDeviceAuthCompleteResponse = z.infer<typeof runtimeNKleinDeviceAuthCompleteResponseSchema>;
-
-export const runtimeNKleinProviderSettingsSaveRequestSchema = z.object({
-	providerId: z.string(),
-	modelId: z.string().nullable().optional(),
-	apiKey: z.string().nullable().optional(),
-	baseUrl: z.string().nullable().optional(),
-	reasoningEffort: runtimeNKleinReasoningEffortSchema.nullable().optional(),
-	region: z.string().nullable().optional(),
-	aws: z
-		.object({
-			accessKey: z.string().nullable().optional(),
-			secretKey: z.string().nullable().optional(),
-			sessionToken: z.string().nullable().optional(),
-			region: z.string().nullable().optional(),
-			profile: z.string().nullable().optional(),
-			authentication: z.enum(["iam", "api-key", "profile"]).nullable().optional(),
-			endpoint: z.string().nullable().optional(),
-		})
-		.optional(),
-	gcp: z
-		.object({
-			projectId: z.string().nullable().optional(),
-			region: z.string().nullable().optional(),
-		})
-		.optional(),
-});
-export type RuntimeNKleinProviderSettingsSaveRequest = z.infer<typeof runtimeNKleinProviderSettingsSaveRequestSchema>;
-
-export const runtimeNKleinProviderSettingsSaveResponseSchema = runtimeNKleinProviderSettingsSchema;
-export type RuntimeNKleinProviderSettingsSaveResponse = z.infer<typeof runtimeNKleinProviderSettingsSaveResponseSchema>;
 
 const runtimeNKleinMcpServerBaseSchema = z.object({
 	name: z.string(),
