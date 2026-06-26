@@ -1871,8 +1871,25 @@ deep analysis:
 > be rewritten in lockstep, defeating the safety net. Treat contract/e2e/UI/CLI coverage as the **port-resilient
 > regression oracle**: the same suite must be runnable against the current TS backend AND a future Python backend and
 > assert identical externally-observable behavior. **Sequencing: complete §5.V first → then §5.X.**
-- [ ] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
+- [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
+      **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
+      `verify-strict-isolation.mts` + `verify-decompose-isolation.mts` both PASS @180s — a real task spins up a Docker
+      sandbox (`nklein-agent-sandbox-1`), the session advances, NO host worktree is created, NO host path leaks into agent
+      output, containers clean up on dispose. The live task-execution + isolation path is healthy after this session's
+      changes. **Two findings to chase (each its own focused investigation):**
+      - ⚠️ **NORTH-STAR — decompose completion:** qwen3-8b did NOT call `decompose_project` in 180s on the habit-tracker
+        spec (ran the full timeout; 10 activities = reads/reasoning, no tool call). Open: latency vs. ability; the stripped
+        in-memory harness path (`createInMemoryNKleinTaskSessionService`) vs. the FULL runtime flow (refinement lane +
+        `recoverNarratedToolCalls` + retries may carry a small model further); try a model stronger at tool-calling. This is
+        THE gating north-star proof — needs a decompose-completion test that asserts a valid task graph is produced on the
+        full runtime path (not just isolation).
+      - ⚠️ **Robustness:** the 360s decompose run crashed with an uncaught `[Error: session_stop]` promise rejection.
+        `session_stop` is a vendored-SDK signal (`vendor/nklein-sdk/core`); the kanban runtime has NO global
+        `unhandledRejection`/`uncaughtException` handler in `src/`/`packages/` (only the vendored hub-daemon has its own).
+        Likely harness-specific (the in-memory service's error handling differs from the host-backed product service), but
+        verify the PRODUCT runtime can't be crashed by a stopped/long session's rejection — and consider a logging-only
+        global handler in the runtime bootstrap (`cli.ts`/server start).
 - [~] **Chat e2e** — every chat function: sessions (create/select/delete/relabel), streaming, tools, knowledge fetch,
       memory, the (later) autonomous-work mode.
       **Contract-seam session-CRUD coverage DONE (2026-06-26, 23 tests, Suite 18 — `test/contract/chat-session-contract.test.ts`).**
