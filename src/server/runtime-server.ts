@@ -66,6 +66,7 @@ import {
 	validatePasscode,
 	validateSession,
 } from "../security/passcode-manager";
+import { buildTlsHardeningHeaders } from "../security/remote-security-policy";
 import { recordMergeHistory } from "../state/merge-history-store";
 import {
 	isWorkspaceStateLockError,
@@ -901,6 +902,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const getRemoteIp = (req: IncomingMessage): string => req.socket.remoteAddress ?? "unknown";
 
 	const tlsConfig = getKanbanRuntimeTls();
+	// HSTS on the served app + auth responses exactly when TLS is on (§5.Y #7).
+	const tlsHardeningHeaders = buildTlsHardeningHeaders(tlsConfig !== null);
 	const requestHandler = async (req: IncomingMessage, res: ServerResponse) => {
 		try {
 			if (handleHttpRequest(req, res).end) {
@@ -974,6 +977,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					"Content-Type": "application/json; charset=utf-8",
 					"Cache-Control": "no-store",
 					"Set-Cookie": buildSessionCookieHeader(token, { secure: tlsConfig !== null }),
+					...tlsHardeningHeaders,
 				});
 				res.end(JSON.stringify({ ok: true }));
 				return;
@@ -1033,6 +1037,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				"X-Content-Type-Options": "nosniff",
 				"Referrer-Policy": "no-referrer",
 				"X-Frame-Options": "DENY",
+				// HSTS only when actually served over TLS (§5.Y #7).
+				...tlsHardeningHeaders,
 			});
 			res.end(asset.content);
 		} catch {

@@ -2287,9 +2287,17 @@ deep analysis:
       terminal getting the host's internal token is the real escalation concern → resolve the `nklein task` auth path +
       the local-vs-remote-user distinction before scrubbing. Legit consumers that MUST keep the token: the CLI
       runtime-API callers (`task-runtime-workspace`/`dev`/`cli`/`runtime-endpoint` via `getRuntimeFetch`).
-- [ ] **MED #7 ⚠️ — remote mode can run plaintext HTTP + `--no-passcode`.** Require HTTPS for non-loopback binds by
-      default; gate insecure HTTP behind an explicit `--insecure-remote-http`; rename `--no-passcode` for remote to
-      something like `--dangerously-disable-remote-auth`. (Posture: do you use remote mode? sets priority for #7–#9.)
+- [x] **MED #7 ⚠️ — remote mode could run plaintext HTTP + `--no-passcode`** — DONE (owner confirmed they use remote
+      mode → high priority). A non-loopback (`--host`) bind now **refuses to start over plain HTTP** unless TLS is
+      configured (`--cert`/`--key`), with a clear remediation error; the explicit opt-out `--insecure-remote-http`
+      starts it anyway behind a prominent cleartext WARNING. `--no-passcode` on a non-loopback bind now ALSO requires
+      the new `--dangerously-disable-remote-auth` flag (prominent "API exposed unauthenticated" warning); on loopback
+      both flags behave exactly as before (no new friction). Decision logic is a pure, exhaustively-tested helper
+      `resolveRemoteSecurityPolicy` (`src/security/remote-security-policy.ts`), wired into `runMainCommand` in `cli.ts`
+      after TLS validation. Cookie `Secure` stays TLS-gated (correct); when TLS is on, responses now also send
+      `Strict-Transport-Security` (via the pure `buildTlsHardeningHeaders` helper, used in `runtime-server.ts`).
+      **Tests:** 15 in `test/runtime/security/remote-security-policy.test.ts` (all 4 mandated scenarios + HSTS). Gate:
+      tsc 0 · biome clean · 1842 fast tests green. CHANGELOG `## [Upcoming]` entry added (user-facing startup change).
 - [ ] **MED #8 ⚠️ — folder picker / addProject expose broad host FS to remote users** (`filesystemRoot = "/"`, absolute
       paths, arbitrary git-init). In remote mode, restrict browsing/creation to configured roots; return paths relative
       to the allowed root.
@@ -2314,12 +2322,13 @@ deep analysis:
       header-presence assertion in the §5.V `server-responsiveness` contract suite (deferred to avoid the web-ui-dist test
       fixture here).
 > **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
-> ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ~ #12 (headers in;
-> CSP remains). **The owner confirmed they DO use remote/`--host` mode → the remote-mode items are now HIGH priority,
-> not deferred posture calls: #7 (HTTPS-by-default + passcode + Secure cookies), #8 (folder-picker / addProject
-> confinement in remote mode), #9 (`runtime.openFile` typed intents), #10 (desktop spoofable-title health check), and
-> #2 (`runtime.runCommand` raw browser→host shell → typed intents).** Next §5.Y order: **#2 → #7 → #8 → #9 → #10**, then
-> the remaining hardening (#4 containment, #5 SSRF, #6 terminals, #12 CSP). Each fix gets a regression test.
+> ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
+> HTTPS-by-default + `--no-passcode` gating + HSTS), ~ #12 (headers in; CSP remains). **The owner confirmed they DO use
+> remote/`--host` mode → the remote-mode items are HIGH priority, not deferred posture calls: ✅ #7 (HTTPS-by-default +
+> passcode + Secure cookies), #8 (folder-picker / addProject confinement in remote mode), #9 (`runtime.openFile` typed
+> intents), #10 (desktop spoofable-title health check), and #2 (`runtime.runCommand` raw browser→host shell → typed
+> intents).** Next §5.Y order: **#2 → #8 → #9 → #10**, then the remaining hardening (#4 containment, #5 SSRF, #6
+> terminals, #12 CSP). Each fix gets a regression test.
 
 ### 5.J — LATER (deferred by decision)
 - **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from

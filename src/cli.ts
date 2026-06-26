@@ -35,6 +35,7 @@ import {
 import { buildWorkspaceScopeHeaders } from "./core/workspace-scope";
 import { disposeCliTelemetryService } from "./nklein-sdk/nklein-telemetry-service.js";
 import { disablePasscode, generateInternalToken, generatePasscode } from "./security/passcode-manager";
+import { resolveRemoteSecurityPolicy } from "./security/remote-security-policy";
 import { terminateProcessForTimeout } from "./server/process-termination";
 import type { RuntimeStateHub } from "./server/runtime-state-hub";
 import { captureNodeException, flushNodeTelemetry } from "./telemetry/sentry-node.js";
@@ -50,6 +51,8 @@ interface CliOptions {
 	cert: string | null;
 	key: string | null;
 	noPasscode: boolean;
+	insecureRemoteHttp: boolean;
+	dangerouslyDisableRemoteAuth: boolean;
 }
 
 const KANBAN_VERSION = typeof packageJson.version === "string" ? packageJson.version : "0.1.0";
@@ -79,6 +82,8 @@ interface RootCommandOptions {
 	cert?: string;
 	key?: string;
 	noPasscode?: boolean;
+	insecureRemoteHttp?: boolean;
+	dangerouslyDisableRemoteAuth?: boolean;
 }
 
 type ShutdownIndicatorResult = "done" | "interrupted" | "failed";
@@ -114,7 +119,15 @@ function safeShutdownIndicatorWrite(stream: NodeJS.WriteStream, text: string): v
  * unexpected argument is treated as a command-style invocation instead.
  */
 function shouldAutoOpenBrowserTabForInvocation(argv: string[]): boolean {
-	const launchFlags = new Set(["--open", "--no-open", "--skip-shutdown-cleanup", "--https", "--no-passcode"]);
+	const launchFlags = new Set([
+		"--open",
+		"--no-open",
+		"--skip-shutdown-cleanup",
+		"--https",
+		"--no-passcode",
+		"--insecure-remote-http",
+		"--dangerously-disable-remote-auth",
+	]);
 	const launchOptionsWithValues = new Set(["--host", "--port", "--agent", "--cert", "--key"]);
 
 	for (let index = 0; index < argv.length; index += 1) {
@@ -611,13 +624,29 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 		console.log(`HTTPS enabled on ${getKanbanRuntimeOrigin()}`);
 	}
 
-	// Handle passcode generation for remote mode — deferred until after TLS
-	// validation so that an invalid --cert/--key fails before a passcode is
-	// printed (a passcode for a server that never starts is confusing).
+	// Handle remote-mode transport/auth policy + passcode generation — deferred
+	// until after TLS validation so that an invalid --cert/--key fails before any
+	// passcode is printed (a passcode for a server that never starts is confusing).
+	// A non-loopback bind must be HTTPS (or an explicit --insecure-remote-http
+	// opt-out), and disabling auth on it requires --dangerously-disable-remote-auth.
+	// Loopback/local binds keep their existing behaviour unchanged (§5.Y #7).
 	if (isKanbanRemoteHost()) {
-		if (options.noPasscode) {
+		const policy = resolveRemoteSecurityPolicy({
+			isRemote: true,
+			hasTls: tlsResult.enabled,
+			insecureRemoteHttp: options.insecureRemoteHttp,
+			noPasscode: options.noPasscode,
+			disableRemoteAuth: options.dangerouslyDisableRemoteAuth,
+		});
+		if (policy.kind === "refuse") {
+			throw new Error(policy.message);
+		}
+		for (const warning of policy.warnings) {
+			console.warn(`\n${warning}\n`);
+		}
+		if (policy.disablePasscode) {
 			disablePasscode();
-			console.log("Passcode authentication disabled (--no-passcode). Ensure you have your own auth layer.");
+			console.log("Passcode authentication disabled. Ensure you have your own auth layer.");
 		} else {
 			const passcode = generatePasscode();
 			generateInternalToken();
@@ -625,6 +654,9 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 			console.log(`\n🔐 Remote access passcode: ${passcode}\n\nShare this with users who need access.\n`);
 		}
 	}
+	// NOTE: on a loopback bind the passcode gate never runs (it is gated by
+	// isRemoteMode everywhere), so --no-passcode there stays a no-op exactly as
+	// before — we intentionally do NOT touch passcode state on loopback (§5.Y #7).
 
 	autoUpdateOnStartup({
 		currentVersion: KANBAN_VERSION,
@@ -742,7 +774,15 @@ function createProgram(invocationArgs: string[]): Command {
 		.option("--update", "Update !Klein to the latest published version and exit.")
 		.option(
 			"--no-passcode",
-			"Disable auto-generated passcode for remote access (for advanced users behind a reverse proxy).",
+			"Disable auto-generated passcode for remote access (for advanced users behind a reverse proxy). On a non-loopback (--host) bind this additionally requires --dangerously-disable-remote-auth.",
+		)
+		.option(
+			"--insecure-remote-http",
+			"Allow a non-loopback (--host) bind over plain HTTP without TLS. Passcode and traffic are sent in cleartext — only behind a trusted TLS-terminating proxy.",
+		)
+		.option(
+			"--dangerously-disable-remote-auth",
+			"Required alongside --no-passcode on a non-loopback (--host) bind to expose the API with NO authentication. Use only behind your own auth layer.",
 		)
 		.showHelpAfterError()
 		.addHelpText("after", `\nRuntime URL: ${getKanbanRuntimeOrigin()}`);
@@ -782,6 +822,8 @@ function createProgram(invocationArgs: string[]): Command {
 				cert: options.cert ?? null,
 				key: options.key ?? null,
 				noPasscode: options.noPasscode === true,
+				insecureRemoteHttp: options.insecureRemoteHttp === true,
+				dangerouslyDisableRemoteAuth: options.dangerouslyDisableRemoteAuth === true,
 			},
 			shouldAutoOpenBrowser,
 		);
