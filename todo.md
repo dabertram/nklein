@@ -2351,7 +2351,7 @@ deep analysis:
       visible **gear** (`isCurrent`-gated, `stopPropagation`, `ElementTooltip id="project.settings-gear"`) opening the
       existing Project Settings dialog via `onOpenSettings`; the `⋯`-menu item is kept too.
       ([project-row.tsx](web-ui/src/components/project-nav/project-row.tsx)) *(A board-header entry point is still optional.)*
-- [ ] **Regroup the settings menus** — group by concern (Models/Providers, Agents & Roles, Isolation, Guardrails, Code
+- [~] **Regroup the settings menus** — group by concern (Models/Providers, Agents & Roles, Isolation, Guardrails, Code
       Intelligence, Advanced, …) so nothing is scattered; consistent layout. Pair with the §5.U `runtime-settings-dialog`
       decomposition when that runs. **PLAN (research agent 2026-06-25):** today 7 flat `SettingsNavId` sections
       (`runtime-settings-dialog.tsx` ~L342–357) with mixed concerns — "General" is a dumping ground (dev mode + Docker +
@@ -2362,6 +2362,16 @@ deep analysis:
       entanglement) — keep it reachable for non-!Klein users (don't bury it in the !Klein section). Do it as **low-risk
       pure-move increments first**; pairs with the §5.U dialog decomposition. *(Lower priority: cosmetic + touches the file I
       just edited for workspaceBaseDir — sequence after the higher-value feature gaps.)*
+  - [x] **Increment 1 (2026-06-26): split the "General" dumping ground → lean General + a new "Agents" section.** Added an
+        `"agents"` `SettingsNavId` + nav item (`Boxes` icon) and moved the agent-execution config out of General's first card
+        into the new section: Agent isolation/Docker, the sandbox-isolation pool, lost-heartbeat, decomposition-auto-apply,
+        second-opinion review, the swarm-guardrails panel, advanced-policy visibility, and agent rulesets (379 lines,
+        extracted as a div-balance-verified clean range). General now = Developer Mode + Advanced. Verified: web:typecheck +
+        36-test dialog oracle + web:build. *(Live Playwright pass of the new nav still owed.)*
+  - [ ] remaining regroup sections per the ~9-section plan: !Klein Provider & Models, Guardrails vs Agents boundary, Code
+        Intelligence (keep reachable for non-!Klein users), relabel "Git Prompts" → "Git", Workspace/Project polish
+  - [ ] live-verify the regrouped settings nav end-to-end (Playwright): Agents item appears, scroll-spy jumps to each
+        section, General is lean, no visual breakage
 - [x] **swarm stop/resume in the UI — ALREADY DONE** *(audit 2026-06-25)* — the board header already exposes it:
       [kanban-board.tsx](web-ui/src/components/kanban-board.tsx) has the `board.swarm-pause` control (Pause/Resume button +
       a "Paused" status driven by `swarmStopSignal`/`RuntimeSwarmStopSignal`). The §5.W "CLI-only" note was stale.

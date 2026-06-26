@@ -18,6 +18,7 @@ import {
 	BarChart3,
 	Bell,
 	Bot,
+	Boxes,
 	Check,
 	ChevronDown,
 	Circle,
@@ -217,7 +218,15 @@ function normalizeAgentTimeoutProfile(
 	return "local";
 }
 
-type SettingsNavId = "general" | "tasks" | "nklein" | "git-prompts" | "notifications" | "appearance" | "project";
+type SettingsNavId =
+	| "general"
+	| "agents"
+	| "tasks"
+	| "nklein"
+	| "git-prompts"
+	| "notifications"
+	| "appearance"
+	| "project";
 
 const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	id: SettingsNavId;
@@ -226,6 +235,7 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	nkleinOnly?: boolean;
 }> = [
 	{ id: "general", label: "General", icon: <SlidersHorizontal size={16} /> },
+	{ id: "agents", label: "Agents", icon: <Boxes size={16} /> },
 	{ id: "tasks", label: "Tasks", icon: <Check size={16} /> },
 	{ id: "nklein", label: "!Klein", icon: <Bot size={16} />, nkleinOnly: true },
 	{ id: "git-prompts", label: "Git Prompts", icon: <GitCommit size={16} /> },
@@ -2466,7 +2476,76 @@ export function RuntimeSettingsDialog({
 								Shows developer-only surfaces: sidebar dev-test scenarios, debug tools, data-dir shortcut, reset
 								state.
 							</p>
-							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1 mt-4 border-t border-border pt-4">
+						</div>
+
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
+								Advanced
+							</h6>
+							<div className="grid gap-4">
+								<div>
+									<label
+										htmlFor={maxAgentWritableFileLinesId}
+										className="block text-[13px] text-text-primary mb-1"
+									>
+										Max writable file lines
+									</label>
+									<input
+										id={maxAgentWritableFileLinesId}
+										type="number"
+										min={1}
+										value={maxAgentWritableFileLines}
+										onChange={(event) => setMaxAgentWritableFileLines(event.target.value)}
+										placeholder="1000"
+										disabled={controlsDisabled}
+										className="h-8 w-full max-w-[160px] rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
+									/>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										Maximum lines an agent write tool may create in a single file (must be &ge; 1).
+									</p>
+									{(() => {
+										const v = Number.parseInt(maxAgentWritableFileLines, 10);
+										return !Number.isFinite(v) || v < 1 ? (
+											<p className="text-status-red text-[11px] mt-0.5 mb-0">
+												Must be an integer &ge; 1 (clamped on save).
+											</p>
+										) : null;
+									})()}
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
+										htmlFor={replayCardsCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={replayCardsCheckboxId}
+											checked={replayCardsEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setReplayCardsEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Enable card replay</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										Shows a Replay action on finished cards to re-run them from scratch. Off by default — the
+										action is destructive and irreversible.
+									</p>
+								</div>
+							</div>
+						</div>
+
+						{/* ---- Agents ---- */}
+						<div data-settings-section="agents" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<Boxes size={16} className="text-text-secondary" />
+								Agents
+							</h2>
+						</div>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
 								Agent isolation
 							</h6>
 							<div className="rounded-md border border-border bg-surface-1 p-3">
@@ -2846,65 +2925,6 @@ export function RuntimeSettingsDialog({
 								</div>
 							</div>
 						</div>
-
-						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
-								Advanced
-							</h6>
-							<div className="grid gap-4">
-								<div>
-									<label
-										htmlFor={maxAgentWritableFileLinesId}
-										className="block text-[13px] text-text-primary mb-1"
-									>
-										Max writable file lines
-									</label>
-									<input
-										id={maxAgentWritableFileLinesId}
-										type="number"
-										min={1}
-										value={maxAgentWritableFileLines}
-										onChange={(event) => setMaxAgentWritableFileLines(event.target.value)}
-										placeholder="1000"
-										disabled={controlsDisabled}
-										className="h-8 w-full max-w-[160px] rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
-									/>
-									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-										Maximum lines an agent write tool may create in a single file (must be &ge; 1).
-									</p>
-									{(() => {
-										const v = Number.parseInt(maxAgentWritableFileLines, 10);
-										return !Number.isFinite(v) || v < 1 ? (
-											<p className="text-status-red text-[11px] mt-0.5 mb-0">
-												Must be an integer &ge; 1 (clamped on save).
-											</p>
-										) : null;
-									})()}
-								</div>
-								<div className="border-t border-border pt-4">
-									<label
-										htmlFor={replayCardsCheckboxId}
-										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
-									>
-										<RadixSwitch.Root
-											id={replayCardsCheckboxId}
-											checked={replayCardsEnabled}
-											disabled={controlsDisabled}
-											onCheckedChange={setReplayCardsEnabled}
-											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
-										>
-											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
-										</RadixSwitch.Root>
-										<span>Enable card replay</span>
-									</label>
-									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
-										Shows a Replay action on finished cards to re-run them from scratch. Off by default — the
-										action is destructive and irreversible.
-									</p>
-								</div>
-							</div>
-						</div>
-
 						{/* ---- Tasks ---- */}
 						<div data-settings-section="tasks" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
