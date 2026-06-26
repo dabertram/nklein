@@ -1,7 +1,9 @@
 import * as Sentry from "@sentry/node";
 import packageJson from "../../package.json" with { type: "json" };
 
-const nodeSentryDsn = "https://b597cbea54f43704439be10d843699b0@o4511098366263296.ingest.us.sentry.io/4511098558087168";
+// DSN comes from the environment (NKLEIN_SENTRY_DSN / SENTRY_DSN) — none is
+// hardcoded. Unset (the default) ⇒ no Sentry init and no telemetry is sent.
+const nodeSentryDsn = process.env.NKLEIN_SENTRY_DSN?.trim() || process.env.SENTRY_DSN?.trim() || "";
 
 const appVersion = typeof packageJson.version === "string" ? packageJson.version : "0.1.0";
 

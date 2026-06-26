@@ -1,6 +1,11 @@
 import * as Sentry from "@sentry/react";
 
-const sentryDsn = "https://061e8f494493d1cf3c7c918563cc0783@o4511098366263296.ingest.us.sentry.io/4511098568769536";
+// DSN comes from the environment (VITE_SENTRY_DSN) — no telemetry endpoint is
+// hardcoded. Unset (the default) ⇒ Sentry stays inert: initializeSentry() is a
+// no-op and the app opens no outbound telemetry connection, which also keeps the
+// served CSP's connect-src tight. To opt in, set VITE_SENTRY_DSN at build time
+// (and add that host to the CSP connect-src in remote-security-policy.ts).
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN?.trim();
 const sentryEnvironment = import.meta.env.MODE;
 
 let initialized = false;

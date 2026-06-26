@@ -60,7 +60,10 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		title: "Create tasks with !Klein",
 		description:
 			"Press c to create a task yourself, or talk to the sidebar !Klein agent to plan work for you. It can pull projects and issues from Linear and GitHub, then turn them into tasks your coding agent can pick up.",
-		assetVideoUrl: "https://github.com/user-attachments/assets/4408930c-33cd-4af9-a343-e82b099eab8c",
+		// Onboarding demo media pending: !Klein's own self-hosted clips. The prior
+		// inherited Cline demo videos were removed (they streamed from external
+		// signed S3 URLs that the served CSP intentionally blocks — see todo.md).
+		// With no source, the slide renders as title + description only.
 		assetAlt: "Talking to the sidebar !Klein agent to create tasks from Linear and GitHub",
 		assetWidthPx: 1908,
 		assetHeightPx: 720,
@@ -70,7 +73,6 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		title: "Auto commit and link",
 		description:
 			"Create dependency chains of linked tasks that start one another automatically. Agents can auto commit their work as they finish, so you can orchestrate tasks in order and watch the board burn them down automatically.",
-		assetVideoUrl: "https://github.com/user-attachments/assets/9a979242-bd22-4ac1-94c5-3ed5351a99d1",
 		assetAlt: "Linking task cards in !Klein",
 		assetWidthPx: 1156,
 		assetHeightPx: 720,
@@ -80,7 +82,6 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		title: "Review changes with comments",
 		description:
 			"Your workflow will feel like writing tickets, reviewing code, and shipping. Watch the agent work next to real-time diffs, then click lines to leave comments like you're reviewing a PR.",
-		assetVideoUrl: "https://github.com/user-attachments/assets/17992035-c1ca-449a-a48b-bb094007f0a1",
 		assetAlt: "Leaving comments on code diffs in !Klein",
 		assetWidthPx: 1616,
 		assetHeightPx: 1080,
@@ -119,6 +120,16 @@ const ONBOARDING_MEDIA_FRAME_HEIGHT_PX = ONBOARDING_MEDIA_FRAME_REFERENCE_SLIDE?
 
 function isMediaOnboardingSlide(slide: OnboardingSlide): slide is MediaOnboardingSlide {
 	return slide.kind === "media";
+}
+
+/**
+ * A media slide only renders its media frame when it actually points at an asset
+ * (video URL, image URL, or local stem). Asset-less media slides — e.g. while
+ * !Klein's own onboarding clips are pending — render as title + description only,
+ * rather than the "add onboarding media" developer placeholder.
+ */
+function hasOnboardingMediaSource(slide: MediaOnboardingSlide): boolean {
+	return Boolean(slide.assetVideoUrl || slide.assetImageUrl || slide.assetStemPath);
 }
 
 function AgentStatusBadge({ label, statusClassName }: { label: string; statusClassName: string }): ReactElement {
@@ -698,7 +709,7 @@ export function TaskStartAgentOnboardingCarousel({
 				<p className="mt-1 mb-0 text-[13px] text-text-secondary">{currentSlide?.description}</p>
 			</div>
 
-			{isMediaOnboardingSlide(currentSlide) ? (
+			{isMediaOnboardingSlide(currentSlide) && hasOnboardingMediaSource(currentSlide) ? (
 				<OnboardingMedia
 					assetStemPath={currentSlide.assetStemPath}
 					assetVideoUrl={currentSlide.assetVideoUrl}

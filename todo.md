@@ -2366,11 +2366,21 @@ deep analysis:
       'unsafe-inline'`; `connect-src 'self' ws: wss:`; `img-src 'self' data: blob:`; `font-src 'self' data:`;
       `object-src 'none'`; `base-uri 'self'`; `frame-ancestors 'none'`). To enable strict `script-src 'self'` without a
       nonce, the SW registration inline script was moved from `index.html` to `main.tsx` — built HTML now has zero inline
-      scripts. Live-verified: `web:build` + Playwright preview-load (root innerHTML 912 chars, 0 CSP violations).
-      Regression tests added to `test/runtime/security/remote-security-policy.test.ts`.
+      scripts. Live-verified the STRONG way: loaded the built app **with the CSP header actually active** (a static
+      server emitting the real CSP, not a header-less vite preview, which cannot surface a violation) — root innerHTML
+      912 chars, 0 CSP violations. That active-CSP load caught two inherited-fork artifacts the preview missed:
+      (a) **Sentry** shipped a hardcoded *upstream* DSN (errors + session replays going to Cline's Sentry account) → now
+      env-gated (`VITE_SENTRY_DSN` / `NKLEIN_SENTRY_DSN`|`SENTRY_DSN`; inert by default → no telemetry leak, `connect-src`
+      stays tight; matches the existing PostHog env-gate); (b) the **task-start onboarding carousel** streamed Cline demo
+      videos from external signed S3 URLs (`github.com/user-attachments` → `*.s3.amazonaws.com`) → removed rather than
+      punch an S3 hole in the CSP (slides render title+description via a new `hasOnboardingMediaSource` guard).
+      Regression tests in `test/runtime/security/remote-security-policy.test.ts`; web suite 712 green.
+      **Follow-up (rebranding/content):** !Klein needs its own self-hosted onboarding media (then no CSP change — `'self'`
+      covers it); worth a sweep for any other inherited-fork phone-home/branding artifacts.
 > **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
 > ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ✅ #7 (remote
-> HTTPS-by-default + `--no-passcode` gating + HSTS), ✅ #12 (headers + CSP), ✅ #8 (folder-picker / addProject
+> HTTPS-by-default + `--no-passcode` gating + HSTS), ✅ #12 (headers + CSP + Sentry-DSN env-gate + Cline onboarding-media
+> removal, live-verified with the CSP header ACTIVE), ✅ #8 (folder-picker / addProject
 > confinement in remote mode), ✅ #2 + ✅ #9 (runCommand + openFile refused in remote mode), ✅ #5 (chat browse_url SSRF
 > guard in remote mode), ✅ #4 (NKlein file-tool + approval-policy workspace containment, defense-in-depth), ✅ #10 (nonce
 > handshake). **Remaining:** #6 (terminals hardening). Each fix gets a regression test.

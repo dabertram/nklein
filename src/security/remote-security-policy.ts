@@ -177,6 +177,11 @@ export function buildTlsHardeningHeaders(hasTls: boolean): Record<string, string
  * - `img-src 'self' data: blob:` — the SVG favicon uses a data: URI; blob: is
  *   for any dynamically created image URLs in the app.
  * - `font-src 'self' data:` — any data: embedded fonts in built CSS.
+ * - (no `media-src`) — media falls back to `default-src 'self'`, so only
+ *   self-hosted onboarding media is permitted. External demo videos are
+ *   intentionally NOT whitelisted: GitHub user-attachments redirect to signed
+ *   `*.s3.amazonaws.com` URLs, and opening the CSP to any S3 bucket for inherited
+ *   marketing videos is not worth the exposure (see todo.md — !Klein onboarding media).
  * - `object-src 'none'` — no plugins.
  * - `base-uri 'self'` — prevents a <base> injection from hijacking relative URLs.
  * - `frame-ancestors 'none'` — redundant with X-Frame-Options: DENY but included
