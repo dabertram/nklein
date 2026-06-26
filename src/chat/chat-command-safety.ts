@@ -171,16 +171,16 @@ const SAFE_EXECUTABLES = new Set([
 	"du",
 	"df",
 	"tree",
-	// Text processing (read-only)
+	// Text processing (read-only). NOTE: sed / awk / xargs / tee are deliberately NOT here — they are
+	// not read-only: `sed -i` and `tee` write files, `xargs` executes arbitrary commands, and `awk` can
+	// exec (`system()`) or write (`print > file`). Classifying them "safe" would let them auto-run in
+	// the stricter modes and deceive the user about the risk. They are unsafe (require acknowledgement
+	// in the stricter modes); fully-open "I accept the risk" mode still allows them like everything else.
 	"sort",
 	"uniq",
 	"cut",
 	"tr",
-	"sed",
-	"awk",
 	"jq",
-	"xargs",
-	"tee",
 	// Archive inspection (not extraction)
 	"tar",
 	// Process / system info
@@ -319,16 +319,16 @@ function classifySegment(segment: string): string | null {
 		return `'npx ${pkg}' is not in the safe allowlist`;
 	}
 
-	// node: safe only for "node --version" / "node -v"
+	// node: safe ONLY for "node --version" / "node -v" (read-only). `node -e` / `-p` / `--print`
+	// evaluate arbitrary JavaScript, and running a script file executes arbitrary code — so they are
+	// NOT auto-safe (they must require acknowledgement in the stricter modes rather than slip through;
+	// fully-open mode still allows them).
 	if (exe === "node") {
 		const arg = rest.split(/\s+/)[0]?.toLowerCase() ?? "";
-		if (arg === "--version" || arg === "-v" || arg === "-e" || arg === "--print") {
-			// node --version and node -v are safe; -e/-p could run arbitrary code but are common enough
-			// to allow for quick one-liners. If this proves too permissive we can tighten later.
+		if (arg === "--version" || arg === "-v") {
 			return null;
 		}
-		// Running a script file is inherently unsafe (arbitrary code)
-		return `'node ${rest.trim() || "(no args)"}' is not in the safe allowlist`;
+		return `'node ${rest.trim() || "(no args)"}' is not in the safe allowlist (arbitrary code execution)`;
 	}
 
 	// find: block -delete and -exec flags

@@ -2198,7 +2198,9 @@ deep analysis:
       web-ui `App.tsx`/`board-card`), make state ownership explicit (single board writer/owner per the §5.U state-flow
       map), extract the delivery orchestrator + unify the summary event bus (R1/R2), DRY the duplicated guards/lookups
       (S1–S3), remove dead/back-compat-only code, and tighten type-safety. Each step behavior-preserving + green under §5.V.
-- [ ] **Phase 2 (DECISION REQUIRED — high bar) — backend→Python port.** Open questions to settle with the user before
+- [x] **Phase 2 — DROPPED (owner decision, 2026-06-26): NO Python port — !Klein stays all-TS.** §5.X is now the
+      TS-internal refactor only; the §5.V contract tests stay (good regardless). The original port open-questions (now
+      moot) are kept below for history: Open questions to settle with the user before
       committing (prepare options now, decide later): **(a) scope** — the whole server/runtime (tRPC API, runtime-state
       hub, workspace/CRDT state, NKlein session orchestration, Docker sandbox mgmt, telemetry) or only some layers? **(b)
       boundary** — keep the web-ui (stays TypeScript/React) talking to a Python backend over the SAME contract (so the
@@ -2244,14 +2246,16 @@ deep analysis:
 > the *actual* boundary is weaker than that design intends. **Split by whether a fix is posture-neutral hardening (do
 > autonomously) or touches a deliberate §5.M/host-opt-in design choice (needs a user posture call — flagged ⚠️).** Full
 > evidence + file:line + remediation per finding in the audit doc.
-- [ ] **CRITICAL #1 ⚠️ — chat "safe" classifier auto-runs code-executing/file-writing commands.** The allowlist marks
-      `node -e`/`node --print` (arbitrary JS), `npm run <script>`/`npm test`, `npx biome format`, and `sed`/`awk`/`xargs`/
-      `tee` as **safe → auto-approved with no per-command confirmation** (`chat-command-safety.ts` + `runtime-api.ts`
-      confirm callback), so a prompt-injected turn can run host commands. **Clear-cut part (do now):** drop the
-      arbitrary-code/write vectors (`node -e`/`--print`, write-mode `sed -i`, `xargs`, `tee`) from the safe set + add the
-      false-safe regression tests the audit lists. **⚠️ Posture part (user):** should `npm run`/`npm test` stay
-      auto-safe (your G3b "build/test/inspect = safe" intent) or require confirmation (they can run arbitrary
-      project/script code)? Also consider argv-based exec instead of `shell:true`.
+- [x] **CRITICAL #1 — chat "safe" classifier no longer mis-labels code-executing/file-writing commands as safe** —
+      DONE (owner steer, 2026-06-26: *"we have the 'I accept the risk' mode anyway, so the important thing is not to
+      deceive the user by classifying commands wrong for the stricter modes — and not let them slip through there;
+      fully-open mode still allows all"*). So the fix is **correct categorization, not blocking**: re-categorized
+      `node -e`/`-p`/`--print` (arbitrary JS) and `sed`/`awk`/`xargs`/`tee` (write/exec — sed -i / tee write, xargs execs,
+      awk can do both) as **unsafe** in `chat-command-safety.ts`, so they require acknowledgement in the stricter modes
+      (only read-only `node --version`/`sort`/`tr`/`jq`/etc. stay auto-safe). `npm test` / `npm run <test|typecheck|lint|
+      build|check>` deliberately stay safe (the owner's G3b build/test intent — already scoped to those args). +12
+      regression tests (the audit's false-safe payloads now assert unsafe). Verified: 163 chat-command-safety tests green
+      + biome. (The broader raw-shell `runtime.runCommand` endpoint is the separate #2.)
 - [ ] **HIGH #2 ⚠️ — `runtime.runCommand` is raw browser→host shell.** The endpoint accepts any command string and
       spawns it with `shell:true` + `env:process.env` (`cli.ts`); the only real UI use is "open workspace in editor"
       (a constrained client-built command). Fix: replace with typed intents (`openWorkspace({targetId})`) built from an
@@ -2309,9 +2313,13 @@ deep analysis:
       API/WS without breaking the app; needs careful tuning + a live-load verify) and `Permissions-Policy`, plus a
       header-presence assertion in the §5.V `server-responsiveness` contract suite (deferred to avoid the web-ui-dist test
       fixture here).
-> **Suggested order (audit's + North-Star lens):** clear-cut hardening first (#3 symlink, #4 containment, #6 token
-> scrub, #1 clear-cut part, #5 SSRF, #11 audit detail, #12 CSP) → then the ⚠️ posture calls with the user (#1 npm-run,
-> #2 runtime.runCommand, #7/#8 remote-mode). Each fix gets a regression test (the audit specifies them).
+> **Suggested order — UPDATED with owner decisions (2026-06-26).** Done so far: ✅ #3 (symlink), ✅ #11 (audit detail),
+> ✅ #1 (correct categorization — the owner's actual ask), ✅ #6 (chat + sidecar; terminals remain), ~ #12 (headers in;
+> CSP remains). **The owner confirmed they DO use remote/`--host` mode → the remote-mode items are now HIGH priority,
+> not deferred posture calls: #7 (HTTPS-by-default + passcode + Secure cookies), #8 (folder-picker / addProject
+> confinement in remote mode), #9 (`runtime.openFile` typed intents), #10 (desktop spoofable-title health check), and
+> #2 (`runtime.runCommand` raw browser→host shell → typed intents).** Next §5.Y order: **#2 → #7 → #8 → #9 → #10**, then
+> the remaining hardening (#4 containment, #5 SSRF, #6 terminals, #12 CSP). Each fix gets a regression test.
 
 ### 5.J — LATER (deferred by decision)
 - **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from

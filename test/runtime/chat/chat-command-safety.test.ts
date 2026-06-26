@@ -197,7 +197,20 @@ describe("classifyCommandSafety — edge cases", () => {
 	it("tar extract → unsafe", () => unsafe("tar xzf archive.tar.gz"));
 	it("tar create → unsafe", () => unsafe("tar czf archive.tar.gz src/"));
 	it("node script → unsafe", () => unsafe("node src/index.js"));
-	it("node -e inline script → safe (one-liner inspection)", () => safe("node -e 'console.log(process.version)'"));
+	// §5.Y #1 — these execute arbitrary code or write files; they MUST be classified unsafe so they
+	// can't slip through as auto-safe in the stricter modes (fully-open "I accept the risk" still allows them).
+	it("node -e inline script → unsafe (arbitrary JS)", () => unsafe("node -e 'console.log(1)'"));
+	it("node -p eval → unsafe", () => unsafe("node -p '1+1'"));
+	it("node --print eval → unsafe", () => unsafe("node --print '1'"));
+	it("node --version → safe (read-only)", () => safe("node --version"));
+	it("sed -i in-place write → unsafe", () => unsafe("sed -i 's/a/b/' file.txt"));
+	it("sed (any) → unsafe (can write in place)", () => unsafe("sed 's/a/b/' file.txt"));
+	it("awk → unsafe (can exec/write)", () => unsafe("awk '{print}' file.txt"));
+	it("xargs → unsafe (executes arbitrary commands)", () => unsafe("xargs rm"));
+	it("tee → unsafe (writes files)", () => unsafe("tee out.txt"));
+	it("sort still safe (read-only)", () => safe("sort file.txt"));
+	it("tr still safe (read-only)", () => safe("tr a b"));
+	it("jq still safe (read-only)", () => safe("jq '.foo'"));
 	it("npx unknown package → unsafe", () => unsafe("npx some-random-package"));
 	it("npx biome unknown subcommand → unsafe", () => unsafe("npx biome migrate"));
 	it("npm run unknown script → unsafe", () => unsafe("npm run deploy"));
