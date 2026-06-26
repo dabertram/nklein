@@ -141,6 +141,35 @@ async function main(): Promise<void> {
 	unsubscribe();
 	await service.dispose().catch(() => null);
 	await startPromise.catch(() => null);
+
+	// Delivery check (informational — the PASS gate stays on reaching a terminal state): the captured result lands
+	// as an `nklein/tasks/<task>` branch; confirm the file is there with the right content. If none is found in the
+	// project repo, the in-memory service only CAPTURES the patch (the trusted product runtime applies it) — useful
+	// to know for designing the review→merge→deliver e2e.
+	let resultBranch = "";
+	let deliveredHello: string | null = null;
+	try {
+		const { stdout } = await execFileAsync("git", [
+			"-C",
+			project,
+			"for-each-ref",
+			"--format=%(refname:short)",
+			"refs/heads/nklein",
+		]);
+		resultBranch =
+			stdout
+				.split("\n")
+				.map((line) => line.trim())
+				.find((line) => line.includes(taskId)) ?? "";
+		if (resultBranch) {
+			deliveredHello = await execFileAsync("git", ["-C", project, "show", `${resultBranch}:hello.txt`])
+				.then(({ stdout: content }) => content)
+				.catch(() => null);
+		}
+	} catch {
+		/* no nklein/tasks branch in the project repo */
+	}
+
 	await rm(project, { recursive: true, force: true }).catch(() => null);
 
 	log("");
@@ -152,6 +181,16 @@ async function main(): Promise<void> {
 	if (obs.error) {
 		log(`Start error: ${obs.error}`);
 	}
+	log(`Result branch in project repo: ${resultBranch || "none found (captured in sandbox; applied by the runtime)"}`);
+	log(
+		`Delivered hello.txt: ${
+			deliveredHello === null
+				? "n/a"
+				: deliveredHello.includes("Hello from the sandbox")
+					? "CONTENT MATCHES ✓"
+					: `unexpected (${JSON.stringify(deliveredHello.slice(0, 80))})`
+		}`,
+	);
 	if (process.env.NKLEIN_VERIFY_DUMP_ACTIVITIES === "1") {
 		log("");
 		log("=== Agent activities (oldest→newest, deduped) ===");

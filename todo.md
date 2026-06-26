@@ -1894,10 +1894,13 @@ deep analysis:
         implementation card to a terminal state. qwen3-8b ran "create hello.txt …" to completion: created the file,
         **"Result patch captured: nklein/tasks/verify-completion-1-…"** + a commit hash, and the session reached
         **`awaiting_review`** — a small model did real implementation work that the result-branch capture delivered.
-        (Bug found + fixed while building the harness: it first checked for a `"review"`/`"completed"` state that doesn't
-        exist — the session's done-state is **`awaiting_review`**; the harness now checks the right name + carries an
-        `unhandledRejection` guard so a stray `session_stop` can't crash it.) **Still owed:** the final review→merge→deliver
-        stages end-to-end + a multi-card decomposed run (parallel lanes); then fold these harnesses into the §5.V e2e set.
+        **Delivery confirmed:** the result branch `nklein/tasks/verify-completion-1-…` is present in the project repo with
+        `hello.txt` content matching exactly — a correct, ready-to-merge deliverable (the in-memory service creates the
+        branch in the repo, not just the sandbox). (Bug found + fixed while building the harness: it first checked for a
+        `"review"`/`"completed"` state that doesn't exist — the session's done-state is **`awaiting_review`**; the harness
+        now checks the right name + carries an `unhandledRejection` guard so a stray `session_stop` can't crash it.)
+        **Still owed:** the MERGE/apply step (trusted runtime applying the result branch into the user's working tree) +
+        a multi-card parallel decomposed run; then fold these harnesses into the §5.V e2e set.
       - ⚠️ **Robustness:** the 360s decompose run crashed with an uncaught `[Error: session_stop]` promise rejection.
         `session_stop` is a vendored-SDK signal (`vendor/nklein-sdk/core`); the kanban runtime has NO global
         `unhandledRejection`/`uncaughtException` handler in `src/`/`packages/` (only the vendored hub-daemon has its own).
