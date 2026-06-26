@@ -3513,13 +3513,16 @@ deep analysis:
         (2026-06-27):** 2 projects started + both fired `decompose_project` concurrently. This is the operator-runnable
         instance; the **always-on / idle-aware / restart-survivable + auto-into-todos** version above (on the §5.AF
         durable scheduler) is still owed.
-  - [ ] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): the web-ui goes SLUGGISH / near-unresponsive with
-        ≥2 agent sessions running in parallel.** Likely cause: the runtime broadcasts every agent `task_chat_message` over
-        the WS state stream (the rail captured ~500–640 frames/project in ~90 s), and the web-ui re-renders on that
-        firehose; with multiple running sessions it compounds. Fix: throttle/batch/coalesce the WS-driven state updates in
-        the web-ui render path (e.g. debounce to one update per animation frame) and/or virtualize the per-card activity
-        list, so N parallel sessions don't degrade responsiveness. **This directly gates parallel-dev-test feasibility.**
-        Ties §5.U (perf) · §5.AG (cockpit) · §6.8.
+  - [x] **EVIDENCE → FIXED (2026-06-27, user-surfaced via a live rail run): the web-ui went SLUGGISH / near-unresponsive
+        with ≥2 agent sessions running in parallel.** Root cause confirmed: [use-runtime-state-stream.ts](web-ui/src/runtime/use-runtime-state-stream.ts)
+        dispatched a reducer action — and thus re-rendered the whole tree — on EVERY WS frame; a running agent emits
+        hundreds of `task_chat_message` frames/sec (the rail measured 14,722 on one project), and parallel sessions
+        compound it → a render storm. **Fix:** the stream now **coalesces incoming frames into ONE batched dispatch every
+        ~100 ms** (`STREAM_BATCH_FLUSH_MS`; a queue + flush-timer in the effect → a new `{type:"batch", actions}` reducer
+        case that folds them in order). Project-switching stays immediate (the workspace-reset dispatch is not batched). No
+        frame is dropped — order + final state are identical to per-frame dispatch (locked by 4 reducer tests:
+        batch≡sequential, no-drop over 50 frames, empty-batch no-op, single-action unchanged). web:typecheck + web vitest
+        (725) green; CHANGELOG'd.
   - [ ] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): parallel projects don't actually parallelize LLM
         work.** Two gates: **(a) LM Studio defaults to SERIAL request handling** — even when !Klein sends concurrent
         requests, the GPU processes them one at a time unless the user raises LM Studio's server concurrency; !Klein can't

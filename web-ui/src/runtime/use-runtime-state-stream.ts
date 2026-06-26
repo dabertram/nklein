@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useRef } from "react";
 
 import type {
 	RuntimeNKleinMcpServerAuthStatus,
@@ -22,6 +22,14 @@ import type {
 const STREAM_RECONNECT_BASE_DELAY_MS = 500;
 const STREAM_RECONNECT_MAX_DELAY_MS = 5_000;
 const MAX_TEAM_PROGRESS_EVENTS_PER_TASK = 30;
+/**
+ * High-frequency WS frames (a running agent emits hundreds of `task_chat_message` frames/sec; multiple parallel
+ * sessions compound it) are COALESCED into one batched reducer dispatch every ~this-many ms, so the React tree
+ * re-renders at most ~10×/sec instead of once per frame. No data is dropped — every queued action is still folded in
+ * order; only the render storm is throttled. (Found via the §5.AI dev-test rail: 14.7k frames on one project made the
+ * UI sluggish with 2 parallel sessions.)
+ */
+const STREAM_BATCH_FLUSH_MS = 100;
 
 function mergeTaskSessionSummaries(
 	currentSessions: Record<string, RuntimeTaskSessionSummary>,
@@ -102,9 +110,10 @@ type RuntimeStateStreamAction =
 	| { type: "workspace_state_updated"; workspaceState: RuntimeWorkspaceStateResponse }
 	| { type: "task_sessions_updated"; summaries: RuntimeTaskSessionSummary[] }
 	| { type: "stream_error"; message: string }
-	| { type: "stream_disconnected"; message: string };
+	| { type: "stream_disconnected"; message: string }
+	| { type: "batch"; actions: RuntimeStateStreamAction[] };
 
-function createInitialRuntimeStateStreamStore(requestedWorkspaceId: string | null): RuntimeStateStreamStore {
+export function createInitialRuntimeStateStreamStore(requestedWorkspaceId: string | null): RuntimeStateStreamStore {
 	return {
 		currentProjectId: requestedWorkspaceId,
 		projects: [],
@@ -156,10 +165,14 @@ function resolveProjectIdAfterProjectsUpdate(
 	return payload.currentProjectId;
 }
 
-function runtimeStateStreamReducer(
+export function runtimeStateStreamReducer(
 	state: RuntimeStateStreamStore,
 	action: RuntimeStateStreamAction,
 ): RuntimeStateStreamStore {
+	if (action.type === "batch") {
+		// Fold every coalesced action into ONE state transition (one re-render for the whole batch). Order-preserving.
+		return action.actions.reduce(runtimeStateStreamReducer, state);
+	}
 	if (action.type === "requested_workspace_changed") {
 		return {
 			...state,
@@ -335,6 +348,10 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 		requestedWorkspaceId,
 		createInitialRuntimeStateStreamStore,
 	);
+	// Coalesce high-frequency WS frames into batched dispatches (see STREAM_BATCH_FLUSH_MS) so the tree re-renders
+	// ~10×/sec instead of once per frame. Refs survive effect re-runs; the effect owns the queue + flush timer.
+	const pendingActionsRef = useRef<RuntimeStateStreamAction[]>([]);
+	const flushTimerRef = useRef<number | null>(null);
 	useEffect(() => {
 		let cancelled = false;
 		let socket: WebSocket | null = null;
@@ -343,6 +360,26 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 		let activeWorkspaceId = requestedWorkspaceId;
 		let requestedWorkspaceForConnection = requestedWorkspaceId;
 
+		const flushPending = () => {
+			if (flushTimerRef.current !== null) {
+				window.clearTimeout(flushTimerRef.current);
+				flushTimerRef.current = null;
+			}
+			if (pendingActionsRef.current.length === 0) {
+				return;
+			}
+			const actions = pendingActionsRef.current;
+			pendingActionsRef.current = [];
+			dispatch({ type: "batch", actions });
+		};
+		const enqueueDispatch = (action: RuntimeStateStreamAction) => {
+			pendingActionsRef.current.push(action);
+			if (flushTimerRef.current === null) {
+				flushTimerRef.current = window.setTimeout(flushPending, STREAM_BATCH_FLUSH_MS);
+			}
+		};
+
+		// The workspace-change reset stays immediate (snappy project switching, no 100ms batch delay).
 		dispatch({ type: "requested_workspace_changed" });
 
 		const cleanupSocket = () => {
@@ -382,7 +419,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 			try {
 				socket = new WebSocket(getRuntimeStreamUrl(requestedWorkspaceForConnection));
 			} catch (error) {
-				dispatch({
+				enqueueDispatch({
 					type: "stream_disconnected",
 					message: error instanceof Error ? error.message : String(error),
 				});
@@ -391,28 +428,28 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 			}
 			socket.onopen = () => {
 				reconnectAttempt = 0;
-				dispatch({ type: "stream_connected" });
+				enqueueDispatch({ type: "stream_connected" });
 			};
 			socket.onmessage = (event) => {
 				try {
 					const payload = JSON.parse(String(event.data)) as RuntimeStateStreamMessage;
 					if (payload.type === "snapshot") {
 						activeWorkspaceId = payload.currentProjectId;
-						dispatch({ type: "snapshot", payload });
+						enqueueDispatch({ type: "snapshot", payload });
 						return;
 					}
 					if (payload.type === "projects_updated") {
 						const previousWorkspaceId = activeWorkspaceId;
 						const nextProjectId = resolveProjectIdAfterProjectsUpdate(activeWorkspaceId, payload);
 						activeWorkspaceId = nextProjectId;
-						dispatch({
+						enqueueDispatch({
 							type: "projects_updated",
 							payload,
 							nextProjectId,
 						});
 						if (nextProjectId && nextProjectId !== previousWorkspaceId) {
 							requestedWorkspaceForConnection = nextProjectId;
-							dispatch({ type: "requested_workspace_changed" });
+							enqueueDispatch({ type: "requested_workspace_changed" });
 							connect();
 						}
 						return;
@@ -421,7 +458,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
 						}
-						dispatch({
+						enqueueDispatch({
 							type: "workspace_state_updated",
 							workspaceState: payload.workspaceState,
 						});
@@ -431,7 +468,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
 						}
-						dispatch({
+						enqueueDispatch({
 							type: "workspace_metadata_updated",
 							workspaceMetadata: payload.workspaceMetadata,
 						});
@@ -441,7 +478,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
 						}
-						dispatch({
+						enqueueDispatch({
 							type: "task_chat_message",
 							payload,
 						});
@@ -451,7 +488,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
 						}
-						dispatch({
+						enqueueDispatch({
 							type: "task_chat_cleared",
 							payload,
 						});
@@ -461,7 +498,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
 						}
-						dispatch({
+						enqueueDispatch({
 							type: "nklein_team_progress",
 							payload,
 						});
@@ -471,7 +508,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
 						}
-						dispatch({
+						enqueueDispatch({
 							type: "task_sessions_updated",
 							summaries: payload.summaries,
 						});
@@ -481,28 +518,28 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						if (payload.workspaceId !== activeWorkspaceId) {
 							return;
 						}
-						dispatch({
+						enqueueDispatch({
 							type: "task_ready_for_review",
 							payload,
 						});
 						return;
 					}
 					if (payload.type === "mcp_auth_updated") {
-						dispatch({
+						enqueueDispatch({
 							type: "mcp_auth_updated",
 							payload,
 						});
 						return;
 					}
 					if (payload.type === "nklein_session_context_updated") {
-						dispatch({
+						enqueueDispatch({
 							type: "nklein_session_context_updated",
 							payload,
 						});
 						return;
 					}
 					if (payload.type === "error") {
-						dispatch({
+						enqueueDispatch({
 							type: "stream_error",
 							message: payload.message,
 						});
@@ -515,7 +552,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 				if (cancelled) {
 					return;
 				}
-				dispatch({
+				enqueueDispatch({
 					type: "stream_disconnected",
 					message: "Runtime stream disconnected.",
 				});
@@ -525,7 +562,7 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 				if (cancelled) {
 					return;
 				}
-				dispatch({
+				enqueueDispatch({
 					type: "stream_disconnected",
 					message: "Runtime stream connection failed.",
 				});
@@ -539,6 +576,12 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 			if (reconnectTimer != null) {
 				window.clearTimeout(reconnectTimer);
 			}
+			if (flushTimerRef.current !== null) {
+				window.clearTimeout(flushTimerRef.current);
+				flushTimerRef.current = null;
+			}
+			// Drop any queued frames for the old socket/workspace — they're stale for the next connection.
+			pendingActionsRef.current = [];
 			cleanupSocket();
 		};
 	}, [requestedWorkspaceId]);
