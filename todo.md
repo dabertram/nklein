@@ -1873,8 +1873,19 @@ deep analysis:
 > assert identical externally-observable behavior. **Sequencing: complete §5.V first → then §5.X.**
 - [ ] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
-- [ ] **Chat e2e** — every chat function: sessions (create/select/delete/relabel), streaming, tools, knowledge fetch,
+- [~] **Chat e2e** — every chat function: sessions (create/select/delete/relabel), streaming, tools, knowledge fetch,
       memory, the (later) autonomous-work mode.
+      **Contract-seam session-CRUD coverage DONE (2026-06-26, 23 tests, Suite 18 — `test/contract/chat-session-contract.test.ts`).**
+      Procedures covered via HTTP + on-disk JSONL assertions:
+        `chat.createSession` (default-field population; `chat_only` scope; all optional fields including `riskAcknowledged`/`browserEnabled`; title trimming);
+        `chat.listSessions` (multiple sessions present; ordering by `updatedAt` descending);
+        `chat.updateSession` (scope/role/riskAcknowledged/browserEnabled round-trip; `updatedAt` advances; `goal: null` clears; unknown id → null);
+        `chat.deleteSession` (non-existent → `{ deleted: false }`; idempotent second delete);
+        `chat.getTranscript` (limit param on empty session; no-limit on empty session);
+        On-disk `$HOME/.nklein/nklein/chat-sessions/sessions.jsonl` (file exists; valid JSONL; upsert event contains correct fields; delete event appended).
+      Seam proven: HTTP → session state read back via `getSession`/`listSessions` AND direct on-disk JSONL file read.
+      Deferred to live e2e (require a live model): transcript content after sendMessage/streamMessage turns (covered by
+        Suite 5C); knowledge-fetch tool calls within a turn; autonomous-work mode behavior.
 - [ ] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
       trash, drag rules — Playwright, deep.
 - [~] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
