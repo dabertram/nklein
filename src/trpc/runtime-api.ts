@@ -164,8 +164,6 @@ import { readMergeHistory } from "../state/merge-history-store";
 import { readTaskRunSummaries } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
-import { readKnowledgeToolUsageStats } from "../telemetry/knowledge-tool-usage-stats";
-import { readModelPerformanceStats } from "../telemetry/model-performance-stats";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -184,6 +182,12 @@ import {
 } from "./runtime-api/task-concurrency-gate.js";
 import { buildTaskEvidencePromptBlock, renderWorkspaceChangesEvidence } from "./runtime-api/task-evidence-prompt.js";
 import { resolveEffectiveTaskTimeoutSettings } from "./runtime-api/task-timeout-settings.js";
+import {
+	handleGetKnowledgeToolUsageStats,
+	handleGetModelPerformanceStats,
+	handleGetUpdateStatus,
+	handleRunUpdateNow,
+} from "./runtime-api/update-status.js";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const execFileAsync = promisify(execFile);
@@ -602,14 +606,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return buildConfigResponse(nextRuntimeConfig);
 		},
 		getModelPerformanceStats: async (workspaceScope) => {
-			return await readModelPerformanceStats({
-				workspacePath: workspaceScope?.workspacePath ?? null,
-			});
+			return await handleGetModelPerformanceStats(workspaceScope);
 		},
 		getKnowledgeToolUsageStats: async (workspaceScope) => {
-			return await readKnowledgeToolUsageStats({
-				workspacePath: workspaceScope?.workspacePath ?? null,
-			});
+			return await handleGetKnowledgeToolUsageStats(workspaceScope);
 		},
 		getSwarmStop: async (workspaceScope) => {
 			return {
@@ -2365,10 +2365,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return { ok: true };
 		},
 		getUpdateStatus: async () => {
-			return deps.getUpdateStatus();
+			return await handleGetUpdateStatus(deps);
 		},
 		runUpdateNow: async () => {
-			return await deps.runUpdateNow();
+			return await handleRunUpdateNow(deps);
 		},
 		listChatSessions: () => chatService.listSessions(),
 		getChatSession: (id) => chatService.getSession(id),
