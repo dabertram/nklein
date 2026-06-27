@@ -3666,12 +3666,15 @@ deep analysis:
         **Important reframe:** a big part of what *looked* like "no parallel work" was actually the §5.AI event-loop hang
         (a stuck/slow agent froze the whole runtime) — now FIXED; re-verified that with one agent stuck, `projects.list`
         is **2.4 ms** (runtime fully responsive regardless of agent state), so a slow/serial endpoint no longer *also*
-        freezes the UI. **So the remaining !Klein-side work is purely (i): a UI advisory** — detect that the local endpoint
-        is serial (or just always advise for local providers, since LM Studio's setting isn't exposed via the
-        OpenAI-compat API) and tell the user "raise your endpoint's concurrency for true parallel LLM work," plus surface
-        the per-model concurrency control. That's **UI/UX work** (parked §5.AJ overhaul / needs the user), not a backend
-        fix. The default-bump idea (ii) is moot for LM Studio (it serializes regardless) and risky to change blind; leave
-        the registry constraint as the lever. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware scheduling).
+        freezes the UI. So the only remaining !Klein-side work was **(i): a UI advisory**. **DONE (2026-06-27):** rather
+        than a global banner needing a UX-design call, the advisory rides the **queued activity badge's tooltip**
+        ([project-row.tsx](web-ui/src/components/project-nav/project-row.tsx)) — which appears *exactly* when agents are
+        queuing (the serialization symptom), so it's contextual + non-nagging. When `queuedSessionCount > 0` the tooltip
+        appends: "local model endpoints often run requests serially; raise the endpoint's concurrency (and !Klein's
+        per-model concurrency in Settings) for true parallel work." A running-only badge (no queue) shows NO advisory.
+        Verified: web:typecheck + 2 new project-row component tests (advisory present when queued, absent when only
+        running) + web:build. The default-bump idea (ii) is moot for LM Studio (it serializes regardless) and risky to
+        change blind; leave the registry constraint as the lever. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware scheduling).
   - [x] **FOUND + FIXED (2026-06-27): the SERVER-tier root of "sluggish with 2 projects" — `projects.list` HUNG 41–60 s
         under heavy parallel agent load; now 0.09–0.22 s (~270×).** Pinpointed by `--cpu-prof` + granular timing across
         7 live A/B cycles. **Root cause:** `buildProjectsPayload` ran `detectProjectHealthIssuesByWorkspaceId`

@@ -136,10 +136,14 @@ export function ProjectRow({
 			: queuedSessions > 0
 				? { tone: "queued" as const, label: `${queuedSessions} queued` }
 				: null;
+	// §5.AI: queued agents are the visible symptom of endpoint serialization — surface the cause + fix right on the
+	// badge tooltip (contextual, only when relevant), not a global banner that needs a UX design call.
+	const CONCURRENCY_ADVISORY =
+		" — local model endpoints often run requests serially; raise the endpoint's concurrency (and !Klein's per-model concurrency in Settings) for true parallel work.";
 	const liveActivityTitle = liveActivity
 		? liveActivity.tone === "running"
-			? `${runningSessions} agent${runningSessions === 1 ? "" : "s"} running on a model${queuedSessions > 0 ? `, ${queuedSessions} queued for capacity` : ""}`
-			: `${queuedSessions} agent${queuedSessions === 1 ? "" : "s"} queued for model/sandbox capacity`
+			? `${runningSessions} agent${runningSessions === 1 ? "" : "s"} running on a model${queuedSessions > 0 ? `, ${queuedSessions} queued for capacity${CONCURRENCY_ADVISORY}` : ""}`
+			: `${queuedSessions} agent${queuedSessions === 1 ? "" : "s"} queued for model/sandbox capacity${CONCURRENCY_ADVISORY}`
 		: null;
 
 	return (

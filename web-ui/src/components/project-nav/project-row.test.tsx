@@ -67,6 +67,15 @@ describe("ProjectRow live activity badge", () => {
 		// Queued-only is a waiting state: gold, not pulsing.
 		expect(mounted.container.querySelector(".animate-pulse")).toBeNull();
 		expect(mounted.container.querySelector(".bg-status-gold")).not.toBeNull();
+		// §5.AI: the queued badge's tooltip surfaces the serialization cause + fix (the parallel-LLM advisory).
+		const badge = mounted.container.querySelector("[title*='queued']");
+		expect(badge?.getAttribute("title")).toMatch(/raise the endpoint's concurrency/i);
+	});
+
+	it("does NOT show the concurrency advisory when only running (no queue, no serialization symptom)", () => {
+		mounted = renderRow({ ...BASE_PROJECT, runningSessionCount: 2 });
+		const badge = mounted.container.querySelector("[title*='running']");
+		expect(badge?.getAttribute("title")).not.toMatch(/raise the endpoint's concurrency/i);
 	});
 
 	it("renders no live badge when there is no active work", () => {
