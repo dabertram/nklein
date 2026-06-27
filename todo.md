@@ -2144,9 +2144,12 @@ deep analysis:
       matching + **secret detection** — private-key/Anthropic/OpenAI/GitHub/AWS/credential-assignment patterns where a
       regex typo = a missed leak) → 15 unit tests covering normalize/count, path-normalization (backslash, `./`, exact-dir,
       lookalike-prefix non-match), approval-request defaults+truncation, and each secret pattern incl. first-match-wins
-      labeling. **Remaining untested cores to pick off** (non-schema logic; the `*-api-contract` files are zod schemas
-      already exercised by the contract suites): `model-identity`, `protected-test-approval-store`, `task-session-guards`,
-      `shell`, `git-process-env`, `home-agent-session`, `workspace-scope`.
+      labeling. **Also covered (2026-06-27):** `model-identity` (6 tests — provider lowercase/trim, model case-preserve,
+      and the §5.Q endpoint canonicalization that maps `127.0.0.1`/`0.0.0.0`/`[::1]`/`localhost` + trailing-slash to one
+      key so the registry/telemetry don't double-count); `protected-test-approval-store` (7 tests — deterministic
+      sha256 key, one-time-use consume, content-fallback when no taskId, clear). **Remaining untested cores to pick off**
+      (non-schema logic; the `*-api-contract` files are zod schemas already exercised by the contract suites):
+      `task-session-guards`, `shell`, `git-process-env`, `home-agent-session`, `workspace-scope`.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
