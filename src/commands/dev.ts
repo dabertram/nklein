@@ -11,6 +11,7 @@ import { summarizeLedgerForDisplay } from "../core/agent-ledger-projections";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
+import { aggregateRailEvidence } from "../core/rail-evidence";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
@@ -31,6 +32,7 @@ import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-po
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 
@@ -508,6 +510,38 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	}
 }
 
+async function runDevRailEvidenceCommand(options: { json?: boolean }): Promise<void> {
+	const aggregate = aggregateRailEvidence(await readRailEvidenceReports());
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(aggregate, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		`Dev-test rail evidence — ${aggregate.totalRuns} run(s) across ${aggregate.totalReports} report(s)` +
+			(aggregate.models.length > 0 ? ` · models: ${aggregate.models.join(", ")}` : "") +
+			"\n\n",
+	);
+	if (aggregate.byProject.length === 0) {
+		process.stdout.write("(no rail evidence harvested yet — run scripts/dev-test-rail.mts, then re-check)\n");
+		return;
+	}
+	process.stdout.write("Per-project (worst delivery first):\n");
+	for (const project of aggregate.byProject) {
+		const flags = [
+			project.failedToStart > 0 ? `start-fail×${project.failedToStart}` : "",
+			project.failed > 0 ? `fail×${project.failed}` : "",
+			project.nonTerminal > 0 ? `nonterm×${project.nonTerminal}` : "",
+			project.anomalyRuns > 0 ? `anomaly×${project.anomalyRuns}` : "",
+		]
+			.filter((flag) => flag.length > 0)
+			.join(" ");
+		process.stdout.write(
+			`  ${project.project.padEnd(16)} ${project.delivered}/${project.runs} delivered  ` +
+				`${String(Math.round(project.deliveryRate * 100)).padStart(3)}%  ${flags}\n`,
+		);
+	}
+}
+
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only !Klein diagnostics and smoke tests.");
 
@@ -603,6 +637,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevLedgerCommand(options);
+		});
+
+	dev.command("rail-evidence")
+		.description("Aggregate the harvested dev-test rail evidence (rail-*.json) into a per-project scorecard (§5.AI).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevRailEvidenceCommand(options);
 		});
 
 	dev.command("test-project")

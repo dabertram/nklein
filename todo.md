@@ -3755,9 +3755,15 @@ deep analysis:
       WS frames, narration-leak + hot-repeat anomaly counts, session states) — the single source of truth for both the
       printed report AND a **persisted JSON** at `~/.nklein/dev-test-rail-evidence/rail-<ts>.json`
       ([dev-test-rail.mts](scripts/dev-test-rail.mts)). So the harvest is now **machine-readable + durable** (not just
-      stdout), which is the substrate the analysis pass reads. **Still owed (the analysis):** the agent-driven pass that
-      reads accumulated `rail-*.json` (and the §5.AF ledger) and proposes the `[ ]`/idea todo bullets for user review —
-      that's the bigger, agent-in-the-loop piece (lands on the always-on rail).
+      stdout), which is the substrate the analysis pass reads. **AGGREGATION + REVIEW SURFACE DONE (2026-06-27):** pure
+      `aggregateRailEvidence` ([rail-evidence.ts](src/core/rail-evidence.ts)) rolls the accumulated harvest into a
+      per-project scorecard **worst-delivery-first** (delivery rate + failed/non-terminal/anomaly counts), a validated
+      reader `readRailEvidenceReports` ([rail-evidence-store.ts](src/state/rail-evidence-store.ts), skips malformed
+      reports), and a CLI surface **`nklein dev rail-evidence [--json]`** ([dev.ts](src/commands/dev.ts)) that prints the
+      rollup for review — `--json` is exactly what the LLM pass will consume. 11 unit tests; the shared types now live in
+      `src/core/rail-evidence.ts` (rail imports them, DRY). **Still owed (the LLM step):** the agent-driven pass that
+      feeds that aggregate (+ the §5.AF ledger) to a model and proposes the `[ ]`/idea todo bullets for user review —
+      that's the bigger, agent-in-the-loop piece (lands on the always-on rail; the reviewable substrate is now ready).
 - [x] **"Collect evidence" buttons reference the specific card — VERIFIED (2026-06-27), no fix needed.** Traced the
       per-**card** "Evidence" button end-to-end: [board-card.tsx](web-ui/src/components/board-card.tsx) `onCopyEvidence(card.id)`
       → `collectTaskEvidence({ taskId })` ([runtime-config-query.ts](web-ui/src/runtime/runtime-config-query.ts)) →

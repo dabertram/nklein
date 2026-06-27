@@ -15,9 +15,10 @@
  *       tsx scripts/dev-test-rail.mts --count 3 --select random       # 3 RANDOM built-in presets (rotate coverage)
  */
 import { mkdirSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import type { RailEvidenceReport, RailLaneEvidence } from "../src/core/rail-evidence.js";
+import { resolveRailEvidenceDir } from "../src/state/rail-evidence-store.js";
 import { BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS } from "../src/core/runtime-config-api-contract";
 import { resolveNKleinDevTestProjectScenario } from "../src/nklein-agent/nklein-dev-test-project";
 import type { RuntimeAppRouter } from "../src/trpc/app-router";
@@ -84,35 +85,6 @@ function shuffleInPlace<T>(items: T[]): T[] {
  * §5.O registry via `projects.listDevTestProjects` — is the richer follow-up; this keeps the rail's selection on the
  * createDevTestProject-proven presets.)
  */
-/** Machine-readable per-project evidence — the structured form persisted for later analysis (§5.AI auto-collect). */
-interface RailLaneEvidence {
-	label: string;
-	workspaceId: string;
-	startedOk: boolean;
-	startError: string | null;
-	verdict: "delivered" | "failed_to_start" | "failed" | "non_terminal";
-	cards: number;
-	decomposed: boolean;
-	wsFrames: number;
-	sessionStates: Record<string, string>;
-	toolCalls: Record<string, number>;
-	totalToolCalls: number;
-	narrationLeaks: number;
-	hotRepeats: number;
-}
-
-interface RailEvidenceReport {
-	schemaVersion: 1;
-	at: string;
-	model: string;
-	maxWaitMs: number;
-	concurrency: number;
-	projectCount: number;
-	delivered: number;
-	anomalyProjects: number;
-	lanes: RailLaneEvidence[];
-}
-
 /** Reduce a finished lane to its structured evidence (the single source of truth for both the printed report + JSON). */
 function buildLaneEvidence(lane: Lane): RailLaneEvidence {
 	const toolNames = lane.messages.filter((message) => message.toolName).map((message) => message.toolName as string);
@@ -359,7 +331,7 @@ async function main(): Promise<void> {
 		log("");
 		log(`SUMMARY: ${report.delivered}/${report.projectCount} delivered to review · ${report.anomalyProjects} project(s) with narration anomalies · model ${model}`);
 		try {
-			const evidenceDir = join(homedir(), ".nklein", "dev-test-rail-evidence");
+			const evidenceDir = resolveRailEvidenceDir();
 			mkdirSync(evidenceDir, { recursive: true });
 			const evidencePath = join(evidenceDir, `rail-${report.at.replace(/[:.]/g, "-")}.json`);
 			writeFileSync(evidencePath, JSON.stringify(report, null, 2), "utf8");
