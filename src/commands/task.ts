@@ -13,6 +13,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { clampRuntimeSwarmCardStartBatchSize, runtimeAgentIdSchema } from "../core/api-contract";
+import { summarizeWorkspaceBoardHealth } from "../core/operator-board-health.js";
 import { type PlanGapKind, recordPlanGap } from "../core/plan-gap";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
 import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
@@ -318,6 +319,27 @@ async function listTasks(input: { cwd: string; projectPath?: string; column?: Li
 		tasks,
 		dependencies: state.board.dependencies.map((dependency) => formatDependencyRecord(state, dependency)),
 		count: tasks.length,
+	};
+}
+
+async function reportBoardHealth(input: { cwd: string; projectPath?: string }): Promise<JsonRecord> {
+	const workspace = await resolveRuntimeWorkspace(input.projectPath, input.cwd, { autoCreateIfMissing: false });
+	const runtimeClient = createRuntimeTrpcClient(workspace.workspaceId);
+	const state = await runtimeClient.workspace.getState.query();
+	const health = summarizeWorkspaceBoardHealth(state);
+	return {
+		ok: true,
+		workspacePath: workspace.repoPath,
+		total: health.total,
+		counts: health.counts,
+		byState: health.byState,
+		inbox: {
+			total: health.inbox.total,
+			unsafeActionAcks: health.inbox.unsafeActionAcks,
+			clarifyingQuestions: health.inbox.clarifyingQuestions,
+			heldDeliveries: health.inbox.heldDeliveries,
+			blockedOnSetup: health.inbox.blockedOnSetup,
+		},
 	};
 }
 
@@ -1840,6 +1862,16 @@ export function registerTaskCommand(program: Command): void {
 						projectPath: options.projectPath,
 						column: options.column,
 					}),
+			);
+		});
+
+	task
+		.command("health")
+		.description("Show the operator board-health rollup (healthy/stuck/risky/done) and the risk/approval inbox.")
+		.option("--project-path <path>", "Workspace path. Defaults to current directory workspace.")
+		.action(async (options: { projectPath?: string }) => {
+			await runTaskCommand(
+				async () => await reportBoardHealth({ cwd: process.cwd(), projectPath: options.projectPath }),
 			);
 		});
 

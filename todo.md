@@ -3602,8 +3602,15 @@ deep analysis:
       (2026-06-27):** `buildOperatorBoardSummary(tasks)` (same module) is the board-header query the classifier comment
       promised — per-state `counts` + `byState` task-id lists + the folded-in `inbox` + `total`, composing
       `classifyOperatorTaskState` and `collectOperatorInbox` (2 unit tests, empty-board + mixed-board). **§5.AG pure data
-      layer is now COMPLETE end-to-end: signal map → classifier + board rollup + inbox + escalation report; only the UI
-      surfaces remain (render the rollup header + inbox/escalation panels; thread the real off-summary flags in).**
+      layer is now COMPLETE end-to-end: signal map → classifier + board rollup + inbox + escalation report.**
+      **FIRST CONSUMER WIRED + LIVE-VERIFIED (2026-06-27):** `summarizeWorkspaceBoardHealth(state, resolveOverrides?)`
+      ([src/core/operator-board-health.ts](src/core/operator-board-health.ts), 3 unit tests) bridges a live
+      `RuntimeWorkspaceStateResponse` → the rollup, and the new **`nklein task health`** CLI command (mirrors `task list`:
+      `resolveRuntimeWorkspace` → `workspace.getState` → summarize → JSON) renders it. **Proven live** against a running
+      runtime on this repo's board: `ok:true`, 4 cards classified (`done:4`), empty inbox — the §5.AG chain runs end-to-end
+      through a real consumer. **Remaining surface:** the web-UI board-health header + risk-inbox panel (the same
+      `summarizeWorkspaceBoardHealth` can power a tRPC endpoint for them); thread the real §5.L/§5.M/§5.S off-summary flags
+      via `resolveOverrides` when wiring those.
 - *(cross-links)* §6.8 cockpit (the live per-card layer this summarizes) · §5.AF ledger (the escalation/attempt data) ·
       §5.AB (selection reasoning) · §5.S (clarify inbox) · §5.M G3b (risk ack) · §5.L (delivery gate) · §5.A (isolation state).
 
