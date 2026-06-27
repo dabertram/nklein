@@ -24,6 +24,10 @@ export interface RuntimeTaskStartQueue {
 	takeReady(workspaceId: string, options?: { force?: boolean; now?: number }): QueuedRuntimeTaskStart[];
 	clearWorkspace(workspaceId: string): void;
 	size(workspaceId?: string): number;
+	/** Every queued start across all workspaces — for persisting a durable snapshot. */
+	snapshot(): QueuedRuntimeTaskStart[];
+	/** Replace the in-memory queue with a persisted snapshot (preserves `queuedAt`/`attempts`/`nextAttemptAt`). */
+	hydrate(entries: readonly QueuedRuntimeTaskStart[]): void;
 }
 
 function cloneQueuedRequest(request: RuntimeTaskSessionStartRequest): RuntimeTaskSessionStartRequest {
@@ -108,6 +112,29 @@ export function createRuntimeTaskStartQueue(): RuntimeTaskStartQueue {
 				}
 			}
 			return count;
+		},
+		snapshot() {
+			return [...queuedByKey.values()].map((queued) => ({
+				workspaceScope: cloneWorkspaceScope(queued.workspaceScope),
+				input: cloneQueuedRequest(queued.input),
+				queuedAt: queued.queuedAt,
+				nextAttemptAt: queued.nextAttemptAt,
+				attempts: queued.attempts,
+				lastError: queued.lastError,
+			}));
+		},
+		hydrate(entries) {
+			queuedByKey.clear();
+			for (const entry of entries) {
+				queuedByKey.set(createQueueKey(entry.workspaceScope.workspaceId, entry.input.taskId), {
+					workspaceScope: cloneWorkspaceScope(entry.workspaceScope),
+					input: cloneQueuedRequest(entry.input),
+					queuedAt: entry.queuedAt,
+					nextAttemptAt: entry.nextAttemptAt,
+					attempts: entry.attempts,
+					lastError: entry.lastError,
+				});
+			}
 		},
 	};
 }

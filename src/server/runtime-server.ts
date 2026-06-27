@@ -703,6 +703,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		takeReady: (workspaceId, options) => taskStartQueue.takeReady(workspaceId, options),
 		clearWorkspace: (workspaceId) => taskStartQueue.clearWorkspace(workspaceId),
 		size: (workspaceId) => taskStartQueue.size(workspaceId),
+		snapshot: () => taskStartQueue.snapshot(),
+		hydrate: (entries) => taskStartQueue.hydrate(entries),
 	};
 	const getScopedNKleinTaskSessionService = async (
 		scope: RuntimeTrpcWorkspaceScope,

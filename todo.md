@@ -4364,8 +4364,13 @@ deep analysis:
       now DONE (2026-06-27):** `loadQueuedTaskStartsFromDisk` / `saveQueuedTaskStartsToDisk`
       ([src/trpc/runtime-task-start-queue-store.ts](src/trpc/runtime-task-start-queue-store.ts)) — a best-effort
       single-JSONL snapshot store (creates parent dirs, overwrites on save, empty on missing — mirrors the ledger store),
-      4 temp-dir round-trip/overwrite tests. So the **only remaining work is the Red runtime-server wiring**: load the
-      snapshot at boot + re-enqueue it, and `saveQueuedTaskStartsToDisk` after each enqueue/drain.)* This is also exactly
+      4 temp-dir round-trip/overwrite tests. **And the queue accessors are now DONE (2026-06-27):** `snapshot()` (every
+      queued start across all workspaces, for persisting) + `hydrate(entries)` (replace the in-memory queue from a
+      snapshot, **preserving** each entry's `queuedAt`/`nextAttemptAt`/`attempts` so a restored delayed start stays held
+      until its original due time, not reset to ready-now) on `RuntimeTaskStartQueue`, with the `scheduledTaskStartQueue`
+      wrapper delegating both; 2 added queue tests. So the **only remaining work is the Red runtime-server wiring**: at
+      boot `loadQueuedTaskStartsFromDisk` → `hydrate` → schedule a drain per restored workspace; and
+      `saveQueuedTaskStartsToDisk(snapshot())` after each enqueue/drain/clear.)* This is also exactly
       the §5.AF "durable long-run job scheduler" item — one arc.
 - *(already tracked in §5.U — not duplicated here: the `runtime-settings-dialog.tsx` JSX decomposition, the
   `nklein-task-session-service.ts` collaborator extraction, and the monolith inventory.)*

@@ -1760,6 +1760,8 @@ describe("createRuntimeApi startTaskSession", () => {
 			takeReady: vi.fn(() => []),
 			clearWorkspace: vi.fn(),
 			size: vi.fn(() => 0),
+			snapshot: vi.fn(() => []),
+			hydrate: vi.fn(),
 		};
 
 		const api = createTestRuntimeApi({
