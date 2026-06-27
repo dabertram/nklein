@@ -27,6 +27,7 @@ import type {
 } from "../core/api-contract";
 import { openInBrowser } from "../server/browser";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
+import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import {
@@ -601,6 +602,23 @@ async function loadProviderModelsWithMeasuredWindows(
 		const registryEntries = Object.values(snapshot.models);
 		const mergedModels = mergeProviderModelsWithModelRegistry(providerId, providerModels, registryEntries);
 		if (isLiveOnlyProviderId(providerId)) {
+			// Keep the registry's context window in step with the LIVE loaded window: a local model is often loaded at a
+			// context length smaller than its max, and a stale/max value left in the registry would otherwise drive the
+			// context budget (overflow risk). Fire-and-forget; only fires for entries whose loaded window actually changed.
+			for (const refresh of selectLiveContextWindowRefreshes({
+				providerId,
+				discoveredModels: providerModels,
+				registryEntries,
+			})) {
+				void getDefaultNKleinModelRegistry()
+					.recordContextWindow({
+						providerId: refresh.providerId,
+						modelId: refresh.modelId,
+						endpoint: refresh.endpoint,
+						advertisedContextWindow: refresh.contextWindow,
+					})
+					.catch(() => undefined);
+			}
 			return mergedModels;
 		}
 		const modelIds = new Set(mergedModels.map((model) => model.id));

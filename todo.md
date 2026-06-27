@@ -2259,6 +2259,13 @@ deep analysis:
       bare object nodes, relaxes a *schema-valued* `additionalProperties` in place, recurses through nested properties +
       array `items`, leaves non-object types / primitives / null untouched, preserves descriptions. A regression here = the
       SDK pre-rejecting a weak model's slightly-off decompose call before the in-handler JSON repair can run.
+      **`plan-task-board-apply` board-search helpers covered (2026-06-27, 6 tests):** `collectBoardTaskIds` (flatten ids
+      across all columns; empty board) + `findGeneratedPlanTaskCard` (match by `generatedFromPlan` slug+taskId; null on
+      slug/taskId mismatch or non-generated cards). *(The other two exports — `replaceNKleinPlanTaskInGraph`,
+      `applyNKleinPlanTaskGraphToBoard` — zod-parse full graph/board fixtures; left for a graph-fixture-builder pass.)*
+      **The clean small-pure-module coverage lane is now ~exhausted** — the remaining untested modules are legacy
+      (`task-worktree-path`, being retired), I/O-coupled (`nklein-mcp-settings-service`, sentry/logger/assets), or
+      heavy-fixture (the two board-apply graph functions). Further coverage means an integration harness, not unit slices.
       **`task-record-format` CLI input/error surface (6 tests):** `resolveTaskCommandTarget` (task-id|column
       mutual-exclusion, names the command), `parseListColumn` (`done`→`completed` alias, canonical ids, invalid throws),
       `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). **Board functions now covered too**
@@ -3340,6 +3347,17 @@ deep analysis:
       before flipping). A behaviour-changing hot-path change across two selection systems → a focused fresh-context pass,
       NOT a tail-of-session slice (do not rush it at depth — a bug here misroutes every task's model). Adding more *pure*
       composition would just widen the unwired surface; the value is the reconciliation itself.
+- [x] **FIX: a loaded local model's context window showed/used its MAX, not its loaded size (2026-06-27, user-found via the
+      live test instance).** A model loaded in LM Studio at 40000 ctx displayed "131k effective window" on the card and drove
+      the context budget off 131072 — an overflow risk. Root cause (confirmed against live `/api/v0/models`: `loaded_ctx:40000`
+      vs `max_ctx:131072`): the discovery parser correctly prefers `loaded_context_length`, but discovery **never wrote it
+      back into the model registry** — the registry's `contextWindow` was only ever set by the circular task-run path, so a
+      stale/max value stuck as `effective` (`userOverride ?? observed ?? advertised`). Fix: `selectLiveContextWindowRefreshes`
+      (new pure [nklein-context-window-refresh.ts](src/nklein-agent/nklein-context-window-refresh.ts), 7 tests) + a
+      fire-and-forget wire in `loadProviderModelsWithMeasuredWindows` that, for live providers, records each loaded model's
+      current window as `advertised` (the registry's "advertised changed → clear stale observed" rule then refreshes
+      `effective` to the loaded size; a user override still wins; keys off existing entries so it only updates in place + only
+      when changed). Fires on the next model listing; the dev:full test instance was restarted to pick up the fix.
 - [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (approaches × ALL loaded models, no user) — LAYER 1**
       *(escalation order clarified 2026-06-27, user)*. On repeated failure, escalate **with NO user intervention**
       through (i) the §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding
