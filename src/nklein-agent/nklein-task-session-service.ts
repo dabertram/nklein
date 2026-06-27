@@ -67,6 +67,7 @@ import {
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
+import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import {
 	createInMemoryNKleinMessageRepository,
@@ -3052,27 +3053,34 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// §5.AF: also record this terminal run as ONE attempt event in the Agent Attempt Ledger (best-effort; the
 		// ledger is observational control-plane and must never break the session loop). This is the first live WRITER
 		// of the ledger, making the §5.Z matrix + §5.AA model-behaviour profile real projections of one evidence stream.
-		try {
-			void appendAgentLedgerEvent(
-				buildTerminalAttemptEvent({
-					taskId,
-					workspacePath: summary.workspacePath ?? null,
-					state,
-					role,
-					providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
-					modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
-					endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
-					startedAt: summary.startedAt ?? null,
-					endedAt: summary.updatedAt,
-					promptTokens,
-					completionTokens,
-					timeoutReason,
-				}),
-				{ rootDir: this.diagnosticStoreRoot },
-			);
-		} catch {
-			// Best-effort; never break the session loop on a ledger write.
-		}
+		// Async + fire-and-forget: read the persisted transcript to extract per-tool-call detail, then append the
+		// attempt event. The ledger is observational and must never break or block the session loop.
+		void (async () => {
+			try {
+				const snapshot = await this.sessionRuntime.readPersistedTaskSession(taskId).catch(() => null);
+				const toolCalls = extractTerminalToolCalls(snapshot?.messages ?? []);
+				await appendAgentLedgerEvent(
+					buildTerminalAttemptEvent({
+						taskId,
+						workspacePath: summary.workspacePath ?? null,
+						state,
+						role,
+						providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
+						modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
+						endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
+						startedAt: summary.startedAt ?? null,
+						endedAt: summary.updatedAt,
+						promptTokens,
+						completionTokens,
+						timeoutReason,
+						toolCalls,
+					}),
+					{ rootDir: this.diagnosticStoreRoot },
+				);
+			} catch {
+				// Best-effort; never break the session loop on a ledger write.
+			}
+		})();
 	}
 
 	private forgetSandboxTask(taskId: string): void {

@@ -3677,8 +3677,15 @@ deep analysis:
       to the real home in production), threaded to both write sites; the suite routes every construction through one
       `createDiagnosticIsolatedService` wrapper that injects a per-test `mkdtemp` root (removed in `afterEach`), so the
       112-test suite no longer pollutes the home dir. tsc+biome+`test:fast` (2435) green.
-      **Still owed (the rest of this item):** a
-      richer per-tool-call writer (the terminal seam is coarse — model + outcome + timing, no per-call detail yet); the
+      **PER-TOOL-CALL DETAIL NOW WRITTEN (2026-06-27):** the terminal writer is no longer coarse — `extractTerminalToolCalls`
+      ([nklein-ledger-tool-calls.ts](src/nklein-agent/nklein-ledger-tool-calls.ts)) walks the task's persisted transcript
+      (`readPersistedTaskSession().messages`) and emits the ordered `attempt.toolCalls[{name, fingerprint, outcome}]` —
+      each `tool_use` block's name + lossless full-input fingerprint (§5.O `computeNKleinToolInputFingerprint`), with the
+      matching `tool_result` correlated by `tool_use_id` to fill the per-call outcome (`error`/`success`; `null` if the run
+      ended before that call returned). Pure (computed at terminal time, no live accumulation); the capture site reads the
+      snapshot + appends async best-effort. 5 extractor tests; `buildTerminalAttemptEvent` passes `toolCalls` through.
+      So `summarizeModelOutcomes` + the §5.Z/§5.AA projections now have per-tool usage/outcome grain, not just per-run.
+      **Still owed (the rest of this item):** the
       remaining workflow fields the durable scheduler needs (`jobId`/`runState`/`resumeCursor` + admission/resource-headroom
       + merge/review-join events — add as the scheduler lands); and fully **re-home the attempt-grain bits** scattered in
       `task-run-summary-store` / model-registry observations / knowledge-tool telemetry so they become projections/thin-

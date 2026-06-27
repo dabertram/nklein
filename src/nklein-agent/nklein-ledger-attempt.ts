@@ -4,13 +4,13 @@
  * result best-effort, so every terminal task run becomes one durable `attempt` event the §5.Z matrix / §5.AA profile
  * can project from (`summarizeModelOutcomes`), instead of model outcomes evaporating into per-domain stores.
  *
- * Coarse by design at this seam: we have the model, the terminal outcome, the role, the timing, and the token usage —
- * not the per-tool-call detail (that needs the message history; a richer writer can layer on later). That's enough for
- * the per-model outcome/success-rate/speed projections the adaptive arc reads.
+ * Captures the model, the terminal outcome, the role, the timing, the token usage, and (when the caller supplies the
+ * task's persisted transcript via `extractTerminalToolCalls`) the per-tool-call detail — enough for the per-model
+ * outcome/success-rate/speed projections the adaptive arc reads, plus the per-tool usage/outcome breakdown.
  */
 
 import { createHash } from "node:crypto";
-import { type AgentAttemptEvent, buildAttemptEvent } from "../core/agent-attempt-ledger";
+import { type AgentAttemptEvent, type AttemptToolCall, buildAttemptEvent } from "../core/agent-attempt-ledger";
 import type { ModelOutcomeKind } from "../core/model-behavior-profile";
 import { buildNKleinModelRegistryKey } from "./nklein-model-registry";
 
@@ -50,6 +50,8 @@ export interface TerminalAttemptInput {
 	completionTokens: number | null;
 	/** Non-null when the run ended on a bounded turn/stream/tool timeout (§5.C). */
 	timeoutReason: string | null;
+	/** Per-tool-call detail from the persisted transcript (`extractTerminalToolCalls`); omit for the coarse seam. */
+	toolCalls?: AttemptToolCall[];
 }
 
 /** Build the `attempt` ledger event for one terminal task run. Pure (no I/O); the caller appends it best-effort. */
@@ -80,5 +82,6 @@ export function buildTerminalAttemptEvent(input: TerminalAttemptInput): AgentAtt
 		outcome,
 		qualityOk: outcome === "success",
 		salvage: input.timeoutReason,
+		toolCalls: input.toolCalls,
 	});
 }
