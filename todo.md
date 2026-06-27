@@ -3592,9 +3592,14 @@ deep analysis:
       live (dry-run, started nothing):** against the live runtime it read real signals → admitted up to the cap (2) →
       held (`background_cap_reached`) → reaped expired leases (force-stop) → admitted new ones → rotated projects (random
       selection) → **checkpointed `leases.json` between ticks → recovered on start**. So the always-on rail's whole brain
-      works end-to-end. **ONLY remaining: a focused live pass of `--live`** — the autonomous *real* create+start/remove
-      path is wired (reuses the rail's exact calls) but was deliberately NOT exercised here (dry-run only); it needs to be
-      watched against the live runtime + Docker once (admits real runs, yields when a real task starts, cleans up).
+      works end-to-end. **`--live` VERIFIED TOO (2026-06-27):** ran `--live --max-concurrent 1` against the live runtime
+      — the daemon autonomously **created + started a REAL sandboxed dev-test run** (`nklein-daw-foundation`, running),
+      then correctly **held at the cap** (`background_cap_reached`) instead of starting more. The live pass also caught +
+      fixed a real bug: `stopRun`'s single `projects.remove` **failed silently when the project's agent was still
+      running**, leaking the throwaway project — now it **retries + verifies removal** (matching the rail's cleanup), so a
+      force-stopped/shutdown run cleans up. **So the always-on rail is functionally COMPLETE** (dry-run + `--live` both
+      proven). Remaining polish for a sustained deployment (not blockers): yield-mid-run observation over a long window,
+      and richer live signals (real RAM/VRAM/disk headroom beyond the board-cap proxy).
   - [~] **First usable version BUILT (2026-06-27): [scripts/dev-test-rail.mts](scripts/dev-test-rail.mts).** A one-shot
         parallel runner that composes the proven pieces — pins the model + raises its per-model concurrency (§5.T) so the
         one endpoint serves the projects concurrently, creates N dev-test projects, subscribes to each one's

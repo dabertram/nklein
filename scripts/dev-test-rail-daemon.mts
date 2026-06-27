@@ -108,9 +108,22 @@ async function main(): Promise<void> {
 				log(`    [dry-run] would stop ${lease.project} (${lease.workspaceId})`);
 				return;
 			}
-			if (lease.workspaceId) {
-				await base.projects.remove.mutate({ projectId: lease.workspaceId }).catch(() => undefined);
+			if (!lease.workspaceId) {
+				return;
 			}
+			// Removing a project whose agent is still RUNNING can fail the first time, so retry + verify it's gone (the
+			// rail's cleanup does the same). Without this, a force-stopped run leaks its throwaway project (verified).
+			for (let attempt = 0; attempt < 4; attempt += 1) {
+				await base.projects.remove.mutate({ projectId: lease.workspaceId }).catch(() => undefined);
+				const stillThere = (await base.projects.list.query().catch(() => ({ projects: [] }))).projects.some(
+					(project) => project.id === lease.workspaceId,
+				);
+				if (!stillThere) {
+					return;
+				}
+				await new Promise((resolve) => setTimeout(resolve, 800));
+			}
+			log(`    (warning: could not remove ${lease.project} workspace ${lease.workspaceId} after retries)`);
 		},
 		isRunActive: async (lease: BackgroundEvalLease) => {
 			if (!live) {
