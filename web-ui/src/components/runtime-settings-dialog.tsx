@@ -48,6 +48,7 @@ import {
 	EmbeddingEndpointFields,
 	LOCAL_CODE_EMBEDDING_MODEL,
 } from "@/components/code-embedding-fields";
+import { ConcurrencyEditor, type ConcurrencyMap } from "@/components/concurrency-editor";
 import {
 	filterRegistryEntriesToLoadedModels,
 	NKleinModelRegistryPanel,
@@ -1326,6 +1327,13 @@ export function RuntimeSettingsDialog({
 	const [maxConcurrentTasksOverride, setMaxConcurrentTasksOverride] = useState<number | null>(null);
 	const [selectedAgentIdOverride, setSelectedAgentIdOverride] = useState<RuntimeAgentId | null>(null);
 	const [modelRoles, setModelRoles] = useState<RuntimeModelRoles>({});
+	const [concurrencyDefaults, setConcurrencyDefaults] = useState<{
+		perProvider: ConcurrencyMap;
+		perModel: ConcurrencyMap;
+	}>({
+		perProvider: {},
+		perModel: {},
+	});
 	const [agentRulesets, setAgentRulesets] = useState<AgentRulesetsConfigPayload>(DEFAULT_AGENT_RULESETS_CONFIG);
 	const [modelRolesOverride, setModelRolesOverride] = useState<RuntimeModelRoles | null>(null);
 	const [agentRulesetsOverride, setAgentRulesetsOverride] = useState<AgentRulesetsConfigPayload | null>(null);
@@ -1470,6 +1478,13 @@ export function RuntimeSettingsDialog({
 	const initialMaxConcurrentTasksOverride = config?.maxConcurrentTasksOverride ?? null;
 	const initialSelectedAgentIdOverride = config?.selectedAgentIdOverride ?? null;
 	const initialModelRoles = useMemo(() => normalizeModelRolesForSettings(config?.modelRoles), [config?.modelRoles]);
+	const initialConcurrencyDefaults = useMemo(
+		() => ({
+			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
+			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
+		}),
+		[config?.concurrencyDefaults],
+	);
 	const initialAgentRulesets = useMemo<AgentRulesetsConfigPayload>(
 		() => config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG,
 		[config?.agentRulesets],
@@ -1704,6 +1719,9 @@ export function RuntimeSettingsDialog({
 		if (serializeModelRoles(modelRoles) !== serializeModelRoles(initialModelRoles)) {
 			return true;
 		}
+		if (JSON.stringify(concurrencyDefaults) !== JSON.stringify(initialConcurrencyDefaults)) {
+			return true;
+		}
 		if (JSON.stringify(agentRulesets) !== JSON.stringify(initialAgentRulesets)) {
 			return true;
 		}
@@ -1774,6 +1792,8 @@ export function RuntimeSettingsDialog({
 		initialSandboxMemoryPerContainerMb,
 		initialLostHeartbeatPolicy,
 		initialModelRoles,
+		initialConcurrencyDefaults,
+		concurrencyDefaults,
 		initialAgentRulesets,
 		agentRulesets,
 		initialOpenPrPromptTemplate,
@@ -1869,6 +1889,10 @@ export function RuntimeSettingsDialog({
 		setMaxConcurrentTasksOverride(config?.maxConcurrentTasksOverride ?? null);
 		setSelectedAgentIdOverride(config?.selectedAgentIdOverride ?? null);
 		setModelRoles(normalizeModelRolesForSettings(config?.modelRoles));
+		setConcurrencyDefaults({
+			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
+			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
+		});
 		setAgentRulesets(config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG);
 		setModelRolesOverride(
 			config?.modelRolesOverride != null ? normalizeModelRolesForSettings(config.modelRolesOverride) : null,
@@ -2346,6 +2370,7 @@ export function RuntimeSettingsDialog({
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
+			concurrencyDefaults,
 			agentRulesets,
 			shortcuts,
 			commitPromptTemplate,
@@ -3005,6 +3030,24 @@ export function RuntimeSettingsDialog({
 									) : null;
 								})()}
 							</div>
+						</div>
+
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+								Per-provider / per-model concurrency
+							</h6>
+							<p className="text-text-tertiary text-[11px] mt-0 mb-2">
+								Cap how many sessions run at once on a provider, or on a specific model (canonical{" "}
+								<code>provider:model:endpoint</code> id). A cap of 1 serializes; remove a row for no extra
+								limit. This is the global default (a per-project override is a follow-up); it AND-s with the
+								per-model registry limit.
+							</p>
+							<ConcurrencyEditor
+								perProvider={concurrencyDefaults.perProvider}
+								perModel={concurrencyDefaults.perModel}
+								disabled={controlsDisabled}
+								onChange={setConcurrencyDefaults}
+							/>
 						</div>
 
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">

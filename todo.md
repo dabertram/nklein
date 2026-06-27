@@ -2678,9 +2678,16 @@ deep analysis:
         `.default({})` on `concurrencyConfigSchema` so the response's required-grains type matches the threaded
         `ConcurrencyConfig` — fixed a web-ui `| undefined` mismatch.) 8 web + 6 backend `RuntimeConfigState`/response
         fixtures updated; root+web tsc, full fast suite, web vitest (738) all green. **So the config is now API-readable +
-        API-writable + persisted + enforced — fully functional headless.** **Still owed (UX only):** the Settings UI
-        "Concurrency" card (a per-provider/per-model number-input list + the per-project `OverrideRow` pattern) so users
-        set it in-app instead of via `saveConfig`/the config file.
+        API-writable + persisted + enforced — fully functional headless.** **SETTINGS UI DONE (2026-06-27) — §5.W
+        CONCURRENCY COMPLETE END-TO-END:** `<ConcurrencyEditor>`
+        ([web-ui/src/components/concurrency-editor.tsx](web-ui/src/components/concurrency-editor.tsx)) — a controlled
+        two-map editor (Per provider + Per model), each with editable+removable cap rows (key read-only, number editable,
+        1–256) + an add-row; threaded through the settings dialog's draft state + init + dirty (JSON compare) + save +
+        the reset effect, in a "Per-provider / per-model concurrency" card by the Max-concurrent-tasks field. 4 component
+        tests + the dialog's 40 tests; root+web tsc, full web vitest (742), web:build, AND a **live browser load** (the
+        dialog opens + the card renders both sections, no console errors). **Remaining (small follow-up):** the
+        per-PROJECT override editor (the global default ships; the override is plumbed end-to-end in the backend, just no
+        UI row yet — mirror the `OverrideRow` pattern).
   - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
         ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
         per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it
