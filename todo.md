@@ -4229,10 +4229,17 @@ deep analysis:
       original path is now a 7-line **barrel** (`export *`) so **zero callers changed**. Verified: biome + web typecheck
       (the barrel resolves for every importer) + full web vitest (742) + `web:build` (clean bundle). Creates independent
       UI lanes immediately — a settings/provider/task-control change no longer competes in one 530-line file.
-- [ ] **Runtime-config facade split (Yellow → unblocks config-heavy work).** Split `src/config/runtime-config.ts` (~2200
+- [~] **Runtime-config facade split (Yellow → unblocks config-heavy work).** Split `src/config/runtime-config.ts` (2306
       lines) into `runtime-config-{types,defaults,normalize,change-fields,store}.ts` behind the existing public facade.
       Preserve every import + all corrupt-vs-missing / defaulting / migration behavior; lock with the round-trip +
-      old-config-load tests. Pairs with the settings draft boundary.
+      old-config-load tests. Pairs with the settings draft boundary. **First slice DONE (2026-06-27):** the public type
+      surface (`RuntimeConfigState` + `RuntimeConfigUpdateInput`) is extracted into
+      [src/config/runtime-config-types.ts](src/config/runtime-config-types.ts) and **re-exported** from `runtime-config.ts`
+      so every existing importer of `./runtime-config` is unchanged (root tsc + biome clean; the 64 config-suite tests
+      green). **Remaining slices:** the private file-shapes + DEFAULT_* constants → `runtime-config-defaults.ts`; the
+      ~800-line normalize/build-assembly block → `runtime-config-normalize.ts`; the change-field registry →
+      `runtime-config-change-fields.ts`; load/save/update → `runtime-config-store.ts` (each a careful slice — config
+      defaulting can regress quietly, so verify round-trip + corrupt-vs-missing each time).
 - [ ] **Settings draft boundary (highest-churn win).** Extract a behavior-owning Settings **draft model** from
       `runtime-settings-dialog.tsx` (a Red monolith every new setting competes inside): typed draft state · init/reset ·
       dirty detection · validation · save-payload construction, as `web-ui/src/features/settings/{settings-draft,

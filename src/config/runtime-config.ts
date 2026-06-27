@@ -48,12 +48,17 @@ import {
 import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { isDebugOverrideEnvEnabled } from "./debug-override";
+import type { RuntimeConfigState, RuntimeConfigUpdateInput } from "./runtime-config-types";
 import {
 	NKLEIN_HOME_DIR_NAME,
 	NKLEIN_PROJECT_CONFIG_DIR_NAME,
 	NKLEIN_RUNTIME_DIR_NAME,
 } from "./runtime-path-constants";
 import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
+
+// Re-exported from their dedicated types module (§5.AK runtime-config facade slice) so existing importers of this
+// path (`./runtime-config`) keep resolving RuntimeConfigState / RuntimeConfigUpdateInput unchanged.
+export type { RuntimeConfigState, RuntimeConfigUpdateInput };
 
 interface RuntimeGlobalConfigFileShape {
 	selectedAgentId?: RuntimeAgentId;
@@ -98,101 +103,6 @@ interface RuntimeProjectConfigFileShape {
 	selectedAgentIdOverride?: RuntimeAgentId | null;
 	agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
 	modelRolesOverride?: RuntimeModelRoles | null;
-}
-
-export interface RuntimeConfigState {
-	globalConfigPath: string;
-	projectConfigPath: string | null;
-	selectedAgentId: RuntimeAgentId;
-	selectedShortcutLabel: string | null;
-	developerModeEnabled: boolean;
-	replayCardsEnabled: boolean;
-	agentAutonomousModeEnabled: boolean;
-	agentTimeoutMode: RuntimeAgentTimeoutMode;
-	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
-	requestTimeoutMs: number | null;
-	streamTimeoutMs: number | null;
-	toolTimeoutMs: number | null;
-	agentTimeoutMs: number | null;
-	conversationTimeoutMs: number | null;
-	maxAgentWritableFileLines: number;
-	maxConcurrentTasks: number;
-	maxConcurrentTasksOverride: number | null;
-	effectiveMaxConcurrentTasks: number;
-	selectedAgentIdOverride: RuntimeAgentId | null;
-	effectiveSelectedAgentId: RuntimeAgentId;
-	sandboxMaxContainers: number;
-	sandboxAgentsPerContainer: number;
-	sandboxMemoryPerContainerMb: number;
-	sandboxCpusPerContainer: number;
-	sandboxIdleTimeoutMinutes: number;
-	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
-	decompositionAutoApplyEnabled: boolean;
-	secondOpinionReviewEnabled: boolean;
-	reviewMaxRounds: number;
-	readyForReviewNotificationsEnabled: boolean;
-	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
-	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
-	effectiveCodeEmbeddingSettings: RuntimeCodeEmbeddingSettings;
-	/** §5.W: global per-provider/per-model concurrency caps + the per-project override (effective resolved per session). */
-	concurrencyDefaults: ConcurrencyConfig;
-	concurrencyOverride: ConcurrencyOverride | null;
-	modelRoles: RuntimeModelRoles;
-	modelRolesOverride: RuntimeModelRoles | null;
-	effectiveModelRoles: RuntimeModelRoles;
-	agentRulesets?: AgentRulesetsConfigPayload;
-	agentRulesetsOverride: AgentRulesetsConfigPayload | null;
-	effectiveAgentRulesets?: AgentRulesetsConfigPayload;
-	swarmGuardrails: RuntimeSwarmGuardrails;
-	shortcuts: RuntimeProjectShortcut[];
-	commitPromptTemplate: string;
-	openPrPromptTemplate: string;
-	commitPromptTemplateDefault: string;
-	openPrPromptTemplateDefault: string;
-	/** §5.W: user-configured base directory under which !Klein creates workspaces; null → home default. */
-	workspaceBaseDir: string | null;
-}
-
-export interface RuntimeConfigUpdateInput {
-	selectedAgentId?: RuntimeAgentId;
-	selectedShortcutLabel?: string | null;
-	developerModeEnabled?: boolean;
-	replayCardsEnabled?: boolean;
-	agentAutonomousModeEnabled?: boolean;
-	agentTimeoutMode?: RuntimeAgentTimeoutMode;
-	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
-	requestTimeoutMs?: number | null;
-	streamTimeoutMs?: number | null;
-	toolTimeoutMs?: number | null;
-	agentTimeoutMs?: number | null;
-	conversationTimeoutMs?: number | null;
-	maxAgentWritableFileLines?: number;
-	maxConcurrentTasks?: number;
-	sandboxMaxContainers?: number;
-	sandboxAgentsPerContainer?: number;
-	sandboxMemoryPerContainerMb?: number;
-	sandboxCpusPerContainer?: number;
-	sandboxIdleTimeoutMinutes?: number;
-	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
-	decompositionAutoApplyEnabled?: boolean;
-	secondOpinionReviewEnabled?: boolean;
-	reviewMaxRounds?: number;
-	readyForReviewNotificationsEnabled?: boolean;
-	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
-	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
-	concurrencyDefaults?: ConcurrencyConfig;
-	concurrencyOverride?: ConcurrencyOverride | null;
-	maxConcurrentTasksOverride?: number | null;
-	selectedAgentIdOverride?: RuntimeAgentId | null;
-	agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
-	modelRoles?: RuntimeModelRoles;
-	modelRolesOverride?: RuntimeModelRoles | null;
-	agentRulesets?: AgentRulesetsConfigPayload;
-	swarmGuardrails?: RuntimeSwarmGuardrails;
-	shortcuts?: RuntimeProjectShortcut[];
-	commitPromptTemplate?: string;
-	openPrPromptTemplate?: string;
-	workspaceBaseDir?: string | null;
 }
 
 const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
