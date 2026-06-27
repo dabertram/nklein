@@ -2181,6 +2181,11 @@ deep analysis:
       assumption). *(Scan note: my "untested" basename heuristic has false positives when the test file is named
       differently from the source — e.g. `agent-sandbox/path-normalization.ts` IS covered by
       `agent-sandbox-path-normalization.test.ts`; content-verify with a test-import grep before assuming untested.)*
+      **`plan-task-validation.ts` now FULLY covered** (+10 graph/sizing tests): `validateTaskSizingContract`
+      (acceptance-command required, test-first needs a prompt, complexity ≤75 + ≤3 likely-files split gates),
+      `validateTaskGraphReferences` (edge count, duplicate-id + dangling-dependency rejection),
+      `normalizeTaskAcceptanceCommand` (default-command precedence, test-first cleared without a prompt, dependsOn
+      dedupe/trim).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
