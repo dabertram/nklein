@@ -2641,7 +2641,7 @@ deep analysis:
       (replaces inline model-role JSX in the global NKlein section + the new override row); handlers updated to functional
       updates to avoid stale-closure batching. Saved to `modelRolesOverride`/`agentRulesetsOverride` in the payload.
       Remaining: UI for `codeEmbedding` override.
-- [ ] **Per-provider + per-model concurrency — global AND per-project configurable** *(2026-06-26, user)*. The user wants
+- [x] **Per-provider + per-model concurrency — global AND per-project configurable** *(2026-06-26, user)* — **COMPLETE END-TO-END (2026-06-27):** resolution core + schemas + runtime-config persistence + live scheduler gate + tRPC contract + Settings UI (global card AND per-project override row), all verified. The user wants
       the swarm's parallelism tunable at two grains and two scopes: **(a) per model PROVIDER** (e.g. lmstudio / ollama /
       a custom local endpoint) and **(b) per MODEL**, each settable as a **global default** AND a **per-project override**.
       **What exists to build on:** per-model concurrency is already a machine-local **registry constraint**
@@ -2649,7 +2649,7 @@ deep analysis:
       §6.5) reads to allow N concurrent sessions on a shared endpoint; `maxConcurrentTasks` (board cap) already has the
       global+project-override pattern (§5.W Phase 1). **What's NEW:** a per-PROVIDER cap, and expressing both as
       global-default + project-override **config** (not just a registry constraint). Build:
-  - [~] **config shape — RESOLUTION CORE DONE (2026-06-26):** [src/core/concurrency-config.ts](src/core/concurrency-config.ts)
+  - [x] **config shape — RESOLUTION CORE DONE (2026-06-26):** [src/core/concurrency-config.ts](src/core/concurrency-config.ts)
         — `ConcurrencyConfig` (`perProvider`/`perModel` maps) + `ConcurrencyOverride`, the `normalize*` writers
         (clamp [1,256], drop blanks, null-when-empty override like the other §5.W overrides), and the precedence
         resolvers: `resolveEffectiveProviderConcurrency` / `resolveEffectiveModelConcurrency` (override ?? global ??
@@ -2697,22 +2697,22 @@ deep analysis:
         Root+web tsc, full web vitest (742, incl. the extended dialog test), web:build, and a live load (app renders,
         settings dialog opens, **no console errors** — the project-override section needs a selected project, which the
         jsdom dialog test covers faithfully with a `workspaceId` config).
-  - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
+  - [x] **scheduler enforcement — DONE + LIVE (2026-06-27):** `scheduleNKleinEndpointStart`
         ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
         per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it
         counts the provider's running sessions across ALL its endpoints/models and holds at the cap (reason +
         `sharedEndpointId: "provider:<id>"`); and the per-endpoint `limit` now takes an optional `modelConcurrencyCap`
         (the effective config cap) in place of the registry `maxConcurrentRequests`. **Additive + dormant by default:**
         both fields are optional, so with neither set the behavior + the existing 9 tests are unchanged; +3 new tests
-        (provider-cap allows-under/blocks-at across distinct endpoints; model-cap override raises then blocks). **Still
-        owed:** the CALLER must resolve + pass `providerConcurrencyCap`/`modelConcurrencyCap` from the effective
-        `ConcurrencyConfig` (the contract+config-threading sub-items below) for the gate to go live; the resolution is
-        already done (`concurrency-config.ts`, project override beats global, 14 tests).
-  - [ ] **contract + tRPC** — thread the two maps + overrides through `runtimeConfigResponseSchema` /
-        `runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`; `saveConfig` passes them generically.
-  - [ ] **Settings UI** — a "Concurrency" card (global) listing providers + (loaded/known) models with a per-row number
-        input, + the per-project `OverrideRow` pattern (Inherited / Overridden ×-revert). Pairs with the §5.W settings
-        regroup ("Guardrails & Limits" / Parallelism home).
+        (provider-cap allows-under/blocks-at across distinct endpoints; model-cap override raises then blocks).
+        **CALLER-WIRING DONE (2026-06-27) — gate live:** `start-task-session.ts` resolves + passes both caps from the
+        effective `ConcurrencyConfig` (see the config bullet above), so the provider + model gates are enforced
+        end-to-end (null cap = unchanged behavior).
+  - [x] **contract + tRPC — DONE (2026-06-27)** — the two maps + overrides are threaded through `runtimeConfigResponseSchema` /
+        `runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`; `saveConfig` passes them generically (detail in the config bullet above).
+  - [x] **Settings UI — DONE (2026-06-27)** — a "Per-provider / per-model concurrency" card (global) with the two-map
+        `<ConcurrencyEditor>`, + the per-project "Concurrency caps" `OverrideRow` (Inherited / Overridden ×-revert).
+        Pairs with the §5.W settings regroup ("Guardrails & Limits" / Parallelism home).
   - *(cross-links)* §5.T (the per-model registry constraint this generalizes) · §6.5 (endpoint scheduler — the
         enforcement point) · §5.AB (parallel role→model balancing reads these caps) · §5.AF (resource governance +
         the durable scheduler honor them) · §5.W (the global-vs-project override mechanism + settings regroup).
