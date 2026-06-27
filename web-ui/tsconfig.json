@@ -24,7 +24,9 @@
       "@runtime-task-title": ["../src/core/task-title.ts"],
       "@runtime-task-worktree-path": ["../src/workspace/task-worktree-path.ts"],
       "@runtime-task-state": ["../src/core/task-board-mutations.ts"],
-      "@runtime-operator-board-health": ["../src/core/operator-board-health.ts"]
+      "@runtime-operator-board-health": ["../src/core/operator-board-health.ts"],
+      "@runtime-agent-stuckness": ["../src/core/agent-stuckness.ts"],
+      "@runtime-escalation-suggestions": ["../src/core/escalation-suggestions.ts"]
     },
     "types": ["vitest/globals"]
   },

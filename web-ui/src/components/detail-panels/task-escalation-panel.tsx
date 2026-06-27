@@ -1,6 +1,8 @@
+import { buildStucknessSignalsFromReport, classifyAgentStuckness } from "@runtime-agent-stuckness";
+import { buildEscalationSuggestions } from "@runtime-escalation-suggestions";
 import { History, RefreshCw } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
@@ -72,6 +74,20 @@ export function TaskEscalationPanel({
 				: `${report.totalAttempts} attempts · ${report.modelsTried.length} models`
 			: "What was tried before escalating";
 
+	// §5.AB: derive the progress verdict from the report (client-side, no extra round-trip). When hard-stuck — the
+	// automatic ladder (all approaches × all loaded models) is exhausted — show the Layer-2 "get through the wall"
+	// suggestions, since often a simple user decision is enough.
+	const verdict = useMemo(() => {
+		if (!report || report.totalAttempts === 0) {
+			return null;
+		}
+		const stuckness = classifyAgentStuckness(buildStucknessSignalsFromReport(report));
+		return {
+			stuckness,
+			suggestions: stuckness === "hard_stuck" ? buildEscalationSuggestions() : [],
+		};
+	}, [report]);
+
 	return (
 		<div className="border-b border-border bg-surface-1 px-3 py-2">
 			<div className="flex items-center justify-between gap-2">
@@ -118,6 +134,39 @@ export function TaskEscalationPanel({
 								</div>
 							))
 						: null}
+					{!error && !isLoading && verdict ? (
+						<div className="mt-1.5 border-t border-border/60 pt-1.5">
+							<div className="flex items-center gap-1.5">
+								<span className="text-text-tertiary">Verdict:</span>
+								<span
+									className={cn(
+										"font-mono",
+										verdict.stuckness === "hard_stuck"
+											? "text-status-red"
+											: verdict.stuckness === "transient"
+												? "text-status-orange"
+												: "text-status-green",
+									)}
+								>
+									{verdict.stuckness}
+								</span>
+							</div>
+							{verdict.suggestions.length > 0 ? (
+								<div className="mt-1">
+									<div className="text-text-secondary">
+										Automatic recovery exhausted — escalate to the user. Options to get through the wall:
+									</div>
+									<ul className="mt-0.5 list-disc pl-4 text-text-tertiary">
+										{verdict.suggestions.map((suggestion) => (
+											<li key={suggestion.kind} title={suggestion.detail}>
+												{suggestion.title}
+											</li>
+										))}
+									</ul>
+								</div>
+							) : null}
+						</div>
+					) : null}
 				</div>
 			) : null}
 		</div>

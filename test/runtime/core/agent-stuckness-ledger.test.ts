@@ -5,11 +5,12 @@ import {
 	type TaskAttemptRow,
 	type TaskEscalationReport,
 } from "../../../src/core/agent-attempt-ledger";
+import { buildStucknessSignalsFromLedger } from "../../../src/core/agent-ledger-projections";
 import {
-	buildStucknessSignalsFromLedger,
 	buildStucknessSignalsFromReport,
-} from "../../../src/core/agent-ledger-projections";
-import { classifyAgentStuckness, isHardStuck } from "../../../src/core/agent-stuckness";
+	classifyAgentStuckness,
+	isHardStuck,
+} from "../../../src/core/agent-stuckness";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 
 function attemptRow(overrides: Partial<TaskAttemptRow> = {}): TaskAttemptRow {

@@ -12,6 +12,7 @@
 // Pure + dependency-free (mirrors `classifyOperatorTaskState`): a normalized signal set in, a verdict out. The
 // mapping from the §5.AF ledger's attempt stream to these signals is a separate concern (a later mapper), so this
 // classifier stays deterministic and unit-testable.
+import type { TaskEscalationReport } from "./agent-attempt-ledger";
 import type { ModelOutcomeKind } from "./model-behavior-profile";
 
 /** The progress verdict for an agent at a single stuck-point. `hard_stuck` is the bigger-model-rescue trigger. */
@@ -146,4 +147,44 @@ export function decideEscalationAction(input: EscalationDecisionInput): Escalati
 		return { kind: "retry_other_model", modelId: nextUntried };
 	}
 	return { kind: "escalate_to_user" };
+}
+
+/**
+ * Derive the verdict signals from an already-built §5.AG `TaskEscalationReport` instead of the raw ledger — so a
+ * consumer that only has the report (e.g. the web escalation panel, which fetches it over tRPC) can compute the verdict
+ * client-side with no extra round-trip. Lives here (not the ledger projections) so it stays web-importable: the report
+ * type is a TYPE-only import (erased), keeping this module free of the ledger store's node-only deps. The report carries
+ * per-attempt `outcome` / `approach` / `salvage` but NOT artifacts or the learned retry budget, so
+ * `hadProgressSinceStuck` + `retryBudgetExhausted` default conservatively to false (the report-based verdict errs toward
+ * flagging for attention; the ledger-based mapper is authoritative). Episode = the trailing non-`success` run.
+ */
+export function buildStucknessSignalsFromReport(report: TaskEscalationReport): AgentStucknessSignals {
+	const episode: TaskEscalationReport["attempts"] = [];
+	for (let index = report.attempts.length - 1; index >= 0; index--) {
+		const attempt = report.attempts[index];
+		// `attempt === undefined` can't happen for a valid index, but satisfies the web tsconfig's noUncheckedIndexedAccess
+		// (this module is compiled by web-ui too, so it must pass the stricter web settings).
+		if (attempt === undefined || attempt.outcome === "success") {
+			break;
+		}
+		episode.push(attempt);
+	}
+	episode.reverse();
+
+	const approaches = new Set<string>();
+	let loopUncleared = false;
+	for (const attempt of episode) {
+		approaches.add(attempt.approach);
+		if (attempt.outcome === "loop" && attempt.salvage === null) {
+			loopUncleared = true;
+		}
+	}
+
+	return {
+		recentOutcomes: episode.map((attempt) => attempt.outcome),
+		distinctApproachesTried: approaches.size,
+		loopUncleared,
+		retryBudgetExhausted: false,
+		hadProgressSinceStuck: false,
+	};
 }

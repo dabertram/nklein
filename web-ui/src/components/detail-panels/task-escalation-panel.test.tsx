@@ -83,4 +83,30 @@ describe("TaskEscalationPanel", () => {
 		await expand();
 		expect(container.textContent).toContain("not escalated");
 	});
+
+	it("shows a hard-stuck verdict and the get-through-the-wall suggestions (§5.AB)", async () => {
+		const row = (rung: number, approach: string, outcome: string) => ({
+			rung,
+			modelId: "m1",
+			approach,
+			outcome,
+			qualityScore: null,
+			qualityOk: null,
+			salvage: null,
+			recordedAt: rung,
+		});
+		fetchTaskEscalationMock.mockResolvedValue({
+			taskId: "t1",
+			totalAttempts: 3,
+			modelsTried: ["m1"],
+			finalOutcome: "other_failure",
+			// 3 trailing failures across 3 distinct approaches incl. an uncleared loop → classifies hard_stuck.
+			attempts: [row(0, "endpoint:e1", "loop"), row(1, "endpoint:e2", "loop"), row(2, "prompt:p1", "other_failure")],
+		});
+		await expand();
+		expect(container.textContent).toContain("hard_stuck");
+		expect(container.textContent).toContain("Options to get through the wall");
+		expect(container.textContent).toContain("Clarify the goal");
+		expect(container.textContent).toContain("Make a more capable model available");
+	});
 });

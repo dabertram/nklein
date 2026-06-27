@@ -91,6 +91,8 @@ export default defineConfig({
 			"@runtime-task-worktree-path": resolve(__dirname, "../src/workspace/task-worktree-path.ts"),
 			"@runtime-task-state": resolve(__dirname, "../src/core/task-board-mutations.ts"),
 			"@runtime-operator-board-health": resolve(__dirname, "../src/core/operator-board-health.ts"),
+			"@runtime-agent-stuckness": resolve(__dirname, "../src/core/agent-stuckness.ts"),
+			"@runtime-escalation-suggestions": resolve(__dirname, "../src/core/escalation-suggestions.ts"),
 		},
 	},
 	server: {
