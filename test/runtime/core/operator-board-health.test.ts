@@ -7,7 +7,7 @@ import type {
 } from "../../../src/core/api-contract";
 import { summarizeWorkspaceBoardHealth } from "../../../src/core/operator-board-health";
 
-function card(id: string): RuntimeBoardCard {
+function card(id: string, blockedKind?: RuntimeBoardCard["blockedKind"]): RuntimeBoardCard {
 	return {
 		id,
 		title: id,
@@ -16,6 +16,7 @@ function card(id: string): RuntimeBoardCard {
 		baseRef: "main",
 		createdAt: 1,
 		updatedAt: 2,
+		...(blockedKind ? { blockedKind } : {}),
 	} as RuntimeBoardCard;
 }
 
@@ -90,6 +91,22 @@ describe("summarizeWorkspaceBoardHealth", () => {
 		expect(summary.byState.healthy).toEqual(["run"]);
 		expect(summary.byState.stuck).toEqual(["lost"]);
 		expect(summary.byState.done).toEqual(["done1"]);
+	});
+
+	it("reads the card's own blockedKind from board state → sandbox-unavailable is risky, needs-decomposition is stuck", () => {
+		const summary = summarizeWorkspaceBoardHealth(
+			stateWith(
+				board([
+					{ columnId: "in_progress", card: card("sandbox", "agent_sandbox_unavailable") },
+					{ columnId: "planning", card: card("decomp", "needs_decomposition") },
+				]),
+			),
+		);
+		expect(summary.counts.risky).toBe(1);
+		expect(summary.counts.stuck).toBe(1);
+		expect(summary.byState.risky).toEqual(["sandbox"]);
+		// Both are blocked-on-setup in the inbox.
+		expect(summary.inbox.blockedOnSetup.sort()).toEqual(["decomp", "sandbox"]);
 	});
 
 	it("applies caller-supplied off-summary overrides (e.g. a held delivery → risky + inbox)", () => {

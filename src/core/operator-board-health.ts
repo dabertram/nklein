@@ -7,17 +7,22 @@ import {
 	type OperatorInboxTask,
 	type OperatorSessionSummaryView,
 	type OperatorSignalOverrides,
+	type OperatorTaskSignals,
 } from "./operator-task-state";
 
 export type { OperatorBoardSummary, OperatorSignalOverrides } from "./operator-task-state";
 
 /**
- * The minimal board shape the rollup reads — columns of cards with ids. Structurally a subset of both the runtime's
- * `RuntimeBoardData` and the web-ui's `BoardData` (their column ids are the same `RuntimeBoardColumnId` enum), so a
- * caller passes either directly; kept inline so this module stays a dependency-free pure bridge.
+ * The minimal board shape the rollup reads — columns of cards with an id and (optionally) the card's start-blocked
+ * kind. Structurally a subset of both the runtime's `RuntimeBoardData` and the web-ui's `BoardData` (same
+ * `RuntimeBoardColumnId` column ids, same `blockedKind` enum), so a caller passes either directly; kept inline so this
+ * module stays a dependency-free pure bridge.
  */
 export interface BoardHealthBoardView {
-	columns: ReadonlyArray<{ id: OperatorColumnId; cards: ReadonlyArray<{ id: string }> }>;
+	columns: ReadonlyArray<{
+		id: OperatorColumnId;
+		cards: ReadonlyArray<{ id: string; blockedKind?: OperatorTaskSignals["blockedKind"] }>;
+	}>;
 }
 
 /**
@@ -41,9 +46,16 @@ export function summarizeBoardHealth(
 		}
 		for (const card of column.cards) {
 			const summary = sessions[card.id] ?? { state: "idle" as const };
+			// The card's own `blockedKind` is board state — fold it into the signals (a caller override wins if it also
+			// supplies one), so a sandbox-unavailable card reads `risky` and a needs-decomposition card reads `stuck`
+			// straight from the board, without waiting on the §5.L/§5.S/§5.M subsystems to expose per-task state.
+			const overrides: OperatorSignalOverrides = {
+				...(card.blockedKind ? { blockedKind: card.blockedKind } : {}),
+				...resolveOverrides?.(card.id),
+			};
 			tasks.push({
 				taskId: card.id,
-				signals: mapSessionSummaryToOperatorSignals(summary, column.id, resolveOverrides?.(card.id)),
+				signals: mapSessionSummaryToOperatorSignals(summary, column.id, overrides),
 			});
 		}
 	}

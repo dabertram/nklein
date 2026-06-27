@@ -3581,9 +3581,14 @@ deep analysis:
       compact healthy/stuck/risky/done chips + a risk-inbox count, **placed in the kanban-board header strip** (fed the
       live `data` board + `taskSessions`). Verified: root+web typecheck, 3 component tests + full web vitest (733),
       `web:build` (clean bundle), and a **live browser load** (no white screen, no console errors; correctly renders
-      nothing on an empty board). **Still owed:** thread the real §5.L/§5.M/§5.S off-summary flags via the component's
-      `resolveOverrides` prop so `risky` + the inbox surface from live gate/ack/clarify state (today board state alone
-      shows healthy/stuck/done); a per-lane indicator.
+      nothing on an empty board). **BLOCKED-KIND THREADED (2026-06-27):** the card's own `blockedKind`
+      (`needs_decomposition` / `local_model_required` / `agent_sandbox_unavailable`) IS board state, so `summarizeBoardHealth`
+      now folds it into each card's signals — a **sandbox-unavailable card reads `risky`**, a **needs-decomposition card
+      reads `stuck`**, and both land in the inbox's `blockedOnSetup` — straight from the board (CLI + UI), no subsystem
+      wait. (+1 unit test.) **Still owed:** the §5.L gate / §5.M ack / §5.S clarify per-task flags (those subsystems hold
+      the state in chat/session scope, not as a readable per-board-task signal yet — confirmed by grep; that's a
+      gate/clarify-subsystem task, not a board-health one) → thread via `resolveOverrides` once they expose it; a
+      per-lane indicator.
 - [~] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
       resort), show the attempt chain — models × approaches × scores tried — so the user sees an actionable report, not a
       silent dead end. Also the §5.AB "why this model for this task" inspectable reason.
