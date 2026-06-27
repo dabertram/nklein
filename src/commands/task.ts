@@ -16,13 +16,11 @@ import { type PlanGapKind, recordPlanGap } from "../core/plan-gap";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
 import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
 import {
-	addTaskDependency,
 	addTaskToColumn,
 	completeTaskAndGetReadyLinkedTaskIds,
 	deleteTasksFromBoard,
 	getTaskColumnId,
 	moveTaskToColumn,
-	removeTaskDependency,
 	trashTaskAndGetReadyLinkedTaskIds,
 	updateTask,
 } from "../core/task-board-mutations";
@@ -57,6 +55,7 @@ import {
 } from "./task/task-command-parsers.js";
 import type { ListTaskColumn } from "./task/task-command-types.js";
 import { buildDecompositionRoutingCandidates } from "./task/task-decomposition-routing.js";
+import { linkTasks, unlinkTasks } from "./task/task-dependency-commands.js";
 import {
 	buildTaskNKleinSettingsForCreate,
 	buildTaskNKleinSettingsForUpdate,
@@ -81,7 +80,6 @@ import {
 	findTasksInColumn,
 	formatDependencyRecord,
 	formatTaskRecord,
-	getLinkFailureMessage,
 	parseListColumn,
 	resolveTaskCommandTarget,
 } from "./task/task-record-format.js";
@@ -330,37 +328,6 @@ async function updateTaskCommand(input: {
 	};
 }
 
-async function linkTasks(input: {
-	cwd: string;
-	taskId: string;
-	linkedTaskId: string;
-	projectPath?: string;
-}): Promise<JsonRecord> {
-	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
-	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
-	const runtimeClient = createRuntimeTrpcClient(workspaceId);
-	const dependency = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
-		const linked = addTaskDependency(runtimeState.board, input.taskId, input.linkedTaskId);
-		if (!linked.added || !linked.dependency) {
-			throw new Error(getLinkFailureMessage(linked.reason));
-		}
-
-		const nextState: RuntimeWorkspaceStateResponse = {
-			...runtimeState,
-			board: linked.board,
-		};
-		return {
-			board: linked.board,
-			value: formatDependencyRecord(nextState, linked.dependency),
-		};
-	});
-	return {
-		ok: true,
-		workspacePath: workspaceRepoPath,
-		dependency,
-	};
-}
-
 async function decomposeTaskGraph(input: {
 	cwd: string;
 	slug: string;
@@ -584,38 +551,6 @@ export async function runVerifyTaskAcceptanceCommand(
 						? `Acceptance check failed for task "${input.taskId}".`
 						: `Task "${input.taskId}" has no Acceptance check line.`,
 				}),
-	};
-}
-
-async function unlinkTasks(input: { cwd: string; dependencyId: string; projectPath?: string }): Promise<JsonRecord> {
-	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
-	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
-	const runtimeClient = createRuntimeTrpcClient(workspaceId);
-	const removedDependency = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
-		const dependency =
-			runtimeState.board.dependencies.find((candidate) => candidate.id === input.dependencyId) ?? null;
-		if (!dependency) {
-			throw new Error(`Dependency "${input.dependencyId}" was not found in workspace ${workspaceRepoPath}.`);
-		}
-
-		const unlinked = removeTaskDependency(runtimeState.board, input.dependencyId);
-		if (!unlinked.removed) {
-			throw new Error(`Dependency "${input.dependencyId}" could not be removed.`);
-		}
-
-		const nextState: RuntimeWorkspaceStateResponse = {
-			...runtimeState,
-			board: unlinked.board,
-		};
-		return {
-			board: unlinked.board,
-			value: formatDependencyRecord(nextState, dependency),
-		};
-	});
-	return {
-		ok: true,
-		workspacePath: workspaceRepoPath,
-		removedDependency,
 	};
 }
 

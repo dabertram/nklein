@@ -2041,6 +2041,10 @@ deep analysis:
               `commands/task/task-read-commands.ts` (resolve workspace → query state → project a JSON record; no mutation,
               no dependency on the other command impls). task.ts 2045→1996 (**under 2000**; cumulative 2870→1996,
               −874/−30%). tsc + biome + `test:fast` green.
+        - [x] **slice 10 (2026-06-27):** extracted the dependency commands (`linkTasks`, `unlinkTasks`) →
+              `commands/task/task-dependency-commands.ts` (leaf mutate-commands over the shared `updateRuntimeWorkspaceState`
+              helper + board mutations; no other-command deps). task.ts 1996→1931 (cumulative 2870→1931, −939/−33%).
+              tsc + biome + `test:fast` (2443) green.
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
