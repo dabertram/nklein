@@ -8,7 +8,12 @@
  * adaptive retry engine reads, so "what works per model" is derived from the durable record, not a second store.
  */
 
-import { type AgentLedgerEvent, selectAttempts } from "./agent-attempt-ledger";
+import {
+	type AgentLedgerEvent,
+	type ModelOutcomeRollup,
+	selectAttempts,
+	summarizeModelOutcomes,
+} from "./agent-attempt-ledger";
 import {
 	emptyModelBehaviorProfile,
 	type ModelAttemptOutcome,
@@ -45,4 +50,24 @@ export function buildModelBehaviorProfilesFromLedger(
 	return [...byModel.values()].sort(
 		(left, right) => right.samples - left.samples || left.modelId.localeCompare(right.modelId),
 	);
+}
+
+/** A one-shot display rollup of the whole ledger — for the operator read surfaces (`nklein dev ledger`). */
+export interface LedgerDisplaySummary {
+	totalEvents: number;
+	totalAttempts: number;
+	/** Per-model outcome counts + success rate (the §5.Z matrix seed). */
+	outcomes: ModelOutcomeRollup[];
+	/** Per-model learned behaviour profiles (§5.AA) derived from the ledger. */
+	profiles: ModelBehaviorProfile[];
+}
+
+/** Project the ledger into the operator display summary (pure; composes the two model projections). */
+export function summarizeLedgerForDisplay(events: readonly AgentLedgerEvent[]): LedgerDisplaySummary {
+	return {
+		totalEvents: events.length,
+		totalAttempts: selectAttempts(events).length,
+		outcomes: summarizeModelOutcomes(events),
+		profiles: buildModelBehaviorProfilesFromLedger(events),
+	};
 }

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildSchedulerEvent } from "../../../src/core/agent-attempt-ledger";
-import { buildModelBehaviorProfilesFromLedger } from "../../../src/core/agent-ledger-projections";
+import {
+	buildModelBehaviorProfilesFromLedger,
+	summarizeLedgerForDisplay,
+} from "../../../src/core/agent-ledger-projections";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 
 const base = { workflowId: "wf", taskId: "t", workspacePathHash: "ws" };
@@ -60,5 +63,24 @@ describe("buildModelBehaviorProfilesFromLedger", () => {
 	it("carries retries into the avgRetries learning signal", () => {
 		const out = buildModelBehaviorProfilesFromLedger([attempt("m", "success", 1, 0), attempt("m", "success", 2, 4)]);
 		expect(out[0].avgRetries).toBeGreaterThan(0);
+	});
+});
+
+describe("summarizeLedgerForDisplay", () => {
+	it("rolls the ledger into totals + the two model projections", () => {
+		const summary = summarizeLedgerForDisplay([
+			buildSchedulerEvent({ ...base, event: "queued" }),
+			attempt("model-A", "success", 1),
+			attempt("model-A", "timeout", 2),
+			attempt("model-B", "success", 3),
+		]);
+		expect(summary.totalEvents).toBe(4);
+		expect(summary.totalAttempts).toBe(3);
+		expect(summary.outcomes.map((o) => o.modelId)).toEqual(["model-A", "model-B"]);
+		expect(summary.profiles.map((p) => p.modelId)).toEqual(["model-A", "model-B"]);
+	});
+
+	it("is all-zero/empty for a ledger with no attempts", () => {
+		expect(summarizeLedgerForDisplay([])).toEqual({ totalEvents: 0, totalAttempts: 0, outcomes: [], profiles: [] });
 	});
 });

@@ -7,6 +7,7 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { summarizeLedgerForDisplay } from "../core/agent-ledger-projections";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
@@ -29,6 +30,7 @@ import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { resolveProjectInputPath } from "../projects/project-path";
+import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 
@@ -473,6 +475,32 @@ export async function runDevCleanupReportCommand(options: DevCleanupReportOption
 	}
 }
 
+async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
+	const summary = summarizeLedgerForDisplay(await readAllAgentLedger());
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		`Agent Attempt Ledger — ${summary.totalAttempts} attempt(s) across ${summary.totalEvents} event(s)\n\n`,
+	);
+	if (summary.outcomes.length === 0) {
+		process.stdout.write("(no model attempts recorded yet — run some tasks, then re-check)\n");
+		return;
+	}
+	process.stdout.write("Per-model outcomes (the §5.Z matrix, as a ledger query):\n");
+	for (const outcome of summary.outcomes) {
+		const breakdown = Object.entries(outcome.byOutcome)
+			.filter(([, count]) => count > 0)
+			.map(([kind, count]) => `${kind}×${count}`)
+			.join(" ");
+		process.stdout.write(
+			`  ${outcome.modelId.padEnd(40)} ${String(outcome.samples).padStart(3)} run(s)  ` +
+				`${String(Math.round(outcome.successRate * 100)).padStart(3)}% success  [${breakdown}]\n`,
+		);
+	}
+}
+
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only !Klein diagnostics and smoke tests.");
 
@@ -561,6 +589,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevCheckModelsCommand(options);
+		});
+
+	dev.command("ledger")
+		.description("Show the Agent Attempt Ledger (§5.AF): per-model outcomes + success rates from real task runs.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevLedgerCommand(options);
 		});
 
 	dev.command("test-project")

@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
@@ -62,4 +62,29 @@ export async function readAgentLedger(options: ReadAgentLedgerOptions): Promise<
 		return events.slice(Math.max(0, events.length - options.limit));
 	}
 	return events;
+}
+
+/**
+ * Read EVERY workspace's ledger (all `*.jsonl` in the ledger dir), merged + chronological. For the operator read
+ * surfaces (`nklein dev ledger`, future stats) that summarize model behaviour across all runs, not one workspace.
+ */
+export async function readAllAgentLedger(options?: { rootDir?: string }): Promise<AgentLedgerEvent[]> {
+	const dir = resolveRootDir(options?.rootDir);
+	let files: string[];
+	try {
+		files = (await readdir(dir)).filter((file) => file.endsWith(".jsonl"));
+	} catch {
+		return [];
+	}
+	const all: AgentLedgerEvent[] = [];
+	for (const file of files) {
+		try {
+			const raw = await readFile(join(dir, file), "utf8");
+			all.push(...parseValidatedJsonl(raw, agentLedgerEventSchema, "agent-attempt-ledger-store"));
+		} catch {
+			// Skip an unreadable file; never fail the whole read.
+		}
+	}
+	all.sort((left, right) => left.recordedAt - right.recordedAt);
+	return all;
 }

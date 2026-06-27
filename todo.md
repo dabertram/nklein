@@ -3389,7 +3389,14 @@ deep analysis:
       `provider:model:endpoint` id, computed tok/s, host-path-free workspace hash) + the best-effort
       `appendAgentLedgerEvent` (try/catch — the ledger is observational + must never break the session loop). 8 mapper
       tests; session-service suite (110) still green. **So the ledger is now LIVE** — `summarizeModelOutcomes` over it is
-      a real per-model success-rate/outcome projection (the §5.Z matrix seed). **Still owed (the rest of this item):** a
+      a real per-model success-rate/outcome projection (the §5.Z matrix seed). **READ SURFACE (2026-06-27):** `nklein dev
+      ledger` (+ `--json`) prints the per-model outcome rollup + success rates from real runs (`readAllAgentLedger` reads
+      every workspace's log; `summarizeLedgerForDisplay` in [agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)
+      composes the outcome + profile projections) — proven end-to-end (it showed the attempts the session-service tests
+      wrote). **TEST-ISOLATION GAP found (pre-existing, now also affects the ledger):** the session-service tests fire
+      `captureTerminalRunSummary`, so `recordTaskRunSummary` AND `appendAgentLedgerEvent` write to the **real `~/.nklein`**
+      (no injected temp root) — a hygiene bug to fix by threading a diagnostic-store root into the service for tests.
+      **Still owed (the rest of this item):** a
       richer per-tool-call writer (the terminal seam is coarse — model + outcome + timing, no per-call detail yet); the
       remaining workflow fields the durable scheduler needs (`jobId`/`runState`/`resumeCursor` + admission/resource-headroom
       + merge/review-join events — add as the scheduler lands); and fully **re-home the attempt-grain bits** scattered in

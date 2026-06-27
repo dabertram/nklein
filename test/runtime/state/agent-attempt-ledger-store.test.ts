@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildTransitionEvent } from "../../../src/core/agent-attempt-ledger";
-import { appendAgentLedgerEvent, readAgentLedger } from "../../../src/state/agent-attempt-ledger-store";
+import {
+	appendAgentLedgerEvent,
+	readAgentLedger,
+	readAllAgentLedger,
+} from "../../../src/state/agent-attempt-ledger-store";
 
 const base = { workflowId: "wf-1", taskId: "t-1", workspacePathHash: "ws-A" };
 
@@ -67,5 +71,19 @@ describe("agent-attempt-ledger-store", () => {
 
 	it("returns an empty array for a workspace with no ledger yet", async () => {
 		expect(await readAgentLedger({ workspacePathHash: "never-written", rootDir })).toEqual([]);
+	});
+
+	it("readAllAgentLedger merges every workspace's events, chronological; empty when the dir is absent", async () => {
+		expect(await readAllAgentLedger({ rootDir: join(rootDir, "nope") })).toEqual([]);
+		await appendAgentLedgerEvent(buildTransitionEvent({ ...base, to: "plan", eventId: "a", recordedAt: 5 }), {
+			rootDir,
+		});
+		await appendAgentLedgerEvent(
+			buildTransitionEvent({ ...base, workspacePathHash: "ws-B", to: "plan", eventId: "b", recordedAt: 1 }),
+			{ rootDir },
+		);
+		const all = await readAllAgentLedger({ rootDir });
+		// Merged across both workspace files, sorted by recordedAt ASC.
+		expect(all.map((event) => event.eventId)).toEqual(["b", "a"]);
 	});
 });
