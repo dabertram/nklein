@@ -4315,9 +4315,16 @@ deep analysis:
       use-runtime-settings-draft,settings-validation}.ts`. Keep the dialog as composition; verify against the existing
       settings-dialog oracle BEFORE extracting visual sections. After this, independent settings sections (and the §5.W
       regroup) can be assigned separately. *(Extract behavior, not thin JSX wrappers — per AGENTS.md.)*
-- [~] **tRPC router composition.** Continue `src/trpc/runtime-api/**` decomposition into `routers/{runtime,chat,workspace,
-      projects}.ts` composed by a thin root `app-router.ts`; expose explicit insertion points so endpoint additions stop
-      colliding. Procedure names + contract surface unchanged; contract suite green. **First slice DONE (2026-06-27):**
+- [x] **tRPC router composition — DONE (2026-06-27).** All four sub-routers extracted from `app-router.ts` into
+      `src/trpc/routers/{runtime,chat,workspace,projects}-router.ts`, each a `build<X>Router(t[, workspaceProcedure])`
+      factory built on the shared `t` (exported as `RuntimeTrpcBuilder` + `RuntimeWorkspaceProcedure`; the factories'
+      back-imports are **type-only** → no runtime cycle). app-router went **1252 → 546 lines** (now the t-setup + the
+      `RuntimeApi` context interface + a 4-line composition). The big `runtime` slice (104 procedures / 104 schemas) was
+      a **byte-exact move** (extract the block bytes → wrap in the factory → line-replace → prune the moved schema
+      imports) so nothing was retyped. Procedure names + contract surface unchanged — verified at every slice by
+      `test:contract` (272, real tRPC endpoints) + **web tsc** (the inferred `RuntimeAppRouter` type is identical, so the
+      web client is unaffected). Endpoint additions now land in the relevant sub-router file instead of colliding in the
+      monolith. **First slice DONE (2026-06-27):**
       the **`projects`** sub-router (10 procedures) extracted to
       [src/trpc/routers/projects-router.ts](src/trpc/routers/projects-router.ts) via a `buildProjectsRouter(t)` factory
       that takes the shared `t` (exported from app-router as `RuntimeTrpcBuilder`); the back-import is **type-only**
