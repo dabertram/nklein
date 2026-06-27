@@ -19,7 +19,10 @@ import {
 	resolveWorkspacePath,
 } from "../state/workspace-state";
 import { TerminalSessionManager } from "../terminal/session-manager";
-import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
+import {
+	detectProjectHealthIssuesByWorkspaceId,
+	type ProjectHealthIssuesByWorkspaceId,
+} from "../workspace/project-health";
 
 export interface WorkspaceRegistryScope {
 	workspaceId: string;
@@ -368,9 +371,57 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 		return countActiveAgentSessions(summariesByTaskId.values());
 	};
 
+	// Project health detection (git/fs per project) is too expensive for the hot projects-payload path: under heavy
+	// agent load it CONTENDS (the agent's frequent workspace writes) and `detectProjectHealthIssuesByWorkspaceId` was
+	// measured at 30–55s, hanging every `projects.list` / WS broadcast (§5.AI root cause). Health issues change rarely
+	// (project structure), so cache them and refresh in the BACKGROUND — buildProjectsPayload serves the cached value and
+	// never blocks on detection. First call (cold cache) returns no issues and kicks off a refresh.
+	const PROJECT_HEALTH_CACHE_TTL_MS = 30_000;
+	// Cap how long a COLD (never-computed) payload waits for the first detection: when idle it finishes in ~ms (so the
+	// initial snapshot carries health), but under heavy agent contention it returns empty rather than hanging the load.
+	const PROJECT_HEALTH_COLD_WAIT_MS = 2_000;
+	let cachedHealthIssues: ProjectHealthIssuesByWorkspaceId = new Map();
+	let healthIssuesComputedAt = 0;
+	let healthRefreshInFlight: Promise<void> | null = null;
+
+	const refreshProjectHealthIssues = (projects: readonly RuntimeWorkspaceIndexEntry[]): Promise<void> => {
+		if (healthRefreshInFlight) {
+			return healthRefreshInFlight;
+		}
+		healthRefreshInFlight = detectProjectHealthIssuesByWorkspaceId({ projects })
+			.then((issues) => {
+				cachedHealthIssues = issues;
+				healthIssuesComputedAt = Date.now();
+			})
+			.catch(() => {
+				// Keep the last good cache on transient failure; the next refresh retries.
+			})
+			.finally(() => {
+				healthRefreshInFlight = null;
+			});
+		return healthRefreshInFlight;
+	};
+
+	const getProjectHealthIssues = async (
+		projects: readonly RuntimeWorkspaceIndexEntry[],
+	): Promise<ProjectHealthIssuesByWorkspaceId> => {
+		const isStale = Date.now() - healthIssuesComputedAt > PROJECT_HEALTH_CACHE_TTL_MS;
+		if (isStale) {
+			const refresh = refreshProjectHealthIssues(projects);
+			if (healthIssuesComputedAt === 0) {
+				// Cold cache: briefly await so the first payload has health when idle — but never hang the hot path.
+				await Promise.race([
+					refresh,
+					new Promise<void>((resolve) => setTimeout(resolve, PROJECT_HEALTH_COLD_WAIT_MS)),
+				]);
+			}
+		}
+		return cachedHealthIssues;
+	};
+
 	const buildProjectsPayload = async (preferredCurrentProjectId: string | null) => {
 		const projects = filterUnconfirmedSourceWorkspace(await listWorkspaceIndexEntries());
-		const healthIssuesByWorkspaceId = await detectProjectHealthIssuesByWorkspaceId({ projects });
+		const healthIssuesByWorkspaceId = await getProjectHealthIssues(projects);
 		const fallbackProjectId =
 			projects.find((project) => project.workspaceId === activeWorkspaceId)?.workspaceId ??
 			projects[0]?.workspaceId ??

@@ -3615,37 +3615,28 @@ deep analysis:
         scheduler allows N concurrent *sessions*, but verify the per-request model calls actually hit the endpoint
         concurrently rather than the agent loops effectively taking turns. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware
         scheduling).
-  - [ ] **EVIDENCE → the runtime EVENT LOOP STARVES under heavy parallel agent streaming — the SERVER-tier root of
-        "sluggish with 2 projects" (2026-06-27; root cause CORRECTED by live A/B).** Measured: with an agent streaming
-        hard a trivial `projects.list` query took **44–60 s**; the instant the agent stopped streaming the same query
-        dropped to **0.08–0.12 s**. So a single heavily-streaming agent saturates the single Node thread and stalls ALL
-        HTTP queries; parallel streamers compound it. **DIAGNOSIS — narrowed across 6 live A/B cycles + a CPU profile;
-        it is NOT what it looked like (it is an async HANG, not CPU):**
-        - **NOT the projects rebuild** — a run with NO browser client (where `broadcastRuntimeProjectsUpdated`
-          early-returns at `runtimeStateClients.size===0`, so the rebuild never runs) STILL hit 41–60 s. *(Coalescing it
-          was still worth doing — see DONE below — just not the cause.)*
-        - **NOT thread-pool starvation** — `UV_THREADPOOL_SIZE=24` made no difference (still 60 s).
-        - **NOT CPU-bound** — a `--cpu-prof` of the runtime during the hang is **~100% idle** (0.03 s of JS self-time over
-          327 s). The main thread is **blocked/waiting**, not burning CPU — so "offload CPU to worker threads" (my earlier
-          STILL-OWED) was the WRONG framing.
-        - **NOT a contended read lock** — the whole `projects.list` path (`listWorkspaceIndexEntries`,
-          `loadWorkspaceBoardById`, `detectProjectHealthIssuesByWorkspaceId`) is **lock-free `readJsonFile`/`readdir`**.
-        - **`curl` hit its `-m` ceiling exactly (20 s / 60 s)** → the request doesn't complete; it effectively **hangs**.
-        - **Correlates with the agent being STUCK, not actively streaming:** a single agent at `msgs=758` and actively
-          streaming → `projects.list` = **0.048 s** (fine); the moment that agent got **stuck** (`msgs` frozen at 760, not
-          producing) → **>20 s hang**. So the trigger is a stuck/blocked agent, not stream throughput.
-        **PRIME SUSPECT (for the fresh-context fix):** the agent's stuck state is blocked on an async/IO wait that also
-        stalls the loop's ability to complete `projects.list`. Strong candidate: **`proper-lockfile` retry storms**
-        ([locked-file-system.ts](src/fs/locked-file-system.ts) — `DEFAULT_LOCK_RETRIES = { retries: 200 }` with
-        exponential backoff) on the workspace directory lock, contended **cross-process between the host runtime and the
-        Docker sandbox** writing the same mounted workspace volume (the in-process FIFO gate is per-lockfile-key, so it
-        only serializes same-key callers — but a 200-retry backoff on a cross-process holder can span tens of seconds);
-        and/or a `docker exec`/sandbox op that hangs while holding state. **NEXT (pinpoint, then fix):** instrument with
-        `async_hooks`/`why-is-node-running` (or strace) to capture *what `projects.list` is actually awaiting during the
-        hang* and *what the stuck agent is blocked on*; measure the agent's `withLock` acquisition time; then fix the
-        contention (lock-free or single-writer the hot workspace writes / cache reads / cut the 200-retry storm / ensure
-        the sandbox never contends the host workspace lock). This touches the **concurrency-critical** `locked-file-system`
-        + `workspace-state` layer — do it carefully with live verification, NOT blind.
+  - [x] **FOUND + FIXED (2026-06-27): the SERVER-tier root of "sluggish with 2 projects" — `projects.list` HUNG 41–60 s
+        under heavy parallel agent load; now 0.09–0.22 s (~270×).** Pinpointed by `--cpu-prof` + granular timing across
+        7 live A/B cycles. **Root cause:** `buildProjectsPayload` ran `detectProjectHealthIssuesByWorkspaceId`
+        ([project-health.ts](src/workspace/project-health.ts)) **synchronously on the hot path** — on every `projects.list`
+        AND every per-session-flush WS rebuild — and that health scan (per-project git/fs: `loadWorkspaceState`,
+        `readdir`/`readFile` of plan artifacts) **contends with the agent's frequent workspace writes**, ballooning from
+        ~ms (idle) to **30–55 s under load** (timing instrumentation isolated it: `listWorkspaceIndexEntries` +
+        `summarizeProjectTaskCounts` stayed <500 ms; `detectProjectHealthIssues` was the whole stall). **Diagnosis trail
+        (what it was NOT — each ruled out by a live A/B, kept so we don't re-chase):** NOT the projects rebuild itself
+        (hang persisted with NO client connected, where the rebuild early-returns); NOT thread-pool (`UV_THREADPOOL_SIZE=24`
+        no help); NOT CPU (the `--cpu-prof` was ~100% idle — an async HANG, not CPU-burn, so "offload to worker threads"
+        was the WRONG framing); it correlated with the agent being **stuck** (msgs frozen) not stream throughput.
+        **Fix:** health issues change rarely (project structure), so cache them with a 30 s TTL + refresh in the
+        **background** — `buildProjectsPayload` serves the cached value and **never blocks on detection**
+        ([workspace-registry.ts](src/server/workspace-registry.ts) `getProjectHealthIssues`/`refreshProjectHealthIssues`;
+        a cold cache briefly awaits, capped at 2 s, so the first idle payload still carries health). **Verified live:**
+        same 2-agent load (`complex_dag` at msgs=1004), `projects.list` max **0.22 s** vs **41–60 s** before; 137
+        server/projects tests green. **Follow-ups (separate, lower priority):** `buildWorkspaceStateSnapshot` (the board
+        view's `loadWorkspaceState`) may contend the same way under load — audit + similar treatment if so; and the deeper
+        `proper-lockfile` (`retries: 200`) cross-process contention between host runtime and Docker sandbox on the mounted
+        workspace volume is worth reducing at the source (it's what makes the health scan slow under load), but the hot
+        path no longer waits on it.
         **DONE (secondary, still worthwhile — 2026-06-27):** coalesced the per-flush projects rebuild to ≤1/window
         ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts) wired in
         [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — reduces real rebuild
