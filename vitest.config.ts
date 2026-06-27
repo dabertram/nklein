@@ -10,6 +10,9 @@ export default defineConfig({
 	test: {
 		globals: true,
 		environment: "node",
+		// Isolate every test file's HOME to a throwaway dir (see the setup file) so home-based runtime state + locks never
+		// touch the real `~/.nklein` — which also stops the suite contending with a running dev:full instance's lock.
+		setupFiles: ["./test/vitest-setup-home.ts"],
 		// `packages/**` excluded: those workspaces have their own vitest
 		// configs and runtime shapes (e.g. Electron) and are run explicitly by
 		// CI. New workspaces under `packages/` MUST get matching install/test

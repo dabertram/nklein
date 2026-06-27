@@ -82,6 +82,9 @@ const modelRegistryMocks = vi.hoisted(() => ({
 vi.mock("../../../src/terminal/agent-registry.js", () => ({
 	resolveAgentCommand: agentRegistryMocks.resolveAgentCommand,
 	buildRuntimeConfigResponse: agentRegistryMocks.buildRuntimeConfigResponse,
+	// Tests run with an isolated empty HOME, so loading the (fresh) global config reaches the agent auto-select path;
+	// stub detection as "nothing installed" → it falls back to the default agent id.
+	detectInstalledCommands: () => [],
 }));
 
 vi.mock("../../../src/workspace/task-worktree.js", () => ({
