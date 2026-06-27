@@ -3,11 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
-import {
-	inferNKleinPlanSlugForTask,
-	recordDecompositionRejection,
-	runVerifyTaskAcceptanceCommand,
-} from "../../../src/commands/task";
+import { inferNKleinPlanSlugForTask, runVerifyTaskAcceptanceCommand } from "../../../src/commands/task";
+import { recordDecompositionRejection } from "../../../src/commands/task/task-decompose-command";
 import {
 	addPlanGapDecisionCardToBoard,
 	addPlanGapIntegrationCardToBoard,

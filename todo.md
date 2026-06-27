@@ -2058,10 +2058,14 @@ deep analysis:
         - [x] **slice 13 (2026-06-27):** extracted the "expand a saved plan task" command (`expandSavedPlanTaskCommand` +
               its `parseReplacementTasksJson` helper) → `commands/task/task-plan-expand-command.ts` (self-contained leaf —
               the central `decomposeTaskGraph` does not use the helper). task.ts 1863→1819 (cumulative 2870→1819,
-              −1051/−37%). tsc + biome + `test:fast` (2443) green. *(Remaining: the big command impls —
-              `createTask`/`startTask`/`finishTask`/`decomposeTaskGraph`+`recordDecompositionRejection`/the merge cluster.
-              These are larger + more central; the `toErrorMessage` unblock [slice 11] means the decompose cluster is now
-              extractable when picked up.)*
+              −1051/−37%). tsc + biome + `test:fast` (2443) green.
+        - [x] **slice 14 (2026-06-27):** extracted the decompose cluster — `decomposeTaskGraph` (the ~95-line central
+              command: apply a plan's task-graph onto the board via the routing candidates) + `recordDecompositionRejection`
+              + its `DecompositionRejectionInput`/`RecordSelfObservation` types → `commands/task/task-decompose-command.ts`.
+              Enabled by the slice-11 `toErrorMessage` unblock (the rejection telemetry needs it). `task-verify.test.ts`
+              repointed. task.ts 1819→1678 (cumulative 2870→1678, **−1192/−42%**). tsc + biome + task-verify + contract +
+              `test:fast` green. *(Remaining: `createTask`/`updateTaskCommand`/`startTask`/`finishTask` + the merge cluster —
+              the biggest, most cross-calling impls; the per-subcommand registration split.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.

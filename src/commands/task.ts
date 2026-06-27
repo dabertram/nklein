@@ -25,12 +25,7 @@ import {
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
 import { buildNKleinAcceptanceRepairPlan } from "../nklein-agent/nklein-acceptance-repair";
-import { applyNKleinPlanTaskGraphToBoard } from "../nklein-agent/nklein-decomposition-tool";
-import {
-	appendNKleinPlanRevision,
-	readNKleinPlanArtifacts,
-	updateNKleinPlanArtifactApplicationStatus,
-} from "../nklein-agent/nklein-plan-artifacts";
+import { appendNKleinPlanRevision, readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
@@ -49,7 +44,7 @@ import {
 	slugifyPlanTaskId,
 } from "./task/task-command-parsers.js";
 import type { ListTaskColumn } from "./task/task-command-types.js";
-import { buildDecompositionRoutingCandidates } from "./task/task-decomposition-routing.js";
+import { decomposeTaskGraph } from "./task/task-decompose-command.js";
 import { linkTasks, unlinkTasks } from "./task/task-dependency-commands.js";
 import {
 	buildTaskNKleinSettingsForCreate,
@@ -74,7 +69,6 @@ import { listTasks, reportBoardHealth } from "./task/task-read-commands.js";
 import {
 	findTaskRecord,
 	findTasksInColumn,
-	formatDependencyRecord,
 	formatTaskRecord,
 	parseListColumn,
 	resolveTaskCommandTarget,
@@ -91,22 +85,6 @@ import {
 import { clearTaskSwarmStopCommand, requestTaskSwarmStopCommand } from "./task/task-swarm-commands.js";
 
 type JsonRecord = Record<string, unknown>;
-type RecordSelfObservation = typeof recordSelfObservation;
-
-interface DecompositionRejectionInput {
-	workspacePath: string;
-	slug: string;
-	title?: string;
-	specPath?: string;
-	planPath?: string;
-	questionsPath?: string;
-	decisionsPath?: string;
-	revisionsPath?: string;
-	summaryPath?: string;
-	taskGraphPath?: string;
-	error: unknown;
-	recordObservation?: RecordSelfObservation;
-}
 
 interface RuntimeTaskAcceptanceVerifyMutationClient {
 	runtime: {
@@ -123,28 +101,6 @@ interface VerifyTaskAcceptanceDependencies {
 	createRuntimeTrpcClient?: (workspaceId: string | null) => RuntimeTaskAcceptanceVerifyMutationClient;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
 	recordPlanGap?: typeof recordPlanGap;
-}
-
-export function recordDecompositionRejection(input: DecompositionRejectionInput): void {
-	const message = toErrorMessage(input.error);
-	(input.recordObservation ?? recordSelfObservation)({
-		signal: "decomposition_rejected",
-		severity: "warning",
-		message: `Task decomposition rejected for plan "${input.slug}": ${message}`,
-		workspacePath: input.workspacePath,
-		metadata: {
-			slug: input.slug,
-			title: input.title ?? null,
-			specPath: input.specPath ?? null,
-			planPath: input.planPath ?? null,
-			questionsPath: input.questionsPath ?? null,
-			decisionsPath: input.decisionsPath ?? null,
-			revisionsPath: input.revisionsPath ?? null,
-			summaryPath: input.summaryPath ?? null,
-			taskGraphPath: input.taskGraphPath ?? null,
-			error: message,
-		},
-	});
 }
 
 async function createTask(input: {
@@ -279,103 +235,6 @@ async function updateTaskCommand(input: {
 		ok: true,
 		task: updated,
 		workspacePath: workspaceRepoPath,
-	};
-}
-
-async function decomposeTaskGraph(input: {
-	cwd: string;
-	slug: string;
-	projectPath?: string;
-	baseRef?: string;
-}): Promise<JsonRecord> {
-	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
-	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
-	const runtimeClient = createRuntimeTrpcClient(workspaceId);
-	const artifacts = await readNKleinPlanArtifacts(workspaceRepoPath, input.slug);
-	const runtimeConfig = await loadRuntimeConfig(workspaceRepoPath);
-	const routingCandidates = await buildDecompositionRoutingCandidates(runtimeConfig);
-	let applied: {
-		createdTasks: JsonRecord[];
-		createdDependencies: JsonRecord[];
-		taskIdByPlanTaskId: Record<string, string>;
-		preview: JsonRecord;
-	};
-	try {
-		applied = await updateRuntimeWorkspaceState(runtimeClient, workspaceRepoPath, (runtimeState) => {
-			const resolvedBaseRef = (input.baseRef ?? "").trim() || resolveTaskBaseRef(runtimeState);
-			if (!resolvedBaseRef) {
-				throw new Error("Could not determine task base branch for this workspace.");
-			}
-			const result = applyNKleinPlanTaskGraphToBoard({
-				board: runtimeState.board,
-				taskGraph: artifacts.taskGraph,
-				baseRef: resolvedBaseRef,
-				randomUuid: () => globalThis.crypto.randomUUID(),
-				modelRoleSettings: runtimeConfig.effectiveModelRoles,
-				routingCandidates,
-				sharedContext: {
-					spec: artifacts.spec,
-					decisionsMarkdown: artifacts.decisionsMarkdown,
-				},
-			});
-			const nextState: RuntimeWorkspaceStateResponse = {
-				...runtimeState,
-				board: result.board,
-			};
-			return {
-				board: result.board,
-				value: {
-					createdTasks: result.createdTasks.map((task) => formatTaskRecord(nextState, task, "planning")),
-					createdDependencies: result.createdDependencies.map((dependency) =>
-						formatDependencyRecord(nextState, dependency),
-					),
-					taskIdByPlanTaskId: result.taskIdByPlanTaskId,
-					preview: result.preview as unknown as JsonRecord,
-				},
-			};
-		});
-	} catch (error) {
-		recordDecompositionRejection({
-			workspacePath: workspaceRepoPath,
-			slug: artifacts.taskGraph.slug,
-			title: artifacts.taskGraph.title,
-			specPath: artifacts.specPath,
-			planPath: artifacts.planPath,
-			questionsPath: artifacts.questionsPath,
-			decisionsPath: artifacts.decisionsPath,
-			revisionsPath: artifacts.revisionsPath,
-			summaryPath: artifacts.summaryPath,
-			taskGraphPath: artifacts.taskGraphPath,
-			error,
-		});
-		throw error;
-	}
-	await updateNKleinPlanArtifactApplicationStatus({
-		workspacePath: workspaceRepoPath,
-		slug: artifacts.taskGraph.slug,
-		applicationStatus: "applied",
-	});
-
-	return {
-		ok: true,
-		workspacePath: workspaceRepoPath,
-		plan: {
-			artifactId: artifacts.artifactId,
-			slug: artifacts.taskGraph.slug,
-			title: artifacts.taskGraph.title,
-			specPath: artifacts.specPath,
-			planPath: artifacts.planPath,
-			questionsPath: artifacts.questionsPath,
-			decisionsPath: artifacts.decisionsPath,
-			revisionsPath: artifacts.revisionsPath,
-			summaryPath: artifacts.summaryPath,
-			taskGraphPath: artifacts.taskGraphPath,
-		},
-		tasks: applied.createdTasks,
-		dependencies: applied.createdDependencies,
-		taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
-		preview: applied.preview,
-		count: applied.createdTasks.length,
 	};
 }
 
