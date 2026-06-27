@@ -2245,6 +2245,10 @@ deep analysis:
       `deriveTaskTitleFromPrompt` (first non-empty line, wrapping-tag strip, whitespace collapse, first-sentence extraction,
       ellipsis truncation, empty→"") + `resolveTaskTitle` (explicit title wins, `<user_input>` unwrap, empty-wrapper +
       null/blank → derive from prompt). Pure; wrong output = a mislabelled/blank card in the UI.
+      **`nklein-provider-workos-token.ts` covered (2026-06-27, 10 tests)** — the managed-OAuth token helpers
+      (`stripWorkosPrefix` case-insensitive, `ensureWorkosPrefix` no-double-prefix + trim + empty→"" never a bare prefix,
+      `toProviderApiKey` tags only `nklein`) + a strip∘ensure round-trip; closes the gap left when this module was
+      extracted from `nklein-provider-service.ts` earlier this session.
       **`task-record-format` CLI input/error surface (6 tests):** `resolveTaskCommandTarget` (task-id|column
       mutual-exclusion, names the command), `parseListColumn` (`done`→`completed` alias, canonical ids, invalid throws),
       `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). **Board functions now covered too**
