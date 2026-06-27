@@ -1779,18 +1779,12 @@ deep analysis:
       both route through the widely-used `resolveVisibleApiKey` / launch-config flow, so they'd cycle unless that helper is
       also relocated. Needs a *focused restructure pass* (extract a `resolveVisibleApiKey`-anchored auth core first), not
       incremental fragment extraction.
-- [~] **`runtime-config.ts` (2103) decomposition — SCOUTED (2026-06-27, not yet extracted).** Has a genuinely clean
-      cluster: ~26 **pure `normalize*` value-transformers** (lines ~123–470, no file I/O / external coupling, internal-only)
-      — the cohesive "config-field normalization" concern. **BUT** they depend on ~22 `DEFAULT_*` consts that are *defined
-      in* runtime-config.ts (80–105) and *also* used by `loadRuntimeConfig` (stays) → extracting the normalizers cycles
-      unless the consts move to a `runtime-config-defaults.ts` first. Both the consts and the normalizers are *interspersed*
-      with other declarations (`getRuntimeHomePath`, `pickBestInstalledAgentId`), so it's a careful 2-module split, not a
-      contiguous block move. **Plan:** (1) `runtime-config-defaults.ts` ← the `DEFAULT_*` consts (import back into
-      runtime-config); (2) `runtime-config-normalizers.ts` ← the `normalize*` fns (import the defaults). Worth doing —
-      genuinely decomposes the monolith — but substantial; best as a focused fresh-context pass.
-      **Meta-finding:** task.ts decomposed beautifully because its bulk was *clean leaf command implementations*; the other
-      monoliths (provider-service, runtime-config) are *interspersed + helper-coupled*, so they need restructuring passes,
-      not incremental leaf extraction.
+- **`runtime-config.ts` decomposition ✅ COMPLETE (2103 → 1787, −15%) → moved to [done.md](done.md) (§5.U)** *(2026-06-27:
+  the careful 2-module split — `runtime-config-defaults.ts` ← the `DEFAULT_*` seed consts; `runtime-config-normalizers.ts` ←
+  the 26 pure `normalize*`/`are*Equal` value-transformers — that breaks the consts↔normalizers cycle).*
+  - **Meta-finding (still governs the remaining monoliths):** task.ts decomposed beautifully because its bulk was *clean leaf
+    command implementations*; the others (provider-service, runtime-settings-dialog) are *interspersed + helper-coupled* →
+    they need restructuring passes, not incremental leaf extraction.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),

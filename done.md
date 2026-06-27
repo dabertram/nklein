@@ -632,3 +632,24 @@ task.ts went from a ~2870-line monolith to ~568 lines (**−80%**): all command 
         - [x] the (then-pending) per-subcommand registration split + lifting **all** command implementations
               (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph + the merge / dependency / read /
               delete / verify / plan-gap commands) into per-concern modules — **all done** (slices 14–22 above).
+
+### 5.U — `src/config/runtime-config.ts` decomposition ✅ COMPLETE (2026-06-27) *(another finished cohesive sub-tree of the still-open §5.U architecture review — moved early per the "move finished sub-trees early" rule)*
+
+The careful **2-module split** that the SCOUTED note flagged: the `normalize*` value-transformers couldn't move on their own
+because they share the `DEFAULT_*` seed consts with `loadRuntimeConfig` (→ an import cycle). Solved by extracting the consts
+to their own module first, then the normalizers depend on *that*, not on the loader. `runtime-config.ts`: **2103 → 1787 (−316, −15%)**.
+
+- [x] **`runtime-config-defaults.ts`** ← the ~19 `DEFAULT_*` seed consts (+ `AUTO_SELECT_AGENT_PRIORITY`) lifted out of
+      runtime-config.ts (80–105) and imported back. No external consumers, so no re-exports needed. Breaks the cycle: both
+      the loader and the normalizers now depend on this leaf module.
+- [x] **`runtime-config-normalizers.ts`** ← the **26 pure `normalize*` / `are*Equal` value-transformers** (the cohesive
+      "config-field normalization" concern: agent-id / timeouts / shortcuts / model-roles / rulesets / embedding / int+bool
+      coercers), imported back into runtime-config.ts. Depends only on `./runtime-config-defaults` + shared schemas/policies
+      (`api-contract`, `agent-catalog`, `agent-rulesets`, `nklein-local-only-policy`, `debug-override`) — never on the loader.
+  - The one local coupling — `normalizeDeveloperModeEnabled` used the stays-in-runtime-config `hasOwnKey` helper — was
+        resolved by inlining its single moved call site (`globalConfig != null && Object.hasOwn(...)`) rather than creating a
+        cycle; `hasOwnKey` stays as the change-detection helper. `readLegacyDeveloperModeEnabled` moved with the normalizers
+        and is re-imported by the loader (its other caller).
+  - Interspersed stay-functions (`getRuntimeHomePath`, `pickBestInstalledAgentId`, `pickBestInstalledAgentIdFromDetected`,
+        the field-equality change-detection registry) correctly left in `runtime-config.ts`. Verified green: tsc + biome +
+        config/utilities vitest (65 tests).

@@ -4,7 +4,7 @@
 import { copyFile, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { getRuntimeAgentCatalogEntry, isRuntimeAgentLaunchSupported } from "../core/agent-catalog";
+import { getRuntimeAgentCatalogEntry } from "../core/agent-catalog";
 import { DEFAULT_AGENT_RULESETS_CONFIG } from "../core/agent-rulesets";
 import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
@@ -17,15 +17,11 @@ import type {
 	RuntimeModelRoles,
 	RuntimeProjectShortcut,
 	RuntimeSwarmGuardrails,
-	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
 import {
-	agentRulesetsConfigSchema,
 	areRuntimeSwarmGuardrailsEqual,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	normalizeRuntimeSwarmGuardrails,
-	runtimeCodeEmbeddingSettingsSchema,
-	runtimeRoleModelSettingsSchema,
 } from "../core/api-contract";
 import {
 	areConcurrencyConfigsEqual,
@@ -36,7 +32,6 @@ import {
 	normalizeConcurrencyConfig,
 	normalizeConcurrencyOverride,
 } from "../core/concurrency-config";
-import { DEFAULT_MAX_REVIEW_ROUNDS } from "../core/review-loop";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
@@ -45,9 +40,51 @@ import {
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
-import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
 import { detectInstalledCommands } from "../terminal/agent-registry";
-import { isDebugOverrideEnvEnabled } from "./debug-override";
+import {
+	AUTO_SELECT_AGENT_PRIORITY,
+	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
+	DEFAULT_AGENT_ID,
+	DEFAULT_AGENT_TIMEOUT_MODE,
+	DEFAULT_AGENT_TIMEOUT_PROFILE,
+	DEFAULT_CODE_EMBEDDING_SETTINGS,
+	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
+	DEFAULT_DEVELOPER_MODE_ENABLED,
+	DEFAULT_LOST_HEARTBEAT_POLICY,
+	DEFAULT_MAX_CONCURRENT_TASKS,
+	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
+	DEFAULT_REPLAY_CARDS_ENABLED,
+	DEFAULT_REVIEW_MAX_ROUNDS,
+	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
+} from "./runtime-config-defaults";
+import {
+	areAgentRulesetsEqual,
+	areCodeEmbeddingSettingsEqual,
+	areModelRolesEqual,
+	normalizeAgentId,
+	normalizeAgentRulesets,
+	normalizeAgentRulesetsOverride,
+	normalizeAgentTimeoutMode,
+	normalizeAgentTimeoutProfile,
+	normalizeBoolean,
+	normalizeCodeEmbeddingOverride,
+	normalizeCodeEmbeddingSettings,
+	normalizeDeveloperModeEnabled,
+	normalizeLostHeartbeatPolicy,
+	normalizeMaxConcurrentTasks,
+	normalizeMaxConcurrentTasksOverride,
+	normalizeModelRoles,
+	normalizeModelRolesOverride,
+	normalizeNonNegativeInteger,
+	normalizePositiveInteger,
+	normalizePositiveNumber,
+	normalizePromptTemplateWithLegacyDefault,
+	normalizeSelectedAgentIdOverride,
+	normalizeShortcuts,
+	normalizeTimeoutMsValue,
+	readLegacyDeveloperModeEnabled,
+	resolveProfileTimeoutDefaults,
+} from "./runtime-config-normalizers";
 import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
 	DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
@@ -77,32 +114,6 @@ const CONFIG_FILENAME = "config.json";
 const PROJECT_CONFIG_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
 const PROJECT_CONFIG_DIR = NKLEIN_PROJECT_CONFIG_DIR_NAME;
 const PROJECT_CONFIG_FILENAME = "config.json";
-const DEFAULT_AGENT_ID: RuntimeAgentId = "nklein";
-const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = [];
-const DEFAULT_DEVELOPER_MODE_ENABLED = false;
-const DEFAULT_REPLAY_CARDS_ENABLED = false;
-const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
-const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
-const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
-const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;
-const DEFAULT_LOST_HEARTBEAT_POLICY: RuntimeLostHeartbeatPolicy = "park";
-const DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED = true;
-const DEFAULT_SECOND_OPINION_REVIEW_ENABLED = true;
-const DEFAULT_REVIEW_MAX_ROUNDS = DEFAULT_MAX_REVIEW_ROUNDS;
-export const DEFAULT_CODE_EMBEDDING_SETTINGS: RuntimeCodeEmbeddingSettings = {
-	// Zero-config default: an in-process GGUF embedder served by the Python core. It auto-downloads on first
-	// use and degrades to the lexical embedding when the core is disabled/unreachable, so behavior is unchanged
-	// until the core is enabled. `local_lexical` stays selectable as the explicit no-download fallback.
-	provider: "local_gguf",
-	model: "nomic-embed-text-v1.5",
-	baseUrl: null,
-};
-const DEFAULT_MAX_CONCURRENT_TASKS = 3;
-const DEFAULT_LOCAL_REQUEST_TIMEOUT_MS = 60 * 60 * 1000;
-const DEFAULT_LOCAL_STREAM_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_LOCAL_TOOL_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_LOCAL_AGENT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function pickBestInstalledAgentIdFromDetected(detectedCommands: readonly string[]): RuntimeAgentId | null {
 	const detected = new Set(detectedCommands);
@@ -120,335 +131,8 @@ function getRuntimeHomePath(): string {
 	return join(homedir(), RUNTIME_HOME_PARENT_DIR, RUNTIME_HOME_DIR);
 }
 
-function normalizeAgentId(agentId: RuntimeAgentId | string | null | undefined): RuntimeAgentId {
-	if (
-		(agentId === "claude" ||
-			agentId === "codex" ||
-			agentId === "gemini" ||
-			agentId === "opencode" ||
-			agentId === "droid" ||
-			agentId === "kiro" ||
-			agentId === "nklein") &&
-		isRuntimeAgentLaunchSupported(agentId)
-	) {
-		if (!CLOUD_ENABLED && agentId !== "nklein") {
-			return DEFAULT_AGENT_ID;
-		}
-		return agentId;
-	}
-	return DEFAULT_AGENT_ID;
-}
-
-function normalizeDeveloperModeEnabled(globalConfig: RuntimeGlobalConfigFileShape | null): boolean {
-	if (hasOwnKey(globalConfig, "developerModeEnabled")) {
-		return normalizeBoolean(globalConfig?.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
-	}
-	const legacyValue = readLegacyDeveloperModeEnabled(globalConfig);
-	if (legacyValue !== null) {
-		return legacyValue;
-	}
-	return isDebugOverrideEnvEnabled();
-}
-
-function readLegacyDeveloperModeEnabled(globalConfig: RuntimeGlobalConfigFileShape | null): boolean | null {
-	const legacyKey = `debug${"Mode"}Enabled`;
-	if (!globalConfig || !Object.hasOwn(globalConfig, legacyKey)) {
-		return null;
-	}
-	return normalizeBoolean(
-		(globalConfig as Record<string, unknown> | null)?.[legacyKey],
-		DEFAULT_DEVELOPER_MODE_ENABLED,
-	);
-}
-
-function normalizeAgentTimeoutMode(value: unknown): RuntimeAgentTimeoutMode {
-	if (value === "normal" || value === "long" || value === "extended" || value === "unlimited") {
-		return value;
-	}
-	if (value === "very_long") {
-		return "extended";
-	}
-	return DEFAULT_AGENT_TIMEOUT_MODE;
-}
-
-function normalizeAgentTimeoutProfile(value: unknown): RuntimeAgentTimeoutProfile {
-	if (value === "cloud" || value === "local" || value === "custom") {
-		return value;
-	}
-	return DEFAULT_AGENT_TIMEOUT_PROFILE;
-}
-
-function normalizeTimeoutMsValue(value: unknown): number | null {
-	if (value === null) {
-		return null;
-	}
-	if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-		return Math.trunc(value);
-	}
-	return null;
-}
-
-function resolveProfileTimeoutDefaults(profile: RuntimeAgentTimeoutProfile): {
-	requestTimeoutMs: number | null;
-	streamTimeoutMs: number | null;
-	toolTimeoutMs: number | null;
-	agentTimeoutMs: number | null;
-	conversationTimeoutMs: number | null;
-} {
-	if (profile === "cloud" || profile === "local") {
-		return {
-			requestTimeoutMs: DEFAULT_LOCAL_REQUEST_TIMEOUT_MS,
-			streamTimeoutMs: DEFAULT_LOCAL_STREAM_TIMEOUT_MS,
-			toolTimeoutMs: DEFAULT_LOCAL_TOOL_TIMEOUT_MS,
-			agentTimeoutMs: DEFAULT_LOCAL_AGENT_TIMEOUT_MS,
-			conversationTimeoutMs: DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS,
-		};
-	}
-	return {
-		requestTimeoutMs: null,
-		streamTimeoutMs: null,
-		toolTimeoutMs: null,
-		agentTimeoutMs: null,
-		conversationTimeoutMs: null,
-	};
-}
-
 function pickBestInstalledAgentId(): RuntimeAgentId | null {
 	return pickBestInstalledAgentIdFromDetected(detectInstalledCommands());
-}
-
-function normalizeShortcut(shortcut: RuntimeProjectShortcut): RuntimeProjectShortcut | null {
-	if (!shortcut || typeof shortcut !== "object") {
-		return null;
-	}
-
-	const label = typeof shortcut.label === "string" ? shortcut.label.trim() : "";
-	const command = typeof shortcut.command === "string" ? shortcut.command.trim() : "";
-	const icon = typeof shortcut.icon === "string" ? shortcut.icon.trim() : "";
-
-	if (!label || !command) {
-		return null;
-	}
-
-	return {
-		label,
-		command,
-		icon: icon || undefined,
-	};
-}
-
-function normalizeShortcuts(shortcuts: RuntimeProjectShortcut[] | null | undefined): RuntimeProjectShortcut[] {
-	if (!Array.isArray(shortcuts)) {
-		return [];
-	}
-	const normalized: RuntimeProjectShortcut[] = [];
-	for (const shortcut of shortcuts) {
-		const parsed = normalizeShortcut(shortcut);
-		if (parsed) {
-			normalized.push(parsed);
-		}
-	}
-	return normalized;
-}
-
-function normalizeModelRoles(value: unknown): RuntimeModelRoles {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return {};
-	}
-	const normalized: RuntimeModelRoles = {};
-	for (const [rawRole, rawSettings] of Object.entries(value as Record<string, unknown>)) {
-		const role = rawRole.trim();
-		if (!role) {
-			continue;
-		}
-		const parsedSettings = runtimeRoleModelSettingsSchema.safeParse(rawSettings);
-		if (!parsedSettings.success) {
-			continue;
-		}
-		const settings = parsedSettings.data;
-		const additionalModels = (settings.additionalModels ?? [])
-			.map((entry) => pickNKleinSettingsFields(entry))
-			.filter((entry) => entry.providerId || entry.modelId);
-		normalized[role] = {
-			...pickNKleinSettingsFields(settings),
-			...(additionalModels.length > 0 ? { additionalModels } : {}),
-		};
-	}
-	return normalized;
-}
-
-// Rebuild a NKlein settings object keeping only the known fields with truthy/defined values, so persisted
-// config never carries stray keys. Shared by a role's primary model and each of its pool members.
-function pickNKleinSettingsFields(settings: RuntimeTaskNKleinSettings): RuntimeTaskNKleinSettings {
-	const providerId = settings.providerId?.trim();
-	const modelId = settings.modelId?.trim();
-	return {
-		...(providerId ? { providerId } : {}),
-		...(modelId ? { modelId } : {}),
-		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
-		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
-		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
-		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
-		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
-		...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
-		...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
-		...(settings.conversationTimeoutMs !== undefined
-			? { conversationTimeoutMs: settings.conversationTimeoutMs }
-			: {}),
-	};
-}
-
-function areModelRolesEqual(left: RuntimeModelRoles, right: RuntimeModelRoles): boolean {
-	return JSON.stringify(normalizeModelRoles(left)) === JSON.stringify(normalizeModelRoles(right));
-}
-
-function normalizeAgentRulesets(value: unknown): AgentRulesetsConfigPayload {
-	const parsed = agentRulesetsConfigSchema.safeParse(value);
-	return parsed.success ? parsed.data : DEFAULT_AGENT_RULESETS_CONFIG;
-}
-
-function areAgentRulesetsEqual(
-	left: AgentRulesetsConfigPayload | undefined,
-	right: AgentRulesetsConfigPayload | undefined,
-): boolean {
-	return JSON.stringify(normalizeAgentRulesets(left)) === JSON.stringify(normalizeAgentRulesets(right));
-}
-
-function normalizeAgentRulesetsOverride(value: unknown): AgentRulesetsConfigPayload | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	const normalized = normalizeAgentRulesets(value);
-	// Keep the file clean: if the override is identical to the default, treat as no-op.
-	return areAgentRulesetsEqual(normalized, DEFAULT_AGENT_RULESETS_CONFIG) ? null : normalized;
-}
-
-function normalizeModelRolesOverride(value: unknown): RuntimeModelRoles | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	const normalized = normalizeModelRoles(value);
-	// Keep the project file clean: an empty roles map is equivalent to no override.
-	return Object.keys(normalized).length === 0 ? null : normalized;
-}
-
-function normalizePromptTemplate(value: unknown, fallback: string): string {
-	if (typeof value !== "string") {
-		return fallback;
-	}
-	const normalized = value.trim();
-	return normalized.length > 0 ? value : fallback;
-}
-
-function normalizePromptTemplateWithLegacyDefault(value: unknown, fallback: string, legacyDefault: string): string {
-	const normalized = normalizePromptTemplate(value, fallback);
-	return normalized === legacyDefault ? fallback : normalized;
-}
-
-function normalizeBoolean(value: unknown, fallback: boolean): boolean {
-	if (typeof value === "boolean") {
-		return value;
-	}
-	return fallback;
-}
-
-function normalizeMaxConcurrentTasks(value: unknown): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return DEFAULT_MAX_CONCURRENT_TASKS;
-	}
-	const normalized = Math.trunc(value);
-	return normalized > 0 ? normalized : DEFAULT_MAX_CONCURRENT_TASKS;
-}
-
-function normalizeMaxConcurrentTasksOverride(value: unknown): number | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return null;
-	}
-	const normalized = Math.trunc(value);
-	return normalized > 0 ? normalized : null;
-}
-
-function normalizeSelectedAgentIdOverride(value: unknown): RuntimeAgentId | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	// Validate it's a known agent id string (without cloud-gating — the effective resolution handles that).
-	// We still want to persist "claude" or "codex" in the project file even when CLOUD_ENABLED is false,
-	// so a user who toggled cloud back on immediately gets the right agent. Only reject unknown strings.
-	if (
-		value === "claude" ||
-		value === "codex" ||
-		value === "gemini" ||
-		value === "opencode" ||
-		value === "droid" ||
-		value === "kiro" ||
-		value === "nklein"
-	) {
-		// Return null when it matches the global default — no point storing a no-op override.
-		return value === DEFAULT_AGENT_ID ? null : (value as RuntimeAgentId);
-	}
-	return null;
-}
-
-function normalizePositiveInteger(value: unknown, fallback: number): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return fallback;
-	}
-	const normalized = Math.trunc(value);
-	return normalized > 0 ? normalized : fallback;
-}
-
-function normalizeNonNegativeInteger(value: unknown, fallback: number): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return fallback;
-	}
-	const normalized = Math.trunc(value);
-	return normalized >= 0 ? normalized : fallback;
-}
-
-function normalizePositiveNumber(value: unknown, fallback: number): number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function normalizeLostHeartbeatPolicy(value: unknown): RuntimeLostHeartbeatPolicy {
-	return value === "keep_running" ? "keep_running" : DEFAULT_LOST_HEARTBEAT_POLICY;
-}
-
-function normalizeCodeEmbeddingSettings(
-	value: unknown,
-	fallback: RuntimeCodeEmbeddingSettings,
-): RuntimeCodeEmbeddingSettings {
-	const parsed = runtimeCodeEmbeddingSettingsSchema.safeParse(value);
-	if (!parsed.success) {
-		return fallback;
-	}
-	const model = parsed.data.model?.trim() || null;
-	const baseUrl = parsed.data.baseUrl?.trim() || null;
-	if (parsed.data.provider === "local_lexical") {
-		return DEFAULT_CODE_EMBEDDING_SETTINGS;
-	}
-	return {
-		provider: "openai_compatible",
-		model,
-		baseUrl,
-	};
-}
-
-function normalizeCodeEmbeddingOverride(value: unknown): RuntimeCodeEmbeddingSettings | null {
-	if (value === null || value === undefined) {
-		return null;
-	}
-	return normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS);
-}
-
-function areCodeEmbeddingSettingsEqual(
-	left: RuntimeCodeEmbeddingSettings | null,
-	right: RuntimeCodeEmbeddingSettings | null,
-): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
 }
 
 // Field-equality registry (todo §5.U): one declarative entry per RuntimeConfigState field that participates
