@@ -3311,9 +3311,12 @@ deep analysis:
       approve a blocked host/unsafe action · fix an environment / setup / dependency issue · re-scope or split the task ·
       and last, **make a more capable model available** — optionally letting *that* bigger model **analyze the captured
       situation and return detailed rectification guidance** (the user's "let a bigger model analyze + guide" idea, now a
-      user-chosen option — local-first; cloud only behind the `[-]` lockdown lift below). **Still owed (wiring):** render
-      the suggestions in the §5.AG escalation panel + the runtime hook that resumes the agent with the user's chosen
-      input. (Tests: the ordered set + context promotion + bigger-model-always-present-and-last.)
+      user-chosen option — local-first; cloud only behind the `[-]` lockdown lift below). **CLI surface DONE
+      (2026-06-27):** `nklein dev escalation --task-id <id>` ([src/commands/dev.ts](src/commands/dev.ts)) now composes the
+      whole chain over the real ledger — the attempt chain + the **progress verdict** (`classifyAgentStuckness`) and,
+      when `isHardStuck`, the ordered **suggestions** (`buildEscalationSuggestions`); also in `--json`. (8 suggestion
+      tests: ordered set + context promotion + bigger-model-always-present-and-last.) **Still owed (wiring):** render the
+      suggestions in the §5.AG web escalation panel + the runtime hook that resumes the agent with the user's chosen input.
 - [ ] **Settings UI.** Show the fitness table + the current automatic role assignments; let the user pin / prefer /
       weight per role (the speed-vs-quality dial) and set the wait-vs-attempt policy; a "Re-evaluate connected models"
       action. (Builds on the MCSR telemetry panel §6.4.)

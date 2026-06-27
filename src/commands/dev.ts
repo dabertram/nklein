@@ -8,10 +8,12 @@ import type { Command } from "commander";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
-import { summarizeLedgerForDisplay } from "../core/agent-ledger-projections";
+import { buildStucknessSignalsFromLedger, summarizeLedgerForDisplay } from "../core/agent-ledger-projections";
+import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
+import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
@@ -512,9 +514,15 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 }
 
 async function runDevEscalationCommand(options: { taskId: string; json?: boolean }): Promise<void> {
-	const report = buildTaskEscalationReport(await readAllAgentLedger(), options.taskId);
+	const events = await readAllAgentLedger();
+	const report = buildTaskEscalationReport(events, options.taskId);
+	// §5.AB: the progress verdict over the same ledger. `hard_stuck` means the AUTOMATIC ladder (all approaches × all
+	// loaded models) is exhausted → escalate to the user with the "get through the wall" suggestions.
+	const signals = buildStucknessSignalsFromLedger(events, options.taskId);
+	const stuckness = classifyAgentStuckness(signals);
+	const suggestions = isHardStuck(signals) ? buildEscalationSuggestions() : [];
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ report, stuckness, suggestions }, null, 2)}\n`);
 		return;
 	}
 	if (report.totalAttempts === 0) {
@@ -531,6 +539,15 @@ async function runDevEscalationCommand(options: { taskId: string; json?: boolean
 		process.stdout.write(
 			`  rung ${String(row.rung).padStart(2)}  ${row.modelId.padEnd(36)} ${row.approach.padEnd(28)} → ${row.outcome}${quality}${salvage}\n`,
 		);
+	}
+	process.stdout.write(`\n  Progress verdict: ${stuckness}\n`);
+	if (suggestions.length > 0) {
+		process.stdout.write(
+			"  Automatic recovery exhausted — escalate to the user. Suggestions to get through the wall:\n",
+		);
+		for (const suggestion of suggestions) {
+			process.stdout.write(`    • ${suggestion.title} — ${suggestion.detail}\n`);
+		}
 	}
 }
 
