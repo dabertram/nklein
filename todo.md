@@ -2224,6 +2224,10 @@ deep analysis:
       the `createEntry` `NKleinModelRegistryEntry` fixture from `nklein-task-router.test.ts` (no hacky cast). The
       heavier `selectTaskRoutingCandidate`/`previewNKleinPlanTaskGraph` (compose `routeNKleinTask`+`validate`) and the
       IO modules (`plan-task-board-apply`, `plan-artifact-apply`) remain for an integration-style pass.
+      **`trpc/runtime-api/task-timeout-settings.resolveEffectiveTaskTimeoutSettings` covered (4 tests, 2026-06-27):**
+      cloud-profile defaults + `autonomous_default` source; mode scaling (long 3× / extended 6× / unlimited → null);
+      precedence task-override(`role_override`) > global(`global_config`) > profile-default; the local-NKlein 60s floor
+      on a positive value but `0` (no bound) left alone. Real logic — it sets every task's effective agent timeouts.
       **`decomposition-stall-nudger.isChatOnlyDecompositionActivity` (4 tests):** the weak-model stall detector — flags a
       running `assistant_delta` that narrates a plan ("based on my analysis", "task graph", "implementation plan")
       instead of calling `decompose_project`; false when actually calling the tool, wrong source/event, no matching
