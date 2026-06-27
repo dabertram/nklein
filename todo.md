@@ -3567,9 +3567,17 @@ deep analysis:
       **yield_to_interactive** first (the rail must NEVER compete with a real task), then `no_idle_loaded_model`, then
       `background_cap_reached`, then `no_resource_headroom` (the composed upstream ceiling passed in as one flag), else
       `idle_capacity_available` → admit. Typed hold `reason` for the §5.AG "what the scheduler did/why" surface; 7 unit
-      tests lock the priority order. **Still owed (the runner):** the durable §5.AF lease loop that checkpoints to the
-      ledger + survives restart, the live signal wiring (interactive-detection, model-idle probe, resource-headroom
-      compose), and calling this gate to start runs — that's the big remaining piece.
+      tests lock the priority order. **RUNNER CORE DONE (2026-06-27):**
+      [background-eval-runner.ts](src/core/background-eval-runner.ts) — `createBackgroundEvalRunner(deps)` is the durable
+      scheduler brain with every effect INJECTED (so it's pure + fully testable, NOT the "fragile foreground loop" the
+      spec warns against). Each `tick()`: reaps leases that completed naturally (drop) or overran their deadline
+      (force-stop), reads live signals → the admission gate → starts one run if allowed, and **checkpoints the lease set**
+      so `recover()` restores exactly what was in flight after a crash/restart. 6 unit tests (admit/yield/cap+free-slot/
+      deadline-force-stop/no-project/recover). **Still owed (the EFFECTFUL glue — the actual process):** wire real deps —
+      `getSignals` (interactive-detection + model-idle probe + resource-headroom compose), `startRun`/`stopRun` (reuse the
+      rail's sandboxed create+start / project-remove), `isRunActive` (session terminal-state query), and a ledger-backed
+      `loadCheckpoint`/`saveCheckpoint` — then a thin timer driver that calls `tick()`. That glue is the remaining
+      runtime-integration piece (best built in a focused pass).
   - [~] **First usable version BUILT (2026-06-27): [scripts/dev-test-rail.mts](scripts/dev-test-rail.mts).** A one-shot
         parallel runner that composes the proven pieces — pins the model + raises its per-model concurrency (§5.T) so the
         one endpoint serves the projects concurrently, creates N dev-test projects, subscribes to each one's
