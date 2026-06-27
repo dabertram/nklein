@@ -3395,9 +3395,15 @@ deep analysis:
       + merge/review-join events — add as the scheduler lands); and fully **re-home the attempt-grain bits** scattered in
       `task-run-summary-store` / model-registry observations / knowledge-tool telemetry so they become projections/thin-
       writers over this ONE stream (the terminal writer now runs ALONGSIDE the run-summary store; convergence is next).
-- [ ] **Make `ModelBehaviorProfile`/MCSR/§5.Z/`ModelFitness` projections over the ledger.** Wire the §5.AA online update
+- [~] **Make `ModelBehaviorProfile`/MCSR/§5.Z/`ModelFitness` projections over the ledger.** Wire the §5.AA online update
       (`recordModelBehaviorOutcome`, core DONE) + the §5.AB fitness records + the §5.Z matrix to READ/WRITE the ledger
-      stream — one evidence source, no parallel persistence. Unblocks M2.
+      stream — one evidence source, no parallel persistence. Unblocks M2. **`ModelBehaviorProfile` projection DONE
+      (2026-06-27):** [agent-ledger-projections.ts](src/core/agent-ledger-projections.ts) `buildModelBehaviorProfilesFromLedger`
+      folds each model's ledger attempts (chronologically) through `recordModelBehaviorOutcome` → one §5.AA profile per
+      model, derived from the durable record (no second store). Pure, 4 unit tests; tsc+biome green. With the live writer
+      above, the profile is now a real query over real data. **Still owed:** the §5.AB `ModelFitness` projection + making
+      the §5.Z matrix a ledger query (vs the hand-maintained table) + reading these profiles from the live runtime
+      (the §5.AA retry engine / §5.AB scheduler consume them) + folding MCSR speed observations into the same stream.
 - [ ] **Replay / simulation mode (ties §5.V).** A captured ledger attempt's model outputs become a deterministic
       fixture → replay the live orchestration without a model. Turns the currently "live-only, deferred to e2e" §5.V
       flows into deterministically-testable ones; debugs orchestration races without a GPU. `replayable` is a per-tool
