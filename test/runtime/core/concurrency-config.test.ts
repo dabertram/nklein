@@ -40,12 +40,11 @@ describe("concurrency config/override equality (change-detection helpers)", () =
 });
 
 describe("concurrency wire schemas", () => {
-	it("parses a config, defaulting empty grains", () => {
-		expect(concurrencyConfigSchema.parse({ perProvider: { ollama: 2 } })).toEqual({
+	it("parses a config with both grains", () => {
+		expect(concurrencyConfigSchema.parse({ perProvider: { ollama: 2 }, perModel: {} })).toEqual({
 			perProvider: { ollama: 2 },
 			perModel: {},
 		});
-		expect(concurrencyConfigSchema.parse({})).toEqual({ perProvider: {}, perModel: {} });
 	});
 
 	it("round-trips a normalized config", () => {

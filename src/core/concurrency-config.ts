@@ -38,8 +38,8 @@ export interface ConcurrencyOverride {
  */
 export const concurrencyMapSchema: z.ZodType<ConcurrencyMap> = z.record(z.string(), z.number());
 export const concurrencyConfigSchema = z.object({
-	perProvider: concurrencyMapSchema.default({}),
-	perModel: concurrencyMapSchema.default({}),
+	perProvider: concurrencyMapSchema,
+	perModel: concurrencyMapSchema,
 });
 export const concurrencyOverrideSchema = z.object({
 	perProvider: concurrencyMapSchema.nullable().optional(),

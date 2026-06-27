@@ -184,6 +184,8 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 			baseUrl: null,
 		},
 		codeEmbeddingOverride: null,
+		concurrencyDefaults: { perProvider: {}, perModel: {} },
+		concurrencyOverride: null,
 		effectiveCodeEmbeddingSettings: {
 			provider: "local_lexical",
 			model: "kanban-local-lexical-vector-v1",

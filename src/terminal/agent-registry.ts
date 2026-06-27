@@ -158,6 +158,8 @@ export function buildRuntimeConfigResponse(
 		codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,
 		codeEmbeddingOverride: runtimeConfig.codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: runtimeConfig.effectiveCodeEmbeddingSettings,
+		concurrencyDefaults: runtimeConfig.concurrencyDefaults,
+		concurrencyOverride: runtimeConfig.concurrencyOverride,
 		developerModeEnabled: runtimeConfig.developerModeEnabled,
 		replayCardsEnabled: runtimeConfig.replayCardsEnabled,
 		effectiveCommand,

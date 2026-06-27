@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { concurrencyConfigSchema, concurrencyOverrideSchema } from "./concurrency-config.js";
 import { runtimeNKleinProviderSettingsSchema } from "./nklein-provider-api-contract.js";
 import { runtimeProjectShortcutSchema } from "./projects-api-contract.js";
 import {
@@ -70,6 +71,8 @@ export const runtimeConfigResponseSchema = z.object({
 	reviewMaxRounds: z.number().int().positive(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema,
 	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable(),
+	concurrencyDefaults: concurrencyConfigSchema,
+	concurrencyOverride: concurrencyOverrideSchema.nullable(),
 	effectiveCodeEmbeddingSettings: runtimeCodeEmbeddingSettingsSchema,
 	developerModeEnabled: z.boolean().optional(),
 	replayCardsEnabled: z.boolean().optional(),
@@ -127,6 +130,8 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	reviewMaxRounds: z.number().int().positive().optional(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema.optional(),
 	codeEmbeddingOverride: runtimeCodeEmbeddingSettingsSchema.nullable().optional(),
+	concurrencyDefaults: concurrencyConfigSchema.optional(),
+	concurrencyOverride: concurrencyOverrideSchema.nullable().optional(),
 	shortcuts: z.array(runtimeProjectShortcutSchema).optional(),
 	modelRoles: runtimeModelRolesSchema.optional(),
 	modelRolesOverride: runtimeModelRolesSchema.nullable().optional(),

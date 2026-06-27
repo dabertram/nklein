@@ -2671,10 +2671,16 @@ deep analysis:
         scopedRuntimeConfig.concurrencyDefaults, override: scopedRuntimeConfig.concurrencyOverride })` and passes
         `providerConcurrencyCap`/`modelConcurrencyCap` into `scheduleNKleinEndpointStart`. So a concurrency cap set in the
         config file is now **resolved + enforced end-to-end** (registry `maxConcurrentRequests` fallback stays inside the
-        scheduler, so a null cap = unchanged behavior). tsc + 186 trpc/scheduler tests green. **Still owed (UX only — the
-        feature works via the config file now):** the tRPC contract (thread the two maps + `…Override` through
-        `runtimeConfigResponseSchema`/`runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`) + the Settings UI
-        "Concurrency" card so users can set it in-app.
+        scheduler, so a null cap = unchanged behavior). tsc + 186 trpc/scheduler tests green. **tRPC CONTRACT DONE
+        (2026-06-27):** `concurrencyDefaults`/`concurrencyOverride` threaded through `runtimeConfigResponseSchema` (required)
+        + `runtimeConfigSaveRequestSchema` (optional, in [config-api-contract.ts](src/core/config-api-contract.ts)) +
+        `buildRuntimeConfigResponse` (agent-registry.ts); `saveConfig` already passes them generically. (Also dropped the
+        `.default({})` on `concurrencyConfigSchema` so the response's required-grains type matches the threaded
+        `ConcurrencyConfig` — fixed a web-ui `| undefined` mismatch.) 8 web + 6 backend `RuntimeConfigState`/response
+        fixtures updated; root+web tsc, full fast suite, web vitest (738) all green. **So the config is now API-readable +
+        API-writable + persisted + enforced — fully functional headless.** **Still owed (UX only):** the Settings UI
+        "Concurrency" card (a per-provider/per-model number-input list + the per-project `OverrideRow` pattern) so users
+        set it in-app instead of via `saveConfig`/the config file.
   - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
         ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
         per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it
