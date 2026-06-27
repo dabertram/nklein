@@ -4341,12 +4341,17 @@ deep analysis:
       git/workspace schemas + now-unused `z` were pruned from app-router; same verification (test:contract 272 + web tsc).
       **Remaining:** the big `runtime` sub-router (the bulk — most of the procedures) the same way; gate with
       `test:contract` + web tsc.
-- [ ] **Workflow kernel seed + durable-queue interface (enriches §5.AF — the bridge to the product control plane).** Add
-      pure `WorkflowCommand` / `WorkflowPhase` / `WorkflowEffect` types + a reducer for task lifecycle (admission ·
-      queueing · planning · implementing · review · delivery · failure · cancel · pause) — **no behavior change**, board
-      mutation helpers stay the single source for lane changes — then put an interface in front of `RuntimeTaskStartQueue`
-      and move the queue-drain / auto-start cascades out of `runtime-server.ts` into a `TaskWorkflowService` with
-      characterization tests. This is also exactly the §5.AF "durable long-run job scheduler" item — do them as one arc.
+- [~] **Workflow kernel seed + durable-queue interface (enriches §5.AF — the bridge to the product control plane).**
+      **KERNEL SEED DONE (2026-06-27):** pure `WorkflowCommand` / `WorkflowPhase` / `WorkflowEffect` + a **total** reducer
+      `applyWorkflowCommand(phase, command) → { phase, effects }` ([src/core/workflow-kernel.ts](src/core/workflow-kernel.ts))
+      over the task lifecycle (admission → the 3-stage queue ladder [board-capacity / endpoint / sandbox] → planning →
+      implementing → acceptance → review → ready-for-delivery → delivering → completed, with `failed`/`cancel` honored
+      from any active phase and unhandled commands a safe no-op hold so events can replay). **No behavior change + NOT
+      wired** — the board mutation helpers stay the single source for lane changes; the kernel is the orthogonal durable-
+      scheduler view (finer-grained than a board column). 10 unit tests; tsc+biome green. **Still owed:** put an
+      interface in front of `RuntimeTaskStartQueue` + a durable queued-start store with restart replay, and move the
+      queue-drain / auto-start cascades out of `runtime-server.ts` into a `TaskWorkflowService` driven by this reducer
+      (with characterization tests). This is also exactly the §5.AF "durable long-run job scheduler" item — one arc.
 - *(already tracked in §5.U — not duplicated here: the `runtime-settings-dialog.tsx` JSX decomposition, the
   `nklein-task-session-service.ts` collaborator extraction, and the monolith inventory.)*
 
