@@ -3562,6 +3562,14 @@ deep analysis:
       are configurable, §5.T — the rail uses a long-wall-time profile; small models on the m5max are slow but capable).
       **Multiple projects in parallel** where endpoint capacity allows (§6.5 per-endpoint serialization + §5.W
       per-provider/per-model concurrency gate it safely).
+      **ADMISSION-DECISION CORE DONE (2026-06-27):** [background-eval-admission.ts](src/core/background-eval-admission.ts) —
+      pure `decideBackgroundEvalAdmission(input)` is the idle-aware gate, checked in PRIORITY order:
+      **yield_to_interactive** first (the rail must NEVER compete with a real task), then `no_idle_loaded_model`, then
+      `background_cap_reached`, then `no_resource_headroom` (the composed upstream ceiling passed in as one flag), else
+      `idle_capacity_available` → admit. Typed hold `reason` for the §5.AG "what the scheduler did/why" surface; 7 unit
+      tests lock the priority order. **Still owed (the runner):** the durable §5.AF lease loop that checkpoints to the
+      ledger + survives restart, the live signal wiring (interactive-detection, model-idle probe, resource-headroom
+      compose), and calling this gate to start runs — that's the big remaining piece.
   - [~] **First usable version BUILT (2026-06-27): [scripts/dev-test-rail.mts](scripts/dev-test-rail.mts).** A one-shot
         parallel runner that composes the proven pieces — pins the model + raises its per-model concurrency (§5.T) so the
         one endpoint serves the projects concurrently, creates N dev-test projects, subscribes to each one's
