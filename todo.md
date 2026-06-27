@@ -2654,9 +2654,16 @@ deep analysis:
         (clamp [1,256], drop blanks, null-when-empty override like the other §5.W overrides), and the precedence
         resolvers: `resolveEffectiveProviderConcurrency` / `resolveEffectiveModelConcurrency` (override ?? global ??
         the per-model registry `maxConcurrentRequests` fallback) + `resolveSessionConcurrencyCaps` (both grains as
-        independent gates). Pure, 14 unit tests, tsc + biome green. **Still owed:** thread the two maps + their
-        `…Override` per-project fields through `runtime-config.ts` (mirror the `codeEmbeddingOverride` template + the
-        change-detection-registry drift guard, §5.U) so the values persist + surface as effective config.
+        independent gates). Pure, 14 unit tests, tsc + biome green. **WIRE SCHEMAS DONE (2026-06-27):**
+        `concurrencyConfigSchema` / `concurrencyOverrideSchema` / `concurrencyMapSchema` added to
+        [concurrency-config.ts](src/core/concurrency-config.ts) (lenient on values — the `normalize*` writers clamp on
+        load — with compile-time `z.ZodType` drift guards + 3 schema tests), the prerequisite for both the runtime-config
+        and the tRPC-contract threading. **Still owed:** thread the two maps + their `…Override` per-project fields
+        through `runtime-config.ts` (mirror the `codeEmbeddingDefaults`/`codeEmbeddingOverride`/`effective…` trio in
+        `RuntimeConfigState` + the file shapes + `RuntimeConfigUpdateInput` + DEFAULT + load-normalize + effective
+        resolution + the equality/change-detection guards, §5.U) so the values persist + surface as effective config;
+        then the contract + the caller-wiring that passes `providerConcurrencyCap`/`modelConcurrencyCap` to the (already
+        built) scheduler gate.
   - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
         ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
         per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it

@@ -13,6 +13,8 @@
  * provider cap and its model cap (the scheduler ANDs them), so the two grains compose without conflict.
  */
 
+import { z } from "zod";
+
 /** A sparse map of key (providerId or canonical modelId) → max concurrent sessions. Absent key = no limit from this layer. */
 export type ConcurrencyMap = Record<string, number>;
 
@@ -28,6 +30,26 @@ export interface ConcurrencyOverride {
 	perProvider?: ConcurrencyMap | null;
 	perModel?: ConcurrencyMap | null;
 }
+
+/**
+ * Wire schemas for the §5.W config threading (runtime-config + tRPC contract). Lenient on the number values — the
+ * `normalize*` writers above clamp to [1,256] and drop blanks/out-of-range on load — but shape-correct, so the
+ * contract round-trips the two grains. `concurrencyOverride` mirrors the nullable-per-grain project-override shape.
+ */
+export const concurrencyMapSchema: z.ZodType<ConcurrencyMap> = z.record(z.string(), z.number());
+export const concurrencyConfigSchema = z.object({
+	perProvider: concurrencyMapSchema.default({}),
+	perModel: concurrencyMapSchema.default({}),
+});
+export const concurrencyOverrideSchema = z.object({
+	perProvider: concurrencyMapSchema.nullable().optional(),
+	perModel: concurrencyMapSchema.nullable().optional(),
+});
+// Compile-time drift guards: keep the wire schemas in lockstep with the threaded types.
+const _concurrencyConfigGuard: z.ZodType<ConcurrencyConfig> = concurrencyConfigSchema;
+const _concurrencyOverrideGuard: z.ZodType<ConcurrencyOverride> = concurrencyOverrideSchema;
+void _concurrencyConfigGuard;
+void _concurrencyOverrideGuard;
 
 /** The minimum a concurrency cap may be (1 = fully serial). 0/negative/non-finite are dropped as "no cap". */
 const MIN_CONCURRENCY = 1;

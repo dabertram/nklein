@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	type ConcurrencyConfig,
+	concurrencyConfigSchema,
+	concurrencyOverrideSchema,
 	normalizeConcurrencyConfig,
 	normalizeConcurrencyMap,
 	normalizeConcurrencyOverride,
@@ -8,6 +10,29 @@ import {
 	resolveEffectiveProviderConcurrency,
 	resolveSessionConcurrencyCaps,
 } from "../../../src/core/concurrency-config";
+
+describe("concurrency wire schemas", () => {
+	it("parses a config, defaulting empty grains", () => {
+		expect(concurrencyConfigSchema.parse({ perProvider: { ollama: 2 } })).toEqual({
+			perProvider: { ollama: 2 },
+			perModel: {},
+		});
+		expect(concurrencyConfigSchema.parse({})).toEqual({ perProvider: {}, perModel: {} });
+	});
+
+	it("round-trips a normalized config", () => {
+		const normalized = normalizeConcurrencyConfig({ perProvider: { lmstudio: 3 }, perModel: { "lmstudio:m:e": 1 } });
+		expect(concurrencyConfigSchema.parse(normalized)).toEqual(normalized);
+	});
+
+	it("accepts a nullable-per-grain project override (incl. absent)", () => {
+		expect(concurrencyOverrideSchema.parse({ perProvider: { ollama: 1 }, perModel: null })).toEqual({
+			perProvider: { ollama: 1 },
+			perModel: null,
+		});
+		expect(concurrencyOverrideSchema.parse({})).toEqual({});
+	});
+});
 
 describe("normalizeConcurrencyMap", () => {
 	it("drops blank keys + out-of-range values and clamps to [1, 256]", () => {
