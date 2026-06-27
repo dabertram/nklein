@@ -2469,6 +2469,22 @@ deep analysis:
         ([kanban-board.tsx](web-ui/src/components/kanban-board.tsx) ~L487,
         [task-recovery-actions-panel.tsx](web-ui/src/components/detail-panels/task-recovery-actions-panel.tsx) ~L166).
         Null-check the response before reading `promptBlock`.
+  - [ ] **BUG — project-switch stall (handoff 2026-06-28):** switching projects while a card is processing can leave the
+        target board **empty / stalled** (it doesn't render the switched-to project's cards until something else nudges
+        it). Reproduce first (use the mock harness for the deterministic case AND a live 2-project rail run for the real
+        one), then fix. Likely seam: the runtime-state stream's workspace-reset/switch path in
+        [use-runtime-state-stream.ts](web-ui/src/runtime/use-runtime-state-stream.ts) (the batched-dispatch coalescing
+        added for the render-storm fix deliberately does NOT batch the workspace-reset dispatch — confirm the switch still
+        triggers a fresh `getState` load for the new workspace and isn't swallowed/raced by an in-flight batch from the
+        old workspace). Add a Playwright regression on the mock harness (switch while a card streams → target board shows
+        its cards within N ms).
+  - [ ] **Reasoning-phase activity snippet on the board card (handoff 2026-06-28):** show a live snippet of the agent's
+        *reasoning* phase on the card (like the tool/activity line). An earlier speculative attempt was **reverted** — it
+        used the wrong event path. Reasoning flows a **different** path than `assistant-reasoning-delta`'s
+        `latestHookActivity`; find the correct event seam (trace how reasoning deltas reach the runtime-state hub vs how
+        tool/hook activity does — grep the NKlein event adapter + runtime-state-hub for the reasoning channel) before
+        wiring the card UI. Verify live with a reasoning-capable local model (e.g. a deepseek-r1 / qwen3 thinking model)
+        that the snippet actually updates during the thinking phase.
 - [ ] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
       trash, drag rules — Playwright, deep. **(Build on the new harness above.)**
 - [~] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
@@ -4314,6 +4330,46 @@ deep analysis:
       fixed); (3) the **parallel-LLM reality** (LM Studio serial-gated, much of the perception was the now-fixed hang). So
       the rail demonstrably uncovers dormant issues. **Still owed:** the *sustained, unattended* window on the always-on
       runner + a regular together-review of the accumulated `rail-*.json` harvest (depends on the durable runner above).
+- [ ] **BUG — Docker errors + broken evidence creation in the dschinn dev-workspace (handoff 2026-06-28).** A live
+      dschinn run surfaced **Docker errors** (sandbox container start/exec failures) AND **broken `collect evidence`
+      creation** in that workspace. Reproduce on the dschinn dev-workspace, capture the exact Docker error text + the
+      evidence-collection failure (the `handleCollectTaskEvidence` path, [task-evidence.ts](src/trpc/runtime-api/task-evidence.ts)),
+      then fix root cause. Hypotheses to check: image/tag mismatch (`nklein/agent-sandbox:0.0.1` present?), a stale
+      container/volume from a prior crashed run, host-path leakage into the sandbox (AGENTS.md "agents must never see
+      host details" — a host mount surfacing in the agent view is a bug), or evidence bundle assembly choking on a
+      missing artifact when the sandbox never produced one. Add a focused regression once root-caused.
+- [ ] **Rework the dev-test-start layout — unify the two start paths (handoff 2026-06-28).** There are currently **two
+      distinct dev-test start paths** (the UI `DevTestRegistryPicker` → `projects.createDevTestProject` + the CLI/script
+      `createDevTestProject` + `startTaskSession`, plus the §5.B start-lane machinery). Unify them onto **one** start path
+      so a dev-test run starts identically everywhere (no drift between UI, CLI, and the rail/harness). Audit
+      [nklein-dev-test-project.ts](src/nklein-agent/nklein-dev-test-project.ts) + the create/start call sites; extract the
+      shared start into one helper both surfaces call. Keep strict Docker isolation (#2) and the §5.B Planning/Refinement
+      entry-lane invariant intact.
+  - [ ] **Full test-driven mode — default ON, global + per-project (handoff 2026-06-28).** Add a "test-driven" execution
+        mode where the agent must produce/keep tests green as part of delivery (write-or-update tests for the change, run
+        them, only reach review when green). **Default ON**, with a **global** toggle and a **per-project override** (wire
+        through `runtime.saveConfig` global + workspace-scope, same pattern as §5.W concurrency / Suite-16 settings
+        contract). Surface in Settings + the project-settings menu. The dev-test oracle (§5.V) is the natural verifier.
+  - [ ] **Re-verify / further-simplify `read_large_file` (handoff 2026-06-28, likely already satisfied).** The handoff
+        re-listed "simplify `read_large_file`", but it was already simplified to pure iteration on 2026-06-24 (see the
+        `[x]` item under §5.O). Confirm nothing regressed and there's no remaining simplification the handoff intended;
+        if fully satisfied, close this as superseded.
+- [ ] **NEW genuine PARTIAL class (surfaced 2026-06-28 by the now-hermetic full-system oracle): card reaches
+      `awaiting_review` but NO `nklein/tasks/<task>` result branch is captured** ("no result branch (nothing was
+      captured)"). This is real agent/runtime behavior, NOT the oracle (which is now hermetic, see §5.V). The small model
+      ended the session without producing a captured result branch. Investigate: did the agent make + commit changes in
+      the sandbox at all? did the trusted-runtime result-branch capture ([task-result-branches.ts](src/workspace/task-result-branches.ts))
+      run and fail/no-op? Decide whether to (a) treat "review with no captured diff" as a hard failure the runtime
+      surfaces, and/or (b) make capture more robust. Reproduce via repeated `scripts/verify-full-system.mts` runs (it was
+      intermittent — ~1 in 5 with qwen2.5-coder-14b).
+- [ ] **Cosmetic (surfaced 2026-06-28): `getState().board.cards` reads 0 on the full-system runtime even when work
+      happened.** `scripts/verify-full-system.mts` logs "Cards on board: 0" although the seed card's *session* state is
+      read correctly (it reaches `awaiting_review`). So the board-cards projection in the workspace `getState` snapshot is
+      under-reporting on that runtime path. Low priority (cosmetic in the harness report) but worth tracing — the board
+      cards vs session-state divergence may indicate a snapshot-assembly gap worth a regression.
+- [ ] **dschinn "master challenge" — RESERVED FOR LAST (handoff 2026-06-28).** The dschinn project is the big end-to-end
+      "master challenge" reserved for the final fun validation pass. Keep using the small dev-test projects for UI/e2e
+      stabilization until the rest of §5.V/§5.AI is solid; only then run the dschinn master challenge as the capstone.
 - *(cross-links)* §5.O (dev-test registry + output-robustness sweep — the rail's content) · §5.V (the e2e oracle the
       rail operationalizes; hidden-split/repeat-run/failure-injection harnesses it should exercise) · §5.Z (cross-model
       coverage — the rail naturally rotates models) · §5.AF (durable lease scheduler + unified admission + the ledger
