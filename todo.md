@@ -3313,10 +3313,14 @@ deep analysis:
       for a task into the detector's signals — current stuck episode (trailing non-success run), distinct approaches
       (endpoint × prompt × tool-set × simplify), uncleared-loop + artifact-progress flags; 8 tests
       (`retryBudgetExhausted` caller-supplied — not in the ledger). So `ledger → signals → classifyAgentStuckness →
-      isHardStuck` is the complete **pure trigger**. **Still owed (runtime wiring):** the call site that (1) drives
-      Layer 1 across ALL loaded models automatically, (2) on `isHardStuck` builds the §5.AG "what was tried" report + the
-      Layer-2 suggestions and escalates to the user, (3) records the escalation as a ledger event. Ties §5.AA
-      (approaches) · §5.AF (attempt stream + escalation event) · §5.AG (report + suggestions) · §5.AK (symmetry).
+      isHardStuck` is the complete **pure trigger**. **Ladder-decision seam DONE (2026-06-27):** `decideEscalationAction`
+      ([src/core/agent-stuckness.ts](src/core/agent-stuckness.ts)) is the pure ladder decision — `continue` while not
+      hard-stuck; on hard-stuck, **`retry_other_model`** (the best untried loaded model, best-fit-first — Layer 1,
+      automatic) while any remain, else **`escalate_to_user`** (Layer 2). 5 tests. **Still owed (runtime wiring):** the
+      hot-path call site that (1) feeds `decideEscalationAction` the live ledger signals + tried/available models and acts
+      on it (switch model automatically, or escalate), (2) on escalation builds the §5.AG report + the Layer-2
+      suggestions, (3) records the escalation as a ledger event. Ties §5.AA (approaches) · §5.AF (attempt stream +
+      escalation event) · §5.AG (report + suggestions) · §5.AK (symmetry).
 - [~] **User escalation (LAST resort) — the "get through the wall" SUGGESTIONS surface — LAYER 2** *(user 2026-06-27)*.
       Only after Layer 1 (all approaches × all loaded models × learned retries — fully automatic) is exhausted does
       !Klein involve the user, and never as a silent dead end. It surfaces the §5.AG "what was tried" report (models ·

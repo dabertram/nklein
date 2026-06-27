@@ -111,3 +111,39 @@ export function isHardStuck(
 ): boolean {
 	return classifyAgentStuckness(signals, thresholds) === "hard_stuck";
 }
+
+/** The next move for a possibly-stuck task — the §5.AB escalation ladder's decision (pure; the caller effects it). */
+export type EscalationAction =
+	/** Not (yet) hard-stuck — keep going on the current automatic recovery (approaches/retries). */
+	| { kind: "continue" }
+	/** Hard-stuck here, but an untried loaded model remains — switch to it automatically (Layer 1, NO user). */
+	| { kind: "retry_other_model"; modelId: string }
+	/** Hard-stuck AND every loaded model has been tried — escalate to the USER with suggestions (Layer 2). */
+	| { kind: "escalate_to_user" };
+
+export interface EscalationDecisionInput {
+	signals: AgentStucknessSignals;
+	/** Models already attempted for this task (e.g. the §5.AG report's `modelsTried`). */
+	triedModelIds: readonly string[];
+	/** Currently available/loaded models in best-fit-first order (the next untried one is picked). */
+	availableModelIds: readonly string[];
+	thresholds?: AgentStucknessThresholds;
+}
+
+/**
+ * Decide the next escalation move for a task. The corrected ladder (user, 2026-06-27): while not hard-stuck → keep
+ * going; once hard-stuck → if a loaded model has NOT been tried yet, switch to the best untried one **automatically**
+ * (Layer 1, no user); only when every loaded model has been tried does it escalate to the **user** (Layer 2). Pure —
+ * the caller performs the switch / surfaces the escalation.
+ */
+export function decideEscalationAction(input: EscalationDecisionInput): EscalationAction {
+	if (!isHardStuck(input.signals, input.thresholds)) {
+		return { kind: "continue" };
+	}
+	const tried = new Set(input.triedModelIds);
+	const nextUntried = input.availableModelIds.find((modelId) => !tried.has(modelId));
+	if (nextUntried !== undefined) {
+		return { kind: "retry_other_model", modelId: nextUntried };
+	}
+	return { kind: "escalate_to_user" };
+}

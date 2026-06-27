@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { type AgentStucknessSignals, classifyAgentStuckness, isHardStuck } from "../../../src/core/agent-stuckness";
+import {
+	type AgentStucknessSignals,
+	classifyAgentStuckness,
+	decideEscalationAction,
+	isHardStuck,
+} from "../../../src/core/agent-stuckness";
+
+/** A signal set that classifies as hard_stuck (uncleared loop across enough approaches). */
+function hardStuckSignals(overrides: Partial<AgentStucknessSignals> = {}): AgentStucknessSignals {
+	return {
+		recentOutcomes: ["loop", "loop", "loop"],
+		distinctApproachesTried: 2,
+		loopUncleared: true,
+		retryBudgetExhausted: false,
+		hadProgressSinceStuck: false,
+		...overrides,
+	};
+}
 
 function signals(overrides: Partial<AgentStucknessSignals> = {}): AgentStucknessSignals {
 	return {
@@ -120,5 +137,53 @@ describe("isHardStuck", () => {
 		).toBe(true);
 		expect(isHardStuck(signals({ recentOutcomes: ["malformed"] }))).toBe(false);
 		expect(isHardStuck(signals({ hadProgressSinceStuck: true }))).toBe(false);
+	});
+});
+
+describe("decideEscalationAction", () => {
+	it("continues while not hard-stuck (even if untried models exist)", () => {
+		expect(
+			decideEscalationAction({
+				signals: signals({ recentOutcomes: ["malformed"] }),
+				triedModelIds: ["m1"],
+				availableModelIds: ["m1", "m2"],
+			}),
+		).toEqual({ kind: "continue" });
+	});
+
+	it("retries the best untried loaded model automatically when hard-stuck (Layer 1)", () => {
+		expect(
+			decideEscalationAction({
+				signals: hardStuckSignals(),
+				triedModelIds: ["m1"],
+				availableModelIds: ["m1", "m2", "m3"],
+			}),
+		).toEqual({ kind: "retry_other_model", modelId: "m2" });
+	});
+
+	it("picks untried in best-fit (availableModelIds) order, skipping tried ones", () => {
+		expect(
+			decideEscalationAction({
+				signals: hardStuckSignals(),
+				triedModelIds: ["m2"],
+				availableModelIds: ["m1", "m2", "m3"],
+			}),
+		).toEqual({ kind: "retry_other_model", modelId: "m1" });
+	});
+
+	it("escalates to the user only when hard-stuck AND every loaded model was tried (Layer 2)", () => {
+		expect(
+			decideEscalationAction({
+				signals: hardStuckSignals(),
+				triedModelIds: ["m1", "m2"],
+				availableModelIds: ["m1", "m2"],
+			}),
+		).toEqual({ kind: "escalate_to_user" });
+	});
+
+	it("escalates to the user when hard-stuck and there are no loaded models at all", () => {
+		expect(
+			decideEscalationAction({ signals: hardStuckSignals(), triedModelIds: ["m1"], availableModelIds: [] }),
+		).toEqual({ kind: "escalate_to_user" });
 	});
 });
