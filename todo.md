@@ -2078,10 +2078,14 @@ deep analysis:
               (`VerifyTaskAcceptanceDependencies` / `RuntimeTaskAcceptanceVerifyMutationClient`) →
               `commands/task/task-verify-command.ts` (self-contained, collaborators injectable for testing; not entangled
               with finishTask). `task-verify.test.ts` repointed. task.ts 1410→1299 (cumulative 2870→1299, **−1571/−55%**).
-              tsc + biome + task-verify + contract + `test:fast` green. *(Remaining: the `finishTask` cluster
-              [`finishTask`/`finishTaskById` + `autoMergeFinishedTaskWorktree`/`recordTaskWorktreeMergeObservations`/
-              `createIntegrationCardForMergeConflict`/`mergeTaskWorktreesCommand`] — the biggest, most cross-calling impls —
-              plus `recordTaskPlanGapCommand`, `inferNKleinPlanSlugForTask`, and the `registerTaskCommand` split.)*
+              tsc + biome + task-verify + contract + `test:fast` green.
+        - [x] **slice 18 (2026-06-27):** extracted the plan-slug inference helpers (`inferNKleinPlanSlugForTask` +
+              `matchesPlanBoardTaskId`) → `commands/task/task-plan-slug.ts` (a shared helper — 3 external consumers
+              repointed: `expand-plan-task.ts`, `record-plan-gap.ts`, `task-verify.test.ts`). task.ts 1299→1244
+              (cumulative 2870→1244, **−1626/−57%**). tsc + biome + `test:fast` (2443) green. *(Remaining: the `finishTask`
+              cluster [`finishTask`/`finishTaskById` + `autoMergeFinishedTaskWorktree`/`recordTaskWorktreeMergeObservations`/
+              `createIntegrationCardForMergeConflict`/`mergeTaskWorktreesCommand`] — cohesive but the biggest, most
+              cross-calling block — plus `recordTaskPlanGapCommand` and the `registerTaskCommand` subcommand split.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.

@@ -7,7 +7,7 @@ import {
 	buildPlanGapAdaptationRevision,
 	buildPlanGapIntegrationRevision,
 } from "../../commands/task/task-plan-gap-prompts.js";
-import { inferNKleinPlanSlugForTask } from "../../commands/task.js";
+import { inferNKleinPlanSlugForTask } from "../../commands/task/task-plan-slug.js";
 import type {
 	RuntimeBoardCard,
 	RuntimeRecordNKleinPlanGapRequest,

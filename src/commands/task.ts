@@ -1,6 +1,3 @@
-import { readdir } from "node:fs/promises";
-import { join } from "node:path";
-
 import type { Command } from "commander";
 import type { RuntimeWorkspaceStateResponse } from "../core/api-contract";
 import { clampRuntimeSwarmCardStartBatchSize } from "../core/api-contract";
@@ -12,7 +9,7 @@ import {
 	deleteTasksFromBoard,
 	trashTaskAndGetReadyLinkedTaskIds,
 } from "../core/task-board-mutations";
-import { appendNKleinPlanRevision, readNKleinPlanArtifacts } from "../nklein-agent/nklein-plan-artifacts";
+import { appendNKleinPlanRevision } from "../nklein-agent/nklein-plan-artifacts";
 import { mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
@@ -28,7 +25,6 @@ import {
 	parseAutoMergeColumn,
 	parseAutoReviewMode,
 	parseOptionalStringOrDefault,
-	slugifyPlanTaskId,
 } from "./task/task-command-parsers.js";
 import type { ListTaskColumn } from "./task/task-command-types.js";
 import { createTask, updateTaskCommand } from "./task/task-crud-commands.js";
@@ -46,6 +42,7 @@ import {
 	buildPlanGapAdaptationRevision,
 	buildPlanGapIntegrationRevision,
 } from "./task/task-plan-gap-prompts.js";
+import { inferNKleinPlanSlugForTask } from "./task/task-plan-slug.js";
 import { listTasks, reportBoardHealth } from "./task/task-read-commands.js";
 import {
 	findTaskRecord,
@@ -375,58 +372,6 @@ async function finishTask(input: {
 		})),
 		count: finishedTasks.length,
 	};
-}
-
-function matchesPlanBoardTaskId(input: { taskId: string; planSlug: string; planTaskId: string }): {
-	matches: boolean;
-	exact: boolean;
-} {
-	const baseTaskId = `${slugifyPlanTaskId(input.planSlug)}-${slugifyPlanTaskId(input.planTaskId)}`;
-	if (input.taskId === baseTaskId) {
-		return { matches: true, exact: true };
-	}
-	if (!input.taskId.startsWith(`${baseTaskId}-`)) {
-		return { matches: false, exact: false };
-	}
-	return {
-		matches: /^\d+$/.test(input.taskId.slice(baseTaskId.length + 1)),
-		exact: false,
-	};
-}
-
-export async function inferNKleinPlanSlugForTask(input: {
-	workspacePath: string;
-	taskId: string;
-}): Promise<string | null> {
-	const plansRoot = join(input.workspacePath, ".nklein", "nklein", "plans");
-	const entries = await readdir(plansRoot, { withFileTypes: true }).catch(() => []);
-	const matches: { slug: string; exact: boolean }[] = [];
-	for (const entry of entries
-		.filter((candidate) => candidate.isDirectory())
-		.sort((left, right) => left.name.localeCompare(right.name))) {
-		const artifacts = await readNKleinPlanArtifacts(input.workspacePath, entry.name).catch(() => null);
-		if (!artifacts) {
-			continue;
-		}
-		for (const task of artifacts.taskGraph.tasks) {
-			const match = matchesPlanBoardTaskId({
-				taskId: input.taskId,
-				planSlug: artifacts.taskGraph.slug,
-				planTaskId: task.id,
-			});
-			if (match.matches) {
-				matches.push({ slug: artifacts.taskGraph.slug, exact: match.exact });
-			}
-		}
-	}
-	const exactMatches = matches.filter((match) => match.exact);
-	if (exactMatches.length === 1) {
-		return exactMatches[0].slug;
-	}
-	if (exactMatches.length > 1) {
-		return null;
-	}
-	return matches.length === 1 ? matches[0].slug : null;
 }
 
 async function createIntegrationCardForMergeConflict(input: {

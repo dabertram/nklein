@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { inferNKleinPlanSlugForTask } from "../../commands/task.js";
+import { inferNKleinPlanSlugForTask } from "../../commands/task/task-plan-slug.js";
 import type { RuntimeExpandNKleinPlanTaskRequest, RuntimeExpandNKleinPlanTaskResponse } from "../../core/api-contract";
 import { applyNKleinPlanTaskReplacementArtifacts } from "../../nklein-agent/nklein-decomposition-tool";
 import { readNKleinPlanArtifacts } from "../../nklein-agent/nklein-plan-artifacts";

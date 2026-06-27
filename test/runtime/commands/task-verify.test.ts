@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
-import { inferNKleinPlanSlugForTask } from "../../../src/commands/task";
 import { recordDecompositionRejection } from "../../../src/commands/task/task-decompose-command";
 import {
 	addPlanGapDecisionCardToBoard,
@@ -15,6 +14,7 @@ import {
 	buildPlanGapAdaptationRevision,
 	buildPlanGapIntegrationRevision,
 } from "../../../src/commands/task/task-plan-gap-prompts";
+import { inferNKleinPlanSlugForTask } from "../../../src/commands/task/task-plan-slug";
 import { runVerifyTaskAcceptanceCommand } from "../../../src/commands/task/task-verify-command";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import {
