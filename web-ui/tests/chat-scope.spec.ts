@@ -283,8 +283,9 @@ test.describe("Chat scope selector", () => {
 		const options = scopeSelect.locator("option");
 		await expect(options).toHaveCount(4);
 		await expect(options.nth(0)).toHaveText("Chat only");
-		await expect(options.nth(1)).toHaveText("Current");
-		await expect(options.nth(2)).toHaveText("All");
+		// The "can-act" scopes say "(host)" so it's explicit they run host commands (§5.M security clarity).
+		await expect(options.nth(1)).toHaveText("Current (host)");
+		await expect(options.nth(2)).toHaveText("All (host)");
 		// Host option has a warning prefix
 		await expect(options.nth(3)).toContainText("Host");
 	});

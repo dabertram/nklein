@@ -37,14 +37,16 @@ const ROLE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionRole; label: string
 	{ value: "system_operator", label: "System operator" },
 ];
 
-// TODO(§5.M): The `host_access` option should be gated behind a global "allow host access" setting
-// (not yet in runtimeConfigSchema) and ideally require a typed confirmation — it gives the agent
-// full host filesystem + command access beyond any sandbox. For now it is shown unconditionally with
-// a ⚠️ label to signal its power. Add the gate once the global toggle lands in the runtime config.
+// The "can-act" scopes (project_sandboxed / all_projects / host_access) all let the agent run commands on the
+// user's HOST machine (filesystem + shell), gated by the session-wide "I accept the risk" acknowledgement — they are
+// NOT Docker-sandboxed. The labels say "(host)" so this is explicit; `host_access` is the most powerful (anywhere on
+// the host) and keeps the ⚠️.
+// TODO(§5.M): gate `host_access` behind a global "allow host access" setting (not yet in runtimeConfigSchema) +
+// ideally a typed confirmation; for now it is shown unconditionally with the ⚠️.
 const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: string }> = [
 	{ value: "chat_only", label: "Chat only" },
-	{ value: "project_sandboxed", label: "Current" },
-	{ value: "all_projects", label: "All" },
+	{ value: "project_sandboxed", label: "Current (host)" },
+	{ value: "all_projects", label: "All (host)" },
 	{ value: "host_access", label: "⚠️ Host" },
 ];
 

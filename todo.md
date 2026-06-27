@@ -1357,16 +1357,18 @@ deep analysis:
         empty drop; embedding-based dedup). Still owed: wire the real embedder + extractor model + persist on session end.
   - [ ] the ≥32k-floor budget integration (memory wired against the context floor)
   - [ ] opt-in access-all-loaded-projects memory scope
-- [ ] **Rename the misleading chat "sandboxed" scope naming → make host-access explicit** *(2026-06-27, user decision —
-      §5.U #1 HIGH security finding)*. The can-act scopes (`project_sandboxed` / `all_projects` / `host_access`) all grant
-      host fs/shell command access under a session-wide `riskAcknowledged` opt-in, but the code id `project_sandboxed` and
-      the terse selector labels (`Current` / `All` in [chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx) L44–49)
-      imply Docker isolation / hide that `Current`+`All` are host-access too (only `⚠️ Host` is flagged). **Decision: rename
-      for clarity + KEEP the session-wide ack** (no per-action move). **Bounded approach:** make the host-access nature
-      explicit in the user-facing labels + the scope tooltip/`chat-scope.spec.ts` (e.g. flag all three can-act scopes, not
-      just Host), and fix the misleading comment at chat-sidebar L42–43; the contract id rename (`project_sandboxed` →
-      a clearer id) is optional + contract-coupled (defer unless cheap). Verify: web typecheck + the chat-scope Playwright
-      spec + web vitest + web:build.
+- [x] **Rename the misleading chat "sandboxed" scope naming → make host-access explicit — DONE (2026-06-27, user
+      decision; §5.U #1 HIGH security finding).** The can-act scopes (`project_sandboxed` / `all_projects` / `host_access`)
+      all grant host fs/shell command access under a session-wide `riskAcknowledged` opt-in, but the terse labels hid that
+      `Current`/`All` are host-access too (only `⚠️ Host` was flagged). **Fix:** the selector labels now read **`Current
+      (host)` / `All (host)`** (+ `⚠️ Host`) ([chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx)); the
+      `chat.session-scope` tooltip now spells out "these run commands on your HOST machine (not Docker-sandboxed), gated by
+      the session risk acknowledgement"; and the misleading code comment is corrected. KEPT the session-wide ack (no
+      per-action move, per the decision). Verified: biome + web typecheck + web vitest (742) + web:build all green; the
+      `chat-scope.spec.ts` label assertions updated to match. *(The Playwright spec can't run yet — it dies at board
+      render on the pre-existing e2e-harness/backend degradation tracked in §5.AK's web:e2e:smoke item, not this change.)*
+      **Optional follow-up (deferred):** the contract-id rename `project_sandboxed` → a clearer id (contract-coupled, not
+      cheap; the user-facing clarity is already delivered).
 - [?] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
       others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
       *(blocked on the user: deferred by the user 2026-06-24 ("defer signal credential based testing, we'll do later")

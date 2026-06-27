@@ -108,7 +108,7 @@ export const ELEMENT_TOOLTIPS = {
 	"chat.session-scope": {
 		name: "Chat scope",
 		description:
-			"chat-only: read-only browsing. current: agent can act on this project. all: agent can act on every project. host: full host access (⚠️ powerful).",
+			"chat-only: read-only browsing, no host access. The other three all run commands on your HOST machine (filesystem + shell — not Docker-sandboxed), gated by the session's risk acknowledgement: current (host) = this project, all (host) = every loaded project, ⚠️ host = anywhere on the host (most powerful).",
 	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
