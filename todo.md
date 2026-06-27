@@ -3638,20 +3638,20 @@ deep analysis:
         (`detectGitRoot` returns `string|null`, not a Promise — `runGitCapture` is `execFileSync`-style). A sync subprocess
         **blocks the event loop** while git runs; under the agent's subprocess flood (its own git + `docker exec`) that
         spawn waits tens of seconds — which is *exactly* the idle-CPU-but-hung profile (the thread sleeps in the kernel on
-        the child process). **Follow-ups (separate, higher-leverage — for fresh, careful context):** (1) the board-view
-        path `buildWorkspaceStateSnapshot` → `loadWorkspaceState` shares this sync-git blocker, so the board view likely
-        lags under load too — measure + fix; (2) the real source fix is to **make `runGitCapture` async** (`execFile`
-        instead of the sync spawn) so git never blocks the loop — a broad but correct change (ripples through the sync
-        `detectGit*` helpers + callers), OR **cache `resolveWorkspacePath` per cwd** (the git root is stable for a session;
-        lower-blast-radius but a core primitive — needs care + the full suite as a guard). NOT done now: changing a
-        concurrency-critical core primitive blind in a long session is the wrong risk; the confirmed #1 pain is fixed and
-        the mechanism is documented. `proper-lockfile` (`retries: 200`) cross-process contention is a related but separate
-        amplifier. **Why the source fix is HIGH-leverage (not just the board view):** `saveWorkspaceState` — which the
-        agent calls on **every** board write (frequent during decompose) — *also* routes through
-        `loadWorkspaceContext → resolveWorkspacePath → sync git`, so the agent itself repeatedly blocks the event loop on
-        its own saves. Fixing the sync-git at the source (async `runGitCapture` and/or cached `resolveWorkspacePath`) would
-        unblock the loop for the agent's saves AND the board view AND every other `loadWorkspaceState`/`saveWorkspaceState`
-        caller — one high-value change.
+        the child process). **SOURCE FIX DONE (2026-06-27):** made the hot-path git-root lookup **async** —
+        `resolveWorkspacePath` (already an async fn, on every `loadWorkspaceState`/`saveWorkspaceState`) now calls
+        `detectGitRootAsync` → `runGitCaptureAsync` (`execFile` via `promisify`) instead of the loop-blocking `spawnSync`
+        ([workspace-state.ts](src/state/workspace-state.ts)). Targeted so there's **no ripple** — `resolveWorkspacePath`'s
+        signature is unchanged, so no caller had to change; no caching, so **zero staleness risk**; the sync `detectGitRoot`
+        stays for the (separate, colder) git-info path. **Why it's high-leverage:** `saveWorkspaceState` — which the agent
+        calls on **every** board write — routed through this, so the agent itself repeatedly blocked the event loop on its
+        own saves; this unblocks the loop for the agent's saves, the board view (`buildWorkspaceStateSnapshot`), and every
+        other `loadWorkspaceState`/`saveWorkspaceState` caller in one change. **Verified:** 2106 tests green (the heavily-used
+        `resolveWorkspacePath` is the guard) + a live smoke (runtime boots, project create/resolve + agent saves all work
+        under load, `projects.list` fast + correct badge). **Still owed (lower priority):** measure + (if needed) async the
+        git-info path `detectGitRepositoryInfo` (still `spawnSync` for branch/remote info — the git-sync view, far colder
+        than the save/load path); and the `proper-lockfile` (`retries: 200`) cross-process amplifier is a separate,
+        smaller knob.
         **DONE (secondary, still worthwhile — 2026-06-27):** coalesced the per-flush projects rebuild to ≤1/window
         ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts) wired in
         [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — reduces real rebuild

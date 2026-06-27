@@ -1,8 +1,9 @@
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { readFile, realpath, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
+import { promisify } from "node:util";
 import { z } from "zod";
 import {
 	NKLEIN_HOME_DIR_NAME,
@@ -747,6 +748,34 @@ function detectGitRoot(cwd: string): string | null {
 	return runGitCapture(cwd, ["rev-parse", "--show-toplevel"]);
 }
 
+const execFileAsync = promisify(execFile);
+
+/**
+ * Async sibling of {@link runGitCapture}. The sync `spawnSync` version BLOCKS the event loop while git runs — fine for
+ * one-off CLI calls, but catastrophic on a hot server path: `resolveWorkspacePath` runs on every `loadWorkspaceState` /
+ * `saveWorkspaceState`, so under heavy parallel agent load (the agent flooding its own git + `docker exec` subprocesses)
+ * each sync git spawn stalls the whole runtime for tens of seconds (the §5.AI "sluggish with 2 projects" hang — a
+ * `--cpu-prof` showed the thread idle-but-blocked in the child process). Running it async keeps the loop responsive.
+ */
+async function runGitCaptureAsync(cwd: string, args: string[]): Promise<string | null> {
+	try {
+		const { stdout } = await execFileAsync("git", args, {
+			cwd,
+			encoding: "utf8",
+			env: createGitProcessEnv(),
+		});
+		const value = typeof stdout === "string" ? stdout.trim() : "";
+		return value.length > 0 ? value : null;
+	} catch {
+		// Non-zero exit / spawn failure → no git root, same as the sync path's `status !== 0` branch.
+		return null;
+	}
+}
+
+async function detectGitRootAsync(cwd: string): Promise<string | null> {
+	return runGitCaptureAsync(cwd, ["rev-parse", "--show-toplevel"]);
+}
+
 function detectGitCurrentBranch(repoPath: string): string | null {
 	return runGitCapture(repoPath, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
 }
@@ -814,7 +843,8 @@ export async function resolveWorkspacePath(cwd: string): Promise<string> {
 		canonicalCwd = resolvedCwd;
 	}
 
-	const gitRoot = detectGitRoot(canonicalCwd);
+	// Async git: resolveWorkspacePath is on every load/save, so a sync git spawn here blocks the runtime under load (§5.AI).
+	const gitRoot = await detectGitRootAsync(canonicalCwd);
 	if (!gitRoot) {
 		throw new Error(`No git repository detected at ${canonicalCwd}`);
 	}
