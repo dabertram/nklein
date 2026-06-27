@@ -2241,6 +2241,10 @@ deep analysis:
       queued/running/awaiting_review sessions (a **paused / failed / interrupted** task does NOT hold a slot), excludes
       the task being started (never blocks itself) + the home-agent session, dedupes by task id, and the combined rule;
       plus the limit-reached error names the configured max. A miscount here would wrongly block or over-admit parallel work.
+      **`task-title.ts` covered (2026-06-27, 12 tests)** — the card-title derivation every task is labelled by:
+      `deriveTaskTitleFromPrompt` (first non-empty line, wrapping-tag strip, whitespace collapse, first-sentence extraction,
+      ellipsis truncation, empty→"") + `resolveTaskTitle` (explicit title wins, `<user_input>` unwrap, empty-wrapper +
+      null/blank → derive from prompt). Pure; wrong output = a mislabelled/blank card in the UI.
       **`task-record-format` CLI input/error surface (6 tests):** `resolveTaskCommandTarget` (task-id|column
       mutual-exclusion, names the command), `parseListColumn` (`done`→`completed` alias, canonical ids, invalid throws),
       `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). **Board functions now covered too**
