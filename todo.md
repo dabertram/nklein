@@ -2218,6 +2218,12 @@ deep analysis:
       and wall-time-exhausted park (tripped with a distant `startedAt`, no time mock needed). *(Found via a
       content-verified import-grep scan — the basename heuristic had hidden these; also still untested + worth a pass:
       `decomposition-stall-nudger`, `decomposition/plan-task-routing`, `decomposition/plan-task-board-apply`.)*
+      **`decomposition-stall-nudger.isChatOnlyDecompositionActivity` (4 tests):** the weak-model stall detector — flags a
+      running `assistant_delta` that narrates a plan ("based on my analysis", "task graph", "implementation plan")
+      instead of calling `decompose_project`; false when actually calling the tool, wrong source/event, no matching
+      prose, or no activity. (The core recovery decision `decideDecompositionStallRecovery` was already tested.)
+      **Remaining content-scan finds are heavy-fixture/IO** (`plan-task-routing` needs a full `NKleinModelRegistryEntry`;
+      `plan-task-board-apply`/`plan-artifact-apply` are board-mutation/IO) → integration-harness or fresh-context work.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
