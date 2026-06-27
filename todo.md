@@ -2158,8 +2158,12 @@ deep analysis:
       trailing-text/different-command/no-slash no), `shortcut-utils` (`areRuntimeProjectShortcutsEqual` length+field
       diffing, absent-vs-empty icon equal), `legacy-env` (`readEnvWithLegacyFallback` current-wins-no-warn,
       legacy-fallback-warn-once-per-name via injected `env`, trim, undefined-when-unset — the `KANBAN_*→NKLEIN_*`
-      deprecation path). **Next layer if continued:** `src/server`, `src/state` non-schema units (more I/O-coupled →
-      need DI/mocks, lower unit-test yield).
+      deprecation path). **Pivoted to meatier modules (higher coverage-per-test) 2026-06-27:**
+      `workspace/remote-path-confinement` (8 tests — SECURITY: `--host` remote-mode root confinement; allows exact+nested,
+      rejects sibling-prefix `/home/user2` vs `/home/user`, `..`-traversal escape, unrelated paths, empty-roots; roots
+      deduped/resolved with home first). **Next:** `nklein-context-budgets`, `nklein-pause-controller`,
+      `workspace/turn-checkpoints`, `nklein-context-overflow-compaction`, `workspace/project-health` (all 90–210-line
+      pure-logic modules with zero tests).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
