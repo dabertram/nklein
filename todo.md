@@ -3553,7 +3553,7 @@ deep analysis:
       the registry is fully integrated; the rail can lean on it. *(Open follow-ups elsewhere: the per-folder "runs to a
       clean terminal state on a small model" reliability is what the always-on rail + §5.O output-robustness sweep keep
       exercising — that's ongoing evaluation, not an integration gap.)*
-- [ ] **The always-on evaluation rail (background, idle-aware).** A long-running background runner (the §5.AF **durable
+- [~] **The always-on evaluation rail (background, idle-aware).** A long-running background runner (the §5.AF **durable
       lease scheduler** — checkpoints to the ledger, survives restart; do NOT build a fragile foreground `verify-*.mts`
       loop) that, when the loaded models are **idle** (no targeted feature test claiming them), picks dev-test project(s)
       and runs them sandboxed to terminal state. **Idle-aware admission:** it yields to interactive/targeted work
@@ -3584,12 +3584,17 @@ deep analysis:
       the admission signals, with the key interactive-detection rule (a session running in a workspace the runner does
       NOT own = real work → yield); 4 unit tests. So **every PURE piece of the daemon's logic is now built + tested**
       (admission gate · runner core tick/recover · checkpoint store · signal compute · selection · guardrails · structured
-      evidence). **Still owed = ONLY the thin effectful daemon:** a script that holds a TRPC client + the runner core,
-      implements the deps as TRPC calls (`getSignals` = projects.list + `/v1/models` + getConfig → the pure
-      `computeBackgroundEvalRunnerSignals`; `startRun` = createDevTestProject + start seed; `stopRun` = projects.remove;
-      `isRunActive` = session-state query) wired to `save/loadBackgroundEvalRunnerLeases`, and a `setInterval` driver that
-      calls `tick()`. Build it dry-run-first (log decisions, `--live` to actually start runs) + verify against the live
-      runtime — the autonomous run-starting is the one part that genuinely needs a focused live pass.
+      evidence). **DAEMON BUILT + PROVEN LIVE IN DRY-RUN (2026-06-27): [dev-test-rail-daemon.mts](scripts/dev-test-rail-daemon.mts).**
+      The thin effectful glue: a TRPC client + the runner core, deps wired as runtime calls (`getSignals` = projects.list
+      + `/v1/models` + getConfig → the pure `computeBackgroundEvalRunnerSignals`; `startRun` = createDevTestProject +
+      scoped-client startTaskSession; `stopRun` = projects.remove; `isRunActive` = session-state query) on
+      `save/loadBackgroundEvalRunnerLeases`, plus a `setInterval` driver calling `tick()` + SIGINT shutdown. **Verified
+      live (dry-run, started nothing):** against the live runtime it read real signals → admitted up to the cap (2) →
+      held (`background_cap_reached`) → reaped expired leases (force-stop) → admitted new ones → rotated projects (random
+      selection) → **checkpointed `leases.json` between ticks → recovered on start**. So the always-on rail's whole brain
+      works end-to-end. **ONLY remaining: a focused live pass of `--live`** — the autonomous *real* create+start/remove
+      path is wired (reuses the rail's exact calls) but was deliberately NOT exercised here (dry-run only); it needs to be
+      watched against the live runtime + Docker once (admits real runs, yields when a real task starts, cleans up).
   - [~] **First usable version BUILT (2026-06-27): [scripts/dev-test-rail.mts](scripts/dev-test-rail.mts).** A one-shot
         parallel runner that composes the proven pieces — pins the model + raises its per-model concurrency (§5.T) so the
         one endpoint serves the projects concurrently, creates N dev-test projects, subscribes to each one's
