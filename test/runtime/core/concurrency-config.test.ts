@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	areConcurrencyConfigsEqual,
+	areConcurrencyOverridesEqual,
 	type ConcurrencyConfig,
 	concurrencyConfigSchema,
 	concurrencyOverrideSchema,
+	DEFAULT_CONCURRENCY_CONFIG,
 	normalizeConcurrencyConfig,
 	normalizeConcurrencyMap,
 	normalizeConcurrencyOverride,
@@ -10,6 +13,31 @@ import {
 	resolveEffectiveProviderConcurrency,
 	resolveSessionConcurrencyCaps,
 } from "../../../src/core/concurrency-config";
+
+describe("concurrency config/override equality (change-detection helpers)", () => {
+	it("DEFAULT_CONCURRENCY_CONFIG is empty grains", () => {
+		expect(DEFAULT_CONCURRENCY_CONFIG).toEqual({ perProvider: {}, perModel: {} });
+	});
+
+	it("areConcurrencyConfigsEqual compares both grains key-by-key", () => {
+		expect(
+			areConcurrencyConfigsEqual({ perProvider: { a: 2 }, perModel: {} }, { perProvider: { a: 2 }, perModel: {} }),
+		).toBe(true);
+		expect(
+			areConcurrencyConfigsEqual({ perProvider: { a: 2 }, perModel: {} }, { perProvider: { a: 3 }, perModel: {} }),
+		).toBe(false);
+		expect(
+			areConcurrencyConfigsEqual({ perProvider: {}, perModel: { m: 1 } }, { perProvider: {}, perModel: {} }),
+		).toBe(false);
+	});
+
+	it("areConcurrencyOverridesEqual is null-aware", () => {
+		expect(areConcurrencyOverridesEqual(null, null)).toBe(true);
+		expect(areConcurrencyOverridesEqual(null, { perProvider: { a: 1 } })).toBe(false);
+		expect(areConcurrencyOverridesEqual({ perModel: { m: 1 } }, { perModel: { m: 1 } })).toBe(true);
+		expect(areConcurrencyOverridesEqual({ perModel: { m: 1 } }, { perModel: { m: 2 } })).toBe(false);
+	});
+});
 
 describe("concurrency wire schemas", () => {
 	it("parses a config, defaulting empty grains", () => {

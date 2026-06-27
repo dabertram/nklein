@@ -116,6 +116,44 @@ export function normalizeConcurrencyOverride(
 	};
 }
 
+/** The empty default (no caps from this layer) — the §5.W runtime-config threading's `…Defaults` fallback. */
+export const DEFAULT_CONCURRENCY_CONFIG: ConcurrencyConfig = { perProvider: {}, perModel: {} };
+
+function areConcurrencyMapsEqual(
+	left: ConcurrencyMap | null | undefined,
+	right: ConcurrencyMap | null | undefined,
+): boolean {
+	const a = left ?? {};
+	const b = right ?? {};
+	const aKeys = Object.keys(a);
+	if (aKeys.length !== Object.keys(b).length) {
+		return false;
+	}
+	return aKeys.every((key) => a[key] === b[key]);
+}
+
+/** Change-detection equality for the global config (mirrors `areCodeEmbeddingSettingsEqual`, §5.W threading). */
+export function areConcurrencyConfigsEqual(left: ConcurrencyConfig, right: ConcurrencyConfig): boolean {
+	return (
+		areConcurrencyMapsEqual(left.perProvider, right.perProvider) &&
+		areConcurrencyMapsEqual(left.perModel, right.perModel)
+	);
+}
+
+/** Change-detection equality for the nullable per-project override. */
+export function areConcurrencyOverridesEqual(
+	left: ConcurrencyOverride | null,
+	right: ConcurrencyOverride | null,
+): boolean {
+	if (left === null || right === null) {
+		return left === right;
+	}
+	return (
+		areConcurrencyMapsEqual(left.perProvider, right.perProvider) &&
+		areConcurrencyMapsEqual(left.perModel, right.perModel)
+	);
+}
+
 function resolveKeyCap(
 	key: string,
 	override: ConcurrencyMap | null | undefined,
