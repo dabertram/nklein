@@ -3641,9 +3641,10 @@ deep analysis:
         no help); NOT CPU (the `--cpu-prof` was ~100% idle — an async HANG, not CPU-burn, so "offload to worker threads"
         was the WRONG framing); it correlated with the agent being **stuck** (msgs frozen) not stream throughput.
         **Fix:** health issues change rarely (project structure), so cache them with a 30 s TTL + refresh in the
-        **background** — `buildProjectsPayload` serves the cached value and **never blocks on detection**
-        ([workspace-registry.ts](src/server/workspace-registry.ts) `getProjectHealthIssues`/`refreshProjectHealthIssues`;
-        a cold cache briefly awaits, capped at 2 s, so the first idle payload still carries health). **Verified live:**
+        **background** — `buildProjectsPayload` serves the cached value and **never blocks on detection** (via the reusable
+        [stale-while-revalidate-cache.ts](src/core/stale-while-revalidate-cache.ts) `createStaleWhileRevalidateCache`,
+        7 unit tests; wired in [workspace-registry.ts](src/server/workspace-registry.ts) as `projectHealthCache`; a cold
+        cache briefly awaits, capped at 2 s, so the first idle payload still carries health). **Verified live:**
         same 2-agent load (`complex_dag` at msgs=1004), `projects.list` max **0.22 s** vs **41–60 s** before; 137
         server/projects tests green. **DEEPER ROOT MECHANISM (confirmed, now precisely understood — the source the
         health-cache sidesteps):** the slow op inside `loadWorkspaceState` is `loadWorkspaceContext → resolveWorkspacePath

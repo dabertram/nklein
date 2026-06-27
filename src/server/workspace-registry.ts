@@ -9,6 +9,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { type ActiveAgentSessionCounts, countActiveAgentSessions } from "../core/api-contract";
+import { createStaleWhileRevalidateCache } from "../core/stale-while-revalidate-cache";
 import {
 	listWorkspaceIndexEntries,
 	loadWorkspaceBoardById,
@@ -374,54 +375,24 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 	// Project health detection (git/fs per project) is too expensive for the hot projects-payload path: under heavy
 	// agent load it CONTENDS (the agent's frequent workspace writes) and `detectProjectHealthIssuesByWorkspaceId` was
 	// measured at 30–55s, hanging every `projects.list` / WS broadcast (§5.AI root cause). Health issues change rarely
-	// (project structure), so cache them and refresh in the BACKGROUND — buildProjectsPayload serves the cached value and
-	// never blocks on detection. First call (cold cache) returns no issues and kicks off a refresh.
+	// (project structure), so serve them from a stale-while-revalidate cache that refreshes in the BACKGROUND —
+	// buildProjectsPayload never blocks on detection. The cache's refresh reads `latestHealthProjects`, which each
+	// payload build updates to the current project set first (the only thing detection needs).
 	const PROJECT_HEALTH_CACHE_TTL_MS = 30_000;
-	// Cap how long a COLD (never-computed) payload waits for the first detection: when idle it finishes in ~ms (so the
-	// initial snapshot carries health), but under heavy agent contention it returns empty rather than hanging the load.
-	const PROJECT_HEALTH_COLD_WAIT_MS = 2_000;
-	let cachedHealthIssues: ProjectHealthIssuesByWorkspaceId = new Map();
-	let healthIssuesComputedAt = 0;
-	let healthRefreshInFlight: Promise<void> | null = null;
-
-	const refreshProjectHealthIssues = (projects: readonly RuntimeWorkspaceIndexEntry[]): Promise<void> => {
-		if (healthRefreshInFlight) {
-			return healthRefreshInFlight;
-		}
-		healthRefreshInFlight = detectProjectHealthIssuesByWorkspaceId({ projects })
-			.then((issues) => {
-				cachedHealthIssues = issues;
-				healthIssuesComputedAt = Date.now();
-			})
-			.catch(() => {
-				// Keep the last good cache on transient failure; the next refresh retries.
-			})
-			.finally(() => {
-				healthRefreshInFlight = null;
-			});
-		return healthRefreshInFlight;
-	};
-
-	const getProjectHealthIssues = async (
-		projects: readonly RuntimeWorkspaceIndexEntry[],
-	): Promise<ProjectHealthIssuesByWorkspaceId> => {
-		const isStale = Date.now() - healthIssuesComputedAt > PROJECT_HEALTH_CACHE_TTL_MS;
-		if (isStale) {
-			const refresh = refreshProjectHealthIssues(projects);
-			if (healthIssuesComputedAt === 0) {
-				// Cold cache: briefly await so the first payload has health when idle — but never hang the hot path.
-				await Promise.race([
-					refresh,
-					new Promise<void>((resolve) => setTimeout(resolve, PROJECT_HEALTH_COLD_WAIT_MS)),
-				]);
-			}
-		}
-		return cachedHealthIssues;
-	};
+	let latestHealthProjects: readonly RuntimeWorkspaceIndexEntry[] = [];
+	const projectHealthCache = createStaleWhileRevalidateCache<ProjectHealthIssuesByWorkspaceId>({
+		initial: new Map(),
+		ttlMs: PROJECT_HEALTH_CACHE_TTL_MS,
+		// Cold cache: briefly await the first detection so an idle-startup payload carries health; capped so heavy load
+		// never hangs the hot path (it returns the empty initial and the refresh lands on a later build).
+		coldWaitMs: 2_000,
+		refresh: () => detectProjectHealthIssuesByWorkspaceId({ projects: latestHealthProjects }),
+	});
 
 	const buildProjectsPayload = async (preferredCurrentProjectId: string | null) => {
 		const projects = filterUnconfirmedSourceWorkspace(await listWorkspaceIndexEntries());
-		const healthIssuesByWorkspaceId = await getProjectHealthIssues(projects);
+		latestHealthProjects = projects;
+		const healthIssuesByWorkspaceId = await projectHealthCache.get();
 		const fallbackProjectId =
 			projects.find((project) => project.workspaceId === activeWorkspaceId)?.workspaceId ??
 			projects[0]?.workspaceId ??
