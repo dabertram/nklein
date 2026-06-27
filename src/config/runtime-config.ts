@@ -48,7 +48,12 @@ import {
 import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { isDebugOverrideEnvEnabled } from "./debug-override";
-import type { RuntimeConfigState, RuntimeConfigUpdateInput } from "./runtime-config-types";
+import type {
+	RuntimeConfigState,
+	RuntimeConfigUpdateInput,
+	RuntimeGlobalConfigFileShape,
+	RuntimeProjectConfigFileShape,
+} from "./runtime-config-types";
 import {
 	NKLEIN_HOME_DIR_NAME,
 	NKLEIN_PROJECT_CONFIG_DIR_NAME,
@@ -59,51 +64,6 @@ import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
 // Re-exported from their dedicated types module (§5.AK runtime-config facade slice) so existing importers of this
 // path (`./runtime-config`) keep resolving RuntimeConfigState / RuntimeConfigUpdateInput unchanged.
 export type { RuntimeConfigState, RuntimeConfigUpdateInput };
-
-interface RuntimeGlobalConfigFileShape {
-	selectedAgentId?: RuntimeAgentId;
-	selectedShortcutLabel?: string;
-	developerModeEnabled?: boolean;
-	replayCardsEnabled?: boolean;
-	agentAutonomousModeEnabled?: boolean;
-	agentTimeoutMode?: RuntimeAgentTimeoutMode;
-	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
-	requestTimeoutMs?: number | null;
-	streamTimeoutMs?: number | null;
-	toolTimeoutMs?: number | null;
-	agentTimeoutMs?: number | null;
-	conversationTimeoutMs?: number | null;
-	maxAgentWritableFileLines?: number;
-	maxConcurrentTasks?: number;
-	sandboxMaxContainers?: number;
-	sandboxAgentsPerContainer?: number;
-	sandboxMemoryPerContainerMb?: number;
-	sandboxCpusPerContainer?: number;
-	sandboxIdleTimeoutMinutes?: number;
-	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
-	decompositionAutoApplyEnabled?: boolean;
-	secondOpinionReviewEnabled?: boolean;
-	reviewMaxRounds?: number;
-	readyForReviewNotificationsEnabled?: boolean;
-	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
-	concurrencyDefaults?: ConcurrencyConfig;
-	modelRoles?: RuntimeModelRoles;
-	agentRulesets?: AgentRulesetsConfigPayload;
-	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
-	commitPromptTemplate?: string;
-	openPrPromptTemplate?: string;
-	workspaceBaseDir?: string | null;
-}
-
-interface RuntimeProjectConfigFileShape {
-	shortcuts?: RuntimeProjectShortcut[];
-	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
-	concurrencyOverride?: ConcurrencyOverride | null;
-	maxConcurrentTasksOverride?: number | null;
-	selectedAgentIdOverride?: RuntimeAgentId | null;
-	agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
-	modelRolesOverride?: RuntimeModelRoles | null;
-}
 
 const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
 const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;

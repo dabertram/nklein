@@ -4254,11 +4254,12 @@ deep analysis:
 - [~] **Runtime-config facade split (Yellow → unblocks config-heavy work).** Split `src/config/runtime-config.ts` (2306
       lines) into `runtime-config-{types,defaults,normalize,change-fields,store}.ts` behind the existing public facade.
       Preserve every import + all corrupt-vs-missing / defaulting / migration behavior; lock with the round-trip +
-      old-config-load tests. Pairs with the settings draft boundary. **First slice DONE (2026-06-27):** the public type
-      surface (`RuntimeConfigState` + `RuntimeConfigUpdateInput`) is extracted into
-      [src/config/runtime-config-types.ts](src/config/runtime-config-types.ts) and **re-exported** from `runtime-config.ts`
-      so every existing importer of `./runtime-config` is unchanged (root tsc + biome clean; the 64 config-suite tests
-      green). **Remaining slices:** the private file-shapes + DEFAULT_* constants → `runtime-config-defaults.ts`; the
+      old-config-load tests. Pairs with the settings draft boundary. **Types slice DONE (2026-06-27):** the public type
+      surface (`RuntimeConfigState` + `RuntimeConfigUpdateInput`) **and** the two on-disk file-shapes
+      (`RuntimeGlobalConfigFileShape` / `RuntimeProjectConfigFileShape`) are extracted into
+      [src/config/runtime-config-types.ts](src/config/runtime-config-types.ts); the public pair is **re-exported** from
+      `runtime-config.ts` so every existing importer of `./runtime-config` is unchanged (root tsc + biome clean; the 64
+      config-suite tests green). **Remaining slices:** the DEFAULT_* constants → `runtime-config-defaults.ts`; the
       ~800-line normalize/build-assembly block → `runtime-config-normalize.ts`; the change-field registry →
       `runtime-config-change-fields.ts`; load/save/update → `runtime-config-store.ts` (each a careful slice — config
       defaulting can regress quietly, so verify round-trip + corrupt-vs-missing each time).

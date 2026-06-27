@@ -108,3 +108,50 @@ export interface RuntimeConfigUpdateInput {
 	openPrPromptTemplate?: string;
 	workspaceBaseDir?: string | null;
 }
+
+/** On-disk shape of the global config file (every field optional — the loader normalizes + fills defaults). */
+export interface RuntimeGlobalConfigFileShape {
+	selectedAgentId?: RuntimeAgentId;
+	selectedShortcutLabel?: string;
+	developerModeEnabled?: boolean;
+	replayCardsEnabled?: boolean;
+	agentAutonomousModeEnabled?: boolean;
+	agentTimeoutMode?: RuntimeAgentTimeoutMode;
+	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
+	requestTimeoutMs?: number | null;
+	streamTimeoutMs?: number | null;
+	toolTimeoutMs?: number | null;
+	agentTimeoutMs?: number | null;
+	conversationTimeoutMs?: number | null;
+	maxAgentWritableFileLines?: number;
+	maxConcurrentTasks?: number;
+	sandboxMaxContainers?: number;
+	sandboxAgentsPerContainer?: number;
+	sandboxMemoryPerContainerMb?: number;
+	sandboxCpusPerContainer?: number;
+	sandboxIdleTimeoutMinutes?: number;
+	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
+	decompositionAutoApplyEnabled?: boolean;
+	secondOpinionReviewEnabled?: boolean;
+	reviewMaxRounds?: number;
+	readyForReviewNotificationsEnabled?: boolean;
+	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
+	concurrencyDefaults?: ConcurrencyConfig;
+	modelRoles?: RuntimeModelRoles;
+	agentRulesets?: AgentRulesetsConfigPayload;
+	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
+	commitPromptTemplate?: string;
+	openPrPromptTemplate?: string;
+	workspaceBaseDir?: string | null;
+}
+
+/** On-disk shape of a project's config file — only the project-scoped settings + per-project overrides. */
+export interface RuntimeProjectConfigFileShape {
+	shortcuts?: RuntimeProjectShortcut[];
+	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+	concurrencyOverride?: ConcurrencyOverride | null;
+	maxConcurrentTasksOverride?: number | null;
+	selectedAgentIdOverride?: RuntimeAgentId | null;
+	agentRulesetsOverride?: AgentRulesetsConfigPayload | null;
+	modelRolesOverride?: RuntimeModelRoles | null;
+}
