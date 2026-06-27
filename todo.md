@@ -3573,11 +3573,16 @@ deep analysis:
       spec warns against). Each `tick()`: reaps leases that completed naturally (drop) or overran their deadline
       (force-stop), reads live signals → the admission gate → starts one run if allowed, and **checkpoints the lease set**
       so `recover()` restores exactly what was in flight after a crash/restart. 6 unit tests (admit/yield/cap+free-slot/
-      deadline-force-stop/no-project/recover). **Still owed (the EFFECTFUL glue — the actual process):** wire real deps —
-      `getSignals` (interactive-detection + model-idle probe + resource-headroom compose), `startRun`/`stopRun` (reuse the
-      rail's sandboxed create+start / project-remove), `isRunActive` (session terminal-state query), and a ledger-backed
-      `loadCheckpoint`/`saveCheckpoint` — then a thin timer driver that calls `tick()`. That glue is the remaining
-      runtime-integration piece (best built in a focused pass).
+      deadline-force-stop/no-project/recover). **CHECKPOINT STORE DONE (2026-06-27):**
+      [background-eval-runner-store.ts](src/state/background-eval-runner-store.ts) — durable
+      `save/loadBackgroundEvalRunnerLeases` (snapshot JSON at `~/.nklein/nklein/background-eval-runner/leases.json`,
+      zod-validated, missing/corrupt → empty so the runner recovers rather than crashes; `rootDir` injectable for tests).
+      That's the runner's `loadCheckpoint`/`saveCheckpoint` (file-backed snapshot is simpler + sufficient for a lease set;
+      the ledger remains the *event* log). 5 unit tests. **Still owed (the EFFECTFUL glue — the actual process):** the
+      live-signal deps — `getSignals` (interactive-detection + model-idle probe + resource-headroom compose),
+      `startRun`/`stopRun` (reuse the rail's sandboxed create+start / project-remove), `isRunActive` (session
+      terminal-state query) — then a thin timer driver that calls `tick()`. That live wiring is the remaining
+      runtime-integration piece (best built in a focused pass against the live runtime).
   - [~] **First usable version BUILT (2026-06-27): [scripts/dev-test-rail.mts](scripts/dev-test-rail.mts).** A one-shot
         parallel runner that composes the proven pieces — pins the model + raises its per-model concurrency (§5.T) so the
         one endpoint serves the projects concurrently, creates N dev-test projects, subscribes to each one's
