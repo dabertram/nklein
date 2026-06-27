@@ -14,7 +14,6 @@ import type {
 import { clampRuntimeSwarmCardStartBatchSize } from "../core/api-contract";
 import { type PlanGapKind, recordPlanGap } from "../core/plan-gap";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
-import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
 import {
 	addTaskToColumn,
 	completeTaskAndGetReadyLinkedTaskIds,
@@ -93,6 +92,7 @@ import {
 	resolveWorkspaceRepoPath,
 	updateRuntimeWorkspaceState,
 } from "./task/task-runtime-workspace.js";
+import { clearTaskSwarmStopCommand, requestTaskSwarmStopCommand } from "./task/task-swarm-commands.js";
 
 type JsonRecord = Record<string, unknown>;
 type RecordSelfObservation = typeof recordSelfObservation;
@@ -1070,32 +1070,6 @@ async function mergeTaskWorktreesCommand(input: {
 		integrationTask,
 		conflict: result.conflict ?? null,
 		blocked: result.blocked ?? null,
-	};
-}
-
-async function requestTaskSwarmStopCommand(input: {
-	cwd: string;
-	projectPath?: string;
-	reason?: string;
-}): Promise<JsonRecord> {
-	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
-	const signal = await requestSwarmStop({
-		workspacePath: workspaceRepoPath,
-		reason: input.reason,
-	});
-	return {
-		ok: true,
-		workspacePath: workspaceRepoPath,
-		signal,
-	};
-}
-
-async function clearTaskSwarmStopCommand(input: { cwd: string; projectPath?: string }): Promise<JsonRecord> {
-	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
-	await clearSwarmStop(workspaceRepoPath);
-	return {
-		ok: true,
-		workspacePath: workspaceRepoPath,
 	};
 }
 

@@ -2051,6 +2051,12 @@ deep analysis:
               output module breaks the recurring `toErrorMessage` entanglement that was blocking further extraction (a
               submodule needing it no longer has to import task.ts → no cycle). task.ts 1931→1889 (cumulative 2870→1889,
               −981/−34%). tsc + biome + `test:fast` (2443) green.
+        - [x] **slice 12 (2026-06-27):** extracted the swarm-stop control commands (`requestTaskSwarmStopCommand`,
+              `clearTaskSwarmStopCommand`) → `commands/task/task-swarm-commands.ts` (leaf commands over the swarm
+              guardrails). task.ts 1889→1863 (cumulative 2870→1863, **−1007/−35%**, over 1000 lines out). tsc + biome +
+              `test:fast` (2443) green. *(Remaining clean leaves are tiny; the bulk left is the big command impls —
+              `createTask`/`startTask`/`finishTask`/`decomposeTaskGraph`+helpers/the merge cluster — better with fresh
+              context. The `toErrorMessage` unblock [slice 11] means the decomposition cluster is now extractable next.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
