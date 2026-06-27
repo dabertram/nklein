@@ -3632,11 +3632,21 @@ deep analysis:
         ([workspace-registry.ts](src/server/workspace-registry.ts) `getProjectHealthIssues`/`refreshProjectHealthIssues`;
         a cold cache briefly awaits, capped at 2 s, so the first idle payload still carries health). **Verified live:**
         same 2-agent load (`complex_dag` at msgs=1004), `projects.list` max **0.22 s** vs **41–60 s** before; 137
-        server/projects tests green. **Follow-ups (separate, lower priority):** `buildWorkspaceStateSnapshot` (the board
-        view's `loadWorkspaceState`) may contend the same way under load — audit + similar treatment if so; and the deeper
-        `proper-lockfile` (`retries: 200`) cross-process contention between host runtime and Docker sandbox on the mounted
-        workspace volume is worth reducing at the source (it's what makes the health scan slow under load), but the hot
-        path no longer waits on it.
+        server/projects tests green. **DEEPER ROOT MECHANISM (confirmed, now precisely understood — the source the
+        health-cache sidesteps):** the slow op inside `loadWorkspaceState` is `loadWorkspaceContext → resolveWorkspacePath
+        → detectGitRoot → runGitCapture(["rev-parse","--show-toplevel"])`, which is a **SYNCHRONOUS git subprocess**
+        (`detectGitRoot` returns `string|null`, not a Promise — `runGitCapture` is `execFileSync`-style). A sync subprocess
+        **blocks the event loop** while git runs; under the agent's subprocess flood (its own git + `docker exec`) that
+        spawn waits tens of seconds — which is *exactly* the idle-CPU-but-hung profile (the thread sleeps in the kernel on
+        the child process). **Follow-ups (separate, higher-leverage — for fresh, careful context):** (1) the board-view
+        path `buildWorkspaceStateSnapshot` → `loadWorkspaceState` shares this sync-git blocker, so the board view likely
+        lags under load too — measure + fix; (2) the real source fix is to **make `runGitCapture` async** (`execFile`
+        instead of the sync spawn) so git never blocks the loop — a broad but correct change (ripples through the sync
+        `detectGit*` helpers + callers), OR **cache `resolveWorkspacePath` per cwd** (the git root is stable for a session;
+        lower-blast-radius but a core primitive — needs care + the full suite as a guard). NOT done now: changing a
+        concurrency-critical core primitive blind in a long session is the wrong risk; the confirmed #1 pain is fixed and
+        the mechanism is documented. `proper-lockfile` (`retries: 200`) cross-process contention is a related but separate
+        amplifier.
         **DONE (secondary, still worthwhile — 2026-06-27):** coalesced the per-flush projects rebuild to ≤1/window
         ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts) wired in
         [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — reduces real rebuild
