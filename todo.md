@@ -4348,7 +4348,11 @@ deep analysis:
       implementing → acceptance → review → ready-for-delivery → delivering → completed, with `failed`/`cancel` honored
       from any active phase and unhandled commands a safe no-op hold so events can replay). **No behavior change + NOT
       wired** — the board mutation helpers stay the single source for lane changes; the kernel is the orthogonal durable-
-      scheduler view (finer-grained than a board column). 10 unit tests; tsc+biome green. **Still owed:** put an
+      scheduler view (finer-grained than a board column). 10 unit tests; tsc+biome green. **PHASE→BOARD BRIDGE DONE
+      (2026-06-27):** `workflowPhaseToBoardColumn(phase)` ([src/core/workflow-board-bridge.ts](src/core/workflow-board-bridge.ts))
+      — the canonical (non-lossy) direction mapping each phase to the board column it surfaces as (queue ladder + planning
+      → Planning; implementing/acceptance → In Progress; review→delivery → Review; completed/cancelled → their lanes;
+      failed parks in In Progress), so the scheduler can keep the board in sync from a phase; 4 tests. **Still owed:** put an
       interface in front of `RuntimeTaskStartQueue` + a durable queued-start store with restart replay, and move the
       queue-drain / auto-start cascades out of `runtime-server.ts` into a `TaskWorkflowService` driven by this reducer
       (with characterization tests). This is also exactly the §5.AF "durable long-run job scheduler" item — one arc.
