@@ -2022,6 +2022,13 @@ deep analysis:
               board-record query/format + target/column resolution (`findTaskRecord`, `findTasksInColumn`,
               `formatTaskRecord`, `formatDependencyRecord`, `getLinkFailureMessage`, `resolveTaskCommandTarget`,
               `parseListColumn` → `commands/task/task-record-format.ts`). task.ts 2433→2294 (cumulative 2870→2294, −576/−20%).
+        - [x] **slice 6 (2026-06-27):** extracted the plan-gap → card concern (`markTaskNeedsDecompositionOnBoard`,
+              `findBoardTaskByTitle`, `addPlanGap{Integration,Decision,Scope}CardToBoard` + the `DEFAULT_NEEDS_DECOMPOSITION_REASON`
+              const) → `commands/task/task-plan-gap-cards.ts` (a clean one-way move — the module imports the already-separate
+              `task-plan-gap-prompts` + board mutations, never task.ts, so no cycle). `recordDecompositionRejection` stayed
+              (its `toErrorMessage` dep would entangle). Two consumers (`record-plan-gap.ts`, `task-verify.test.ts`) repointed;
+              tsc + biome + task-verify (8 of the moved fns' tests) + contract + `test:fast` (2443) green. task.ts 2326→2150
+              (cumulative 2870→2150, −720/−25%).
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.

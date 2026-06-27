@@ -4,14 +4,16 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 import {
-	addPlanGapDecisionCardToBoard,
-	addPlanGapIntegrationCardToBoard,
-	addPlanGapScopeCardToBoard,
 	inferNKleinPlanSlugForTask,
-	markTaskNeedsDecompositionOnBoard,
 	recordDecompositionRejection,
 	runVerifyTaskAcceptanceCommand,
 } from "../../../src/commands/task";
+import {
+	addPlanGapDecisionCardToBoard,
+	addPlanGapIntegrationCardToBoard,
+	addPlanGapScopeCardToBoard,
+	markTaskNeedsDecompositionOnBoard,
+} from "../../../src/commands/task/task-plan-gap-cards";
 import {
 	buildPlanGapAdaptationRevision,
 	buildPlanGapIntegrationRevision,

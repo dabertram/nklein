@@ -1,13 +1,13 @@
 import {
-	buildPlanGapAdaptationRevision,
-	buildPlanGapIntegrationRevision,
-} from "../../commands/task/task-plan-gap-prompts.js";
-import {
 	addPlanGapDecisionCardToBoard,
 	addPlanGapIntegrationCardToBoard,
 	addPlanGapScopeCardToBoard,
-	inferNKleinPlanSlugForTask,
-} from "../../commands/task.js";
+} from "../../commands/task/task-plan-gap-cards.js";
+import {
+	buildPlanGapAdaptationRevision,
+	buildPlanGapIntegrationRevision,
+} from "../../commands/task/task-plan-gap-prompts.js";
+import { inferNKleinPlanSlugForTask } from "../../commands/task.js";
 import type {
 	RuntimeBoardCard,
 	RuntimeRecordNKleinPlanGapRequest,
