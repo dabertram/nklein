@@ -3305,6 +3305,19 @@ deep analysis:
       a better (busy) model, or be **attempted by a lesser** one (a per-task / per-project policy dial). Replaces the
       current one-model-per-role binding (→ manual override / pin). Needs the fitness table (eval harness) + the
       difficulty estimate populated first.
+      **SCOUTED 2026-06-27 (M2 wiring is now precisely scoped — the substrate is COMPLETE):** the ledger→fitness projection
+      already exists + is tested — `buildModelFitnessFromLedger` ([agent-ledger-projections.ts](src/core/agent-ledger-projections.ts))
+      turns the *live* ledger attempt stream into per-(model,role) `ModelFitnessRecord`s (COARSE for now:
+      `maxDifficultyCleared=0` + quality=reliability=success-rate, so the difficulty *gate* degenerates to "best available
+      by success-rate/speed" until the eval harness grades difficulty — real `avgLatencyMs`/`avgRetriesNeeded`), and
+      `selectModelForTask` consumes them. So the ONLY gap is the **live consumer**, and it is a **reconciliation, not a
+      greenfield wire**: the live start path already selects a model via the *candidate-based* `selectRoleModel`
+      ([role-model-selection.ts](src/core/role-model-selection.ts), consumed in [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)),
+      so M2 = fold the ledger fitness into *that one live decision* (feed `buildModelFitnessFromLedger` +
+      `estimateTaskDifficulty`, behind a **default-off policy dial** so it ships dark and is live-verifiable on LM Studio
+      before flipping). A behaviour-changing hot-path change across two selection systems → a focused fresh-context pass,
+      NOT a tail-of-session slice (do not rush it at depth — a bug here misroutes every task's model). Adding more *pure*
+      composition would just widen the unwired surface; the value is the reconciliation itself.
 - [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (approaches × ALL loaded models, no user) — LAYER 1**
       *(escalation order clarified 2026-06-27, user)*. On repeated failure, escalate **with NO user intervention**
       through (i) the §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding
