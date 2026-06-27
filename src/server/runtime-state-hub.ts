@@ -39,7 +39,10 @@ export interface DisposeRuntimeStateWorkspaceOptions {
 export interface CreateRuntimeStateHubDependencies {
 	workspaceRegistry: Pick<
 		WorkspaceRegistry,
-		"resolveWorkspaceForStream" | "buildProjectsPayload" | "buildWorkspaceStateSnapshot"
+		| "resolveWorkspaceForStream"
+		| "buildProjectsPayload"
+		| "buildWorkspaceStateSnapshot"
+		| "setNKleinSessionSummariesProvider"
 	>;
 }
 
@@ -82,6 +85,14 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 	const runtimeStateClients = new Set<WebSocket>();
 	const runtimeStateWorkspaceIdByClient = new Map<WebSocket, string>();
 	let nkleinSessionContextVersion = 0;
+
+	// Feed the registry the live NKlein agent-session summaries so the per-project sidebar activity badge counts the
+	// Docker-isolated NKlein agents (they live here, not in the terminal manager). Cache is updated on every NKlein
+	// summary before the broadcast flush, so buildProjectsPayload sees current running/queued state.
+	deps.workspaceRegistry.setNKleinSessionSummariesProvider((workspaceId) =>
+		Array.from(nkleinPreviousSummaryByWorkspaceId.get(workspaceId)?.values() ?? []),
+	);
+
 	const runtimeStateWebSocketServer = new WebSocketServer({ noServer: true });
 	const workspaceMetadataMonitor = createWorkspaceMetadataMonitor({
 		onMetadataUpdated: (workspaceId, workspaceMetadata) => {

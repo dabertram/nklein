@@ -65,6 +65,41 @@ describe("createRuntimeStateHub", () => {
 		runNKleinAcceptanceAutoRepairMock.mockClear();
 	});
 
+	it("feeds live NKlein agent summaries to the registry provider (the activity-badge source, not the terminal manager)", () => {
+		let capturedProvider: ((workspaceId: string) => readonly RuntimeTaskSessionSummary[]) | null = null;
+		const runningSummary: RuntimeTaskSessionSummary = {
+			...createAwaitingReviewSummary("task-run"),
+			state: "running",
+		};
+		const service = createTrackedService(runningSummary);
+		const hub = createRuntimeStateHub({
+			workspaceRegistry: {
+				resolveWorkspaceForStream: vi.fn(async () => ({
+					workspaceId: null,
+					workspacePath: null,
+					removedRequestedWorkspacePath: null,
+					didPruneProjects: false,
+				})),
+				buildProjectsPayload: vi.fn(async () => ({ projects: [], currentProjectId: null })),
+				setNKleinSessionSummariesProvider: vi.fn((provider) => {
+					capturedProvider = provider;
+				}),
+				buildWorkspaceStateSnapshot: vi.fn(async () => {
+					throw new Error("not used");
+				}),
+			},
+		});
+		// The hub must register the provider (otherwise the badge would only see terminal/PTY sessions).
+		expect(capturedProvider).not.toBeNull();
+		const provider = capturedProvider as unknown as (workspaceId: string) => readonly RuntimeTaskSessionSummary[];
+		expect(provider("ws-1")).toEqual([]);
+		hub.trackNKleinTaskSessionService("ws-1", "/workspaces/ws-1", service);
+		// After tracking, the provider returns the live NKlein summary the badge counts as running/queued.
+		const provided = provider("ws-1");
+		expect(provided.map((summary) => summary.taskId)).toEqual(["task-run"]);
+		expect(provided[0]?.state).toBe("running");
+	});
+
 	it("verifies nklein summaries that are already awaiting review when tracked", async () => {
 		const summary = createAwaitingReviewSummary("task-1");
 		const service = createTrackedService(summary);
@@ -77,6 +112,7 @@ describe("createRuntimeStateHub", () => {
 					didPruneProjects: false,
 				})),
 				buildProjectsPayload: vi.fn(async () => ({ projects: [], currentProjectId: null })),
+				setNKleinSessionSummariesProvider: vi.fn(),
 				buildWorkspaceStateSnapshot: vi.fn(async () => {
 					throw new Error("not used");
 				}),

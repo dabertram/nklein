@@ -3591,9 +3591,18 @@ deep analysis:
         per-session-flush `broadcastRuntimeProjectsUpdated` ([runtime-state-hub.ts:177](src/server/runtime-state-hub.ts#L177))
         — sessions flush on every state change — so the badge updates the instant an agent starts/queues/stops, with no
         new broadcast wiring. Verified: `countActiveAgentSessions` unit test + 4-case ProjectRow render test (running /
-        running+queued / queued-only / none) + root & web typecheck + web:build (24 web tests green); CHANGELOG'd. *(A
-        live multi-project screenshot is the only confirmatory step left — the render + data + live-broadcast path are
-        all proven.)*
+        running+queued / queued-only / none) + root & web typecheck + web:build (24 web tests green); CHANGELOG'd.
+        **PROVEN LIVE (2026-06-27, 2-project rail + Playwright):** `projects.list` reported `running=1` for the active
+        dev-test project and the screenshot showed the green "● 1 running" badge on it, idle projects showing only their
+        column counts (`/tmp/nklein-sidebar-activity.png`, sent to the user). **The live run caught + fixed a real bug the
+        unit/component tests missed** (this is exactly why live verification is mandatory): `summarizeProjectActiveSessions`
+        counted `terminalManager.listSummaries()`, but **Docker-isolated NKlein agents live in the NKlein task-session
+        service, NOT the terminal manager** — so the badge counted an empty source and always showed 0 for real agents.
+        Fix: the registry takes a `setNKleinSessionSummariesProvider` ([workspace-registry.ts](src/server/workspace-registry.ts))
+        that the **hub** wires from its live `nkleinPreviousSummaryByWorkspaceId` cache
+        ([runtime-state-hub.ts](src/server/runtime-state-hub.ts)); the registry unions those NKlein summaries with the
+        terminal manager's (dedup by taskId) before counting. Regression-guarded by a hub test asserting the provider
+        returns the tracked NKlein summaries. Capture tool: [scripts/shot-sidebar.mts](scripts/shot-sidebar.mts).
   - [ ] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): parallel projects don't actually parallelize LLM
         work.** Two gates: **(a) LM Studio defaults to SERIAL request handling** — even when !Klein sends concurrent
         requests, the GPU processes them one at a time unless the user raises LM Studio's server concurrency; !Klein can't
@@ -3606,6 +3615,21 @@ deep analysis:
         scheduler allows N concurrent *sessions*, but verify the per-request model calls actually hit the endpoint
         concurrently rather than the agent loops effectively taking turns. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware
         scheduling).
+  - [ ] **EVIDENCE → fix (2026-06-27, found while live-capturing the activity badge): the runtime EVENT LOOP STARVES
+        under heavy parallel agent streaming — the SERVER-tier root of "sluggish with 2 projects".** Measured: with one
+        dev-test agent streaming hard (`msgs=4728`), a trivial `projects.list` query took **44 seconds**; the instant that
+        agent went `awaiting_review` (stopped streaming) the same query dropped to **0.12 s**. So a single
+        heavily-streaming agent saturates the single Node thread and stalls ALL HTTP queries + WS broadcasts; 2+ parallel
+        streamers compound it. The §5.AI client-side fix (WS frame coalescing) cured the *browser* render storm, but the
+        *server* still does too much per frame. **Prime suspect:** `broadcastRuntimeProjectsUpdated` rebuilds the FULL
+        projects payload — `loadWorkspaceBoardById` (disk read) + `detectProjectHealthIssuesByWorkspaceId` (git/fs) for
+        **every** project — on **every** session-summary flush (per running agent, frequently); under parallel load these
+        pile up and starve the loop. Actionable: (a) **debounce/coalesce** the projects rebuild (it already rides the
+        ~`TASK_SESSION_STREAM_BATCH_MS` flush, but each rebuild is heavy) and/or **cache** board+health per workspace with
+        invalidation, so a flush doesn't re-read every project's board+git; (b) **decouple** the cheap live counts
+        (task-count + the new running/queued) from the expensive health detection (recompute health on a slower cadence);
+        (c) consider moving health/board reads off the hot path (worker thread / async cache). High-value: this is the
+        real "parallel work feels broken" tax. Ties §5.AI (sluggish-UI fix, client side) · §6.5 · §5.AF (admission/sched).
   - [ ] **selection policy** — `user | random | agent`-chosen next project (default: random/agent rotation across the
         registry, weighted toward tiers/domains we've touched least or that stress a just-changed area).
   - [ ] **generous-timeout run profile** — a dedicated "background eval" guardrail profile (long wall-time, higher

@@ -5,6 +5,7 @@ import type {
 	RuntimeProjectHealthIssue,
 	RuntimeProjectSummary,
 	RuntimeProjectTaskCounts,
+	RuntimeTaskSessionSummary,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { type ActiveAgentSessionCounts, countActiveAgentSessions } from "../core/api-contract";
@@ -80,6 +81,12 @@ export interface WorkspaceRegistry {
 		healthIssues?: RuntimeProjectHealthIssue[];
 	}) => RuntimeProjectSummary;
 	buildWorkspaceStateSnapshot: (workspaceId: string, workspacePath: string) => Promise<RuntimeWorkspaceStateResponse>;
+	/**
+	 * Supply the live NKlein agent-session summaries for a workspace (the hub owns that cache). Without it the
+	 * per-project activity badge would only see terminal/PTY sessions and miss the Docker-isolated NKlein agents — so the
+	 * registry unions this provider's summaries with the terminal manager's when counting running/queued agents.
+	 */
+	setNKleinSessionSummariesProvider: (provider: (workspaceId: string) => readonly RuntimeTaskSessionSummary[]) => void;
 	buildProjectsPayload: (preferredCurrentProjectId: string | null) => Promise<{
 		currentProjectId: string | null;
 		projects: RuntimeProjectSummary[];
@@ -226,6 +233,8 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 	const projectTaskCountsByWorkspaceId = new Map<string, RuntimeProjectTaskCounts>();
 	const terminalManagersByWorkspaceId = new Map<string, TerminalSessionManager>();
 	const terminalManagerLoadPromises = new Map<string, Promise<TerminalSessionManager>>();
+	// Live NKlein agent-session summaries per workspace, supplied by the hub (registry can't reach them directly).
+	let nkleinSessionSummariesProvider: ((workspaceId: string) => readonly RuntimeTaskSessionSummary[]) | null = null;
 
 	const rememberWorkspace = (workspaceId: string, repoPath: string): void => {
 		workspacePathsById.set(workspaceId, repoPath);
@@ -347,11 +356,16 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 	};
 
 	const summarizeProjectActiveSessions = (workspaceId: string): ActiveAgentSessionCounts => {
-		const terminalManager = getTerminalManagerForWorkspace(workspaceId);
-		if (!terminalManager) {
-			return { running: 0, queued: 0 };
+		// Union terminal/PTY sessions (legacy agents) with the live NKlein agent sessions (the hub-supplied provider) so
+		// the badge counts the Docker-isolated NKlein agents too — they are NOT in the terminal manager. Dedup by taskId.
+		const summariesByTaskId = new Map<string, RuntimeTaskSessionSummary>();
+		for (const summary of getTerminalManagerForWorkspace(workspaceId)?.listSummaries() ?? []) {
+			summariesByTaskId.set(summary.taskId, summary);
 		}
-		return countActiveAgentSessions(terminalManager.listSummaries());
+		for (const summary of nkleinSessionSummariesProvider?.(workspaceId) ?? []) {
+			summariesByTaskId.set(summary.taskId, summary);
+		}
+		return countActiveAgentSessions(summariesByTaskId.values());
 	};
 
 	const buildProjectsPayload = async (preferredCurrentProjectId: string | null) => {
@@ -492,6 +506,9 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 		disposeWorkspace,
 		summarizeProjectTaskCounts,
 		createProjectSummary: toProjectSummary,
+		setNKleinSessionSummariesProvider: (provider) => {
+			nkleinSessionSummariesProvider = provider;
+		},
 		buildWorkspaceStateSnapshot,
 		buildProjectsPayload,
 		resolveWorkspaceForStream,
