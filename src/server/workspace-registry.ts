@@ -11,7 +11,6 @@ import { type ActiveAgentSessionCounts, countActiveAgentSessions } from "../core
 import {
 	listWorkspaceIndexEntries,
 	loadWorkspaceBoardById,
-	loadWorkspaceContext,
 	loadWorkspaceState,
 	type RuntimeWorkspaceIndexEntry,
 	removeWorkspaceIndexEntry,
