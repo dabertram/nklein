@@ -3615,6 +3615,19 @@ deep analysis:
         scheduler allows N concurrent *sessions*, but verify the per-request model calls actually hit the endpoint
         concurrently rather than the agent loops effectively taking turns. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware
         scheduling).
+        **INVESTIGATED (2026-06-27, live):** confirmed !Klein's side is NOT the hard gate — the rail raises per-model
+        concurrency to N and the badge showed **running=2** (two sessions concurrently admitted on the one endpoint), so
+        (b) is already *raisable* (the constraint lives in the model-registry `constraints.maxConcurrentRequests`, default
+        1). The real gate is **(a) LM Studio serial GPU processing**, which !Klein can't change via the OpenAI-compat API.
+        **Important reframe:** a big part of what *looked* like "no parallel work" was actually the §5.AI event-loop hang
+        (a stuck/slow agent froze the whole runtime) — now FIXED; re-verified that with one agent stuck, `projects.list`
+        is **2.4 ms** (runtime fully responsive regardless of agent state), so a slow/serial endpoint no longer *also*
+        freezes the UI. **So the remaining !Klein-side work is purely (i): a UI advisory** — detect that the local endpoint
+        is serial (or just always advise for local providers, since LM Studio's setting isn't exposed via the
+        OpenAI-compat API) and tell the user "raise your endpoint's concurrency for true parallel LLM work," plus surface
+        the per-model concurrency control. That's **UI/UX work** (parked §5.AJ overhaul / needs the user), not a backend
+        fix. The default-bump idea (ii) is moot for LM Studio (it serializes regardless) and risky to change blind; leave
+        the registry constraint as the lever. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware scheduling).
   - [x] **FOUND + FIXED (2026-06-27): the SERVER-tier root of "sluggish with 2 projects" — `projects.list` HUNG 41–60 s
         under heavy parallel agent load; now 0.09–0.22 s (~270×).** Pinpointed by `--cpu-prof` + granular timing across
         7 live A/B cycles. **Root cause:** `buildProjectsPayload` ran `detectProjectHealthIssuesByWorkspaceId`
