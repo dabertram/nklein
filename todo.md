@@ -2098,8 +2098,13 @@ deep analysis:
               `autoMergeFinishedTaskWorktree`, `recordTaskWorktreeMergeObservations`, `createIntegrationCardForMergeConflict`
               + the `Finish*` types) → `commands/task/task-finish-commands.ts`. Cohesive (cross-calls stayed intra-module),
               so a clean one-way move. task.ts 1139→731 (cumulative 2870→731, **−2139/−75%**, three-quarters extracted).
-              tsc + biome + `test:fast` (2443) green. *(Remaining is now small: `recordTaskPlanGapCommand` (~168 lines) and
-              the `registerTaskCommand` subcommand-registration scaffolding — the file is mostly just the CLI wiring now.)*
+              tsc + biome + `test:fast` (2443) green.
+        - [x] **slice 21 (2026-06-27):** extracted `recordTaskPlanGapCommand` → `commands/task/task-record-plan-gap-command.ts`
+              (record a plan-gap observation + cross-linking revision + companion Planning card for the card-creating
+              kinds; leaf command). task.ts 731→547 (cumulative 2870→547, **−2323/−81%**). **task.ts is no longer a
+              monolith** — what remains is essentially the `registerTaskCommand` Commander subcommand wiring (+ the small
+              `runTaskCommand`/`parseOptionalBooleanOption` helpers) over the now-21 extracted per-concern modules. tsc +
+              biome + `test:fast` (2443) green. The §5.U "no large monolith" goal is **met for task.ts** (2870→547).
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.

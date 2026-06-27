@@ -1,9 +1,6 @@
 import type { Command } from "commander";
-import type { RuntimeWorkspaceStateResponse } from "../core/api-contract";
-import { type PlanGapKind, recordPlanGap } from "../core/plan-gap";
+import type { PlanGapKind } from "../core/plan-gap";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
-import { appendNKleinPlanRevision } from "../nklein-agent/nklein-plan-artifacts";
-import { mutateWorkspaceState } from "../state/workspace-state";
 import type { TaskWorktreeAutoMergeColumn } from "../workspace/task-worktree-auto-merge";
 import { parsePlanGapKind } from "./task/task-acceptance-plan-gap.js";
 import { printJson, toErrorMessage } from "./task/task-command-output.js";
@@ -21,195 +18,14 @@ import { linkTasks, unlinkTasks } from "./task/task-dependency-commands.js";
 import { finishTask, mergeTaskWorktreesCommand } from "./task/task-finish-commands.js";
 import { buildTaskNKleinSettingsForCreate, parseTaskNKleinReasoningEffort } from "./task/task-nklein-settings.js";
 import { expandSavedPlanTaskCommand } from "./task/task-plan-expand-command.js";
-import {
-	addPlanGapDecisionCardToBoard,
-	addPlanGapIntegrationCardToBoard,
-	addPlanGapScopeCardToBoard,
-} from "./task/task-plan-gap-cards.js";
-import { buildPlanGapAdaptationRevision, buildPlanGapIntegrationRevision } from "./task/task-plan-gap-prompts.js";
-import { inferNKleinPlanSlugForTask } from "./task/task-plan-slug.js";
 import { listTasks, reportBoardHealth } from "./task/task-read-commands.js";
-import { formatTaskRecord, parseListColumn } from "./task/task-record-format.js";
-import {
-	createRuntimeTrpcClient,
-	ensureRuntimeWorkspace,
-	notifyRuntimeWorkspaceStateUpdated,
-	resolveWorkspaceRepoPath,
-} from "./task/task-runtime-workspace.js";
+import { parseListColumn } from "./task/task-record-format.js";
+import { recordTaskPlanGapCommand } from "./task/task-record-plan-gap-command.js";
 import { startTask } from "./task/task-start-command.js";
 import { clearTaskSwarmStopCommand, requestTaskSwarmStopCommand } from "./task/task-swarm-commands.js";
 import { runVerifyTaskAcceptanceCommand } from "./task/task-verify-command.js";
 
 type JsonRecord = Record<string, unknown>;
-
-async function recordTaskPlanGapCommand(input: {
-	cwd: string;
-	projectPath?: string;
-	taskId: string;
-	kind: PlanGapKind;
-	description: string;
-	evidence?: string;
-	planSlug?: string;
-}): Promise<JsonRecord> {
-	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
-	const planSlug =
-		input.planSlug?.trim() ||
-		(await inferNKleinPlanSlugForTask({
-			workspacePath: workspaceRepoPath,
-			taskId: input.taskId,
-		}));
-	recordPlanGap({
-		workspacePath: workspaceRepoPath,
-		taskId: input.taskId,
-		kind: input.kind,
-		description: input.description,
-		evidence: input.evidence,
-	});
-	let revisionsPath = planSlug
-		? await appendNKleinPlanRevision({
-				workspacePath: workspaceRepoPath,
-				slug: planSlug,
-				taskId: input.taskId,
-				kind: input.kind,
-				description: input.description,
-				evidence: input.evidence,
-			})
-		: null;
-	let integrationTask: JsonRecord | null = null;
-	let adaptationTask: JsonRecord | null = null;
-	let adaptationCreated = false;
-	if (input.kind === "integration_needed") {
-		const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
-		const runtimeClient = createRuntimeTrpcClient(workspaceId);
-		const mutation = await mutateWorkspaceState<{ task: JsonRecord; created: boolean }>(
-			workspaceRepoPath,
-			(latestState) => {
-				const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
-				const created = addPlanGapIntegrationCardToBoard({
-					state: latestState,
-					taskId: input.taskId,
-					description: input.description,
-					evidence: input.evidence,
-					baseRef,
-				});
-				const nextState: RuntimeWorkspaceStateResponse = {
-					...latestState,
-					board: created.board,
-				};
-				return {
-					board: created.board,
-					value: {
-						task: formatTaskRecord(nextState, created.task, "planning"),
-						created: created.created,
-					},
-				};
-			},
-		);
-		integrationTask = mutation.value.task;
-		adaptationTask = mutation.value.task;
-		adaptationCreated = mutation.value.created;
-		if (mutation.saved) {
-			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
-		}
-		const integrationTaskId = typeof integrationTask.id === "string" ? integrationTask.id : null;
-		if (integrationTaskId && planSlug && adaptationCreated) {
-			const revision = buildPlanGapIntegrationRevision({
-				taskId: input.taskId,
-				integrationTaskId,
-				description: input.description,
-				evidence: input.evidence,
-			});
-			revisionsPath = await appendNKleinPlanRevision({
-				workspacePath: workspaceRepoPath,
-				slug: planSlug,
-				taskId: input.taskId,
-				kind: revision.kind,
-				description: revision.description,
-				evidence: revision.evidence ?? undefined,
-			});
-		}
-	}
-	if (
-		input.kind === "missing_decision" ||
-		input.kind === "contradictory_requirement" ||
-		input.kind === "scope_too_large"
-	) {
-		const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
-		const runtimeClient = createRuntimeTrpcClient(workspaceId);
-		const mutation = await mutateWorkspaceState<{ task: JsonRecord; created: boolean }>(
-			workspaceRepoPath,
-			(latestState) => {
-				const baseRef = latestState.git.currentBranch ?? latestState.git.defaultBranch ?? "main";
-				const adapted =
-					input.kind === "scope_too_large"
-						? addPlanGapScopeCardToBoard({
-								state: latestState,
-								taskId: input.taskId,
-								description: input.description,
-								evidence: input.evidence,
-								baseRef,
-							})
-						: addPlanGapDecisionCardToBoard({
-								state: latestState,
-								taskId: input.taskId,
-								kind:
-									input.kind === "contradictory_requirement"
-										? "contradictory_requirement"
-										: "missing_decision",
-								description: input.description,
-								evidence: input.evidence,
-								baseRef,
-							});
-				const nextState: RuntimeWorkspaceStateResponse = {
-					...latestState,
-					board: adapted.board,
-				};
-				return {
-					board: adapted.board,
-					value: {
-						task: formatTaskRecord(nextState, adapted.task, "planning"),
-						created: adapted.created,
-					},
-				};
-			},
-		);
-		adaptationTask = mutation.value.task;
-		adaptationCreated = mutation.value.created;
-		if (mutation.saved) {
-			await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
-		}
-		const adaptationTaskId = typeof adaptationTask.id === "string" ? adaptationTask.id : null;
-		if (adaptationTaskId && planSlug && adaptationCreated) {
-			const revision = buildPlanGapAdaptationRevision({
-				taskId: input.taskId,
-				adaptationTaskId,
-				kind: input.kind,
-				description: input.description,
-				evidence: input.evidence,
-			});
-			revisionsPath = await appendNKleinPlanRevision({
-				workspacePath: workspaceRepoPath,
-				slug: planSlug,
-				taskId: input.taskId,
-				kind: revision.kind,
-				description: revision.description,
-				evidence: revision.evidence ?? undefined,
-			});
-		}
-	}
-	return {
-		ok: true,
-		workspacePath: workspaceRepoPath,
-		taskId: input.taskId,
-		kind: input.kind,
-		description: input.description,
-		planSlug,
-		revisionsPath,
-		integrationTask,
-		adaptationTask,
-		adaptationCreated,
-	};
-}
 
 function parseOptionalBooleanOption(value: unknown, flagName: string): boolean | undefined {
 	if (value === undefined) {
