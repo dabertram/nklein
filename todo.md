@@ -2237,6 +2237,10 @@ deep analysis:
       (entry/terminal of a chain, parallel = both, cyclic throws), and `expandDecomposeProjectTasks` (no-op passthrough;
       **replaces a task with its sub-graph and rewires dependents to the terminal node**; throws on empty replacement,
       unknown id, depth-limit breach, cycle). The decomposition validation+expansion pair is now well-covered.
+      **`task-concurrency-gate.ts` covered (2026-06-27, 8 tests)** — the swarm admission accounting: counts only
+      queued/running/awaiting_review sessions (a **paused / failed / interrupted** task does NOT hold a slot), excludes
+      the task being started (never blocks itself) + the home-agent session, dedupes by task id, and the combined rule;
+      plus the limit-reached error names the configured max. A miscount here would wrongly block or over-admit parallel work.
       **`task-record-format` CLI input/error surface (6 tests):** `resolveTaskCommandTarget` (task-id|column
       mutual-exclusion, names the command), `parseListColumn` (`done`→`completed` alias, canonical ids, invalid throws),
       `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). **Board functions now covered too**
