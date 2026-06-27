@@ -2089,16 +2089,24 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain("Model roles");
 		expect(document.body.textContent).toContain("Agent rulesets");
 
-		// All "Override for this project" buttons (4 total: maxConcurrentTasks, agent, modelRoles, agentRulesets).
+		// At least 5 "Override for this project" rows (maxConcurrentTasks, agent, modelRoles, agentRulesets, concurrency).
 		const overrideButtons = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
 			(b) => b.textContent?.trim() === "Override for this project",
 		);
-		expect(overrideButtons.length).toBeGreaterThanOrEqual(4);
+		expect(overrideButtons.length).toBeGreaterThanOrEqual(5);
 
-		// Click "Override for this project" for the modelRoles row (3rd override button, index 2).
-		await act(async () => {
-			overrideButtons[2]?.click();
-		});
+		// Click the override toggle of a row by its label (the label span + button are siblings in the OverrideRow).
+		const clickRowOverride = async (label: string) => {
+			const row = Array.from(document.body.querySelectorAll<HTMLDivElement>("div.grid.gap-1")).find(
+				(candidate) => candidate.querySelector("span")?.textContent?.trim() === label,
+			);
+			const button = row?.querySelector<HTMLButtonElement>("button");
+			await act(async () => {
+				button?.click();
+			});
+		};
+
+		await clickRowOverride("Model roles");
 
 		// The row switches to override mode — a "Revert to global" button should appear.
 		const revertButtons = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
@@ -2106,15 +2114,10 @@ describe("RuntimeSettingsDialog", () => {
 		);
 		expect(revertButtons.length).toBeGreaterThanOrEqual(1);
 
-		// Click "Override for this project" for the agentRulesets row (now at index 3 since modelRoles is already active).
-		const overrideButtonsAfter = Array.from(document.body.querySelectorAll<HTMLButtonElement>("button")).filter(
-			(b) => b.textContent?.trim() === "Override for this project",
-		);
-		await act(async () => {
-			overrideButtonsAfter[overrideButtonsAfter.length - 1]?.click();
-		});
+		await clickRowOverride("Agent rulesets");
+		await clickRowOverride("Concurrency caps");
 
-		// Save — both overrides should be included in the payload (non-null).
+		// Save — all three nested overrides should be included in the payload (non-null).
 		await act(async () => {
 			findButtonByText(document.body, "Save")?.click();
 		});
@@ -2123,6 +2126,7 @@ describe("RuntimeSettingsDialog", () => {
 			expect.objectContaining({
 				modelRolesOverride: expect.anything(),
 				agentRulesetsOverride: expect.anything(),
+				concurrencyOverride: expect.anything(),
 			}),
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);

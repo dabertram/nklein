@@ -1334,6 +1334,10 @@ export function RuntimeSettingsDialog({
 		perProvider: {},
 		perModel: {},
 	});
+	const [concurrencyOverride, setConcurrencyOverride] = useState<{
+		perProvider: ConcurrencyMap;
+		perModel: ConcurrencyMap;
+	} | null>(null);
 	const [agentRulesets, setAgentRulesets] = useState<AgentRulesetsConfigPayload>(DEFAULT_AGENT_RULESETS_CONFIG);
 	const [modelRolesOverride, setModelRolesOverride] = useState<RuntimeModelRoles | null>(null);
 	const [agentRulesetsOverride, setAgentRulesetsOverride] = useState<AgentRulesetsConfigPayload | null>(null);
@@ -1484,6 +1488,16 @@ export function RuntimeSettingsDialog({
 			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
 		}),
 		[config?.concurrencyDefaults],
+	);
+	const initialConcurrencyOverride = useMemo(
+		() =>
+			config?.concurrencyOverride != null
+				? {
+						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
+						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
+					}
+				: null,
+		[config?.concurrencyOverride],
 	);
 	const initialAgentRulesets = useMemo<AgentRulesetsConfigPayload>(
 		() => config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG,
@@ -1722,6 +1736,9 @@ export function RuntimeSettingsDialog({
 		if (JSON.stringify(concurrencyDefaults) !== JSON.stringify(initialConcurrencyDefaults)) {
 			return true;
 		}
+		if (JSON.stringify(concurrencyOverride) !== JSON.stringify(initialConcurrencyOverride)) {
+			return true;
+		}
 		if (JSON.stringify(agentRulesets) !== JSON.stringify(initialAgentRulesets)) {
 			return true;
 		}
@@ -1794,6 +1811,8 @@ export function RuntimeSettingsDialog({
 		initialModelRoles,
 		initialConcurrencyDefaults,
 		concurrencyDefaults,
+		initialConcurrencyOverride,
+		concurrencyOverride,
 		initialAgentRulesets,
 		agentRulesets,
 		initialOpenPrPromptTemplate,
@@ -1893,6 +1912,14 @@ export function RuntimeSettingsDialog({
 			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
 			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
 		});
+		setConcurrencyOverride(
+			config?.concurrencyOverride != null
+				? {
+						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
+						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
+					}
+				: null,
+		);
 		setAgentRulesets(config?.agentRulesets ?? DEFAULT_AGENT_RULESETS_CONFIG);
 		setModelRolesOverride(
 			config?.modelRolesOverride != null ? normalizeModelRolesForSettings(config.modelRolesOverride) : null,
@@ -1910,6 +1937,8 @@ export function RuntimeSettingsDialog({
 		config?.commitPromptTemplate,
 		config?.conversationTimeoutMs,
 		config?.codeEmbeddingDefaults,
+		config?.concurrencyDefaults,
+		config?.concurrencyOverride,
 		config?.decompositionAutoApplyEnabled,
 		config?.secondOpinionReviewEnabled,
 		config?.reviewMaxRounds,
@@ -2371,6 +2400,7 @@ export function RuntimeSettingsDialog({
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
 			concurrencyDefaults,
+			concurrencyOverride,
 			agentRulesets,
 			shortcuts,
 			commitPromptTemplate,
@@ -3611,6 +3641,32 @@ export function RuntimeSettingsDialog({
 											value={agentRulesetsOverride ?? DEFAULT_AGENT_RULESETS_CONFIG}
 											disabled={controlsDisabled}
 											onChange={setAgentRulesetsOverride}
+										/>
+									</OverrideRow>
+									<OverrideRow
+										label="Concurrency caps"
+										inheritLabel={
+											Object.keys(concurrencyDefaults.perProvider).length +
+												Object.keys(concurrencyDefaults.perModel).length >
+											0
+												? `${Object.keys(concurrencyDefaults.perProvider).length} provider, ${Object.keys(concurrencyDefaults.perModel).length} model cap(s)`
+												: "defaults"
+										}
+										isOverridden={concurrencyOverride !== null}
+										onOverride={() =>
+											setConcurrencyOverride({
+												perProvider: { ...concurrencyDefaults.perProvider },
+												perModel: { ...concurrencyDefaults.perModel },
+											})
+										}
+										onRevert={() => setConcurrencyOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<ConcurrencyEditor
+											perProvider={concurrencyOverride?.perProvider ?? {}}
+											perModel={concurrencyOverride?.perModel ?? {}}
+											disabled={controlsDisabled}
+											onChange={setConcurrencyOverride}
 										/>
 									</OverrideRow>
 								</div>

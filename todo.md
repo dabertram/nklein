@@ -2685,9 +2685,18 @@ deep analysis:
         1–256) + an add-row; threaded through the settings dialog's draft state + init + dirty (JSON compare) + save +
         the reset effect, in a "Per-provider / per-model concurrency" card by the Max-concurrent-tasks field. 4 component
         tests + the dialog's 40 tests; root+web tsc, full web vitest (742), web:build, AND a **live browser load** (the
-        dialog opens + the card renders both sections, no console errors). **Remaining (small follow-up):** the
-        per-PROJECT override editor (the global default ships; the override is plumbed end-to-end in the backend, just no
-        UI row yet — mirror the `OverrideRow` pattern).
+        dialog opens + the card renders both sections, no console errors). **PER-PROJECT OVERRIDE EDITOR DONE
+        (2026-06-27) — §5.W CONCURRENCY UI 100% COMPLETE (global + project):** a "Concurrency caps" `OverrideRow` in the
+        Settings → Project "Per-project overrides" card (after Model roles / Agent rulesets), reusing the same
+        `<ConcurrencyEditor>`. "Override for this project" seeds an editable copy from the live global maps;
+        "Revert to global" clears it (→ `null` = inherit). Threaded `concurrencyOverride` through the dialog's
+        state/init(`initialConcurrencyOverride`)/dirty(JSON compare)/dep-array/reset/save (the contract's save request
+        already accepted `concurrencyOverride: …nullable().optional()`, and the backend persists+resolves it via
+        `scopedRuntimeConfig.concurrencyOverride`). The §5.W Phase-1b dialog test now also enables + asserts
+        `concurrencyOverride` non-null on save (and was hardened to click override rows by label, not fragile index).
+        Root+web tsc, full web vitest (742, incl. the extended dialog test), web:build, and a live load (app renders,
+        settings dialog opens, **no console errors** — the project-override section needs a selected project, which the
+        jsdom dialog test covers faithfully with a `workspaceId` config).
   - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
         ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
         per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it
