@@ -8,6 +8,8 @@
 // last; the simple decisions lead. Pure + deterministic; the surface (§5.AG panel) renders these and resumes the agent
 // with whatever the user provides.
 
+import type { OperatorTaskSignals } from "./operator-task-state";
+
 /** A user action that might unblock a hard-stuck task. Ordered conceptually simplest → heaviest. */
 export type EscalationSuggestionKind =
 	| "clarify_ambiguity"
@@ -115,4 +117,18 @@ export function buildEscalationSuggestions(context: EscalationSuggestionContext 
 		}
 	}
 	return ordered;
+}
+
+/**
+ * Map the §5.AG operator signals for a task into the suggestion context, so the user-escalation surface leads with the
+ * most-likely unblock: a pending clarifying question, a denied host/unsafe action, or a sandbox/setup blocker. Pure —
+ * other signals don't map to a suggestion (the full set still always shows; this only reorders). Compose as
+ * `buildEscalationSuggestions(buildEscalationSuggestionContext(signals))`.
+ */
+export function buildEscalationSuggestionContext(signals: OperatorTaskSignals): EscalationSuggestionContext {
+	return {
+		clarifyPending: signals.clarifyingQuestionPending,
+		blockedActionPending: signals.awaitingHostActionAck,
+		environmentBlocked: signals.blockedKind === "agent_sandbox_unavailable",
+	};
 }

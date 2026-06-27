@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { buildEscalationSuggestions, type EscalationSuggestionKind } from "../../../src/core/escalation-suggestions";
+import {
+	buildEscalationSuggestionContext,
+	buildEscalationSuggestions,
+	type EscalationSuggestionKind,
+} from "../../../src/core/escalation-suggestions";
+import type { OperatorTaskSignals } from "../../../src/core/operator-task-state";
+
+function operatorSignals(overrides: Partial<OperatorTaskSignals> = {}): OperatorTaskSignals {
+	return {
+		sessionState: "running",
+		columnId: "in_progress",
+		paused: false,
+		heartbeatLost: false,
+		blockedKind: null,
+		awaitingHostActionAck: false,
+		deliveryGateHeld: false,
+		clarifyingQuestionPending: false,
+		noProgressOrLoop: false,
+		...overrides,
+	};
+}
 
 const ALL_KINDS: EscalationSuggestionKind[] = [
 	"clarify_ambiguity",
@@ -57,5 +77,45 @@ describe("buildEscalationSuggestions", () => {
 			expect(suggestion.title.length).toBeGreaterThan(0);
 			expect(suggestion.detail.length).toBeGreaterThan(0);
 		}
+	});
+});
+
+describe("buildEscalationSuggestionContext", () => {
+	it("maps no blocking signals to an all-false context", () => {
+		expect(buildEscalationSuggestionContext(operatorSignals())).toEqual({
+			clarifyPending: false,
+			blockedActionPending: false,
+			environmentBlocked: false,
+		});
+	});
+
+	it("maps a pending clarifying question → clarifyPending (promotes clarify first)", () => {
+		const context = buildEscalationSuggestionContext(operatorSignals({ clarifyingQuestionPending: true }));
+		expect(context.clarifyPending).toBe(true);
+		expect(buildEscalationSuggestions(context).map((s) => s.kind)[0]).toBe<EscalationSuggestionKind>(
+			"clarify_ambiguity",
+		);
+	});
+
+	it("maps an awaiting host-action ack → blockedActionPending (promotes approve first)", () => {
+		const context = buildEscalationSuggestionContext(operatorSignals({ awaitingHostActionAck: true }));
+		expect(context.blockedActionPending).toBe(true);
+		expect(buildEscalationSuggestions(context).map((s) => s.kind)[0]).toBe<EscalationSuggestionKind>(
+			"approve_blocked_action",
+		);
+	});
+
+	it("maps a sandbox-unavailable block → environmentBlocked (promotes fix-environment first)", () => {
+		const context = buildEscalationSuggestionContext(operatorSignals({ blockedKind: "agent_sandbox_unavailable" }));
+		expect(context.environmentBlocked).toBe(true);
+		expect(buildEscalationSuggestions(context).map((s) => s.kind)[0]).toBe<EscalationSuggestionKind>(
+			"fix_environment",
+		);
+	});
+
+	it("does not treat other blockedKind values as an environment blocker", () => {
+		expect(
+			buildEscalationSuggestionContext(operatorSignals({ blockedKind: "needs_decomposition" })).environmentBlocked,
+		).toBe(false);
 	});
 });

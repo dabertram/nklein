@@ -3324,7 +3324,10 @@ deep analysis:
       a simple user decision is enough**, and *making a bigger model available is only ONE of them*. **Suggestions core
       DONE (2026-06-27):** pure `buildEscalationSuggestions(context)`
       ([src/core/escalation-suggestions.ts](src/core/escalation-suggestions.ts)) returns the ordered set (simple
-      decisions first; context promotes the most-likely fix to the front): clarify an ambiguity / pick a direction ·
+      decisions first; context promotes the most-likely fix to the front — and the §5.AG→§5.AB context bridge
+      `buildEscalationSuggestionContext(operatorSignals)` (same module) derives that promotion from the real operator
+      signals: a pending clarifying question → clarify first, an awaiting host-action ack → approve first, a
+      sandbox-unavailable block → fix-environment first): clarify an ambiguity / pick a direction ·
       provide missing context (files, examples, credentials) · adjust or relax a constraint / guardrail / acceptance bar ·
       approve a blocked host/unsafe action · fix an environment / setup / dependency issue · re-scope or split the task ·
       and last, **make a more capable model available** — optionally letting *that* bigger model **analyze the captured
