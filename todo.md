@@ -4353,9 +4353,14 @@ deep analysis:
       — the canonical (non-lossy) direction mapping each phase to the board column it surfaces as (queue ladder + planning
       → Planning; implementing/acceptance → In Progress; review→delivery → Review; completed/cancelled → their lanes;
       failed parks in In Progress), so the scheduler can keep the board in sync from a phase; 4 tests. **Still owed:** put an
-      interface in front of `RuntimeTaskStartQueue` + a durable queued-start store with restart replay, and move the
-      queue-drain / auto-start cascades out of `runtime-server.ts` into a `TaskWorkflowService` driven by this reducer
-      (with characterization tests). This is also exactly the §5.AF "durable long-run job scheduler" item — one arc.
+      durable queued-start store with restart replay, and move the queue-drain / auto-start cascades out of
+      `runtime-server.ts` into a `TaskWorkflowService` driven by this reducer (with characterization tests). *(NOTE: the
+      **interface already exists** — `RuntimeTaskStartQueue` in
+      [src/trpc/runtime-task-start-queue.ts](src/trpc/runtime-task-start-queue.ts), an in-memory `enqueue`/`takeReady`/
+      `remove`/`size` queue whose `QueuedRuntimeTaskStart` already carries `attempts`/`nextAttemptAt`/`lastError` for
+      backoff. So the remaining work is the **durable persistence** of that queue [serialize/reload its entries, like the
+      §5.AF ledger store] + the **Red** runtime-server extraction.)* This is also exactly the §5.AF "durable long-run job
+      scheduler" item — one arc.
 - *(already tracked in §5.U — not duplicated here: the `runtime-settings-dialog.tsx` JSX decomposition, the
   `nklein-task-session-service.ts` collaborator extraction, and the monolith inventory.)*
 
