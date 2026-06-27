@@ -4277,10 +4277,14 @@ deep analysis:
       (`RuntimeGlobalConfigFileShape` / `RuntimeProjectConfigFileShape`) are extracted into
       [src/config/runtime-config-types.ts](src/config/runtime-config-types.ts); the public pair is **re-exported** from
       `runtime-config.ts` so every existing importer of `./runtime-config` is unchanged (root tsc + biome clean; the 64
-      config-suite tests green). **Remaining slices:** the DEFAULT_* constants → `runtime-config-defaults.ts`; the
-      ~800-line normalize/build-assembly block → `runtime-config-normalize.ts`; the change-field registry →
-      `runtime-config-change-fields.ts`; load/save/update → `runtime-config-store.ts` (each a careful slice — config
-      defaulting can regress quietly, so verify round-trip + corrupt-vs-missing each time).
+      config-suite tests green). **Prompt-templates slice DONE (2026-06-27):** the 4 big git-delivery prompt-template
+      strings (~78 lines: the LEGACY_HOST_WORKTREE_* pair + the DEFAULT_COMMIT/OPEN_PR pair) moved verbatim into
+      [src/config/runtime-config-prompt-templates.ts](src/config/runtime-config-prompt-templates.ts) and imported back —
+      byte-identity confirmed (the removal Edit matched the originals exactly) and the on-disk-format contract test
+      (asserts the template defaults) + the 64 config tests stay green. **Remaining slices:** the small DEFAULT_* value
+      consts → `runtime-config-defaults.ts`; the ~800-line normalize/build-assembly block → `runtime-config-normalize.ts`;
+      the change-field registry → `runtime-config-change-fields.ts`; load/save/update → `runtime-config-store.ts` (each a
+      careful slice — config defaulting can regress quietly, so verify round-trip + corrupt-vs-missing each time).
 - [ ] **Settings draft boundary (highest-churn win).** Extract a behavior-owning Settings **draft model** from
       `runtime-settings-dialog.tsx` (a Red monolith every new setting competes inside): typed draft state · init/reset ·
       dirty detection · validation · save-payload construction, as `web-ui/src/features/settings/{settings-draft,
