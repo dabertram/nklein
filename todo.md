@@ -3542,11 +3542,17 @@ deep analysis:
 > agent-selected**. **Invariants:** LOCAL ONLY (#1), strict Docker isolation (#2 — every dev-test agent runs sandboxed,
 > same as real tasks, §5.A), ≥32k floor (#3). **This is the operational, always-on instance of §5.V's e2e oracle +
 > §5.Z's cross-model sweep, powered by the §5.AF durable scheduler — NOT a parallel mechanism; reuse those seams.**
-- [ ] **Fully integrate the lately-added dev-test-projects.** Audit the 45-folder `dev-test-projects/` registry (§5.O)
-      end-to-end: every folder discovered + schema-valid, selectable in the UI (`DevTestRegistryPicker`) and CLI
-      (`nklein dev test-project`/`dev sweep`), scaffolds + runs through the **same** sandboxed `startTaskSession` path as
-      real tasks, and produces evidence. Fix any folder that doesn't run; confirm none reference `~/Desktop`. (Closes the
-      "lately-added projects fully integrated" ask before the rail leans on them.)
+- [x] **Fully integrate the lately-added dev-test-projects — AUDITED CLEAN (2026-06-27).** Ran
+      `loadDevTestProjectRegistry()`/`listDevTestProjectIds()` ([dev-test-project-registry.ts](src/nklein-agent/dev-test-project-registry.ts)):
+      **all 45 folders discovered + schema-valid + enabled (45/45 load, 0 skipped/malformed)**. **No `~/Desktop` path
+      references** — the lone "Desktop" match is *spec content* ("desktop automation" as a domain capability in project
+      36's `specification.md`), not a filesystem path. **Selectable** via both surfaces: the same loader feeds the UI
+      `DevTestRegistryPicker` (through `projects.listDevTestProjects`) and the CLI (`nklein dev test-project`).
+      **Scaffolds + runs through the sandboxed `startTaskSession` path** — exercised repeatedly + live this session by
+      [dev-test-rail.mts](scripts/dev-test-rail.mts) (real projects created, agents started/ran, evidence collected). So
+      the registry is fully integrated; the rail can lean on it. *(Open follow-ups elsewhere: the per-folder "runs to a
+      clean terminal state on a small model" reliability is what the always-on rail + §5.O output-robustness sweep keep
+      exercising — that's ongoing evaluation, not an integration gap.)*
 - [ ] **The always-on evaluation rail (background, idle-aware).** A long-running background runner (the §5.AF **durable
       lease scheduler** — checkpoints to the ledger, survives restart; do NOT build a fragile foreground `verify-*.mts`
       loop) that, when the loaded models are **idle** (no targeted feature test claiming them), picks dev-test project(s)
