@@ -4198,10 +4198,10 @@ deep analysis:
   · `Proposed CHANGELOG entry` (only if release-note-worthy).
 
 > **Dispatch-enabler infra (landable now — low-risk, each makes future fan-out safer/faster):**
-- [ ] **First-class `test:contract` gate.** Add `"test:contract": "vitest run test/contract"` (it's the best merge-safety
-      layer — spawned backend, isolated home, free ports, raw HTTP/WS, mock LLM, on-disk seams) and name it in the
-      manifest for every tRPC / config-schema / persistence / task-lifecycle / settings change. Today it's hidden inside
-      broad commands.
+- [x] **First-class `test:contract` gate — DONE (2026-06-27).** Added `"test:contract": "vitest run test/contract"` to
+      `package.json` (it's the best merge-safety layer — spawned backend, isolated home, free ports, raw HTTP/WS, mock
+      LLM, on-disk seams; was hidden inside the broad `test`). Named in the path→gate manifest above for every tRPC /
+      config-schema / persistence / task-lifecycle / settings change. Verified: runs green — 18 files / 272 tests.
 - [ ] **`web:e2e:smoke` canary.** A seconds-long Playwright smoke that **always starts a fresh server on a unique port**
       (never reuses a stale dev server — the stale-`4173`-reuse cascade burned a 200s false failure), checking app boot /
       no Vite overlay / Settings open / board render / chat sidebar render. Keep the full Playwright suite for
