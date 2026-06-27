@@ -2211,6 +2211,13 @@ deep analysis:
       `formatRepeatedToolCallParkMessage` (empty `decompose_project` → the weak-local-model diagnostic; generic
       repeated-call message echoing count+summary otherwise; decompose_project WITH args → generic). This is the recurring
       false-pause guard area — the pure helpers are now pinned (the stateful class is exercised via the service suite).
+      **`autonomy-budget-watchdog` (8 tests — the autonomous-run SAFETY LIMITER, was fully untested):**
+      `formatWallTimeDuration` (minute/hour pluralization, min-1-minute) + the `AutonomyBudgetWatchdog.check` guardrail
+      ladder via injected callbacks — healthy→continue, home-agent/already-attention skip, operator-pause park, max-turns
+      park, N-consecutive-no-diff park + the no-diff state machine (same-commit streak, new-commit + `resetTask` reset),
+      and wall-time-exhausted park (tripped with a distant `startedAt`, no time mock needed). *(Found via a
+      content-verified import-grep scan — the basename heuristic had hidden these; also still untested + worth a pass:
+      `decomposition-stall-nudger`, `decomposition/plan-task-routing`, `decomposition/plan-task-board-apply`.)*
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
