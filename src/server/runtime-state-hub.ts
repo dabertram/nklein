@@ -21,6 +21,7 @@ import type {
 	RuntimeStateStreamWorkspaceStateMessage,
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
+import { createCoalescingScheduler } from "../core/coalescing-scheduler";
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { runNKleinAcceptanceAutoRepair } from "../nklein-agent/nklein-acceptance-auto-repair";
@@ -30,6 +31,8 @@ import { createWorkspaceMetadataMonitor } from "./workspace-metadata-monitor";
 import type { ResolvedWorkspaceStreamTarget, WorkspaceRegistry } from "./workspace-registry";
 
 const TASK_SESSION_STREAM_BATCH_MS = 150;
+/** Coalesce the heavy per-flush projects-payload rebuild to at most one per this window (§5.AI event-loop relief). */
+const PROJECTS_BROADCAST_COALESCE_MS = 250;
 
 export interface DisposeRuntimeStateWorkspaceOptions {
 	disconnectClients?: boolean;
@@ -140,6 +143,15 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		}
 	};
 
+	// Coalesce the high-frequency per-session-flush projects rebuild (§5.AI): rebuilding every project's payload (board
+	// disk-read + health fs-scan) on every ~150ms flush, per workspace, piled fs I/O onto the single event loop under
+	// parallel agent streaming (a trivial query measured 44s under load). Throttle it to one rebuild per window using the
+	// latest workspace id — trailing-edge so the final state always lands. Discrete events (project add/remove/prune)
+	// still call broadcastRuntimeProjectsUpdated directly for an immediate update.
+	const projectsBroadcastScheduler = createCoalescingScheduler<string | null>((preferredCurrentProjectId) => {
+		void broadcastRuntimeProjectsUpdated(preferredCurrentProjectId);
+	}, PROJECTS_BROADCAST_COALESCE_MS);
+
 	const broadcastNKleinMcpAuthStatusesUpdated = (statuses: RuntimeNKleinMcpServerAuthStatus[]) => {
 		if (runtimeStateClients.size === 0) {
 			return;
@@ -185,7 +197,8 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				sendRuntimeStateMessage(client, payload);
 			}
 		}
-		void broadcastRuntimeProjectsUpdated(workspaceId);
+		// Coalesced: a burst of flushes triggers one projects rebuild per window (latest state), not one per flush.
+		projectsBroadcastScheduler.schedule(workspaceId);
 	};
 
 	const queueTaskSessionSummaryBroadcast = (workspaceId: string, summary: RuntimeTaskSessionSummary) => {
@@ -654,6 +667,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		bumpNKleinSessionContextVersion,
 		broadcastTaskReadyForReview,
 		close: async () => {
+			projectsBroadcastScheduler.cancel();
 			for (const timer of taskSessionBroadcastTimersByWorkspaceId.values()) {
 				clearTimeout(timer);
 			}

@@ -3615,21 +3615,26 @@ deep analysis:
         scheduler allows N concurrent *sessions*, but verify the per-request model calls actually hit the endpoint
         concurrently rather than the agent loops effectively taking turns. Ties §6.5 · §5.T/§5.W · §5.AB (resource-aware
         scheduling).
-  - [ ] **EVIDENCE → fix (2026-06-27, found while live-capturing the activity badge): the runtime EVENT LOOP STARVES
-        under heavy parallel agent streaming — the SERVER-tier root of "sluggish with 2 projects".** Measured: with one
-        dev-test agent streaming hard (`msgs=4728`), a trivial `projects.list` query took **44 seconds**; the instant that
-        agent went `awaiting_review` (stopped streaming) the same query dropped to **0.12 s**. So a single
-        heavily-streaming agent saturates the single Node thread and stalls ALL HTTP queries + WS broadcasts; 2+ parallel
-        streamers compound it. The §5.AI client-side fix (WS frame coalescing) cured the *browser* render storm, but the
-        *server* still does too much per frame. **Prime suspect:** `broadcastRuntimeProjectsUpdated` rebuilds the FULL
-        projects payload — `loadWorkspaceBoardById` (disk read) + `detectProjectHealthIssuesByWorkspaceId` (git/fs) for
-        **every** project — on **every** session-summary flush (per running agent, frequently); under parallel load these
-        pile up and starve the loop. Actionable: (a) **debounce/coalesce** the projects rebuild (it already rides the
-        ~`TASK_SESSION_STREAM_BATCH_MS` flush, but each rebuild is heavy) and/or **cache** board+health per workspace with
-        invalidation, so a flush doesn't re-read every project's board+git; (b) **decouple** the cheap live counts
-        (task-count + the new running/queued) from the expensive health detection (recompute health on a slower cadence);
-        (c) consider moving health/board reads off the hot path (worker thread / async cache). High-value: this is the
-        real "parallel work feels broken" tax. Ties §5.AI (sluggish-UI fix, client side) · §6.5 · §5.AF (admission/sched).
+  - [ ] **EVIDENCE → the runtime EVENT LOOP STARVES under heavy parallel agent streaming — the SERVER-tier root of
+        "sluggish with 2 projects" (2026-06-27; root cause CORRECTED by live A/B).** Measured: with an agent streaming
+        hard a trivial `projects.list` query took **44–60 s**; the instant the agent stopped streaming the same query
+        dropped to **0.08–0.12 s**. So a single heavily-streaming agent saturates the single Node thread and stalls ALL
+        HTTP queries; parallel streamers compound it. **ROOT CAUSE (corrected via live A/B):** my first hypothesis was the
+        per-flush `broadcastRuntimeProjectsUpdated` rebuild — but a second live run measured **41–60 s latency with NO
+        browser client connected**, where `broadcastRuntimeProjectsUpdated` early-returns (`runtimeStateClients.size===0`)
+        and the rebuild never runs. So the rebuild is NOT the dominant cost — **the dominant starvation is the agent's own
+        stream processing on the single Node thread** (LM Studio SSE parse + the agent loop + Docker tool exec). The
+        runtime does heavy agent work on the *same* thread that serves HTTP/WS. **DONE (secondary fix, 2026-06-27):**
+        coalesced the per-flush projects rebuild to ≤1/window ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts)
+        wired in [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — real waste
+        reduction WHEN a client is connected (board disk-read + health fs-scan per project was firing ~every 150ms/ws), but
+        it does **not** move the headline number (the agent processing dominates). **STILL OWED (the real, architectural
+        fix):** get the agent stream processing OFF the request-serving thread — (a) run NKlein agent loops / SSE parsing in
+        **worker threads** or child processes so the main loop stays responsive; (b) and/or throttle/yield in the per-chunk
+        SSE handler so it doesn't monopolize a tick; (c) also batch the server-side `task_chat_message` WS sends (one
+        `socket.send` per agent message today — a second per-frame cost that only bites when clients ARE connected; the
+        client already coalesces *receipt*). High-value: this is the real "parallel work feels broken" tax. Ties §5.AI
+        (sluggish-UI client fix) · §6.5 · §5.AF (admission/sched) · §5.W (concurrency).
   - [ ] **selection policy** — `user | random | agent`-chosen next project (default: random/agent rotation across the
         registry, weighted toward tiers/domains we've touched least or that stress a just-changed area).
   - [ ] **generous-timeout run profile** — a dedicated "background eval" guardrail profile (long wall-time, higher
