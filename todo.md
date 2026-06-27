@@ -4368,10 +4368,18 @@ deep analysis:
       queued start across all workspaces, for persisting) + `hydrate(entries)` (replace the in-memory queue from a
       snapshot, **preserving** each entry's `queuedAt`/`nextAttemptAt`/`attempts` so a restored delayed start stays held
       until its original due time, not reset to ready-now) on `RuntimeTaskStartQueue`, with the `scheduledTaskStartQueue`
-      wrapper delegating both; 2 added queue tests. So the **only remaining work is the Red runtime-server wiring**: at
-      boot `loadQueuedTaskStartsFromDisk` → `hydrate` → schedule a drain per restored workspace; and
-      `saveQueuedTaskStartsToDisk(snapshot())` after each enqueue/drain/clear.)* This is also exactly
-      the §5.AF "durable long-run job scheduler" item — one arc.
+      wrapper delegating both; 2 added queue tests. **AND THE RUNTIME-SERVER WIRING IS NOW DONE (2026-06-27) — the
+      durable queued-start store is functionally complete:** `runtime-server.ts` computes one global snapshot path
+      (`resolveNkleinRuntimeHomePath(homedir())/task-start-queue.jsonl`), passes the queue an **`onChange`** callback that
+      `saveQueuedTaskStartsToDisk(snapshot)` on every mutation (the change-emitting is centralized in the queue itself —
+      enqueue/remove-that-removed/takeReady-that-took/clearWorkspace-that-cleared — so even the direct base-queue
+      `clearWorkspace` call persists, no missed site), and at boot **awaits** `loadQueuedTaskStartsFromDisk` →
+      `replayPersistedQueuedTaskStarts` (a pure helper: hydrate + re-arm a drain per restored start at its original due
+      time, scheduler keeps the earliest per workspace). The replay is awaited **after** `runtimeApi` is built and
+      **before** the function returns, so a 0ms drain timer can never fire before `runtimeApi` exists and the read
+      completes before the server serves any enqueue (no snapshot clobber). +3 queue tests (onChange-only-on-real-change;
+      replay arms a drain per start at the right delay; empty-snapshot no-op). tsc+biome+`test:fast` (2435) green.)* This
+      was also exactly the §5.AF "durable long-run job scheduler" item — one arc, now landed.
 - *(already tracked in §5.U — not duplicated here: the `runtime-settings-dialog.tsx` JSX decomposition, the
   `nklein-task-session-service.ts` collaborator extraction, and the monolith inventory.)*
 

@@ -1,10 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
+import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import {
 	capabilitiesForTier,
 	DEFAULT_AGENT_CAPABILITY_TIER,
@@ -81,7 +83,12 @@ import { createTerminalWebSocketBridge } from "../terminal/ws-server";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router";
 import { createProjectsApi } from "../trpc/projects-api";
 import { createRuntimeApi } from "../trpc/runtime-api";
-import { createRuntimeTaskStartQueue, type RuntimeTaskStartQueue } from "../trpc/runtime-task-start-queue";
+import {
+	createRuntimeTaskStartQueue,
+	type RuntimeTaskStartQueue,
+	replayPersistedQueuedTaskStarts,
+} from "../trpc/runtime-task-start-queue";
+import { loadQueuedTaskStartsFromDisk, saveQueuedTaskStartsToDisk } from "../trpc/runtime-task-start-queue-store";
 import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
@@ -292,7 +299,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const nkleinTaskSessionServiceByWorkspaceId = new Map<string, NKleinTaskSessionService>();
 	const queuedStartDrainUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const nkleinWatcherRegistry = createNKleinWatcherRegistry();
-	const taskStartQueue = createRuntimeTaskStartQueue();
+	// §5.AF durable queued-start store: one global JSONL snapshot under the runtime home, persisted on every queue
+	// change and replayed at boot so a runtime restart resumes pending starts instead of silently dropping them.
+	const taskStartQueuePath = join(resolveNkleinRuntimeHomePath(homedir()), "task-start-queue.jsonl");
+	const taskStartQueue = createRuntimeTaskStartQueue({
+		onChange: (entries) => {
+			void saveQueuedTaskStartsToDisk(taskStartQueuePath, entries);
+		},
+	});
 	const queuedStartDrainInFlightByWorkspaceId = new Set<string>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
 	const queuedStartDrainTimersByWorkspaceId = new Map<
@@ -1147,6 +1161,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const url = activeWorkspaceId
 		? buildKanbanRuntimeUrl(`/${encodeURIComponent(activeWorkspaceId)}`)
 		: getKanbanRuntimeOrigin();
+
+	// §5.AF: replay the persisted queue once, now that the API + drain scheduler are wired. Awaited before returning,
+	// so it completes before the caller serves any request that could enqueue (so the snapshot we just read is never
+	// clobbered). The hydrate + per-start drain re-arming is the pure `replayPersistedQueuedTaskStarts` helper.
+	replayPersistedQueuedTaskStarts({
+		entries: await loadQueuedTaskStartsFromDisk(taskStartQueuePath),
+		queue: taskStartQueue,
+		scheduleDrain: scheduleQueuedTaskStartDrain,
+	});
 
 	return {
 		url,

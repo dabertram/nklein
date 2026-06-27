@@ -1,6 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import { createRuntimeTaskStartQueue } from "../../../src/trpc/runtime-task-start-queue";
+import {
+	createRuntimeTaskStartQueue,
+	type QueuedRuntimeTaskStart,
+	replayPersistedQueuedTaskStarts,
+} from "../../../src/trpc/runtime-task-start-queue";
+
+function persistedEntry(
+	workspaceId: string,
+	taskId: string,
+	over: Partial<QueuedRuntimeTaskStart> = {},
+): QueuedRuntimeTaskStart {
+	return {
+		workspaceScope: { workspaceId, workspacePath: `/repo/${workspaceId}` },
+		input: { taskId, prompt: "do it", baseRef: "main", queueOnEndpointBusy: true },
+		queuedAt: 1_000,
+		nextAttemptAt: 1_000,
+		attempts: 1,
+		lastError: null,
+		...over,
+	};
+}
 
 describe("runtime task start queue", () => {
 	it("deduplicates queued starts by workspace and task", () => {
@@ -103,5 +123,62 @@ describe("runtime task start queue", () => {
 		queue.hydrate([]);
 		expect(queue.size()).toBe(0);
 		expect(queue.snapshot()).toEqual([]);
+	});
+
+	it("fires onChange with a fresh snapshot only when a mutation actually changes the queue", () => {
+		const snapshots: QueuedRuntimeTaskStart[][] = [];
+		const queue = createRuntimeTaskStartQueue({ onChange: (entries) => snapshots.push(entries) });
+
+		queue.enqueue({
+			workspaceScope: { workspaceId: "w", workspacePath: "/repo/w" },
+			request: { taskId: "t", prompt: "p", baseRef: "main" },
+			now: 1_000,
+		});
+		expect(snapshots).toHaveLength(1);
+		expect(snapshots[0]?.map((entry) => entry.input.taskId)).toEqual(["t"]);
+
+		// A remove that matches nothing must not persist a redundant snapshot.
+		queue.remove("w", "absent");
+		expect(snapshots).toHaveLength(1);
+
+		// A real remove fires onChange with the now-empty snapshot.
+		queue.remove("w", "t");
+		expect(snapshots).toHaveLength(2);
+		expect(snapshots[1]).toEqual([]);
+	});
+
+	it("replayPersistedQueuedTaskStarts hydrates the queue and arms a drain per restored start at its due time", () => {
+		const queue = createRuntimeTaskStartQueue();
+		const drains: Array<{ workspaceId: string; delayMs: number }> = [];
+
+		replayPersistedQueuedTaskStarts({
+			entries: [
+				persistedEntry("w1", "t1", { nextAttemptAt: 6_000 }),
+				persistedEntry("w2", "t2", { nextAttemptAt: 3_000, lastError: "endpoint busy" }),
+			],
+			queue,
+			scheduleDrain: (scope, delayMs) => drains.push({ workspaceId: scope.workspaceId, delayMs }),
+			now: 4_000,
+		});
+
+		expect(queue.size()).toBe(2);
+		expect(drains).toEqual([
+			{ workspaceId: "w1", delayMs: 2_000 }, // 6_000 - 4_000
+			{ workspaceId: "w2", delayMs: 0 }, // 3_000 - 4_000, clamped to 0
+		]);
+	});
+
+	it("replayPersistedQueuedTaskStarts is a no-op for an empty snapshot", () => {
+		const queue = createRuntimeTaskStartQueue();
+		let drainCalls = 0;
+		replayPersistedQueuedTaskStarts({
+			entries: [],
+			queue,
+			scheduleDrain: () => {
+				drainCalls += 1;
+			},
+		});
+		expect(queue.size()).toBe(0);
+		expect(drainCalls).toBe(0);
 	});
 });

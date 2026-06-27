@@ -50,8 +50,21 @@ function createQueueKey(workspaceId: string, taskId: string): string {
 	return `${workspaceId}\0${taskId}`;
 }
 
-export function createRuntimeTaskStartQueue(): RuntimeTaskStartQueue {
+export function createRuntimeTaskStartQueue(options?: {
+	/** Fired with a fresh snapshot after every mutation that changes the queue — for durable persistence. */
+	onChange?: (entries: QueuedRuntimeTaskStart[]) => void;
+}): RuntimeTaskStartQueue {
 	const queuedByKey = new Map<string, QueuedRuntimeTaskStart>();
+	const buildSnapshot = (): QueuedRuntimeTaskStart[] =>
+		[...queuedByKey.values()].map((queued) => ({
+			workspaceScope: cloneWorkspaceScope(queued.workspaceScope),
+			input: cloneQueuedRequest(queued.input),
+			queuedAt: queued.queuedAt,
+			nextAttemptAt: queued.nextAttemptAt,
+			attempts: queued.attempts,
+			lastError: queued.lastError,
+		}));
+	const emitChange = (): void => options?.onChange?.(buildSnapshot());
 
 	return {
 		enqueue(input) {
@@ -71,10 +84,13 @@ export function createRuntimeTaskStartQueue(): RuntimeTaskStartQueue {
 				lastError: input.error ?? existing?.lastError ?? null,
 			};
 			queuedByKey.set(key, queued);
+			emitChange();
 			return queued;
 		},
 		remove(workspaceId, taskId) {
-			queuedByKey.delete(createQueueKey(workspaceId, taskId));
+			if (queuedByKey.delete(createQueueKey(workspaceId, taskId))) {
+				emitChange();
+			}
 		},
 		takeReady(workspaceId, options) {
 			const now = options?.now ?? Date.now();
@@ -92,13 +108,21 @@ export function createRuntimeTaskStartQueue(): RuntimeTaskStartQueue {
 			ready.sort(
 				(left, right) => left.queuedAt - right.queuedAt || left.input.taskId.localeCompare(right.input.taskId),
 			);
+			if (ready.length > 0) {
+				emitChange();
+			}
 			return ready;
 		},
 		clearWorkspace(workspaceId) {
+			let changed = false;
 			for (const [key, queued] of queuedByKey.entries()) {
 				if (queued.workspaceScope.workspaceId === workspaceId) {
 					queuedByKey.delete(key);
+					changed = true;
 				}
+			}
+			if (changed) {
+				emitChange();
 			}
 		},
 		size(workspaceId) {
@@ -114,14 +138,7 @@ export function createRuntimeTaskStartQueue(): RuntimeTaskStartQueue {
 			return count;
 		},
 		snapshot() {
-			return [...queuedByKey.values()].map((queued) => ({
-				workspaceScope: cloneWorkspaceScope(queued.workspaceScope),
-				input: cloneQueuedRequest(queued.input),
-				queuedAt: queued.queuedAt,
-				nextAttemptAt: queued.nextAttemptAt,
-				attempts: queued.attempts,
-				lastError: queued.lastError,
-			}));
+			return buildSnapshot();
 		},
 		hydrate(entries) {
 			queuedByKey.clear();
@@ -140,9 +157,31 @@ export function createRuntimeTaskStartQueue(): RuntimeTaskStartQueue {
 }
 
 /**
+ * Replay a persisted queue snapshot at boot: hydrate the in-memory queue, then re-arm a drain per restored start at
+ * its original due time (the scheduler keeps the earliest per workspace), so a runtime restart resumes pending starts
+ * instead of silently dropping them. Pure glue (no I/O) — the runtime-server provides the loaded entries + scheduler.
+ */
+export function replayPersistedQueuedTaskStarts(input: {
+	entries: readonly QueuedRuntimeTaskStart[];
+	queue: Pick<RuntimeTaskStartQueue, "hydrate">;
+	scheduleDrain: (scope: RuntimeTrpcWorkspaceScope, delayMs: number) => void;
+	now?: number;
+}): void {
+	if (input.entries.length === 0) {
+		return;
+	}
+	input.queue.hydrate(input.entries);
+	const now = input.now ?? Date.now();
+	for (const entry of input.entries) {
+		input.scheduleDrain(entry.workspaceScope, Math.max(0, entry.nextAttemptAt - now));
+	}
+}
+
+/**
  * On-disk shape of one queued start — drift-guarded against `QueuedRuntimeTaskStart` so the persisted format and the
- * in-memory type can't silently diverge. The pure half of the §5.AF durable queued-start store (so the queue survives
- * a runtime restart); the file I/O wrapper + the runtime-server wiring that loads/persists it are the remaining work.
+ * in-memory type can't silently diverge. With `serializeQueuedTaskStarts`/`parseQueuedTaskStarts` (below), the file-I/O
+ * store, and the runtime-server boot replay (`replayPersistedQueuedTaskStarts`), the §5.AF durable queued-start store
+ * survives a runtime restart.
  */
 export const queuedRuntimeTaskStartSchema = z.object({
 	workspaceScope: z.object({ workspaceId: z.string(), workspacePath: z.string() }),
