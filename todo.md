@@ -3678,8 +3678,14 @@ deep analysis:
         server-side `task_chat_message` WS sends (one `socket.send` per agent message; client already coalesces receipt).
         High-value: this is the real "parallel work feels broken" tax. Ties §5.AI (client fix) · §6.5 · §5.A (sandbox
         isolation) · §5.AF (admission/sched) · §5.W (concurrency).
-  - [ ] **selection policy** — `user | random | agent`-chosen next project (default: random/agent rotation across the
-        registry, weighted toward tiers/domains we've touched least or that stress a just-changed area).
+  - [~] **selection policy** — `user | random | agent`-chosen next project (default: random/agent rotation across the
+        registry, weighted toward tiers/domains we've touched least or that stress a just-changed area). **PARTIAL DONE
+        (2026-06-27):** the one-shot rail ([dev-test-rail.mts](scripts/dev-test-rail.mts) `selectPresets`) now supports
+        `--select first|random` — `random` does an unbiased Fisher–Yates pick of `--count` projects from the proven
+        built-in presets (verified: distinct picks + full coverage). **Still owed:** registry-WIDE random (pick from the
+        full §5.O 45-folder registry via `projects.listDevTestProjects`, not just the 4 presets); least-touched/just-changed
+        **weighting**; and the **agent-chosen** policy (let an agent pick what to stress) — all of which land naturally on
+        the always-on rail (the durable §5.AF scheduler) rather than the one-shot script.
   - [ ] **generous-timeout run profile** — a dedicated "background eval" guardrail profile (long wall-time, higher
         no-diff tolerance) so a slow-but-progressing small-model run isn't parked prematurely.
   - [ ] **(optional, later)** a dedicated-LLM-machine endpoint as a second provider the rail can target (config already

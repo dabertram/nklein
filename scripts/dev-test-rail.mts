@@ -11,7 +11,8 @@
  * single endpoint genuinely serves the projects concurrently, then RESTORES both + removes the throwaway projects.
  *
  * Run:  tsx scripts/dev-test-rail.mts --projects mid_task,complex_dag --model qwen/qwen3-8b-m5max --max-wait-ms 900000
- *       tsx scripts/dev-test-rail.mts --count 3              # pick N at random from the built-in presets
+ *       tsx scripts/dev-test-rail.mts --count 3                       # the first 3 built-in presets (deterministic)
+ *       tsx scripts/dev-test-rail.mts --count 3 --select random       # 3 RANDOM built-in presets (rotate coverage)
  */
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import { resolveNKleinDevTestProjectScenario } from "../src/nklein-agent/nklein-dev-test-project";
@@ -61,13 +62,34 @@ interface Lane {
 	frames: number;
 }
 
+/** Fisher–Yates: an unbiased in-place shuffle (the naive `sort(() => Math.random() - 0.5)` is NOT uniform). */
+function shuffleInPlace<T>(items: T[]): T[] {
+	for (let i = items.length - 1; i > 0; i -= 1) {
+		const j = Math.floor(Math.random() * (i + 1));
+		const swapped = items[i] as T;
+		items[i] = items[j] as T;
+		items[j] = swapped;
+	}
+	return items;
+}
+
+/**
+ * §5.AI selection policy: `--projects a,b` (explicit user choice; registry ids also work) takes precedence; otherwise
+ * `--select first|random` picks `--count` projects from the built-in presets — `first` (default) is deterministic for
+ * reproducible runs, `random` rotates coverage across the proven presets. (Registry-wide random — picking from the full
+ * §5.O registry via `projects.listDevTestProjects` — is the richer follow-up; this keeps the rail's selection on the
+ * createDevTestProject-proven presets.)
+ */
 function selectPresets(): Preset[] {
 	const explicit = arg("projects", "").trim();
 	if (explicit) {
 		return explicit.split(",").map((value) => value.trim()).filter(Boolean) as Preset[];
 	}
 	const count = Math.max(1, Math.min(BUILTIN_PRESETS.length, Number.parseInt(arg("count", "2"), 10)));
-	// Default selection = the first `count` built-in presets (random rotation is a later policy; §5.AI).
+	const policy = arg("select", "first").trim().toLowerCase();
+	if (policy === "random") {
+		return shuffleInPlace([...BUILTIN_PRESETS]).slice(0, count) as unknown as Preset[];
+	}
 	return BUILTIN_PRESETS.slice(0, count) as unknown as Preset[];
 }
 
