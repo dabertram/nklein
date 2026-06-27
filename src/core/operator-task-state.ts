@@ -124,3 +124,52 @@ export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): Opera
 	}
 	return { unsafeActionAcks, clarifyingQuestions, heldDeliveries, blockedOnSetup, total: needingAction.size };
 }
+
+/**
+ * The minimal session-summary shape the signal map reads. Structurally a subset of the runtime's
+ * `RuntimeTaskSessionSummary` (same `state` enum, optional `paused`/`heartbeatStatus`), so a caller can pass a full
+ * summary directly — kept inline so this module stays dependency-free (todo §5.AG: the map is the seam, not a contract
+ * import).
+ */
+export interface OperatorSessionSummaryView {
+	state: OperatorSessionState;
+	paused?: boolean | null;
+	heartbeatStatus?: "healthy" | "stale" | "lost" | null;
+}
+
+/**
+ * The signals that DON'T come from the session summary — they originate in other subsystems (§5.L delivery gate, §5.M
+ * G3b risk ack, §5.S clarify, §5.A start blockers, §5.AA loop salvage). The caller supplies whatever it has; each
+ * defaults to the safe "not blocking" value so a summary-only call still classifies healthy/stuck/done correctly
+ * (it just can't surface `risky` until these are wired in).
+ */
+export interface OperatorSignalOverrides {
+	blockedKind?: OperatorTaskSignals["blockedKind"];
+	awaitingHostActionAck?: boolean;
+	deliveryGateHeld?: boolean;
+	clarifyingQuestionPending?: boolean;
+	noProgressOrLoop?: boolean;
+}
+
+/**
+ * §5.AG signal map — the bridge from what !Klein already emits (a session summary + the card's column) onto the
+ * normalized `OperatorTaskSignals` the classifier + inbox read. Session state and column id pass through (identical
+ * enums); `paused`/`heartbeatLost` are derived from the summary; everything else comes from the caller's overrides.
+ */
+export function mapSessionSummaryToOperatorSignals(
+	summary: OperatorSessionSummaryView,
+	columnId: OperatorColumnId,
+	overrides: OperatorSignalOverrides = {},
+): OperatorTaskSignals {
+	return {
+		sessionState: summary.state,
+		columnId,
+		paused: summary.paused ?? false,
+		heartbeatLost: summary.heartbeatStatus === "lost",
+		blockedKind: overrides.blockedKind ?? null,
+		awaitingHostActionAck: overrides.awaitingHostActionAck ?? false,
+		deliveryGateHeld: overrides.deliveryGateHeld ?? false,
+		clarifyingQuestionPending: overrides.clarifyingQuestionPending ?? false,
+		noProgressOrLoop: overrides.noProgressOrLoop ?? false,
+	};
+}

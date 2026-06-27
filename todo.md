@@ -3572,8 +3572,16 @@ deep analysis:
       do I unblock this?" hunting. **DATA CORE DONE (2026-06-27):** `collectOperatorInbox(tasks)` in
       `src/core/operator-task-state.ts` composes the same `OperatorTaskSignals` the classifier reads → groups task ids by
       blocker (`unsafeActionAcks` / `clarifyingQuestions` / `heldDeliveries` / `blockedOnSetup`) with a distinct `total`.
-      3 unit tests. **Still owed (the surface):** render the inbox panel + wire the signal map (summary/card/gate →
-      `OperatorTaskSignals`) shared with the classifier; add protected-write approvals (§6.11) once that signal exists.
+      3 unit tests. **SIGNAL MAP DONE (2026-06-27):** `mapSessionSummaryToOperatorSignals(summary, columnId, overrides)`
+      (same module) is the shared bridge for BOTH the classifier and the inbox — session state + column pass through
+      (structurally-identical enums), `paused`/`heartbeatLost` derive from the summary, and the off-summary signals
+      (§5.L gate / §5.M ack / §5.S clarify / §5.A block / §5.AA loop) come from caller overrides defaulting to safe
+      "not blocking" (so a summary-only call still classifies healthy/stuck/done; `risky` needs the overrides). The
+      module stays dependency-free via a minimal structural `OperatorSessionSummaryView` so a runtime caller passes a
+      full `RuntimeTaskSessionSummary` directly. 7 unit tests incl. classifier composition. **Still owed (the surface):**
+      render the inbox/board-health panels consuming this map; thread the real gate/ack/clarify/block flags into
+      `overrides` at the call site; add protected-write approvals (§6.11) once that signal exists. **§5.AG pure data
+      layer is now COMPLETE end-to-end: signal map → classifier + escalation report + inbox; only UI surfaces remain.**
 - *(cross-links)* §6.8 cockpit (the live per-card layer this summarizes) · §5.AF ledger (the escalation/attempt data) ·
       §5.AB (selection reasoning) · §5.S (clarify inbox) · §5.M G3b (risk ack) · §5.L (delivery gate) · §5.A (isolation state).
 

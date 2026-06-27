@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	classifyOperatorTaskState,
 	collectOperatorInbox,
+	mapSessionSummaryToOperatorSignals,
 	type OperatorTaskSignals,
 } from "../../../src/core/operator-task-state";
 
@@ -91,5 +92,67 @@ describe("collectOperatorInbox", () => {
 		const inbox = collectOperatorInbox([{ taskId: "ok", signals: HEALTHY }]);
 		expect(inbox.total).toBe(0);
 		expect(inbox.unsafeActionAcks).toEqual([]);
+	});
+});
+
+describe("mapSessionSummaryToOperatorSignals", () => {
+	it("passes state + column through and derives paused/heartbeatLost from the summary", () => {
+		const signals = mapSessionSummaryToOperatorSignals(
+			{ state: "running", paused: true, heartbeatStatus: "lost" },
+			"in_progress",
+		);
+		expect(signals.sessionState).toBe("running");
+		expect(signals.columnId).toBe("in_progress");
+		expect(signals.paused).toBe(true);
+		expect(signals.heartbeatLost).toBe(true);
+	});
+
+	it("defaults the non-summary signals to safe 'not blocking' values", () => {
+		const signals = mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress");
+		expect(signals).toMatchObject({
+			paused: false,
+			heartbeatLost: false, // undefined heartbeatStatus
+			blockedKind: null,
+			awaitingHostActionAck: false,
+			deliveryGateHeld: false,
+			clarifyingQuestionPending: false,
+			noProgressOrLoop: false,
+		});
+	});
+
+	it("only treats a 'lost' heartbeat as lost (healthy/stale/null are fine)", () => {
+		for (const heartbeatStatus of ["healthy", "stale", null, undefined] as const) {
+			expect(
+				mapSessionSummaryToOperatorSignals({ state: "running", heartbeatStatus }, "in_progress").heartbeatLost,
+			).toBe(false);
+		}
+	});
+
+	it("applies caller-supplied overrides for the off-summary signals", () => {
+		const signals = mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress", {
+			deliveryGateHeld: true,
+			blockedKind: "agent_sandbox_unavailable",
+		});
+		expect(signals.deliveryGateHeld).toBe(true);
+		expect(signals.blockedKind).toBe("agent_sandbox_unavailable");
+	});
+
+	it("composes with the classifier: summary-only → healthy/stuck/done, overrides → risky", () => {
+		expect(classifyOperatorTaskState(mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress"))).toBe(
+			"healthy",
+		);
+		expect(
+			classifyOperatorTaskState(
+				mapSessionSummaryToOperatorSignals({ state: "running", heartbeatStatus: "lost" }, "in_progress"),
+			),
+		).toBe("stuck");
+		expect(classifyOperatorTaskState(mapSessionSummaryToOperatorSignals({ state: "running" }, "completed"))).toBe(
+			"done",
+		);
+		expect(
+			classifyOperatorTaskState(
+				mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress", { deliveryGateHeld: true }),
+			),
+		).toBe("risky");
 	});
 });
