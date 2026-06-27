@@ -2228,6 +2228,11 @@ deep analysis:
       cloud-profile defaults + `autonomous_default` source; mode scaling (long 3× / extended 6× / unlimited → null);
       precedence task-override(`role_override`) > global(`global_config`) > profile-default; the local-NKlein 60s floor
       on a positive value but `0` (no bound) left alone. Real logic — it sets every task's effective agent timeouts.
+      **`trpc/runtime-api/local-advisor-completion` pure helpers covered (7 tests, 2026-06-27 — exported for test):**
+      `joinUrlPath` (single-slash join), `resolveAdvisorOpenAiBaseUrl` (idempotent `/v1` suffix + trailing-slash trim +
+      per-provider lmstudio/ollama fallback + non-URL tolerance), `resolveAdvisorOllamaBaseUrl` (trim/default), and
+      `readAdvisorTextResponse` (tolerant parse across the Ollama `message.content` / `response` / OpenAI
+      `choices[].message.content`|`text` shapes, "" on unrecognized) — a parse regression would blank advisor replies.
       **`decomposition-stall-nudger.isChatOnlyDecompositionActivity` (4 tests):** the weak-model stall detector — flags a
       running `assistant_delta` that narrates a plan ("based on my analysis", "task graph", "implementation plan")
       instead of calling `decompose_project`; false when actually calling the tool, wrong source/event, no matching

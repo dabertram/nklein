@@ -13,11 +13,11 @@ interface AdvisorChatCompletionInput {
 	prompt: string;
 }
 
-function joinUrlPath(baseUrl: string, path: string): string {
+export function joinUrlPath(baseUrl: string, path: string): string {
 	return `${baseUrl.replace(/\/+$/u, "")}/${path.replace(/^\/+/u, "")}`;
 }
 
-function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
+export function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
 	const configured = launchConfig.baseUrl?.trim();
 	if (configured) {
 		const trimmed = configured.replace(/\/+$/u, "");
@@ -37,11 +37,11 @@ function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): 
 	return "http://localhost:11434/v1";
 }
 
-function resolveAdvisorOllamaBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
+export function resolveAdvisorOllamaBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
 	return launchConfig.baseUrl?.trim().replace(/\/+$/u, "") || "http://localhost:11434";
 }
 
-function readAdvisorTextResponse(value: unknown): string {
+export function readAdvisorTextResponse(value: unknown): string {
 	if (!value || typeof value !== "object") {
 		return "";
 	}
