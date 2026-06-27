@@ -3357,7 +3357,67 @@ deep analysis:
       fire-and-forget wire in `loadProviderModelsWithMeasuredWindows` that, for live providers, records each loaded model's
       current window as `advertised` (the registry's "advertised changed → clear stale observed" rule then refreshes
       `effective` to the loaded size; a user override still wins; keys off existing entries so it only updates in place + only
-      when changed). Fires on the next model listing; the dev:full test instance was restarted to pick up the fix.
+      when changed). Fires on the next model listing; restarting the dev:full instance live-verified it: `qwen3-8b` (was
+      40960) and `gemma-4-e2b` (was a stale 35000) now show `effective=40000` (the loaded size).
+  - [ ] **Residual: a too-high `observed` can still override the refreshed `advertised` (2026-06-27).** After the fix,
+        `deepseek-r1-…-mlx` showed `adv=40000` but `obs=40960` (so `eff=40960`, since `effective = userOverride ?? observed
+        ?? advertised`). The refresh clears stale `observed` only when `advertised` *changes* in that same call; a run-time
+        observation can re-record a too-high `observed` afterward. The egregious 131072→40000 case is fixed, but `observed`
+        should never exceed the live loaded window — cap/clear it at the observation site (find who records `observed`; no
+        caller passes `observedContextWindow` today, so trace where it gets set) or have the refresh also clamp it.
+- [ ] **Agent UI does not show the model's REASONING output during a run (2026-06-27, user-found via the live test).** With
+      2+ task agents running, the card's NKlein chat panel shows only the "Thinking…" spinner ([nklein-thinking-indicator.tsx](web-ui/src/components/detail-panels/nklein-thinking-indicator.tsx)),
+      never the reasoning text. **The display pipeline is CORRECT + wired** — the backend stamps streaming reasoning with
+      `hookEventName:"reasoning_delta"` (`appendReasoningChunk`), and `ReasoningMessageBlock` ([nklein-chat-message-item.tsx](web-ui/src/components/detail-panels/nklein-chat-message-item.tsx))
+      auto-expands a reasoning block while that's live. The gap is CAPTURE: LM Studio reasoning models (deepseek-r1, qwen3-
+      thinking, phi-4-reasoning) emit reasoning in `reasoning_content` / `<think>…</think>`, but the **agent path** (SDK host
+      → `nklein-event-adapter` `contentType:"reasoning"` events) isn't surfacing it as reasoning, so no reasoning message is
+      created. **Fix:** capture reasoning in the agent streaming path (a §5.O parse-and-recover for `reasoning_content` +
+      inline `<think>` → reasoning content events / messages), mirroring how `nklein-local-llm-client.ts` already *reads*
+      `reasoning_content` (but only for narrated-tool-call recovery — the CHAT path discards it too, a parallel gap). Needs
+      LM Studio free for live verification (watch reasoning stream in on a real run). Also "improve by a lot" the multi-agent
+      activity reflection (what each of N running models is doing at a glance).
+  - **ROOT CAUSE LOCATED (deeper trace, 2026-06-27):** the agent's model calls go through the **vendored `ai`-package SDK**
+        (`vendor/nklein-sdk/llms/`, compiled *dist only*), whose openai-compatible provider wires **zero reasoning
+        extraction** — `grep` finds no `extractReasoning` / `reasoning_content` / `<think>` in the vendored llms; it composes
+        AI-SDK middleware (`splitToolImagesMiddleware` via `wrapLanguageModel`) but nothing for reasoning. So it never emits
+        `contentType:"reasoning"` events → the (ready) event adapter never makes a reasoning message. **Preferred fix:**
+        inject the AI-SDK `extractReasoningMiddleware({ tagName: "think" })` into the local provider's middleware chain.
+        **Checked: the vendored SDK's `CustomProviderConfig` exposes NO middleware seam** (no `middleware`/`providerOptions`
+        field), so config-injection is out without a vendored-dist patch (fragile). **FORMAT CONFIRMED LIVE (2026-06-27,
+        `phi-4-mini-reasoning`): reasoning arrives in the `reasoning_content` field, NOT `<think>`** (778 chars of reasoning
+        in `reasoning_content`; `content` was just `\boxed{No}`; no `<think>`). **So an adapter `<think>` split would be a
+        silent NO-OP** — the fix must capture **`reasoning_content`**, which the vendored `ai`-SDK openai-compatible provider
+        drops before our event adapter sees it. Tractable seams: (a) does our boundary pass a custom `fetch`/`baseURL` to the
+        SDK provider? wrap it to read `reasoning_content` from the response and surface it; (b) check whether the vendored
+        `@ai-sdk/openai-compatible` version already maps `reasoning_content` to AI-SDK reasoning parts behind a model/provider
+        flag we can set; (c) patch the vendored dist's openai-compatible provider to emit reasoning parts from
+        `reasoning_content` (fragile). NOTE: some LM Studio models DO emit `<think>` instead, so the robust fix handles BOTH
+        `reasoning_content` and inline `<think>`.
+  - **Final leads (2026-06-27, where to start the fix):** `@ai-sdk/openai-compatible` **2.0.50** (installed) DOES map
+        `reasoning_content` → AI-SDK reasoning parts (the symbol is in its dist), so the capability exists upstream. The
+        vendored SDK also already has reasoning handling (`vendor/nklein-sdk/llms/dist/providers/routing/glm-thinking.*`) and
+        our boundary normalizes a `settings.reasoning` (`enabled`/`effort`/`budgetTokens`, `sdk-provider-boundary.ts` ~L600).
+        So the gap is in the vendored flow between "AI-SDK emits a reasoning part" and "the agent loop emits a
+        `contentType:'reasoning'` event our adapter reads" — likely a per-model `reasoning.enabled` not set for local models,
+        and/or the vendored agent loop not forwarding reasoning parts. **Next pass:** set/verify `reasoning.enabled` (or the
+        equivalent) for local reasoning models, trace whether the vendored agent loop forwards AI-SDK reasoning parts as
+        reasoning events (patch the dist if not), then live-verify (LM Studio confirmed responsive + emitting
+        `reasoning_content` — `phi-4-mini-reasoning` probe). A real but focused backend pass.
+  - **CORRECTION — the reasoning CAPTURE+DISPLAY pipeline is actually FULLY WORKING end-to-end (verified 2026-06-27, every
+        link).** The above "SDK drops it" hypotheses were WRONG. Verified: (1) LM Studio streams `delta.reasoning_content`
+        (SSE probe); (2) `@ai-sdk/openai-compatible` 2.0.50 extracts it — a direct `streamText` test on
+        `phi-4-mini-reasoning` emitted `reasoning-start` + **289 `reasoning-delta`** + `reasoning-end`; (3) the vendored
+        agent loop maps `reasoning-delta`→`assistant-reasoning-delta` **unconditionally** (read the exact dist code); (4)
+        the session service dispatches every event to `applyNKleinSessionEvent` (no filter); (5) the adapter handles
+        `assistant-reasoning-delta`→`appendReasoningChunk`→a reasoning message (`hookEventName:"reasoning_delta"`); (6) the
+        UI's `ReasoningMessageBlock` auto-expands it while streaming. **So a reasoning model that emits `reasoning_content`
+        DOES show a live "Reasoning" block on its card.** The user's "no reasoning" is therefore NOT a capture bug — likely
+        (a) the 2 running models aren't reasoning models / don't emit `reasoning_content` (e.g. qwen2.5-coder), or (b) they
+        were looking at the BOARD (reasoning is per-card), or (c) a real-runtime subtlety not in the isolated tests. **The
+        genuine "improve by a lot" gap = BOARD-LEVEL multi-agent activity reflection:** at a glance, what each of N running
+        agents is doing/thinking (live reasoning/tool snippet per running card), so you don't have to open each card. THAT
+        is worth building. (Live end-to-end repro on the user's instance still owed to rule out (c).)
 - [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (approaches × ALL loaded models, no user) — LAYER 1**
       *(escalation order clarified 2026-06-27, user)*. On repeated failure, escalate **with NO user intervention**
       through (i) the §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding
