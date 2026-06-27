@@ -2174,6 +2174,13 @@ deep analysis:
       `nklein-context-overflow-compaction` (the compaction body — needs message fixtures), `nklein-watcher-registry`.
       **Skip (I/O-coupled, need an integration harness not a unit):** `workspace/project-health`,
       `workspace/turn-checkpoints` (git/fs), `nklein-mcp-settings-service`, `task-worktree-sync`.
+      **Decomposition validation (north-star §5.B) 2026-06-27:** `plan-task-validation` question logic (7 tests) —
+      `deriveOpenQuestionDefaults` (the AGENTS.md parse-and-recover: open question with options → assumption from the
+      recommended option, else first option, stays `open`; no-options/has-default/non-open left untouched) +
+      `validatePlanQuestions` (open needs a working default, answered needs an answer, assumed-default needs an
+      assumption). *(Scan note: my "untested" basename heuristic has false positives when the test file is named
+      differently from the source — e.g. `agent-sandbox/path-normalization.ts` IS covered by
+      `agent-sandbox-path-normalization.test.ts`; content-verify with a test-import grep before assuming untested.)*
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
