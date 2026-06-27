@@ -1,0 +1,105 @@
+/**
+ * The §5.AA retry-policy decision core — a typed controller strategy table that, given the failure that just happened
+ * and what's already been tried, picks the next rung of the adaptive ladder (or parks). Pure + deterministic so the
+ * "what to try next" brain is fully testable; the runtime wiring (firing the chosen strategy at the shared model-call
+ * seam, in both the chat + swarm paths) is layered on top later.
+ *
+ * Grounded in the §5.AA fold-in: small models become capable by the HARNESS trying everything that plausibly helps for
+ * THIS failure mode — reduce the ask, force the shape, iterate the endpoint, vary the prompt, shrink/rearrange context,
+ * sample more, bounce to a different model — bounded by a learned per-model retry budget, skipping rungs already tried
+ * (no circles), and always terminating (park) so a stuck task surfaces instead of looping.
+ */
+
+import type { ModelOutcomeKind } from "./model-behavior-profile";
+
+/** One rung of the adaptive retry ladder (§5.AA). `park` = give up + surface for review/escalation. */
+export type RetryStrategy =
+	| "same_model_retry"
+	| "reduced_tool_set"
+	| "constrained_schema"
+	| "alternate_endpoint"
+	| "prompt_variant"
+	| "context_shrink"
+	| "best_of_n"
+	| "cross_model_carry"
+	| "decompose"
+	| "park";
+
+/**
+ * The rungs that plausibly help PER failure mode, in priority order (cheapest/most-targeted first). We only try a rung
+ * relevant to the actual failure, so e.g. a `malformed` output doesn't waste a turn on `cross_model_carry` before
+ * `constrained_schema`. `success` has no rungs (nothing to retry).
+ */
+const RELEVANT_STRATEGIES_BY_OUTCOME: Record<ModelOutcomeKind, readonly RetryStrategy[]> = {
+	success: [],
+	// The model didn't emit a tool call: shrink the menu, force the shape, try a more-structured endpoint, reword.
+	no_tool_call: [
+		"reduced_tool_set",
+		"constrained_schema",
+		"alternate_endpoint",
+		"prompt_variant",
+		"cross_model_carry",
+	],
+	// It narrated the call as prose: recovery usually catches it; otherwise force the shape / try the native endpoint.
+	narrated: ["constrained_schema", "alternate_endpoint", "same_model_retry", "cross_model_carry"],
+	// It looped: salvage + retry once, shrink/rearrange context, then carry to a different model.
+	loop: ["same_model_retry", "context_shrink", "cross_model_carry"],
+	// It timed out: the ask is too big — shrink context, cut tools, or split the task.
+	timeout: ["context_shrink", "reduced_tool_set", "decompose", "cross_model_carry"],
+	// Malformed args/JSON: force a valid shape, then reword, then sample.
+	malformed: ["constrained_schema", "prompt_variant", "best_of_n"],
+	// Generic failure: a plain retry, sample more, then carry to a better model, then split.
+	other_failure: ["same_model_retry", "best_of_n", "cross_model_carry", "decompose"],
+};
+
+export interface RetryDecisionInput {
+	/** The classified outcome of the attempt that just finished (§5.AA). */
+	lastOutcome: ModelOutcomeKind;
+	/** How many attempts have run so far for this task (0 = the just-finished first attempt). */
+	attemptsSoFar: number;
+	/** The learned per-model retry budget (from the §5.AA `ModelBehaviorProfile`); clamped to ≥1. */
+	retryBudget: number;
+	/** Strategies already tried this task (so we never repeat a rung — no circles). */
+	triedStrategies: readonly RetryStrategy[];
+}
+
+export interface RetryDecision {
+	strategy: RetryStrategy;
+	/** Inspectable reason (for the §5.AG "what was tried" surface + the §5.AF ledger). */
+	reason: string;
+}
+
+/**
+ * Decide the next rung. Parks when: the outcome was a success (nothing to retry), the learned retry budget is spent, or
+ * every relevant un-tried rung is exhausted. Otherwise returns the first relevant rung not already tried.
+ */
+export function decideNextRetryStrategy(input: RetryDecisionInput): RetryDecision {
+	if (input.lastOutcome === "success") {
+		return { strategy: "park", reason: "Last attempt succeeded — no retry needed." };
+	}
+	const budget = Math.max(1, Math.trunc(input.retryBudget));
+	if (input.attemptsSoFar >= budget) {
+		return {
+			strategy: "park",
+			reason: `Learned retry budget (${budget}) exhausted after ${input.attemptsSoFar} attempt(s) — escalate.`,
+		};
+	}
+	const tried = new Set<RetryStrategy>(input.triedStrategies);
+	for (const strategy of RELEVANT_STRATEGIES_BY_OUTCOME[input.lastOutcome]) {
+		if (!tried.has(strategy)) {
+			return {
+				strategy,
+				reason: `Next ladder rung for a "${input.lastOutcome}" outcome (attempt ${input.attemptsSoFar + 1}/${budget}).`,
+			};
+		}
+	}
+	return {
+		strategy: "park",
+		reason: `No untried ladder rung remains for a "${input.lastOutcome}" outcome — escalate.`,
+	};
+}
+
+/** The full ladder for a failure mode (priority order) — for the §5.AG "what could be tried" surface + tests. */
+export function retryLadderForOutcome(outcome: ModelOutcomeKind): readonly RetryStrategy[] {
+	return RELEVANT_STRATEGIES_BY_OUTCOME[outcome];
+}

@@ -3012,11 +3012,20 @@ deep analysis:
       biome green. **Still owed (wiring):** the thin JSON persistence layer in the runtime home (like MCSR) + read/update
       hooks from the attempt loop (choose the best first approach + skip known-failing ones, no circles) + Settings
       model-telemetry surface. Built core-first to avoid a speculative persisted schema ahead of its consumers.
-- [ ] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure
+- [~] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure
       (no-call/narrated/loop/timeout/malformed) and selects the next ladder strategy (different endpoint / fewer tools /
       simpler prompt / prompt variant / constrained decoding / salvage), capped by the learned budget, always
       terminating with the best partial result. Wire into BOTH the chat path and the swarm session runtime at the
-      shared model-call seam.
+      shared model-call seam. **DECISION CORE DONE (2026-06-27):** [src/core/retry-policy.ts](src/core/retry-policy.ts) —
+      `decideNextRetryStrategy({lastOutcome, attemptsSoFar, retryBudget, triedStrategies}) → {strategy, reason}` is the
+      pure "what to try next" brain: a typed `RetryStrategy` ladder + a per-failure-mode relevance table
+      (`RELEVANT_STRATEGIES_BY_OUTCOME` — e.g. `no_tool_call` → reduced-tool-set → constrained-schema → alternate-endpoint
+      → prompt-variant → cross-model-carry; `timeout` → context-shrink → reduced-tool-set → decompose) so a failure only
+      tries rungs that plausibly help, **skips already-tried rungs (no circles)**, and **always parks** (budget spent /
+      success / no untried rung) with an inspectable `reason` (feeds §5.AG + the §5.AF ledger). Pure, 8 unit tests; tsc +
+      biome green. **Still owed (the WIRING):** fire the chosen strategy at the shared model-call seam (chat + swarm),
+      feed `retryBudget` from the §5.AA `ModelBehaviorProfile` (now a ledger projection), and record each rung's outcome
+      back to the ledger so the ladder learns.
 - [x] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)` (DONE 2026-06-26)** — gemma-e2b
       leaked exactly that into its final reply (§5.Z). Added a deliberately-specific `PLAIN_PROSE_TOOL_CALL` pattern
       (`tool call:` immediately followed by an identifier + `(` — a function-call shape) checked independently of the
