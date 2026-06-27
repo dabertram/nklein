@@ -2249,6 +2249,11 @@ deep analysis:
       (`stripWorkosPrefix` case-insensitive, `ensureWorkosPrefix` no-double-prefix + trim + empty→"" never a bare prefix,
       `toProviderApiKey` tags only `nklein`) + a strip∘ensure round-trip; closes the gap left when this module was
       extracted from `nklein-provider-service.ts` earlier this session.
+      **`plan-artifact-apply` agent-facing path scrubbers covered (2026-06-27, 8 tests, SECURITY):** the two pure exports
+      that enforce "agents must never see host details" — `toWorkspaceRelativeArtifactPath` (relativize + POSIX-ify, `..`
+      for outside-workspace instead of leaking the absolute path) and `redactWorkspacePathForAgent` (`<ws>/x`→`x`, bare
+      `<ws>`→`.`, every occurrence, empty-workspace passthrough). A redaction regression = a host-mount path leaking into
+      agent-facing copy.
       **`task-record-format` CLI input/error surface (6 tests):** `resolveTaskCommandTarget` (task-id|column
       mutual-exclusion, names the command), `parseListColumn` (`done`→`completed` alias, canonical ids, invalid throws),
       `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). **Board functions now covered too**
