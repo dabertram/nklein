@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	computeModelFitness,
+	estimateTaskDifficulty,
 	type ModelFitnessRecord,
 	type SelectionPolicy,
 	selectModelForTask,
@@ -123,5 +124,38 @@ describe("selectModelForTask", () => {
 		];
 		const out = selectModelForTask(records, { role: "worker", difficulty: 0.5, availableModelIds: ALL(), policy });
 		expect(out.decision).toBe("wait");
+	});
+});
+
+describe("estimateTaskDifficulty", () => {
+	it("scores a tiny task near zero", () => {
+		expect(estimateTaskDifficulty({ promptLength: 0 })).toBe(0);
+		expect(estimateTaskDifficulty({ promptLength: 120 })).toBeLessThan(0.1);
+	});
+
+	it("returns a value within [0, 1] and rises with prompt size, file footprint, and bounces", () => {
+		const easy = estimateTaskDifficulty({ promptLength: 200 });
+		const big = estimateTaskDifficulty({ promptLength: 6000, expectedFileCount: 30, bounceCount: 5 });
+		expect(easy).toBeGreaterThanOrEqual(0);
+		expect(big).toBeLessThanOrEqual(1);
+		expect(big).toBeGreaterThan(easy);
+	});
+
+	it("treats each prior bounce as a strong difficulty signal", () => {
+		const none = estimateTaskDifficulty({ promptLength: 500 });
+		const bounced = estimateTaskDifficulty({ promptLength: 500, bounceCount: 2 });
+		expect(bounced).toBeGreaterThan(none);
+	});
+
+	it("nudges difficulty down when there is a clear acceptance check", () => {
+		const base = { promptLength: 2000, expectedFileCount: 5 };
+		expect(estimateTaskDifficulty({ ...base, hasAcceptanceCheck: true })).toBeLessThan(estimateTaskDifficulty(base));
+	});
+
+	it("clamps to [0, 1] for extreme inputs and never returns NaN", () => {
+		const huge = estimateTaskDifficulty({ promptLength: 1_000_000, expectedFileCount: 1000, bounceCount: 100 });
+		expect(huge).toBe(1);
+		const negative = estimateTaskDifficulty({ promptLength: -50, expectedFileCount: -5, bounceCount: -3 });
+		expect(negative).toBe(0);
 	});
 });

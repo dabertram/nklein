@@ -3274,8 +3274,14 @@ deep analysis:
       data point).
 - [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`).** Global, per-model × per-role ×
       per-difficulty fitness + the learned **retry budget** + observed failure modes. The single source the scheduler reads.
-- [ ] **Task-difficulty estimate (ties §5.I#4).** Estimate a task's difficulty/size (objective text, expected file/
-      context footprint, acceptance shape, bounce history) → the key into the fitness table.
+- [~] **Task-difficulty estimate (ties §5.I#4).** Estimate a task's difficulty/size (objective text, expected file/
+      context footprint, acceptance shape, bounce history) → the key into the fitness table. **CORE DONE (2026-06-27):**
+      `estimateTaskDifficulty(input)` ([src/core/model-fitness.ts](src/core/model-fitness.ts)) → a **0..1** score (matching
+      `ModelSelectionInput.difficulty`) from `promptLength` + `expectedFileCount` + `bounceCount` + `hasAcceptanceCheck`;
+      conservative first-pass heuristic (the three caps sum to 1.0 so a maximally hard task reaches 1.0 — the SHAPE is
+      durable, the constants are tunable; the §5.AB eval harness + learned outcomes refine the weighting). 5 tests,
+      tsc+biome green. **Still owed:** populate the input from real task signals at the selection call site (prompt text,
+      the decompose footprint estimate, the §5.K bounce count) and feed `selectModelForTask`.
 - [~] **Automatic role→model assignment (DEFAULT mode) + parallel balancing (ties §6.5).** **Selection core DONE
       (2026-06-26):** `selectModelForTask` + `computeModelFitness` ([model-fitness.ts](src/core/model-fitness.ts)) — the
       pure quality-gated, speed-weighted pick + the wait-for-best vs attempt-with-available policy (reserving strong

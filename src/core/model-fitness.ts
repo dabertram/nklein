@@ -173,3 +173,37 @@ function clamp01(value: number): number {
 	}
 	return Math.min(1, Math.max(0, value));
 }
+
+export interface TaskDifficultyInput {
+	/** The task objective/prompt text length in characters — longer/denser objectives tend to be harder. */
+	promptLength: number;
+	/** Expected number of files the task will touch (0/undefined if unknown) — more files = more coordination. */
+	expectedFileCount?: number;
+	/** Whether the task has an explicit acceptance check/command — a clear, verifiable target is slightly easier. */
+	hasAcceptanceCheck?: boolean;
+	/** Prior bounces (review rejections / restarts) for this task — each is strong evidence it is hard here. */
+	bounceCount?: number;
+}
+
+/**
+ * Estimate a task's difficulty as a 0..1 score — the key into the §5.AB fitness table (`ModelSelectionInput.difficulty`,
+ * which gates which models qualify). CONSERVATIVE first-pass heuristic over cheap, always-available task signals; the
+ * §5.AB eval harness + learned real outcomes refine the weighting later (the SHAPE — signals → 0..1 → model gate — is
+ * the durable part; the constants are tunable). Higher = harder, so selection reserves stronger models for it.
+ */
+export function estimateTaskDifficulty(input: TaskDifficultyInput): number {
+	let score = 0;
+	// Objective size: a longer/denser prompt implies more to satisfy. Capped so size alone never dominates. The three
+	// caps (0.4 + 0.3 + 0.3) sum to 1.0 so a maximally-large/bounced task can reach difficulty 1.0 (gating the strongest
+	// models, which need maxDifficultyCleared ≥ difficulty).
+	score += Math.min(0.4, Math.max(0, input.promptLength) / 6000);
+	// File footprint: more files to touch = more coordination / cross-file reasoning.
+	score += Math.min(0.3, Math.max(0, input.expectedFileCount ?? 0) / 26);
+	// Each prior bounce is strong evidence the task is hard for the current approach.
+	score += Math.min(0.3, Math.max(0, input.bounceCount ?? 0) * 0.15);
+	// A clear acceptance target makes convergence + verification a little easier.
+	if (input.hasAcceptanceCheck) {
+		score -= 0.05;
+	}
+	return clamp01(score);
+}
