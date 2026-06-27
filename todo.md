@@ -2430,8 +2430,23 @@ deep analysis:
       Seam proven: HTTP → session state read back via `getSession`/`listSessions` AND direct on-disk JSONL file read.
       Deferred to live e2e (require a live model): transcript content after sendMessage/streamMessage turns (covered by
         Suite 5C); knowledge-fetch tool calls within a turn; autonomous-work mode behavior.
+- **UI e2e HARNESS built + verified (2026-06-27) — the systematic foundation (user: "start systematically, not random
+      observations").** `web-ui/tests/harness/`: a reusable `installRuntimeMock(page, { snapshot, queryStubs, mutations })`
+      ([runtime-mock.ts](web-ui/tests/harness/runtime-mock.ts)) — injects the WebSocket board snapshot + a catch-all tRPC
+      query responder + per-mutation handlers with request-body capture (factored out of the per-spec ad-hoc mocking), plus
+      fixture builders (`buildBoardSnapshot` / `buildBoardColumns` / `buildBoardCard` / `trpcOk`) and board-driving helpers
+      ([board-actions.ts](web-ui/tests/harness/board-actions.ts): `gotoBoard` / `createBacklogTask` / `openCard` /
+      `openSettings`). Proven by `board-harness.spec.ts` (3 green: shell render, seeded-card render, settings dialog — run
+      against the live web-ui via `PLAYWRIGHT_BROWSERS_PATH=…/ms-playwright npm --prefix web-ui run e2e`). New UI-e2e-with-mocks
+      specs build on this instead of re-mocking by hand. **Next harness piece: the FULL-SYSTEM layer** (real runtime + models
+      on a small verifiable project — boot dev:full with an isolated HOME + fixed ports + a scaffolded small project).
+  - [ ] **BUG the harness caught (2026-06-27):** clicking a board card can crash with `Cannot read properties of null
+        (reading 'promptBlock')` — `response.promptBlock` is read unguarded after a tRPC call that may return null
+        ([kanban-board.tsx](web-ui/src/components/kanban-board.tsx) ~L487,
+        [task-recovery-actions-panel.tsx](web-ui/src/components/detail-panels/task-recovery-actions-panel.tsx) ~L166).
+        Null-check the response before reading `promptBlock`.
 - [ ] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
-      trash, drag rules — Playwright, deep.
+      trash, drag rules — Playwright, deep. **(Build on the new harness above.)**
 - [~] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
       isolation status/pool UI, project-settings menu. Pair with §5.W.
       **Contract-seam coverage DONE (2026-06-26, 44 tests, Suite 16 — `test/contract/settings-config-contract.test.ts`).**
