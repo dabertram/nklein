@@ -3744,8 +3744,10 @@ deep analysis:
         tests guard that. Wired into the rail ([dev-test-rail.mts](scripts/dev-test-rail.mts)): applied by default (opt
         out with `--guardrails default`), restored on cleanup alongside the model/concurrency pin. The always-on rail
         (§5.AF scheduler) will reuse the same profile.
-  - [ ] **(optional, later)** a dedicated-LLM-machine endpoint as a second provider the rail can target (config already
-        supports multiple endpoints; §5.W concurrency + §6.5 scheduler already multi-endpoint-aware).
+  - [x] **(optional) dedicated-LLM-machine endpoint (2026-06-27).** The rail's model endpoint is now configurable —
+        `--endpoint <url>` or `NKLEIN_MODEL_ENDPOINT` ([dev-test-rail.mts](scripts/dev-test-rail.mts), default the local
+        LM Studio); the daemon already honors `NKLEIN_MODELS_URL`. So the rail can pin against a dedicated-LLM machine.
+        (config already supports multiple endpoints; §5.W concurrency + §6.5 scheduler already multi-endpoint-aware).
 - [~] **Auto-collect + auto-analyse ALL evidence (success AND failure) → feed the todos.** Every rail run captures its
       evidence bundle (the existing `collect evidence` path + the §5.AF ledger projection) — **both** successes (proof
       it still works on model M / project P) **and** failures (a sleeping bug / shortcoming). An analysis pass over the

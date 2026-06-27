@@ -25,7 +25,9 @@ import type { RuntimeAppRouter } from "../src/trpc/app-router";
 
 const URL_BASE = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:3484";
 const TRPC_URL = `${URL_BASE}/api/trpc`;
-const ENDPOINT_BASE_URL = "http://127.0.0.1:1234/v1";
+/** Model endpoint to pin (§5.AI optional: point at a dedicated-LLM machine via `--endpoint` or NKLEIN_MODEL_ENDPOINT). */
+const ENDPOINT_BASE_URL =
+	arg("endpoint", "") || process.env.NKLEIN_MODEL_ENDPOINT?.trim() || "http://127.0.0.1:1234/v1";
 /** The built-in presets `createDevTestProject` accepts (proven to run; registry ids also work via --projects). */
 const BUILTIN_PRESETS = ["mid_task", "complex_dag", "audio_vst", "daw_foundation"] as const;
 const TERMINAL_STATES = new Set(["awaiting_review", "completed", "failed"]);
