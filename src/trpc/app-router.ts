@@ -4,7 +4,6 @@
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { createAsyncQueue } from "../chat/async-queue.js";
 import {
 	type TaskEscalationReport,
 	type TaskEscalationReportRequest,
@@ -287,26 +286,10 @@ import type {
 	RuntimeChatSession,
 	RuntimeChatStartAutonomousRequest,
 	RuntimeChatStartAutonomousResponse,
-	RuntimeChatStreamEvent,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract.js";
-import {
-	runtimeChatAutonomousRunStatusSchema,
-	runtimeChatAutonomousStatusRequestSchema,
-	runtimeChatCreateSessionRequestSchema,
-	runtimeChatDeleteSessionRequestSchema,
-	runtimeChatDeleteSessionResponseSchema,
-	runtimeChatSendMessageRequestSchema,
-	runtimeChatSendMessageResponseSchema,
-	runtimeChatSessionResponseSchema,
-	runtimeChatSessionsResponseSchema,
-	runtimeChatStartAutonomousRequestSchema,
-	runtimeChatStartAutonomousResponseSchema,
-	runtimeChatTranscriptRequestSchema,
-	runtimeChatTranscriptResponseSchema,
-	runtimeChatUpdateSessionRequestSchema,
-} from "../core/chat-api-contract.js";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
+import { buildChatRouter } from "./routers/chat-router";
 import { buildProjectsRouter } from "./routers/projects-router";
 
 export interface RuntimeTrpcWorkspaceScope {
@@ -1032,78 +1015,7 @@ export const runtimeAppRouter = t.router({
 		}),
 	}),
 	// Board-independent unified chat (todo §5.M). Non-workspace procedures: chat sessions are not tied to a board.
-	chat: t.router({
-		listSessions: t.procedure.output(runtimeChatSessionsResponseSchema).query(async ({ ctx }) => {
-			return { sessions: await ctx.runtimeApi.listChatSessions() };
-		}),
-		getSession: t.procedure
-			.input(z.object({ id: z.string() }))
-			.output(runtimeChatSessionResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return { session: await ctx.runtimeApi.getChatSession(input.id) };
-			}),
-		createSession: t.procedure
-			.input(runtimeChatCreateSessionRequestSchema)
-			.output(runtimeChatSessionResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return { session: await ctx.runtimeApi.createChatSession(input) };
-			}),
-		updateSession: t.procedure
-			.input(runtimeChatUpdateSessionRequestSchema)
-			.output(runtimeChatSessionResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return { session: await ctx.runtimeApi.updateChatSession(input) };
-			}),
-		deleteSession: t.procedure
-			.input(runtimeChatDeleteSessionRequestSchema)
-			.output(runtimeChatDeleteSessionResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return { deleted: await ctx.runtimeApi.deleteChatSession(input.id) };
-			}),
-		getTranscript: t.procedure
-			.input(runtimeChatTranscriptRequestSchema)
-			.output(runtimeChatTranscriptResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return {
-					sessionId: input.sessionId,
-					messages: await ctx.runtimeApi.readChatTranscript(input.sessionId, input.limit),
-				};
-			}),
-		sendMessage: t.procedure
-			.input(runtimeChatSendMessageRequestSchema)
-			.output(runtimeChatSendMessageResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.sendChatMessage(input);
-			}),
-		startAutonomousRun: t.procedure
-			.input(runtimeChatStartAutonomousRequestSchema)
-			.output(runtimeChatStartAutonomousResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.runtimeApi.startAutonomousChatRun(input);
-			}),
-		autonomousRunStatus: t.procedure
-			.input(runtimeChatAutonomousStatusRequestSchema)
-			.output(runtimeChatAutonomousRunStatusSchema)
-			.query(({ ctx, input }) => {
-				return ctx.runtimeApi.getAutonomousChatRunStatus(input);
-			}),
-		streamMessage: t.procedure.input(runtimeChatSendMessageRequestSchema).subscription(async function* ({
-			ctx,
-			input,
-		}) {
-			// Bridge the model's push-style onToken into this pull-style generator via an async queue, so tokens
-			// stream to the client as SSE while the turn runs; the terminal `done` carries the persisted messages.
-			const queue = createAsyncQueue<RuntimeChatStreamEvent>();
-			void ctx.runtimeApi
-				.sendChatMessage(input, (delta) => queue.push({ type: "token", delta }))
-				.then((result) => {
-					queue.push({ type: "done", userMessage: result.userMessage, assistantMessage: result.assistantMessage });
-					queue.close();
-				})
-				.catch((error) => queue.fail(error));
-			yield* queue;
-		}),
-	}),
+	chat: buildChatRouter(t),
 	workspace: t.router({
 		getGitSummary: workspaceProcedure
 			.input(optionalTaskWorkspaceInfoRequestSchema)

@@ -4324,8 +4324,11 @@ deep analysis:
       (erased — no runtime cycle), the procedures are byte-identical, and the moved schema imports were pruned from
       app-router. Verified the contract surface is unchanged: root tsc + biome, **`test:contract` (272, real tRPC endpoints
       incl. projects)**, and **web tsc** (the inferred `RuntimeAppRouter` type is identical, so the web client is
-      unaffected). **Remaining:** extract `chat` / `workspace`, then the big `runtime` sub-router (the bulk) the same way —
-      each a bounded slice gated by `test:contract` + web tsc.
+      unaffected). **`chat` sub-router ALSO DONE (2026-06-27):** the 10 chat procedures (incl. the SSE `streamMessage`
+      subscription) → [src/trpc/routers/chat-router.ts](src/trpc/routers/chat-router.ts) via `buildChatRouter(t)`, same
+      pattern + same verification (root tsc + biome + test:contract 272 + web tsc), pruning the chat schemas / stream type
+      / `createAsyncQueue` from app-router. **Remaining:** extract `workspace`, then the big `runtime` sub-router (the
+      bulk) the same way — each a bounded slice gated by `test:contract` + web tsc.
 - [ ] **Workflow kernel seed + durable-queue interface (enriches §5.AF — the bridge to the product control plane).** Add
       pure `WorkflowCommand` / `WorkflowPhase` / `WorkflowEffect` types + a reducer for task lifecycle (admission ·
       queueing · planning · implementing · review · delivery · failure · cancel · pause) — **no behavior change**, board
