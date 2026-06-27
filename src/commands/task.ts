@@ -12,7 +12,6 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { clampRuntimeSwarmCardStartBatchSize } from "../core/api-contract";
-import { summarizeWorkspaceBoardHealth } from "../core/operator-board-health.js";
 import { type PlanGapKind, recordPlanGap } from "../core/plan-gap";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
 import { clearSwarmStop, requestSwarmStop } from "../core/swarm-guardrails";
@@ -76,6 +75,7 @@ import {
 	buildPlanGapAdaptationRevision,
 	buildPlanGapIntegrationRevision,
 } from "./task/task-plan-gap-prompts.js";
+import { listTasks, reportBoardHealth } from "./task/task-read-commands.js";
 import {
 	findTaskRecord,
 	findTasksInColumn,
@@ -89,7 +89,6 @@ import {
 	createRuntimeTrpcClient,
 	ensureRuntimeWorkspace,
 	notifyRuntimeWorkspaceStateUpdated,
-	resolveRuntimeWorkspace,
 	resolveTaskBaseRef,
 	resolveWorkspaceRepoPath,
 	updateRuntimeWorkspaceState,
@@ -161,54 +160,6 @@ export function recordDecompositionRejection(input: DecompositionRejectionInput)
 			error: message,
 		},
 	});
-}
-
-async function listTasks(input: { cwd: string; projectPath?: string; column?: ListTaskColumn }): Promise<JsonRecord> {
-	const workspace = await resolveRuntimeWorkspace(input.projectPath, input.cwd, {
-		autoCreateIfMissing: false,
-	});
-	const runtimeClient = createRuntimeTrpcClient(workspace.workspaceId);
-	const state = await runtimeClient.workspace.getState.query();
-
-	const tasks = state.board.columns.flatMap((boardColumn) => {
-		if (!input.column && boardColumn.id === "trash") {
-			return [];
-		}
-		if (input.column && boardColumn.id !== input.column) {
-			return [];
-		}
-		return boardColumn.cards.map((task) => formatTaskRecord(state, task, boardColumn.id));
-	});
-
-	return {
-		ok: true,
-		workspacePath: workspace.repoPath,
-		column: input.column ?? null,
-		tasks,
-		dependencies: state.board.dependencies.map((dependency) => formatDependencyRecord(state, dependency)),
-		count: tasks.length,
-	};
-}
-
-async function reportBoardHealth(input: { cwd: string; projectPath?: string }): Promise<JsonRecord> {
-	const workspace = await resolveRuntimeWorkspace(input.projectPath, input.cwd, { autoCreateIfMissing: false });
-	const runtimeClient = createRuntimeTrpcClient(workspace.workspaceId);
-	const state = await runtimeClient.workspace.getState.query();
-	const health = summarizeWorkspaceBoardHealth(state);
-	return {
-		ok: true,
-		workspacePath: workspace.repoPath,
-		total: health.total,
-		counts: health.counts,
-		byState: health.byState,
-		inbox: {
-			total: health.inbox.total,
-			unsafeActionAcks: health.inbox.unsafeActionAcks,
-			clarifyingQuestions: health.inbox.clarifyingQuestions,
-			heldDeliveries: health.inbox.heldDeliveries,
-			blockedOnSetup: health.inbox.blockedOnSetup,
-		},
-	};
 }
 
 async function stopTaskRuntimeSession(

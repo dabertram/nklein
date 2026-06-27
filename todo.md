@@ -2037,6 +2037,10 @@ deep analysis:
               `parseAutoReviewMode`, `parseAgentId` + `VALID_AGENT_IDS`, `parseOptionalStringOrDefault`) →
               `commands/task/task-command-parsers.ts`. All internal-only, no task.ts-internal deps; imported back.
               task.ts 2093→2045 (cumulative 2870→2045, −825/−29%). tsc + biome + `test:fast` (2443) green.
+        - [x] **slice 9 (2026-06-27):** extracted the two read-only leaf commands (`listTasks`, `reportBoardHealth`) →
+              `commands/task/task-read-commands.ts` (resolve workspace → query state → project a JSON record; no mutation,
+              no dependency on the other command impls). task.ts 2045→1996 (**under 2000**; cumulative 2870→1996,
+              −874/−30%). tsc + biome + `test:fast` green.
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
