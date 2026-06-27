@@ -209,7 +209,9 @@ function spawnSourceCli(
 	const cliEntrypoint = resolve(process.cwd(), "src/cli.ts");
 	return spawn(process.execPath, ["--import", resolveTsxLoaderImportSpecifier(), cliEntrypoint, ...args], {
 		cwd: options.cwd,
-		env: options.env,
+		// The CLI runs with cwd = a temp repo, so point tsx at this repo's tsconfig (cwd-relative discovery would miss
+		// it) so the vendored-SDK `@nklein/*` path aliases resolve in the spawned process.
+		env: { ...options.env, TSX_TSCONFIG_PATH: resolve(process.cwd(), "tsconfig.json") },
 		stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
 	});
 }
@@ -275,8 +277,11 @@ describe("source task commands", () => {
 					"--no-open",
 				],
 				{
-					cwd: projectPath,
-					env,
+					// Run the server from the neutral temp HOME, not the project: the self-improvement guard keys on the
+					// server's own git root, so cwd=project would flag the project as !Klein's own source repo.
+					cwd: homeDir,
+					// tsx needs this repo's tsconfig (cwd is a temp dir) so the vendored `@nklein/*` aliases resolve.
+					env: { ...env, TSX_TSCONFIG_PATH: resolve(process.cwd(), "tsconfig.json") },
 					stdio: ["ignore", "pipe", "pipe", "ipc"],
 				},
 			);
@@ -365,8 +370,11 @@ describe("source task commands", () => {
 					"--no-open",
 				],
 				{
-					cwd: projectPath,
-					env,
+					// Run the server from the neutral temp HOME, not the project: the self-improvement guard keys on the
+					// server's own git root, so cwd=project would flag the project as !Klein's own source repo.
+					cwd: homeDir,
+					// tsx needs this repo's tsconfig (cwd is a temp dir) so the vendored `@nklein/*` aliases resolve.
+					env: { ...env, TSX_TSCONFIG_PATH: resolve(process.cwd(), "tsconfig.json") },
 					stdio: ["ignore", "pipe", "pipe", "ipc"],
 				},
 			);
@@ -431,8 +439,11 @@ describe("source task commands", () => {
 					"--no-open",
 				],
 				{
-					cwd: projectPath,
-					env,
+					// Run the server from the neutral temp HOME, not the project: the self-improvement guard keys on the
+					// server's own git root, so cwd=project would flag the project as !Klein's own source repo.
+					cwd: homeDir,
+					// tsx needs this repo's tsconfig (cwd is a temp dir) so the vendored `@nklein/*` aliases resolve.
+					env: { ...env, TSX_TSCONFIG_PATH: resolve(process.cwd(), "tsconfig.json") },
 					stdio: ["ignore", "pipe", "pipe", "ipc"],
 				},
 			);
@@ -600,8 +611,11 @@ describe("source task commands", () => {
 					"--no-open",
 				],
 				{
-					cwd: projectPath,
-					env,
+					// Run the server from the neutral temp HOME, not the project: the self-improvement guard keys on the
+					// server's own git root, so cwd=project would flag the project as !Klein's own source repo.
+					cwd: homeDir,
+					// tsx needs this repo's tsconfig (cwd is a temp dir) so the vendored `@nklein/*` aliases resolve.
+					env: { ...env, TSX_TSCONFIG_PATH: resolve(process.cwd(), "tsconfig.json") },
 					stdio: ["ignore", "pipe", "pipe", "ipc"],
 				},
 			);

@@ -2109,12 +2109,19 @@ deep analysis:
               register helpers (`registerTask{Read,Crud,MergeAndSwarm,Plan,Finish,Graph,Start}…Commands`) — the large
               function is gone; each helper holds a navigable group of subcommand definitions. tsc + biome + `test:fast`
               (2443) green. ⚠️ **Pre-existing, UNRELATED test failure noticed (NOT from this change — confirmed by stashing):**
-              `test/integration/task-command-exit.integration.test.ts` (4 tests) fails because the **spawned** CLI process
-              can't resolve `@nklein/core` (`ERR_MODULE_NOT_FOUND` from `src/nklein-agent/sdk-runtime-boundary.ts` — the
-              vendored-SDK `@nklein/*` alias isn't loaded in the child process / `vendor/nklein-sdk` not set up in this
-              env). It is NOT in the green gate (`test:fast`/pre-commit don't run `test/integration`). **Follow-up:** make
-              the integration test's spawn pass the `scripts/nklein-sdk-alias.mjs` loader (or ensure the vendored SDK is
-              built) so `test/integration` is runnable here.
+              `test/integration/task-command-exit.integration.test.ts` was fully broken (0/4). **PARTIALLY FIXED →
+              3/4 (2026-06-27):** two real, pre-existing regressions diagnosed + fixed. **(1)** the spawned CLI couldn't
+              resolve the vendored-SDK `@nklein/*` aliases (`ERR_MODULE_NOT_FOUND` `@nklein/core`) because the spawn runs
+              with cwd = a temp repo and tsx does cwd-relative tsconfig discovery → fixed by passing `TSX_TSCONFIG_PATH`
+              (this repo's tsconfig, which has the `@nklein/*` paths) in the spawn env. **(2)** the runtime **server** was
+              spawned with `cwd = projectPath`, and the self-improvement guard ([projects-api.ts](src/trpc/projects-api.ts)
+              ~L434) keys "!Klein's own source repo" off `resolveGitRootIfAvailable(deps.serverCwd)` — so the server's git
+              root == the project being added → false self-improvement block → fixed by running the server from the neutral
+              temp HOME (non-git → no source repo → guard skipped). NOT in the green gate. **Still owed (1/4):** the "opens
+              only for launch invocations" test — a launch/`--agent`/`--port` invocation in its loop exits 1 (server-from-
+              neutral-cwd may not resolve the cwd default workspace the launch path wants, OR an env-specific agent issue);
+              needs a focused look (likely thread a self-project confirmation so the server can keep cwd=project, or fix the
+              launch's workspace resolution).
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
