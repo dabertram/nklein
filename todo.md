@@ -3411,10 +3411,16 @@ deep analysis:
       stream — one evidence source, no parallel persistence. Unblocks M2. **`ModelBehaviorProfile` projection DONE
       (2026-06-27):** [agent-ledger-projections.ts](src/core/agent-ledger-projections.ts) `buildModelBehaviorProfilesFromLedger`
       folds each model's ledger attempts (chronologically) through `recordModelBehaviorOutcome` → one §5.AA profile per
-      model, derived from the durable record (no second store). Pure, 4 unit tests; tsc+biome green. With the live writer
-      above, the profile is now a real query over real data. **Still owed:** the §5.AB `ModelFitness` projection + making
-      the §5.Z matrix a ledger query (vs the hand-maintained table) + reading these profiles from the live runtime
-      (the §5.AA retry engine / §5.AB scheduler consume them) + folding MCSR speed observations into the same stream.
+      model, derived from the durable record (no second store). Pure; tsc+biome green. With the live writer
+      above, the profile is now a real query over real data. **§5.AB `ModelFitness` projection ALSO DONE (2026-06-27):**
+      `buildModelFitnessFromLedger` (same module) derives one coarse `ModelFitnessRecord` per (model, role) — success-rate
+      as the quality + reliability proxy, real avg latency + retries, `maxDifficultyCleared` 0 until the §5.AB eval harness
+      grades quality/difficulty — feeding `computeModelFitness`/`selectModelForTask`. So the ledger→profile→fitness chain
+      is complete as projections (8 unit tests over the projection module). **Still owed:** making the §5.Z matrix a ledger
+      query (needs a per-attempt FLOW dimension the terminal writer doesn't capture yet — decompose/single-card/chat) +
+      reading these profiles/fitness from the LIVE runtime (the §5.AA retry engine / §5.AB scheduler consume them) +
+      folding MCSR speed observations into the same stream + the graded-quality/difficulty a richer writer + the eval
+      harness supply (today quality is the coarse success-rate proxy).
 - [ ] **Replay / simulation mode (ties §5.V).** A captured ledger attempt's model outputs become a deterministic
       fixture → replay the live orchestration without a model. Turns the currently "live-only, deferred to e2e" §5.V
       flows into deterministically-testable ones; debugs orchestration races without a GPU. `replayable` is a per-tool

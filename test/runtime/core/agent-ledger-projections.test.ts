@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildSchedulerEvent } from "../../../src/core/agent-attempt-ledger";
 import {
 	buildModelBehaviorProfilesFromLedger,
+	buildModelFitnessFromLedger,
 	summarizeLedgerForDisplay,
 } from "../../../src/core/agent-ledger-projections";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
+import { computeModelFitness } from "../../../src/core/model-fitness";
 
 const base = { workflowId: "wf", taskId: "t", workspacePathHash: "ws" };
 
@@ -82,5 +84,41 @@ describe("summarizeLedgerForDisplay", () => {
 
 	it("is all-zero/empty for a ledger with no attempts", () => {
 		expect(summarizeLedgerForDisplay([])).toEqual({ totalEvents: 0, totalAttempts: 0, outcomes: [], profiles: [] });
+	});
+});
+
+describe("buildModelFitnessFromLedger", () => {
+	function ridAttempt(modelId: string, role: string, outcome: ModelOutcomeKind, latencyMs: number) {
+		return buildAttemptEvent({
+			...base,
+			attemptId: `${modelId}-${role}-${outcome}-${latencyMs}`,
+			modelId,
+			role,
+			outcome,
+			startedAt: 0,
+			completedAt: latencyMs,
+		});
+	}
+
+	it("derives one coarse fitness record per (model, role) with success-rate quality + real latency", () => {
+		const records = buildModelFitnessFromLedger([
+			ridAttempt("m", "worker", "success", 2000),
+			ridAttempt("m", "worker", "timeout", 4000),
+			ridAttempt("m", "reviewer", "success", 1000),
+		]);
+		// (m,worker) has 2 samples, (m,reviewer) 1 → sorted by samples.
+		expect(records.map((r) => `${r.modelId}/${r.role}`)).toEqual(["m/worker", "m/reviewer"]);
+		const worker = records[0];
+		expect(worker.samples).toBe(2);
+		expect(worker.qualityScore).toBe(0.5); // 1 of 2 success
+		expect(worker.reliability).toBe(0.5);
+		expect(worker.avgLatencyMs).toBe(3000); // mean of 2000 + 4000
+		// The records feed computeModelFitness (a finite, higher-is-better score).
+		expect(Number.isFinite(computeModelFitness(worker))).toBe(true);
+		expect(records[1].qualityScore).toBe(1); // reviewer: 1 of 1 success
+	});
+
+	it("is empty for a ledger with no attempts", () => {
+		expect(buildModelFitnessFromLedger([])).toEqual([]);
 	});
 });
