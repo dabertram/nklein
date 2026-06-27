@@ -3299,9 +3299,12 @@ deep analysis:
       layer is automatic — the user is involved **only after it is fully exhausted** (the user-escalation item below),
       never as an intermediate step. *(Be creative — add approaches beyond the ones listed as sweeps surface new failure
       modes.)*
-- [ ] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
+- [~] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
       failure — a learned per-model metric (part of the profile). Only when the budget is exhausted across approaches ×
-      models does the task become a genuine failure.
+      models does the task become a genuine failure. **CORE DONE (already shipped):** `learnedRetryBudget(profile)`
+      ([src/core/model-behavior-profile.ts](src/core/model-behavior-profile.ts)) derives the budget from the profile's
+      EWMA `avgRetries` + a reliability margin (`(1 - successRate) × maxBudget`), bounded [1, 6] — tested. **Still owed:**
+      feed it into the §5.AB escalation's `retryBudgetExhausted` signal + the live retry loop (the runtime wiring).
 - [~] **★ Hard-stuck detection → escalate to the user (the small-LLM limit trigger) — DETECTOR + MAPPER DONE**
       *(2026-06-27, user-guided)*. The pure trigger that decides when **Layer 1 (the automatic ladder above) is
       exhausted** and it is time to involve the **user** (Layer 2 below) — distinguishing a genuine *capability/
