@@ -2185,7 +2185,11 @@ deep analysis:
       (acceptance-command required, test-first needs a prompt, complexity ≤75 + ≤3 likely-files split gates),
       `validateTaskGraphReferences` (edge count, duplicate-id + dangling-dependency rejection),
       `normalizeTaskAcceptanceCommand` (default-command precedence, test-first cleared without a prompt, dependsOn
-      dedupe/trim).
+      dedupe/trim). **`plan-task-expansion.ts` covered (9 tests)** — the recursive split-into-tiny-pieces core:
+      `uniqStrings`, `formatExpansionRevisionMarkdown` (null when nothing expanded), `getReplacementBoundaryTaskIds`
+      (entry/terminal of a chain, parallel = both, cyclic throws), and `expandDecomposeProjectTasks` (no-op passthrough;
+      **replaces a task with its sub-graph and rewires dependents to the terminal node**; throws on empty replacement,
+      unknown id, depth-limit breach, cycle). The decomposition validation+expansion pair is now well-covered.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
