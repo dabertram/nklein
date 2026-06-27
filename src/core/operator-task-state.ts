@@ -126,6 +126,29 @@ export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): Opera
 }
 
 /**
+ * §5.AG board-level rollup — the at-a-glance board-health summary the board header / `nklein` status surface renders:
+ * the count + task-id list per operator state, plus the risk/approval inbox. Composes `classifyOperatorTaskState`
+ * (per task) and `collectOperatorInbox` (board) so the header is one tested query, not a re-implementation.
+ */
+export interface OperatorBoardSummary {
+	counts: Record<OperatorTaskState, number>;
+	byState: Record<OperatorTaskState, string[]>;
+	inbox: OperatorInbox;
+	total: number;
+}
+
+export function buildOperatorBoardSummary(tasks: readonly OperatorInboxTask[]): OperatorBoardSummary {
+	const counts: Record<OperatorTaskState, number> = { healthy: 0, stuck: 0, risky: 0, done: 0 };
+	const byState: Record<OperatorTaskState, string[]> = { healthy: [], stuck: [], risky: [], done: [] };
+	for (const task of tasks) {
+		const state = classifyOperatorTaskState(task.signals);
+		counts[state] += 1;
+		byState[state].push(task.taskId);
+	}
+	return { counts, byState, inbox: collectOperatorInbox(tasks), total: tasks.length };
+}
+
+/**
  * The minimal session-summary shape the signal map reads. Structurally a subset of the runtime's
  * `RuntimeTaskSessionSummary` (same `state` enum, optional `paused`/`heartbeatStatus`), so a caller can pass a full
  * summary directly — kept inline so this module stays dependency-free (todo §5.AG: the map is the seam, not a contract

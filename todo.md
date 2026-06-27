@@ -3580,8 +3580,12 @@ deep analysis:
       module stays dependency-free via a minimal structural `OperatorSessionSummaryView` so a runtime caller passes a
       full `RuntimeTaskSessionSummary` directly. 7 unit tests incl. classifier composition. **Still owed (the surface):**
       render the inbox/board-health panels consuming this map; thread the real gate/ack/clarify/block flags into
-      `overrides` at the call site; add protected-write approvals (§6.11) once that signal exists. **§5.AG pure data
-      layer is now COMPLETE end-to-end: signal map → classifier + escalation report + inbox; only UI surfaces remain.**
+      `overrides` at the call site; add protected-write approvals (§6.11) once that signal exists. **BOARD ROLLUP DONE
+      (2026-06-27):** `buildOperatorBoardSummary(tasks)` (same module) is the board-header query the classifier comment
+      promised — per-state `counts` + `byState` task-id lists + the folded-in `inbox` + `total`, composing
+      `classifyOperatorTaskState` and `collectOperatorInbox` (2 unit tests, empty-board + mixed-board). **§5.AG pure data
+      layer is now COMPLETE end-to-end: signal map → classifier + board rollup + inbox + escalation report; only the UI
+      surfaces remain (render the rollup header + inbox/escalation panels; thread the real off-summary flags in).**
 - *(cross-links)* §6.8 cockpit (the live per-card layer this summarizes) · §5.AF ledger (the escalation/attempt data) ·
       §5.AB (selection reasoning) · §5.S (clarify inbox) · §5.M G3b (risk ack) · §5.L (delivery gate) · §5.A (isolation state).
 

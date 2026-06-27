@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildOperatorBoardSummary,
 	classifyOperatorTaskState,
 	collectOperatorInbox,
 	mapSessionSummaryToOperatorSignals,
@@ -154,5 +155,31 @@ describe("mapSessionSummaryToOperatorSignals", () => {
 				mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress", { deliveryGateHeld: true }),
 			),
 		).toBe("risky");
+	});
+});
+
+describe("buildOperatorBoardSummary", () => {
+	it("rolls up per-state counts + task-id lists and folds in the inbox", () => {
+		const summary = buildOperatorBoardSummary([
+			{ taskId: "ok", signals: HEALTHY },
+			{ taskId: "ok2", signals: HEALTHY },
+			{ taskId: "done", signals: { ...HEALTHY, columnId: "completed" } },
+			{ taskId: "paused", signals: { ...HEALTHY, paused: true } },
+			{ taskId: "danger", signals: { ...HEALTHY, deliveryGateHeld: true } },
+		]);
+		expect(summary.total).toBe(5);
+		expect(summary.counts).toEqual({ healthy: 2, stuck: 1, risky: 1, done: 1 });
+		expect(summary.byState.healthy).toEqual(["ok", "ok2"]);
+		expect(summary.byState.risky).toEqual(["danger"]);
+		// The risky task's held delivery is also in the inbox.
+		expect(summary.inbox.heldDeliveries).toEqual(["danger"]);
+		expect(summary.inbox.total).toBe(1);
+	});
+
+	it("is all-zero for an empty board", () => {
+		const summary = buildOperatorBoardSummary([]);
+		expect(summary.total).toBe(0);
+		expect(summary.counts).toEqual({ healthy: 0, stuck: 0, risky: 0, done: 0 });
+		expect(summary.inbox.total).toBe(0);
 	});
 });
