@@ -65,7 +65,16 @@ async function runTaskCommand(handler: () => Promise<JsonRecord>): Promise<void>
 
 export function registerTaskCommand(program: Command): void {
 	const task = program.command("task").alias("tasks").description("Manage !Klein board tasks from the CLI.");
+	registerTaskReadCommands(task);
+	registerTaskCrudCommands(task);
+	registerTaskMergeAndSwarmCommands(task);
+	registerTaskPlanCommands(task);
+	registerTaskFinishCommands(task);
+	registerTaskGraphCommands(task);
+	registerTaskStartCommand(task);
+}
 
+function registerTaskReadCommands(task: Command): void {
 	task
 		.command("list")
 		.description("List !Klein tasks for a workspace.")
@@ -95,7 +104,9 @@ export function registerTaskCommand(program: Command): void {
 				async () => await reportBoardHealth({ cwd: process.cwd(), projectPath: options.projectPath }),
 			);
 		});
+}
 
+function registerTaskCrudCommands(task: Command): void {
 	task
 		.command("create")
 		.description("Create a task in backlog.")
@@ -214,7 +225,9 @@ export function registerTaskCommand(program: Command): void {
 				);
 			},
 		);
+}
 
+function registerTaskMergeAndSwarmCommands(task: Command): void {
 	task
 		.command("merge")
 		.description("Merge reviewed task results into the base workspace in dependency order.")
@@ -262,7 +275,9 @@ export function registerTaskCommand(program: Command): void {
 					}),
 			);
 		});
+}
 
+function registerTaskPlanCommands(task: Command): void {
 	task
 		.command("plan-gap")
 		.description("Record a structured plan gap discovered while executing a task.")
@@ -338,7 +353,9 @@ export function registerTaskCommand(program: Command): void {
 				);
 			},
 		);
+}
 
+function registerTaskFinishCommands(task: Command): void {
 	task
 		.command("done")
 		.description("Move a task or an entire column to completed and clean up task workspaces.")
@@ -406,7 +423,9 @@ export function registerTaskCommand(program: Command): void {
 					}),
 			);
 		});
+}
 
+function registerTaskGraphCommands(task: Command): void {
 	task
 		.command("link")
 		.description("Link two tasks so one task waits on another.")
@@ -528,7 +547,9 @@ export function registerTaskCommand(program: Command): void {
 					}),
 			);
 		});
+}
 
+function registerTaskStartCommand(task: Command): void {
 	task
 		.command("start")
 		.description("Start a task session and move task to Planning or In Progress.")

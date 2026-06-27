@@ -2105,6 +2105,16 @@ deep analysis:
               monolith** — what remains is essentially the `registerTaskCommand` Commander subcommand wiring (+ the small
               `runTaskCommand`/`parseOptionalBooleanOption` helpers) over the now-21 extracted per-concern modules. tsc +
               biome + `test:fast` (2443) green. The §5.U "no large monolith" goal is **met for task.ts** (2870→547).
+        - [x] **slice 22 (2026-06-27):** split the 482-line `registerTaskCommand` into a thin dispatcher + 7 per-concern
+              register helpers (`registerTask{Read,Crud,MergeAndSwarm,Plan,Finish,Graph,Start}…Commands`) — the large
+              function is gone; each helper holds a navigable group of subcommand definitions. tsc + biome + `test:fast`
+              (2443) green. ⚠️ **Pre-existing, UNRELATED test failure noticed (NOT from this change — confirmed by stashing):**
+              `test/integration/task-command-exit.integration.test.ts` (4 tests) fails because the **spawned** CLI process
+              can't resolve `@nklein/core` (`ERR_MODULE_NOT_FOUND` from `src/nklein-agent/sdk-runtime-boundary.ts` — the
+              vendored-SDK `@nklein/*` alias isn't loaded in the child process / `vendor/nklein-sdk` not set up in this
+              env). It is NOT in the green gate (`test:fast`/pre-commit don't run `test/integration`). **Follow-up:** make
+              the integration test's spawn pass the `scripts/nklein-sdk-alias.mjs` loader (or ensure the vendored SDK is
+              built) so `test/integration` is runnable here.
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
