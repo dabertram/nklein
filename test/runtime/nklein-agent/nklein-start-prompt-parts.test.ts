@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNKleinStartPromptParts } from "../../../src/nklein-agent/nklein-task-session-service";
+import { buildNKleinStartPromptParts } from "../../../src/nklein-agent/nklein-task-prompt-builders";
 
 /**
  * §5.B — the Planning/Refinement lane prompt selection. A started WORK card gets the refinement preamble (re-validate

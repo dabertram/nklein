@@ -2022,6 +2022,11 @@ deep analysis:
   - **`src/commands/task.ts` decomposition ✅ COMPLETE (2870 → ~568, −80%) → moved to [done.md](done.md) (§5.U)** *(17
         per-concern command/helper modules under `commands/task/` + `registerTaskCommand` split into a dispatcher + 7
         register helpers, across 22 green slices).*
+  - **`nklein-task-session-service.ts` — one opportunistic clean slice (2026-06-27), otherwise PARKED.** Extracted the pure
+        system-prompt builders (`buildNKleinStartPromptParts` / `appendSystemPrompt` + the planning/refinement prompt text)
+        to `nklein-task-prompt-builders.ts` (3511 → 3422). The bulk — the ~2850-line `InMemoryNKleinTaskSessionService`
+        class — stays parked per the 2026-06-24 "postpone monoliths, make !Klein actually work" pivot; resume only as a
+        focused fresh-context pass, not at the tail of functionality work.
   - [ ] **`task-command-exit` integration test — the 4th case is still red (2026-06-27).** This session's task.ts work took
         it 0/4 → 3/4 by fixing two real regressions: the spawned CLI couldn't resolve the vendored `@nklein/*` alias (→ pass
         `TSX_TSCONFIG_PATH` in the spawn so tsx uses this repo's tsconfig), and the self-improvement guard false-positived
