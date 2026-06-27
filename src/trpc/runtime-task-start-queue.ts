@@ -1,4 +1,6 @@
-import type { RuntimeTaskSessionStartRequest } from "../core/api-contract";
+import { z } from "zod";
+import { type RuntimeTaskSessionStartRequest, runtimeTaskSessionStartRequestSchema } from "../core/api-contract";
+import { parseValidatedJsonl } from "../state/jsonl-store";
 import type { RuntimeTrpcWorkspaceScope } from "./app-router";
 
 export interface QueuedRuntimeTaskStart {
@@ -108,4 +110,30 @@ export function createRuntimeTaskStartQueue(): RuntimeTaskStartQueue {
 			return count;
 		},
 	};
+}
+
+/**
+ * On-disk shape of one queued start — drift-guarded against `QueuedRuntimeTaskStart` so the persisted format and the
+ * in-memory type can't silently diverge. The pure half of the §5.AF durable queued-start store (so the queue survives
+ * a runtime restart); the file I/O wrapper + the runtime-server wiring that loads/persists it are the remaining work.
+ */
+export const queuedRuntimeTaskStartSchema = z.object({
+	workspaceScope: z.object({ workspaceId: z.string(), workspacePath: z.string() }),
+	input: runtimeTaskSessionStartRequestSchema,
+	queuedAt: z.number(),
+	nextAttemptAt: z.number(),
+	attempts: z.number(),
+	lastError: z.string().nullable(),
+});
+const _queuedStartDriftGuard: z.ZodType<QueuedRuntimeTaskStart> = queuedRuntimeTaskStartSchema;
+void _queuedStartDriftGuard;
+
+/** Serialize the queue's entries to JSONL (one start per line) for the durable store. */
+export function serializeQueuedTaskStarts(entries: readonly QueuedRuntimeTaskStart[]): string {
+	return entries.map((entry) => JSON.stringify(entry)).join("\n");
+}
+
+/** Parse durable-store JSONL back into queued starts — schema-validated, skipping (+ diagnosing) any invalid line. */
+export function parseQueuedTaskStarts(content: string): QueuedRuntimeTaskStart[] {
+	return parseValidatedJsonl(content, queuedRuntimeTaskStartSchema, "runtime-task-start-queue");
 }

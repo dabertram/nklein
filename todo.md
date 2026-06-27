@@ -4358,9 +4358,12 @@ deep analysis:
       **interface already exists** — `RuntimeTaskStartQueue` in
       [src/trpc/runtime-task-start-queue.ts](src/trpc/runtime-task-start-queue.ts), an in-memory `enqueue`/`takeReady`/
       `remove`/`size` queue whose `QueuedRuntimeTaskStart` already carries `attempts`/`nextAttemptAt`/`lastError` for
-      backoff. So the remaining work is the **durable persistence** of that queue [serialize/reload its entries, like the
-      §5.AF ledger store] + the **Red** runtime-server extraction.)* This is also exactly the §5.AF "durable long-run job
-      scheduler" item — one arc.
+      backoff, and its **durable persistence format is now DONE (2026-06-27):** `queuedRuntimeTaskStartSchema` (drift-
+      guarded against `QueuedRuntimeTaskStart`) + `serializeQueuedTaskStarts` / `parseQueuedTaskStarts` (JSONL,
+      skip-invalid via `parseValidatedJsonl`) in the same module — 3 round-trip/skip tests. So the remaining work is the
+      thin **file-I/O wrapper** (write on enqueue/drain, load on startup, like the ledger store) + the **Red**
+      runtime-server wiring [load the queue at boot, replay it, persist on change].)* This is also exactly the §5.AF
+      "durable long-run job scheduler" item — one arc.
 - *(already tracked in §5.U — not duplicated here: the `runtime-settings-dialog.tsx` JSX decomposition, the
   `nklein-task-session-service.ts` collaborator extraction, and the monolith inventory.)*
 
