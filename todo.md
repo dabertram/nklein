@@ -4209,10 +4209,12 @@ deep analysis:
 
 > **Structure-refactor ladder (ordered by fan-out ROI; each independently shippable + test-backed; folds into §5.U's
 > no-monolith goal — do them in the normal incremental loop, not as a pause-the-world front-load):**
-- [ ] **Web runtime query-client split (barrel-preserving) — DO FIRST (lowest risk, fastest enabler).** Split
-      `web-ui/src/runtime/runtime-config-query.ts` (~530 lines / ~56 exports) into domain modules behind the existing
-      barrel: `queries/{config,provider,model-registry,mcp,plan-artifacts,task-control,dev-test}.ts`. No caller churn in
-      the first pass; web typecheck + web tests stay green. Creates independent UI lanes immediately.
+- [x] **Web runtime query-client split (barrel-preserving) — DONE (2026-06-27, the first dispatch enabler).** Split
+      `web-ui/src/runtime/runtime-config-query.ts` (532 lines / 56 tRPC-wrapper fns) into 7 domain modules under
+      `web-ui/src/runtime/queries/{config,provider,model-registry,mcp,plan-artifacts,task-control,dev-test}.ts`; the
+      original path is now a 7-line **barrel** (`export *`) so **zero callers changed**. Verified: biome + web typecheck
+      (the barrel resolves for every importer) + full web vitest (742) + `web:build` (clean bundle). Creates independent
+      UI lanes immediately — a settings/provider/task-control change no longer competes in one 530-line file.
 - [ ] **Runtime-config facade split (Yellow → unblocks config-heavy work).** Split `src/config/runtime-config.ts` (~2200
       lines) into `runtime-config-{types,defaults,normalize,change-fields,store}.ts` behind the existing public facade.
       Preserve every import + all corrupt-vs-missing / defaulting / migration behavior; lock with the round-trip +
