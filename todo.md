@@ -2438,8 +2438,21 @@ deep analysis:
       ([board-actions.ts](web-ui/tests/harness/board-actions.ts): `gotoBoard` / `createBacklogTask` / `openCard` /
       `openSettings`). Proven by `board-harness.spec.ts` (3 green: shell render, seeded-card render, settings dialog — run
       against the live web-ui via `PLAYWRIGHT_BROWSERS_PATH=…/ms-playwright npm --prefix web-ui run e2e`). New UI-e2e-with-mocks
-      specs build on this instead of re-mocking by hand. **Next harness piece: the FULL-SYSTEM layer** (real runtime + models
-      on a small verifiable project — boot dev:full with an isolated HOME + fixed ports + a scaffolded small project).
+      specs build on this instead of re-mocking by hand.
+- **FULL-SYSTEM e2e layer built + verified (2026-06-28) — real runtime + live model on a verifiable project (the
+      result-validity counterpart to the mock layer above).** Two reusable scripts:
+      [full-system-harness.mts](scripts/full-system-harness.mts) — `bootFullSystemRuntime()` boots the genuine `src/cli.ts`
+      (the `dev:full` runtime) under an isolated HOME on a free port with `NODE_ENV=development`, returning typed tRPC clients
+      (global + workspace-scoped), a board WebSocket, and a clean SIGTERM→SIGKILL `stop()`; and
+      [verify-full-system.mts](scripts/verify-full-system.mts) — pins the live model, scaffolds the `small-model-smoke`
+      project (a tiny TS CLI shipping a REAL uncapped-score bug) through the real `createDevTestProject` path, starts a direct
+      fix card on the real stack, watches to a terminal state, then checks out the `nklein/tasks/<task>` result branch and runs
+      a HARNESS-OWNED cap-invariant oracle (the agent cannot game it by leaving its own tests green) → PASS/PARTIAL/INCOMPLETE.
+      **Proven PASS live** (qwen2.5-coder-14b: scaffolded → ran to awaiting_review → oracle confirmed the cap bug *actually*
+      fixed → clean teardown incl. Docker containers gone). Sweep-ready: `npx tsx scripts/verify-all-models.mts
+      verify-full-system` fans it across the LM Studio roster (the harness reads `NKLEIN_VERIFY_MODEL` + de-prioritizes
+      deepseek; the sweep driver honors the deepseek-drop caveat). Scripts are out of the tsc/biome scope (like every
+      `verify-*.mts`) so they're validated by running, not the static gate.
   - [ ] **BUG the harness caught (2026-06-27):** clicking a board card can crash with `Cannot read properties of null
         (reading 'promptBlock')` — `response.promptBlock` is read unguarded after a tRPC call that may return null
         ([kanban-board.tsx](web-ui/src/components/kanban-board.tsx) ~L487,
