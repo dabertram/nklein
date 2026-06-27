@@ -7,6 +7,7 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
 import { summarizeLedgerForDisplay } from "../core/agent-ledger-projections";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
@@ -510,6 +511,29 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	}
 }
 
+async function runDevEscalationCommand(options: { taskId: string; json?: boolean }): Promise<void> {
+	const report = buildTaskEscalationReport(await readAllAgentLedger(), options.taskId);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+		return;
+	}
+	if (report.totalAttempts === 0) {
+		process.stdout.write(`No attempts recorded for task "${options.taskId}" yet.\n`);
+		return;
+	}
+	process.stdout.write(
+		`Escalation report — task ${report.taskId}\n` +
+			`  ${report.totalAttempts} attempt(s) · models tried: ${report.modelsTried.join(", ")} · final: ${report.finalOutcome}\n\n`,
+	);
+	for (const row of report.attempts) {
+		const quality = row.qualityScore !== null ? ` q=${row.qualityScore.toFixed(2)}` : "";
+		const salvage = row.salvage ? ` salvage=${row.salvage}` : "";
+		process.stdout.write(
+			`  rung ${String(row.rung).padStart(2)}  ${row.modelId.padEnd(36)} ${row.approach.padEnd(28)} → ${row.outcome}${quality}${salvage}\n`,
+		);
+	}
+}
+
 async function runDevRailEvidenceCommand(options: { json?: boolean; advisor?: boolean }): Promise<void> {
 	const aggregate = aggregateRailEvidence(await readRailEvidenceReports());
 	if (options.advisor) {
@@ -642,6 +666,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevLedgerCommand(options);
+		});
+
+	dev.command("escalation")
+		.description(
+			"Show a task's escalation report (§5.AG): the chronological attempt chain (rung × model × approach × outcome) from the ledger.",
+		)
+		.requiredOption("--task-id <id>", "Task id to report on.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { taskId: string; json?: boolean }) => {
+			await runDevEscalationCommand(options);
 		});
 
 	dev.command("rail-evidence")

@@ -3582,9 +3582,12 @@ deep analysis:
       **REPORT PROJECTION DONE (2026-06-27):** pure `buildTaskEscalationReport(events, taskId)`
       ([agent-attempt-ledger.ts](src/core/agent-attempt-ledger.ts)) — a QUERY over the ledger that returns the task's
       chronological attempt chain (`rung × model × approach × outcome × qualityScore × salvage`, with `approach` a
-      readable label of the levers applied) plus a rollup (distinct models tried, final outcome). 3 unit tests. **Still
-      owed (the surface):** render it on the card's escalation panel + add the §5.AB "why this model" reason (needs the
-      §5.AB selection-reason data).
+      readable label of the levers applied) plus a rollup (distinct models tried, final outcome). 3 unit tests.
+      **CLI SURFACE WIRED + VERIFIED (2026-06-27):** `nklein dev escalation --task-id <id>` (`runDevEscalationCommand` in
+      [dev.ts](src/commands/dev.ts)) reads the real ledger (`readAllAgentLedger`) → `buildTaskEscalationReport` → prints
+      the attempt chain (text + `--json`); verified by execution (empty-ledger → "No attempts recorded" / the empty
+      report). **Still owed (the rest of the surface):** render it on the card's escalation panel in the web UI + add the
+      §5.AB "why this model" reason (needs the §5.AB selection-reason data).
 - [~] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
       (§5.M G3b), clarifying questions (§5.S), held deliveries (§5.L), protected-write approvals (§6.11). Reduces "where
       do I unblock this?" hunting. **DATA CORE DONE (2026-06-27):** `collectOperatorInbox(tasks)` in
