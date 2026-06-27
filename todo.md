@@ -2073,10 +2073,15 @@ deep analysis:
               guard, start the native sandbox session handling queued/needs-decomposition, move to the active lane) →
               `commands/task/task-start-command.ts` (leaf; uses the already-extracted `markTaskNeedsDecompositionOnBoard`).
               task.ts 1534→1410 (cumulative 2870→1410, **−1460/−51%**, over half the original extracted). tsc + biome +
-              `test:fast` (2443) green. *(Remaining: the `finishTask` cluster [`finishTask`/`finishTaskById` +
-              auto-merge/`createIntegrationCardForMergeConflict`/`mergeTaskWorktreesCommand`] — the biggest, most
-              cross-calling impls — `runVerifyTaskAcceptanceCommand`, `recordTaskPlanGapCommand`, and the
-              `registerTaskCommand` subcommand-registration split.)*
+              `test:fast` (2443) green.
+        - [x] **slice 17 (2026-06-27):** extracted `runVerifyTaskAcceptanceCommand` + its DI interfaces
+              (`VerifyTaskAcceptanceDependencies` / `RuntimeTaskAcceptanceVerifyMutationClient`) →
+              `commands/task/task-verify-command.ts` (self-contained, collaborators injectable for testing; not entangled
+              with finishTask). `task-verify.test.ts` repointed. task.ts 1410→1299 (cumulative 2870→1299, **−1571/−55%**).
+              tsc + biome + task-verify + contract + `test:fast` green. *(Remaining: the `finishTask` cluster
+              [`finishTask`/`finishTaskById` + `autoMergeFinishedTaskWorktree`/`recordTaskWorktreeMergeObservations`/
+              `createIntegrationCardForMergeConflict`/`mergeTaskWorktreesCommand`] — the biggest, most cross-calling impls —
+              plus `recordTaskPlanGapCommand`, `inferNKleinPlanSlugForTask`, and the `registerTaskCommand` split.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
