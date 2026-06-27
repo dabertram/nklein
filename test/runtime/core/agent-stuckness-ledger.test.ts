@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type BuildAttemptEventInput, buildAttemptEvent } from "../../../src/core/agent-attempt-ledger";
 import { buildStucknessSignalsFromLedger } from "../../../src/core/agent-ledger-projections";
-import { classifyAgentStuckness, shouldRequestBiggerModelConsult } from "../../../src/core/agent-stuckness";
+import { classifyAgentStuckness, isHardStuck } from "../../../src/core/agent-stuckness";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 
 let seq = 0;
@@ -96,7 +96,7 @@ describe("buildStucknessSignalsFromLedger", () => {
 		const signals = buildStucknessSignalsFromLedger(events, "task-1", { retryBudgetExhausted: true });
 		expect(signals.distinctApproachesTried).toBe(3);
 		expect(signals.loopUncleared).toBe(true);
-		expect(shouldRequestBiggerModelConsult(signals)).toBe(true);
+		expect(isHardStuck(signals)).toBe(true);
 	});
 
 	it("sorts attempts chronologically by recordedAt regardless of input order", () => {

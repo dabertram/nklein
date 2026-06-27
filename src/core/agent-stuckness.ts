@@ -99,10 +99,13 @@ export function classifyAgentStuckness(
 }
 
 /**
- * §5.AB: a `hard_stuck` agent is the trigger to package the situation (the §5.AG "what was tried" report + failing
- * context) and ask a more capable model to analyze it and return remediation guidance — never just another retry.
+ * §5.AB escalation trigger: a `hard_stuck` verdict means the AUTOMATIC recovery ladder — all §5.AA approaches across
+ * ALL available loaded models, best-fit first, with NO user intervention — is exhausted. The caller then escalates to
+ * the USER with the "get through the wall" suggestions (`buildEscalationSuggestions`), of which making a more capable
+ * model available is only one. There is no automatic mid-pipeline bigger-model tier — loading a bigger model needs the
+ * user. (Generic by design: this classifies the attempt stream; the caller owns the ladder/orchestration.)
  */
-export function shouldRequestBiggerModelConsult(
+export function isHardStuck(
 	signals: AgentStucknessSignals,
 	thresholds: AgentStucknessThresholds = DEFAULT_AGENT_STUCKNESS_THRESHOLDS,
 ): boolean {

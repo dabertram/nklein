@@ -3266,55 +3266,54 @@ deep analysis:
       a better (busy) model, or be **attempted by a lesser** one (a per-task / per-project policy dial). Replaces the
       current one-model-per-role binding (→ manual override / pin). Needs the fitness table (eval harness) + the
       difficulty estimate populated first.
-- [ ] **Stubborn-failure escalation (drives the §5.AA ladder × all models).** On repeated failure, escalate through the
-      §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding force, loop
-      detect+salvage) AND across models (best → next-best → … → all), each attempt informed by the profile so known-bad
-      approaches/models are SKIPPED (no circles). Bounded by the learned per-model retry budgets. *(Be creative — add
-      approaches beyond the ones listed as sweeps surface new failure modes.)*
+- [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (approaches × ALL loaded models, no user) — LAYER 1**
+      *(escalation order clarified 2026-06-27, user)*. On repeated failure, escalate **with NO user intervention**
+      through (i) the §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding
+      force, loop detect+salvage), **tried AND retried**, then (ii) **across models — best-fit first, but try EVERYTHING
+      possible**: every other available + loaded model, in fitness order. Each attempt is informed by the profile so
+      known-bad approaches/models are SKIPPED (no circles); bounded by the learned per-model retry budgets. This entire
+      layer is automatic — the user is involved **only after it is fully exhausted** (the user-escalation item below),
+      never as an intermediate step. *(Be creative — add approaches beyond the ones listed as sweeps surface new failure
+      modes.)*
 - [ ] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
       failure — a learned per-model metric (part of the profile). Only when the budget is exhausted across approaches ×
       models does the task become a genuine failure.
-- [ ] **★ Bigger-model rescue consult (ADVISORY escalation) — the small-LLM hard-limit path** *(2026-06-27, user — a
-      headline Direction-2 capability)*. A qualitatively *different* rung from the across-models retry above: when an
-      agent is **hard-stuck** — a genuine *complexity / capability* limit, not stochastic flakiness (signals from
-      §5.AA + the §5.AF ledger: repeated non-progress across approaches, a loop the salvager can't clear, no-diff /
-      self-contradictory turns, the retry budget burned on the *same* failure class) — !Klein **does NOT just retry the
-      task on another model.** It packages the situation as a **consult request** (the §5.AG "what was tried" attempt
-      chain + the failing context / diff / errors + the task's acceptance shape + the precise stuck-point) and asks the
-      **most capable available model** to **ANALYZE the problem and return DETAILED rectification guidance** — a concrete
-      remediation plan (root-cause read · the exact steps/edits to try · what to avoid · how to verify), **NOT a finished
-      patch.** That guidance is fed back to the small agent as a fresh, well-structured next turn (turning an
-      unrecoverable tangle into a bounded step), and recorded in the ledger as a consult `transition` event. **By
-      invariant #1 the "bigger model" is a bigger LOCAL model first** — a larger / less-quantized / higher-context model
-      that is loaded or loadable (the fitness table gains an **`analysis` role** ranking diagnostic capability); when none
-      is available or sufficient, !Klein **SURFACES the suggestion to the operator** (§5.AG) — *"this card needs a more
-      capable model to diagnose"* — offering to load one, hand it to the user, or (only behind the explicit cloud-lockdown
-      lift, the `[-]` rung below) a cloud model. **Why this is the most important Direction-2 safety valve:** small local
-      models have hard limits and cannot reliably dig themselves out of complex tangles; this advisory tier keeps the
-      swarm from grinding a weak model into an unrecoverable hole, and it mirrors exactly how a human lead consults a
-      stronger model when stuck (the contributor⇄product symmetry, §5.AK). **Build:** (a) the **hard-limit detector — PURE CORE DONE (2026-06-27):**
-      `classifyAgentStuckness` + `shouldRequestBiggerModelConsult` ([src/core/agent-stuckness.ts](src/core/agent-stuckness.ts))
-      — a pure verdict (`progressing` | `transient` | `hard_stuck`) distinguishing a real capability ceiling
-      (`loop`/`other_failure`/`timeout` persisting across enough distinct approaches with the retry budget burned →
-      escalate) from recoverable **format slips** (`no_tool_call`/`narrated`/`malformed`, which never escalate on their
-      own — the AGENTS.md parse-and-recover class), mirroring `classifyOperatorTaskState`; 10 unit tests, tsc+biome green.
-      **Ledger→signals mapper DONE (2026-06-27):** `buildStucknessSignalsFromLedger`
+- [~] **★ Hard-stuck detection → escalate to the user (the small-LLM limit trigger) — DETECTOR + MAPPER DONE**
+      *(2026-06-27, user-guided)*. The pure trigger that decides when **Layer 1 (the automatic ladder above) is
+      exhausted** and it is time to involve the **user** (Layer 2 below) — distinguishing a genuine *capability/
+      complexity* limit from stochastic flakiness or a recoverable format slip, so !Klein neither gives up too early nor
+      grinds a weak model into an unrecoverable hole. **Escalation-order correction (user 2026-06-27): there is NO
+      automatic mid-pipeline "bigger-model consult" tier.** Trying every loaded model is part of Layer 1 (automatic, no
+      user); making a *more capable* model available requires the user, so it lives in the Layer-2 user suggestions
+      (next item) as only ONE option. **Detector — DONE:** `classifyAgentStuckness` + `isHardStuck`
+      ([src/core/agent-stuckness.ts](src/core/agent-stuckness.ts)) — a pure verdict (`progressing` | `transient` |
+      `hard_stuck`) distinguishing a real capability ceiling (`loop`/`other_failure`/`timeout` persisting across enough
+      distinct approaches/models with the retry budget burned → escalate to the user) from recoverable **format slips**
+      (`no_tool_call`/`narrated`/`malformed`, the AGENTS.md parse-and-recover class — never escalate on their own);
+      mirrors `classifyOperatorTaskState`; 10 unit tests. **Mapper — DONE:** `buildStucknessSignalsFromLedger`
       ([src/core/agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)) projects the §5.AF attempt stream
-      for a task into the detector's signals — scopes to the **current stuck episode** (the trailing run of non-success
-      attempts), counts **distinct approaches** (endpoint × prompt × tool-set × simplify), flags an **uncleared loop** +
-      **artifact-progress**; 8 tests (`retryBudgetExhausted` stays caller-supplied — the learned budget isn't in the
-      ledger). So `ledger → signals → classifyAgentStuckness → shouldRequestBiggerModelConsult` is a complete pure chain.
-      **Still owed:**
-      (b) the **consult-request packer** — reuse `buildTaskEscalationReport` + the failing
-      context into a structured analysis prompt that fits the ≥32k floor (compact the history, don't dump it); (c) the
-      **analyst-role model pick** — strongest available local model via the fitness table's `analysis` role; (d)
-      **guidance application** — feed the plan back as the agent's next structured turn, **bounded to one consult per
-      stuck-point** so it can't loop; (e) the **§5.AG surface** — show the diagnosis + guidance + the operator
-      suggestion. Ties §5.AA (detection) · §5.AF (consult events + durable record) · §5.AG (surface) · §5.K (a
-      *different-family* analyst reduces correlated blind spots) · §5.AK (the symmetry + !Klein-must-avoid-trouble framing).
-- [ ] **User escalation (LAST resort).** Only when ALL models × ALL approaches × learned retries **and the bigger-model
-      rescue consult** are exhausted, surface to the user a clear "no connected model could complete this task" report
-      with what was tried (models, approaches, scores, and the consult's diagnosis) — actionable, not a silent dead end.
+      for a task into the detector's signals — current stuck episode (trailing non-success run), distinct approaches
+      (endpoint × prompt × tool-set × simplify), uncleared-loop + artifact-progress flags; 8 tests
+      (`retryBudgetExhausted` caller-supplied — not in the ledger). So `ledger → signals → classifyAgentStuckness →
+      isHardStuck` is the complete **pure trigger**. **Still owed (runtime wiring):** the call site that (1) drives
+      Layer 1 across ALL loaded models automatically, (2) on `isHardStuck` builds the §5.AG "what was tried" report + the
+      Layer-2 suggestions and escalates to the user, (3) records the escalation as a ledger event. Ties §5.AA
+      (approaches) · §5.AF (attempt stream + escalation event) · §5.AG (report + suggestions) · §5.AK (symmetry).
+- [~] **User escalation (LAST resort) — the "get through the wall" SUGGESTIONS surface — LAYER 2** *(user 2026-06-27)*.
+      Only after Layer 1 (all approaches × all loaded models × learned retries — fully automatic) is exhausted does
+      !Klein involve the user, and never as a silent dead end. It surfaces the §5.AG "what was tried" report (models ·
+      approaches · scores · outcomes) **plus a set of ACTIONABLE SUGGESTIONS to get through the wall** — because **often
+      a simple user decision is enough**, and *making a bigger model available is only ONE of them*. **Suggestions core
+      DONE (2026-06-27):** pure `buildEscalationSuggestions(context)`
+      ([src/core/escalation-suggestions.ts](src/core/escalation-suggestions.ts)) returns the ordered set (simple
+      decisions first; context promotes the most-likely fix to the front): clarify an ambiguity / pick a direction ·
+      provide missing context (files, examples, credentials) · adjust or relax a constraint / guardrail / acceptance bar ·
+      approve a blocked host/unsafe action · fix an environment / setup / dependency issue · re-scope or split the task ·
+      and last, **make a more capable model available** — optionally letting *that* bigger model **analyze the captured
+      situation and return detailed rectification guidance** (the user's "let a bigger model analyze + guide" idea, now a
+      user-chosen option — local-first; cloud only behind the `[-]` lockdown lift below). **Still owed (wiring):** render
+      the suggestions in the §5.AG escalation panel + the runtime hook that resumes the agent with the user's chosen
+      input. (Tests: the ordered set + context promotion + bigger-model-always-present-and-last.)
 - [ ] **Settings UI.** Show the fitness table + the current automatic role assignments; let the user pin / prefer /
       weight per role (the speed-vs-quality dial) and set the wait-vs-attempt policy; a "Re-evaluate connected models"
       action. (Builds on the MCSR telemetry panel §6.4.)
@@ -3737,10 +3736,12 @@ deep analysis:
       mirrors the diagnostics panel (lazy/refresh/loading/error). Verified: web typecheck + 2 component tests + full web
       vitest (738) + web:build + a live browser load (no white screen / console errors). **§5.AG escalation surface is
       now complete end-to-end: ledger → `buildTaskEscalationReport` → CLI (`dev escalation`) + tRPC endpoint + web panel.**
-      **Still owed:** the §5.AB "why this model" reason (needs the §5.AB selection-reason data); and the **bigger-model
-      rescue consult** surface (§5.AB) — when an agent is hard-stuck and a stronger model is asked to diagnose, show its
-      root-cause read + remediation guidance alongside the attempt chain, plus the operator-facing *"this needs a more
-      capable model"* suggestion when no local model suffices.
+      **Still owed:** the §5.AB "why this model" reason (needs the §5.AB selection-reason data); and the **Layer-2
+      user-escalation suggestions** surface (§5.AB) — when the automatic ladder (all approaches × all loaded models) is
+      exhausted (`isHardStuck`), render `buildEscalationSuggestions(...)` alongside the attempt chain so the user gets a
+      set of "get through the wall" options (clarify · provide context · adjust a constraint · approve a blocked action ·
+      fix the environment · re-scope · or make a more capable model available — optionally to analyze + guide), with the
+      most-likely fix promoted first.
 - [~] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
       (§5.M G3b), clarifying questions (§5.S), held deliveries (§5.L), protected-write approvals (§6.11). Reduces "where
       do I unblock this?" hunting. **DATA CORE DONE (2026-06-27):** `collectOperatorInbox(tasks)` in
@@ -4156,7 +4157,7 @@ deep analysis:
 > - Merge-Readiness Pack (what a subagent returns)        ⇄  the **result-branch + evidence bundle** an !Klein agent returns
 > - Lead-coder = sole trunk integrator                    ⇄  the trusted-runtime **MergeBroker** that applies result branches
 > - Verifier subagent (read-only checks)                  ⇄  the §5.K **reviewer** role
-> - I consult a bigger model when stuck                   ⇄  the **bigger-model rescue consult** (§5.AB) for a hard-stuck small agent
+> - I exhaust my options, then ask my user (with options) ⇄  Layer-1 **automatic** ladder (all approaches × all loaded models) → Layer-2 **user escalation + suggestions** (§5.AB; a bigger model is one option)
 > - Agent Attempt Ledger = my evidence trail              ⇄  the §5.AF ledger = !Klein's durable **workflow event log**
 >
 > **References (inlined for self-containment):** CAID / effective async SWE-agent coordination (arxiv 2603.21489) · SASE /
@@ -4272,21 +4273,25 @@ deep analysis:
 #### Direction 2 — guide !Klein's OWN agents with the same discipline (small models need it MORE)
 > The product mirror of direction 1: !Klein is the lead-coder over a swarm of small-model workers on user projects. The
 > bounds + gates that make MY fan-out safe are what keep a 7B worker from wandering off-scope or into an unrecoverable
-> tangle. The escalation valve (the bigger-model rescue consult) is specced in §5.AB; the rest:
+> tangle. The escalation path (the automatic across-all-loaded-models ladder → user escalation with "get through the
+> wall" suggestions) is specced in §5.AB; the rest:
 - [ ] **Decompose emits work-package-shaped cards.** !Klein's decomposition should produce cards carrying the
       contract's bounds — **write-scope / forbidden paths / interfaces / acceptance shape** — not just a prose prompt, so
       a small worker stays in-bounds by construction (and overlapping cards are conflict-classified Green/Yellow/Red like
       direction 1). Ties §5.B (decomposition) + §5.N (focus chains as the worker's checklist).
 - [ ] **Path-owned acceptance gates per card.** The product mirror of the verification manifest: each card declares the
       executable checks that prove it (build/test/typecheck/acceptance), the trusted runtime runs them on the result
-      branch before the §5.K review, and a failing gate is a structured outcome the worker (or the rescue consult) acts
-      on — not a silent pass. Ties §5.L (delivery gate) + §5.AF (gate events in the ledger).
+      branch before the §5.K review, and a failing gate is a structured outcome the worker (or, once the automatic
+      ladder is exhausted, the user escalation) acts on — not a silent pass. Ties §5.L (delivery gate) + §5.AF (gate
+      events in the ledger).
 - [ ] **Trouble-awareness — agents must recognize approaching-unrecoverable states and escalate BEFORE grinding in.**
       Generalize the guards we already proved we need (the `core.bare` fixture-flip, the read/tool-call loops, host-path
       confusion in the sandbox) into a first-class **stuck/at-risk signal** the worker and the runtime both watch; when it
-      fires, **trigger the §5.AB bigger-model rescue consult** rather than burning the retry budget. The whole point: a
+      fires, **drive the §5.AB escalation path** (finish the automatic across-models ladder, then escalate to the user
+      with suggestions) rather than burning the retry budget. The whole point: a
       small model must **not** be left to thrash its way out of a hole it cannot climb — !Klein detects the hard limit and
-      brings a stronger model in to analyze + guide. Ties §5.AA (detection) · §5.AB (the consult) · §5.AG (the surface).
+      escalates to the user with options (one of which is making a stronger model available to analyze + guide). Ties
+      §5.AA (detection) · §5.AB (the escalation path) · §5.AG (the surface).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.

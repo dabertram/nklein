@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	type AgentStucknessSignals,
-	classifyAgentStuckness,
-	shouldRequestBiggerModelConsult,
-} from "../../../src/core/agent-stuckness";
+import { type AgentStucknessSignals, classifyAgentStuckness, isHardStuck } from "../../../src/core/agent-stuckness";
 
 function signals(overrides: Partial<AgentStucknessSignals> = {}): AgentStucknessSignals {
 	return {
@@ -115,14 +111,14 @@ describe("classifyAgentStuckness", () => {
 	});
 });
 
-describe("shouldRequestBiggerModelConsult", () => {
+describe("isHardStuck", () => {
 	it("is true only for hard_stuck", () => {
 		expect(
-			shouldRequestBiggerModelConsult(
+			isHardStuck(
 				signals({ recentOutcomes: ["loop", "loop", "loop"], distinctApproachesTried: 2, loopUncleared: true }),
 			),
 		).toBe(true);
-		expect(shouldRequestBiggerModelConsult(signals({ recentOutcomes: ["malformed"] }))).toBe(false);
-		expect(shouldRequestBiggerModelConsult(signals({ hadProgressSinceStuck: true }))).toBe(false);
+		expect(isHardStuck(signals({ recentOutcomes: ["malformed"] }))).toBe(false);
+		expect(isHardStuck(signals({ hadProgressSinceStuck: true }))).toBe(false);
 	});
 });
