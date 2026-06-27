@@ -3704,7 +3704,13 @@ deep analysis:
       DONE (2026-06-27):** `summarizeModelOutcomesByRole` rolls attempts up per (model, role) — the board role (architect
       /worker/reviewer) ≈ the §5.Z board flow (decompose/single-card/review) — and it's surfaced in `nklein dev ledger`.
       The remaining §5.Z flows (chat / autonomous) need an explicit per-attempt FLOW field the terminal writer doesn't set
-      yet. **Still owed:** the FLOW field for the non-board flows; reading these profiles/fitness from the LIVE runtime
+      yet. **PER-(MODEL, TOOL) USAGE PROJECTION DONE (2026-06-27):** `summarizeToolUsageByModel` (ledger core) folds the
+      now-written `attempt.toolCalls` into per-(model, tool) call counts + outcome (success/error/incomplete) + a
+      completed-calls success rate — the §5.AA small-model signal (a weak model reliably erroring on a *specific* tool is
+      a parse-and-recover / tool-simplification target, not just "bad model"). Surfaced in `summarizeLedgerForDisplay` +
+      a new "Per-model × tool" section of `nklein dev ledger` (and its `--json`); 3 unit tests. **Still owed:** the FLOW
+      field for the non-board flows (premature until chat/autonomous get their own writers); reading these
+      profiles/fitness from the LIVE runtime
       (the §5.AA retry engine / §5.AB scheduler consume them); folding MCSR speed observations into the same stream; and
       the graded-quality/difficulty a richer writer + the §5.AB eval harness supply (today quality is the coarse
       success-rate proxy).

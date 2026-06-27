@@ -90,6 +90,7 @@ describe("summarizeLedgerForDisplay", () => {
 			outcomes: [],
 			byRole: [],
 			profiles: [],
+			toolUsage: [],
 		});
 	});
 });

@@ -10,9 +10,25 @@ import {
 	selectAttemptsForModel,
 	selectEventsForWorkflow,
 	summarizeModelOutcomes,
+	summarizeToolUsageByModel,
 } from "../../../src/core/agent-attempt-ledger";
 
 const base = { workflowId: "wf-1", taskId: "t-1", workspacePathHash: "ws-hash" };
+
+let attemptSeq = 0;
+function attemptWithTools(
+	modelId: string,
+	calls: ReadonlyArray<{ name: string; outcome: string | null }>,
+): AgentLedgerEvent {
+	attemptSeq += 1;
+	return buildAttemptEvent({
+		...base,
+		attemptId: `a-${attemptSeq}`,
+		modelId,
+		outcome: "success",
+		toolCalls: calls.map((call) => ({ name: call.name, fingerprint: null, outcome: call.outcome })),
+	});
+}
 
 describe("buildAttemptEvent", () => {
 	it("fills unspecified fields with nulls/empties and validates through the schema", () => {
@@ -159,5 +175,48 @@ describe("projections", () => {
 
 	it("summarizeModelOutcomes is empty for a stream with no attempts", () => {
 		expect(summarizeModelOutcomes([buildTransitionEvent({ ...base, to: "plan" })])).toEqual([]);
+	});
+});
+
+describe("summarizeToolUsageByModel", () => {
+	it("rolls up per-(model, tool) calls with success rate over completed calls only", () => {
+		const rollups = summarizeToolUsageByModel([
+			attemptWithTools("m1", [
+				{ name: "read_files", outcome: "success" },
+				{ name: "read_files", outcome: "error" },
+				{ name: "run_command", outcome: "success" },
+			]),
+			attemptWithTools("m1", [{ name: "read_files", outcome: "success" }]),
+			attemptWithTools("m2", [{ name: "read_files", outcome: "error" }]),
+		]);
+
+		const m1Read = rollups.find((row) => row.modelId === "m1" && row.toolName === "read_files");
+		expect(m1Read).toMatchObject({ calls: 3, successes: 2, errors: 1, incomplete: 0 });
+		expect(m1Read?.successRate).toBeCloseTo(2 / 3);
+		const m2Read = rollups.find((row) => row.modelId === "m2" && row.toolName === "read_files");
+		expect(m2Read).toMatchObject({ calls: 1, successes: 0, errors: 1, successRate: 0 });
+	});
+
+	it("counts a null-outcome call as incomplete and excludes it from the success rate", () => {
+		const [row] = summarizeToolUsageByModel([
+			attemptWithTools("m1", [
+				{ name: "run_command", outcome: "success" },
+				{ name: "run_command", outcome: null },
+			]),
+		]);
+		expect(row).toMatchObject({ calls: 2, successes: 1, errors: 0, incomplete: 1 });
+		expect(row?.successRate).toBe(1); // 1 success / 1 completed
+	});
+
+	it("sorts by calls desc then model then tool, and ignores attempts with no tool calls", () => {
+		const rollups = summarizeToolUsageByModel([
+			attemptWithTools("m1", []),
+			attemptWithTools("m1", [
+				{ name: "b_tool", outcome: "success" },
+				{ name: "b_tool", outcome: "success" },
+				{ name: "a_tool", outcome: "success" },
+			]),
+		]);
+		expect(rollups.map((row) => row.toolName)).toEqual(["b_tool", "a_tool"]);
 	});
 });

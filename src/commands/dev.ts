@@ -512,6 +512,17 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 				`${String(Math.round(row.successRate * 100)).padStart(3)}% success\n`,
 		);
 	}
+	if (summary.toolUsage.length > 0) {
+		process.stdout.write("\nPer-model × tool (usage + outcome — the §5.AA small-model signal):\n");
+		for (const row of summary.toolUsage) {
+			const completed = row.successes + row.errors;
+			const rate = completed > 0 ? `${String(Math.round(row.successRate * 100)).padStart(3)}% ok` : " n/a   ";
+			const incomplete = row.incomplete > 0 ? ` (${row.incomplete} incomplete)` : "";
+			process.stdout.write(
+				`  ${row.modelId.padEnd(40)} ${row.toolName.padEnd(20)} ${String(row.calls).padStart(3)} call(s)  ${rate}${incomplete}\n`,
+			);
+		}
+	}
 }
 
 async function runDevEscalationCommand(options: { taskId: string; json?: boolean; analyze?: boolean }): Promise<void> {

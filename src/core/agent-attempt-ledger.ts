@@ -467,3 +467,60 @@ export function summarizeModelOutcomes(events: readonly AgentLedgerEvent[]): Mod
 	rollups.sort((left, right) => right.samples - left.samples || left.modelId.localeCompare(right.modelId));
 	return rollups;
 }
+
+export interface ModelToolUsageRollup {
+	modelId: string;
+	toolName: string;
+	calls: number;
+	successes: number;
+	errors: number;
+	/** Calls with no recorded outcome — the run ended before the tool returned. */
+	incomplete: number;
+	/** successes / (successes + errors), i.e. over *completed* calls only; 0 when none completed. */
+	successRate: number;
+}
+
+/**
+ * Roll up the per-tool-call detail (written by the terminal writer via `extractTerminalToolCalls`) into per-(model,
+ * tool) usage + outcome counts — which tools each model leans on and where it fails. The §5.AA small-model signal: a
+ * weak model that reliably errors on a specific tool is a parse-and-recover / tool-simplification target, not just a
+ * "bad model". Sorted by calls desc, then modelId, then toolName.
+ */
+export function summarizeToolUsageByModel(events: readonly AgentLedgerEvent[]): ModelToolUsageRollup[] {
+	const byKey = new Map<string, ModelToolUsageRollup>();
+	for (const attempt of selectAttempts(events)) {
+		for (const call of attempt.toolCalls) {
+			const key = `${attempt.modelId} ${call.name}`;
+			const rollup = byKey.get(key) ?? {
+				modelId: attempt.modelId,
+				toolName: call.name,
+				calls: 0,
+				successes: 0,
+				errors: 0,
+				incomplete: 0,
+				successRate: 0,
+			};
+			rollup.calls += 1;
+			if (call.outcome === "success") {
+				rollup.successes += 1;
+			} else if (call.outcome === "error") {
+				rollup.errors += 1;
+			} else {
+				rollup.incomplete += 1;
+			}
+			byKey.set(key, rollup);
+		}
+	}
+	const rollups = [...byKey.values()];
+	for (const rollup of rollups) {
+		const completed = rollup.successes + rollup.errors;
+		rollup.successRate = completed > 0 ? rollup.successes / completed : 0;
+	}
+	rollups.sort(
+		(left, right) =>
+			right.calls - left.calls ||
+			left.modelId.localeCompare(right.modelId) ||
+			left.toolName.localeCompare(right.toolName),
+	);
+	return rollups;
+}
