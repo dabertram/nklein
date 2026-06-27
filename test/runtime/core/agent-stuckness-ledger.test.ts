@@ -1,8 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { type BuildAttemptEventInput, buildAttemptEvent } from "../../../src/core/agent-attempt-ledger";
-import { buildStucknessSignalsFromLedger } from "../../../src/core/agent-ledger-projections";
+import {
+	type BuildAttemptEventInput,
+	buildAttemptEvent,
+	type TaskAttemptRow,
+	type TaskEscalationReport,
+} from "../../../src/core/agent-attempt-ledger";
+import {
+	buildStucknessSignalsFromLedger,
+	buildStucknessSignalsFromReport,
+} from "../../../src/core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../../../src/core/agent-stuckness";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
+
+function attemptRow(overrides: Partial<TaskAttemptRow> = {}): TaskAttemptRow {
+	return {
+		rung: 1,
+		modelId: "model-a",
+		approach: "endpoint:e1",
+		outcome: "other_failure",
+		qualityScore: null,
+		qualityOk: null,
+		salvage: null,
+		recordedAt: 1,
+		...overrides,
+	};
+}
+
+function escalationReport(attempts: TaskAttemptRow[]): TaskEscalationReport {
+	return {
+		taskId: "task-1",
+		totalAttempts: attempts.length,
+		modelsTried: [...new Set(attempts.map((a) => a.modelId))],
+		finalOutcome: attempts.at(-1)?.outcome ?? null,
+		attempts,
+	};
+}
 
 let seq = 0;
 function attempt(taskId: string, outcome: ModelOutcomeKind, overrides: Partial<BuildAttemptEventInput> = {}) {
@@ -105,5 +137,48 @@ describe("buildStucknessSignalsFromLedger", () => {
 		// Pass them out of order; the success (earlier) must end the episode, leaving only the later failure.
 		const signals = buildStucknessSignalsFromLedger([later, earlier], "task-1");
 		expect(signals.recentOutcomes).toEqual<ModelOutcomeKind[]>(["other_failure"]);
+	});
+});
+
+describe("buildStucknessSignalsFromReport", () => {
+	it("derives signals from a report, scoping to the trailing non-success episode", () => {
+		const signals = buildStucknessSignalsFromReport(
+			escalationReport([
+				attemptRow({ rung: 1, outcome: "other_failure", approach: "endpoint:e1" }),
+				attemptRow({ rung: 2, outcome: "success" }),
+				attemptRow({ rung: 3, outcome: "loop", approach: "endpoint:e2", salvage: null }),
+				attemptRow({ rung: 4, outcome: "other_failure", approach: "prompt:p1" }),
+			]),
+		);
+		expect(signals.recentOutcomes).toEqual<ModelOutcomeKind[]>(["loop", "other_failure"]);
+		expect(signals.distinctApproachesTried).toBe(2);
+		expect(signals.loopUncleared).toBe(true);
+		// Not derivable from the report — conservative defaults.
+		expect(signals.retryBudgetExhausted).toBe(false);
+		expect(signals.hadProgressSinceStuck).toBe(false);
+	});
+
+	it("treats a salvaged loop in the report as cleared", () => {
+		const signals = buildStucknessSignalsFromReport(
+			escalationReport([attemptRow({ outcome: "loop", salvage: "looped→salvaged" })]),
+		);
+		expect(signals.loopUncleared).toBe(false);
+	});
+
+	it("returns an empty/progressing signal set for an empty report", () => {
+		const signals = buildStucknessSignalsFromReport(escalationReport([]));
+		expect(signals.recentOutcomes).toEqual([]);
+		expect(classifyAgentStuckness(signals)).toBe("progressing");
+	});
+
+	it("agrees with isHardStuck on a genuinely stuck report (loop across approaches)", () => {
+		const signals = buildStucknessSignalsFromReport(
+			escalationReport([
+				attemptRow({ rung: 1, outcome: "loop", approach: "endpoint:e1", salvage: null }),
+				attemptRow({ rung: 2, outcome: "loop", approach: "endpoint:e2", salvage: null }),
+				attemptRow({ rung: 3, outcome: "other_failure", approach: "prompt:p1" }),
+			]),
+		);
+		expect(isHardStuck(signals)).toBe(true);
 	});
 });

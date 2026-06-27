@@ -3346,9 +3346,14 @@ deep analysis:
       compact, structured prompt asking a stronger analyst model for a **root-cause read + remediation plan** (steps to
       try · what to avoid · how to verify) — explicitly **NOT a patch**, chain capped at 16 for the ≥32k floor; surfaced
       by `nklein dev escalation --task-id <id> --analyze` (5 tests). This is the user's "let a bigger model analyze +
-      guide" path, as the user-chosen option. **Still owed (wiring):** render the suggestions in the §5.AG web escalation
-      panel + the runtime hook that resumes the agent with the user's chosen input (incl. running the analysis request on
-      the user-provided stronger model and feeding its guidance back).
+      guide" path, as the user-chosen option. **Web seam DONE (2026-06-27):** `buildStucknessSignalsFromReport(report)`
+      ([src/core/agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)) derives the verdict signals from the
+      §5.AG `TaskEscalationReport` the web panel already fetches — so the panel can show the progress verdict +
+      suggestions client-side with **no contract change** (artifacts/retry-budget aren't in the report, so those signals
+      default conservatively; the ledger-based mapper stays authoritative). 4 tests. **Still owed (wiring):** render the
+      verdict + suggestions in the §5.AG web escalation panel (consume the web seam) + the runtime hook that resumes the
+      agent with the user's chosen input (incl. running the analysis request on the user-provided stronger model and
+      feeding its guidance back).
 - [ ] **Settings UI.** Show the fitness table + the current automatic role assignments; let the user pin / prefer /
       weight per role (the speed-vs-quality dial) and set the wait-vs-attempt policy; a "Re-evaluate connected models"
       action. (Builds on the MCSR telemetry panel §6.4.)
