@@ -378,9 +378,12 @@ deep analysis:
         auto-clarify) and resumes on the user's answer; never silently blocks.
   - [ ] **Live-verify end-to-end** — drive a real autonomous run on a dev-test project with a small local model
         (Playwright + the loop): goal → focus chain → tool work → durable side effects, within budget.
-- [?] **Review the autonomous-decisions log with the user** *(2026-06-25)* — after the autonomous run, walk through
-      [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) together to confirm/adjust the below-the-bar calls.
-      *(blocked on the user: a joint review only they can do.)*
+- [x] **Review the autonomous-decisions log with the user** *(2026-06-25; DONE 2026-06-27)* — walked through
+      [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) with the user. Most entries were already-resolved;
+      the four open decisions were settled (see the "Clarification pass (2026-06-27)" section there): LICENSE holder =
+      "!Klein contributors" + Cline NOTICE (already in place); native-core-default flip = HOLD until §5.X port settled;
+      chat "sandboxed" scope naming = rename to "host access" for clarity + keep the session-wide ack (tracked in §5.M);
+      the parallel-backlog audit doc = deleted (consolidated into §5.AK).
 
 ### 5.0.2 — Milestone ladder + substrate-first sequencing *(2026-06-26, from an external spec audit — navigation aid, do NOT re-litigate)*
 > An external audit of this file (459 §5 items) made a correct structural point: the new ambition arcs (§5.AA adaptive
@@ -869,7 +872,9 @@ deep analysis:
 >   skeleton (`runAgentLoop`/`DecideAction` types) with **zero runtime imports**; making it the default means replacing
 >   the whole `@nkleinbot` SDK host (tool dispatch, streaming, hooks, context compaction, session persistence). That is
 >   huge AND likely throwaway right before a possible Python backend port. **→ HOLD the native-core-default flip pending
->   the §5.X port-direction decision (batched into the next clarification round); native-core-default NOT started.**
+>   the §5.X port-direction decision. ✅ CONFIRMED BY THE USER (2026-06-27 clarification): HOLD — do not build the TS
+>   native runtime now (likely throwaway under the Python port, which bridges/ports the agent SDK last); keep the
+>   `@nkleinbot` SDK host; build the native runtime in whichever language wins. native-core-default NOT started.**
 - [x] **Embedding story decided + shipped** — `local_gguf` (nomic-embed-text-v1.5) in-process via the Python core,
       default in `runtimeCodeEmbeddingProviderSchema`, degrading to `local_lexical` when the core is off. (→ §5.I #1)
 - **Promote the native agent core to DEFAULT runtime** (SDK host = automatic fallback) *(decided 2026-06-22; umbrella —
@@ -1352,6 +1357,16 @@ deep analysis:
         empty drop; embedding-based dedup). Still owed: wire the real embedder + extractor model + persist on session end.
   - [ ] the ≥32k-floor budget integration (memory wired against the context floor)
   - [ ] opt-in access-all-loaded-projects memory scope
+- [ ] **Rename the misleading chat "sandboxed" scope naming → make host-access explicit** *(2026-06-27, user decision —
+      §5.U #1 HIGH security finding)*. The can-act scopes (`project_sandboxed` / `all_projects` / `host_access`) all grant
+      host fs/shell command access under a session-wide `riskAcknowledged` opt-in, but the code id `project_sandboxed` and
+      the terse selector labels (`Current` / `All` in [chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx) L44–49)
+      imply Docker isolation / hide that `Current`+`All` are host-access too (only `⚠️ Host` is flagged). **Decision: rename
+      for clarity + KEEP the session-wide ack** (no per-action move). **Bounded approach:** make the host-access nature
+      explicit in the user-facing labels + the scope tooltip/`chat-scope.spec.ts` (e.g. flag all three can-act scopes, not
+      just Host), and fix the misleading comment at chat-sidebar L42–43; the contract id rename (`project_sandboxed` →
+      a clearer id) is optional + contract-coupled (defer unless cheap). Verify: web typecheck + the chat-scope Playwright
+      spec + web vitest + web:build.
 - [?] **Private messenger bridge** — Signal linked-device via `signal-cli` (QR pair); ONLY the paired user (reject
       others); inbound → session, replies → Signal; local, no cloud broker; transport-agnostic (WhatsApp later).
       *(blocked on the user: deferred by the user 2026-06-24 ("defer signal credential based testing, we'll do later")
@@ -2804,9 +2819,10 @@ deep analysis:
             inline `import().Type` annotations left in `src/`; the earlier "remaining #6/#4" re-listing here was stale.)
             Remaining bigger items it hands us: **#2** settings-dialog (4430), runtime-api (2410), api-contract
             (2614), App.tsx (1359) extractions; **#5** validated JSON/JSONL persistence; **#3** ratchet the broad biome lint
-            disables; **#7** shared web-ui test harness. **#1 (HIGH, security):** chat "sandboxed" scopes are host fs/shell access
-            with a session-wide `riskAcknowledged` opt-in — partly by-design (§5.M host opt-in) but the naming/approval
-            governance is worth a user decision → surfaced for review.
+            disables; **#7** shared web-ui test harness. **#1 (HIGH, security) — DECIDED (2026-06-27, user):** chat
+            "sandboxed" scopes are host fs/shell access with a session-wide `riskAcknowledged` opt-in — by-design (§5.M
+            host opt-in), but the naming misleads. **Decision: rename for clarity (→ make the host-access nature explicit)
+            + KEEP the session-wide ack** (no move to per-action). Tracked as an actionable item in §5.M below.
       - **Reconciled progress (2026-06-26):** beyond #6/#4 above — **anti-patterns #5** first slice DONE (config
             corrupt-vs-missing: a parse failure now diagnoses + preserves a `.corrupt-*.bak` instead of silently
             resetting, `958b91d2`, +CHANGELOG + tests); **anti-patterns #5 second slice DONE** (validated JSONL

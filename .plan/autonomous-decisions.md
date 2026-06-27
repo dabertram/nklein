@@ -176,3 +176,21 @@ Format: one row per decision — what was ambiguous, what I chose, and why / how
   You may prefer your own name/org, and/or to **formally credit Cline's upstream copyright** (Apache 2.0 §4(c) asks a
   derivative to retain the original attribution — a NOTICE file crediting Cline would be the clean way). One-line fix when
   you decide.
+  - **✅ RESOLVED (2026-06-27, user):** keep **"!Klein contributors"** as the holder **+ the Cline NOTICE**. Already
+    fully satisfied — `NOTICE` exists and credits Saoud Rizwan / the Cline project upstream (Apache-2.0 §4) with
+    "!Klein contributors" holding the modifications. No change needed.
+
+## Clarification pass (2026-06-27, user — "clarify all open questions / decisions") — DECISIONS
+Reviewed this whole log with the user (the §5.A "review the autonomous-decisions log" item). The vast majority of
+entries above were already-resolved; the four genuinely-open ones were decided:
+- **LICENSE holder = "!Klein contributors" + Cline NOTICE.** Already in place (see the RESOLVED note above) — no work.
+- **native-core-default flip = HOLD until the §5.X port language is settled.** Confirms the prior held state: do NOT
+  build the full TS native agent runtime now (likely throwaway under the Python port, which bridges/ports the agent SDK
+  last). Keep the `@nkleinbot` SDK host meanwhile; build the native runtime in whichever language wins. No TS-native-
+  runtime work proceeds.
+- **Chat "sandboxed" scope naming = RENAME for clarity (→ "host access") + KEEP the session-wide risk ack.** The scopes
+  whose names imply Docker isolation actually grant host fs/shell access under a session-wide "I accept the risk" opt-in
+  (by-design §5.M host opt-in). Fix the misleading USER-FACING labels so it's clear they're host access; keep the
+  session-wide acknowledgement granularity (no move to per-action). Tracked as an actionable item in §5.M.
+- **Parallel-backlog audit doc = DELETE.** Fully consolidated into todo.md (§5.AK / §5.AB / WORKING MODE); deleted per
+  the consolidate-and-delete convention.
