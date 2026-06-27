@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { notifyError, showAppToast } from "@/components/app-toaster";
+import { notifyError } from "@/components/app-toaster";
 import { buildProjectPathname, parseProjectIdFromPathname } from "@/hooks/app-utils";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import { useRuntimeStateStream } from "@/runtime/use-runtime-state-stream";

@@ -31,7 +31,7 @@ export function accumulateSessionActivity(
 	maxEntries: number = DEFAULT_MAX_ENTRIES,
 ): AgentActivityEntry[] {
 	const activity = summary.latestHookActivity;
-	if (!activity || !activity.activityText) {
+	if (!activity?.activityText) {
 		return existing as AgentActivityEntry[];
 	}
 	const at = summary.lastHookAt ?? summary.updatedAt;

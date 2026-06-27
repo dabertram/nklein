@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.3.5/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
 	"formatter": {
 		"enabled": true,
 		"indentStyle": "tab",
@@ -9,7 +9,10 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true,
+			"preset": "recommended",
+			"correctness": {
+				"noUnusedImports": "info"
+			},
 			"style": {
 				"useConst": "error"
 			},
@@ -35,7 +38,9 @@
 			"!core-py/**/*",
 			"!vendor/**/*",
 			"!!**/node_modules",
-			"!.worktrees/**/*"
+			"!.worktrees/**/*",
+			"!.claude/**/*",
+			"!.clinerules/**/*"
 		]
 	},
 	"plugins": ["grit/no-process-env-destructure.grit", "grit/no-home-agent-prefix-literal.grit"],
