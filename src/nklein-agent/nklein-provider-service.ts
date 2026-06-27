@@ -38,6 +38,7 @@ import {
 	toLmStudioModels,
 	toRuntimeProviderModel,
 } from "./nklein-provider-model-parsing";
+import { ensureWorkosPrefix, stripWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-token.js";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import {
 	addSdkCustomProvider,
@@ -66,7 +67,6 @@ import {
 	updateSdkCustomProvider,
 } from "./sdk-provider-boundary";
 
-const WORKOS_TOKEN_PREFIX = "workos:";
 const DEFAULT_NKLEIN_API_BASE_URL = "https://api.nklein.bot";
 const MANAGED_PROVIDER_ENV_KEYS: Record<ManagedNKleinOauthProviderId, readonly string[]> = {
 	nklein: ["NKLEIN_API_KEY"],
@@ -197,31 +197,6 @@ function formatManagedProviderDisplayName(providerId: ManagedNKleinOauthProvider
 		return "Oracle Code Assist";
 	}
 	return "OpenAI Codex";
-}
-
-function stripWorkosPrefix(accessToken: string): string {
-	if (accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)) {
-		return accessToken.slice(WORKOS_TOKEN_PREFIX.length);
-	}
-	return accessToken;
-}
-
-function ensureWorkosPrefix(accessToken: string): string {
-	const normalized = accessToken.trim();
-	if (!normalized) {
-		return normalized;
-	}
-	if (normalized.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)) {
-		return normalized;
-	}
-	return `${WORKOS_TOKEN_PREFIX}${normalized}`;
-}
-
-function toProviderApiKey(providerId: ManagedNKleinOauthProviderId, accessToken: string): string {
-	if (providerId === "nklein") {
-		return `${WORKOS_TOKEN_PREFIX}${accessToken}`;
-	}
-	return accessToken;
 }
 
 function normalizeEpochMs(expiresAt: number | null | undefined): number {

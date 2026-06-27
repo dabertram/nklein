@@ -1766,6 +1766,14 @@ deep analysis:
 - *(process note, not a discrete work item)* **Then work through them** by the normal §2 loop / §5.0 priority,
       smallest-safe-step first, each a green commit. *(The actual schedulable work is the individual promoted findings —
       S/M/R items above + the per-file decomposition slices below — each counted on its own.)*
+- [~] **`nklein-provider-service.ts` decomposition (started 2026-06-27).** NB it's more tangled than task.ts — most of
+      its small helpers interdepend through the widely-used `resolveVisibleApiKey` / the launch-config flow, so it is NOT
+      cleanly leaf-decomposable; pull only self-contained clusters. **Slice 1:** the pure WorkOS-token helpers
+      (`stripWorkosPrefix` / `ensureWorkosPrefix` / `toProviderApiKey` + the `WORKOS_TOKEN_PREFIX` const) →
+      `nklein-provider-workos-token.ts` (no coupling to the other helpers; ~13 call sites repointed via import). 1734→1709;
+      tsc + biome + `test:fast` (2443) green. *(Next clean-ish candidates: the LiteLLM/LMStudio model-list fetch+parse
+      cluster if it doesn't pull `resolveVisibleApiKey`; the managed-OAuth key resolution is entangled — leave for a
+      focused pass.)*
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
