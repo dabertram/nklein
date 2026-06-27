@@ -3675,8 +3675,11 @@ deep analysis:
         is async + runs the two independent branch lookups concurrently via `Promise.all`); the dead sync `runGitCapture` +
         `detectGitRoot` + the `spawnSync` import were removed. So `loadWorkspaceContext` now has **zero** sync git on the
         hot path. tsc-guided (every caller awaits) + test/runtime fully green + a live smoke (boot + create dev-test project
-        → exercises the async `detectGitRepositoryInfo`; project lists with correct git info). The `proper-lockfile`
-        (`retries: 200`) cross-process amplifier is the one remaining, smaller, separate knob.
+        → exercises the async `detectGitRepositoryInfo`; project lists with correct git info). **`proper-lockfile` is NOT
+        a remaining knob (earlier speculation CORRECTED 2026-06-27):** its retry config is `factor:1, minTimeout:25,
+        maxTimeout:50` (CONSTANT backoff, not exponential), so 200 retries cap at only **~5–10 s MAX**, not "tens of
+        seconds" — it was never the dominant cause (that was the sync git, now fixed), and with async git its bounded wait
+        is async (a contended save takes ≤~10 s without freezing the runtime). No change needed.
         **DONE (secondary, still worthwhile — 2026-06-27):** coalesced the per-flush projects rebuild to ≤1/window
         ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts) wired in
         [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — reduces real rebuild
