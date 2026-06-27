@@ -3740,10 +3740,14 @@ deep analysis:
       is present + unambiguous in every artifact a diagnosing agent reads, and in the copyable prompt. *(Deferred, minor:
       the per-**project** evidence path at [project-navigation-panel.tsx:605](web-ui/src/components/project-navigation-panel.tsx#L605)
       is project-scoped by design; no card-ref concern there. Not re-audited in depth — the user's ask was the card ref.)*
-- [ ] **Live-run it (the fun part) + prove it surfaces real issues.** Once the rail is up, let it run dev-test projects
-      across the loaded models for a sustained window, then review the harvested evidence together — the goal is to
-      uncover dormant issues the targeted tests miss, and to enjoy watching the dev projects do their work. Each real
-      finding it produces becomes a tracked item (which then lands in `done.md` when fixed, per the §5 DONE rule).
+- [~] **Live-run it + prove it surfaces real issues — PROVEN (2026-06-27).** The one-shot rail was run live many times
+      this session and **directly surfaced real issues that the targeted tests missed, each then fixed**: (1) the
+      **server-tier sluggishness/freeze under parallel load** — root-caused via the rail to inline health detection +
+      synchronous git on the hot path (fixed: 41–60 s → 0.2 s, plus the deeper async-git fix); (2) the **activity badge
+      counting the wrong session source** (terminal vs the Docker-isolated NKlein agents — caught only by a live run, then
+      fixed); (3) the **parallel-LLM reality** (LM Studio serial-gated, much of the perception was the now-fixed hang). So
+      the rail demonstrably uncovers dormant issues. **Still owed:** the *sustained, unattended* window on the always-on
+      runner + a regular together-review of the accumulated `rail-*.json` harvest (depends on the durable runner above).
 - *(cross-links)* §5.O (dev-test registry + output-robustness sweep — the rail's content) · §5.V (the e2e oracle the
       rail operationalizes; hidden-split/repeat-run/failure-injection harnesses it should exercise) · §5.Z (cross-model
       coverage — the rail naturally rotates models) · §5.AF (durable lease scheduler + unified admission + the ledger
