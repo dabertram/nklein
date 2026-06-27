@@ -2213,8 +2213,12 @@ deep analysis:
       `isContextOverflowError` (6 tests — recognizes varied vendor overflow phrasings, rejects unrelated errors + non-Error
       values; a false negative crashes the run instead of triggering compaction recovery); `nklein-guidance-skills`
       (5 tests — the topic router: keyword + file-path routing, security>ui>ts priority when several match, null on no
-      match, topic→slash-command map — a misroute injects the wrong skill guidance). **Remaining pure-unit candidates:**
-      `nklein-context-overflow-compaction` (the compaction body — needs message fixtures), `nklein-watcher-registry`.
+      match, topic→slash-command map — a misroute injects the wrong skill guidance). **`nklein-watcher-registry` now covered
+      (2026-06-27, 8 tests)** — the per-workspace runtime-setup ref-counting registry: shared setup across acquires, dispose
+      only when the last lease releases, path-trim normalization sharing one entry, distinct-workspace separation, fresh
+      re-create after full release, failed-creation entry cleanup (next acquire retries), `close()` disposing all regardless
+      of refCount, and swallowed dispose errors + over-release no-op. **Remaining pure-unit candidate:**
+      `nklein-context-overflow-compaction` (the compaction body — needs message fixtures).
       **Skip (I/O-coupled, need an integration harness not a unit):** `workspace/project-health`,
       `workspace/turn-checkpoints` (git/fs), `nklein-mcp-settings-service`, `task-worktree-sync`.
       **Decomposition validation (north-star §5.B) 2026-06-27:** `plan-task-validation` question logic (7 tests) —
