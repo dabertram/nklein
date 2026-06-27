@@ -198,9 +198,12 @@ deep analysis:
 > or a whole section becomes fully `[x]` (delivered + verified), **move that whole subtree — keeping its `§x.y` id and
 > nesting — into `done.md` in the SAME change that delivers the code** (the same commit that flips it green also moves
 > it, next to the `CHANGELOG.md` `## [Upcoming]` bullet). Anti-chaos rules so this stays smooth:
-> - **Migration unit = a *top-level* `[x]` item or a fully-`[x]` section.** Move the complete subtree; never half of one.
-> - **A `[~]` umbrella stays WHOLE in `todo.md`** (its done children are in-flight context for the open siblings) until
->   its top box flips to `[x]` — then the whole subtree migrates. `[-]` deferred/superseded items also stay here (deferred ≠ done).
+> - **Migration unit = a *top-level* `[x]` item, a fully-`[x]` section, OR a completed cohesive *sub-tree*** (e.g. a finished
+>   per-file decomposition) **even under a still-`[~]` umbrella** (user, 2026-06-27 — *move finished sub-trees early* to keep
+>   `todo.md` lean instead of letting `[x]` detail pile up under a long-open umbrella). Move the complete subtree; never half of one.
+> - **A `[~]` umbrella stays in `todo.md`** (it's still open), but **its fully-done cohesive sub-trees migrate to `done.md` as
+>   they complete** — leave a one-line stub in place; keep only the `[x]` context the open siblings genuinely still lean on.
+>   `[-]` deferred/superseded items also stay here (deferred ≠ done).
 > - **Preserve `§`-ids on the move** so cross-file references keep resolving (a completed `§5.x`/`§6.x` keeps its id in
 >   `done.md`). Leave a **one-line stub** in `todo.md` at the moved section's place (`### 5.x — … ✅ COMPLETE → moved to
 >   done.md`) so the numbering still reads continuously and "where did it go?" is answered in place.
@@ -1771,9 +1774,23 @@ deep analysis:
       cleanly leaf-decomposable; pull only self-contained clusters. **Slice 1:** the pure WorkOS-token helpers
       (`stripWorkosPrefix` / `ensureWorkosPrefix` / `toProviderApiKey` + the `WORKOS_TOKEN_PREFIX` const) →
       `nklein-provider-workos-token.ts` (no coupling to the other helpers; ~13 call sites repointed via import). 1734→1709;
-      tsc + biome + `test:fast` (2443) green. *(Next clean-ish candidates: the LiteLLM/LMStudio model-list fetch+parse
-      cluster if it doesn't pull `resolveVisibleApiKey`; the managed-OAuth key resolution is entangled — leave for a
-      focused pass.)*
+      tsc + biome + `test:fast` (2443) green. **Confirmed (2026-06-27): the rest of provider-service is NOT cleanly
+      leaf-decomposable** — the model-list cluster (`resolveLiteLlmModelListHeaders`) and the managed-OAuth key resolution
+      both route through the widely-used `resolveVisibleApiKey` / launch-config flow, so they'd cycle unless that helper is
+      also relocated. Needs a *focused restructure pass* (extract a `resolveVisibleApiKey`-anchored auth core first), not
+      incremental fragment extraction.
+- [~] **`runtime-config.ts` (2103) decomposition — SCOUTED (2026-06-27, not yet extracted).** Has a genuinely clean
+      cluster: ~26 **pure `normalize*` value-transformers** (lines ~123–470, no file I/O / external coupling, internal-only)
+      — the cohesive "config-field normalization" concern. **BUT** they depend on ~22 `DEFAULT_*` consts that are *defined
+      in* runtime-config.ts (80–105) and *also* used by `loadRuntimeConfig` (stays) → extracting the normalizers cycles
+      unless the consts move to a `runtime-config-defaults.ts` first. Both the consts and the normalizers are *interspersed*
+      with other declarations (`getRuntimeHomePath`, `pickBestInstalledAgentId`), so it's a careful 2-module split, not a
+      contiguous block move. **Plan:** (1) `runtime-config-defaults.ts` ← the `DEFAULT_*` consts (import back into
+      runtime-config); (2) `runtime-config-normalizers.ts` ← the `normalize*` fns (import the defaults). Worth doing —
+      genuinely decomposes the monolith — but substantial; best as a focused fresh-context pass.
+      **Meta-finding:** task.ts decomposed beautifully because its bulk was *clean leaf command implementations*; the other
+      monoliths (provider-service, runtime-config) are *interspersed + helper-coupled*, so they need restructuring passes,
+      not incremental leaf extraction.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
@@ -2008,131 +2025,18 @@ deep analysis:
       sweep surfaced the oversized files beyond the two already tracked above (`nklein-task-session-service.ts` ~3850,
       `runtime-settings-dialog.tsx` ~4095). Each below is its own landable decomposition item — extract cohesive
       sub-modules, no behavior change, locked by the existing suites:
-  - **`src/commands/task.ts` (~2870 → 2751)** *(umbrella — slices below are the counted work; 5 done, the remaining
-        slice is the open child)* — the `nklein task` CLI conflates many concerns: acceptance-failure +
-        plan-gap classification/evidence, decomposition routing + rejection recording, NKlein-settings build/format
-        helpers, task-command target/workspace resolution, the tRPC client factory, and ~a dozen subcommand
-        registrations. Split into `commands/task/` (e.g. `task-acceptance-plan-gap.ts`, `task-nklein-settings.ts`,
-        `task-target-resolution.ts`, per-subcommand registration files) with `task.ts` as the thin registrar.
-        - [x] **slice 1 (2026-06-24):** extracted the 5 pure NKlein-settings helpers + `ParsedTaskNKleinReasoningEffort`
-              into `commands/task/task-nklein-settings.ts` (no I/O; covered by `task-verify.test.ts`).
-        - [x] **slice 2 (2026-06-24):** extracted the pure acceptance-failure → plan-gap classification (parse / should-record /
-              build-evidence / classifiers / classify) into `commands/task/task-acceptance-plan-gap.ts`. task.ts 2870→2633.
-        - [x] **slice 3 (2026-06-24):** extracted the 6 pure plan-gap/merge card prompt + revision builders into
-              `commands/task/task-plan-gap-prompts.ts` (the `add*CardToBoard` mutators stay in task.ts and import them).
-              task.ts 2633→2509.
-        - [x] **slice 4 (2026-06-24):** extracted the runtime-workspace + tRPC-client infrastructure (createRuntimeTrpcClient,
-              resolve/ensure workspace, notify, load-mutate-notify `updateRuntimeWorkspaceState`, resolveTaskBaseRef +
-              `RuntimeWorkspaceMutationResult`) into `commands/task/task-runtime-workspace.ts`. task.ts 2509→2433
-              (cumulative 2870→2433, −437). All ~60 call sites resolve via import (tsc-verified, no call-site changes).
-        - [x] **slice 5 (2026-06-24):** extracted the shared command types (`LIST_TASK_COLUMNS`/`ListTaskColumn`/
-              `TaskCommandTarget`/`ResolvedTaskCommandTarget` → `commands/task/task-command-types.ts`) and the pure
-              board-record query/format + target/column resolution (`findTaskRecord`, `findTasksInColumn`,
-              `formatTaskRecord`, `formatDependencyRecord`, `getLinkFailureMessage`, `resolveTaskCommandTarget`,
-              `parseListColumn` → `commands/task/task-record-format.ts`). task.ts 2433→2294 (cumulative 2870→2294, −576/−20%).
-        - [x] **slice 6 (2026-06-27):** extracted the plan-gap → card concern (`markTaskNeedsDecompositionOnBoard`,
-              `findBoardTaskByTitle`, `addPlanGap{Integration,Decision,Scope}CardToBoard` + the `DEFAULT_NEEDS_DECOMPOSITION_REASON`
-              const) → `commands/task/task-plan-gap-cards.ts` (a clean one-way move — the module imports the already-separate
-              `task-plan-gap-prompts` + board mutations, never task.ts, so no cycle). `recordDecompositionRejection` stayed
-              (its `toErrorMessage` dep would entangle). Two consumers (`record-plan-gap.ts`, `task-verify.test.ts`) repointed;
-              tsc + biome + task-verify (8 of the moved fns' tests) + contract + `test:fast` (2443) green. task.ts 2326→2150
-              (cumulative 2870→2150, −720/−25%).
-        - [x] **slice 7 (2026-06-27):** extracted `buildDecompositionRoutingCandidates` (builds the runnable model routing
-              candidates from the default provider + per-role config) → `commands/task/task-decomposition-routing.ts`. Pure
-              of task.ts internals (only provider service + model registry + start-guard), internal-only consumer repointed
-              via import. task.ts 2150→2093 (cumulative 2870→2093, −777/−27%). tsc + biome + `test:fast` (2443) green.
-        - [x] **slice 8 (2026-06-27):** extracted the pure CLI arg parsers (`slugifyPlanTaskId`, `parseAutoMergeColumn`,
-              `parseAutoReviewMode`, `parseAgentId` + `VALID_AGENT_IDS`, `parseOptionalStringOrDefault`) →
-              `commands/task/task-command-parsers.ts`. All internal-only, no task.ts-internal deps; imported back.
-              task.ts 2093→2045 (cumulative 2870→2045, −825/−29%). tsc + biome + `test:fast` (2443) green.
-        - [x] **slice 9 (2026-06-27):** extracted the two read-only leaf commands (`listTasks`, `reportBoardHealth`) →
-              `commands/task/task-read-commands.ts` (resolve workspace → query state → project a JSON record; no mutation,
-              no dependency on the other command impls). task.ts 2045→1996 (**under 2000**; cumulative 2870→1996,
-              −874/−30%). tsc + biome + `test:fast` green.
-        - [x] **slice 10 (2026-06-27):** extracted the dependency commands (`linkTasks`, `unlinkTasks`) →
-              `commands/task/task-dependency-commands.ts` (leaf mutate-commands over the shared `updateRuntimeWorkspaceState`
-              helper + board mutations; no other-command deps). task.ts 1996→1931 (cumulative 2870→1931, −939/−33%).
-              tsc + biome + `test:fast` (2443) green.
-        - [x] **slice 11 (2026-06-27):** extracted the shared CLI output utils (`toErrorMessage`, `printJson`) →
-              `task-command-output.ts` and the runtime-action helpers (`stopTaskRuntimeSession`, `deleteTaskWorkspace`) →
-              `task-runtime-actions.ts` (its first consumer — `deleteTaskWorkspace` uses `toErrorMessage`). The shared
-              output module breaks the recurring `toErrorMessage` entanglement that was blocking further extraction (a
-              submodule needing it no longer has to import task.ts → no cycle). task.ts 1931→1889 (cumulative 2870→1889,
-              −981/−34%). tsc + biome + `test:fast` (2443) green.
-        - [x] **slice 12 (2026-06-27):** extracted the swarm-stop control commands (`requestTaskSwarmStopCommand`,
-              `clearTaskSwarmStopCommand`) → `commands/task/task-swarm-commands.ts` (leaf commands over the swarm
-              guardrails). task.ts 1889→1863 (cumulative 2870→1863, **−1007/−35%**, over 1000 lines out). tsc + biome +
-              `test:fast` (2443) green.
-        - [x] **slice 13 (2026-06-27):** extracted the "expand a saved plan task" command (`expandSavedPlanTaskCommand` +
-              its `parseReplacementTasksJson` helper) → `commands/task/task-plan-expand-command.ts` (self-contained leaf —
-              the central `decomposeTaskGraph` does not use the helper). task.ts 1863→1819 (cumulative 2870→1819,
-              −1051/−37%). tsc + biome + `test:fast` (2443) green.
-        - [x] **slice 14 (2026-06-27):** extracted the decompose cluster — `decomposeTaskGraph` (the ~95-line central
-              command: apply a plan's task-graph onto the board via the routing candidates) + `recordDecompositionRejection`
-              + its `DecompositionRejectionInput`/`RecordSelfObservation` types → `commands/task/task-decompose-command.ts`.
-              Enabled by the slice-11 `toErrorMessage` unblock (the rejection telemetry needs it). `task-verify.test.ts`
-              repointed. task.ts 1819→1678 (cumulative 2870→1678, **−1192/−42%**). tsc + biome + task-verify + contract +
-              `test:fast` green.
-        - [x] **slice 15 (2026-06-27):** extracted the create/update commands (`createTask`, `updateTaskCommand`) →
-              `commands/task/task-crud-commands.ts` (leaf mutate-commands over `updateRuntimeWorkspaceState` + board
-              mutations). task.ts 1678→1534 (cumulative 2870→1534, **−1336/−47%**, nearly halved). tsc + biome +
-              `test:fast` (2443) green.
-        - [x] **slice 16 (2026-06-27):** extracted the `startTask` lifecycle command (validate source column, file-overlap
-              guard, start the native sandbox session handling queued/needs-decomposition, move to the active lane) →
-              `commands/task/task-start-command.ts` (leaf; uses the already-extracted `markTaskNeedsDecompositionOnBoard`).
-              task.ts 1534→1410 (cumulative 2870→1410, **−1460/−51%**, over half the original extracted). tsc + biome +
-              `test:fast` (2443) green.
-        - [x] **slice 17 (2026-06-27):** extracted `runVerifyTaskAcceptanceCommand` + its DI interfaces
-              (`VerifyTaskAcceptanceDependencies` / `RuntimeTaskAcceptanceVerifyMutationClient`) →
-              `commands/task/task-verify-command.ts` (self-contained, collaborators injectable for testing; not entangled
-              with finishTask). `task-verify.test.ts` repointed. task.ts 1410→1299 (cumulative 2870→1299, **−1571/−55%**).
-              tsc + biome + task-verify + contract + `test:fast` green.
-        - [x] **slice 18 (2026-06-27):** extracted the plan-slug inference helpers (`inferNKleinPlanSlugForTask` +
-              `matchesPlanBoardTaskId`) → `commands/task/task-plan-slug.ts` (a shared helper — 3 external consumers
-              repointed: `expand-plan-task.ts`, `record-plan-gap.ts`, `task-verify.test.ts`). task.ts 1299→1244
-              (cumulative 2870→1244, **−1626/−57%**). tsc + biome + `test:fast` (2443) green. *(Remaining: the `finishTask`
-              cluster [`finishTask`/`finishTaskById` + `autoMergeFinishedTaskWorktree`/`recordTaskWorktreeMergeObservations`/
-              `createIntegrationCardForMergeConflict`/`mergeTaskWorktreesCommand`] — cohesive but the biggest, most
-              cross-calling block — plus `recordTaskPlanGapCommand` and the `registerTaskCommand` subcommand split.)*
-        - [x] **slice 19 (2026-06-27):** extracted `deleteTaskCommand` (delete a task by id or a whole column, then stop
-              live sessions + delete worktrees) → `commands/task/task-delete-command.ts`; relocated the shared
-              `columnCanHaveLiveTaskSession` board-column predicate → `task-command-types.ts` (used by both delete + the
-              finish cluster, so it had to leave task.ts to avoid a cycle). task.ts 1244→1139 (cumulative 2870→1139,
-              **−1731/−60%**). tsc + biome + `test:fast` (2443) green. *(Remaining: the `finishTask` cluster [finish +
-              auto-merge + integration-card + merge-command, the most cross-calling block], `recordTaskPlanGapCommand`,
-              and the `registerTaskCommand` subcommand-registration scaffolding.)*
-        - [x] **slice 20 (2026-06-27):** extracted the whole finishTask/worktree-merge cluster (the ~385-line contiguous,
-              self-contained block: `finishTask` + `mergeTaskWorktreesCommand` + private helpers `finishTaskById`,
-              `autoMergeFinishedTaskWorktree`, `recordTaskWorktreeMergeObservations`, `createIntegrationCardForMergeConflict`
-              + the `Finish*` types) → `commands/task/task-finish-commands.ts`. Cohesive (cross-calls stayed intra-module),
-              so a clean one-way move. task.ts 1139→731 (cumulative 2870→731, **−2139/−75%**, three-quarters extracted).
-              tsc + biome + `test:fast` (2443) green.
-        - [x] **slice 21 (2026-06-27):** extracted `recordTaskPlanGapCommand` → `commands/task/task-record-plan-gap-command.ts`
-              (record a plan-gap observation + cross-linking revision + companion Planning card for the card-creating
-              kinds; leaf command). task.ts 731→547 (cumulative 2870→547, **−2323/−81%**). **task.ts is no longer a
-              monolith** — what remains is essentially the `registerTaskCommand` Commander subcommand wiring (+ the small
-              `runTaskCommand`/`parseOptionalBooleanOption` helpers) over the now-21 extracted per-concern modules. tsc +
-              biome + `test:fast` (2443) green. The §5.U "no large monolith" goal is **met for task.ts** (2870→547).
-        - [x] **slice 22 (2026-06-27):** split the 482-line `registerTaskCommand` into a thin dispatcher + 7 per-concern
-              register helpers (`registerTask{Read,Crud,MergeAndSwarm,Plan,Finish,Graph,Start}…Commands`) — the large
-              function is gone; each helper holds a navigable group of subcommand definitions. tsc + biome + `test:fast`
-              (2443) green. ⚠️ **Pre-existing, UNRELATED test failure noticed (NOT from this change — confirmed by stashing):**
-              `test/integration/task-command-exit.integration.test.ts` was fully broken (0/4). **PARTIALLY FIXED →
-              3/4 (2026-06-27):** two real, pre-existing regressions diagnosed + fixed. **(1)** the spawned CLI couldn't
-              resolve the vendored-SDK `@nklein/*` aliases (`ERR_MODULE_NOT_FOUND` `@nklein/core`) because the spawn runs
-              with cwd = a temp repo and tsx does cwd-relative tsconfig discovery → fixed by passing `TSX_TSCONFIG_PATH`
-              (this repo's tsconfig, which has the `@nklein/*` paths) in the spawn env. **(2)** the runtime **server** was
-              spawned with `cwd = projectPath`, and the self-improvement guard ([projects-api.ts](src/trpc/projects-api.ts)
-              ~L434) keys "!Klein's own source repo" off `resolveGitRootIfAvailable(deps.serverCwd)` — so the server's git
-              root == the project being added → false self-improvement block → fixed by running the server from the neutral
-              temp HOME (non-git → no source repo → guard skipped). NOT in the green gate. **Still owed (1/4):** the "opens
-              only for launch invocations" test — a launch/`--agent`/`--port` invocation in its loop exits 1 (server-from-
-              neutral-cwd may not resolve the cwd default workspace the launch path wants, OR an env-specific agent issue);
-              needs a focused look (likely thread a self-project confirmation so the server can keep cwd=project, or fix the
-              launch's workspace resolution).
-        - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
-              implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
-              modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
+  - **`src/commands/task.ts` decomposition ✅ COMPLETE (2870 → ~568, −80%) → moved to [done.md](done.md) (§5.U)** *(17
+        per-concern command/helper modules under `commands/task/` + `registerTaskCommand` split into a dispatcher + 7
+        register helpers, across 22 green slices).*
+  - [ ] **`task-command-exit` integration test — the 4th case is still red (2026-06-27).** This session's task.ts work took
+        it 0/4 → 3/4 by fixing two real regressions: the spawned CLI couldn't resolve the vendored `@nklein/*` alias (→ pass
+        `TSX_TSCONFIG_PATH` in the spawn so tsx uses this repo's tsconfig), and the self-improvement guard false-positived
+        because the server ran with `cwd=project` (→ run the server from the neutral temp HOME). The remaining "opens only
+        for launch invocations" test fails because, with the server at a neutral cwd, the launch `[]` doesn't register the
+        project, so the next `task list` (no auto-add) returns "Project … is not added yet". Guard-vs-launch-from-project
+        design knot: [projects-api.ts](src/trpc/projects-api.ts) keys "!Klein's own source repo" off `serverCwd`'s git root,
+        not the install path. Fix options: key the guard off the install path (so the server can keep `cwd=project`), or
+        thread a self-project confirmation. NOT in the `test:fast`/pre-commit gate.
   - **`src/trpc/runtime-api.ts` (~2449 → 2314)** *(umbrella — slices below are the counted work; the remaining slice is
         the open child. NB §5.X Phase 1 has since driven this file far lower (2410 → 1353); reconcile this item's
         progress against the §5.X slices 1–8 if revisiting)* — `createRuntimeApi` is one giant object literal of every
