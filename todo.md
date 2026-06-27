@@ -3647,7 +3647,7 @@ deep analysis:
         ([runtime-state-hub.ts](src/server/runtime-state-hub.ts)); the registry unions those NKlein summaries with the
         terminal manager's (dedup by taskId) before counting. Regression-guarded by a hub test asserting the provider
         returns the tracked NKlein summaries. Capture tool: [scripts/shot-sidebar.mts](scripts/shot-sidebar.mts).
-  - [ ] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): parallel projects don't actually parallelize LLM
+  - [x] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): parallel projects don't actually parallelize LLM
         work.** Two gates: **(a) LM Studio defaults to SERIAL request handling** — even when !Klein sends concurrent
         requests, the GPU processes them one at a time unless the user raises LM Studio's server concurrency; !Klein can't
         force the GPU to parallelize. **(b) !Klein's per-model `maxConcurrentRequests` defaults to 1** (`getMaxConcurrentRequests`
