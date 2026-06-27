@@ -2254,6 +2254,11 @@ deep analysis:
       for outside-workspace instead of leaking the absolute path) and `redactWorkspacePathForAgent` (`<ws>/x`→`x`, bare
       `<ws>`→`.`, every occurrence, empty-workspace passthrough). A redaction regression = a host-mount path leaking into
       agent-facing copy.
+      **`plan-task-schemas` schema-relaxation covered (2026-06-27, 9 tests, §5.O):** `relaxJsonSchemaNode` /
+      `toPermissiveAgentInputSchema` — strips every `required`, turns `additionalProperties:false`→`true` + adds it to
+      bare object nodes, relaxes a *schema-valued* `additionalProperties` in place, recurses through nested properties +
+      array `items`, leaves non-object types / primitives / null untouched, preserves descriptions. A regression here = the
+      SDK pre-rejecting a weak model's slightly-off decompose call before the in-handler JSON repair can run.
       **`task-record-format` CLI input/error surface (6 tests):** `resolveTaskCommandTarget` (task-id|column
       mutual-exclusion, names the command), `parseListColumn` (`done`→`completed` alias, canonical ids, invalid throws),
       `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). **Board functions now covered too**
