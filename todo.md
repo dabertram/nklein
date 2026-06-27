@@ -4202,10 +4202,24 @@ deep analysis:
       `package.json` (it's the best merge-safety layer — spawned backend, isolated home, free ports, raw HTTP/WS, mock
       LLM, on-disk seams; was hidden inside the broad `test`). Named in the path→gate manifest above for every tRPC /
       config-schema / persistence / task-lifecycle / settings change. Verified: runs green — 18 files / 272 tests.
-- [ ] **`web:e2e:smoke` canary.** A seconds-long Playwright smoke that **always starts a fresh server on a unique port**
-      (never reuses a stale dev server — the stale-`4173`-reuse cascade burned a 200s false failure), checking app boot /
-      no Vite overlay / Settings open / board render / chat sidebar render. Keep the full Playwright suite for
-      targeted/nightly/live. *(Also fix `test:protected` + `test:integration` alias/port flakiness as infra, not features.)*
+- [ ] **`web:e2e:smoke` canary — bigger than it looks; needs a hermetic mock foundation first (2026-06-27 investigation).**
+      Goal: a seconds-long Playwright smoke that **never reuses a stale dev server** (the stale-`4173`-reuse cascade burned
+      a 200s false failure), checking app boot / no Vite overlay / board render / Settings open. **What the investigation
+      found (so the next attempt doesn't re-walk it):** (1) `npm run dev` is **vite-only** and proxies `/api/*` to the
+      runtime on `:3484` — a frontend-only boot renders nothing; (2) a *fresh* runtime (isolated HOME) boots into
+      **onboarding**, not a board, so even a real backend won't render the board without **seeded** state; (3) that's why
+      the existing specs (`settings.spec.ts`, `chat-*.spec.ts`) **mock** the backend via `page.routeWebSocket` (inject a
+      board snapshot) + `page.route('/api/trpc/*')` — but **there is no shared helper**, each spec re-inlines a huge
+      `WS_SNAPSHOT` + `MOCK_CONFIG`, and **`MOCK_CONFIG` has already drifted stale** (e.g. missing `concurrencyDefaults`/
+      `concurrencyOverride`), so the unmocked `smoke.spec.ts` is backend-dependent and the mocked specs rot. **So the real
+      work, in order:** (a) **a shared hermetic e2e-mock helper** — one schema-synced `buildMockRuntimeConfig()` +
+      `buildBoardSnapshot()` (kept current with `runtimeConfigResponseSchema`) that every spec consumes (de-stales them
+      all + is the foundation); (b) a **mocked boot-smoke** spec on top of it (board columns + no `vite-error-overlay` +
+      settings opens); (c) a **`playwright.smoke.config.ts`** with `reuseExistingServer:false` + `--strictPort` on a
+      dedicated port. **Config gotcha (hit + confirmed):** the port must be a **stable module constant** — Playwright
+      re-imports the config in worker processes, so a `Math.random()` port desyncs the webServer's port from the workers'
+      `baseURL` → every test gets `ERR_CONNECTION_REFUSED`. Keep the full Playwright suite for targeted/nightly/live.
+      *(Also fix `test:protected` + `test:integration` alias/port flakiness as infra, not features.)*
 
 > **Structure-refactor ladder (ordered by fan-out ROI; each independently shippable + test-backed; folds into §5.U's
 > no-monolith goal — do them in the normal incremental loop, not as a pause-the-world front-load):**
