@@ -3499,9 +3499,13 @@ deep analysis:
       readable label of the levers applied) plus a rollup (distinct models tried, final outcome). 3 unit tests. **Still
       owed (the surface):** render it on the card's escalation panel + add the §5.AB "why this model" reason (needs the
       §5.AB selection-reason data).
-- [ ] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
+- [~] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
       (§5.M G3b), clarifying questions (§5.S), held deliveries (§5.L), protected-write approvals (§6.11). Reduces "where
-      do I unblock this?" hunting.
+      do I unblock this?" hunting. **DATA CORE DONE (2026-06-27):** `collectOperatorInbox(tasks)` in
+      `src/core/operator-task-state.ts` composes the same `OperatorTaskSignals` the classifier reads → groups task ids by
+      blocker (`unsafeActionAcks` / `clarifyingQuestions` / `heldDeliveries` / `blockedOnSetup`) with a distinct `total`.
+      3 unit tests. **Still owed (the surface):** render the inbox panel + wire the signal map (summary/card/gate →
+      `OperatorTaskSignals`) shared with the classifier; add protected-write approvals (§6.11) once that signal exists.
 - *(cross-links)* §6.8 cockpit (the live per-card layer this summarizes) · §5.AF ledger (the escalation/attempt data) ·
       §5.AB (selection reasoning) · §5.S (clarify inbox) · §5.M G3b (risk ack) · §5.L (delivery gate) · §5.A (isolation state).
 

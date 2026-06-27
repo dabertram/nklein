@@ -74,3 +74,53 @@ export function classifyOperatorTaskState(signals: OperatorTaskSignals): Operato
 	// HEALTHY — running/queued/idle and otherwise fine: progressing.
 	return "healthy";
 }
+
+export interface OperatorInboxTask {
+	taskId: string;
+	signals: OperatorTaskSignals;
+}
+
+/**
+ * The §5.AG risk + approval inbox — the things that BLOCK autonomy, grouped by what the operator must do, so unblocking
+ * is one place instead of a board hunt. Each list holds the task ids needing that action; `total` is the distinct count
+ * of tasks needing ANY action (a task can appear in more than one list).
+ */
+export interface OperatorInbox {
+	/** Unsafe/host actions awaiting an explicit acknowledgement (§5.M G3b). */
+	unsafeActionAcks: string[];
+	/** Clarifying questions awaiting an answer (§5.S). */
+	clarifyingQuestions: string[];
+	/** Deliveries (commit/PR) held pending the operator (§5.L gate). */
+	heldDeliveries: string[];
+	/** Cards blocked on setup before they can run (needs-decomposition / local-model-required / sandbox-unavailable). */
+	blockedOnSetup: string[];
+	/** Distinct tasks needing ANY operator action. */
+	total: number;
+}
+
+export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): OperatorInbox {
+	const unsafeActionAcks: string[] = [];
+	const clarifyingQuestions: string[] = [];
+	const heldDeliveries: string[] = [];
+	const blockedOnSetup: string[] = [];
+	const needingAction = new Set<string>();
+	for (const task of tasks) {
+		if (task.signals.awaitingHostActionAck) {
+			unsafeActionAcks.push(task.taskId);
+			needingAction.add(task.taskId);
+		}
+		if (task.signals.clarifyingQuestionPending) {
+			clarifyingQuestions.push(task.taskId);
+			needingAction.add(task.taskId);
+		}
+		if (task.signals.deliveryGateHeld) {
+			heldDeliveries.push(task.taskId);
+			needingAction.add(task.taskId);
+		}
+		if (task.signals.blockedKind !== null) {
+			blockedOnSetup.push(task.taskId);
+			needingAction.add(task.taskId);
+		}
+	}
+	return { unsafeActionAcks, clarifyingQuestions, heldDeliveries, blockedOnSetup, total: needingAction.size };
+}

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { classifyOperatorTaskState, type OperatorTaskSignals } from "../../../src/core/operator-task-state";
+import {
+	classifyOperatorTaskState,
+	collectOperatorInbox,
+	type OperatorTaskSignals,
+} from "../../../src/core/operator-task-state";
 
 const HEALTHY: OperatorTaskSignals = {
 	sessionState: "running",
@@ -55,5 +59,37 @@ describe("classifyOperatorTaskState", () => {
 		expect(classifyOperatorTaskState({ ...HEALTHY, sessionState: "awaiting_review", heartbeatLost: true })).toBe(
 			"done",
 		);
+	});
+});
+
+describe("collectOperatorInbox", () => {
+	it("groups tasks by the action they need + counts distinct tasks", () => {
+		const inbox = collectOperatorInbox([
+			{ taskId: "t-ack", signals: { ...HEALTHY, awaitingHostActionAck: true } },
+			{ taskId: "t-clarify", signals: { ...HEALTHY, clarifyingQuestionPending: true } },
+			{ taskId: "t-delivery", signals: { ...HEALTHY, deliveryGateHeld: true } },
+			{ taskId: "t-blocked", signals: { ...HEALTHY, blockedKind: "agent_sandbox_unavailable" } },
+			{ taskId: "t-fine", signals: HEALTHY },
+		]);
+		expect(inbox.unsafeActionAcks).toEqual(["t-ack"]);
+		expect(inbox.clarifyingQuestions).toEqual(["t-clarify"]);
+		expect(inbox.heldDeliveries).toEqual(["t-delivery"]);
+		expect(inbox.blockedOnSetup).toEqual(["t-blocked"]);
+		expect(inbox.total).toBe(4); // t-fine needs nothing
+	});
+
+	it("counts a task needing multiple actions once in total but in each relevant list", () => {
+		const inbox = collectOperatorInbox([
+			{ taskId: "t-both", signals: { ...HEALTHY, awaitingHostActionAck: true, deliveryGateHeld: true } },
+		]);
+		expect(inbox.unsafeActionAcks).toEqual(["t-both"]);
+		expect(inbox.heldDeliveries).toEqual(["t-both"]);
+		expect(inbox.total).toBe(1);
+	});
+
+	it("is empty when nothing needs the operator", () => {
+		const inbox = collectOperatorInbox([{ taskId: "ok", signals: HEALTHY }]);
+		expect(inbox.total).toBe(0);
+		expect(inbox.unsafeActionAcks).toEqual([]);
 	});
 });
