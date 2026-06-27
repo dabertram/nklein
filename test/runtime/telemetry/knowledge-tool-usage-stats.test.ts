@@ -51,6 +51,8 @@ function createRuntimeConfig(): RuntimeConfigState {
 		readyForReviewNotificationsEnabled: true,
 		codeEmbeddingDefaults: { provider: "local_lexical", model: null, baseUrl: null },
 		codeEmbeddingOverride: null,
+		concurrencyDefaults: { perProvider: {}, perModel: {} },
+		concurrencyOverride: null,
 		effectiveCodeEmbeddingSettings: { provider: "local_lexical", model: null, baseUrl: null },
 		modelRoles: {
 			worker: { providerId: "ollama", modelId: "qwen2.5-coder" },

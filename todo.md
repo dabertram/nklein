@@ -2658,12 +2658,19 @@ deep analysis:
         `concurrencyConfigSchema` / `concurrencyOverrideSchema` / `concurrencyMapSchema` added to
         [concurrency-config.ts](src/core/concurrency-config.ts) (lenient on values — the `normalize*` writers clamp on
         load — with compile-time `z.ZodType` drift guards + 3 schema tests), the prerequisite for both the runtime-config
-        and the tRPC-contract threading. **Still owed:** thread the two maps + their `…Override` per-project fields
-        through `runtime-config.ts` (mirror the `codeEmbeddingDefaults`/`codeEmbeddingOverride`/`effective…` trio in
-        `RuntimeConfigState` + the file shapes + `RuntimeConfigUpdateInput` + DEFAULT + load-normalize + effective
-        resolution + the equality/change-detection guards, §5.U) so the values persist + surface as effective config;
-        then the contract + the caller-wiring that passes `providerConcurrencyCap`/`modelConcurrencyCap` to the (already
-        built) scheduler gate.
+        and the tRPC-contract threading. **RUNTIME-CONFIG THREADING DONE (2026-06-27):** `concurrencyDefaults`
+        (global) + `concurrencyOverride` (per-project) are threaded through ALL ~25 sites of `runtime-config.ts` — the
+        two file shapes, `RuntimeConfigState`, `RuntimeConfigUpdateInput`, the load-normalize + build assembly, the
+        global+project save-payload writers (conditional-write + the null-when-empty delete), the change-detection
+        registry (`areConcurrencyConfigsEqual`/`areConcurrencyOverridesEqual`), and both `createRuntimeConfigStateFromValues`
+        / global-reset / `keepNormalizedValue` update paths. Additive (no "effective" field — concurrency resolves
+        per-session); the existing 2358 fast tests + tsc stayed green throughout, and a new round-trip test proves a
+        global default AND a per-project override **persist across save→reload** (and the global is preserved on the
+        override save). **Still owed:** the tRPC contract (thread the two maps + `…Override` through
+        `runtimeConfigResponseSchema`/`runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`) + the caller-wiring
+        (resolve via `resolveSessionConcurrencyCaps` at the `scheduleNKleinEndpointStart` call site in
+        `start-task-session.ts` and pass `providerConcurrencyCap`/`modelConcurrencyCap` to the already-built gate) +
+        the Settings UI.
   - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
         ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
         per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it

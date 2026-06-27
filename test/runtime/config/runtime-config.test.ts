@@ -327,6 +327,37 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("defaults empty concurrency config and round-trips the global default + per-project override (§5.W)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-concurrency-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-concurrency-",
+		);
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.concurrencyDefaults).toEqual({ perProvider: {}, perModel: {} });
+				expect(defaults.concurrencyOverride).toBeNull();
+
+				// Global default persists across reload.
+				await updateRuntimeConfig(tempProject, {
+					concurrencyDefaults: { perProvider: { lmstudio: 2 }, perModel: { "lmstudio:qwen3-8b:default": 1 } },
+				});
+				const withGlobal = await loadRuntimeConfig(tempProject);
+				expect(withGlobal.concurrencyDefaults.perProvider.lmstudio).toBe(2);
+				expect(withGlobal.concurrencyDefaults.perModel["lmstudio:qwen3-8b:default"]).toBe(1);
+
+				// Per-project override persists too, and the global default is preserved on the override save.
+				await updateRuntimeConfig(tempProject, { concurrencyOverride: { perProvider: { lmstudio: 5 } } });
+				const withOverride = await loadRuntimeConfig(tempProject);
+				expect(withOverride.concurrencyOverride?.perProvider?.lmstudio).toBe(5);
+				expect(withOverride.concurrencyDefaults.perProvider.lmstudio).toBe(2);
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("defaults swarm guardrails, round-trips overrides, clamps bad values, and preserves on unrelated saves (§5.T)", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-guardrails-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-guardrails-");
