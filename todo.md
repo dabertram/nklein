@@ -2093,6 +2093,13 @@ deep analysis:
               **−1731/−60%**). tsc + biome + `test:fast` (2443) green. *(Remaining: the `finishTask` cluster [finish +
               auto-merge + integration-card + merge-command, the most cross-calling block], `recordTaskPlanGapCommand`,
               and the `registerTaskCommand` subcommand-registration scaffolding.)*
+        - [x] **slice 20 (2026-06-27):** extracted the whole finishTask/worktree-merge cluster (the ~385-line contiguous,
+              self-contained block: `finishTask` + `mergeTaskWorktreesCommand` + private helpers `finishTaskById`,
+              `autoMergeFinishedTaskWorktree`, `recordTaskWorktreeMergeObservations`, `createIntegrationCardForMergeConflict`
+              + the `Finish*` types) → `commands/task/task-finish-commands.ts`. Cohesive (cross-calls stayed intra-module),
+              so a clean one-way move. task.ts 1139→731 (cumulative 2870→731, **−2139/−75%**, three-quarters extracted).
+              tsc + biome + `test:fast` (2443) green. *(Remaining is now small: `recordTaskPlanGapCommand` (~168 lines) and
+              the `registerTaskCommand` subcommand-registration scaffolding — the file is mostly just the CLI wiring now.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
