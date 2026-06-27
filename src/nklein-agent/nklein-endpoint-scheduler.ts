@@ -18,6 +18,17 @@ export interface NKleinEndpointSchedulingRequest extends NKleinModelRegistryKeyI
 	runningSessions: readonly NKleinEndpointSessionSnapshot[];
 	modelRegistry: NKleinModelRegistrySnapshot;
 	now?: number;
+	/**
+	 * §5.W: the effective per-PROVIDER concurrent-session cap for this task's provider (the resolved
+	 * override?? global from `resolveEffectiveProviderConcurrency`). When set, a start is held once the provider
+	 * already runs this many sessions across ALL its endpoints/models. `null`/`undefined` = no provider gate.
+	 */
+	providerConcurrencyCap?: number | null;
+	/**
+	 * §5.W: the effective per-MODEL concurrent-request cap (`resolveEffectiveModelConcurrency`), used in place of the
+	 * machine-local registry `maxConcurrentRequests` constraint when supplied. `null`/`undefined` = use the registry.
+	 */
+	modelConcurrencyCap?: number | null;
 }
 
 export type NKleinEndpointSchedulingDecision =
@@ -130,17 +141,66 @@ function formatEstimatedWait(estimatedWaitMs: number | null): string {
 	return ` Estimated wait from observed model speed: about ${seconds.toLocaleString()}s.`;
 }
 
+/** A positive integer cap, or `null` when the value is absent/invalid (→ caller falls back). */
+function normalizePositiveCap(value: number | null | undefined): number | null {
+	return typeof value === "number" && Number.isFinite(value) && value >= 1 ? Math.trunc(value) : null;
+}
+
+/**
+ * §5.W per-PROVIDER concurrency gate — independent of the per-endpoint/per-model gate. Holds a start when this task's
+ * provider already runs `providerConcurrencyCap` sessions across ALL its endpoints/models. Only active for a LOCAL
+ * provider with a supplied cap; returns `null` (no opinion) otherwise, so the default behavior is unchanged.
+ */
+function evaluateProviderConcurrencyGate(
+	request: NKleinEndpointSchedulingRequest,
+): NKleinEndpointSchedulingDecision | null {
+	const cap = normalizePositiveCap(request.providerConcurrencyCap);
+	if (cap === null) {
+		return null;
+	}
+	const providerId = normalizeProviderId(request.providerId);
+	const endpoint = normalizeEndpoint(request.endpoint);
+	if (!isLocalProvider(providerId, endpoint)) {
+		return null;
+	}
+	const providerSessions = request.runningSessions.filter(
+		(session) =>
+			session.taskId !== request.taskId &&
+			session.state === "running" &&
+			normalizeProviderId(session.providerId) === providerId,
+	);
+	const earliest = providerSessions[0];
+	if (providerSessions.length < cap || !earliest) {
+		return null;
+	}
+	return {
+		ok: false,
+		blockedByTaskId: earliest.taskId,
+		sharedEndpointId: `provider:${providerId}`,
+		estimatedWaitMs: null,
+		reason: `Provider "${providerId}" is at its ${cap} concurrent-session cap; another !Klein task on this provider must finish first.`,
+	};
+}
+
 export function scheduleNKleinEndpointStart(
 	request: NKleinEndpointSchedulingRequest,
 ): NKleinEndpointSchedulingDecision {
+	// §5.W: the per-PROVIDER cap is an independent gate — check it first so a provider at capacity holds even when the
+	// specific endpoint/model still has room.
+	const providerBlock = evaluateProviderConcurrencyGate(request);
+	if (providerBlock) {
+		return providerBlock;
+	}
 	const sharedEndpointId = getSharedEndpointId(request.modelRegistry, request);
 	if (!sharedEndpointId) {
 		return { ok: true };
 	}
 	const now = request.now ?? Date.now();
 	// Per-model parallel-request capacity (default 1 = strict serialization). The swarm may run up to `limit`
-	// concurrent sessions on the same shared endpoint before a new start is held.
-	const limit = getMaxConcurrentRequests(request.modelRegistry, request);
+	// concurrent sessions on the same shared endpoint before a new start is held. §5.W: an effective per-model
+	// config cap (`modelConcurrencyCap`) wins over the machine-local registry constraint when supplied.
+	const limit =
+		normalizePositiveCap(request.modelConcurrencyCap) ?? getMaxConcurrentRequests(request.modelRegistry, request);
 
 	const concurrentSessions = request.runningSessions.filter(
 		(session) =>

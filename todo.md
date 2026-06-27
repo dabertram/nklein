@@ -2657,10 +2657,17 @@ deep analysis:
         independent gates). Pure, 14 unit tests, tsc + biome green. **Still owed:** thread the two maps + their
         `…Override` per-project fields through `runtime-config.ts` (mirror the `codeEmbeddingOverride` template + the
         change-detection-registry drift guard, §5.U) so the values persist + surface as effective config.
-  - [ ] **scheduler enforcement** — extend `scheduleNKleinEndpointStart` to ALSO count running sessions **per provider**
-        and hold a start when the provider cap is reached (today it only counts per shared endpoint + the per-model cap);
-        source the per-model cap from `effectiveModelConcurrency` (fallback to the registry constraint). Unit-test:
-        provider-cap allows-N-then-blocks; model-cap unchanged; project override beats global.
+  - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
+        ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
+        per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it
+        counts the provider's running sessions across ALL its endpoints/models and holds at the cap (reason +
+        `sharedEndpointId: "provider:<id>"`); and the per-endpoint `limit` now takes an optional `modelConcurrencyCap`
+        (the effective config cap) in place of the registry `maxConcurrentRequests`. **Additive + dormant by default:**
+        both fields are optional, so with neither set the behavior + the existing 9 tests are unchanged; +3 new tests
+        (provider-cap allows-under/blocks-at across distinct endpoints; model-cap override raises then blocks). **Still
+        owed:** the CALLER must resolve + pass `providerConcurrencyCap`/`modelConcurrencyCap` from the effective
+        `ConcurrencyConfig` (the contract+config-threading sub-items below) for the gate to go live; the resolution is
+        already done (`concurrency-config.ts`, project override beats global, 14 tests).
   - [ ] **contract + tRPC** — thread the two maps + overrides through `runtimeConfigResponseSchema` /
         `runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`; `saveConfig` passes them generically.
   - [ ] **Settings UI** — a "Concurrency" card (global) listing providers + (loaded/known) models with a per-row number

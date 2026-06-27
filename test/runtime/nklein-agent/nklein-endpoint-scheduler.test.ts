@@ -333,4 +333,84 @@ describe("nklein endpoint scheduler", () => {
 
 		expect(decision).toEqual({ ok: true });
 	});
+
+	// §5.W per-provider concurrency gate.
+	const coldRegistry: NKleinModelRegistrySnapshot = { schemaVersion: 1, updatedAt: 0, models: {} };
+	const ollamaSession = (taskId: string, endpoint: string, modelId = "qwen") => ({
+		taskId,
+		state: "running" as const,
+		providerId: "ollama",
+		modelId,
+		endpoint,
+	});
+
+	it("holds a start when the per-provider cap is reached across distinct endpoints/models", () => {
+		// Two ollama sessions on different endpoints/models: each passes the per-endpoint gate, but the PROVIDER is at
+		// its cap of 2, so a third ollama start (on yet another endpoint) is held by the provider gate.
+		const decision = scheduleNKleinEndpointStart({
+			taskId: "task-3",
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:1236/v1",
+			modelRegistry: coldRegistry,
+			providerConcurrencyCap: 2,
+			runningSessions: [
+				ollamaSession("task-1", "http://127.0.0.1:1234/v1", "qwen"),
+				ollamaSession("task-2", "http://127.0.0.1:1235/v1", "llama"),
+			],
+		});
+		expect(decision).toMatchObject({
+			ok: false,
+			blockedByTaskId: "task-1",
+			sharedEndpointId: "provider:ollama",
+			reason: expect.stringContaining('Provider "ollama" is at its 2 concurrent-session cap'),
+		});
+	});
+
+	it("allows a start while the provider is under its cap", () => {
+		const decision = scheduleNKleinEndpointStart({
+			taskId: "task-2",
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "http://127.0.0.1:1236/v1",
+			modelRegistry: coldRegistry,
+			providerConcurrencyCap: 2,
+			runningSessions: [ollamaSession("task-1", "http://127.0.0.1:1234/v1", "llama")], // 1 < 2, different endpoint
+		});
+		expect(decision).toEqual({ ok: true });
+	});
+
+	it("lets an effective per-model cap override the registry maxConcurrentRequests", () => {
+		const runningOnGpu = (taskId: string) => ({
+			taskId,
+			state: "running" as const,
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "local",
+		});
+		// Registry default is 1 (would block a 2nd), but the effective per-model cap of 3 allows up to 3 on the endpoint.
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "ollama",
+				modelId: "qwen",
+				endpoint: "local",
+				modelRegistry: createSnapshot("gpu-0"),
+				modelConcurrencyCap: 3,
+				runningSessions: [runningOnGpu("task-1"), runningOnGpu("task-2")],
+			}),
+		).toEqual({ ok: true });
+		// At the override cap of 2, a 3rd is blocked by the per-endpoint gate.
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "ollama",
+				modelId: "qwen",
+				endpoint: "local",
+				modelRegistry: createSnapshot("gpu-0"),
+				modelConcurrencyCap: 2,
+				runningSessions: [runningOnGpu("task-1"), runningOnGpu("task-2")],
+			}),
+		).toMatchObject({ ok: false, sharedEndpointId: "gpu-0" });
+	});
 });
