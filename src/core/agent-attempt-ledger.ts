@@ -300,6 +300,78 @@ export function selectAttemptsForModel(events: readonly AgentLedgerEvent[], mode
 	return selectAttempts(events).filter((event) => event.modelId === modelId);
 }
 
+/** One row of the §5.AG escalation chain — what was tried at one rung. */
+export interface TaskAttemptRow {
+	rung: number;
+	modelId: string;
+	/** A readable label for the levers applied this rung (endpoint/prompt/tool-set-simplification). */
+	approach: string;
+	outcome: AgentAttemptEvent["outcome"];
+	qualityScore: number | null;
+	qualityOk: boolean | null;
+	salvage: string | null;
+	recordedAt: number;
+}
+
+export interface TaskEscalationReport {
+	taskId: string;
+	totalAttempts: number;
+	/** Distinct models tried, in first-seen order. */
+	modelsTried: string[];
+	finalOutcome: AgentAttemptEvent["outcome"] | null;
+	/** Chronological attempt chain (oldest → newest). */
+	attempts: TaskAttemptRow[];
+}
+
+function describeAttemptApproach(attempt: AgentAttemptEvent): string {
+	const parts: string[] = [];
+	if (attempt.endpointStrategy) {
+		parts.push(`endpoint:${attempt.endpointStrategy}`);
+	}
+	if (attempt.promptStrategy) {
+		parts.push(`prompt:${attempt.promptStrategy}`);
+	}
+	if (attempt.simplificationLevel > 0) {
+		parts.push(`simplify:${attempt.simplificationLevel}`);
+	}
+	return parts.length > 0 ? parts.join(" ") : "default";
+}
+
+/**
+ * The §5.AG "what was tried before escalating" report for one task: its attempt chain (rung × model × approach ×
+ * outcome × score) in chronological order, plus a rollup (distinct models tried, final outcome). Pure projection over
+ * the ledger, so the operator escalation surface is a QUERY over the durable record, not a parallel store — the user
+ * sees an actionable report instead of a silent dead end.
+ */
+export function buildTaskEscalationReport(events: readonly AgentLedgerEvent[], taskId: string): TaskEscalationReport {
+	const attempts = selectAttempts(events)
+		.filter((event) => event.taskId === taskId)
+		.sort((left, right) => left.recordedAt - right.recordedAt);
+	const rows: TaskAttemptRow[] = attempts.map((attempt) => ({
+		rung: attempt.retriesBefore,
+		modelId: attempt.modelId,
+		approach: describeAttemptApproach(attempt),
+		outcome: attempt.outcome,
+		qualityScore: attempt.qualityScore,
+		qualityOk: attempt.qualityOk,
+		salvage: attempt.salvage,
+		recordedAt: attempt.recordedAt,
+	}));
+	const modelsTried: string[] = [];
+	for (const row of rows) {
+		if (!modelsTried.includes(row.modelId)) {
+			modelsTried.push(row.modelId);
+		}
+	}
+	return {
+		taskId,
+		totalAttempts: rows.length,
+		modelsTried,
+		finalOutcome: rows.length > 0 ? (rows[rows.length - 1] as TaskAttemptRow).outcome : null,
+		attempts: rows,
+	};
+}
+
 /** Every event of one workflow run. */
 export function selectEventsForWorkflow(events: readonly AgentLedgerEvent[], workflowId: string): AgentLedgerEvent[] {
 	return events.filter((event) => event.workflowId === workflowId);

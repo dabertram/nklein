@@ -3490,9 +3490,15 @@ deep analysis:
       signal wins; 7 unit tests lock the precedence (risky outranks done/stuck; done outranks stuck). **Still owed (the
       surface):** map the live `RuntimeTaskSessionSummary` + board card + §5.L/§5.S/§5.M gate state onto the signal set,
       then render the board-header rollup (counts per state) + a per-lane indicator (the UI consumer).
-- [ ] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
+- [~] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
       resort), show the attempt chain — models × approaches × scores tried — so the user sees an actionable report, not a
       silent dead end. Also the §5.AB "why this model for this task" inspectable reason.
+      **REPORT PROJECTION DONE (2026-06-27):** pure `buildTaskEscalationReport(events, taskId)`
+      ([agent-attempt-ledger.ts](src/core/agent-attempt-ledger.ts)) — a QUERY over the ledger that returns the task's
+      chronological attempt chain (`rung × model × approach × outcome × qualityScore × salvage`, with `approach` a
+      readable label of the levers applied) plus a rollup (distinct models tried, final outcome). 3 unit tests. **Still
+      owed (the surface):** render it on the card's escalation panel + add the §5.AB "why this model" reason (needs the
+      §5.AB selection-reason data).
 - [ ] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
       (§5.M G3b), clarifying questions (§5.S), held deliveries (§5.L), protected-write approvals (§6.11). Reduces "where
       do I unblock this?" hunting.
