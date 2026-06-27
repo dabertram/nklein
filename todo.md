@@ -2190,6 +2190,11 @@ deep analysis:
       (entry/terminal of a chain, parallel = both, cyclic throws), and `expandDecomposeProjectTasks` (no-op passthrough;
       **replaces a task with its sub-graph and rewires dependents to the terminal node**; throws on empty replacement,
       unknown id, depth-limit breach, cycle). The decomposition validation+expansion pair is now well-covered.
+      **`task-record-format` CLI input/error surface (6 tests):** `resolveTaskCommandTarget` (task-id|column
+      mutual-exclusion, names the command), `parseListColumn` (`done`→`completed` alias, canonical ids, invalid throws),
+      `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). *(The board-query/format functions —
+      `findTaskRecord`/`formatTaskRecord`/`findTasksInColumn` — need a full board fixture; deferred.)* **Full green
+      re-verified at this milestone:** backend `test:fast` 2275 + web-ui 730 (typecheck clean).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
