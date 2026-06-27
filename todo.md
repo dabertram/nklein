@@ -4360,10 +4360,13 @@ deep analysis:
       `remove`/`size` queue whose `QueuedRuntimeTaskStart` already carries `attempts`/`nextAttemptAt`/`lastError` for
       backoff, and its **durable persistence format is now DONE (2026-06-27):** `queuedRuntimeTaskStartSchema` (drift-
       guarded against `QueuedRuntimeTaskStart`) + `serializeQueuedTaskStarts` / `parseQueuedTaskStarts` (JSONL,
-      skip-invalid via `parseValidatedJsonl`) in the same module — 3 round-trip/skip tests. So the remaining work is the
-      thin **file-I/O wrapper** (write on enqueue/drain, load on startup, like the ledger store) + the **Red**
-      runtime-server wiring [load the queue at boot, replay it, persist on change].)* This is also exactly the §5.AF
-      "durable long-run job scheduler" item — one arc.
+      skip-invalid via `parseValidatedJsonl`) in the same module — 3 round-trip/skip tests; **and the file-I/O wrapper is
+      now DONE (2026-06-27):** `loadQueuedTaskStartsFromDisk` / `saveQueuedTaskStartsToDisk`
+      ([src/trpc/runtime-task-start-queue-store.ts](src/trpc/runtime-task-start-queue-store.ts)) — a best-effort
+      single-JSONL snapshot store (creates parent dirs, overwrites on save, empty on missing — mirrors the ledger store),
+      4 temp-dir round-trip/overwrite tests. So the **only remaining work is the Red runtime-server wiring**: load the
+      snapshot at boot + re-enqueue it, and `saveQueuedTaskStartsToDisk` after each enqueue/drain.)* This is also exactly
+      the §5.AF "durable long-run job scheduler" item — one arc.
 - *(already tracked in §5.U — not duplicated here: the `runtime-settings-dialog.tsx` JSX decomposition, the
   `nklein-task-session-service.ts` collaborator extraction, and the monolith inventory.)*
 
