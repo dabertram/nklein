@@ -1,4 +1,4 @@
-import { execFile, spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { readFile, realpath, rm } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -730,32 +730,16 @@ function findWorkspaceEntry(index: WorkspaceIndexFile, repoPath: string): Worksp
 	return entry;
 }
 
-function runGitCapture(cwd: string, args: string[]): string | null {
-	const result = spawnSync("git", args, {
-		cwd,
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-		env: createGitProcessEnv(),
-	});
-	if (result.status !== 0 || typeof result.stdout !== "string") {
-		return null;
-	}
-	const value = result.stdout.trim();
-	return value.length > 0 ? value : null;
-}
-
-function detectGitRoot(cwd: string): string | null {
-	return runGitCapture(cwd, ["rev-parse", "--show-toplevel"]);
-}
-
 const execFileAsync = promisify(execFile);
 
 /**
- * Async sibling of {@link runGitCapture}. The sync `spawnSync` version BLOCKS the event loop while git runs — fine for
- * one-off CLI calls, but catastrophic on a hot server path: `resolveWorkspacePath` runs on every `loadWorkspaceState` /
- * `saveWorkspaceState`, so under heavy parallel agent load (the agent flooding its own git + `docker exec` subprocesses)
- * each sync git spawn stalls the whole runtime for tens of seconds (the §5.AI "sluggish with 2 projects" hang — a
- * `--cpu-prof` showed the thread idle-but-blocked in the child process). Running it async keeps the loop responsive.
+ * Capture `git <args>` stdout (trimmed; null on empty / non-zero exit / spawn failure) WITHOUT blocking the event loop.
+ * The previous synchronous `spawnSync` version blocked Node's loop the entire time git ran — fine for one-off CLI calls,
+ * but catastrophic on hot server paths: `resolveWorkspacePath` AND `detectGitRepositoryInfo` both run inside
+ * `loadWorkspaceContext`, i.e. on every `loadWorkspaceState`/`saveWorkspaceState` (including every board write an agent
+ * makes). Under heavy parallel agent load (the agent flooding its own git + `docker exec` subprocesses) each sync git
+ * spawn stalled the whole runtime for tens of seconds (the §5.AI "sluggish with 2 projects" hang — a `--cpu-prof` showed
+ * the thread idle-but-blocked in the child process). Async git keeps the loop responsive.
  */
 async function runGitCaptureAsync(cwd: string, args: string[]): Promise<string | null> {
 	try {
@@ -767,7 +751,7 @@ async function runGitCaptureAsync(cwd: string, args: string[]): Promise<string |
 		const value = typeof stdout === "string" ? stdout.trim() : "";
 		return value.length > 0 ? value : null;
 	} catch {
-		// Non-zero exit / spawn failure → no git root, same as the sync path's `status !== 0` branch.
+		// Non-zero exit / spawn failure → null, same as the old sync path's `status !== 0` branch.
 		return null;
 	}
 }
@@ -776,14 +760,14 @@ async function detectGitRootAsync(cwd: string): Promise<string | null> {
 	return runGitCaptureAsync(cwd, ["rev-parse", "--show-toplevel"]);
 }
 
-function detectGitCurrentBranch(repoPath: string): string | null {
-	return runGitCapture(repoPath, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+async function detectGitCurrentBranch(repoPath: string): Promise<string | null> {
+	return runGitCaptureAsync(repoPath, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
 }
 
-function detectGitBranches(repoPath: string): string[] {
+async function detectGitBranches(repoPath: string): Promise<string[]> {
 	// TODO: support showing remote branches again once worktree creation can safely fetch/pull
 	// and resolve missing local tracking branches automatically.
-	const output = runGitCapture(repoPath, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]);
+	const output = await runGitCaptureAsync(repoPath, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]);
 	if (!output) {
 		return [];
 	}
@@ -799,8 +783,13 @@ function detectGitBranches(repoPath: string): string[] {
 	return Array.from(unique).sort((left, right) => left.localeCompare(right));
 }
 
-function detectGitDefaultBranch(repoPath: string, branches: string[]): string | null {
-	const remoteHead = runGitCapture(repoPath, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]);
+async function detectGitDefaultBranch(repoPath: string, branches: string[]): Promise<string | null> {
+	const remoteHead = await runGitCaptureAsync(repoPath, [
+		"symbolic-ref",
+		"--quiet",
+		"--short",
+		"refs/remotes/origin/HEAD",
+	]);
 	if (remoteHead) {
 		const normalized = remoteHead.startsWith("origin/") ? remoteHead.slice("origin/".length) : remoteHead;
 		if (normalized) {
@@ -816,16 +805,16 @@ function detectGitDefaultBranch(repoPath: string, branches: string[]): string | 
 	return branches[0] ?? null;
 }
 
-function detectGitRepositoryInfo(repoPath: string): RuntimeGitRepositoryInfo {
-	const gitRoot = detectGitRoot(repoPath);
+async function detectGitRepositoryInfo(repoPath: string): Promise<RuntimeGitRepositoryInfo> {
+	const gitRoot = await detectGitRootAsync(repoPath);
 	if (!gitRoot) {
 		throw new Error(`No git repository detected at ${repoPath}`);
 	}
 
-	const currentBranch = detectGitCurrentBranch(repoPath);
-	const branches = detectGitBranches(repoPath);
+	// currentBranch + branches are independent — run them concurrently to cut the number of serial git spawns.
+	const [currentBranch, branches] = await Promise.all([detectGitCurrentBranch(repoPath), detectGitBranches(repoPath)]);
 	const orderedBranches = currentBranch && !branches.includes(currentBranch) ? [currentBranch, ...branches] : branches;
-	const defaultBranch = detectGitDefaultBranch(repoPath, orderedBranches);
+	const defaultBranch = await detectGitDefaultBranch(repoPath, orderedBranches);
 
 	return {
 		currentBranch,
@@ -945,7 +934,7 @@ export async function loadWorkspaceContext(
 			repoPath,
 			workspaceId: existingEntry.workspaceId,
 			statePath: getWorkspaceDirectoryPath(existingEntry.workspaceId),
-			git: detectGitRepositoryInfo(repoPath),
+			git: await detectGitRepositoryInfo(repoPath),
 			gitRepositoryCreatedByKanban: existingEntry.gitRepositoryCreatedByKanban === true,
 			displayName: existingEntry.displayName?.trim() || null,
 			selfProjectConfirmed: existingEntry.selfProjectConfirmed === true,
@@ -989,7 +978,7 @@ export async function loadWorkspaceContext(
 			repoPath,
 			workspaceId: ensured.entry.workspaceId,
 			statePath: getWorkspaceDirectoryPath(ensured.entry.workspaceId),
-			git: detectGitRepositoryInfo(repoPath),
+			git: await detectGitRepositoryInfo(repoPath),
 			gitRepositoryCreatedByKanban: ensured.entry.gitRepositoryCreatedByKanban === true,
 			displayName: ensured.entry.displayName?.trim() || null,
 			selfProjectConfirmed: ensured.entry.selfProjectConfirmed === true,

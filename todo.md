@@ -3647,11 +3647,16 @@ deep analysis:
         calls on **every** board write — routed through this, so the agent itself repeatedly blocked the event loop on its
         own saves; this unblocks the loop for the agent's saves, the board view (`buildWorkspaceStateSnapshot`), and every
         other `loadWorkspaceState`/`saveWorkspaceState` caller in one change. **Verified:** 2106 tests green (the heavily-used
-        `resolveWorkspacePath` is the guard) + a live smoke (runtime boots, project create/resolve + agent saves all work
-        under load, `projects.list` fast + correct badge). **Still owed (lower priority):** measure + (if needed) async the
-        git-info path `detectGitRepositoryInfo` (still `spawnSync` for branch/remote info — the git-sync view, far colder
-        than the save/load path); and the `proper-lockfile` (`retries: 200`) cross-process amplifier is a separate,
-        smaller knob.
+        `resolveWorkspacePath` is the guard) + a live smoke. **FOLLOW-UP DONE (2026-06-27) — and it was NOT "far colder", it
+        was a second hole on the SAME hot path:** `loadWorkspaceContext` *also* calls `detectGitRepositoryInfo`, which did
+        **4 more sync git spawns** (`detectGitRoot` + `detectGitCurrentBranch` + `detectGitBranches` +
+        `detectGitDefaultBranch`) — so every load/save was actually blocking on **5** sync git calls, of which the first
+        fix only converted 1. Now the **whole git cluster is async** (`runGitCaptureAsync` for all; `detectGitRepositoryInfo`
+        is async + runs the two independent branch lookups concurrently via `Promise.all`); the dead sync `runGitCapture` +
+        `detectGitRoot` + the `spawnSync` import were removed. So `loadWorkspaceContext` now has **zero** sync git on the
+        hot path. tsc-guided (every caller awaits) + test/runtime fully green + a live smoke (boot + create dev-test project
+        → exercises the async `detectGitRepositoryInfo`; project lists with correct git info). The `proper-lockfile`
+        (`retries: 200`) cross-process amplifier is the one remaining, smaller, separate knob.
         **DONE (secondary, still worthwhile — 2026-06-27):** coalesced the per-flush projects rebuild to ≤1/window
         ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts) wired in
         [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — reduces real rebuild
