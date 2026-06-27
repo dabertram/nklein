@@ -2054,9 +2054,14 @@ deep analysis:
         - [x] **slice 12 (2026-06-27):** extracted the swarm-stop control commands (`requestTaskSwarmStopCommand`,
               `clearTaskSwarmStopCommand`) → `commands/task/task-swarm-commands.ts` (leaf commands over the swarm
               guardrails). task.ts 1889→1863 (cumulative 2870→1863, **−1007/−35%**, over 1000 lines out). tsc + biome +
-              `test:fast` (2443) green. *(Remaining clean leaves are tiny; the bulk left is the big command impls —
-              `createTask`/`startTask`/`finishTask`/`decomposeTaskGraph`+helpers/the merge cluster — better with fresh
-              context. The `toErrorMessage` unblock [slice 11] means the decomposition cluster is now extractable next.)*
+              `test:fast` (2443) green.
+        - [x] **slice 13 (2026-06-27):** extracted the "expand a saved plan task" command (`expandSavedPlanTaskCommand` +
+              its `parseReplacementTasksJson` helper) → `commands/task/task-plan-expand-command.ts` (self-contained leaf —
+              the central `decomposeTaskGraph` does not use the helper). task.ts 1863→1819 (cumulative 2870→1819,
+              −1051/−37%). tsc + biome + `test:fast` (2443) green. *(Remaining: the big command impls —
+              `createTask`/`startTask`/`finishTask`/`decomposeTaskGraph`+`recordDecompositionRejection`/the merge cluster.
+              These are larger + more central; the `toErrorMessage` unblock [slice 11] means the decompose cluster is now
+              extractable when picked up.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
