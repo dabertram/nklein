@@ -46,6 +46,7 @@ import {
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 import { classifyAcceptanceFailurePlanGap, parsePlanGapKind } from "./task/task-acceptance-plan-gap.js";
+import { printJson, toErrorMessage } from "./task/task-command-output.js";
 import {
 	parseAgentId,
 	parseAutoMergeColumn,
@@ -83,6 +84,7 @@ import {
 	parseListColumn,
 	resolveTaskCommandTarget,
 } from "./task/task-record-format.js";
+import { deleteTaskWorkspace, stopTaskRuntimeSession } from "./task/task-runtime-actions.js";
 import {
 	createRuntimeTrpcClient,
 	ensureRuntimeWorkspace,
@@ -127,17 +129,6 @@ interface VerifyTaskAcceptanceDependencies {
 	recordPlanGap?: typeof recordPlanGap;
 }
 
-function toErrorMessage(error: unknown): string {
-	if (error instanceof Error && error.message.trim().length > 0) {
-		return error.message;
-	}
-	return String(error);
-}
-
-function printJson(payload: unknown): void {
-	process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-}
-
 export function recordDecompositionRejection(input: DecompositionRejectionInput): void {
 	const message = toErrorMessage(input.error);
 	(input.recordObservation ?? recordSelfObservation)({
@@ -158,39 +149,6 @@ export function recordDecompositionRejection(input: DecompositionRejectionInput)
 			error: message,
 		},
 	});
-}
-
-async function stopTaskRuntimeSession(
-	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>,
-	taskId: string,
-): Promise<void> {
-	await runtimeClient.runtime.stopTaskSession
-		.mutate({
-			taskId,
-		})
-		.catch(() => null);
-}
-
-async function deleteTaskWorkspace(
-	runtimeClient: ReturnType<typeof createRuntimeTrpcClient>,
-	taskId: string,
-	options: { preserveChanges?: boolean } = {},
-): Promise<{ removed: boolean; error?: string }> {
-	try {
-		const deleted = await runtimeClient.workspace.deleteWorktree.mutate({
-			taskId,
-			...(Object.hasOwn(options, "preserveChanges") ? { preserveChanges: options.preserveChanges } : {}),
-		});
-		return {
-			removed: deleted.removed,
-			error: deleted.ok ? undefined : deleted.error,
-		};
-	} catch (error) {
-		return {
-			removed: false,
-			error: toErrorMessage(error),
-		};
-	}
 }
 
 async function createTask(input: {

@@ -2045,6 +2045,12 @@ deep analysis:
               `commands/task/task-dependency-commands.ts` (leaf mutate-commands over the shared `updateRuntimeWorkspaceState`
               helper + board mutations; no other-command deps). task.ts 1996→1931 (cumulative 2870→1931, −939/−33%).
               tsc + biome + `test:fast` (2443) green.
+        - [x] **slice 11 (2026-06-27):** extracted the shared CLI output utils (`toErrorMessage`, `printJson`) →
+              `task-command-output.ts` and the runtime-action helpers (`stopTaskRuntimeSession`, `deleteTaskWorkspace`) →
+              `task-runtime-actions.ts` (its first consumer — `deleteTaskWorkspace` uses `toErrorMessage`). The shared
+              output module breaks the recurring `toErrorMessage` entanglement that was blocking further extraction (a
+              submodule needing it no longer has to import task.ts → no cycle). task.ts 1931→1889 (cumulative 2870→1889,
+              −981/−34%). tsc + biome + `test:fast` (2443) green.
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
