@@ -3,6 +3,7 @@ import { Play, Plus, Trash2 } from "lucide-react";
 import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 
 import { BoardCard } from "@/components/board-card";
+import { BoardLaneHealth } from "@/components/board-lane-health";
 import { Button } from "@/components/ui/button";
 import { ColumnIndicator } from "@/components/ui/column-indicator";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
@@ -126,6 +127,7 @@ export function BoardColumn({
 						<ColumnIndicator columnId={column.id} />
 						<span className="font-semibold text-sm">{column.title}</span>
 						<span className="text-text-secondary text-xs">{column.cards.length}</span>
+						<BoardLaneHealth column={column} taskSessions={taskSessions} />
 					</div>
 					{canStartAllTasks ? (
 						<ElementTooltip id="board-column.start-all" side="bottom">

@@ -3597,8 +3597,14 @@ deep analysis:
       reads `stuck`**, and both land in the inbox's `blockedOnSetup` — straight from the board (CLI + UI), no subsystem
       wait. (+1 unit test.) **Still owed:** the §5.L gate / §5.M ack / §5.S clarify per-task flags (those subsystems hold
       the state in chat/session scope, not as a readable per-board-task signal yet — confirmed by grep; that's a
-      gate/clarify-subsystem task, not a board-health one) → thread via `resolveOverrides` once they expose it; a
-      per-lane indicator.
+      gate/clarify-subsystem task, not a board-health one) → thread via `resolveOverrides` once they expose it.
+      **PER-LANE INDICATOR DONE (2026-06-27):** `<BoardLaneHealth>`
+      ([web-ui/src/components/board-lane-health.tsx](web-ui/src/components/board-lane-health.tsx)) in each board-column
+      header shows only the **attention-worthy** counts — risky (red) + stuck (orange) — for that lane's cards (healthy/
+      done are implied by the lane + count, so omitted), reusing `summarizeBoardHealth({columns:[column]}, sessions)`;
+      renders nothing for a calm/trash lane. Verified: web typecheck + 3 component tests + full web vitest (736) +
+      web:build + a live browser load (no white screen / console errors). **§5.AG board-health is now complete across the
+      whole-board header AND per-lane (CLI + UI).**
 - [~] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
       resort), show the attempt chain — models × approaches × scores tried — so the user sees an actionable report, not a
       silent dead end. Also the §5.AB "why this model for this task" inspectable reason.
