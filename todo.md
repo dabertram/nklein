@@ -2233,6 +2233,9 @@ deep analysis:
       per-provider lmstudio/ollama fallback + non-URL tolerance), `resolveAdvisorOllamaBaseUrl` (trim/default), and
       `readAdvisorTextResponse` (tolerant parse across the Ollama `message.content` / `response` / OpenAI
       `choices[].message.content`|`text` shapes, "" on unrecognized) — a parse regression would blank advisor replies.
+      **`start-task-session.applyCandidateEffectiveContextWindow` covered (3 tests, exported for test):** applies a valid
+      effective context window that differs (new object), leaves the config untouched when it already matches or the
+      window is invalid (null/0/negative) — so a task start adopts the registry's measured window correctly.
       **`decomposition-stall-nudger.isChatOnlyDecompositionActivity` (4 tests):** the weak-model stall detector — flags a
       running `assistant_delta` that narrates a plan ("based on my analysis", "task graph", "implementation plan")
       instead of calling `decompose_project`; false when actually calling the tool, wrong source/event, no matching

@@ -53,7 +53,7 @@ export type StartTaskSessionDeps = Pick<
 	nkleinProviderService: ReturnType<typeof createNKleinProviderService>;
 };
 
-function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedNKleinLaunchConfig>(
+export function applyCandidateEffectiveContextWindow<TLaunchConfig extends ResolvedNKleinLaunchConfig>(
 	launchConfig: TLaunchConfig,
 	candidate: NKleinStartGuardCandidate<TLaunchConfig>,
 ): TLaunchConfig {
