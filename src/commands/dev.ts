@@ -16,6 +16,7 @@ import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } fro
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
+import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
@@ -513,9 +514,15 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	}
 }
 
-async function runDevEscalationCommand(options: { taskId: string; json?: boolean }): Promise<void> {
+async function runDevEscalationCommand(options: { taskId: string; json?: boolean; analyze?: boolean }): Promise<void> {
 	const events = await readAllAgentLedger();
 	const report = buildTaskEscalationReport(events, options.taskId);
+	// §5.AB: the user-chosen "make a bigger model available to analyze + guide" option — print the analysis prompt.
+	if (options.analyze) {
+		const request = buildStuckTaskAnalysisRequest(report);
+		process.stdout.write(`# ${request.title}\n\n${request.prompt}\n`);
+		return;
+	}
 	// §5.AB: the progress verdict over the same ledger. `hard_stuck` means the AUTOMATIC ladder (all approaches × all
 	// loaded models) is exhausted → escalate to the user with the "get through the wall" suggestions.
 	const signals = buildStucknessSignalsFromLedger(events, options.taskId);
@@ -687,11 +694,12 @@ export function registerDevCommand(program: Command): void {
 
 	dev.command("escalation")
 		.description(
-			"Show a task's escalation report (§5.AG): the chronological attempt chain (rung × model × approach × outcome) from the ledger.",
+			"Show a task's escalation report (§5.AG): the attempt chain + progress verdict, and (when hard-stuck) the Layer-2 user suggestions.",
 		)
 		.requiredOption("--task-id <id>", "Task id to report on.")
 		.option("--json", "Print machine-readable JSON.")
-		.action(async (options: { taskId: string; json?: boolean }) => {
+		.option("--analyze", "Print the bigger-model analysis prompt for this stuck task (§5.AB) instead of the report.")
+		.action(async (options: { taskId: string; json?: boolean; analyze?: boolean }) => {
 			await runDevEscalationCommand(options);
 		});
 

@@ -3315,8 +3315,15 @@ deep analysis:
       (2026-06-27):** `nklein dev escalation --task-id <id>` ([src/commands/dev.ts](src/commands/dev.ts)) now composes the
       whole chain over the real ledger — the attempt chain + the **progress verdict** (`classifyAgentStuckness`) and,
       when `isHardStuck`, the ordered **suggestions** (`buildEscalationSuggestions`); also in `--json`. (8 suggestion
-      tests: ordered set + context promotion + bigger-model-always-present-and-last.) **Still owed (wiring):** render the
-      suggestions in the §5.AG web escalation panel + the runtime hook that resumes the agent with the user's chosen input.
+      tests: ordered set + context promotion + bigger-model-always-present-and-last.) **Bigger-model analysis-request
+      builder DONE (2026-06-27):** `buildStuckTaskAnalysisRequest(report)`
+      ([src/core/stuck-task-analysis.ts](src/core/stuck-task-analysis.ts)) turns the "what was tried" report into a
+      compact, structured prompt asking a stronger analyst model for a **root-cause read + remediation plan** (steps to
+      try · what to avoid · how to verify) — explicitly **NOT a patch**, chain capped at 16 for the ≥32k floor; surfaced
+      by `nklein dev escalation --task-id <id> --analyze` (5 tests). This is the user's "let a bigger model analyze +
+      guide" path, as the user-chosen option. **Still owed (wiring):** render the suggestions in the §5.AG web escalation
+      panel + the runtime hook that resumes the agent with the user's chosen input (incl. running the analysis request on
+      the user-provided stronger model and feeding its guidance back).
 - [ ] **Settings UI.** Show the fitness table + the current automatic role assignments; let the user pin / prefer /
       weight per role (the speed-vs-quality dial) and set the wait-vs-attempt policy; a "Re-evaluate connected models"
       action. (Builds on the MCSR telemetry panel §6.4.)
