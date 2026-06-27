@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { showAppToast } from "@/components/app-toaster";
 import { BoardColumn } from "@/components/board-column";
+import { BoardHealthSummary } from "@/components/board-health-summary";
 import { DependencyOverlay } from "@/components/dependencies/dependency-overlay";
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
 import { Button } from "@/components/ui/button";
@@ -912,6 +913,7 @@ export function KanbanBoard({
 							{formatCodeIntelligenceChip(codeIntelligenceStatus)}
 						</span>
 					</ElementTooltip>
+					<BoardHealthSummary board={data} taskSessions={taskSessions} />
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
 					<ElementTooltip id="board.concurrency-cap" side="bottom">

@@ -3,13 +3,18 @@
 // everything from the workspace state via the shared `summarizeWorkspaceBoardHealth` (the same logic behind the
 // `nklein task health` CLI), so the CLI and UI tell the same story. Zero-count states are hidden to stay compact;
 // renders nothing when there is no board / no cards.
-import type { RuntimeWorkspaceStateResponse } from "@runtime-contract";
-import { type OperatorSignalOverrides, summarizeWorkspaceBoardHealth } from "@runtime-operator-board-health";
+import type { RuntimeTaskSessionSummary } from "@runtime-contract";
+import {
+	type BoardHealthBoardView,
+	type OperatorSignalOverrides,
+	summarizeBoardHealth,
+} from "@runtime-operator-board-health";
 import { AlertTriangle, CheckCircle2, CircleDot, Inbox, PauseCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface BoardHealthSummaryProps {
-	state: RuntimeWorkspaceStateResponse | null;
+	board: BoardHealthBoardView | null;
+	taskSessions: Record<string, RuntimeTaskSessionSummary>;
 	/**
 	 * Supplies the off-summary signals (§5.L gate / §5.M ack / §5.S clarify / §5.A block) the board state doesn't carry,
 	 * so `risky` + the inbox count can surface. Omitted today (those flags aren't threaded yet) → board state alone shows
@@ -26,11 +31,11 @@ interface HealthItem {
 	icon: ReactNode;
 }
 
-export function BoardHealthSummary({ state, resolveOverrides }: BoardHealthSummaryProps) {
-	if (!state) {
+export function BoardHealthSummary({ board, taskSessions, resolveOverrides }: BoardHealthSummaryProps) {
+	if (!board) {
 		return null;
 	}
-	const health = summarizeWorkspaceBoardHealth(state, resolveOverrides);
+	const health = summarizeBoardHealth(board, taskSessions, resolveOverrides);
 	if (health.total === 0) {
 		return null;
 	}

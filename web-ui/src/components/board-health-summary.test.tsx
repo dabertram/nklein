@@ -1,4 +1,4 @@
-import type { RuntimeBoardCard, RuntimeBoardData, RuntimeWorkspaceStateResponse } from "@runtime-contract";
+import type { RuntimeBoardCard, RuntimeBoardData } from "@runtime-contract";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -28,17 +28,6 @@ function board(cardsByColumn: Array<{ columnId: string; card: RuntimeBoardCard }
 	};
 }
 
-function stateWith(board_: RuntimeBoardData): RuntimeWorkspaceStateResponse {
-	return {
-		repoPath: "/repo",
-		statePath: "/repo/.nklein",
-		git: { currentBranch: "main", defaultBranch: "main", branches: ["main"] },
-		board: board_,
-		sessions: {},
-		revision: 1,
-	};
-}
-
 describe("BoardHealthSummary", () => {
 	let container: HTMLDivElement;
 	let root: Root;
@@ -58,23 +47,22 @@ describe("BoardHealthSummary", () => {
 		act(() => root.render(node));
 	}
 
-	it("renders nothing for a null state or an empty board", () => {
-		render(<BoardHealthSummary state={null} />);
+	it("renders nothing for a null board or an empty board", () => {
+		render(<BoardHealthSummary board={null} taskSessions={{}} />);
 		expect(container.textContent).toBe("");
-		render(<BoardHealthSummary state={stateWith(board([]))} />);
+		render(<BoardHealthSummary board={board([])} taskSessions={{}} />);
 		expect(container.textContent).toBe("");
 	});
 
 	it("shows per-state counts derived from the board (idle in_progress = healthy, completed = done)", () => {
 		render(
 			<BoardHealthSummary
-				state={stateWith(
-					board([
-						{ columnId: "in_progress", card: card("a") },
-						{ columnId: "in_progress", card: card("b") },
-						{ columnId: "completed", card: card("c") },
-					]),
-				)}
+				board={board([
+					{ columnId: "in_progress", card: card("a") },
+					{ columnId: "in_progress", card: card("b") },
+					{ columnId: "completed", card: card("c") },
+				])}
+				taskSessions={{}}
 			/>,
 		);
 		const group = container.querySelector('[aria-label="Board health"]');
@@ -88,7 +76,8 @@ describe("BoardHealthSummary", () => {
 	it("surfaces risky + the inbox count when off-summary overrides flag a card", () => {
 		render(
 			<BoardHealthSummary
-				state={stateWith(board([{ columnId: "in_progress", card: card("gated") }]))}
+				board={board([{ columnId: "in_progress", card: card("gated") }])}
+				taskSessions={{}}
 				resolveOverrides={(taskId) => (taskId === "gated" ? { deliveryGateHeld: true } : {})}
 			/>,
 		);

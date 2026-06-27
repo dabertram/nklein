@@ -3573,9 +3573,17 @@ deep analysis:
       ([operator-task-state.ts](src/core/operator-task-state.ts)) maps a normalized signal set (session state · column ·
       paused · lost-heartbeat · blockedKind · host-action-ack · delivery-gate-held · clarify-pending · no-progress/loop)
       to `healthy|stuck|risky|done` in PRIORITY order (risky → done → stuck → healthy), so the most operator-urgent
-      signal wins; 7 unit tests lock the precedence (risky outranks done/stuck; done outranks stuck). **Still owed (the
-      surface):** map the live `RuntimeTaskSessionSummary` + board card + §5.L/§5.S/§5.M gate state onto the signal set,
-      then render the board-header rollup (counts per state) + a per-lane indicator (the UI consumer).
+      signal wins; 7 unit tests lock the precedence (risky outranks done/stuck; done outranks stuck).
+      **BOARD-HEADER ROLLUP UI WIRED + LIVE-VERIFIED (2026-06-27):** `summarizeBoardHealth(board, sessions, overrides?)`
+      ([operator-board-health.ts](src/core/operator-board-health.ts)) bridges a board + sessions → the rollup (the CLI's
+      `summarizeWorkspaceBoardHealth` now delegates to it), and the `<BoardHealthSummary>` web component
+      ([web-ui/src/components/board-health-summary.tsx](web-ui/src/components/board-health-summary.tsx)) renders the
+      compact healthy/stuck/risky/done chips + a risk-inbox count, **placed in the kanban-board header strip** (fed the
+      live `data` board + `taskSessions`). Verified: root+web typecheck, 3 component tests + full web vitest (733),
+      `web:build` (clean bundle), and a **live browser load** (no white screen, no console errors; correctly renders
+      nothing on an empty board). **Still owed:** thread the real §5.L/§5.M/§5.S off-summary flags via the component's
+      `resolveOverrides` prop so `risky` + the inbox surface from live gate/ack/clarify state (today board state alone
+      shows healthy/stuck/done); a per-lane indicator.
 - [~] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
       resort), show the attempt chain — models × approaches × scores tried — so the user sees an actionable report, not a
       silent dead end. Also the §5.AB "why this model for this task" inspectable reason.
