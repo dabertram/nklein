@@ -20,6 +20,7 @@ import { PlanningDagReviewPanel } from "@/components/detail-panels/planning-dag-
 import { SecondOpinionReviewPanel } from "@/components/detail-panels/second-opinion-review-panel";
 import { buildTaskActivitySteps, getActivityToneClassName } from "@/components/detail-panels/task-activity-model";
 import { TaskDiagnosticsPanel } from "@/components/detail-panels/task-diagnostics-panel";
+import { TaskEscalationPanel } from "@/components/detail-panels/task-escalation-panel";
 import { TaskRecoveryActionsPanel } from "@/components/detail-panels/task-recovery-actions-panel";
 import {
 	WorkspaceChangesEmptyPanel,
@@ -844,6 +845,7 @@ export function CardDetailView({
 								<ExpandPlanTaskPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							) : null}
 							<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
+							<TaskEscalationPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 							<div className="flex min-h-0 flex-1">
 								{isWorkspaceChangesPending ? (
 									<WorkspaceChangesLoadingPanel panelFlex="1 1 0" />
@@ -1018,6 +1020,7 @@ export function CardDetailView({
 									<ExpandPlanTaskPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								) : null}
 								<TaskDiagnosticsPanel workspaceId={currentProjectId} taskId={selection.card.id} />
+								<TaskEscalationPanel workspaceId={currentProjectId} taskId={selection.card.id} />
 								<div className="flex min-h-0 flex-1">
 									{isWorkspaceChangesPending ? (
 										<WorkspaceChangesLoadingPanel panelFlex={detailDiffFileTreePanelFlex} />

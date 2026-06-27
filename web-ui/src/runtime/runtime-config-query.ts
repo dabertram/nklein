@@ -290,6 +290,12 @@ export async function fetchTaskDiagnostics(
 	return await trpcClient.runtime.getTaskDiagnostics.query({ taskId, limit });
 }
 
+/** §5.AG: the task's escalation report — the chronological attempt chain (rung × model × approach × outcome). */
+export async function fetchTaskEscalation(workspaceId: string | null, taskId: string) {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getTaskEscalation.query({ taskId });
+}
+
 export async function buildNKleinAdvisorRequest(
 	workspaceId: string | null,
 	input: RuntimeNKleinAdvisorBuildRequest,
