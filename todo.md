@@ -2168,10 +2168,12 @@ deep analysis:
       `nklein-pause-controller` (9 tests — card-vs-board pause scoping, parked-set tracking separate from the gate,
       `waitUntilResumed` immediate/blocking/board-still-paused resolution + abort-signal/`abortTaskWaiters` rejection);
       `isContextOverflowError` (6 tests — recognizes varied vendor overflow phrasings, rejects unrelated errors + non-Error
-      values; a false negative crashes the run instead of triggering compaction recovery). **Remaining pure-unit
-      candidates:** `workspace/turn-checkpoints`, `nklein-context-overflow-compaction` (the compaction body),
-      `nklein-guidance-skills`, `nklein-watcher-registry`. **Skip (I/O-coupled, need an integration harness not a unit):**
-      `workspace/project-health`, `nklein-mcp-settings-service`, `task-worktree-sync`.
+      values; a false negative crashes the run instead of triggering compaction recovery); `nklein-guidance-skills`
+      (5 tests — the topic router: keyword + file-path routing, security>ui>ts priority when several match, null on no
+      match, topic→slash-command map — a misroute injects the wrong skill guidance). **Remaining pure-unit candidates:**
+      `nklein-context-overflow-compaction` (the compaction body — needs message fixtures), `nklein-watcher-registry`.
+      **Skip (I/O-coupled, need an integration harness not a unit):** `workspace/project-health`,
+      `workspace/turn-checkpoints` (git/fs), `nklein-mcp-settings-service`, `task-worktree-sync`.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
