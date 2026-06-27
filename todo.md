@@ -2202,6 +2202,10 @@ deep analysis:
       implies a topic; appends likely-files/acceptance/test-first/knowledge-debt/role/model-fit/shared-context only when
       set — a regression here changes the prompt every decomposed card's agent receives). **Full green re-verified at
       this milestone:** backend `test:fast` 2286 + web-ui 730 (typecheck clean).
+      **`task-evidence-prompt.ts` covered (7 tests):** `renderWorkspaceChangesEvidence` (null on no changes; per-file
+      diff preview with status/counts/old+new bodies; omits old/new when null + shows a rename's previous path; caps at
+      20 files with an omitted-count footer; truncates an over-long body) + `buildTaskEvidencePromptBlock` (bundle/
+      workspace/identity/counts; title→id fallback; "unknown" base commit) — the evidence handoff to the diagnosis agent.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
