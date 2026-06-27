@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ToolApprovalRequest, ToolApprovalResult } from "@nklein/core";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import {
@@ -486,6 +489,19 @@ function setKanbanProcessContext(): void {
 
 describe("InMemoryNKleinTaskSessionService", () => {
 	const services: NKleinTaskSessionService[] = [];
+	// Per-test temp root so the service's diagnostic writes (task-run summaries + the Agent Attempt Ledger) never
+	// touch the real ~/.nklein home. Assigned in beforeEach, removed in afterEach.
+	let diagnosticStoreRoot: string;
+
+	// All service construction in this suite goes through this wrapper so the diagnostic-store root is always injected.
+	function createDiagnosticIsolatedService(
+		options: CreateInMemoryNKleinTaskSessionServiceOptions,
+	): NKleinTaskSessionService {
+		return createInMemoryNKleinTaskSessionService({
+			...options,
+			diagnosticStoreRoot,
+		} as CreateInMemoryNKleinTaskSessionServiceOptions);
+	}
 
 	it("instructs large-file readers to verify stitching areas without requiring overlap", () => {
 		const rules = buildKanbanEfficiencyRules({
@@ -505,6 +521,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 	});
 
 	beforeEach(() => {
+		diagnosticStoreRoot = mkdtempSync(join(tmpdir(), "nklein-svc-diag-"));
 		turnCheckpointMocks.captureTaskTurnCheckpoint.mockReset();
 		turnCheckpointMocks.deleteTaskTurnCheckpointRef.mockReset();
 		selfObservationMocks.recordSelfObservation.mockReset();
@@ -535,7 +552,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		// Keep this suite fully in-process. Earlier Node 22 GitHub runner hangs
 		// came from the real SDK session runtime booting a live child process
 		// before Vitest could report a single test result from this file.
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			allowUnisolatedTestRuntime: true,
@@ -553,6 +570,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				await service.dispose();
 			}),
 		);
+		rmSync(diagnosticStoreRoot, { recursive: true, force: true });
 		process.argv = [...originalArgv];
 		process.execArgv = [...originalExecArgv];
 		Object.defineProperty(process, "execPath", {
@@ -620,7 +638,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const onDecompositionApplied = vi.fn(async () => {});
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			allowUnisolatedTestRuntime: true,
@@ -645,7 +663,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 	it("passes card likely touched files into NKlein tool approval setup", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			allowUnisolatedTestRuntime: true,
@@ -685,7 +703,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -754,7 +772,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				uid: 70_001,
 			};
 		});
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -810,7 +828,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -843,7 +861,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -882,7 +900,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
 		runtime.startTaskSessionMock.mockRejectedValue(new Error("start failed"));
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -904,7 +922,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -965,7 +983,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			new Error("No Docker sandbox workspace is prepared for task task-race."),
 		);
 		sandboxManager.hasWorkspaceMock.mockReturnValue(false);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -1033,7 +1051,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			}),
 		);
 		sandboxManager.hasWorkspaceMock.mockReturnValue(true);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -1099,7 +1117,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			}),
 		);
 		sandboxManager.hasWorkspaceMock.mockReturnValue(true);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -1147,7 +1165,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const sandboxManager = createFakeAgentSandboxManager();
 		sandboxManager.captureWorkspacePatchMock.mockRejectedValueOnce(new Error("git add failed"));
 		sandboxManager.hasWorkspaceMock.mockReturnValue(true);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -1195,7 +1213,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -1314,7 +1332,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const createRuntimeSetupMock = vi.fn(async (_workspacePath: string) => runtimeSetup.setup);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: createRuntimeSetupMock,
 			allowUnisolatedTestRuntime: true,
@@ -1350,12 +1368,12 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const watcherRegistry = createNKleinWatcherRegistry({
 			createRuntimeSetup: createRuntimeSetupMock,
 		});
-		const serviceA = createInMemoryNKleinTaskSessionService({
+		const serviceA = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtimeA.createRuntime(options),
 			watcherRegistry,
 			allowUnisolatedTestRuntime: true,
 		});
-		const serviceB = createInMemoryNKleinTaskSessionService({
+		const serviceB = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtimeB.createRuntime(options),
 			watcherRegistry,
 			allowUnisolatedTestRuntime: true,
@@ -1384,7 +1402,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				return runtimeSetup.setup;
 			},
 		});
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			watcherRegistry,
 			allowUnisolatedTestRuntime: true,
@@ -1469,7 +1487,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
 			agentSandboxManager: sandboxManager.manager,
@@ -1906,7 +1924,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtimeSetup = createFakeRuntimeSetup();
 		const sandboxManager = createFakeAgentSandboxManager();
 		const createRuntimeSetupMock = vi.fn(async (_workspacePath: string) => runtimeSetup.setup);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: createRuntimeSetupMock,
 			agentSandboxManager: sandboxManager.manager,
@@ -2323,7 +2341,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const createRuntimeSetupMock = vi.fn(async (_workspacePath: string) => runtimeSetup.setup);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: createRuntimeSetupMock,
 			allowUnisolatedTestRuntime: true,
@@ -2443,7 +2461,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
 		const createRuntimeSetupMock = vi.fn(async (_workspacePath: string) => runtimeSetup.setup);
-		const service = createInMemoryNKleinTaskSessionService({
+		const service = createDiagnosticIsolatedService({
 			createSessionRuntime: (options) => runtime.createRuntime(options),
 			createRuntimeSetup: createRuntimeSetupMock,
 			allowUnisolatedTestRuntime: true,

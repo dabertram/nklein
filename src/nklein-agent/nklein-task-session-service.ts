@@ -465,6 +465,11 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	onFocusChainUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
 	/** Operator-configurable autonomous-run guardrail limits; defaults to DEFAULT_RUNTIME_SWARM_GUARDRAILS. */
 	swarmGuardrails?: RuntimeSwarmGuardrails;
+	/**
+	 * Root dir for the diagnostic stores this service writes (task-run summaries + the Agent Attempt Ledger).
+	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.
+	 */
+	diagnosticStoreRoot?: string;
 }
 
 export type CreateInMemoryNKleinTaskSessionServiceOptions =
@@ -686,6 +691,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly onCardPromoted: NKleinCardPromotedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
 	private swarmGuardrails: RuntimeSwarmGuardrails;
+	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
+	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
 	private readonly focusChainByTaskId = new Map<string, FocusChain>();
 	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<NKleinRuntimeSetupLease>>();
@@ -716,6 +723,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
+		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
 		this.autonomyBudgetWatchdog = new AutonomyBudgetWatchdog(this.buildWatchdogCallbacks());
@@ -3013,31 +3021,34 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// Dev-test runs seed tasks as `devtest-<scenarioId>-<timestamp>` (see `nklein dev test-project`), so the
 		// scenario is parseable from the id for by-scenario timeout breakdowns (§5.C/§5.O). Null for ordinary runs.
 		const scenario = /^devtest-(.+)-\d+$/.exec(taskId)?.[1] ?? null;
-		void recordTaskRunSummary({
-			taskId,
-			workspacePath: summary.workspacePath ?? null,
-			state,
-			reviewReason: summary.reviewReason ?? null,
-			providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
-			modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
-			endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
-			lastActivity: summary.latestHookActivity?.activityText ?? null,
-			warningMessage: summary.warningMessage ?? null,
-			exitCode: summary.exitCode ?? null,
-			startedAt: summary.startedAt ?? null,
-			endedAt: summary.updatedAt,
-			promptTokens,
-			completionTokens,
-			totalTokens: promptTokens !== null && completionTokens !== null ? promptTokens + completionTokens : null,
-			timeoutReason,
-			timeoutSource,
-			role,
-			scenario,
-			focusChain: this.focusChainByTaskId.has(taskId)
-				? summarizeFocusChain(this.focusChainByTaskId.get(taskId))
-				: null,
-			patchCaptureStatus: null,
-		});
+		void recordTaskRunSummary(
+			{
+				taskId,
+				workspacePath: summary.workspacePath ?? null,
+				state,
+				reviewReason: summary.reviewReason ?? null,
+				providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
+				modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
+				endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
+				lastActivity: summary.latestHookActivity?.activityText ?? null,
+				warningMessage: summary.warningMessage ?? null,
+				exitCode: summary.exitCode ?? null,
+				startedAt: summary.startedAt ?? null,
+				endedAt: summary.updatedAt,
+				promptTokens,
+				completionTokens,
+				totalTokens: promptTokens !== null && completionTokens !== null ? promptTokens + completionTokens : null,
+				timeoutReason,
+				timeoutSource,
+				role,
+				scenario,
+				focusChain: this.focusChainByTaskId.has(taskId)
+					? summarizeFocusChain(this.focusChainByTaskId.get(taskId))
+					: null,
+				patchCaptureStatus: null,
+			},
+			{ rootDir: this.diagnosticStoreRoot },
+		);
 		// §5.AF: also record this terminal run as ONE attempt event in the Agent Attempt Ledger (best-effort; the
 		// ledger is observational control-plane and must never break the session loop). This is the first live WRITER
 		// of the ledger, making the §5.Z matrix + §5.AA model-behaviour profile real projections of one evidence stream.
@@ -3057,6 +3068,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					completionTokens,
 					timeoutReason,
 				}),
+				{ rootDir: this.diagnosticStoreRoot },
 			);
 		} catch {
 			// Best-effort; never break the session loop on a ledger write.

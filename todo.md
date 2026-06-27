@@ -3671,9 +3671,12 @@ deep analysis:
       ledger` (+ `--json`) prints the per-model outcome rollup + success rates from real runs (`readAllAgentLedger` reads
       every workspace's log; `summarizeLedgerForDisplay` in [agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)
       composes the outcome + profile projections) — proven end-to-end (it showed the attempts the session-service tests
-      wrote). **TEST-ISOLATION GAP found (pre-existing, now also affects the ledger):** the session-service tests fire
-      `captureTerminalRunSummary`, so `recordTaskRunSummary` AND `appendAgentLedgerEvent` write to the **real `~/.nklein`**
-      (no injected temp root) — a hygiene bug to fix by threading a diagnostic-store root into the service for tests.
+      wrote). **TEST-ISOLATION GAP FIXED (2026-06-27):** the session-service tests fired `captureTerminalRunSummary`, so
+      `recordTaskRunSummary` AND `appendAgentLedgerEvent` wrote to the **real `~/.nklein`** (no injected temp root). The
+      service now takes an optional **`diagnosticStoreRoot`** option (both stores already accepted a `rootDir`; defaults
+      to the real home in production), threaded to both write sites; the suite routes every construction through one
+      `createDiagnosticIsolatedService` wrapper that injects a per-test `mkdtemp` root (removed in `afterEach`), so the
+      112-test suite no longer pollutes the home dir. tsc+biome+`test:fast` (2435) green.
       **Still owed (the rest of this item):** a
       richer per-tool-call writer (the terminal seam is coarse — model + outcome + timing, no per-call detail yet); the
       remaining workflow fields the durable scheduler needs (`jobId`/`runState`/`resumeCursor` + admission/resource-headroom
