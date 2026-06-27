@@ -2161,9 +2161,12 @@ deep analysis:
       deprecation path). **Pivoted to meatier modules (higher coverage-per-test) 2026-06-27:**
       `workspace/remote-path-confinement` (8 tests — SECURITY: `--host` remote-mode root confinement; allows exact+nested,
       rejects sibling-prefix `/home/user2` vs `/home/user`, `..`-traversal escape, unrelated paths, empty-roots; roots
-      deduped/resolved with home first). **Next:** `nklein-context-budgets`, `nklein-pause-controller`,
-      `workspace/turn-checkpoints`, `nklein-context-overflow-compaction`, `workspace/project-health` (all 90–210-line
-      pure-logic modules with zero tests).
+      deduped/resolved with home first); `nklein-context-budgets` (11 tests — the 172-line token-budget math:
+      unknown-window fallbacks, reserve/file-chunk caps on a 200k window, proportional scaling at 8k, floors + fractional
+      truncation at 2k, and the pressure policy's low/medium/high banding + budget floor/cap + `[0.55,0.82]` compaction
+      clamp across window/wall-time signals — a regression here silently breaks file-chunking/compaction). **Next:**
+      `nklein-pause-controller`, `workspace/turn-checkpoints`, `nklein-context-overflow-compaction`,
+      `workspace/project-health` (90–210-line pure-logic modules with zero tests).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
