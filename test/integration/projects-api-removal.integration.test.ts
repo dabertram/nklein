@@ -57,6 +57,8 @@ function createDeps(serverCwd: string): CreateProjectsApiDependencies {
 			path: project.repoPath,
 			name: "project",
 			taskCounts: project.taskCounts,
+			runningSessionCount: 0,
+			queuedSessionCount: 0,
 			gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 		}),
 		broadcastRuntimeProjectsUpdated: vi.fn(),

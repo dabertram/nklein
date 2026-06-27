@@ -70,6 +70,10 @@ export const runtimeProjectSummarySchema = z.object({
 	path: z.string(),
 	name: z.string(),
 	taskCounts: runtimeProjectTaskCountsSchema,
+	/** Live agents executing on the model right now (for the sidebar activity badge — watchability across projects). */
+	runningSessionCount: z.number().int().nonnegative().default(0),
+	/** Live agents queued for sandbox/model capacity (surfaces the per-model concurrency bottleneck without switching). */
+	queuedSessionCount: z.number().int().nonnegative().default(0),
 	gitRepositoryCreatedByKanban: z.boolean().optional(),
 	healthIssues: z.array(runtimeProjectHealthIssueSchema).optional(),
 });

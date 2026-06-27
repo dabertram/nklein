@@ -107,3 +107,32 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	previousTurnCheckpoint: runtimeTaskTurnCheckpointSchema.nullable().optional(),
 });
 export type RuntimeTaskSessionSummary = z.infer<typeof runtimeTaskSessionSummarySchema>;
+
+/** Live-agent session activity for the at-a-glance per-project sidebar badge (watchability across parallel projects). */
+export interface ActiveAgentSessionCounts {
+	/** Sessions executing on the model right now. */
+	running: number;
+	/** Sessions waiting for sandbox/model capacity (visualizes the per-model concurrency bottleneck, §5.W). */
+	queued: number;
+}
+
+/**
+ * Count the live-agent sessions that represent in-flight LLM work: `running` (on the model now) + `queued` (waiting for
+ * capacity). Pure so the per-project activity badge — which lets the user see parallel work across projects WITHOUT
+ * switching into each board — is derived from one tested rule. Other states (paused/awaiting_review/idle/failed/
+ * interrupted) are not "active work".
+ */
+export function countActiveAgentSessions(
+	summaries: Iterable<Pick<RuntimeTaskSessionSummary, "state">>,
+): ActiveAgentSessionCounts {
+	let running = 0;
+	let queued = 0;
+	for (const summary of summaries) {
+		if (summary.state === "running") {
+			running += 1;
+		} else if (summary.state === "queued") {
+			queued += 1;
+		}
+	}
+	return { running, queued };
+}

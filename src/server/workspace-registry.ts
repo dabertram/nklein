@@ -7,6 +7,7 @@ import type {
 	RuntimeProjectTaskCounts,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
+import { type ActiveAgentSessionCounts, countActiveAgentSessions } from "../core/api-contract";
 import {
 	listWorkspaceIndexEntries,
 	loadWorkspaceBoardById,
@@ -181,6 +182,7 @@ function toProjectSummary(project: {
 	workspaceId: string;
 	repoPath: string;
 	taskCounts: RuntimeProjectTaskCounts;
+	activeSessions?: ActiveAgentSessionCounts;
 	gitRepositoryCreatedByKanban: boolean;
 	displayName?: string | null;
 	healthIssues?: RuntimeProjectHealthIssue[];
@@ -193,6 +195,8 @@ function toProjectSummary(project: {
 		path: project.repoPath,
 		name,
 		taskCounts: project.taskCounts,
+		runningSessionCount: project.activeSessions?.running ?? 0,
+		queuedSessionCount: project.activeSessions?.queued ?? 0,
 		gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 		healthIssues: project.healthIssues ?? [],
 	};
@@ -343,6 +347,14 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 		return response;
 	};
 
+	const summarizeProjectActiveSessions = (workspaceId: string): ActiveAgentSessionCounts => {
+		const terminalManager = getTerminalManagerForWorkspace(workspaceId);
+		if (!terminalManager) {
+			return { running: 0, queued: 0 };
+		}
+		return countActiveAgentSessions(terminalManager.listSummaries());
+	};
+
 	const buildProjectsPayload = async (preferredCurrentProjectId: string | null) => {
 		const projects = filterUnconfirmedSourceWorkspace(await listWorkspaceIndexEntries());
 		const healthIssuesByWorkspaceId = await detectProjectHealthIssuesByWorkspaceId({ projects });
@@ -362,6 +374,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 					workspaceId: project.workspaceId,
 					repoPath: project.repoPath,
 					taskCounts,
+					activeSessions: summarizeProjectActiveSessions(project.workspaceId),
 					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 					displayName: project.displayName,
 					healthIssues: healthIssuesByWorkspaceId.get(project.workspaceId) ?? [],

@@ -55,6 +55,8 @@ const PROJECTS: RuntimeProjectSummary[] = [
 			completed: 0,
 			trash: 0,
 		},
+		runningSessionCount: 0,
+		queuedSessionCount: 0,
 		healthIssues: [],
 	},
 ];
@@ -73,6 +75,8 @@ const ACCIDENTAL_PROJECTS: RuntimeProjectSummary[] = [
 			completed: 0,
 			trash: 0,
 		},
+		runningSessionCount: 0,
+		queuedSessionCount: 0,
 		gitRepositoryCreatedByKanban: true,
 		healthIssues: [
 			{

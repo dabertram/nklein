@@ -3577,6 +3577,23 @@ deep analysis:
         frame is dropped — order + final state are identical to per-frame dispatch (locked by 4 reducer tests:
         batch≡sequential, no-drop over 50 frames, empty-batch no-op, single-action unchanged). web:typecheck + web vitest
         (725) green; CHANGELOG'd.
+  - [x] **DELIVERED (2026-06-27, user ask on leaving — "except for switching projects, I could not see too much anyway…
+        maybe you can improve about that"): per-project LIVE activity in the sidebar.** The project rows showed only
+        static per-column task counts, so to tell whether a project's agents were actually *working* you had to switch
+        into each board one at a time. [project-row.tsx](web-ui/src/components/project-nav/project-row.tsx) now renders a
+        live activity badge per project: a **pulsing green "N running"** (agents executing on a model right now) or a
+        **steady gold "N queued"** (waiting for sandbox/model capacity — which also surfaces the §5.W per-model
+        concurrency bottleneck at a glance); a running badge appends the queued count (`2 running +1`). Data: a pure
+        `countActiveAgentSessions` ([task-session-api-contract.ts](src/core/task-session-api-contract.ts)) over the live
+        session summaries, surfaced as **additive** `runningSessionCount`/`queuedSessionCount` on `RuntimeProjectSummary`,
+        computed in `summarizeProjectActiveSessions`/`buildProjectsPayload`
+        ([workspace-registry.ts](src/server/workspace-registry.ts)). **Live by construction:** it rides the existing
+        per-session-flush `broadcastRuntimeProjectsUpdated` ([runtime-state-hub.ts:177](src/server/runtime-state-hub.ts#L177))
+        — sessions flush on every state change — so the badge updates the instant an agent starts/queues/stops, with no
+        new broadcast wiring. Verified: `countActiveAgentSessions` unit test + 4-case ProjectRow render test (running /
+        running+queued / queued-only / none) + root & web typecheck + web:build (24 web tests green); CHANGELOG'd. *(A
+        live multi-project screenshot is the only confirmatory step left — the render + data + live-broadcast path are
+        all proven.)*
   - [ ] **EVIDENCE → fix (2026-06-27, user, watching a live rail run): parallel projects don't actually parallelize LLM
         work.** Two gates: **(a) LM Studio defaults to SERIAL request handling** — even when !Klein sends concurrent
         requests, the GPU processes them one at a time unless the user raises LM Studio's server concurrency; !Klein can't

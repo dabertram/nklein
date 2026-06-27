@@ -148,6 +148,8 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 			path: "/test",
 			name: "test",
 			taskCounts: { backlog: 0, planning: 0, in_progress: 0, review: 0, completed: 0, trash: 0 },
+			runningSessionCount: 0,
+			queuedSessionCount: 0,
 		})),
 		broadcastRuntimeProjectsUpdated: vi.fn(),
 		getTerminalManagerForWorkspace: vi.fn(() => null),
@@ -278,6 +280,8 @@ describe("project add", () => {
 					path: project.repoPath,
 					name: project.displayName?.trim() || basename(project.repoPath),
 					taskCounts: project.taskCounts,
+					runningSessionCount: 0,
+					queuedSessionCount: 0,
 					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 					healthIssues: project.healthIssues ?? [],
 				}));
@@ -322,6 +326,8 @@ describe("project add", () => {
 					path: project.repoPath,
 					name: project.displayName?.trim() || basename(project.repoPath),
 					taskCounts: project.taskCounts,
+					runningSessionCount: 0,
+					queuedSessionCount: 0,
 					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 					healthIssues: project.healthIssues ?? [],
 				}));
@@ -361,6 +367,8 @@ describe("project add", () => {
 					path: project.repoPath,
 					name: project.displayName?.trim() || basename(project.repoPath),
 					taskCounts: project.taskCounts,
+					runningSessionCount: 0,
+					queuedSessionCount: 0,
 					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 					healthIssues: project.healthIssues ?? [],
 				}));

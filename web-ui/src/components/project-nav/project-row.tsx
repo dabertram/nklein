@@ -125,6 +125,23 @@ export function ProjectRow({
 		},
 	].filter((item) => item.count > 0);
 
+	// At-a-glance live activity so parallel work across projects is visible WITHOUT switching into each board.
+	// `running` agents (on a model now) lead with a pulsing green dot; otherwise a steady gold dot surfaces agents
+	// `queued` for capacity (which also makes the per-model concurrency bottleneck visible).
+	const runningSessions = project.runningSessionCount;
+	const queuedSessions = project.queuedSessionCount;
+	const liveActivity =
+		runningSessions > 0
+			? { tone: "running" as const, label: `${runningSessions} running` }
+			: queuedSessions > 0
+				? { tone: "queued" as const, label: `${queuedSessions} queued` }
+				: null;
+	const liveActivityTitle = liveActivity
+		? liveActivity.tone === "running"
+			? `${runningSessions} agent${runningSessions === 1 ? "" : "s"} running on a model${queuedSessions > 0 ? `, ${queuedSessions} queued for capacity` : ""}`
+			: `${queuedSessions} agent${queuedSessions === 1 ? "" : "s"} queued for model/sandbox capacity`
+		: null;
+
 	return (
 		<div
 			role="button"
@@ -161,8 +178,37 @@ export function ProjectRow({
 				>
 					{displayPath}
 				</div>
-				{taskCountBadges.length > 0 ? (
-					<div className="flex gap-1 mt-1">
+				{liveActivity || taskCountBadges.length > 0 ? (
+					<div className="flex flex-wrap gap-1 mt-1">
+						{liveActivity && liveActivityTitle ? (
+							<span
+								className={cn(
+									"inline-flex items-center gap-1 rounded-full text-[10px] px-1.5 py-px font-medium",
+									isCurrent
+										? "bg-accent-fg/20 text-accent-fg"
+										: liveActivity.tone === "running"
+											? "bg-status-green/15 text-status-green"
+											: "bg-status-gold/15 text-status-gold",
+								)}
+								title={liveActivityTitle}
+							>
+								<span
+									className={cn(
+										"inline-block h-1.5 w-1.5 rounded-full",
+										isCurrent
+											? "bg-accent-fg"
+											: liveActivity.tone === "running"
+												? "bg-status-green"
+												: "bg-status-gold",
+										liveActivity.tone === "running" && "animate-pulse",
+									)}
+								/>
+								<span>{liveActivity.label}</span>
+								{liveActivity.tone === "running" && queuedSessions > 0 ? (
+									<span style={{ opacity: 0.6 }}>{`+${queuedSessions}`}</span>
+								) : null}
+							</span>
+						) : null}
 						{taskCountBadges.map((badge) => (
 							<span
 								key={badge.id}
