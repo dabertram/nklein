@@ -5,6 +5,12 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { createAsyncQueue } from "../chat/async-queue.js";
+import {
+	type TaskEscalationReport,
+	type TaskEscalationReportRequest,
+	taskEscalationReportRequestSchema,
+	taskEscalationReportSchema,
+} from "../core/agent-attempt-ledger.js";
 import type {
 	RuntimeCommandRunRequest,
 	RuntimeCommandRunResponse,
@@ -376,6 +382,10 @@ export interface RuntimeTrpcContext {
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeTaskDiagnosticsRequest,
 		) => Promise<RuntimeTaskDiagnosticsResponse>;
+		getTaskEscalation: (
+			scope: RuntimeTrpcWorkspaceScope,
+			input: TaskEscalationReportRequest,
+		) => Promise<TaskEscalationReport>;
 		listNKleinPlanArtifacts: (
 			scope: RuntimeTrpcWorkspaceScope,
 			input: RuntimeNKleinPlanArtifactsRequest,
@@ -763,6 +773,12 @@ export const runtimeAppRouter = t.router({
 			.output(runtimeTaskDiagnosticsResponseSchema)
 			.query(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.getTaskDiagnostics(ctx.workspaceScope, input);
+			}),
+		getTaskEscalation: workspaceProcedure
+			.input(taskEscalationReportRequestSchema)
+			.output(taskEscalationReportSchema)
+			.query(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.getTaskEscalation(ctx.workspaceScope, input);
 			}),
 		listNKleinPlanArtifacts: workspaceProcedure
 			.input(runtimeNKleinPlanArtifactsRequestSchema)

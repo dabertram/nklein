@@ -3599,8 +3599,14 @@ deep analysis:
       **CLI SURFACE WIRED + VERIFIED (2026-06-27):** `nklein dev escalation --task-id <id>` (`runDevEscalationCommand` in
       [dev.ts](src/commands/dev.ts)) reads the real ledger (`readAllAgentLedger`) → `buildTaskEscalationReport` → prints
       the attempt chain (text + `--json`); verified by execution (empty-ledger → "No attempts recorded" / the empty
-      report). **Still owed (the rest of the surface):** render it on the card's escalation panel in the web UI + add the
-      §5.AB "why this model" reason (needs the §5.AB selection-reason data).
+      report). **tRPC ENDPOINT WIRED (2026-06-27):** `runtime.getTaskEscalation` (`workspaceProcedure`, input `{taskId}`,
+      output `taskEscalationReportSchema`) delegates to `ctx.runtimeApi.getTaskEscalation` → `readAllAgentLedger()` +
+      `buildTaskEscalationReport`. Added the wire schemas (`taskAttemptRowSchema`/`taskEscalationReportSchema` +
+      request, in [agent-attempt-ledger.ts](src/core/agent-attempt-ledger.ts), with a compile-time `z.ZodType` drift
+      guard) + the `RuntimeTrpcContext` interface method + the runtime-api impl. Verified: root tsc (interface/procedure/
+      impl align) + a unit test that round-trips a populated AND empty report through the output schema (so tRPC
+      output-validation can't throw at runtime). **Still owed (the rest of the surface):** the web card escalation panel
+      (now has an endpoint to call) + the §5.AB "why this model" reason (needs the §5.AB selection-reason data).
 - [~] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
       (§5.M G3b), clarifying questions (§5.S), held deliveries (§5.L), protected-write approvals (§6.11). Reduces "where
       do I unblock this?" hunting. **DATA CORE DONE (2026-06-27):** `collectOperatorInbox(tasks)` in

@@ -4,6 +4,7 @@ import {
 	type BuildAttemptEventInput,
 	buildAttemptEvent,
 	buildTaskEscalationReport,
+	taskEscalationReportSchema,
 } from "../../../src/core/agent-attempt-ledger";
 
 function attempt(taskId: string, over: Partial<BuildAttemptEventInput>): AgentAttemptEvent {
@@ -69,5 +70,22 @@ describe("buildTaskEscalationReport", () => {
 			attempt("t1", { attemptId: "a1", recordedAt: 100, retriesBefore: 0 }),
 		];
 		expect(buildTaskEscalationReport(events, "t1").attempts.map((row) => row.rung)).toEqual([0, 1]);
+	});
+
+	it("produces output that the wire schema accepts (tRPC output-validation guard for runtime.getTaskEscalation)", () => {
+		const events = [
+			attempt("t1", { attemptId: "a1", outcome: "no_tool_call", retriesBefore: 0, recordedAt: 100 }),
+			attempt("t1", {
+				attemptId: "a2",
+				modelId: "m2",
+				outcome: "success",
+				retriesBefore: 1,
+				recordedAt: 200,
+				qualityScore: 0.9,
+			}),
+		];
+		const populated = buildTaskEscalationReport(events, "t1");
+		expect(() => taskEscalationReportSchema.parse(populated)).not.toThrow();
+		expect(() => taskEscalationReportSchema.parse(buildTaskEscalationReport([], "empty"))).not.toThrow();
 	});
 });

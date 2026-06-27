@@ -33,6 +33,7 @@ import {
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig, updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
+import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
 import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeBoardCard,
@@ -98,6 +99,7 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import { setNKleinLostHeartbeatPolicy } from "../nklein-agent/nklein-session-state";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { openInBrowser } from "../server/browser";
+import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { readTaskRunSummaries } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
@@ -535,6 +537,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				events,
 				runSummaries,
 			};
+		},
+		getTaskEscalation: async (_workspaceScope, input) => {
+			return buildTaskEscalationReport(await readAllAgentLedger(), input.taskId);
 		},
 		listNKleinPlanArtifacts: async (workspaceScope, input) => {
 			const artifacts = await listNKleinPlanArtifactsForSourceTask({

@@ -323,6 +323,32 @@ export interface TaskEscalationReport {
 	attempts: TaskAttemptRow[];
 }
 
+/** Request for the §5.AG escalation report of a single task. */
+export const taskEscalationReportRequestSchema = z.object({ taskId: z.string().min(1) });
+export type TaskEscalationReportRequest = z.infer<typeof taskEscalationReportRequestSchema>;
+
+export const taskAttemptRowSchema = z.object({
+	rung: z.number(),
+	modelId: z.string(),
+	approach: z.string(),
+	outcome: modelOutcomeKindSchema,
+	qualityScore: z.number().nullable(),
+	qualityOk: z.boolean().nullable(),
+	salvage: z.string().nullable(),
+	recordedAt: z.number(),
+});
+
+export const taskEscalationReportSchema = z.object({
+	taskId: z.string(),
+	totalAttempts: z.number(),
+	modelsTried: z.array(z.string()),
+	finalOutcome: modelOutcomeKindSchema.nullable(),
+	attempts: z.array(taskAttemptRowSchema),
+});
+// Compile-time drift guard: keep the wire schema in lockstep with the projection's return type.
+const _escalationReportGuard: z.ZodType<TaskEscalationReport> = taskEscalationReportSchema;
+void _escalationReportGuard;
+
 function describeAttemptApproach(attempt: AgentAttemptEvent): string {
 	const parts: string[] = [];
 	if (attempt.endpointStrategy) {
