@@ -2033,6 +2033,10 @@ deep analysis:
               candidates from the default provider + per-role config) → `commands/task/task-decomposition-routing.ts`. Pure
               of task.ts internals (only provider service + model registry + start-guard), internal-only consumer repointed
               via import. task.ts 2150→2093 (cumulative 2870→2093, −777/−27%). tsc + biome + `test:fast` (2443) green.
+        - [x] **slice 8 (2026-06-27):** extracted the pure CLI arg parsers (`slugifyPlanTaskId`, `parseAutoMergeColumn`,
+              `parseAutoReviewMode`, `parseAgentId` + `VALID_AGENT_IDS`, `parseOptionalStringOrDefault`) →
+              `commands/task/task-command-parsers.ts`. All internal-only, no task.ts-internal deps; imported back.
+              task.ts 2093→2045 (cumulative 2870→2045, −825/−29%). tsc + biome + `test:fast` (2443) green.
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.

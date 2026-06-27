@@ -11,7 +11,7 @@ import type {
 	RuntimeTaskNKleinSettings,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
-import { clampRuntimeSwarmCardStartBatchSize, runtimeAgentIdSchema } from "../core/api-contract";
+import { clampRuntimeSwarmCardStartBatchSize } from "../core/api-contract";
 import { summarizeWorkspaceBoardHealth } from "../core/operator-board-health.js";
 import { type PlanGapKind, recordPlanGap } from "../core/plan-gap";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
@@ -49,6 +49,13 @@ import {
 	type TaskWorktreeAutoMergeStep,
 } from "../workspace/task-worktree-auto-merge";
 import { classifyAcceptanceFailurePlanGap, parsePlanGapKind } from "./task/task-acceptance-plan-gap.js";
+import {
+	parseAgentId,
+	parseAutoMergeColumn,
+	parseAutoReviewMode,
+	parseOptionalStringOrDefault,
+	slugifyPlanTaskId,
+} from "./task/task-command-parsers.js";
 import type { ListTaskColumn } from "./task/task-command-types.js";
 import { buildDecompositionRoutingCandidates } from "./task/task-decomposition-routing.js";
 import {
@@ -90,25 +97,6 @@ import {
 
 type JsonRecord = Record<string, unknown>;
 type RecordSelfObservation = typeof recordSelfObservation;
-
-function slugifyPlanTaskId(input: string): string {
-	const slug = input
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return slug || "task";
-}
-
-function parseAutoMergeColumn(value: string | undefined): TaskWorktreeAutoMergeColumn {
-	if (value === undefined || value === "review") {
-		return "review";
-	}
-	if (value === "completed" || value === "done") {
-		return "completed";
-	}
-	throw new Error('Invalid merge column. Expected "review" or "completed".');
-}
 
 interface DecompositionRejectionInput {
 	workspacePath: string;
@@ -173,42 +161,6 @@ export function recordDecompositionRejection(input: DecompositionRejectionInput)
 			error: message,
 		},
 	});
-}
-
-function parseAutoReviewMode(value: string | undefined): "commit" | "pr" | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-	if (value === "commit" || value === "pr") {
-		return value;
-	}
-	throw new Error(`Invalid auto review mode "${value}". Expected: commit, pr.`);
-}
-
-const VALID_AGENT_IDS = runtimeAgentIdSchema.options;
-
-function parseAgentId(value: string | undefined): RuntimeAgentId | null | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-	if (value === "default") {
-		return null;
-	}
-	const result = runtimeAgentIdSchema.safeParse(value);
-	if (result.success) {
-		return result.data;
-	}
-	throw new Error(`Invalid agent ID "${value}". Expected one of: ${VALID_AGENT_IDS.join(", ")}, default.`);
-}
-
-function parseOptionalStringOrDefault(value: string | undefined): string | null | undefined {
-	if (value === undefined) {
-		return undefined;
-	}
-	if (value === "default") {
-		return null;
-	}
-	return value;
 }
 
 async function listTasks(input: { cwd: string; projectPath?: string; column?: ListTaskColumn }): Promise<JsonRecord> {
