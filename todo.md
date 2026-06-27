@@ -3686,8 +3686,14 @@ deep analysis:
         full §5.O 45-folder registry via `projects.listDevTestProjects`, not just the 4 presets); least-touched/just-changed
         **weighting**; and the **agent-chosen** policy (let an agent pick what to stress) — all of which land naturally on
         the always-on rail (the durable §5.AF scheduler) rather than the one-shot script.
-  - [ ] **generous-timeout run profile** — a dedicated "background eval" guardrail profile (long wall-time, higher
-        no-diff tolerance) so a slow-but-progressing small-model run isn't parked prematurely.
+  - [x] **generous-timeout run profile (2026-06-27).** Defined `BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS`
+        ([runtime-config-api-contract.ts](src/core/runtime-config-api-contract.ts)) — lenient on the slow-progress guards
+        (turns 12→80, wall-time 2h→6h, no-diff checkpoints 4→20) so a slow-but-progressing small model isn't parked
+        prematurely, while keeping the LOOP guard near-default (repeated-tool-calls 3→6) so a genuinely stuck agent still
+        parks. All values stay inside `RUNTIME_SWARM_GUARDRAIL_BOUNDS` (a profile can't disable a guardrail) — 3 unit
+        tests guard that. Wired into the rail ([dev-test-rail.mts](scripts/dev-test-rail.mts)): applied by default (opt
+        out with `--guardrails default`), restored on cleanup alongside the model/concurrency pin. The always-on rail
+        (§5.AF scheduler) will reuse the same profile.
   - [ ] **(optional, later)** a dedicated-LLM-machine endpoint as a second provider the rail can target (config already
         supports multiple endpoints; §5.W concurrency + §6.5 scheduler already multi-endpoint-aware).
 - [ ] **Auto-collect + auto-analyse ALL evidence (success AND failure) → feed the todos.** Every rail run captures its

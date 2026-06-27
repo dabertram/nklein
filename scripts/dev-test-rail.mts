@@ -15,6 +15,7 @@
  *       tsx scripts/dev-test-rail.mts --count 3 --select random       # 3 RANDOM built-in presets (rotate coverage)
  */
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import { BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS } from "../src/core/runtime-config-api-contract";
 import { resolveNKleinDevTestProjectScenario } from "../src/nklein-agent/nklein-dev-test-project";
 import type { RuntimeAppRouter } from "../src/trpc/app-router";
 
@@ -104,12 +105,21 @@ async function main(): Promise<void> {
 	// ── Pin the model + raise its per-request concurrency so the one endpoint serves the projects concurrently. ──
 	const before = await base.runtime.getConfig.query();
 	const original = before.nkleinProviderSettings;
+	const originalGuardrails = before.swarmGuardrails;
+	const useGenerousGuardrails = arg("guardrails", "generous").trim().toLowerCase() === "generous";
 	log(`Rail: ${presets.length} projects in parallel on ${model} (concurrency ${concurrency})`);
 	log(`Projects: ${presets.join(", ")}\n`);
 	await base.runtime.saveNKleinProviderSettings.mutate({ providerId: "lmstudio", modelId: model, baseUrl: ENDPOINT_BASE_URL });
 	await base.runtime.saveNKleinModelMaxConcurrentRequests
 		.mutate({ providerId: "lmstudio", modelId: model, baseUrl: ENDPOINT_BASE_URL, maxConcurrentRequests: concurrency })
 		.catch((error) => log(`(could not set per-model concurrency: ${error instanceof Error ? error.message : String(error)})`));
+	if (useGenerousGuardrails) {
+		// §5.AI: lenient slow-progress guardrails so a slow-but-progressing small model isn't parked prematurely.
+		await base.runtime.saveConfig
+			.mutate({ swarmGuardrails: BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS })
+			.then(() => log("Applied the generous 'background eval' swarm guardrails (turns/wall-time/no-diff)."))
+			.catch((error) => log(`(could not set generous guardrails: ${error instanceof Error ? error.message : String(error)})`));
+	}
 
 	const lanes: Lane[] = [];
 	const cleanup = async () => {
@@ -124,6 +134,9 @@ async function main(): Promise<void> {
 		await base.runtime.saveNKleinProviderSettings
 			.mutate({ providerId: "lmstudio", modelId: original.modelId, baseUrl: original.baseUrl })
 			.catch(() => undefined);
+		if (useGenerousGuardrails) {
+			await base.runtime.saveConfig.mutate({ swarmGuardrails: originalGuardrails }).catch(() => undefined);
+		}
 		for (const lane of lanes) {
 			for (let attempt = 0; attempt < 4; attempt += 1) {
 				await base.projects.remove.mutate({ projectId: lane.workspaceId }).catch(() => undefined);

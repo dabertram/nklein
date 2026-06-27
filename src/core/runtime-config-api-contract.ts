@@ -74,6 +74,18 @@ export const DEFAULT_RUNTIME_SWARM_GUARDRAILS: RuntimeSwarmGuardrails = {
 	maxRepeatedToolCallsPerTask: RUNTIME_NKLEIN_MAX_REPEATED_TOOL_CALLS_PER_TASK,
 };
 
+// §5.AI "background eval" guardrail profile: lenient on the SLOW-PROGRESS guards (turns / wall-time / no-diff
+// checkpoints) so a slow-but-progressing small local model on the always-on dev-test rail isn't parked prematurely —
+// while keeping the LOOP guard (`maxRepeatedToolCallsPerTask`) near-default so a genuinely stuck/looping agent still
+// parks. All values stay inside RUNTIME_SWARM_GUARDRAIL_BOUNDS (a profile can't disable a guardrail). NOT the
+// interactive default — apply it only for background evaluation runs (the rail saves it, then restores the original).
+export const BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS: RuntimeSwarmGuardrails = {
+	maxAutonomousTurnsPerTask: 80,
+	maxAutonomousWallTimeMs: 6 * 60 * 60 * 1000,
+	maxRepeatedNoDiffCheckpoints: 20,
+	maxRepeatedToolCallsPerTask: 6,
+};
+
 function clampGuardrailInteger(value: unknown, bounds: { min: number; max: number }, fallback: number): number {
 	if (typeof value !== "number" || !Number.isFinite(value)) {
 		return fallback;
