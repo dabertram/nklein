@@ -3158,9 +3158,13 @@ deep analysis:
       owed:** a board-agent **mid-session re-anchor** (the system prompt is static per session; a `beforeModel` hook like
       the §5.N focus-chain re-anchor would refresh "now" on a multi-day run — chat already re-anchors per turn, so this is a
       board-only long-run nicety).
-- [ ] **Freshness-judgment helper.** Given retrieved info carrying a date/version, compare to the real now → a verdict
-      (current / possibly-stale / search-newer) + a rail telling the agent to prefer the newest + search further when the
-      found info predates a likely-newer release. Pure + tested; feeds the retrieval loop.
+- [x] **Freshness-judgment helper (DONE 2026-06-27).** [src/core/retrieval-freshness.ts](src/core/retrieval-freshness.ts):
+      `judgeRetrievedFreshness({publishedAt}, now, {thresholds?})` bands a dated source by whole-day age vs the
+      authoritative now → `current`/`recent`/`possibly_stale`/`stale`/`unknown` + an agent-facing `guidance` rail (rely on
+      it, or prefer a newer source + search further) + `shouldSearchForFresher(verdict)` to drive the retrieval loop.
+      Pure + clock-injected (deterministic), tolerant of string/number/Date/absent dates, future-dated clamps to current.
+      7 unit tests; tsc+biome green. **Date-based only** — VERSION freshness ("is v3.1 the latest?") needs an external
+      "known latest" the retrieval loop supplies, deferred to that. Feeds the §5.AC retrieval loop + the researcher role.
 - [ ] **`web_search` tool (first-class, egress-gated).** A search tool (query → ranked results: title / url / snippet /
       published-date) governed by the §5.L network tier (network-enabled sandbox ONLY; allowlist; fail-closed; NEVER a
       cloud LLM). Backend = a USER-CONFIGURED local/permitted search endpoint (self-hosted SearxNG / a permitted search
