@@ -2064,8 +2064,12 @@ deep analysis:
               + its `DecompositionRejectionInput`/`RecordSelfObservation` types → `commands/task/task-decompose-command.ts`.
               Enabled by the slice-11 `toErrorMessage` unblock (the rejection telemetry needs it). `task-verify.test.ts`
               repointed. task.ts 1819→1678 (cumulative 2870→1678, **−1192/−42%**). tsc + biome + task-verify + contract +
-              `test:fast` green. *(Remaining: `createTask`/`updateTaskCommand`/`startTask`/`finishTask` + the merge cluster —
-              the biggest, most cross-calling impls; the per-subcommand registration split.)*
+              `test:fast` green.
+        - [x] **slice 15 (2026-06-27):** extracted the create/update commands (`createTask`, `updateTaskCommand`) →
+              `commands/task/task-crud-commands.ts` (leaf mutate-commands over `updateRuntimeWorkspaceState` + board
+              mutations). task.ts 1678→1534 (cumulative 2870→1534, **−1336/−47%**, nearly halved). tsc + biome +
+              `test:fast` (2443) green. *(Remaining: `startTask`/`finishTask` + the worktree-merge cluster — the
+              biggest, most cross-calling impls — and the per-subcommand `registerTaskCommand` split.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
