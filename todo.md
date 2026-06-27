@@ -2217,8 +2217,13 @@ deep analysis:
       (2026-06-27, 8 tests)** — the per-workspace runtime-setup ref-counting registry: shared setup across acquires, dispose
       only when the last lease releases, path-trim normalization sharing one entry, distinct-workspace separation, fresh
       re-create after full release, failed-creation entry cleanup (next acquire retries), `close()` disposing all regardless
-      of refCount, and swallowed dispose errors + over-release no-op. **Remaining pure-unit candidate:**
-      `nklein-context-overflow-compaction` (the compaction body — needs message fixtures).
+      of refCount, and swallowed dispose errors + over-release no-op. **`nklein-context-overflow-compaction` now covered
+      (2026-06-27, 4 tests)** — `compactPersistedMessagesForContextOverflow`: the `<2`-message guard, the no-user-anchor +
+      would-not-shrink null cases, and the fallback "keep the recent half from a user turn + prepend a compaction notice
+      carrying the first user message" (plain-prose fixtures make the focused `compactKanban…` pass return null, so the
+      fallback path is deterministic). **The untested-pure-core unit sweep (§5.V) is now COMPLETE** — every remaining
+      untested `src/**` module is I/O-coupled (needs an integration harness, not a unit) or a zod schema already exercised
+      by the contract suites.
       **Skip (I/O-coupled, need an integration harness not a unit):** `workspace/project-health`,
       `workspace/turn-checkpoints` (git/fs), `nklein-mcp-settings-service`, `task-worktree-sync`.
       **Decomposition validation (north-star §5.B) 2026-06-27:** `plan-task-validation` question logic (7 tests) —
