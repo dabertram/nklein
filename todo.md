@@ -2029,6 +2029,10 @@ deep analysis:
               (its `toErrorMessage` dep would entangle). Two consumers (`record-plan-gap.ts`, `task-verify.test.ts`) repointed;
               tsc + biome + task-verify (8 of the moved fns' tests) + contract + `test:fast` (2443) green. task.ts 2326→2150
               (cumulative 2870→2150, −720/−25%).
+        - [x] **slice 7 (2026-06-27):** extracted `buildDecompositionRoutingCandidates` (builds the runnable model routing
+              candidates from the default provider + per-role config) → `commands/task/task-decomposition-routing.ts`. Pure
+              of task.ts internals (only provider service + model registry + start-guard), internal-only consumer repointed
+              via import. task.ts 2150→2093 (cumulative 2870→2093, −777/−27%). tsc + biome + `test:fast` (2443) green.
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.

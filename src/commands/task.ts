@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { Command } from "commander";
-import { loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
+import { loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeAgentId,
 	RuntimeBoardColumnId,
@@ -33,7 +33,6 @@ import {
 	applyNKleinPlanTaskGraphToBoard,
 	applyNKleinPlanTaskReplacementArtifacts,
 } from "../nklein-agent/nklein-decomposition-tool";
-import { getDefaultNKleinModelRegistry } from "../nklein-agent/nklein-model-registry";
 import {
 	appendNKleinPlanRevision,
 	type NKleinPlanTask,
@@ -41,9 +40,6 @@ import {
 	readNKleinPlanArtifacts,
 	updateNKleinPlanArtifactApplicationStatus,
 } from "../nklein-agent/nklein-plan-artifacts";
-import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
-import type { NKleinTaskRoutingCandidate } from "../nklein-agent/nklein-task-router";
-import { buildNKleinStartGuardCandidate } from "../nklein-agent/nklein-task-start-guard";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
@@ -54,6 +50,7 @@ import {
 } from "../workspace/task-worktree-auto-merge";
 import { classifyAcceptanceFailurePlanGap, parsePlanGapKind } from "./task/task-acceptance-plan-gap.js";
 import type { ListTaskColumn } from "./task/task-command-types.js";
+import { buildDecompositionRoutingCandidates } from "./task/task-decomposition-routing.js";
 import {
 	buildTaskNKleinSettingsForCreate,
 	buildTaskNKleinSettingsForUpdate,
@@ -154,60 +151,6 @@ function toErrorMessage(error: unknown): string {
 
 function printJson(payload: unknown): void {
 	process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-}
-
-async function buildDecompositionRoutingCandidates(
-	runtimeConfig: RuntimeConfigState,
-): Promise<NKleinTaskRoutingCandidate[]> {
-	const nkleinProviderService = createNKleinProviderService();
-	const modelRegistry = await getDefaultNKleinModelRegistry()
-		.getSnapshot()
-		.catch(() => ({
-			schemaVersion: 1 as const,
-			updatedAt: 0,
-			models: {},
-		}));
-	const candidates = new Map<string, NKleinTaskRoutingCandidate>();
-	try {
-		const launchConfig = await nkleinProviderService.resolveLaunchConfig({});
-		const candidate = buildNKleinStartGuardCandidate({
-			launchConfig,
-			role: null,
-			modelRegistry,
-		});
-		candidates.set(candidate.entry.key, {
-			entry: candidate.entry,
-			role: candidate.role,
-		});
-	} catch {
-		// A workspace without a runnable default NKlein provider can still decompose from explicit role models.
-	}
-
-	for (const [role, settings] of Object.entries(runtimeConfig.effectiveModelRoles)) {
-		if (!settings.providerId && !settings.modelId) {
-			continue;
-		}
-		try {
-			const launchConfig = await nkleinProviderService.resolveLaunchConfig({
-				providerIdOverride: settings.providerId ?? undefined,
-				modelIdOverride: settings.modelId ?? undefined,
-				reasoningEffortOverride: settings.reasoningEffort ?? null,
-			});
-			const candidate = buildNKleinStartGuardCandidate({
-				launchConfig,
-				role,
-				modelRegistry,
-			});
-			candidates.set(candidate.entry.key, {
-				entry: candidate.entry,
-				role: candidate.role,
-			});
-		} catch {
-			// Ignore roles that are configured but not currently runnable.
-		}
-	}
-
-	return [...candidates.values()];
 }
 
 export function recordDecompositionRejection(input: DecompositionRejectionInput): void {
