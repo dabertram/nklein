@@ -34,22 +34,31 @@ Ran 4× with qwen2.5-coder-14b: **2 clean PASS** (booted → ran to `awaiting_re
 Note: `scripts/` is outside the tsc + biome scope (like every `verify-*.mts`), so these are validated by *running*, not
 the static gate — the green commit gate (tsc + biome + `test:fast`) is unaffected by them.
 
-## OPEN THREAD — start here (the one thing left mid-investigation)
+## OPEN THREAD — RESOLVED (2026-06-28): the oracle is now hermetic
 
-**Intermittent PARTIAL false-failure in the oracle.** On 2 of 4 runs the card reached `awaiting_review` but the oracle
-reported `fail 1` with a **file-level** ✖ and **no named subtest failure**. Crucially: run 3's captured agent
-`src/habit-score.ts` was `return Math.round(Math.min(1, completionRatio + streakBonus) * 100);` — which I **proved passes
-all 4 oracle tests** in two clean local repros (a bare dir AND a full smoke-ts-cli template copy). So the model's fix was
-*correct* yet the harness oracle failed → **the oracle has an environment-sensitive false-failure**, not the model.
+**Was:** intermittent PARTIAL false-failure — on 2 of 4 runs the card reached `awaiting_review` but the oracle reported
+`fail 1` with a **file-level** ✖ and **no named subtest failure**, even though the model's fix was provably correct.
 
-What I couldn't reproduce by guessing, so it's now **instrumented** (in this commit): `runResultOracle` captures the agent
-source + **full unfiltered** oracle stdout/stderr + exit code, and `main()` dumps them on any non-PASS. **Next step:** run
-`verify-full-system.mts` until a PARTIAL recurs, read the FULL oracle output in the log (no longer filtered), and find why
-`node --experimental-strip-types --test test/habit-score.test.js` fails *only* inside the `git worktree add --detach`
-checkout. Hypotheses not yet ruled out: (a) a stray uncaught rejection/exit in the worktree process; (b) the agent also
-touched `package.json`/`tsconfig`/a sibling that perturbs the run; (c) a worktree-vs-`git show` content mismatch (unlikely —
-same ref). The fix is likely either making the oracle run hermetic (copy only `src/habit-score.ts` + the oracle test into a
-clean temp dir instead of using the worktree) or correctly classifying a no-assertion-failure file-level error.
+**Root cause (confirmed):** the oracle ran inside a `git worktree add --detach` checkout of the agent's *result branch*,
+so anything the small model touched beyond `src/habit-score.ts` (a dropped `"type":"module"` in `package.json`, a mangled
+`tsconfig`, a sibling test) made `node --test` fail to **load** the test file — exactly a file-level ✖ with no named
+subtest failure (an import/parse error, not an assertion). The handoff's repro passed because it used the *pristine
+template's* `package.json`, not the agent's mutated one. (Hypothesis (b) from the old note was correct.)
+
+**Fix (shipped):** `runResultOracle` is now hermetic — it extracts ONLY the result branch's `src/` tree via `git archive`
+(no worktree → also eliminates the shared `.git/config`/`core.bare` cross-talk risk this repo has) into a clean temp
+project with a HARNESS-OWNED `package.json` (`"type":"module"`) + only the oracle test. The model can no longer perturb the
+oracle's environment. **Re-verified live (qwen2.5-coder-14b): 4 clean PASS in a row, 0 false-PARTIAL.**
+
+> NOTE: a fresh checkout needs `npm install` first — `playwright` is a runtime dep of `src/chat/chat-browser-tool.ts`, and
+> the full runtime won't boot without it (you'll see `ERR_MODULE_NOT_FOUND: playwright`).
+
+### Residual (genuine, not the oracle) — the only remaining PARTIAL class
+Occasionally the card reaches `awaiting_review` but **no `nklein/tasks/<task>` result branch is captured** ("no result
+branch (nothing was captured)"). This is real agent behavior — the model ended the session without producing a captured
+result branch — not an oracle bug. Also seen alongside: `getState().board.cards` reads **0** on the full-system runtime
+even though work happened (cosmetic so far; the seed card's session state is still read correctly). Both are worth a future
+look but are distinct from the oracle false-failure, which is fixed.
 
 ## Broader pending backlog (full detail in `todo.md`, the TodoWrite list mirrors it)
 

@@ -16,7 +16,7 @@
  * Env: NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1), NKLEIN_VERIFY_TIMEOUT_MS (default 360000).
  */
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -124,7 +124,15 @@ interface OracleResult {
 	oracleOutput: string | null;
 }
 
-/** Run the harness oracle against the agent's result-branch checkout; returns whether the cap bug was actually fixed. */
+/**
+ * Run the harness oracle against the agent's result. HERMETIC by construction: we extract ONLY the result branch's
+ * `src/` tree (via `git archive` — so no `git worktree`, and thus none of the shared `.git/config`/`core.bare`
+ * cross-talk that plagues this repo) into a clean temp project the harness fully owns: a controlled `package.json`
+ * (`"type":"module"`, so the `.js` oracle test is always ESM) and ONLY the oracle test. This isolates the run from
+ * anything else the small model may have perturbed in its result branch — a dropped `"type":"module"`, a mangled
+ * `tsconfig`, a sibling test — which was the root of the environment-sensitive false-failures (a file-level load
+ * error with no named subtest failure, i.e. the test file couldn't even be imported, not an assertion failing).
+ */
 async function runResultOracle(workspacePath: string, taskId: string): Promise<OracleResult> {
 	const resultRef = createTaskResultBranchRef(taskId);
 	const verify = await execFileAsync("git", ["-C", workspacePath, "rev-parse", "--verify", `${resultRef}^{commit}`]).then(
@@ -138,14 +146,21 @@ async function runResultOracle(workspacePath: string, taskId: string): Promise<O
 	const agentSource = await execFileAsync("git", ["-C", workspacePath, "show", `${resultRef}:src/habit-score.ts`])
 		.then(({ stdout }) => stdout)
 		.catch(() => null);
-	const worktree = await mkdtemp(join(tmpdir(), "nklein-full-system-oracle-"));
+	const hermetic = await mkdtemp(join(tmpdir(), "nklein-full-system-oracle-"));
 	try {
-		await execFileAsync("git", ["-C", workspacePath, "worktree", "add", "--detach", "--force", worktree, resultRef]);
-		await writeFile(join(worktree, "test", "habit-score.test.js"), ORACLE_TEST, "utf8");
+		// Extract just the result branch's src/ tree into the hermetic project (no worktree → no shared git state).
+		const tarPath = join(hermetic, "src.tar");
+		await execFileAsync("git", ["-C", workspacePath, "archive", "--format=tar", "-o", tarPath, resultRef, "src"]);
+		await execFileAsync("tar", ["-xf", tarPath, "-C", hermetic]);
+		await rm(tarPath, { force: true });
+		// Harness-owned manifest + oracle test — neither is influenced by the model's result branch.
+		await writeFile(join(hermetic, "package.json"), `${JSON.stringify({ name: "oracle", private: true, type: "module" }, null, 2)}\n`, "utf8");
+		await mkdir(join(hermetic, "test"), { recursive: true });
+		await writeFile(join(hermetic, "test", "habit-score.test.js"), ORACLE_TEST, "utf8");
 		const result = await execFileAsync(
 			"node",
 			["--experimental-strip-types", "--test", "test/habit-score.test.js"],
-			{ cwd: worktree },
+			{ cwd: hermetic },
 		).then(
 			({ stdout, stderr }) => ({ ok: true, out: `${stdout}${stderr ? `\n[stderr]\n${stderr}` : ""}` }),
 			(error: { stdout?: string; stderr?: string; code?: number }) => ({
@@ -162,8 +177,7 @@ async function runResultOracle(workspacePath: string, taskId: string): Promise<O
 			oracleOutput: result.ok ? null : result.out,
 		};
 	} finally {
-		await execFileAsync("git", ["-C", workspacePath, "worktree", "remove", "--force", worktree]).catch(() => undefined);
-		await rm(worktree, { recursive: true, force: true }).catch(() => undefined);
+		await rm(hermetic, { recursive: true, force: true }).catch(() => undefined);
 	}
 }
 

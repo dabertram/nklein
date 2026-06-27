@@ -2453,6 +2453,17 @@ deep analysis:
       verify-full-system` fans it across the LM Studio roster (the harness reads `NKLEIN_VERIFY_MODEL` + de-prioritizes
       deepseek; the sweep driver honors the deepseek-drop caveat). Scripts are out of the tsc/biome scope (like every
       `verify-*.mts`) so they're validated by running, not the static gate.
+      **(2026-06-28) Oracle false-failure RESOLVED — the oracle is now HERMETIC.** Root cause: the oracle used to
+      `git worktree add` the agent's result branch and run inside it, so anything the small model perturbed beyond
+      `src/habit-score.ts` (a dropped `"type":"module"`, a mangled `tsconfig`, a sibling test) made node's `--test`
+      fail to *load* the test file → a file-level ✖ with no named subtest failure, i.e. a false PARTIAL on a correct
+      fix. Fix: `runResultOracle` now extracts ONLY the result branch's `src/` tree via `git archive` (no worktree →
+      also kills the shared `.git/config`/`core.bare` cross-talk risk) into a clean temp project with a HARNESS-OWNED
+      `package.json` (`"type":"module"`) + only the oracle test. Re-verified live: **4 clean PASS in a row, 0
+      false-PARTIAL**. (One remaining genuine PARTIAL class — "no result branch captured" when the model ends without
+      committing a captured branch — is agent behavior, NOT the oracle; left as-is.) Also note: a fresh checkout needs
+      `npm install` — `playwright` is a runtime dep of `src/chat/chat-browser-tool.ts` and the full runtime won't boot
+      without it.
   - [ ] **BUG the harness caught (2026-06-27):** clicking a board card can crash with `Cannot read properties of null
         (reading 'promptBlock')` — `response.promptBlock` is read unguarded after a tRPC call that may return null
         ([kanban-board.tsx](web-ui/src/components/kanban-board.tsx) ~L487,
