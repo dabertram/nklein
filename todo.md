@@ -3619,22 +3619,40 @@ deep analysis:
         "sluggish with 2 projects" (2026-06-27; root cause CORRECTED by live A/B).** Measured: with an agent streaming
         hard a trivial `projects.list` query took **44–60 s**; the instant the agent stopped streaming the same query
         dropped to **0.08–0.12 s**. So a single heavily-streaming agent saturates the single Node thread and stalls ALL
-        HTTP queries; parallel streamers compound it. **ROOT CAUSE (corrected via live A/B):** my first hypothesis was the
-        per-flush `broadcastRuntimeProjectsUpdated` rebuild — but a second live run measured **41–60 s latency with NO
-        browser client connected**, where `broadcastRuntimeProjectsUpdated` early-returns (`runtimeStateClients.size===0`)
-        and the rebuild never runs. So the rebuild is NOT the dominant cost — **the dominant starvation is the agent's own
-        stream processing on the single Node thread** (LM Studio SSE parse + the agent loop + Docker tool exec). The
-        runtime does heavy agent work on the *same* thread that serves HTTP/WS. **DONE (secondary fix, 2026-06-27):**
-        coalesced the per-flush projects rebuild to ≤1/window ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts)
-        wired in [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — real waste
-        reduction WHEN a client is connected (board disk-read + health fs-scan per project was firing ~every 150ms/ws), but
-        it does **not** move the headline number (the agent processing dominates). **STILL OWED (the real, architectural
-        fix):** get the agent stream processing OFF the request-serving thread — (a) run NKlein agent loops / SSE parsing in
-        **worker threads** or child processes so the main loop stays responsive; (b) and/or throttle/yield in the per-chunk
-        SSE handler so it doesn't monopolize a tick; (c) also batch the server-side `task_chat_message` WS sends (one
-        `socket.send` per agent message today — a second per-frame cost that only bites when clients ARE connected; the
-        client already coalesces *receipt*). High-value: this is the real "parallel work feels broken" tax. Ties §5.AI
-        (sluggish-UI client fix) · §6.5 · §5.AF (admission/sched) · §5.W (concurrency).
+        HTTP queries; parallel streamers compound it. **DIAGNOSIS — narrowed across 6 live A/B cycles + a CPU profile;
+        it is NOT what it looked like (it is an async HANG, not CPU):**
+        - **NOT the projects rebuild** — a run with NO browser client (where `broadcastRuntimeProjectsUpdated`
+          early-returns at `runtimeStateClients.size===0`, so the rebuild never runs) STILL hit 41–60 s. *(Coalescing it
+          was still worth doing — see DONE below — just not the cause.)*
+        - **NOT thread-pool starvation** — `UV_THREADPOOL_SIZE=24` made no difference (still 60 s).
+        - **NOT CPU-bound** — a `--cpu-prof` of the runtime during the hang is **~100% idle** (0.03 s of JS self-time over
+          327 s). The main thread is **blocked/waiting**, not burning CPU — so "offload CPU to worker threads" (my earlier
+          STILL-OWED) was the WRONG framing.
+        - **NOT a contended read lock** — the whole `projects.list` path (`listWorkspaceIndexEntries`,
+          `loadWorkspaceBoardById`, `detectProjectHealthIssuesByWorkspaceId`) is **lock-free `readJsonFile`/`readdir`**.
+        - **`curl` hit its `-m` ceiling exactly (20 s / 60 s)** → the request doesn't complete; it effectively **hangs**.
+        - **Correlates with the agent being STUCK, not actively streaming:** a single agent at `msgs=758` and actively
+          streaming → `projects.list` = **0.048 s** (fine); the moment that agent got **stuck** (`msgs` frozen at 760, not
+          producing) → **>20 s hang**. So the trigger is a stuck/blocked agent, not stream throughput.
+        **PRIME SUSPECT (for the fresh-context fix):** the agent's stuck state is blocked on an async/IO wait that also
+        stalls the loop's ability to complete `projects.list`. Strong candidate: **`proper-lockfile` retry storms**
+        ([locked-file-system.ts](src/fs/locked-file-system.ts) — `DEFAULT_LOCK_RETRIES = { retries: 200 }` with
+        exponential backoff) on the workspace directory lock, contended **cross-process between the host runtime and the
+        Docker sandbox** writing the same mounted workspace volume (the in-process FIFO gate is per-lockfile-key, so it
+        only serializes same-key callers — but a 200-retry backoff on a cross-process holder can span tens of seconds);
+        and/or a `docker exec`/sandbox op that hangs while holding state. **NEXT (pinpoint, then fix):** instrument with
+        `async_hooks`/`why-is-node-running` (or strace) to capture *what `projects.list` is actually awaiting during the
+        hang* and *what the stuck agent is blocked on*; measure the agent's `withLock` acquisition time; then fix the
+        contention (lock-free or single-writer the hot workspace writes / cache reads / cut the 200-retry storm / ensure
+        the sandbox never contends the host workspace lock). This touches the **concurrency-critical** `locked-file-system`
+        + `workspace-state` layer — do it carefully with live verification, NOT blind.
+        **DONE (secondary, still worthwhile — 2026-06-27):** coalesced the per-flush projects rebuild to ≤1/window
+        ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts) wired in
+        [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — reduces real rebuild
+        waste when a client is connected, but does NOT move the headline number. Also still worth doing later: batch the
+        server-side `task_chat_message` WS sends (one `socket.send` per agent message; client already coalesces receipt).
+        High-value: this is the real "parallel work feels broken" tax. Ties §5.AI (client fix) · §6.5 · §5.A (sandbox
+        isolation) · §5.AF (admission/sched) · §5.W (concurrency).
   - [ ] **selection policy** — `user | random | agent`-chosen next project (default: random/agent rotation across the
         registry, weighted toward tiers/domains we've touched least or that stress a just-changed area).
   - [ ] **generous-timeout run profile** — a dedicated "background eval" guardrail profile (long wall-time, higher
