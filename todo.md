@@ -3643,12 +3643,18 @@ deep analysis:
       `[ ]`/§5.O-style hardening items, and *ideas* (from either the user or the agent reading the evidence) as new
       spec bullets in the fitting §5 section. Ties §5.O (output-robustness findings → `local-llm-tests.md` + code
       fixes), §5.Z (the cross-model matrix as a ledger query), and §5.AG (the operator "what happened" surface).
-- [ ] **"Collect evidence" buttons reference the specific card/project.** Verify (and fix if needed) that the existing
-      per-**card** "Create evidence" button stamps the evidence bundle with a **reference to that specific card** (so the
-      user can point the agent at it — "look at this card's evidence"), and the per-**project** evidence button scopes to
-      the project. The user wants to use these buttons to direct the agent at specific cards/projects; the card reference
-      must be present + unambiguous in the bundle. *(Confirm the card-id is carried; today's bundle is workspace-scoped —
-      may need to add the card ref.)*
+- [x] **"Collect evidence" buttons reference the specific card — VERIFIED (2026-06-27), no fix needed.** Traced the
+      per-**card** "Evidence" button end-to-end: [board-card.tsx](web-ui/src/components/board-card.tsx) `onCopyEvidence(card.id)`
+      → `collectTaskEvidence({ taskId })` ([runtime-config-query.ts](web-ui/src/runtime/runtime-config-query.ts)) →
+      `handleCollectTaskEvidence` ([task-evidence.ts](src/trpc/runtime-api/task-evidence.ts)). The bundle is **thoroughly
+      card-scoped** — the card id (and title) appear in the bundle `scenario` (`task-<id>-<title>`), the `summary.md`
+      (`Task: <title> (<id>)` + the card's prompt), the `transcript` (keyed by `taskId`), and the full card object in
+      `config-snapshot.json` (`configSnapshot.task`). Critically, the **copied prompt block** the user pastes to point the
+      agent (`buildTaskEvidencePromptBlock`) names the exact card: `Task: <title> (<id>)` + the bundle path. So the user's
+      concern ("today's bundle is workspace-scoped — may need to add the card ref") is **already resolved**: the card ref
+      is present + unambiguous in every artifact a diagnosing agent reads, and in the copyable prompt. *(Deferred, minor:
+      the per-**project** evidence path at [project-navigation-panel.tsx:605](web-ui/src/components/project-navigation-panel.tsx#L605)
+      is project-scoped by design; no card-ref concern there. Not re-audited in depth — the user's ask was the card ref.)*
 - [ ] **Live-run it (the fun part) + prove it surfaces real issues.** Once the rail is up, let it run dev-test projects
       across the loaded models for a sustained window, then review the harvested evidence together — the goal is to
       uncover dormant issues the targeted tests miss, and to enjoy watching the dev projects do their work. Each real
