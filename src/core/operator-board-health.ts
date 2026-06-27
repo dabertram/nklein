@@ -7,6 +7,8 @@ import {
 	type OperatorSignalOverrides,
 } from "./operator-task-state";
 
+export type { OperatorBoardSummary, OperatorSignalOverrides } from "./operator-task-state";
+
 /**
  * §5.AG: derive the board-health rollup (healthy/stuck/risky/done counts + the risk/approval inbox) from a live
  * workspace-state response. The single bridge from what the runtime returns (`RuntimeWorkspaceStateResponse` — board
