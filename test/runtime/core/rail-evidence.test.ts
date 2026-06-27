@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { aggregateRailEvidence, type RailEvidenceReport, type RailLaneEvidence } from "../../../src/core/rail-evidence";
+import {
+	aggregateRailEvidence,
+	buildRailEvidenceAnalysisPrompt,
+	type RailEvidenceReport,
+	type RailLaneEvidence,
+} from "../../../src/core/rail-evidence";
 
 function lane(
 	label: string,
@@ -85,5 +90,25 @@ describe("aggregateRailEvidence", () => {
 		expect(x?.anomalyRuns).toBe(1);
 		expect(x?.totalNarrationLeaks).toBe(2);
 		expect(x?.totalHotRepeats).toBe(1);
+	});
+});
+
+describe("buildRailEvidenceAnalysisPrompt", () => {
+	it("includes each scenario's signals + the parse-and-recover instruction", () => {
+		const aggregate = aggregateRailEvidence([
+			report("qwen", [lane("alpha", "failed"), lane("beta", "delivered", { narrationLeaks: 2 })]),
+		]);
+		const { title, prompt } = buildRailEvidenceAnalysisPrompt(aggregate);
+		expect(title).toMatch(/rail evidence/i);
+		expect(prompt).toContain("alpha");
+		expect(prompt).toContain("beta");
+		expect(prompt).toContain("qwen");
+		expect(prompt).toMatch(/PARSE-AND-RECOVER/i); // weak-model principle, not re-prompt
+		expect(prompt).toContain("[ ]"); // proposes todo bullets
+	});
+
+	it("handles an empty harvest without crashing", () => {
+		const { prompt } = buildRailEvidenceAnalysisPrompt(aggregateRailEvidence([]));
+		expect(prompt).toContain("no runs harvested yet");
 	});
 });

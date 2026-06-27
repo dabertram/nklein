@@ -117,3 +117,35 @@ export function aggregateRailEvidence(reports: readonly RailEvidenceReport[]): R
 		byProject: aggregates,
 	};
 }
+
+/**
+ * Build the analysis prompt that turns the aggregate into proposed todo bullets — the second half of "auto-collect →
+ * feed the todos". Following the existing advisor pattern (`buildNKleinAdvisorRequest`), this produces the prompt a
+ * model reads; the user/agent runs it and reviews the suggestions. Pure so the framing is one tested place.
+ */
+export function buildRailEvidenceAnalysisPrompt(aggregate: RailEvidenceAggregate): { title: string; prompt: string } {
+	const rows = aggregate.byProject.map(
+		(project) =>
+			`- ${project.project}: ${project.delivered}/${project.runs} delivered (${Math.round(project.deliveryRate * 100)}%)` +
+			`, failed-to-start ${project.failedToStart}, failed ${project.failed}, non-terminal ${project.nonTerminal}` +
+			`, anomaly-runs ${project.anomalyRuns} (narration-leaks ${project.totalNarrationLeaks}, hot-repeats ${project.totalHotRepeats})`,
+	);
+	const prompt = [
+		"You are reviewing the !Klein dev-test evaluation rail's harvested evidence to surface REAL shortcomings the",
+		"targeted tests miss — bugs, weak-model output failures, and ideas — and to propose concrete todo.md items.",
+		"",
+		`Across ${aggregate.totalRuns} run(s) of ${aggregate.byProject.length} scenario(s) on model(s) ${
+			aggregate.models.join(", ") || "(none)"
+		} (worst delivery first):`,
+		"",
+		...(rows.length > 0 ? rows : ["(no runs harvested yet)"]),
+		"",
+		"For the worst-performing / most-anomalous scenarios, propose SPECIFIC, actionable bullets:",
+		"- bugs/shortcomings as `[ ]` hardening items — name what's failing + a concrete fix direction;",
+		"- recurring output anomalies (narration leaks, hot-repeats) as PARSE-AND-RECOVER fixes in !Klein (do NOT just",
+		"  re-prompt the model — the weak-model principle), pointing at the likely seam;",
+		"- patterns that suggest a new capability/idea as fitting §5 spec bullets.",
+		"Cite the scenario + the signal (delivery rate / anomaly counts). Skip scenarios that deliver cleanly with no anomalies.",
+	].join("\n");
+	return { title: "Dev-test rail evidence analysis", prompt };
+}

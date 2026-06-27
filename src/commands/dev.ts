@@ -11,7 +11,7 @@ import { summarizeLedgerForDisplay } from "../core/agent-ledger-projections";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
-import { aggregateRailEvidence } from "../core/rail-evidence";
+import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
@@ -510,8 +510,13 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	}
 }
 
-async function runDevRailEvidenceCommand(options: { json?: boolean }): Promise<void> {
+async function runDevRailEvidenceCommand(options: { json?: boolean; advisor?: boolean }): Promise<void> {
 	const aggregate = aggregateRailEvidence(await readRailEvidenceReports());
+	if (options.advisor) {
+		const request = buildRailEvidenceAnalysisPrompt(aggregate);
+		process.stdout.write(`# ${request.title}\n\n${request.prompt}\n`);
+		return;
+	}
 	if (options.json) {
 		process.stdout.write(`${JSON.stringify(aggregate, null, 2)}\n`);
 		return;
@@ -642,7 +647,8 @@ export function registerDevCommand(program: Command): void {
 	dev.command("rail-evidence")
 		.description("Aggregate the harvested dev-test rail evidence (rail-*.json) into a per-project scorecard (§5.AI).")
 		.option("--json", "Print machine-readable JSON.")
-		.action(async (options: { json?: boolean }) => {
+		.option("--advisor", "Print the analysis prompt that asks a model to propose todo bullets from the evidence.")
+		.action(async (options: { json?: boolean; advisor?: boolean }) => {
 			await runDevRailEvidenceCommand(options);
 		});
 
