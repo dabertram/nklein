@@ -3713,13 +3713,21 @@ deep analysis:
         (§5.AF scheduler) will reuse the same profile.
   - [ ] **(optional, later)** a dedicated-LLM-machine endpoint as a second provider the rail can target (config already
         supports multiple endpoints; §5.W concurrency + §6.5 scheduler already multi-endpoint-aware).
-- [ ] **Auto-collect + auto-analyse ALL evidence (success AND failure) → feed the todos.** Every rail run captures its
+- [~] **Auto-collect + auto-analyse ALL evidence (success AND failure) → feed the todos.** Every rail run captures its
       evidence bundle (the existing `collect evidence` path + the §5.AF ledger projection) — **both** successes (proof
       it still works on model M / project P) **and** failures (a sleeping bug / shortcoming). An analysis pass over the
       collected evidence (agent-driven, user-reviewable) turns findings into **todo items** — bugs/shortcomings as
       `[ ]`/§5.O-style hardening items, and *ideas* (from either the user or the agent reading the evidence) as new
       spec bullets in the fitting §5 section. Ties §5.O (output-robustness findings → `local-llm-tests.md` + code
       fixes), §5.Z (the cross-model matrix as a ledger query), and §5.AG (the operator "what happened" surface).
+      **STRUCTURED COLLECTION DONE (2026-06-27):** the rail's evidence is now built ONCE as a typed `RailEvidenceReport`
+      (`buildLaneEvidence` — per-project verdict `delivered|failed_to_start|failed|non_terminal`, tool tally, decomposed?,
+      WS frames, narration-leak + hot-repeat anomaly counts, session states) — the single source of truth for both the
+      printed report AND a **persisted JSON** at `~/.nklein/dev-test-rail-evidence/rail-<ts>.json`
+      ([dev-test-rail.mts](scripts/dev-test-rail.mts)). So the harvest is now **machine-readable + durable** (not just
+      stdout), which is the substrate the analysis pass reads. **Still owed (the analysis):** the agent-driven pass that
+      reads accumulated `rail-*.json` (and the §5.AF ledger) and proposes the `[ ]`/idea todo bullets for user review —
+      that's the bigger, agent-in-the-loop piece (lands on the always-on rail).
 - [x] **"Collect evidence" buttons reference the specific card — VERIFIED (2026-06-27), no fix needed.** Traced the
       per-**card** "Evidence" button end-to-end: [board-card.tsx](web-ui/src/components/board-card.tsx) `onCopyEvidence(card.id)`
       → `collectTaskEvidence({ taskId })` ([runtime-config-query.ts](web-ui/src/runtime/runtime-config-query.ts)) →

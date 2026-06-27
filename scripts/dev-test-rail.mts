@@ -14,6 +14,9 @@
  *       tsx scripts/dev-test-rail.mts --count 3                       # the first 3 built-in presets (deterministic)
  *       tsx scripts/dev-test-rail.mts --count 3 --select random       # 3 RANDOM built-in presets (rotate coverage)
  */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import { BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS } from "../src/core/runtime-config-api-contract";
 import { resolveNKleinDevTestProjectScenario } from "../src/nklein-agent/nklein-dev-test-project";
@@ -81,6 +84,76 @@ function shuffleInPlace<T>(items: T[]): T[] {
  * §5.O registry via `projects.listDevTestProjects` — is the richer follow-up; this keeps the rail's selection on the
  * createDevTestProject-proven presets.)
  */
+/** Machine-readable per-project evidence — the structured form persisted for later analysis (§5.AI auto-collect). */
+interface RailLaneEvidence {
+	label: string;
+	workspaceId: string;
+	startedOk: boolean;
+	startError: string | null;
+	verdict: "delivered" | "failed_to_start" | "failed" | "non_terminal";
+	cards: number;
+	decomposed: boolean;
+	wsFrames: number;
+	sessionStates: Record<string, string>;
+	toolCalls: Record<string, number>;
+	totalToolCalls: number;
+	narrationLeaks: number;
+	hotRepeats: number;
+}
+
+interface RailEvidenceReport {
+	schemaVersion: 1;
+	at: string;
+	model: string;
+	maxWaitMs: number;
+	concurrency: number;
+	projectCount: number;
+	delivered: number;
+	anomalyProjects: number;
+	lanes: RailLaneEvidence[];
+}
+
+/** Reduce a finished lane to its structured evidence (the single source of truth for both the printed report + JSON). */
+function buildLaneEvidence(lane: Lane): RailLaneEvidence {
+	const toolNames = lane.messages.filter((message) => message.toolName).map((message) => message.toolName as string);
+	const toolCalls: Record<string, number> = {};
+	for (const name of toolNames) {
+		toolCalls[name] = (toolCalls[name] ?? 0) + 1;
+	}
+	const repeats = new Map<string, number>();
+	for (const message of lane.messages) {
+		if (message.toolName) {
+			const key = `${message.toolName}:${message.content}`;
+			repeats.set(key, (repeats.get(key) ?? 0) + 1);
+		}
+	}
+	const reachedReview = [...lane.sessionStates.values()].some((state) => state === "awaiting_review");
+	const verdict: RailLaneEvidence["verdict"] = !lane.startedOk
+		? "failed_to_start"
+		: lane.terminalState === "awaiting_review" || reachedReview
+			? "delivered"
+			: lane.terminalState === "failed"
+				? "failed"
+				: "non_terminal";
+	return {
+		label: lane.label,
+		workspaceId: lane.workspaceId,
+		startedOk: lane.startedOk,
+		startError: lane.startError,
+		verdict,
+		cards: lane.cardCount,
+		decomposed: toolNames.includes("decompose_project") || lane.cardCount > 1,
+		wsFrames: lane.frames,
+		sessionStates: Object.fromEntries([...lane.sessionStates]),
+		toolCalls,
+		totalToolCalls: toolNames.length,
+		narrationLeaks: lane.messages.filter(
+			(message) => message.role === "assistant" && NARRATION_MARKERS.test(message.content),
+		).length,
+		hotRepeats: [...repeats.values()].filter((count) => count > 2).length,
+	};
+}
+
 function selectPresets(): Preset[] {
 	const explicit = arg("projects", "").trim();
 	if (explicit) {
@@ -254,43 +327,46 @@ async function main(): Promise<void> {
 			}
 		}
 
-		// ── Evidence report (success AND failure) — the harvest that feeds todo.md. ──
+		// ── Evidence report (success AND failure) — the harvest that feeds todo.md. Built ONCE as structured data,
+		//    then both printed (human view) and persisted as JSON (the analyzable foundation for §5.AI auto-collect). ──
+		const verdictLabels: Record<RailLaneEvidence["verdict"], string> = {
+			delivered: "✅ delivered (awaiting_review)",
+			failed_to_start: "❌ FAILED TO START",
+			failed: "❌ failed",
+			non_terminal: "⚠️ non-terminal in window",
+		};
+		const laneEvidence = lanes.map(buildLaneEvidence);
+		const report: RailEvidenceReport = {
+			schemaVersion: 1,
+			at: new Date().toISOString(),
+			model,
+			maxWaitMs,
+			concurrency,
+			projectCount: laneEvidence.length,
+			delivered: laneEvidence.filter((evidence) => evidence.verdict === "delivered").length,
+			anomalyProjects: laneEvidence.filter((evidence) => evidence.narrationLeaks > 0).length,
+			lanes: laneEvidence,
+		};
 		log("════════════════════ DEV-TEST RAIL EVIDENCE ════════════════════");
-		for (const lane of lanes) {
-			const toolNames = lane.messages.filter((message) => message.toolName).map((message) => message.toolName as string);
-			const perTool = new Map<string, number>();
-			for (const name of toolNames) perTool.set(name, (perTool.get(name) ?? 0) + 1);
-			const decomposed = toolNames.includes("decompose_project") || lane.cardCount > 1;
-			const narrationLeaks = lane.messages.filter((message) => message.role === "assistant" && NARRATION_MARKERS.test(message.content)).length;
-			const repeats = new Map<string, number>();
-			for (const message of lane.messages) {
-				if (message.toolName) {
-					const key = `${message.toolName}:${message.content}`;
-					repeats.set(key, (repeats.get(key) ?? 0) + 1);
-				}
-			}
-			const hotRepeats = [...repeats.values()].filter((count) => count > 2).length;
-			const reachedReview = [...lane.sessionStates.values()].some((s) => s === "awaiting_review");
-			const verdict = !lane.startedOk
-				? "❌ FAILED TO START"
-				: lane.terminalState === "awaiting_review" || reachedReview
-					? "✅ delivered (awaiting_review)"
-					: lane.terminalState === "failed"
-						? "❌ failed"
-						: "⚠️ non-terminal in window";
+		for (const evidence of laneEvidence) {
 			log("");
-			log(`■ ${lane.label}  →  ${verdict}`);
-			log(`    start: ${lane.startedOk ? "ok" : `FAILED(${lane.startError})`}   cards: ${lane.cardCount}   decomposed: ${decomposed ? "yes" : "no"}   WS frames: ${lane.frames}`);
-			log(`    session states: ${JSON.stringify(Object.fromEntries([...lane.sessionStates].map(([id, s]) => [id.slice(0, 8), s])))}`);
-			log(`    tool calls (${toolNames.length}): ${[...perTool.entries()].map(([n, c]) => `${n}×${c}`).join(", ") || "(none)"}`);
-			log(`    anomalies: narration-leaks=${narrationLeaks}${narrationLeaks ? " ⚠️" : ""}  hot-repeats=${hotRepeats}${hotRepeats ? " ⚠️" : ""}`);
+			log(`■ ${evidence.label}  →  ${verdictLabels[evidence.verdict]}`);
+			log(`    start: ${evidence.startedOk ? "ok" : `FAILED(${evidence.startError})`}   cards: ${evidence.cards}   decomposed: ${evidence.decomposed ? "yes" : "no"}   WS frames: ${evidence.wsFrames}`);
+			log(`    session states: ${JSON.stringify(Object.fromEntries(Object.entries(evidence.sessionStates).map(([id, state]) => [id.slice(0, 8), state])))}`);
+			log(`    tool calls (${evidence.totalToolCalls}): ${Object.entries(evidence.toolCalls).map(([name, count]) => `${name}×${count}`).join(", ") || "(none)"}`);
+			log(`    anomalies: narration-leaks=${evidence.narrationLeaks}${evidence.narrationLeaks ? " ⚠️" : ""}  hot-repeats=${evidence.hotRepeats}${evidence.hotRepeats ? " ⚠️" : ""}`);
 		}
-		const delivered = lanes.filter((lane) => lane.terminalState === "awaiting_review" || [...lane.sessionStates.values()].includes("awaiting_review")).length;
-		const anomalies = lanes.filter(
-			(lane) => lane.messages.some((m) => m.role === "assistant" && NARRATION_MARKERS.test(m.content)),
-		).length;
 		log("");
-		log(`SUMMARY: ${delivered}/${lanes.length} delivered to review · ${anomalies} project(s) with narration anomalies · model ${model}`);
+		log(`SUMMARY: ${report.delivered}/${report.projectCount} delivered to review · ${report.anomalyProjects} project(s) with narration anomalies · model ${model}`);
+		try {
+			const evidenceDir = join(homedir(), ".nklein", "dev-test-rail-evidence");
+			mkdirSync(evidenceDir, { recursive: true });
+			const evidencePath = join(evidenceDir, `rail-${report.at.replace(/[:.]/g, "-")}.json`);
+			writeFileSync(evidencePath, JSON.stringify(report, null, 2), "utf8");
+			log(`Evidence report (structured JSON) written: ${evidencePath}`);
+		} catch (error) {
+			log(`(could not persist evidence JSON: ${error instanceof Error ? error.message : String(error)})`);
+		}
 		log("(Anomalies / non-terminal / failed-to-start cases are the evidence to fold into todo.md as §5.O/§5.AI items.)");
 	} finally {
 		log("\nrestoring model + concurrency + removing throwaway projects…");
