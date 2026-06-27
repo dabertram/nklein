@@ -488,7 +488,7 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 		process.stdout.write("(no model attempts recorded yet — run some tasks, then re-check)\n");
 		return;
 	}
-	process.stdout.write("Per-model outcomes (the §5.Z matrix, as a ledger query):\n");
+	process.stdout.write("Per-model outcomes:\n");
 	for (const outcome of summary.outcomes) {
 		const breakdown = Object.entries(outcome.byOutcome)
 			.filter(([, count]) => count > 0)
@@ -497,6 +497,13 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 		process.stdout.write(
 			`  ${outcome.modelId.padEnd(40)} ${String(outcome.samples).padStart(3)} run(s)  ` +
 				`${String(Math.round(outcome.successRate * 100)).padStart(3)}% success  [${breakdown}]\n`,
+		);
+	}
+	process.stdout.write("\nPer-model × role (the §5.Z matrix, as a ledger query):\n");
+	for (const row of summary.byRole) {
+		process.stdout.write(
+			`  ${row.modelId.padEnd(40)} ${row.role.padEnd(10)} ${String(row.samples).padStart(3)} run(s)  ` +
+				`${String(Math.round(row.successRate * 100)).padStart(3)}% success\n`,
 		);
 	}
 }

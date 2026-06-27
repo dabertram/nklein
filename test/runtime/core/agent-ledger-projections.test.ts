@@ -4,6 +4,7 @@ import {
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
 	summarizeLedgerForDisplay,
+	summarizeModelOutcomesByRole,
 } from "../../../src/core/agent-ledger-projections";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 import { computeModelFitness } from "../../../src/core/model-fitness";
@@ -83,7 +84,41 @@ describe("summarizeLedgerForDisplay", () => {
 	});
 
 	it("is all-zero/empty for a ledger with no attempts", () => {
-		expect(summarizeLedgerForDisplay([])).toEqual({ totalEvents: 0, totalAttempts: 0, outcomes: [], profiles: [] });
+		expect(summarizeLedgerForDisplay([])).toEqual({
+			totalEvents: 0,
+			totalAttempts: 0,
+			outcomes: [],
+			byRole: [],
+			profiles: [],
+		});
+	});
+});
+
+describe("summarizeModelOutcomesByRole", () => {
+	function roleAttempt(modelId: string, role: string, outcome: ModelOutcomeKind) {
+		return buildAttemptEvent({ ...base, attemptId: `${modelId}-${role}-${outcome}`, modelId, role, outcome });
+	}
+
+	it("rolls outcomes up per (model, role) — the §5.Z matrix as a query", () => {
+		const rows = summarizeModelOutcomesByRole([
+			roleAttempt("m", "worker", "success"),
+			roleAttempt("m", "worker", "timeout"),
+			roleAttempt("m", "reviewer", "success"),
+			roleAttempt("m2", "architect", "success"),
+		]);
+		// (m,worker) has 2 samples → first; then the 1-sample rows by modelId/role.
+		expect(rows[0]).toMatchObject({ modelId: "m", role: "worker", samples: 2, successRate: 0.5 });
+		expect(rows.map((r) => `${r.modelId}/${r.role}`)).toEqual(["m/worker", "m/reviewer", "m2/architect"]);
+		expect(rows.find((r) => r.role === "reviewer")?.byOutcome.success).toBe(1);
+	});
+
+	it("defaults a role-less attempt to worker, and is empty for no attempts", () => {
+		expect(
+			summarizeModelOutcomesByRole([
+				buildAttemptEvent({ ...base, attemptId: "x", modelId: "m", outcome: "success" }),
+			])[0].role,
+		).toBe("worker");
+		expect(summarizeModelOutcomesByRole([])).toEqual([]);
 	});
 });
 

@@ -3416,11 +3416,14 @@ deep analysis:
       `buildModelFitnessFromLedger` (same module) derives one coarse `ModelFitnessRecord` per (model, role) — success-rate
       as the quality + reliability proxy, real avg latency + retries, `maxDifficultyCleared` 0 until the §5.AB eval harness
       grades quality/difficulty — feeding `computeModelFitness`/`selectModelForTask`. So the ledger→profile→fitness chain
-      is complete as projections (8 unit tests over the projection module). **Still owed:** making the §5.Z matrix a ledger
-      query (needs a per-attempt FLOW dimension the terminal writer doesn't capture yet — decompose/single-card/chat) +
-      reading these profiles/fitness from the LIVE runtime (the §5.AA retry engine / §5.AB scheduler consume them) +
-      folding MCSR speed observations into the same stream + the graded-quality/difficulty a richer writer + the eval
-      harness supply (today quality is the coarse success-rate proxy).
+      is complete as projections (10 unit tests over the projection module). **§5.Z matrix as a ledger query — PARTIAL
+      DONE (2026-06-27):** `summarizeModelOutcomesByRole` rolls attempts up per (model, role) — the board role (architect
+      /worker/reviewer) ≈ the §5.Z board flow (decompose/single-card/review) — and it's surfaced in `nklein dev ledger`.
+      The remaining §5.Z flows (chat / autonomous) need an explicit per-attempt FLOW field the terminal writer doesn't set
+      yet. **Still owed:** the FLOW field for the non-board flows; reading these profiles/fitness from the LIVE runtime
+      (the §5.AA retry engine / §5.AB scheduler consume them); folding MCSR speed observations into the same stream; and
+      the graded-quality/difficulty a richer writer + the §5.AB eval harness supply (today quality is the coarse
+      success-rate proxy).
 - [ ] **Replay / simulation mode (ties §5.V).** A captured ledger attempt's model outputs become a deterministic
       fixture → replay the live orchestration without a model. Turns the currently "live-only, deferred to e2e" §5.V
       flows into deterministically-testable ones; debugs orchestration races without a GPU. `replayable` is a per-tool
