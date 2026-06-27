@@ -4315,9 +4315,17 @@ deep analysis:
       use-runtime-settings-draft,settings-validation}.ts`. Keep the dialog as composition; verify against the existing
       settings-dialog oracle BEFORE extracting visual sections. After this, independent settings sections (and the §5.W
       regroup) can be assigned separately. *(Extract behavior, not thin JSX wrappers — per AGENTS.md.)*
-- [ ] **tRPC router composition.** Continue `src/trpc/runtime-api/**` decomposition into `routers/{runtime,chat,workspace,
+- [~] **tRPC router composition.** Continue `src/trpc/runtime-api/**` decomposition into `routers/{runtime,chat,workspace,
       projects}.ts` composed by a thin root `app-router.ts`; expose explicit insertion points so endpoint additions stop
-      colliding. Procedure names + contract surface unchanged; contract suite green.
+      colliding. Procedure names + contract surface unchanged; contract suite green. **First slice DONE (2026-06-27):**
+      the **`projects`** sub-router (10 procedures) extracted to
+      [src/trpc/routers/projects-router.ts](src/trpc/routers/projects-router.ts) via a `buildProjectsRouter(t)` factory
+      that takes the shared `t` (exported from app-router as `RuntimeTrpcBuilder`); the back-import is **type-only**
+      (erased — no runtime cycle), the procedures are byte-identical, and the moved schema imports were pruned from
+      app-router. Verified the contract surface is unchanged: root tsc + biome, **`test:contract` (272, real tRPC endpoints
+      incl. projects)**, and **web tsc** (the inferred `RuntimeAppRouter` type is identical, so the web client is
+      unaffected). **Remaining:** extract `chat` / `workspace`, then the big `runtime` sub-router (the bulk) the same way —
+      each a bounded slice gated by `test:contract` + web tsc.
 - [ ] **Workflow kernel seed + durable-queue interface (enriches §5.AF — the bridge to the product control plane).** Add
       pure `WorkflowCommand` / `WorkflowPhase` / `WorkflowEffect` types + a reducer for task lifecycle (admission ·
       queueing · planning · implementing · review · delivery · failure · cancel · pause) — **no behavior change**, board
