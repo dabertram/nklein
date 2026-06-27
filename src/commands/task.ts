@@ -6,7 +6,6 @@ import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
 import {
 	addTaskToColumn,
 	completeTaskAndGetReadyLinkedTaskIds,
-	deleteTasksFromBoard,
 	trashTaskAndGetReadyLinkedTaskIds,
 } from "../core/task-board-mutations";
 import { appendNKleinPlanRevision } from "../nklein-agent/nklein-plan-artifacts";
@@ -26,9 +25,10 @@ import {
 	parseAutoReviewMode,
 	parseOptionalStringOrDefault,
 } from "./task/task-command-parsers.js";
-import type { ListTaskColumn } from "./task/task-command-types.js";
+import { columnCanHaveLiveTaskSession, type ListTaskColumn } from "./task/task-command-types.js";
 import { createTask, updateTaskCommand } from "./task/task-crud-commands.js";
 import { decomposeTaskGraph } from "./task/task-decompose-command.js";
+import { deleteTaskCommand } from "./task/task-delete-command.js";
 import { linkTasks, unlinkTasks } from "./task/task-dependency-commands.js";
 import { buildTaskNKleinSettingsForCreate, parseTaskNKleinReasoningEffort } from "./task/task-nklein-settings.js";
 import { expandSavedPlanTaskCommand } from "./task/task-plan-expand-command.js";
@@ -83,10 +83,6 @@ interface FinishTaskMutationValue {
 	previousColumnId: ListTaskColumn;
 	readyTaskIds: string[];
 	alreadyInTargetColumn: boolean;
-}
-
-function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
-	return columnId === "planning" || columnId === "in_progress" || columnId === "review";
 }
 
 async function autoMergeFinishedTaskWorktree(input: {
@@ -620,107 +616,6 @@ async function recordTaskPlanGapCommand(input: {
 		integrationTask,
 		adaptationTask,
 		adaptationCreated,
-	};
-}
-
-async function deleteTaskCommand(input: {
-	cwd: string;
-	taskId?: string;
-	column?: ListTaskColumn;
-	projectPath?: string;
-}): Promise<JsonRecord> {
-	const target = resolveTaskCommandTarget(input, "task delete");
-	const workspaceRepoPath = await resolveWorkspaceRepoPath(input.projectPath, input.cwd);
-	const workspaceId = await ensureRuntimeWorkspace(workspaceRepoPath);
-	const runtimeClient = createRuntimeTrpcClient(workspaceId);
-	const mutation = await mutateWorkspaceState(workspaceRepoPath, (latestState) => {
-		const latestTargetRecords =
-			target.kind === "task"
-				? (() => {
-						const record = findTaskRecord(latestState, target.taskId);
-						if (!record) {
-							throw new Error(`Task "${target.taskId}" was not found in workspace ${workspaceRepoPath}.`);
-						}
-						return [record];
-					})()
-				: findTasksInColumn(latestState, target.column);
-
-		if (latestTargetRecords.length === 0) {
-			return {
-				board: latestState.board,
-				value: {
-					deletedTaskIds: [] as string[],
-					taskIdsRequiringStop: [] as string[],
-					deletedTasks: [] as JsonRecord[],
-				},
-				save: false,
-			};
-		}
-
-		const deleted = deleteTasksFromBoard(
-			latestState.board,
-			latestTargetRecords.map(({ task }) => task.id),
-		);
-		if (!deleted.deleted) {
-			return {
-				board: latestState.board,
-				value: {
-					deletedTaskIds: [] as string[],
-					taskIdsRequiringStop: [] as string[],
-					deletedTasks: [] as JsonRecord[],
-				},
-				save: false,
-			};
-		}
-
-		const deletedTasks = latestTargetRecords.map(({ task, columnId }) =>
-			formatTaskRecord(latestState, task, columnId),
-		);
-		const taskIdsRequiringStop = latestTargetRecords
-			.filter(({ columnId }) => columnCanHaveLiveTaskSession(columnId))
-			.map(({ task }) => task.id);
-		return {
-			board: deleted.board,
-			value: {
-				deletedTaskIds: deleted.deletedTaskIds,
-				taskIdsRequiringStop,
-				deletedTasks,
-			},
-		};
-	});
-
-	if (mutation.saved) {
-		await notifyRuntimeWorkspaceStateUpdated(runtimeClient);
-	}
-
-	if (mutation.value.deletedTaskIds.length === 0) {
-		return {
-			ok: true,
-			workspacePath: workspaceRepoPath,
-			column: target.kind === "column" ? target.column : null,
-			deletedTasks: [],
-			count: 0,
-		};
-	}
-
-	await Promise.all(
-		mutation.value.taskIdsRequiringStop.map(async (taskId) => await stopTaskRuntimeSession(runtimeClient, taskId)),
-	);
-
-	const workspaceCleanupResults = await Promise.all(
-		mutation.value.deletedTaskIds.map(async (taskId) => ({
-			taskId,
-			...(await deleteTaskWorkspace(runtimeClient, taskId, { preserveChanges: false })),
-		})),
-	);
-
-	return {
-		ok: true,
-		workspacePath: workspaceRepoPath,
-		column: target.kind === "column" ? target.column : null,
-		deletedTasks: mutation.value.deletedTasks,
-		count: mutation.value.deletedTaskIds.length,
-		worktreeCleanup: workspaceCleanupResults,
 	};
 }
 

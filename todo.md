@@ -2086,6 +2086,13 @@ deep analysis:
               cluster [`finishTask`/`finishTaskById` + `autoMergeFinishedTaskWorktree`/`recordTaskWorktreeMergeObservations`/
               `createIntegrationCardForMergeConflict`/`mergeTaskWorktreesCommand`] — cohesive but the biggest, most
               cross-calling block — plus `recordTaskPlanGapCommand` and the `registerTaskCommand` subcommand split.)*
+        - [x] **slice 19 (2026-06-27):** extracted `deleteTaskCommand` (delete a task by id or a whole column, then stop
+              live sessions + delete worktrees) → `commands/task/task-delete-command.ts`; relocated the shared
+              `columnCanHaveLiveTaskSession` board-column predicate → `task-command-types.ts` (used by both delete + the
+              finish cluster, so it had to leave task.ts to avoid a cycle). task.ts 1244→1139 (cumulative 2870→1139,
+              **−1731/−60%**). tsc + biome + `test:fast` (2443) green. *(Remaining: the `finishTask` cluster [finish +
+              auto-merge + integration-card + merge-command, the most cross-calling block], `recordTaskPlanGapCommand`,
+              and the `registerTaskCommand` subcommand-registration scaffolding.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.

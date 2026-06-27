@@ -20,3 +20,8 @@ export type ResolvedTaskCommandTarget =
 			kind: "column";
 			column: ListTaskColumn;
 	  };
+
+/** The columns whose cards can have a live agent session running — so finishing/deleting one must stop it first. */
+export function columnCanHaveLiveTaskSession(columnId: ListTaskColumn): boolean {
+	return columnId === "planning" || columnId === "in_progress" || columnId === "review";
+}
