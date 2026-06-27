@@ -3,7 +3,6 @@
 // and delegate domain behavior to runtime-api.ts and lower-level services.
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
-import { z } from "zod";
 import {
 	type TaskEscalationReport,
 	type TaskEscalationReportRequest,
@@ -160,17 +159,6 @@ import {
 	runtimeExpandNKleinPlanTaskRequestSchema,
 	runtimeExpandNKleinPlanTaskResponseSchema,
 	runtimeFeaturebaseTokenResponseSchema,
-	runtimeGitCheckoutRequestSchema,
-	runtimeGitCheckoutResponseSchema,
-	runtimeGitCommitDiffRequestSchema,
-	runtimeGitCommitDiffResponseSchema,
-	runtimeGitDiscardResponseSchema,
-	runtimeGitLogRequestSchema,
-	runtimeGitLogResponseSchema,
-	runtimeGitRefsResponseSchema,
-	runtimeGitSummaryResponseSchema,
-	runtimeGitSyncActionSchema,
-	runtimeGitSyncResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeMergeHistoryResponseSchema,
@@ -262,19 +250,9 @@ import {
 	runtimeTaskSessionStartResponseSchema,
 	runtimeTaskSessionStopRequestSchema,
 	runtimeTaskSessionStopResponseSchema,
-	runtimeTaskWorkspaceInfoRequestSchema,
 	runtimeTaskWorktreeMergeRequestSchema,
 	runtimeTaskWorktreeMergeResponseSchema,
 	runtimeUpdateStatusResponseSchema,
-	runtimeWorkspaceChangesRequestSchema,
-	runtimeWorkspaceChangesResponseSchema,
-	runtimeWorkspaceFileSearchRequestSchema,
-	runtimeWorkspaceFileSearchResponseSchema,
-	runtimeWorkspaceStateNotifyResponseSchema,
-	runtimeWorkspaceStateResponseSchema,
-	runtimeWorkspaceStateSaveRequestSchema,
-	runtimeWorktreeDeleteRequestSchema,
-	runtimeWorktreeDeleteResponseSchema,
 } from "../core/api-contract";
 import type {
 	RuntimeChatAutonomousRunStatus,
@@ -291,6 +269,7 @@ import type {
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import { buildChatRouter } from "./routers/chat-router";
 import { buildProjectsRouter } from "./routers/projects-router";
+import { buildWorkspaceRouter } from "./routers/workspace-router";
 
 export interface RuntimeTrpcWorkspaceScope {
 	workspaceId: string;
@@ -659,10 +638,8 @@ const workspaceProcedure = t.procedure.use(({ ctx, next }) => {
 	});
 });
 
-const optionalTaskWorkspaceInfoRequestSchema = runtimeTaskWorkspaceInfoRequestSchema.nullable().optional();
-const gitSyncActionInputSchema = z.object({
-	action: runtimeGitSyncActionSchema,
-});
+/** The workspace-scoped procedure type — sub-router modules (§5.AK) take this to build workspace endpoints. */
+export type RuntimeWorkspaceProcedure = typeof workspaceProcedure;
 
 export const runtimeAppRouter = t.router({
 	runtime: t.router({
@@ -1016,85 +993,7 @@ export const runtimeAppRouter = t.router({
 	}),
 	// Board-independent unified chat (todo §5.M). Non-workspace procedures: chat sessions are not tied to a board.
 	chat: buildChatRouter(t),
-	workspace: t.router({
-		getGitSummary: workspaceProcedure
-			.input(optionalTaskWorkspaceInfoRequestSchema)
-			.output(runtimeGitSummaryResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.loadGitSummary(ctx.workspaceScope, input ?? null);
-			}),
-		runGitSyncAction: workspaceProcedure
-			.input(gitSyncActionInputSchema)
-			.output(runtimeGitSyncResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.runGitSyncAction(ctx.workspaceScope, input);
-			}),
-		checkoutGitBranch: workspaceProcedure
-			.input(runtimeGitCheckoutRequestSchema)
-			.output(runtimeGitCheckoutResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.checkoutGitBranch(ctx.workspaceScope, input);
-			}),
-		discardGitChanges: workspaceProcedure
-			.input(optionalTaskWorkspaceInfoRequestSchema)
-			.output(runtimeGitDiscardResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.discardGitChanges(ctx.workspaceScope, input ?? null);
-			}),
-		getChanges: workspaceProcedure
-			.input(runtimeWorkspaceChangesRequestSchema)
-			.output(runtimeWorkspaceChangesResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.loadChanges(ctx.workspaceScope, input);
-			}),
-		deleteWorktree: workspaceProcedure
-			.input(runtimeWorktreeDeleteRequestSchema)
-			.output(runtimeWorktreeDeleteResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.deleteWorktree(ctx.workspaceScope, input);
-			}),
-		searchFiles: workspaceProcedure
-			.input(runtimeWorkspaceFileSearchRequestSchema)
-			.output(runtimeWorkspaceFileSearchResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.searchFiles(ctx.workspaceScope, input);
-			}),
-		getState: workspaceProcedure.output(runtimeWorkspaceStateResponseSchema).query(async ({ ctx }) => {
-			return await ctx.workspaceApi.loadState(ctx.workspaceScope);
-		}),
-		notifyStateUpdated: workspaceProcedure
-			.output(runtimeWorkspaceStateNotifyResponseSchema)
-			.mutation(async ({ ctx }) => {
-				return await ctx.workspaceApi.notifyStateUpdated(ctx.workspaceScope);
-			}),
-		saveState: workspaceProcedure
-			.input(runtimeWorkspaceStateSaveRequestSchema)
-			.output(runtimeWorkspaceStateResponseSchema)
-			.mutation(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.saveState(ctx.workspaceScope, input);
-			}),
-		getWorkspaceChanges: workspaceProcedure.output(runtimeWorkspaceChangesResponseSchema).query(async ({ ctx }) => {
-			return await ctx.workspaceApi.loadWorkspaceChanges(ctx.workspaceScope);
-		}),
-		getGitLog: workspaceProcedure
-			.input(runtimeGitLogRequestSchema)
-			.output(runtimeGitLogResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.loadGitLog(ctx.workspaceScope, input);
-			}),
-		getGitRefs: workspaceProcedure
-			.input(optionalTaskWorkspaceInfoRequestSchema)
-			.output(runtimeGitRefsResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.loadGitRefs(ctx.workspaceScope, input ?? null);
-			}),
-		getCommitDiff: workspaceProcedure
-			.input(runtimeGitCommitDiffRequestSchema)
-			.output(runtimeGitCommitDiffResponseSchema)
-			.query(async ({ ctx, input }) => {
-				return await ctx.workspaceApi.loadCommitDiff(ctx.workspaceScope, input);
-			}),
-	}),
+	workspace: buildWorkspaceRouter(t, workspaceProcedure),
 	projects: buildProjectsRouter(t),
 });
 

@@ -4327,8 +4327,13 @@ deep analysis:
       unaffected). **`chat` sub-router ALSO DONE (2026-06-27):** the 10 chat procedures (incl. the SSE `streamMessage`
       subscription) → [src/trpc/routers/chat-router.ts](src/trpc/routers/chat-router.ts) via `buildChatRouter(t)`, same
       pattern + same verification (root tsc + biome + test:contract 272 + web tsc), pruning the chat schemas / stream type
-      / `createAsyncQueue` from app-router. **Remaining:** extract `workspace`, then the big `runtime` sub-router (the
-      bulk) the same way — each a bounded slice gated by `test:contract` + web tsc.
+      / `createAsyncQueue` from app-router. **`workspace` sub-router ALSO DONE (2026-06-27):** the 14 git/workspace
+      procedures → [src/trpc/routers/workspace-router.ts](src/trpc/routers/workspace-router.ts) via
+      `buildWorkspaceRouter(t, workspaceProcedure)` (app-router now also exports `RuntimeWorkspaceProcedure`); the two
+      local schemas (`optionalTaskWorkspaceInfoRequestSchema` / `gitSyncActionInputSchema`) moved with it, and the
+      git/workspace schemas + now-unused `z` were pruned from app-router; same verification (test:contract 272 + web tsc).
+      **Remaining:** the big `runtime` sub-router (the bulk — most of the procedures) the same way; gate with
+      `test:contract` + web tsc.
 - [ ] **Workflow kernel seed + durable-queue interface (enriches §5.AF — the bridge to the product control plane).** Add
       pure `WorkflowCommand` / `WorkflowPhase` / `WorkflowEffect` types + a reducer for task lifecycle (admission ·
       queueing · planning · implementing · review · delivery · failure · cancel · pause) — **no behavior change**, board
