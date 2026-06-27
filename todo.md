@@ -2153,7 +2153,13 @@ deep analysis:
       overlap non-match), `git-process-env` (strips GIT_DIR/WORK_TREE/INDEX to stop parent-hook hijack; override wins),
       `shell` (POSIX quoting/escaping + `$SHELL` interactive resolution), `workspace-scope` (header on/off). Every
       remaining untested `src/core/*.ts` is now a `*-api-contract` zod schema already exercised by the HTTP contract
-      suites. **Next layer if continued:** `src/server`, `src/nklein-sdk`, `src/state` non-schema units.
+      suites. **Extended the sweep to `src/nklein-agent` + `src/config` (2026-06-27):** `nklein-value-guards` (`asRecord`
+      record-vs-array/null/primitive), `nklein-slash-commands` (`/clear` lone-command match: trim/case-fold yes,
+      trailing-text/different-command/no-slash no), `shortcut-utils` (`areRuntimeProjectShortcutsEqual` length+field
+      diffing, absent-vs-empty icon equal), `legacy-env` (`readEnvWithLegacyFallback` current-wins-no-warn,
+      legacy-fallback-warn-once-per-name via injected `env`, trim, undefined-when-unset — the `KANBAN_*→NKLEIN_*`
+      deprecation path). **Next layer if continued:** `src/server`, `src/state` non-schema units (more I/O-coupled →
+      need DI/mocks, lower unit-test yield).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
