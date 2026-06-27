@@ -741,9 +741,19 @@ deep analysis:
   - [ ] groove invariants + effect-guardrail sweeps
   - [ ] full UI control coverage
   - [ ] prototype-vs-real-VST docs
-- [ ] **DETERMINISTIC REPAIR KERNEL for bugfix/regression cards + richer per-card contracts (2026-06-27, small-LLM
+- [~] **DETERMINISTIC REPAIR KERNEL for bugfix/regression cards + richer per-card contracts (2026-06-27, small-LLM
       research pass).** For bug/repair work, constrain the pipeline instead of giving the small model general agency:
-      **`reproduce → localize → generate N patch candidates → validate → rank → refine`**. Mechanics: a **reproduction
+      **`reproduce → localize → generate N patch candidates → validate → rank → refine`**.
+      **ORCHESTRATION CORE DONE (2026-06-27):** [src/core/repair-kernel.ts](src/core/repair-kernel.ts) — pure
+      `runRepairKernel(deps, config)` drives the phase-gated pipeline with every effectful step INJECTED
+      (`reproduce`/`localize`/`generateCandidates`/`validate`), `rankCandidateValidations` (repro > regression > checks,
+      then smaller diff), the refine-round loop, the `cannot_reproduce` short-circuit, and ALWAYS terminating with the
+      best result (`fixed` / `no_candidate_passed` with the best partial / `no_candidate`). 6 unit tests. **Still owed
+      (the WIRING):** real tools behind each step — AST/symbol/call-graph **localization** that cannot edit,
+      spectrum-based fault localization when tests exist, the N-candidate **generator** as a narrow model subtask, the
+      **validator** running repro+regression+typecheck/lint, and ledgering (§5.AF) the candidates/validator
+      results/ranking rationale; plus the full rank inputs (touched-file plausibility × reviewer evidence × learned
+      priors) the pure core leaves as injectable tiebreaks. Mechanics: a **reproduction
       test** is a first-class fail-before/pass-after artifact; **localization** uses AST/symbol/import/call-graph tools
       (plus spectrum-based fault localization when tests exist) and **cannot edit**; generate **N candidate patches**, not
       one; **rank** by repro-pass × regression-pass × typecheck/lint × diff-size × touched-file plausibility × reviewer
