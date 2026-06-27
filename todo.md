@@ -54,6 +54,21 @@
 >   stale/phantom in this repo (redeclared/parse-error cascades mid-edit). Trust the real compiler/test output.
 > - **The only legitimate reasons to pause** are a genuine spec/clarification question only the user can answer, or
 >   a hard external blocker. Capability and context-budget are never the reason.
+> - **Fanning out to subagents — default solo, delegate only safely** *(2026-06-27, standing)*. Throughput comes from
+>   *dispatchable structure*, not from spawning more writers at the current repo shape (more parallel writers on the
+>   same monolith files just multiply conflicts, stale edits, and integration failures). **Default is solo-sequential**
+>   on the main tree — the proven-safe mode here. **Parallel git-worktree subagents are BANNED** in this env: worktrees
+>   share `.git/config`, so one worktree's dev-test/test git op flips the shared `core.bare` for all and their working
+>   trees cross-contaminate (real incidents — see AGENTS.md). When you *do* delegate, delegate only **disjoint,
+>   self-contained** packages (pure/core/test, or one **non-hot** module), each handed a **Work Package Contract**
+>   (intent · write-scope · forbidden paths · interfaces · acceptance gates · evidence required) and returning a
+>   **Merge-Readiness Pack**; **never parallel-*write* a hot file**, and prefer independent clones / patch bundles over
+>   shared worktrees if external isolation is ever needed. **You remain the sole trunk integrator** and the sole owner
+>   of `todo.md` / `done.md` / `CHANGELOG.md` — a worker proposes exact doc bullets in its final message; you apply them.
+>   The hot-file ownership map (Green/Yellow/Red), the verification path→gate manifest, the full templates, and the
+>   structure-refactor ladder that *makes* the repo dispatchable all live in **§5.AK** (self-contained, below). The same
+>   discipline is the blueprint for !Klein's OWN multi-agent mode over user projects — small local models need this
+>   structure even *more* (§5.AK direction 2).
 
 ---
 
@@ -3259,9 +3274,36 @@ deep analysis:
 - [ ] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
       failure — a learned per-model metric (part of the profile). Only when the budget is exhausted across approaches ×
       models does the task become a genuine failure.
-- [ ] **User escalation (LAST resort).** Only when ALL models × ALL approaches × learned retries are exhausted, surface
-      to the user a clear "no connected model could complete this task" report with what was tried (models, approaches,
-      scores) — actionable, not a silent dead end.
+- [ ] **★ Bigger-model rescue consult (ADVISORY escalation) — the small-LLM hard-limit path** *(2026-06-27, user — a
+      headline Direction-2 capability)*. A qualitatively *different* rung from the across-models retry above: when an
+      agent is **hard-stuck** — a genuine *complexity / capability* limit, not stochastic flakiness (signals from
+      §5.AA + the §5.AF ledger: repeated non-progress across approaches, a loop the salvager can't clear, no-diff /
+      self-contradictory turns, the retry budget burned on the *same* failure class) — !Klein **does NOT just retry the
+      task on another model.** It packages the situation as a **consult request** (the §5.AG "what was tried" attempt
+      chain + the failing context / diff / errors + the task's acceptance shape + the precise stuck-point) and asks the
+      **most capable available model** to **ANALYZE the problem and return DETAILED rectification guidance** — a concrete
+      remediation plan (root-cause read · the exact steps/edits to try · what to avoid · how to verify), **NOT a finished
+      patch.** That guidance is fed back to the small agent as a fresh, well-structured next turn (turning an
+      unrecoverable tangle into a bounded step), and recorded in the ledger as a consult `transition` event. **By
+      invariant #1 the "bigger model" is a bigger LOCAL model first** — a larger / less-quantized / higher-context model
+      that is loaded or loadable (the fitness table gains an **`analysis` role** ranking diagnostic capability); when none
+      is available or sufficient, !Klein **SURFACES the suggestion to the operator** (§5.AG) — *"this card needs a more
+      capable model to diagnose"* — offering to load one, hand it to the user, or (only behind the explicit cloud-lockdown
+      lift, the `[-]` rung below) a cloud model. **Why this is the most important Direction-2 safety valve:** small local
+      models have hard limits and cannot reliably dig themselves out of complex tangles; this advisory tier keeps the
+      swarm from grinding a weak model into an unrecoverable hole, and it mirrors exactly how a human lead consults a
+      stronger model when stuck (the contributor⇄product symmetry, §5.AK). **Build:** (a) the **hard-limit detector** —
+      distinguish complexity-limit from flakiness (reads §5.AA outcomes + ledger non-progress; distinct from the
+      retry-budget counter); (b) the **consult-request packer** — reuse `buildTaskEscalationReport` + the failing
+      context into a structured analysis prompt that fits the ≥32k floor (compact the history, don't dump it); (c) the
+      **analyst-role model pick** — strongest available local model via the fitness table's `analysis` role; (d)
+      **guidance application** — feed the plan back as the agent's next structured turn, **bounded to one consult per
+      stuck-point** so it can't loop; (e) the **§5.AG surface** — show the diagnosis + guidance + the operator
+      suggestion. Ties §5.AA (detection) · §5.AF (consult events + durable record) · §5.AG (surface) · §5.K (a
+      *different-family* analyst reduces correlated blind spots) · §5.AK (the symmetry + !Klein-must-avoid-trouble framing).
+- [ ] **User escalation (LAST resort).** Only when ALL models × ALL approaches × learned retries **and the bigger-model
+      rescue consult** are exhausted, surface to the user a clear "no connected model could complete this task" report
+      with what was tried (models, approaches, scores, and the consult's diagnosis) — actionable, not a silent dead end.
 - [ ] **Settings UI.** Show the fitness table + the current automatic role assignments; let the user pin / prefer /
       weight per role (the speed-vs-quality dial) and set the wait-vs-attempt policy; a "Re-evaluate connected models"
       action. (Builds on the MCSR telemetry panel §6.4.)
@@ -3684,7 +3726,10 @@ deep analysis:
       mirrors the diagnostics panel (lazy/refresh/loading/error). Verified: web typecheck + 2 component tests + full web
       vitest (738) + web:build + a live browser load (no white screen / console errors). **§5.AG escalation surface is
       now complete end-to-end: ledger → `buildTaskEscalationReport` → CLI (`dev escalation`) + tRPC endpoint + web panel.**
-      **Still owed (one bit):** the §5.AB "why this model" reason (needs the §5.AB selection-reason data).
+      **Still owed:** the §5.AB "why this model" reason (needs the §5.AB selection-reason data); and the **bigger-model
+      rescue consult** surface (§5.AB) — when an agent is hard-stuck and a stronger model is asked to diagnose, show its
+      root-cause read + remediation guidance alongside the attempt chain, plus the operator-facing *"this needs a more
+      capable model"* suggestion when no local model suffices.
 - [~] **Risk + approval inbox.** A single place the operator answers the things that block autonomy: unsafe-command acks
       (§5.M G3b), clarifying questions (§5.S), held deliveries (§5.L), protected-write approvals (§6.11). Reduces "where
       do I unblock this?" hunting. **DATA CORE DONE (2026-06-27):** `collectOperatorInbox(tasks)` in
@@ -4076,6 +4121,138 @@ deep analysis:
       §5.0.1 (the autonomous goal driver → the simple intake) · §5.AG (operator-UX surfaces) · §6.8 (cockpit) · §5.K
       (review) · §5.N (focus chain) · §5.B (planning-as-default) · §5.AB (auto model selection) · §5.L (delivery report) ·
       §5.W (settings + dev-mode gating). **When the overhaul starts, promote these `[-]` items to active `[ ]` work.**
+
+### 5.AK — Parallel-dispatchable architecture + the work-package discipline (contributor ⇄ product) *(2026-06-27, user — distilled & integrated from a parallel-backlog architecture audit; reason-deep, accept/reject with judgment)*
+> **Thesis.** Implementation throughput here is gated by **merge friction and module ownership**, not by a lack of agents
+> or a queue library. The lever is to make !Klein's repo **dispatchable** — explicit bounded work packages behind stable
+> ownership boundaries, with executable verification gates and sequential trunk integration — so substantial pieces can
+> be fanned out to subagents safely and land cleanly. **The same structure is the blueprint for !Klein's OWN multi-agent
+> mode over user projects** (direction 2): a central manager builds a dependency graph, delegates to isolated workspaces,
+> and integrates through branch/merge + tests ("centralized asynchronous isolated delegation"). **Small local models
+> need this structure even MORE than I do** — they cannot improvise out of an under-specified or tangled task, so the
+> bounds, gates, and the bigger-model rescue path (§5.AB) are what keep them from grinding into an unrecoverable hole.
+>
+> **What I accepted / rejected (judgment, not blind adoption).** ACCEPTED: work-package contracts, the module-ownership
+> classes, path-owned verification, merge-readiness packs, the low-risk structure refactors, a first-party workflow
+> kernel, and ledger-as-event-log (already §5.AF). REJECTED / ADAPTED: (a) aggressive 8–10-writer parallelism as a
+> default — this env's worktree hazards make **solo-sequential the safe default**; delegate only **Green** packages;
+> (b) adopting an external engine (Temporal / Hatchet / Ray / DBOS) now — use as **design references only** (local-only +
+> Docker-isolated needs first-party policy regardless); (c) a multi-week "pause-the-world refactor" front-load — instead
+> **fold the refactors into the normal incremental loop**; (d) the multi-person org roles — I am the **solo lead-coder**.
+>
+> **The contributor ⇄ product symmetry (the integrating insight — build the contributor seams so they later BECOME product surfaces):**
+> - Work Package Contract (how I scope a subagent)        ⇄  the richer **decompose card/task schema** (write-scope · interfaces · acceptance) !Klein hands its agents
+> - Merge-Readiness Pack (what a subagent returns)        ⇄  the **result-branch + evidence bundle** an !Klein agent returns
+> - Lead-coder = sole trunk integrator                    ⇄  the trusted-runtime **MergeBroker** that applies result branches
+> - Verifier subagent (read-only checks)                  ⇄  the §5.K **reviewer** role
+> - I consult a bigger model when stuck                   ⇄  the **bigger-model rescue consult** (§5.AB) for a hard-stuck small agent
+> - Agent Attempt Ledger = my evidence trail              ⇄  the §5.AF ledger = !Klein's durable **workflow event log**
+>
+> **References (inlined for self-containment):** CAID / effective async SWE-agent coordination (arxiv 2603.21489) · SASE /
+> agentic SE merge-readiness + consultation packs (arxiv 2509.06216) · durable-workflow *design references only* —
+> Temporal (durable event history / replay), Inngest + DBOS (step memoization / resume), Restate (idempotent keys),
+> Hatchet (Postgres tasks/workers), BullMQ flows (dependency trees), Ray (distributed eval later). Do **not** adopt an
+> engine before the first-party `WorkflowCommand`/`Phase`/`Effect` kernel + durable-queue interface exist (§5.AF).
+
+#### Direction 1 — make !Klein dispatchable (so I can fan out substantial work to subagents)
+
+> **Reference maps + templates (inlined — this is the operating discipline for any fan-out).**
+
+- **Module ownership map — parallel-write safety classes (classify every change site BEFORE assigning):**
+  - **GREEN — safe to fan out in parallel** (disjoint, pure/helper/test-only, or one self-contained leaf): `src/core/*`
+    pure helpers, `test/**`, `web-ui/src/**` leaf components/hooks with no shared-shell edit, new `*-*.ts` collaborators,
+    `scripts/verify-*.mts`.
+  - **YELLOW — parallel only with lead-pre-assigned insertion points** (touches a shared barrel / contract / config /
+    query client): `src/core/*-api-contract.ts`, `src/config/runtime-config.ts` field additions, `src/trpc/app-router.ts`,
+    `web-ui/src/runtime/runtime-config-query.ts`, the design-token / shared-UI primitives.
+  - **RED — serial write, ONE owner at a time** (runtime lifecycle, the monoliths, the source-of-truth docs):
+    `src/nklein-agent/nklein-task-session-service.ts`, `src/server/runtime-server.ts`, `src/server/runtime-state-hub.ts`,
+    `src/nklein-agent/nklein-session-runtime.ts`, `web-ui/src/components/runtime-settings-dialog.tsx`,
+    `web-ui/src/App.tsx`, and `todo.md` / `done.md` / `CHANGELOG.md`. Use parallel **explorers/verifiers** around these,
+    **never** parallel writers.
+- **Work Package Contract** (hand one to every delegated subagent — this is what turns a vague todo into parallel-safe work):
+  `Intent` (one paragraph: the backlog outcome that should exist after it lands) · `Backlog link` (todo §; prereq /
+  blocked packages) · `Write scope` (allowed path globs) · `Forbidden` (globs it must NOT touch — esp. the Red files +
+  docs) · `Interfaces` (inputs it may call; outputs it exports; public APIs it must NOT change) · `Acceptance` (the exact
+  gates from the manifest below) · `Evidence` (what its final message must report) · `Docs` (default **NO** — propose
+  exact bullets for the lead to apply).
+- **Verification path→gate manifest** (each worker runs the **minimal correct set**; the lead runs the **union once** at
+  integration — for 8–10 packages this cuts verification wall-time ~60–80% vs everyone rerunning everything):
+  ```
+  src/core/**                          → typecheck · biome · test:fast (focused core)
+  src/core/*-api-contract.ts           → + test:contract · web:typecheck
+  src/config/**                        → + runtime-config tests · test:contract (config) · web:typecheck if schema changed
+  src/trpc/**                          → + test:contract (relevant) · web:typecheck
+  src/server/**                        → + runtime/server + responsiveness tests · test:contract
+  src/nklein-agent/**                  → + test:fast · protected · targeted session/runtime tests · live Docker smoke if sandbox/model path changed
+  src/state/**                         → + persistence / on-disk-format contract tests
+  web-ui/src/components/runtime-settings* → web:typecheck · settings-dialog oracle · web:build · focused Settings Playwright
+  web-ui/src/components/kanban*         → web:typecheck · board tests · web:build · focused board Playwright
+  web-ui/src/App.tsx                   → web:typecheck · web tests · web:build · smoke e2e
+  test/protected/**                    → HUMAN approval required (prime directive #5)
+  ```
+- **Merge-Readiness Pack** (each subagent returns this so the lead can integrate in dependency order without re-deriving):
+  `Package` · `Branch/patch` · `Changed files` · `Behavior changed` (user / internal / none) · `Tests` (command → result)
+  · `Invariants checked` (local-only · Docker isolation · no host-path leak · ≥32k floor · protected untouched) ·
+  `Integration risk` (likely conflicts · migration / back-compat · live-verification debt) · `Proposed todo.md bullet(s)`
+  · `Proposed CHANGELOG entry` (only if release-note-worthy).
+
+> **Dispatch-enabler infra (landable now — low-risk, each makes future fan-out safer/faster):**
+- [ ] **First-class `test:contract` gate.** Add `"test:contract": "vitest run test/contract"` (it's the best merge-safety
+      layer — spawned backend, isolated home, free ports, raw HTTP/WS, mock LLM, on-disk seams) and name it in the
+      manifest for every tRPC / config-schema / persistence / task-lifecycle / settings change. Today it's hidden inside
+      broad commands.
+- [ ] **`web:e2e:smoke` canary.** A seconds-long Playwright smoke that **always starts a fresh server on a unique port**
+      (never reuses a stale dev server — the stale-`4173`-reuse cascade burned a 200s false failure), checking app boot /
+      no Vite overlay / Settings open / board render / chat sidebar render. Keep the full Playwright suite for
+      targeted/nightly/live. *(Also fix `test:protected` + `test:integration` alias/port flakiness as infra, not features.)*
+
+> **Structure-refactor ladder (ordered by fan-out ROI; each independently shippable + test-backed; folds into §5.U's
+> no-monolith goal — do them in the normal incremental loop, not as a pause-the-world front-load):**
+- [ ] **Web runtime query-client split (barrel-preserving) — DO FIRST (lowest risk, fastest enabler).** Split
+      `web-ui/src/runtime/runtime-config-query.ts` (~530 lines / ~56 exports) into domain modules behind the existing
+      barrel: `queries/{config,provider,model-registry,mcp,plan-artifacts,task-control,dev-test}.ts`. No caller churn in
+      the first pass; web typecheck + web tests stay green. Creates independent UI lanes immediately.
+- [ ] **Runtime-config facade split (Yellow → unblocks config-heavy work).** Split `src/config/runtime-config.ts` (~2200
+      lines) into `runtime-config-{types,defaults,normalize,change-fields,store}.ts` behind the existing public facade.
+      Preserve every import + all corrupt-vs-missing / defaulting / migration behavior; lock with the round-trip +
+      old-config-load tests. Pairs with the settings draft boundary.
+- [ ] **Settings draft boundary (highest-churn win).** Extract a behavior-owning Settings **draft model** from
+      `runtime-settings-dialog.tsx` (a Red monolith every new setting competes inside): typed draft state · init/reset ·
+      dirty detection · validation · save-payload construction, as `web-ui/src/features/settings/{settings-draft,
+      use-runtime-settings-draft,settings-validation}.ts`. Keep the dialog as composition; verify against the existing
+      settings-dialog oracle BEFORE extracting visual sections. After this, independent settings sections (and the §5.W
+      regroup) can be assigned separately. *(Extract behavior, not thin JSX wrappers — per AGENTS.md.)*
+- [ ] **tRPC router composition.** Continue `src/trpc/runtime-api/**` decomposition into `routers/{runtime,chat,workspace,
+      projects}.ts` composed by a thin root `app-router.ts`; expose explicit insertion points so endpoint additions stop
+      colliding. Procedure names + contract surface unchanged; contract suite green.
+- [ ] **Workflow kernel seed + durable-queue interface (enriches §5.AF — the bridge to the product control plane).** Add
+      pure `WorkflowCommand` / `WorkflowPhase` / `WorkflowEffect` types + a reducer for task lifecycle (admission ·
+      queueing · planning · implementing · review · delivery · failure · cancel · pause) — **no behavior change**, board
+      mutation helpers stay the single source for lane changes — then put an interface in front of `RuntimeTaskStartQueue`
+      and move the queue-drain / auto-start cascades out of `runtime-server.ts` into a `TaskWorkflowService` with
+      characterization tests. This is also exactly the §5.AF "durable long-run job scheduler" item — do them as one arc.
+- *(already tracked in §5.U — not duplicated here: the `runtime-settings-dialog.tsx` JSX decomposition, the
+  `nklein-task-session-service.ts` collaborator extraction, and the monolith inventory.)*
+
+#### Direction 2 — guide !Klein's OWN agents with the same discipline (small models need it MORE)
+> The product mirror of direction 1: !Klein is the lead-coder over a swarm of small-model workers on user projects. The
+> bounds + gates that make MY fan-out safe are what keep a 7B worker from wandering off-scope or into an unrecoverable
+> tangle. The escalation valve (the bigger-model rescue consult) is specced in §5.AB; the rest:
+- [ ] **Decompose emits work-package-shaped cards.** !Klein's decomposition should produce cards carrying the
+      contract's bounds — **write-scope / forbidden paths / interfaces / acceptance shape** — not just a prose prompt, so
+      a small worker stays in-bounds by construction (and overlapping cards are conflict-classified Green/Yellow/Red like
+      direction 1). Ties §5.B (decomposition) + §5.N (focus chains as the worker's checklist).
+- [ ] **Path-owned acceptance gates per card.** The product mirror of the verification manifest: each card declares the
+      executable checks that prove it (build/test/typecheck/acceptance), the trusted runtime runs them on the result
+      branch before the §5.K review, and a failing gate is a structured outcome the worker (or the rescue consult) acts
+      on — not a silent pass. Ties §5.L (delivery gate) + §5.AF (gate events in the ledger).
+- [ ] **Trouble-awareness — agents must recognize approaching-unrecoverable states and escalate BEFORE grinding in.**
+      Generalize the guards we already proved we need (the `core.bare` fixture-flip, the read/tool-call loops, host-path
+      confusion in the sandbox) into a first-class **stuck/at-risk signal** the worker and the runtime both watch; when it
+      fires, **trigger the §5.AB bigger-model rescue consult** rather than burning the retry budget. The whole point: a
+      small model must **not** be left to thrash its way out of a hole it cannot climb — !Klein detects the hard limit and
+      brings a stronger model in to analyze + guide. Ties §5.AA (detection) · §5.AB (the consult) · §5.AG (the surface).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
