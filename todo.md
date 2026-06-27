@@ -2195,8 +2195,13 @@ deep analysis:
       `getLinkFailureMessage` (all 5 link-failure reasons → distinct messages). **Board functions now covered too**
       (+5 tests, file complete): `findTaskRecord` (locate card+column / null), `findTasksInColumn` (column membership +
       tagging), `formatTaskRecord` (core fields, autoReviewMode default, conditional agentId + session shape),
-      `formatDependencyRecord` (from/to id mapping + per-task column resolution). **Full green re-verified at this
-      milestone:** backend `test:fast` 2275 + web-ui 730 (typecheck clean).
+      `formatDependencyRecord` (from/to id mapping + per-task column resolution). **`plan-task-prompt.ts` covered
+      (7 tests)** — completes the decomposition module trio (validation + expansion + prompt): `truncateSharedContext`
+      (trim/marker), `formatSharedPlanContext` (spec+decisions sections / null), `buildTaskPrompt` (always emits
+      objective+leaf-scope+pace+rounded complexity; **prepends the matching `/nklein-*` guidance command** when the task
+      implies a topic; appends likely-files/acceptance/test-first/knowledge-debt/role/model-fit/shared-context only when
+      set — a regression here changes the prompt every decomposed card's agent receives). **Full green re-verified at
+      this milestone:** backend `test:fast` 2286 + web-ui 730 (typecheck clean).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
