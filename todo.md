@@ -2147,9 +2147,13 @@ deep analysis:
       labeling. **Also covered (2026-06-27):** `model-identity` (6 tests — provider lowercase/trim, model case-preserve,
       and the §5.Q endpoint canonicalization that maps `127.0.0.1`/`0.0.0.0`/`[::1]`/`localhost` + trailing-slash to one
       key so the registry/telemetry don't double-count); `protected-test-approval-store` (7 tests — deterministic
-      sha256 key, one-time-use consume, content-fallback when no taskId, clear). **Remaining untested cores to pick off**
-      (non-schema logic; the `*-api-contract` files are zod schemas already exercised by the contract suites):
-      `task-session-guards`, `shell`, `git-process-env`, `home-agent-session`, `workspace-scope`.
+      sha256 key, one-time-use consume, content-fallback when no taskId, clear). **`src/core` non-schema sweep COMPLETE
+      (2026-06-27):** also added `task-session-guards` (reviewable-summary single source of truth — actionable reasons
+      true, interrupted/null + non-review states false), `home-agent-session` (prefix/workspace scoping incl. ws-1/ws-10
+      overlap non-match), `git-process-env` (strips GIT_DIR/WORK_TREE/INDEX to stop parent-hook hijack; override wins),
+      `shell` (POSIX quoting/escaping + `$SHELL` interactive resolution), `workspace-scope` (header on/off). Every
+      remaining untested `src/core/*.ts` is now a `*-api-contract` zod schema already exercised by the HTTP contract
+      suites. **Next layer if continued:** `src/server`, `src/nklein-sdk`, `src/state` non-schema units.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
