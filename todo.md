@@ -3578,11 +3578,18 @@ deep analysis:
       `save/loadBackgroundEvalRunnerLeases` (snapshot JSON at `~/.nklein/nklein/background-eval-runner/leases.json`,
       zod-validated, missing/corrupt → empty so the runner recovers rather than crashes; `rootDir` injectable for tests).
       That's the runner's `loadCheckpoint`/`saveCheckpoint` (file-backed snapshot is simpler + sufficient for a lease set;
-      the ledger remains the *event* log). 5 unit tests. **Still owed (the EFFECTFUL glue — the actual process):** the
-      live-signal deps — `getSignals` (interactive-detection + model-idle probe + resource-headroom compose),
-      `startRun`/`stopRun` (reuse the rail's sandboxed create+start / project-remove), `isRunActive` (session
-      terminal-state query) — then a thin timer driver that calls `tick()`. That live wiring is the remaining
-      runtime-integration piece (best built in a focused pass against the live runtime).
+      the ledger remains the *event* log). 5 unit tests. **SIGNAL-COMPUTE CORE DONE (2026-06-27):**
+      [background-eval-runner-signals.ts](src/core/background-eval-runner-signals.ts) — pure
+      `computeBackgroundEvalRunnerSignals(runtimeSnapshot)` turns raw `projects.list` counts + model-loaded + config into
+      the admission signals, with the key interactive-detection rule (a session running in a workspace the runner does
+      NOT own = real work → yield); 4 unit tests. So **every PURE piece of the daemon's logic is now built + tested**
+      (admission gate · runner core tick/recover · checkpoint store · signal compute · selection · guardrails · structured
+      evidence). **Still owed = ONLY the thin effectful daemon:** a script that holds a TRPC client + the runner core,
+      implements the deps as TRPC calls (`getSignals` = projects.list + `/v1/models` + getConfig → the pure
+      `computeBackgroundEvalRunnerSignals`; `startRun` = createDevTestProject + start seed; `stopRun` = projects.remove;
+      `isRunActive` = session-state query) wired to `save/loadBackgroundEvalRunnerLeases`, and a `setInterval` driver that
+      calls `tick()`. Build it dry-run-first (log decisions, `--live` to actually start runs) + verify against the live
+      runtime — the autonomous run-starting is the one part that genuinely needs a focused live pass.
   - [~] **First usable version BUILT (2026-06-27): [scripts/dev-test-rail.mts](scripts/dev-test-rail.mts).** A one-shot
         parallel runner that composes the proven pieces — pins the model + raises its per-model concurrency (§5.T) so the
         one endpoint serves the projects concurrently, creates N dev-test projects, subscribes to each one's
