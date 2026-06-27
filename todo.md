@@ -2218,6 +2218,12 @@ deep analysis:
       and wall-time-exhausted park (tripped with a distant `startedAt`, no time mock needed). *(Found via a
       content-verified import-grep scan — the basename heuristic had hidden these; also still untested + worth a pass:
       `decomposition-stall-nudger`, `decomposition/plan-task-routing`, `decomposition/plan-task-board-apply`.)*
+      **`plan-task-routing` pure functions covered (5 tests, 2026-06-27):** `formatTaskModelFitEvidence` (not-validated /
+      default-model / a real candidate naming provider·model·role·context·capability) + `estimateTaskWallTimeMs` (null
+      without a candidate, prefill+decode+ttft estimate = 21,200 for the worked case, wall-time-EWMA fallback) — reusing
+      the `createEntry` `NKleinModelRegistryEntry` fixture from `nklein-task-router.test.ts` (no hacky cast). The
+      heavier `selectTaskRoutingCandidate`/`previewNKleinPlanTaskGraph` (compose `routeNKleinTask`+`validate`) and the
+      IO modules (`plan-task-board-apply`, `plan-artifact-apply`) remain for an integration-style pass.
       **`decomposition-stall-nudger.isChatOnlyDecompositionActivity` (4 tests):** the weak-model stall detector — flags a
       running `assistant_delta` that narrates a plan ("based on my analysis", "task graph", "implementation plan")
       instead of calling `decompose_project`; false when actually calling the tool, wrong source/event, no matching
