@@ -3479,10 +3479,17 @@ deep analysis:
 > the **at-a-glance board-health story** on top of it, and the home for the §5.AB "why this model for this task" +
 > §5.AF "what was tried before escalating" surfaces. Keep it grounded — build the states that map to real signals we
 > already emit.
-- [ ] **Board-health summary (healthy / stuck / risky / done).** One glanceable status derived from existing signals:
+- [~] **Board-health summary (healthy / stuck / risky / done).** One glanceable status derived from existing signals:
       healthy = cards progressing (focus-chain/diff advancing); stuck = parked/no-progress/loop-salvaged (§5.AA) or
       a §5.S clarifying question pending; risky = a host/unsafe action awaiting ack (§5.M G3b) or a delivery gate held
       (§5.L) or sandbox-unavailable (§5.A); done = merged/awaiting-review. Surface as a board-header rollup + per-lane.
+      **CLASSIFIER CORE DONE (2026-06-27):** pure `classifyOperatorTaskState(signals)`
+      ([operator-task-state.ts](src/core/operator-task-state.ts)) maps a normalized signal set (session state · column ·
+      paused · lost-heartbeat · blockedKind · host-action-ack · delivery-gate-held · clarify-pending · no-progress/loop)
+      to `healthy|stuck|risky|done` in PRIORITY order (risky → done → stuck → healthy), so the most operator-urgent
+      signal wins; 7 unit tests lock the precedence (risky outranks done/stuck; done outranks stuck). **Still owed (the
+      surface):** map the live `RuntimeTaskSessionSummary` + board card + §5.L/§5.S/§5.M gate state onto the signal set,
+      then render the board-header rollup (counts per state) + a per-lane indicator (the UI consumer).
 - [ ] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
       resort), show the attempt chain — models × approaches × scores tried — so the user sees an actionable report, not a
       silent dead end. Also the §5.AB "why this model for this task" inspectable reason.
