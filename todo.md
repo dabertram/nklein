@@ -3292,9 +3292,14 @@ deep analysis:
       lift, the `[-]` rung below) a cloud model. **Why this is the most important Direction-2 safety valve:** small local
       models have hard limits and cannot reliably dig themselves out of complex tangles; this advisory tier keeps the
       swarm from grinding a weak model into an unrecoverable hole, and it mirrors exactly how a human lead consults a
-      stronger model when stuck (the contributor⇄product symmetry, §5.AK). **Build:** (a) the **hard-limit detector** —
-      distinguish complexity-limit from flakiness (reads §5.AA outcomes + ledger non-progress; distinct from the
-      retry-budget counter); (b) the **consult-request packer** — reuse `buildTaskEscalationReport` + the failing
+      stronger model when stuck (the contributor⇄product symmetry, §5.AK). **Build:** (a) the **hard-limit detector — PURE CORE DONE (2026-06-27):**
+      `classifyAgentStuckness` + `shouldRequestBiggerModelConsult` ([src/core/agent-stuckness.ts](src/core/agent-stuckness.ts))
+      — a pure verdict (`progressing` | `transient` | `hard_stuck`) distinguishing a real capability ceiling
+      (`loop`/`other_failure`/`timeout` persisting across enough distinct approaches with the retry budget burned →
+      escalate) from recoverable **format slips** (`no_tool_call`/`narrated`/`malformed`, which never escalate on their
+      own — the AGENTS.md parse-and-recover class), mirroring `classifyOperatorTaskState`; 10 unit tests, tsc+biome green.
+      **Still owed:** the ledger→signals mapper feeding it from real `attempt` events (the §5.AF stream);
+      (b) the **consult-request packer** — reuse `buildTaskEscalationReport` + the failing
       context into a structured analysis prompt that fits the ≥32k floor (compact the history, don't dump it); (c) the
       **analyst-role model pick** — strongest available local model via the fitness table's `analysis` role; (d)
       **guidance application** — feed the plan back as the agent's next structured turn, **bounded to one consult per
