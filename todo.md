@@ -2206,6 +2206,11 @@ deep analysis:
       diff preview with status/counts/old+new bodies; omits old/new when null + shows a rename's previous path; caps at
       20 files with an omitted-count footer; truncates an over-long body) + `buildTaskEvidencePromptBlock` (bundle/
       workspace/identity/counts; title→id fallback; "unknown" base commit) — the evidence handoff to the diagnosis agent.
+      **`repeated-tool-call-guard` pure helpers (6 tests):** `getRepeatedToolCallLimit` (was UNTESTED — read_files/
+      run_commands get the higher park threshold, never below the operator base, ordinary tools use the base) +
+      `formatRepeatedToolCallParkMessage` (empty `decompose_project` → the weak-local-model diagnostic; generic
+      repeated-call message echoing count+summary otherwise; decompose_project WITH args → generic). This is the recurring
+      false-pause guard area — the pure helpers are now pinned (the stateful class is exercised via the service suite).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
