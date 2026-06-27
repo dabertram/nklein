@@ -1,5 +1,6 @@
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
+import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
@@ -274,6 +275,19 @@ export async function handleStartTaskSession(
 		const codeEmbeddingProvider = createNKleinCodeEmbeddingProviderFromSettings(
 			scopedRuntimeConfig.effectiveCodeEmbeddingSettings,
 		);
+		// §5.W: resolve the effective per-provider/per-model concurrency caps (project override ?? global default) and
+		// feed them to the scheduler gate. The per-model registry `maxConcurrentRequests` fallback stays inside the
+		// scheduler, so a null cap here leaves today's behavior unchanged.
+		const concurrencyCaps = resolveSessionConcurrencyCaps({
+			providerId: nkleinLaunchConfig.providerId,
+			modelId: buildNKleinModelRegistryKey({
+				providerId: nkleinLaunchConfig.providerId,
+				modelId: nkleinLaunchConfig.modelId ?? "",
+				endpoint: nkleinLaunchConfig.baseUrl ?? null,
+			}),
+			global: scopedRuntimeConfig.concurrencyDefaults,
+			override: scopedRuntimeConfig.concurrencyOverride,
+		});
 		const endpointDecision = scheduleNKleinEndpointStart({
 			taskId: body.taskId,
 			providerId: nkleinLaunchConfig.providerId,
@@ -282,6 +296,8 @@ export async function handleStartTaskSession(
 			runningSessions: nkleinTaskSessionService.listModelEndpointSessions(),
 			modelRegistry: modelRegistrySnapshot,
 			now: Date.now(),
+			providerConcurrencyCap: concurrencyCaps.providerCap,
+			modelConcurrencyCap: concurrencyCaps.modelCap,
 		});
 		if (!endpointDecision.ok) {
 			if (body.queueOnEndpointBusy) {

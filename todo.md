@@ -2666,11 +2666,15 @@ deep analysis:
         / global-reset / `keepNormalizedValue` update paths. Additive (no "effective" field — concurrency resolves
         per-session); the existing 2358 fast tests + tsc stayed green throughout, and a new round-trip test proves a
         global default AND a per-project override **persist across save→reload** (and the global is preserved on the
-        override save). **Still owed:** the tRPC contract (thread the two maps + `…Override` through
-        `runtimeConfigResponseSchema`/`runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`) + the caller-wiring
-        (resolve via `resolveSessionConcurrencyCaps` at the `scheduleNKleinEndpointStart` call site in
-        `start-task-session.ts` and pass `providerConcurrencyCap`/`modelConcurrencyCap` to the already-built gate) +
-        the Settings UI.
+        override save). **CALLER-WIRING DONE (2026-06-27) — THE GATE IS NOW LIVE:** `start-task-session.ts` resolves the
+        effective caps via `resolveSessionConcurrencyCaps({ providerId, modelId: buildNKleinModelRegistryKey(...), global:
+        scopedRuntimeConfig.concurrencyDefaults, override: scopedRuntimeConfig.concurrencyOverride })` and passes
+        `providerConcurrencyCap`/`modelConcurrencyCap` into `scheduleNKleinEndpointStart`. So a concurrency cap set in the
+        config file is now **resolved + enforced end-to-end** (registry `maxConcurrentRequests` fallback stays inside the
+        scheduler, so a null cap = unchanged behavior). tsc + 186 trpc/scheduler tests green. **Still owed (UX only — the
+        feature works via the config file now):** the tRPC contract (thread the two maps + `…Override` through
+        `runtimeConfigResponseSchema`/`runtimeConfigSaveRequestSchema` + `buildRuntimeConfigResponse`) + the Settings UI
+        "Concurrency" card so users can set it in-app.
   - [~] **scheduler enforcement — CORE DONE (2026-06-27):** `scheduleNKleinEndpointStart`
         ([nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts)) now has an **independent
         per-PROVIDER gate** (`evaluateProviderConcurrencyGate`) — when the request carries `providerConcurrencyCap` it
