@@ -2164,9 +2164,14 @@ deep analysis:
       deduped/resolved with home first); `nklein-context-budgets` (11 tests — the 172-line token-budget math:
       unknown-window fallbacks, reserve/file-chunk caps on a 200k window, proportional scaling at 8k, floors + fractional
       truncation at 2k, and the pressure policy's low/medium/high banding + budget floor/cap + `[0.55,0.82]` compaction
-      clamp across window/wall-time signals — a regression here silently breaks file-chunking/compaction). **Next:**
-      `nklein-pause-controller`, `workspace/turn-checkpoints`, `nklein-context-overflow-compaction`,
-      `workspace/project-health` (90–210-line pure-logic modules with zero tests).
+      clamp across window/wall-time signals — a regression here silently breaks file-chunking/compaction);
+      `nklein-pause-controller` (9 tests — card-vs-board pause scoping, parked-set tracking separate from the gate,
+      `waitUntilResumed` immediate/blocking/board-still-paused resolution + abort-signal/`abortTaskWaiters` rejection);
+      `isContextOverflowError` (6 tests — recognizes varied vendor overflow phrasings, rejects unrelated errors + non-Error
+      values; a false negative crashes the run instead of triggering compaction recovery). **Remaining pure-unit
+      candidates:** `workspace/turn-checkpoints`, `nklein-context-overflow-compaction` (the compaction body),
+      `nklein-guidance-skills`, `nklein-watcher-registry`. **Skip (I/O-coupled, need an integration harness not a unit):**
+      `workspace/project-health`, `nklein-mcp-settings-service`, `task-worktree-sync`.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
