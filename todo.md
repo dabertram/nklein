@@ -3646,7 +3646,12 @@ deep analysis:
         lower-blast-radius but a core primitive — needs care + the full suite as a guard). NOT done now: changing a
         concurrency-critical core primitive blind in a long session is the wrong risk; the confirmed #1 pain is fixed and
         the mechanism is documented. `proper-lockfile` (`retries: 200`) cross-process contention is a related but separate
-        amplifier.
+        amplifier. **Why the source fix is HIGH-leverage (not just the board view):** `saveWorkspaceState` — which the
+        agent calls on **every** board write (frequent during decompose) — *also* routes through
+        `loadWorkspaceContext → resolveWorkspacePath → sync git`, so the agent itself repeatedly blocks the event loop on
+        its own saves. Fixing the sync-git at the source (async `runGitCapture` and/or cached `resolveWorkspacePath`) would
+        unblock the loop for the agent's saves AND the board view AND every other `loadWorkspaceState`/`saveWorkspaceState`
+        caller — one high-value change.
         **DONE (secondary, still worthwhile — 2026-06-27):** coalesced the per-flush projects rebuild to ≤1/window
         ([coalescing-scheduler.ts](src/core/coalescing-scheduler.ts) wired in
         [runtime-state-hub.ts](src/server/runtime-state-hub.ts) `PROJECTS_BROADCAST_COALESCE_MS`) — reduces real rebuild
