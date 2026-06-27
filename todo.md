@@ -3298,7 +3298,13 @@ deep analysis:
       (`loop`/`other_failure`/`timeout` persisting across enough distinct approaches with the retry budget burned →
       escalate) from recoverable **format slips** (`no_tool_call`/`narrated`/`malformed`, which never escalate on their
       own — the AGENTS.md parse-and-recover class), mirroring `classifyOperatorTaskState`; 10 unit tests, tsc+biome green.
-      **Still owed:** the ledger→signals mapper feeding it from real `attempt` events (the §5.AF stream);
+      **Ledger→signals mapper DONE (2026-06-27):** `buildStucknessSignalsFromLedger`
+      ([src/core/agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)) projects the §5.AF attempt stream
+      for a task into the detector's signals — scopes to the **current stuck episode** (the trailing run of non-success
+      attempts), counts **distinct approaches** (endpoint × prompt × tool-set × simplify), flags an **uncleared loop** +
+      **artifact-progress**; 8 tests (`retryBudgetExhausted` stays caller-supplied — the learned budget isn't in the
+      ledger). So `ledger → signals → classifyAgentStuckness → shouldRequestBiggerModelConsult` is a complete pure chain.
+      **Still owed:**
       (b) the **consult-request packer** — reuse `buildTaskEscalationReport` + the failing
       context into a structured analysis prompt that fits the ≥32k floor (compact the history, don't dump it); (c) the
       **analyst-role model pick** — strongest available local model via the fitness table's `analysis` role; (d)
