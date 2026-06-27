@@ -2068,8 +2068,15 @@ deep analysis:
         - [x] **slice 15 (2026-06-27):** extracted the create/update commands (`createTask`, `updateTaskCommand`) →
               `commands/task/task-crud-commands.ts` (leaf mutate-commands over `updateRuntimeWorkspaceState` + board
               mutations). task.ts 1678→1534 (cumulative 2870→1534, **−1336/−47%**, nearly halved). tsc + biome +
-              `test:fast` (2443) green. *(Remaining: `startTask`/`finishTask` + the worktree-merge cluster — the
-              biggest, most cross-calling impls — and the per-subcommand `registerTaskCommand` split.)*
+              `test:fast` (2443) green.
+        - [x] **slice 16 (2026-06-27):** extracted the `startTask` lifecycle command (validate source column, file-overlap
+              guard, start the native sandbox session handling queued/needs-decomposition, move to the active lane) →
+              `commands/task/task-start-command.ts` (leaf; uses the already-extracted `markTaskNeedsDecompositionOnBoard`).
+              task.ts 1534→1410 (cumulative 2870→1410, **−1460/−51%**, over half the original extracted). tsc + biome +
+              `test:fast` (2443) green. *(Remaining: the `finishTask` cluster [`finishTask`/`finishTaskById` +
+              auto-merge/`createIntegrationCardForMergeConflict`/`mergeTaskWorktreesCommand`] — the biggest, most
+              cross-calling impls — `runVerifyTaskAcceptanceCommand`, `recordTaskPlanGapCommand`, and the
+              `registerTaskCommand` subcommand-registration split.)*
         - [ ] still TODO: the per-subcommand registration split (`registerTaskCommand` is ~470 lines) + lifting the command
               implementations (createTask/updateTaskCommand/startTask/finishTask/decomposeTaskGraph…) into per-concern
               modules. These call each other + the now-extracted infra, so they're the larger, more-entangled follow-up.
