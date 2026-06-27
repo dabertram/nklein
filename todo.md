@@ -2138,6 +2138,15 @@ deep analysis:
 > remaining §5.V piece:** a FULL-RUNTIME multi-card pipeline e2e (decompose → dependency-ordered/parallel runs → review →
 > merge → deliver) — needs the full server + board/lane orchestration (not the stripped in-memory harness), so it is a
 > focused arc best started on a fresh context.
+- [~] **Untested-pure-core unit sweep** *(parallel fast-regression layer — TS-internal, not the port oracle, but genuine
+      "control the whole complexity" coverage of shipping logic that had zero tests; prioritize security/correctness-
+      critical modules)*. **Started 2026-06-27:** `agent-write-guard` (129 lines, security-relevant: protected-test-path
+      matching + **secret detection** — private-key/Anthropic/OpenAI/GitHub/AWS/credential-assignment patterns where a
+      regex typo = a missed leak) → 15 unit tests covering normalize/count, path-normalization (backslash, `./`, exact-dir,
+      lookalike-prefix non-match), approval-request defaults+truncation, and each secret pattern incl. first-match-wins
+      labeling. **Remaining untested cores to pick off** (non-schema logic; the `*-api-contract` files are zod schemas
+      already exercised by the contract suites): `model-identity`, `protected-test-approval-store`, `task-session-guards`,
+      `shell`, `git-process-env`, `home-agent-session`, `workspace-scope`.
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
