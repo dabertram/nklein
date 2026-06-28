@@ -3854,9 +3854,18 @@ deep analysis:
 - [ ] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
       explicit-format) when a model won't act; learn which template family each model responds to. ("Try different
       prompts" — user.)
-- [ ] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
+- [~] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
-      to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder.
+      to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder. **PURE FORMAT CORE DONE
+      (2026-06-28):** [nklein-constrained-tool-call.ts](src/nklein-agent/nklein-constrained-tool-call.ts) —
+      `buildConstrainedToolCallSchema(tools, {perToolArguments?})` emits the `json_schema` that FORCES one tool call
+      (compatible default: `tool` enum + generic `arguments` object, satisfiable by any structured-output model;
+      `perToolArguments` = a discriminated `anyOf` pinning each tool's own parameter schema for capable models), and
+      `parseConstrainedToolCall(content, tools)` parses the response back into a known call — tolerant of `{tool,…}` /
+      `{name,…}` / OpenAI `{function:{…}}` shapes, JSON-string args, and JSON wrapped in prose/```json fences; a
+      hallucinated (unoffered) name ⇒ `null` (fall through). Pure, generic over `LocalLlmToolDefinition`, 10 tests; tsc +
+      biome green. **Also = phase (b) substrate of reason-then-act below.** **Still owed (WIRING):** fire it at the
+      model-call seam as a ladder rung (request the schema, parse, dispatch the call) — the §5.AA retry-engine work.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
@@ -3864,9 +3873,11 @@ deep analysis:
       INTO action. **(a)** Let the model reason freely, explicitly prompted to *decide which tool call applies* ("reason
       about the exact edit + which tool call would make it"). **(b)** Then a **constrained second step** (the
       constrained-decoding rung above, `response_format: json_schema` over the tool-call shape) that says "now emit that
-      tool call" — converting its decided-but-unspoken action into a structured call it can't skip. This is the
-      parse-and-recover principle applied to the *act* step (don't rely on the model choosing to call — force the
-      structured emit after it reasons). Combine with the **endpoint-iteration** rung (native `/api/v1/chat` exposes the
+      tool call" — converting its decided-but-unspoken action into a structured call it can't skip. **Phase (b)'s pure
+      substrate is now BUILT** (`buildConstrainedToolCallSchema` + `parseConstrainedToolCall`, see the constrained-decoding
+      item above) — what remains for this rung is the two-phase ORCHESTRATION + phase (a) prompt at the model-call seam.
+      This is the parse-and-recover principle applied to the *act* step (don't rely on the model choosing to call — force
+      the structured emit after it reasons). Combine with the **endpoint-iteration** rung (native `/api/v1/chat` exposes the
       reasoning channel separately, so phase (a)'s reasoning is cleanly captured) and **prompt-variation** (an
       example-led "reason → call" template). **phi-4-mini-reasoning is the canonical test case** — if any rung gets it to
       deliver an edit, this is it; if not, it confirms the capability-floor verdict (§5.Z). NOTE (answering "are we
