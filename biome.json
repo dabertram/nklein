@@ -40,7 +40,7 @@
 			"!!**/node_modules",
 			"!.worktrees/**/*",
 			"!.claude/**/*",
-			"!.clinerules/**/*"
+			"!.nkleinrules/**/*"
 		]
 	},
 	"plugins": ["grit/no-process-env-destructure.grit", "grit/no-home-agent-prefix-literal.grit"],

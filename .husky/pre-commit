@@ -49,8 +49,11 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
+# Re-stage any formatter touch-ups. Skip paths that are now git-ignored: a file can be staged as a deletion
+# (e.g. `git rm --cached`) while still present on disk and newly ignored — re-adding it would fail with
+# "paths are ignored ... Use -f" and wedge the commit.
 for file in $STAGED_FILES; do
-	if [ -f "$file" ]; then
+	if [ -f "$file" ] && ! git check-ignore -q "$file"; then
 		git add "$file"
 	fi
 done

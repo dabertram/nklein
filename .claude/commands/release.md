@@ -1,1 +1,1 @@
-../../.clinerules/workflows/release.md
+../../.nkleinrules/workflows/release.md

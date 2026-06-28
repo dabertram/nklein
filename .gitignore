@@ -9,6 +9,9 @@ coverage
 test-results
 playwright-report
 .worktrees
+# !Klein runtime workspace state for this repo-as-a-project (board/config/sessions/CRDT +
+# generated plan artifacts) — per-machine generated data, never commit.
+.nklein/
 # Claude Code agent worktrees (.claude/worktrees/<id>/ are full repo checkouts — embedded git
 # repos that must never be committed). Scoped to worktrees so tracked config like
 # .claude/commands/ stays under version control.
