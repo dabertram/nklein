@@ -59,6 +59,15 @@
 
 ## Run log (newest first)
 
+- _(2026-06-28)_ **Harness rigor upgrade — and a caveat it exposed about the baseline matrix.** Added to
+  `verify-task-completion`: a **stall detector** (abort early as `STALLED` on no-activity, power-scaled), **live activity**
+  printing, and a **delivery-gated PASS** (terminal lane is necessary but NOT sufficient — the deliverable must exist;
+  else `PARTIAL ◑`). Plus the **no-load guard** across all verify harnesses (refuse a non-resident model; never trigger a
+  load — user directive). A Low-Power loaded-roster C0 re-sweep with these found **two false ✅s the old terminal-only
+  criterion hid**: `qwen3.5-9b` STALLED (finalization, §5.AA retry wiring) and `phi-4-mini-reasoning` PARTIAL
+  (declared done, delivered nothing). **→ The earlier C0 "8/9 ✅" (and other terminal-only cells) should be re-validated
+  with the delivery gate** — some ✅ may be terminal-without-deliverable. Per-run detail: [model-sweep-log.md](model-sweep-log.md).
+
 - _(2026-06-28)_ **Runtime-wide throughput fix + file-overlap heuristic VINDICATED.** (1) Root-caused the "stalls under
   load" symptom to a real bug, not machine load: `countKanbanTextTokens` (behind every budget/size check) hit BPE's
   ~O(n²) blowup on long single-char runs — a 120 KB `get_file_size` took ~6 s and blocked the event loop. Fixed with
