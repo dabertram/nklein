@@ -59,6 +59,11 @@ next step even for things that will only be *adapted later with low effort*).
   dev-test presets (`mid_task` · `complex_dag` · `wide_fanout` · `deep_chain` · `mixed_dag` · `many_small` ·
   `daw_foundation` · `audio_vst`). They run in an **isolated `HOME`**; some guard for a `nklein-verify` path segment.
   `PLAYWRIGHT_BROWSERS_PATH` must be **absolute** (a `~` re-expands under an isolated `HOME`).
+- **Power-aware timeouts.** The dev machine may run in **Low Power Mode** (less heat) — throughput can drop ~50%. The
+  multi-card + task-completion harnesses **auto-scale their timeout** by the detected OS power mode (low ≈ ×2; never
+  shortens) via `src/core/power-aware-timeout.ts`; they log `power=<mode> ×<mult>`. Override with
+  `NKLEIN_POWER_TIMEOUT_SCALE` (e.g. `2` to force, `1` to disable). Account for this when reasoning about run durations
+  and when scheduling wakeups/waiters for background LLM runs.
 
 ## Re-entry checklist (do this each time you're pointed here)
 
