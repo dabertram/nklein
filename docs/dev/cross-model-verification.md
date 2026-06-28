@@ -45,7 +45,7 @@
 | chat runtime · `verify-chat-runtime` | ✅ | · | · | · | · | · | · | · | · |
 | autonomous run · `verify-chat-autonomous-live` | ✅ | · | · | · | · | · | · | · | · |
 | multi-card pipeline · `verify-multi-card-pipeline` | ✅ | · | · | · | · | · | · | · | · |
-| output robustness · `sweep-capture` | ✅ | ✅ | · | ✅ | ✅ | · | · | · | · |
+| output robustness · `sweep-capture` | ✅ | ✅ | ◑ | ✅ | ✅ | · | · | · | · |
 
 > **†** The `verify-chat-agent-e2e` capstone asks for **4 specific tools in ONE turn** (read → run_command →
 > create_card → update_focus_chain). That composition is **stochastic** for small models — even qwen3-8b varies run to
@@ -229,3 +229,4 @@ Single-card delivery → awaiting_review + captured result branch, for two model
 
 ### 2026-06-28 · sweep-capture --preset mid_task (output robustness, against a booted isolated-HOME runtime)
 - ✅ **CLEAN** · `qwen/qwen2.5-coder-14b-m5max` · reached `awaiting_review`; tool sequence list_files→get_file_size→read_files→update_focus_chain→begin_implementation (10 calls); **0 narration leaks, 0 hot repeated tool calls, 0 reasoning-channel narration**. 954 WS frames. Matrix → ✅.
+- ◑ **PARTIAL** · `qwen3.5-9b-mlx-m5max` · **output FORMAT clean (0 narration leaks)** but did NOT reach a terminal state within 300s; 78 tool calls (read_files×54 — heavy re-reading), run_commands×12, write_file×4, search_codebase×6; 1 hot repeated tool call; reasoning channel 1092. So its issue is **control behavior** (non-termination / finalization-stall, the §5.AA `aborted`/final-answer-watchdog territory + the retry-ladder loop rung), NOT output-format robustness. Matrix → ◑ (clean format, capability/control gap). Consistent with its single-card ⚠️.
