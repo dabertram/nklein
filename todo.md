@@ -3505,8 +3505,16 @@ deep analysis:
       it started ("Working autonomously…") and drove to a stop reason (`stopped: true`). BUT qwen3-8b consistently (2 runs)
       reached "⏸ Needs your input · 1 turn" with **0 transcript messages**, so the harness's transcript-growth gate failed.
       Not flipped to a regression (prior ✅ stands; this is a fresh empty-board session where the model immediately requested
-      input). **NEEDS A LOOK:** does the autonomous turn / `request_user_input` persist a transcript message, or is "needs
-      input · 1 turn · 0 messages" expected on an empty board? (Trace the autonomous-run turn→transcript persistence.) Boot
+      input). **NEEDS A LOOK — sharpened by tracing 2026-06-28:** the autonomous turn runs `deps.runAgentTurn` (the same
+      `runChatAgentTurn` that normally appends user+assistant to the transcript, e.g. `transcript.length===2` in
+      verify-chat-agent-tools). `request_user_input` is a control tool that records `signals.userQuestion` and yields the
+      `needs_user` outcome ([chat-autonomous-control-tools.ts](src/chat/chat-autonomous-control-tools.ts)). So the likely
+      cause of **0 transcript messages** is that the model's turn-0 was a **tool-only turn** (its sole action was the
+      `request_user_input` tool call, no assistant text) and `runChatAgentTurn` doesn't persist an assistant message for a
+      text-less tool-only turn — meaning **the user's recorded question (`signals.userQuestion`) never lands in the
+      transcript**. If confirmed, that's a real UX gap: persist the autonomous run's `userQuestion` as an assistant message
+      on the `needs_user` pause (in the autonomous wiring/runtime) so the user sees what's being asked. Verify by checking
+      whether `runChatAgentTurn` persists a tool-only/empty-text turn, then wire the question into the transcript. Boot
       recipe confirmed: `npm run dev:full` skips `npm ci` when deps are installed; **use an ABSOLUTE `PLAYWRIGHT_BROWSERS_PATH`**
       (a `~` after `HOME=<isolated>` expands to the isolated HOME → no chromium). Remaining roster models pending.
 - [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
