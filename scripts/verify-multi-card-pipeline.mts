@@ -15,6 +15,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import type { BackendUnderTest } from "../test/contract/helpers/index.js";
 import { connectRuntimeStream, initGitRepository, requestJson, startTsBackend } from "../test/contract/helpers/index.js";
@@ -68,6 +69,9 @@ async function main(): Promise<void> {
 	const cwd = mkdtempSync(join(tmpdir(), "nklein-multicard-cwd-"));
 	const homeDir = mkdtempSync(join(tmpdir(), "nklein-multicard-home-"));
 	initGitRepository(cwd);
+
+	// Never load models — only test ALREADY-loaded ones (user directive 2026-06-28). Refuse a non-resident model.
+	await assertModelLoaded("http://127.0.0.1:1234/v1", MODEL_ID);
 
 	// Power-aware timeout: Low Power Mode can cut LLM throughput ~50%, so scale the base budget by the OS power mode
 	// (low ≈ ×2) instead of spuriously reporting INCOMPLETE. NKLEIN_POWER_TIMEOUT_SCALE overrides (1 disables).

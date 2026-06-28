@@ -17,9 +17,10 @@ import { mkdtemp, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { resolveNkleinRuntimeHomePath } from "../src/config/runtime-paths";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
-import { resolveNkleinRuntimeHomePath } from "../src/config/runtime-paths";
 
 const execFileAsync = promisify(execFile);
 
@@ -82,6 +83,8 @@ async function main(): Promise<void> {
 		);
 	}
 	const modelId = await resolveModelId();
+	// Never load models — only test ALREADY-loaded ones (user directive 2026-06-28). Refuse a non-resident model.
+	await assertModelLoaded(BASE_URL, modelId);
 	log(`Provider: ${PROVIDER_ID}  Model: ${modelId}  BaseUrl: ${BASE_URL}  ctx: ${CONTEXT_WINDOW}`);
 
 	const manager = new AgentSandboxManager();

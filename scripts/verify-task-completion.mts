@@ -15,6 +15,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
@@ -55,6 +56,8 @@ async function main(): Promise<void> {
 		throw new Error(`Refusing to run against HOME=${home}. Set HOME to an isolated dir (e.g. /tmp/nklein-verify).`);
 	}
 	const modelId = await resolveModelId();
+	// Never load models — only test ALREADY-loaded ones (user directive 2026-06-28). Refuse a non-resident model.
+	await assertModelLoaded(BASE_URL, modelId);
 	// Power-aware timeout: Low Power Mode (less heat) can cut throughput ~50% → scale the base budget by the OS power
 	// mode (low ≈ ×2). NKLEIN_POWER_TIMEOUT_SCALE overrides (1 disables).
 	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
