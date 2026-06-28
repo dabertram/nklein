@@ -84,6 +84,9 @@ async function main(): Promise<void> {
 
 	const emitted: string[] = [];
 	const seen = new Set<string>();
+	// Live visibility: with NKLEIN_VERIFY_DUMP_ACTIVITIES=1, print each new agent activity AS IT ARRIVES (not just a
+	// dump at the end) so you can watch the model work in real time — the fix for "I see no LLM activity".
+	const liveActivities = process.env.NKLEIN_VERIFY_DUMP_ACTIVITIES === "1";
 	const capture = (label: string, value: string | null | undefined): void => {
 		if (!value) {
 			return;
@@ -94,6 +97,9 @@ async function main(): Promise<void> {
 		}
 		seen.add(key);
 		emitted.push(`[${label}] ${value}`);
+		if (liveActivities) {
+			log(`  · [${new Date().toISOString().slice(11, 19)}] [${label}] ${value.slice(0, 200)}`);
+		}
 	};
 
 	const unsubscribe = service.onSummary((summary) => {

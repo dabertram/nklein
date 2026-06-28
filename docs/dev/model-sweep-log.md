@@ -126,7 +126,7 @@
 ### 2026-06-28 15:54Z · **new-model scout** · C0 single-card · `verify-task-completion` · _(Low Power)_
 | model | result | note |
 |---|:-:|---|
-| qwopus3.5-4b-coder (NEW, ~4B) | ⏳ | INCOMPLETE/`interrupted` after ~9 min vs the 10-min Low-Power-scaled budget — likely **horizon/slowness** (4B + Low Power + cold load), not a clear ceiling. **Don't judge yet** — needs a repeat at a longer budget / high power to separate slow-but-capable from stuck. |
+| qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
 ### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |
