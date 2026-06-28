@@ -580,6 +580,16 @@ deep analysis:
 > - **Recognize + record it properly:** a confirmed ceiling is a `⚠️` cell in the §5.Z matrix and a per-(model × role ×
 >   difficulty × context) entry in the **§5.AB fitness store** — the durable record that drives selection AND the
 >   user-advice projection. The "failing-LLM list" is the projection of below-bar cells, never a hand-list (§5.AB).
+> - **Ceilings are PROVISIONAL — keep solving them, never leave a limitation standing (2026-06-28, user).** A recorded
+>   `⚠️` is a *standing invitation to solve it*, not a closed verdict. Every chapter, **revisit earlier limitations** and
+>   reason about what could now lift them — a new §5.AA rung (reduced tools / constrained decoding / reason-then-act /
+>   endpoint iteration / prompt variation), a deterministic repair kernel (§5.O), a context strategy (§5.AD), a skill
+>   bundle (§5.AE), or a harness fix. **Re-attack them during idle LLM time** (the "never idle" rule above — re-run earlier
+>   failures against the *latest* ladder, since the cumulative challenge suite re-runs them anyway). The ambition is
+>   **outstanding results even from the smallest, most-limited models** — the harness does the heavy lifting so a weak
+>   model is carried over the bar (the §5.AA thesis) — **while simultaneously driving the biggest/best models to their
+>   absolute maximum** (never under-utilize a strong model: give it the hardest difficulty tiers, the broadest tool
+>   composition, the deepest reasoning loops). A ceiling clears the moment some rung lifts it; flip the `⚠️` → `✅`/`◑` then.
 > - **Grow the roster to meet the ladder (Phase A — local, now):** when a challenge's difficulty exceeds what the current
 >   loaded models can reach, **introduce bigger/better local models** rather than declaring the challenge impossible. The
 >   test machine (128 GB RAM + a powerful M5 Max) can run **up to ~120B at lower quantization** — push toward that ceiling

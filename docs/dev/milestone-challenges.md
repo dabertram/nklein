@@ -28,6 +28,10 @@
 >   than calling it impossible — the machine (128 GB RAM + M5 Max) runs up to **~120B at lower quantization**; push there.
 >   A model that still can't pass a tier — *only after repeat-runs + the full §5.AA ladder; never judge prematurely* — is
 >   a recorded `⚠️` capability-floor in this matrix + the §5.AB fitness store, and becomes user-facing model advice.
+>   **A `⚠️` is PROVISIONAL — a standing invitation to solve, never a closed verdict (user 2026-06-28):** revisit earlier
+>   limitations each chapter + during idle LLM time (re-run them against the *latest* ladder), reasoning about what new
+>   rung/repair/context/skill could lift them. Aim: outstanding results even from the smallest models (the harness carries
+>   them), while driving the biggest models to their absolute max. Flip `⚠️`→`✅`/`◑` the moment a rung lifts it.
 > - **Phase B (future, gated behind #1 + Phase-A "local maxed"):** frontier **cloud** models as an escalation/planning
 >   tier — a deliberate reviewed enablement, never added silently (todo §1 + §5.0.3).
 > - **Phase C (future):** expert-guided flows — a little human/Claude guidance at stuck points lifts runs beyond unaided
