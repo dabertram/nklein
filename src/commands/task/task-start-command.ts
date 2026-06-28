@@ -1,6 +1,6 @@
 import type { RuntimeBoardColumnId } from "../../core/api-contract";
 import { getTaskColumnId, moveTaskToColumn } from "../../core/task-board-mutations";
-import { findActiveTaskLikelyTouchedFileOverlap } from "../../core/task-file-overlap";
+import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../../core/task-file-overlap";
 import { markTaskNeedsDecompositionOnBoard } from "./task-plan-gap-cards.js";
 import { findTaskRecord } from "./task-record-format.js";
 import {
@@ -57,8 +57,9 @@ export async function startTask(input: {
 			task,
 		});
 		if (overlappingTask) {
+			const sharedPaths = getSharedLikelyTouchedPaths(task, overlappingTask);
 			throw new Error(
-				`Task "${task.id}" likely touches the same files as active task "${overlappingTask.id}". Wait for the active task to finish before starting this one.`,
+				`Task "${task.id}" likely touches the same files as active task "${overlappingTask.id}" (shared: ${sharedPaths.join(", ") || "?"}). Wait for the active task to finish before starting this one.`,
 			);
 		}
 		// Native NKlein tasks start in their Docker sandbox — no host workspace to prepare (worktrees retired, §5.A).

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskSessionSummary } from "../../src/core/api-contract";
 import {
 	findActiveTaskLikelyTouchedFileOverlap,
+	getSharedLikelyTouchedPaths,
 	tasksHaveLikelyTouchedFileOverlap,
 } from "../../src/core/task-file-overlap";
 
@@ -45,6 +46,17 @@ describe("task file overlap", () => {
 		expect(tasksHaveLikelyTouchedFileOverlap(createTask("a", ["src/a.ts"]), createTask("b", ["src/b.ts"]))).toBe(
 			false,
 		);
+	});
+
+	it("returns the shared culprit paths (normalized, sorted, deduped) for diagnostics", () => {
+		expect(
+			getSharedLikelyTouchedPaths(
+				createTask("a", ["./src/Shared.ts", "src/z.ts", "package.json"]),
+				createTask("b", ["src/shared.ts", "package.json", "src/other.ts"]),
+			),
+		).toEqual(["package.json", "src/shared.ts"]);
+		expect(getSharedLikelyTouchedPaths(createTask("a", ["src/a.ts"]), createTask("b", ["src/b.ts"]))).toEqual([]);
+		expect(getSharedLikelyTouchedPaths(createTask("a"), createTask("b", ["src/a.ts"]))).toEqual([]);
 	});
 
 	it("finds active overlapping tasks from board sessions", () => {

@@ -38,7 +38,7 @@ import {
 	moveTaskToColumn,
 	STARTED_CARD_ENTRY_LANE,
 } from "../core/task-board-mutations";
-import { findActiveTaskLikelyTouchedFileOverlap } from "../core/task-file-overlap";
+import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
@@ -343,8 +343,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					task,
 				});
 				if (overlappingTask) {
+					const sharedPaths = getSharedLikelyTouchedPaths(task, overlappingTask);
 					deps.warn(
-						`Skipped auto-start for linked task ${task.id} because it likely touches the same files as active task ${overlappingTask.id}.`,
+						`Skipped auto-start for linked task ${task.id} because it likely touches the same files as active task ${overlappingTask.id} (shared: ${sharedPaths.join(", ") || "?"}).`,
 					);
 					continue;
 				}
