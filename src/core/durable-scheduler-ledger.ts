@@ -158,13 +158,19 @@ function schedulerEventToDurableLogEntry(event: AgentSchedulerEvent): DurableSch
 }
 
 /**
- * Read a durable-scheduler log back out of the ledger (the boot-replay READ side): keep the `scheduler` family, order by
- * `recordedAt` (stable), and map each event to its {@link DurableSchedulerLogEntry}. Feed the result straight to
- * {@link replayDurableJobs} over the run's initial job graph to resume exactly. Pure + deterministic.
+ * Read a durable-scheduler log back out of the ledger (the boot-replay READ side): keep the `scheduler` family — scoped
+ * to one run via `workflowId` (a real ledger holds many runs) — order by `recordedAt` (stable), and map each event to its
+ * {@link DurableSchedulerLogEntry}. Feed the result straight to {@link replayDurableJobs} over the run's initial job graph
+ * to resume exactly. Pure + deterministic.
  */
-export function readDurableSchedulerLog(events: readonly AgentLedgerEvent[]): DurableSchedulerLogEntry[] {
+export function readDurableSchedulerLog(
+	events: readonly AgentLedgerEvent[],
+	options?: { workflowId?: string },
+): DurableSchedulerLogEntry[] {
+	const workflowId = options?.workflowId;
 	return events
 		.filter(isSchedulerEvent)
+		.filter((event) => workflowId === undefined || event.workflowId === workflowId)
 		.map((event, index) => ({ event, index }))
 		.sort((a, b) => a.event.recordedAt - b.event.recordedAt || a.index - b.index)
 		.map(({ event }) => schedulerEventToDurableLogEntry(event))

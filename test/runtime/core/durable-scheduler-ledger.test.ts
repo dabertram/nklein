@@ -116,6 +116,20 @@ describe("readDurableSchedulerLog", () => {
 		]);
 	});
 
+	it("scopes to one run's workflowId when many runs share the ledger", () => {
+		const mine = durableLogEntryToSchedulerEvent(
+			{ kind: "scheduled", now: 10, action: { type: "unblock", jobId: "a" } },
+			{ workflowId: "wf-mine", workspacePathHash: "h", eventId: "m1" },
+		);
+		const other = durableLogEntryToSchedulerEvent(
+			{ kind: "scheduled", now: 5, action: { type: "unblock", jobId: "z" } },
+			{ workflowId: "wf-other", workspacePathHash: "h", eventId: "o1" },
+		);
+		expect(readDurableSchedulerLog([other, mine], { workflowId: "wf-mine" })).toEqual([
+			{ kind: "scheduled", now: 10, action: { type: "unblock", jobId: "a" } },
+		]);
+	});
+
 	it("the read log replays to the same state as the original (ledger-backed boot-replay)", () => {
 		const initial = buildDurableJobGraph({ taskIds: ["a", "b"], dependencies: [{ fromTaskId: "b", toTaskId: "a" }] });
 		const log: DurableSchedulerLogEntry[] = [
