@@ -6,7 +6,6 @@ import type {
 	LocalLlmToolCompletion,
 	LocalLlmToolDefinition,
 } from "../nklein-agent/nklein-local-llm-client";
-import { parseNarratedToolCalls } from "../nklein-agent/nklein-narrated-tool-call";
 import { detectResponseLoop } from "../nklein-agent/nklein-response-loop-detection";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
@@ -128,34 +127,15 @@ export function createChatAgentModel(
 				}
 			}
 		}
-		// §5.O/§5.AA narrated-call recovery (the same proven recovery wired in the swarm runtime): if the model STILL
-		// emitted no structured tool call but NARRATED one (or more) as text — e.g. gemma's `tool_code = create_card(…)`
-		// Python dialect, or a Hermes `<tool_call>` block — parse and execute them rather than re-prompting. Only fires
-		// when tools were offered and no real call came back; `parseNarratedToolCalls` is conservative (recognized markers
-		// only), so a plain-prose reply is untouched. This is what lets weak models that narrate still act.
-		if (allowTools && response.toolCalls.length === 0) {
-			const narrated = parseNarratedToolCalls(response.content);
-			if (narrated.length > 0) {
-				return {
-					text: "",
-					toolCalls: narrated.map((call, index) => ({
-						id: `narrated-${Date.now().toString(36)}-${index}`,
-						name: call.toolName,
-						arguments: isRecord(call.input) ? call.input : {},
-					})),
-				};
-			}
-		}
+		// NOTE: narrated-tool-call recovery for the chat path lives in the client (`completeWithTools` runs
+		// `parseNarratedToolCalls` over content + reasoning_content when a tools-offered turn returns no structured call —
+		// see nklein-local-llm-client.ts). So by here `response.toolCalls` already includes any recovered call; no
+		// adapter-level recovery is needed (and the client seam sees the reasoning channel, which this one cannot).
 		return {
 			text: cleanModelReply(response.content),
 			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
 		};
 	};
-}
-
-/** A recovered narrated call's `input` is `unknown`; coerce a plain object to the tool-args record, else `{}`. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** The most recent user-authored instruction in the rendered prompt — the anchor for §5.AA tool-set narrowing. */

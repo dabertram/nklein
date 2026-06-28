@@ -3932,16 +3932,18 @@ deep analysis:
       literals, single→double-quote for lists, positional args skipped, `print(default_api.fn(…))` wrapper unwrapped),
       wired into `parseNarratedToolCalls` so `recoverNarratedToolCalls` now EXECUTES gemma's narrated calls. Conservative:
       only a `tool_code` anchor triggers it (a bare Python-looking line in prose is left alone) + recovery still fires only
-      when the turn produced no real tool call. +5 tests incl. gemma-e2b's exact live narration; full fast suite green.
-      **ALSO wired narrated-recovery into the CHAT path (2026-06-28)** — it was previously only in the swarm runtime
-      (`nklein-session-runtime.ts`); `createChatAgentModel` now runs `parseNarratedToolCalls` on a no-structured-call turn
-      (after the tool-set-reduction rung) and synthesizes the recovered call, so the chat/`nklein chat` path benefits too.
-      Gated on `allowTools` + no real call; +4 adapter tests. **LIVE RE-VERIFY (gemma e2e) = INCONCLUSIVE:** on the
-      re-run gemma narrated in a DIFFERENT, **markerless** dialect (`"tool_name": "read_file"` bare-JSON dicts, no
-      `tool_code`/`<tool_call>` anchor) which the deliberately-conservative parser ignores (bare JSON is too easily a
-      legit answer, §5.O). So the tool_code fix is correct + unit-proven but gemma's narration format VARIES run-to-run
-      — the e2e didn't flip this run. The durable fix for the e2e chain-narration wall is the broader §5.AA retry-engine
-      (constrained-decoding rung forcing a parseable call mid-chain), not markerless-JSON recovery.
+      when the turn produced no real tool call. **The chat path ALREADY recovers narrated calls** at the client seam
+      (`completeWithTools` in [nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts) runs
+      `parseNarratedToolCalls` over `content` + `reasoning_content` on a tools-offered/no-structured-call turn — better
+      placed than the adapter, which can't see the reasoning channel), so teaching `parseNarratedToolCalls` the gemma
+      dialect makes the EXISTING chat + swarm recovery handle it with no wiring change. (Verified an adapter-level copy was
+      redundant and reverted it.) +6 tests (5 parser incl. gemma-e2b's exact live narration + 1 client-seam end-to-end);
+      full fast suite green. **LIVE RE-VERIFY (gemma e2e) = INCONCLUSIVE:** on the re-run gemma narrated in a DIFFERENT,
+      **markerless** dialect (`"tool_name": "read_file"` bare-JSON dicts, no `tool_code`/`<tool_call>` anchor) which the
+      deliberately-conservative parser ignores (bare JSON is too easily a legit answer, §5.O). So the tool_code fix is
+      correct + unit-proven but gemma's narration format VARIES run-to-run — the e2e didn't flip this run. The durable fix
+      for the e2e chain-narration wall is the broader §5.AA retry-engine (constrained-decoding rung forcing a parseable
+      call mid-chain), not markerless-JSON recovery.
 - [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
       phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
       NO regression for the 7 models that already pass.

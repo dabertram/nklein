@@ -42,8 +42,8 @@
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | ◑ | ◑ | ◑ | · | · | · | ◑ | · |
-| chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | ◑ | · | · | · | · | · | · | · |
-| chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | · | · | ◑ | · |
+| chat e2e capstone† · `verify-chat-agent-e2e` | ❌ | ❌ | ❌ | ❌ | · | ❌ | · | ❌ | · |
+| chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | ◑ | · | ◑ | · |
 | chat write tool · `verify-chat-agent-write` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
 | chat send · `verify-chat-send` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
 | chat runtime · `verify-chat-runtime` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
@@ -52,12 +52,16 @@
 | output robustness · `sweep-capture` | ✅ | ✅ | ◑ | ✅ | ✅ | ⚠️ | · | ✅ | · |
 
 > **†** The `verify-chat-agent-e2e` capstone asks for **4 specific tools in ONE turn** (read → run_command →
-> create_card → update_focus_chain). That composition is **stochastic** for small models — even qwen3-8b varies run to
-> run (`🎲`): run 1 = 1/4 tools (stopped after read_file), run 2 = 3/4 tools with **both durable side effects holding**
-> (file marker echoed + card persisted) but skipped `update_focus_chain`. The loop is unchanged since the capstone was
-> first proven, so this is flakiness, not a regression — §5.M G7's "PASSES reliably" was optimistic. It is **not a
-> reliable per-model gate**; per-model chat capability is proven by the **individual** `run_command` / `create_card` /
-> `browse_url` rows (deterministic single-tool checks). `🎲` = flaky composition stress-test.
+> create_card → update_focus_chain). **Full loaded-roster sweep 2026-06-28 = 0/8 — a hard multi-tool-CHAIN wall**
+> (even qwen3-8b + coder-14b ❌). Root cause is consistent **chain-fatigue narration**: models do the FIRST calls for
+> real (read + command → marker echoes back), then NARRATE the later steps (`create_card`, `update_focus_chain`) in
+> prose/pseudo-code instead of calling them, so the board stays empty. Narration dialect varies run-to-run (qwen prose;
+> gemma alternates `tool_code = create_card(…)` ↔ markerless `"tool_name":…` JSON), which is why earlier single runs
+> looked flaky (`🎲`). The recoverable dialects execute via the existing client-seam narrated-recovery (now incl. gemma's
+> `tool_code`), but the durable fix is the **§5.AA retry-engine** forcing a parseable call mid-chain (constrained-decoding
+> rung). It is
+> **not a reliable per-model gate**; per-model chat capability is proven by the **individual** `run_command` /
+> `create_card` / `browse_url` / `read`/`write`/`send`/`runtime` rows (deterministic single-tool checks, all ✅/◑).
 >
 > **‡** `run_command` — the **command genuinely EXECUTES at runtime for 7/9** (✅ + ◑). `◑` = the command ran (the
 > agent called `run_command`, it executed) but the model's *reply* didn't echo the output (weak synthesis), so the
@@ -384,3 +388,14 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 19:44:44 · verify-chat-agent-e2e
 - ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 26s · INCOMPLETE — see above.
   - matrix row: gemma-4-e2b-m5max=❌
+
+### 2026-06-28 19:51:39 · verify-chat-create-card
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 27s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 8s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 12s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 18s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 41s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 10s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 14s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 17s · PASS ✓ the chat agent created a real board card at runtime.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅

@@ -242,6 +242,39 @@ describe("LocalLlmClient.completeWithTools", () => {
 		expect(result.toolCalls).toEqual([{ id: "narrated_0", name: "create_card", arguments: { title: "X" } }]);
 	});
 
+	it("recovers Gemma `tool_code` Python-call narration through the client seam (§5.Z e2e capstone dialect)", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									// gemma-4-e2b's live e2e dialect: a Python `tool_code` call instead of a structured tool_call.
+									content: 'tool_code = create_card(title="E2E-CARD-7777", prompt="from e2e")',
+									tool_calls: [],
+								},
+								finish_reason: "stop",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "gemma",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "make a card" }] }, [
+			{ name: "create_card", description: "Create a card", parameters: { type: "object" } },
+		]);
+		expect(result.toolCalls).toEqual([
+			{ id: "narrated_0", name: "create_card", arguments: { title: "E2E-CARD-7777", prompt: "from e2e" } },
+		]);
+	});
+
 	it("recovers a Phi `[TOOL_REQUEST]` call narrated in reasoning_content (§5.Z reasoning channel + Phi format)", async () => {
 		const fetchImpl = vi.fn(
 			async () =>
