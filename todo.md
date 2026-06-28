@@ -3453,8 +3453,15 @@ deep analysis:
       preamble is the harder ask). **KEY ASYMMETRY:** phi-4-reasoning-plus PASSES here (the SWARM path, which has the
       narrated recovery) yet FAILED both chat tools (the CHAT path, which lacks it) — near-conclusive evidence for the
       chat-path narrated-recovery fix below.
-- [ ] **Strict Docker isolation on a real task** (`verify-strict-isolation.mts`) + **restart/resume isolation**
-      (`verify-restart-resume-isolation.mts`) — proven: qwen3-8b. Remaining 8.
+- [~] **Strict Docker isolation on a real task** (`verify-strict-isolation.mts`) + **restart/resume isolation**
+      (`verify-restart-resume-isolation.mts`). **strict-isolation SWEPT (2026-06-28): 8/8 PASS** across the loaded roster —
+      qwen3-8b (re-confirmed on HEAD), gemma-4-e2b, qwen2.5-coder-14b, nemotron-3-nano, qwen3.5-9b, phi-4-mini-reasoning +
+      2 newer models (qwopus3.5-4b-coder, ornith-1.0-9b). Each: sandbox container appeared, **no host worktree**,
+      containers cleaned up. Matrix: 6 of the 9 roster columns now ✅ (rows in [cross-model-verification.md](docs/dev/cross-model-verification.md));
+      the remaining 3 (gemma-e4b, phi4-plus, deepseek) are **not currently loaded** — run when loaded. **Observation:** every
+      model ended `interrupted` (the harness asserts isolation, not completion, on a short task) — confirms the no-output
+      `interrupted` terminal state is common (validates the §5.AA `aborted` classification). **Still owed:** the
+      `restart-resume` half is still qwen3-8b-only — sweep it across the roster.
 - [~] **Chat agent tool loop (`verify-chat-*` family) — sweeping per-capability (2026-06-26).** The **deterministic
       single-tool** harnesses are the meaningful per-model proofs (sweeping below). **The 4-tools-in-one-turn
       `verify-chat-agent-e2e` capstone is FLAKY even on qwen3-8b** (run 1: 1/4 tools, stopped after read_file; run 2:

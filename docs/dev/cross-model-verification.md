@@ -33,7 +33,7 @@
 | decompose · `verify-decompose-isolation` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | single-card · `verify-task-completion` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | auto-promote · `verify-autopromote-recovery` | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
-| strict-isolation · `verify-strict-isolation` | ✅ | · | · | · | · | · | · | · | · |
+| strict-isolation · `verify-strict-isolation` | ✅ | ✅ | ✅ | ✅ | · | ✅ | · | ✅ | · |
 | restart-resume · `verify-restart-resume-isolation` | ✅ | · | · | · | · | · | · | · | · |
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
@@ -199,3 +199,15 @@
 - ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 7s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 6s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 · verify-strict-isolation (manual sweep, current HEAD)
+Strict Docker isolation invariant (#2) on a real task — sandbox container appears, NO host worktree, containers cleaned up — swept across the loaded roster. **8/8 PASS.** Note: every model ended the task in `interrupted` (the harness asserts isolation, not completion, and uses a short task; this also confirms the `interrupted`/no-output-abort terminal state is common — see §5.AA `aborted` classification).
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` (re-confirmed on HEAD)
+- ✅ **PASS** · `google/gemma-4-e2b-m5max`
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max`
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max`
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max`
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` (not in the 9-col matrix)
+- ✅ **PASS** · `ornith-1.0-9b-mlx` (not in the 9-col matrix)
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning`
+  - matrix coverage: 6 of the 9 roster columns now ✅ (qwen3-8b, coder-14b, qwen3.5-9b, gemma-e2b, phi4-mini, nemotron). Remaining 3 (gemma-e4b, phi4-plus, deepseek) are NOT currently loaded in LM Studio — run when loaded. The `restart-resume` half of the §5.Z line is still qwen3-8b-only.
