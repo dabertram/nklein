@@ -51,12 +51,28 @@ next step even for things that will only be *adapted later with low effort*).
   — the benchmark a frontier model would produce, with a quality rubric. Use it as a comparison anchor when judging how
   well a model processed a project; still always inspect the real generated output deeply. (Big enterprise/`dschinn`
   projects are left without — judge by inspection.)
-- **NEVER load models — only test/use ALREADY-LOADED ones (user directive 2026-06-28).** Requesting an inference for a
-  non-resident model makes LM Studio auto-load it (RAM/VRAM cost, freeze risk) — **loading is the USER's call, not ours**
-  (neither the harness nor !Klein). Checking *availability* is fine; loading is not. Detect the loaded (resident) set via
-  LM Studio's `/api/v0/models` `state` field — use `src/core/lmstudio-loaded-models.ts` (`fetchLoadedModelIds` /
-  `assertModelLoaded`); the verify harnesses already refuse a non-loaded model. **So the Phase-A "bigger model" lever is
-  not "load a 120B" — it's: surface model advice asking the USER to load a bigger model, then test it once they have.**
+- **MODEL LOADING — !Klein NOW MANAGES IT, GUARDED (user handover 2026-06-29; supersedes the 2026-06-28 no-load rule).**
+  The harness may load/unload models to work the catalog systematically, under HARD guardrails (the freeze risk that
+  motivated the old rule is handled by the headroom guard + these limits):
+  - **One model resident at a time** — UNLOAD the current model before LOADING the next (no pile-up; relieves the
+    consecutive-load stalls). (The user's own pinned/embedding models are the exception; never unload those.)
+  - **Context size = 40000** for every load (≥32k floor honored; one fixed window for now).
+  - **Size cap = ≤14B for now** (qwen2.5-coder-14b is the current ceiling). Raise the cap only as the tier roadmap below
+    is explicitly advanced.
+  - **Always headroom-check before a load** (`src/core/model-load-headroom.ts` `decideModelLoad`, keep ~25% RAM free) and
+    build the command via `src/core/lms-model-control.ts` (`planGuardedModelLoad` → `lms load … --context-length 40000`).
+    Restore the user's working set after a sweep.
+  - Detect the resident set via `/api/v0/models` `state` (`src/core/lmstudio-loaded-models.ts`); read sizes via `lms ps`
+    (`parseLmsPs`). `/v1/models` = available, `/api/v0/models` = resident.
+- **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** Work the classes in order, only
+  advancing when the current one is solid: **(1) smallest models** — make !Klein robust against them FIRST (the current
+  focus); **(2) mid ≤40B** — speed + quality/performance checks; **(3) ≤80B**; **(4) ≤130B** — "fun," only as long as the
+  M5 Max/128 GB runs them without heavy stalling/swapping; **above 130B** — out of scope (heavy swapping) unless the user
+  decides it's worth dedicated compute sessions / new hardware. Working hypothesis: ≤40B (occasionally ≤80B) gets us far.
+- **Research model catalogs + recommend downloads (user 2026-06-29).** Continuously research online model catalogs
+  (HF / LM Studio community / etc.) for promising LOCAL agentic models per the active tier (tool-calling + coding +
+  instruction-following strength), and surface a **download list for the USER** (the user downloads; !Klein then
+  load/unload-tests them). Keep the recommendations in `docs/dev/model-catalog-recommendations.md`.
 - **Roster discipline + weakest-model focus.** Keep EVERY model that has appeared in the roster (sweep-log table), even
   when unloaded — they pop in/out; collect the full history and adapt as new ones appear. **Each sweep, query the LOADED
   set first** (`/api/v0/models`) and target only those. Watch the **weakest** loaded models first — they hit a new
@@ -75,6 +91,11 @@ next step even for things that will only be *adapted later with low effort*).
   dev-test presets (`mid_task` · `complex_dag` · `wide_fanout` · `deep_chain` · `mixed_dag` · `many_small` ·
   `daw_foundation` · `audio_vst`). They run in an **isolated `HOME`**; some guard for a `nklein-verify` path segment.
   `PLAYWRIGHT_BROWSERS_PATH` must be **absolute** (a `~` re-expands under an isolated `HOME`).
+- **Hot-path / agent-loop changes are SELF-verifiable via the live UI — don't defer them for a human to "watch" (user
+  2026-06-29).** Drive the real app with **Playwright** (or another browser-control method) against the running
+  runtime + a live model: start a card / chat, watch it execute, assert the durable side effects. So the §5.AA controller
+  loop-wiring (and similar core-loop changes) is autonomously verifiable — build it, then drive the UI to confirm, paced
+  to respect the stall budget. No need to gate on a human watching.
 - **Power-aware timeouts.** The dev machine may run in **Low Power Mode** (less heat) — throughput can drop ~50%. The
   multi-card + task-completion harnesses **auto-scale their timeout** by the detected OS power mode (low ≈ ×2; never
   shortens) via `src/core/power-aware-timeout.ts`; they log `power=<mode> ×<mult>`. Override with
