@@ -3544,9 +3544,19 @@ deep analysis:
       after the final message, and the model re-emits. **REMAINING TRACE:** find that continuation site (session-service
       autonomous-turn loop) — that is where to track the per-turn no-tool final-answer run and call `detectRepeatedFinalAnswer`,
       parking-for-review on a repeat. NB the live qwen3.5-9b mid_task sweep (2026-06-28) showed its real non-termination is
-      **excessive re-reading (read_files×54) + 1 repeated tool call**, not pure final-message looping — so the watchdog
-      should likely also cover a repeated *tool-call* run (the existing `repeated-tool-call-guard.ts` may already, check it).
-      Only then wire + **verify live** (LM Studio + Docker available; the repro model `qwen3.5-9b-mlx-m5max` is loaded):
+      **excessive re-reading (read_files×54) + 1 repeated tool call**, not pure final-message looping. **CHECKED
+      `repeated-tool-call-guard.ts` (2026-06-28): the repeated-*tool-call* case is ALREADY guarded** — `RepeatedToolCallGuard`
+      runs on **every `emitSummary`** while `state === "running"`, fingerprints the full tool input, and parks after N
+      (base limit; 6 for read_files/run_commands). So qwen3.5-9b's 54 read_files are *advancing* (different inputs → not
+      parked, correct) and only 1 was a true identical repeat (below threshold). **⇒ The watchdog's UNIQUE value is the
+      no-tool final-MESSAGE repeat, and the natural home is a THIRD guard on the same `emitSummary` seam** (mirror
+      `RepeatedToolCallGuard`: per-task Map of consecutive no-tool final-answer fingerprints via `detectRepeatedFinalAnswer`,
+      reset on any tool-call activity, `parkTaskForAutonomyBudget` on a repeat) — IF a no-tool final-answer activity is
+      emitted while `state==="running"`. The live dump resolves the one open question: whether the 3494 "Done!" loop cycles
+      running→awaiting_review→(auto-continue)→running (then `AutonomyBudgetWatchdog` already sees each cycle and max-turns
+      eventually parks it — so the watchdog just makes it FASTER) or re-emits within one running agent loop (then the
+      `emitSummary` third-guard is required). Wire to whichever the dump shows, then **verify live** (LM Studio + Docker
+      available; the repro model `qwen3.5-9b-mlx-m5max` is loaded):
       `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts`
       (writes the file early, then never stops) → confirm the new trigger parks it promptly while a normal multi-turn task
       is untouched (no false-park). Do this as a dedicated pass with fresh context — a wrong hook point ships a guardrail
