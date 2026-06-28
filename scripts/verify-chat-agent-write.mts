@@ -10,7 +10,7 @@
  * Run:  tsx scripts/verify-chat-agent-write.mts
  *   env: NKLEIN_VERIFY_MODEL, NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1).
  */
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runChatAgentTurn } from "../src/chat/chat-agent-turn";
@@ -53,6 +53,9 @@ async function main(): Promise<void> {
 	const workspace = join(rootDir, "workspace");
 
 	try {
+		// The workspace root must exist before the write tool runs — `assertRealPathWithinWorkspace` realpaths it for
+		// containment, so a missing dir throws ENOENT (the read harness creates it; this one omitted it).
+		await mkdir(workspace, { recursive: true });
 		const client = new LocalLlmClient({ providerId: "lmstudio", modelId, baseUrl: BASE_URL });
 		const read = createWorkspaceReadTools(workspace);
 		const write = createWorkspaceWriteTools(workspace);

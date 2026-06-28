@@ -40,7 +40,7 @@
 | chat browse_url · `verify-chat-browse` | ✅ | · | · | · | · | · | · | · | · |
 | chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | · | · | · | · | · | · | · | · |
 | chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | · | · | ◑ | · |
-| chat write tool · `verify-chat-agent-write` | · | ✅ | · | · | · | · | · | · | · |
+| chat write tool · `verify-chat-agent-write` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
 | chat send · `verify-chat-send` | · | ✅ | · | · | · | · | · | · | · |
 | chat runtime · `verify-chat-runtime` | ✅ | · | · | · | · | · | · | · | · |
 | autonomous run · `verify-chat-autonomous-live` | ✅ | · | · | · | · | · | · | · | · |
@@ -240,3 +240,6 @@ Single-card delivery → awaiting_review + captured result branch, for two model
 - ✅ **PASS** · `qwen/qwen3-8b-m5max` — read_file called, audited, secret in reply.
 - ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` — read_file called, audited, secret in reply (re-confirmed after the fix).
 - ◑ **PARTIAL** · `qwen3.5-9b-mlx-m5max`, `google/gemma-4-e2b-m5max`, `nvidia/nemotron-3-nano-4b-m5max` — read_file **executed + audited correctly** (the gated-executor path works), but the model's reply didn't echo the secret (weak synthesis, same ◑ pattern as run_command). Matrix → ◑.
+
+### 2026-06-28 · verify-chat-agent-write (chat write tool) — fixed a missing-workspace harness bug, then swept
+**Harness bug fixed:** the harness never created the temp `workspace` dir before running, so the write tool's `assertRealPathWithinWorkspace` realpath threw ENOENT (FATAL) for every model (the read harness creates it; this one omitted it). The product is correct — the workspace root (always the real project dir) must exist. Added `mkdir(workspace, {recursive:true})`. Then swept the loaded roster — **4/4 PASS**: `qwen3-8b`, `qwen2.5-coder-14b` (re-confirmed), `qwen3.5-9b`, `gemma-4-e2b`, `nemotron-3-nano` each drove a write through the **confirm gate** (ran only after approval) and the audit recorded a confirmed+executed `sandbox_write`. Matrix → ✅ for all swept.
