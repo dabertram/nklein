@@ -44,7 +44,8 @@ export function lmStudioApiV0ModelsUrl(baseUrl: string): string {
  */
 export async function fetchLoadedModelIds(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string[]> {
 	try {
-		const res = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl));
+		// Bounded so it can never hang a hot path (e.g. task start) on an unreachable endpoint.
+		const res = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), { signal: AbortSignal.timeout(3_000) });
 		if (!res.ok) {
 			return [];
 		}
@@ -52,6 +53,14 @@ export async function fetchLoadedModelIds(baseUrl: string, fetchImpl: typeof fet
 	} catch {
 		return [];
 	}
+}
+
+/**
+ * Decide whether to BLOCK using `modelId` because it isn't resident — pure + lenient: block ONLY when we positively know
+ * the loaded set and it lacks the model (an empty/unknown loaded set ⇒ allow, so a missing endpoint never wedges things).
+ */
+export function shouldBlockUnloadedModel(modelId: string, loadedIds: readonly string[]): boolean {
+	return loadedIds.length > 0 && !loadedIds.includes(modelId);
 }
 
 /**

@@ -2,6 +2,7 @@ import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } 
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
+import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -9,7 +10,11 @@ import { resolveTaskTitle } from "../../core/task-title";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
 import { scheduleNKleinEndpointStart } from "../../nklein-agent/nklein-endpoint-scheduler";
-import { assertLocalProviderAllowed, isCloudProviderDisabledError } from "../../nklein-agent/nklein-local-only-policy";
+import {
+	assertLocalProviderAllowed,
+	isCloudProviderDisabledError,
+	isLocalProvider,
+} from "../../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelRegistryKey, getDefaultNKleinModelRegistry } from "../../nklein-agent/nklein-model-registry";
 import type {
 	createNKleinProviderService,
@@ -154,6 +159,23 @@ export async function handleStartTaskSession(
 		});
 		nkleinLaunchConfig = applyCandidateEffectiveContextWindow(nkleinLaunchConfig, selectedCandidate);
 		guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
+		// Never load models — only use ALREADY-LOADED ones (user directive 2026-06-28): !Klein must not trigger a model
+		// load. Refuse a LOCAL selected model that LM Studio hasn't loaded. Lenient (block only a positively-non-resident
+		// model; an unknown/unreachable endpoint ⇒ allow). Skipped under the test runner (no live endpoint to query).
+		if (
+			!(process.env.VITEST || process.env.NODE_ENV === "test") &&
+			nkleinLaunchConfig.modelId &&
+			isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)
+		) {
+			const loadedModelIds = await fetchLoadedModelIds(nkleinLaunchConfig.baseUrl ?? "http://127.0.0.1:1234/v1");
+			if (shouldBlockUnloadedModel(nkleinLaunchConfig.modelId, loadedModelIds)) {
+				return {
+					ok: false,
+					summary: null,
+					error: `Model "${nkleinLaunchConfig.modelId}" is not loaded in LM Studio. !Klein does not load models — load it in LM Studio first (loaded: ${loadedModelIds.join(", ") || "none"}).`,
+				};
+			}
+		}
 		for (const [role, settings] of Object.entries(scopedRuntimeConfig.effectiveModelRoles)) {
 			// #4 model pools: a role contributes its primary model plus every member of its additionalModels
 			// pool, all tagged with the same role, so task-start fans out across the free, feasible ones.

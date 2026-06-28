@@ -4,6 +4,7 @@ import {
 	fetchLoadedModelIds,
 	lmStudioApiV0ModelsUrl,
 	parseLoadedModelIds,
+	shouldBlockUnloadedModel,
 } from "../../../src/core/lmstudio-loaded-models";
 
 const payload = {
@@ -45,6 +46,14 @@ describe("fetchLoadedModelIds", () => {
 			throw new Error("unreachable");
 		}) as unknown as typeof fetch;
 		expect(await fetchLoadedModelIds("http://x/v1", throwingFetch)).toEqual([]);
+	});
+});
+
+describe("shouldBlockUnloadedModel", () => {
+	it("blocks only a positively-non-resident model; allows when the loaded set is unknown/empty", () => {
+		expect(shouldBlockUnloadedModel("ghost", ["loaded-a", "loaded-c"])).toBe(true);
+		expect(shouldBlockUnloadedModel("loaded-a", ["loaded-a", "loaded-c"])).toBe(false);
+		expect(shouldBlockUnloadedModel("anything", [])).toBe(false); // unknown/empty → allow (never wedge)
 	});
 });
 
