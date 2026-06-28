@@ -4463,11 +4463,22 @@ deep analysis:
       manifest facet (below). **Research addendum:** replay also needs per-tool idempotency keys + durable tool result
       hashes/refs and a replay mode (`reuse`/`simulate`/`skip`/`reconfirm`) so nondeterministic side effects are never
       silently repeated.
-- [ ] **Durable long-run job scheduler.** A background job runner that **checkpoints to the ledger** and **resumes** —
-      the cross-run, restart-survivable layer the fragile foreground `verify-*.mts` scripts lack (proven: the 30-min
-      multi-card run died on one transient `fetch failed`). Seeds: the endpoint scheduler (§6.5) + per-model concurrency
-      (§5.T). Unblocks M1's unattended pipeline run. **Research addendum:** make this lease-based (worker owns job until
-      heartbeat expiry), with durable reclaim semantics for process death and side-effect-unknown states.
+- [~] **Durable long-run job scheduler (C3 spine).** A background job runner that **checkpoints to the ledger** and
+      **resumes** — the cross-run, restart-survivable layer the fragile foreground `verify-*.mts` scripts lack (proven:
+      the 30-min multi-card run died on one transient `fetch failed`). Seeds: the endpoint scheduler (§6.5) + per-model
+      concurrency (§5.T). Unblocks M1/C3's unattended pipeline run. Lease-based (worker owns a job until heartbeat
+      expiry), with durable reclaim semantics for process death. **DECISION CORE DONE (2026-06-28):**
+      [src/core/durable-scheduler.ts](src/core/durable-scheduler.ts) — pure + deterministic `decideDurableSchedulerActions`
+      over a `DurableJob` graph (`blocked`/`ready`/`leased`/`succeeded`/`failed` + `dependsOn` + lease + attempts +
+      backoff): per tick it **reclaims** expired leases (frees slots first), **fails** budget-exhausted or
+      dependency-failed jobs, **unblocks** jobs whose deps all succeeded, and **leases** ready+eligible jobs up to the
+      concurrency cap — in a fixed priority order so a ledger **replay reproduces the same decisions**. Plus
+      `applyDurableSchedulerActions` / `markDurableJob` (external completion) / `isDurableRunComplete`. The action types
+      map 1:1 to the §5.AF `scheduler` ledger event family. 12 tests incl. a chain driven to completion across ticks;
+      tsc+biome green. **STILL OWED (the WIRING — the C3 gate):** persist the job graph as `scheduler` ledger events +
+      **replay on boot** (resume mid-run); a tick loop that dispatches `lease` actions to the endpoint scheduler/sandbox
+      pool + extends leases via heartbeats + records completion; map a decompose DAG → `DurableJob[]` (deps = card deps);
+      then run C3 (`complex_dag` unattended + restart-mid-run) on the §5.Z roster.
 - [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one

@@ -1,0 +1,235 @@
+/**
+ * The durable long-run job scheduler — DECISION CORE (todo §5.AF; the C3 "unattended + restart-survivable" milestone).
+ *
+ * A multi-card !Klein run is a dependency graph of jobs that must survive a runtime restart and a worker dying
+ * mid-flight. Today the foreground `verify-*.mts` pipeline is fragile (one transient `fetch failed` killed a 30-min
+ * run). The durable scheduler makes a run a persisted, lease-based job graph: each ready job is **leased** to a worker
+ * with a heartbeat-bounded expiry; if the worker dies (lease expires) the job is **reclaimed** and retried within a
+ * budget; dependent jobs **unblock** only when their dependencies succeed. The persisted state lives in the §5.AF
+ * Agent Attempt Ledger (the `scheduler` event family — `queued`/`dequeued`/`lease_acquired`/`heartbeat`/`lease_expired`/
+ * `reclaimed`/`retry_backoff`/`cancelled`/`dependency_unblocked`), so a fresh process replays the ledger and resumes
+ * "exactly where it was" without re-asking a weak model to rediscover state.
+ *
+ * This module is the PURE, deterministic brain: given the current jobs + clock + caps, it decides the next actions
+ * (reclaim / fail / unblock / lease). It runs nothing and persists nothing — the runtime layer applies the actions,
+ * appends the matching ledger events, and dispatches leased jobs to the endpoint scheduler (§6.5) / sandbox pool.
+ * Pure-core-first mirrors `retry-policy` / `model-fitness` / `agent-attempt-ledger`, so the "what to schedule next"
+ * logic is fully testable before its wiring (and replayable, §5.AF replay).
+ *
+ * Invariants: host-side control-plane only (#1/#2 — it decides scheduling, never runs the agent); deterministic given
+ * its inputs (so a replay reproduces the same decisions); terminating (a job either reaches a terminal state or is
+ * leased/ready, never lost).
+ */
+
+/** Lifecycle state of one durable job. Terminal: `succeeded` / `failed`. */
+export type DurableJobState =
+	/** Waiting on at least one dependency that has not succeeded yet. */
+	| "blocked"
+	/** All dependencies succeeded and the job is eligible to be leased (subject to backoff + concurrency). */
+	| "ready"
+	/** A worker holds a (heartbeat-bounded) lease and is responsible for running it. */
+	| "leased"
+	| "succeeded"
+	| "failed";
+
+export interface DurableJobLease {
+	workerId: string;
+	/** Epoch ms after which the lease is considered lost (the worker missed its heartbeat) and may be reclaimed. */
+	expiresAt: number;
+}
+
+export interface DurableJob {
+	jobId: string;
+	state: DurableJobState;
+	/** Job ids that must reach `succeeded` before this job may run. */
+	dependsOn: readonly string[];
+	/** Non-null only while `leased`. */
+	lease: DurableJobLease | null;
+	/** How many times the job has been leased (each reclaim-then-release counts) — the retry budget basis. */
+	attempts: number;
+	/** Earliest epoch ms the job may be (re)leased — set by retry-backoff after a reclaim. */
+	nextEligibleAt: number;
+}
+
+export type DurableSchedulerAction =
+	/** A `leased` job whose lease expired (worker presumed dead) → back to `ready` with backoff (within budget). */
+	| { type: "reclaim"; jobId: string; reason: "lease_expired" }
+	/** A job that can no longer make progress → `failed`. */
+	| { type: "fail"; jobId: string; reason: "max_attempts" | "dependency_failed" }
+	/** A `blocked` job whose dependencies all succeeded → `ready`. */
+	| { type: "unblock"; jobId: string }
+	/** A `ready`, eligible job granted a worker lease → `leased`. */
+	| { type: "lease"; jobId: string; workerId: string; expiresAt: number };
+
+export interface DurableSchedulerInput {
+	jobs: readonly DurableJob[];
+	/** Current clock (epoch ms). Passed in so the core stays pure + replay-deterministic. */
+	now: number;
+	/** Max jobs that may hold a lease at once (the run's concurrency cap; ≥1). */
+	maxConcurrentLeases: number;
+	/** Lease length granted on a new lease (ms; ≥1). */
+	leaseDurationMs: number;
+	/** Lease attempts allowed before a repeatedly-dying job is failed (≥1). */
+	maxAttempts: number;
+	/** Backoff before a reclaimed job becomes eligible again (ms; ≥0). */
+	reclaimBackoffMs: number;
+	/** Mint a worker id for a new lease (e.g. a uuid). Called once per `lease` action, in decision order. */
+	mintWorkerId: () => string;
+}
+
+function dependenciesSucceeded(job: DurableJob, byId: ReadonlyMap<string, DurableJob>): boolean {
+	return job.dependsOn.every((depId) => byId.get(depId)?.state === "succeeded");
+}
+
+function anyDependencyFailed(job: DurableJob, byId: ReadonlyMap<string, DurableJob>): boolean {
+	return job.dependsOn.some((depId) => byId.get(depId)?.state === "failed");
+}
+
+/**
+ * Decide the scheduler's next actions for this tick, deterministically, in a fixed priority order so a replay
+ * reproduces them:
+ *   1. **reclaim** expired leases (frees slots first) — unless the attempt budget is spent, then **fail** the job;
+ *   2. **fail** any job whose a dependency has failed (it can never run);
+ *   3. **unblock** blocked jobs whose dependencies all succeeded;
+ *   4. **lease** ready + eligible jobs (deps met, past backoff), oldest-first by input order, up to the free
+ *      concurrency slots.
+ * Actions are returned against the INPUT snapshot; the caller applies them (see `applyDurableSchedulerActions`),
+ * appends the matching `scheduler` ledger events, and dispatches the leased jobs. Returns `[]` when nothing is due.
+ */
+export function decideDurableSchedulerActions(input: DurableSchedulerInput): DurableSchedulerAction[] {
+	const maxConcurrent = Math.max(1, Math.trunc(input.maxConcurrentLeases));
+	const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts));
+	const leaseDurationMs = Math.max(1, Math.trunc(input.leaseDurationMs));
+	const reclaimBackoffMs = Math.max(0, Math.trunc(input.reclaimBackoffMs));
+	const byId = new Map(input.jobs.map((job) => [job.jobId, job]));
+	const actions: DurableSchedulerAction[] = [];
+
+	// Track lease occupancy as we go so reclaims free slots that new leases can immediately reuse this same tick.
+	let activeLeases = input.jobs.filter((job) => job.state === "leased").length;
+
+	// 1. Reclaim expired leases (or fail if the budget is spent). A reclaim frees a slot.
+	for (const job of input.jobs) {
+		if (job.state !== "leased" || job.lease === null || job.lease.expiresAt > input.now) {
+			continue;
+		}
+		activeLeases -= 1;
+		if (job.attempts >= maxAttempts) {
+			actions.push({ type: "fail", jobId: job.jobId, reason: "max_attempts" });
+		} else {
+			actions.push({ type: "reclaim", jobId: job.jobId, reason: "lease_expired" });
+		}
+	}
+
+	// 2. Fail non-terminal jobs blocked behind a failed dependency (they can never run).
+	for (const job of input.jobs) {
+		if ((job.state === "blocked" || job.state === "ready") && anyDependencyFailed(job, byId)) {
+			actions.push({ type: "fail", jobId: job.jobId, reason: "dependency_failed" });
+		}
+	}
+
+	// 3. Unblock blocked jobs whose dependencies all succeeded.
+	for (const job of input.jobs) {
+		if (job.state === "blocked" && !anyDependencyFailed(job, byId) && dependenciesSucceeded(job, byId)) {
+			actions.push({ type: "unblock", jobId: job.jobId });
+		}
+	}
+
+	// 4. Lease ready + eligible jobs up to the free slots. Include jobs reclaimed/unblocked above (they become
+	//    eligible this tick) — but never a job we just decided to fail.
+	const failedThisTick = new Set(actions.filter((action) => action.type === "fail").map((action) => action.jobId));
+	const reclaimedThisTick = new Set(
+		actions.filter((action) => action.type === "reclaim").map((action) => action.jobId),
+	);
+	const unblockedThisTick = new Set(
+		actions.filter((action) => action.type === "unblock").map((action) => action.jobId),
+	);
+	for (const job of input.jobs) {
+		if (activeLeases >= maxConcurrent) {
+			break;
+		}
+		if (failedThisTick.has(job.jobId)) {
+			continue;
+		}
+		const willBeReady = job.state === "ready" || reclaimedThisTick.has(job.jobId) || unblockedThisTick.has(job.jobId);
+		if (!willBeReady) {
+			continue;
+		}
+		// A reclaimed job's backoff starts now; an already-ready job must be past its recorded backoff.
+		const eligibleAt = reclaimedThisTick.has(job.jobId) ? input.now + reclaimBackoffMs : job.nextEligibleAt;
+		if (eligibleAt > input.now) {
+			continue;
+		}
+		if (!dependenciesSucceeded(job, byId)) {
+			continue;
+		}
+		actions.push({
+			type: "lease",
+			jobId: job.jobId,
+			workerId: input.mintWorkerId(),
+			expiresAt: input.now + leaseDurationMs,
+		});
+		activeLeases += 1;
+	}
+
+	return actions;
+}
+
+/**
+ * Apply scheduler actions to a job snapshot, returning the next snapshot (pure; for the caller's in-memory mirror +
+ * tests + replay). External completion (a worker reporting `succeeded`/`failed`) is a separate transition — see
+ * `markDurableJob`. `now`/`reclaimBackoffMs` set the reclaimed job's backoff window.
+ */
+export function applyDurableSchedulerActions(
+	jobs: readonly DurableJob[],
+	actions: readonly DurableSchedulerAction[],
+	options: { now: number; reclaimBackoffMs: number },
+): DurableJob[] {
+	const byId = new Map(jobs.map((job) => [job.jobId, { ...job }]));
+	for (const action of actions) {
+		const job = byId.get(action.jobId);
+		if (!job) {
+			continue;
+		}
+		switch (action.type) {
+			case "reclaim":
+				job.state = "ready";
+				job.lease = null;
+				job.nextEligibleAt = options.now + Math.max(0, Math.trunc(options.reclaimBackoffMs));
+				break;
+			case "fail":
+				job.state = "failed";
+				job.lease = null;
+				break;
+			case "unblock":
+				job.state = "ready";
+				break;
+			case "lease":
+				job.state = "leased";
+				job.lease = { workerId: action.workerId, expiresAt: action.expiresAt };
+				job.attempts += 1;
+				break;
+		}
+	}
+	return [...byId.values()];
+}
+
+/**
+ * Record an external completion for a leased job: the worker finished it (`succeeded`) or it hit a terminal failure
+ * (`failed`, e.g. the §5.AA retry ladder parked it). A no-op if the job isn't found or is already terminal.
+ */
+export function markDurableJob(
+	jobs: readonly DurableJob[],
+	jobId: string,
+	outcome: "succeeded" | "failed",
+): DurableJob[] {
+	return jobs.map((job) =>
+		job.jobId === jobId && job.state !== "succeeded" && job.state !== "failed"
+			? { ...job, state: outcome, lease: null }
+			: job,
+	);
+}
+
+/** True when every job is terminal (`succeeded`/`failed`) — the run is finished and the scheduler can stop ticking. */
+export function isDurableRunComplete(jobs: readonly DurableJob[]): boolean {
+	return jobs.every((job) => job.state === "succeeded" || job.state === "failed");
+}
