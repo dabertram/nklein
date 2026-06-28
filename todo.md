@@ -540,6 +540,18 @@ deep analysis:
 > 6. **The next chapter** = work toward `M_{n+1}`, its content = (a) the limitations the last challenge surfaced (highest
 >    priority) **interleaved with** (b) the relevant §5 backlog arcs (below). Then go to step 1.
 >
+> **NEVER IDLE THE LOCAL LLMs (2026-06-28, user — standing).** The local endpoint serializes requests, so while the agent
+> does **non-LLM work** (coding, reasoning, docs, refactors) the GPUs would otherwise sit idle. Keep them busy with
+> **background** harness runs (`run_in_background` / a `Monitor` watch) that produce durable data:
+> 1. **Flakiness / reliability** — re-run **already-passing** challenges across the roster. A single pass is not proof
+>    (reliability is itself a §5.AB fitness signal); repeat-runs catch stochastic flakiness and feed per-model variance.
+> 2. **Early scouting** — run **upcoming** challenge levels ahead of their chapter to collect findings early, so the next
+>    chapter is shaped by real data before it starts (the MCF's "limitations decide what's next", pre-fetched).
+> Record results in the scoreboard ([cross-model-verification.md](docs/dev/cross-model-verification.md)) +
+> [milestone-challenges.md](docs/dev/milestone-challenges.md) (a `repeats: N/M` reliability column / scout rows). Keep it
+> non-contending (don't fire foreground LLM work that races the background sweep) and clean (isolated HOME, teardown,
+> restore the user's model selection). This is free throughput — the user is happy to spend it; use it continuously.
+>
 > **Difficulty axes (so each challenge is meaningfully harder, not just "more of the same"):** DAG size + dependency depth ·
 > cross-file / cross-module consistency · goal ambiguity (needs clarification/inference, §5.S) · horizon length (turns /
 > wall-time / context-compaction pressure, §5.AD) · parallelism + shared-resource contention (§5.W/§6.5) · **model weakness**
