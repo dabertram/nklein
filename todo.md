@@ -942,9 +942,15 @@ deep analysis:
   - [x] **P2 — keep commits with empty subjects in log parsing (DONE 2026-06-28).** `parseCommitRecord` dropped a commit
         with an empty `%s` subject (it was a required field); empty subjects are valid (`--allow-empty-message`). Now only
         the structural fields (hash/shortHash/date) are required; `message` may be empty. Regression test added (7 pass).
-  - [ ] **P2 — improve branch-switch discoverability.** Branch switching now relies on double-click in refs (low
-        discoverability). Add an explicit checkout affordance in refs rows (button/menu/shortcut hint); keep double-click
-        as optional power-user behavior.
+  - [x] **P2 — improve branch-switch discoverability (DONE 2026-06-28).** Checking out a branch was double-click-only,
+        with the sole hint buried in the refs-panel Info tooltip. Each non-HEAD **local** branch row now carries an
+        explicit **switch (⇄) button** (`ArrowLeftRight`, hover/focus-revealed via a Tailwind `group`/`group-hover` +
+        `focus-visible` reveal so it's keyboard-reachable) that calls the same `onCheckoutRef` → `switchHomeBranch`
+        flow (which already toasts on failure). Double-click is **kept** as the power-user shortcut, and the Info
+        tooltip now documents the button first. HEAD rows get no affordance (can't check out the current branch).
+        Web regression tests added (switch button checks out the branch + does NOT also fire ref-select; absent when no
+        checkout handler; HEAD row has none); web-ui tsc + biome + tests green. *(Live Playwright pass folded into the
+        §5.A increment-4 UI pass below.)*
   - [ ] **P3 — reduce refresh cost on large repos.** Polling + repeated total-count queries are expensive on large
         histories. Reduce background-refresh frequency when the app is idle; avoid full count recomputation on every
         background poll; consider count caching keyed by selected ref.

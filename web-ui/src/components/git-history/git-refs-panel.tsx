@@ -1,5 +1,16 @@
 import { Fzf } from "fzf";
-import { AlertCircle, ArrowDown, ArrowUp, Cloud, FileText, GitBranch, Info, Locate, Search } from "lucide-react";
+import {
+	AlertCircle,
+	ArrowDown,
+	ArrowLeftRight,
+	ArrowUp,
+	Cloud,
+	FileText,
+	GitBranch,
+	Info,
+	Locate,
+	Search,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { renderFuzzyHighlightedText } from "@/components/shared/render-fuzzy-highlighted-text";
@@ -156,7 +167,9 @@ export function GitRefsPanel({
 								Use {closeShortcutLabel} to close, or Escape to close, or click the button in the branch menu to
 								close.
 							</div>
-							<div>Double-click a branch to switch to that branch.</div>
+							<div>
+								Hover a branch and click the switch (⇄) button to check it out — or double-click the branch.
+							</div>
 						</div>
 					}
 					side="bottom"
@@ -270,7 +283,8 @@ export function GitRefsPanel({
 									key={ref.name}
 									isSelected={isSelected}
 									onSelect={() => onSelectRef(ref)}
-									onDoubleClick={onCheckoutRef ? () => onCheckoutRef(ref.name) : undefined}
+									onCheckout={onCheckoutRef ? () => onCheckoutRef(ref.name) : undefined}
+									checkoutLabel={`Switch to ${ref.name}`}
 								>
 									<GitBranch size={12} />
 									<span className="kb-line-clamp-1" style={{ flex: 1 }}>
@@ -346,19 +360,21 @@ function RefRow({
 	isSelected,
 	selectedClassName,
 	onSelect,
-	onDoubleClick,
+	onCheckout,
+	checkoutLabel,
 	children,
 }: {
 	isSelected: boolean;
 	selectedClassName?: string;
 	onSelect: () => void;
-	onDoubleClick?: () => void;
+	onCheckout?: () => void;
+	checkoutLabel?: string;
 	children: React.ReactNode;
 }): React.ReactElement {
 	const resolvedSelectedClass = selectedClassName ?? "kb-git-ref-row-selected";
 	return (
 		<div
-			className={isSelected ? `kb-git-ref-row ${resolvedSelectedClass}` : "kb-git-ref-row"}
+			className={`group ${isSelected ? `kb-git-ref-row ${resolvedSelectedClass}` : "kb-git-ref-row"}`}
 			style={{
 				display: "flex",
 				alignItems: "center",
@@ -375,7 +391,7 @@ function RefRow({
 			<button
 				type="button"
 				onClick={onSelect}
-				onDoubleClick={onDoubleClick}
+				onDoubleClick={onCheckout}
 				className="kb-git-ref-row-main"
 				style={{
 					display: "flex",
@@ -396,6 +412,19 @@ function RefRow({
 			>
 				{children}
 			</button>
+			{onCheckout ? (
+				<Tooltip content={checkoutLabel ?? "Switch to this branch"} side="left">
+					<button
+						type="button"
+						onClick={onCheckout}
+						aria-label={checkoutLabel ?? "Switch to this branch"}
+						className="kb-git-ref-checkout flex shrink-0 items-center justify-center rounded text-text-tertiary opacity-0 transition-opacity hover:bg-surface-3 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100"
+						style={{ width: 22, height: 22, border: "none", background: "transparent", cursor: "pointer" }}
+					>
+						<ArrowLeftRight size={12} />
+					</button>
+				</Tooltip>
+			) : null}
 		</div>
 	);
 }
