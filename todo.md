@@ -3510,12 +3510,13 @@ deep analysis:
         found by the sweep:** `verify-chat-agent-tools` checked `record.detail === "read_file"` but `detail` is the path
         arg (tool id is `record.action === "sandbox_read"`) → falsely failed every model; `verify-chat-agent-write` never
         `mkdir`'d its temp workspace → `realpath` ENOENT FATAL for every model. Both fixed; matrix rows updated.
-- [~] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b (prior). **Re-run 2026-06-28 on a
-      fresh isolated-HOME dev:full (runtime :3484 + web UI :4173, model pinned via tRPC):** the §5.0.1 loop **CORE works** —
-      it started ("Working autonomously…") and drove to a stop reason (`stopped: true`). BUT qwen3-8b consistently (2 runs)
-      reached "⏸ Needs your input · 1 turn" with **0 transcript messages**, so the harness's transcript-growth gate failed.
-      Not flipped to a regression (prior ✅ stands; this is a fresh empty-board session where the model immediately requested
-      input). **ROOT-CAUSED 2026-06-28 — NOT a bug; my test env was incomplete:** traced to
+- [x] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — **RE-CONFIRMED end-to-end on HEAD (2026-06-28).**
+      After creating a dev-test project (→ current project + active workspace) and pinning the model on a fresh dev:full,
+      qwen3-8b **PASSES**: "✓ Goal complete · 1 turn · 1/1 steps", transcript = 2 messages, `stopped: true` — the §5.0.1
+      autonomous loop drives a real local model to goal-complete with persisted turns. (The earlier "needs input · 0
+      transcript" on the *empty-board* run was the no-workspace early-pause at chat-autonomous-wiring.ts:99, NOT a bug —
+      the harness needs a project/workspace in scope, not just a pinned model.) Remaining roster models pending (each needs
+      the same project+workspace setup). **ROOT-CAUSED 2026-06-28 — NOT a bug; my test env was incomplete:** traced to
       [chat-autonomous-wiring.ts:99-102](src/chat/chat-autonomous-wiring.ts#L99) — when `assembleTurnDeps` returns null
       (**no active workspace OR loaded model**), the run sets `userQuestion = "Autonomous work paused: no active workspace
       or loaded local model. Open a project / load a model, then resume."` and returns `{finalText:"", steps:[]}` WITHOUT
