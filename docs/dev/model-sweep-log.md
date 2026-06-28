@@ -112,7 +112,12 @@
 |---|:-:|---|
 | token counting | 🔧 | 🐞🔧 `countKanbanTextTokens` hit BPE ~O(n²) on long single-char runs (120 KB `get_file_size` ~6 s, blocked the event loop) → chunked + capped; **6000 ms → 85 ms**. Behind every budget/size check, so it lifts all models' turn latency. |
 
-### 2026-06-28 · **C3 post-throughput-fix re-scout** · `complex_dag` · qwen3-8b
+### 2026-06-28 · **C3 post-throughput-fix re-scout** · `complex_dag` · qwen3-8b · _(Low Power)_
 | model | decompose | all-terminal | note |
 |---|:-:|:-:|---|
-| qwen3-8b | _running_ | _pending_ | measuring whether faster agent turns improve multi-card completion |
+| qwen3-8b | ✅ (13 cards) | ⏳ | 🔧 **power-aware timeout validated live** — auto-scaled 15→30 min (`power=low ×2`); INCOMPLETE but **inconclusive for the fix** (run was under Low Power ~50% throughput — confounded regime; single-endpoint serialization + low-power dominate). Re-run at high power to isolate the fix's effect. |
+
+### 2026-06-28 · **infra fix** · LM Studio `/models` catalog no longer hammered
+| area | result | note |
+|---|:-:|---|
+| roster discovery | 🔧 | 🐞🔧 the `/api/v0/models` catalog was hit ~every second → added a 30 s TTL cache (`nklein-provider-service.ts`); polled ≤ once/30 s now. Harness should also *monitor* the LM Studio dev log for recurrence (todo §5.Z). |
