@@ -470,3 +470,34 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 15s · INCOMPLETE — see above.
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 11s · INCOMPLETE — see above.
   - matrix row: qwen2.5-coder-14b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌
+
+### 2026-06-28 21:30:44 · verify-chat-agent-e2e
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 98s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=❌
+
+### 2026-06-28 21:31:11 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 15s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 11s · INCOMPLETE — see above.
+  - matrix row: qwen2.5-coder-14b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌
+
+### 2026-06-28 21:33:05 · verify-chat-agent-e2e
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 114s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=❌
+
+### 2026-06-28 21:33:29 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 15s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 8s · INCOMPLETE — see above.
+  - matrix row: qwen2.5-coder-14b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌
+
+### 2026-06-28 21:35:33 · verify-chat-agent-e2e
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 124s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=❌
+
+### 2026-06-28 21:35:55 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 14s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 8s · INCOMPLETE — see above.
+  - matrix row: qwen2.5-coder-14b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌
+
+### 2026-06-28 21:37:58 · verify-chat-agent-e2e
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 123s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=❌
