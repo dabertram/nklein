@@ -501,3 +501,7 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 21:37:58 · verify-chat-agent-e2e
 - ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 123s · INCOMPLETE — see above.
   - matrix row: phi-4-mini-reasoning=❌
+
+### 2026-06-28 21:42:35 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 16s · INCOMPLETE — see above.
+  - matrix row: qwen2.5-coder-14b-m5max=❌
