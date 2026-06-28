@@ -43,8 +43,9 @@ export async function getGitLog(options: {
 	refs?: string[] | null;
 	maxCount?: number;
 	skip?: number;
+	includeTotalCount?: boolean;
 }): Promise<RuntimeGitLogResponse> {
-	const { cwd, ref, refs, maxCount = 200, skip = 0 } = options;
+	const { cwd, ref, refs, maxCount = 200, skip = 0, includeTotalCount = true } = options;
 
 	const repoRootResult = await runGit(cwd, ["rev-parse", "--show-toplevel"]);
 	if (!repoRootResult.ok || !repoRootResult.stdout) {
@@ -92,6 +93,12 @@ export async function getGitLog(options: {
 				relation: relationMap.get(commit.hash) ?? "shared",
 			};
 		}
+	}
+
+	// Skip the O(history) `rev-list --count` on background/silent refreshes (git-view P3) — the client retains its
+	// last known count on the `-1` sentinel rather than re-counting the whole history on every workspace-state bump.
+	if (!includeTotalCount) {
+		return { ok: true, commits, totalCount: -1 };
 	}
 
 	const countResult = await runGit(repoRoot, [

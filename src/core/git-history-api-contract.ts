@@ -34,6 +34,10 @@ export const runtimeGitLogRequestSchema = z.object({
 	maxCount: z.number().int().positive().optional(),
 	skip: z.number().int().nonnegative().optional(),
 	taskScope: runtimeTaskWorkspaceInfoRequestSchema.nullable().optional(),
+	// When false, skip the `rev-list --count` total-count recomputation (O(history) — costly on large repos) and
+	// return `totalCount: -1` as a "count unchanged" sentinel. Background/silent refreshes set this so the client
+	// retains its last known count instead of re-counting the whole history on every workspace-state bump (git-view P3).
+	includeTotalCount: z.boolean().optional(),
 });
 export type RuntimeGitLogRequest = z.infer<typeof runtimeGitLogRequestSchema>;
 

@@ -103,6 +103,31 @@ describe.sequential("git history runtime", () => {
 		}
 	});
 
+	it("skips the total-count recomputation and returns the -1 sentinel when includeTotalCount is false (git-view P3)", async () => {
+		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-skipcount-");
+		try {
+			initRepository(repoPath);
+			writeFileSync(join(repoPath, "first.txt"), "hello\n", "utf8");
+			commitAll(repoPath, "first commit");
+			writeFileSync(join(repoPath, "second.txt"), "world\n", "utf8");
+			commitAll(repoPath, "second commit");
+
+			// A normal request still counts the whole history.
+			const counted = await getGitLog({ cwd: repoPath });
+			expect(counted.ok).toBe(true);
+			expect(counted.totalCount).toBe(2);
+
+			// A background/silent request skips the O(history) count and signals "unchanged" with -1, while still
+			// returning the requested commit page.
+			const skipped = await getGitLog({ cwd: repoPath, includeTotalCount: false });
+			expect(skipped.ok).toBe(true);
+			expect(skipped.totalCount).toBe(-1);
+			expect(skipped.commits).toHaveLength(2);
+		} finally {
+			cleanup();
+		}
+	});
+
 	it("returns the first-parent diff for a merge commit instead of an empty list (git-view P2)", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-merge-");
 		try {

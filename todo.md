@@ -922,8 +922,10 @@ deep analysis:
       ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) (command-not-found,
       missing-script/dep, type/lint/compile error, test-failure, timeout, unknown) with label + next-step hint,
       wired onto the gate result + rendered on the card's Verify result. Tested.
-- [ ] **Git-view hardening follow-ups** *(folded 2026-06-28 from a now-removed planning doc (`git-view-followup-work.md`); the
+- [x] **Git-view hardening follow-ups (ALL DONE 2026-06-28)** *(folded 2026-06-28 from a now-removed planning doc (`git-view-followup-work.md`); the
       Git view v1 shipped, these are its edge-case hardening items)*. Each needs a runtime test + (where UI) a web test.
+      All six children below (P1 invalid-hash, P1 merge-diff, P1 UI error-state, P2 empty-subject, P2 branch-switch
+      discoverability, P3 large-repo refresh cost) are complete.
   - [x] **P1 — surface real errors for invalid commit-diff requests (DONE 2026-06-28).** `getCommitDiff`
         ([git-history.ts](src/workspace/git-history.ts)) now verifies the commit resolves (`rev-parse --verify --quiet
         <hash>^{commit}`) before the diff-tree/show calls; an invalid/unknown hash returns `ok:false` + a clear `error`
@@ -951,9 +953,21 @@ deep analysis:
         Web regression tests added (switch button checks out the branch + does NOT also fire ref-select; absent when no
         checkout handler; HEAD row has none); web-ui tsc + biome + tests green. *(Live Playwright pass folded into the
         §5.A increment-4 UI pass below.)*
-  - [ ] **P3 — reduce refresh cost on large repos.** Polling + repeated total-count queries are expensive on large
-        histories. Reduce background-refresh frequency when the app is idle; avoid full count recomputation on every
-        background poll; consider count caching keyed by selected ref.
+  - [x] **P3 — reduce refresh cost on large repos (DONE 2026-06-28).** Git history refreshes are driven by
+        workspace-state bumps (frequent under active agents), and each one re-ran the full git-log fetch including
+        `rev-list --count` over the whole history (O(history) — costly on large repos). Three fixes: **(1) debounce** —
+        the `stateVersion`-driven background refresh is coalesced into a single trailing-edge refresh
+        (`BACKGROUND_REFRESH_DEBOUNCE_MS = 500`), so a burst of bumps no longer fires a refresh each. **(2) skip the
+        count on background refreshes** — `getGitLog` gained an `includeTotalCount` flag (contract +
+        [git-history.ts](src/workspace/git-history.ts)); silent refreshes pass `false`, the backend skips the
+        `rev-list --count` and returns `totalCount: -1`, and the client retains its last known count on that sentinel.
+        **(3) stop per-refetch foreground reloads** — the reset+reload effect now gates on the content-based `logKey`
+        (via a ref) instead of the `logRefs`/`loadCommits` instances, so a background refs-refetch that produces new
+        array instances with identical content no longer triggers a full foreground reload + count recompute (this
+        also effectively caches the count per ref-set, suggestion #3 — a real ref change flips `logKey` → foreground
+        reload recomputes). Backend test (skip → `-1`, real count otherwise) + 2 client tests (count retained on the
+        sentinel + foreground asks for it; burst coalesces to one background refresh); root + web-ui tsc/biome + full
+        suites green.
 - [ ] **Worktree symlinked-ignored-roots + diff-UI phantom-file fixes** *(folded 2026-06-28 from a now-removed planning doc (`worktree-ignored-symlink-investigation.md`))*. Two independent fixes (legacy host worktrees still exist
       for migrated boards, §5.A): **(a)** ensure symlinked ignored roots stay ignored *locally* via the worktree's
       `.git/info/exclude` (Git treats an "ignored directory" and a "symlink to an ignored directory" differently — once

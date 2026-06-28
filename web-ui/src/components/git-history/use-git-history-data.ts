@@ -16,6 +16,9 @@ export type GitHistoryViewMode = "working-copy" | "commit";
 
 const INITIAL_COMMIT_PAGE_SIZE = 150;
 const COMMIT_PAGE_SIZE = 150;
+// Coalesce bursty workspace-state bumps (an active agent can fire many per second) into a single trailing-edge
+// background refresh, so a large repo isn't re-logged/re-counted on every bump (git-view P3).
+const BACKGROUND_REFRESH_DEBOUNCE_MS = 500;
 const EMPTY_REFS: RuntimeGitRef[] = [];
 const EMPTY_LOG_REFS: string[] = [];
 
@@ -204,6 +207,9 @@ export function useGitHistoryData({
 						maxCount: options.maxCount,
 						skip: options.skip,
 						taskScope: taskScope ?? null,
+						// Silent (background) refreshes skip the costly total-count recomputation and keep the last known
+						// count; foreground loads, ref changes, and load-more recompute it (git-view P3).
+						includeTotalCount: !options.silent,
 					},
 					{
 						signal: abortController.signal,
@@ -227,7 +233,11 @@ export function useGitHistoryData({
 				}
 
 				setLogErrorMessage(null);
-				setTotalCommitCount(payload.totalCount);
+				// A negative total-count is the "count unchanged" sentinel from a silent refresh (git-view P3): keep the
+				// last known count instead of clobbering it with a stale/placeholder value.
+				if (payload.totalCount >= 0) {
+					setTotalCommitCount(payload.totalCount);
+				}
 				setResolvedLogKey(logKey);
 				setCommits((current) => {
 					if (!options.append) {
@@ -268,7 +278,17 @@ export function useGitHistoryData({
 		[abortInFlightLogRequest, enabled, isAbortError, logKey, logRefs, taskScope, workspaceId],
 	);
 
+	const lastReloadLogKeyRef = useRef<string | null>(null);
 	useEffect(() => {
+		// Only reset + reload when the resolved ref-set actually changes by CONTENT (via the stable `logKey` string) —
+		// not merely because a background refs-refetch produced new `refs`/`logRefs`/`loadCommits` instances. Otherwise
+		// every workspace-state bump would re-run this effect and fire a full (non-silent) foreground log reload + count
+		// recompute, defeating the silent-refresh count-skip (git-view P3). `logKey` already folds in the scope and the
+		// refs (and flips to a "no ref" key when refs are cleared on disable/scope-change), so it covers those resets.
+		if (lastReloadLogKeyRef.current === logKey) {
+			return;
+		}
+		lastReloadLogKeyRef.current = logKey;
 		abortInFlightLogRequest();
 		setCommits([]);
 		setTotalCommitCount(0);
@@ -284,7 +304,7 @@ export function useGitHistoryData({
 			maxCount: INITIAL_COMMIT_PAGE_SIZE,
 			append: false,
 		});
-	}, [abortInFlightLogRequest, enabled, loadCommits, logRefs, workspaceId]);
+	}, [abortInFlightLogRequest, enabled, loadCommits, logKey, logRefs, workspaceId]);
 
 	useEffect(() => {
 		return () => {
@@ -443,6 +463,7 @@ export function useGitHistoryData({
 		isLogLoading ||
 		(enabled && workspaceId !== null && logRefs.length > 0 && resolvedLogKey !== logKey);
 	const previousStateVersionRef = useRef(stateVersion);
+	const backgroundRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
 		if (previousStateVersionRef.current === stateVersion) {
@@ -452,11 +473,22 @@ export function useGitHistoryData({
 		if (!enabled || !workspaceId || isScopeTransitioning) {
 			return;
 		}
-		void refsQuery.refetch();
-		refreshCommits({ silent: true });
-		if (shouldLoadWorkingCopyChanges || workingCopyQuery.data) {
-			void workingCopyQuery.refetch();
+		// Debounce: collapse a burst of state bumps into one trailing refresh instead of re-fetching the log/refs on
+		// every bump (git-view P3). A pending refresh is rescheduled by each new bump.
+		if (backgroundRefreshTimerRef.current !== null) {
+			clearTimeout(backgroundRefreshTimerRef.current);
 		}
+		backgroundRefreshTimerRef.current = setTimeout(() => {
+			backgroundRefreshTimerRef.current = null;
+			if (!enabled || !workspaceId || isScopeTransitioning) {
+				return;
+			}
+			void refsQuery.refetch();
+			refreshCommits({ silent: true });
+			if (shouldLoadWorkingCopyChanges || workingCopyQuery.data) {
+				void workingCopyQuery.refetch();
+			}
+		}, BACKGROUND_REFRESH_DEBOUNCE_MS);
 	}, [
 		enabled,
 		refsQuery.refetch,
@@ -468,6 +500,15 @@ export function useGitHistoryData({
 		workingCopyQuery.refetch,
 		workspaceId,
 	]);
+
+	useEffect(() => {
+		return () => {
+			if (backgroundRefreshTimerRef.current !== null) {
+				clearTimeout(backgroundRefreshTimerRef.current);
+				backgroundRefreshTimerRef.current = null;
+			}
+		};
+	}, []);
 
 	const selectWorkingCopy = useCallback(() => {
 		setViewMode("working-copy");

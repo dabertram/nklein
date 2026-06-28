@@ -305,6 +305,7 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 				refs: input.refs ?? null,
 				maxCount: input.maxCount,
 				skip: input.skip,
+				includeTotalCount: input.includeTotalCount,
 			});
 		},
 		loadGitRefs: async (workspaceScope) => {

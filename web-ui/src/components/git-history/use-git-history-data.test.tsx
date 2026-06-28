@@ -43,6 +43,7 @@ interface HookSnapshot {
 	refs: string[];
 	activeRefName: string | null;
 	commits: string[];
+	totalCommitCount: number;
 	selectedCommitHash: string | null;
 	isRefsLoading: boolean;
 	isLogLoading: boolean;
@@ -147,16 +148,19 @@ async function flushPromises(): Promise<void> {
 function HookHarness({
 	taskScope,
 	enabled = true,
+	stateVersion = 0,
 	onRender,
 }: {
 	taskScope: { taskId: string; baseRef: string } | null;
 	enabled?: boolean;
+	stateVersion?: number;
 	onRender: (snapshot: HookSnapshot) => void;
 }): null {
 	const gitHistory = useGitHistoryData({
 		workspaceId: "project-1",
 		taskScope,
 		gitSummary: createGitSummary(taskScope ? "task-branch" : "main"),
+		stateVersion,
 		enabled,
 	});
 
@@ -164,6 +168,7 @@ function HookHarness({
 		refs: gitHistory.refs.map((ref) => ref.name),
 		activeRefName: gitHistory.activeRef?.name ?? null,
 		commits: gitHistory.commits.map((commit) => commit.hash),
+		totalCommitCount: gitHistory.totalCommitCount,
 		selectedCommitHash: gitHistory.selectedCommitHash,
 		isRefsLoading: gitHistory.isRefsLoading,
 		isLogLoading: gitHistory.isLogLoading,
@@ -409,5 +414,112 @@ describe("useGitHistoryData", () => {
 			commits: ["remotehash1", "homehash1", "basehash1"],
 			selectedCommitHash: "homehash1",
 		});
+	});
+
+	it("requests a fresh count on the foreground load but skips it on background refreshes, retaining the count (git-view P3)", async () => {
+		const snapshots: HookSnapshot[] = [];
+
+		// Foreground load returns a real total count of 2.
+		getGitLogQueryMock.mockImplementation(async () =>
+			createLogResponse([
+				{ hash: "homehash1", message: "c1" },
+				{ hash: "homehash0", message: "c0" },
+			]),
+		);
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					taskScope={null}
+					stateVersion={0}
+					onRender={(snapshot) => {
+						snapshots.push(snapshot);
+					}}
+				/>,
+			);
+			await flushPromises();
+		});
+
+		expect(snapshots.at(-1)?.totalCommitCount).toBe(2);
+		// The foreground load asks the backend to compute the count.
+		expect(getGitLogQueryMock.mock.calls[0]?.[0]?.includeTotalCount).toBe(true);
+
+		// The backend returns the -1 "count unchanged" sentinel only when the count was skipped (silent refresh);
+		// a foreground reload (includeTotalCount true) still gets a real count — mirror that here.
+		getGitLogQueryMock.mockImplementation(async (arg: { includeTotalCount?: boolean }) => {
+			const base = createLogResponse([
+				{ hash: "homehash2", message: "c2" },
+				{ hash: "homehash1", message: "c1" },
+				{ hash: "homehash0", message: "c0" },
+			]);
+			return arg?.includeTotalCount === false ? { ...base, totalCount: -1 } : base;
+		});
+
+		vi.useFakeTimers();
+		try {
+			await act(async () => {
+				root.render(
+					<HookHarness
+						taskScope={null}
+						stateVersion={1}
+						onRender={(snapshot) => {
+							snapshots.push(snapshot);
+						}}
+					/>,
+				);
+				await flushPromises();
+			});
+			await act(async () => {
+				vi.advanceTimersByTime(600);
+				await flushPromises();
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+
+		const backgroundCall = getGitLogQueryMock.mock.calls.find(([arg]) => arg?.includeTotalCount === false);
+		expect(backgroundCall).toBeDefined();
+		// The -1 sentinel is ignored: the last known count (2) is retained even though the refresh loaded 3 commits.
+		expect(snapshots.at(-1)?.commits).toEqual(["homehash2", "homehash1", "homehash0"]);
+		expect(snapshots.at(-1)?.totalCommitCount).toBe(2);
+	});
+
+	it("coalesces a burst of workspace-state bumps into a single background log refresh (git-view P3)", async () => {
+		await act(async () => {
+			root.render(<HookHarness taskScope={null} stateVersion={0} onRender={() => {}} />);
+			await flushPromises();
+		});
+
+		const backgroundCallsAfterMount = getGitLogQueryMock.mock.calls.filter(
+			([arg]) => arg?.includeTotalCount === false,
+		).length;
+		expect(backgroundCallsAfterMount).toBe(0);
+
+		vi.useFakeTimers();
+		try {
+			// Three rapid state bumps, each well within the debounce window.
+			for (const version of [1, 2, 3]) {
+				await act(async () => {
+					root.render(<HookHarness taskScope={null} stateVersion={version} onRender={() => {}} />);
+					await flushPromises();
+				});
+				await act(async () => {
+					vi.advanceTimersByTime(100);
+				});
+			}
+
+			// Still inside the trailing window — nothing has fired yet.
+			expect(getGitLogQueryMock.mock.calls.filter(([arg]) => arg?.includeTotalCount === false)).toHaveLength(0);
+
+			await act(async () => {
+				vi.advanceTimersByTime(600);
+				await flushPromises();
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+
+		// The burst collapsed into exactly one background refresh.
+		expect(getGitLogQueryMock.mock.calls.filter(([arg]) => arg?.includeTotalCount === false)).toHaveLength(1);
 	});
 });
