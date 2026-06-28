@@ -3484,6 +3484,15 @@ deep analysis:
         — the SAME 2 models that failed run_command → they don't emit chat tool calls at all (strong evidence for the
         narrated-recovery candidate below; the other 7 models call chat tools fine).
   - [ ] `browse_url` (`verify-chat-browse`) across the roster — headless browser (self-serves a page + chromium).
+        **Sweep attempt 2026-06-28 — BLOCKED by harness env, NOT a !Klein bug (do not flip qwen3-8b's ✅):** (1) Playwright
+        @1.61.1 needs `chromium_headless_shell-1228`; the cache had 1208 → `chromium.launch` failed "Executable doesn't
+        exist". Fixed by `PLAYWRIGHT_BROWSERS_PATH=~/Library/Caches/ms-playwright npx playwright install chromium`.
+        (2) After that, every model still reported INCOMPLETE with "page could not be loaded / navigation timed out" — yet
+        a **direct** Playwright `page.goto` to a local ephemeral server WORKS in the same shell (verified), so the failure
+        is specific to the **spawned `nklein chat --browser` subprocess**, not the browser or !Klein's tool. NEXT STEP:
+        trace how `verify-chat-browse.mts` spawns the chat child + whether `PLAYWRIGHT_BROWSERS_PATH`/browser-path env
+        propagates into it (and the confirm-gate timing) before re-sweeping; the agent *did* call `browse_url` for every
+        model (tool wiring is fine), so this is purely the headless-nav plumbing in the harness env.
 - [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8.
 - [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
       models (it serializes on the single-request endpoint → ~25 min/run; not full-swept across all 9).
