@@ -194,3 +194,13 @@ entries above were already-resolved; the four genuinely-open ones were decided:
   session-wide acknowledgement granularity (no move to per-action). Tracked as an actionable item in §5.M.
 - **Parallel-backlog audit doc = DELETE.** Fully consolidated into todo.md (§5.AK / §5.AB / WORKING MODE); deleted per
   the consolidate-and-delete convention.
+
+## 2026-06-28 — Phase ordering for the "stabilize + sweep" goal (pre-decision, review)
+The goal asked for: (1) full e2e stabilization reference, then (2) three full LM-Studio model sweeps on dev-test
+projects with hardening, then (3) grind the backlog. **Pre-decision:** Phase 1 = restore the e2e suite to green +
+fix the bugs it surfaces (done: promptBlock null-crash, board-card title-collapse; suite green at 46) — that is a
+solid regression net. The deeper e2e build-out (workspace-aware mock for project-switch, chat-procedure mocking,
+dynamic-WS switch-stall repro, deep board-lifecycle/drag) is **high-plumbing-effort and is deferred to interleave with
+Phase 3**, because the live model sweeps (Phase 2) exercise the real backend+UI and surface more, and need the live
+env that is available now. Logged the deferred e2e items under §5.V. Confirm if you'd rather I build the full e2e
+plumbing before sweeping.

@@ -2620,8 +2620,20 @@ deep analysis:
         tool/hook activity does — grep the NKlein event adapter + runtime-state-hub for the reasoning channel) before
         wiring the card UI. Verify live with a reasoning-capable local model (e.g. a deepseek-r1 / qwen3 thinking model)
         that the snippet actually updates during the thinking phase.
-- [ ] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
-      trash, drag rules — Playwright, deep. **(Build on the new harness above.)**
+- [~] **e2e stabilization baseline (2026-06-28) — restored to green + 2 real bugs fixed.** Full web e2e suite is green
+      (46 passed): fixed the `promptBlock` null-crash (+ regression), fixed the board-card title-collapse layout bug
+      (un-redded all 11 `review-recovery` tests), and migrated the legacy `smoke.spec.ts` onto the runtime-mock harness.
+      This is the Phase-1 regression net. **Remaining e2e expansions (deferred to interleave with the model-sweep work,
+      autonomous pre-decision 2026-06-28 — finalizing effort to build all the mock plumbing is high and the live model
+      sweeps surface more):**
+  - [ ] **Project-navigation e2e + reproduce the switch stall.** Needs a **workspace-aware** mock (`workspace.getState`
+        returning a different `workspaceState` per requested workspaceId) so switching projects can assert project B's
+        board renders. Then drive a switch *while a card streams* (dynamic WS frames) to reproduce the empty/stalled board
+        (the §5.AI project-switch-stall item). The static-snapshot harness can't do this yet — extend it first.
+  - [ ] **Chat e2e** — open the chat sidebar, create a session, send a message (mocked chat tRPC), assert the transcript
+        grows + the `AutonomousRunBar` renders/disables correctly. Needs chat-procedure mocking added to the harness.
+  - [ ] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
+        trash, drag rules — Playwright, deep. **(Build on the harness.)**
 - [~] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
       isolation status/pool UI, project-settings menu. Pair with §5.W.
       **Contract-seam coverage DONE (2026-06-26, 44 tests, Suite 16 — `test/contract/settings-config-contract.test.ts`).**
