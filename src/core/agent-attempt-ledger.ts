@@ -7,7 +7,7 @@
  * (`task-run-summary-store`, model-registry observations, knowledge-tool telemetry) that share no grain or key. This is
  * the ONE durable evidence stream; the rest become projections of it.
  *
- * Per the 2026-06-27 small-LLM research refinement (`docs/research/small-llm-agent-optimization-research.md`), the ledger
+ * Per the 2026-06-27 small-LLM research refinement (background in todo.md §5.AF), the ledger
  * is a **workflow event log + attempt evidence stream**, not just a per-model-attempt table: a model attempt is one
  * event family alongside controller transitions and scheduler/lease events, because small models need the harness to own
  * long-horizon state (resume + explain exactly, instead of re-asking a weak model to rediscover it).

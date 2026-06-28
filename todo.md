@@ -183,7 +183,7 @@ deep analysis:
   identity, decomposition apply, the strict-isolation no-host-execution + fail-closed-start guards). Add to the
   protected manifest **only via the human-approval path** (§1.5).
 - Keep suites fast and non-hanging. If CI hangs on Node 22, suspect a live subprocess / real SDK-host boot
-  before a slow test body (see `docs/node22-ci-hanging-tests-investigation.md`).
+  before a slow test body.
 
 ---
 
@@ -396,7 +396,7 @@ deep analysis:
 > feature sections): one substrate section (**[§5.AF](#5af)**), this milestone callout, an operator-UX section
 > (**[§5.AG](#5ag)**), and a **tiered** cross-model done-bar (§5.Z). Full reasoning + the system component map + the
 > Attempt-Ledger schema + the tool-capability-manifest facets live in
-> **[docs/research/substrate-and-milestones.md](docs/research/substrate-and-milestones.md)**.
+> **§5.AF**.
 >
 > **Milestone ladder (the progress backbone):**
 > - **M0 — single-card reliable** — one card → implement → `awaiting_review` → correct result branch, across the roster.
@@ -414,8 +414,7 @@ deep analysis:
 > ambition arcs have real data instead of being parallel dreams. Don't widen the ambition fronts before the substrate is real.
 >
 > **Small-LLM optimization research addendum (2026-06-27):** a 12-agent online research pass (concurrency-capped at 6;
-> requested ceiling was "up to 50") is captured in
-> **[docs/research/small-llm-agent-optimization-research.md](docs/research/small-llm-agent-optimization-research.md)**. It
+> requested ceiling was "up to 50") is folded into §5.AA–§5.AF (inline). It
 > validates the substrate-first order and sharpens the main correction: the ledger should be a **workflow event log +
 > attempt evidence stream** (leases, admission/resource events, idempotency/replay boundaries, tool results, and model
 > attempts), because small models need the harness to own long-horizon state. Follow-on backlog ideas should be folded
@@ -475,9 +474,8 @@ deep analysis:
       `resolveSafeCreatedWorkspaceParentDir` guard to git-clone / other creation sites.
 - [~] **Retire the host worktree subsystem** *(decided: retire; terminal/CLI agents stay disabled under
       local-only).* Boundary predicate `usesLegacyHostTaskWorkspace` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts));
-      shell-on-task = `docker exec` into the task's sandbox (no host checkout). Full plan +
-      surface inventory: [docs/research/section-5a-worktree-retirement-watched-session.md](docs/research/section-5a-worktree-retirement-watched-session.md).
-      Per-commit detail lives in CHANGELOG `## [Upcoming]` + git. **Status: increments 1–2 done; increment 3 ~80%
+      shell-on-task = `docker exec` into the task's sandbox (no host checkout). The full plan + surface inventory live
+      in this §5.A tree; per-commit detail lives in CHANGELOG `## [Upcoming]` + git. **Status: increments 1–2 done; increment 3 ~80%
       (C1–C7c done, C7d/C7e/C8 left); increment 4 pending.**
   - [x] **Increment 1 — catalog + web-ui native-agent → nklein-only**
     - [x] 1a — local-aware readiness (`isNKleinLocalModelConfigured`; dropped the CLI fallback)
@@ -2960,7 +2958,7 @@ deep analysis:
             anti-patterns audit finding #2 remediation ("move guardrails behind focused collaborators with tests"). The
             remaining ~3449 lines are the interwoven orchestration core (session lifecycle, turn execution, tool dispatch,
             event adaptation, message/summary recording) — not cleanly-separable guard seams.
-      - **Audit input (2026-06-26): whole-repo anti-pattern findings captured at `docs/research/anti-patterns.md`** (the
+      - **Audit input (2026-06-26): whole-repo anti-pattern findings captured in this §5.U analysis arm** (the
             §5.U analysis arm — 7 findings + a cross-cutting cleanup order). **✅ DONE: #6 (constants DRY'd, `dbedf448`)
             + #4 (inline type imports removed, `9492905b`).** (Verified 2026-06-26: both are genuinely complete —
             `RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS`/`80_000` are single-sourced in api-contract and there are zero
@@ -3109,7 +3107,7 @@ deep analysis:
 - *(cross-link note, not a work item)* **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition
       oracle), §5.H (native-core / core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side
       cleanup that also de-risks a port by shrinking the `@nkleinbot/*` coupling first).
-- [ ] **Target-structure roadmap (2026-06-26): `docs/research/architecture-and-structure-suggestions.md`** — the *target
+- [ ] **Target-structure roadmap (2026-06-26)** — the *target
       shape* for this refactor (complements the anti-pattern audit's code-level findings). 13 recommendations: (1)
       formalize the monorepo (npm workspaces; `apps/{web,desktop}` + `packages/{contracts,runtime,runtime-core,nklein-
       integration,web-runtime-client,test-harness}`); (2) split `api-contract.ts` into contract-domain modules behind one
@@ -3708,7 +3706,7 @@ deep analysis:
 > + §5.AB fitness). **Invariants:** LOCAL ONLY (#1), **≥32k FLOOR is a minimum-capability GATE, never a fill target** (#3),
 > strict Docker isolation (#2).
 >
-> **Grounded in research (full notes + citations: [docs/research/context-smart-zone-and-reasoning-research.md](docs/research/context-smart-zone-and-reasoning-research.md)):**
+> **Grounded in research (synthesized inline below):**
 > - **"Lost in the middle" → a U-shaped attention curve** (Liu et al. 2023): models use the **start + end** of context
 >   best, the **middle worst**, partly **architectural** (present at init in causal decoders — "Lost in the Middle at
 >   Birth" 2026). The user's "early ≠ smartest" point is the *causal* complement: early tokens can't attend to
@@ -3725,8 +3723,7 @@ deep analysis:
 >   2023) → prefer **external** signal (a different model / persona / a test result), gate on difficulty, bound the
 >   rounds (reuse §5.K round-limit + stall/identical-loop detection; §5.S no-progress detector).
 - [x] **Research + durable notes (DONE 2026-06-26)** — web-researched lost-in-the-middle / U-shape / context-rot /
-      RULER+NoLiMa effective-context / Anthropic arrangement / debate-vs-self-correction; synthesized into
-      [docs/research/context-smart-zone-and-reasoning-research.md](docs/research/context-smart-zone-and-reasoning-research.md)
+      RULER+NoLiMa effective-context / Anthropic arrangement / debate-vs-self-correction; synthesized inline (this section)
       with a placement policy + a per-model-learnable field list + citations. (This section is its actionable backlog.)
 - [~] **Smart-zone context-arrangement policy.** **PURE CORE DONE (2026-06-26):**
       [src/core/context-smart-zone.ts](src/core/context-smart-zone.ts) — `arrangeContextForSmartZone(parts, options?)`
@@ -3787,7 +3784,7 @@ deep analysis:
 > surface **BASIC for now**, grow later. **Invariants:** LOCAL ONLY (#1 — the "architect → cloud model" use-case is
 > idea-only until cloud is revisited), ≥32k floor (#3), strict Docker isolation (#2).
 >
-> **Grounded in research (full notes + citations: [docs/research/dynamic-roles-skills-research.md](docs/research/dynamic-roles-skills-research.md)):**
+> **Grounded in research (synthesized inline below):**
 > Skills are an emerging first-class, composable unit (a behavioral spec + applicable-scenario relevance + needed
 > context/tools + output template — "Agent Skills for LLMs" survey 2602.12430; Claude Code exposes skills). **Skill
 > routing** picks the right skills per task at runtime (SkillRouter 2603.22455); **dynamic skill-context construction**
@@ -3804,8 +3801,7 @@ deep analysis:
 > = *what's in* the prompt, §5.AD = *where it goes*, §6.2 = *never overflow*. Roles become default skill bundles; model
 > selection (§5.AB) is coupled via the dynamics level.
 - [x] **Research + durable notes (DONE 2026-06-26)** — web-researched agent skills / skill routing / dynamic skill-context
-      construction / capability decomposition / autonomy-level taxonomy; synthesized into
-      [docs/research/dynamic-roles-skills-research.md](docs/research/dynamic-roles-skills-research.md) with the skill-unit design,
+      construction / capability decomposition / autonomy-level taxonomy; synthesized inline (this section) with the skill-unit design,
       the dynamics-level mapping table, and the JIT-composition plan. (This section is its actionable backlog.)
 - [x] **First concrete step — relevance-gate the temporal/date fragment (the JIT-composition seed) — DONE (2026-06-26).**
       The §5.AC date is no longer blanket-injected: `isTemporalContextRelevant({text, role})`
@@ -3866,7 +3862,7 @@ deep analysis:
 > scheduler/resource events, leases, idempotency keys, replayable tool-result refs, and controller transitions so !Klein
 > can resume/replay long jobs without asking a small model to rediscover state.
 > Full schema + the system component map + the milestone ladder live in
-> **[docs/research/substrate-and-milestones.md](docs/research/substrate-and-milestones.md)**. **Invariants:** LOCAL ONLY (#1),
+> **§5.AF**. **Invariants:** LOCAL ONLY (#1),
 > strict isolation (#2), ≥32k floor (#3) — the ledger is host-side control-plane (it records agent attempts; it never
 > runs on the agent's behalf). **My adaptation of the audit:** consolidate, don't proliferate — fold its "flight
 > recorder / driving school / workload compiler / policy DSL / context profiler / freshness cache" framings into the

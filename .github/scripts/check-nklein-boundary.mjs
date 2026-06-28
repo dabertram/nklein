@@ -4,7 +4,7 @@
 // (that import rule is biome-enforced). This legacy check additionally flags ad-hoc
 // patches to the still-installed upstream @clinebot package in node_modules.
 // A proper boundary-policy update (matching current package names) is §5.X
-// architecture recommendation #10 — see docs/research/architecture-and-structure-suggestions.md.
+// architecture recommendation #10 (see todo.md §5.X).
 import { spawnSync } from "node:child_process";
 
 const diff = spawnSync("git", ["diff", "--exit-code", "--", "node_modules/@clinebot"], {
