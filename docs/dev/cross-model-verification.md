@@ -45,7 +45,7 @@
 | chat runtime · `verify-chat-runtime` | ✅ | · | · | · | · | · | · | · | · |
 | autonomous run · `verify-chat-autonomous-live` | ✅ | · | · | · | · | · | · | · | · |
 | multi-card pipeline · `verify-multi-card-pipeline` | ✅ | · | · | · | · | · | · | · | · |
-| output robustness · `sweep-capture` | ✅ | · | · | ✅ | ✅ | · | · | · | · |
+| output robustness · `sweep-capture` | ✅ | ✅ | · | ✅ | ✅ | · | · | · | · |
 
 > **†** The `verify-chat-agent-e2e` capstone asks for **4 specific tools in ONE turn** (read → run_command →
 > create_card → update_focus_chain). That composition is **stochastic** for small models — even qwen3-8b varies run to
@@ -226,3 +226,6 @@ Restart/resume isolation — a task resumed after a simulated runtime restart re
 Single-card delivery → awaiting_review + captured result branch, for two models loaded outside the original roster.
 - ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · reached awaiting_review, result branch `nklein/tasks/verify-completion-…` captured, hello.txt content matches. A 4B coder model delivers a single card cleanly.
 - ⚠️ **INCOMPLETE** · `ornith-1.0-9b-mlx` · did NOT reach awaiting_review within 240s (last state: `interrupted`) — provisionally slow/non-terminal in window (cf. qwen3.5-9b ⚠️; nemotron delivered only at 540s, so a longer budget may flip it). Not a conclusive capability floor on one run.
+
+### 2026-06-28 · sweep-capture --preset mid_task (output robustness, against a booted isolated-HOME runtime)
+- ✅ **CLEAN** · `qwen/qwen2.5-coder-14b-m5max` · reached `awaiting_review`; tool sequence list_files→get_file_size→read_files→update_focus_chain→begin_implementation (10 calls); **0 narration leaks, 0 hot repeated tool calls, 0 reasoning-channel narration**. 954 WS frames. Matrix → ✅.
