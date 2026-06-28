@@ -163,6 +163,9 @@ export function TaskRecoveryActionsPanel({
 		setEvidenceResult(null);
 		try {
 			const response = await collectTaskEvidence(workspaceId, selection.card.id);
+			if (!response?.promptBlock) {
+				throw new Error("Evidence could not be created (the runtime returned no prompt block).");
+			}
 			await navigator.clipboard.writeText(response.promptBlock);
 			const message = `Evidence created and copied. ${response.bundlePath}`;
 			setEvidenceResult(message);

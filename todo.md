@@ -2464,11 +2464,28 @@ deep analysis:
       committing a captured branch — is agent behavior, NOT the oracle; left as-is.) Also note: a fresh checkout needs
       `npm install` — `playwright` is a runtime dep of `src/chat/chat-browser-tool.ts` and the full runtime won't boot
       without it.
-  - [ ] **BUG the harness caught (2026-06-27):** clicking a board card can crash with `Cannot read properties of null
-        (reading 'promptBlock')` — `response.promptBlock` is read unguarded after a tRPC call that may return null
-        ([kanban-board.tsx](web-ui/src/components/kanban-board.tsx) ~L487,
-        [task-recovery-actions-panel.tsx](web-ui/src/components/detail-panels/task-recovery-actions-panel.tsx) ~L166).
-        Null-check the response before reading `promptBlock`.
+  - [x] **BUG the harness caught (2026-06-27) — FIXED 2026-06-28:** clicking a board card's evidence action could crash
+        with `Cannot read properties of null (reading 'promptBlock')` — `response.promptBlock` was read unguarded after a
+        `collectTaskEvidence` tRPC call that can resolve to null. Both sites now guard
+        (`if (!response?.promptBlock) throw …` → caught by the existing handler → graceful danger toast):
+        [kanban-board.tsx](web-ui/src/components/kanban-board.tsx) `handleCopyTaskEvidence` +
+        [task-recovery-actions-panel.tsx](web-ui/src/components/detail-panels/task-recovery-actions-panel.tsx)
+        `handleCollectEvidence`. Regression: a Playwright test (`review-recovery.spec.ts`, "on-card evidence handles a
+        null runtime response") clicks the per-card Evidence button against a null mock, asserts the graceful toast + no
+        `promptBlock` page error — verified it fails without the guard, passes with it.
+  - [ ] **BUG (found 2026-06-28 while wiring the above regression): a board card's TITLE collapses to width:0 (invisible)
+        when the card shows an always-on header action button (e.g. the review-card "Create task evidence" button) in a
+        normal-width column.** Proven via Playwright on a review card: the title `<p>` is in the DOM with text but
+        `boundingBox().width === 0` / `isVisible() === false`, while the prompt-description `<p>` renders fine; a backlog
+        card (no header action button, board-harness.spec.ts) renders its title fine. Root: the header row
+        ([board-card.tsx](web-ui/src/components/board-card.tsx) ~L802 `flex items-center gap-2`) gives the title container
+        `flex-1 min-w-0`, but the action-button cluster (Evidence + the opacity-0-but-layout-occupying dependency/resume
+        buttons) consumes the row, so the only `min-w-0` flex item (the title) is squeezed to 0. Fix options: don't let
+        hidden (opacity-0) buttons occupy layout (e.g. reveal via `hidden`/conditional render — but avoid hover layout
+        jump), give the title a small `min-w`, or move secondary actions into an overflow menu. **Verify in the REAL app
+        (boot dev:full) first** to confirm it reproduces outside the test column width, then fix without regressing other
+        card layouts. **This currently makes ALL of `review-recovery.spec.ts`'s `openCard`-based tests red** (the helper
+        clicks the title `<p>`, which is now unclickable) — fixing the layout (or the helper) re-greens that whole spec.
   - [ ] **BUG — project-switch stall (handoff 2026-06-28):** switching projects while a card is processing can leave the
         target board **empty / stalled** (it doesn't render the switched-to project's cards until something else nudges
         it). Reproduce first (use the mock harness for the deterministic case AND a live 2-project rail run for the real

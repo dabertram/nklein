@@ -445,6 +445,31 @@ test.describe("TaskRecoveryActionsPanel", () => {
 		expect(body["0"]?.taskId).toBe(TASK_ID);
 	});
 
+	test("on-card evidence handles a null runtime response without crashing (regression)", async ({ page }) => {
+		// The harness caught an unguarded `response.promptBlock` read: when collectTaskEvidence resolves to
+		// null, the board used to throw `Cannot read properties of null (reading 'promptBlock')`. It must now
+		// surface a graceful error toast instead of crashing the page. Uses the per-card "Create task evidence"
+		// button (kanban-board.tsx handleCopyTaskEvidence) so it does not depend on opening the detail panel.
+		await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+
+		const pageErrors: string[] = [];
+		page.on("pageerror", (error) => pageErrors.push(error.message));
+
+		await setupMocks(page, { evidenceResponse: trpcOk(null) });
+		await page.goto("/");
+
+		const evidenceButton = page
+			.locator("[data-column-id='review'] [data-task-id]")
+			.getByRole("button", { name: "Create task evidence" });
+		await expect(evidenceButton).toBeVisible({ timeout: 15_000 });
+		await evidenceButton.click();
+
+		// A graceful danger toast is shown, not a crash.
+		await expect(page.getByText(/Evidence could not be created/).first()).toBeVisible({ timeout: 8_000 });
+		// No "promptBlock" TypeError leaked to the page.
+		expect(pageErrors.join("\n")).not.toMatch(/promptBlock/);
+	});
+
 	test("Merge button fires runtime.mergeTaskWorktrees with the correct taskId", async ({ page }) => {
 		const { getMergeBodies } = await setupMocks(page);
 		await page.goto("/");

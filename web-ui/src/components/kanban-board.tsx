@@ -484,6 +484,9 @@ export function KanbanBoard({
 			setCopyEvidenceTaskId(taskId);
 			try {
 				const response = await collectTaskEvidence(currentProjectId, taskId);
+				if (!response?.promptBlock) {
+					throw new Error("Evidence could not be created (the runtime returned no prompt block).");
+				}
 				await navigator.clipboard.writeText(response.promptBlock);
 				showAppToast({
 					intent: "success",
