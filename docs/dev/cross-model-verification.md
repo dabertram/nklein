@@ -78,6 +78,12 @@
 
 > Newest first. Each entry: date · flow · model · result · note.
 
+- _(2026-06-28)_ **single-card RELIABILITY sweeps (idle-LLM repeats, §5.0.3 "never idle the LLMs"):**
+  `verify-task-completion` repeated back-to-back — **qwen3-8b 7/8 (~88%)** across two sweeps (one run ended `interrupted`,
+  a §5.AA transient, not a wrong result; it did not reproduce in 3 further runs), **qwen2.5-coder-14b 3/3**. Confirms the
+  `single-card` ✅ cells are robust under repeat load; the lone transient is the §5.AA `aborted`/`interrupted`-class
+  (finalization watchdog + transient-retry rung is the lift, not a model ceiling). Reliability tracked in the challenge
+  catalog ([milestone-challenges.md](milestone-challenges.md) C0 row).
 - _(2026-06-26)_ matrix scaffolded from prior single-model proofs; cross-model sweep starting per §5.Z.
 
 ### 2026-06-26 18:54:12 · verify-decompose-isolation
