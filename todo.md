@@ -3483,16 +3483,15 @@ deep analysis:
         confirming their run_command issue was reply-synthesis, NOT tool-calling. ❌ only phi-4-mini + phi-4-reasoning-plus
         — the SAME 2 models that failed run_command → they don't emit chat tool calls at all (strong evidence for the
         narrated-recovery candidate below; the other 7 models call chat tools fine).
-  - [ ] `browse_url` (`verify-chat-browse`) across the roster — headless browser (self-serves a page + chromium).
-        **Sweep attempt 2026-06-28 — BLOCKED by harness env, NOT a !Klein bug (do not flip qwen3-8b's ✅):** (1) Playwright
-        @1.61.1 needs `chromium_headless_shell-1228`; the cache had 1208 → `chromium.launch` failed "Executable doesn't
-        exist". Fixed by `PLAYWRIGHT_BROWSERS_PATH=~/Library/Caches/ms-playwright npx playwright install chromium`.
-        (2) After that, every model still reported INCOMPLETE with "page could not be loaded / navigation timed out" — yet
-        a **direct** Playwright `page.goto` to a local ephemeral server WORKS in the same shell (verified), so the failure
-        is specific to the **spawned `nklein chat --browser` subprocess**, not the browser or !Klein's tool. NEXT STEP:
-        trace how `verify-chat-browse.mts` spawns the chat child + whether `PLAYWRIGHT_BROWSERS_PATH`/browser-path env
-        propagates into it (and the confirm-gate timing) before re-sweeping; the agent *did* call `browse_url` for every
-        model (tool wiring is fine), so this is purely the headless-nav plumbing in the harness env.
+  - [~] `browse_url` (`verify-chat-browse`) across the roster — headless browser (self-serves a page + chromium).
+        **RESOLVED 2026-06-28 — the earlier "blocker" was a COMMAND bug in my sweep, not the harness or !Klein:** I passed
+        `PLAYWRIGHT_BROWSERS_PATH=~/...` on the same command line as `HOME=<isolated>`, so the shell expanded `~` to the
+        **isolated** HOME → empty browser cache → `chromium.launch` failed, which the browse tool surfaces as the generic
+        "page could not be loaded / navigation timed out". With an **absolute** `PLAYWRIGHT_BROWSERS_PATH` (and Playwright's
+        chromium installed — two tree versions want headless_shell-1208 and -1228, both now cached), **browse_url works**:
+        Chromium rendered the local page and text flowed back — qwen3-8b + coder-14b each reported the page heading.
+        coder-14b → ◑ (the strict gate greps the body MARKER; the model answered with the heading — stochastic synthesis,
+        same ◑ as run_command); qwen3-8b's ✅ stands. Remaining roster models can be swept the same way (absolute path).
   - [x] **chat read tools / write tool / send / runtime — SWEPT 2026-06-28 (+ 2 harness bugs fixed).** Across the loaded
         roster: **write/send/runtime PASS for all** (qwen3-8b, coder-14b, qwen3.5-9b, gemma-e2b, nemotron — the gated
         write confirm-gate + audit, the basic turn+persist, and the memory+goal-composed turn all work); **read-tools** is
@@ -3501,7 +3500,15 @@ deep analysis:
         found by the sweep:** `verify-chat-agent-tools` checked `record.detail === "read_file"` but `detail` is the path
         arg (tool id is `record.action === "sandbox_read"`) → falsely failed every model; `verify-chat-agent-write` never
         `mkdir`'d its temp workspace → `realpath` ENOENT FATAL for every model. Both fixed; matrix rows updated.
-- [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8 (needs the booted web UI on :4173 + Playwright — chromium 1228 now installed).
+- [~] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b (prior). **Re-run 2026-06-28 on a
+      fresh isolated-HOME dev:full (runtime :3484 + web UI :4173, model pinned via tRPC):** the §5.0.1 loop **CORE works** —
+      it started ("Working autonomously…") and drove to a stop reason (`stopped: true`). BUT qwen3-8b consistently (2 runs)
+      reached "⏸ Needs your input · 1 turn" with **0 transcript messages**, so the harness's transcript-growth gate failed.
+      Not flipped to a regression (prior ✅ stands; this is a fresh empty-board session where the model immediately requested
+      input). **NEEDS A LOOK:** does the autonomous turn / `request_user_input` persist a transcript message, or is "needs
+      input · 1 turn · 0 messages" expected on an empty board? (Trace the autonomous-run turn→transcript persistence.) Boot
+      recipe confirmed: `npm run dev:full` skips `npm ci` when deps are installed; **use an ABSOLUTE `PLAYWRIGHT_BROWSERS_PATH`**
+      (a `~` after `HOME=<isolated>` expands to the isolated HOME → no chromium). Remaining roster models pending.
 - [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
       models (it serializes on the single-request endpoint → ~25 min/run; not full-swept across all 9).
 - [~] **Small-model output robustness** (`sweep-capture.mts`) — proven clean: gemma-4-e2b (mid+complex), gemma-4-e4b

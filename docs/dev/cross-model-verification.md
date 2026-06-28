@@ -37,7 +37,7 @@
 | restart-resume · `verify-restart-resume-isolation` | ✅ | ✅ | ✅ | ✅ | · | ✅ | · | ✅ | · |
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
-| chat browse_url · `verify-chat-browse` | ✅ | · | · | · | · | · | · | · | · |
+| chat browse_url · `verify-chat-browse` | ✅ | ◑ | · | · | · | · | · | · | · |
 | chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | · | · | · | · | · | · | · | · |
 | chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | · | · | ◑ | · |
 | chat write tool · `verify-chat-agent-write` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
@@ -250,3 +250,7 @@ Single-card delivery → awaiting_review + captured result branch, for two model
 
 ### 2026-06-28 · verify-chat-send + verify-chat-runtime — swept the loaded roster (all PASS)
 Both the basic chat-turn-and-persist (`verify-chat-send`) and the memory+goal-composed runtime turn (`verify-chat-runtime`) **PASS for every loaded model**: qwen3-8b (already), qwen2.5-coder-14b, qwen3.5-9b, gemma-4-e2b, nemotron-3-nano. These are plumbing checks (a real model turn runs, composes context, and persists) — no per-model weakness. Matrix → ✅ across the swept models.
+
+### 2026-06-28 · browse_url "blocker" RESOLVED — it was a command bug, not the harness; + autonomous-run finding
+**The earlier browse_url sweep failures were MY command bug**, not a harness/product issue: I passed `PLAYWRIGHT_BROWSERS_PATH=~/Library/Caches/ms-playwright` on the same command line as `HOME=<isolated>`, so the shell expanded `~` to the **isolated** HOME → an empty browser cache → `chromium.launch` failed, which the browse tool reports as the generic "page could not be loaded / navigation timed out". With an **absolute** `PLAYWRIGHT_BROWSERS_PATH=/Users/david/Library/Caches/ms-playwright`, browse_url **works**: Chromium rendered the local page and the text flowed back — qwen3-8b/coder-14b each correctly reported the page's heading. The strict gate greps for the body MARKER; when the model answers with the heading instead it's ◑ (stochastic synthesis, same as run_command ◑) — the browse CAPABILITY is proven. coder-14b → ◑; qwen3-8b's prior ✅ stands. (NB two Playwright versions in the tree want different Chromium revisions — autonomous-live wanted headless_shell-1208, browse wanted 1228; both now in the real cache.)
+- ⚙️ **autonomous run** (`verify-chat-autonomous-live`, qwen3-8b, on a fresh isolated-HOME dev:full): the §5.0.1 loop **core works** — it started ("Working autonomously…") and drove to a stop reason (`stopped: true`). But it consistently (2 runs) reached "⏸ Needs your input · 1 turn" with **0 transcript messages**, so the harness's transcript-growth gate failed. NOT recorded as a regression (autonomous-run was ✅ before; this is a fresh-session run where qwen3-8b immediately requested input). **Needs a look:** does the autonomous turn / `request_user_input` persist a transcript message, or is this a fresh-session/empty-board quirk? (Matrix qwen3-8b ✅ left as-is.)
