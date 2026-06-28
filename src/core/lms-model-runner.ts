@@ -1,0 +1,109 @@
+/**
+ * Effectful guarded model runner (todo §5.AF / §5.AB — the 2026-06-29 load-handover). The ONLY place a model load
+ * actually happens. It enforces the user's hard guardrails: **one model resident at a time** (unload every non-pinned
+ * model before loading the target), **context = 40000**, and **always headroom-checked** before the load (so a load can
+ * never freeze the machine). The `lms` invocations are injected (`LmsRunner`) so the orchestration is fully unit-testable
+ * with a fake — no `lms` spawn in tests; the live wiring passes a real `spawn`-backed runner.
+ *
+ * Selection (which model / size cap) is the caller's (the model-lab sweep); this runner just makes the load SAFE.
+ */
+
+import { buildLmsLoadArgs, buildLmsUnloadArgs, parseLmsPs, type ResidentModel } from "./lms-model-control";
+import { decideModelLoad } from "./model-load-headroom";
+
+/** Injected `lms` CLI runner — `run(["load", id, …])` → its stdout + exit code. */
+export type LmsRunner = (args: readonly string[]) => Promise<{ stdout: string; exitCode: number }>;
+
+const GiB = 1024 ** 3;
+/** Conservative candidate-size assumption when the real on-disk size isn't supplied (≈ the ≤14B cap's footprint). */
+const DEFAULT_CANDIDATE_SIZE_BYTES = 16 * GiB;
+const DEFAULT_CONTEXT_LENGTH = 40_000;
+
+/** Embedding models are tiny + persistent infra — never auto-unloaded by the one-at-a-time rule. */
+function isEmbeddingModel(identifier: string): boolean {
+	return identifier.toLowerCase().includes("embed");
+}
+
+/** List the currently-resident models (via `lms ps`). */
+export async function listResidentModels(run: LmsRunner): Promise<ResidentModel[]> {
+	const { stdout } = await run(["ps"]);
+	return parseLmsPs(stdout);
+}
+
+export interface LoadExclusiveInput {
+	/** The model to make the sole resident LLM. */
+	modelId: string;
+	/** Host RAM in bytes (e.g. `os.totalmem()`). */
+	totalRamBytes: number;
+	/** Context window to load with (default 40000; floored to ≥32k + capped to capability by the planner). */
+	contextLength?: number;
+	/** The model's max context capability (caps `contextLength`). */
+	maxContextLength?: number;
+	/** Candidate on-disk size in bytes (from `lms ls`); a conservative default is used when omitted. */
+	candidateSizeBytes?: number;
+	/** Identifiers to NEVER unload (the user's pinned set; embeddings are auto-kept regardless). */
+	pinnedIdentifiers?: readonly string[];
+	/** RAM fraction to keep free (default 0.25 — the freeze-avoidance reserve). */
+	reserveFraction?: number;
+}
+
+export interface LoadExclusiveResult {
+	loaded: boolean;
+	modelId: string;
+	/** Identifiers unloaded to honor the one-at-a-time rule. */
+	unloaded: string[];
+	reason: string;
+}
+
+/**
+ * Make `modelId` the sole resident LLM, safely: unload every non-pinned, non-embedding model first (one-at-a-time),
+ * then — only if the headroom guard approves — load it with the fixed context. Returns what was unloaded + whether the
+ * load happened. A refused headroom check returns `loaded:false` with the reason (never loads). Idempotent: if the
+ * target is already resident, it still clears the others and reports it resident.
+ */
+export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInput): Promise<LoadExclusiveResult> {
+	const pinned = new Set(input.pinnedIdentifiers ?? []);
+	const resident = await listResidentModels(run);
+
+	const unloaded: string[] = [];
+	for (const model of resident) {
+		if (model.identifier === input.modelId || pinned.has(model.identifier) || isEmbeddingModel(model.identifier)) {
+			continue;
+		}
+		await run(buildLmsUnloadArgs(model.identifier));
+		unloaded.push(model.identifier);
+	}
+
+	if (resident.some((model) => model.identifier === input.modelId)) {
+		return { loaded: true, modelId: input.modelId, unloaded, reason: "Already resident; cleared other models." };
+	}
+
+	// After unload, the only resident bytes left are the kept (pinned + embedding) models.
+	const keptResidentBytes = resident
+		.filter((model) => pinned.has(model.identifier) || isEmbeddingModel(model.identifier))
+		.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
+
+	const decision = decideModelLoad({
+		candidateSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
+		residentSizeBytes: keptResidentBytes,
+		totalRamBytes: input.totalRamBytes,
+		reserveFraction: input.reserveFraction,
+	});
+	if (!decision.allow) {
+		return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason };
+	}
+
+	const argv = buildLmsLoadArgs(input.modelId, {
+		contextLength: input.contextLength ?? DEFAULT_CONTEXT_LENGTH,
+		maxContextLength: input.maxContextLength,
+		gpu: "max",
+	});
+	const { stdout, exitCode } = await run(argv);
+	return {
+		loaded: exitCode === 0,
+		modelId: input.modelId,
+		unloaded,
+		reason:
+			exitCode === 0 ? `Loaded (${decision.reason})` : `lms load failed (exit ${exitCode}): ${stdout.slice(0, 200)}`,
+	};
+}
