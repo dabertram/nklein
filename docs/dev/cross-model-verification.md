@@ -616,3 +616,11 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 23:31:31 · verify-chat-agent-e2e
 - ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 9s · INCOMPLETE — see above.
   - matrix row: nemotron-3-nano-4b=❌
+
+### 2026-06-28 23:36:58 · verify-chat-agent-e2e
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 10s · INCOMPLETE — see above.
+  - matrix row: nemotron-3-nano-4b=❌
+
+### 2026-06-28 23:37:07 · verify-chat-agent-e2e
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 8s · INCOMPLETE — see above.
+  - matrix row: nemotron-3-nano-4b=❌
