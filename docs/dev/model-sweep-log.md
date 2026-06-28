@@ -249,6 +249,15 @@
 | qwen/qwen3-8b | 3 | ✅ 2/3 · 🧱 1 STALL | runs 1–2 PASS fast (37 s, 18 s) to `awaiting_review` + `delivered=YES`; **run 3 STALLED** — the model went silent for 480 s (hung/unresponsive call) → the stall detector aborted at 498 s, `delivered=NO` |
 > Ran as the never-idle background LLM work while building the §5.AA controller substrate. **Honest result: ~2/3 under sustained Low-Power load** — the 3rd back-to-back run hit a model **stall** (no activity 480 s), the same transient/under-load class seen at 13:08Z (the `interrupted`/`aborted` outcome) and 17:18Z (qwen3.5-9b stall), NOT a wrong answer. 🔁 transient (recoverable — the §5.AA `aborted`→re-run rung is its mitigation), but a real reminder that sustained back-to-back load under Low Power provokes endpoint stalls. The stall detector did its job (aborted at 498 s instead of waiting out the full budget).
 
+### 2026-06-28 21:50Z · **e2e capstone — full roster, GRADED gate (✅/◑/❌)** · `verify-all-models verify-chat-agent-e2e` · _(Low Power, back-to-back)_
+> First sweep with the new graded gate: ◑ = full 4-tool chain executed + card persisted, only the reply-echo missing (real capability, weak synthesis); ❌ = chain didn't run / card didn't persist.
+
+| result | models | note |
+|---|---|---|
+| ◑ PARTIAL | **qwen2.5-coder-14b (16 s), phi-4-mini-reasoning (131 s)** | drove the full chain + persisted the card; only the marker-echo gate unmet |
+| ❌ FAIL | qwen3-8b, gemma-4-e2b, qwen3.5-9b, nemotron, qwopus-4b, ornith-9b | narration-stop fast (6–23 s) under **consecutive load** |
+> **2/8 ◑, 6/8 ❌ — but this is a LOWER BOUND (back-to-back).** The ❌ models all failed *fast* (6–23 s = consecutive-load narration-stop), and several reach ◑ **standalone**: coder-14b ✅ standalone (this same sweep had it ◑), qwopus-4b 4/4 + phi-4-mini 4/4 in the *paced* characterization below. So the back-to-back sweep **understates** the true ◑ rate — exactly the consecutive-load degradation §4A warns about (now mitigated by the new `NKLEIN_SWEEP_SPACING_MS` flag; re-run spaced for the true rate). **Net vs the pre-§5.AA 0/8 wall (nothing executed anywhere): the chain now executes + persists for the robust models, and the graded gate makes that visible instead of a flat ❌.**
+
 ### 2026-06-28 21:1xZ · **constrained-rung e2e lift — reliability characterization (paced ×4)** · `verify-chat-agent-e2e` · _(Low Power)_
 > Quantifying the §5.AA constrained-decoding lift on the e2e capstone — does the rung reliably make a model drive the full tool chain + **persist the card**? Paced one run at a time (per the stall finding above). The `coder` filter also matched qwopus-4b, so 3 models × 4 runs.
 

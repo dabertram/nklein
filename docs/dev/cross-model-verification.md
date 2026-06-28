@@ -509,3 +509,14 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 21:47:46 · verify-chat-agent-e2e
 - ◑ **PARTIAL** · `qwen/qwen2.5-coder-14b-m5max` · 15s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
   - matrix row: qwen2.5-coder-14b-m5max=◑
+
+### 2026-06-28 21:52:53 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen3-8b-m5max` · 23s · INCOMPLETE — see above.
+- ◑ **PARTIAL** · `qwen/qwen2.5-coder-14b-m5max` · 16s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 12s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwen3.5-9b-mlx-m5max` · 12s · INCOMPLETE — see above.
+- ◑ **PARTIAL** · `microsoft/phi-4-mini-reasoning` · 131s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b-m5max` · 6s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 11s · INCOMPLETE — see above.
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 8s · INCOMPLETE — see above.
+  - matrix row: qwen3-8b-m5max=❌ qwen2.5-coder-14b-m5max=◑ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=◑ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
