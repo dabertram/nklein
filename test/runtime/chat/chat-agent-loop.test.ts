@@ -252,4 +252,27 @@ describe("runChatAgentLoop", () => {
 		expect(result.finalText).toBe("Answer.");
 		expect(result.steps).toHaveLength(0);
 	});
+	it("§5.AA gate: an all-repeats turn while INCOMPLETE nudges to continue (not force-final)", async () => {
+		// Turn 1: call read_file (real). Turn 2: re-call read_file (repeat → dedup, executedNew=0) while incomplete →
+		// the gate nudges instead of force-finalizing. Turn 3: finally call create_card → complete.
+		const turns: ChatAgentModelResponse[] = [
+			{ text: "", toolCalls: [{ id: "a", name: "read_file", arguments: { path: "x" } }] },
+			{ text: "", toolCalls: [{ id: "b", name: "read_file", arguments: { path: "x" } }] }, // repeat
+			{ text: "", toolCalls: [{ id: "c", name: "create_card", arguments: { title: "X" } }] },
+			{ text: "All set.", toolCalls: [] },
+		];
+		let turn = 0;
+		const result = await runChatAgentLoop(
+			{ messages: start },
+			{
+				complete: async () => turns[turn++] ?? { text: "", toolCalls: [] },
+				executeTool: async (call) => ({ callId: call.id, content: "ok" }),
+				appendToolExchange,
+				assessCompletion: (steps) => steps.some((s) => s.toolCall.name === "create_card"),
+			},
+		);
+		// The repeat didn't force-final; create_card eventually ran → complete.
+		expect(result.steps.map((s) => s.toolCall.name)).toEqual(["read_file", "create_card"]);
+		expect(result.finalText).toBe("All set.");
+	});
 });

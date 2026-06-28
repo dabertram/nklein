@@ -147,7 +147,16 @@ export async function runChatAgentLoop(
 		}
 		messages = deps.appendToolExchange(messages, response, results);
 		if (executedNew === 0) {
-			// The whole response was repeats — the model is stuck. Force a final (streamed) answer now (not a cap hit).
+			// The whole response was repeats — the model is stuck. But honor the §5.AA evidence-gate here too: if the run
+			// isn't actually complete and iterations remain, nudge to finish the un-done steps rather than force a final
+			// (so a model that re-calls a done tool while the task is incomplete still gets a chance to continue).
+			if (deps.assessCompletion && !deps.assessCompletion(steps) && iteration < maxIterations - 1) {
+				messages = deps.appendToolExchange(messages, { text: "", toolCalls: [] }, [
+					{ callId: `incomplete-${iteration}`, content: INCOMPLETE_NUDGE },
+				]);
+				continue;
+			}
+			// The model is stuck (all repeats) — force a final (streamed) answer now (not a cap hit).
 			const finalResponse = await deps.complete(messages, false, onToken);
 			return { finalText: finalResponse.text, steps, hitIterationLimit: false };
 		}
