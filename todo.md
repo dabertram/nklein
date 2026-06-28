@@ -3383,8 +3383,21 @@ deep analysis:
 > blacklist). Hardening shipped this phase: sandbox clone resilience · generous-but-bounded sweep budgets · LM Studio
 > dev-log capture · loaded-model-only targeting · richer non-PASS diagnostics. Remaining model-lift work (the §5.AA ladder
 > wiring + reason-then-act for phi-4 on code-edit) is queued for Phase 3.
-- [ ] **HARDENING (Phase-2 finding 2026-06-28, root-caused): a transient SDK `aborted` end parks a slow model as
-      `interrupted` instead of retrying.** ROOT CAUSE (traced, not guessed): `interrupted` is set when the vendored agent
+- [~] **HARDENING (Phase-2 finding 2026-06-28, root-caused): a transient SDK `aborted` end parks a slow model as
+      `interrupted` instead of retrying.** **CLASSIFICATION HALF DONE (2026-06-28):** added a distinct `aborted`
+      `ModelOutcomeKind` (kept in lock-step across `model-behavior-profile.ts`, the `agent-attempt-ledger.ts` zod enum +
+      its drift-guard, and all `Record<ModelOutcomeKind,…>` literals); `mapTerminalStateToOutcome` now maps an
+      `interrupted` end with **no !Klein timeout** → `aborted` (a timed-out interrupt still → `timeout`), so a transient
+      abort no longer pollutes the model's hard-failure profile and is recorded distinctly on the §5.AF ledger / §5.AG
+      "what was tried" panel; `retry-policy.ts` gives `aborted` a ladder that **re-runs first** (`same_model_retry` →
+      `alternate_endpoint` → `context_shrink` → `cross_model_carry`); and `agent-stuckness.ts` lists `aborted` in
+      `TRANSIENT_OUTCOME_KINDS` so repeated transient aborts never escalate to `hard_stuck` on their own. Pure + tested
+      (retry-policy, ledger-attempt, stuckness, profile/projection suites green). **STILL OWED (the WIRING):** firing the
+      chosen retry strategy at the shared model-call seam is the broader §5.AA "wire the retry engine into the task path"
+      item (line ~3633) — until that lands, the decision core picks `same_model_retry` for an `aborted` outcome but nothing
+      fires it live; the generous sweep budget remains the mitigation. (When wired, gate so a *user-initiated* stop isn't
+      auto-retried — `mapTerminalStateToOutcome` can't yet distinguish a user cancel from an SDK abort.) ROOT CAUSE
+      (traced, not guessed): `interrupted` is set when the vendored agent
       loop emits an `aborted` done/error event **with no final text** and it isn't a reviewable aborted tool completion
       ([nklein-event-adapter.ts:483,534](src/nklein-agent/nklein-event-adapter.ts)); the `heartbeat:"lost"` stamp on that
       terminal summary is **cosmetic**, NOT a !Klein heartbeat-timeout firing. Evidence: `ornith-1.0-9b` got an aborted

@@ -22,6 +22,11 @@ export type ModelOutcomeKind =
 	| "loop"
 	| "timeout"
 	| "malformed"
+	// A no-output `aborted` end from the SDK/agent loop with no !Klein timeout firing (§5.AA, root-caused 2026-06-28):
+	// a TRANSIENT (a slow model's request likely hit an SDK/endpoint-level timeout or iteration boundary), evidenced by
+	// the same task completing cleanly on a longer retest. Kept distinct from `other_failure`/`timeout` so it neither
+	// pollutes the model's hard-failure profile nor counts toward hard-stuck — it should be re-run, not parked.
+	| "aborted"
 	| "other_failure";
 
 /** The non-success failure modes (everything except `success`). */
@@ -31,6 +36,7 @@ export const MODEL_FAILURE_KINDS: readonly ModelOutcomeKind[] = [
 	"loop",
 	"timeout",
 	"malformed",
+	"aborted",
 	"other_failure",
 ];
 
@@ -85,6 +91,7 @@ function emptyFailureModes(): Record<ModelOutcomeKind, number> {
 		loop: 0,
 		timeout: 0,
 		malformed: 0,
+		aborted: 0,
 		other_failure: 0,
 	};
 }

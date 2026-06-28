@@ -75,6 +75,27 @@ describe("decideNextRetryStrategy", () => {
 		expect(first("malformed")).toBe("constrained_schema");
 		expect(first("narrated")).toBe("constrained_schema");
 		expect(first("other_failure")).toBe("same_model_retry");
+		// A no-output `aborted` transient re-runs first (the same ask often completes given another go, §5.AA).
+		expect(first("aborted")).toBe("same_model_retry");
+	});
+
+	it("re-runs an aborted transient rather than parking it (§5.AA root-cause 2026-06-28)", () => {
+		const d = decideNextRetryStrategy({
+			lastOutcome: "aborted",
+			attemptsSoFar: 0,
+			retryBudget: 3,
+			triedStrategies: [],
+		});
+		expect(d.strategy).toBe("same_model_retry");
+		expect(d.strategy).not.toBe("park");
+	});
+});
+
+describe("retryLadderForOutcome", () => {
+	it("treats aborted as a retryable transient (re-run first, never empty)", () => {
+		const ladder = retryLadderForOutcome("aborted");
+		expect(ladder[0]).toBe("same_model_retry");
+		expect(ladder.length).toBeGreaterThan(0);
 	});
 });
 

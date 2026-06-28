@@ -33,6 +33,7 @@ const modelOutcomeKindSchema = z.enum([
 	"loop",
 	"timeout",
 	"malformed",
+	"aborted",
 	"other_failure",
 ]);
 // Compile-time drift guard: if `ModelOutcomeKind` (§5.AA) changes, this assignment fails until the enum is updated.
@@ -437,6 +438,7 @@ function emptyOutcomeCounts(): Record<ModelOutcomeKind, number> {
 		loop: 0,
 		timeout: 0,
 		malformed: 0,
+		aborted: 0,
 		other_failure: 0,
 	};
 }

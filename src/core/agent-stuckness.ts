@@ -19,11 +19,18 @@ import type { ModelOutcomeKind } from "./model-behavior-profile";
 export type AgentStuckness = "progressing" | "transient" | "hard_stuck";
 
 /**
- * Failure outcomes that usually reflect a fixable OUTPUT-FORMAT slip — the model can likely get there on a retry or
- * via parse-recovery, so they must NEVER on their own escalate to a bigger model. Everything else
- * (`loop` / `timeout` / `other_failure`) is "capability/limit" class: repeated instances signal a real ceiling.
+ * Failure outcomes that usually reflect a fixable OUTPUT-FORMAT slip (or a transient SDK/endpoint abort) — the model
+ * can likely get there on a retry or via parse-recovery, so they must NEVER on their own escalate to a bigger model.
+ * `aborted` is included here: a no-output abort is a transient (the same ask completes on a retest, §5.AA), not a
+ * capability limit. Everything else (`loop` / `timeout` / `other_failure`) is "capability/limit" class: repeated
+ * instances signal a real ceiling.
  */
-export const TRANSIENT_OUTCOME_KINDS: readonly ModelOutcomeKind[] = ["no_tool_call", "narrated", "malformed"];
+export const TRANSIENT_OUTCOME_KINDS: readonly ModelOutcomeKind[] = [
+	"no_tool_call",
+	"narrated",
+	"malformed",
+	"aborted",
+];
 
 export interface AgentStucknessSignals {
 	/**

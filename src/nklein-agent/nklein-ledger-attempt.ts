@@ -33,6 +33,12 @@ export function mapTerminalStateToOutcome(
 	if (hadTimeout) {
 		return "timeout";
 	}
+	// An `interrupted` end with NO !Klein timeout is a no-output SDK/agent-loop `aborted` — a TRANSIENT, not a hard
+	// failure (§5.AA, root-caused 2026-06-28: the same task completed on a longer retest). Classify it as `aborted` so
+	// it doesn't pollute the model's hard-failure profile and is treated as retryable rather than parked.
+	if (state === "interrupted") {
+		return "aborted";
+	}
 	return "other_failure";
 }
 

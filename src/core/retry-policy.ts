@@ -46,6 +46,10 @@ const RELEVANT_STRATEGIES_BY_OUTCOME: Record<ModelOutcomeKind, readonly RetryStr
 	loop: ["same_model_retry", "context_shrink", "cross_model_carry"],
 	// It timed out: the ask is too big — shrink context, cut tools, or split the task.
 	timeout: ["context_shrink", "reduced_tool_set", "decompose", "cross_model_carry"],
+	// A no-output `aborted` transient (slow model hit an SDK/endpoint timeout or iteration boundary, §5.AA root-cause
+	// 2026-06-28): the SAME ask often completes given another go, so just RE-RUN first; then try a different endpoint in
+	// case that one stalled, shrink in case it was an iteration/size boundary, and only then carry to another model.
+	aborted: ["same_model_retry", "alternate_endpoint", "context_shrink", "cross_model_carry"],
 	// Malformed args/JSON: force a valid shape, then reword, then sample.
 	malformed: ["constrained_schema", "prompt_variant", "best_of_n"],
 	// Generic failure: a plain retry, sample more, then carry to a better model, then split.

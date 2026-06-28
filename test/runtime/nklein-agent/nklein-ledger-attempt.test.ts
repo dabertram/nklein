@@ -12,10 +12,15 @@ describe("mapTerminalStateToOutcome", () => {
 		expect(mapTerminalStateToOutcome("awaiting_review", false)).toBe("success");
 		expect(mapTerminalStateToOutcome("awaiting_review", true)).toBe("success");
 	});
-	it("maps a timed-out failure → timeout, a plain failure/interrupt → other_failure", () => {
+	it("maps a timed-out failure → timeout, a plain failure → other_failure", () => {
 		expect(mapTerminalStateToOutcome("failed", true)).toBe("timeout");
 		expect(mapTerminalStateToOutcome("failed", false)).toBe("other_failure");
-		expect(mapTerminalStateToOutcome("interrupted", false)).toBe("other_failure");
+	});
+	it("maps a no-timeout interrupt → aborted (a transient SDK abort, §5.AA), but a timed-out interrupt → timeout", () => {
+		// An `interrupted` end with no !Klein timeout is a no-output transient abort, not a hard failure.
+		expect(mapTerminalStateToOutcome("interrupted", false)).toBe("aborted");
+		// If a real timeout fired, it stays a timeout (the timeout check wins).
+		expect(mapTerminalStateToOutcome("interrupted", true)).toBe("timeout");
 	});
 });
 
@@ -65,6 +70,13 @@ describe("buildTerminalAttemptEvent", () => {
 		expect(event.outcome).toBe("timeout");
 		expect(event.qualityOk).toBe(false);
 		expect(event.salvage).toBe("wall_time_exceeded");
+	});
+
+	it("records a no-timeout interrupt as a schema-valid aborted transient (not other_failure)", () => {
+		const event = buildTerminalAttemptEvent({ ...base, state: "interrupted", timeoutReason: null });
+		expect(event.outcome).toBe("aborted");
+		expect(event.qualityOk).toBe(false);
+		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);
 	});
 
 	it("tolerates missing timing/usage (null tok/s, no crash)", () => {

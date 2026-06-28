@@ -68,6 +68,18 @@ describe("classifyAgentStuckness", () => {
 		).toBe("transient");
 	});
 
+	it("treats repeated no-output aborts as transient (a SDK abort is not a capability limit, §5.AA)", () => {
+		expect(
+			classifyAgentStuckness(
+				signals({
+					recentOutcomes: ["aborted", "aborted", "aborted"],
+					distinctApproachesTried: 3,
+					retryBudgetExhausted: true,
+				}),
+			),
+		).toBe("transient");
+	});
+
 	it("is hard_stuck on an uncleared loop with enough failures across enough approaches", () => {
 		expect(
 			classifyAgentStuckness(
