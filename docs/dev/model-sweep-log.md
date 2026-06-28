@@ -132,10 +132,11 @@
 | model | result | note |
 |---|:-:|---|
 | microsoft/phi-4-mini-reasoning | ◑ | PARTIAL — reached `awaiting_review` but `delivered=NO` (declared done without writing hello.txt). Consistent with phi-4's reasoning-model tool-calling weakness — it was a **false ✅ under the old terminal-only criterion**; the deliverable-gate corrects it. Lift = §5.AA reason-then-act / tool-set-reduction rungs (already backlogged). |
-> **Honest loaded-roster C0 picture (Low Power, this session, delivery-gated):** ✅ delivered = qwen3-8b, qwen2.5-coder-14b,
-> gemma-4-e2b, nemotron-3-nano-4b, ornith-1.0-9b, qwopus3.5-4b (warm) · 🧱 STALLED = qwen3.5-9b (finalization, §5.AA retry
-> wiring) · ◑ PARTIAL = phi-4-mini-reasoning (premature-done, §5.AA reason-then-act). The improved harness (deliverable
-> gate + stall detector) surfaced two issues the old terminal-only PASS hid (qwen3.5-9b stall, phi-4 non-delivery).
+> **Honest loaded-roster C0 — COMPLETE (Low Power, this session, delivery-gated; all 8 loaded chat models):**
+> **6 ✅ real passes (`delivered=YES` confirmed):** qwen3-8b, qwen2.5-coder-14b, gemma-4-e2b, nemotron-3-nano-4b,
+> ornith-1.0-9b, qwopus3.5-4b (warm) · **🧱 STALLED:** qwen3.5-9b (finalization → §5.AA retry wiring) · **◑ PARTIAL:**
+> phi-4-mini-reasoning (premature-done, no deliverable → §5.AA reason-then-act). The improved harness (deliverable gate +
+> stall detector) surfaced the two issues the old terminal-only PASS hid — so this is the first *trustworthy* C0 baseline.
 
 ### 2026-06-28 17:18Z · **re-attack a standing ⚠️** · C0 · `verify-task-completion` · _(Low Power)_
 | model | result | note |
