@@ -4549,7 +4549,12 @@ deep analysis:
       `DurableSchedulerLogEntry` as a §5.AF `scheduler` event (+ reads them back on boot → `replayDurableJobs`), and a
       runtime tick loop that calls `decideDurableSchedulerActions`, dispatches `lease` actions to the endpoint
       scheduler/sandbox pool, extends leases via heartbeats, and records completion via `markDurableJob`; then run C3
-      (`complex_dag` unattended + restart-mid-run) on the §5.Z roster.
+      (`complex_dag` unattended + restart-mid-run) on the §5.Z roster. **Adapter mapping (derived 2026-06-28 vs the live
+      `schedulerEventSchema`):** a `scheduled` action → one `scheduler` event — `lease`→`lease_acquired` (workerId, detail=
+      expiresAt), `reclaim`→`reclaimed`, `unblock`→`dependency_unblocked`, `fail`→`cancelled` (detail=reason); a
+      `completed` entry is NOT a scheduler event — it rides the existing `attempt` event's `outcome`. So **boot-replay =
+      merge the workflow's `scheduler` events + `attempt` outcomes by `recordedAt` into a `DurableSchedulerLogEntry[]`,
+      then `replayDurableJobs`** (persist the initial graph once at run start, or rebuild it from the card set + deps).
 - [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
