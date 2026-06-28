@@ -4,9 +4,11 @@ import {
 	buildDurableJobGraph,
 	type DurableJob,
 	type DurableSchedulerInput,
+	type DurableSchedulerLogEntry,
 	decideDurableSchedulerActions,
 	isDurableRunComplete,
 	markDurableJob,
+	replayDurableJobs,
 } from "../../../src/core/durable-scheduler";
 
 function job(over: Partial<DurableJob> & { jobId: string }): DurableJob {
@@ -189,5 +191,41 @@ describe("applyDurableSchedulerActions + markDurableJob + isDurableRunComplete",
 		}
 		expect(isDurableRunComplete(jobs)).toBe(true);
 		expect(jobs.every((j) => j.state === "succeeded")).toBe(true);
+	});
+
+	it("replayDurableJobs reconstructs mid-run state from the log (boot-replay resumes exactly)", () => {
+		const initial = buildDurableJobGraph({
+			taskIds: ["a", "b"],
+			dependencies: [{ fromTaskId: "b", toTaskId: "a" }],
+		});
+		// Live run up to a crash point: lease a, a succeeds, b unblocks + is leased.
+		const log: DurableSchedulerLogEntry[] = [
+			{ kind: "scheduled", now: 0, action: { type: "lease", jobId: "a", workerId: "w1", expiresAt: 100 } },
+			{ kind: "completed", jobId: "a", outcome: "succeeded" },
+			{ kind: "scheduled", now: 110, action: { type: "unblock", jobId: "b" } },
+			{ kind: "scheduled", now: 110, action: { type: "lease", jobId: "b", workerId: "w2", expiresAt: 210 } },
+		];
+		const resumed = replayDurableJobs(initial, log, { reclaimBackoffMs: 50 });
+		expect(resumed.find((j) => j.jobId === "a")).toMatchObject({ state: "succeeded" });
+		expect(resumed.find((j) => j.jobId === "b")).toMatchObject({
+			state: "leased",
+			attempts: 1,
+			lease: { workerId: "w2", expiresAt: 210 },
+		});
+		// Re-deciding from the replayed state continues identically (b is leased & live → nothing new to do).
+		const next = decideDurableSchedulerActions(input(resumed, { now: 150, maxConcurrentLeases: 2 }));
+		expect(next).toEqual([]);
+	});
+
+	it("replay is deterministic — same log yields the same state", () => {
+		const initial = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const log: DurableSchedulerLogEntry[] = [
+			{ kind: "scheduled", now: 0, action: { type: "lease", jobId: "a", workerId: "w1", expiresAt: 100 } },
+			{ kind: "scheduled", now: 200, action: { type: "reclaim", jobId: "a", reason: "lease_expired" } },
+		];
+		const a = replayDurableJobs(initial, log, { reclaimBackoffMs: 50 });
+		const b = replayDurableJobs(initial, log, { reclaimBackoffMs: 50 });
+		expect(a).toEqual(b);
+		expect(a[0]).toMatchObject({ state: "ready", lease: null, nextEligibleAt: 250, attempts: 1 });
 	});
 });

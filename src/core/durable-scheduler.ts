@@ -284,3 +284,38 @@ export function buildDurableJobGraph(input: DurableJobGraphInput): DurableJob[] 
 		return { jobId, state, dependsOn, lease: null, attempts: 0, nextEligibleAt: 0 };
 	});
 }
+
+/**
+ * One durable, append-only record of what happened to the run — the persistence unit the runtime writes (mapped to the
+ * §5.AF `scheduler` ledger event family + the `attempt` outcome) and reads back on boot. Either a scheduler-decided
+ * action that was applied (`scheduled`, with the clock it ran at — needed to reconstruct reclaim backoff) or an
+ * external worker completion (`completed`).
+ */
+export type DurableSchedulerLogEntry =
+	| { kind: "scheduled"; now: number; action: DurableSchedulerAction }
+	| { kind: "completed"; jobId: string; outcome: "succeeded" | "failed" };
+
+/**
+ * Rebuild the current job state from the initial graph + the ordered log — the **boot-replay** that lets a restarted
+ * runtime resume a multi-card run "exactly where it was" (C3) without re-asking a weak model to rediscover progress.
+ * Deterministic: folding the same log over the same initial graph always yields the same state (the decision core is
+ * deterministic too, so re-deciding from here continues identically). Pure — the runtime persists each entry as it
+ * applies it, then on boot calls this over the replayed log.
+ */
+export function replayDurableJobs(
+	initialJobs: readonly DurableJob[],
+	log: readonly DurableSchedulerLogEntry[],
+	options: { reclaimBackoffMs: number },
+): DurableJob[] {
+	let jobs: DurableJob[] = initialJobs.map((job) => ({ ...job }));
+	for (const entry of log) {
+		jobs =
+			entry.kind === "scheduled"
+				? applyDurableSchedulerActions(jobs, [entry.action], {
+						now: entry.now,
+						reclaimBackoffMs: options.reclaimBackoffMs,
+					})
+				: markDurableJob(jobs, entry.jobId, entry.outcome);
+	}
+	return jobs;
+}
