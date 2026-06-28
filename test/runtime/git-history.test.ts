@@ -60,6 +60,26 @@ describe.sequential("git history runtime", () => {
 		}
 	});
 
+	it("returns a real error for an invalid/unknown commit hash (not a misleading empty diff)", async () => {
+		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-badhash-");
+		try {
+			initRepository(repoPath);
+			writeFileSync(join(repoPath, "first.txt"), "hello\n", "utf8");
+			commitAll(repoPath, "first commit");
+
+			const response = await getCommitDiff({
+				cwd: repoPath,
+				commitHash: "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+			});
+
+			expect(response.ok).toBe(false);
+			expect(response.files).toHaveLength(0);
+			expect(response.error).toMatch(/could not be resolved/i);
+		} finally {
+			cleanup();
+		}
+	});
+
 	it("returns rename metadata for rename-only commits", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-rename-");
 		try {

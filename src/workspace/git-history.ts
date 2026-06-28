@@ -406,6 +406,18 @@ export async function getCommitDiff(options: {
 	}
 	const repoRoot = repoRootResult.stdout;
 
+	// Verify the commit actually resolves first. Otherwise an invalid/unknown hash just makes the diff-tree/show calls
+	// below come back empty, and the caller sees a misleading "No changes" instead of a real error (git-view P1).
+	const resolved = await runGit(repoRoot, ["rev-parse", "--verify", "--quiet", `${commitHash}^{commit}`]);
+	if (!resolved.ok || !resolved.stdout) {
+		return {
+			ok: false,
+			commitHash,
+			files: [],
+			error: `Commit ${commitHash} could not be resolved in this repository.`,
+		};
+	}
+
 	const [nameStatusResult, numstatResult, diffResult] = await Promise.all([
 		runGit(repoRoot, ["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--name-status", "-z", commitHash]),
 		runGit(repoRoot, ["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--numstat", "-z", commitHash]),

@@ -924,10 +924,12 @@ deep analysis:
       wired onto the gate result + rendered on the card's Verify result. Tested.
 - [ ] **Git-view hardening follow-ups** *(folded 2026-06-28 from a now-removed planning doc (`git-view-followup-work.md`); the
       Git view v1 shipped, these are its edge-case hardening items)*. Each needs a runtime test + (where UI) a web test.
-  - [ ] **P1 — surface real errors for invalid commit-diff requests.** `getCommitDiff` returns `ok:true` with an empty
-        `files` array on an invalid commit hash, so the UI shows a misleading "No changes" instead of a failure.
-        Propagate the backend command error when commit resolution fails, return `ok:false` with a clear `error`, and
-        render an error state in the diff panel. Test invalid hashes.
+  - [x] **P1 — surface real errors for invalid commit-diff requests (DONE 2026-06-28).** `getCommitDiff`
+        ([git-history.ts](src/workspace/git-history.ts)) now verifies the commit resolves (`rev-parse --verify --quiet
+        <hash>^{commit}`) before the diff-tree/show calls; an invalid/unknown hash returns `ok:false` + a clear `error`
+        ("Commit <hash> could not be resolved…") instead of a misleading `ok:true` empty-`files` "No changes". Regression
+        test added (invalid hash → `ok:false` + error). *(UI error-state rendering in the diff panel: still owed — backend
+        now returns the error; wire the panel to show it.)*
   - [ ] **P1 — support merge-commit diffs.** Merge-commit diff loading can produce empty file lists. Update the runtime
         merge-diff extraction to handle merge commits explicitly; add runtime tests asserting non-empty diff output for
         known merge scenarios.
