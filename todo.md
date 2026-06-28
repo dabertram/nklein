@@ -3594,7 +3594,12 @@ deep analysis:
       add `aborted-no-output` to the retryable-outcome table and re-run before parking. **Mitigation already in place:**
       the generous sweep budget (the slow model just needs time). Confirm via the LM Studio dev logs (now captured) that
       an abort coincides with a long/stalled request, then make the retry rung fire. (Not a heartbeat-timeout knob — that
-      framing was wrong; corrected here.)
+      framing was wrong; corrected here.) **MORE LIVE EVIDENCE (2026-06-28, Low Power):** `qwen3.5-9b` on C0 went
+      `running`→`interrupted` then produced NO further activity — a hard repro of the park-instead-of-retry: the session
+      gave up at the transient abort and never finalized (the harness's new stall detector aborted it at 360 s,
+      `delivered=NO`). Under Low Power (~50% throughput) the transient-abort window is hit more often, so this `[~]`
+      wiring is the concrete lift for the qwen3.5-9b ⚠️ (and the general slow-finalize class) — until it fires, slow
+      models park as `interrupted`/STALLED rather than retrying through.
 - [ ] **Per-model classification + "failing-LLM list" (Phase-2, 2026-06-28) — provisional, until the §5.AB fitness store
       lands.** small-model-smoke (code-fix role): **7/8 deliver** with a generous budget; **phi-4-mini-reasoning** is the
       lone non-deliverer (reasons, no edit) — provisionally a **capability-floor for the code-edit role** (a 3.8B *reasoning*
