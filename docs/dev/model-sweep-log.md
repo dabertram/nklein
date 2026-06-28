@@ -132,6 +132,7 @@
 | model | result | note |
 |---|:-:|---|
 | ornith-1.0-9b-mlx (NEW, ~9B) | ✅ | 🚀 clean first-try pass to `awaiting_review` in ~50 s (even Low Power) — a usable new 9B; ran with the new **live-activity** harness mode (visible real-time steps) |
+| ornith-1.0-35b-mlx@8bit (NEW, ~35B, **Phase-A bigger-model lever**) | ◑ | 🐞 reached `awaiting_review` in ~3 s of state churn but **delivered NOTHING** (`delivered=NO`, no result branch) — declared done without producing hello.txt. A model can hit the done lane without doing the work → **drove a harness fix: PASS now requires terminal AND the deliverable** (else PARTIAL). The 35B itself: inconclusive (premature-done; needs re-run + inspection). Vindicates "deeply check the result, not just the lane." |
 
 ### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |

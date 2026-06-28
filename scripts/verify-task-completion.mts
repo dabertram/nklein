@@ -233,20 +233,32 @@ async function main(): Promise<void> {
 	log("");
 	// A structured, paste-ready row for docs/dev/model-sweep-log.md (the per-run scoreboard) — the harness collects the
 	// facts; a human/agent adds the judgment note (🚀/🐢/🐞/…).
-	const resultLabel = obs.terminal ? "PASS ✓" : obs.stalled ? "STALLED 🧱" : "INCOMPLETE ⏳";
+	// A clean PASS requires BOTH reaching a terminal lane AND actually delivering the deliverable (the hello.txt result
+	// branch). Reaching `awaiting_review` without a result branch is a PARTIAL — the agent declared done but produced
+	// nothing (exactly the "deeply check the result, not just the lane" case).
+	const delivered = deliveredHello?.includes("Hello from the sandbox") ?? false;
+	const resultLabel = obs.terminal && delivered
+		? "PASS ✓"
+		: obs.terminal
+			? "PARTIAL ◑ (terminal, no deliverable)"
+			: obs.stalled
+				? "STALLED 🧱"
+				: "INCOMPLETE ⏳";
 	log(
 		`SWEEP-ROW | ${new Date().toISOString()} | C0 single-card | model=${modelId} | ` +
-			`result=${resultLabel} | terminal=${obs.terminal ? obs.terminalState : obs.lastState || "n/a"} | ` +
+			`result=${resultLabel} | terminal=${obs.terminal ? obs.terminalState : obs.lastState || "n/a"} | delivered=${delivered ? "YES" : "NO"} | ` +
 			`power=${power.mode}×${power.multiplier}`,
 	);
 	log(
-		obs.terminal
-			? "PASS ✓ a small local model ran the card to a terminal state (awaiting_review/completed) with its result captured."
-			: obs.stalled
-				? `STALLED — no model activity for ${Math.round(stallMs / 1000)}s (a hung/unresponsive model call); aborted early. NOT a clean INCOMPLETE — the model produced no sustained output (check it actually serves under the agent's tool-calling prompt).`
-				: "INCOMPLETE — the card did not reach awaiting_review/completed within the timeout (see activities).",
+		obs.terminal && delivered
+			? "PASS ✓ a small local model ran the card to a terminal state AND delivered the correct result (hello.txt)."
+			: obs.terminal
+				? "PARTIAL ◑ — reached awaiting_review/completed but did NOT deliver hello.txt (no result branch). The agent declared done without producing the deliverable — inspect the run; do not count as a real pass."
+				: obs.stalled
+					? `STALLED — no model activity for ${Math.round(stallMs / 1000)}s (a hung/unresponsive model call); aborted early. The model produced no sustained output (check it actually serves under the agent's tool-calling prompt).`
+					: "INCOMPLETE — the card did not reach awaiting_review/completed within the timeout (see activities).",
 	);
-	process.exit(obs.terminal ? 0 : 1);
+	process.exit(obs.terminal && delivered ? 0 : 1);
 }
 
 main().catch((error) => {
