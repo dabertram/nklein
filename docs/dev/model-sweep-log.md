@@ -249,6 +249,16 @@
 | qwen/qwen3-8b | 3 | ✅ 2/3 · 🧱 1 STALL | runs 1–2 PASS fast (37 s, 18 s) to `awaiting_review` + `delivered=YES`; **run 3 STALLED** — the model went silent for 480 s (hung/unresponsive call) → the stall detector aborted at 498 s, `delivered=NO` |
 > Ran as the never-idle background LLM work while building the §5.AA controller substrate. **Honest result: ~2/3 under sustained Low-Power load** — the 3rd back-to-back run hit a model **stall** (no activity 480 s), the same transient/under-load class seen at 13:08Z (the `interrupted`/`aborted` outcome) and 17:18Z (qwen3.5-9b stall), NOT a wrong answer. 🔁 transient (recoverable — the §5.AA `aborted`→re-run rung is its mitigation), but a real reminder that sustained back-to-back load under Low Power provokes endpoint stalls. The stall detector did its job (aborted at 498 s instead of waiting out the full budget).
 
+### 2026-06-29 · **e2e capstone — full roster, GRADED + SPACED** · `NKLEIN_SWEEP_SPACING_MS=30000 verify-all-models verify-chat-agent-e2e` · _(Low Power)_
+> The same graded sweep but with 30 s spacing between models (the new flag) to remove consecutive-load degradation — the TRUE current-state of the capstone.
+
+| result | models | note |
+|---|---|---|
+| ✅ PASS | **qwen3-8b (29 s)** | 🚀 FULL pass — chain executed + card persisted + **marker echoed**. Spacing recovered it from ❌ (back-to-back) → ✅. |
+| ◑ PARTIAL | **coder-14b (17 s), phi-4-mini (64 s)** | full chain + card persisted; reply didn't echo the marker |
+| ❌ FAIL | gemma-4-e2b, qwen3.5-9b, nemotron, qwopus-4b, ornith-9b | fast narration-stop (7–13 s) **even when spaced** — these need the controller/reason-then-act, not just spacing |
+> **Spaced = 1 ✅ + 2 ◑ + 5 ❌ (vs back-to-back 0 ✅ + 2 ◑ + 6 ❌).** Two clear wins: **(1) spacing works** — it recovered qwen3-8b to a FULL ✅ (the consecutive-load degradation was real + the `NKLEIN_SWEEP_SPACING_MS` mitigation is validated). **(2) The north-star fully clears the hardest challenge** when not load-degraded — a milestone vs the pre-§5.AA 0/8 wall. The 5 that fast-fail *even spaced* (7–13 s) are the genuine remaining target: they declare done / narrate before the constrained rung can drive the chain — the §5.AA finite-state controller (evidence-gated, per-step) is the lift, not more recovery or spacing.
+
 ### 2026-06-28 21:50Z · **e2e capstone — full roster, GRADED gate (✅/◑/❌)** · `verify-all-models verify-chat-agent-e2e` · _(Low Power, back-to-back)_
 > First sweep with the new graded gate: ◑ = full 4-tool chain executed + card persisted, only the reply-echo missing (real capability, weak synthesis); ❌ = chain didn't run / card didn't persist.
 

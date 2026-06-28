@@ -42,7 +42,7 @@
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | ◑ | ◑ | ◑ | · | · | · | ◑ | · |
-| chat e2e capstone† · `verify-chat-agent-e2e` | ❌ | ◑ | ❌ | ❌ | · | ◑ | · | ❌ | · |
+| chat e2e capstone† · `verify-chat-agent-e2e` | ✅ | ◑ | ❌ | ❌ | · | ◑ | · | ❌ | · |
 | chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | ◑ | · | ◑ | · |
 | chat write tool · `verify-chat-agent-write` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
 | chat send · `verify-chat-send` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
@@ -525,3 +525,14 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 11s · INCOMPLETE — see above.
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 8s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=❌ qwen2.5-coder-14b-m5max=◑ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=◑ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 22:00:57 · verify-chat-agent-e2e
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 29s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+- ◑ **PARTIAL** · `qwen/qwen2.5-coder-14b-m5max` · 17s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 13s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwen3.5-9b-mlx-m5max` · 8s · INCOMPLETE — see above.
+- ◑ **PARTIAL** · `microsoft/phi-4-mini-reasoning` · 64s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b-m5max` · 8s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 9s · INCOMPLETE — see above.
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 7s · INCOMPLETE — see above.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=◑ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=◑ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
