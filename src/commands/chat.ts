@@ -199,6 +199,9 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			executeTool,
 			appendToolExchange: appendChatToolExchange,
 			readFocusChain: (sessionId) => readChatFocusChain(sessionId),
+			// §5.AA controller evidence-gate: surface the offered tool names so a multi-tool instruction isn't accepted
+			// as "done" until every named tool has actually run.
+			offeredToolNames: definitions.map((definition) => definition.name),
 		};
 
 		try {

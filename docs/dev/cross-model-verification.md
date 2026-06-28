@@ -604,3 +604,15 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 23:23:30 · verify-chat-agent-e2e
 - ❌ **FAIL** · `google/gemma-4-e2b` · 13s · INCOMPLETE — see above.
   - matrix row: gemma-4-e2b=❌
+
+### 2026-06-28 23:31:12 · verify-chat-agent-e2e
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 9s · INCOMPLETE — see above.
+  - matrix row: nemotron-3-nano-4b=❌
+
+### 2026-06-28 23:31:21 · verify-chat-agent-e2e
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 9s · INCOMPLETE — see above.
+  - matrix row: nemotron-3-nano-4b=❌
+
+### 2026-06-28 23:31:31 · verify-chat-agent-e2e
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 9s · INCOMPLETE — see above.
+  - matrix row: nemotron-3-nano-4b=❌

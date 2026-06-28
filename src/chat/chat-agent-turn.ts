@@ -1,5 +1,6 @@
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
 import { isTemporalContextRelevant } from "../core/temporal-awareness";
+import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import {
 	type ChatAgentModelResponse,
@@ -51,6 +52,9 @@ export interface ChatAgentTurnDeps {
 	) => ChatPromptMessage[];
 	/** The clock for the temporal-awareness lighthouse (§5.AC); injected for determinism, defaults to `new Date()`. */
 	now?: () => Date;
+	/** Names of the tools offered this turn — feeds the §5.AA controller evidence-gate (don't accept a premature "done"
+	 *  while a tool the instruction explicitly named is still uncalled). Omit to disable the gate (today's behavior). */
+	offeredToolNames?: readonly string[];
 }
 
 export interface ChatAgentTurnResult {
@@ -104,13 +108,38 @@ export async function runChatAgentTurn(
 				...prompt,
 			]
 		: prompt;
+	// §5.AA controller evidence-gate: when the instruction explicitly names ≥2 offered tools (a clear multi-tool task,
+	// e.g. the e2e capstone), don't let the loop accept a premature "done" until every named tool has actually run —
+	// the fix for the ≤4B "I've completed all steps" prose-done-after-one-tool failure. Single-/no-named-tool turns
+	// (ordinary questions) get no gate, so this can't force a fabricated call on a normal chat.
+	const namedTools =
+		deps.offeredToolNames && deps.offeredToolNames.length > 0
+			? selectToolsForAttempt(
+					deps.offeredToolNames.map((name) => ({ name })),
+					input.userMessage,
+					1,
+				).matchedNames
+			: [];
+	const requiredTools = namedTools.length >= 2 ? namedTools : [];
+	const assessCompletion =
+		requiredTools.length > 0
+			? (steps: readonly ChatAgentStep[]): boolean => {
+					const used = new Set(steps.map((step) => step.toolCall.name));
+					return requiredTools.every((tool) => used.has(tool));
+				}
+			: undefined;
 	const loop = await runChatAgentLoop(
 		{
 			messages,
 			...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}),
 			...(input.onToken ? { onToken: input.onToken } : {}),
 		},
-		{ complete: deps.model, executeTool: deps.executeTool, appendToolExchange: deps.appendToolExchange },
+		{
+			complete: deps.model,
+			executeTool: deps.executeTool,
+			appendToolExchange: deps.appendToolExchange,
+			...(assessCompletion ? { assessCompletion } : {}),
+		},
 	);
 	// §5.O: weak models sometimes narrate a tool call as text in their final answer instead of confirming what they
 	// did. Strip that markup from the user-facing reply; if nothing readable remains but tools ran, confirm briefly.
