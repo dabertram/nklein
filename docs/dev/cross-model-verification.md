@@ -545,3 +545,18 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 22:07:45 · verify-chat-agent-e2e
 - ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 12s · INCOMPLETE — see above.
   - matrix row: gemma-4-e2b-m5max=❌
+
+### 2026-06-28 22:10:34 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 14s · INCOMPLETE — see above.
+- ❌ **FAIL** · `google/gemma-4-e2b-q8` · 15s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌ gemma-4-e2b-q8=❌
+
+### 2026-06-28 22:11:22 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 12s · INCOMPLETE — see above.
+- ❌ **FAIL** · `google/gemma-4-e2b-q8` · 16s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌ gemma-4-e2b-q8=❌
+
+### 2026-06-28 22:12:11 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 13s · INCOMPLETE — see above.
+- ❌ **FAIL** · `google/gemma-4-e2b-q8` · 16s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌ gemma-4-e2b-q8=❌

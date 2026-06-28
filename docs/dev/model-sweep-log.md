@@ -249,6 +249,15 @@
 | qwen/qwen3-8b | 3 | ✅ 2/3 · 🧱 1 STALL | runs 1–2 PASS fast (37 s, 18 s) to `awaiting_review` + `delivered=YES`; **run 3 STALLED** — the model went silent for 480 s (hung/unresponsive call) → the stall detector aborted at 498 s, `delivered=NO` |
 > Ran as the never-idle background LLM work while building the §5.AA controller substrate. **Honest result: ~2/3 under sustained Low-Power load** — the 3rd back-to-back run hit a model **stall** (no activity 480 s), the same transient/under-load class seen at 13:08Z (the `interrupted`/`aborted` outcome) and 17:18Z (qwen3.5-9b stall), NOT a wrong answer. 🔁 transient (recoverable — the §5.AA `aborted`→re-run rung is its mitigation), but a real reminder that sustained back-to-back load under Low Power provokes endpoint stalls. The stall detector did its job (aborted at 498 s instead of waiting out the full budget).
 
+### 2026-06-29 · **q4-vs-q8 A/B — gemma-4-e2b on the e2e capstone** · `verify-chat-agent-e2e` (spaced ×3 each) · _(Low Power; user loaded the q8)_
+> The controlled quant experiment: same 2B model, same hardest challenge, q4 (`-m5max`) vs q8 (`-q8`) — how much of the chaining failure is quant-induced?
+
+| variant | e2e (×3) | note |
+|---|:-:|---|
+| gemma-4-e2b **q4** | 0/3 persist · ❌❌❌ | narration/early-stop (12–14 s), `Tool call: …` prose dialect |
+| gemma-4-e2b **q8** | 0/3 persist · ❌❌❌ | narration/early-stop (15–16 s), `tool_code print(…)` dialect |
+> **Finding: q8 does NOT lift the 2B floor model on the e2e chain — identical 0/3 to q4.** The multi-tool-chaining failure is a **control/orchestration limit (or inherent 2B-size limit), not quant precision** — bumping the SAME small model to q8 buys nothing here. Strongly reinforces the [[model-quant-strategy-q4-first]] call: the lever for these failures is the §5.AA controller (evidence-gated, force-the-call), not higher quant. (A q8 of a LARGER model is a separate question — this only tests the 2B floor, which is the one the user loaded.) Interesting aside: the two quants even narrate in DIFFERENT dialects (q4 prose, q8 `tool_code`), underscoring that narration form is model/quant-idiosyncratic — recovery must cover many, which is why the durable fix is the controller, not chasing dialects.
+
 ### 2026-06-29 · **e2e capstone — full roster, GRADED + SPACED** · `NKLEIN_SWEEP_SPACING_MS=30000 verify-all-models verify-chat-agent-e2e` · _(Low Power)_
 > The same graded sweep but with 30 s spacing between models (the new flag) to remove consecutive-load degradation — the TRUE current-state of the capstone.
 
