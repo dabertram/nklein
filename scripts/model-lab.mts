@@ -74,7 +74,51 @@ async function main(): Promise<void> {
 		console.log(`unload ${arg}: exit ${exitCode}`);
 		process.exit(exitCode);
 	}
-	console.log("usage: tsx scripts/model-lab.mts ps | load <id> [ctx] | unload <id>");
+	if (subcommand === "sweep") {
+		// model-lab sweep <harness> <id1,id2,…> — for each model: guarded-load it (one resident at a time), run the
+		// harness against just that model, record PASS/PARTIAL/FAIL, move on. Spawns LLM inference (the harness) — only
+		// run this AFTER the user has handed over loading control.
+		const harness = arg;
+		const modelIds = (ctxArg ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+		if (!harness || modelIds.length === 0) {
+			console.error("usage: model-lab sweep <harness> <id1,id2,…>");
+			process.exit(64);
+		}
+		const results: { modelId: string; loaded: boolean; verdict: string }[] = [];
+		for (const modelId of modelIds) {
+			console.log(`\n──────── ${harness} · ${modelId} ────────`);
+			const load = await loadModelExclusive(run, { modelId, totalRamBytes: totalmem(), reserveFraction });
+			console.log(`  load: ${load.reason}${load.unloaded.length ? ` (unloaded ${load.unloaded.join(", ")})` : ""}`);
+			if (!load.loaded) {
+				results.push({ modelId, loaded: false, verdict: "LOAD-REFUSED" });
+				continue;
+			}
+			// Run the harness against the now-sole-resident model (it targets the loaded set / a filter).
+			const { stdout, exitCode } = await new Promise<{ stdout: string; exitCode: number }>((resolve) => {
+				const child = spawn("npx", ["tsx", `scripts/${harness}.mts`], {
+					env: { ...process.env, NKLEIN_VERIFY_DUMP_ACTIVITIES: "1" },
+				});
+				let out = "";
+				child.stdout?.on("data", (d) => {
+					out += d.toString();
+					process.stdout.write(d);
+				});
+				child.stderr?.on("data", (d) => {
+					out += d.toString();
+				});
+				child.on("close", (code) => resolve({ stdout: out, exitCode: code ?? 1 }));
+			});
+			const verdict = exitCode === 0 ? "PASS" : exitCode === 3 ? "PARTIAL" : "FAIL";
+			results.push({ modelId, loaded: true, verdict });
+			void stdout;
+		}
+		console.log("\n════════ MODEL-LAB SWEEP SUMMARY ════════");
+		for (const r of results) {
+			console.log(`  ${r.verdict.padEnd(12)} ${r.modelId}`);
+		}
+		return;
+	}
+	console.log("usage: tsx scripts/model-lab.mts ps | load <id> [ctx] | unload <id> | sweep <harness> <id1,id2,…>");
 }
 
 main().catch((error) => {
