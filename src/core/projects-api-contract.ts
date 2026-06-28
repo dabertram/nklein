@@ -48,7 +48,24 @@ export const runtimeDevTestProjectScenarioSchema = z.object({
 });
 export type RuntimeDevTestProjectScenario = z.infer<typeof runtimeDevTestProjectScenarioSchema>;
 
-export const runtimeDevTestProjectPresetSchema = z.enum(["mid_task", "complex_dag", "audio_vst", "daw_foundation"]);
+/**
+ * The dev-test scenario presets — kept in lock-step with `NKleinDevTestProjectPreset`
+ * ([nklein-dev-test-project.ts](../nklein-agent/nklein-dev-test-project.ts), the source of truth + implementation). The
+ * DAG-shape presets (`wide_fanout`/`deep_chain`/`mixed_dag`/`many_small`, §5.O) were implemented in the module but were
+ * missing here, so the runtime API rejected them — the C5/C6 challenge substrates couldn't be scouted (todo §5.AF scout,
+ * 2026-06-28). A `node:*`-free contract can't import the agent type to assert the drift, so the module carries a
+ * compile-time guard against THIS list instead.
+ */
+export const runtimeDevTestProjectPresetSchema = z.enum([
+	"mid_task",
+	"complex_dag",
+	"audio_vst",
+	"daw_foundation",
+	"wide_fanout",
+	"deep_chain",
+	"mixed_dag",
+	"many_small",
+]);
 export type RuntimeDevTestProjectPreset = z.infer<typeof runtimeDevTestProjectPresetSchema>;
 
 export const runtimeDevTestProjectRequestSchema = z

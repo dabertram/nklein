@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { isPathInsideGitWorkTree, resolveSafeCreatedWorkspaceParentDir } from "../config/workspace-location";
+import type { RuntimeDevTestProjectPreset } from "../core/projects-api-contract";
 import { loadDevTestProjectScenario } from "./dev-test-project-registry";
 
 const execFileAsync = promisify(execFile);
@@ -31,6 +32,14 @@ export type NKleinDevTestProjectPreset =
 	| "deep_chain"
 	| "mixed_dag"
 	| "many_small";
+
+// Compile-time drift guard: the runtime API's preset enum (the `node:*`-free contract) MUST stay in lock-step with the
+// list above (its implementation lives here). Either assignment fails to compile if the two diverge — so a new preset
+// added in one place can't silently become un-scoutable through the API (todo §5.AF scout, 2026-06-28).
+const _devTestPresetContractGuard: NKleinDevTestProjectPreset = "mid_task" as RuntimeDevTestProjectPreset;
+const _devTestPresetModuleGuard: RuntimeDevTestProjectPreset = "mid_task" as NKleinDevTestProjectPreset;
+void _devTestPresetContractGuard;
+void _devTestPresetModuleGuard;
 
 export interface ScaffoldNKleinDevTestProjectOptions {
 	scenario?: NKleinDevTestProjectScenario;
