@@ -3501,12 +3501,21 @@ deep analysis:
       (the module's shared seam for both the swarm session runtime + chat path), takes the ordered list of NO-TOOL
       final-answer texts (a tool-call turn breaks the run — caller omits it), normalizes whitespace so trivial reprints
       compare equal, and reports the trailing identical run (`repeating`/`repeats`/`repeatedText`). 7 tests; tsc+biome
-      green. **STILL OWED (the WIRING — a hot-path change, do in a focused pass, NOT a tail-of-session slice):** in the
-      swarm session loop ([nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts), ~3.4k lines)
-      track the last few no-tool final-answer texts per session (reset on any tool call), call `detectRepeatedFinalAnswer`
-      each turn, and on `repeating` **finalize** the session (the work is done → capture to the result branch / rebound
-      for review) instead of waiting out the wall-time/no-diff guardrail. Repro: `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
-      NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts` (writes the file early, then never stops).
+      green. **STILL OWED (the WIRING — small + located, but verify live before flipping):** the clean seam is
+      [autonomy-budget-watchdog.ts](src/nklein-agent/autonomy-budget-watchdog.ts) — add a **5th guardrail** alongside the
+      existing pause / max-turns / repeated-no-diff / wall-time ones (it already runs at **every turn checkpoint** via
+      `check(taskId, checkpoint, entry)` and owns per-task Maps + the `parkTaskForAutonomyBudget` callback). The turn's
+      final text is **already on the entry** — `entry.summary.latestHookActivity` (`.finalMessage` set + `.toolName` null
+      ⇒ a no-tool final answer; a non-null `.toolName` ⇒ a tool call this turn ⇒ **reset** the run). So: keep a
+      `finalAnswerRunByTaskId` Map, on each `check()` fold the latest no-tool final message into the run, call
+      `detectRepeatedFinalAnswer`, and on `repeating` **park for review** (it's the same "stop the spin" outcome as the
+      no-diff guardrail, just a faster + more semantic trigger — so it's low-risk; gate behind a `maxRepeatedFinalAnswers`
+      guardrail with a conservative default like 3, reset in `resetTask`). **Verify live first** (the exact contents of
+      `latestHookActivity` at checkpoint time across turns must be confirmed so a legitimately-working agent is never
+      false-parked): repro `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx
+      scripts/verify-task-completion.mts` (writes the file early, then never stops) → confirm the new guardrail parks it
+      promptly while a normal multi-turn task is untouched. (Finalize-to-review-vs-attention is a detail: park-for-review
+      already surfaces the done work via the normal review/merge flow.)
 - [x] **Chat-path narrated-tool-call recovery — DONE (2026-06-26)** — `completeWithTools`
       ([nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts)) used to parse ONLY LM Studio's native
       `tool_calls`; it now also runs `parseNarratedToolCalls` over the model's `content` **and** `reasoning_content`
