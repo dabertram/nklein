@@ -1,4 +1,4 @@
-import { ALL_SPECIAL_TOKENS, countTokens } from "gpt-tokenizer";
+import { countTokens } from "gpt-tokenizer";
 
 const DEFAULT_FILE_CHUNK_TOKEN_BUDGET = 12_000;
 const READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS = 1_000;
@@ -58,8 +58,44 @@ export interface BuildKanbanContextPressurePolicyOptions {
 	wallTimeMsPer1kPromptTokens?: number | null;
 }
 
+/**
+ * An empty disallowed set means `countTokens` treats any special-token strings (e.g. `<|endoftext|>`) in arbitrary
+ * file/chat content as ORDINARY text and never throws on them (the default encode throws — that's why this option
+ * exists). NOTE: the option is NOT the cost driver; content is.
+ */
+const EMPTY_DISALLOWED_SPECIAL: Set<string> = new Set<string>();
+
+/**
+ * `countKanbanTextTokens` is the ONE tokenizer behind every budget/size check (`get_file_size`, chat context, repo-map,
+ * retrieval), so its worst case is a runtime-wide throughput floor. BPE has a pathological case: a long run of a single
+ * repeated character/token (whitespace blocks, `====` rules, base64/minified blobs, lockfiles, generated data) merges
+ * ~O(n²) on first encounter — 8 KB ≈ 42 ms, 32 KB ≈ 390 ms, 120 KB ≈ ~6 s, which blocked the event loop and stalled the
+ * whole runtime (the original symptom: a "cheap" file-size check taking seconds).
+ *
+ * Fix: tokenize in small fixed windows and sum, so any pathological run is bounded to ONE window's cost; then, past a
+ * cap, extrapolate the (already-bounded) count from a prefix sample. BPE merges don't cross window boundaries, adding a
+ * negligible handful of tokens — fine for a budget ESTIMATE. Normal text is unaffected (microseconds per window).
+ */
+const TOKENIZE_CHUNK_CHARS = 8_192;
+const MAX_TOKENIZE_CHARS = 256 * 1024;
+
+function countTokensChunked(text: string): number {
+	let total = 0;
+	for (let offset = 0; offset < text.length; offset += TOKENIZE_CHUNK_CHARS) {
+		total += countTokens(text.slice(offset, offset + TOKENIZE_CHUNK_CHARS), {
+			disallowedSpecial: EMPTY_DISALLOWED_SPECIAL,
+		});
+	}
+	return total;
+}
+
 export function countKanbanTextTokens(text: string): number {
-	return countTokens(text, { allowedSpecial: ALL_SPECIAL_TOKENS });
+	if (text.length <= MAX_TOKENIZE_CHARS) {
+		return countTokensChunked(text);
+	}
+	// Beyond the cap, the count is a budget estimate: extrapolate from the (bounded-cost) prefix by character ratio.
+	const sampleTokens = countTokensChunked(text.slice(0, MAX_TOKENIZE_CHARS));
+	return Math.ceil((sampleTokens / MAX_TOKENIZE_CHARS) * text.length);
 }
 
 function normalizePositiveNumber(value: number | null | undefined): number | null {

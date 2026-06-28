@@ -11,6 +11,54 @@ describe("countKanbanTextTokens", () => {
 		expect(countKanbanTextTokens("hello world")).toBeGreaterThan(0);
 		expect(countKanbanTextTokens("a b c d e f g")).toBeGreaterThan(countKanbanTextTokens("a"));
 	});
+
+	it("does NOT throw on special-token strings in arbitrary content (counts them as ordinary text)", () => {
+		// The default gpt-tokenizer encode throws on these; arbitrary file/chat content must never crash the counter.
+		expect(() => countKanbanTextTokens("before <|endoftext|> after")).not.toThrow();
+		expect(countKanbanTextTokens("<|endoftext|><|fim_prefix|><|im_start|>")).toBeGreaterThan(0);
+	});
+
+	it("counts PATHOLOGICAL repetitive content FAST — the BPE ~O(n²) single-char-run blowup that stalled the runtime", () => {
+		// A long run of one repeated char (whitespace blocks, ==== rules, base64/minified blobs) is the BPE pathology:
+		// unchunked it took ~6 s for 120 KB and blocked the event loop. A FRESH char defeats gpt-tokenizer's merge cache,
+		// so this genuinely guards the regression.
+		const pathological = "§".repeat(120 * 1024); // 120 KB of a single char not seen elsewhere in the suite
+		const start = performance.now();
+		const tokens = countKanbanTextTokens(pathological);
+		const elapsedMs = performance.now() - start;
+		expect(tokens).toBeGreaterThan(0);
+		expect(elapsedMs).toBeLessThan(1_500); // ~85 ms in practice; far below the old multi-second blowup
+	});
+
+	it("counts large normal content quickly too", () => {
+		const big = "export function f(x: number): number { return x * 2; }\n".repeat(20_000); // ~1 MB
+		const start = performance.now();
+		const tokens = countKanbanTextTokens(big);
+		expect(tokens).toBeGreaterThan(100_000);
+		expect(performance.now() - start).toBeLessThan(1_500);
+	});
+
+	it("extrapolates input past the tokenize cap from a prefix sample (bounded cost, estimate stays proportional)", () => {
+		const unit = "the quick brown fox jumps over the lazy dog. ";
+		const overCap = unit.repeat(Math.ceil(2_000_000 / unit.length)); // > 256 KB cap → sampled extrapolation
+		const small = unit.repeat(2_000); // well under the cap → chunked exact
+		const tokens = countKanbanTextTokens(overCap);
+		// Estimate is proportional to the exact small-sample rate within ~15% (uniform text).
+		const ratePerChar = countKanbanTextTokens(small) / small.length;
+		const expected = ratePerChar * overCap.length;
+		expect(tokens).toBeGreaterThan(expected * 0.85);
+		expect(tokens).toBeLessThan(expected * 1.15);
+	});
+
+	it("chunking keeps counts ~accurate vs a single tokenize pass for normal text (boundary error is tiny)", () => {
+		const text = "function add(a: number, b: number) { return a + b; }\n".repeat(2_000); // ~100 KB, spans many chunks
+		const counted = countKanbanTextTokens(text);
+		// Compare against a coarse expectation: ~within 2% of the per-unit rate × length (no big boundary drift).
+		const unit = "function add(a: number, b: number) { return a + b; }\n";
+		const perUnit = countKanbanTextTokens(unit.repeat(50)) / 50;
+		expect(counted).toBeGreaterThan(perUnit * 2_000 * 0.98);
+		expect(counted).toBeLessThan(perUnit * 2_000 * 1.02);
+	});
 });
 
 describe("buildKanbanContextSafetyBudgets", () => {
