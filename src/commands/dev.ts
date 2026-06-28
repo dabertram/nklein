@@ -8,7 +8,11 @@ import type { Command } from "commander";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
-import { buildStucknessSignalsFromLedger, summarizeLedgerForDisplay } from "../core/agent-ledger-projections";
+import {
+	buildModelCapabilityAdvice,
+	buildStucknessSignalsFromLedger,
+	summarizeLedgerForDisplay,
+} from "../core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
@@ -525,6 +529,34 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	}
 }
 
+async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {
+	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(advice, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(
+		"Model capability advice (§5.AB) — which model to trust per role, from real ledger outcomes\n\n",
+	);
+	if (advice.perRole.length === 0) {
+		process.stdout.write("(no model attempts recorded yet — run some tasks, then re-check)\n");
+		return;
+	}
+	for (const row of advice.perRole) {
+		const failure = row.topFailureMode ? ` (mostly ${row.topFailureMode})` : "";
+		process.stdout.write(
+			`  ${row.modelId.padEnd(40)} ${row.role.padEnd(10)} ${String(row.samples).padStart(3)} run(s)  ` +
+				`${String(Math.round(row.successRate * 100)).padStart(3)}%  ${row.verdict}${failure}\n`,
+		);
+	}
+	if (advice.notes.length > 0) {
+		process.stdout.write("\nPer-role guidance:\n");
+		for (const note of advice.notes) {
+			process.stdout.write(`  • ${note}\n`);
+		}
+	}
+}
+
 async function runDevEscalationCommand(options: { taskId: string; json?: boolean; analyze?: boolean }): Promise<void> {
 	const events = await readAllAgentLedger();
 	const report = buildTaskEscalationReport(events, options.taskId);
@@ -701,6 +733,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevLedgerCommand(options);
+		});
+
+	dev.command("advice")
+		.description(
+			"Show per-role model capability advice (§5.AB): which model to trust per role, with dominant failure modes, from the ledger.",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevAdviceCommand(options);
 		});
 
 	dev.command("escalation")

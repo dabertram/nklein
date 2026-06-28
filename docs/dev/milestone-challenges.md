@@ -41,7 +41,7 @@
 
 | id | milestone | difficulty axes (vs prior) | harness / substrate | acceptance gate | tier | status (2026-06-28) |
 |---|---|---|---|---|:-:|---|
-| **C0** | M0 single-card | baseline | `verify-task-completion` · `mid_task` | reaches `awaiting_review` + correct `nklein/tasks/<id>` result branch | roster | ✅ met (8/9; qwen3.5-9b ⚠️ slow-finalize → §5.AA finalization watchdog wired) |
+| **C0** | M0 single-card | baseline | `verify-task-completion` · `mid_task` | reaches `awaiting_review` + correct `nklein/tasks/<id>` result branch | roster | ✅ met (8/9; qwen3.5-9b ⚠️ slow-finalize → §5.AA finalization watchdog wired) · **reliability 4/5 (80%) qwen3-8b on repeat — 1 transient interrupt, §5.AA lift owed** |
 | **C1** | decompose-only | + DAG synthesis, isolation | `verify-decompose-isolation` | goal → valid dependency DAG, **no host-path leak** to the agent | roster | ✅ met (9/9) |
 | **C2** | promote + isolated delivery | + lane promotion, restart isolation | `verify-autopromote-recovery` + `verify-strict-isolation` + `verify-restart-resume-isolation` | card → In Progress; sandbox isolation + restart-resume hold, clean teardown | roster | ✅ met across loaded roster |
 | **C3** | **M1** unattended multi-card → merge | + multi-card cascade, **restart-survivable**, auto-merge | `complex_dag`/`mixed_dag` + the §5.V pipeline + `verify-multi-card-pipeline` | goal → DAG → all cards run (parallel where safe) → review → **merge**, surviving a runtime restart | roster | ⏳ mechanism proven (§5.V); the unattended/restart-survivable gate needs the **§5.AF durable scheduler** → **current chapter** |
@@ -54,6 +54,12 @@
 
 ## Run log (newest first)
 
+- _(2026-06-28)_ **Idle-LLM flakiness sweep #1 (C0 × qwen3-8b, 5 back-to-back repeats):** 4/5 PASS, 1/5 INCOMPLETE
+  (run #5 ended `interrupted`, not a wrong result) → **~80% single-card reliability** under repeat load. The lone miss
+  matches the §5.AA `aborted`/`interrupted`-transient class (back-to-back contention, not a synthesis failure) — the
+  finalization watchdog + transient-retry rung is the lift. **Reliability is now a tracked column** (re-run during idle
+  LLM time; goal: flip 80% → ~100% via §5.AA, per the "outstanding even from the smallest models" mandate). Also shipped:
+  `nklein dev advice` (§5.AB capability advice surfaced as a CLI query over the ledger, mirroring `dev ledger`).
 - _(2026-06-28)_ Framework defined (todo §5.0.3). C0–C2 confirmed met across the loaded roster this session (see the
   scoreboard); C3 is the current chapter, blocked on the §5.AF durable scheduler (the unattended/restart-survivable gate).
   Findings this session that feed upcoming chapters: §5.AA `aborted`-transient + finalization-watchdog (C0/C4 stabilization);
