@@ -236,7 +236,7 @@ deep analysis:
 > the methodology, and the enumerated per-flow sweep checkboxes all live in **[§5.Z](#5z)** — the single source of
 > truth. Rather than editing every task line, a task's single-model live proof (e.g. "verified on qwen3-8b") keeps its
 > text and its cross-model obligation is tracked as a §5.Z checkbox + a row in
-> [cross-model-verification.md](cross-model-verification.md).
+> [cross-model-verification.md](.plan/cross-model-verification.md).
 
 ### 5.0.1 — Long-run mandate + decisions (2026-06-25; FINAL — supersedes earlier "parked" steers where they conflict)
 > The user front-loaded a batch of decisions so the agent can run autonomously for a long stretch toward a
@@ -853,6 +853,32 @@ deep analysis:
       ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) (command-not-found,
       missing-script/dep, type/lint/compile error, test-failure, timeout, unknown) with label + next-step hint,
       wired onto the gate result + rendered on the card's Verify result. Tested.
+- [ ] **Git-view hardening follow-ups** *(folded 2026-06-28 from the former `.plan/docs/git-view-followup-work.md`; the
+      Git view v1 shipped, these are its edge-case hardening items)*. Each needs a runtime test + (where UI) a web test.
+  - [ ] **P1 — surface real errors for invalid commit-diff requests.** `getCommitDiff` returns `ok:true` with an empty
+        `files` array on an invalid commit hash, so the UI shows a misleading "No changes" instead of a failure.
+        Propagate the backend command error when commit resolution fails, return `ok:false` with a clear `error`, and
+        render an error state in the diff panel. Test invalid hashes.
+  - [ ] **P1 — support merge-commit diffs.** Merge-commit diff loading can produce empty file lists. Update the runtime
+        merge-diff extraction to handle merge commits explicitly; add runtime tests asserting non-empty diff output for
+        known merge scenarios.
+  - [ ] **P2 — keep commits with empty subjects in log parsing.** Commits with an empty subject line are dropped during
+        parsing, making history/pagination counts inconsistent. Relax the commit-record validation to allow an empty
+        `message`; add a runtime test for empty-subject retention.
+  - [ ] **P2 — improve branch-switch discoverability.** Branch switching now relies on double-click in refs (low
+        discoverability). Add an explicit checkout affordance in refs rows (button/menu/shortcut hint); keep double-click
+        as optional power-user behavior.
+  - [ ] **P3 — reduce refresh cost on large repos.** Polling + repeated total-count queries are expensive on large
+        histories. Reduce background-refresh frequency when the app is idle; avoid full count recomputation on every
+        background poll; consider count caching keyed by selected ref.
+- [ ] **Worktree symlinked-ignored-roots + diff-UI phantom-file fixes** *(folded 2026-06-28 from the former
+      `.plan/docs/worktree-ignored-symlink-investigation.md`)*. Two independent fixes (legacy host worktrees still exist
+      for migrated boards, §5.A): **(a)** ensure symlinked ignored roots stay ignored *locally* via the worktree's
+      `.git/info/exclude` (Git treats an "ignored directory" and a "symlink to an ignored directory" differently — once
+      !Klein replaces a real ignored dir like `node_modules`/`.next` with a symlink inside a worktree, it must add the
+      exact local exclude or Git surfaces it); **(b)** harden the diff UI so an untracked directory or a directory symlink
+      never renders as a fake `+0 -0` file diff (a separate UI bug from (a)). Long-term (parked): revisit whether
+      "symlink all ignored paths" is the right rule vs an allowlist.
 
 ### 5.H — Polyglot / native-agent-core workstream *(active)*
 > Direction: !Klein grows its own capabilities — a local-only Python core sidecar (`core-py/`, FastAPI) + a
@@ -1487,7 +1513,7 @@ deep analysis:
 > and then **change !Klein's code so it handles it** (parse-and-recover, guardrails, prompt/budget fixes) so it "just
 > works" regardless of the model. The deliverable is the **hardened !Klein behavior** (shipped fixes + tests); the
 > findings file is only the running log alongside it. Persist each round's findings to
-> **[local-llm-tests.md](local-llm-tests.md)** (which models were swept · what broke · **what was hardened in
+> **[local-llm-tests.md](.plan/local-llm-tests.md)** (which models were swept · what broke · **what was hardened in
 > code**). The goal is **correctness/robustness, not measurement**.
 >
 > **HARD + STRICTLY OUT OF SCOPE NOW — do NOT start, do NOT measure:** comparing models on **performance or
@@ -1511,10 +1537,10 @@ deep analysis:
       *small* local models the user loads; for each, catalog the **output** failure modes (tool-call malformation,
       narration-as-tool-call, no-tool-call stalls, structured-output misses, reasoning runaways) and **harden !Klein**
       (parse-and-recover, guardrails, prompts) until it is robust to them regardless of the model. Append each round's
-      findings to [local-llm-tests.md](local-llm-tests.md) (models swept · what broke · what was hardened). Goal =
+      findings to [local-llm-tests.md](.plan/local-llm-tests.md) (models swept · what broke · what was hardened). Goal =
       robustness, **not** measurement. Pairs with the parse-and-recover work below (§5.O tool-call formats).
   - [x] **Round 0 — methodology + the instrument problem (2026-06-24)** — stood up the loop and wrote
-        [local-llm-tests.md](local-llm-tests.md). Established the **model-pin lever** (the swarm resolves its model from
+        [local-llm-tests.md](.plan/local-llm-tests.md). Established the **model-pin lever** (the swarm resolves its model from
         the NKlein **provider settings**, not just live discovery — set/restore via `runtime.saveNKleinProviderSettings`;
         `lms ps` lists loaded ids; pre-register a fresh repo via `projects.add` for an empty board + to dodge the
         `loadWorkspaceContext` workspace-registry lock). **Key finding: `nklein dev test-project` is the wrong
@@ -1531,13 +1557,13 @@ deep analysis:
         narration-marker regexes; cuts from the first opener to EOF, keeping prose) and applied it in
         [runChatAgentTurn](src/chat/chat-agent-turn.ts) with a `Done. (used: …)` confirmation fallback. Unit-tested +
         **re-verified live** (the same write now replies `"Done. (used: write_file)"`; file still created). Logged in
-        [local-llm-tests.md](local-llm-tests.md).
+        [local-llm-tests.md](.plan/local-llm-tests.md).
   - [x] **Round 2 — gemma-4-e4b + qwen3-8b via the chat lens (2026-06-24)** — write tasks clean (narration fix from
         Round 1 held; files written). Surfaced **Finding 6 (logged, not a fix): a grounding failure** — both models
         called `read_file` then ignored the result and answered from priors (qwen3-8b confabulated about *mathjs.org*;
         e4b gave a vague non-answer). That's a model-capability issue, **out of the parse-and-recover lane** ("don't
         teach the model"); candidate soft mitigation (more imperative tool-result framing) logged in
-        [local-llm-tests.md](local-llm-tests.md), not implemented speculatively.
+        [local-llm-tests.md](.plan/local-llm-tests.md), not implemented speculatively.
   - [x] **Round 3 — CORRECTION: the dev-test projects DO run small models (2026-06-24)** — Round 0's "the seed
         doesn't run / can't observe output" was a measurement error (watched **board columns**, decoupled from the
         **session**). Correct vehicle+lens (per the user's "use the dev test projects"): `projects.createDevTestProject`
@@ -1546,7 +1572,7 @@ deep analysis:
         (the scaffold evidence bundle is *not* updated by the run). **Verified live**: gemma-4-e2b drove `mid_task` to
         `awaiting_review` + a coherent result branch (`specification.md` +34/−12) through the swarm+Docker — the 2B
         model completed a real task; no new failure to harden (existing hardening held). Details in
-        [local-llm-tests.md](local-llm-tests.md).
+        [local-llm-tests.md](.plan/local-llm-tests.md).
   - [~] **Round 4 — gemma-4-e2b also completes `complex_dag`; cataloging needs a stream subscription (2026-06-24)** —
         ran the heavier `complex_dag` preset on gemma-4-e2b: it too reached `awaiting_review` + a captured result
         branch (~171s). Both presets succeed → existing hardening holds for this 2B model (no new fix). **Lesson:**
@@ -1620,7 +1646,7 @@ deep analysis:
   - [ ] run the parallel-fan-out presets under concurrency on the loaded small models + harden from observed
         failures — **output robustness only**; the quant / K-V / context matrix stays out of scope (section callout).
 - [ ] **Autonomous small-model sweep tooling** — iterate the loaded *small* models unattended on top of `dev sweep`,
-      appending each model's robustness findings to [local-llm-tests.md](local-llm-tests.md). Design the shape when
+      appending each model's robustness findings to [local-llm-tests.md](.plan/local-llm-tests.md). Design the shape when
       we start the in-scope small-model rounds. The full model/quant/config **matrix** + perf/efficiency capture stays
       **out of scope until release-able maturity** (section callout) — do not build matrix/perf tooling now.
 - [~] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
@@ -3130,7 +3156,7 @@ deep analysis:
 >
 > **Methodology:** reuse the existing `scripts/verify-*.mts` / `scripts/sweep-capture.mts` harnesses, pinning each
 > model (most take a `--model` / model env, or the swarm reads it from the pinned provider settings). For each flow:
-> iterate the roster → pin → run → record per model in the matrix [cross-model-verification.md](cross-model-verification.md):
+> iterate the roster → pin → run → record per model in the matrix [cross-model-verification.md](.plan/cross-model-verification.md):
 > **✅ PASS · ❌ FAIL → harden** (a malformed-output / parse gap is a !Klein hardening task per the §5.O parse-and-recover
 > principle, NOT just a model failing) **· ⚠️ CANT** (the model genuinely isn't capable enough — a recorded capability-floor
 > data point, not a bug) **· 💥 DROPPED** (crashed mid-run) — then restore the user's selected model. **Priority:** fast
@@ -4680,6 +4706,16 @@ deep analysis:
 - [-] **LATER: Linux & Windows first-class runtime** — keep Docker mandatory for every agent shell/FS action; verify
   per-OS Docker availability, sandbox build/run, endpoint discovery, browser/runtime launch, path/PTY/Git/mount
   semantics, file-picker fallback. Must not weaken strict isolation. (A dev-only `start.bat` exists.)
+  *(Folded 2026-06-28 from the former `.plan/docs/cross-platform-compatibility-remediation-plan.md` — CP-001…CP-006
+  already SHIPPED [OS-aware open actions, robust folder picker, best-effort Windows ignored-path mirroring, transcript
+  path normalization, OpenCode Windows path probes, runtime command-exec portability]. Two concrete items remain when
+  this is picked up:)*
+  - [-] **CP-007 — robust `file://` URL generation in the web UI.** `runtime-settings-dialog.tsx` does
+    `window.open(\`file://${path}\`)`, which builds invalid URLs on Windows. Move file-URL creation to the runtime (return
+    URL-safe strings) or use a path-to-file-url utility at the web boundary; encode spaces/special chars. Unit-test URL
+    output for Windows + Unix paths.
+  - [-] **CP-008 — multi-OS CI coverage.** `.github/workflows/test.yml` runs only `ubuntu-latest`; add a matrix for at
+    least ubuntu + macOS + Windows so per-OS regressions are caught. (No CI infra is wired yet — pairs with that.)
 - [-] **PARKED** (cloud-dependent; re-enable when cloud is revisited or a strong local model is proven): `nklein-advisor.ts`,
   `nklein-model-research.ts`, `nklein-team-delegation.ts`/`-team-progress.ts`, `nklein-web-research-tool.ts` (also
   incompatible with `--network none`). They compile as parked helpers + render no local-only UI.

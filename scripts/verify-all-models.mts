@@ -28,7 +28,7 @@ const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1
 const OUTER_TIMEOUT_MS = Number(process.env.NKLEIN_SWEEP_TIMEOUT_MS ?? "420000");
 const HARNESS_TIMEOUT_MS = process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "300000";
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
-const MATRIX_LOG = join(REPO_ROOT, "cross-model-verification.md");
+const MATRIX_LOG = join(REPO_ROOT, ".plan", "cross-model-verification.md");
 
 type Outcome = "PASS" | "FAIL" | "TIMEOUT" | "DROPPED";
 const SYMBOL: Record<Outcome, string> = { PASS: "✅", FAIL: "❌", TIMEOUT: "⏱", DROPPED: "💥" };

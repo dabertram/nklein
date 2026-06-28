@@ -1,6 +1,6 @@
 # Cross-model verification matrix
 
-> Every LLM-interactive !Klein flow, verified across **all loaded local models** (the [§5.Z](todo.md) requirement).
+> Every LLM-interactive !Klein flow, verified across **all loaded local models** (the [§5.Z](../todo.md) requirement).
 > Rows = flows (each backed by a `scripts/verify-*.mts` / `sweep-capture.mts` harness); columns = the loaded roster.
 > Cells: `✅` PASS · `◑` PARTIAL (the capability works but the harness's strict proof — e.g. echoing output in the
 > reply — isn't met) · `❌` FAIL → harden · `⚠️` CANT (capability floor) · `🎲` flaky · `💥` DROPPED (crashed mid-run) ·
