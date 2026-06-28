@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	parseNarratedToolCalls,
+	parseToolValidatedNarration,
 	recoverNarratedToolCalls,
 	stripNarratedToolCallMarkup,
 } from "../../../src/nklein-agent/nklein-narrated-tool-call";
@@ -307,5 +308,40 @@ describe("parseNarratedToolCalls — plain-prose `Tool call: name(kwargs)` (gemm
 
 	it("does NOT fire on ordinary prose that merely mentions a tool call (no name+paren)", () => {
 		expect(parseNarratedToolCalls("I made a tool call to read the file and it worked.")).toEqual([]);
+	});
+});
+
+describe("parseToolValidatedNarration — markerless `{tool,parameters}` (≤4B nemotron/gemma dialect)", () => {
+	const offered = ["read_file", "run_command", "create_card", "update_focus_chain"];
+
+	it('recovers ```json-fenced {"tool","parameters"} objects whose name is an offered tool', () => {
+		// nemotron-3-nano-4b's exact e2e narration: valid JSON objects in fences, no recognized marker.
+		const live = [
+			"**Step 3: Create card.**",
+			"```json",
+			'{ "tool": "create_card", "parameters": { "title": "E2E-CARD-7777", "prompt": "from e2e" } }',
+			"```",
+		].join("\n");
+		expect(parseToolValidatedNarration(live, offered)).toEqual([
+			{ toolName: "create_card", input: { title: "E2E-CARD-7777", prompt: "from e2e" } },
+		]);
+	});
+
+	it("recovers EVERY offered-tool object in order", () => {
+		const live = [
+			'{"tool":"read_file","parameters":{"file_path":"FACT.txt"}}',
+			'{"tool":"run_command","parameters":{"command":"cat FACT.txt"}}',
+		].join("\n\n");
+		expect(parseToolValidatedNarration(live, offered).map((c) => c.toolName)).toEqual(["read_file", "run_command"]);
+	});
+
+	it("is SAFE: ignores a JSON object whose name is NOT an offered tool (a coincidental legit answer)", () => {
+		expect(parseToolValidatedNarration('{"tool":"delete_everything","parameters":{}}', offered)).toEqual([]);
+		expect(parseToolValidatedNarration('{"result":"the answer is 42"}', offered)).toEqual([]);
+		expect(parseToolValidatedNarration("plain prose with no json", offered)).toEqual([]);
+	});
+
+	it("returns nothing when no tools are offered", () => {
+		expect(parseToolValidatedNarration('{"tool":"read_file"}', [])).toEqual([]);
 	});
 });

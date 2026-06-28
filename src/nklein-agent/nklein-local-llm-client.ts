@@ -1,5 +1,5 @@
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
-import { parseNarratedToolCalls } from "./nklein-narrated-tool-call";
+import { parseNarratedToolCalls, parseToolValidatedNarration } from "./nklein-narrated-tool-call";
 
 /**
  * !Klein-owned direct client for local OpenAI-compatible model servers (LM Studio / Ollama / llama.cpp).
@@ -391,7 +391,16 @@ export class LocalLlmClient {
 			// recoverNarratedToolCalls so those models drive chat tools too (todo §5.O: recover, don't re-prompt the model).
 			if (toolCalls.length === 0 && tools.length > 0) {
 				const narratable = `${choice?.message?.content ?? ""}\n${choice?.message?.reasoning_content ?? ""}`;
-				toolCalls = parseNarratedToolCalls(narratable).map((call, index) => ({
+				let recovered = parseNarratedToolCalls(narratable);
+				// §5.AA last tier (2026-06-29): small models (≤4B: nemotron-4b, gemma) narrate a `{"tool":…,"parameters":…}`
+				// object with NO recognized marker. Recover it SAFELY by validating the tool name against the offered set.
+				if (recovered.length === 0) {
+					recovered = parseToolValidatedNarration(
+						narratable,
+						tools.map((tool) => tool.name),
+					);
+				}
+				toolCalls = recovered.map((call, index) => ({
 					id: `narrated_${index}`,
 					name: call.toolName,
 					arguments: parseToolCallArguments(call.input),

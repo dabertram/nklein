@@ -263,6 +263,50 @@ function parsePlainProseToolCalls(text: string): NarratedToolCall[] {
 	return calls;
 }
 
+/** Extract every balanced top-level `{…}` JSON object embedded in text (incl. inside ```json fences / prose). */
+function extractAllJsonObjects(text: string): string[] {
+	const objects: string[] = [];
+	let i = 0;
+	while (i < text.length) {
+		if (text[i] === "{") {
+			const balanced = extractBalancedParens(text, i);
+			if (balanced) {
+				objects.push(text.slice(i, balanced.end + 1));
+				i = balanced.end + 1;
+				continue;
+			}
+		}
+		i += 1;
+	}
+	return objects;
+}
+
+/**
+ * TOOL-VALIDATED markerless recovery (§5.AA, 2026-06-29) — for small models (≤4B: nemotron-4b, gemma) that narrate a
+ * call as a bare/```json-fenced object `{"tool":"create_card","parameters":{…}}` with NO recognized marker. Bare JSON is
+ * normally NOT recovered (too easily a legit answer, §5.O), but here it's SAFE because we only accept an object whose
+ * tool name is one of the OFFERED tools — a coincidental legit answer won't name an offered tool in that shape, and this
+ * only runs on a tools-offered turn that produced no real call. Returns every offered-tool object found, in order.
+ */
+export function parseToolValidatedNarration(text: string, offeredToolNames: readonly string[]): NarratedToolCall[] {
+	if (!text || offeredToolNames.length === 0) {
+		return [];
+	}
+	const offered = new Set(offeredToolNames);
+	const calls: NarratedToolCall[] = [];
+	for (const objectText of extractAllJsonObjects(text)) {
+		const repaired = repairJsonValue(objectText);
+		if (!repaired.ok) {
+			continue;
+		}
+		const call = toNarratedToolCall(repaired.value);
+		if (call && offered.has(call.toolName)) {
+			calls.push(call);
+		}
+	}
+	return calls;
+}
+
 /** Coerce a parsed `{ name, arguments }`-ish object into a tool call; returns null when there is no tool name. */
 function toNarratedToolCall(value: unknown): NarratedToolCall | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
