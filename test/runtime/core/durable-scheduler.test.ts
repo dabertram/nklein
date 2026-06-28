@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	applyDurableSchedulerActions,
+	buildDurableJobGraph,
 	type DurableJob,
 	type DurableSchedulerInput,
 	decideDurableSchedulerActions,
@@ -132,6 +133,36 @@ describe("applyDurableSchedulerActions + markDurableJob + isDurableRunComplete",
 		const done = markDurableJob(jobs, "a", "succeeded");
 		expect(done[0]).toMatchObject({ state: "succeeded", lease: null });
 		expect(markDurableJob(done, "a", "failed")[0]?.state).toBe("succeeded"); // already terminal → unchanged
+	});
+
+	it("buildDurableJobGraph maps a decompose DAG to jobs (fromTaskId depends on toTaskId)", () => {
+		// b depends on a; c depends on b. Edge {from,to} = {dependent, prerequisite}.
+		const jobs = buildDurableJobGraph({
+			taskIds: ["a", "b", "c"],
+			dependencies: [
+				{ fromTaskId: "b", toTaskId: "a" },
+				{ fromTaskId: "c", toTaskId: "b" },
+			],
+		});
+		expect(jobs.find((j) => j.jobId === "a")).toMatchObject({ state: "ready", dependsOn: [] });
+		expect(jobs.find((j) => j.jobId === "b")).toMatchObject({ state: "blocked", dependsOn: ["a"] });
+		expect(jobs.find((j) => j.jobId === "c")).toMatchObject({ state: "blocked", dependsOn: ["b"] });
+		expect(jobs.map((j) => j.jobId)).toEqual(["a", "b", "c"]); // order preserved
+	});
+
+	it("buildDurableJobGraph marks completed cards succeeded and readies their freed dependents; ignores foreign/self edges", () => {
+		const jobs = buildDurableJobGraph({
+			taskIds: ["a", "b"],
+			dependencies: [
+				{ fromTaskId: "b", toTaskId: "a" },
+				{ fromTaskId: "a", toTaskId: "a" }, // self-edge ignored
+				{ fromTaskId: "b", toTaskId: "ghost" }, // foreign edge ignored
+			],
+			succeededTaskIds: ["a"],
+		});
+		expect(jobs.find((j) => j.jobId === "a")?.state).toBe("succeeded");
+		// b's only in-graph dep (a) is succeeded → ready.
+		expect(jobs.find((j) => j.jobId === "b")).toMatchObject({ state: "ready", dependsOn: ["a"] });
 	});
 
 	it("drives a small dependency graph to completion across ticks (restart-survivable shape)", () => {

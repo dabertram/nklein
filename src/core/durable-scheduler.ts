@@ -233,3 +233,54 @@ export function markDurableJob(
 export function isDurableRunComplete(jobs: readonly DurableJob[]): boolean {
 	return jobs.every((job) => job.state === "succeeded" || job.state === "failed");
 }
+
+/** A board dependency edge: `fromTaskId` depends on (is blocked until) `toTaskId`. */
+export interface DurableJobDependencyEdge {
+	fromTaskId: string;
+	toTaskId: string;
+}
+
+export interface DurableJobGraphInput {
+	/** The task ids that make up the run (e.g. the decompose DAG's cards). */
+	taskIds: readonly string[];
+	/**
+	 * Board dependencies. Direction matches `task-board-mutations` (authoritative): a card unblocks its `fromTaskId`
+	 * dependents when it — the `toTaskId` — completes, i.e. **`fromTaskId` depends on `toTaskId`**. Edges referencing a
+	 * task outside `taskIds`, and self-edges, are ignored.
+	 */
+	dependencies: readonly DurableJobDependencyEdge[];
+	/** Task ids already known complete (e.g. cards already in the completed column when resuming a run). */
+	succeededTaskIds?: readonly string[];
+}
+
+/**
+ * Map a decompose DAG (cards + dependency edges) to the durable scheduler's `DurableJob[]` — the bridge from a board
+ * run to {@link decideDurableSchedulerActions}. A job is `succeeded` if already complete, else `ready` when it has no
+ * unsatisfied dependency, else `blocked`. Pure + deterministic (preserves `taskIds` order); the scheduler then leases
+ * ready jobs and unblocks dependents as their prerequisites succeed. Cycles aren't resolved here — a cyclic edge just
+ * leaves both jobs `blocked` (the scheduler never leases them), surfacing the bad graph rather than looping (a
+ * decompose-validation concern, §5.B, not the scheduler's).
+ */
+export function buildDurableJobGraph(input: DurableJobGraphInput): DurableJob[] {
+	const ids = new Set(input.taskIds);
+	const succeeded = new Set(input.succeededTaskIds ?? []);
+	const dependsOnByTask = new Map<string, Set<string>>();
+	for (const id of input.taskIds) {
+		dependsOnByTask.set(id, new Set());
+	}
+	for (const edge of input.dependencies) {
+		if (edge.fromTaskId === edge.toTaskId || !ids.has(edge.fromTaskId) || !ids.has(edge.toTaskId)) {
+			continue;
+		}
+		dependsOnByTask.get(edge.fromTaskId)?.add(edge.toTaskId);
+	}
+	return input.taskIds.map((jobId) => {
+		const dependsOn = [...(dependsOnByTask.get(jobId) ?? [])];
+		const state: DurableJobState = succeeded.has(jobId)
+			? "succeeded"
+			: dependsOn.every((depId) => succeeded.has(depId))
+				? "ready"
+				: "blocked";
+		return { jobId, state, dependsOn, lease: null, attempts: 0, nextEligibleAt: 0 };
+	});
+}

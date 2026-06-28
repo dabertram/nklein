@@ -4536,11 +4536,14 @@ deep analysis:
       dependency-failed jobs, **unblocks** jobs whose deps all succeeded, and **leases** ready+eligible jobs up to the
       concurrency cap — in a fixed priority order so a ledger **replay reproduces the same decisions**. Plus
       `applyDurableSchedulerActions` / `markDurableJob` (external completion) / `isDurableRunComplete`. The action types
-      map 1:1 to the §5.AF `scheduler` ledger event family. 12 tests incl. a chain driven to completion across ticks;
-      tsc+biome green. **STILL OWED (the WIRING — the C3 gate):** persist the job graph as `scheduler` ledger events +
-      **replay on boot** (resume mid-run); a tick loop that dispatches `lease` actions to the endpoint scheduler/sandbox
-      pool + extends leases via heartbeats + records completion; map a decompose DAG → `DurableJob[]` (deps = card deps);
-      then run C3 (`complex_dag` unattended + restart-mid-run) on the §5.Z roster.
+      map 1:1 to the §5.AF `scheduler` ledger event family. **DAG→jobs MAPPER ALSO DONE (2026-06-28):** `buildDurableJobGraph`
+      (same module) maps a decompose DAG (`taskIds` + board dependency edges + already-`succeededTaskIds`) → `DurableJob[]`
+      — direction pinned to `task-board-mutations` (a dep `{from,to}` = `from` depends on `to`; verified + test-locked),
+      foreign/self edges ignored, cycles left `blocked` (surfaced, not looped). 14 tests (incl. a chain driven to
+      completion across ticks); tsc+biome green. **STILL OWED (the WIRING — the C3 gate):** persist the job graph as
+      `scheduler` ledger events + **replay on boot** (resume mid-run); a tick loop that dispatches `lease` actions to the
+      endpoint scheduler/sandbox pool + extends leases via heartbeats + records completion via `markDurableJob`; then run
+      C3 (`complex_dag` unattended + restart-mid-run) on the §5.Z roster.
 - [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
