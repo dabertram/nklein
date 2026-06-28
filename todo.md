@@ -3289,15 +3289,20 @@ deep analysis:
 >   a diagnostic run with LM Studio logs is in flight.
 > - **The hermetic oracle is working correctly** — it cleanly PASSes valid fixes and flags genuinely-invalid ones (the
 >   qwopus PARTIAL was a real wrong result, not a false-fail).
-- [ ] **HARDENING (Phase-2 finding 2026-06-28): the heartbeat-loss → `interrupted` abort is too aggressive for slow
-      local models.** A slow-but-progressing model (ornith-1.0-9b on a busy box, MLX models with slow first-token) can be
-      marked `interrupted` (`stopTaskSession`/heartbeat-lost in `nklein-task-session-service.ts`) before it finishes,
-      wasting the run — yet a longer budget lets it pass. Investigate the heartbeat-loss timeout + the
-      `state:"interrupted"` path: make the heartbeat tolerance **generous and/or adaptive** (scale with the model's
-      observed latency / the §5.AA `ModelBehaviorProfile`; the §5.AI background-eval profile already lengthens the
-      slow-progress guards but the heartbeat abort is separate). A heartbeat "lost" while the model is still streaming
-      tokens (LM Studio shows activity) should NOT abort. Confirm against the LM Studio dev logs (now captured by the
-      harness). This directly improves robustness for the whole slow-local-model class, not just one model.
+- [ ] **HARDENING (Phase-2 finding 2026-06-28, root-caused): a transient SDK `aborted` end parks a slow model as
+      `interrupted` instead of retrying.** ROOT CAUSE (traced, not guessed): `interrupted` is set when the vendored agent
+      loop emits an `aborted` done/error event **with no final text** and it isn't a reviewable aborted tool completion
+      ([nklein-event-adapter.ts:483,534](src/nklein-agent/nklein-event-adapter.ts)); the `heartbeat:"lost"` stamp on that
+      terminal summary is **cosmetic**, NOT a !Klein heartbeat-timeout firing. Evidence: `ornith-1.0-9b` got an aborted
+      end (→ interrupted) on the 5-min sweep but **completed cleanly on the 12-min retest** — i.e. the abort was a
+      **transient** (a slow model's request likely hit an SDK/endpoint-level timeout or iteration boundary), not a real
+      dead end. **Durable fix = the §5.AA retry-policy ladder treating a no-output `aborted` as a RETRYABLE transient**
+      (re-run the turn within the learned budget) rather than parking as `interrupted` — this is exactly the §5.AA "wire
+      the chosen retry strategy at the shared model-call seam" item (`timeout`/`aborted` → retry rung). So fold this here:
+      add `aborted-no-output` to the retryable-outcome table and re-run before parking. **Mitigation already in place:**
+      the generous sweep budget (the slow model just needs time). Confirm via the LM Studio dev logs (now captured) that
+      an abort coincides with a long/stalled request, then make the retry rung fire. (Not a heartbeat-timeout knob — that
+      framing was wrong; corrected here.)
 - [ ] **Per-model classification + "failing-LLM list" (Phase-2, 2026-06-28) — provisional, until the §5.AB fitness store
       lands.** small-model-smoke (code-fix role): **7/8 deliver** with a generous budget; **phi-4-mini-reasoning** is the
       lone non-deliverer (reasons, no edit) — provisionally a **capability-floor for the code-edit role** (a 3.8B *reasoning*
