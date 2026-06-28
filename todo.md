@@ -3559,15 +3559,16 @@ deep analysis:
 > blacklist). Hardening shipped this phase: sandbox clone resilience · generous-but-bounded sweep budgets · LM Studio
 > dev-log capture · loaded-model-only targeting · richer non-PASS diagnostics. Remaining model-lift work (the §5.AA ladder
 > wiring + reason-then-act for phi-4 on code-edit) is queued for Phase 3.
-- [ ] **Harness should MONITOR the LM Studio dev log for anomalies, not just capture it (2026-06-28, user).** The sweep
-      harness already captures the LM Studio dev log; extend it to **watch for + flag**: (a) **catalog-endpoint hammering**
-      — `/api/v0/models` (or `/v1/models`) request-rate above ~1/30 s is a bug (the 2026-06-28 incident: an uncached
-      roster-discovery path; mitigated by the 30 s TTL cache in `nklein-provider-service.ts`, but the harness should still
-      alarm if it recurs); (b) request errors / non-200s; (c) model **load/unload/crash** events (e.g. deepseek dropping
-      mid-run → record `💥`, don't block the sweep); (d) slow-prefill / very-low tok/s warnings (feeds the MCSR speed
-      priors + the §5.0.3 power-aware reasoning). Surface a per-run summary line + fold notable events into the sweep-log
-      note column ([docs/dev/model-sweep-log.md](docs/dev/model-sweep-log.md)). General rule (§4A): keep an eye on the LM
-      Studio dev log during ANY live LLM work — it catches what the board trace doesn't.
+- [x] **Harness MONITORS the LM Studio dev log for anomalies, not just captures it (2026-06-28, user) — DONE.** Pure
+      detector [src/core/lmstudio-log-anomalies.ts](src/core/lmstudio-log-anomalies.ts) — `detectLmStudioLogAnomalies(lines)`
+      flags all four classes: (a) **catalog hammering** (`/api/v0/models`|`/v1/models` hits over a threshold — the
+      30s-TTL-cache regression alarm), (b) request errors / non-2xx, (c) model **load / unload / out-of-resources / crash**
+      events (the 35B `@8bit` "insufficient resources" refusal + a deepseek mid-run drop), (d) **slow-prefill / low-throughput**
+      warnings — and `summarizeLmStudioLogAnomalies` renders a one-line per-run summary (capped). Pure, 7 tests; tsc+biome
+      green. **Wired:** the full-system harness exposes `lmStudioLogAnomalies()` over its captured `lms log stream`, and
+      `verify-full-system` prints the summary in its triage block. (Folding into the per-model sweep-log note column for the
+      lighter `verify-all-models` runs is a thin follow-up — those use a different capture path.) General rule (§4A): keep
+      an eye on the LM Studio dev log during ANY live LLM work — it catches what the board trace doesn't.
 - [~] **HARDENING (Phase-2 finding 2026-06-28, root-caused): a transient SDK `aborted` end parks a slow model as
       `interrupted` instead of retrying.** **CLASSIFICATION HALF DONE (2026-06-28):** added a distinct `aborted`
       `ModelOutcomeKind` (kept in lock-step across `model-behavior-profile.ts`, the `agent-attempt-ledger.ts` zod enum +

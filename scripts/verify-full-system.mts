@@ -299,6 +299,10 @@ async function main(): Promise<void> {
 			for (const line of (runtime?.lmStudioLogTail() ?? "(no runtime)").split("\n").slice(-50)) {
 				log(`  ${line}`);
 			}
+			const lmsAnomalies = runtime?.lmStudioLogAnomalies();
+			if (lmsAnomalies) {
+				log(`--- triage: ${lmsAnomalies} ---`);
+			}
 		}
 		if (!oracle.valid && (oracle.agentSource || oracle.oracleOutput)) {
 			// Keep a PARTIAL triageable: the project is torn down in cleanup, so the evidence must live in this report.

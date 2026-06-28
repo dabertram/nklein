@@ -17,6 +17,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import treeKill from "tree-kill";
+import {
+	detectLmStudioLogAnomalies,
+	summarizeLmStudioLogAnomalies,
+} from "../src/core/lmstudio-log-anomalies";
 import type { RuntimeAppRouter } from "../src/trpc/app-router";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -51,6 +55,8 @@ export interface FullSystemRuntime {
 	stderrTail(): string;
 	/** Recent LM Studio dev logs captured via `lms log stream` (model-side errors/timeouts/requests) — best-effort. */
 	lmStudioLogTail(): string;
+	/** §5.Z anomaly scan of the captured LM Studio log (catalog hammering / errors / load events / slow); "" when clean. */
+	lmStudioLogAnomalies(): string;
 	/** Gracefully stop the runtime (SIGTERM → SIGKILL fallback) so its sandbox containers clean up. */
 	stop(): Promise<void>;
 }
@@ -184,6 +190,10 @@ export async function bootFullSystemRuntime(options: BootFullSystemRuntimeOption
 		}
 	}
 	const lmStudioLogTail = (): string => lmsLogChunks.join("").split("\n").slice(-60).join("\n").trim() || "(no LM Studio logs captured)";
+	// §5.Z: don't just capture the log — WATCH it. Scan the captured lines for the anomaly classes (catalog hammering /
+	// errors / load-or-OOM events / slow warnings) so a run surfaces them instead of burying them in the tail.
+	const lmStudioLogAnomalies = (): string =>
+		summarizeLmStudioLogAnomalies(detectLmStudioLogAnomalies(lmsLogChunks.join("").split("\n")));
 
 	try {
 		await waitForPort(port, options.readyTimeoutMs ?? 30_000);
@@ -219,6 +229,7 @@ export async function bootFullSystemRuntime(options: BootFullSystemRuntimeOption
 			new WebSocket(`${wsBaseUrl}/api/runtime/ws?workspaceId=${encodeURIComponent(workspaceId)}`),
 		stderrTail,
 		lmStudioLogTail,
+		lmStudioLogAnomalies,
 		async stop(): Promise<void> {
 			if (lmsChild?.pid) {
 				await treeKillAsync(lmsChild.pid, "SIGKILL").catch(() => undefined);
