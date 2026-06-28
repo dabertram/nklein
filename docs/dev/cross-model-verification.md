@@ -465,3 +465,8 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 20:46:42 · verify-task-completion
 - ❌ **FAIL** · `qwen/qwen3-8b-m5max` · 498s · SWEEP-ROW | 2026-06-28T20:46:42.962Z | C0 single-card | model=qwen/qwen3-8b-m5max | result=STALLED 🧱 | terminal=interrupted | delivered=NO | power=low×2
   - matrix row: qwen3-8b-m5max=❌
+
+### 2026-06-28 21:29:06 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 15s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 11s · INCOMPLETE — see above.
+  - matrix row: qwen2.5-coder-14b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌
