@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildSchedulerEvent } from "../../../src/core/agent-attempt-ledger";
 import {
 	buildAttemptRetryNoteFromLedger,
+	buildFailingModelList,
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
 	summarizeLedgerForDisplay,
@@ -219,5 +220,31 @@ describe("buildAttemptRetryNoteFromLedger", () => {
 		];
 		expect(buildAttemptRetryNoteFromLedger(events, { workflowId: "wf-1" })).toContain("timeout");
 		expect(buildAttemptRetryNoteFromLedger(events, { workflowId: "wf-1" })).not.toContain("loop");
+	});
+});
+
+describe("buildFailingModelList", () => {
+	function roleAttempts(modelId: string, role: string, outcome: ModelOutcomeKind, n: number) {
+		return Array.from({ length: n }, (_, i) =>
+			buildAttemptEvent({ ...base, attemptId: `${modelId}-${role}-${outcome}-${i}`, modelId, role, outcome }),
+		);
+	}
+
+	it("lists only below-bar (not_recommended) pairings, worst-first, with the failure mode", () => {
+		const events = [
+			// model-A worker: 5/5 success → recommended (excluded)
+			...roleAttempts("model-A", "worker", "success", 5),
+			// model-B worker: 0/5 success (all timeouts) → not_recommended, included
+			...roleAttempts("model-B", "worker", "timeout", 5),
+			// model-C worker: 1 attempt → insufficient_data (excluded, not a floor)
+			...roleAttempts("model-C", "worker", "no_tool_call", 1),
+		];
+		const failing = buildFailingModelList(events);
+		expect(failing.map((f) => f.modelId)).toEqual(["model-B"]);
+		expect(failing[0]).toMatchObject({ role: "worker", verdict: "not_recommended", topFailureMode: "timeout" });
+	});
+
+	it("is empty when nothing is below the bar", () => {
+		expect(buildFailingModelList([])).toEqual([]);
 	});
 });
