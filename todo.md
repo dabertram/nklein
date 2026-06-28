@@ -3870,8 +3870,15 @@ deep analysis:
       `parseConstrainedToolCall(content, tools)` parses the response back into a known call — tolerant of `{tool,…}` /
       `{name,…}` / OpenAI `{function:{…}}` shapes, JSON-string args, and JSON wrapped in prose/```json fences; a
       hallucinated (unoffered) name ⇒ `null` (fall through). Pure, generic over `LocalLlmToolDefinition`, 10 tests; tsc +
-      biome green. **Also = phase (b) substrate of reason-then-act below.** **Still owed (WIRING):** fire it at the
-      model-call seam as a ladder rung (request the schema, parse, dispatch the call) — the §5.AA retry-engine work.
+      biome green. **Also = phase (b) substrate of reason-then-act below.** **WIRED ON THE CHAT PATH (2026-06-28):**
+      `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
+      LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the
+      optional `client.complete(..., {format:{jsonSchema}})` with the forced-tool-call schema, then
+      `parseConstrainedToolCall`s the reply into a dispatched call. **Gated on the same proven anchor as the reduction
+      rung** (the instruction must NAME an offered tool), so a legit prose answer to a non-tool question is never forced
+      into a fabricated call; skipped when a structured/recovered call already exists or the client has no `complete`.
+      +3 adapter tests (forces a call · no-fire without an anchor · skipped when a call exists). **Still owed:** the
+      SWARM/SDK path seam (`nklein-session-runtime`) + recording the rung outcome on the §5.AF ledger.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM

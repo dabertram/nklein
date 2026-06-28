@@ -188,4 +188,69 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(result.text).toBe("Here is my direct answer.");
 		expect(offeredCounts).toEqual([6]); // no anchor → no retry, no wasted calls
 	});
+
+	it("§5.AA constrained rung: FORCES a parseable call when the model never emits one but a tool is named", async () => {
+		let constrainedFormat: unknown = null;
+		const client: ChatAgentCompletionClient = {
+			// The model never emits a structured call and never narrates one (no recovery upstream).
+			completeWithTools: async () => ({
+				content: "Hmm, I'll think about it.",
+				toolCalls: [],
+				finishReason: "stop",
+				raw: {},
+			}),
+			// The constrained-decoding rung forces a JSON tool call.
+			complete: async (request) => {
+				constrainedFormat = request.format;
+				return { content: '{"tool":"create_card","arguments":{"title":"X"}}' };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: 'Use create_card to make a card titled "X".' }], true);
+		expect(result.toolCalls).toEqual([expect.objectContaining({ name: "create_card", arguments: { title: "X" } })]);
+		expect(result.text).toBe("");
+		// The rung used response_format json_schema constrained to the anchored tool.
+		expect(constrainedFormat).toMatchObject({ jsonSchema: { name: "klein_tool_call" } });
+	});
+
+	it("§5.AA constrained rung: does NOT fire when no tool is named (no fabricated call on a prose answer)", async () => {
+		let constrainedCalled = false;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({
+				content: "Merging combines branches.",
+				toolCalls: [],
+				finishReason: "stop",
+				raw: {},
+			}),
+			complete: async () => {
+				constrainedCalled = true;
+				return { content: '{"tool":"create_card","arguments":{}}' };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: "Just explain how merging works." }], true);
+		expect(constrainedCalled).toBe(false);
+		expect(result.text).toBe("Merging combines branches.");
+		expect(result.toolCalls).toEqual([]);
+	});
+
+	it("§5.AA constrained rung: skipped when a structured/recovered call already exists (no wasted forcing)", async () => {
+		let constrainedCalled = false;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({
+				content: "",
+				toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+				finishReason: "tool_calls",
+				raw: {},
+			}),
+			complete: async () => {
+				constrainedCalled = true;
+				return { content: "{}" };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+		expect(constrainedCalled).toBe(false);
+		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+	});
 });

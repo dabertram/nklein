@@ -1,8 +1,10 @@
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
+import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
 import type {
 	LocalLlmChatMessage,
 	LocalLlmCompletion,
 	LocalLlmSamplingOptions,
+	LocalLlmStructuredFormat,
 	LocalLlmToolCompletion,
 	LocalLlmToolDefinition,
 } from "../nklein-agent/nklein-local-llm-client";
@@ -93,6 +95,16 @@ export interface ChatAgentCompletionClient {
 		request: { messages: LocalLlmChatMessage[]; sampling?: LocalLlmSamplingOptions },
 		tools: readonly LocalLlmToolDefinition[],
 	): Promise<LocalLlmToolCompletion>;
+	/**
+	 * Optional plain completion with constrained decoding (`response_format: json_schema`) — the §5.AA
+	 * constrained-tool-call rung uses it to FORCE a parseable tool call. `LocalLlmClient.complete` satisfies this; a
+	 * client without it simply skips the rung.
+	 */
+	complete?(request: {
+		messages: LocalLlmChatMessage[];
+		sampling?: LocalLlmSamplingOptions;
+		format?: LocalLlmStructuredFormat;
+	}): Promise<{ content: string }>;
 }
 
 /**
@@ -129,8 +141,39 @@ export function createChatAgentModel(
 		}
 		// NOTE: narrated-tool-call recovery for the chat path lives in the client (`completeWithTools` runs
 		// `parseNarratedToolCalls` over content + reasoning_content when a tools-offered turn returns no structured call —
-		// see nklein-local-llm-client.ts). So by here `response.toolCalls` already includes any recovered call; no
-		// adapter-level recovery is needed (and the client seam sees the reasoning channel, which this one cannot).
+		// see nklein-local-llm-client.ts). So by here `response.toolCalls` already includes any recovered call.
+		//
+		// §5.AA constrained-decoding rung — the LAST resort after tool-set reduction AND the client's narrated-recovery
+		// both came up empty. Only fires when the instruction NAMES an offered tool (the same proven-safe anchor as the
+		// reduction rung) so we never FORCE a call on a legit prose answer to a non-tool question. Re-ask with
+		// `response_format: json_schema` constraining output to `{tool, arguments}`, then parse it back into a call.
+		if (allowTools && response.toolCalls.length === 0 && client.complete) {
+			const anchored = selectToolsForAttempt(offered, lastUserText(messages), 1);
+			const schema = anchored.matchedNames.length > 0 ? buildConstrainedToolCallSchema(anchored.tools) : null;
+			if (schema) {
+				const constrained = await client.complete({
+					messages: [
+						...wire,
+						{
+							role: "system",
+							content:
+								'Emit the required tool call now as a single JSON object {"tool":"<name>","arguments":{…}} and nothing else.',
+						},
+					],
+					sampling,
+					format: { jsonSchema: schema },
+				});
+				const parsed = parseConstrainedToolCall(constrained.content, anchored.tools);
+				if (parsed) {
+					return {
+						text: "",
+						toolCalls: [
+							{ id: `constrained-${Date.now().toString(36)}`, name: parsed.name, arguments: parsed.arguments },
+						],
+					};
+				}
+			}
+		}
 		return {
 			text: cleanModelReply(response.content),
 			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
