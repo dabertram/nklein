@@ -3978,7 +3978,15 @@ deep analysis:
       answer) is only accepted as final if the evidence says complete; otherwise the loop nudges "not done, keep going"
       and continues (bounded by maxIterations). This directly encodes the §5.Z e2e lesson (don't accept a premature
       "done" with required steps unexecuted) at the loop seam, **default-absent ⇒ existing behavior unchanged** (+2 loop
-      tests). **Still owed (wiring):** supply a real `assessCompletion` from the autonomous chat's focus-chain / a task's
+      tests). **REAL CONSUMER WIRED (2026-06-28):** the autonomous chat driver (`runAutonomousChatAgent`,
+      [chat-autonomous-loop.ts](src/chat/chat-autonomous-loop.ts)) now applies the evidence-gate to
+      `declare_goal_complete` — it rejects a premature goal-completion while focus-chain steps are pending and nudges the
+      next turn (via [chat-autonomous-wiring.ts](src/chat/chat-autonomous-wiring.ts)), ONE nudge only (re-asserted
+      completion is accepted; a model that only re-declares parks via the no-progress guard); +4 tests. **PER-PHASE
+      POLICY DONE (2026-06-28):** `runPhasePolicy(phase)` + `isToolAllowedInPhase(phase, mutationLevel)`
+      ([run-state-machine.ts](src/core/run-state-machine.ts)) give each phase its tool-subset ceiling (composing the
+      §5.AF tool-capability manifest's mutation levels — localize read-only, execute_step sandbox_write, plan/merge
+      control_plane) + an inner-loop call budget; +3 tests. **Still owed (wiring):** supply a real `assessCompletion` from a task's
       acceptance spec; drive the full phase ladder (per-phase context + tool subset + budget); record each transition on
       the §5.AF ledger (the `transition` event kind already exists). **An explicit run state machine** — the controller, per state: selects the
       state-specific context + tool subset, sets that

@@ -11,6 +11,8 @@
  * top. ReAct stays a bounded inner loop *inside* a single phase — never the global driver.
  */
 
+import type { ToolMutationLevel } from "./tool-capability-manifest";
+
 /** The run phases, in nominal forward order. `park` / `escalate` / `done` are terminal. */
 export type RunPhase =
 	| "intake"
@@ -132,4 +134,51 @@ export function decideNextPhase(current: RunPhase, evidence: RunEvidence): RunPh
 			// Terminal phases stay put.
 			return { next: current, reason: `Phase "${current}" is terminal.` };
 	}
+}
+
+/** Per-phase tool + budget policy — the controller restricts each phase to ≤ this mutation level and inner-loop budget. */
+export interface RunPhasePolicy {
+	/** Highest tool mutation level allowed in this phase (composes with the §5.AF tool-capability manifest). */
+	maxMutationLevel: ToolMutationLevel;
+	/** Soft cap on tool calls in this phase's bounded inner ReAct loop. */
+	maxToolCalls: number;
+}
+
+/** Mutation-level ordering (low→high blast radius), mirroring the tool-capability manifest. */
+const MUTATION_RANK: Record<ToolMutationLevel, number> = {
+	read: 0,
+	sandbox_write: 1,
+	control_plane: 2,
+	host_write: 3,
+};
+
+const RUN_PHASE_POLICY: Record<RunPhase, RunPhasePolicy> = {
+	// Planning + assessment phases are READ-ONLY (or control-plane for the plan/merge phases) — no repo mutation.
+	intake: { maxMutationLevel: "read", maxToolCalls: 3 },
+	plan: { maxMutationLevel: "control_plane", maxToolCalls: 4 },
+	validate_plan: { maxMutationLevel: "read", maxToolCalls: 3 },
+	// HARD GUARD (mirrors the transition guard): localization is read-only — never mutate the repo before localizing.
+	localize: { maxMutationLevel: "read", maxToolCalls: 6 },
+	// The only phases that may write to the sandbox/workspace.
+	execute_step: { maxMutationLevel: "sandbox_write", maxToolCalls: 10 },
+	observe: { maxMutationLevel: "read", maxToolCalls: 4 },
+	evaluate: { maxMutationLevel: "read", maxToolCalls: 4 },
+	repair: { maxMutationLevel: "sandbox_write", maxToolCalls: 8 },
+	retry_or_split: { maxMutationLevel: "read", maxToolCalls: 2 },
+	review: { maxMutationLevel: "read", maxToolCalls: 6 },
+	merge_or_escalate: { maxMutationLevel: "control_plane", maxToolCalls: 4 },
+	// Terminal phases drive no tools.
+	done: { maxMutationLevel: "read", maxToolCalls: 0 },
+	park: { maxMutationLevel: "read", maxToolCalls: 0 },
+	escalate: { maxMutationLevel: "read", maxToolCalls: 0 },
+};
+
+/** The tool + budget policy for a phase (the controller offers only tools at or below `maxMutationLevel`). */
+export function runPhasePolicy(phase: RunPhase): RunPhasePolicy {
+	return RUN_PHASE_POLICY[phase];
+}
+
+/** Whether a tool of the given mutation level may be offered in `phase` (≤ the phase's `maxMutationLevel`). */
+export function isToolAllowedInPhase(phase: RunPhase, mutationLevel: ToolMutationLevel): boolean {
+	return MUTATION_RANK[mutationLevel] <= MUTATION_RANK[runPhasePolicy(phase).maxMutationLevel];
 }

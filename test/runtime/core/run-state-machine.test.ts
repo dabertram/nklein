@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { decideNextPhase, isTerminalRunPhase, type RunPhase } from "../../../src/core/run-state-machine";
+import {
+	decideNextPhase,
+	isTerminalRunPhase,
+	isToolAllowedInPhase,
+	type RunPhase,
+	runPhasePolicy,
+} from "../../../src/core/run-state-machine";
 
 describe("run-state-machine — phase ladder", () => {
 	it("walks the nominal forward path on clean evidence", () => {
@@ -61,5 +67,35 @@ describe("run-state-machine — phase ladder", () => {
 			expect(decideNextPhase(phase, { budgetExhausted: true }).next).toBe(phase); // no park-override from terminal
 		}
 		expect(isTerminalRunPhase("execute_step")).toBe(false);
+	});
+});
+
+describe("run-state-machine — per-phase tool/budget policy", () => {
+	it("planning + assessment phases are read-only (no repo mutation), execute/repair allow sandbox writes", () => {
+		expect(runPhasePolicy("validate_plan").maxMutationLevel).toBe("read");
+		expect(runPhasePolicy("localize").maxMutationLevel).toBe("read"); // the hard guard, mirrored in policy
+		expect(runPhasePolicy("observe").maxMutationLevel).toBe("read");
+		expect(runPhasePolicy("execute_step").maxMutationLevel).toBe("sandbox_write");
+		expect(runPhasePolicy("repair").maxMutationLevel).toBe("sandbox_write");
+		expect(runPhasePolicy("plan").maxMutationLevel).toBe("control_plane");
+		expect(runPhasePolicy("merge_or_escalate").maxMutationLevel).toBe("control_plane");
+	});
+
+	it("terminal phases drive no tools", () => {
+		for (const phase of ["done", "park", "escalate"] as RunPhase[]) {
+			expect(runPhasePolicy(phase).maxToolCalls).toBe(0);
+		}
+	});
+
+	it("isToolAllowedInPhase enforces ≤ the phase's max mutation level (no mutation before/at localization)", () => {
+		// localize is read-only → a sandbox write is forbidden there but a read is fine.
+		expect(isToolAllowedInPhase("localize", "read")).toBe(true);
+		expect(isToolAllowedInPhase("localize", "sandbox_write")).toBe(false);
+		// execute_step permits sandbox writes but never a host write.
+		expect(isToolAllowedInPhase("execute_step", "sandbox_write")).toBe(true);
+		expect(isToolAllowedInPhase("execute_step", "host_write")).toBe(false);
+		// control-plane phases permit a board mutation but still not a host write.
+		expect(isToolAllowedInPhase("plan", "control_plane")).toBe(true);
+		expect(isToolAllowedInPhase("plan", "host_write")).toBe(false);
 	});
 });
