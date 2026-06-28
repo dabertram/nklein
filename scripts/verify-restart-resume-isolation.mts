@@ -23,6 +23,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { resolveNkleinRuntimeHomePath } from "../src/config/runtime-paths";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
 
@@ -94,6 +95,10 @@ async function main(): Promise<void> {
 	const managerA = new AgentSandboxManager();
 	await managerA.assertAvailable();
 	log("Docker sandbox available ✓");
+	// Never load models — only test already-loaded ones (user directive 2026-06-28). Refuse a specified non-resident model.
+	if (MODEL_ID) {
+		await assertModelLoaded(BASE_URL, MODEL_ID);
+	}
 
 	const project = await mkdtemp(join(tmpdir(), "nklein-verify-project-"));
 	await execFileAsync("git", ["-C", project, "init", "-q"]);

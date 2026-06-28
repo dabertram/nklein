@@ -24,6 +24,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import type { RuntimeBoardData } from "../src/core/api-contract";
 import type { NKleinCardPromotedEvent } from "../src/nklein-agent/nklein-promotion-tool";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
 import { loadWorkspaceState, saveWorkspaceState } from "../src/state/workspace-state";
@@ -131,6 +132,10 @@ async function main(): Promise<void> {
 	const manager = new AgentSandboxManager();
 	await manager.assertAvailable();
 	log("Docker sandbox available ✓");
+	// Never load models — only test already-loaded ones (user directive 2026-06-28). Refuse a specified non-resident model.
+	if (MODEL_ID) {
+		await assertModelLoaded(BASE_URL, MODEL_ID);
+	}
 
 	const project = await mkdtemp(join(tmpdir(), "nklein-verify-autopromote-"));
 	const projectReal = await realpath(project);

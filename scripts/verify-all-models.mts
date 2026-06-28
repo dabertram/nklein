@@ -21,6 +21,7 @@
 import { spawn } from "node:child_process";
 import { appendFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { fetchLoadedModelIds } from "../src/core/lmstudio-loaded-models";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -45,29 +46,10 @@ interface ModelResult {
 }
 
 async function listLoadedModels(): Promise<string[]> {
-	// Prefer LM Studio's native endpoint, which reports per-model `state` so we sweep only models actually LOADED in
-	// memory (the runnable set) — NOT every downloaded model (JIT-loading 35B–122B giants would thrash VRAM and take
-	// hours). Fall back to the OpenAI-compat `/v1/models` (which lists all downloaded) only if the native API is absent.
-	try {
-		const nativeUrl = `${BASE_URL.replace(/\/v1\/?$/, "")}/api/v0/models`;
-		const res = await fetch(nativeUrl, { signal: AbortSignal.timeout(5_000) });
-		if (res.ok) {
-			const payload = (await res.json()) as { data?: Array<{ id?: string; state?: string }> };
-			const loaded = (payload.data ?? []).filter((m) => m.state === "loaded").map((m) => m.id ?? "").filter(Boolean);
-			if (loaded.length > 0) {
-				return loaded;
-			}
-		}
-	} catch {
-		/* fall through to /v1/models */
-	}
-	try {
-		const res = await fetch(`${BASE_URL}/models`, { signal: AbortSignal.timeout(5_000) });
-		const payload = (await res.json()) as { data?: Array<{ id?: string }> };
-		return (payload.data ?? []).map((m) => m.id ?? "").filter(Boolean);
-	} catch {
-		return [];
-	}
+	// ONLY models actually LOADED in memory (LM Studio `/api/v0/models` `state=loaded`). We deliberately do NOT fall back
+	// to `/v1/models` (which lists every DOWNLOADED model) — sweeping a non-loaded model would auto-LOAD it, and loading
+	// is the user's call, not ours (directive 2026-06-28; JIT-loading 35B–122B giants would also thrash VRAM/freeze).
+	return fetchLoadedModelIds(BASE_URL);
 }
 
 /** Chat/reasoning models only — drop the embedder (and any other non-chat entry by id heuristic). */
