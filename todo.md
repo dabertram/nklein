@@ -4034,14 +4034,23 @@ deep analysis:
 > models that CLEAR the quality bar for a task's difficulty, prefer the fastest (Pareto / weighted); reserve the
 > most-capable models for the hardest tasks; let easy tasks take the fast/small model. Weights are user-tunable (a
 > speed-vs-quality dial, §5.I#4).
-- [ ] **Model-ladder expansion — grow the roster to meet the challenge ladder (MCF Phase A, 2026-06-28, user).** As a
+- [~] **Model-ladder expansion — grow the roster to meet the challenge ladder (MCF Phase A, 2026-06-28, user).** As a
       challenge's difficulty exceeds the current roster's reach, bigger/better LOCAL models are the answer (the test
-      machine — 128 GB RAM + M5 Max — runs **up to ~120B at lower quantization**) — **BUT we never load them ourselves
-      (user directive 2026-06-28): loading is the user's call.** So this becomes: **surface model advice asking the user
-      to load a bigger model**, then test it once resident (target only the loaded set — `/api/v0/models`, see §4A +
-      `lmstudio-loaded-models.ts`). Each newly-loaded model becomes a §5.Z matrix column / run-log entry. A model that
-      still can't pass a tier (after repeat-runs + the full §5.AA ladder — **never judge prematurely**) is a recorded
-      `⚠️` capability-floor, not a failure to hide.
+      machine — 128 GB RAM + M5 Max — runs **up to ~120B at lower quantization**). **WORKING-MODE SHIFT IN PROGRESS
+      (2026-06-29, user):** the user is moving from "we never load" → **"!Klein may load/unload to work the catalog
+      systematically, GUARDED"** (they confirmed the API exposes quant/state/context clearly + asked me to take it over).
+      **GUARD SUBSTRATE BUILT (2026-06-29, pending the explicit greenlight to actually load):**
+      [model-load-headroom.ts](src/core/model-load-headroom.ts) `decideModelLoad` (refuse any load that breaches a RAM
+      freeze-reserve / resident budget — proactively prevents the `ornith-35b@8bit` "would overload" freeze) +
+      [lms-model-control.ts](src/core/lms-model-control.ts) `planGuardedModelLoad` / `buildLmsLoadArgs` /
+      `buildLmsUnloadArgs` (pure planner → the exact `lms load --context-length … --gpu max` argv only on guard approval;
+      context floored to ≥32k + capped to capability). 14 tests. `lms` CLI (`load`/`unload`/`ps`/`ls`) confirmed available;
+      `/api/v0/models` exposes id·quant·state·max/loaded-context·arch·type. **STILL OWED (the greenlit step):** the
+      effectful `lms` runner that consults the planner (the ONLY place a load happens) + a **model-lab sweep** (load → set
+      context → test → unload → restore the user's pinned set) to drive the §5.AB eval matrix + q4/q8/size A/Bs across the
+      catalog. Until greenlit, the no-load enforcement below stays active. Each newly-resident model becomes a §5.Z matrix
+      column / run-log entry; a model that still can't pass a tier (after repeat-runs + the full §5.AA ladder — **never
+      judge prematurely**) is a recorded `⚠️` capability-floor.
 - [~] **!Klein RUNTIME must not load models either (user directive 2026-06-28) — selection/resolution restricted to the
       LOADED set.** Harness side done (`assertModelLoaded`). **PRIMARY-MODEL ENFORCEMENT DONE (2026-06-28, `8715fda6`):**
       `start-task-session` now checks the SELECTED (primary) local model against LM Studio's loaded set
