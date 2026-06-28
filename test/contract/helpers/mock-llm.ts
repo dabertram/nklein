@@ -145,6 +145,13 @@ export async function startMockLlm(options: { modelId?: string } = {}): Promise<
 			res.end(JSON.stringify({ object: "list", data: [{ id: modelId, object: "model" }] }));
 			return;
 		}
+		// LM Studio's enhanced endpoint with per-model load `state` — `discoverLoadedModelId` reads this to pick a
+		// LOADED model (the mock model is "loaded" so discovery + the no-load guard treat it as resident).
+		if (req.method === "GET" && path === "/api/v0/models") {
+			res.writeHead(200, { "content-type": "application/json" });
+			res.end(JSON.stringify({ object: "list", data: [{ id: modelId, object: "model", state: "loaded" }] }));
+			return;
+		}
 		if (req.method === "POST" && (path === "/chat/completions" || path === "/v1/chat/completions")) {
 			const raw = await readBody(req);
 			let body: Record<string, unknown> = {};

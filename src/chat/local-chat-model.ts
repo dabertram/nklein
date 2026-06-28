@@ -1,3 +1,4 @@
+import { fetchLoadedModelIds } from "../core/lmstudio-loaded-models";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 import { type ChatModelDeps, createChatModelDeps } from "./chat-local-llm-adapter";
@@ -35,18 +36,10 @@ export async function discoverLoadedModelId(baseUrl: string, fetchImpl: typeof f
 			return cached.modelId;
 		}
 	}
-	let modelId: string | null = null;
-	try {
-		const res = await fetchImpl(`${key}/models`);
-		if (res.ok) {
-			const payload = (await res.json()) as { data?: Array<{ id?: string }> };
-			const models = payload.data ?? [];
-			const chatModel = models.find((entry) => entry.id && !entry.id.includes("embed")) ?? models[0];
-			modelId = chatModel?.id ?? null;
-		}
-	} catch {
-		modelId = null;
-	}
+	// Pick a LOADED, non-embedding model from LM Studio's `/api/v0/models` (load state) — NEVER an available-but-unloaded
+	// one (selecting that would auto-LOAD it, which is the user's call, not ours — directive 2026-06-28).
+	const loaded = await fetchLoadedModelIds(key, fetchImpl);
+	const modelId = loaded.find((id) => !id.includes("embed")) ?? loaded[0] ?? null;
 	if (ttlMs > 0) {
 		loadedModelIdCache.set(key, { at: now, modelId });
 	}
