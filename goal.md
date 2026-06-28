@@ -51,10 +51,16 @@ next step even for things that will only be *adapted later with low effort*).
   — the benchmark a frontier model would produce, with a quality rubric. Use it as a comparison anchor when judging how
   well a model processed a project; still always inspect the real generated output deeply. (Big enterprise/`dschinn`
   projects are left without — judge by inspection.)
+- **NEVER load models — only test/use ALREADY-LOADED ones (user directive 2026-06-28).** Requesting an inference for a
+  non-resident model makes LM Studio auto-load it (RAM/VRAM cost, freeze risk) — **loading is the USER's call, not ours**
+  (neither the harness nor !Klein). Checking *availability* is fine; loading is not. Detect the loaded (resident) set via
+  LM Studio's `/api/v0/models` `state` field — use `src/core/lmstudio-loaded-models.ts` (`fetchLoadedModelIds` /
+  `assertModelLoaded`); the verify harnesses already refuse a non-loaded model. **So the Phase-A "bigger model" lever is
+  not "load a 120B" — it's: surface model advice asking the USER to load a bigger model, then test it once they have.**
 - **Roster discipline + weakest-model focus.** Keep EVERY model that has appeared in the roster (sweep-log table), even
-  when unloaded — they pop in/out; collect the full history and adapt as new ones appear (check the live endpoint, e.g.
-  LM Studio `/v1/models`). Watch the **weakest** models first each sweep — they hit a new difficulty rung earliest, so
-  they're the signal that tells you where the §5.AA ladder (or a bigger Phase-A model) is next needed.
+  when unloaded — they pop in/out; collect the full history and adapt as new ones appear. **Each sweep, query the LOADED
+  set first** (`/api/v0/models`) and target only those. Watch the **weakest** loaded models first — they hit a new
+  difficulty rung earliest, the signal for where the §5.AA ladder (or a user-loaded bigger model) is next needed.
 - **Quality is a standing mandate with a widening horizon.** Always strive for clean code, design, structure,
   maintainability, extendability — a slightly-moving target you keep raising, not a one-time bar.
 
