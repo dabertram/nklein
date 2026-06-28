@@ -34,7 +34,7 @@
 | single-card · `verify-task-completion` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | auto-promote · `verify-autopromote-recovery` | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
 | strict-isolation · `verify-strict-isolation` | ✅ | ✅ | ✅ | ✅ | · | ✅ | · | ✅ | · |
-| restart-resume · `verify-restart-resume-isolation` | ✅ | · | · | · | · | · | · | · | · |
+| restart-resume · `verify-restart-resume-isolation` | ✅ | ✅ | ✅ | ✅ | · | ✅ | · | ✅ | · |
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | · | · | · | · | · | · | · | · |
@@ -211,3 +211,13 @@ Strict Docker isolation invariant (#2) on a real task — sandbox container appe
 - ✅ **PASS** · `ornith-1.0-9b-mlx` (not in the 9-col matrix)
 - ✅ **PASS** · `microsoft/phi-4-mini-reasoning`
   - matrix coverage: 6 of the 9 roster columns now ✅ (qwen3-8b, coder-14b, qwen3.5-9b, gemma-e2b, phi4-mini, nemotron). Remaining 3 (gemma-e4b, phi4-plus, deepseek) are NOT currently loaded in LM Studio — run when loaded. The `restart-resume` half of the §5.Z line is still qwen3-8b-only.
+
+### 2026-06-28 · verify-restart-resume-isolation (manual sweep, current HEAD)
+Restart/resume isolation — a task resumed after a simulated runtime restart re-preps its Docker sandbox with NO host leak. **6/6 PASS** across the loaded roster.
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` (re-confirmed on HEAD)
+- ✅ **PASS** · `google/gemma-4-e2b-m5max`
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max`
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max`
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max`
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning`
+  - matrix coverage: 6 of the 9 roster columns now ✅ (same set as strict-isolation). Remaining 3 (gemma-e4b, phi4-plus, deepseek) not currently loaded.
