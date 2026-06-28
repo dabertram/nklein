@@ -421,12 +421,52 @@ export async function getCommitDiff(options: {
 		};
 	}
 
+	// Merge commits show NOTHING from a plain diff-tree/show (the combined diff is empty by default), which made the UI
+	// render a merge as "No changes" (git-view P2). Detect a merge (≥2 parents) and diff it against its FIRST parent
+	// (`--first-parent -m` for diff-tree, `--first-parent` for show) — the change the merge brought to the mainline.
+	// Non-merge commits keep `--root` so the initial commit still diffs against the empty tree.
+	const parentsResult = await runGit(repoRoot, ["rev-list", "--parents", "-n", "1", commitHash]);
+	const parentCount = parentsResult.ok
+		? Math.max(0, parentsResult.stdout.trim().split(/\s+/).filter(Boolean).length - 1)
+		: 1;
+	const isMerge = parentCount >= 2;
+	const diffTreeScopeFlags = isMerge ? ["--first-parent", "-m"] : ["--root"];
+	const showScopeFlags = isMerge ? ["--first-parent"] : [];
+
 	const [nameStatusResult, numstatResult, diffResult] = await Promise.all([
-		runGit(repoRoot, ["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--name-status", "-z", commitHash]),
-		runGit(repoRoot, ["diff-tree", "--root", "--no-commit-id", "-r", "-M", "--numstat", "-z", commitHash]),
-		runGit(repoRoot, ["show", "--format=", "--find-renames", "--patch", "--diff-algorithm=histogram", commitHash], {
-			trimStdout: false,
-		}),
+		runGit(repoRoot, [
+			"diff-tree",
+			...diffTreeScopeFlags,
+			"--no-commit-id",
+			"-r",
+			"-M",
+			"--name-status",
+			"-z",
+			commitHash,
+		]),
+		runGit(repoRoot, [
+			"diff-tree",
+			...diffTreeScopeFlags,
+			"--no-commit-id",
+			"-r",
+			"-M",
+			"--numstat",
+			"-z",
+			commitHash,
+		]),
+		runGit(
+			repoRoot,
+			[
+				"show",
+				"--format=",
+				...showScopeFlags,
+				"--find-renames",
+				"--patch",
+				"--diff-algorithm=histogram",
+				commitHash,
+			],
+			{ trimStdout: false },
+		),
 	]);
 
 	const filesByKey = new Map<string, RuntimeGitCommitDiffResponse["files"][number]>();

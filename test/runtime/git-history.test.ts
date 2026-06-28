@@ -103,6 +103,33 @@ describe.sequential("git history runtime", () => {
 		}
 	});
 
+	it("returns the first-parent diff for a merge commit instead of an empty list (git-view P2)", async () => {
+		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-merge-");
+		try {
+			initRepository(repoPath);
+			writeFileSync(join(repoPath, "base.txt"), "base\n", "utf8");
+			commitAll(repoPath, "base");
+			const mainBranch = runGit(repoPath, ["rev-parse", "--abbrev-ref", "HEAD"]);
+
+			runGit(repoPath, ["checkout", "-q", "-b", "feat"]);
+			writeFileSync(join(repoPath, "feat.txt"), "feat\n", "utf8");
+			commitAll(repoPath, "feat work");
+
+			runGit(repoPath, ["checkout", "-q", mainBranch]);
+			runGit(repoPath, ["merge", "-q", "--no-ff", "feat", "-m", "merge feat"]);
+			const mergeHash = runGit(repoPath, ["rev-parse", "HEAD"]);
+
+			const response = await getCommitDiff({ cwd: repoPath, commitHash: mergeHash });
+
+			expect(response.ok).toBe(true);
+			// A plain diff-tree on a merge is empty; the first-parent diff must surface the merged-in change.
+			expect(response.files.length).toBeGreaterThan(0);
+			expect(response.files.some((file) => file.path === "feat.txt")).toBe(true);
+		} finally {
+			cleanup();
+		}
+	});
+
 	it("returns rename metadata for rename-only commits", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-rename-");
 		try {

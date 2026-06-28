@@ -930,9 +930,11 @@ deep analysis:
         ("Commit <hash> could not be resolved…") instead of a misleading `ok:true` empty-`files` "No changes". Regression
         test added (invalid hash → `ok:false` + error). *(UI error-state rendering in the diff panel: still owed — backend
         now returns the error; wire the panel to show it.)*
-  - [ ] **P1 — support merge-commit diffs.** Merge-commit diff loading can produce empty file lists. Update the runtime
-        merge-diff extraction to handle merge commits explicitly; add runtime tests asserting non-empty diff output for
-        known merge scenarios.
+  - [x] **P1 — support merge-commit diffs (DONE 2026-06-28).** A plain `diff-tree`/`show` on a merge is empty (the UI
+        rendered merges as "No changes"). `getCommitDiff` now detects a merge (≥2 parents via `rev-list --parents -n1`)
+        and diffs it against its **first parent** (`--first-parent -m` for diff-tree, `--first-parent` for show) — the
+        change the merge brought to mainline; non-merges keep `--root`. Regression test added (merge → non-empty
+        first-parent diff incl. the merged-in file; 8 pass).
   - [x] **P2 — keep commits with empty subjects in log parsing (DONE 2026-06-28).** `parseCommitRecord` dropped a commit
         with an empty `%s` subject (it was a required field); empty subjects are valid (`--allow-empty-message`). Now only
         the structural fields (hash/shortHash/date) are required; `message` may be empty. Regression test added (7 pass).
