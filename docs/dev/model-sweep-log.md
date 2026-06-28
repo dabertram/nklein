@@ -37,7 +37,7 @@
 | `qwopus3.5-9b-coder-mlx` (`@8bit`/`@4bit`) | ~9B | available, **untested** | coder; scout when a sweep slot frees |
 | `qwopus3.5-4b-coder-fable5-v1-mlx` | ~4B | **tested ✅ C0** | small coder; capable once warm, ⚠️ cold-start-prone (see 15:54Z) |
 | `ornith-1.0-9b-mlx` | ~9B | **tested ✅ C0** | 🚀 clean first-try C0 pass |
-| `ornith-1.0-35b-mlx` (`@8bit`/`@4bit`) | ~35B | available, **untested** | **bigger local model** — the Phase-A escalation lever (§5.0.3) |
+| `ornith-1.0-35b-mlx` (`@8bit`/`@4bit`) | ~35B | `@8bit` **won't load** (insufficient resources, Low Power + many models resident) | **bigger local model** — Phase-A lever; retry `@4bit` after unloading idle models |
 | `nvidia/nemotron-3-super` | — | available, **untested** | |
 | `deepseek-v4-flash-dq` | — | available, **untested** | |
 
@@ -132,7 +132,7 @@
 | model | result | note |
 |---|:-:|---|
 | ornith-1.0-9b-mlx (NEW, ~9B) | ✅ | 🚀 clean first-try pass to `awaiting_review` in ~50 s (even Low Power) — a usable new 9B; ran with the new **live-activity** harness mode (visible real-time steps) |
-| ornith-1.0-35b-mlx@8bit (NEW, ~35B, **Phase-A bigger-model lever**) | ◑ | 🐞 reached `awaiting_review` in ~3 s of state churn but **delivered NOTHING** (`delivered=NO`, no result branch) — declared done without producing hello.txt. A model can hit the done lane without doing the work → **drove a harness fix: PASS now requires terminal AND the deliverable** (else PARTIAL). The 35B itself: inconclusive (premature-done; needs re-run + inspection). Vindicates "deeply check the result, not just the lane." |
+| ornith-1.0-35b-mlx@8bit (NEW, ~35B, **Phase-A bigger-model lever**) | ◑→🧱 | **Root cause (live-activity dump): the model FAILED TO LOAD** — _"insufficient system resources… would overload your system and cause it to freeze."_ So it reached `awaiting_review` with nothing delivered (`delivered=NO`). **Two wins:** the live-activity mode surfaced the exact load error (old silent harness would've hidden it), and the deliverable-gate flagged it PARTIAL not PASS. **Operational finding:** @8bit (~35 GB) doesn't fit under Low Power with several scout models already resident — needs **`@4bit` (lower quant)** and/or unloading idle models first (ties the §5.AF resource-governance item: VRAM/RAM headroom check before a load). Not retried now — won't risk freezing an actively-used machine. |
 
 ### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |
