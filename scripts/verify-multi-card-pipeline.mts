@@ -77,6 +77,9 @@ async function main(): Promise<void> {
 	let server: BackendUnderTest | null = null;
 	let stream: Awaited<ReturnType<typeof connectRuntimeStream>> | null = null;
 	const latestActivityByTask = new Map<string, { state: string; activity: string }>();
+	// Stall detection: a FROZEN run (no board change AND no card activity) is aborted early as STALLED — distinct from a
+	// slow-but-progressing INCOMPLETE. Progress = a board-summary change or a new WS card activity. Power-scaled window.
+	let lastProgressAt = Date.now();
 	let latestTaskSessionsRaw = "";
 	try {
 		server = await startTsBackend({
@@ -202,6 +205,7 @@ async function main(): Promise<void> {
 					// Trace generated-card activity transitions live (skip the seed decompose card).
 					if (id !== task.id && (!prev || prev.activity !== newActivity || prev.state !== newState)) {
 						log(`   [WS ${new Date().toISOString().slice(11, 19)}] ${id} state=${newState} act="${newActivity}"`);
+						lastProgressAt = Date.now();
 					}
 				}
 			} catch {
@@ -211,6 +215,8 @@ async function main(): Promise<void> {
 
 		// 4) Observe the board: wait until the deck has decomposed (>1 card) AND no card is still active.
 		const deadline = Date.now() + TIMEOUT_MS;
+		const stallMs = Math.round(Number(process.env.NKLEIN_VERIFY_STALL_MS ?? "300000") * power.multiplier);
+		let stalled = false;
 		let lastSummary = "";
 		let decomposed = false;
 		let allTerminal = false;
@@ -233,12 +239,18 @@ async function main(): Promise<void> {
 				if (summary !== lastSummary) {
 					log(`[${new Date().toISOString().slice(11, 19)}] ${summary}  (total=${total} active=${active} terminal=${terminal})`);
 					lastSummary = summary;
+					lastProgressAt = Date.now();
 				}
 				if (total > 1) {
 					decomposed = true;
 				}
 				if (decomposed && active === 0 && terminal > 0) {
 					allTerminal = true;
+					break;
+				}
+				if (Date.now() - lastProgressAt > stallMs) {
+					stalled = true;
+					log(`[${new Date().toISOString().slice(11, 19)}] STALLED — no board change or card activity for ${Math.round(stallMs / 1000)}s; aborting.`);
 					break;
 				}
 			} catch (error) {
@@ -274,13 +286,15 @@ async function main(): Promise<void> {
 		// Paste-ready row for docs/dev/model-sweep-log.md (the per-run scoreboard).
 		log(
 			`SWEEP-ROW | ${new Date().toISOString()} | multi-card ${PRESET} | model=${MODEL_ID} | ` +
-				`decompose=${decomposed ? "YES" : "NO"} | result=${allTerminal ? "PASS ✓" : "INCOMPLETE ⏳"} | ` +
+				`decompose=${decomposed ? "YES" : "NO"} | result=${allTerminal ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
 				`power=${power.mode}×${power.multiplier}`,
 		);
 		log(
 			allTerminal
 				? "PASS ✓ full-runtime multi-card pipeline ran decompose → cascade → all cards terminal."
-				: "INCOMPLETE — see board trace above (decompose and/or cascade did not finish within the timeout).",
+				: stalled
+					? "STALLED — the board froze (no card activity or lane change for the stall window); aborted early. Distinct from a slow INCOMPLETE — the cascade stopped making progress (check for a dead worker / stuck session)."
+					: "INCOMPLETE — see board trace above (decompose and/or cascade did not finish within the timeout).",
 		);
 		process.exitCode = allTerminal ? 0 : 1;
 	} finally {
