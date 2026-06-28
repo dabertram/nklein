@@ -77,7 +77,10 @@ async function main(): Promise<void> {
 
 	const service = createInMemoryNKleinTaskSessionService({ agentSandboxManager: manager });
 	const taskId = "verify-completion-1";
-	const obs = { advanced: false, terminal: false, terminalState: "", lastState: "", error: "" };
+	const obs = { advanced: false, terminal: false, terminalState: "", lastState: "", error: "", stalled: false };
+	// Stall detection: a hung model (e.g. a request that never returns) shows NO activity — fail fast with a clear
+	// STALLED verdict instead of silently waiting out the whole timeout. Threshold is power-scaled (slow regime → longer).
+	let lastProgressAt = Date.now();
 
 	const emitted: string[] = [];
 	const seen = new Set<string>();
@@ -97,6 +100,8 @@ async function main(): Promise<void> {
 		if (summary.taskId !== taskId) {
 			return;
 		}
+		const prevState = obs.lastState;
+		const prevEmitted = emitted.length;
 		obs.lastState = summary.state;
 		if (summary.state === "running" || summary.state === "awaiting_review" || summary.state === "completed") {
 			obs.advanced = true;
@@ -113,6 +118,10 @@ async function main(): Promise<void> {
 			capture("text", activity.activityText);
 			capture("toolInput", activity.toolInputSummary);
 			capture("final", activity.finalMessage);
+		}
+		// Any state change or new activity counts as progress (resets the stall clock).
+		if (summary.state !== prevState || emitted.length !== prevEmitted) {
+			lastProgressAt = Date.now();
 		}
 	});
 
@@ -134,9 +143,15 @@ async function main(): Promise<void> {
 			startError = error;
 		});
 
+	// Power-scaled stall window: abort if the model produces no state change / activity for this long (a hung request).
+	const stallMs = Math.round(Number(process.env.NKLEIN_VERIFY_STALL_MS ?? "240000") * power.multiplier);
 	const deadline = Date.now() + TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		if (obs.terminal || startError) {
+			break;
+		}
+		if (Date.now() - lastProgressAt > stallMs) {
+			obs.stalled = true;
 			break;
 		}
 		await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -208,15 +223,18 @@ async function main(): Promise<void> {
 	log("");
 	// A structured, paste-ready row for docs/dev/model-sweep-log.md (the per-run scoreboard) — the harness collects the
 	// facts; a human/agent adds the judgment note (🚀/🐢/🐞/…).
+	const resultLabel = obs.terminal ? "PASS ✓" : obs.stalled ? "STALLED 🧱" : "INCOMPLETE ⏳";
 	log(
 		`SWEEP-ROW | ${new Date().toISOString()} | C0 single-card | model=${modelId} | ` +
-			`result=${obs.terminal ? "PASS ✓" : "INCOMPLETE ⏳"} | terminal=${obs.terminal ? obs.terminalState : obs.lastState || "n/a"} | ` +
+			`result=${resultLabel} | terminal=${obs.terminal ? obs.terminalState : obs.lastState || "n/a"} | ` +
 			`power=${power.mode}×${power.multiplier}`,
 	);
 	log(
 		obs.terminal
 			? "PASS ✓ a small local model ran the card to a terminal state (awaiting_review/completed) with its result captured."
-			: "INCOMPLETE — the card did not reach awaiting_review/completed within the timeout (see activities).",
+			: obs.stalled
+				? `STALLED — no model activity for ${Math.round(stallMs / 1000)}s (a hung/unresponsive model call); aborted early. NOT a clean INCOMPLETE — the model produced no sustained output (check it actually serves under the agent's tool-calling prompt).`
+				: "INCOMPLETE — the card did not reach awaiting_review/completed within the timeout (see activities).",
 	);
 	process.exit(obs.terminal ? 0 : 1);
 }
