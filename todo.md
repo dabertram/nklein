@@ -4571,17 +4571,29 @@ deep analysis:
       log, {reclaimBackoffMs})` folds a `DurableSchedulerLogEntry[]` (`scheduled` action + clock | `completed` outcome) over
       the initial graph to reconstruct exact mid-run state — deterministic, so a restarted runtime resumes "exactly where
       it was" and re-deciding from there continues identically (16 tests incl. a mid-run resume + determinism check). So
-      the **C3 pure substrate is COMPLETE: decide + map + replay**, all pure + tested. **STILL OWED (the WIRING only — the
-      genuinely hot-path part, a focused pass w/ live Docker verification):** a thin ledger adapter that writes each
-      `DurableSchedulerLogEntry` as a §5.AF `scheduler` event (+ reads them back on boot → `replayDurableJobs`), and a
-      runtime tick loop that calls `decideDurableSchedulerActions`, dispatches `lease` actions to the endpoint
-      scheduler/sandbox pool, extends leases via heartbeats, and records completion via `markDurableJob`; then run C3
-      (`complex_dag` unattended + restart-mid-run) on the §5.Z roster. **Adapter mapping (derived 2026-06-28 vs the live
-      `schedulerEventSchema`):** a `scheduled` action → one `scheduler` event — `lease`→`lease_acquired` (workerId, detail=
-      expiresAt), `reclaim`→`reclaimed`, `unblock`→`dependency_unblocked`, `fail`→`cancelled` (detail=reason); a
-      `completed` entry is NOT a scheduler event — it rides the existing `attempt` event's `outcome`. So **boot-replay =
-      merge the workflow's `scheduler` events + `attempt` outcomes by `recordedAt` into a `DurableSchedulerLogEntry[]`,
-      then `replayDurableJobs`** (persist the initial graph once at run start, or rebuild it from the card set + deps).
+      the **C3 pure substrate is COMPLETE: decide + map + replay**, all pure + tested. **LEDGER ADAPTER ALSO DONE
+      (2026-06-28):** [src/core/durable-scheduler-ledger.ts](src/core/durable-scheduler-ledger.ts) — `durableLogEntryToSchedulerEvent`
+      (write) + `readDurableSchedulerLog` (boot-replay read). **Adapter mapping REVISED on deeper reasoning** vs the earlier
+      sketch: the scheduler's persistence is now **self-contained in the `scheduler` event family** (one family folds on
+      boot — no need to disambiguate which rich `attempt` retry-rung was "the completion"; an attempt may be an internal
+      §5.AA rung the worker did *while still holding the lease*). `lease`→`lease_acquired` (workerId; detail=expiresAt),
+      `reclaim`→`reclaimed`, `unblock`→`dependency_unblocked`, `fail`→`cancelled` (detail=reason), and a worker's terminal
+      report → a **new `completed` scheduler event** (detail=succeeded/failed) added to `SCHEDULER_EVENT_NAMES`; the
+      scheduled clock round-trips via the envelope `recordedAt`. Rich per-invocation evidence still lives in the `attempt`
+      family alongside (two events, different grains — lease lifecycle vs model invocation — not a duplicated source of
+      truth). **INJECTABLE TICK-LOOP ORCHESTRATOR ALSO DONE (2026-06-28):**
+      [src/core/durable-run-controller.ts](src/core/durable-run-controller.ts) — `DurableRunController` with injected
+      ports (`now`/`mintWorkerId`/`appendLog`/`dispatch`): `tick()` decides→persists→applies→dispatches new leases at one
+      captured clock; `reportCompletion()` records a terminal report; `resume()` folds the ledger log then **reclaims
+      orphaned in-flight leases** (a restart kills all workers → next tick re-dispatches; or fails them if the budget is
+      spent). Fakes-tested incl. restart-resume. **So the C3 substrate is now COMPLETE end-to-end at the pure/injectable
+      level. STILL OWED (the genuinely hot-path part only — a focused pass w/ live Docker verification):** wire the **2
+      real ports** + boot — `dispatch` = enqueue the card's `RuntimeTaskSessionStartRequest` via `runtime-task-start-queue`
+      (unblock is already done by `completeTaskAndGetReadyLinkedTaskIds`); `appendLog` = `durableLogEntryToSchedulerEvent`
+      → append to the ledger store; on boot = `readDurableSchedulerLog(workflow events)` → `DurableRunController.resume`;
+      a heartbeat that extends the lease while a session runs, and `reportCompletion` on session finish. Then run C3
+      (`complex_dag` unattended + restart-mid-run) on the §5.Z roster (an early-scout of `complex_dag`×qwen3-8b on the
+      *current* non-durable pipeline is running to characterize exactly what the durable layer must fix).
 - [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
