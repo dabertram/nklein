@@ -66,6 +66,21 @@
 | deepseek-r1-qwen3-8b | ✅ | ✅ | ✅ | ⚠️ crash-prone |
 > **8/9 on C0** (qwen3.5-9b ⚠️), **9/9 on C1**, ✅ C2 across the roster. 0 narration leaks anywhere (§5.O output hardening solid).
 
+### 2026-06-26 · **chat tool-use sweep** across the 9 · `verify-chat-*` + `sweep-capture`
+| model | run_command | create_card | browse_url | output-robust | note |
+|---|:-:|:-:|:-:|:-:|---|
+| qwen3-8b | ✅ | ✅ | ✅ | ✅ | 🚀 all chat tools clean (read/write/send/runtime ✅ too) |
+| qwen2.5-coder-14b | ✅ | ✅ | ◑ | ✅ | strong; 🧩 browse reply synthesis weak |
+| qwen3.5-9b | ◑ | ✅ | ◑ | ◑ | 🧩 weak synthesis on several (tool RAN, reply didn't echo) |
+| gemma-4-e2b | ◑ | ✅ | ◑ | ✅ | 🧩 2B; create_card + output clean |
+| gemma-4-e4b | ◑ | ✅ | · | ✅ | output clean |
+| phi-4-mini-reasoning | ✅\* | ✅\* | · | ⚠️ | 🔧 ❌→✅ after §5.AA tool-set reduction (1 tool offered) |
+| phi-4-reasoning-plus | ❌ | ❌ | · | · | 🧱 never emits a tool call — open |
+| nemotron-3-nano-4b | ✅ | ✅ | ◑ | ✅ | solid |
+| deepseek-r1-qwen3-8b | ◑ | ✅ | · | · | ⚠️ crash-prone |
+> `run_command` ◑ = the command genuinely EXECUTED; only the reply echo (strict gate) was weak — the capability the user
+> cares about works. **0 user-facing narration leaks anywhere** (§5.O). Remaining ❌/⚠️ are §5.AA *control* problems, not format.
+
 ### 2026-06-28 · **C0 reliability sweep #1** · `verify-task-completion` · qwen3-8b ×5 (back-to-back)
 | model | runs | result | note |
 |---|:-:|:-:|---|
