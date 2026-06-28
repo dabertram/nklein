@@ -3877,8 +3877,16 @@ deep analysis:
       `parseConstrainedToolCall`s the reply into a dispatched call. **Gated on the same proven anchor as the reduction
       rung** (the instruction must NAME an offered tool), so a legit prose answer to a non-tool question is never forced
       into a fabricated call; skipped when a structured/recovered call already exists or the client has no `complete`.
-      +3 adapter tests (forces a call · no-fire without an anchor · skipped when a call exists). **Still owed:** the
-      SWARM/SDK path seam (`nklein-session-runtime`) + recording the rung outcome on the §5.AF ledger.
+      +3 adapter tests (forces a call · no-fire without an anchor · skipped when a call exists). **LIVE-PROVEN on the e2e
+      capstone (2026-06-28):** flipped **coder-14b ❌→◑** (drove all 4 tools + persisted the card) and **phi-4-mini ❌→◑**
+      (3/4 + persisted) — both were total narration-walls before; only the strict marker-echo reply-quality gate keeps
+      them from ✅. The lift is **stochastic** (reliability recheck: drives on longer runs, narrates+stops on short ones).
+      **CHAIN-ADVANCE refinement (2026-06-28):** the loop now threads the already-executed tool names into the rung, which
+      drops them from the forced schema so a stalled chain is steered to the NEXT undone step (diagnosis: 6/8 models
+      stalled at `read_file` because the rung re-forced an already-done tool → the loop's dedup nudged → premature finish).
+      +1 test. **Still owed:** the SWARM/SDK path seam (`nklein-session-runtime` afterModel — needs a re-invoke seam for
+      the forced call) + recording the rung outcome on the §5.AF ledger + a **finite-state controller** that keeps the run
+      going until every required step is done (the deeper fix for models that end with a prose summary mid-chain).
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
