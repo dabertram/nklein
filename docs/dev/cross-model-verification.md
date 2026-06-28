@@ -59,9 +59,13 @@
 > agent called `run_command`, it executed) but the model's *reply* didn't echo the output (weak synthesis), so the
 > harness's strict marker-echo gate isn't met — the runtime-execution capability the user cares about works; the reply
 > quality is the model's weakness, not a !Klein bug. `❌` (phi-4-mini, phi-4-reasoning-plus) = the model never emitted a
-> tool call. **Confirmed architectural gap (hardening candidate, see §5.Z):** the chat path (`completeWithTools`) parses
-> only LM Studio's native `tool_calls` and has **no `recoverNarratedToolCalls`** (that lives only in the swarm/NKlein
-> agent path) — so a model that *narrates* its tool call as text in the chat surface is not recovered.
+> tool call. **(Footnote corrected 2026-06-28 — the earlier "chat path has no narrated-recovery" claim is now STALE):**
+> the chat path (`completeWithTools`, [nklein-local-llm-client.ts:381](../src/nklein-agent/nklein-local-llm-client.ts#L381))
+> **now mirrors the swarm's `recoverNarratedToolCalls`** — when a model offered tools returns no native `tool_calls`, it
+> runs `parseNarratedToolCalls` over both `content` AND `reasoning_content` (todo §5.O, DONE 2026-06-26). So a model that
+> *narrates* its call IS recovered on the chat path too. The remaining ❌ (phi-4-reasoning-plus) is a capability issue —
+> it over-reasons and emits **no** tool call at all (nothing to recover), needing the next ladder rungs (prompt
+> simplification / reason-then-act / native `/api/v1/chat`), not a missing-recovery gap.
 >
 > **`*`** **phi-4-mini FLIPPED `❌`→`✅`** on BOTH chat tools after the §5.AA tool-set-reduction wiring landed
 > (`b4fc2522`): when the model returns no tool call with many tools offered, the chat adapter retries with only the
