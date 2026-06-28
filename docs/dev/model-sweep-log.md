@@ -35,8 +35,8 @@
 | `text-embedding-nomic-embed-text-v1.5@q8_0` | 146 MB | loaded | embedder (not a chat model) |
 | _— newly appeared 2026-06-28, untested —_ | | | |
 | `qwopus3.5-9b-coder-mlx` (`@8bit`/`@4bit`) | ~9B | available, **untested** | coder; scout when a sweep slot frees |
-| `qwopus3.5-4b-coder-fable5-v1-mlx` | ~4B | available, **untested** | small coder |
-| `ornith-1.0-9b-mlx` | ~9B | available, **untested** | |
+| `qwopus3.5-4b-coder-fable5-v1-mlx` | ~4B | **tested ✅ C0** | small coder; capable once warm, ⚠️ cold-start-prone (see 15:54Z) |
+| `ornith-1.0-9b-mlx` | ~9B | **tested ✅ C0** | 🚀 clean first-try C0 pass |
 | `ornith-1.0-35b-mlx` (`@8bit`/`@4bit`) | ~35B | available, **untested** | **bigger local model** — the Phase-A escalation lever (§5.0.3) |
 | `nvidia/nemotron-3-super` | — | available, **untested** | |
 | `deepseek-v4-flash-dq` | — | available, **untested** | |
@@ -127,6 +127,11 @@
 | model | result | note |
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
+
+### 2026-06-28 16:38Z · **new-model scout** · C0 single-card · `verify-task-completion` · _(Low Power)_
+| model | result | note |
+|---|:-:|---|
+| ornith-1.0-9b-mlx (NEW, ~9B) | ✅ | 🚀 clean first-try pass to `awaiting_review` in ~50 s (even Low Power) — a usable new 9B; ran with the new **live-activity** harness mode (visible real-time steps) |
 
 ### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |

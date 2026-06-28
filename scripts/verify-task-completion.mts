@@ -97,8 +97,9 @@ async function main(): Promise<void> {
 		}
 		seen.add(key);
 		emitted.push(`[${label}] ${value}`);
-		if (liveActivities) {
-			log(`  · [${new Date().toISOString().slice(11, 19)}] [${label}] ${value.slice(0, 200)}`);
+		// Live-print only meaningful steps (tool calls) — the streaming text/final grows token-by-token and would spam.
+		if (liveActivities && label === "toolInput") {
+			log(`  · [${new Date().toISOString().slice(11, 19)}] tool: ${value.slice(0, 160)}`);
 		}
 	};
 
@@ -128,6 +129,9 @@ async function main(): Promise<void> {
 		// Any state change or new activity counts as progress (resets the stall clock).
 		if (summary.state !== prevState || emitted.length !== prevEmitted) {
 			lastProgressAt = Date.now();
+		}
+		if (liveActivities && summary.state !== prevState) {
+			log(`  · [${new Date().toISOString().slice(11, 19)}] state → ${summary.state}`);
 		}
 	});
 
