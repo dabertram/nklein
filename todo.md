@@ -83,6 +83,11 @@
    ([src/nklein-agent/nklein-local-only-policy.ts](src/nklein-agent/nklein-local-only-policy.ts)). No path, default,
    setting, or UI may reach a paid/cloud LLM. Cloud providers don't render, can't be selected, and cloud-pinned
    cards hard-stop. Re-enabling cloud is a single deliberate reviewed code change — never a feature you add.
+   **Roadmap note (2026-06-28, owner):** frontier **cloud escalation** is a *greenlit FUTURE direction* — MCF Phase B
+   ([§5.0.3](#503--milestone-challenge-framework-mcf--the-engine-that-drives-klein-forward)), **gated behind Phase A
+   "local models maxed" (up to ~120B local) AND that same deliberate reviewed enablement.** Until that phase is
+   explicitly entered, this invariant stands unchanged — do **not** add cloud reachability now; record Phase-B work as
+   roadmap only.
 2. **STRICT DOCKER AGENT ISOLATION IS MANDATORY, UNCONDITIONAL, FAIL-CLOSED.** Every agent shell command and
    filesystem read/write runs inside a Docker container; the host runtime never executes shell/FS on the LLM's
    behalf. No host fallback, no "disable isolation" toggle, no degraded mode. If Docker/the image is
@@ -552,6 +557,30 @@ deep analysis:
 > biome-enforced SDK boundary (#4) intact, extend a seam rather than bolt on. Capability added while structure degrades is
 > debt the next challenge will expose; pay it in-chapter. New observations/ideas from watching !Klein run are filed as §5
 > items tagged to the chapter/challenge that should absorb them.
+>
+> **Model-capability ladder & ceilings (2026-06-28, user — a model hitting a difficulty wall is VALUABLE data, not a
+> failure to hide):** as challenge difficulty rises, some models will stop passing past a complexity/difficulty level.
+> That is **expected and perfectly valuable** — it is material for !Klein's design, the §5.AB fitness store, and
+> **user-facing advice** (which model suits which work). Handle it with discipline:
+> - **Don't judge prematurely:** before recording a ceiling, give the model repeat-runs (reliability is itself a signal,
+>   §5.AB) AND the full §5.AA ladder (tool-set reduction, prompt-variation, constrained decoding, reason-then-act,
+>   endpoint iteration). A capability-floor verdict is final only AFTER the ladder is exhausted.
+> - **Recognize + record it properly:** a confirmed ceiling is a `⚠️` cell in the §5.Z matrix and a per-(model × role ×
+>   difficulty × context) entry in the **§5.AB fitness store** — the durable record that drives selection AND the
+>   user-advice projection. The "failing-LLM list" is the projection of below-bar cells, never a hand-list (§5.AB).
+> - **Grow the roster to meet the ladder (Phase A — local, now):** when a challenge's difficulty exceeds what the current
+>   loaded models can reach, **introduce bigger/better local models** rather than declaring the challenge impossible. The
+>   test machine (128 GB RAM + a powerful M5 Max) can run **up to ~120B at lower quantization** — push toward that ceiling
+>   as challenges demand. On the way we learn the small-model limitations + the LLM-landscape diversity — itself valuable
+>   user guidance. Local-only (#1) holds throughout Phase A.
+> - **Phase B — frontier cloud escalation (FUTURE; gated behind #1 + "local maxed"):** only AFTER we've maxed what this
+>   machine can reach, integrate frontier **cloud** models for escalation / planning / other "flows" (a deliberate,
+>   reviewed enablement per #1 — see the #1 note; never a silently-added feature). Record now as the roadmap target, do
+>   not build before Phase A is genuinely exhausted.
+> - **Phase C — expert-guided flows (FUTURE):** a *small amount* of expert guidance at stuck points (human, or a frontier
+>   model such as Claude advising the run) can make !Klein's projects succeed **beyond what even the latest frontier cloud
+>   models reach unaided**. Design the escalation/guidance seam (ties §5.AG "get through the wall" + the §5.AA Layer-2
+>   escalation) so a guided flow drops in cleanly. This is the long-horizon payoff of the whole MCF.
 >
 > **Dense challenge ladder (built on the EXISTING difficulty-graded substrate — dev-test presets + verify harnesses +
 > the §5.Z roster + the dschinn capstone; reconciles the M0–M4 macro-arc in §5.0.2):**
@@ -3402,7 +3431,15 @@ deep analysis:
 > 1. `qwen/qwen3-8b` (north-star small) · 2. `qwen/qwen2.5-coder-14b` · 3. `qwen3.5-9b-mlx` · 4. `google/gemma-4-e2b`
 > (2B) · 5. `google/gemma-4-e4b` · 6. `microsoft/phi-4-mini-reasoning` (3.8B reasoning) · 7. `microsoft/phi-4-reasoning-plus`
 > · 8. `nvidia/nemotron-3-nano-4b` · 9. `deepseek-r1-0528-qwen3-8b-mlx` (⚠️ crash-prone). Embedder (for embedding /
-> code-intel flows): `text-embedding-nomic-embed-text-v1.5@q8_0` (currently the only one loaded).
+> code-intel flows): `text-embedding-nomic-embed-text-v1.5@q8_0` (currently the only one loaded). *(Newer models also
+> seen loaded this session: `qwopus3.5-4b-coder`, `ornith-1.0-9b/35b` — recorded in the matrix run log.)*
+>
+> **The roster GROWS with the challenge ladder (2026-06-28, user — MCF Phase A):** this is NOT a fixed 9. As challenges
+> get harder, **load bigger/better models** so the difficulty wall is met by capability, not declared impossible — the
+> machine (128 GB RAM + M5 Max) runs **up to ~120B at lower quantization**, push toward that. A model that can't pass a
+> difficulty tier is a **`⚠️` capability-floor data point** (recorded only after repeat-runs + the full §5.AA ladder —
+> don't judge prematurely), valuable for the §5.AB fitness store + user advice. Add new models as matrix columns / run-log
+> entries as they're loaded. (Frontier *cloud* models are MCF Phase B — future, gated behind #1; see §5.0.3.)
 >
 > **Crash-resilience caveat (user, settled):** **deepseek** has been seen **crashing/unloading** mid-run. If a model
 > disappears from `/v1/models` during a sweep, **record it DROPPED and continue with the remaining models** — never
@@ -3836,8 +3873,10 @@ deep analysis:
 > **learned per-model retry budget** (enough retries to ride out stochastic issues) — escalating to the **user only when
 > everything is exhausted**. This is the crown that unifies the MCSR (§6.4), §5.I#4 (multi-model-per-role, folded in
 > here), §5.AA (the adaptive retry ladder + `ModelBehaviorProfile`), and the parallel swarm executor (§6.5). **Default
-> mode = automatic best-fit**, with user pin/prefer/weight overrides. **Invariants:** LOCAL ONLY (#1 — cloud strictly
-> out of scope; idea-only rung below), ≥32k floor (#3), strict Docker isolation (#2).
+> mode = automatic best-fit**, with user pin/prefer/weight overrides. **Invariants:** LOCAL ONLY (#1 — cloud is **MCF
+> Phase B**, a *greenlit FUTURE* escalation tier gated behind Phase-A "local maxed" + a deliberate reviewed enablement,
+> [§5.0.3](#503--milestone-challenge-framework-mcf--the-engine-that-drives-klein-forward); out of scope NOW), ≥32k floor
+> (#3), strict Docker isolation (#2).
 >
 > **The fitness metric (a deliberately rich composite — "sufficient quality at the best speed"):** primary = **quality**
 > (does the output clear the role/difficulty bar — a valid + coherent decompose graph / correct passing code / a review
@@ -3846,6 +3885,29 @@ deep analysis:
 > models that CLEAR the quality bar for a task's difficulty, prefer the fastest (Pareto / weighted); reserve the
 > most-capable models for the hardest tasks; let easy tasks take the fast/small model. Weights are user-tunable (a
 > speed-vs-quality dial, §5.I#4).
+- [ ] **Model-ladder expansion — grow the roster to meet the challenge ladder (MCF Phase A, 2026-06-28, user).** As a
+      challenge's difficulty exceeds the current roster's reach, **load bigger/better LOCAL models** rather than calling
+      the challenge impossible — the test machine (128 GB RAM + M5 Max) runs **up to ~120B at lower quantization**; push
+      toward that as challenges demand. Each newly-loaded model becomes a §5.Z matrix column / run-log entry. A model that
+      still can't pass a tier (after repeat-runs + the full §5.AA ladder — **never judge prematurely**) is a recorded
+      `⚠️` capability-floor, not a failure to hide. (Build on the live discovery/registry; no new mechanism.)
+- [ ] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
+      difficulty × context) cells — especially the `⚠️` ceilings — are valuable **guidance for !Klein users**: "for this
+      kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." Project the
+      fitness/ceiling data into a user-readable advisory (Settings / `nklein dev` report). The journey of finding small-
+      model limits + the LLM-landscape diversity IS the product value here. Ties §6.4 MCSR + the §5.AB fitness store.
+- [ ] **MCF Phase B — frontier CLOUD escalation tier (FUTURE; gated behind #1 + Phase-A "local maxed").** Only AFTER the
+      local ladder (up to ~120B) is genuinely exhausted, add frontier **cloud** models as an escalation/planning tier in
+      the §5.AB selection + §5.AA Layer-2 escalation: a card/challenge the best local model can't clear escalates to a
+      cloud model for planning / specific flows. **Requires the deliberate reviewed cloud-enablement of #1** — record the
+      design now (the selection seam already has a model-source abstraction; cloud is a new source + a higher escalation
+      rung), build only when Phase A is done. Do NOT add cloud reachability before then.
+- [ ] **MCF Phase C — expert-guided flow seam (FUTURE).** A *small amount* of expert guidance at stuck points (a human,
+      or a frontier model like Claude advising the run) can lift !Klein's projects **beyond what even frontier cloud
+      models reach unaided** (user, 2026-06-28). Design the guidance/escalation seam so such input drops in cleanly at a
+      stuck-point: extend the §5.AG "what was tried / get through the wall" surface + the §5.AA Layer-2 escalation into a
+      **guided-resume** flow (inject targeted guidance → re-run the stuck card/job with it). The long-horizon payoff of
+      the whole MCF; design-only until Phases A/B mature.
 - [ ] **Eval-prompt corpus (per role × difficulty × size).** A curated, versioned set of evaluation prompts for each
       role (architect/decompose, worker/implement, reviewer) at graded difficulty tiers (trivial → simple → moderate →
       hard → very-hard) and size/context footprints, **each with a deterministic-ish scorer** (valid structured tool

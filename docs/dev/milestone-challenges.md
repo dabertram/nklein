@@ -22,6 +22,16 @@
 > **Invariants every challenge holds (never traded to pass):** strict Docker isolation (#2) · local-only (#1) · ≥32k floor
 > (#3) · protected tests (#5) · clean teardown (zero leaked containers/worktrees) · clean structure (a hack-pass is not a
 > pass — the cleanup is mandatory chapter work).
+>
+> **Model-capability ladder & ceilings (a model hitting a difficulty wall is VALUABLE data, not a failure to hide):**
+> - **Phase A (now, local):** when a challenge exceeds the current roster's reach, **load bigger local models** rather
+>   than calling it impossible — the machine (128 GB RAM + M5 Max) runs up to **~120B at lower quantization**; push there.
+>   A model that still can't pass a tier — *only after repeat-runs + the full §5.AA ladder; never judge prematurely* — is
+>   a recorded `⚠️` capability-floor in this matrix + the §5.AB fitness store, and becomes user-facing model advice.
+> - **Phase B (future, gated behind #1 + Phase-A "local maxed"):** frontier **cloud** models as an escalation/planning
+>   tier — a deliberate reviewed enablement, never added silently (todo §1 + §5.0.3).
+> - **Phase C (future):** expert-guided flows — a little human/Claude guidance at stuck points lifts runs beyond unaided
+>   frontier models (todo §5.0.3 / §5.AB Phase-C item).
 
 ## Ladder
 
