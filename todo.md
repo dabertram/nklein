@@ -3493,7 +3493,15 @@ deep analysis:
         trace how `verify-chat-browse.mts` spawns the chat child + whether `PLAYWRIGHT_BROWSERS_PATH`/browser-path env
         propagates into it (and the confirm-gate timing) before re-sweeping; the agent *did* call `browse_url` for every
         model (tool wiring is fine), so this is purely the headless-nav plumbing in the harness env.
-- [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8.
+  - [x] **chat read tools / write tool / send / runtime — SWEPT 2026-06-28 (+ 2 harness bugs fixed).** Across the loaded
+        roster: **write/send/runtime PASS for all** (qwen3-8b, coder-14b, qwen3.5-9b, gemma-e2b, nemotron — the gated
+        write confirm-gate + audit, the basic turn+persist, and the memory+goal-composed turn all work); **read-tools** is
+        ✅ for qwen3-8b/coder-14b and ◑ for qwen3.5-9b/gemma-e2b/nemotron (read executes + audits correctly, but those
+        models don't echo the secret in the reply — weak synthesis, same ◑ as run_command). **Fixed 2 stale harness bugs
+        found by the sweep:** `verify-chat-agent-tools` checked `record.detail === "read_file"` but `detail` is the path
+        arg (tool id is `record.action === "sandbox_read"`) → falsely failed every model; `verify-chat-agent-write` never
+        `mkdir`'d its temp workspace → `realpath` ENOENT FATAL for every model. Both fixed; matrix rows updated.
+- [ ] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — proven: qwen3-8b. Remaining 8 (needs the booted web UI on :4173 + Playwright — chromium 1228 now installed).
 - [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
       models (it serializes on the single-request endpoint → ~25 min/run; not full-swept across all 9).
 - [~] **Small-model output robustness** (`sweep-capture.mts`) — proven clean: gemma-4-e2b (mid+complex), gemma-4-e4b
