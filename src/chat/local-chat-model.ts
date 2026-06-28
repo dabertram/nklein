@@ -1,3 +1,4 @@
+import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 import { type ChatModelDeps, createChatModelDeps } from "./chat-local-llm-adapter";
 
@@ -18,17 +19,6 @@ export const DEFAULT_LOCAL_CHAT_PROVIDER_ID = "lmstudio";
  */
 const loadedModelIdCache = new Map<string, { at: number; modelId: string | null }>();
 
-function loadedModelCacheTtlMs(): number {
-	const raw = Number(process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS);
-	if (Number.isFinite(raw) && raw >= 0) {
-		return Math.trunc(raw);
-	}
-	if (process.env.VITEST || process.env.NODE_ENV === "test") {
-		return 0;
-	}
-	return 30_000;
-}
-
 /** Clear the loaded-model-id TTL cache (tests + explicit refresh). */
 export function clearLoadedModelIdCache(): void {
 	loadedModelIdCache.clear();
@@ -37,7 +27,7 @@ export function clearLoadedModelIdCache(): void {
 /** Discover a currently-loaded, non-embedding model id from the live local endpoint; null when none/unreachable. */
 export async function discoverLoadedModelId(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
 	const key = baseUrl.replace(/\/+$/u, "");
-	const ttlMs = loadedModelCacheTtlMs();
+	const ttlMs = modelDiscoveryCacheTtlMs();
 	const now = Date.now();
 	if (ttlMs > 0) {
 		const cached = loadedModelIdCache.get(key);

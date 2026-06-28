@@ -25,6 +25,7 @@ import type {
 	RuntimeNKleinProviderSettingsSaveResponse,
 	RuntimeNKleinReasoningEffort,
 } from "../core/api-contract";
+import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { openInBrowser } from "../server/browser";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
@@ -571,21 +572,7 @@ function normalizeLmStudioModelListBaseUrl(baseUrl: string): string {
  * disables). Keyed by provider + base URL so distinct endpoints don't collide. The explicit "discover endpoint" flow
  * (`discoverEndpointModels`, user-triggered) does NOT go through here, so it stays fresh.
  */
-const DEFAULT_MODEL_DISCOVERY_CACHE_TTL_MS = 30_000;
 const providerModelDiscoveryCache = new Map<string, { at: number; models: RuntimeNKleinProviderModel[] }>();
-
-function modelDiscoveryCacheTtlMs(): number {
-	const raw = Number(process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS);
-	if (Number.isFinite(raw) && raw >= 0) {
-		return Math.trunc(raw);
-	}
-	// Disabled by default under the test runner so per-test fetch mocks aren't shadowed by a shared cache; the dedicated
-	// cache test opts in by setting the env explicitly. Production uses the throttling default.
-	if (process.env.VITEST || process.env.NODE_ENV === "test") {
-		return 0;
-	}
-	return DEFAULT_MODEL_DISCOVERY_CACHE_TTL_MS;
-}
 
 /** Clear the roster-discovery TTL cache (tests + an explicit "refresh now" path). */
 export function clearProviderModelDiscoveryCache(): void {
