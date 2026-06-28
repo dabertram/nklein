@@ -30,6 +30,10 @@ export default defineConfig({
 			// suite balloons ~4× and picks up other branches' in-progress code. Never recurse into them.
 			".claude/**",
 			"**/.claude/**",
+			// Dev-test project FIXTURES (templates copied into sandboxes for dev-test runs) ship their own `.test.js`
+			// using node's built-in `node:test` runner — vitest collecting them just yields "No test suite found".
+			// They are not part of !Klein's own test suite; exclude so `npm test` (full `vitest run`) stays clean.
+			"scripts/dev-fixtures/**",
 		],
 		testTimeout: 15_000,
 	},
