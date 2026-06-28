@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { discoverLoadedModelId } from "../../../src/chat/local-chat-model";
+import { assertPinnedChatModelLoaded, discoverLoadedModelId } from "../../../src/chat/local-chat-model";
 
 function jsonResponse(body: unknown, ok = true): Response {
 	return { ok, json: async () => body } as unknown as Response;
@@ -41,5 +41,44 @@ describe("discoverLoadedModelId", () => {
 			throw new Error("connection refused");
 		}) as unknown as typeof fetch;
 		expect(await discoverLoadedModelId("http://127.0.0.1:1234/v1", throws)).toBeNull();
+	});
+});
+
+describe("assertPinnedChatModelLoaded", () => {
+	// A pinned/`--model` id bypasses loaded-only discovery, so it must be residency-checked too — inferring against a
+	// non-resident model auto-LOADS it (user directive 2026-06-28). Lenient like the runtime task-start guard.
+	it("throws a clear error when the pinned model is positively NOT in the loaded set", async () => {
+		const loaded = (async () =>
+			jsonResponse({ data: [{ id: "qwen/qwen3-8b", state: "loaded" }] })) as unknown as typeof fetch;
+		await expect(
+			assertPinnedChatModelLoaded("http://127.0.0.1:1234/v1", "ornith-1.0-35b-mlx@8bit", loaded),
+		).rejects.toThrow(/not loaded in LM Studio.*qwen\/qwen3-8b/s);
+	});
+
+	it("allows a pinned model that IS loaded", async () => {
+		const loaded = (async () =>
+			jsonResponse({
+				data: [
+					{ id: "qwen/qwen3-8b", state: "loaded" },
+					{ id: "available-not-loaded", state: "not-loaded" },
+				],
+			})) as unknown as typeof fetch;
+		await expect(
+			assertPinnedChatModelLoaded("http://127.0.0.1:1234/v1", "qwen/qwen3-8b", loaded),
+		).resolves.toBeUndefined();
+	});
+
+	it("is LENIENT — never wedges chat when the loaded set is unknown (empty / unreachable endpoint)", async () => {
+		const empty = (async () => jsonResponse({ data: [] })) as unknown as typeof fetch;
+		await expect(
+			assertPinnedChatModelLoaded("http://127.0.0.1:1234/v1", "any-model", empty),
+		).resolves.toBeUndefined();
+
+		const throws = (async () => {
+			throw new Error("connection refused");
+		}) as unknown as typeof fetch;
+		await expect(
+			assertPinnedChatModelLoaded("http://127.0.0.1:1234/v1", "any-model", throws),
+		).resolves.toBeUndefined();
 	});
 });

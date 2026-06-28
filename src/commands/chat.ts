@@ -14,7 +14,11 @@ import { createChatSession, getChatSession } from "../chat/chat-session-store";
 import { createGatedChatToolExecutor } from "../chat/chat-tool-executor";
 import { appendChatMessage, readChatTranscript } from "../chat/chat-transcript-store";
 import { createWorkspaceReadTools, createWorkspaceWriteTools } from "../chat/chat-workspace-tools";
-import { DEFAULT_LOCAL_CHAT_BASE_URL, discoverLoadedModelId } from "../chat/local-chat-model";
+import {
+	assertPinnedChatModelLoaded,
+	DEFAULT_LOCAL_CHAT_BASE_URL,
+	discoverLoadedModelId,
+} from "../chat/local-chat-model";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 
 /**
@@ -94,7 +98,12 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
 	const baseUrl = options.baseUrl?.trim() || DEFAULT_LOCAL_BASE_URL;
 	const providerId = options.provider?.trim() || "lmstudio";
-	const modelId = options.model?.trim() || (await discoverLoadedModelId(baseUrl));
+	const pinnedModelId = options.model?.trim();
+	// A pinned `--model` must ALSO be resident — discovery is loaded-only, but a pin bypasses it (directive 2026-06-28).
+	if (pinnedModelId) {
+		await assertPinnedChatModelLoaded(baseUrl, pinnedModelId);
+	}
+	const modelId = pinnedModelId || (await discoverLoadedModelId(baseUrl));
 	if (!modelId) {
 		throw new Error(`No loaded model found at ${baseUrl}. Load a model or pass --model.`);
 	}

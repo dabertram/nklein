@@ -1,4 +1,4 @@
-import { fetchLoadedModelIds } from "../core/lmstudio-loaded-models";
+import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../core/lmstudio-loaded-models";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 import { type ChatModelDeps, createChatModelDeps } from "./chat-local-llm-adapter";
@@ -46,6 +46,27 @@ export async function discoverLoadedModelId(baseUrl: string, fetchImpl: typeof f
 	return modelId;
 }
 
+/**
+ * Residency-guard an EXPLICIT (pinned / `--model`) chat model. Auto-discovery is already loaded-only, but a pinned id
+ * BYPASSES that — and inferring against a non-resident model makes LM Studio auto-LOAD it, which is the user's call, not
+ * ours (directive 2026-06-28). Lenient, exactly like the runtime task-start guard (`shouldBlockUnloadedModel`): block
+ * ONLY when we positively know the loaded set and it lacks the model, so an unreachable / non-LM-Studio endpoint (loaded
+ * set unknown) never wedges chat. Throws a clear, actionable error naming the loaded set.
+ */
+export async function assertPinnedChatModelLoaded(
+	baseUrl: string,
+	modelId: string,
+	fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+	const loaded = await fetchLoadedModelIds(baseUrl, fetchImpl);
+	if (shouldBlockUnloadedModel(modelId, loaded)) {
+		throw new Error(
+			`Pinned chat model "${modelId}" is not loaded in LM Studio (loaded: ${loaded.join(", ") || "none"}). ` +
+				"!Klein does not load models — load it in LM Studio first, or clear the pin/--model to use a loaded model.",
+		);
+	}
+}
+
 export interface ResolveLocalChatModelOptions {
 	baseUrl?: string;
 	providerId?: string;
@@ -61,7 +82,13 @@ export interface ResolveLocalChatModelOptions {
 export async function resolveLocalChatModelDeps(options: ResolveLocalChatModelOptions = {}): Promise<ChatModelDeps> {
 	const baseUrl = options.baseUrl?.trim() || DEFAULT_LOCAL_CHAT_BASE_URL;
 	const providerId = options.providerId?.trim() || DEFAULT_LOCAL_CHAT_PROVIDER_ID;
-	const modelId = options.modelId?.trim() || (await discoverLoadedModelId(baseUrl, options.fetchImpl ?? fetch));
+	const fetchImpl = options.fetchImpl ?? fetch;
+	const pinnedModelId = options.modelId?.trim();
+	// A pinned chat model must ALSO be resident — discovery is loaded-only, but a pin bypasses it (directive 2026-06-28).
+	if (pinnedModelId) {
+		await assertPinnedChatModelLoaded(baseUrl, pinnedModelId, fetchImpl);
+	}
+	const modelId = pinnedModelId || (await discoverLoadedModelId(baseUrl, fetchImpl));
 	if (!modelId) {
 		throw new Error(`No loaded local model found at ${baseUrl}. Load a model (e.g. in LM Studio) and try again.`);
 	}

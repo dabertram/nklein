@@ -3960,10 +3960,15 @@ deep analysis:
       endpoint are skipped (the role still fans out across its loaded models). **CHAT PATH ALSO DONE (`fdd8af9d`):**
       `discoverLoadedModelId` now reads `/api/v0/models` load state and picks a LOADED non-embedding model (was
       `/v1/models` = all *available* → could auto-load). **So no-load is enforced across all 3 paths: verify harnesses ·
-      task-start (primary + role-pool) · chat.** **STILL OWED (smaller):** (a) tie to the §5.AB auto-select so it *picks
-      the best LOADED model* proactively (not just refuses/skips a bad pin). (b) a web-ui "model not loaded" affordance
-      (surface the error + the loaded set, one-click). (c) a pinned non-loaded CHAT model (explicit `modelId` override in
-      `resolveLocalChatModelDeps`) still isn't residency-checked — only auto-discovery is; add an `assertModelLoaded` there.
+      task-start (primary + role-pool) · chat.** **PINNED-CHAT-MODEL HOLE CLOSED (2026-06-28):** both pinned-chat entry
+      points (`resolveLocalChatModelDeps` explicit `modelId` + the `nklein chat --model` CLI) now residency-check via the
+      shared lenient `assertPinnedChatModelLoaded` (`local-chat-model.ts`) — a pinned non-resident model throws an
+      actionable "load it first" error instead of auto-loading; lenient (unknown/unreachable loaded set ⇒ allow, never
+      wedges chat), matching the task-start guard. 3 tests. **NOTE on (a):** at the runtime task-start path the
+      `selectRoleModel` candidate pool is ALREADY pre-filtered to loaded (primary guarded + non-resident pool members
+      skipped), so auto-select already picks among loaded only there; the pure `selectRoleModel` core stays loaded-agnostic
+      by design (its caller owns residency). **STILL OWED (smaller):** (b) a web-ui "model not loaded" affordance (surface
+      the error + the loaded set, one-click).
 - [~] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
       difficulty × context) cells — especially the `⚠️` ceilings — are valuable **guidance for !Klein users**: "for this
       kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." **PURE PROJECTION
