@@ -3678,12 +3678,12 @@ deep analysis:
       `effective` to the loaded size; a user override still wins; keys off existing entries so it only updates in place + only
       when changed). Fires on the next model listing; restarting the dev:full instance live-verified it: `qwen3-8b` (was
       40960) and `gemma-4-e2b` (was a stale 35000) now show `effective=40000` (the loaded size).
-  - [ ] **Residual: a too-high `observed` can still override the refreshed `advertised` (2026-06-27).** After the fix,
-        `deepseek-r1-…-mlx` showed `adv=40000` but `obs=40960` (so `eff=40960`, since `effective = userOverride ?? observed
-        ?? advertised`). The refresh clears stale `observed` only when `advertised` *changes* in that same call; a run-time
-        observation can re-record a too-high `observed` afterward. The egregious 131072→40000 case is fixed, but `observed`
-        should never exceed the live loaded window — cap/clear it at the observation site (find who records `observed`; no
-        caller passes `observedContextWindow` today, so trace where it gets set) or have the refresh also clamp it.
+  - [x] **Residual FIXED (2026-06-28): a too-high `observed` can no longer override the refreshed `advertised`.**
+        `recordContextWindow` ([nklein-model-registry.ts](src/nklein-agent/nklein-model-registry.ts)) now **clamps**
+        `observed` down to the `advertised` (loaded) size whenever it exceeds it, so a stale observation measured at a
+        larger window (e.g. `obs=40960` vs loaded `adv=40000`) can't win `effective = userOverride ?? observed ??
+        advertised` and overflow the model. A deliberate `userOverride` is left untouched. Regression test added (obs
+        40960 + adv 40000 → observed & effective both clamped to 40000; 18 pass).
 - [ ] **Agent UI does not show the model's REASONING output during a run (2026-06-27, user-found via the live test).** With
       2+ task agents running, the card's NKlein chat panel shows only the "Thinking…" spinner ([nklein-thinking-indicator.tsx](web-ui/src/components/detail-panels/nklein-thinking-indicator.tsx)),
       never the reasoning text. **The display pipeline is CORRECT + wired** — the backend stamps streaming reasoning with

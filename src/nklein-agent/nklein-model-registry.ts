@@ -589,6 +589,17 @@ export class NKleinModelRegistry {
 		if (userOverrideContextWindow !== null) {
 			entry.contextWindow.userOverride = userOverrideContextWindow;
 		}
+		// `observed` must never exceed the live loaded/advertised window. A stale observation measured at a LARGER
+		// window would otherwise win via `effective = userOverride ?? observed ?? advertised` and drive the context
+		// budget past what the model is actually loaded with → overflow (§5.AB residual). Clamp it to the advertised
+		// (loaded) size. A deliberate user override is left untouched (it's the user's explicit choice).
+		if (
+			entry.contextWindow.advertised !== null &&
+			entry.contextWindow.observed !== null &&
+			entry.contextWindow.observed > entry.contextWindow.advertised
+		) {
+			entry.contextWindow.observed = entry.contextWindow.advertised;
+		}
 		entry.contextWindow.effective = calculateEffectiveContextWindow(entry.contextWindow);
 		entry.updatedAt = observedAt;
 		snapshot.updatedAt = observedAt;

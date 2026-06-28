@@ -322,6 +322,19 @@ describe("nklein model registry", () => {
 		});
 	});
 
+	it("clamps an observed context window that exceeds the loaded advertised size (no overflow)", async () => {
+		const registry = new NKleinModelRegistry({ registryPath: await createRegistryPath(), now: () => 5_000 });
+		const key = { providerId: "lmstudio", modelId: "qwen-ctx-clamp", endpoint: "http://localhost:1234/v1" };
+
+		// Model loaded at 40k; a stale observation measured 40960 (> loaded). It must NOT win the effective window
+		// (that would overflow the model) — `observed` is clamped down to the advertised/loaded size.
+		await registry.recordContextWindow({ ...key, advertisedContextWindow: 40_000 });
+		const entry = await registry.recordContextWindow({ ...key, observedContextWindow: 40_960 });
+
+		expect(entry.contextWindow.observed).toBe(40_000);
+		expect(entry.contextWindow.effective).toBe(40_000);
+	});
+
 	it("re-detects a CHANGED advertised context window instead of masking it with a stale observation", async () => {
 		const registry = new NKleinModelRegistry({ registryPath: await createRegistryPath(), now: () => 5_000 });
 		const key = { providerId: "lmstudio", modelId: "qwen-ctx", endpoint: "http://localhost:1234/v1" };
