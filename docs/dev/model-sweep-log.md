@@ -123,6 +123,11 @@
 |---|:-:|---|
 | google/gemma-4-e2b (2B) | ✅ | 🚀 the floor holds — ran to `awaiting_review` + delivered correct `hello.txt` in ~40 s even at Low Power (`power=low ×2`) |
 
+### 2026-06-28 15:54Z · **new-model scout** · C0 single-card · `verify-task-completion` · _(Low Power)_
+| model | result | note |
+|---|:-:|---|
+| qwopus3.5-4b-coder (NEW, ~4B) | ⏳ | INCOMPLETE/`interrupted` after ~9 min vs the 10-min Low-Power-scaled budget — likely **horizon/slowness** (4B + Low Power + cold load), not a clear ceiling. **Don't judge yet** — needs a repeat at a longer budget / high power to separate slow-but-capable from stuck. |
+
 ### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |
 |---|:-:|---|
