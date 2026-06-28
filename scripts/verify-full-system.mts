@@ -295,6 +295,10 @@ async function main(): Promise<void> {
 			for (const line of (runtime?.stderrTail() ?? "(no runtime)").split("\n").slice(-40)) {
 				log(`  ${line}`);
 			}
+			log("--- triage: LM Studio dev log tail (lms log stream) ---");
+			for (const line of (runtime?.lmStudioLogTail() ?? "(no runtime)").split("\n").slice(-50)) {
+				log(`  ${line}`);
+			}
 		}
 		if (!oracle.valid && (oracle.agentSource || oracle.oracleOutput)) {
 			// Keep a PARTIAL triageable: the project is torn down in cleanup, so the evidence must live in this report.

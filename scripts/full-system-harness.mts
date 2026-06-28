@@ -32,6 +32,8 @@ export interface BootFullSystemRuntimeOptions {
 	readyTimeoutMs?: number;
 	/** Mirror the child's stdout/stderr to this process (default false — captured for diagnostics only). */
 	inheritStdio?: boolean;
+	/** Capture LM Studio dev logs via `lms log stream` for diagnostics (default true; best-effort). */
+	captureLmStudioLogs?: boolean;
 }
 
 export interface FullSystemRuntime {
@@ -47,6 +49,8 @@ export interface FullSystemRuntime {
 	openBoardSocket(workspaceId: string): WebSocket;
 	/** Recent captured stderr (diagnostics when a boot/run fails). */
 	stderrTail(): string;
+	/** Recent LM Studio dev logs captured via `lms log stream` (model-side errors/timeouts/requests) — best-effort. */
+	lmStudioLogTail(): string;
 	/** Gracefully stop the runtime (SIGTERM → SIGKILL fallback) so its sandbox containers clean up. */
 	stop(): Promise<void>;
 }
@@ -148,11 +152,41 @@ export async function bootFullSystemRuntime(options: BootFullSystemRuntimeOption
 
 	const stderrTail = (): string => stderrChunks.join("").split("\n").slice(-40).join("\n");
 
+	// LM Studio dev-log capture (best-effort): `lms log stream` surfaces the model-side view — request/response,
+	// generation errors, timeouts, OOM/eject — which is where a model-side failure (e.g. a session marked interrupted)
+	// shows up that the !Klein runtime stderr can't see. `lms` is resolved via PATH (the installer adds ~/.lmstudio/bin)
+	// or NKLEIN_LMS_BIN; no LM Studio file-persistence needed since the stream is live. Disable with captureLmStudioLogs:false.
+	const lmsLogChunks: string[] = [];
+	let lmsChild: ChildProcess | null = null;
+	if (options.captureLmStudioLogs !== false) {
+		const lmsBin = process.env.NKLEIN_LMS_BIN?.trim() || "lms";
+		try {
+			lmsChild = spawn(lmsBin, ["log", "stream"], { stdio: ["ignore", "pipe", "pipe"] });
+			const captureLms = (chunk: Buffer): void => {
+				lmsLogChunks.push(chunk.toString());
+				if (lmsLogChunks.length > 400) {
+					lmsLogChunks.splice(0, lmsLogChunks.length - 400);
+				}
+			};
+			lmsChild.stdout?.on("data", captureLms);
+			lmsChild.stderr?.on("data", captureLms);
+			lmsChild.on("error", (error) => {
+				lmsLogChunks.push(`(lms log stream unavailable: ${error instanceof Error ? error.message : String(error)} — set NKLEIN_LMS_BIN)`);
+			});
+		} catch (error) {
+			lmsLogChunks.push(`(could not start lms log stream: ${error instanceof Error ? error.message : String(error)})`);
+		}
+	}
+	const lmStudioLogTail = (): string => lmsLogChunks.join("").split("\n").slice(-60).join("\n").trim() || "(no LM Studio logs captured)";
+
 	try {
 		await waitForPort(port, options.readyTimeoutMs ?? 30_000);
 	} catch (error) {
 		if (child.pid && !childExited) {
 			await treeKillAsync(child.pid, "SIGKILL").catch(() => undefined);
+		}
+		if (lmsChild?.pid) {
+			await treeKillAsync(lmsChild.pid, "SIGKILL").catch(() => undefined);
 		}
 		const tail = stderrTail();
 		throw new Error(`${error instanceof Error ? error.message : String(error)}${tail ? `\n--- runtime stderr ---\n${tail}` : ""}`);
@@ -178,7 +212,11 @@ export async function bootFullSystemRuntime(options: BootFullSystemRuntimeOption
 		openBoardSocket: (workspaceId: string) =>
 			new WebSocket(`${wsBaseUrl}/api/runtime/ws?workspaceId=${encodeURIComponent(workspaceId)}`),
 		stderrTail,
+		lmStudioLogTail,
 		async stop(): Promise<void> {
+			if (lmsChild?.pid) {
+				await treeKillAsync(lmsChild.pid, "SIGKILL").catch(() => undefined);
+			}
 			if (!child.pid || childExited) {
 				return;
 			}
