@@ -4599,9 +4599,16 @@ deep analysis:
       queue enqueue>})`, construct/`resume` a `DurableRunController` (resume from `readDurableSchedulerLog(readAllAgentLedger,
       {workflowId})`), drive `tick()` on the runtime timer, add a **heartbeat** that extends the lease while a session runs,
       and call `reportCompletion` on session finish (unblock of dependents is already done by
-      `completeTaskAndGetReadyLinkedTaskIds`). Then run C3 (`complex_dag` unattended + restart-mid-run) on the §5.Z roster
-      (an early-scout of `complex_dag`×qwen3-8b on the *current* non-durable pipeline is running to characterize exactly
-      what the durable layer must fix — its finding structures the integration pass per MCF).
+      `completeTaskAndGetReadyLinkedTaskIds`). Then run C3 (`complex_dag` unattended + restart-mid-run) on the §5.Z roster.
+      **SCOUT FINDING (2026-06-28, `complex_dag`×qwen3-8b on the current non-durable pipeline):** decompose succeeded (13
+      cards) but ~10 stayed in `planning` within 25 min → the gate is **wide-DAG THROUGHPUT + long-horizon transient
+      survivability**, not worker death alone. Three signals structure the integration: (1) per-card latency × serial
+      execution doesn't fit the horizon → the durable scheduler must lease *all* genuinely-independent ready cards up to
+      the cap; (2) the runtime **skipped auto-start for linked cards that "likely touch the same files"** as an active
+      card — over-conservative serialization (the **C5 contention axis early**); revisit so it serializes only true file
+      overlaps; (3) `board poll fetch failed (HeadersTimeoutError)` transients → exactly the lease/reclaim survivability
+      case. Not a model ceiling (decompose + per-card work were sound). See
+      [docs/dev/milestone-challenges.md](docs/dev/milestone-challenges.md) run log.
 - [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one

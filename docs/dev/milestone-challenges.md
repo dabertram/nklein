@@ -44,7 +44,7 @@
 | **C0** | M0 single-card | baseline | `verify-task-completion` · `mid_task` | reaches `awaiting_review` + correct `nklein/tasks/<id>` result branch | roster | ✅ met (8/9; qwen3.5-9b ⚠️ slow-finalize → §5.AA finalization watchdog wired) · **reliability: qwen3-8b 7/8 (~88%) over 2 sweeps (1 isolated transient); qwen2.5-coder-14b 3/3** |
 | **C1** | decompose-only | + DAG synthesis, isolation | `verify-decompose-isolation` | goal → valid dependency DAG, **no host-path leak** to the agent | roster | ✅ met (9/9) |
 | **C2** | promote + isolated delivery | + lane promotion, restart isolation | `verify-autopromote-recovery` + `verify-strict-isolation` + `verify-restart-resume-isolation` | card → In Progress; sandbox isolation + restart-resume hold, clean teardown | roster | ✅ met across loaded roster |
-| **C3** | **M1** unattended multi-card → merge | + multi-card cascade, **restart-survivable**, auto-merge | `complex_dag`/`mixed_dag` + the §5.V pipeline + `verify-multi-card-pipeline` | goal → DAG → all cards run (parallel where safe) → review → **merge**, surviving a runtime restart | roster | ⏳ mechanism proven (§5.V); **durable substrate now complete end-to-end at the pure/injectable level** — brain (`durable-scheduler`) + ledger bridge (`durable-scheduler-ledger`, replayable) + injectable tick-loop orchestrator (`durable-run-controller`, fakes-tested incl. restart-resume). **Remaining: hot-path wiring of 2 ports** (dispatch=enqueue card start, appendLog=ledger append) + live Docker restart-survivable run → **current chapter** |
+| **C3** | **M1** unattended multi-card → merge | + multi-card cascade, **restart-survivable**, auto-merge | `complex_dag`/`mixed_dag` + the §5.V pipeline + `verify-multi-card-pipeline` | goal → DAG → all cards run (parallel where safe) → review → **merge**, surviving a runtime restart | roster | ⏳ mechanism proven (§5.V); **durable substrate now complete end-to-end at the pure/injectable level** — brain (`durable-scheduler`) + ledger bridge (`durable-scheduler-ledger`, replayable) + injectable tick-loop orchestrator (`durable-run-controller`, fakes-tested incl. restart-resume). **Remaining: hot-path wiring of 2 ports** (dispatch=enqueue card start, appendLog=ledger append) + live Docker restart-survivable run → **current chapter**. **Scout (2026-06-28) finding:** current pipeline decomposes 13 cards but leaves ~10 in `planning` within 25 min — gate is **wide-DAG throughput + long-horizon transient survivability** (file-contention serialization over-throttles → C5 axis; HeadersTimeout transients → lease/reclaim); not a model ceiling |
 | **C4** | **M2** all-model adaptive | + model-weakness, no-circles | C3 routed via §5.AB off the §5.AF ledger | every assignment selected by fitness×difficulty; weak models lifted by the §5.AA retry ladder; no loops; parks surface cleanly | capable-only→roster | ⏳ pure cores exist (retry-policy, model-fitness, ledger projections); **wiring at the model-call seam owed** (§5.AA/§5.AB) |
 | **C5** | wide parallel fan-out | + parallelism + contention | `wide_fanout`/`many_small` under concurrency caps | many concurrent cards on serialized local endpoints: no deadlock/starvation, per-provider/per-model caps honored, board stays responsive | roster | ⏳ caps + scheduler exist (§5.W/§6.5); needs a contention challenge run |
 | **C6** | deep cross-module build | + depth + cross-file + long horizon | `deep_chain`/`daw_foundation`/`audio_vst` | long dependency chains + cross-file consistency held over a long horizon (context compaction stays coherent, §5.AD) | capable-only | ⏳ output-robustness clean (0 narration leaks, §5.O); long-horizon coherence unverified |
@@ -54,6 +54,19 @@
 
 ## Run log (newest first)
 
+- _(2026-06-28)_ **C3 early-scout — `complex_dag × qwen3-8b` on the CURRENT (non-durable) pipeline → INCOMPLETE, and it
+  structures the chapter (MCF).** Decompose succeeded (**13 cards**) and several cards completed *correctly*, but after
+  ~12 min only **2–3 reached a terminal lane and ~10 stayed in `planning`** — INCOMPLETE within the 25-min horizon. Three
+  root signals, none a model ceiling: **(1) throughput, not capability** — qwen3-8b takes minutes/card, so a 13-card DAG
+  doesn't fit the horizon when cards run mostly serially; **(2) file-contention serialization** — the runtime *skipped
+  auto-start* for linked cards that "likely touch the same files" as an active card, throttling the ready-set drain (the
+  **C5 parallelism/contention axis surfacing early** — the heuristic may be over-conservative: it serialized cards that
+  could have run concurrently); **(3) transient-fetch fragility** — `board poll failed: fetch failed (HeadersTimeoutError)`
+  ×3, exactly the transient class the durable scheduler must survive. **→ Structures the C3 live-integration pass:** the
+  durable layer's gate is **draining a wide DAG to completion over a long, restart-survivable horizon**, not just worker
+  death — (a) lease *all* genuinely-independent ready cards up to the concurrency cap, (b) revisit the file-contention
+  auto-start skip so it serializes only true overlaps (cross-link C5), (c) survive transient fetches via lease/reclaim +
+  a longer unattended horizon. Provisional, not a ceiling — qwen3-8b's decompose + per-card work were sound.
 - _(2026-06-28)_ **Idle-LLM scout sweep #2 (C0):** qwen3-8b **3/3** + qwen2.5-coder-14b **3/3** — the sweep-#1 interrupt
   did **not** reproduce across 3 more qwen3-8b runs, so C0 qwen3-8b stands at **7/8 (~88%) across both sweeps, 1 isolated
   transient** (confirms §5.AA interrupt-class, not a model ceiling); qwen2.5-coder-14b clean. Also landed the C3 boot-replay
