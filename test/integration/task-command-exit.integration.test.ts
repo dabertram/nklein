@@ -370,8 +370,12 @@ describe("source task commands", () => {
 					"--no-open",
 				],
 				{
-					// Run the server from the neutral temp HOME, not the project: the self-improvement guard keys on the
-					// server's own git root, so cwd=project would flag the project as !Klein's own source repo.
+					// Server cwd is the neutral temp HOME. (The self-improvement guard no longer depends on this — it now
+					// keys off !Klein's INSTALL location via projects-api `resolveKleinSourceRepoPath`, not the server cwd —
+					// so cwd=project is also safe. This case stays red for a SEPARATE reason: `task list` is a read command
+					// (autoCreateIfMissing:false) and nothing in the launch flow registers the project, so it reports
+					// "Project … is not added yet". Fixing it needs a project registration step or a decision that a bare
+					// launch-from-project auto-registers the project — see todo §5.U.)
 					cwd: homeDir,
 					// tsx needs this repo's tsconfig (cwd is a temp dir) so the vendored `@nklein/*` aliases resolve.
 					env: { ...env, TSX_TSCONFIG_PATH: resolve(process.cwd(), "tsconfig.json") },

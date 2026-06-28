@@ -162,6 +162,10 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 		buildProjectsPayload: vi.fn(async () => ({ currentProjectId: null, projects: [] })),
 		pickDirectoryPathFromSystemDialog: vi.fn(() => null),
 		serverCwd,
+		// The self-improvement guard resolves !Klein's own source repo via the install location in production; in tests we
+		// point it at `serverCwd` (which the guard tests git-init as the "source checkout") so the guard's logic is
+		// exercised against a controlled fixture rather than the real repo this test file lives in.
+		resolveKleinSourceRepoPath: async () => (existsSync(join(serverCwd, ".git")) ? realpathSync(serverCwd) : null),
 		isRemoteMode: false,
 		allowedBrowseRoots: [],
 	};

@@ -2195,15 +2195,20 @@ deep analysis:
         to `nklein-task-prompt-builders.ts` (3511 → 3422). The bulk — the ~2850-line `InMemoryNKleinTaskSessionService`
         class — stays parked per the 2026-06-24 "postpone monoliths, make !Klein actually work" pivot; resume only as a
         focused fresh-context pass, not at the tail of functionality work.
-  - [ ] **`task-command-exit` integration test — the 4th case is still red (2026-06-27).** This session's task.ts work took
-        it 0/4 → 3/4 by fixing two real regressions: the spawned CLI couldn't resolve the vendored `@nklein/*` alias (→ pass
-        `TSX_TSCONFIG_PATH` in the spawn so tsx uses this repo's tsconfig), and the self-improvement guard false-positived
-        because the server ran with `cwd=project` (→ run the server from the neutral temp HOME). The remaining "opens only
-        for launch invocations" test fails because, with the server at a neutral cwd, the launch `[]` doesn't register the
-        project, so the next `task list` (no auto-add) returns "Project … is not added yet". Guard-vs-launch-from-project
-        design knot: [projects-api.ts](src/trpc/projects-api.ts) keys "!Klein's own source repo" off `serverCwd`'s git root,
-        not the install path. Fix options: key the guard off the install path (so the server can keep `cwd=project`), or
-        thread a self-project confirmation. NOT in the `test:fast`/pre-commit gate.
+  - [~] **`task-command-exit` integration test — the 4th case is still red; GUARD HALF FIXED (2026-06-28).** Earlier work
+        took it 0/4 → 3/4 (TSX_TSCONFIG_PATH for the `@nklein/*` alias; server at neutral cwd). **DONE 2026-06-28 — the
+        self-improvement guard now keys off the INSTALL location, not `serverCwd`:** `projects-api`'s
+        `resolveKleinSourceRepoPath()` resolves !Klein's own repo from `import.meta.url` (cached; null for a packaged
+        non-git install), injectable for tests. This fixes a real *production* bug too — the old `serverCwd` keying would
+        false-flag a user's OWN project as "!Klein's source" whenever they ran `nklein` from it; now the guard only fires
+        when !Klein's actual checkout is added. 56 projects-api unit tests green (harness injects the resolver at a fixture
+        repo). **REMAINING (separate root cause, traced 2026-06-28):** the 4th case's `task list --project-path` returns
+        "Project … is not added to !Klein yet" because `task list` is a **read** command (`autoCreateIfMissing:false`,
+        intentional — reads must not create projects, [task-read-commands.ts:20](src/commands/task/task-read-commands.ts#L20))
+        and **nothing in the launch flow registers the project** (a bare `[]` launch uses `loadWorkspaceContext(..., {autoCreateIfMissing:false})`).
+        So the fix is NOT the guard — it's either (a) the test pre-registers the project (e.g. a write command / addProject)
+        before `task list`, or (b) a product decision that a bare launch-from-a-git-project auto-registers that project (good
+        "current project" UX, but a behavior change — adding any git dir you launch from). NOT in the `test:fast`/pre-commit gate.
   - **`src/trpc/runtime-api.ts` (~2449 → 2314)** *(umbrella — slices below are the counted work; the remaining slice is
         the open child. NB §5.X Phase 1 has since driven this file far lower (2410 → 1353); reconcile this item's
         progress against the §5.X slices 1–8 if revisiting)* — `createRuntimeApi` is one giant object literal of every

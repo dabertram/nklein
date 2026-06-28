@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { cp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeBoardData,
@@ -99,6 +100,23 @@ async function resolveGitRootIfAvailable(path: string): Promise<string | null> {
 	} catch {
 		return null;
 	}
+}
+
+let kleinSourceRepoPathPromise: Promise<string | null> | undefined;
+/**
+ * The git root of !Klein's OWN source checkout — resolved from where THIS module's code lives, not the server's cwd.
+ * The self-improvement guard ("this is !Klein's own source repository") must identify the repo by where !Klein's code
+ * is installed, independent of where the server happens to run. Keying it off `serverCwd` was wrong: in dev (server run
+ * from the repo) it would refuse to add ANY project whose path equals the repo, and more subtly it would never let the
+ * launch-from-project flow register a project (the `task-command-exit` 4th-case red). Resolving from `import.meta.url`
+ * flags the repo only when the repo itself is added (the genuine self-improvement case), and returns null for a packaged
+ * (non-git) npm install — nothing to guard. Cached: the install location never changes within a process.
+ */
+function resolveKleinSourceRepoPath(): Promise<string | null> {
+	if (!kleinSourceRepoPathPromise) {
+		kleinSourceRepoPathPromise = resolveGitRootIfAvailable(dirname(fileURLToPath(import.meta.url)));
+	}
+	return kleinSourceRepoPathPromise;
 }
 
 export function createDevTestBoard(input: {
@@ -220,6 +238,12 @@ export interface CreateProjectsApiDependencies {
 	}>;
 	pickDirectoryPathFromSystemDialog: () => string | null;
 	serverCwd: string;
+	/**
+	 * Resolve the git root of !Klein's OWN source checkout for the self-improvement guard — defaults to the install
+	 * location (where this module's code lives, via `import.meta.url`), independent of `serverCwd`. Injectable so tests
+	 * can point it at a fixture repo. Returns null for a packaged (non-git) install — nothing to guard.
+	 */
+	resolveKleinSourceRepoPath?: () => Promise<string | null>;
 	/**
 	 * When true the server is bound to a non-loopback interface (--host mode)
 	 * and path access must be confined to `allowedBrowseRoots`.
@@ -430,7 +454,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						error: "That folder is a legacy !Klein task workspace. Add the owning parent project instead, or use the advanced legacy task-workspace project flow.",
 					} satisfies RuntimeProjectAddResponse;
 				}
-				const sourceRepoPath = await resolveGitRootIfAvailable(deps.serverCwd);
+				const sourceRepoPath = await (deps.resolveKleinSourceRepoPath ?? resolveKleinSourceRepoPath)();
 				if (sourceRepoPath && sourceRepoPath === candidateRepoPath && body.confirmSelfProject !== true) {
 					return {
 						ok: false,
@@ -629,7 +653,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				};
 			}
 			try {
-				const sourceRepoPath = await resolveGitRootIfAvailable(deps.serverCwd);
+				const sourceRepoPath = await (deps.resolveKleinSourceRepoPath ?? resolveKleinSourceRepoPath)();
 				if (!sourceRepoPath) {
 					return {
 						ok: false,
