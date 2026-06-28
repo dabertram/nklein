@@ -36,8 +36,13 @@
 > change needs UI/live verification, the agent drives the browser / Docker / models itself.
 >
 > ### Workflow rules (settled across this dev chain — do NOT re-litigate, do NOT ask about these again)
+> - **The driving order is the Milestone-Challenge Framework ([§5.0.3](#503--milestone-challenge-framework-mcf--the-engine-that-drives-klein-forward), 2026-06-28, user).** Advance the current chapter toward its milestone challenge; run the
+>   **cumulative** challenge suite (all prior challenges + the new one) to regress-stabilize won capabilities and uncover
+>   the next limitations; **route challenge-found limitations into a structured next chapter — never brute-force a challenge
+>   with random code-fiddling.** Challenges are permanent (a regression is stop-the-line). Spending large LLM runtime here
+>   is expected + mandatory. Everything below refines this.
 > - **Decide priority/order yourself.** When the user has not stated an explicit preference between tasks, the
->   agent picks the order (using §5.0 + the priority notes as the default) and proceeds. Do **not** stop to ask
+>   agent picks the order (using §5.0.3 + §5.0 + the priority notes as the default) and proceeds. Do **not** stop to ask
 >   "which should I do?" or report-and-wait for a steer on prioritization. Trust your judgment — you are a highly
 >   skilled worker.
 > - **Never stop for "budget shape".** A big/long task is split into **committed increments** and the work
@@ -460,6 +465,10 @@ deep analysis:
       the parallel-backlog audit doc = deleted (consolidated into §5.AK).
 
 ### 5.0.2 — Milestone ladder + substrate-first sequencing *(2026-06-26, from an external spec audit — navigation aid, do NOT re-litigate)*
+> **→ Operationalized by [§5.0.3](#503--milestone-challenge-framework-mcf--the-engine-that-drives-klein-forward) (the Milestone-Challenge Framework, 2026-06-28).** This section is the *dependency rationale* (why the arcs sit on §5.AF);
+> §5.0.3 is the *engine* (the dense challenge ladder C0–C8+CAP that turns these milestones into runnable, cumulative,
+> difficulty-rising gates whose failures structure each chapter). The M0–M4 below are the macro-arc; the C-rungs in §5.0.3
+> are how we actually advance + regress-stabilize them.
 > An external audit of this file (459 §5 items) made a correct structural point: the new ambition arcs (§5.AA adaptive
 > robustness, §5.AB role→model selection, §5.AC online+temporal, §5.AD context, §5.AE dynamic skills) are individually
 > strong but **all depend on the same missing substrate** — a per-attempt evidence stream — and the spec lacked a
@@ -493,6 +502,78 @@ deep analysis:
 > probes + repeat-run reliability (§5.V/§5.Z), `ProceduralSkillBank` as validated/quarantined skill memory (§5.AE),
 > `RetrievedEvidence` + citation verification (§5.AC), provenance/taint + egress/MCP policy (§5.L/security), and
 > confidence/resource-aware routing (§5.AB).
+
+### 5.0.3 — Milestone-Challenge Framework (MCF) — the engine that drives !Klein forward *(2026-06-28, user — STANDING, do NOT re-litigate; supersedes ad-hoc "what next" picking)*
+> **The mandate (user, 2026-06-28):** drive !Klein with **dense milestones**, each guarded by a **challenge** of rising
+> complexity/difficulty that !Klein must pass before the next chapter. The challenges are meant to **pass** — but their
+> real job is to **uncover limitations** that then **structure the next chapter**, instead of us brute-forcing a challenge
+> with random code-fiddling. Challenges are **cumulative**: every milestone re-runs ALL prior challenges (continuous
+> stabilization of won capabilities) while adding new difficulty. The user is happy to spend large LLM runtime here — it
+> is **mandatory** given how much dynamic self-adjustment !Klein is gaining. And throughout, hold the bar on clean code,
+> design, structure, maintainability, extendability — the vision is a *moving target with a widening horizon*, so the
+> structure must stay ready for the next milestone, not just the current one.
+>
+> **The MCF loop (run it for every milestone — this IS the working order; §5.0.1 step "pick the highest-value item" now
+> means "advance the current chapter toward its milestone challenge"):**
+> 1. **Define the challenge** for milestone `M_n` — a concrete, **runnable, machine-checkable** end-to-end
+>    project-processing task, strictly harder than `M_{n-1}` along one or more **difficulty axes** (below). It gets an id,
+>    a difficulty profile, an acceptance gate, and a cross-model expectation tier (§5.Z).
+> 2. **Run the cumulative suite** `C_1…C_n` (oldest first = regression/stabilization, then the new one), on the live
+>    substrate (dev-test presets + `scripts/verify-*.mts` + the §5.Z roster). The suite + scores live in
+>    [docs/dev/cross-model-verification.md](docs/dev/cross-model-verification.md) (the regression scoreboard) and
+>    [docs/dev/milestone-challenges.md](docs/dev/milestone-challenges.md) (the challenge catalog — id · difficulty profile ·
+>    acceptance · expectation tier · last result).
+> 3. **On a failure, DO NOT fiddle to force it through.** Root-cause it into a **structured limitation** (the §5.Z/§5.V
+>    discipline: a real diagnosis, not a guess), then **file it into the upcoming chapter** and **re-arrange the chapter**
+>    so the most-blocking limitations come first. The challenge's purpose is to **decide what to build next** — capturing a
+>    limitation and routing it cleanly is the *perfect* outcome, not a detour.
+> 4. **Pass `M_n`** when the challenge's core acceptance holds at its expectation tier. A milestone **MAY pass with known,
+>    non-blocking limitations recorded** for later chapters — we do **not** get stuck perfecting one milestone. Because the
+>    challenge is now permanent, any unpaid limitation re-surfaces until it clears (so "pass + defer" never silently rots).
+> 5. **Lock the challenge into the permanent regression suite.** Every later milestone re-runs it. **A regression (a
+>    previously-passing challenge that breaks) is a STOP-THE-LINE event** — fix it before adding new difficulty.
+> 6. **The next chapter** = work toward `M_{n+1}`, its content = (a) the limitations the last challenge surfaced (highest
+>    priority) **interleaved with** (b) the relevant §5 backlog arcs (below). Then go to step 1.
+>
+> **Difficulty axes (so each challenge is meaningfully harder, not just "more of the same"):** DAG size + dependency depth ·
+> cross-file / cross-module consistency · goal ambiguity (needs clarification/inference, §5.S) · horizon length (turns /
+> wall-time / context-compaction pressure, §5.AD) · parallelism + shared-resource contention (§5.W/§6.5) · **model weakness**
+> (weaker/smaller models must still pass via the §5.AA ladder + §5.AB selection) · output-format adversity (§5.O) ·
+> tool-composition breadth (§5.M capstone) · online freshness (§5.AC) · failure-injection / resilience (restart mid-run,
+> sandbox loss, transient aborts — §5.AA/§5.AF) · self-modification (M4, quarantined).
+>
+> **Invariants a challenge may NEVER trade away to pass:** strict Docker isolation (#2), local-only (#1), ≥32k floor (#3),
+> protected tests (#5), clean teardown (zero leaked containers/worktrees), and **clean structure** — a challenge "passed"
+> via a hack that degrades maintainability is **NOT passed**: the cleanup is mandatory chapter work (the clean-structure
+> clause below).
+>
+> **Clean-structure clause (the widening-horizon rule):** each chapter MUST leave the codebase ready for the *next*
+> milestone — refactor-as-you-go (the §5.U/§5.X decomposition discipline), small single-responsibility modules, the
+> biome-enforced SDK boundary (#4) intact, extend a seam rather than bolt on. Capability added while structure degrades is
+> debt the next challenge will expose; pay it in-chapter. New observations/ideas from watching !Klein run are filed as §5
+> items tagged to the chapter/challenge that should absorb them.
+>
+> **Dense challenge ladder (built on the EXISTING difficulty-graded substrate — dev-test presets + verify harnesses +
+> the §5.Z roster + the dschinn capstone; reconciles the M0–M4 macro-arc in §5.0.2):**
+> - **C0 · single-card** (`verify-task-completion`, preset `mid_task`) → `awaiting_review` + correct result branch. **= M0, met** (§5.Z 8/9).
+> - **C1 · decompose-only** (`verify-decompose-isolation`) → goal → valid DAG, no host leak. **Met** (§5.Z 9/9).
+> - **C2 · promote + single-card delivery under isolation** (`verify-autopromote-recovery` + strict/restart-resume isolation). **Met** across the loaded roster (§5.Z).
+> - **C3 · decompose → multi-card → review → MERGE, unattended + restart-survivable** (preset `complex_dag`/`mixed_dag`; the §5.V pipeline). **= M1.** Mechanism proven; the unattended/restart-survivable gate needs the **§5.AF durable scheduler** → that is the current chapter's spine.
+> - **C4 · all-model adaptive** — C3 but every assignment routed via §5.AB off the §5.AF ledger, weak models lifted by the §5.AA ladder, no loops/circles (axis: model weakness + resilience). **= M2.**
+> - **C5 · wide parallel fan-out under contention** (`wide_fanout`/`many_small`) — many concurrent cards on serialized local endpoints without deadlock/starvation, caps honored (§5.W/§6.5). (axis: parallelism)
+> - **C6 · deep cross-module build** (`deep_chain`/`daw_foundation`/`audio_vst`) — long dependency chains + cross-file consistency over a long horizon (axes: depth + cross-file + horizon/compaction).
+> - **C7 · ambiguity + online freshness** — under-specified goal needing clarification (§5.S) + a task requiring current/online knowledge (§5.AC). **≈ M3.**
+> - **C8 · self-improvement (quarantined)** — !Klein lands a vetted patch to itself through protected-tests + replay-eval + security review (§5.AF quarantine). **= M4.**
+> - **CAP · dschinn "master challenge"** (todo §5.G) — the capstone end-to-end real project; run only once the ladder below it is green (reserved for last per the dschinn note).
+>
+> **Backlog reconciliation (how §5 "perfectly fits"):** the big arcs are the **chapter material**, ordered by the
+> substrate-first rule (§5.0.2): **§5.AF ledger/scheduler** (unblocks C3/C4) → **§5.AA robustness + §5.AB selection** (C4) →
+> **§5.W/§6.5 concurrency** (C5) → **§5.AD context + §5.O output** (C6) → **§5.S clarify + §5.AC online** (C7) → **§5.AF
+> self-improvement quarantine** (C8). Each chapter draws its items from these arcs PLUS the prior challenge's findings;
+> a found limitation is filed under its arc with a `(challenge: C_n)` origin tag so the scoreboard and the backlog stay
+> in sync. **NEXT ACTION when unsure what to do:** run the cumulative challenge suite, take the first failing/weakest
+> challenge, and work its root-caused limitations as the current chapter (substrate-first when they collide). The
+> first build target the ladder points at is the **§5.AF durable scheduler** (the C3 unattended/restart gate).
 
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
@@ -4843,9 +4924,12 @@ deep analysis:
       read correctly (it reaches `awaiting_review`). So the board-cards projection in the workspace `getState` snapshot is
       under-reporting on that runtime path. Low priority (cosmetic in the harness report) but worth tracing — the board
       cards vs session-state divergence may indicate a snapshot-assembly gap worth a regression.
-- [ ] **dschinn "master challenge" — RESERVED FOR LAST (handoff 2026-06-28).** The dschinn project is the big end-to-end
-      "master challenge" reserved for the final fun validation pass. Keep using the small dev-test projects for UI/e2e
-      stabilization until the rest of §5.V/§5.AI is solid; only then run the dschinn master challenge as the capstone.
+- [ ] **dschinn "master challenge" — RESERVED FOR LAST = the MCF capstone `CAP` (handoff 2026-06-28; framed into §5.0.3).**
+      The dschinn project is the big end-to-end real-project "master challenge" — the **`CAP` rung of the Milestone-Challenge
+      ladder** ([§5.0.3](#503--milestone-challenge-framework-mcf--the-engine-that-drives-klein-forward) ·
+      [docs/dev/milestone-challenges.md](docs/dev/milestone-challenges.md)). Run it **only once C0–C8 are green**; until then
+      keep using the smaller difficulty-graded dev-test presets as the C0–C6 challenges for UI/e2e stabilization. When run,
+      a dschinn failure follows the MCF rule: root-cause → structure the next chapter, never brute-force.
 - *(cross-links)* §5.O (dev-test registry + output-robustness sweep — the rail's content) · §5.V (the e2e oracle the
       rail operationalizes; hidden-split/repeat-run/failure-injection harnesses it should exercise) · §5.Z (cross-model
       coverage — the rail naturally rotates models) · §5.AF (durable lease scheduler + unified admission + the ledger
