@@ -132,7 +132,7 @@
       native-`title` "coming soon" hint, instead of opening a dead link. (The onboarding carousel's other external links
       go to real ollama/lmstudio download pages — left as-is.) web tsc + biome + full web-ui suite (689) green.
 
-### 5.Y — Security hardening backlog *(raised 2026-06-26 from a static security review → `.plan/docs/security-issues.md`)*
+### 5.Y — Security hardening backlog *(raised 2026-06-26 from a static security review → `docs/history/security-issues.md`)*
 > A whole-repo static security review (runtime auth, tRPC procedures, chat tools, filesystem boundaries, sandbox
 > integration, Electron shell, frontend) surfaced 12 findings (1 Critical, 3 High, 6 Medium, 2 Low). It aligns directly
 > with the North Star (**strict Docker isolation; host access only with explicit opt-in**) — several findings are where

@@ -183,7 +183,7 @@ deep analysis:
   identity, decomposition apply, the strict-isolation no-host-execution + fail-closed-start guards). Add to the
   protected manifest **only via the human-approval path** (§1.5).
 - Keep suites fast and non-hanging. If CI hangs on Node 22, suspect a live subprocess / real SDK-host boot
-  before a slow test body (see `.plan/docs/node22-ci-hanging-tests-investigation.md`).
+  before a slow test body (see `docs/node22-ci-hanging-tests-investigation.md`).
 
 ---
 
@@ -215,8 +215,8 @@ deep analysis:
 > STANDING, do NOT re-litigate).** `todo.md` is **THE ONE guiding document for *future* work**; `done.md` is the archive
 > of what's *already done* (and `CHANGELOG.md` = user-facing release notes). **Every actionable detail an item needs in
 > order to be worked MUST live in `todo.md` itself.** Do **NOT** defer the *what / how* of an item to an external
-> `.plan/docs/*` memo (or any other file) via a "see doc §X for the detail" cross-reference — **cross-referencing for
-> details creates circular dependencies and loses detail when those docs drift or are forgotten.** A `.plan/docs/*` doc
+> `docs/**` memo (or any other file) via a "see doc §X for the detail" cross-reference — **cross-referencing for
+> details creates circular dependencies and loses detail when those docs drift or are forgotten.** A `docs/**` doc
 > MAY exist as deep background / derivations / sources, and you may cite it purely as **provenance** (e.g.
 > "(background + sources: …)") — but a reader must be able to **execute the item from `todo.md` alone, without opening
 > it**. When you touch an existing item that defers detail to a doc, **integrate that detail inline** as part of that
@@ -236,13 +236,13 @@ deep analysis:
 > the methodology, and the enumerated per-flow sweep checkboxes all live in **[§5.Z](#5z)** — the single source of
 > truth. Rather than editing every task line, a task's single-model live proof (e.g. "verified on qwen3-8b") keeps its
 > text and its cross-model obligation is tracked as a §5.Z checkbox + a row in
-> [cross-model-verification.md](.plan/cross-model-verification.md).
+> [cross-model-verification.md](docs/dev/cross-model-verification.md).
 
 ### 5.0.1 — Long-run mandate + decisions (2026-06-25; FINAL — supersedes earlier "parked" steers where they conflict)
 > The user front-loaded a batch of decisions so the agent can run autonomously for a long stretch toward a
 > **fully-resolved todo.md**. Meta-rules: **work every item**; escalate only a genuine missing-decision blocker
 > (HIGH bar — not minor reworkable choices: take the sensible default + **log it in
-> [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md)** for end-of-run review). **Ship mode: local
+> [docs/dev/autonomous-decisions.md](docs/dev/autonomous-decisions.md)** for end-of-run review). **Ship mode: local
 > commits only — no push / no PRs.** Runtime restart to live-verify backend fixes is OK. Decisions:
 > - **Run order:** (1) quick wins — chat sidebar inner-resize fix + chat-session relabel + flip the two defaults;
 >   (2) **§5.B planning/refinement lane** (full design); (3) **comprehensive test coverage** (two layers); (4)
@@ -382,7 +382,7 @@ deep analysis:
   - [ ] **Live-verify end-to-end** — drive a real autonomous run on a dev-test project with a small local model
         (Playwright + the loop): goal → focus chain → tool work → durable side effects, within budget.
 - [x] **Review the autonomous-decisions log with the user** *(2026-06-25; DONE 2026-06-27)* — walked through
-      [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md) with the user. Most entries were already-resolved;
+      [docs/dev/autonomous-decisions.md](docs/dev/autonomous-decisions.md) with the user. Most entries were already-resolved;
       the four open decisions were settled (see the "Clarification pass (2026-06-27)" section there): LICENSE holder =
       "!Klein contributors" + Cline NOTICE (already in place); native-core-default flip = HOLD until §5.X port settled;
       chat "sandboxed" scope naming = rename to "host access" for clarity + keep the session-wide ack (tracked in §5.M);
@@ -396,7 +396,7 @@ deep analysis:
 > feature sections): one substrate section (**[§5.AF](#5af)**), this milestone callout, an operator-UX section
 > (**[§5.AG](#5ag)**), and a **tiered** cross-model done-bar (§5.Z). Full reasoning + the system component map + the
 > Attempt-Ledger schema + the tool-capability-manifest facets live in
-> **[.plan/docs/substrate-and-milestones.md](.plan/docs/substrate-and-milestones.md)**.
+> **[docs/research/substrate-and-milestones.md](docs/research/substrate-and-milestones.md)**.
 >
 > **Milestone ladder (the progress backbone):**
 > - **M0 — single-card reliable** — one card → implement → `awaiting_review` → correct result branch, across the roster.
@@ -415,7 +415,7 @@ deep analysis:
 >
 > **Small-LLM optimization research addendum (2026-06-27):** a 12-agent online research pass (concurrency-capped at 6;
 > requested ceiling was "up to 50") is captured in
-> **[.plan/docs/small-llm-agent-optimization-research.md](.plan/docs/small-llm-agent-optimization-research.md)**. It
+> **[docs/research/small-llm-agent-optimization-research.md](docs/research/small-llm-agent-optimization-research.md)**. It
 > validates the substrate-first order and sharpens the main correction: the ledger should be a **workflow event log +
 > attempt evidence stream** (leases, admission/resource events, idempotency/replay boundaries, tool results, and model
 > attempts), because small models need the harness to own long-horizon state. Follow-on backlog ideas should be folded
@@ -476,7 +476,7 @@ deep analysis:
 - [~] **Retire the host worktree subsystem** *(decided: retire; terminal/CLI agents stay disabled under
       local-only).* Boundary predicate `usesLegacyHostTaskWorkspace` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts));
       shell-on-task = `docker exec` into the task's sandbox (no host checkout). Full plan +
-      surface inventory: [.plan/docs/section-5a-worktree-retirement-watched-session.md](.plan/docs/section-5a-worktree-retirement-watched-session.md).
+      surface inventory: [docs/research/section-5a-worktree-retirement-watched-session.md](docs/research/section-5a-worktree-retirement-watched-session.md).
       Per-commit detail lives in CHANGELOG `## [Upcoming]` + git. **Status: increments 1–2 done; increment 3 ~80%
       (C1–C7c done, C7d/C7e/C8 left); increment 4 pending.**
   - [x] **Increment 1 — catalog + web-ui native-agent → nklein-only**
@@ -853,7 +853,7 @@ deep analysis:
       ([src/core/acceptance-failure-taxonomy.ts](src/core/acceptance-failure-taxonomy.ts)) (command-not-found,
       missing-script/dep, type/lint/compile error, test-failure, timeout, unknown) with label + next-step hint,
       wired onto the gate result + rendered on the card's Verify result. Tested.
-- [ ] **Git-view hardening follow-ups** *(folded 2026-06-28 from the former `.plan/docs/git-view-followup-work.md`; the
+- [ ] **Git-view hardening follow-ups** *(folded 2026-06-28 from a now-removed planning doc (`git-view-followup-work.md`); the
       Git view v1 shipped, these are its edge-case hardening items)*. Each needs a runtime test + (where UI) a web test.
   - [ ] **P1 — surface real errors for invalid commit-diff requests.** `getCommitDiff` returns `ok:true` with an empty
         `files` array on an invalid commit hash, so the UI shows a misleading "No changes" instead of a failure.
@@ -871,8 +871,7 @@ deep analysis:
   - [ ] **P3 — reduce refresh cost on large repos.** Polling + repeated total-count queries are expensive on large
         histories. Reduce background-refresh frequency when the app is idle; avoid full count recomputation on every
         background poll; consider count caching keyed by selected ref.
-- [ ] **Worktree symlinked-ignored-roots + diff-UI phantom-file fixes** *(folded 2026-06-28 from the former
-      `.plan/docs/worktree-ignored-symlink-investigation.md`)*. Two independent fixes (legacy host worktrees still exist
+- [ ] **Worktree symlinked-ignored-roots + diff-UI phantom-file fixes** *(folded 2026-06-28 from a now-removed planning doc (`worktree-ignored-symlink-investigation.md`))*. Two independent fixes (legacy host worktrees still exist
       for migrated boards, §5.A): **(a)** ensure symlinked ignored roots stay ignored *locally* via the worktree's
       `.git/info/exclude` (Git treats an "ignored directory" and a "symlink to an ignored directory" differently — once
       !Klein replaces a real ignored dir like `node_modules`/`.next` with a symlink inside a worktree, it must add the
@@ -887,7 +886,7 @@ deep analysis:
 > python-core default-on is worse than opt-in until the sidecar is bundled + auto-started.
 >
 > **DEFAULTS PREREQS — resolved + scope-flagged (2026-06-25).** User: "build the prereqs now, then flip." Investigation
-> (recorded in [.plan/autonomous-decisions.md](.plan/autonomous-decisions.md)) found the two halves are very different:
+> (recorded in [docs/dev/autonomous-decisions.md](docs/dev/autonomous-decisions.md)) found the two halves are very different:
 > - **core-py default-on = DONE 2026-06-25.** `resolveKleinCorePyConfig` already defaults **ON** (opt-out via
 >   `NKLEIN_CORE_PY=0`; the old "opt-in/default-OFF" doc comment was stale — fixed). The missing half was **auto-start**:
 >   the runtime now launches the sidecar on boot via the new [klein-core-sidecar.ts](src/server/klein-core-sidecar.ts)
@@ -1513,7 +1512,7 @@ deep analysis:
 > and then **change !Klein's code so it handles it** (parse-and-recover, guardrails, prompt/budget fixes) so it "just
 > works" regardless of the model. The deliverable is the **hardened !Klein behavior** (shipped fixes + tests); the
 > findings file is only the running log alongside it. Persist each round's findings to
-> **[local-llm-tests.md](.plan/local-llm-tests.md)** (which models were swept · what broke · **what was hardened in
+> **[local-llm-tests.md](docs/dev/local-llm-tests.md)** (which models were swept · what broke · **what was hardened in
 > code**). The goal is **correctness/robustness, not measurement**.
 >
 > **HARD + STRICTLY OUT OF SCOPE NOW — do NOT start, do NOT measure:** comparing models on **performance or
@@ -1537,10 +1536,10 @@ deep analysis:
       *small* local models the user loads; for each, catalog the **output** failure modes (tool-call malformation,
       narration-as-tool-call, no-tool-call stalls, structured-output misses, reasoning runaways) and **harden !Klein**
       (parse-and-recover, guardrails, prompts) until it is robust to them regardless of the model. Append each round's
-      findings to [local-llm-tests.md](.plan/local-llm-tests.md) (models swept · what broke · what was hardened). Goal =
+      findings to [local-llm-tests.md](docs/dev/local-llm-tests.md) (models swept · what broke · what was hardened). Goal =
       robustness, **not** measurement. Pairs with the parse-and-recover work below (§5.O tool-call formats).
   - [x] **Round 0 — methodology + the instrument problem (2026-06-24)** — stood up the loop and wrote
-        [local-llm-tests.md](.plan/local-llm-tests.md). Established the **model-pin lever** (the swarm resolves its model from
+        [local-llm-tests.md](docs/dev/local-llm-tests.md). Established the **model-pin lever** (the swarm resolves its model from
         the NKlein **provider settings**, not just live discovery — set/restore via `runtime.saveNKleinProviderSettings`;
         `lms ps` lists loaded ids; pre-register a fresh repo via `projects.add` for an empty board + to dodge the
         `loadWorkspaceContext` workspace-registry lock). **Key finding: `nklein dev test-project` is the wrong
@@ -1557,13 +1556,13 @@ deep analysis:
         narration-marker regexes; cuts from the first opener to EOF, keeping prose) and applied it in
         [runChatAgentTurn](src/chat/chat-agent-turn.ts) with a `Done. (used: …)` confirmation fallback. Unit-tested +
         **re-verified live** (the same write now replies `"Done. (used: write_file)"`; file still created). Logged in
-        [local-llm-tests.md](.plan/local-llm-tests.md).
+        [local-llm-tests.md](docs/dev/local-llm-tests.md).
   - [x] **Round 2 — gemma-4-e4b + qwen3-8b via the chat lens (2026-06-24)** — write tasks clean (narration fix from
         Round 1 held; files written). Surfaced **Finding 6 (logged, not a fix): a grounding failure** — both models
         called `read_file` then ignored the result and answered from priors (qwen3-8b confabulated about *mathjs.org*;
         e4b gave a vague non-answer). That's a model-capability issue, **out of the parse-and-recover lane** ("don't
         teach the model"); candidate soft mitigation (more imperative tool-result framing) logged in
-        [local-llm-tests.md](.plan/local-llm-tests.md), not implemented speculatively.
+        [local-llm-tests.md](docs/dev/local-llm-tests.md), not implemented speculatively.
   - [x] **Round 3 — CORRECTION: the dev-test projects DO run small models (2026-06-24)** — Round 0's "the seed
         doesn't run / can't observe output" was a measurement error (watched **board columns**, decoupled from the
         **session**). Correct vehicle+lens (per the user's "use the dev test projects"): `projects.createDevTestProject`
@@ -1572,7 +1571,7 @@ deep analysis:
         (the scaffold evidence bundle is *not* updated by the run). **Verified live**: gemma-4-e2b drove `mid_task` to
         `awaiting_review` + a coherent result branch (`specification.md` +34/−12) through the swarm+Docker — the 2B
         model completed a real task; no new failure to harden (existing hardening held). Details in
-        [local-llm-tests.md](.plan/local-llm-tests.md).
+        [local-llm-tests.md](docs/dev/local-llm-tests.md).
   - [~] **Round 4 — gemma-4-e2b also completes `complex_dag`; cataloging needs a stream subscription (2026-06-24)** —
         ran the heavier `complex_dag` preset on gemma-4-e2b: it too reached `awaiting_review` + a captured result
         branch (~171s). Both presets succeed → existing hardening holds for this 2B model (no new fix). **Lesson:**
@@ -1646,7 +1645,7 @@ deep analysis:
   - [ ] run the parallel-fan-out presets under concurrency on the loaded small models + harden from observed
         failures — **output robustness only**; the quant / K-V / context matrix stays out of scope (section callout).
 - [ ] **Autonomous small-model sweep tooling** — iterate the loaded *small* models unattended on top of `dev sweep`,
-      appending each model's robustness findings to [local-llm-tests.md](.plan/local-llm-tests.md). Design the shape when
+      appending each model's robustness findings to [local-llm-tests.md](docs/dev/local-llm-tests.md). Design the shape when
       we start the in-scope small-model rounds. The full model/quant/config **matrix** + perf/efficiency capture stays
       **out of scope until release-able maturity** (section callout) — do not build matrix/perf tooling now.
 - [~] **Extend the agent tool-call interface to all known model-family formats** *(we own the runtime now; raised 2026-06-23)* —
@@ -2961,7 +2960,7 @@ deep analysis:
             anti-patterns audit finding #2 remediation ("move guardrails behind focused collaborators with tests"). The
             remaining ~3449 lines are the interwoven orchestration core (session lifecycle, turn execution, tool dispatch,
             event adaptation, message/summary recording) — not cleanly-separable guard seams.
-      - **Audit input (2026-06-26): whole-repo anti-pattern findings captured at `.plan/docs/anti-patterns.md`** (the
+      - **Audit input (2026-06-26): whole-repo anti-pattern findings captured at `docs/research/anti-patterns.md`** (the
             §5.U analysis arm — 7 findings + a cross-cutting cleanup order). **✅ DONE: #6 (constants DRY'd, `dbedf448`)
             + #4 (inline type imports removed, `9492905b`).** (Verified 2026-06-26: both are genuinely complete —
             `RUNTIME_NKLEIN_MIN_CONTEXT_WINDOW_TOKENS`/`80_000` are single-sourced in api-contract and there are zero
@@ -3110,7 +3109,7 @@ deep analysis:
 - *(cross-link note, not a work item)* **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition
       oracle), §5.H (native-core / core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side
       cleanup that also de-risks a port by shrinking the `@nkleinbot/*` coupling first).
-- [ ] **Target-structure roadmap (2026-06-26): `.plan/docs/architecture-and-structure-suggestions.md`** — the *target
+- [ ] **Target-structure roadmap (2026-06-26): `docs/research/architecture-and-structure-suggestions.md`** — the *target
       shape* for this refactor (complements the anti-pattern audit's code-level findings). 13 recommendations: (1)
       formalize the monorepo (npm workspaces; `apps/{web,desktop}` + `packages/{contracts,runtime,runtime-core,nklein-
       integration,web-runtime-client,test-harness}`); (2) split `api-contract.ts` into contract-domain modules behind one
@@ -3156,7 +3155,7 @@ deep analysis:
 >
 > **Methodology:** reuse the existing `scripts/verify-*.mts` / `scripts/sweep-capture.mts` harnesses, pinning each
 > model (most take a `--model` / model env, or the swarm reads it from the pinned provider settings). For each flow:
-> iterate the roster → pin → run → record per model in the matrix [cross-model-verification.md](.plan/cross-model-verification.md):
+> iterate the roster → pin → run → record per model in the matrix [cross-model-verification.md](docs/dev/cross-model-verification.md):
 > **✅ PASS · ❌ FAIL → harden** (a malformed-output / parse gap is a !Klein hardening task per the §5.O parse-and-recover
 > principle, NOT just a model failing) **· ⚠️ CANT** (the model genuinely isn't capable enough — a recorded capability-floor
 > data point, not a bug) **· 💥 DROPPED** (crashed mid-run) — then restore the user's selected model. **Priority:** fast
@@ -3709,7 +3708,7 @@ deep analysis:
 > + §5.AB fitness). **Invariants:** LOCAL ONLY (#1), **≥32k FLOOR is a minimum-capability GATE, never a fill target** (#3),
 > strict Docker isolation (#2).
 >
-> **Grounded in research (full notes + citations: [.plan/docs/context-smart-zone-and-reasoning-research.md](.plan/docs/context-smart-zone-and-reasoning-research.md)):**
+> **Grounded in research (full notes + citations: [docs/research/context-smart-zone-and-reasoning-research.md](docs/research/context-smart-zone-and-reasoning-research.md)):**
 > - **"Lost in the middle" → a U-shaped attention curve** (Liu et al. 2023): models use the **start + end** of context
 >   best, the **middle worst**, partly **architectural** (present at init in causal decoders — "Lost in the Middle at
 >   Birth" 2026). The user's "early ≠ smartest" point is the *causal* complement: early tokens can't attend to
@@ -3727,7 +3726,7 @@ deep analysis:
 >   rounds (reuse §5.K round-limit + stall/identical-loop detection; §5.S no-progress detector).
 - [x] **Research + durable notes (DONE 2026-06-26)** — web-researched lost-in-the-middle / U-shape / context-rot /
       RULER+NoLiMa effective-context / Anthropic arrangement / debate-vs-self-correction; synthesized into
-      [.plan/docs/context-smart-zone-and-reasoning-research.md](.plan/docs/context-smart-zone-and-reasoning-research.md)
+      [docs/research/context-smart-zone-and-reasoning-research.md](docs/research/context-smart-zone-and-reasoning-research.md)
       with a placement policy + a per-model-learnable field list + citations. (This section is its actionable backlog.)
 - [~] **Smart-zone context-arrangement policy.** **PURE CORE DONE (2026-06-26):**
       [src/core/context-smart-zone.ts](src/core/context-smart-zone.ts) — `arrangeContextForSmartZone(parts, options?)`
@@ -3788,7 +3787,7 @@ deep analysis:
 > surface **BASIC for now**, grow later. **Invariants:** LOCAL ONLY (#1 — the "architect → cloud model" use-case is
 > idea-only until cloud is revisited), ≥32k floor (#3), strict Docker isolation (#2).
 >
-> **Grounded in research (full notes + citations: [.plan/docs/dynamic-roles-skills-research.md](.plan/docs/dynamic-roles-skills-research.md)):**
+> **Grounded in research (full notes + citations: [docs/research/dynamic-roles-skills-research.md](docs/research/dynamic-roles-skills-research.md)):**
 > Skills are an emerging first-class, composable unit (a behavioral spec + applicable-scenario relevance + needed
 > context/tools + output template — "Agent Skills for LLMs" survey 2602.12430; Claude Code exposes skills). **Skill
 > routing** picks the right skills per task at runtime (SkillRouter 2603.22455); **dynamic skill-context construction**
@@ -3806,7 +3805,7 @@ deep analysis:
 > selection (§5.AB) is coupled via the dynamics level.
 - [x] **Research + durable notes (DONE 2026-06-26)** — web-researched agent skills / skill routing / dynamic skill-context
       construction / capability decomposition / autonomy-level taxonomy; synthesized into
-      [.plan/docs/dynamic-roles-skills-research.md](.plan/docs/dynamic-roles-skills-research.md) with the skill-unit design,
+      [docs/research/dynamic-roles-skills-research.md](docs/research/dynamic-roles-skills-research.md) with the skill-unit design,
       the dynamics-level mapping table, and the JIT-composition plan. (This section is its actionable backlog.)
 - [x] **First concrete step — relevance-gate the temporal/date fragment (the JIT-composition seed) — DONE (2026-06-26).**
       The §5.AC date is no longer blanket-injected: `isTemporalContextRelevant({text, role})`
@@ -3867,7 +3866,7 @@ deep analysis:
 > scheduler/resource events, leases, idempotency keys, replayable tool-result refs, and controller transitions so !Klein
 > can resume/replay long jobs without asking a small model to rediscover state.
 > Full schema + the system component map + the milestone ladder live in
-> **[.plan/docs/substrate-and-milestones.md](.plan/docs/substrate-and-milestones.md)**. **Invariants:** LOCAL ONLY (#1),
+> **[docs/research/substrate-and-milestones.md](docs/research/substrate-and-milestones.md)**. **Invariants:** LOCAL ONLY (#1),
 > strict isolation (#2), ≥32k floor (#3) — the ledger is host-side control-plane (it records agent attempts; it never
 > runs on the agent's behalf). **My adaptation of the audit:** consolidate, don't proliferate — fold its "flight
 > recorder / driving school / workload compiler / policy DSL / context profiler / freshness cache" framings into the
@@ -4082,7 +4081,7 @@ deep analysis:
       itself**, with **only read tools** (`read_file`/`list_dir`/`get_board` + the §6.7 repo-map/code-index over !Klein's
       own `src/`+`web-ui/`+`core-py/`) and the rich **planning corpus** as grounding: **[done.md](done.md)** (the
       shipped-feature catalog — exactly "what exists"), `todo.md` (what's left + why), `AGENTS.md` (tribal knowledge),
-      `CHANGELOG.md`, and `.plan/docs/*`. So a user can ask "what features exist / how does the swarm scheduler work / is
+      `CHANGELOG.md`, and `docs/**`. So a user can ask "what features exist / how does the swarm scheduler work / is
       this a known bug / how would idea Z fit" and get answers grounded in the *actual* code + decisions. Build on §5.M's
       scope machinery (a new `klein_self` scope, or registering the !Klein repo as a read-only project) + the existing
       execution-mode gate forced to `isolated_readonly` (no `write_file`/`run_command`/board-mutation — discussion only).
@@ -4706,7 +4705,7 @@ deep analysis:
 - [-] **LATER: Linux & Windows first-class runtime** — keep Docker mandatory for every agent shell/FS action; verify
   per-OS Docker availability, sandbox build/run, endpoint discovery, browser/runtime launch, path/PTY/Git/mount
   semantics, file-picker fallback. Must not weaken strict isolation. (A dev-only `start.bat` exists.)
-  *(Folded 2026-06-28 from the former `.plan/docs/cross-platform-compatibility-remediation-plan.md` — CP-001…CP-006
+  *(Folded 2026-06-28 from a now-removed planning doc (`cross-platform-compatibility-remediation-plan.md`) — CP-001…CP-006
   already SHIPPED [OS-aware open actions, robust folder picker, best-effort Windows ignored-path mirroring, transcript
   path normalization, OpenCode Windows path probes, runtime command-exec portability]. Two concrete items remain when
   this is picked up:)*

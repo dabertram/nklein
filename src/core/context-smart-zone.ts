@@ -1,7 +1,7 @@
 /**
  * Smart-zone context arrangement (todo §5.AD) — order assembled context for where models actually attend.
  *
- * Research (full notes + citations: `.plan/docs/context-smart-zone-and-reasoning-research.md`): LLM attention is
+ * Research (full notes + citations: `docs/research/context-smart-zone-and-reasoning-research.md`): LLM attention is
  * **U-shaped** — the **start** and **end** of the context are used best, the **middle** worst ("lost in the middle",
  * Liu et al. 2023; partly architectural). Attention is also **causal**, so the earliest tokens can't attend to
  * background that appears later — the model only has the full picture **near the end**. And over-filling a window

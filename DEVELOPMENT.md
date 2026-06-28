@@ -247,7 +247,7 @@ Important behavior details:
 
 For a full technical breakdown, see:
 
-- `.plan/docs/runtime-hooks-architecture.md`
+- `docs/architecture/runtime-hooks-architecture.md`
 
 ## PostHog telemetry config
 
