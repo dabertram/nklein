@@ -28,7 +28,7 @@ const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1
 const OUTER_TIMEOUT_MS = Number(process.env.NKLEIN_SWEEP_TIMEOUT_MS ?? "420000");
 const HARNESS_TIMEOUT_MS = process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "300000";
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
-const MATRIX_LOG = join(REPO_ROOT, ".plan", "cross-model-verification.md");
+const MATRIX_LOG = join(REPO_ROOT, "docs", "dev", "cross-model-verification.md");
 
 type Outcome = "PASS" | "FAIL" | "TIMEOUT" | "DROPPED";
 const SYMBOL: Record<Outcome, string> = { PASS: "✅", FAIL: "❌", TIMEOUT: "⏱", DROPPED: "💥" };
@@ -42,6 +42,22 @@ interface ModelResult {
 }
 
 async function listLoadedModels(): Promise<string[]> {
+	// Prefer LM Studio's native endpoint, which reports per-model `state` so we sweep only models actually LOADED in
+	// memory (the runnable set) — NOT every downloaded model (JIT-loading 35B–122B giants would thrash VRAM and take
+	// hours). Fall back to the OpenAI-compat `/v1/models` (which lists all downloaded) only if the native API is absent.
+	try {
+		const nativeUrl = `${BASE_URL.replace(/\/v1\/?$/, "")}/api/v0/models`;
+		const res = await fetch(nativeUrl, { signal: AbortSignal.timeout(5_000) });
+		if (res.ok) {
+			const payload = (await res.json()) as { data?: Array<{ id?: string; state?: string }> };
+			const loaded = (payload.data ?? []).filter((m) => m.state === "loaded").map((m) => m.id ?? "").filter(Boolean);
+			if (loaded.length > 0) {
+				return loaded;
+			}
+		}
+	} catch {
+		/* fall through to /v1/models */
+	}
 	try {
 		const res = await fetch(`${BASE_URL}/models`, { signal: AbortSignal.timeout(5_000) });
 		const payload = (await res.json()) as { data?: Array<{ id?: string }> };
