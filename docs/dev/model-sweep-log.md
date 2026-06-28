@@ -128,6 +128,12 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 18:18Z · **chat create_card — full loaded-roster sweep** · `verify-all-models verify-chat-create-card` · _(Low Power)_
+| model | create_card | note |
+|---|:-:|---|
+| all 8 loaded (qwen3-8b · coder-14b · gemma-4-e2b · qwen3.5-9b · phi-4-mini · nemotron · qwopus-4b NEW · ornith-9b NEW) | ✅ | **8/8** created a real board card at runtime (9–42 s). phi-4-mini ✅ here (chat tool-set-reduction path works, unlike the agent multi-step flow). **Both new models clean.** |
+> **The 2 new models (qwopus3.5-4b, ornith-1.0-9b) are now fully characterized: C0 ✅ · C1 ✅ · C2 ✅ · chat create_card ✅** — usable additions to the roster.
+
 ### 2026-06-28 18:05Z · **C2 auto-promote — full loaded-roster sweep** · `verify-all-models verify-autopromote-recovery` · _(Low Power)_
 | model | C2 auto-promote | note |
 |---|:-:|---|
