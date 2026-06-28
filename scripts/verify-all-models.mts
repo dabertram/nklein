@@ -25,8 +25,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
-const OUTER_TIMEOUT_MS = Number(process.env.NKLEIN_SWEEP_TIMEOUT_MS ?? "420000");
-const HARNESS_TIMEOUT_MS = process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "300000";
+// Generous-but-bounded budgets: slow models (esp. reasoning models) need room so a TIMEOUT means "genuinely too slow",
+// not "we cut it off early" — but a hung run must still terminate + be recorded. Outer cap > harness budget so the
+// harness reports its own INCOMPLETE/PARTIAL before the outer hard-kill (which yields a less-informative TIMEOUT).
+const OUTER_TIMEOUT_MS = Number(process.env.NKLEIN_SWEEP_TIMEOUT_MS ?? "960000"); // 16 min outer hard cap
+const HARNESS_TIMEOUT_MS = process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "840000"; // 14 min harness-internal budget
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const MATRIX_LOG = join(REPO_ROOT, "docs", "dev", "cross-model-verification.md");
 

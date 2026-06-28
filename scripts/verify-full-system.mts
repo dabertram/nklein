@@ -72,9 +72,17 @@ test("a zero target still returns 0", () => {
 
 type Verdict = "PASS" | "PARTIAL" | "INCOMPLETE";
 
+interface SessionView {
+	state?: string;
+	reviewReason?: string | null;
+	exitCode?: number | null;
+	heartbeatStatus?: string | null;
+	latestHookActivity?: { activityText?: string | null; toolName?: string | null } | null;
+}
+
 interface WorkspaceStateView {
 	board?: { cards?: unknown[] };
-	sessions?: Record<string, { state?: string }>;
+	sessions?: Record<string, SessionView>;
 }
 
 function log(line = ""): void {
@@ -191,7 +199,17 @@ async function main(): Promise<void> {
 	let workspacePath: string | null = null;
 	let restoreModel: { modelId: string; baseUrl: string } | null = null;
 	let restoreGuardrails: unknown = null;
-	const observed = { terminalState: "", lastState: "", started: false, startError: "", cards: 0 };
+	const observed = {
+		terminalState: "",
+		lastState: "",
+		started: false,
+		startError: "",
+		cards: 0,
+		reviewReason: "" as string | null | undefined,
+		heartbeat: "" as string | null | undefined,
+		lastActivity: "" as string | null | undefined,
+		lastTool: "" as string | null | undefined,
+	};
 
 	try {
 		runtime = await bootFullSystemRuntime({ home });
@@ -242,6 +260,10 @@ async function main(): Promise<void> {
 			const session = state?.sessions?.[seedTaskId];
 			if (session?.state) {
 				observed.lastState = session.state;
+				observed.reviewReason = session.reviewReason;
+				observed.heartbeat = session.heartbeatStatus;
+				observed.lastActivity = session.latestHookActivity?.activityText ?? observed.lastActivity;
+				observed.lastTool = session.latestHookActivity?.toolName ?? observed.lastTool;
 				if (TERMINAL_STATES.has(session.state)) {
 					observed.terminalState = session.state;
 					break;
@@ -262,6 +284,18 @@ async function main(): Promise<void> {
 		log(`Terminal state: ${observed.terminalState || `none (last: ${observed.lastState || "n/a"})`}`);
 		log(`Cards on board: ${observed.cards}`);
 		log(`Result oracle:  ${oracle.detail}`);
+		if (verdict !== "PASS") {
+			// Collect proper diagnostics for a non-PASS (timeout/interrupt/partial): the last session detail + the
+			// real runtime stderr tail (where an SDK/model error or heartbeat loss that aborted the session shows up).
+			log("");
+			log("--- triage: last session detail ---");
+			log(`  lastState=${observed.lastState || "n/a"} reviewReason=${observed.reviewReason ?? "n/a"} heartbeat=${observed.heartbeat ?? "n/a"}`);
+			log(`  lastTool=${observed.lastTool ?? "n/a"} lastActivity=${(observed.lastActivity ?? "n/a").slice(0, 200)}`);
+			log("--- triage: runtime stderr tail ---");
+			for (const line of (runtime?.stderrTail() ?? "(no runtime)").split("\n").slice(-40)) {
+				log(`  ${line}`);
+			}
+		}
 		if (!oracle.valid && (oracle.agentSource || oracle.oracleOutput)) {
 			// Keep a PARTIAL triageable: the project is torn down in cleanup, so the evidence must live in this report.
 			log("");

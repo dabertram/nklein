@@ -166,3 +166,14 @@
 - ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 34s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
 - ❌ **FAIL** · `microsoft/phi-4-reasoning-plus-m5max` · 55s · INCOMPLETE — see above.
   - matrix row: phi-4-mini-reasoning=✅ phi-4-reasoning-plus-m5max=❌
+
+### 2026-06-28 01:56:38 · verify-full-system
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 87s · PASS ✓ the real stack ran a small model to a terminal state AND the generated result is VALID (cap bug fixed).
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 63s · PASS ✓ the real stack ran a small model to a terminal state AND the generated result is VALID (cap bug fixed).
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 93s · PASS ✓ the real stack ran a small model to a terminal state AND the generated result is VALID (cap bug fixed).
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 109s · PASS ✓ the real stack ran a small model to a terminal state AND the generated result is VALID (cap bug fixed).
+- ⏱ **TIMEOUT** · `microsoft/phi-4-mini-reasoning` · 626s · INCOMPLETE — the card did not reach a terminal state within the timeout.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 88s · PASS ✓ the real stack ran a small model to a terminal state AND the generated result is VALID (cap bug fixed).
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 241s · PARTIAL — reached a terminal state but the generated result is INVALID (see oracle).
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 306s · INCOMPLETE — the card did not reach a terminal state within the timeout.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=⏱ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌

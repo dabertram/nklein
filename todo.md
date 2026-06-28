@@ -3724,6 +3724,82 @@ deep analysis:
       full matrix for release confidence. **Per routing decision, ledger (§5.AF):** predicted route · actual outcome ·
       verifier outcome · uncertainty score · selected rung · queue/resource state · accept/reject reason.
 
+> **★ 2026-06-28 user emphasis — the user-triggerable capability sweep + fully-automatic assignment + ALWAYS-FRESH
+> grounded metrics (sharpens this section; do NOT re-litigate the §5.AB direction — this is the same crown, made
+> concrete and broadened).** The user restated three intertwined wants; all three are §5.AB but with sharper scope:
+>
+> 1. **A user-triggerable "evaluate all loaded models" capability/performance sweep.** One action (Settings + a board/
+>    command surface) makes !Klein sweep **every loaded LM Studio model** through a predefined prompt corpus and collect
+>    quality×speed×reliability metrics → populates the fitness table → shows a report. This is the §5.AB *evaluation
+>    harness* ("Settings: Evaluate connected models") made first-class + user-initiated. **It reuses the live sweep
+>    machinery that already exists** (`scripts/verify-all-models.mts` + the `verify-*.mts` harnesses + the loaded-model
+>    discovery via LM Studio's native `/api/v0/models` `state==="loaded"`), promoted from a dev script into a real,
+>    in-app, user-triggerable run that writes the fitness store (not just the markdown matrix).
+> 2. **Fully automatic role/task→model assignment (the "auto-assign models" feature, raised earlier + now restated).**
+>    Default mode: the user can hand model selection **entirely** to !Klein — it assigns the best model per role/task from
+>    the fitness store, with pin/prefer/weight overrides. This is the §5.AB "Automatic role→model assignment (DEFAULT
+>    mode)" item — keep it as the headline deliverable; the live wiring (`selectModelForTask` ← `buildModelFitnessFromLedger`
+>    + `estimateTaskDifficulty`, behind a default-off dial until live-verified) is the gating step.
+> 3. **Continuous, always-on runtime metric extension (grounded evidence, never stale).** Every REAL run (chat + swarm +
+>    dev-test rail) and every triggered sweep is a data point that updates the fitness store online (§5.AA
+>    `ModelBehaviorProfile` EWMA + `buildModelFitnessFromLedger` ledger projection). **New requirements to add:** (a) a
+>    **freshness/decay** policy — a model's fitness record carries a last-measured timestamp + sample count; stale or
+>    thin entries decay toward "unknown" and are prioritized for re-eval (so assignment always rests on *current*
+>    grounded evidence, important because LM Studio's loaded set + quant + context change between sessions); (b) the
+>    record is **keyed by the live model fingerprint** (id + loaded context + quant where available), so a re-loaded model
+>    at a different size doesn't inherit stale numbers (ties the §5.AB "context window = loaded size" fix above); (c)
+>    re-eval is **incremental + idle-aware** — the §5.AI always-on rail re-measures least-recently/least-confidently
+>    measured (model,role) cells when models are idle, continuously refreshing the table for free.
+>
+> **Unify the evidence substrate (the key integration — do not build parallel stores).** The cross-model matrix (§5.Z
+> `docs/dev/cross-model-verification.md`), the dev-test rail evidence (§5.AI `rail-*.json`), the on-demand eval-harness
+> scores (§5.AB corpus), and the live runtime outcomes (§5.AA/§5.AF ledger) are **four producers of ONE thing: grounded
+> per-(model,role,difficulty) capability evidence** → the single **fitness store** the auto-assigner reads. The sweep
+> I run during the dev-test model passes IS this evidence — its PASS/PARTIAL/flake/timeout/interrupted outcomes per model
+> must feed the same store, not a separate log. **The "failing-LLM list" the user asked for is a PROJECTION of this store,
+> not a hand-maintained file:** a model that consistently sits below the quality bar for a role is auto-recorded as
+> below-bar there (and the auto-assigner avoids it for that role); a `nklein dev model-report` / Settings surface renders
+> "models that can't deliver role X" from the store. (Provisional human-readable capture until the store lands lives in
+> §5.Z's matrix + the §5.O log; fold it into the store when built.)
+>
+> **Broaden the eval-prompt corpus to ALL use cases — current AND planned (sharpens the §5.AB corpus item).** Not just
+> architect/worker/reviewer: the corpus must challenge **every interactive capability !Klein has or will add**, each with
+> a deterministic-ish scorer, so the fitness store can route *any* role: decompose/plan (valid DAG + §5.B refinement +
+> `begin_implementation` gating) · implement (correct passing code) · review (catches a planted defect, §5.K) · **chat
+> agent** (the §5.M tool suite — board/workspace/focus-chain ops) · **tool-calling** (BFCL-style: exact normalized args,
+> no-call cases, irrelevant-tool avoidance, malformed-format recovery — §5.V) · **command execution** (runs a real shell
+> cmd + reads output) · **browser/web** (when that lane is local-allowed) · **structured output** (schema-valid JSON) ·
+> **reasoning** (reasoning-channel capture + not running away) · **long-context / memory** (update stale facts, abstain
+> when evidence missing). Version the corpus so re-evals compare. The existing `verify-*.mts` family (verify-chat-*,
+> verify-decompose-isolation, verify-multi-card-pipeline, verify-full-system, etc.) is the *seed* set of scorers — the
+> corpus formalizes + extends them into the graded matrix.
+>
+> **Full difficulty range — trivial → EXTREME, incl. hard coding challenges (2026-06-28 user).** The corpus must span
+> **very-low to very-very-high** complexity/difficulty per role so the table can justify reserving the **strongest**
+> models (the 27B–122B class the user has downloaded) for tasks only they can clear — not just rank the small ones. Add
+> an **`extreme`/`expert` tier above `very-hard`** with genuinely hard items, prominently **coding challenges** (multi-
+> file refactors, subtle-invariant bug fixes, algorithmic problems with hidden-test scoring, concurrency/correctness
+> traps — the §5.O dev-test projects #10/#19/#20/#26/#29 etc. are a ready source of expert-tier coding tasks). A small
+> model is *expected* to fail the top tiers — that's the point: the gradient (which tier each model can clear) is what
+> makes the assignment **valuable**, letting !Klein send an expert task to a strong model and a trivial one to a fast
+> small model. **The eval run must produce assignment-grade output:** per (model, role) the **highest difficulty tier
+> cleared** (+ quality grade, speed, reliability across repeats, retries-needed) — directly the key the auto-assigner
+> reads, not just a pass/fail blob.
+>
+> **Persist results WITH a context-size attribute (2026-06-28 user — important).** Model performance AND reasoning
+> quality vary strongly with the loaded context window, so every fitness/eval record **must persist the context size it
+> was measured at** (part of the model fingerprint: id + **loaded context window** + quant), and assignment must compare
+> like-for-like (don't reuse a 40k-context measurement to justify a model loaded at 8k). Re-measure when the loaded
+> context changes; keep the freshness/decay + last-measured-timestamp from the continuous-runtime point above. This makes
+> the auto-assignment evidence both **grounded** and **valid for the model as currently loaded**. (Ties the §5.AB
+> "context window = loaded size, not max" fix already shipped above.)
+>
+> **Generous-but-bounded eval timeouts (2026-06-28).** Capability sweeps must give slow models (esp. reasoning models)
+> generous room so a TIMEOUT means "genuinely too slow for the budget," not "we cut it off early" — but never unlimited
+> (a hung run must still terminate + record). A timeout/interrupt is itself a recorded fitness signal (low speed-fitness
+> / unreliable for that difficulty), not just a discarded run. (Concretely: the sweep harness budgets were raised
+> 2026-06-28 — see the §5.Z/Phase-2 notes.)
+
 ### 5.AC — Online knowledge retrieval + intrinsic temporal awareness (the "knows today" lighthouse) *(2026-06-26, user — ACTIVE)*
 > **Vision (user, 2026-06-26):** two intertwined grounding features that make !Klein trustworthy where ChatGPT/other
 > agents repeatedly fail. **(A) Automatic ONLINE knowledge retrieval** — today the knowledge-retrieval skills check only
