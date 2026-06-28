@@ -24,6 +24,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { resolveNkleinRuntimeHomePath } from "../src/config/runtime-paths";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
+import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
 
@@ -33,7 +34,7 @@ const PROVIDER_ID = process.env.NKLEIN_VERIFY_PROVIDER?.trim() || "lmstudio";
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim() || "";
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const CONTEXT_WINDOW = Number(process.env.NKLEIN_VERIFY_CONTEXT_WINDOW ?? "40000");
-const TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "150000");
+const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "150000");
 const TASK_ID = "verify-restart-task-1";
 
 function log(line: string): void {
@@ -83,6 +84,9 @@ async function waitForContainer(deadline: number): Promise<string> {
 }
 
 async function main(): Promise<void> {
+	// Power-aware: Low Power Mode (~50% throughput) ⇒ scale the budget so slow models don't spuriously time out.
+	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
+	const TIMEOUT_MS = power.timeoutMs;
 	const home = homedir();
 	if (!home.includes("nklein-verify") && process.env.NKLEIN_VERIFY_ALLOW_REAL_HOME !== "1") {
 		throw new Error(

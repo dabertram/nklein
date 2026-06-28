@@ -25,6 +25,7 @@ import { promisify } from "node:util";
 import type { RuntimeBoardData } from "../src/core/api-contract";
 import type { NKleinCardPromotedEvent } from "../src/nklein-agent/nklein-promotion-tool";
 import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
+import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
 import { loadWorkspaceState, saveWorkspaceState } from "../src/state/workspace-state";
@@ -35,7 +36,7 @@ const PROVIDER_ID = process.env.NKLEIN_VERIFY_PROVIDER?.trim() || "lmstudio";
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim() || "";
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const CONTEXT_WINDOW = Number(process.env.NKLEIN_VERIFY_CONTEXT_WINDOW ?? "40000");
-const TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "240000");
+const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "240000");
 
 const TASK_ID = "verify-autopromote-card";
 // The repo-mutating tools whose first approval should trigger the auto-promote (mirrors REPO_MAP_INVALIDATING_TOOL_NAMES).
@@ -120,6 +121,9 @@ async function columnOfCard(project: string): Promise<string | null> {
 }
 
 async function main(): Promise<void> {
+	// Power-aware: Low Power Mode (~50% throughput) ⇒ scale the budget so slow models don't spuriously time out.
+	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
+	const TIMEOUT_MS = power.timeoutMs;
 	const home = homedir();
 	if (!home.includes("nklein-verify") && process.env.NKLEIN_VERIFY_ALLOW_REAL_HOME !== "1") {
 		throw new Error(

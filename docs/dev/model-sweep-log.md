@@ -128,6 +128,14 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 18:05Z · **C2 auto-promote — full loaded-roster sweep** · `verify-all-models verify-autopromote-recovery` · _(Low Power)_
+| model | C2 auto-promote | note |
+|---|:-:|---|
+| qwen3-8b · coder-14b · gemma-4-e2b · qwen3.5-9b · nemotron-3-nano · qwopus-4b (NEW) · ornith-9b (NEW) | ✅ | 7/8 clean recovery-path promotes (9–38 s); both new models confirmed on C2 |
+| microsoft/phi-4-mini-reasoning | ❌ | INCOMPLETE at **304 s** — hit the 300 s budget. **Likely a Low-Power-budget artifact, not a hard ceiling:** `verify-autopromote-recovery` (unlike task-completion/multi-card) had **no power-aware timeout scaling**, so the slow reasoning model ran out of (unscaled) time. → drove a harness fix (power-scale the isolation harnesses); re-validate phi-4 C2 with the scaled budget before judging. |
+> **C2 = 7/8** (phi-4-mini's fail is a budget/Low-Power artifact pending re-validation). Ladder so far across the loaded
+> roster: **C1 8/8**, **C2 7/8**, **C0** 6✅/1 STALLED/1 PARTIAL (delivery-gated).
+
 ### 2026-06-28 17:55Z · **C1 decompose — full loaded-roster sweep** · `verify-all-models verify-decompose-isolation` · _(Low Power)_
 | model | C1 decompose | note |
 |---|:-:|---|
