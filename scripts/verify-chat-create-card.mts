@@ -19,6 +19,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { loadWorkspaceState } from "../src/state/workspace-state";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 
 const execFileAsync = promisify(execFile);
 const requireFromHere = createRequire(import.meta.url);
@@ -51,6 +52,10 @@ async function boardHasCardTitled(workspace: string, title: string): Promise<boo
 }
 
 async function main(): Promise<void> {
+	// Never load models — only test already-loaded ones (user directive 2026-06-28). Refuse a specified non-resident model.
+	if (MODEL_ID) {
+		await assertModelLoaded(BASE_URL, MODEL_ID);
+	}
 	const home = homedir();
 	if (!home.includes("nklein-verify") && process.env.NKLEIN_VERIFY_ALLOW_REAL_HOME !== "1") {
 		throw new Error(`Refusing to run against HOME=${home}. Set HOME to an isolated dir (e.g. /tmp/nklein-verify).`);

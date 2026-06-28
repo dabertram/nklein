@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 
 const execFileAsync = promisify(execFile);
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
@@ -24,6 +25,10 @@ function log(line: string): void {
 }
 
 async function main(): Promise<void> {
+	// Never load models — only test already-loaded ones (user directive 2026-06-28). Refuse a specified non-resident model.
+	if (MODEL_ID) {
+		await assertModelLoaded(BASE_URL, MODEL_ID);
+	}
 	const home = homedir();
 	if (!home.includes("nklein-verify") && process.env.NKLEIN_VERIFY_ALLOW_REAL_HOME !== "1") {
 		throw new Error(`Refusing to run against HOME=${home}. Use an isolated dir (e.g. /tmp/nklein-verify-reasoning).`);

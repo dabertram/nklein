@@ -21,6 +21,7 @@ import { type ChatToolAuditRecord, createGatedChatToolExecutor } from "../src/ch
 import { appendChatMessage, readChatTranscript } from "../src/chat/chat-transcript-store";
 import { createWorkspaceReadTools, createWorkspaceWriteTools } from "../src/chat/chat-workspace-tools";
 import { LocalLlmClient } from "../src/nklein-agent/nklein-local-llm-client";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim() || "";
@@ -45,6 +46,10 @@ async function resolveModelId(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+	// Never load models — only test already-loaded ones (user directive 2026-06-28). Refuse a specified non-resident model.
+	if (MODEL_ID) {
+		await assertModelLoaded(BASE_URL, MODEL_ID);
+	}
 	const modelId = await resolveModelId();
 	log(`Model: ${modelId}  BaseUrl: ${BASE_URL}`);
 

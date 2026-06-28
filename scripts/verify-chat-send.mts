@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createChatService } from "../src/chat/chat-service";
 import { resolveLocalChatModelDeps } from "../src/chat/local-chat-model";
+import { assertModelLoaded } from "../src/core/lmstudio-loaded-models";
 
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim();
@@ -22,6 +23,10 @@ function log(line: string): void {
 }
 
 async function main(): Promise<void> {
+	// Never load models — only test already-loaded ones (user directive 2026-06-28). Refuse a specified non-resident model.
+	if (MODEL_ID) {
+		await assertModelLoaded(BASE_URL, MODEL_ID);
+	}
 	const rootDir = await mkdtemp(join(tmpdir(), "nklein-chat-send-verify-"));
 	try {
 		const service = createChatService({
