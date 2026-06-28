@@ -206,6 +206,13 @@ async function main(): Promise<void> {
 	}
 
 	log("");
+	// A structured, paste-ready row for docs/dev/model-sweep-log.md (the per-run scoreboard) — the harness collects the
+	// facts; a human/agent adds the judgment note (🚀/🐢/🐞/…).
+	log(
+		`SWEEP-ROW | ${new Date().toISOString()} | C0 single-card | model=${modelId} | ` +
+			`result=${obs.terminal ? "PASS ✓" : "INCOMPLETE ⏳"} | terminal=${obs.terminal ? obs.terminalState : obs.lastState || "n/a"} | ` +
+			`power=${power.mode}×${power.multiplier}`,
+	);
 	log(
 		obs.terminal
 			? "PASS ✓ a small local model ran the card to a terminal state (awaiting_review/completed) with its result captured."

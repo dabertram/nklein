@@ -271,6 +271,12 @@ async function main(): Promise<void> {
 		log("=== Multi-card pipeline result ===");
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
 		log(`All cards reached a terminal lane (review/completed): ${allTerminal ? "YES" : "NO"}`);
+		// Paste-ready row for docs/dev/model-sweep-log.md (the per-run scoreboard).
+		log(
+			`SWEEP-ROW | ${new Date().toISOString()} | multi-card ${PRESET} | model=${MODEL_ID} | ` +
+				`decompose=${decomposed ? "YES" : "NO"} | result=${allTerminal ? "PASS ✓" : "INCOMPLETE ⏳"} | ` +
+				`power=${power.mode}×${power.multiplier}`,
+		);
 		log(
 			allTerminal
 				? "PASS ✓ full-runtime multi-card pipeline ran decompose → cascade → all cards terminal."
