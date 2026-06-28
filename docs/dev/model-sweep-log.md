@@ -132,9 +132,10 @@
 | model | C2 auto-promote | note |
 |---|:-:|---|
 | qwen3-8b · coder-14b · gemma-4-e2b · qwen3.5-9b · nemotron-3-nano · qwopus-4b (NEW) · ornith-9b (NEW) | ✅ | 7/8 clean recovery-path promotes (9–38 s); both new models confirmed on C2 |
-| microsoft/phi-4-mini-reasoning | ❌ | INCOMPLETE at **304 s** — hit the 300 s budget. **Likely a Low-Power-budget artifact, not a hard ceiling:** `verify-autopromote-recovery` (unlike task-completion/multi-card) had **no power-aware timeout scaling**, so the slow reasoning model ran out of (unscaled) time. → drove a harness fix (power-scale the isolation harnesses); re-validate phi-4 C2 with the scaled budget before judging. |
-> **C2 = 7/8** (phi-4-mini's fail is a budget/Low-Power artifact pending re-validation). Ladder so far across the loaded
-> roster: **C1 8/8**, **C2 7/8**, **C0** 6✅/1 STALLED/1 PARTIAL (delivery-gated).
+| microsoft/phi-4-mini-reasoning | ⚠️ | First run INCOMPLETE at 304 s (hit the unscaled 300 s budget) — which exposed + drove a harness fix (power-scale the isolation harnesses). **Re-validated with the 2× scaled budget (600 s): STILL fails** — `onCardPromoted: 0`, card never left `planning`. So it's a **genuine capability-floor, not a budget artifact** (re-validated per "don't judge prematurely"): phi-4 doesn't drive the multi-step recovery flow. Lift = §5.AA reason-then-act rung (already backlogged for phi-4). |
+> **C2 = 7✅/1⚠️** (phi-4-mini ⚠️ re-validated as genuine). **phi-4-mini's ladder profile is now clear: single-turn OK
+> (C1 ✅), multi-step tool-driving fails (C0 delivery ◑, C2 promote ⚠️)** — a §5.AA reason-then-act target, not a ceiling
+> to hide. Ladder across the loaded roster: **C0** 6✅/1🧱/1◑ · **C1** 8/8 ✅ · **C2** 7✅/1⚠️.
 
 ### 2026-06-28 17:55Z · **C1 decompose — full loaded-roster sweep** · `verify-all-models verify-decompose-isolation` · _(Low Power)_
 | model | C1 decompose | note |
