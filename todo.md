@@ -3289,6 +3289,22 @@ deep analysis:
 >   a diagnostic run with LM Studio logs is in flight.
 > - **The hermetic oracle is working correctly** — it cleanly PASSes valid fixes and flags genuinely-invalid ones (the
 >   qwopus PARTIAL was a real wrong result, not a false-fail).
+>
+> **PHASE-2 SWEEP FINDINGS — use-case #2 `verify-decompose-isolation` (decompose / architect role), 2026-06-28, 8 models.**
+> **7/8 PASS** (no host path leaked into the agent's output during a real decompose). Highlights:
+> - **phi-4-mini-reasoning PASSED decompose** (843s, slow) — so the reasoning model that *can't* do agentic code-edit
+>   (use-case #1) **can** do the decompose/planning role. **Validates the §5.AB routing thesis:** don't blanket-blacklist
+>   a model — route it to the roles it clears (a reasoning model is fine for plan/decompose/reason, weak at tool-edits).
+> - **ornith-1.0-9b FAILED → surfaced a REAL product robustness bug (FIXED 2026-06-28).** The failure wasn't a leak; the
+>   session couldn't even start: **"Could not clone project into sandbox workspace: destination path '/workspaces/
+>   verify-decompose-1' already exists and is not an empty directory."** Root cause: `prepareWorkspace`
+>   ([nklein-agent-sandbox.ts](src/nklein-agent/nklein-agent-sandbox.ts)) `git clone`s into `/workspaces/<taskId>` (a
+>   **host-level shared volume keyed by taskId**); a prior run that didn't dispose cleanly (an interrupted/aborted
+>   session — the §5.AA transient-abort class above — or a reused taskId across the sweep's separate processes) leaves a
+>   non-empty workdir, and git refuses to clone into it. **Fix: clear any stale workdir (`rm -rf`) before the clone** —
+>   every caller (start / review-at-result / acceptance-at-result) wants a fresh clone and the clone overwrites anyway, so
+>   this only turns a hard start-failure into a clean fresh clone. **This also hardens real resume-after-crash** (a task
+>   whose sandbox workspace was left dirty can now restart). Verified the normal decompose path still passes after the fix.
 - [ ] **HARDENING (Phase-2 finding 2026-06-28, root-caused): a transient SDK `aborted` end parks a slow model as
       `interrupted` instead of retrying.** ROOT CAUSE (traced, not guessed): `interrupted` is set when the vendored agent
       loop emits an `aborted` done/error event **with no final text** and it isn't a reviewable aborted tool completion

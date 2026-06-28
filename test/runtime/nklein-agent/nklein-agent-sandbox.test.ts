@@ -352,10 +352,20 @@ describe("AgentSandboxManager", () => {
 				args.join(" ") ===
 				`exec -u ${createAgentSandboxTaskUid("task-1")} -w /workspaces nklein-agent-sandbox-1 mkdir -m 700 -p /workspaces/task-1`,
 		);
+		// A stale workspace at the task path is cleared BEFORE the (re)create + clone, so a leftover from a prior
+		// run that didn't dispose cleanly can't block `git clone` with "destination path already exists / not empty".
+		const rmStaleCallIndex = calls.findIndex(
+			(args) =>
+				args.join(" ") ===
+				`exec -u ${createAgentSandboxTaskUid("task-1")} -w /workspaces nklein-agent-sandbox-1 rm -rf /workspaces/task-1`,
+		);
+		const cloneCallIndex = calls.findIndex((args) => args.includes("clone"));
 
 		expect(mkdirRootCallIndex).toBeGreaterThanOrEqual(0);
 		expect(chmodRootCallIndex).toBeGreaterThan(mkdirRootCallIndex);
-		expect(mkdirTaskCallIndex).toBeGreaterThan(chmodRootCallIndex);
+		expect(rmStaleCallIndex).toBeGreaterThan(chmodRootCallIndex);
+		expect(mkdirTaskCallIndex).toBeGreaterThan(rmStaleCallIndex);
+		expect(cloneCallIndex).toBeGreaterThan(mkdirTaskCallIndex);
 	});
 
 	it("reports workspace cleanup failures without leaking the pool slot", async () => {

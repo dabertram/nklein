@@ -177,3 +177,14 @@
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 241s · PARTIAL — reached a terminal state but the generated result is INVALID (see oracle).
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 306s · INCOMPLETE — the card did not reach a terminal state within the timeout.
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=⏱ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 03:16:06 · verify-decompose-isolation
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 27s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 56s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 16s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 21s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 843s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 22s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 843s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 312s · Docker sandbox available ✓
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=❌

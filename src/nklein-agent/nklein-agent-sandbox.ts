@@ -453,6 +453,18 @@ export class AgentSandboxManager {
 				await this.execAsRoot(placement, ["chmod", "1777", AGENT_SANDBOX_WORKSPACES_DIR]),
 				"set sandbox workspace root permissions",
 			);
+			// Clear any STALE workspace left at this path before cloning. The sandbox workspaces dir is a host-level
+			// shared volume keyed by taskId, so a prior run that didn't dispose cleanly (an interrupted/aborted session,
+			// or a reused taskId across processes) leaves a non-empty `/workspaces/<taskId>` — and `git clone` then fails
+			// with "destination path already exists and is not an empty directory", blocking the start. Every caller of
+			// prepareWorkspace wants a FRESH clone (start / review-at-result / acceptance-at-result), and the clone always
+			// overwrites anyway, so removing a stale dir first only turns a hard failure into a clean fresh clone.
+			assertSandboxExecOk(
+				await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
+					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+				}),
+				"clear any stale sandbox task workspace",
+			);
 			assertSandboxExecOk(
 				await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", placement.workdir], {
 					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
