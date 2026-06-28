@@ -45,7 +45,7 @@
 | chat runtime · `verify-chat-runtime` | ✅ | · | · | · | · | · | · | · | · |
 | autonomous run · `verify-chat-autonomous-live` | ✅ | · | · | · | · | · | · | · | · |
 | multi-card pipeline · `verify-multi-card-pipeline` | ✅ | · | · | · | · | · | · | · | · |
-| output robustness · `sweep-capture` | ✅ | ✅ | ◑ | ✅ | ✅ | · | · | ✅ | · |
+| output robustness · `sweep-capture` | ✅ | ✅ | ◑ | ✅ | ✅ | ⚠️ | · | ✅ | · |
 
 > **†** The `verify-chat-agent-e2e` capstone asks for **4 specific tools in ONE turn** (read → run_command →
 > create_card → update_focus_chain). That composition is **stochastic** for small models — even qwen3-8b varies run to
@@ -231,3 +231,6 @@ Single-card delivery → awaiting_review + captured result branch, for two model
 - ✅ **CLEAN** · `qwen/qwen2.5-coder-14b-m5max` · reached `awaiting_review`; tool sequence list_files→get_file_size→read_files→update_focus_chain→begin_implementation (10 calls); **0 narration leaks, 0 hot repeated tool calls, 0 reasoning-channel narration**. 954 WS frames. Matrix → ✅.
 - ◑ **PARTIAL** · `qwen3.5-9b-mlx-m5max` · **output FORMAT clean (0 narration leaks)** but did NOT reach a terminal state within 300s; 78 tool calls (read_files×54 — heavy re-reading), run_commands×12, write_file×4, search_codebase×6; 1 hot repeated tool call; reasoning channel 1092. So its issue is **control behavior** (non-termination / finalization-stall, the §5.AA `aborted`/final-answer-watchdog territory + the retry-ladder loop rung), NOT output-format robustness. Matrix → ◑ (clean format, capability/control gap). Consistent with its single-card ⚠️.
 - ✅ **CLEAN** · `nvidia/nemotron-3-nano-4b-m5max` · reached `awaiting_review`; 32 tool calls (read_files×20, list_files×4, write_file×4, run_commands×2, update_focus_chain×2); **0 narration leaks, 0 hot repeated tool calls** (heavy reasoning channel 1754, but clean output). Matrix → ✅.
+- ⚠️ **CANT (clean format)** · `microsoft/phi-4-mini-reasoning` · reached `awaiting_review` but with **0 tool calls** — it ruminated in the reasoning channel (1414 reasoning msgs) and never acted (no reads/writes/commands). **0 narration leaks** (output FORMAT is clean), so this is the confirmed reasoning-no-action capability gap (§5.O/§5.AB — the canonical reason-then-act / constrained-decoding rung target), NOT an output-format/parse failure. Matrix → ⚠️.
+
+> **Output-robustness mid_task sweep (2026-06-28) — KEY TAKEAWAY:** across every loaded model swept (qwen3-8b, coder-14b, qwen3.5-9b, gemma-e2b/e4b, nemotron, phi-4-mini), narration-leak count is **0** and hot-repeated-tool-call count is **0–1**. The §5.O parse-and-recover output-format hardening is solid; the remaining failures are §5.AA/§5.AB **control** problems (qwen3.5-9b non-termination, phi-4-mini reasons-without-acting), not output-format problems.
