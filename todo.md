@@ -3955,11 +3955,12 @@ deep analysis:
       `start-task-session` now checks the SELECTED (primary) local model against LM Studio's loaded set
       ([src/core/lmstudio-loaded-models.ts](src/core/lmstudio-loaded-models.ts) `fetchLoadedModelIds` + pure
       `shouldBlockUnloadedModel`) and returns a clear "load it first" error instead of auto-loading; lenient (block only a
-      positively-non-resident model), test-runner-skipped, 3s-timeout fetch. **STILL OWED:** (a) the **role-pool fan-out**
-      members (lines ~162+) — a non-loaded *pool* model could still load when dispatched; filter the guard candidates to
-      the loaded set. (b) tie to the §5.AB auto-select so it *picks the best LOADED model* (not just refuses). (c) surface
-      the error nicely in the web-ui (a "model not loaded" affordance). (d) the chat path (`local-chat-model` already
-      discovers a loaded model, so it's mostly safe, but confirm a pinned non-loaded chat model is refused too).
+      positively-non-resident model), test-runner-skipped, 3s-timeout fetch. **ROLE-POOL FAN-OUT ALSO DONE (`4da5130f`):**
+      the loaded set is fetched once and reused — non-resident pool (`additionalModels`) members on the same queried
+      endpoint are skipped (the role still fans out across its loaded models). **STILL OWED:** (a) tie to the §5.AB
+      auto-select so it *picks the best LOADED model* (not just refuses/skips). (b) surface the error nicely in the web-ui
+      (a "model not loaded" affordance + a one-click awareness of the loaded set). (c) confirm the chat path refuses a
+      pinned non-loaded chat model too (`local-chat-model` already discovers a loaded model, so mostly safe).
 - [~] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
       difficulty × context) cells — especially the `⚠️` ceilings — are valuable **guidance for !Klein users**: "for this
       kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." **PURE PROJECTION
