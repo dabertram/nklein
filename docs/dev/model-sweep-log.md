@@ -117,6 +117,11 @@
 |---|:-:|:-:|---|
 | qwen3-8b | ✅ (13 cards) | ⏳ | 🔧 **power-aware timeout validated live** — auto-scaled 15→30 min (`power=low ×2`); INCOMPLETE but **inconclusive for the fix** (run was under Low Power ~50% throughput — confounded regime; single-endpoint serialization + low-power dominate). Re-run at high power to isolate the fix's effect. |
 
+### 2026-06-28 · **weakest-model watch** · C0 single-card · `verify-task-completion` · _(Low Power)_
+| model | result | note |
+|---|:-:|---|
+| google/gemma-4-e2b (2B) | ✅ | 🚀 the floor holds — ran to `awaiting_review` + delivered correct `hello.txt` in ~40 s even at Low Power (`power=low ×2`) |
+
 ### 2026-06-28 · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |
 |---|:-:|---|
