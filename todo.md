@@ -269,6 +269,15 @@ deep analysis:
   community) for promising LOCAL agentic models per the active tier (tool-calling + coding + instruction strength); keep
   a download list for the USER in [docs/dev/model-catalog-recommendations.md](docs/dev/model-catalog-recommendations.md)
   (the user downloads; !Klein load/unload-tests them).
+- **Model-lab roadmap → roster keep-list + disk reclaim (user 2026-06-29).** **(a) DOWNLOADS:** `model-lab get
+  <name>[@quant]` is built (retries a stall once) but NOT used yet — the user has queued downloads; WAIT for them, and if
+  a download stalls, retry it. **(b) Once all variants are resident:** load/unload-test each through (sufficient *varied*
+  runs per variant — not one-shot, given the stochasticity), then produce a **keep-list**: a clean roster from the
+  least-capable up through the best performer in each size/perf class — and a **drop-list** of redundant/dominated
+  variants the user can delete to reclaim disk (the user confirms deletes). **(c) LATER (gated on the user's explicit
+  go, when the work has matured):** !Klein does deep online research for the most promising not-yet-available models AND
+  self-manages a **~100 GB disk budget** for downloading/evaluating them (download → test → keep-or-drop within budget).
+  Patience: (c) depends on progress; keep it on the agenda, don't start it unprompted.
 - **Hot-path / agent-loop changes are SELF-verifiable via the live UI (user 2026-06-29) — don't defer for a human to
   watch.** Drive the running app with Playwright (or another browser-control method) + a live model and assert the
   durable side effects. The §5.AA controller loop-wiring is autonomously verifiable this way.

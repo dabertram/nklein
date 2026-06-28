@@ -596,3 +596,11 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 23:11:11 · verify-chat-agent-e2e
 - ◑ **PARTIAL** · `qwen/qwen2.5-coder-14b` · 21s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
   - matrix row: qwen2.5-coder-14b=◑
+
+### 2026-06-28 23:23:11 · verify-chat-agent-e2e
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 8s · INCOMPLETE — see above.
+  - matrix row: nemotron-3-nano-4b=❌
+
+### 2026-06-28 23:23:30 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b` · 13s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b=❌

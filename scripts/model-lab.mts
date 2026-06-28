@@ -74,6 +74,26 @@ async function main(): Promise<void> {
 		console.log(`unload ${arg}: exit ${exitCode}`);
 		process.exit(exitCode);
 	}
+	if (subcommand === "get") {
+		// model-lab get <name>[@quant] — download a model via `lms get` (prepared per the 2026-06-29 plan; NOT used until
+		// the user says so). Supports a quant suffix (e.g. google/gemma-4-e2b@8bit) for the GGUF/quant A/Bs. Retries once
+		// on a stalled/failed download (the user asked to retry stalls).
+		if (!arg) {
+			console.error("usage: model-lab get <name>[@quant]");
+			process.exit(64);
+		}
+		for (let attempt = 1; attempt <= 2; attempt++) {
+			console.log(`lms get ${arg} (attempt ${attempt}/2)…`);
+			const { stdout, exitCode } = await run(["get", arg, "--yes"]);
+			if (exitCode === 0) {
+				console.log(`✓ downloaded ${arg}`);
+				process.exit(0);
+			}
+			console.log(`  attempt ${attempt} failed (exit ${exitCode}): ${stdout.slice(-200)}`);
+		}
+		console.error(`✗ download of ${arg} failed after 2 attempts`);
+		process.exit(1);
+	}
 	if (subcommand === "sweep") {
 		// model-lab sweep <harness> <id1,id2,…> — for each model: guarded-load it (one resident at a time), run the
 		// harness against just that model, record PASS/PARTIAL/FAIL, move on. Spawns LLM inference (the harness) — only
@@ -120,7 +140,7 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
-	console.log("usage: tsx scripts/model-lab.mts ps | load <id> [ctx] | unload <id> | sweep <harness> <id1,id2,…>");
+	console.log("usage: tsx scripts/model-lab.mts ps | load <id> [ctx] | unload <id> | get <name>[@quant] | sweep <harness> <id1,id2,…>");
 }
 
 main().catch((error) => {
