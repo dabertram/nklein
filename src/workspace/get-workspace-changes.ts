@@ -190,6 +190,28 @@ async function readWorkingTreeFile(repoRoot: string, path: string): Promise<stri
 	}
 }
 
+/**
+ * Drop untracked paths that resolve to a directory — an untracked directory or, more commonly, a symlink pointing at
+ * one (e.g. a symlinked ignored root like a worktree's `node_modules`/`.next`). `git ls-files --others` lists a
+ * directory *symlink* as a single entry; reading it as a file hits `EISDIR` → null text → the diff UI renders a fake
+ * `+0 -0` phantom file diff (git-view worktree follow-up (b)). `stat` follows symlinks, so this catches both the
+ * bare-directory and directory-symlink cases. On any stat error (broken symlink, race) we KEEP the path: it isn't
+ * provably a directory, and dropping a real untracked file would be worse than an occasional phantom.
+ */
+async function filterOutUntrackedDirectories(repoRoot: string, paths: string[]): Promise<string[]> {
+	const keep = await Promise.all(
+		paths.map(async (path) => {
+			try {
+				const stats = await stat(join(repoRoot, path));
+				return stats.isDirectory() ? null : path;
+			} catch {
+				return path;
+			}
+		}),
+	);
+	return keep.filter((path): path is string => path !== null);
+}
+
 function fallbackStats(oldText: string | null, newText: string | null): DiffStat {
 	if (oldText == null && newText == null) {
 		return { additions: 0, deletions: 0 };
@@ -375,10 +397,13 @@ export async function getWorkspaceChanges(cwd: string): Promise<RuntimeWorkspace
 		getGitStdout(["rev-parse", "--verify", "HEAD"], repoRoot).catch(() => ""),
 	]);
 	const trackedChanges = parseTrackedChanges(trackedChangesOutput);
-	const untrackedPaths = untrackedOutput
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean);
+	const untrackedPaths = await filterOutUntrackedDirectories(
+		repoRoot,
+		untrackedOutput
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean),
+	);
 
 	const trackedPaths = new Set(trackedChanges.map((entry) => entry.path));
 	const allChanges: NameStatusEntry[] = [
@@ -465,10 +490,13 @@ export async function getWorkspaceChangesFromRef(input: ChangesFromRefInput): Pr
 		getGitStdout(["ls-files", "--others", "--exclude-standard"], repoRoot),
 	]);
 	const trackedChanges = parseTrackedChanges(trackedChangesOutput);
-	const untrackedPaths = untrackedOutput
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean);
+	const untrackedPaths = await filterOutUntrackedDirectories(
+		repoRoot,
+		untrackedOutput
+			.split("\n")
+			.map((line) => line.trim())
+			.filter(Boolean),
+	);
 	const trackedPaths = new Set(trackedChanges.map((entry) => entry.path));
 	const allChanges: NameStatusEntry[] = [
 		...trackedChanges,

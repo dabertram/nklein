@@ -968,13 +968,21 @@ deep analysis:
         reload recomputes). Backend test (skip → `-1`, real count otherwise) + 2 client tests (count retained on the
         sentinel + foreground asks for it; burst coalesces to one background refresh); root + web-ui tsc/biome + full
         suites green.
-- [ ] **Worktree symlinked-ignored-roots + diff-UI phantom-file fixes** *(folded 2026-06-28 from a now-removed planning doc (`worktree-ignored-symlink-investigation.md`))*. Two independent fixes (legacy host worktrees still exist
-      for migrated boards, §5.A): **(a)** ensure symlinked ignored roots stay ignored *locally* via the worktree's
-      `.git/info/exclude` (Git treats an "ignored directory" and a "symlink to an ignored directory" differently — once
-      !Klein replaces a real ignored dir like `node_modules`/`.next` with a symlink inside a worktree, it must add the
-      exact local exclude or Git surfaces it); **(b)** harden the diff UI so an untracked directory or a directory symlink
-      never renders as a fake `+0 -0` file diff (a separate UI bug from (a)). Long-term (parked): revisit whether
-      "symlink all ignored paths" is the right rule vs an allowlist.
+- [x] **Worktree symlinked-ignored-roots + diff-UI phantom-file fixes (DONE 2026-06-28)** *(folded 2026-06-28 from a now-removed planning doc (`worktree-ignored-symlink-investigation.md`))*.
+      **(b) — FIXED (the live half):** an untracked directory or, more commonly, a **symlink to a directory** (the
+      symlinked-ignored-root case, e.g. a worktree's `node_modules`/`.next`) was surfaced by `git ls-files --others` as a
+      single untracked entry; reading it as a file hit `EISDIR` → null text → the diff UI rendered a fake `+0 -0` phantom.
+      Fixed at the data source (robust — the UI never receives the phantom): `getWorkspaceChanges` /
+      `getWorkspaceChangesFromRef` now run untracked paths through `filterOutUntrackedDirectories`
+      ([get-workspace-changes.ts](src/workspace/get-workspace-changes.ts)) which drops any entry that `stat` resolves to a
+      directory (covers both bare-dir and dir-symlink; keeps the path on a stat error so a real file is never dropped).
+      Regression test: a real untracked file + a file inside an untracked dir are reported, a `node_modules` directory
+      symlink is NOT, and zero `+0 -0` phantoms remain ([test/runtime/get-workspace-changes.test.ts](test/runtime/get-workspace-changes.test.ts)).
+      **(a) — MOOT:** "add the worktree's local `.git/info/exclude` when symlinking an ignored root" targeted the
+      host-worktree CREATION/symlink-mirroring machinery, which was **retired** in §5.A ([task-worktree.ts:1-6](src/workspace/task-worktree.ts#L1) —
+      creation/sync/symlink-mirroring gone; only cleanup remains). !Klein no longer symlinks ignored roots into worktrees,
+      so there's nothing to exclude; (b) covers the phantom symptom for any legacy on-disk worktree regardless. The parked
+      "symlink-all vs allowlist" rule is likewise moot (no symlinking happens anymore).
 - [ ] **CLI surface: decide scope + auto-generate the man page (2026-06-28).** The hand-written `man/nklein.1` had
       drifted stale — it documented a removed `nklein hooks ingest|notify|gemini-hook|codex-wrapper` surface (the
       terminal-CLI hook-ingest path was deleted in `93c35b19`; native NKlein agents report via their SDK session). Per
