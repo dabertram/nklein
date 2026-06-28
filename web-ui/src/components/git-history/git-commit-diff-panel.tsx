@@ -304,8 +304,11 @@ export function GitCommitDiffPanel({
 					className="flex flex-col items-center justify-center gap-3 py-12 text-text-tertiary"
 					style={{ flex: 1 }}
 				>
-					<GitCompare size={48} />
-					<h3 className="font-semibold text-text-primary">No changes</h3>
+					{errorMessage ? <AlertCircle size={48} /> : <GitCompare size={48} />}
+					<h3 className="font-semibold text-text-primary">
+						{errorMessage ? "Could not load diff" : "No changes"}
+					</h3>
+					{errorMessage ? <p className="text-text-secondary">{errorMessage}</p> : null}
 				</div>
 			</div>
 		);

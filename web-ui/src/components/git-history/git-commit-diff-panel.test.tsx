@@ -165,4 +165,27 @@ describe("GitCommitDiffPanel", () => {
 		expect(container.textContent).not.toContain("No textual diff available.");
 		expect(container.querySelector(".kb-diff-row")).toBeNull();
 	});
+
+	it("surfaces the error message instead of 'No changes' when a diff fails to load", async () => {
+		// A failed diff (e.g. an invalid/unknown commit hash) comes back as ok:false with empty files, so the data hook
+		// still builds a non-null diffSource with an empty files array. Without surfacing the error the panel rendered a
+		// misleading "No changes" (git-view P1 follow-up).
+		const diffSource: GitCommitDiffSource = { type: "commit", files: [] };
+
+		await act(async () => {
+			root.render(
+				<GitCommitDiffPanel
+					diffSource={diffSource}
+					isLoading={false}
+					errorMessage="Commit deadbeef could not be resolved in this repository."
+					selectedPath={null}
+					onSelectPath={() => {}}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Could not load diff");
+		expect(container.textContent).toContain("Commit deadbeef could not be resolved in this repository.");
+		expect(container.textContent).not.toContain("No changes");
+	});
 });

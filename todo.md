@@ -928,8 +928,12 @@ deep analysis:
         ([git-history.ts](src/workspace/git-history.ts)) now verifies the commit resolves (`rev-parse --verify --quiet
         <hash>^{commit}`) before the diff-tree/show calls; an invalid/unknown hash returns `ok:false` + a clear `error`
         ("Commit <hash> could not be resolved…") instead of a misleading `ok:true` empty-`files` "No changes". Regression
-        test added (invalid hash → `ok:false` + error). *(UI error-state rendering in the diff panel: still owed — backend
-        now returns the error; wire the panel to show it.)*
+        test added (invalid hash → `ok:false` + error). **UI error-state rendering DONE (2026-06-28):** a failed diff comes
+        back `ok:false` with empty `files`, so the data hook still built a non-null `diffSource` with `files:[]` — and
+        `GitCommitDiffPanel` only surfaced the error in its `!diffSource` branch, falling through to the `files.length===0`
+        "No changes" state and swallowing the message. The empty-files branch now renders the error (AlertCircle + "Could
+        not load diff" + the message) when `errorMessage` is set, matching the no-source branch. Web regression test added
+        (`ok:false`/empty-files + errorMessage → shows the error, not "No changes"); web-ui tsc + biome + 3 panel tests green.
   - [x] **P1 — support merge-commit diffs (DONE 2026-06-28).** A plain `diff-tree`/`show` on a merge is empty (the UI
         rendered merges as "No changes"). `getCommitDiff` now detects a merge (≥2 parents via `rev-list --parents -n1`)
         and diffs it against its **first parent** (`--first-parent -m` for diff-tree, `--first-parent` for show) — the
