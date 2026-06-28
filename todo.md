@@ -3293,6 +3293,16 @@ deep analysis:
 ### 5.Y — Security hardening backlog ✅ COMPLETE (12/12) → moved to [done.md](done.md#5y--security-hardening-backlog-raised-2026-06-26-from-a-static-security-review--plandocssecurity-issuesmd)
 
 ### 5.Z — Cross-model verification: every LLM-interactive flow on every loaded model *(2026-06-26, user)*
+> **MATRIX STATUS (2026-06-28 sweep, loaded roster):** broadly covered — decompose ✅9/9; single-card 8/9; auto-promote
+> 8/9; **strict-isolation 8/8 + restart-resume 6/6** (swept this pass); **output-robustness** 6 models (key finding: 0
+> narration leaks anywhere — format hardening solid; remaining fails are §5.AA *control* problems); **chat read/write/send/
+> runtime/browse + e2e capstone** swept across the loaded set (write/send/runtime ✅ all; read/browse/run_command/capstone
+> ◑ for weak-synthesis models — they execute the tool + durable side effects, just don't echo the gate's marker; that's a
+> model-quality trait, not a !Klein bug). **3 harness bugs fixed** by the sweep (chat-agent-tools stale audit assertion;
+> chat-agent-write missing-workspace mkdir; the browse_url "blocker" was my own `~`-expansion command bug — browse works).
+> Full per-cell grid + run log: [docs/dev/cross-model-verification.md](docs/dev/cross-model-verification.md). **Remaining:**
+> the 3 not-currently-loaded roster models (gemma-e4b, phi4-plus, deepseek), the ~25-min multi-card sweep, and autonomous-run
+> across the roster (needs a project + active workspace in the session scope, not just a pinned model — root-caused above).
 > **Standing requirement (do NOT re-litigate):** every task involving *real LLM interactivity* — the agent driving a
 > live local model through a tool loop / decompose / chat / autonomous run / review — must be **verified across ALL
 > loaded local models**, not just the north-star model it was first proven on. This is a **retro-verification**
