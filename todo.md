@@ -3903,11 +3903,16 @@ deep analysis:
       toward that as challenges demand. Each newly-loaded model becomes a §5.Z matrix column / run-log entry. A model that
       still can't pass a tier (after repeat-runs + the full §5.AA ladder — **never judge prematurely**) is a recorded
       `⚠️` capability-floor, not a failure to hide. (Build on the live discovery/registry; no new mechanism.)
-- [ ] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
+- [~] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
       difficulty × context) cells — especially the `⚠️` ceilings — are valuable **guidance for !Klein users**: "for this
-      kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." Project the
-      fitness/ceiling data into a user-readable advisory (Settings / `nklein dev` report). The journey of finding small-
-      model limits + the LLM-landscape diversity IS the product value here. Ties §6.4 MCSR + the §5.AB fitness store.
+      kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." **PURE PROJECTION
+      DONE (2026-06-28):** `buildModelCapabilityAdvice(events, thresholds)`
+      ([agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)) turns the ledger's per-(model × role) outcomes
+      into per-pairing verdicts (`recommended`/`usable`/`not_recommended`/`insufficient_data`) + human-readable per-role
+      notes ("recommended: …; avoid: X (20%, n=10, mostly no_tool_call)"). **Doesn't judge prematurely** — below `minSamples`
+      (default 3) is `insufficient_data`, never a floor; the `topFailureMode` gives the "why". Pure; 4 tests; tsc+biome green.
+      **Still owed:** surface it (Settings panel / `nklein dev advice` command), and enrich once the §5.AB eval harness adds
+      graded difficulty (so advice is per-difficulty, not just per-role). Ties §6.4 MCSR + the §5.AB fitness store.
 - [ ] **MCF Phase B — frontier CLOUD escalation tier (FUTURE; gated behind #1 + Phase-A "local maxed").** Only AFTER the
       local ladder (up to ~120B) is genuinely exhausted, add frontier **cloud** models as an escalation/planning tier in
       the §5.AB selection + §5.AA Layer-2 escalation: a card/challenge the best local model can't clear escalates to a
