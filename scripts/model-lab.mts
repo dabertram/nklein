@@ -93,9 +93,10 @@ async function main(): Promise<void> {
 				results.push({ modelId, loaded: false, verdict: "LOAD-REFUSED" });
 				continue;
 			}
-			// Run the harness against the now-sole-resident model (it targets the loaded set / a filter).
+			// Run via verify-all-models (it sets the isolated HOME + targets the now-sole-resident loaded model), which
+			// also maps the verify exit codes → PASS/◑PARTIAL/FAIL in its own SWEEP SUMMARY.
 			const { stdout, exitCode } = await new Promise<{ stdout: string; exitCode: number }>((resolve) => {
-				const child = spawn("npx", ["tsx", `scripts/${harness}.mts`], {
+				const child = spawn("npx", ["tsx", "scripts/verify-all-models.mts", harness], {
 					env: { ...process.env, NKLEIN_VERIFY_DUMP_ACTIVITIES: "1" },
 				});
 				let out = "";
@@ -108,7 +109,8 @@ async function main(): Promise<void> {
 				});
 				child.on("close", (code) => resolve({ stdout: out, exitCode: code ?? 1 }));
 			});
-			const verdict = exitCode === 0 ? "PASS" : exitCode === 3 ? "PARTIAL" : "FAIL";
+			// verify-all-models exits 0 when any model passed; parse the matrix row for this model's symbol.
+			const verdict = /=◑/.test(stdout) ? "PARTIAL" : /=✅/.test(stdout) ? "PASS" : exitCode === 0 ? "PASS" : "FAIL";
 			results.push({ modelId, loaded: true, verdict });
 			void stdout;
 		}

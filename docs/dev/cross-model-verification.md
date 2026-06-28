@@ -560,3 +560,27 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 13s · INCOMPLETE — see above.
 - ❌ **FAIL** · `google/gemma-4-e2b-q8` · 16s · INCOMPLETE — see above.
   - matrix row: gemma-4-e2b-m5max=❌ gemma-4-e2b-q8=❌
+
+### 2026-06-28 22:54:44 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 14s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌
+
+### 2026-06-28 22:54:57 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 13s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌
+
+### 2026-06-28 22:55:12 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 14s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌
+
+### 2026-06-28 23:07:30 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b` · 13s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b=❌
+
+### 2026-06-28 23:07:47 · verify-chat-agent-e2e
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 9s · INCOMPLETE — see above.
+  - matrix row: nemotron-3-nano-4b=❌
+
+### 2026-06-28 23:08:01 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx` · 10s · INCOMPLETE — see above.
+  - matrix row: qwopus3.5-4b-coder-fable5-v1-mlx=❌
