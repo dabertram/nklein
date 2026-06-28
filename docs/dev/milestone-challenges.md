@@ -41,7 +41,7 @@
 
 | id | milestone | difficulty axes (vs prior) | harness / substrate | acceptance gate | tier | status (2026-06-28) |
 |---|---|---|---|---|:-:|---|
-| **C0** | M0 single-card | baseline | `verify-task-completion` · `mid_task` | reaches `awaiting_review` + correct `nklein/tasks/<id>` result branch | roster | ✅ met (8/9; qwen3.5-9b ⚠️ slow-finalize → §5.AA finalization watchdog wired) · **reliability 4/5 (80%) qwen3-8b on repeat — 1 transient interrupt, §5.AA lift owed** |
+| **C0** | M0 single-card | baseline | `verify-task-completion` · `mid_task` | reaches `awaiting_review` + correct `nklein/tasks/<id>` result branch | roster | ✅ met (8/9; qwen3.5-9b ⚠️ slow-finalize → §5.AA finalization watchdog wired) · **reliability: qwen3-8b 7/8 (~88%) over 2 sweeps (1 isolated transient); qwen2.5-coder-14b 3/3** |
 | **C1** | decompose-only | + DAG synthesis, isolation | `verify-decompose-isolation` | goal → valid dependency DAG, **no host-path leak** to the agent | roster | ✅ met (9/9) |
 | **C2** | promote + isolated delivery | + lane promotion, restart isolation | `verify-autopromote-recovery` + `verify-strict-isolation` + `verify-restart-resume-isolation` | card → In Progress; sandbox isolation + restart-resume hold, clean teardown | roster | ✅ met across loaded roster |
 | **C3** | **M1** unattended multi-card → merge | + multi-card cascade, **restart-survivable**, auto-merge | `complex_dag`/`mixed_dag` + the §5.V pipeline + `verify-multi-card-pipeline` | goal → DAG → all cards run (parallel where safe) → review → **merge**, surviving a runtime restart | roster | ⏳ mechanism proven (§5.V); the unattended/restart-survivable gate needs the **§5.AF durable scheduler** → **current chapter** |
@@ -54,6 +54,11 @@
 
 ## Run log (newest first)
 
+- _(2026-06-28)_ **Idle-LLM scout sweep #2 (C0):** qwen3-8b **3/3** + qwen2.5-coder-14b **3/3** — the sweep-#1 interrupt
+  did **not** reproduce across 3 more qwen3-8b runs, so C0 qwen3-8b stands at **7/8 (~88%) across both sweeps, 1 isolated
+  transient** (confirms §5.AA interrupt-class, not a model ceiling); qwen2.5-coder-14b clean. Also landed the C3 boot-replay
+  seam: the pure **durable-scheduler ⇄ ledger adapter** (`durable-scheduler-ledger.ts`, round-trip + ledger-backed replay
+  tested) — the run's scheduler log now persists in the §5.AF `scheduler` family (new `completed` event) and replays exactly.
 - _(2026-06-28)_ **Idle-LLM flakiness sweep #1 (C0 × qwen3-8b, 5 back-to-back repeats):** 4/5 PASS, 1/5 INCOMPLETE
   (run #5 ended `interrupted`, not a wrong result) → **~80% single-card reliability** under repeat load. The lone miss
   matches the §5.AA `aborted`/`interrupted`-transient class (back-to-back contention, not a synthesis failure) — the
