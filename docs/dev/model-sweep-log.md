@@ -4,7 +4,8 @@
 > small table — timestamp · challenge · per-model result + a short note — so you can **scroll top→bottom to watch each
 > model evolve as difficulty grows**. Companion to [milestone-challenges.md](milestone-challenges.md) (the challenge
 > catalog) and [cross-model-verification.md](cross-model-verification.md) (the aggregate per-flow matrix); this file is
-> the **time series** behind them. Newest sweeps are **appended at the bottom**.
+> the **time series** behind them. Newest sweeps are **appended at the bottom**. Entry timestamps are **UTC** (`Z`),
+> matching the harness's `SWEEP-ROW | <ISO ts> | …` line — paste that line's facts straight into a new entry.
 >
 > **Result legend:** ✅ pass · ◑ partial (ran, weak synthesis) · ⚠️ capability-floor (recorded, *provisional* — keep
 > trying to lift it) · ❌ fail (no tool call / wrong) · 🎲 flaky (varies run-to-run) · ⏳ incomplete (timeout/horizon) ·
@@ -81,48 +82,48 @@
 > `run_command` ◑ = the command genuinely EXECUTED; only the reply echo (strict gate) was weak — the capability the user
 > cares about works. **0 user-facing narration leaks anywhere** (§5.O). Remaining ❌/⚠️ are §5.AA *control* problems, not format.
 
-### 2026-06-28 · **C0 reliability sweep #1** · `verify-task-completion` · qwen3-8b ×5 (back-to-back)
+### 2026-06-28 13:08Z · **C0 reliability sweep #1** · `verify-task-completion` · qwen3-8b ×5 (back-to-back)
 | model | runs | result | note |
 |---|:-:|:-:|---|
 | qwen3-8b | 5 | ✅ 4/5 | 🔁 1 `interrupted` (transient, §5.AA class — not a wrong result) |
 
-### 2026-06-28 · **C0 reliability scout #2** · `verify-task-completion` ×3 each
+### 2026-06-28 13:12Z · **C0 reliability scout #2** · `verify-task-completion` ×3 each
 | model | runs | result | note |
 |---|:-:|:-:|---|
 | qwen3-8b | 3 | ✅ 3/3 | 🚀 sweep-#1 transient did NOT reproduce → **7/8 (~88%) over both sweeps** |
 | qwen2.5-coder-14b | 3 | ✅ 3/3 | 🚀 clean |
 
-### 2026-06-28 · **C3 unattended multi-card** · `verify-multi-card-pipeline` · `complex_dag` · qwen3-8b
+### 2026-06-28 13:17Z · **C3 unattended multi-card** · `verify-multi-card-pipeline` · `complex_dag` · qwen3-8b
 | model | decompose | all-terminal | note |
 |---|:-:|:-:|---|
 | qwen3-8b | ✅ (13 cards) | ⏳ | 🐞 gate = wide-DAG **throughput + long-horizon transient survivability**, not a model ceiling; ~10 cards stuck in `planning` at 25 min |
 
-### 2026-06-28 · **C5 wide fan-out** · `verify-multi-card-pipeline` · `many_small` · qwen3-8b
+### 2026-06-28 13:53Z · **C5 wide fan-out** · `verify-multi-card-pipeline` · `many_small` · qwen3-8b
 | model | decompose | all-terminal | note |
 |---|:-:|:-:|---|
 | qwen3-8b | ✅ (21 indep. cards) | ⏳ | 🐞 only ≤3 ran concurrently — **single local endpoint serializes inference**; true fan-out needs multiple endpoints/models (not just a higher cap) |
 
-### 2026-06-28 · **C3 file-overlap diagnostic re-scout** · `complex_dag` · qwen3-8b
+### 2026-06-28 14:15Z · **C3 file-overlap diagnostic re-scout** · `complex_dag` · qwen3-8b
 | model | result | note |
 |---|:-:|---|
 | qwen3-8b | ⏳ | 🔧 the auto-start skip fires on a **genuine** shared file (`src/habit-insights.ts`) → file-overlap heuristic **vindicated** (serializes real overlaps, not noise) |
 
-### 2026-06-28 · **runtime-wide throughput fix** (affects every sweep's per-card latency)
+### 2026-06-28 14:35Z · **runtime-wide throughput fix** (affects every sweep's per-card latency)
 | area | result | note |
 |---|:-:|---|
 | token counting | 🔧 | 🐞🔧 `countKanbanTextTokens` hit BPE ~O(n²) on long single-char runs (120 KB `get_file_size` ~6 s, blocked the event loop) → chunked + capped; **6000 ms → 85 ms**. Behind every budget/size check, so it lifts all models' turn latency. |
 
-### 2026-06-28 · **C3 post-throughput-fix re-scout** · `complex_dag` · qwen3-8b · _(Low Power)_
+### 2026-06-28 14:47Z · **C3 post-throughput-fix re-scout** · `complex_dag` · qwen3-8b · _(Low Power)_
 | model | decompose | all-terminal | note |
 |---|:-:|:-:|---|
 | qwen3-8b | ✅ (13 cards) | ⏳ | 🔧 **power-aware timeout validated live** — auto-scaled 15→30 min (`power=low ×2`); INCOMPLETE but **inconclusive for the fix** (run was under Low Power ~50% throughput — confounded regime; single-endpoint serialization + low-power dominate). Re-run at high power to isolate the fix's effect. |
 
-### 2026-06-28 · **weakest-model watch** · C0 single-card · `verify-task-completion` · _(Low Power)_
+### 2026-06-28 15:42Z · **weakest-model watch** · C0 single-card · `verify-task-completion` · _(Low Power)_
 | model | result | note |
 |---|:-:|---|
 | google/gemma-4-e2b (2B) | ✅ | 🚀 the floor holds — ran to `awaiting_review` + delivered correct `hello.txt` in ~40 s even at Low Power (`power=low ×2`) |
 
-### 2026-06-28 · **infra fix** · LM Studio `/models` catalog no longer hammered
+### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |
 |---|:-:|---|
 | roster discovery | 🔧 | 🐞🔧 the `/api/v0/models` catalog was hit ~every second → added a 30 s TTL cache (`nklein-provider-service.ts`); polled ≤ once/30 s now. Harness should also *monitor* the LM Studio dev log for recurrence (todo §5.Z). |
