@@ -3971,9 +3971,15 @@ deep analysis:
       (`execute_step`) is unreachable until `localized`; budget exhaustion parks from any non-terminal phase; **completion
       requires acceptance evidence** (`allStepsComplete` + `reviewPassed`) so a model "declaring all steps done" mid-chain
       does NOT finish the run (directly the §5.Z e2e lesson); a succeeded-but-not-last step drives the NEXT step;
-      repair→retry_or_split branches on evidence (split/escalate/retry). Pure, 9 tests, tsc + biome green. **Still owed
-      (wiring):** drive the SDK/chat loop through these phases (per-phase context + tool subset + budget) + record each
-      transition on the §5.AF ledger. **An explicit run state machine** — the controller, per state: selects the
+      repair→retry_or_split branches on evidence (split/escalate/retry). Pure, 9 tests, tsc + biome green. **FIRST WIRING
+      STEP DONE (2026-06-28):** the chat agent loop ([chat-agent-loop.ts](src/chat/chat-agent-loop.ts)) now takes an
+      OPTIONAL evidence-based `assessCompletion(steps)` gate — when supplied, a no-tool-call turn (the model wanting to
+      answer) is only accepted as final if the evidence says complete; otherwise the loop nudges "not done, keep going"
+      and continues (bounded by maxIterations). This directly encodes the §5.Z e2e lesson (don't accept a premature
+      "done" with required steps unexecuted) at the loop seam, **default-absent ⇒ existing behavior unchanged** (+2 loop
+      tests). **Still owed (wiring):** supply a real `assessCompletion` from the autonomous chat's focus-chain / a task's
+      acceptance spec; drive the full phase ladder (per-phase context + tool subset + budget); record each transition on
+      the §5.AF ledger (the `transition` event kind already exists). **An explicit run state machine** — the controller, per state: selects the
       state-specific context + tool subset, sets that
       state's **max-tool-calls + max-wall-time budget**, decides **retry / split / refine-spec / replan / park / escalate
       FROM EVIDENCE** (not model self-report), **records every transition in the §5.AF ledger**, and **forbids skipping to

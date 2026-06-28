@@ -69,7 +69,18 @@ export interface ChatAgentLoopDeps {
 		response: ChatAgentModelResponse,
 		results: readonly ChatToolResult[],
 	) => ChatPromptMessage[];
+	/**
+	 * OPTIONAL evidence-based completion gate (todo §5.AA finite-state controller). When provided, a turn that returns
+	 * NO tool call (the model wants to answer) is only accepted as final if `assessCompletion(steps)` is true; otherwise
+	 * the loop nudges "not done — keep going" and continues (still bounded by `maxIterations`). This stops a weak model
+	 * from declaring a premature "done" with required steps unexecuted — the §5.Z e2e lesson. Absent ⇒ today's behavior
+	 * (the first no-tool-call turn is the final answer), so existing callers are unchanged.
+	 */
+	assessCompletion?: (steps: readonly ChatAgentStep[]) => boolean;
 }
+
+const INCOMPLETE_NUDGE =
+	"You have NOT yet completed all the required steps for this task. Do not stop or summarize — continue by calling the necessary tool(s) to finish the remaining work now.";
 
 export interface ChatAgentLoopResult {
 	finalText: string;
@@ -100,6 +111,15 @@ export async function runChatAgentLoop(
 		// already-executed tool names so the §5.AA constrained rung, if it has to FORCE a call, steers to an un-done step.
 		const response = await deps.complete(messages, true, undefined, [...usedToolNames]);
 		if (response.toolCalls.length === 0) {
+			// §5.AA controller evidence-gate: if a completion assessor is supplied and the run is NOT yet complete by
+			// EVIDENCE, don't accept this premature "done" — nudge to keep going and continue (still bounded by
+			// maxIterations). Skipped on the final iteration (no turn left to use the nudge). Absent assessor ⇒ unchanged.
+			if (deps.assessCompletion && !deps.assessCompletion(steps) && iteration < maxIterations - 1) {
+				messages = deps.appendToolExchange(messages, response, [
+					{ callId: `incomplete-${iteration}`, content: INCOMPLETE_NUDGE },
+				]);
+				continue;
+			}
 			// The model chose to answer rather than call a tool — this is the final reply. With an `onToken` we re-issue
 			// it as a streaming, tools-disabled call so the answer streams token-by-token (the discovery call can't both
 			// offer tools and stream); without one we return the text we already have (no extra model call).

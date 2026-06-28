@@ -214,4 +214,42 @@ describe("runChatAgentLoop", () => {
 		expect(result.finalText).toBe("Done.");
 		expect(result.hitIterationLimit).toBe(false);
 	});
+
+	it("§5.AA controller gate: rejects a premature 'done' until the completion assessor's evidence is satisfied", async () => {
+		// Turn 1: the model 'declares done' with no tool call (the §5.Z e2e premature-done failure).
+		// Turn 2: nudged to continue, it finally calls the tool. Turn 3: now genuinely done.
+		const turns: ChatAgentModelResponse[] = [
+			{ text: "All steps complete!", toolCalls: [] },
+			{ text: "", toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }] },
+			{ text: "Done for real.", toolCalls: [] },
+		];
+		let turn = 0;
+		const result = await runChatAgentLoop(
+			{ messages: start },
+			{
+				complete: async () => turns[turn++] ?? { text: "", toolCalls: [] },
+				executeTool: async (call) => ({ callId: call.id, content: "created" }),
+				appendToolExchange,
+				// Evidence-based completion: only complete once create_card has actually executed.
+				assessCompletion: (steps) => steps.some((step) => step.toolCall.name === "create_card"),
+			},
+		);
+		// The premature 'done' (turn 1) was rejected; the card got created; the run completed on turn 3.
+		expect(result.steps.map((s) => s.toolCall.name)).toEqual(["create_card"]);
+		expect(result.finalText).toBe("Done for real.");
+		expect(result.hitIterationLimit).toBe(false);
+	});
+
+	it("§5.AA controller gate: an absent assessor preserves today's behavior (first no-call turn is final)", async () => {
+		const result = await runChatAgentLoop(
+			{ messages: start },
+			{
+				complete: async () => ({ text: "Answer.", toolCalls: [] }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange,
+			},
+		);
+		expect(result.finalText).toBe("Answer.");
+		expect(result.steps).toHaveLength(0);
+	});
 });
