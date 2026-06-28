@@ -1,10 +1,11 @@
 # Model sweep log — per-run scoreboard over time
 
 > A **chronological** log of cross-model test-run sweeps (the §5.Z roster × the MCF challenge ladder). Each sweep is one
-> small table — timestamp · challenge · per-model result + a short note — so you can **scroll top→bottom to watch each
-> model evolve as difficulty grows**. Companion to [milestone-challenges.md](milestone-challenges.md) (the challenge
-> catalog) and [cross-model-verification.md](cross-model-verification.md) (the aggregate per-flow matrix); this file is
-> the **time series** behind them. Newest sweeps are **appended at the bottom**. Entry timestamps are **UTC** (`Z`),
+> small table — timestamp · challenge · per-model result + a short note. Entries are ordered **newest-first** (descending
+> by time), so the latest sweep is always at the top of the Sweeps section; read **bottom→top** to watch each model evolve
+> as difficulty grows. Companion to [milestone-challenges.md](milestone-challenges.md) (the challenge catalog) and
+> [cross-model-verification.md](cross-model-verification.md) (the aggregate per-flow matrix); this file is the **time
+> series** behind them. **Prepend new sweeps at the top of the Sweeps section.** Entry timestamps are **UTC** (`Z`),
 > matching the harness's `SWEEP-ROW | <ISO ts> | …` line — paste that line's facts straight into a new entry.
 >
 > **Result legend:** ✅ pass · ◑ partial (ran, weak synthesis) · ⚠️ capability-floor (recorded, *provisional* — keep
@@ -51,82 +52,7 @@
 - **`qwen3.5-9b-mlx`** — ⚠️ slow-finalize on C0 (the §5.AA finalization watchdog targets this).
 - **`deepseek-r1-0528-qwen3-8b-mlx`** — ⚠️ crash-prone; re-confirm it still loads each sweep.
 
-## Sweeps (oldest first — append new at the bottom)
-
-### 2026-06-26 → 27 · **baseline C0–C2** across the loaded 9 · `verify-*` harnesses
-| model | C0 single-card | C1 decompose | C2 promote+isolation | note |
-|---|:-:|:-:|:-:|---|
-| qwen3-8b | ✅ | ✅ | ✅ | 🚀 north-star clean; 🐢 reasoning-heavy |
-| qwen2.5-coder-14b | ✅ | ✅ | ✅ | 🚀 |
-| qwen3.5-9b | ⚠️ | ✅ | ✅ | 🐢 slow-finalize → §5.AA watchdog |
-| gemma-4-e2b | ✅ | ✅ | ✅ | 🚀 2B passing the floor |
-| gemma-4-e4b | ✅ | ✅ | ✅ | |
-| phi-4-mini-reasoning | ✅ | ✅ | ⚠️ | 🔧 chat tools ❌→✅ via tool-set reduction |
-| phi-4-reasoning-plus | ✅ | ✅ | ✅ | 🧱 ❌ on chat tools (over-reasons) |
-| nemotron-3-nano-4b | ✅ | ✅ | ✅ | |
-| deepseek-r1-qwen3-8b | ✅ | ✅ | ✅ | ⚠️ crash-prone |
-> **8/9 on C0** (qwen3.5-9b ⚠️), **9/9 on C1**, ✅ C2 across the roster. 0 narration leaks anywhere (§5.O output hardening solid).
-
-### 2026-06-26 · **chat tool-use sweep** across the 9 · `verify-chat-*` + `sweep-capture`
-| model | run_command | create_card | browse_url | output-robust | note |
-|---|:-:|:-:|:-:|:-:|---|
-| qwen3-8b | ✅ | ✅ | ✅ | ✅ | 🚀 all chat tools clean (read/write/send/runtime ✅ too) |
-| qwen2.5-coder-14b | ✅ | ✅ | ◑ | ✅ | strong; 🧩 browse reply synthesis weak |
-| qwen3.5-9b | ◑ | ✅ | ◑ | ◑ | 🧩 weak synthesis on several (tool RAN, reply didn't echo) |
-| gemma-4-e2b | ◑ | ✅ | ◑ | ✅ | 🧩 2B; create_card + output clean |
-| gemma-4-e4b | ◑ | ✅ | · | ✅ | output clean |
-| phi-4-mini-reasoning | ✅\* | ✅\* | · | ⚠️ | 🔧 ❌→✅ after §5.AA tool-set reduction (1 tool offered) |
-| phi-4-reasoning-plus | ❌ | ❌ | · | · | 🧱 never emits a tool call — open |
-| nemotron-3-nano-4b | ✅ | ✅ | ◑ | ✅ | solid |
-| deepseek-r1-qwen3-8b | ◑ | ✅ | · | · | ⚠️ crash-prone |
-> `run_command` ◑ = the command genuinely EXECUTED; only the reply echo (strict gate) was weak — the capability the user
-> cares about works. **0 user-facing narration leaks anywhere** (§5.O). Remaining ❌/⚠️ are §5.AA *control* problems, not format.
-
-### 2026-06-28 13:08Z · **C0 reliability sweep #1** · `verify-task-completion` · qwen3-8b ×5 (back-to-back)
-| model | runs | result | note |
-|---|:-:|:-:|---|
-| qwen3-8b | 5 | ✅ 4/5 | 🔁 1 `interrupted` (transient, §5.AA class — not a wrong result) |
-
-### 2026-06-28 13:12Z · **C0 reliability scout #2** · `verify-task-completion` ×3 each
-| model | runs | result | note |
-|---|:-:|:-:|---|
-| qwen3-8b | 3 | ✅ 3/3 | 🚀 sweep-#1 transient did NOT reproduce → **7/8 (~88%) over both sweeps** |
-| qwen2.5-coder-14b | 3 | ✅ 3/3 | 🚀 clean |
-
-### 2026-06-28 13:17Z · **C3 unattended multi-card** · `verify-multi-card-pipeline` · `complex_dag` · qwen3-8b
-| model | decompose | all-terminal | note |
-|---|:-:|:-:|---|
-| qwen3-8b | ✅ (13 cards) | ⏳ | 🐞 gate = wide-DAG **throughput + long-horizon transient survivability**, not a model ceiling; ~10 cards stuck in `planning` at 25 min |
-
-### 2026-06-28 13:53Z · **C5 wide fan-out** · `verify-multi-card-pipeline` · `many_small` · qwen3-8b
-| model | decompose | all-terminal | note |
-|---|:-:|:-:|---|
-| qwen3-8b | ✅ (21 indep. cards) | ⏳ | 🐞 only ≤3 ran concurrently — **single local endpoint serializes inference**; true fan-out needs multiple endpoints/models (not just a higher cap) |
-
-### 2026-06-28 14:15Z · **C3 file-overlap diagnostic re-scout** · `complex_dag` · qwen3-8b
-| model | result | note |
-|---|:-:|---|
-| qwen3-8b | ⏳ | 🔧 the auto-start skip fires on a **genuine** shared file (`src/habit-insights.ts`) → file-overlap heuristic **vindicated** (serializes real overlaps, not noise) |
-
-### 2026-06-28 14:35Z · **runtime-wide throughput fix** (affects every sweep's per-card latency)
-| area | result | note |
-|---|:-:|---|
-| token counting | 🔧 | 🐞🔧 `countKanbanTextTokens` hit BPE ~O(n²) on long single-char runs (120 KB `get_file_size` ~6 s, blocked the event loop) → chunked + capped; **6000 ms → 85 ms**. Behind every budget/size check, so it lifts all models' turn latency. |
-
-### 2026-06-28 14:47Z · **C3 post-throughput-fix re-scout** · `complex_dag` · qwen3-8b · _(Low Power)_
-| model | decompose | all-terminal | note |
-|---|:-:|:-:|---|
-| qwen3-8b | ✅ (13 cards) | ⏳ | 🔧 **power-aware timeout validated live** — auto-scaled 15→30 min (`power=low ×2`); INCOMPLETE but **inconclusive for the fix** (run was under Low Power ~50% throughput — confounded regime; single-endpoint serialization + low-power dominate). Re-run at high power to isolate the fix's effect. |
-
-### 2026-06-28 15:42Z · **weakest-model watch** · C0 single-card · `verify-task-completion` · _(Low Power)_
-| model | result | note |
-|---|:-:|---|
-| google/gemma-4-e2b (2B) | ✅ | 🚀 the floor holds — ran to `awaiting_review` + delivered correct `hello.txt` in ~40 s even at Low Power (`power=low ×2`) |
-
-### 2026-06-28 15:54Z · **new-model scout** · C0 single-card · `verify-task-completion` · _(Low Power)_
-| model | result | note |
-|---|:-:|---|
-| qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
+## Sweeps (newest first — prepend new at the top)
 
 ### 2026-06-28 19:36Z · **chat e2e capstone (multi-tool chain) — full loaded-roster sweep** · `verify-chat-agent-e2e` · _(Low Power)_
 > One instruction exercising the WHOLE stack in one session: read FACT.txt → run `cat FACT.txt` (see output) → create a board card → maintain a focus chain; PASS requires all the durable side effects (marker echoed + card persisted + each tool used).
@@ -138,7 +64,7 @@
 **Root cause (consistent across the roster): chain-fatigue NARRATION.** Models do the FIRST tool calls for real (read_file + run_command → the marker echoes back), then **narrate the LATER steps in prose instead of calling them** — `create_card` + `update_focus_chain` are described ("3. Created card E2E-CARD-7777…"), never executed, so the board stays empty. Two narration dialects observed:
 - **qwen3-8b / coder / others** → pure-prose narration ("Created card X with prompt Y") — **not recoverable** (too ambiguous to parse safely).
 - **gemma-4-e2b** → Python `tool_code = create_card(title="E2E-CARD-7777", prompt="from e2e")` (incl. a list-valued `update_focus_chain(steps_completed=[…])`) — **NOW RECOVERABLE**: 🔧 added `parseGemmaToolCodeCalls` (§5.AA) so these execute. **gemma e2e is a re-verify lift candidate.**
-> Timings: qwen3-8b 48 s · coder 23 s · gemma 25 s · qwen3.5-9b 20 s · phi-4-mini 109 s 🐢 · nemotron 13 s · qwopus-4b 26 s · ornith-9b 18 s. **Takeaway:** the e2e capstone is a genuine difficulty rung ABOVE the single-tool flows (all 8 pass create_card/run_command/write/read individually) — the wall is *chaining* tools across turns without the model lapsing into narration. The real fix is the §5.AA retry-engine wiring (narrated-recovery + constrained-decoding rung firing mid-chain), not yet wired.
+> Timings: qwen3-8b 48 s · coder 23 s · gemma 25 s · qwen3.5-9b 20 s · phi-4-mini 109 s 🐢 · nemotron 13 s · qwopus-4b 26 s · ornith-9b 18 s. **Takeaway:** the e2e capstone is a genuine difficulty rung ABOVE the single-tool flows (all 8 pass create_card/run_command/write/read individually) — the wall is *chaining* tools across turns without the model lapsing into narration. The real fix is the §5.AA retry-engine wiring (narrated-recovery + constrained-decoding rung firing mid-chain). **🔧 FOLLOW-UP (constrained-decoding rung now wired, ~20:05Z): coder-14b lifted ❌→◑** — it drove ALL 4 tools + persisted the card; only the strict marker-echo gate (reply quality) keeps it from ✅. Fresh constrained-rung sweep entry to be appended once complete.
 
 ### 2026-06-28 19:14Z · **chat send + runtime — full loaded-roster sweep** · `verify-chat-send` / `verify-chat-runtime` · _(Low Power)_
 | flow | result | note |
@@ -226,7 +152,82 @@
 | nvidia/nemotron-3-nano-4b | ✅ | clean C0 — terminal AND `delivered=YES` (the new deliverable-gated PASS) at 17:21Z |
 | ornith-1.0-35b-mlx@8bit (NEW, ~35B, **Phase-A bigger-model lever**) | ◑→🧱 | **Root cause (live-activity dump): the model FAILED TO LOAD** — _"insufficient system resources… would overload your system and cause it to freeze."_ So it reached `awaiting_review` with nothing delivered (`delivered=NO`). **Two wins:** the live-activity mode surfaced the exact load error (old silent harness would've hidden it), and the deliverable-gate flagged it PARTIAL not PASS. **Operational finding:** @8bit (~35 GB) doesn't fit under Low Power with several scout models already resident — needs **`@4bit` (lower quant)** and/or unloading idle models first (ties the §5.AF resource-governance item: VRAM/RAM headroom check before a load). Not retried now — won't risk freezing an actively-used machine. |
 
+### 2026-06-28 15:54Z · **new-model scout** · C0 single-card · `verify-task-completion` · _(Low Power)_
+| model | result | note |
+|---|:-:|---|
+| qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
+
+### 2026-06-28 15:42Z · **weakest-model watch** · C0 single-card · `verify-task-completion` · _(Low Power)_
+| model | result | note |
+|---|:-:|---|
+| google/gemma-4-e2b (2B) | ✅ | 🚀 the floor holds — ran to `awaiting_review` + delivered correct `hello.txt` in ~40 s even at Low Power (`power=low ×2`) |
+
 ### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
 | area | result | note |
 |---|:-:|---|
 | roster discovery | 🔧 | 🐞🔧 the `/api/v0/models` catalog was hit ~every second → added a 30 s TTL cache (`nklein-provider-service.ts`); polled ≤ once/30 s now. Harness should also *monitor* the LM Studio dev log for recurrence (todo §5.Z). |
+
+### 2026-06-28 14:47Z · **C3 post-throughput-fix re-scout** · `complex_dag` · qwen3-8b · _(Low Power)_
+| model | decompose | all-terminal | note |
+|---|:-:|:-:|---|
+| qwen3-8b | ✅ (13 cards) | ⏳ | 🔧 **power-aware timeout validated live** — auto-scaled 15→30 min (`power=low ×2`); INCOMPLETE but **inconclusive for the fix** (run was under Low Power ~50% throughput — confounded regime; single-endpoint serialization + low-power dominate). Re-run at high power to isolate the fix's effect. |
+
+### 2026-06-28 14:35Z · **runtime-wide throughput fix** (affects every sweep's per-card latency)
+| area | result | note |
+|---|:-:|---|
+| token counting | 🔧 | 🐞🔧 `countKanbanTextTokens` hit BPE ~O(n²) on long single-char runs (120 KB `get_file_size` ~6 s, blocked the event loop) → chunked + capped; **6000 ms → 85 ms**. Behind every budget/size check, so it lifts all models' turn latency. |
+
+### 2026-06-28 14:15Z · **C3 file-overlap diagnostic re-scout** · `complex_dag` · qwen3-8b
+| model | result | note |
+|---|:-:|---|
+| qwen3-8b | ⏳ | 🔧 the auto-start skip fires on a **genuine** shared file (`src/habit-insights.ts`) → file-overlap heuristic **vindicated** (serializes real overlaps, not noise) |
+
+### 2026-06-28 13:53Z · **C5 wide fan-out** · `verify-multi-card-pipeline` · `many_small` · qwen3-8b
+| model | decompose | all-terminal | note |
+|---|:-:|:-:|---|
+| qwen3-8b | ✅ (21 indep. cards) | ⏳ | 🐞 only ≤3 ran concurrently — **single local endpoint serializes inference**; true fan-out needs multiple endpoints/models (not just a higher cap) |
+
+### 2026-06-28 13:17Z · **C3 unattended multi-card** · `verify-multi-card-pipeline` · `complex_dag` · qwen3-8b
+| model | decompose | all-terminal | note |
+|---|:-:|:-:|---|
+| qwen3-8b | ✅ (13 cards) | ⏳ | 🐞 gate = wide-DAG **throughput + long-horizon transient survivability**, not a model ceiling; ~10 cards stuck in `planning` at 25 min |
+
+### 2026-06-28 13:12Z · **C0 reliability scout #2** · `verify-task-completion` ×3 each
+| model | runs | result | note |
+|---|:-:|:-:|---|
+| qwen3-8b | 3 | ✅ 3/3 | 🚀 sweep-#1 transient did NOT reproduce → **7/8 (~88%) over both sweeps** |
+| qwen2.5-coder-14b | 3 | ✅ 3/3 | 🚀 clean |
+
+### 2026-06-28 13:08Z · **C0 reliability sweep #1** · `verify-task-completion` · qwen3-8b ×5 (back-to-back)
+| model | runs | result | note |
+|---|:-:|:-:|---|
+| qwen3-8b | 5 | ✅ 4/5 | 🔁 1 `interrupted` (transient, §5.AA class — not a wrong result) |
+
+### 2026-06-26 · **chat tool-use sweep** across the 9 · `verify-chat-*` + `sweep-capture`
+| model | run_command | create_card | browse_url | output-robust | note |
+|---|:-:|:-:|:-:|:-:|---|
+| qwen3-8b | ✅ | ✅ | ✅ | ✅ | 🚀 all chat tools clean (read/write/send/runtime ✅ too) |
+| qwen2.5-coder-14b | ✅ | ✅ | ◑ | ✅ | strong; 🧩 browse reply synthesis weak |
+| qwen3.5-9b | ◑ | ✅ | ◑ | ◑ | 🧩 weak synthesis on several (tool RAN, reply didn't echo) |
+| gemma-4-e2b | ◑ | ✅ | ◑ | ✅ | 🧩 2B; create_card + output clean |
+| gemma-4-e4b | ◑ | ✅ | · | ✅ | output clean |
+| phi-4-mini-reasoning | ✅\* | ✅\* | · | ⚠️ | 🔧 ❌→✅ after §5.AA tool-set reduction (1 tool offered) |
+| phi-4-reasoning-plus | ❌ | ❌ | · | · | 🧱 never emits a tool call — open |
+| nemotron-3-nano-4b | ✅ | ✅ | ◑ | ✅ | solid |
+| deepseek-r1-qwen3-8b | ◑ | ✅ | · | · | ⚠️ crash-prone |
+> `run_command` ◑ = the command genuinely EXECUTED; only the reply echo (strict gate) was weak — the capability the user
+> cares about works. **0 user-facing narration leaks anywhere** (§5.O). Remaining ❌/⚠️ are §5.AA *control* problems, not format.
+
+### 2026-06-26 → 27 · **baseline C0–C2** across the loaded 9 · `verify-*` harnesses
+| model | C0 single-card | C1 decompose | C2 promote+isolation | note |
+|---|:-:|:-:|:-:|---|
+| qwen3-8b | ✅ | ✅ | ✅ | 🚀 north-star clean; 🐢 reasoning-heavy |
+| qwen2.5-coder-14b | ✅ | ✅ | ✅ | 🚀 |
+| qwen3.5-9b | ⚠️ | ✅ | ✅ | 🐢 slow-finalize → §5.AA watchdog |
+| gemma-4-e2b | ✅ | ✅ | ✅ | 🚀 2B passing the floor |
+| gemma-4-e4b | ✅ | ✅ | ✅ | |
+| phi-4-mini-reasoning | ✅ | ✅ | ⚠️ | 🔧 chat tools ❌→✅ via tool-set reduction |
+| phi-4-reasoning-plus | ✅ | ✅ | ✅ | 🧱 ❌ on chat tools (over-reasons) |
+| nemotron-3-nano-4b | ✅ | ✅ | ✅ | |
+| deepseek-r1-qwen3-8b | ✅ | ✅ | ✅ | ⚠️ crash-prone |
+> **8/9 on C0** (qwen3.5-9b ⚠️), **9/9 on C1**, ✅ C2 across the roster. 0 narration leaks anywhere (§5.O output hardening solid).
