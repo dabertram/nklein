@@ -386,6 +386,17 @@ describe("source task commands", () => {
 			try {
 				await waitForServerStart(serverProcess);
 
+				// Register the project first: `task list` below is a READ command (autoCreateIfMissing:false — reads must
+				// not create projects) and a bare launch does not register a project, so without this it returns
+				// "Project … is not added yet". A write command auto-adds it (and, being a subcommand, opens no browser),
+				// matching the realistic flow where the project exists before you inspect it.
+				const registerResult = await runCliCommandAndCollectOutput({
+					args: ["task", "create", "--prompt", "Seed task to register the project", "--project-path", projectPath],
+					cwd: projectPath,
+					env,
+				});
+				expect(registerResult.exitCode).toBe(0);
+
 				for (const [args, expectedOpenCount] of [
 					[[], 1],
 					[["task", "list", "--project-path", projectPath], 1],
