@@ -128,6 +128,14 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 18:30Z · **chat run_command — full loaded-roster sweep** · `verify-all-models verify-chat-command-exec` · _(Low Power)_
+| model | run_command | note |
+|---|:-:|---|
+| qwen3-8b · coder-14b · phi-4-mini · nemotron · qwopus-4b (NEW) | ✅ | clean — command executed + marker echoed (7–52 s) |
+| gemma-4-e2b · qwen3.5-9b · ornith-1.0-9b (NEW) | ◑ | the model **called `run_command`** but the reply didn't echo the marker (weak synthesis) → strict gate marks INCOMPLETE, but the tool-call capability works (the `‡` matrix footnote semantics; matches baseline for gemma-e2b/qwen3.5-9b). Not a !Klein bug — a model reply-quality trait. |
+> **run_command = 5✅ + 3◑** (all 8 emitted the tool call; 3 weak-echoed). New-model chat profile now complete:
+> **qwopus3.5-4b strong** (create_card ✅, run_command ✅) · **ornith-1.0-9b good** (create_card ✅, run_command ◑ weak-echo).
+
 ### 2026-06-28 18:18Z · **chat create_card — full loaded-roster sweep** · `verify-all-models verify-chat-create-card` · _(Low Power)_
 | model | create_card | note |
 |---|:-:|---|
