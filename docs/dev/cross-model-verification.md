@@ -39,7 +39,7 @@
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | · | · | · | · | · | · | · | · |
 | chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | · | · | · | · | · | · | · | · |
-| chat read tools · `verify-chat-agent-tools` | · | ✅ | · | · | · | · | · | · | · |
+| chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | · | · | ◑ | · |
 | chat write tool · `verify-chat-agent-write` | · | ✅ | · | · | · | · | · | · | · |
 | chat send · `verify-chat-send` | · | ✅ | · | · | · | · | · | · | · |
 | chat runtime · `verify-chat-runtime` | ✅ | · | · | · | · | · | · | · | · |
@@ -234,3 +234,9 @@ Single-card delivery → awaiting_review + captured result branch, for two model
 - ⚠️ **CANT (clean format)** · `microsoft/phi-4-mini-reasoning` · reached `awaiting_review` but with **0 tool calls** — it ruminated in the reasoning channel (1414 reasoning msgs) and never acted (no reads/writes/commands). **0 narration leaks** (output FORMAT is clean), so this is the confirmed reasoning-no-action capability gap (§5.O/§5.AB — the canonical reason-then-act / constrained-decoding rung target), NOT an output-format/parse failure. Matrix → ⚠️.
 
 > **Output-robustness mid_task sweep (2026-06-28) — KEY TAKEAWAY:** across every loaded model swept (qwen3-8b, coder-14b, qwen3.5-9b, gemma-e2b/e4b, nemotron, phi-4-mini), narration-leak count is **0** and hot-repeated-tool-call count is **0–1**. The §5.O parse-and-recover output-format hardening is solid; the remaining failures are §5.AA/§5.AB **control** problems (qwen3.5-9b non-termination, phi-4-mini reasons-without-acting), not output-format problems.
+
+### 2026-06-28 · verify-chat-agent-tools (chat read tools) — fixed a stale harness assertion, then swept
+**Harness bug fixed:** the "Executor audited an executed read" gate checked `record.detail === "read_file"`, but the audit record's `detail` is the path arg (`buildAuditDetail`, e.g. "NOTES.md") and the tool is identified by `record.action` (read_file's actionKind = `sandbox_read`). The stale check failed for EVERY model (the read genuinely executed + audited; only the assertion was wrong). Fixed to `record.action === "sandbox_read" && record.executed`. Then swept the loaded roster:
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` — read_file called, audited, secret in reply.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` — read_file called, audited, secret in reply (re-confirmed after the fix).
+- ◑ **PARTIAL** · `qwen3.5-9b-mlx-m5max`, `google/gemma-4-e2b-m5max`, `nvidia/nemotron-3-nano-4b-m5max` — read_file **executed + audited correctly** (the gated-executor path works), but the model's reply didn't echo the secret (weak synthesis, same ◑ pattern as run_command). Matrix → ◑.

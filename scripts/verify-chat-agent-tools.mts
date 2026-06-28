@@ -98,7 +98,10 @@ async function main(): Promise<void> {
 
 		const transcript = await readChatTranscript(session.id, storeOptions);
 		const calledReadFile = result.steps.some((step) => step.toolCall.name === "read_file");
-		const auditedRead = audit.some((record) => record.detail === "read_file" && record.executed);
+		// The audit record identifies the tool by its `action` (actionKind); `detail` is the path arg (e.g. "NOTES.md"),
+		// NOT the tool name — so the old `detail === "read_file"` check never matched and falsely failed every model.
+		// read_file's actionKind is "sandbox_read" (the `calledReadFile` gate above confirms it was read_file specifically).
+		const auditedRead = audit.some((record) => record.action === "sandbox_read" && record.executed);
 		const answerHasToken = result.assistantMessage.content.toLowerCase().includes("hunter2-fjord-lantern");
 		const persistedOk = transcript.length === 2 && transcript[0]?.role === "user" && transcript[1]?.role === "assistant";
 
