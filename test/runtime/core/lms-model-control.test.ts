@@ -3,6 +3,7 @@ import {
 	buildLmsLoadArgs,
 	buildLmsUnloadArgs,
 	MIN_CONTEXT_WINDOW_TOKENS,
+	parseLmsPs,
 	planGuardedModelLoad,
 } from "../../../src/core/lms-model-control";
 
@@ -67,5 +68,32 @@ describe("planGuardedModelLoad", () => {
 		expect(plan.allow).toBe(false);
 		expect(plan).not.toHaveProperty("argv");
 		expect(plan.reason).toMatch(/reserve|freeze/i);
+	});
+});
+
+describe("parseLmsPs", () => {
+	const sample = [
+		"IDENTIFIER                                          MODEL                                        STATUS    SIZE         CONTEXT    PARALLEL    DEVICE    TTL",
+		"google/gemma-4-e2b-m5max                            google/gemma-4-e2b                           IDLE      4.37 GB      40000      1           Local",
+		"phi-4-mini-instruct@8bit                            phi-4-mini-instruct@8bit                     IDLE      4.10 GB      40000      1           Local",
+		"text-embedding-nomic-embed-text-v1.5@q8_0-m4mini    text-embedding-nomic-embed-text-v1.5@q8_0    IDLE      146.15 MB    2048       -           m4mini",
+		"",
+	].join("\n");
+
+	it("parses the lms ps table into resident models (identifier, size bytes, context)", () => {
+		const models = parseLmsPs(sample);
+		expect(models.map((m) => m.identifier)).toEqual([
+			"google/gemma-4-e2b-m5max",
+			"phi-4-mini-instruct@8bit",
+			"text-embedding-nomic-embed-text-v1.5@q8_0-m4mini",
+		]);
+		expect(models[0].sizeBytes).toBe(Math.round(4.37 * 1024 ** 3));
+		expect(models[0].contextLength).toBe(40000);
+		expect(models[2].sizeBytes).toBe(Math.round(146.15 * 1024 ** 2));
+	});
+
+	it("skips the header + blank lines and is empty for no rows", () => {
+		expect(parseLmsPs("IDENTIFIER  MODEL  STATUS  SIZE  CONTEXT\n\n")).toEqual([]);
+		expect(parseLmsPs("")).toEqual([]);
 	});
 });

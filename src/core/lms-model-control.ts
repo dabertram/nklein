@@ -9,7 +9,42 @@
  * is set at load time and floored at the ≥32k invariant. Pure + deterministic → fully unit-testable.
  */
 
-import { decideModelLoad, type LoadHeadroomInput } from "./model-load-headroom";
+import { decideModelLoad, type LoadHeadroomInput, parseModelSizeBytes } from "./model-load-headroom";
+
+/** One resident model parsed from `lms ps`. */
+export interface ResidentModel {
+	identifier: string;
+	sizeBytes: number | null;
+	contextLength: number | null;
+}
+
+/**
+ * Parse `lms ps` table output into resident models — the adapter that feeds the headroom guard the live resident set +
+ * sizes. Columns are multi-space-separated (the `SIZE` "4.37 GB" has a single inner space, so split on 2+ spaces keeps
+ * it intact). Tolerant: skips the header + blank/short lines.
+ */
+export function parseLmsPs(text: string): ResidentModel[] {
+	const models: ResidentModel[] = [];
+	for (const raw of text.split("\n")) {
+		const line = raw.trim();
+		if (line.length === 0 || line.startsWith("IDENTIFIER")) {
+			continue;
+		}
+		const cols = line.split(/\s{2,}/);
+		// IDENTIFIER, MODEL, STATUS, SIZE, CONTEXT, [PARALLEL, DEVICE, TTL]
+		if (cols.length < 5) {
+			continue;
+		}
+		const [identifier, , , size, context] = cols;
+		const contextLength = Number.parseInt(context, 10);
+		models.push({
+			identifier,
+			sizeBytes: parseModelSizeBytes(size),
+			contextLength: Number.isFinite(contextLength) ? contextLength : null,
+		});
+	}
+	return models;
+}
 
 /** The ≥32k context floor (invariant #3) — a guarded load never configures a smaller window. */
 export const MIN_CONTEXT_WINDOW_TOKENS = 32_000;
