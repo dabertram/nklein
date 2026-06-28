@@ -3305,6 +3305,16 @@ deep analysis:
       fix, not a floor). qwopus3.5-4b-coder = **capable-but-flaky** (needs repeat-run tolerance). Record these in the
       §5.AB fitness store (per role × difficulty × context-size) when built; the "failing-LLM list" is the projection of
       below-bar (model,role) cells, not a hand-list.
+  - [ ] **phi-4-mini-reasoning CONFIRMED non-deliverer for agentic code-edit (2026-06-28, LM Studio logs).** Across 3
+        runs it consistently ends "Sandbox finished with no file changes" / never reaches a captured result. The LM
+        Studio dev logs (now captured) show it **ruminating in its reasoning channel** ("Wait not sure", "Alternatively…",
+        speculating about the formula) and emitting **no tool-call / no edit** at all. So this 3.8B *reasoning* model is a
+        poor fit for **agentic tool-driven coding** (it's tuned for chain-of-thought answers, not tool loops). **Provisional
+        verdict: capability-floor for the code-edit role → failing-LLM list for that role.** Dig-deeper avenue (only if
+        worth it): the §5.O ladder — **constrained-decoding tool-call fallback** + **narrated-tool-call recovery** +
+        **prompt-variation** could nudge it to emit a structured edit; but a model that never *decides to act* is low-ROI
+        to force. Likely better routed (by §5.AB auto-assign) to non-agentic roles (e.g. reasoning/review prompts) where
+        its chain-of-thought is an asset, and kept off code-edit. (Reasoning-channel capture is separately tracked in §5.AB.)
 - [x] **Sweep driver + results matrix (DONE 2026-06-26)** — `scripts/verify-all-models.mts` iterates the loaded roster,
       pins each model via `NKLEIN_VERIFY_MODEL` (per run a fresh isolated HOME; user settings untouched), runs a named
       harness, applies the deepseek-drop caveat (gone from `/v1/models` → DROPPED + continue), and appends a per-model
