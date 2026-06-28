@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildSchedulerEvent } from "../../../src/core/agent-attempt-ledger";
 import {
+	buildAttemptRetryNoteFromLedger,
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
 	summarizeLedgerForDisplay,
@@ -156,5 +157,67 @@ describe("buildModelFitnessFromLedger", () => {
 
 	it("is empty for a ledger with no attempts", () => {
 		expect(buildModelFitnessFromLedger([])).toEqual([]);
+	});
+});
+
+describe("buildAttemptRetryNoteFromLedger", () => {
+	it("is empty when there are no prior failed attempts", () => {
+		expect(buildAttemptRetryNoteFromLedger([])).toBe("");
+		// A successful attempt is not 'tried-and-failed' → nothing to warn the next attempt about.
+		expect(buildAttemptRetryNoteFromLedger([attempt("model-A", "success", 1)])).toBe("");
+	});
+
+	it("renders a do-not-repeat note from the workflow's failed attempts, in order, deriving the rung from levers", () => {
+		const events = [
+			buildAttemptEvent({ ...base, attemptId: "a1", modelId: "model-A", outcome: "no_tool_call", recordedAt: 1 }),
+			buildAttemptEvent({
+				...base,
+				attemptId: "a2",
+				modelId: "model-A",
+				outcome: "no_tool_call",
+				recordedAt: 2,
+				simplificationLevel: 1, // → reduced_tool_set rung
+			}),
+			buildAttemptEvent({
+				...base,
+				attemptId: "a3",
+				modelId: "model-A",
+				outcome: "malformed",
+				recordedAt: 3,
+				promptStrategy: "constrained-schema", // → constrained_schema rung
+				toolCalls: [{ name: "create_card", fingerprint: null, outcome: null }],
+			}),
+			attempt("model-A", "success", 4), // excluded (success)
+		];
+		const note = buildAttemptRetryNoteFromLedger(events);
+		expect(note).toContain("do NOT repeat");
+		expect(note).toContain("1. tried same_model_retry → no_tool_call");
+		expect(note).toContain("2. tried reduced_tool_set → no_tool_call");
+		expect(note).toContain("3. tried constrained_schema → malformed");
+		expect(note).toContain("tools=create_card");
+		expect(note).not.toContain("success");
+	});
+
+	it("filters to a given workflowId", () => {
+		const events = [
+			buildAttemptEvent({
+				...base,
+				workflowId: "wf-1",
+				attemptId: "x",
+				modelId: "m",
+				outcome: "timeout",
+				recordedAt: 1,
+			}),
+			buildAttemptEvent({
+				...base,
+				workflowId: "wf-2",
+				attemptId: "y",
+				modelId: "m",
+				outcome: "loop",
+				recordedAt: 2,
+			}),
+		];
+		expect(buildAttemptRetryNoteFromLedger(events, { workflowId: "wf-1" })).toContain("timeout");
+		expect(buildAttemptRetryNoteFromLedger(events, { workflowId: "wf-1" })).not.toContain("loop");
 	});
 });

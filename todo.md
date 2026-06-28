@@ -3984,8 +3984,14 @@ deep analysis:
       whyFailed?})` records *what was tried · the evidence · why it failed* per attempt; `summarizeFailureCapsules` turns
       the chain into a compact "already tried — do NOT repeat" note the controller prepends to the next attempt (so a weak
       model never re-rediscovers state); `untriedStrategies(capsules, ladder)` picks the next un-tried rung (no circles,
-      complementing `retry-policy`). Pure, 4 tests, tsc + biome green. **Still owed:** persist capsules as §5.AF ledger
-      events + wire the summary into the next-attempt context at the model-call seam.
+      complementing `retry-policy`). Pure, 4 tests, tsc + biome green. **LEDGER BRIDGE DONE (2026-06-28):**
+      `buildAttemptRetryNoteFromLedger(events, {workflowId?})`
+      ([agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)) reconstructs the do-not-repeat note from the
+      durable ledger's prior **non-success `attempt` events** (deriving each rung from the recorded levers —
+      simplificationLevel/promptStrategy/endpointStrategy → the `RetryStrategy`), so after a restart or a fresh rung the
+      controller can rebuild "what was tried" from the §5.AF record instead of re-asking the model (3 tests). (Controller
+      transitions already have a ledger `transition` event kind.) **Still owed:** wire the note into the live
+      next-attempt context at the model-call seam (rides the broader controller wiring).
       **(c)** **auto split/decompose** is a retry rung (local repair first; global re-decompose only when local repair
       can't restore coherence). Strengthens §5.AF/§5.AB, not a new track.
 
