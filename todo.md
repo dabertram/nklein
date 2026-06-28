@@ -3851,9 +3851,15 @@ deep analysis:
       history → an efficiency + long-context lever (and conversation branching). (c) Structured output is grammar-based
       (GGUF→llama.cpp grammar sampling, MLX→Outlines) and **guarantees** schema-valid JSON, but the docs caution "not all
       models below 7B are capable of structured output" — so the constrained-decoding rung helps mid/large models most.
-- [ ] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
+- [~] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
       explicit-format) when a model won't act; learn which template family each model responds to. ("Try different
-      prompts" — user.)
+      prompts" — user.) **PURE TEMPLATE CORE DONE (2026-06-28):**
+      [nklein-prompt-variation.ts](src/nklein-agent/nklein-prompt-variation.ts) — `buildPromptVariant(family, {instruction,
+      toolName?, exampleArguments?})` re-frames the SAME instruction (preserved verbatim — framing changes, intent never
+      does) across a `PROMPT_VARIANT_LADDER` of `imperative → explicit_format → example_led → reason_then_act` (the last =
+      the reason-then-act phase (a) prompt). Pure, generic, 8 tests; tsc + biome green. **Still owed (WIRING):** fire the
+      next un-tried family at the model-call seam on a no-call/malformed outcome (the `prompt_variant` rung in
+      `retry-policy.ts`), and learn each model's responsive family into the `ModelBehaviorProfile`.
 - [~] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder. **PURE FORMAT CORE DONE
