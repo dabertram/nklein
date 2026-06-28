@@ -15,13 +15,14 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import type { BackendUnderTest } from "../test/contract/helpers/index.js";
 import { connectRuntimeStream, initGitRepository, requestJson, startTsBackend } from "../test/contract/helpers/index.js";
 
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim() || "qwen/qwen3-8b-m5max";
 const PROVIDER_ID = process.env.NKLEIN_VERIFY_PROVIDER?.trim() || "lmstudio";
 const PRESET = process.env.NKLEIN_VERIFY_PRESET?.trim() || "mid_task";
-const TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "1800000");
+const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "1800000");
 
 const TERMINAL_COLUMN_IDS = new Set(["review", "completed", "done"]);
 const ACTIVE_COLUMN_IDS = new Set(["backlog", "planning", "in_progress", "in-progress"]);
@@ -68,6 +69,11 @@ async function main(): Promise<void> {
 	const homeDir = mkdtempSync(join(tmpdir(), "nklein-multicard-home-"));
 	initGitRepository(cwd);
 
+	// Power-aware timeout: Low Power Mode can cut LLM throughput ~50%, so scale the base budget by the OS power mode
+	// (low ≈ ×2) instead of spuriously reporting INCOMPLETE. NKLEIN_POWER_TIMEOUT_SCALE overrides (1 disables).
+	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
+	const TIMEOUT_MS = power.timeoutMs;
+
 	let server: BackendUnderTest | null = null;
 	let stream: Awaited<ReturnType<typeof connectRuntimeStream>> | null = null;
 	const latestActivityByTask = new Map<string, { state: string; activity: string }>();
@@ -88,7 +94,10 @@ async function main(): Promise<void> {
 				}
 			},
 		});
-		log(`Server: ${server.baseUrl}  model: ${MODEL_ID}@${PROVIDER_ID}  preset: ${PRESET}  timeout: ${TIMEOUT_MS}ms`);
+		log(
+			`Server: ${server.baseUrl}  model: ${MODEL_ID}@${PROVIDER_ID}  preset: ${PRESET}  ` +
+				`timeout: ${TIMEOUT_MS}ms (power=${power.mode} ×${power.multiplier}${power.source === "env_override" ? " env" : ""}, base ${BASE_TIMEOUT_MS}ms)`,
+		);
 
 		// 1a) Configure + SELECT the local provider globally (the onboarding step). The cascade's auto-started
 		// cards carry no per-card providerId, so they resolve getSelectedProviderSettings() — which is empty

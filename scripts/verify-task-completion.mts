@@ -15,6 +15,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import { resolvePowerAwareTimeoutMs } from "../src/core/power-aware-timeout";
 import { AgentSandboxManager } from "../src/nklein-agent/nklein-agent-sandbox";
 import { createInMemoryNKleinTaskSessionService } from "../src/nklein-agent/nklein-task-session-service";
 
@@ -23,7 +24,7 @@ const execFileAsync = promisify(execFile);
 const PROVIDER_ID = process.env.NKLEIN_VERIFY_PROVIDER?.trim() || "lmstudio";
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const CONTEXT_WINDOW = Number(process.env.NKLEIN_VERIFY_CONTEXT_WINDOW ?? "40000");
-const TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "240000");
+const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "240000");
 
 function log(line: string): void {
 	process.stdout.write(`${line}\n`);
@@ -54,7 +55,14 @@ async function main(): Promise<void> {
 		throw new Error(`Refusing to run against HOME=${home}. Set HOME to an isolated dir (e.g. /tmp/nklein-verify).`);
 	}
 	const modelId = await resolveModelId();
-	log(`Provider: ${PROVIDER_ID}  Model: ${modelId}  ctx: ${CONTEXT_WINDOW}  timeout: ${TIMEOUT_MS}ms`);
+	// Power-aware timeout: Low Power Mode (less heat) can cut throughput ~50% → scale the base budget by the OS power
+	// mode (low ≈ ×2). NKLEIN_POWER_TIMEOUT_SCALE overrides (1 disables).
+	const power = await resolvePowerAwareTimeoutMs(BASE_TIMEOUT_MS);
+	const TIMEOUT_MS = power.timeoutMs;
+	log(
+		`Provider: ${PROVIDER_ID}  Model: ${modelId}  ctx: ${CONTEXT_WINDOW}  ` +
+			`timeout: ${TIMEOUT_MS}ms (power=${power.mode} ×${power.multiplier}${power.source === "env_override" ? " env" : ""}, base ${BASE_TIMEOUT_MS}ms)`,
+	);
 
 	const manager = new AgentSandboxManager();
 	await manager.assertAvailable();
