@@ -36,14 +36,19 @@ export interface DurableDispatch {
 	expiresAt: number;
 }
 
-/** The effects the controller needs from the runtime. Kept minimal + synchronous-friendly so the loop stays testable. */
+/** The effects the controller needs from the runtime. Kept minimal so the loop stays testable. */
 export interface DurableRunPorts {
 	/** Current wall clock (epoch ms). */
 	now(): number;
 	/** Mint a worker id for a new lease (e.g. a uuid). */
 	mintWorkerId(): string;
-	/** Persist one durable-log entry (the runtime maps it to a `scheduler` ledger event + appends — see durable-scheduler-ledger). */
-	appendLog(entry: DurableSchedulerLogEntry): void;
+	/**
+	 * Durably persist one log entry (the runtime maps it to a `scheduler` ledger event + appends — see
+	 * durable-scheduler-ledger). **Awaited before the matching `dispatch`** so a crash can never leave a card running
+	 * (or enqueued) without its lease on record — the restart-survivability invariant (a leased-but-unlogged card would
+	 * be lost: never reclaimed, never rerun). May be sync (tests) or async (real ledger I/O).
+	 */
+	appendLog(entry: DurableSchedulerLogEntry): void | Promise<void>;
 	/** Start running a leased job (enqueue the card's session start). Fire-and-forget; completion returns via `reportCompletion`. */
 	dispatch(dispatch: DurableDispatch): void;
 }
@@ -73,15 +78,15 @@ export class DurableRunController {
 	 * (rather than waiting out a lease that no live worker holds). The reclaims are appended to the log too, keeping it
 	 * consistent. Use {@link replayDurableJobs} + this constructor directly if you want the raw replayed state instead.
 	 */
-	static resume(
+	static async resume(
 		initialJobs: readonly DurableJob[],
 		log: readonly DurableSchedulerLogEntry[],
 		config: DurableRunConfig,
 		ports: DurableRunPorts,
-	): DurableRunController {
+	): Promise<DurableRunController> {
 		const replayed = replayDurableJobs(initialJobs, log, { reclaimBackoffMs: config.reclaimBackoffMs });
 		const controller = new DurableRunController(replayed, config, ports);
-		controller.reclaimOrphanedLeases();
+		await controller.reclaimOrphanedLeases();
 		return controller;
 	}
 
@@ -90,7 +95,7 @@ export class DurableRunController {
 	 * budget left, else a `fail`. Appends + applies each so the log stays the source of truth. Called by `resume`; safe
 	 * to call again (a no-op when nothing is leased).
 	 */
-	reclaimOrphanedLeases(): void {
+	async reclaimOrphanedLeases(): Promise<void> {
 		const now = this.ports.now();
 		const actions: DurableSchedulerAction[] = this.jobs
 			.filter((job) => job.state === "leased")
@@ -99,7 +104,7 @@ export class DurableRunController {
 					? { type: "fail", jobId: job.jobId, reason: "max_attempts" }
 					: { type: "reclaim", jobId: job.jobId, reason: "lease_expired" },
 			);
-		this.commit(actions, now);
+		await this.commit(actions, now);
 	}
 
 	/**
@@ -107,7 +112,7 @@ export class DurableRunController {
 	 * dispatch newly-leased jobs. Returns the actions taken (`[]` when nothing is due). The runtime calls this on a timer
 	 * and right after `reportCompletion` to cascade unblocked dependents.
 	 */
-	tick(): DurableSchedulerAction[] {
+	async tick(): Promise<DurableSchedulerAction[]> {
 		const now = this.ports.now();
 		const actions = decideDurableSchedulerActions({
 			jobs: this.jobs,
@@ -118,7 +123,7 @@ export class DurableRunController {
 			reclaimBackoffMs: this.config.reclaimBackoffMs,
 			mintWorkerId: this.ports.mintWorkerId,
 		});
-		this.commit(actions, now);
+		await this.commit(actions, now);
 		return actions;
 	}
 
@@ -126,19 +131,23 @@ export class DurableRunController {
 	 * Record a worker's terminal report for its leased job (`succeeded` / `failed`) — persist a `completed` entry and
 	 * apply it. A no-op for an unknown/terminal job. The runtime should `tick()` afterwards to schedule freed dependents.
 	 */
-	reportCompletion(jobId: string, outcome: "succeeded" | "failed"): void {
+	async reportCompletion(jobId: string, outcome: "succeeded" | "failed"): Promise<void> {
 		const job = this.jobs.find((candidate) => candidate.jobId === jobId);
 		if (!job || job.state === "succeeded" || job.state === "failed") {
 			return;
 		}
-		this.ports.appendLog({ kind: "completed", jobId, outcome });
+		await this.ports.appendLog({ kind: "completed", jobId, outcome });
 		this.jobs = markDurableJob(this.jobs, jobId, outcome);
 	}
 
-	/** Append + apply a set of actions at a single captured clock, dispatching any new leases. */
-	private commit(actions: readonly DurableSchedulerAction[], now: number): void {
+	/**
+	 * Persist + apply a set of actions at a single captured clock, then dispatch any new leases. Every log entry is
+	 * **awaited before any dispatch** — the persist-before-side-effect ordering that makes the run restart-survivable
+	 * (a dispatched-but-unlogged lease would be lost on crash). Entries are appended in decision order.
+	 */
+	private async commit(actions: readonly DurableSchedulerAction[], now: number): Promise<void> {
 		for (const action of actions) {
-			this.ports.appendLog({ kind: "scheduled", now, action });
+			await this.ports.appendLog({ kind: "scheduled", now, action });
 		}
 		this.jobs = applyDurableSchedulerActions(this.jobs, actions, {
 			now,
