@@ -42,7 +42,7 @@
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | ◑ | ◑ | ◑ | · | · | · | ◑ | · |
-| chat e2e capstone† · `verify-chat-agent-e2e` | ❌ | ❌ | ❌ | ❌ | · | ❌ | · | ❌ | · |
+| chat e2e capstone† · `verify-chat-agent-e2e` | ❌ | ◑ | ❌ | ❌ | · | ◑ | · | ❌ | · |
 | chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | ◑ | · | ◑ | · |
 | chat write tool · `verify-chat-agent-write` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
 | chat send · `verify-chat-send` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
@@ -57,11 +57,14 @@
 > real (read + command → marker echoes back), then NARRATE the later steps (`create_card`, `update_focus_chain`) in
 > prose/pseudo-code instead of calling them, so the board stays empty. Narration dialect varies run-to-run (qwen prose;
 > gemma alternates `tool_code = create_card(…)` ↔ markerless `"tool_name":…` JSON), which is why earlier single runs
-> looked flaky (`🎲`). The recoverable dialects execute via the existing client-seam narrated-recovery (now incl. gemma's
-> `tool_code`), but the durable fix is the **§5.AA retry-engine** forcing a parseable call mid-chain (constrained-decoding
-> rung). It is
-> **not a reliable per-model gate**; per-model chat capability is proven by the **individual** `run_command` /
-> `create_card` / `browse_url` / `read`/`write`/`send`/`runtime` rows (deterministic single-tool checks, all ✅/◑).
+> looked flaky (`🎲`). **§5.AA constrained-decoding rung now WIRED (2026-06-28)** — `createChatAgentModel` forces a
+> parseable `{tool,arguments}` call when a turn names a tool but emits none. Re-sweep result: **coder-14b ❌→◑ and
+> phi-4-mini ❌→◑** — both drove the full/near-full tool chain AND **persisted the card** (only the strict marker-echo
+> reply-quality gate keeps them from ✅). The other 6 still stop after `read_file` with a prose summary, so the loop ends
+> before the rung can fire on a later step — the remaining lift is a **finite-state controller** that keeps the run going
+> until every required step is done (§5.AA), not more recovery. It is **not a reliable per-model gate**; per-model chat
+> capability is proven by the **individual** `run_command` / `create_card` / `browse_url` / `read`/`write`/`send`/`runtime`
+> rows (deterministic single-tool checks, all ✅/◑).
 >
 > **‡** `run_command` — the **command genuinely EXECUTES at runtime for 7/9** (✅ + ◑). `◑` = the command ran (the
 > agent called `run_command`, it executed) but the model's *reply* didn't echo the output (weak synthesis), so the
@@ -409,4 +412,15 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `nvidia/nemotron-3-nano-4b-m5max` · 20s · INCOMPLETE — see above.
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 29s · INCOMPLETE — see above.
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 28s · INCOMPLETE — see above.
+  - matrix row: qwen3-8b-m5max=❌ qwen2.5-coder-14b-m5max=❌ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 20:13:10 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen3-8b-m5max` · 62s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 39s · INCOMPLETE — see above.
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 27s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwen3.5-9b-mlx-m5max` · 18s · INCOMPLETE — see above.
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 234s · INCOMPLETE — see above.
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b-m5max` · 10s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 20s · INCOMPLETE — see above.
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 13s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=❌ qwen2.5-coder-14b-m5max=❌ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
