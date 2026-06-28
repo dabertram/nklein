@@ -4660,7 +4660,7 @@ deep analysis:
       overlaps; (3) `board poll fetch failed (HeadersTimeoutError)` transients → exactly the lease/reclaim survivability
       case. Not a model ceiling (decompose + per-card work were sound). See
       [docs/dev/milestone-challenges.md](docs/dev/milestone-challenges.md) run log.
-- [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
+- [~] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
       function of `(manifest, mode, ruleset)`, replacing the drifted trio (chat `chat-execution-mode` action-kinds + §5.L
@@ -4668,6 +4668,12 @@ deep analysis:
       accounts / purchases / publishing / money) is just higher `networkLevel`/`approval` tiers on this manifest —
       collect the seam, stay #1-locked. **Research addendum:** add state gating (`allowedRunStates`), source/sink
       provenance/taint labels, semantic error contracts, small-model tool-card metadata, and replay mode.
+      **FOUNDATION SLICE DONE (2026-06-28, `aef9e867`):** [src/core/tool-capability-manifest.ts](src/core/tool-capability-manifest.ts)
+      — the manifest types + `manifestForChatAction` (bridge) + `decideManifestChatAccess` (unified gate), with a
+      **characterization test proving it reproduces `decideChatActionAccess` EXACTLY across all 18 (mode × action)**.
+      So the manifest provably subsumes mechanism #1 (chat). **STILL OWED:** subsume #2 (§5.L delivery rulesets) + #3 (the
+      NKlein tool-approval policy) onto the same manifest (each with its own characterization), add the research-addendum
+      fields (`allowedRunStates`/taint/`auditDetail`), then **migrate the 3 call sites to the one gate** (the wiring).
 - [ ] **Resource governance (operational, NOT perf-benchmarking).** Model load/unload policy, VRAM/RAM/disk headroom
       check before a sweep, endpoint-saturation backpressure (the scheduler already serializes per endpoint),
       background-vs-interactive priority — so a local multi-model lab doesn't OOM/thrash/deadlock. **Distinct from** the
