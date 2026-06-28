@@ -4764,10 +4764,12 @@ deep analysis:
         them, only reach review when green). **Default ON**, with a **global** toggle and a **per-project override** (wire
         through `runtime.saveConfig` global + workspace-scope, same pattern as §5.W concurrency / Suite-16 settings
         contract). Surface in Settings + the project-settings menu. The dev-test oracle (§5.V) is the natural verifier.
-  - [ ] **Re-verify / further-simplify `read_large_file` (handoff 2026-06-28, likely already satisfied).** The handoff
-        re-listed "simplify `read_large_file`", but it was already simplified to pure iteration on 2026-06-24 (see the
-        `[x]` item under §5.O). Confirm nothing regressed and there's no remaining simplification the handoff intended;
-        if fully satisfied, close this as superseded.
+  - [x] **Re-verify `read_large_file` — CONFIRMED satisfied, closed as superseded (2026-06-28).** Verified the live impl
+        ([nklein-large-file-workflow.ts](src/nklein-agent/nklein-large-file-workflow.ts)) is the simplified §5.O protocol:
+        the model only *triggers* the workflow with a `path` then advances with `cursor: "next"` (or an empty/`continue`/
+        `auto`/`more` alias) — it never composes the opaque `read:`/`stitch:` cursors (those are still accepted for
+        back-compat); each result reports index/total progress so iteration is "where am I", not cursor bookkeeping. The
+        tool description matches. 14 unit tests green; nothing regressed. No remaining simplification the handoff intended.
 - [ ] **NEW genuine PARTIAL class (surfaced 2026-06-28 by the now-hermetic full-system oracle): card reaches
       `awaiting_review` but NO `nklein/tasks/<task>` result branch is captured** ("no result branch (nothing was
       captured)"). This is real agent/runtime behavior, NOT the oracle (which is now hermetic, see §5.V). The small model
