@@ -128,6 +128,21 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 17:55Z · **C1 decompose — full loaded-roster sweep** · `verify-all-models verify-decompose-isolation` · _(Low Power)_
+| model | C1 decompose | note |
+|---|:-:|---|
+| qwen3-8b | ✅ | 64s, 0 host-path leaks |
+| qwen2.5-coder-14b | ✅ | 83s |
+| gemma-4-e2b | ✅ | 27s (fastest) |
+| qwen3.5-9b | ✅ | 47s — **passes C1 though it STALLED on C0**: decompose is one self-contained turn (no multi-turn finalization to stall on) |
+| phi-4-mini-reasoning | ✅ | 303s (slow, reasoning) — **passes C1 though PARTIAL on C0**: single-turn, no deliverable-write step to skip |
+| nvidia/nemotron-3-nano-4b | ✅ | 99s |
+| qwopus3.5-4b-coder (NEW) | ✅ | 73s — new model confirmed on C1 |
+| ornith-1.0-9b (NEW) | ✅ | 163s — new model confirmed on C1 |
+> **C1 = 8/8 across the loaded roster** (loaded-only, no-load-guarded, 0 host-path leaks anywhere). Notably the two C0
+> problem-children pass C1 — confirming their C0 issues are **multi-turn finalization/delivery** (§5.AA), not capability:
+> a single decompose turn is clean for everyone.
+
 ### 2026-06-28 17:24Z · **loaded-roster C0 sweep wrap-up** · `verify-task-completion` · _(Low Power, delivery-gated + stall-detected)_
 | model | result | note |
 |---|:-:|---|
