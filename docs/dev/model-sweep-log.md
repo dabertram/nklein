@@ -128,10 +128,10 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
-### 2026-06-28 16:54Z · **weakest-model up the ladder** · C1 decompose · `verify-decompose-isolation` · _(Low Power)_
-| model | result | note |
-|---|:-:|---|
-| google/gemma-4-e2b (2B) | ✅ | 🚀 the floor holds on C1 too — `decompose_project` produced a DAG with **0 host-path leaks** under isolation (Low Power) |
+### 2026-06-28 16:54Z · **weakest-model up the ladder** · C1 decompose + C2 promote · _(Low Power)_
+| model | C1 decompose | C2 auto-promote | note |
+|---|:-:|:-:|---|
+| google/gemma-4-e2b (2B) | ✅ | ✅ | 🚀 **the floor holds across all met rungs** even at Low Power — C1: `decompose_project` → DAG, **0 host-path leaks** under isolation; C2: card auto-promoted Planning→In Progress via the recovery path. The harness carries the weakest 2B through C0/C1/C2. |
 
 ### 2026-06-28 16:38Z · **new-model scout** · C0 single-card · `verify-task-completion` · _(Low Power)_
 | model | result | note |
