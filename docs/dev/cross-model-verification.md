@@ -461,3 +461,7 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 20:38:24 · verify-task-completion
 - ✅ **PASS** · `qwen/qwen3-8b-m5max` · 18s · PASS ✓ a small local model ran the card to a terminal state AND delivered the correct result (hello.txt).
   - matrix row: qwen3-8b-m5max=✅
+
+### 2026-06-28 20:46:42 · verify-task-completion
+- ❌ **FAIL** · `qwen/qwen3-8b-m5max` · 498s · SWEEP-ROW | 2026-06-28T20:46:42.962Z | C0 single-card | model=qwen/qwen3-8b-m5max | result=STALLED 🧱 | terminal=interrupted | delivered=NO | power=low×2
+  - matrix row: qwen3-8b-m5max=❌
