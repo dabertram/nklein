@@ -188,4 +188,50 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(result.text).toBe("Here is my direct answer.");
 		expect(offeredCounts).toEqual([6]); // no anchor → no retry, no wasted calls
 	});
+
+	it("§5.O/§5.AA: recovers a NARRATED `tool_code` call (gemma dialect) when no structured call is emitted", async () => {
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({
+				content: 'tool_code = create_card(title="E2E-CARD-7777", prompt="from e2e")',
+				toolCalls: [],
+				finishReason: "stop",
+				raw: {},
+			}),
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: "Create a card titled E2E-CARD-7777." }], true);
+		expect(result.toolCalls).toEqual([
+			expect.objectContaining({ name: "create_card", arguments: { title: "E2E-CARD-7777", prompt: "from e2e" } }),
+		]);
+		expect(result.text).toBe(""); // the call executes; the reply comes on the follow-up turn
+	});
+
+	it("§5.O/§5.AA: narrated recovery does NOT fire on a plain-prose reply (no recognized marker)", async () => {
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({
+				content: "I created the card for you.",
+				toolCalls: [],
+				finishReason: "stop",
+				raw: {},
+			}),
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: "Just tell me about cards." }], true);
+		expect(result.toolCalls).toEqual([]);
+		expect(result.text).toBe("I created the card for you.");
+	});
+
+	it("§5.O/§5.AA: narrated recovery is skipped when tools are not allowed (no fabricated calls in plain chat)", async () => {
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({
+				content: 'tool_code = create_card(title="X")',
+				toolCalls: [],
+				finishReason: "stop",
+				raw: {},
+			}),
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: "hi" }], false);
+		expect(result.toolCalls).toEqual([]);
+	});
 });
