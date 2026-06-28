@@ -213,6 +213,29 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(constrainedFormat).toMatchObject({ jsonSchema: { name: "klein_tool_call" } });
 	});
 
+	it("§5.AA constrained rung: EXCLUDES already-executed tools so a stalled chain is steered to the next step", async () => {
+		let forcedEnum: unknown = null;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({ content: "All done!", toolCalls: [], finishReason: "stop", raw: {} }),
+			complete: async (request) => {
+				forcedEnum = (
+					request.format?.jsonSchema?.schema as { properties?: { tool?: { enum?: string[] } } } | undefined
+				)?.properties?.tool?.enum;
+				return { content: '{"tool":"create_card","arguments":{"title":"X"}}' };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		// The instruction names read_file + create_card; read_file is already used this run → it must be excluded.
+		const result = await model(
+			[{ role: "user", content: "First read_file FACT.txt, then create_card titled X." }],
+			true,
+			undefined,
+			["read_file"],
+		);
+		expect(forcedEnum).toEqual(["create_card"]); // read_file dropped, steering to the undone step
+		expect(result.toolCalls).toEqual([expect.objectContaining({ name: "create_card" })]);
+	});
+
 	it("§5.AA constrained rung: does NOT fire when no tool is named (no fabricated call on a prose answer)", async () => {
 		let constrainedCalled = false;
 		const client: ChatAgentCompletionClient = {

@@ -57,6 +57,9 @@ export interface ChatAgentLoopDeps {
 		messages: readonly ChatPromptMessage[],
 		allowTools: boolean,
 		onToken?: (delta: string) => void,
+		/** Names of tools already executed this run — the §5.AA constrained rung excludes them when forcing a call, so a
+		 *  weak model that stalls mid-chain is pushed to the NEXT step instead of re-forcing an already-done tool. */
+		usedToolNames?: readonly string[],
 	) => Promise<ChatAgentModelResponse>;
 	/** Execute one tool call (after the policy gate + audit, in the live wiring); returns the result content. */
 	executeTool: (call: ChatToolCall) => Promise<ChatToolResult>;
@@ -90,10 +93,12 @@ export async function runChatAgentLoop(
 	let messages: readonly ChatPromptMessage[] = input.messages;
 	const steps: ChatAgentStep[] = [];
 	const executedFingerprints = new Set<string>();
+	const usedToolNames = new Set<string>();
 
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
-		// Tool-discovery turn: never stream (the model must be free to request a tool instead of answering).
-		const response = await deps.complete(messages, true);
+		// Tool-discovery turn: never stream (the model must be free to request a tool instead of answering). Pass the
+		// already-executed tool names so the §5.AA constrained rung, if it has to FORCE a call, steers to an un-done step.
+		const response = await deps.complete(messages, true, undefined, [...usedToolNames]);
 		if (response.toolCalls.length === 0) {
 			// The model chose to answer rather than call a tool — this is the final reply. With an `onToken` we re-issue
 			// it as a streaming, tools-disabled call so the answer streams token-by-token (the discovery call can't both
@@ -117,6 +122,7 @@ export async function runChatAgentLoop(
 			results.push(result);
 			steps.push({ toolCall, result });
 			executedFingerprints.add(fingerprint);
+			usedToolNames.add(toolCall.name);
 			executedNew += 1;
 		}
 		messages = deps.appendToolExchange(messages, response, results);

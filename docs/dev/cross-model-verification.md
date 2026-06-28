@@ -424,3 +424,21 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 20s · INCOMPLETE — see above.
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 13s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=❌ qwen2.5-coder-14b-m5max=❌ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 20:18:49 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 35s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 20s · INCOMPLETE — see above.
+  - matrix row: qwen2.5-coder-14b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌
+
+### 2026-06-28 20:20:44 · verify-chat-agent-e2e
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 114s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=❌
+
+### 2026-06-28 20:21:34 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 32s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 18s · INCOMPLETE — see above.
+  - matrix row: qwen2.5-coder-14b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌
+
+### 2026-06-28 20:23:54 · verify-chat-agent-e2e
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 139s · INCOMPLETE — see above.
+  - matrix row: phi-4-mini-reasoning=❌

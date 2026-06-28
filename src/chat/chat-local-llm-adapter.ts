@@ -116,9 +116,14 @@ export function createChatAgentModel(
 	client: ChatAgentCompletionClient,
 	toolDefinitions: readonly LocalLlmToolDefinition[],
 	options: { sampling?: LocalLlmSamplingOptions } = {},
-): (messages: readonly ChatPromptMessage[], allowTools: boolean) => Promise<ChatAgentModelResponse> {
+): (
+	messages: readonly ChatPromptMessage[],
+	allowTools: boolean,
+	onToken?: (delta: string) => void,
+	usedToolNames?: readonly string[],
+) => Promise<ChatAgentModelResponse> {
 	const sampling = options.sampling ?? DEFAULT_SAMPLING;
-	return async (messages, allowTools) => {
+	return async (messages, allowTools, _onToken, usedToolNames) => {
 		const wire = messages.map((message) => ({ role: message.role, content: message.content }));
 		const offered = allowTools ? toolDefinitions : [];
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
@@ -149,7 +154,13 @@ export function createChatAgentModel(
 		// `response_format: json_schema` constraining output to `{tool, arguments}`, then parse it back into a call.
 		if (allowTools && response.toolCalls.length === 0 && client.complete) {
 			const anchored = selectToolsForAttempt(offered, lastUserText(messages), 1);
-			const schema = anchored.matchedNames.length > 0 ? buildConstrainedToolCallSchema(anchored.tools) : null;
+			// Steer a stalled chain to the NEXT step: drop tools already executed this run from the forced schema, so a
+			// weak model can't re-pick a done tool (which the loop would dedupe → premature finish). Fall back to all
+			// anchored tools when every anchored tool is already used (nothing left to steer to).
+			const used = new Set(usedToolNames ?? []);
+			const remaining = anchored.tools.filter((tool) => !used.has(tool.name));
+			const forceTools = remaining.length > 0 ? remaining : anchored.tools;
+			const schema = anchored.matchedNames.length > 0 ? buildConstrainedToolCallSchema(forceTools) : null;
 			if (schema) {
 				const constrained = await client.complete({
 					messages: [
@@ -163,7 +174,7 @@ export function createChatAgentModel(
 					sampling,
 					format: { jsonSchema: schema },
 				});
-				const parsed = parseConstrainedToolCall(constrained.content, anchored.tools);
+				const parsed = parseConstrainedToolCall(constrained.content, forceTools);
 				if (parsed) {
 					return {
 						text: "",
