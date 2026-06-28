@@ -1,0 +1,103 @@
+# Model sweep log — per-run scoreboard over time
+
+> A **chronological** log of cross-model test-run sweeps (the §5.Z roster × the MCF challenge ladder). Each sweep is one
+> small table — timestamp · challenge · per-model result + a short note — so you can **scroll top→bottom to watch each
+> model evolve as difficulty grows**. Companion to [milestone-challenges.md](milestone-challenges.md) (the challenge
+> catalog) and [cross-model-verification.md](cross-model-verification.md) (the aggregate per-flow matrix); this file is
+> the **time series** behind them. Newest sweeps are **appended at the bottom**.
+>
+> **Result legend:** ✅ pass · ◑ partial (ran, weak synthesis) · ⚠️ capability-floor (recorded, *provisional* — keep
+> trying to lift it) · ❌ fail (no tool call / wrong) · 🎲 flaky (varies run-to-run) · ⏳ incomplete (timeout/horizon) ·
+> `·` not run this sweep.
+>
+> **Note tags:** 🚀 very good · 🐢 slow · 🧩 weak synthesis · 🐞 bug found · 🔧 fix landed · 🧱 no mitigation yet (open) ·
+> 🔁 transient (not a ceiling).
+>
+> **Roster discipline (per the 2026-06-28 directive):** keep EVERY model that has ever appeared, even if currently
+> unloaded — models pop in and out; collect the full history. Mark loaded vs available-untested vs gone. **Watch the
+> WEAKEST models closely** (the "weakest watch" below) — they're the early-warning signal for where a new difficulty
+> rung first bites, and the place the §5.AA ladder earns its keep.
+
+## Roster (every model seen — loaded + historical)
+
+| model | size | status (2026-06-28) | role / notes |
+|---|---|---|---|
+| `qwen/qwen3-8b` | 4.62 GB | loaded | **north-star small** — the C0 done-bar |
+| `qwen/qwen2.5-coder-14b` | 8.33 GB | loaded | coder; strongest small all-rounder |
+| `qwen3.5-9b-mlx` | 5.98 GB | loaded | ⚠️ slow-finalize on C0 |
+| `google/gemma-4-e2b` | 4.37 GB | loaded | **2B — capability floor**, watch first |
+| `google/gemma-4-e4b` | 6.86 GB | available | |
+| `microsoft/phi-4-mini-reasoning` | 2.18 GB | loaded | reasoning, 3.8B; flipped ❌→✅ on chat tools via §5.AA tool-set reduction |
+| `microsoft/phi-4-reasoning-plus` | 8.26 GB | available | over-reasons; ❌ chat tools (won't emit a call) |
+| `nvidia/nemotron-3-nano-4b` | 2.84 GB | loaded | |
+| `deepseek-r1-0528-qwen3-8b-mlx` | 8.71 GB | available | ⚠️ crash-prone |
+| `text-embedding-nomic-embed-text-v1.5@q8_0` | 146 MB | loaded | embedder (not a chat model) |
+| _— newly appeared 2026-06-28, untested —_ | | | |
+| `qwopus3.5-9b-coder-mlx` (`@8bit`/`@4bit`) | ~9B | available, **untested** | coder; scout when a sweep slot frees |
+| `qwopus3.5-4b-coder-fable5-v1-mlx` | ~4B | available, **untested** | small coder |
+| `ornith-1.0-9b-mlx` | ~9B | available, **untested** | |
+| `ornith-1.0-35b-mlx` (`@8bit`/`@4bit`) | ~35B | available, **untested** | **bigger local model** — the Phase-A escalation lever (§5.0.3) |
+| `nvidia/nemotron-3-super` | — | available, **untested** | |
+| `deepseek-v4-flash-dq` | — | available, **untested** | |
+
+> _Up to ~120B at lower quantization fits the 128 GB / M5 Max (§5.0.3 Phase A) — `ornith-1.0-35b` is the first rung up._
+
+## Weakest-models watch (check these FIRST each sweep — earliest to hit a wall)
+
+- **`google/gemma-4-e2b` (2B)** — the smallest; the harness must carry it. C0/C1/C2 clean so far; the first to watch on C3+.
+- **`microsoft/phi-4-reasoning-plus`** — over-reasons, won't emit a tool call even with 1 tool offered (🧱 open — needs the
+  next §5.AA rungs: prompt simplification / reason-then-act / native `/api/v1/chat`).
+- **`qwen3.5-9b-mlx`** — ⚠️ slow-finalize on C0 (the §5.AA finalization watchdog targets this).
+- **`deepseek-r1-0528-qwen3-8b-mlx`** — ⚠️ crash-prone; re-confirm it still loads each sweep.
+
+## Sweeps (oldest first — append new at the bottom)
+
+### 2026-06-26 → 27 · **baseline C0–C2** across the loaded 9 · `verify-*` harnesses
+| model | C0 single-card | C1 decompose | C2 promote+isolation | note |
+|---|:-:|:-:|:-:|---|
+| qwen3-8b | ✅ | ✅ | ✅ | 🚀 north-star clean; 🐢 reasoning-heavy |
+| qwen2.5-coder-14b | ✅ | ✅ | ✅ | 🚀 |
+| qwen3.5-9b | ⚠️ | ✅ | ✅ | 🐢 slow-finalize → §5.AA watchdog |
+| gemma-4-e2b | ✅ | ✅ | ✅ | 🚀 2B passing the floor |
+| gemma-4-e4b | ✅ | ✅ | ✅ | |
+| phi-4-mini-reasoning | ✅ | ✅ | ⚠️ | 🔧 chat tools ❌→✅ via tool-set reduction |
+| phi-4-reasoning-plus | ✅ | ✅ | ✅ | 🧱 ❌ on chat tools (over-reasons) |
+| nemotron-3-nano-4b | ✅ | ✅ | ✅ | |
+| deepseek-r1-qwen3-8b | ✅ | ✅ | ✅ | ⚠️ crash-prone |
+> **8/9 on C0** (qwen3.5-9b ⚠️), **9/9 on C1**, ✅ C2 across the roster. 0 narration leaks anywhere (§5.O output hardening solid).
+
+### 2026-06-28 · **C0 reliability sweep #1** · `verify-task-completion` · qwen3-8b ×5 (back-to-back)
+| model | runs | result | note |
+|---|:-:|:-:|---|
+| qwen3-8b | 5 | ✅ 4/5 | 🔁 1 `interrupted` (transient, §5.AA class — not a wrong result) |
+
+### 2026-06-28 · **C0 reliability scout #2** · `verify-task-completion` ×3 each
+| model | runs | result | note |
+|---|:-:|:-:|---|
+| qwen3-8b | 3 | ✅ 3/3 | 🚀 sweep-#1 transient did NOT reproduce → **7/8 (~88%) over both sweeps** |
+| qwen2.5-coder-14b | 3 | ✅ 3/3 | 🚀 clean |
+
+### 2026-06-28 · **C3 unattended multi-card** · `verify-multi-card-pipeline` · `complex_dag` · qwen3-8b
+| model | decompose | all-terminal | note |
+|---|:-:|:-:|---|
+| qwen3-8b | ✅ (13 cards) | ⏳ | 🐞 gate = wide-DAG **throughput + long-horizon transient survivability**, not a model ceiling; ~10 cards stuck in `planning` at 25 min |
+
+### 2026-06-28 · **C5 wide fan-out** · `verify-multi-card-pipeline` · `many_small` · qwen3-8b
+| model | decompose | all-terminal | note |
+|---|:-:|:-:|---|
+| qwen3-8b | ✅ (21 indep. cards) | ⏳ | 🐞 only ≤3 ran concurrently — **single local endpoint serializes inference**; true fan-out needs multiple endpoints/models (not just a higher cap) |
+
+### 2026-06-28 · **C3 file-overlap diagnostic re-scout** · `complex_dag` · qwen3-8b
+| model | result | note |
+|---|:-:|---|
+| qwen3-8b | ⏳ | 🔧 the auto-start skip fires on a **genuine** shared file (`src/habit-insights.ts`) → file-overlap heuristic **vindicated** (serializes real overlaps, not noise) |
+
+### 2026-06-28 · **runtime-wide throughput fix** (affects every sweep's per-card latency)
+| area | result | note |
+|---|:-:|---|
+| token counting | 🔧 | 🐞🔧 `countKanbanTextTokens` hit BPE ~O(n²) on long single-char runs (120 KB `get_file_size` ~6 s, blocked the event loop) → chunked + capped; **6000 ms → 85 ms**. Behind every budget/size check, so it lifts all models' turn latency. |
+
+### 2026-06-28 · **C3 post-throughput-fix re-scout** · `complex_dag` · qwen3-8b
+| model | decompose | all-terminal | note |
+|---|:-:|:-:|---|
+| qwen3-8b | _running_ | _pending_ | measuring whether faster agent turns improve multi-card completion |

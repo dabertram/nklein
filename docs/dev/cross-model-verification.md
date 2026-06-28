@@ -6,6 +6,10 @@
 > reply — isn't met) · `❌` FAIL → harden · `⚠️` CANT (capability floor) · `🎲` flaky · `💥` DROPPED (crashed mid-run) ·
 > `·` not yet run.
 >
+> **Time series:** this file is the *aggregate* matrix (latest result per flow×model). The chronological **per-run**
+> history — one table per sweep, scroll top→bottom to watch each model evolve over time/difficulty — is in
+> [model-sweep-log.md](model-sweep-log.md) (keep both in sync; the sweep log also tracks newly-appeared + unloaded models).
+>
 > **Crash caveat:** `deepseek` may vanish mid-run — record `💥` and move on, never block the sweep.
 > **Restore:** every run restores the user's selected model afterward.
 > **FAIL vs CANT:** a malformed-output / parse gap is `❌` (a !Klein hardening task, §5.O parse-and-recover); a model

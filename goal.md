@@ -44,7 +44,12 @@ next step even for things that will only be *adapted later with low effort*).
 - **Never idle the LLMs.** While you do non-LLM (host-side) work, keep a background LLM run going on the live roster
   (one at a time — the local endpoints are serialized; don't oversaturate): either **(a)** repeat an already-passing
   challenge to detect flakiness/reliability, or **(b)** early-scout an *upcoming* challenge level to collect evidence
-  before you need it. Record results as a reliability column in the catalog / scoreboard.
+  before you need it. **Record every sweep** as a per-run table in [docs/dev/model-sweep-log.md](docs/dev/model-sweep-log.md)
+  (timestamp · per-model result + a terse note — 🚀/🐢/🐞/🔧/🧱/🔁), and keep the catalog/scoreboard in sync.
+- **Roster discipline + weakest-model focus.** Keep EVERY model that has appeared in the roster (sweep-log table), even
+  when unloaded — they pop in/out; collect the full history and adapt as new ones appear (check the live endpoint, e.g.
+  LM Studio `/v1/models`). Watch the **weakest** models first each sweep — they hit a new difficulty rung earliest, so
+  they're the signal that tells you where the §5.AA ladder (or a bigger Phase-A model) is next needed.
 - **Quality is a standing mandate with a widening horizon.** Always strive for clean code, design, structure,
   maintainability, extendability — a slightly-moving target you keep raising, not a one-time bar.
 

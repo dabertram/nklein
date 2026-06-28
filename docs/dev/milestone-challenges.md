@@ -9,7 +9,8 @@
 > (`src/nklein-agent/nklein-dev-test-project.ts`: `mid_task` · `complex_dag` · `wide_fanout` · `deep_chain` · `mixed_dag` ·
 > `many_small` · `daw_foundation` · `audio_vst`), the `scripts/verify-*.mts` / `sweep-capture.mts` harnesses, and the
 > §5.Z cross-model roster. Per-cell scores live in [cross-model-verification.md](cross-model-verification.md) (the
-> scoreboard); this file is the catalog (id · difficulty profile · acceptance · expectation tier · status).
+> scoreboard); the chronological per-run time series (one table per sweep, scroll to follow each model over time) is in
+> [model-sweep-log.md](model-sweep-log.md); this file is the catalog (id · difficulty profile · acceptance · tier · status).
 >
 > **Power-aware timeouts:** the multi-card + task-completion harnesses auto-scale their timeout by the OS power mode
 > (Low Power Mode ≈ ×2, since throughput can drop ~50%; never shortens) — see `src/core/power-aware-timeout.ts`; override
