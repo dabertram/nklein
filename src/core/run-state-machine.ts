@@ -182,3 +182,15 @@ export function runPhasePolicy(phase: RunPhase): RunPhasePolicy {
 export function isToolAllowedInPhase(phase: RunPhase, mutationLevel: ToolMutationLevel): boolean {
 	return MUTATION_RANK[mutationLevel] <= MUTATION_RANK[runPhasePolicy(phase).maxMutationLevel];
 }
+
+/**
+ * Narrow an offered tool set to those allowed in `phase` (mutation level ≤ the phase's ceiling). Generic over any tool
+ * carrying a `mutationLevel` — the live wiring derives that from each tool's chat action via the §5.AF tool-capability
+ * manifest (`manifestForChatAction(tool.actionKind).mutationLevel`), keeping this core free of any chat dependency.
+ */
+export function selectPhaseTools<T extends { mutationLevel: ToolMutationLevel }>(
+	phase: RunPhase,
+	tools: readonly T[],
+): T[] {
+	return tools.filter((tool) => isToolAllowedInPhase(phase, tool.mutationLevel));
+}

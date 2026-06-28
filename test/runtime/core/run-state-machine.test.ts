@@ -5,6 +5,7 @@ import {
 	isToolAllowedInPhase,
 	type RunPhase,
 	runPhasePolicy,
+	selectPhaseTools,
 } from "../../../src/core/run-state-machine";
 
 describe("run-state-machine — phase ladder", () => {
@@ -97,5 +98,26 @@ describe("run-state-machine — per-phase tool/budget policy", () => {
 		// control-plane phases permit a board mutation but still not a host write.
 		expect(isToolAllowedInPhase("plan", "control_plane")).toBe(true);
 		expect(isToolAllowedInPhase("plan", "host_write")).toBe(false);
+	});
+});
+
+describe("run-state-machine — selectPhaseTools", () => {
+	const tools = [
+		{ name: "read_file", mutationLevel: "read" as const },
+		{ name: "write_file", mutationLevel: "sandbox_write" as const },
+		{ name: "create_card", mutationLevel: "control_plane" as const },
+		{ name: "host_shell", mutationLevel: "host_write" as const },
+	];
+
+	it("localize (read-only) offers only read tools — no mutation before localization", () => {
+		expect(selectPhaseTools("localize", tools).map((t) => t.name)).toEqual(["read_file"]);
+	});
+
+	it("execute_step offers read + sandbox_write, but never control_plane or host_write", () => {
+		expect(selectPhaseTools("execute_step", tools).map((t) => t.name)).toEqual(["read_file", "write_file"]);
+	});
+
+	it("plan (control_plane) offers read + sandbox + control_plane, never host_write", () => {
+		expect(selectPhaseTools("plan", tools).map((t) => t.name)).toEqual(["read_file", "write_file", "create_card"]);
 	});
 });
