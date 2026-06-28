@@ -20,7 +20,10 @@ function parseCommitRecord(record: string): RuntimeGitCommit | null {
 		return null;
 	}
 	const [hash, shortHash, authorName, authorEmail, dateIso, subject, parentHashes] = fields;
-	if (!hash || !shortHash || !authorName || !dateIso || !subject) {
+	// A commit with an EMPTY subject is valid (git allows `--allow-empty-message`); only the structural fields
+	// (hash/shortHash/date) are required. Dropping empty-subject commits made history + pagination counts
+	// inconsistent (git-view P2).
+	if (!hash || !shortHash || !authorName || !dateIso) {
 		return null;
 	}
 	return {
@@ -29,7 +32,7 @@ function parseCommitRecord(record: string): RuntimeGitCommit | null {
 		authorName,
 		authorEmail: authorEmail ?? "",
 		date: dateIso,
-		message: subject,
+		message: subject ?? "",
 		parentHashes: (parentHashes ?? "").split(" ").filter(Boolean),
 	};
 }

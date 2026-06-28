@@ -80,6 +80,29 @@ describe.sequential("git history runtime", () => {
 		}
 	});
 
+	it("retains commits with an empty subject in the log (git-view P2)", async () => {
+		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-emptysubj-");
+		try {
+			initRepository(repoPath);
+			writeFileSync(join(repoPath, "first.txt"), "hello\n", "utf8");
+			commitAll(repoPath, "first commit");
+			// A commit with an empty subject line (git allows it via --allow-empty-message).
+			writeFileSync(join(repoPath, "second.txt"), "world\n", "utf8");
+			runGit(repoPath, ["add", "."]);
+			runGit(repoPath, ["commit", "-q", "--allow-empty-message", "-m", ""]);
+
+			const response = await getGitLog({ cwd: repoPath });
+
+			expect(response.ok).toBe(true);
+			// Both commits are present (the empty-subject one is NOT dropped).
+			expect(response.commits).toHaveLength(2);
+			expect(response.commits[0]?.message).toBe("");
+			expect(response.totalCount).toBe(2);
+		} finally {
+			cleanup();
+		}
+	});
+
 	it("returns rename metadata for rename-only commits", async () => {
 		const { path: repoPath, cleanup } = createTempDir("kanban-git-history-rename-");
 		try {

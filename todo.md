@@ -933,9 +933,9 @@ deep analysis:
   - [ ] **P1 — support merge-commit diffs.** Merge-commit diff loading can produce empty file lists. Update the runtime
         merge-diff extraction to handle merge commits explicitly; add runtime tests asserting non-empty diff output for
         known merge scenarios.
-  - [ ] **P2 — keep commits with empty subjects in log parsing.** Commits with an empty subject line are dropped during
-        parsing, making history/pagination counts inconsistent. Relax the commit-record validation to allow an empty
-        `message`; add a runtime test for empty-subject retention.
+  - [x] **P2 — keep commits with empty subjects in log parsing (DONE 2026-06-28).** `parseCommitRecord` dropped a commit
+        with an empty `%s` subject (it was a required field); empty subjects are valid (`--allow-empty-message`). Now only
+        the structural fields (hash/shortHash/date) are required; `message` may be empty. Regression test added (7 pass).
   - [ ] **P2 — improve branch-switch discoverability.** Branch switching now relies on double-click in refs (low
         discoverability). Add an explicit checkout affordance in refs rows (button/menu/shortcut hint); keep double-click
         as optional power-user behavior.
