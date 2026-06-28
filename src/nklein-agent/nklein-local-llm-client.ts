@@ -101,7 +101,16 @@ function parseToolCallArguments(raw: unknown): Record<string, unknown> {
 	}
 }
 
-const DEFAULT_TIMEOUT_MS = 120_000;
+/**
+ * Per-request abort timeout for the interactive CHAT client (a fixed fallback, unlike the agent/task path which scales
+ * from observed model speed via `applyMcsrAwareLocalTimeoutScaling`). Overridable via `NKLEIN_CHAT_REQUEST_TIMEOUT_MS`
+ * so a slow regime (e.g. Low Power Mode ~50% throughput) doesn't abort a long reasoning reply prematurely.
+ */
+function resolveChatRequestTimeoutMs(): number {
+	const raw = Number(process.env.NKLEIN_CHAT_REQUEST_TIMEOUT_MS);
+	return Number.isFinite(raw) && raw > 0 ? Math.trunc(raw) : 120_000;
+}
+const DEFAULT_TIMEOUT_MS = resolveChatRequestTimeoutMs();
 
 function normalizeBaseUrl(baseUrl: string): string {
 	const trimmed = baseUrl.trim().replace(/\/+$/u, "");
