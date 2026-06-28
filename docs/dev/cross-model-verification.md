@@ -584,3 +584,15 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 23:08:01 · verify-chat-agent-e2e
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx` · 10s · INCOMPLETE — see above.
   - matrix row: qwopus3.5-4b-coder-fable5-v1-mlx=❌
+
+### 2026-06-28 23:10:16 · verify-chat-agent-e2e
+- ◑ **PARTIAL** · `microsoft/phi-4-mini-reasoning` · 131s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+  - matrix row: phi-4-mini-reasoning=◑
+
+### 2026-06-28 23:10:46 · verify-chat-agent-e2e
+- ✅ **PASS** · `qwen/qwen3-8b` · 27s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+  - matrix row: qwen3-8b=✅
+
+### 2026-06-28 23:11:11 · verify-chat-agent-e2e
+- ◑ **PARTIAL** · `qwen/qwen2.5-coder-14b` · 21s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+  - matrix row: qwen2.5-coder-14b=◑

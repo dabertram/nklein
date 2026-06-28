@@ -286,3 +286,16 @@
 | **qwopus3.5-4b-coder (NEW)** | **4/4 ✅** | 🚀 reliably persists via the rung too |
 | **qwen/qwen2.5-coder-14b** | **0/4 in the batch · ✅ standalone** | 0/4 (narration-stop ~15 s) in the back-to-back batch, **but a fresh STANDALONE run immediately drove all 4 tools + persisted** (◑, only the marker-echo missing). So coder is **stochastic, not consistently-failing** — and consecutive runs appear to degrade it (the same load effect as the stalls). |
 > **Findings (answers "are models inherently flaky / is the work worth it"):** (1) the lift is **real** — phi-4-mini + qwopus-4b at 4/4; coder-14b drives it standalone. **Persist correlates with run time** (slow = did the work; fast ~15 s = narrated/quit). (2) It is genuinely **stochastic + run-dependent**, and **back-to-back runs degrade weaker models** (coder 0/4 consecutive but ✅ standalone; cf. the qwen3-8b stall on its 3rd consecutive C0). ⇒ **pace AND space live runs** — even non-stalling consecutive runs can suppress the lift. (3) **Most striking + the headline: the constrained rung lifts phi-4-mini — the WEAKEST single-card model (◑ C0, ⚠️ C2) — to RELIABLE (4/4) multi-tool-chain execution.** That validates the §5.AA robustness thesis on q4 weak models — the work is worth it. (4) The remaining gap is the **strict marker-echo reply-quality gate** (all these are really ◑ — tools executed, card persisted, the reply just didn't quote the file marker), not tool execution.
+
+### 2026-06-29 · **e2e capstone — FIRST AUTONOMOUS model-lab sweep (fresh-load per model)** · `model-lab sweep verify-chat-agent-e2e` · _(Low Power; !Klein now controls load/unload)_
+> 🎉 The model-loading handover is live — !Klein loaded each model itself (guarded: one resident at a time, unload-before-load, ctx 40000, headroom-checked), ran the graded e2e, unloaded, next. Each model is **freshly loaded + sole-resident**, so this is the cleanest snapshot yet — **no consecutive-load degradation** confounder.
+
+| model | size | e2e | note |
+|---|---|:-:|---|
+| qwen/qwen3-8b | 8B | ✅ PASS | full chain executed + card persisted + marker echoed |
+| microsoft/phi-4-mini-reasoning | 3.8B | ◑ PARTIAL | drove the full chain + persisted the card (only marker-echo missing) — fresh-load reproduces its 4/4 paced result |
+| qwen/qwen2.5-coder-14b | 14B | ◑ PARTIAL | full chain + persisted |
+| google/gemma-4-e2b | 2B | ❌ FAIL | fast narration-stop (~13 s) |
+| nvidia/nemotron-3-nano-4b | 4B | ❌ FAIL | fast narration-stop (~9 s) |
+| qwopus3.5-4b-coder | 4B | ❌ FAIL | fast narration-stop (~10 s) |
+> **1 ✅ + 2 ◑ + 3 ❌ (fresh loads).** Two clean takeaways: **(1) the handover machinery works perfectly** — 6 guarded load→test→unload cycles, no pile-up, no freeze, embedder kept throughout. **(2) The multi-tool-chain floor is real at ≤4B** — gemma-2B, nemotron-4B, qwopus-4B fast-narration-stop even when freshly loaded (not a degradation artifact), while 3.8B-phi (◑), 8B (✅), 14B (◑) drive + persist the chain. So the chaining capability emerges around ~the phi-4-mini/qwen3-8b class; below it, narration dominates and the constrained rung can't force a schema the tiny model won't honor. The ≤4B tier is where the §5.AA controller (or a GGUF format that tool-calls better — the recommended A/B) must earn its keep, or these stay a recorded floor.
