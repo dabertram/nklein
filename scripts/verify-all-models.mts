@@ -13,6 +13,7 @@
  * Env: NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1)
  *      NKLEIN_SWEEP_TIMEOUT_MS (per-model outer hard cap, default 420000)
  *      NKLEIN_SWEEP_MODELS     (comma list to override live discovery)
+ *      NKLEIN_SWEEP_SPACING_MS (pause between models so consecutive-load fatigue doesn't suppress weaker models; default 0)
  *      NKLEIN_VERIFY_TIMEOUT_MS (forwarded to the harness's own internal budget; default 300000)
  *
  * Result symbols (matches cross-model-verification.md): ✅ PASS (exit 0) · ❌ FAIL (exit 1/2 — triage parse-gap→harden
@@ -144,8 +145,17 @@ async function main(): Promise<void> {
 	console.log(`\n=== Cross-model sweep: ${harness} across ${roster.length} model(s) ===`);
 	console.log(roster.map((m, i) => `  ${i + 1}. ${m}`).join("\n"));
 
+	// Optional inter-model spacing (§4A: sustained back-to-back runs degrade/stall weaker models under Low Power —
+	// coder-14b went 0/4 consecutive but ✅ standalone; a qwen3-8b C0 stalled on its 3rd consecutive run). A pause
+	// between models lets the endpoint settle so a sweep measures capability, not consecutive-load fatigue.
+	const spacingMs = Math.max(0, Number.parseInt(process.env.NKLEIN_SWEEP_SPACING_MS ?? "0", 10) || 0);
+
 	const results: ModelResult[] = [];
-	for (const model of roster) {
+	for (const [index, model] of roster.entries()) {
+		if (index > 0 && spacingMs > 0) {
+			console.log(`(pausing ${Math.round(spacingMs / 1000)}s between models to avoid consecutive-load fatigue)`);
+			await new Promise((settle) => setTimeout(settle, spacingMs));
+		}
 		console.log(`\n──────── ${harness} · ${model} ────────`);
 		// Pre-check: a model already gone before its turn is DROPPED without a wasted run.
 		if (!(await listLoadedModels()).includes(model)) {
