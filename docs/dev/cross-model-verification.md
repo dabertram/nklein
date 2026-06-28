@@ -188,3 +188,14 @@
 - ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 843s · PASS ✓ no host path leaked into the agent's output during a real decompose.
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 312s · Docker sandbox available ✓
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 03:24:08 · verify-chat-command-exec
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 16s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 6s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 5s · INCOMPLETE — see above.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 6s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 33s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b-m5max` · 5s · INCOMPLETE — see above.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 7s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 6s · INCOMPLETE — see above.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=❌
