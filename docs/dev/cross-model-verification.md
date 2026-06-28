@@ -60,11 +60,16 @@
 > looked flaky (`🎲`). **§5.AA constrained-decoding rung now WIRED (2026-06-28)** — `createChatAgentModel` forces a
 > parseable `{tool,arguments}` call when a turn names a tool but emits none. Re-sweep result: **coder-14b ❌→◑ and
 > phi-4-mini ❌→◑** — both drove the full/near-full tool chain AND **persisted the card** (only the strict marker-echo
-> reply-quality gate keeps them from ✅). The other 6 still stop after `read_file` with a prose summary, so the loop ends
-> before the rung can fire on a later step — the remaining lift is a **finite-state controller** that keeps the run going
-> until every required step is done (§5.AA), not more recovery. It is **not a reliable per-model gate**; per-model chat
-> capability is proven by the **individual** `run_command` / `create_card` / `browse_url` / `read`/`write`/`send`/`runtime`
-> rows (deterministic single-tool checks, all ✅/◑).
+> reply-quality gate keeps them from ✅). **The capstone is now a GRADED gate (2026-06-28): ✅ = chain executed + card
+> persisted + marker echoed · ◑ = chain executed + card persisted, reply didn't echo (real capability, weak synthesis) ·
+> ❌ = chain didn't run.** A paced ×4 characterization had **phi-4-mini + qwopus-4b persist 4/4** and coder-14b persist
+> standalone — so the lift is real but **stochastic + run-dependent**, and **consecutive (back-to-back) runs degrade
+> weaker models** (a full back-to-back sweep shows only the most-robust 2 as ◑; the rest fast-narration-stop). Mitigation:
+> `NKLEIN_SWEEP_SPACING_MS` spaces runs so a sweep measures capability, not consecutive-load fatigue. The deeper lift for
+> the models that still stop after `read_file` is the **§5.AA finite-state controller** (evidence-gated completion + the
+> constrained rung firing per step) — its substrate is built; driving the full loop through it is the remaining wiring.
+> It is **not a reliable per-model gate**; per-model chat capability is proven by the **individual** `run_command` /
+> `create_card` / `browse_url` / `read`/`write`/`send`/`runtime` rows (deterministic single-tool checks, all ✅/◑).
 >
 > **‡** `run_command` — the **command genuinely EXECUTES at runtime for 7/9** (✅ + ◑). `◑` = the command ran (the
 > agent called `run_command`, it executed) but the model's *reply* didn't echo the output (weak synthesis), so the
