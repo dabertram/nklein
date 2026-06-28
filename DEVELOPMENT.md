@@ -188,66 +188,13 @@ npm run unlink
 - `test/runtime`: runtime unit tests
 - `test/utilities`: shared test helpers
 
-## Agent tracking and runtime hooks
+## Agent session-state tracking
 
-!Klein tracks agent session state with runtime hook events. The core transition model is:
+!Klein tracks a task's lifecycle through internal runtime session states (`running`, `awaiting_review`, …) with guarded transitions (duplicate or invalid transitions are no-ops).
 
-- `in_progress -> review`
-- `review -> in_progress`
+The native NKlein agent is the single source of session-state truth: it reports progress and lifecycle directly through its SDK session, which the runtime observes via the session service in `src/nklein-agent/` (see `nklein-task-session-service.ts` / `nklein-session-state.ts`) and maps onto those runtime states. These are distinct from NKlein SDK plugin runtime hooks (`beforeRun`, `beforeTool`, `afterTool`, `afterRun`), which operate inside a single agent run.
 
-Internal runtime session states are named `running` and `awaiting_review`, and hook events are transition intents:
-
-- `to_in_progress` for `review -> in_progress`
-- `to_review` for `in_progress -> review`
-
-How it works end to end:
-
-1. `prepareAgentLaunch` wires each agent with hook commands or hook-aware wrappers.
-2. Hook handlers call `nklein hooks ...` subcommands.
-3. `nklein hooks ingest --event <to_review|to_in_progress>` reads hook context from env:
-   - `KANBAN_HOOK_TASK_ID`
-   - `KANBAN_HOOK_WORKSPACE_ID`
-   - `KANBAN_HOOK_PORT`
-4. The ingest command calls runtime TRPC `hooks.ingest`.
-5. The runtime applies guarded transitions and ignores duplicates or invalid transitions as no-ops.
-
-Current agent mappings:
-
-These are external agent/file-hook names where the agent config requires them.
-They are distinct from NKlein SDK plugin runtime hooks such as `beforeRun`,
-`beforeTool`, `afterTool`, and `afterRun`.
-
-- Claude
-  - `UserPromptSubmit`, `PostToolUse`, `PostToolUseFailure` emit `to_in_progress`
-  - `Stop`, `PermissionRequest`, and `Notification` with `permission_prompt` emit `to_review`
-- Codex
-  - wrapper enables TUI session logging and maps:
-    - `task_started` and `exec_command_begin` to `to_in_progress`
-    - `*_approval_request` to `to_review`
-  - Codex `notify` completion path also emits `to_review`
-- Gemini
-  - `BeforeAgent` and `AfterTool` emit `to_in_progress`
-  - `AfterAgent` emits `to_review`
-  - hook command writes `{}` to stdout immediately to satisfy Gemini hook contract, then notifies in background
-- OpenCode
-  - plugin maps busy activity to `to_in_progress`
-  - plugin maps idle/error and permission ask to `to_review`
-  - plugin filters child sessions to avoid false transitions from nested runs
-- Droid
-  - `PreToolUse` for active tools like `Read`, `Grep`, `Glob`, `FetchUrl`, `WebSearch`, `Execute`, `Task`, `Edit`, and `Create` emits `to_in_progress`
-  - `PreToolUse` for `AskUser` and `Stop` emit `to_review`
-  - `PostToolUse` for `AskUser` and `UserPromptSubmit` emit `to_in_progress`
-
-Important behavior details:
-
-- Hooks are best-effort and should not crash or block the underlying agent process.
-- Hook notify paths are asynchronous to keep agent UX responsive.
-- Runtime transition guards are authoritative and prevent state flapping from duplicate events.
-- Hook transport is implemented in Node and invoked through `nklein hooks ...`, so the behavior is consistent across Windows and non-Windows environments.
-
-For a full technical breakdown, see:
-
-- `docs/architecture/runtime-hooks-architecture.md`
+> Historical note: earlier versions also accepted state callbacks from external terminal-CLI agents (Claude/Codex/Gemini/OpenCode/Droid) via a `nklein hooks ingest` CLI plus a `hooks.ingest` tRPC procedure. Those terminal-CLI agents are disabled under the local-only, Docker-isolated model, so that hook-ingest path was **removed** (commit `93c35b19`). Don't reintroduce it — the native agent's SDK session reporting replaces it.
 
 ## PostHog telemetry config
 

@@ -876,6 +876,15 @@ deep analysis:
       exact local exclude or Git surfaces it); **(b)** harden the diff UI so an untracked directory or a directory symlink
       never renders as a fake `+0 -0` file diff (a separate UI bug from (a)). Long-term (parked): revisit whether
       "symlink all ignored paths" is the right rule vs an allowlist.
+- [ ] **CLI surface: decide scope + auto-generate the man page (2026-06-28).** The hand-written `man/nklein.1` had
+      drifted stale — it documented a removed `nklein hooks ingest|notify|gemini-hook|codex-wrapper` surface (the
+      terminal-CLI hook-ingest path was deleted in `93c35b19`; native NKlein agents report via their SDK session). Per
+      "stale docs are worse than none" it was **removed** (file + the `package.json` `man` field + `files` entry), and the
+      matching stale prose was fixed in DEVELOPMENT.md + `src/cli.ts`. The CLI itself is real and supported (`nklein` +
+      `task`/`mcp`/`chat`/`dev` subcommands in [src/cli.ts](src/cli.ts) + [src/commands/](src/commands/)); commander's
+      `--help` is the always-current source. **When picked up:** decide whether a packaged man page is wanted, and if so
+      **auto-generate** it from the commander command tree (single source of truth, can't drift) rather than hand-writing
+      it — then re-add the `package.json` `man` wiring. Also audit the CLI surface for other stale/removed subcommands.
 
 ### 5.H — Polyglot / native-agent-core workstream *(active)*
 > Direction: !Klein grows its own capabilities — a local-only Python core sidecar (`core-py/`, FastAPI) + a

@@ -430,7 +430,7 @@ async function startServer(): Promise<{
 
 	/*
 		Server-only modules are loaded lazily because task-oriented subcommands like
-		`nklein task create` and `nklein hooks ingest` do not need the runtime server.
+		`nklein task create` do not need the runtime server.
 
 		A regression in 25ba59f showed that eagerly importing the runtime stack here
 		could leave the source CLI process alive after the command had already printed

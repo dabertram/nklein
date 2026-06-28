@@ -12,7 +12,6 @@ New to the codebase? Read in order:
 ## Layout
 
 - `architecture.md` — the system map.
-- `architecture/runtime-hooks-architecture.md` — the **live** runtime-hooks design (how agent session state is tracked via `nklein hooks …`; linked from [`../DEVELOPMENT.md`](../DEVELOPMENT.md)).
 - `dev/` — living dev-process trackers tied to open todo work: `cross-model-verification.md` (the §5.Z matrix), `local-llm-tests.md` (the §5.O output-robustness log), `autonomous-decisions.md` (the autonomous-run decision log).
 
 When adding new engineering docs, prefer putting stable, maintained explanations here and linking them from this index. If a piece of knowledge is needed to work an open task, fold it directly into that task in `todo.md` instead of starting a new reference file.
