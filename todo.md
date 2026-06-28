@@ -3534,9 +3534,19 @@ deep analysis:
       session **`running`** (it never reaches `awaiting_review`), so those repeated-"Done!" turns flow through a **different
       path** the watchdog never sees — which also means the next agent must FIRST trace how a running session's per-turn
       events flow (the agent-loop / `nklein-event-adapter` → where a no-tool final message lands while state stays
-      `running`, and what currently parks the spin: the wall-time/no-diff path's real trigger). Only then decide the hook
-      point for `detectRepeatedFinalAnswer` (track per-task no-tool final-answer run, reset on a tool call, park-for-review
-      on a repeat). **Verify live** (LM Studio + Docker available; the repro model `qwen3.5-9b-mlx-m5max` is loaded):
+      `running`, and what currently parks the spin: the wall-time/no-diff path's real trigger). **Event-adapter state map TRACED
+      2026-06-28** ([nklein-event-adapter.ts](src/nklein-agent/nklein-event-adapter.ts) `applyNKleinSessionEvent`): the
+      loop-end `result`/`done` events set `latestHookActivity.finalMessage = finalText` and go **→ `awaiting_review`** (or
+      **→ `interrupted`** on a no-output `aborted`, lines ~483/534 — the §5.AA `aborted` case); intra-loop `tool-started`/
+      `tool-finished`/`content_start(tool)` keep state **`running`** with `finalMessage: null`. So a turn that ends with a
+      no-tool final answer goes to `awaiting_review` — meaning the 3494 "stays running and loops Done!" pattern is driven by
+      **turn-continuation / autonomous re-prompting in the session service** (not the adapter): something re-runs the agent
+      after the final message, and the model re-emits. **REMAINING TRACE:** find that continuation site (session-service
+      autonomous-turn loop) — that is where to track the per-turn no-tool final-answer run and call `detectRepeatedFinalAnswer`,
+      parking-for-review on a repeat. NB the live qwen3.5-9b mid_task sweep (2026-06-28) showed its real non-termination is
+      **excessive re-reading (read_files×54) + 1 repeated tool call**, not pure final-message looping — so the watchdog
+      should likely also cover a repeated *tool-call* run (the existing `repeated-tool-call-guard.ts` may already, check it).
+      Only then wire + **verify live** (LM Studio + Docker available; the repro model `qwen3.5-9b-mlx-m5max` is loaded):
       `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts`
       (writes the file early, then never stops) → confirm the new trigger parks it promptly while a normal multi-turn task
       is untouched (no false-park). Do this as a dedicated pass with fresh context — a wrong hook point ships a guardrail
