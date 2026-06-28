@@ -3957,10 +3957,13 @@ deep analysis:
       `shouldBlockUnloadedModel`) and returns a clear "load it first" error instead of auto-loading; lenient (block only a
       positively-non-resident model), test-runner-skipped, 3s-timeout fetch. **ROLE-POOL FAN-OUT ALSO DONE (`4da5130f`):**
       the loaded set is fetched once and reused — non-resident pool (`additionalModels`) members on the same queried
-      endpoint are skipped (the role still fans out across its loaded models). **STILL OWED:** (a) tie to the §5.AB
-      auto-select so it *picks the best LOADED model* (not just refuses/skips). (b) surface the error nicely in the web-ui
-      (a "model not loaded" affordance + a one-click awareness of the loaded set). (c) confirm the chat path refuses a
-      pinned non-loaded chat model too (`local-chat-model` already discovers a loaded model, so mostly safe).
+      endpoint are skipped (the role still fans out across its loaded models). **CHAT PATH ALSO DONE (`fdd8af9d`):**
+      `discoverLoadedModelId` now reads `/api/v0/models` load state and picks a LOADED non-embedding model (was
+      `/v1/models` = all *available* → could auto-load). **So no-load is enforced across all 3 paths: verify harnesses ·
+      task-start (primary + role-pool) · chat.** **STILL OWED (smaller):** (a) tie to the §5.AB auto-select so it *picks
+      the best LOADED model* proactively (not just refuses/skips a bad pin). (b) a web-ui "model not loaded" affordance
+      (surface the error + the loaded set, one-click). (c) a pinned non-loaded CHAT model (explicit `modelId` override in
+      `resolveLocalChatModelDeps`) still isn't residency-checked — only auto-discovery is; add an `assertModelLoaded` there.
 - [~] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
       difficulty × context) cells — especially the `⚠️` ceilings — are valuable **guidance for !Klein users**: "for this
       kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." **PURE PROJECTION
