@@ -35,7 +35,7 @@
 | flow / harness | qwen3-8b | coder-14b | qwen3.5-9b | gemma-e2b | gemma-e4b | phi4-mini | phi4-plus | nemotron | deepseek |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
 | decompose · `verify-decompose-isolation` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| single-card · `verify-task-completion` | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| single-card · `verify-task-completion` | ✅ | ✅ | ⚠️§§ | ✅ | ✅ | ◑§§ | ✅ | ✅ | ✅ |
 | auto-promote · `verify-autopromote-recovery` | ✅ | ✅ | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ | ✅ |
 | strict-isolation · `verify-strict-isolation` | ✅ | ✅ | ✅ | ✅ | · | ✅ | · | ✅ | · |
 | restart-resume · `verify-restart-resume-isolation` | ✅ | ✅ | ✅ | ✅ | · | ✅ | · | ✅ | · |
@@ -77,6 +77,14 @@
 > with 6. run_command 34s + create_card 14s, both with the real side effect. **phi-4-reasoning-plus is still `❌`** —
 > it over-reasons and won't act even with 1 tool, so it needs the next ladder rungs (prompt simplification / native
 > `/api/v1/chat` endpoint iteration). The 7 already-passing models are unaffected (the retry only fires on a no-call).
+
+> **§§ delivery-gated re-validation (2026-06-28, Low Power, LOADED models only):** the `single-card` harness now requires
+> the card to reach a terminal lane **AND deliver the correct artifact** (was terminal-state only). Re-validated: the 6
+> loaded strong/mid models genuinely deliver (✅); **`phi-4-mini` is ◑ not ✅** — it reaches `awaiting_review` but delivers
+> nothing (declared done without writing the file; §5.AA reason-then-act); **`qwen3.5-9b` ⚠️ is a finalization STALL**
+> (`running`→`interrupted`, no output; §5.AA transient-retry). The not-currently-loaded columns (gemma-e4b, phi4-plus,
+> deepseek) keep their earlier terminal-only marks pending a delivery-gated re-run when loaded. Per-run detail +
+> the full delivery-gated C0/C1/C2 ladder: [model-sweep-log.md](model-sweep-log.md).
 
 ## Run log
 
@@ -273,3 +281,25 @@ With the command fixed, browse_url renders for every model: gemma-4-e2b, nemotro
 
 ### 2026-06-28 · autonomous-run RE-CONFIRMED end-to-end on HEAD (with a project + workspace)
 After creating a dev-test project (→ current project + active workspace) and pinning the model, `verify-chat-autonomous-live` for qwen3-8b **PASSES**: "✓ Goal complete · 1 turn · 1/1 steps", transcript = 2 messages, stopped=true. This confirms the §5.0.1 autonomous loop works end-to-end on HEAD, and that the earlier "needs input · 0 transcript" was purely the no-workspace early-pause (chat-autonomous-wiring.ts:99) — NOT a bug. The matrix qwen3-8b ✅ is re-confirmed on current HEAD. (Setup note: the harness needs a project/workspace in scope, not just a pinned model.)
+
+### 2026-06-28 18:11:33 · verify-decompose-isolation
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 64s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 83s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 27s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 47s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 303s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 99s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 73s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 163s · PASS ✓ no host path leaked into the agent's output during a real decompose.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
+
+### 2026-06-28 18:22:16 · verify-autopromote-recovery
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 32s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 38s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 9s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 23s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 304s · INCOMPLETE — see above.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 21s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 27s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 36s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
