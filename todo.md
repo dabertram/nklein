@@ -3273,6 +3273,38 @@ deep analysis:
 > scheduler job once it lands), not per-change. A task's done-bar is the SMOKE tier; the FULL matrix is a periodic
 > obligation tracked by the per-flow checkboxes here. The matrix itself should become a **§5.AF ledger projection** (a
 > query over recorded attempts) rather than a hand-maintained table.
+>
+> **PHASE-2 SWEEP FINDINGS — project #1 `small-model-smoke` (fix-the-uncapped-score), 2026-06-28, 8 loaded models.**
+> First pass (5min budget): 5 PASS (qwen3-8b, qwen2.5-coder-14b, gemma-4-e2b, qwen3.5-9b, nemotron-3-nano-4b), 3 fail
+> (phi-4-mini-reasoning ⏱, qwopus3.5-4b-coder PARTIAL, ornith-1.0-9b interrupted). **Re-run with the generous 12-min
+> budget flipped 2 of the 3 → so 7/8 PASS:**
+> - **ornith-1.0-9b** was just **SLOW** — at the 5-min budget the runtime marked the session `interrupted` (heartbeat
+>   lost) before it finished; with 12 min it reached `awaiting_review` and the oracle passed. **Hardening finding (below):
+>   the heartbeat-loss → `interrupted` abort fires too aggressively for slow-but-progressing local models.**
+> - **qwopus3.5-4b-coder** was **FLAKY** — first run left the original uncapped code (PARTIAL), next 2 runs PASS. Repeat-
+>   runs are essential (a single run misleads); reliability/variance is itself a fitness signal (§5.AB).
+> - **phi-4-mini-reasoning** still fails: reaches `awaiting_review` but with **"Sandbox finished with no file changes"**
+>   (`reviewReason=exit heartbeat=lost`) → it reasons but **emits no edit** → no result branch captured. Pending
+>   classification (capability-floor vs the reasoning-channel-no-tool-call robustness gap, §5.AB reasoning-capture note) —
+>   a diagnostic run with LM Studio logs is in flight.
+> - **The hermetic oracle is working correctly** — it cleanly PASSes valid fixes and flags genuinely-invalid ones (the
+>   qwopus PARTIAL was a real wrong result, not a false-fail).
+- [ ] **HARDENING (Phase-2 finding 2026-06-28): the heartbeat-loss → `interrupted` abort is too aggressive for slow
+      local models.** A slow-but-progressing model (ornith-1.0-9b on a busy box, MLX models with slow first-token) can be
+      marked `interrupted` (`stopTaskSession`/heartbeat-lost in `nklein-task-session-service.ts`) before it finishes,
+      wasting the run — yet a longer budget lets it pass. Investigate the heartbeat-loss timeout + the
+      `state:"interrupted"` path: make the heartbeat tolerance **generous and/or adaptive** (scale with the model's
+      observed latency / the §5.AA `ModelBehaviorProfile`; the §5.AI background-eval profile already lengthens the
+      slow-progress guards but the heartbeat abort is separate). A heartbeat "lost" while the model is still streaming
+      tokens (LM Studio shows activity) should NOT abort. Confirm against the LM Studio dev logs (now captured by the
+      harness). This directly improves robustness for the whole slow-local-model class, not just one model.
+- [ ] **Per-model classification + "failing-LLM list" (Phase-2, 2026-06-28) — provisional, until the §5.AB fitness store
+      lands.** small-model-smoke (code-fix role): **7/8 deliver** with a generous budget; **phi-4-mini-reasoning** is the
+      lone non-deliverer (reasons, no edit) — provisionally a **capability-floor for the code-edit role** (a 3.8B *reasoning*
+      model, not a coder) UNLESS the diagnostic shows it's the reasoning-no-tool-call gap (then it's a §5.O/§5.AB hardening
+      fix, not a floor). qwopus3.5-4b-coder = **capable-but-flaky** (needs repeat-run tolerance). Record these in the
+      §5.AB fitness store (per role × difficulty × context-size) when built; the "failing-LLM list" is the projection of
+      below-bar (model,role) cells, not a hand-list.
 - [x] **Sweep driver + results matrix (DONE 2026-06-26)** — `scripts/verify-all-models.mts` iterates the loaded roster,
       pins each model via `NKLEIN_VERIFY_MODEL` (per run a fresh isolated HOME; user settings untouched), runs a named
       harness, applies the deepseek-drop caveat (gone from `/v1/models` → DROPPED + continue), and appends a per-model
