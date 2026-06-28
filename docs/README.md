@@ -15,8 +15,7 @@ The active development backlog lives in [`../todo.md`](../todo.md) (future work)
 
 - `architecture.md` — the system map (runtime model, key files).
 - `architecture/` — deeper architecture references: the live runtime-hooks design, the agent-isolation policy, and the NKlein↔kanban architecture cleanup plan/handoff.
-- `reference/` — external-tool and protocol references that inform agent integration: `acp/` (Agent Client Protocol), `cli/` (Claude/Codex/Gemini/Kiro/OpenCode CLI references), `skills/` (agent-skills protocol), `hooks/` (per-CLI hook docs + the hooks implementation plan).
-- `research/` — design research grounding the roadmap (anti-patterns, target architecture/structure, small-LLM optimization, context smart-zone, dynamic roles/skills, substrate/milestones, planning-column, §5.A worktree-retirement notes, the founding ideation).
+- `research/` — !Klein's own design research grounding the roadmap (anti-patterns, target architecture/structure, small-LLM optimization, context smart-zone, dynamic roles/skills, substrate/milestones, planning-column, §5.A worktree-retirement notes, the founding ideation).
 - `dev/` — living dev-process trackers: `cross-model-verification.md` (the §5.Z matrix), `local-llm-tests.md` (the §5.O output-robustness log), `autonomous-decisions.md` (the autonomous-run decision log).
 - `history/` — shipped-work provenance kept for the record (e.g. `security-issues.md`, the source of the shipped §5.Y hardening).
 - `node22-ci-hanging-tests-investigation.md` — the CI-hang playbook (cited by AGENTS.md).
