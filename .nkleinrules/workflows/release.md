@@ -99,7 +99,7 @@ Update `package.json` version field to the new version.
 
 Run `npm install --package-lock-only` to sync `package-lock.json`.
 
-Create or prepend to `CHANGELOG.md`. The format must match what `.github/scripts/extract-changelog-entry.mjs` expects:
+Create or prepend to `CHANGELOG.md`. The format must match what `scripts/extract-changelog-entry.mjs` expects:
 
 ```markdown
 ## [<version>]

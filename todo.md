@@ -88,9 +88,11 @@
    prompt is ever sent — over-budget turns compact or the task stops. No hardcoded window/speed constants in
    routing/budget decisions.
 4. **UPSTREAM-CLEAN SDK BOUNDARY.** Every feature is a `src/nklein-agent/` plug-in on an official SDK socket.
-   `npm run check:nklein-boundary` must stay green. (See §11 for the note that the SDK itself is now vendored
-   in-repo under `vendor/nklein-sdk/` — that is repo-owned and editable; the boundary rule is about not forking
-   the SDK's *internal* contracts gratuitously.)
+   The boundary is **biome-enforced** (`noRestrictedImports` in `biome.json` forbids importing `@nkleinbot/*`
+   outside `src/nklein-agent/`), so `npm run lint` is the gate. (See §11 for the note that the SDK itself is now
+   vendored in-repo under `vendor/nklein-sdk/` — that is repo-owned and editable; the boundary rule is about not
+   forking the SDK's *internal* contracts gratuitously. The old `check:nklein-boundary` script was a vestigial
+   no-op — it diffed the untracked `node_modules/@clinebot` — and was removed 2026-06-28.)
 5. **PROTECTED TESTS ARE HUMAN-GATED.** You may not weaken or change anything in `test/protected/**`,
    `vitest.protected.config.ts`, or `test/protected/protected-tests.json` without **explicit user approval** via
    a structured `{intent, diff, reason, expectedEffects}` proposal. Default is deny.
@@ -148,7 +150,7 @@ Repeat until the stop condition (§3) is met:
 
 ### Verification gates — run before marking ANY item `[x]`
 - `npm run typecheck` · `npm run web:typecheck` — 0 errors.
-- `npm run lint` — clean · `npm run check:nklein-boundary` — passes.
+- `npm run lint` — clean (this also enforces the SDK import boundary via biome `noRestrictedImports`).
 - `npm run test:fast` plus the specific `npx vitest run test/runtime/...` suites for what you touched — green.
 - `npm run test:protected` — green (and you did not modify it without approval).
 - web-ui changes: `npm --prefix web-ui run test` for the affected components.
@@ -4787,6 +4789,13 @@ deep analysis:
   *stale docs are worse than none*. **Standing direction until then:** aggressively delete stale/misleading docs rather
   than carry outdated guidance; keep only `todo.md` (self-contained SoT) + the minimal current `docs/` (system map +
   live design + dev trackers). Pick this up when the product is feature-stable / approaching a first version.
+- [-] **LATER: set up our own CI** *(2026-06-28, user — deferred)*. The inherited Cline CI under `.github/` (the
+  `ci.yml`/`test.yml`/`publish.yml` workflows + `CODEOWNERS` + issue templates + the vestigial `check-nklein-boundary.mjs`)
+  was **removed** 2026-06-28 — it was legacy, didn't match our setup, and we're still on the initial fork-off branch with
+  no CI. When mature, design our own from scratch: the green gate is already defined locally (`tsc` + `web:typecheck` +
+  `biome`/`lint` + `test:fast`/`test:protected` + web vitest + the `verify-*.mts` live harnesses); CI should run that
+  matrix (incl. the §5.J multi-OS goal CP-008) + publish. The release helper `scripts/extract-changelog-entry.mjs` +
+  `RELEASE_WORKFLOW.md` + the `/release` workflow survive for manual releases until then.
 - [-] **DEFERRED INDEFINITELY** *(2026-06-25 clarification pass — user: "defer indefinitely")*: **Distinct look & feel from
   the Cline-Kanban origin** *(raised 2026-06-24)* — give !Klein a visual identity a bit different from the fork's
   inherited look. The current look is great; revisit the distinct-identity restyle much later. **Do NOT produce restyle
@@ -4806,8 +4815,8 @@ deep analysis:
     `window.open(\`file://${path}\`)`, which builds invalid URLs on Windows. Move file-URL creation to the runtime (return
     URL-safe strings) or use a path-to-file-url utility at the web boundary; encode spaces/special chars. Unit-test URL
     output for Windows + Unix paths.
-  - [-] **CP-008 — multi-OS CI coverage.** `.github/workflows/test.yml` runs only `ubuntu-latest`; add a matrix for at
-    least ubuntu + macOS + Windows so per-OS regressions are caught. (No CI infra is wired yet — pairs with that.)
+  - [-] **CP-008 — multi-OS CI coverage.** When CI is set up (§5.J — the legacy single-OS Cline CI was removed), run the
+    gate on a matrix of at least ubuntu + macOS + Windows so per-OS regressions are caught. (No CI infra wired yet.)
 - [-] **PARKED** (cloud-dependent; re-enable when cloud is revisited or a strong local model is proven): `nklein-advisor.ts`,
   `nklein-model-research.ts`, `nklein-team-delegation.ts`/`-team-progress.ts`, `nklein-web-research-tool.ts` (also
   incompatible with `--network none`). They compile as parked helpers + render no local-only UI.
