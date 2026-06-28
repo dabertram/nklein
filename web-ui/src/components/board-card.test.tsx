@@ -829,9 +829,9 @@ describe("BoardCard", () => {
 			);
 		});
 
+		// Icon-only button (label via aria-label + tooltip) so the card title keeps its width in narrow columns.
 		const button = container.querySelector<HTMLButtonElement>('button[aria-label="Create task evidence"]');
 		expect(button).toBeInstanceOf(HTMLButtonElement);
-		expect(button?.textContent).toContain("Evidence");
 
 		await act(async () => {
 			button?.click();

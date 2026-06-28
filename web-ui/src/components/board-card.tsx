@@ -860,14 +860,13 @@ export function BoardCard({
 											size="sm"
 											disabled={isCopyEvidenceLoading}
 											aria-label="Create task evidence"
+											className="shrink-0"
 											onMouseDown={stopEvent}
 											onClick={(event) => {
 												stopEvent(event);
 												onCopyEvidence?.(card.id);
 											}}
-										>
-											Evidence
-										</Button>
+										/>
 									</Tooltip>
 								) : null}
 								{!isTrashCard && onManageDependencies ? (

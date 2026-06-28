@@ -2587,9 +2587,13 @@ deep analysis:
         `handleCollectEvidence`. Regression: a Playwright test (`review-recovery.spec.ts`, "on-card evidence handles a
         null runtime response") clicks the per-card Evidence button against a null mock, asserts the graceful toast + no
         `promptBlock` page error — verified it fails without the guard, passes with it.
-  - [ ] **BUG (found 2026-06-28 while wiring the above regression): a board card's TITLE collapses to width:0 (invisible)
-        when the card shows an always-on header action button (e.g. the review-card "Create task evidence" button) in a
-        normal-width column.** Proven via Playwright on a review card: the title `<p>` is in the DOM with text but
+  - [x] **BUG (found + FIXED 2026-06-28): a board card's TITLE collapsed to width:0 (invisible)
+        when the card showed an always-on header action button (e.g. the review-card "Create task evidence" button) in a
+        normal-width column.** Fixed by making the card's Evidence button **icon-only** (Clipboard icon + aria-label +
+        tooltip, matching every other header button) + `shrink-0`; the wide "Evidence" text label was eating the
+        `flex-1 min-w-0` title's width in a ~177px column. Re-verified: all 11 `review-recovery.spec.ts` e2e tests pass
+        (were 11/11 failing because `openCard` clicked the invisible title); board-card unit test updated (37 pass).
+        ORIGINAL DIAGNOSIS (kept for reference): Proven via Playwright on a review card: the title `<p>` is in the DOM with text but
         `boundingBox().width === 0` / `isVisible() === false`, while the prompt-description `<p>` renders fine; a backlog
         card (no header action button, board-harness.spec.ts) renders its title fine. Root: the header row
         ([board-card.tsx](web-ui/src/components/board-card.tsx) ~L802 `flex items-center gap-2`) gives the title container
