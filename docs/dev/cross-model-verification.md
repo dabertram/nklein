@@ -221,3 +221,8 @@ Restart/resume isolation — a task resumed after a simulated runtime restart re
 - ✅ **PASS** · `qwen3.5-9b-mlx-m5max`
 - ✅ **PASS** · `microsoft/phi-4-mini-reasoning`
   - matrix coverage: 6 of the 9 roster columns now ✅ (same set as strict-isolation). Remaining 3 (gemma-e4b, phi4-plus, deepseek) not currently loaded.
+
+### 2026-06-28 · verify-task-completion (two newer models, not in the 9-col matrix)
+Single-card delivery → awaiting_review + captured result branch, for two models loaded outside the original roster.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · reached awaiting_review, result branch `nklein/tasks/verify-completion-…` captured, hello.txt content matches. A 4B coder model delivers a single card cleanly.
+- ⚠️ **INCOMPLETE** · `ornith-1.0-9b-mlx` · did NOT reach awaiting_review within 240s (last state: `interrupted`) — provisionally slow/non-terminal in window (cf. qwen3.5-9b ⚠️; nemotron delivered only at 540s, so a longer budget may flip it). Not a conclusive capability floor on one run.
