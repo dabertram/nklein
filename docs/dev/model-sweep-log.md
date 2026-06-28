@@ -128,6 +128,13 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 18:42Z · **chat write-tool — full loaded-roster sweep** · `verify-all-models verify-chat-agent-write` · _(Low Power)_
+| model | write tool | note |
+|---|:-:|---|
+| qwen3-8b · coder-14b · gemma-4-e2b · qwen3.5-9b · nemotron · qwopus-4b (NEW) · ornith-9b (NEW) | ✅ | 7/8 drove a write through the confirm gate (ran only after approval + audited; 6–29 s). Both new models ✅. |
+| microsoft/phi-4-mini-reasoning | ❌ | INCOMPLETE (30 s) — didn't drive the confirm-gated write. **Reconfirms phi-4-mini's consistent multi-step tool-driving weakness** (C0 delivery ◑ · C2 promote ⚠️ · write ❌) vs its single-tool successes (create_card ✅ · run_command ✅ · C1 decompose ✅). Clear §5.AA reason-then-act target. |
+> New-model verdict holding strong: **qwopus3.5-4b and ornith-1.0-9b pass C0/C1/C2 + create_card + run_command(◑ for ornith) + write-tool** — solid roster additions.
+
 ### 2026-06-28 18:30Z · **chat run_command — full loaded-roster sweep** · `verify-all-models verify-chat-command-exec` · _(Low Power)_
 | model | run_command | note |
 |---|:-:|---|
