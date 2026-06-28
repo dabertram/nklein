@@ -3315,11 +3315,13 @@ deep analysis:
         Studio dev logs (now captured) show it **ruminating in its reasoning channel** ("Wait not sure", "Alternatively…",
         speculating about the formula) and emitting **no tool-call / no edit** at all. So this 3.8B *reasoning* model is a
         poor fit for **agentic tool-driven coding** (it's tuned for chain-of-thought answers, not tool loops). **Provisional
-        verdict: capability-floor for the code-edit role → failing-LLM list for that role.** Dig-deeper avenue (only if
-        worth it): the §5.O ladder — **constrained-decoding tool-call fallback** + **narrated-tool-call recovery** +
-        **prompt-variation** could nudge it to emit a structured edit; but a model that never *decides to act* is low-ROI
-        to force. Likely better routed (by §5.AB auto-assign) to non-agentic roles (e.g. reasoning/review prompts) where
-        its chain-of-thought is an asset, and kept off code-edit. (Reasoning-channel capture is separately tracked in §5.AB.)
+        verdict: below-bar for code-edit on the CURRENT (thin) ladder — but NOT a confirmed capability-floor yet,**
+        because it has not been through the full §5.AA ladder. Before the floor verdict is final, try the **reason-then-act
+        rung** (§5.AA, user idea 2026-06-28: let it reason which tool call applies, then constrained-decoding forces the
+        emit) + **constrained-decoding fallback** + **endpoint-iteration** (native reasoning channel) — phi-4-mini-reasoning
+        is the canonical test case for those rungs. If they still don't get an edit out of it → confirmed floor → failing-
+        LLM list for code-edit, and let §5.AB auto-assign route it to non-agentic roles (reasoning/review) where its
+        chain-of-thought is an asset. (Reasoning-channel capture tracked in §5.AB; the ladder rungs in §5.AA.)
 - [x] **Sweep driver + results matrix (DONE 2026-06-26)** — `scripts/verify-all-models.mts` iterates the loaded roster,
       pins each model via `NKLEIN_VERIFY_MODEL` (per run a fresh isolated HOME; user settings untouched), runs a named
       harness, applies the deepseek-drop caveat (gone from `/v1/models` → DROPPED + continue), and appends a per-model
@@ -3495,6 +3497,25 @@ deep analysis:
 - [ ] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder.
+- [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
+      Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
+      reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
+      Studio dev logs, §5.Z). Instead of fighting their nature, **lean into it**: a two-phase turn that turns reasoning
+      INTO action. **(a)** Let the model reason freely, explicitly prompted to *decide which tool call applies* ("reason
+      about the exact edit + which tool call would make it"). **(b)** Then a **constrained second step** (the
+      constrained-decoding rung above, `response_format: json_schema` over the tool-call shape) that says "now emit that
+      tool call" — converting its decided-but-unspoken action into a structured call it can't skip. This is the
+      parse-and-recover principle applied to the *act* step (don't rely on the model choosing to call — force the
+      structured emit after it reasons). Combine with the **endpoint-iteration** rung (native `/api/v1/chat` exposes the
+      reasoning channel separately, so phase (a)'s reasoning is cleanly captured) and **prompt-variation** (an
+      example-led "reason → call" template). **phi-4-mini-reasoning is the canonical test case** — if any rung gets it to
+      deliver an edit, this is it; if not, it confirms the capability-floor verdict (§5.Z). NOTE (answering "are we
+      maxing out prompting options?"): **NO — we are not.** On the SWARM/task path (what the dev-test sweep exercises),
+      the recovery ladder is **thin**: narrated-recovery is wired on the CHAT path, tool-set-reduction is wired, but
+      **constrained-decoding, prompt-variation, endpoint-iteration, and this reason-then-act rung are unbuilt**, and the
+      **retry-policy engine that fires the rungs at the model-call seam is decision-core-only (unwired)**. So phi-4 has
+      NOT yet seen the full ladder — wiring §5.AA's retry engine into the task path (+ building these rungs) is the real
+      test of whether weak/reasoning models can be lifted over the bar before declaring a capability-floor.
 - [~] **`ModelBehaviorProfile` store (persisted, GLOBAL) + read/adapt/update.** **PURE LEARNING CORE DONE (2026-06-26):**
       [src/core/model-behavior-profile.ts](src/core/model-behavior-profile.ts) — `recordModelBehaviorOutcome(profile,
       outcome)` is the online update (EWMA success-rate + retries, per-kind failure counts, preferred tool-call format,
