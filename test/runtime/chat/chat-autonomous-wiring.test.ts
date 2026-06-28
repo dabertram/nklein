@@ -115,7 +115,8 @@ describe("runAutonomousChatSession", () => {
 				return STUB_TOOL_DEPS;
 			},
 			runAgentTurn: async () => ({ finalText: "wrapping up", steps: [step("apply_patch")] }),
-			readPlanProgress: async () => ({ total: 1, done: 0 }),
+			// Plan complete (1/1) so the §5.AA evidence-gate accepts the declared completion directly.
+			readPlanProgress: async () => ({ total: 1, done: 1 }),
 			budget: BUDGET,
 		});
 		expect(result.stopReason).toBe("completed");

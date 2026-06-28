@@ -12,10 +12,17 @@ const GENEROUS: AutonomousChatAgentBudget = { maxTurns: 10, maxWallTimeMs: 1_000
 /** A `runTurn` that replays scripted outcomes by turn index (the last one repeats once exhausted). */
 function scriptedTurns(outcomes: AutonomousChatTurnOutcome[]) {
 	const calls: number[] = [];
+	const rejectedFlags: boolean[] = [];
 	return {
 		calls,
-		runTurn: async (input: { goal: string; turnIndex: number }): Promise<AutonomousChatTurnOutcome> => {
+		rejectedFlags,
+		runTurn: async (input: {
+			goal: string;
+			turnIndex: number;
+			rejectedPrematureCompletion?: boolean;
+		}): Promise<AutonomousChatTurnOutcome> => {
 			calls.push(input.turnIndex);
+			rejectedFlags.push(input.rejectedPrematureCompletion ?? false);
 			return outcomes[Math.min(input.turnIndex, outcomes.length - 1)] as AutonomousChatTurnOutcome;
 		},
 	};
@@ -42,12 +49,65 @@ describe("runAutonomousChatAgent", () => {
 		]);
 		const result = await runAutonomousChatAgent(
 			{ goal: "ship it", budget: GENEROUS },
-			{ runTurn, readPlanProgress: scriptedProgress([{ total: 2, done: 1 }]), now: frozenClock },
+			// turn 0 (progressed) reads 2/1 (continue); turn 1's goal_complete reads 2/2 (plan done → accepted).
+			{
+				runTurn,
+				readPlanProgress: scriptedProgress([
+					{ total: 2, done: 1 },
+					{ total: 2, done: 2 },
+				]),
+				now: frozenClock,
+			},
 		);
 		expect(result.stopReason).toBe("completed");
 		expect(result.turns).toBe(2);
 		expect(result.finalText).toBe("all done");
 		expect(calls).toEqual([0, 1]);
+	});
+
+	it("§5.AA evidence-gate: rejects a premature goal_complete (plan steps pending) once, nudging the next turn", async () => {
+		const { runTurn, rejectedFlags } = scriptedTurns([
+			{ status: "goal_complete", text: "done early", madeToolProgress: false },
+			{ status: "progressed", text: "actually finishing", madeToolProgress: true },
+		]);
+		const result = await runAutonomousChatAgent(
+			{ goal: "build it", budget: GENEROUS },
+			{
+				runTurn,
+				// turn 0 declares done with 1/3 → rejected; turn 1 works → 3/3 done → completed.
+				readPlanProgress: scriptedProgress([
+					{ total: 3, done: 1 },
+					{ total: 3, done: 3 },
+				]),
+				now: frozenClock,
+			},
+		);
+		expect(result.stopReason).toBe("completed");
+		expect(result.turns).toBe(2);
+		// The rejection set the nudge flag for turn 1.
+		expect(rejectedFlags).toEqual([false, true]);
+	});
+
+	it("§5.AA evidence-gate: ACCEPTS a re-asserted completion even with steps pending (no trap; one nudge only)", async () => {
+		const { runTurn } = scriptedTurns([{ status: "goal_complete", text: "it's done", madeToolProgress: false }]);
+		const result = await runAutonomousChatAgent(
+			{ goal: "do it", budget: GENEROUS },
+			// Plan stays 1/3 the whole time; the agent insists it's done → first reject, second accept.
+			{ runTurn, readPlanProgress: scriptedProgress([{ total: 3, done: 1 }]), now: frozenClock },
+		);
+		expect(result.stopReason).toBe("completed");
+		expect(result.turns).toBe(2); // turn 0 rejected, turn 1 re-asserted → accepted
+	});
+
+	it("§5.AA evidence-gate: a model that ONLY ever re-declares done parks via the no-progress guard", async () => {
+		const { runTurn } = scriptedTurns([{ status: "goal_complete", text: "done", madeToolProgress: false }]);
+		const result = await runAutonomousChatAgent(
+			{ goal: "x", budget: { maxTurns: 10, maxWallTimeMs: 1_000_000, maxNoProgressTurns: 1 } },
+			{ runTurn, readPlanProgress: scriptedProgress([{ total: 2, done: 0 }]), now: frozenClock },
+		);
+		// maxNoProgressTurns=1 → the very first premature-completion rejection trips the stall guard.
+		expect(result.stopReason).toBe("stalled_no_progress");
+		expect(result.turns).toBe(1);
 	});
 
 	it("pauses for the user on a clarifying question", async () => {
@@ -128,7 +188,16 @@ describe("runAutonomousChatAgent", () => {
 		]);
 		const result = await runAutonomousChatAgent(
 			{ goal: "mixed", budget: { maxTurns: 10, maxWallTimeMs: 1_000_000, maxNoProgressTurns: 2 } },
-			{ runTurn, readPlanProgress: scriptedProgress([noProgress]), now: frozenClock },
+			// Plan pending through turns 0–1, complete (3/3) when goal_complete fires at turn 2 → accepted directly.
+			{
+				runTurn,
+				readPlanProgress: scriptedProgress([
+					{ total: 3, done: 0 },
+					{ total: 3, done: 0 },
+					{ total: 3, done: 3 },
+				]),
+				now: frozenClock,
+			},
 		);
 		// streak hits 1 (turn0), resets at turn1 (progress), completes at turn2 — never reaching the limit of 2.
 		expect(result.stopReason).toBe("completed");

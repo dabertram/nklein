@@ -38,8 +38,16 @@ export interface AutonomousChatPlanProgress {
 }
 
 export interface AutonomousChatAgentDeps {
-	/** Run one autonomous turn toward the goal (live: `runChatAgentLoop` with goal + plan + gated tools). */
-	runTurn: (input: { goal: string; turnIndex: number }) => Promise<AutonomousChatTurnOutcome>;
+	/**
+	 * Run one autonomous turn toward the goal (live: `runChatAgentLoop` with goal + plan + gated tools).
+	 * `rejectedPrematureCompletion` is true when the PREVIOUS turn declared the goal done while focus-chain steps were
+	 * still pending (§5.AA evidence-gate) — the wiring uses it to tell the model to finish the remaining steps instead.
+	 */
+	runTurn: (input: {
+		goal: string;
+		turnIndex: number;
+		rejectedPrematureCompletion?: boolean;
+	}) => Promise<AutonomousChatTurnOutcome>;
 	/** Read the focus-chain plan progress so the driver can stop once every step is done/skipped. */
 	readPlanProgress: () => Promise<AutonomousChatPlanProgress>;
 	/** Injected clock for the wall-time budget (defaults to `Date.now`). */
@@ -73,6 +81,8 @@ export async function runAutonomousChatAgent(
 	let finalText = "";
 	let noProgressStreak = 0;
 	let planProgress: AutonomousChatPlanProgress = { total: 0, done: 0 };
+	let rejectedPrematureCompletion = false;
+	let completionRejectedOnce = false;
 
 	for (let turnIndex = 0; turnIndex < maxTurns; turnIndex++) {
 		// Wall-time guard checked up-front each turn (the loop is cooperative — a turn already in flight isn't
@@ -81,11 +91,25 @@ export async function runAutonomousChatAgent(
 			return { stopReason: "budget_wall_time_exhausted", turns: turnIndex, finalText, planProgress };
 		}
 
-		const outcome = await deps.runTurn({ goal: input.goal, turnIndex });
+		const outcome = await deps.runTurn({ goal: input.goal, turnIndex, rejectedPrematureCompletion });
+		rejectedPrematureCompletion = false;
 		finalText = outcome.text;
 
 		if (outcome.status === "goal_complete") {
 			planProgress = await deps.readPlanProgress();
+			// §5.AA controller evidence-gate: the agent's "done" is a self-report, not evidence. If the focus-chain plan
+			// still has pending steps, REJECT the completion ONCE and nudge the next turn to finish them. Just one nudge,
+			// though: if the agent re-asserts completion we accept it (it may have deliberately skipped now-unnecessary
+			// steps — we don't trap a genuinely-finished run). With no plan (total=0) or a finished plan, accept as before.
+			if (planProgress.total > 0 && planProgress.done < planProgress.total && !completionRejectedOnce) {
+				completionRejectedOnce = true;
+				rejectedPrematureCompletion = true;
+				noProgressStreak += 1; // a turn that only (prematurely) declared done made no real progress
+				if (noProgressStreak >= maxNoProgressTurns) {
+					return { stopReason: "stalled_no_progress", turns: turnIndex + 1, finalText, planProgress };
+				}
+				continue;
+			}
 			return { stopReason: "completed", turns: turnIndex + 1, finalText, planProgress };
 		}
 		if (outcome.status === "needs_user") {

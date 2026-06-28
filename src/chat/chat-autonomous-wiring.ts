@@ -52,13 +52,23 @@ export interface AutonomousTurnRunnerDeps {
 
 export function buildAutonomousChatTurnRunner(
 	deps: AutonomousTurnRunnerDeps,
-): (input: { goal: string; turnIndex: number }) => Promise<AutonomousChatTurnOutcome> {
-	return async ({ goal, turnIndex }) => {
+): (input: {
+	goal: string;
+	turnIndex: number;
+	rejectedPrematureCompletion?: boolean;
+}) => Promise<AutonomousChatTurnOutcome> {
+	return async ({ goal, turnIndex, rejectedPrematureCompletion }) => {
 		const controls = createAutonomousControlTools();
+		// §5.AA evidence-gate: the driver rejected a prior premature declare_goal_complete (focus-chain steps still
+		// pending) — tell the model plainly so it finishes the work instead of re-declaring done.
+		const completionNudge = rejectedPrematureCompletion
+			? "\n\nIMPORTANT: you called declare_goal_complete, but your focus chain still has PENDING steps — the goal is NOT done. Do NOT declare complete again until every step is actually finished; work the next pending step now."
+			: "";
 		const goalDirective =
-			turnIndex === 0
+			(turnIndex === 0
 				? `You are working AUTONOMOUSLY toward this goal:\n${goal}\n\nFirst lay out your plan with the update_focus_chain tool, then start executing it — use your tools to do real work. Call declare_goal_complete when the whole goal is done, or request_user_input ONLY if you genuinely cannot proceed without the user.`
-				: `Continue working autonomously toward the goal:\n${goal}\n\nWork the next pending focus-chain step. Call declare_goal_complete when the whole goal is done, or request_user_input only if you are truly blocked on the user.`;
+				: `Continue working autonomously toward the goal:\n${goal}\n\nWork the next pending focus-chain step. Call declare_goal_complete when the whole goal is done, or request_user_input only if you are truly blocked on the user.`) +
+			completionNudge;
 		const { loopResult } = await deps.runTurnWithControls({ goalDirective, controls, turnIndex });
 		return interpretAutonomousTurnOutcome(loopResult, controls.signals, controls.controlToolNames);
 	};
