@@ -303,3 +303,47 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 27s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
 - ✅ **PASS** · `ornith-1.0-9b-mlx` · 36s · PASS ✓ the card auto-promoted Planning→In Progress via the RECOVERY path (begin_implementation never called).
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
+
+### 2026-06-28 18:43:01 · verify-chat-create-card
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 25s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 9s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 11s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 19s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 42s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 12s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 15s · PASS ✓ the chat agent created a real board card at runtime.
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 20s · PASS ✓ the chat agent created a real board card at runtime.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
+
+### 2026-06-28 18:47:45 · verify-chat-command-exec
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 31s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 7s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 9s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwen3.5-9b-mlx-m5max` · 16s · INCOMPLETE — see above.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 52s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 10s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 11s · PASS ✓ the chat agent ran a real shell command and saw its output at runtime.
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 12s · INCOMPLETE — see above.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 18:57:20 · verify-chat-agent-write
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 29s · PASS ✓ a real model drove a write through the confirm gate; it ran only after approval and was audited.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 8s · PASS ✓ a real model drove a write through the confirm gate; it ran only after approval and was audited.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 6s · PASS ✓ a real model drove a write through the confirm gate; it ran only after approval and was audited.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 9s · PASS ✓ a real model drove a write through the confirm gate; it ran only after approval and was audited.
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 30s · INCOMPLETE — see above.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 6s · PASS ✓ a real model drove a write through the confirm gate; it ran only after approval and was audited.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 13s · PASS ✓ a real model drove a write through the confirm gate; it ran only after approval and was audited.
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 11s · PASS ✓ a real model drove a write through the confirm gate; it ran only after approval and was audited.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
+
+### 2026-06-28 19:06:06 · verify-chat-agent-tools
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 29s · PASS ✓ a real model called a workspace tool through the gated executor and answered from the file.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 7s · PASS ✓ a real model called a workspace tool through the gated executor and answered from the file.
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 5s · INCOMPLETE — see above.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 9s · PASS ✓ a real model called a workspace tool through the gated executor and answered from the file.
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 15s · INCOMPLETE — see above.
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b-m5max` · 5s · INCOMPLETE — see above.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 9s · PASS ✓ a real model called a workspace tool through the gated executor and answered from the file.
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 8s · PASS ✓ a real model called a workspace tool through the gated executor and answered from the file.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅

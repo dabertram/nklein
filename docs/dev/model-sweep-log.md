@@ -128,6 +128,13 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 18:54Z · **chat read-tools — full loaded-roster sweep** · `verify-all-models verify-chat-agent-tools` · _(Low Power)_
+| model | read tools | note |
+|---|:-:|---|
+| qwen3-8b · coder-14b · qwen3.5-9b · qwopus-4b (NEW) · ornith-9b (NEW) | ✅ | called `read_file` + answered from the file (7–29 s); both new models clean |
+| gemma-4-e2b · phi-4-mini · nemotron-3-nano | ◑ | **all CALLED `read_file`** but the final answer didn't echo the file's secret (weak synthesis) → strict gate marks INCOMPLETE; the tool-use capability works (same ◑ semantics as run_command; matches baseline for gemma-e2b/nemotron) |
+> read-tools = **5✅ + 3◑** (all 8 called the tool; 3 weak-answered). qwopus-4b + ornith-9b ✅ — new models now clean across 4 chat tools (create_card · run_command[ornith ◑] · write · read).
+
 ### 2026-06-28 18:42Z · **chat write-tool — full loaded-roster sweep** · `verify-all-models verify-chat-agent-write` · _(Low Power)_
 | model | write tool | note |
 |---|:-:|---|
