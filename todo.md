@@ -3516,51 +3516,27 @@ deep analysis:
       (groundtruth), today is 2026-06-26 … in the past, as it occurred earlier this year"*, quoting the block verbatim).
       The lighthouse is robust regardless of model.
 > **Sweep-derived hardening candidates (record-as-found; promote to §5.O when worked):**
-- [~] **Final-answer-repeat finalization watchdog (from the qwen3.5-9b single-card sweep, 2026-06-26)** — a model that
-      finishes the work (write+read) then **loops re-emitting an identical no-tool "Done!" final message** is not
-      finalized promptly: the session stays `running` until the slow wall-time/no-diff guardrail eventually parks it, so
-      the already-done work is never captured to a result branch (it sits stuck in the sandbox). Finalize (or park) a
-      session when the agent emits N consecutive identical no-tool final messages — the work is done, stop waiting.
-      Output-robustness, ties §5.O parse-and-recover. **DETECTOR CORE DONE (2026-06-28):** `detectRepeatedFinalAnswer(finalAnswers, {minRepeats=3, minLen})`
-      ([nklein-response-loop-detection.ts](src/nklein-agent/nklein-response-loop-detection.ts)) — pure + deterministic
-      (the module's shared seam for both the swarm session runtime + chat path), takes the ordered list of NO-TOOL
-      final-answer texts (a tool-call turn breaks the run — caller omits it), normalizes whitespace so trivial reprints
-      compare equal, and reports the trailing identical run (`repeating`/`repeats`/`repeatedText`). 7 tests; tsc+biome
-      green. **STILL OWED (the WIRING — a focused pass; the seam needs more tracing than first thought):** my initial guess
-      that `AutonomyBudgetWatchdog.check()` runs every turn was **WRONG and must not be built on** — traced 2026-06-28:
-      `check()` is reached only via `applyTurnCheckpoint` ← `captureReviewCheckpoint`, which fires **only on the
-      `→ awaiting_review` transition** (`shouldCaptureReviewCheckpoint`: `prev.state !== "awaiting_review" && next.state === "awaiting_review"`,
-      [nklein-task-session-service.ts:3017](src/nklein-agent/nklein-task-session-service.ts#L3017)). The 3494 spin keeps the
-      session **`running`** (it never reaches `awaiting_review`), so those repeated-"Done!" turns flow through a **different
-      path** the watchdog never sees — which also means the next agent must FIRST trace how a running session's per-turn
-      events flow (the agent-loop / `nklein-event-adapter` → where a no-tool final message lands while state stays
-      `running`, and what currently parks the spin: the wall-time/no-diff path's real trigger). **Event-adapter state map TRACED
-      2026-06-28** ([nklein-event-adapter.ts](src/nklein-agent/nklein-event-adapter.ts) `applyNKleinSessionEvent`): the
-      loop-end `result`/`done` events set `latestHookActivity.finalMessage = finalText` and go **→ `awaiting_review`** (or
-      **→ `interrupted`** on a no-output `aborted`, lines ~483/534 — the §5.AA `aborted` case); intra-loop `tool-started`/
-      `tool-finished`/`content_start(tool)` keep state **`running`** with `finalMessage: null`. So a turn that ends with a
-      no-tool final answer goes to `awaiting_review` — meaning the 3494 "stays running and loops Done!" pattern is driven by
-      **turn-continuation / autonomous re-prompting in the session service** (not the adapter): something re-runs the agent
-      after the final message, and the model re-emits. **REMAINING TRACE:** find that continuation site (session-service
-      autonomous-turn loop) — that is where to track the per-turn no-tool final-answer run and call `detectRepeatedFinalAnswer`,
-      parking-for-review on a repeat. NB the live qwen3.5-9b mid_task sweep (2026-06-28) showed its real non-termination is
-      **excessive re-reading (read_files×54) + 1 repeated tool call**, not pure final-message looping. **CHECKED
-      `repeated-tool-call-guard.ts` (2026-06-28): the repeated-*tool-call* case is ALREADY guarded** — `RepeatedToolCallGuard`
-      runs on **every `emitSummary`** while `state === "running"`, fingerprints the full tool input, and parks after N
-      (base limit; 6 for read_files/run_commands). So qwen3.5-9b's 54 read_files are *advancing* (different inputs → not
-      parked, correct) and only 1 was a true identical repeat (below threshold). **⇒ The watchdog's UNIQUE value is the
-      no-tool final-MESSAGE repeat, and the natural home is a THIRD guard on the same `emitSummary` seam** (mirror
-      `RepeatedToolCallGuard`: per-task Map of consecutive no-tool final-answer fingerprints via `detectRepeatedFinalAnswer`,
-      reset on any tool-call activity, `parkTaskForAutonomyBudget` on a repeat) — IF a no-tool final-answer activity is
-      emitted while `state==="running"`. The live dump resolves the one open question: whether the 3494 "Done!" loop cycles
-      running→awaiting_review→(auto-continue)→running (then `AutonomyBudgetWatchdog` already sees each cycle and max-turns
-      eventually parks it — so the watchdog just makes it FASTER) or re-emits within one running agent loop (then the
-      `emitSummary` third-guard is required). Wire to whichever the dump shows, then **verify live** (LM Studio + Docker
-      available; the repro model `qwen3.5-9b-mlx-m5max` is loaded):
-      `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts`
-      (writes the file early, then never stops) → confirm the new trigger parks it promptly while a normal multi-turn task
-      is untouched (no false-park). Do this as a dedicated pass with fresh context — a wrong hook point ships a guardrail
-      that never fires or misfires.
+- [x] **Final-answer-repeat finalization watchdog — WIRED + TESTED (2026-06-28)** (from the qwen3.5-9b single-card sweep).
+      A model that finishes the work then **loops re-emitting an identical no-tool "Done!" final message** used to sit
+      `running` until the slow no-diff/wall-time budget parked it (default 20 no-diff checkpoints), so the already-done work
+      stayed stuck. **Fix:** a **5th `AutonomyBudgetWatchdog` guardrail** (`repeated_final_answer`,
+      [autonomy-budget-watchdog.ts](src/nklein-agent/autonomy-budget-watchdog.ts)) parks for review after
+      `NKLEIN_MAX_REPEATED_FINAL_ANSWERS = 3` consecutive review checkpoints that re-emit the **same** whitespace-normalized
+      final message at the **same commit** (no new diff). Seam confirmed by the trace: a no-tool final answer is emitted
+      only at the `result`/`done` → `awaiting_review` transition (which is exactly when the watchdog runs), and requiring
+      no-new-commit too means a genuinely-progressing task is never parked on message text — it's a faster (3 vs 20),
+      more-specific variant of the no-diff guard. Reuses the exported `normalizeFinalAnswer`; resets per task. 5 watchdog
+      tests (parks on 3 identical@same-commit; no park on varying text; no park on identical text with new commits; no-final
+      cleared + resetTask) + the 7 `detectRepeatedFinalAnswer` detector tests; tsc+biome+suite green. **Opportunistic
+      follow-up (not blocking):** observe a live park when a model exhibits the loop (`NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
+      NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts`) — the loop is stochastic so it isn't a
+      deterministic gate; the unit tests + the traced data-flow are the verification. **Detector** (also usable standalone /
+      chat-path): `detectRepeatedFinalAnswer(finalAnswers, {minRepeats=3, minLen})`
+      ([nklein-response-loop-detection.ts](src/nklein-agent/nklein-response-loop-detection.ts)) — pure + deterministic,
+      takes the ordered NO-TOOL final-answer texts and reports the trailing identical run; the watchdog guardrail uses the
+      same `normalizeFinalAnswer` with its own incremental {message,commit,count} state (mirroring the no-diff guard). NB
+      the repeated-*tool-call* case is separately handled by `RepeatedToolCallGuard` (on `emitSummary` while running), so
+      this watchdog targets the distinct no-tool final-message loop.
 - [x] **Chat-path narrated-tool-call recovery — DONE (2026-06-26)** — `completeWithTools`
       ([nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts)) used to parse ONLY LM Studio's native
       `tool_calls`; it now also runs `parseNarratedToolCalls` over the model's `content` **and** `reasoning_content`

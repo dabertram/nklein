@@ -52,6 +52,25 @@ function checkpoint(over: Partial<RuntimeTaskTurnCheckpoint> = {}): RuntimeTaskT
 	return { turn: 1, ref: "refs/nklein/t1", commit: "c1", createdAt: 0, ...over };
 }
 
+/** An entry whose latest activity is a no-tool final answer with the given text (for the repeated-final-answer guard). */
+function finalAnswerEntry(
+	finalMessage: string,
+	summaryOver: Partial<RuntimeTaskSessionSummary> = {},
+): NKleinTaskSessionEntry {
+	return entry({
+		latestHookActivity: {
+			activityText: `Final: ${finalMessage}`,
+			toolName: null,
+			toolInputSummary: null,
+			finalMessage,
+			hookEventName: "agent_end",
+			notificationType: null,
+			source: "nklein-sdk",
+		},
+		...summaryOver,
+	});
+}
+
 function makeCallbacks(over: Partial<AutonomyBudgetWatchdogCallbacks> = {}): AutonomyBudgetWatchdogCallbacks {
 	return {
 		getSwarmGuardrails: () => GUARDRAILS,
@@ -119,6 +138,56 @@ describe("AutonomyBudgetWatchdog.check", () => {
 		watchdog.check("t1", checkpoint({ turn: 2, commit: "b" }), entry()); // different commit → streak resets
 		watchdog.resetTask("t1");
 		expect(watchdog.check("t1", checkpoint({ turn: 3, commit: "a" }), entry())).toBeNull(); // back to count 1
+		expect(callbacks.parkTaskForAutonomyBudget).not.toHaveBeenCalled();
+	});
+
+	// The repeated-final-answer guard (3) shares the "same commit" condition with the no-diff guard, so to test it in
+	// isolation we relax no-diff well above 3 (production default is 20 vs this guard's 3 — so this guard fires first).
+	const relaxedNoDiff = makeCallbacks({
+		getSwarmGuardrails: () => ({ ...GUARDRAILS, maxRepeatedNoDiffCheckpoints: 20 }),
+	});
+
+	it("parks after 3 consecutive identical final answers at the same commit (finished-but-looping, §5.AA)", () => {
+		const callbacks = makeCallbacks({
+			getSwarmGuardrails: () => ({ ...GUARDRAILS, maxRepeatedNoDiffCheckpoints: 20 }),
+		});
+		const watchdog = new AutonomyBudgetWatchdog(callbacks);
+		expect(watchdog.check("t1", checkpoint({ turn: 1, commit: "done" }), finalAnswerEntry("All done!"))).toBeNull();
+		expect(watchdog.check("t1", checkpoint({ turn: 2, commit: "done" }), finalAnswerEntry("All done! "))).toBeNull();
+		watchdog.check("t1", checkpoint({ turn: 3, commit: "done" }), finalAnswerEntry("All done!")); // count 3 → park
+		expect(callbacks.parkTaskForAutonomyBudget).toHaveBeenCalledOnce();
+		expect(vi.mocked(callbacks.parkTaskForAutonomyBudget).mock.calls[0]?.[0].message).toContain(
+			"re-emitted the same final message",
+		);
+		expect(vi.mocked(callbacks.parkTaskForAutonomyBudget).mock.calls[0]?.[0].metadata.guardrail).toBe(
+			"repeated_final_answer",
+		);
+	});
+
+	it("does NOT park when the final message varies (different text resets the run)", () => {
+		const watchdog = new AutonomyBudgetWatchdog(relaxedNoDiff);
+		watchdog.check("t1", checkpoint({ turn: 1, commit: "done" }), finalAnswerEntry("Working on step 1."));
+		watchdog.check("t1", checkpoint({ turn: 2, commit: "done" }), finalAnswerEntry("Working on step 2."));
+		watchdog.check("t1", checkpoint({ turn: 3, commit: "done" }), finalAnswerEntry("Working on step 3."));
+		expect(relaxedNoDiff.parkTaskForAutonomyBudget).not.toHaveBeenCalled();
+	});
+
+	it("does NOT park on identical final text when each turn makes a new commit (real progress)", () => {
+		const callbacks = makeCallbacks();
+		const watchdog = new AutonomyBudgetWatchdog(callbacks);
+		watchdog.check("t1", checkpoint({ turn: 1, commit: "a" }), finalAnswerEntry("Committed."));
+		watchdog.check("t1", checkpoint({ turn: 2, commit: "b" }), finalAnswerEntry("Committed."));
+		watchdog.check("t1", checkpoint({ turn: 3, commit: "c" }), finalAnswerEntry("Committed."));
+		expect(callbacks.parkTaskForAutonomyBudget).not.toHaveBeenCalled();
+	});
+
+	it("ignores checkpoints with no final message and resets the run via resetTask", () => {
+		const callbacks = makeCallbacks();
+		const watchdog = new AutonomyBudgetWatchdog(callbacks);
+		watchdog.check("t1", checkpoint({ turn: 1, commit: "done" }), finalAnswerEntry("Done!"));
+		watchdog.check("t1", checkpoint({ turn: 2, commit: "done" }), entry()); // no final message → run cleared
+		watchdog.resetTask("t1");
+		expect(watchdog.check("t1", checkpoint({ turn: 3, commit: "done" }), finalAnswerEntry("Done!"))).toBeNull(); // count 1
 		expect(callbacks.parkTaskForAutonomyBudget).not.toHaveBeenCalled();
 	});
 

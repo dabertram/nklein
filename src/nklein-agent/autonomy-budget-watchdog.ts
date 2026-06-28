@@ -34,14 +34,31 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { normalizeFinalAnswer } from "./nklein-response-loop-detection";
 import type { NKleinTaskSessionEntry } from "./nklein-session-state";
 import { now } from "./nklein-session-state";
+
+/**
+ * Park after this many consecutive review checkpoints that BOTH produced no new diff commit AND re-emitted the same
+ * no-tool final answer — a model that has finished the work then loops re-printing an identical "Done!" final message
+ * (§5.AA, from the qwen3.5-9b sweep). This is a faster, more-specific trigger than the plain no-diff guard
+ * (`maxRepeatedNoDiffCheckpoints`, default 20): identical-message-AND-no-progress is an unambiguous stuck signal, so
+ * parking it at 3 captures the already-done work for review promptly instead of waiting out the slow no-diff/wall-time
+ * budget. Requiring no-new-commit too means a genuinely-progressing task (new commits) is never parked on message text.
+ */
+const NKLEIN_MAX_REPEATED_FINAL_ANSWERS = 3;
 
 // ---------------------------------------------------------------------------
 // Internal state shape
 // ---------------------------------------------------------------------------
 
 interface NKleinTaskNoDiffState {
+	commit: string;
+	count: number;
+}
+
+interface NKleinTaskRepeatedFinalAnswerState {
+	normalized: string;
 	commit: string;
 	count: number;
 }
@@ -118,6 +135,7 @@ export interface AutonomyBudgetWatchdogCallbacks {
  */
 export class AutonomyBudgetWatchdog {
 	private readonly noDiffCheckpointByTaskId = new Map<string, NKleinTaskNoDiffState>();
+	private readonly repeatedFinalAnswerByTaskId = new Map<string, NKleinTaskRepeatedFinalAnswerState>();
 
 	constructor(private readonly callbacks: AutonomyBudgetWatchdogCallbacks) {}
 
@@ -193,7 +211,29 @@ export class AutonomyBudgetWatchdog {
 			});
 		}
 
-		// 4. Max autonomous wall time
+		// 4. Repeated identical final answer with no new diff — a finished model looping its "Done!" final message
+		//    (§5.AA). A faster, more-specific trigger than #3: identical-final-text AND no-progress parks at
+		//    NKLEIN_MAX_REPEATED_FINAL_ANSWERS (3) so the already-done work is captured for review promptly instead of
+		//    waiting out the slow no-diff/wall-time budget. (Checked after #3 so a plain no-diff loop with VARYING text
+		//    still parks via #3; this only fires the faster path when the final text is identical too.)
+		const finalAnswerState = this.recordRepeatedFinalAnswer(taskId, checkpoint, entry);
+		if (finalAnswerState && finalAnswerState.count >= NKLEIN_MAX_REPEATED_FINAL_ANSWERS) {
+			return this.callbacks.parkTaskForAutonomyBudget({
+				taskId,
+				entry,
+				message: `!Klein paused this task after it re-emitted the same final message ${finalAnswerState.count} times with no new changes — the work looks finished but the agent kept repeating itself instead of stopping. Review the result, then send a new instruction if more is needed.`,
+				metadata: {
+					guardrail: "repeated_final_answer",
+					count: finalAnswerState.count,
+					limit: NKLEIN_MAX_REPEATED_FINAL_ANSWERS,
+					turn: checkpoint.turn,
+					checkpointRef: checkpoint.ref,
+					checkpointCommit: checkpoint.commit,
+				},
+			});
+		}
+
+		// 5. Max autonomous wall time
 		const startedAt = entry.summary.startedAt;
 		const elapsedMs =
 			typeof startedAt === "number" && Number.isFinite(startedAt) && startedAt > 0 ? now() - startedAt : null;
@@ -222,6 +262,7 @@ export class AutonomyBudgetWatchdog {
 	 */
 	resetTask(taskId: string): void {
 		this.noDiffCheckpointByTaskId.delete(taskId);
+		this.repeatedFinalAnswerByTaskId.delete(taskId);
 	}
 
 	/**
@@ -229,6 +270,7 @@ export class AutonomyBudgetWatchdog {
 	 */
 	dispose(): void {
 		this.noDiffCheckpointByTaskId.clear();
+		this.repeatedFinalAnswerByTaskId.clear();
 	}
 
 	// ---------------------------------------------------------------------------
@@ -244,6 +286,32 @@ export class AutonomyBudgetWatchdog {
 		const previous = this.noDiffCheckpointByTaskId.get(taskId);
 		const nextState = previous?.commit === commit ? { commit, count: previous.count + 1 } : { commit, count: 1 };
 		this.noDiffCheckpointByTaskId.set(taskId, nextState);
+		return nextState;
+	}
+
+	/**
+	 * Track the consecutive run of review checkpoints that re-emit the SAME (whitespace-normalized) no-tool final
+	 * message at the SAME commit (no new diff). Returns the current run state, or `null` when this checkpoint has no
+	 * final message (not a final-answer turn) — which also clears the per-task run. A new commit OR a different final
+	 * message resets the count to 1, so only a genuinely stuck "finished, repeating itself" loop accumulates (§5.AA).
+	 */
+	private recordRepeatedFinalAnswer(
+		taskId: string,
+		checkpoint: RuntimeTaskTurnCheckpoint,
+		entry: NKleinTaskSessionEntry,
+	): NKleinTaskRepeatedFinalAnswerState | null {
+		const normalized = normalizeFinalAnswer(entry.summary.latestHookActivity?.finalMessage ?? "");
+		if (!normalized) {
+			this.repeatedFinalAnswerByTaskId.delete(taskId);
+			return null;
+		}
+		const commit = checkpoint.commit.trim();
+		const previous = this.repeatedFinalAnswerByTaskId.get(taskId);
+		const isRepeat = previous?.normalized === normalized && previous?.commit === commit;
+		const nextState: NKleinTaskRepeatedFinalAnswerState = isRepeat
+			? { normalized, commit, count: previous.count + 1 }
+			: { normalized, commit, count: 1 };
+		this.repeatedFinalAnswerByTaskId.set(taskId, nextState);
 		return nextState;
 	}
 }

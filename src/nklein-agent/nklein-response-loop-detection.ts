@@ -84,7 +84,7 @@ export interface RepeatedFinalAnswerOptions {
 }
 
 /** Trim + collapse internal whitespace runs so trivially-different reprints ("Done!\n" vs "Done! ") compare equal. */
-function normalizeFinalAnswer(text: string): string {
+export function normalizeFinalAnswer(text: string): string {
 	return text.replace(/\s+/g, " ").trim();
 }
 
