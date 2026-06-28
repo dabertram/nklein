@@ -3497,9 +3497,15 @@ deep analysis:
 - [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
       models (it serializes on the single-request endpoint → ~25 min/run; not full-swept across all 9).
 - [~] **Small-model output robustness** (`sweep-capture.mts`) — proven clean: gemma-4-e2b (mid+complex), gemma-4-e4b
-      (complex), qwen3-8b (mid+complex, slow/non-terminal in window). Remaining: qwen2.5-coder-14b, qwen3.5-9b,
-      phi-4-mini, phi-4-reasoning-plus, nemotron, deepseek + the unfinished presets. (Folds into §5.O — that section IS
-      the output-robustness sweep; §5.Z just tracks its all-models coverage.)
+      (complex), qwen3-8b (mid+complex, slow/non-terminal in window). **mid_task sweep extended 2026-06-28** (against a
+      booted isolated-HOME runtime on :3484): **qwen2.5-coder-14b ✅ CLEAN** (awaiting_review, 0 leaks/0 repeats);
+      **nemotron-3-nano ✅ CLEAN** (awaiting_review, 0 leaks/0 repeats); **qwen3.5-9b ◑** — output FORMAT clean (0 narration
+      leaks) but did NOT terminate in 300s (78 tool calls incl. read_files×54 heavy re-reading + 1 hot repeated tool call):
+      a **control/finalization** gap (the §5.AA `aborted`/final-answer-watchdog + retry-ladder territory), NOT a parse/output
+      issue. **KEY finding:** across every model swept, narration-leak count is **0** — the §5.O parse-and-recover hardening
+      holds; the remaining non-termination cases are §5.AA control problems, not output-format problems. Remaining:
+      phi-4-mini-reasoning (sweeping), phi-4-reasoning-plus + deepseek (not currently loaded) + the unfinished presets.
+      (Folds into §5.O — that section IS the output-robustness sweep; §5.Z just tracks its all-models coverage.)
 - [ ] **Embedding / code-intelligence flows** — sweep the loaded embedder(s) (currently only
       `text-embedding-nomic-embed-text-v1.5@q8_0`); re-run when more are loaded.
 - [x] **Temporal-awareness lighthouse (§5.AC) — ALL 9 PASS (2026-06-26)** (`verify-temporal-awareness-live.mts`) — a real
