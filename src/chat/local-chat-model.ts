@@ -11,20 +11,56 @@ import { type ChatModelDeps, createChatModelDeps } from "./chat-local-llm-adapte
 export const DEFAULT_LOCAL_CHAT_BASE_URL = "http://127.0.0.1:1234/v1";
 export const DEFAULT_LOCAL_CHAT_PROVIDER_ID = "lmstudio";
 
+/**
+ * TTL cache so the chat model-resolver (invoked per chat agent operation) doesn't hammer the live `/models` catalog —
+ * the same 30 s throttle + `NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS` knob as the roster path (`nklein-provider-service.ts`);
+ * disabled under the test runner so per-test fetch mocks aren't shadowed.
+ */
+const loadedModelIdCache = new Map<string, { at: number; modelId: string | null }>();
+
+function loadedModelCacheTtlMs(): number {
+	const raw = Number(process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS);
+	if (Number.isFinite(raw) && raw >= 0) {
+		return Math.trunc(raw);
+	}
+	if (process.env.VITEST || process.env.NODE_ENV === "test") {
+		return 0;
+	}
+	return 30_000;
+}
+
+/** Clear the loaded-model-id TTL cache (tests + explicit refresh). */
+export function clearLoadedModelIdCache(): void {
+	loadedModelIdCache.clear();
+}
+
 /** Discover a currently-loaded, non-embedding model id from the live local endpoint; null when none/unreachable. */
 export async function discoverLoadedModelId(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
-	try {
-		const res = await fetchImpl(`${baseUrl.replace(/\/+$/u, "")}/models`);
-		if (!res.ok) {
-			return null;
+	const key = baseUrl.replace(/\/+$/u, "");
+	const ttlMs = loadedModelCacheTtlMs();
+	const now = Date.now();
+	if (ttlMs > 0) {
+		const cached = loadedModelIdCache.get(key);
+		if (cached && now - cached.at < ttlMs) {
+			return cached.modelId;
 		}
-		const payload = (await res.json()) as { data?: Array<{ id?: string }> };
-		const models = payload.data ?? [];
-		const chatModel = models.find((entry) => entry.id && !entry.id.includes("embed")) ?? models[0];
-		return chatModel?.id ?? null;
-	} catch {
-		return null;
 	}
+	let modelId: string | null = null;
+	try {
+		const res = await fetchImpl(`${key}/models`);
+		if (res.ok) {
+			const payload = (await res.json()) as { data?: Array<{ id?: string }> };
+			const models = payload.data ?? [];
+			const chatModel = models.find((entry) => entry.id && !entry.id.includes("embed")) ?? models[0];
+			modelId = chatModel?.id ?? null;
+		}
+	} catch {
+		modelId = null;
+	}
+	if (ttlMs > 0) {
+		loadedModelIdCache.set(key, { at: now, modelId });
+	}
+	return modelId;
 }
 
 export interface ResolveLocalChatModelOptions {
