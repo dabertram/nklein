@@ -38,7 +38,7 @@
 | chat run_command‡ · `verify-chat-command-exec` | ✅ | ✅ | ◑ | ◑ | ◑ | ✅* | ❌ | ✅ | ◑ |
 | chat create_card · `verify-chat-create-card` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅* | ❌ | ✅ | ✅ |
 | chat browse_url · `verify-chat-browse` | ✅ | ◑ | ◑ | ◑ | · | · | · | ◑ | · |
-| chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | · | · | · | · | · | · | · | · |
+| chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | ◑ | · | · | · | · | · | · | · |
 | chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | · | · | ◑ | · |
 | chat write tool · `verify-chat-agent-write` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
 | chat send · `verify-chat-send` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
@@ -257,3 +257,6 @@ Both the basic chat-turn-and-persist (`verify-chat-send`) and the memory+goal-co
 
 ### 2026-06-28 · browse_url swept the remaining loaded roster (absolute PLAYWRIGHT_BROWSERS_PATH)
 With the command fixed, browse_url renders for every model: gemma-4-e2b, nemotron-3-nano, qwen3.5-9b each **USED browse_url + Chromium rendered the local page** (replies contain the page heading `NKLEIN-BROWSE-TITLE-4242`), but answered with the heading rather than the body MARKER → ◑ (weak synthesis, same as run_command/read-tools). The browse CAPABILITY (Chromium launch + render + text-back) is proven across the loaded roster; matrix → ◑ for coder-14b/qwen3.5-9b/gemma-e2b/nemotron, qwen3-8b ✅.
+
+### 2026-06-28 · e2e capstone on coder-14b — full 4-tool composition, reliably
+`verify-chat-agent-e2e` on qwen2.5-coder-14b used **ALL 4 tools** in the multi-step turn (read_file + run_command + create_card + update_focus_chain) and the card **E2E-CARD-7777 persisted** (durable control-plane mutation). Only the marker-echo gate failed (weak synthesis, the ◑ pattern). So the stronger coder handles the 4-tool composition **reliably** → ◑, vs qwen3-8b's 🎲 (1/4–3/4 tools run to run). Confirms the capstone flakiness is a small-model composition-capacity limit, not a !Klein bug; the agent loop drives the full tool sequence + durable side effects when the model can keep up.
