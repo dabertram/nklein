@@ -347,3 +347,25 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 9s · PASS ✓ a real model called a workspace tool through the gated executor and answered from the file.
 - ✅ **PASS** · `ornith-1.0-9b-mlx` · 8s · PASS ✓ a real model called a workspace tool through the gated executor and answered from the file.
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
+
+### 2026-06-28 19:12:43 · verify-chat-send
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 5s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 1s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 1s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 5s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 2s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 1s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 2s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 2s · PASS ✓ chat.sendMessage ran a real turn and persisted it.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
+
+### 2026-06-28 19:13:58 · verify-chat-runtime
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 20s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b-m5max` · 2s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+- ✅ **PASS** · `google/gemma-4-e2b-m5max` · 4s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+- ✅ **PASS** · `qwen3.5-9b-mlx-m5max` · 11s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 10s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+- ✅ **PASS** · `nvidia/nemotron-3-nano-4b-m5max` · 3s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+- ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 4s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+- ✅ **PASS** · `ornith-1.0-9b-mlx` · 8s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
+  - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅

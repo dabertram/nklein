@@ -128,6 +128,13 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 19:14Z · **chat send + runtime — full loaded-roster sweep** · `verify-chat-send` / `verify-chat-runtime` · _(Low Power)_
+| flow | result | note |
+|---|:-:|---|
+| send (`chat.sendMessage` runs a real turn + persists) | **8/8 ✅** | 1–5 s across the roster |
+| runtime (turn composes memory + goal, calls model, persists) | **8/8 ✅** | 2–20 s; qwen3-8b cold-start 20 s, rest fast |
+> Both basic single-turn chat flows are universally green on the loaded roster — these exercise the call+persist seam, not tool-driving, so even the weak models (gemma-e2b, phi-4-mini, nemotron) pass cleanly. Chat-flow matrix now covers: create_card · run_command · write · read · send · runtime.
+
 ### 2026-06-28 18:54Z · **chat read-tools — full loaded-roster sweep** · `verify-all-models verify-chat-agent-tools` · _(Low Power)_
 | model | read tools | note |
 |---|:-:|---|
