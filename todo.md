@@ -4586,14 +4586,22 @@ deep analysis:
       ports (`now`/`mintWorkerId`/`appendLog`/`dispatch`): `tick()` decides→persists→applies→dispatches new leases at one
       captured clock; `reportCompletion()` records a terminal report; `resume()` folds the ledger log then **reclaims
       orphaned in-flight leases** (a restart kills all workers → next tick re-dispatches; or fails them if the budget is
-      spent). Fakes-tested incl. restart-resume. **So the C3 substrate is now COMPLETE end-to-end at the pure/injectable
-      level. STILL OWED (the genuinely hot-path part only — a focused pass w/ live Docker verification):** wire the **2
-      real ports** + boot — `dispatch` = enqueue the card's `RuntimeTaskSessionStartRequest` via `runtime-task-start-queue`
-      (unblock is already done by `completeTaskAndGetReadyLinkedTaskIds`); `appendLog` = `durableLogEntryToSchedulerEvent`
-      → append to the ledger store; on boot = `readDurableSchedulerLog(workflow events)` → `DurableRunController.resume`;
-      a heartbeat that extends the lease while a session runs, and `reportCompletion` on session finish. Then run C3
-      (`complex_dag` unattended + restart-mid-run) on the §5.Z roster (an early-scout of `complex_dag`×qwen3-8b on the
-      *current* non-durable pipeline is running to characterize exactly what the durable layer must fix).
+      spent). Fakes-tested incl. restart-resume. **Durability invariant hardened (2026-06-28):** `appendLog` is awaited
+      **before** any `dispatch` (persist-before-side-effect) so a crash can never leave a card running/enqueued without
+      its lease on record (a leased-but-unlogged card would be lost — never reclaimed, never rerun); the loop methods are
+      async. **PORTS FACTORY + WORKFLOW-SCOPED BOOT-REPLAY ALSO DONE (2026-06-28):**
+      [src/core/durable-run-ports.ts](src/core/durable-run-ports.ts) `createLedgerDurableRunPorts({envelope, appendEvent,
+      enqueueStart, now?, mintWorkerId?})` builds the controller's ports from injected store effects (appendLog maps via
+      the adapter then appends; dispatch forwards to the enqueue; clock/uuid defaults), and `readDurableSchedulerLog(events,
+      {workflowId})` scopes the replay to one run. **So the C3 wiring is now a TURN-KEY KIT — the substrate + the bridge
+      are all built + tested; only the LIVE INTEGRATION remains (a focused pass w/ live Docker):** per run, build a
+      `DurableLedgerEnvelope`, `createLedgerDurableRunPorts({appendEvent: appendAgentLedgerEvent, enqueueStart: <task-start
+      queue enqueue>})`, construct/`resume` a `DurableRunController` (resume from `readDurableSchedulerLog(readAllAgentLedger,
+      {workflowId})`), drive `tick()` on the runtime timer, add a **heartbeat** that extends the lease while a session runs,
+      and call `reportCompletion` on session finish (unblock of dependents is already done by
+      `completeTaskAndGetReadyLinkedTaskIds`). Then run C3 (`complex_dag` unattended + restart-mid-run) on the §5.Z roster
+      (an early-scout of `complex_dag`×qwen3-8b on the *current* non-durable pipeline is running to characterize exactly
+      what the durable layer must fix — its finding structures the integration pass per MCF).
 - [ ] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
