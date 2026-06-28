@@ -66,3 +66,61 @@ export function detectResponseLoop(text: string, options: ResponseLoopOptions = 
 	}
 	return { looping: false, salvagedText: text };
 }
+
+export interface RepeatedFinalAnswerDetection {
+	/** True when the tail `repeats` final answers are identical (normalized) and `repeats ≥ minRepeats`. */
+	repeating: boolean;
+	/** How many consecutive identical final answers sit at the tail of the sequence. */
+	repeats: number;
+	/** The normalized text that is being repeated, when `repeating`. */
+	repeatedText?: string;
+}
+
+export interface RepeatedFinalAnswerOptions {
+	/** Minimum consecutive identical final answers to call it a finalization stall. Default 3. */
+	minRepeats?: number;
+	/** Ignore answers shorter than this many trimmed chars (don't flag a terse "ok"/"done" once). Default 1. */
+	minLen?: number;
+}
+
+/** Trim + collapse internal whitespace runs so trivially-different reprints ("Done!\n" vs "Done! ") compare equal. */
+function normalizeFinalAnswer(text: string): string {
+	return text.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Detect a CROSS-MESSAGE finalization stall (todo §5.AA, from the §5.Z `qwen3.5-9b` sweep): a model that has FINISHED
+ * the work but then keeps re-emitting an identical no-tool "final answer" turn after turn, so the session never
+ * finalizes and the already-done work is never captured to a result branch (it sits stuck until the slow wall-time /
+ * no-diff guardrail eventually parks it). Unlike `detectResponseLoop` (a unit repeated WITHIN one text), this looks
+ * across consecutive final messages.
+ *
+ * Pass the ordered list of the model's NO-TOOL final-answer texts (oldest → newest). A turn that made a tool call is
+ * not a final answer and breaks the run — the caller must omit it (or reset its list) so a genuine multi-turn workflow
+ * is never mistaken for a stall. Pure + deterministic so the swarm session runtime and the chat path share one seam.
+ */
+export function detectRepeatedFinalAnswer(
+	finalAnswers: readonly string[],
+	options: RepeatedFinalAnswerOptions = {},
+): RepeatedFinalAnswerDetection {
+	const minRepeats = Math.max(2, options.minRepeats ?? 3);
+	const minLen = Math.max(1, options.minLen ?? 1);
+	if (finalAnswers.length < minRepeats) {
+		return { repeating: false, repeats: 0 };
+	}
+	const tail = normalizeFinalAnswer(finalAnswers[finalAnswers.length - 1] ?? "");
+	if (tail.length < minLen) {
+		return { repeating: false, repeats: 0 };
+	}
+	let repeats = 1;
+	for (let i = finalAnswers.length - 2; i >= 0; i -= 1) {
+		if (normalizeFinalAnswer(finalAnswers[i] ?? "") !== tail) {
+			break;
+		}
+		repeats += 1;
+	}
+	if (repeats >= minRepeats) {
+		return { repeating: true, repeats, repeatedText: tail };
+	}
+	return { repeating: false, repeats };
+}

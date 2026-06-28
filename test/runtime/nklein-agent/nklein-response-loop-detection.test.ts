@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { detectResponseLoop } from "../../../src/nklein-agent/nklein-response-loop-detection";
+import {
+	detectRepeatedFinalAnswer,
+	detectResponseLoop,
+} from "../../../src/nklein-agent/nklein-response-loop-detection";
 
 describe("detectResponseLoop", () => {
 	it("detects a repeated final-message loop and salvages the prefix + one occurrence (grounded: qwen3.5-9b)", () => {
@@ -54,5 +57,46 @@ describe("detectResponseLoop", () => {
 		const result = detectResponseLoop("Done. Done. Done. ", { minRepeats: 3, minUnitLen: 6 });
 		expect(result.looping).toBe(true);
 		expect(result.salvagedText).toBe("Done.");
+	});
+});
+
+describe("detectRepeatedFinalAnswer", () => {
+	it("flags an identical no-tool final answer repeated across turns (grounded: qwen3.5-9b finalization stall)", () => {
+		const answers = [
+			"The file has been created. Done!",
+			"The file has been created. Done!",
+			"The file has been created. Done!",
+		];
+		const result = detectRepeatedFinalAnswer(answers);
+		expect(result.repeating).toBe(true);
+		expect(result.repeats).toBe(3);
+		expect(result.repeatedText).toBe("The file has been created. Done!");
+	});
+
+	it("ignores trivial whitespace/formatting differences between reprints", () => {
+		const answers = ["Done!\n", "Done! ", "  Done!  "];
+		expect(detectRepeatedFinalAnswer(answers, { minLen: 1 }).repeating).toBe(true);
+	});
+
+	it("does not flag a genuine multi-turn sequence of DISTINCT final answers", () => {
+		const answers = ["Reading the file.", "Running the tests.", "All tests pass; done."];
+		expect(detectRepeatedFinalAnswer(answers).repeating).toBe(false);
+	});
+
+	it("only counts the trailing run — an earlier repeat that was broken does not stall", () => {
+		const answers = ["Done!", "Done!", "Actually, let me also update the README.", "Updated the README."];
+		const result = detectRepeatedFinalAnswer(answers);
+		expect(result.repeating).toBe(false);
+		expect(result.repeats).toBe(1);
+	});
+
+	it("needs at least minRepeats consecutive copies (2 of 3 is not yet a stall)", () => {
+		expect(detectRepeatedFinalAnswer(["Done!", "Done!"]).repeating).toBe(false);
+		expect(detectRepeatedFinalAnswer(["Done!", "Done!"], { minRepeats: 2 }).repeating).toBe(true);
+	});
+
+	it("respects the minLen floor so a terse repeated token is not over-eagerly flagged", () => {
+		expect(detectRepeatedFinalAnswer(["ok", "ok", "ok"], { minLen: 5 }).repeating).toBe(false);
+		expect(detectRepeatedFinalAnswer(["ok", "ok", "ok"], { minLen: 1 }).repeating).toBe(true);
 	});
 });

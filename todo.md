@@ -3491,12 +3491,21 @@ deep analysis:
       (groundtruth), today is 2026-06-26 … in the past, as it occurred earlier this year"*, quoting the block verbatim).
       The lighthouse is robust regardless of model.
 > **Sweep-derived hardening candidates (record-as-found; promote to §5.O when worked):**
-- [ ] **Final-answer-repeat finalization watchdog (from the qwen3.5-9b single-card sweep, 2026-06-26)** — a model that
+- [~] **Final-answer-repeat finalization watchdog (from the qwen3.5-9b single-card sweep, 2026-06-26)** — a model that
       finishes the work (write+read) then **loops re-emitting an identical no-tool "Done!" final message** is not
       finalized promptly: the session stays `running` until the slow wall-time/no-diff guardrail eventually parks it, so
-      the already-done work is never captured to a result branch (it sits stuck in the sandbox). Consider finalizing (or
-      parking) a session when the agent emits N consecutive identical no-tool final messages — the work is done, stop
-      waiting. Output-robustness, ties §5.O parse-and-recover. Repro: `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
+      the already-done work is never captured to a result branch (it sits stuck in the sandbox). Finalize (or park) a
+      session when the agent emits N consecutive identical no-tool final messages — the work is done, stop waiting.
+      Output-robustness, ties §5.O parse-and-recover. **DETECTOR CORE DONE (2026-06-28):** `detectRepeatedFinalAnswer(finalAnswers, {minRepeats=3, minLen})`
+      ([nklein-response-loop-detection.ts](src/nklein-agent/nklein-response-loop-detection.ts)) — pure + deterministic
+      (the module's shared seam for both the swarm session runtime + chat path), takes the ordered list of NO-TOOL
+      final-answer texts (a tool-call turn breaks the run — caller omits it), normalizes whitespace so trivial reprints
+      compare equal, and reports the trailing identical run (`repeating`/`repeats`/`repeatedText`). 7 tests; tsc+biome
+      green. **STILL OWED (the WIRING — a hot-path change, do in a focused pass, NOT a tail-of-session slice):** in the
+      swarm session loop ([nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts), ~3.4k lines)
+      track the last few no-tool final-answer texts per session (reset on any tool call), call `detectRepeatedFinalAnswer`
+      each turn, and on `repeating` **finalize** the session (the work is done → capture to the result branch / rebound
+      for review) instead of waiting out the wall-time/no-diff guardrail. Repro: `NKLEIN_VERIFY_MODEL=qwen3.5-9b-mlx-m5max
       NKLEIN_VERIFY_DUMP_ACTIVITIES=1 tsx scripts/verify-task-completion.mts` (writes the file early, then never stops).
 - [x] **Chat-path narrated-tool-call recovery — DONE (2026-06-26)** — `completeWithTools`
       ([nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts)) used to parse ONLY LM Studio's native
