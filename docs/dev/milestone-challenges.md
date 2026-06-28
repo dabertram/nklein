@@ -58,6 +58,15 @@
 
 ## Run log (newest first)
 
+- _(2026-06-28)_ **Runtime-wide throughput fix + file-overlap heuristic VINDICATED.** (1) Root-caused the "stalls under
+  load" symptom to a real bug, not machine load: `countKanbanTextTokens` (behind every budget/size check) hit BPE's
+  ~O(n²) blowup on long single-char runs — a 120 KB `get_file_size` took ~6 s and blocked the event loop. Fixed with
+  chunked tokenization + a sample-cap (commit `84db1494`): 120 KB 6000 ms → 85 ms; the file-discovery test 5656 ms → 36 ms.
+  See §4A. (2) The `complex_dag` diagnostic re-scout (with the new `shared:` log) showed the auto-start skip fires on a
+  **genuine** shared file — `shared: src/habit-insights.ts` (two cards really edit that module) — so the file-overlap
+  heuristic is **correctly serializing a true overlap, NOT over-serializing**. Combined with the C5 finding, the C3/C5
+  throughput limiter is confirmed to be **single-endpoint inference serialization + per-card latency**, not the heuristic
+  (which needs no change). Closes the C3 "does the heuristic over-serialize?" question.
 - _(2026-06-28)_ **C5 contention scout — `many_small × qwen3-8b` → the real fan-out limiter is SINGLE-ENDPOINT
   SERIALIZATION, not file-contention.** Decompose produced **21 independent cards** (no shared files → *no* `Skipped
   auto-start`/`shared:` lines), yet after ~14 min only ~2–3 reached terminal with **only 1–3 `in_progress` (peak 3) at any
