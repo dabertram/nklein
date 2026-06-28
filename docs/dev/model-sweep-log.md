@@ -128,6 +128,11 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 17:18Z · **re-attack a standing ⚠️** · C0 · `verify-task-completion` · _(Low Power)_
+| model | result | note |
+|---|:-:|---|
+| qwen3.5-9b-mlx | 🧱 STALLED | Re-tested the C0 ⚠️ slow-finalize (per "limitations are provisional"). Under Low Power it **stalls**: reached `running`→`interrupted` then **no activity for 360 s** → the new stall detector aborted it (validating itself — caught it fast instead of waiting out the 10-min timeout). Confirms the ⚠️ is a real **finalization** limitation; the §5.AA finalization watchdog is the owed lift. `delivered=NO`. |
+
 ### 2026-06-28 16:54Z · **weakest-model up the ladder** · C1 decompose + C2 promote · _(Low Power)_
 | model | C1 decompose | C2 auto-promote | note |
 |---|:-:|:-:|---|
