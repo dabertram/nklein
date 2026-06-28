@@ -3922,6 +3922,19 @@ deep analysis:
       structured-marker pre-check (its lead-in has a space, not the `tool_call` underscore), cutting from there to EOF.
       Conservative: ordinary prose that merely mentions "a tool call" (no name+paren) is untouched. +2 tests
       (strip the leak / don't strip a mention); the existing structured-marker strip + no-op cases stay green (28 total).
+- [x] **Recover Gemma `tool_code` Python-call narration (DONE 2026-06-28 — driven by the live e2e capstone, §5.Z).** The
+      e2e multi-tool sweep caught gemma-4-e2b narrating EVERY call as Python in a `tool_code` context
+      (`tool_code = create_card(title="E2E-CARD-7777", prompt="from e2e")`, incl. a list-valued kwarg
+      `update_focus_chain(steps_completed=[…])`) — a dialect none of the existing family parsers covered, so nothing
+      executed (read/command ran but create_card + update_focus_chain were narrated → board stayed empty). Added
+      `parseGemmaToolCodeCalls` to [nklein-narrated-tool-call.ts](src/nklein-agent/nklein-narrated-tool-call.ts): a
+      `tool_code`-anchored balanced-paren extractor + a small Python-kwarg parser (string/number/bool/None/list/dict
+      literals, single→double-quote for lists, positional args skipped, `print(default_api.fn(…))` wrapper unwrapped),
+      wired into `parseNarratedToolCalls` so `recoverNarratedToolCalls` now EXECUTES gemma's narrated calls. Conservative:
+      only a `tool_code` anchor triggers it (a bare Python-looking line in prose is left alone) + recovery still fires only
+      when the turn produced no real tool call. +5 tests incl. gemma-e2b's exact live narration; full fast suite green
+      (2618). **This is a real lift candidate for gemma's e2e** (the narrated create_card/focus-chain will now persist) —
+      re-verify on the next e2e sweep.
 - [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
       phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
       NO regression for the 7 models that already pass.

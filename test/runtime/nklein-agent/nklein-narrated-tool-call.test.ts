@@ -229,3 +229,53 @@ describe("stripNarratedToolCallMarkup", () => {
 		expect(stripNarratedToolCallMarkup("")).toBe("");
 	});
 });
+
+describe("parseNarratedToolCalls — Gemma `tool_code` Python-call narration (§5.Z e2e capstone)", () => {
+	it("recovers a single `tool_code = name(kwarg=value)` call", () => {
+		expect(parseNarratedToolCalls('tool_code = read_file(filename="FACT.txt")')).toEqual([
+			{ toolName: "read_file", input: { filename: "FACT.txt" } },
+		]);
+	});
+
+	it("recovers EVERY call from gemma-4-e2b's actual e2e narration (incl. a list-valued kwarg)", () => {
+		// The exact narration gemma-4-e2b emitted in the live e2e sweep (2026-06-28) instead of structured calls.
+		const live = [
+			"**Step 1: Use read_file to read FACT.txt.**",
+			'tool_code = read_file(filename="FACT.txt")',
+			"**Step 2: Use run_command to run exactly: cat FACT.txt**",
+			'tool_code = run_command(command="cat FACT.txt")',
+			'tool_code = create_card(title="E2E-CARD-7777", prompt="from e2e")',
+			'tool_code = update_focus_chain(steps_completed=["read_file", "run_command", "create_card"])',
+			"All steps complete. The marker is **ECHO-MARKER-7777-XYZ**.",
+		].join("\n");
+		expect(parseNarratedToolCalls(live)).toEqual([
+			{ toolName: "read_file", input: { filename: "FACT.txt" } },
+			{ toolName: "run_command", input: { command: "cat FACT.txt" } },
+			{ toolName: "create_card", input: { title: "E2E-CARD-7777", prompt: "from e2e" } },
+			{ toolName: "update_focus_chain", input: { steps_completed: ["read_file", "run_command", "create_card"] } },
+		]);
+	});
+
+	it("handles a ```tool_code fence, a `print(default_api.fn(...))` wrapper, and numeric/bool literals", () => {
+		const fenced = '```tool_code\nprint(default_api.create_card(title="X", count=2, draft=true))\n```';
+		expect(parseNarratedToolCalls(fenced)).toEqual([
+			{ toolName: "create_card", input: { title: "X", count: 2, draft: true } },
+		]);
+	});
+
+	it("does NOT fire without a `tool_code` anchor (a bare Python-looking line in prose is left alone)", () => {
+		expect(parseNarratedToolCalls('I would call read_file(filename="x") here.')).toEqual([]);
+	});
+
+	it("recovered gemma calls flow through recoverNarratedToolCalls into executable tool-call parts", () => {
+		const msg = message({ type: "text", text: 'tool_code = create_card(title="E2E-CARD-7777", prompt="from e2e")' });
+		const recovered = recoverNarratedToolCalls(msg);
+		expect(recovered).toHaveLength(1);
+		expect(recovered[0]).toMatchObject({
+			type: "tool-call",
+			toolName: "create_card",
+			input: { title: "E2E-CARD-7777", prompt: "from e2e" },
+		});
+		expect(msg.content.some((part) => part.type === "tool-call")).toBe(true);
+	});
+});

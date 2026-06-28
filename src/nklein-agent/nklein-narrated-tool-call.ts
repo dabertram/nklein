@@ -78,6 +78,164 @@ const DEEPSEEK_OPENER = /<[｜|]\s*tool[▁_ ]calls?[▁_ ]begin\s*[｜|]>/i;
  */
 const PLAIN_PROSE_TOOL_CALL = /\btool\s+call\s*:\s*[A-Za-z_][A-Za-z0-9_.-]*\s*\(/i;
 
+/**
+ * Gemma `tool_code` Python-call narration. Gemma models (esp. the small e2b) narrate a call as Python in a `tool_code`
+ * context — `tool_code = read_file(filename="FACT.txt")`, or a ```tool_code … ``` fence with `name(kwarg=value, …)`,
+ * sometimes `print(default_api.name(…))` — instead of emitting a structured tool call (observed live in the §5.Z e2e
+ * capstone: gemma-4-e2b narrated EVERY call this way → nothing executed). We recover the call: read the function name +
+ * its keyword arguments and rebuild a JSON input object. Conservative: only a `tool_code` context anchors it, so a bare
+ * Python-looking line elsewhere in prose is never mistaken for a call.
+ */
+const GEMMA_TOOL_CODE_MARKER = /tool_code/i;
+/** Wrapper call names that aren't tools — skip them and keep scanning for the real inner call. */
+const GEMMA_WRAPPER_NAMES = new Set(["print"]);
+
+/** Extract the balanced `(...)` body starting at `openParenIdx` (which must point at `(`); null when unbalanced. */
+function extractBalancedParens(text: string, openParenIdx: number): { body: string; end: number } | null {
+	let depth = 0;
+	let inString: string | null = null;
+	let escaped = false;
+	for (let i = openParenIdx; i < text.length; i += 1) {
+		const ch = text[i];
+		if (inString) {
+			if (escaped) {
+				escaped = false;
+			} else if (ch === "\\") {
+				escaped = true;
+			} else if (ch === inString) {
+				inString = null;
+			}
+			continue;
+		}
+		if (ch === '"' || ch === "'") {
+			inString = ch;
+		} else if (ch === "(" || ch === "[" || ch === "{") {
+			depth += 1;
+		} else if (ch === ")" || ch === "]" || ch === "}") {
+			depth -= 1;
+			if (depth === 0) {
+				return { body: text.slice(openParenIdx + 1, i), end: i };
+			}
+		}
+	}
+	return null;
+}
+
+/** Split a call-argument body on top-level commas (ignoring commas inside quotes / brackets / braces). */
+function splitTopLevelArgs(body: string): string[] {
+	const parts: string[] = [];
+	let depth = 0;
+	let inString: string | null = null;
+	let escaped = false;
+	let start = 0;
+	for (let i = 0; i < body.length; i += 1) {
+		const ch = body[i];
+		if (inString) {
+			if (escaped) {
+				escaped = false;
+			} else if (ch === "\\") {
+				escaped = true;
+			} else if (ch === inString) {
+				inString = null;
+			}
+			continue;
+		}
+		if (ch === '"' || ch === "'") {
+			inString = ch;
+		} else if (ch === "(" || ch === "[" || ch === "{") {
+			depth += 1;
+		} else if (ch === ")" || ch === "]" || ch === "}") {
+			depth -= 1;
+		} else if (ch === "," && depth === 0) {
+			parts.push(body.slice(start, i));
+			start = i + 1;
+		}
+	}
+	parts.push(body.slice(start));
+	return parts;
+}
+
+/** Convert a single Python literal (string / number / bool / None / list / dict) to a JS value; raw string fallback. */
+function parsePythonValue(raw: string): unknown {
+	const value = raw.trim();
+	if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+		return value.slice(1, -1);
+	}
+	if (/^(?:true|false)$/i.test(value)) {
+		return value.toLowerCase() === "true";
+	}
+	if (/^(?:none|null)$/i.test(value)) {
+		return null;
+	}
+	if (/^-?\d+(?:\.\d+)?$/.test(value)) {
+		return Number(value);
+	}
+	if (value.startsWith("[") || value.startsWith("{")) {
+		// Lists/dicts of literals: Python single-quoted → JSON double-quoted, then reuse the robust JSON repair.
+		const repaired = repairJsonValue(value.replace(/'/g, '"'));
+		if (repaired.ok) {
+			return repaired.value;
+		}
+	}
+	return value;
+}
+
+/** Parse a Python keyword-argument body (`k="v", n=2, xs=[…]`) into an input object; positional args are skipped. */
+function parsePythonKwargs(body: string): Record<string, unknown> {
+	const input: Record<string, unknown> = {};
+	for (const part of splitTopLevelArgs(body)) {
+		const trimmed = part.trim();
+		if (!trimmed) {
+			continue;
+		}
+		const eq = trimmed.indexOf("=");
+		// A keyword arg is `name=value`; require a bare identifier name and not a comparison (`==`/`<=`/…).
+		if (eq <= 0 || trimmed[eq + 1] === "=" || /[=!<>]/.test(trimmed[eq - 1] ?? "")) {
+			continue;
+		}
+		const key = trimmed.slice(0, eq).trim();
+		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+			continue;
+		}
+		input[key] = parsePythonValue(trimmed.slice(eq + 1));
+	}
+	return input;
+}
+
+/** Recover Gemma `tool_code` Python-call narration. Each `tool_code` marker anchors the first real call after it. */
+function parseGemmaToolCodeCalls(text: string): NarratedToolCall[] {
+	if (!GEMMA_TOOL_CODE_MARKER.test(text)) {
+		return [];
+	}
+	const calls: NarratedToolCall[] = [];
+	const callRe = /([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
+	const markerRe = /tool_code/gi;
+	let marker: RegExpExecArray | null = markerRe.exec(text);
+	while (marker !== null) {
+		const regionEnd = (() => {
+			markerRe.lastIndex = marker.index + marker[0].length;
+			const next = markerRe.exec(text);
+			markerRe.lastIndex = marker.index + marker[0].length; // restore for the outer loop's next step
+			return next ? next.index : text.length;
+		})();
+		const region = text.slice(marker.index, regionEnd);
+		callRe.lastIndex = 0;
+		let call: RegExpExecArray | null = callRe.exec(region);
+		while (call !== null) {
+			const name = call[1].split(".").at(-1)?.trim() ?? "";
+			const openParen = call.index + call[0].length - 1;
+			const balanced = extractBalancedParens(region, openParen);
+			if (name && !GEMMA_WRAPPER_NAMES.has(name.toLowerCase()) && balanced) {
+				calls.push({ toolName: name, input: parsePythonKwargs(balanced.body) });
+				break; // one tool call per `tool_code` marker (the first non-wrapper call)
+			}
+			call = callRe.exec(region);
+		}
+		marker = markerRe.exec(text);
+	}
+	return calls;
+}
+
 /** Coerce a parsed `{ name, arguments }`-ish object into a tool call; returns null when there is no tool name. */
 function toNarratedToolCall(value: unknown): NarratedToolCall | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -125,7 +283,7 @@ function collectNarratedToolCalls(value: unknown, calls: NarratedToolCall[]): vo
 
 /** Parse every narrated tool-call block (any recognized family format) out of free text. `[]` when there are none. */
 export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
-	if (!text || !TOOL_CALL_MARKER.test(text)) {
+	if (!text || !(TOOL_CALL_MARKER.test(text) || GEMMA_TOOL_CODE_MARKER.test(text))) {
 		return [];
 	}
 	const calls: NarratedToolCall[] = [];
@@ -178,6 +336,9 @@ export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
 		}
 		deepSeekMatch = DEEPSEEK_TOOL_CALL.exec(text);
 	}
+
+	// Gemma `tool_code` Python-call narration (`tool_code = read_file(filename="…")`) — the name + kwargs become a call.
+	calls.push(...parseGemmaToolCodeCalls(text));
 
 	return calls;
 }

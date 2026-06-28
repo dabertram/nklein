@@ -369,3 +369,14 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ✅ **PASS** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 4s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
 - ✅ **PASS** · `ornith-1.0-9b-mlx` · 8s · PASS ✓ a real chat turn composed memory + goal, called the model, and persisted.
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=✅ gemma-4-e2b-m5max=✅ qwen3.5-9b-mlx-m5max=✅ phi-4-mini-reasoning=✅ nemotron-3-nano-4b-m5max=✅ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=✅ ornith-1.0-9b-mlx=✅
+
+### 2026-06-28 19:35:05 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen/qwen3-8b-m5max` · 48s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b-m5max` · 23s · INCOMPLETE — see above.
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 25s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwen3.5-9b-mlx-m5max` · 20s · INCOMPLETE — see above.
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 109s · INCOMPLETE — see above.
+- ❌ **FAIL** · `nvidia/nemotron-3-nano-4b-m5max` · 13s · INCOMPLETE — see above.
+- ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 26s · INCOMPLETE — see above.
+- ❌ **FAIL** · `ornith-1.0-9b-mlx` · 18s · INCOMPLETE — see above.
+  - matrix row: qwen3-8b-m5max=❌ qwen2.5-coder-14b-m5max=❌ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌

@@ -128,6 +128,18 @@
 |---|:-:|---|
 | qwopus3.5-4b-coder (NEW, ~4B) | ✅ | **Capable** — passed C0 to `awaiting_review` once warm (16:35Z). But **cold-start-prone**: 1st run INCOMPLETE/interrupted (~9 min), 2nd run HUNG 26 min with no activity (the model's cold load stalled — looked like "no LLM activity"). 🔧 This drove a harness fix: **stall detection** (abort early with a `STALLED` verdict on no-progress) + **live activity printing**. Vindicates "don't judge prematurely" — a repeat after warm-up passed. |
 
+### 2026-06-28 19:36Z · **chat e2e capstone (multi-tool chain) — full loaded-roster sweep** · `verify-chat-agent-e2e` · _(Low Power)_
+> One instruction exercising the WHOLE stack in one session: read FACT.txt → run `cat FACT.txt` (see output) → create a board card → maintain a focus chain; PASS requires all the durable side effects (marker echoed + card persisted + each tool used).
+
+| model | e2e | what happened |
+|---|:-:|---|
+| **ALL 8** | ❌ | **0/8 — a hard multi-tool-chain wall.** Even qwen3-8b (north-star) + coder-14b fail. |
+
+**Root cause (consistent across the roster): chain-fatigue NARRATION.** Models do the FIRST tool calls for real (read_file + run_command → the marker echoes back), then **narrate the LATER steps in prose instead of calling them** — `create_card` + `update_focus_chain` are described ("3. Created card E2E-CARD-7777…"), never executed, so the board stays empty. Two narration dialects observed:
+- **qwen3-8b / coder / others** → pure-prose narration ("Created card X with prompt Y") — **not recoverable** (too ambiguous to parse safely).
+- **gemma-4-e2b** → Python `tool_code = create_card(title="E2E-CARD-7777", prompt="from e2e")` (incl. a list-valued `update_focus_chain(steps_completed=[…])`) — **NOW RECOVERABLE**: 🔧 added `parseGemmaToolCodeCalls` (§5.AA) so these execute. **gemma e2e is a re-verify lift candidate.**
+> Timings: qwen3-8b 48 s · coder 23 s · gemma 25 s · qwen3.5-9b 20 s · phi-4-mini 109 s 🐢 · nemotron 13 s · qwopus-4b 26 s · ornith-9b 18 s. **Takeaway:** the e2e capstone is a genuine difficulty rung ABOVE the single-tool flows (all 8 pass create_card/run_command/write/read individually) — the wall is *chaining* tools across turns without the model lapsing into narration. The real fix is the §5.AA retry-engine wiring (narrated-recovery + constrained-decoding rung firing mid-chain), not yet wired.
+
 ### 2026-06-28 19:14Z · **chat send + runtime — full loaded-roster sweep** · `verify-chat-send` / `verify-chat-runtime` · _(Low Power)_
 | flow | result | note |
 |---|:-:|---|
