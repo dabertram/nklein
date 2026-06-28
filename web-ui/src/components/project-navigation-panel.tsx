@@ -546,15 +546,8 @@ export function ProjectNavigationPanel({
 										evidencePath: created.evidenceRootPath,
 									});
 									onSelectProject(created.project.id);
-									if (
-										preset === "mid_task" ||
-										preset === "complex_dag" ||
-										preset === "audio_vst" ||
-										preset === "daw_foundation"
-									) {
-										if (!created.task) {
-											throw new Error("Dev test project did not include a startable task.");
-										}
+									// Every preset returns a startable seed task (multi-card presets seed a decompose card); start it.
+									if (created.task) {
 										const trpcClient = getRuntimeTrpcClient(created.project.id);
 										const started = await trpcClient.runtime.startTaskSession.mutate({
 											taskId: created.task.id,
@@ -585,14 +578,7 @@ export function ProjectNavigationPanel({
 									showAppToast({
 										intent: "success",
 										icon: "check",
-										message:
-											preset === "complex_dag"
-												? "Complex product test project created with one decomposition task."
-												: preset === "audio_vst"
-													? "Audio VST test project created with one decomposition task."
-													: preset === "daw_foundation"
-														? "DAW foundation test project created with one decomposition task."
-														: "Mid task test project created with one decomposition task.",
+										message: `Dev-test project (${preset}) created${created.task ? " and its seed task started" : ""}.`,
 										timeout: 5000,
 									});
 								} catch (error) {

@@ -9,10 +9,24 @@ import type { RuntimeDevTestProjectPreset, RuntimeDevTestRegistryEntry } from "@
 /**
  * The developer dev-test-scenarios card for the project navigation sidebar, extracted from the oversized
  * `project-navigation-panel.tsx` (todo §5.U). Seeds a self-improvement project from the running checkout (with optional
- * notes) and the fixture preset projects (mid-task / complex-DAG / audio-VST / DAW-foundation), plus copy-evidence and
- * cleanup actions. Also exposes the full folder-based registry (45+ projects) via a searchable grouped picker.
- * Fully props-driven — all state + handlers are passed in — so it's self-contained.
+ * notes) and the fixture preset projects, plus copy-evidence and cleanup actions. Also exposes the full folder-based
+ * registry (45+ projects) via a searchable grouped picker. Fully props-driven — all state + handlers are passed in.
  */
+
+/**
+ * The quick-launch preset buttons — kept in lock-step with `runtimeDevTestProjectPresetSchema` (all 8 presets are
+ * runnable via the API, §5.AF). `mid_task` is a single card; the rest seed a decompose card that fans out into a DAG.
+ */
+const DEV_TEST_PRESET_BUTTONS: { preset: RuntimeDevTestProjectPreset; label: string }[] = [
+	{ preset: "mid_task", label: "mid task" },
+	{ preset: "complex_dag", label: "complex product" },
+	{ preset: "audio_vst", label: "audio VST" },
+	{ preset: "daw_foundation", label: "DAW foundation" },
+	{ preset: "wide_fanout", label: "wide fan-out" },
+	{ preset: "deep_chain", label: "deep chain" },
+	{ preset: "mixed_dag", label: "mixed DAG" },
+	{ preset: "many_small", label: "many small cards" },
+];
 export function DevTestProjectCard({
 	disabled,
 	runningPreset,
@@ -47,10 +61,6 @@ export function DevTestProjectCard({
 	onCreateSelfImprovementProject: () => Promise<void>;
 }): React.ReactElement {
 	const [showRegistry, setShowRegistry] = useState(false);
-	const isRunningMidTask = runningPreset === "mid_task";
-	const isRunningComplexProject = runningPreset === "complex_dag";
-	const isRunningAudioVstProject = runningPreset === "audio_vst";
-	const isRunningDawFoundationProject = runningPreset === "daw_foundation";
 	const isBusy = disabled || isCreatingSelfImprovementProject;
 	const isAnyPresetRunning = runningPreset !== null;
 
@@ -127,77 +137,40 @@ export function DevTestProjectCard({
 					) : null}
 				</div>
 
-				{/* Legacy preset buttons */}
-				<Button
-					size="sm"
-					variant="default"
-					icon={isRunningMidTask ? <Spinner size={14} /> : <Play size={14} />}
-					disabled={isBusy}
-					onClick={() => {
-						if (!window.confirm("Create a marked !Klein dev-test project and make it the active project?")) {
-							return;
-						}
-						void onRun("mid_task");
-					}}
-					fill
-				>
-					{isRunningMidTask ? "Creating..." : "Create mid task project"}
-				</Button>
-				<Button
-					size="sm"
-					variant="default"
-					icon={isRunningComplexProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
-					disabled={isBusy}
-					onClick={() => {
-						if (
-							!window.confirm("Create a marked !Klein complex dev-test project and make it the active project?")
-						) {
-							return;
-						}
-						void onRun("complex_dag");
-					}}
-					fill
-				>
-					{isRunningComplexProject ? "Creating..." : "Create complex product project"}
-				</Button>
-				<Button
-					size="sm"
-					variant="default"
-					icon={isRunningAudioVstProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
-					disabled={isBusy}
-					onClick={() => {
-						if (
-							!window.confirm(
-								"Create a marked !Klein audio VST dev-test project and make it the active project?",
-							)
-						) {
-							return;
-						}
-						void onRun("audio_vst");
-					}}
-					fill
-				>
-					{isRunningAudioVstProject ? "Creating..." : "Create audio VST project"}
-				</Button>
-				<Button
-					size="sm"
-					variant="default"
-					icon={isRunningDawFoundationProject ? <Spinner size={14} /> : <FlaskConical size={14} />}
-					disabled={isBusy}
-					onClick={() => {
-						if (
-							!window.confirm(
-								"Create a marked !Klein DAW foundation dev-test project and make it the active project?",
-							)
-						) {
-							return;
-						}
-						void onRun("daw_foundation");
-					}}
-					fill
-				>
-					{isRunningDawFoundationProject ? "Creating..." : "Create DAW foundation project"}
-				</Button>
+				{/* Quick-launch preset buttons (data-driven — all 8 presets, §5.AF) */}
+				{DEV_TEST_PRESET_BUTTONS.map(({ preset, label }) => {
+					const isRunning = runningPreset === preset;
+					return (
+						<Button
+							key={preset}
+							size="sm"
+							variant="default"
+							icon={
+								isRunning ? (
+									<Spinner size={14} />
+								) : preset === "mid_task" ? (
+									<Play size={14} />
+								) : (
+									<FlaskConical size={14} />
+								)
+							}
+							disabled={isBusy}
+							onClick={() => {
+								if (
+									!window.confirm(
+										`Create a marked !Klein ${label} dev-test project and make it the active project?`,
+									)
+								) {
+									return;
+								}
+								void onRun(preset);
+							}}
+							fill
+						>
+							{isRunning ? "Creating..." : `Create ${label} project`}
+						</Button>
+					);
+				})}
 				{evidencePath ? (
 					<Button
 						size="sm"

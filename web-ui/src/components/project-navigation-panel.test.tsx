@@ -401,7 +401,7 @@ describe("ProjectNavigationPanel width persistence", () => {
 			});
 
 			expect(confirmSpy).toHaveBeenCalledWith(
-				"Create a marked !Klein dev-test project and make it the active project?",
+				"Create a marked !Klein mid task dev-test project and make it the active project?",
 			);
 			expect(createDevTestProjectMock).not.toHaveBeenCalled();
 		} finally {
