@@ -35,7 +35,11 @@ vi.mock("./sdk-provider-boundary", () => ({
 
 import type { NKleinModelRegistryEntry } from "./nklein-model-registry";
 import { mergeProviderModelsWithModelRegistry } from "./nklein-provider-model-parsing";
-import { createNKleinProviderService, loadProviderModelsWithFallback } from "./nklein-provider-service";
+import {
+	clearProviderModelDiscoveryCache,
+	createNKleinProviderService,
+	loadProviderModelsWithFallback,
+} from "./nklein-provider-service";
 
 const providerSelectionPath = join(tmpdir(), "kanban-nklein-provider-service-test-selection.json");
 
@@ -251,6 +255,7 @@ describe("loadProviderModelsWithFallback", () => {
 
 	beforeEach(() => {
 		vi.restoreAllMocks();
+		clearProviderModelDiscoveryCache();
 		getSdkProviderSettingsMock.mockReturnValue({
 			provider: "lmstudio",
 			baseUrl: "http://localhost:1234",
@@ -332,6 +337,46 @@ describe("loadProviderModelsWithFallback", () => {
 
 		expect(models[0]?.contextWindow).toBe(256000);
 	});
+
+	it("throttles roster discovery with a TTL cache — no /models re-hit within TTL; refetches after clear", async () => {
+		// The cache is disabled by default under the test runner; opt in for this test, then restore.
+		const priorTtl = process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS;
+		process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = "30000";
+		try {
+			await runTtlCacheAssertions();
+		} finally {
+			if (priorTtl === undefined) {
+				delete process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS;
+			} else {
+				process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS = priorTtl;
+			}
+		}
+	});
+
+	async function runTtlCacheAssertions(): Promise<void> {
+		clearProviderModelDiscoveryCache();
+		listSdkProviderModelsMock.mockResolvedValue([]);
+		const fetchMock = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({ object: "list", data: [{ id: "model-c", name: "Model C", max_context_length: 4096 }] }),
+		})) as unknown as typeof globalThis.fetch;
+		globalThis.fetch = fetchMock;
+		const calls = () => (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls.length;
+
+		const first = await loadProviderModelsWithFallback("lmstudio");
+		const afterFirst = calls();
+		expect(afterFirst).toBeGreaterThan(0);
+
+		// Within the TTL → served from cache, the live /models catalog is NOT hit again.
+		const second = await loadProviderModelsWithFallback("lmstudio");
+		expect(calls()).toBe(afterFirst);
+		expect(second).toEqual(first);
+
+		// Explicit clear → the next call re-discovers.
+		clearProviderModelDiscoveryCache();
+		await loadProviderModelsWithFallback("lmstudio");
+		expect(calls()).toBeGreaterThan(afterFirst);
+	}
 
 	it("loads LM Studio metadata when the SDK model list is empty", async () => {
 		listSdkProviderModelsMock.mockResolvedValue([]);

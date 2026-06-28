@@ -565,6 +565,33 @@ function normalizeLmStudioModelListBaseUrl(baseUrl: string): string {
 	}
 }
 
+/**
+ * Roster discovery is throttled by a short TTL cache so the live `/models` (LM Studio `/api/v0/models`) catalog endpoint
+ * isn't hammered — the roster only needs to be ~fresh (30 s default; `NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS` overrides, `0`
+ * disables). Keyed by provider + base URL so distinct endpoints don't collide. The explicit "discover endpoint" flow
+ * (`discoverEndpointModels`, user-triggered) does NOT go through here, so it stays fresh.
+ */
+const DEFAULT_MODEL_DISCOVERY_CACHE_TTL_MS = 30_000;
+const providerModelDiscoveryCache = new Map<string, { at: number; models: RuntimeNKleinProviderModel[] }>();
+
+function modelDiscoveryCacheTtlMs(): number {
+	const raw = Number(process.env.NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS);
+	if (Number.isFinite(raw) && raw >= 0) {
+		return Math.trunc(raw);
+	}
+	// Disabled by default under the test runner so per-test fetch mocks aren't shadowed by a shared cache; the dedicated
+	// cache test opts in by setting the env explicitly. Production uses the throttling default.
+	if (process.env.VITEST || process.env.NODE_ENV === "test") {
+		return 0;
+	}
+	return DEFAULT_MODEL_DISCOVERY_CACHE_TTL_MS;
+}
+
+/** Clear the roster-discovery TTL cache (tests + an explicit "refresh now" path). */
+export function clearProviderModelDiscoveryCache(): void {
+	providerModelDiscoveryCache.clear();
+}
+
 async function loadProviderModelsWithFallbackForSettings(
 	providerId: string,
 	settingsOverride?: SdkProviderSettings | null,
@@ -575,17 +602,32 @@ async function loadProviderModelsWithFallbackForSettings(
 	}
 
 	const settings = settingsOverride ?? getSdkProviderSettings(normalizedProviderId);
+	const ttlMs = modelDiscoveryCacheTtlMs();
+	const cacheKey = `${normalizedProviderId}::${settings?.baseUrl ?? ""}`;
+	const now = Date.now();
+	if (ttlMs > 0) {
+		const cached = providerModelDiscoveryCache.get(cacheKey);
+		if (cached && now - cached.at < ttlMs) {
+			return cached.models;
+		}
+	}
+
 	const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
+	let resolved: RuntimeNKleinProviderModel[];
 	if (normalizedProviderId === "litellm") {
 		const liteLlmModels = await fetchLiteLlmBaseUrlModels(settings);
 		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
-		return appendMissingModels(mergedModels, liteLlmModels);
-	}
-	if (normalizedProviderId === "lmstudio") {
+		resolved = appendMissingModels(mergedModels, liteLlmModels);
+	} else if (normalizedProviderId === "lmstudio") {
 		const lmStudioModels = await fetchLmStudioBaseUrlModels(settings);
-		return mergeProviderModelsWithContextWindowFallback(lmStudioModels, providerModels);
+		resolved = mergeProviderModelsWithContextWindowFallback(lmStudioModels, providerModels);
+	} else {
+		resolved = providerModels;
 	}
-	return providerModels;
+	if (ttlMs > 0) {
+		providerModelDiscoveryCache.set(cacheKey, { at: now, models: resolved });
+	}
+	return resolved;
 }
 
 export async function loadProviderModelsWithFallback(providerId: string): Promise<RuntimeNKleinProviderModel[]> {
