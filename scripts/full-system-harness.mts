@@ -12,7 +12,7 @@
  */
 import { type ChildProcess, spawn } from "node:child_process";
 import { connect, createServer } from "node:net";
-import { homedir } from "node:os";
+import { homedir, userInfo } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
@@ -161,7 +161,13 @@ export async function bootFullSystemRuntime(options: BootFullSystemRuntimeOption
 	if (options.captureLmStudioLogs !== false) {
 		const lmsBin = process.env.NKLEIN_LMS_BIN?.trim() || "lms";
 		try {
-			lmsChild = spawn(lmsBin, ["log", "stream"], { stdio: ["ignore", "pipe", "pipe"] });
+			// `lms` reads its auth key from the REAL user home (~/.lmstudio/.internal). The verify scripts override
+			// process.env.HOME to an isolated temp dir, so spawn `lms` with HOME restored to the OS passwd home
+			// (userInfo().homedir ignores the $HOME override) — otherwise it ENOENTs on the key and captures nothing.
+			lmsChild = spawn(lmsBin, ["log", "stream"], {
+				stdio: ["ignore", "pipe", "pipe"],
+				env: { ...process.env, HOME: userInfo().homedir },
+			});
 			const captureLms = (chunk: Buffer): void => {
 				lmsLogChunks.push(chunk.toString());
 				if (lmsLogChunks.length > 400) {
