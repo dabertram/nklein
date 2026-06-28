@@ -160,21 +160,25 @@ export async function handleStartTaskSession(
 		nkleinLaunchConfig = applyCandidateEffectiveContextWindow(nkleinLaunchConfig, selectedCandidate);
 		guardCandidates.set(selectedCandidate.entry.key, selectedCandidate);
 		// Never load models — only use ALREADY-LOADED ones (user directive 2026-06-28): !Klein must not trigger a model
-		// load. Refuse a LOCAL selected model that LM Studio hasn't loaded. Lenient (block only a positively-non-resident
-		// model; an unknown/unreachable endpoint ⇒ allow). Skipped under the test runner (no live endpoint to query).
+		// load. Fetch the loaded set ONCE (test-runner-skipped — no live endpoint to query) and reuse it for both the
+		// primary guard (error) and the role-pool filter (skip). Lenient: block only a positively-non-resident model.
+		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
+		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? "http://127.0.0.1:1234/v1";
+		const loadedModelIds =
+			residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)
+				? await fetchLoadedModelIds(residencyBaseUrl)
+				: [];
 		if (
-			!(process.env.VITEST || process.env.NODE_ENV === "test") &&
+			residencyCheckEnabled &&
 			nkleinLaunchConfig.modelId &&
-			isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)
+			isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl) &&
+			shouldBlockUnloadedModel(nkleinLaunchConfig.modelId, loadedModelIds)
 		) {
-			const loadedModelIds = await fetchLoadedModelIds(nkleinLaunchConfig.baseUrl ?? "http://127.0.0.1:1234/v1");
-			if (shouldBlockUnloadedModel(nkleinLaunchConfig.modelId, loadedModelIds)) {
-				return {
-					ok: false,
-					summary: null,
-					error: `Model "${nkleinLaunchConfig.modelId}" is not loaded in LM Studio. !Klein does not load models — load it in LM Studio first (loaded: ${loadedModelIds.join(", ") || "none"}).`,
-				};
-			}
+			return {
+				ok: false,
+				summary: null,
+				error: `Model "${nkleinLaunchConfig.modelId}" is not loaded in LM Studio. !Klein does not load models — load it in LM Studio first (loaded: ${loadedModelIds.join(", ") || "none"}).`,
+			};
 		}
 		for (const [role, settings] of Object.entries(scopedRuntimeConfig.effectiveModelRoles)) {
 			// #4 model pools: a role contributes its primary model plus every member of its additionalModels
@@ -193,6 +197,16 @@ export async function handleStartTaskSession(
 						modelIdOverride: model.modelId ?? undefined,
 						reasoningEffortOverride: model.reasoningEffort ?? null,
 					});
+					// Skip a non-resident pool member on the SAME endpoint we queried — !Klein won't load it (directive).
+					if (
+						residencyCheckEnabled &&
+						roleLaunchConfig.modelId &&
+						roleLaunchConfig.baseUrl === nkleinLaunchConfig.baseUrl &&
+						isLocalProvider(roleLaunchConfig.providerId, roleLaunchConfig.baseUrl) &&
+						shouldBlockUnloadedModel(roleLaunchConfig.modelId, loadedModelIds)
+					) {
+						continue;
+					}
 					const roleCandidate = buildNKleinStartGuardCandidate({
 						launchConfig: roleLaunchConfig,
 						role,
