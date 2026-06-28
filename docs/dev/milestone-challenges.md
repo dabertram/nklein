@@ -54,6 +54,13 @@
 
 ## Run log (newest first)
 
+- _(2026-06-28)_ **Infra unblock surfaced by the C5 scout: the runtime API only exposed 4 of 8 dev-test presets.**
+  `createDevTestProject` rejected `many_small` with HTTP 400 — its schema enumerated only
+  `mid_task|complex_dag|audio_vst|daw_foundation`, so the DAG-shape presets (`wide_fanout`/`deep_chain`/`mixed_dag`/
+  `many_small`, the **C5/C6 challenge substrates**) were implemented but un-scoutable. Fixed: expanded the schema to all 8
+  + a bidirectional compile-time drift guard so they can't diverge again (commit `35af9035`). A `many_small × qwen3-8b`
+  C5 contention scout is now running (it'll also exercise the new `shared: <paths>` auto-start-skip diagnostic). _Follow-up
+  (low-effort):_ offer the 4 new presets as buttons in the dev-test UI panel (currently lists only the original 4)._
 - _(2026-06-28)_ **C3 early-scout — `complex_dag × qwen3-8b` on the CURRENT (non-durable) pipeline → INCOMPLETE, and it
   structures the chapter (MCF).** Decompose succeeded (**13 cards**) and several cards completed *correctly*, but after
   ~12 min only **2–3 reached a terminal lane and ~10 stayed in `planning`** — INCOMPLETE within the 25-min horizon. Three
