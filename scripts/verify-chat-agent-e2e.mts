@@ -155,10 +155,17 @@ async function main(): Promise<void> {
 	log(`Reply echoed the file marker:      ${markerEchoed ? "YES ✓" : "NO ⚠️"}  (read + command executed)`);
 	log(`Card "${CARD_TITLE}" persisted:      ${cardOnBoard ? "YES ✓" : "NO ⚠️"}  (control-plane mutation executed)`);
 
-	// PASS gate: the two durable side effects MUST hold (they prove tools actually executed + results flowed back),
-	// and the agent must have used all four tool kinds. The side effects are the hard proof; the "used" flags confirm
-	// the agent drove each surface.
-	const ok = markerEchoed && cardOnBoard && usedRead && usedCommand && usedCreateCard && usedFocusChain;
+	// Graded gate (§5.Z ◑ semantics): the REAL capability is that all four tool kinds executed AND the durable
+	// control-plane side effect (the card) persisted — that proves the agent drove the whole chain and results flowed
+	// back across turns. The marker-echo is a reply-QUALITY nicety on top (weak small models run the tools but don't
+	// quote the output). So we distinguish three verdicts instead of binary pass/fail:
+	//   PASS (exit 0)    = chain executed + card persisted + marker echoed.
+	//   PARTIAL (exit 3) = chain executed + card persisted, but the reply didn't echo the marker (◑ — capability works,
+	//                      weak synthesis). NOT lumped with a model that did nothing.
+	//   FAIL (exit 1)    = the chain didn't run / the card didn't persist.
+	const chainExecuted = cardOnBoard && usedRead && usedCommand && usedCreateCard && usedFocusChain;
+	const ok = chainExecuted && markerEchoed;
+	const partial = chainExecuted && !markerEchoed;
 	if (!ok) {
 		log("--- stdout (tail) ---");
 		log(stdout.slice(-1800));
@@ -168,8 +175,14 @@ async function main(): Promise<void> {
 		}
 	}
 	log("");
-	log(ok ? "PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime." : "INCOMPLETE — see above.");
-	process.exit(ok ? 0 : 1);
+	log(
+		ok
+			? "PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime."
+			: partial
+				? "PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis)."
+				: "INCOMPLETE — see above.",
+	);
+	process.exit(ok ? 0 : partial ? 3 : 1);
 }
 
 main().catch((error) => {

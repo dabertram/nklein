@@ -34,8 +34,8 @@ const HARNESS_TIMEOUT_MS = process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "840000"; // 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const MATRIX_LOG = join(REPO_ROOT, "docs", "dev", "cross-model-verification.md");
 
-type Outcome = "PASS" | "FAIL" | "TIMEOUT" | "DROPPED";
-const SYMBOL: Record<Outcome, string> = { PASS: "✅", FAIL: "❌", TIMEOUT: "⏱", DROPPED: "💥" };
+type Outcome = "PASS" | "PARTIAL" | "FAIL" | "TIMEOUT" | "DROPPED";
+const SYMBOL: Record<Outcome, string> = { PASS: "✅", PARTIAL: "◑", FAIL: "❌", TIMEOUT: "⏱", DROPPED: "💥" };
 
 interface ModelResult {
 	model: string;
@@ -119,11 +119,14 @@ async function runOne(harness: string, model: string): Promise<ModelResult> {
 		outcome = "TIMEOUT";
 	} else if (exitCode === 0) {
 		outcome = "PASS";
+	} else if (exitCode === 3) {
+		// A harness's graded ◑ PARTIAL: the real capability ran but a strict quality gate (e.g. reply-echo) wasn't met.
+		outcome = "PARTIAL";
 	} else {
 		outcome = "FAIL";
 	}
 	const lastLine =
-		[...tail].reverse().find((l) => /PASS|FAIL|INCOMPLETE|DROPPED|FATAL|✓|⚠️|result/i.test(l)) ?? tail.at(-1) ?? "(no output)";
+		[...tail].reverse().find((l) => /PASS|PARTIAL|FAIL|INCOMPLETE|DROPPED|FATAL|✓|◑|⚠️|result/i.test(l)) ?? tail.at(-1) ?? "(no output)";
 	return { model, outcome, exitCode, lastLine: lastLine.slice(0, 200), elapsedMs };
 }
 
@@ -173,8 +176,8 @@ async function main(): Promise<void> {
 		`\n  - matrix row: ${rowCells}\n`;
 	await appendFile(MATRIX_LOG, logBlock, "utf8").catch((e) => console.error(`(could not append to ${MATRIX_LOG}: ${e})`));
 
-	// Exit non-zero only if EVERY model failed outright (a sweep with some passes/drops is a successful sweep).
-	const anyPass = results.some((r) => r.outcome === "PASS");
+	// Exit non-zero only if EVERY model failed outright (a sweep with some passes/partials is a successful sweep).
+	const anyPass = results.some((r) => r.outcome === "PASS" || r.outcome === "PARTIAL");
 	process.exit(anyPass ? 0 : 1);
 }
 
