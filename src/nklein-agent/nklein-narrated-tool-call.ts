@@ -76,7 +76,7 @@ const DEEPSEEK_OPENER = /<[｜|]\s*tool[▁_ ]calls?[▁_ ]begin\s*[｜|]>/i;
  * false positives: requires the `tool call:` lead-in **immediately** followed by an identifier and an opening paren
  * (a function-call shape), so ordinary prose that merely mentions "a tool call" never matches.
  */
-const PLAIN_PROSE_TOOL_CALL = /\btool\s+call\s*:\s*[A-Za-z_][A-Za-z0-9_.-]*\s*\(/i;
+const PLAIN_PROSE_TOOL_CALL = /\btool\s+call\s*:\s*`?\s*[A-Za-z_][A-Za-z0-9_.-]*\s*\(/i;
 
 /**
  * Gemma `tool_code` Python-call narration. Gemma models (esp. the small e2b) narrate a call as Python in a `tool_code`
@@ -236,6 +236,33 @@ function parseGemmaToolCodeCalls(text: string): NarratedToolCall[] {
 	return calls;
 }
 
+/**
+ * Recover plain-prose `Tool call: name(args)` narration — gemma-4-e2b's e2e dialect, e.g.
+ * ``Tool call: `create_card(title="E2E-CARD-7777", prompt="from e2e")` `` (each step narrated this way, not emitted as a
+ * structured call). `stripNarratedToolCallMarkup` already treats this exact shape as a narrated call (strips it for
+ * display); this RECOVERS it so the call executes. Args are Python-style kwargs (`filename="…"`), parsed via
+ * {@link parsePythonKwargs}; an optional backtick wrapper is tolerated. Conservative: the `tool call:` lead-in + an
+ * identifier + `(` is required (the same shape the strip path trusts), so ordinary prose never matches.
+ */
+function parsePlainProseToolCalls(text: string): NarratedToolCall[] {
+	if (!PLAIN_PROSE_TOOL_CALL.test(text)) {
+		return [];
+	}
+	const calls: NarratedToolCall[] = [];
+	const lead = /\btool\s+call\s*:\s*`?\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\(/gi;
+	let match: RegExpExecArray | null = lead.exec(text);
+	while (match !== null) {
+		const name = match[1].split(".").at(-1)?.trim() ?? "";
+		const openParen = match.index + match[0].length - 1; // match[0] ends at the '('
+		const balanced = extractBalancedParens(text, openParen);
+		if (name && !GEMMA_WRAPPER_NAMES.has(name.toLowerCase()) && balanced) {
+			calls.push({ toolName: name, input: parsePythonKwargs(balanced.body) });
+		}
+		match = lead.exec(text);
+	}
+	return calls;
+}
+
 /** Coerce a parsed `{ name, arguments }`-ish object into a tool call; returns null when there is no tool name. */
 function toNarratedToolCall(value: unknown): NarratedToolCall | null {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -283,7 +310,10 @@ function collectNarratedToolCalls(value: unknown, calls: NarratedToolCall[]): vo
 
 /** Parse every narrated tool-call block (any recognized family format) out of free text. `[]` when there are none. */
 export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
-	if (!text || !(TOOL_CALL_MARKER.test(text) || GEMMA_TOOL_CODE_MARKER.test(text))) {
+	if (
+		!text ||
+		!(TOOL_CALL_MARKER.test(text) || GEMMA_TOOL_CODE_MARKER.test(text) || PLAIN_PROSE_TOOL_CALL.test(text))
+	) {
 		return [];
 	}
 	const calls: NarratedToolCall[] = [];
@@ -339,6 +369,9 @@ export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
 
 	// Gemma `tool_code` Python-call narration (`tool_code = read_file(filename="…")`) — the name + kwargs become a call.
 	calls.push(...parseGemmaToolCodeCalls(text));
+
+	// Plain-prose `Tool call: name(kwargs)` narration (gemma-e2b e2e dialect) — recover, don't just strip for display.
+	calls.push(...parsePlainProseToolCalls(text));
 
 	return calls;
 }

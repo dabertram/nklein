@@ -279,3 +279,33 @@ describe("parseNarratedToolCalls — Gemma `tool_code` Python-call narration (§
 		expect(msg.content.some((part) => part.type === "tool-call")).toBe(true);
 	});
 });
+
+describe("parseNarratedToolCalls — plain-prose `Tool call: name(kwargs)` (gemma-e2b e2e dialect)", () => {
+	it("recovers backtick-wrapped prose calls with Python kwargs", () => {
+		expect(parseNarratedToolCalls('Tool call: `create_card(title="E2E-CARD-7777", prompt="from e2e")`')).toEqual([
+			{ toolName: "create_card", input: { title: "E2E-CARD-7777", prompt: "from e2e" } },
+		]);
+	});
+
+	it("recovers EVERY call from gemma-e2b's actual e2e prose narration", () => {
+		const live = [
+			"**Step 1: Use read_file to read FACT.txt.**",
+			'Tool call: `read_file(filename="FACT.txt")`',
+			"**Step 2: Use run_command to run exactly: cat FACT.txt**",
+			'Tool call: `run_command(command="cat FACT.txt")`',
+			'Tool call: `create_card(title="E2E-CARD-7777", prompt="from e2e")`',
+			"Tool call: `update_focus_chain()`",
+			"All steps have been completed successfully. The marker is **ECHO-MARKER-7777-XYZ**.",
+		].join("\n");
+		expect(parseNarratedToolCalls(live)).toEqual([
+			{ toolName: "read_file", input: { filename: "FACT.txt" } },
+			{ toolName: "run_command", input: { command: "cat FACT.txt" } },
+			{ toolName: "create_card", input: { title: "E2E-CARD-7777", prompt: "from e2e" } },
+			{ toolName: "update_focus_chain", input: {} },
+		]);
+	});
+
+	it("does NOT fire on ordinary prose that merely mentions a tool call (no name+paren)", () => {
+		expect(parseNarratedToolCalls("I made a tool call to read the file and it worked.")).toEqual([]);
+	});
+});

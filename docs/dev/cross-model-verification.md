@@ -536,3 +536,12 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 9s · INCOMPLETE — see above.
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 7s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=✅ qwen2.5-coder-14b-m5max=◑ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=◑ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 22:04:01 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 14s · INCOMPLETE — see above.
+- ❌ **FAIL** · `google/gemma-4-e2b-q8` · 16s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌ gemma-4-e2b-q8=❌
+
+### 2026-06-28 22:07:45 · verify-chat-agent-e2e
+- ❌ **FAIL** · `google/gemma-4-e2b-m5max` · 12s · INCOMPLETE — see above.
+  - matrix row: gemma-4-e2b-m5max=❌
