@@ -3962,10 +3962,19 @@ deep analysis:
 - [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
       phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
       NO regression for the 7 models that already pass.
-- [ ] **Finite-state CONTROLLER for the outer loop, not free-form ReAct (2026-06-27, small-LLM research pass).** Small
-      models shouldn't own global process transitions — the harness should. **(a) An explicit run state machine**
+- [~] **Finite-state CONTROLLER for the outer loop, not free-form ReAct (2026-06-27, small-LLM research pass).** Small
+      models shouldn't own global process transitions — the harness should. **(a) PURE STATE-MACHINE CORE DONE
+      (2026-06-28):** [src/core/run-state-machine.ts](src/core/run-state-machine.ts) — the typed `RunPhase` ladder
       (`intake → plan → validate_plan → localize → execute_step → observe → evaluate → repair → retry_or_split → review →
-      merge_or_escalate → done`). The controller, per state: selects the state-specific context + tool subset, sets that
+      merge_or_escalate → done` + terminal `park`/`escalate`) and `decideNextPhase(current, evidence)`, a pure
+      **evidence-driven** transition (never the model's self-report) with the spec's hard guards: repo mutation
+      (`execute_step`) is unreachable until `localized`; budget exhaustion parks from any non-terminal phase; **completion
+      requires acceptance evidence** (`allStepsComplete` + `reviewPassed`) so a model "declaring all steps done" mid-chain
+      does NOT finish the run (directly the §5.Z e2e lesson); a succeeded-but-not-last step drives the NEXT step;
+      repair→retry_or_split branches on evidence (split/escalate/retry). Pure, 9 tests, tsc + biome green. **Still owed
+      (wiring):** drive the SDK/chat loop through these phases (per-phase context + tool subset + budget) + record each
+      transition on the §5.AF ledger. **An explicit run state machine** — the controller, per state: selects the
+      state-specific context + tool subset, sets that
       state's **max-tool-calls + max-wall-time budget**, decides **retry / split / refine-spec / replan / park / escalate
       FROM EVIDENCE** (not model self-report), **records every transition in the §5.AF ledger**, and **forbids skipping to
       repo mutation before localization/refinement** when that phase is required. ReAct stays a **bounded inner loop
