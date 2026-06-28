@@ -3978,9 +3978,14 @@ deep analysis:
       state's **max-tool-calls + max-wall-time budget**, decides **retry / split / refine-spec / replan / park / escalate
       FROM EVIDENCE** (not model self-report), **records every transition in the §5.AF ledger**, and **forbids skipping to
       repo mutation before localization/refinement** when that phase is required. ReAct stays a **bounded inner loop
-      inside a single state**, never the global driver. **(b)** The retry ladder (above) becomes a **typed controller
-      strategy table** — each rung a named strategy + a guard predicate — and every attempt writes a **failure capsule**
-      (what was tried · the evidence · why it failed) so the next rung never re-asks a weak model to rediscover state.
+      inside a single state**, never the global driver. **(b)** The retry ladder (above) is already a **typed strategy
+      table** (`retry-policy.ts`); **FAILURE-CAPSULE CORE DONE (2026-06-28):**
+      [src/core/failure-capsule.ts](src/core/failure-capsule.ts) — `buildFailureCapsule({strategy, outcome, evidence?,
+      whyFailed?})` records *what was tried · the evidence · why it failed* per attempt; `summarizeFailureCapsules` turns
+      the chain into a compact "already tried — do NOT repeat" note the controller prepends to the next attempt (so a weak
+      model never re-rediscovers state); `untriedStrategies(capsules, ladder)` picks the next un-tried rung (no circles,
+      complementing `retry-policy`). Pure, 4 tests, tsc + biome green. **Still owed:** persist capsules as §5.AF ledger
+      events + wire the summary into the next-attempt context at the model-call seam.
       **(c)** **auto split/decompose** is a retry rung (local repair first; global re-decompose only when local repair
       can't restore coherence). Strengthens §5.AF/§5.AB, not a new track.
 

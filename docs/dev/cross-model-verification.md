@@ -453,3 +453,11 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `qwopus3.5-4b-coder-fable5-v1-mlx-m5max` · 21s · INCOMPLETE — see above.
 - ❌ **FAIL** · `ornith-1.0-9b-mlx` · 14s · INCOMPLETE — see above.
   - matrix row: qwen3-8b-m5max=❌ qwen2.5-coder-14b-m5max=❌ gemma-4-e2b-m5max=❌ qwen3.5-9b-mlx-m5max=❌ phi-4-mini-reasoning=❌ nemotron-3-nano-4b-m5max=❌ qwopus3.5-4b-coder-fable5-v1-mlx-m5max=❌ ornith-1.0-9b-mlx=❌
+
+### 2026-06-28 20:38:05 · verify-task-completion
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 37s · PASS ✓ a small local model ran the card to a terminal state AND delivered the correct result (hello.txt).
+  - matrix row: qwen3-8b-m5max=✅
+
+### 2026-06-28 20:38:24 · verify-task-completion
+- ✅ **PASS** · `qwen/qwen3-8b-m5max` · 18s · PASS ✓ a small local model ran the card to a terminal state AND delivered the correct result (hello.txt).
+  - matrix row: qwen3-8b-m5max=✅
