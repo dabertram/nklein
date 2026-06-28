@@ -41,8 +41,8 @@
 | chat e2e capstone† · `verify-chat-agent-e2e` | 🎲 | · | · | · | · | · | · | · | · |
 | chat read tools · `verify-chat-agent-tools` | ✅ | ✅ | ◑ | ◑ | · | · | · | ◑ | · |
 | chat write tool · `verify-chat-agent-write` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
-| chat send · `verify-chat-send` | · | ✅ | · | · | · | · | · | · | · |
-| chat runtime · `verify-chat-runtime` | ✅ | · | · | · | · | · | · | · | · |
+| chat send · `verify-chat-send` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
+| chat runtime · `verify-chat-runtime` | ✅ | ✅ | ✅ | ✅ | · | · | · | ✅ | · |
 | autonomous run · `verify-chat-autonomous-live` | ✅ | · | · | · | · | · | · | · | · |
 | multi-card pipeline · `verify-multi-card-pipeline` | ✅ | · | · | · | · | · | · | · | · |
 | output robustness · `sweep-capture` | ✅ | ✅ | ◑ | ✅ | ✅ | ⚠️ | · | ✅ | · |
@@ -243,3 +243,6 @@ Single-card delivery → awaiting_review + captured result branch, for two model
 
 ### 2026-06-28 · verify-chat-agent-write (chat write tool) — fixed a missing-workspace harness bug, then swept
 **Harness bug fixed:** the harness never created the temp `workspace` dir before running, so the write tool's `assertRealPathWithinWorkspace` realpath threw ENOENT (FATAL) for every model (the read harness creates it; this one omitted it). The product is correct — the workspace root (always the real project dir) must exist. Added `mkdir(workspace, {recursive:true})`. Then swept the loaded roster — **4/4 PASS**: `qwen3-8b`, `qwen2.5-coder-14b` (re-confirmed), `qwen3.5-9b`, `gemma-4-e2b`, `nemotron-3-nano` each drove a write through the **confirm gate** (ran only after approval) and the audit recorded a confirmed+executed `sandbox_write`. Matrix → ✅ for all swept.
+
+### 2026-06-28 · verify-chat-send + verify-chat-runtime — swept the loaded roster (all PASS)
+Both the basic chat-turn-and-persist (`verify-chat-send`) and the memory+goal-composed runtime turn (`verify-chat-runtime`) **PASS for every loaded model**: qwen3-8b (already), qwen2.5-coder-14b, qwen3.5-9b, gemma-4-e2b, nemotron-3-nano. These are plumbing checks (a real model turn runs, composes context, and persists) — no per-model weakness. Matrix → ✅ across the swept models.
