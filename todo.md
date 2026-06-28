@@ -3950,13 +3950,16 @@ deep analysis:
       `lmstudio-loaded-models.ts`). Each newly-loaded model becomes a §5.Z matrix column / run-log entry. A model that
       still can't pass a tier (after repeat-runs + the full §5.AA ladder — **never judge prematurely**) is a recorded
       `⚠️` capability-floor, not a failure to hide.
-- [ ] **!Klein RUNTIME must not load models either (user directive 2026-06-28) — selection/resolution restricted to the
-      LOADED set.** The harness side is done (`assertModelLoaded`); the runtime equivalent is owed: the model
-      selection/resolution path (this §5.AB selection + the model-role config + provider model-resolution) must only
-      pick/use models whose `/api/v0/models` `state` is `loaded`, and **surface "load it first" rather than auto-loading**
-      a configured-but-unloaded model. Reuse [src/core/lmstudio-loaded-models.ts](src/core/lmstudio-loaded-models.ts)
-      (`fetchLoadedModelIds`). Tie to the §5.AB auto-select (pick best *loaded* model) + a clear operator error when a
-      pinned/role model isn't resident.
+- [~] **!Klein RUNTIME must not load models either (user directive 2026-06-28) — selection/resolution restricted to the
+      LOADED set.** Harness side done (`assertModelLoaded`). **PRIMARY-MODEL ENFORCEMENT DONE (2026-06-28, `8715fda6`):**
+      `start-task-session` now checks the SELECTED (primary) local model against LM Studio's loaded set
+      ([src/core/lmstudio-loaded-models.ts](src/core/lmstudio-loaded-models.ts) `fetchLoadedModelIds` + pure
+      `shouldBlockUnloadedModel`) and returns a clear "load it first" error instead of auto-loading; lenient (block only a
+      positively-non-resident model), test-runner-skipped, 3s-timeout fetch. **STILL OWED:** (a) the **role-pool fan-out**
+      members (lines ~162+) — a non-loaded *pool* model could still load when dispatched; filter the guard candidates to
+      the loaded set. (b) tie to the §5.AB auto-select so it *picks the best LOADED model* (not just refuses). (c) surface
+      the error nicely in the web-ui (a "model not loaded" affordance). (d) the chat path (`local-chat-model` already
+      discovers a loaded model, so it's mostly safe, but confirm a pinned non-loaded chat model is refused too).
 - [~] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
       difficulty × context) cells — especially the `⚠️` ceilings — are valuable **guidance for !Klein users**: "for this
       kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." **PURE PROJECTION
