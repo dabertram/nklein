@@ -234,6 +234,60 @@ export function isDurableRunComplete(jobs: readonly DurableJob[]): boolean {
 	return jobs.every((job) => job.state === "succeeded" || job.state === "failed");
 }
 
+/** One in-flight lease, for the operator view (which worker holds which card, until when). */
+export interface DurableRunLeaseRow {
+	jobId: string;
+	workerId: string;
+	expiresAt: number;
+}
+
+/** A glanceable summary of a durable run — the projection operator UX reads to see + trust an unattended C3 run. */
+export interface DurableRunSummary {
+	total: number;
+	byState: Record<DurableJobState, number>;
+	/** Currently-leased cards + who holds them (for "what's running now" + stuck-lease detection). */
+	leased: DurableRunLeaseRow[];
+	/** Failed (parked) card ids — the ones that need operator attention. */
+	failed: string[];
+	/** succeeded / total in [0,1] (0 when there are no jobs). */
+	progress: number;
+	complete: boolean;
+}
+
+/**
+ * Summarize a durable run's jobs for operator UX (pure projection): counts by state, the in-flight leases, the parked
+ * failures, and overall progress. Preserves input order for the lease/failed lists. The C3 milestone requires the
+ * operator to SEE + trust an unattended run; this is the read model behind that (board badge, `nklein dev`/Settings view).
+ */
+export function summarizeDurableRun(jobs: readonly DurableJob[]): DurableRunSummary {
+	const byState: Record<DurableJobState, number> = {
+		blocked: 0,
+		ready: 0,
+		leased: 0,
+		succeeded: 0,
+		failed: 0,
+	};
+	const leased: DurableRunLeaseRow[] = [];
+	const failed: string[] = [];
+	for (const job of jobs) {
+		byState[job.state] += 1;
+		if (job.state === "leased" && job.lease !== null) {
+			leased.push({ jobId: job.jobId, workerId: job.lease.workerId, expiresAt: job.lease.expiresAt });
+		}
+		if (job.state === "failed") {
+			failed.push(job.jobId);
+		}
+	}
+	return {
+		total: jobs.length,
+		byState,
+		leased,
+		failed,
+		progress: jobs.length === 0 ? 0 : byState.succeeded / jobs.length,
+		complete: isDurableRunComplete(jobs),
+	};
+}
+
 /** A board dependency edge: `fromTaskId` depends on (is blocked until) `toTaskId`. */
 export interface DurableJobDependencyEdge {
 	fromTaskId: string;

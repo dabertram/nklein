@@ -9,6 +9,7 @@ import {
 	isDurableRunComplete,
 	markDurableJob,
 	replayDurableJobs,
+	summarizeDurableRun,
 } from "../../../src/core/durable-scheduler";
 
 function job(over: Partial<DurableJob> & { jobId: string }): DurableJob {
@@ -227,5 +228,28 @@ describe("applyDurableSchedulerActions + markDurableJob + isDurableRunComplete",
 		const b = replayDurableJobs(initial, log, { reclaimBackoffMs: 50 });
 		expect(a).toEqual(b);
 		expect(a[0]).toMatchObject({ state: "ready", lease: null, nextEligibleAt: 250, attempts: 1 });
+	});
+});
+
+describe("summarizeDurableRun", () => {
+	it("counts by state, lists in-flight leases + parked failures, and reports progress", () => {
+		const jobs = [
+			job({ jobId: "a", state: "succeeded" }),
+			job({ jobId: "b", state: "leased", lease: { workerId: "w7", expiresAt: 1234 }, attempts: 1 }),
+			job({ jobId: "c", state: "blocked", dependsOn: ["b"] }),
+			job({ jobId: "d", state: "failed" }),
+		];
+		const summary = summarizeDurableRun(jobs);
+		expect(summary.total).toBe(4);
+		expect(summary.byState).toMatchObject({ succeeded: 1, leased: 1, blocked: 1, failed: 1, ready: 0 });
+		expect(summary.leased).toEqual([{ jobId: "b", workerId: "w7", expiresAt: 1234 }]);
+		expect(summary.failed).toEqual(["d"]);
+		expect(summary.progress).toBe(0.25);
+		expect(summary.complete).toBe(false);
+	});
+
+	it("is empty-safe (no jobs → zero progress, not complete-by-vacuous-truth ambiguity handled)", () => {
+		const summary = summarizeDurableRun([]);
+		expect(summary).toMatchObject({ total: 0, progress: 0, complete: true, leased: [], failed: [] });
 	});
 });
