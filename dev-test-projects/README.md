@@ -60,3 +60,18 @@ A project that needs starting code references a template folder under `scripts/d
 `fixtureTemplate` (e.g. `smoke-ts-cli`, `audio-vst-synth`, `daw-foundation`). The scaffolder copies that template
 into the throwaway workspace, then writes `specification.md` on top. Projects without `fixtureTemplate` use the
 default smoke template.
+
+## `_REFERENCE_SOLUTION.md` — the gold-standard answer (optional, for judging quality)
+
+A project folder may carry an **`_REFERENCE_SOLUTION.md`**: the benchmark/"what an excellent solution looks like"
+answer a frontier model would produce (full clean end-state code per touched file, the expected decomposition shape
+for DAG presets, an invariant→enforcement map, and an EXCELLENT/MEDIOCRE/FAILING rubric + small-model pitfalls). It
+lets a sweep judge result **quality**, not just the pass/fail of `acceptanceCommand` — still always inspect the real
+generated output, but the reference gives guidance + comparability.
+
+**It is agent-INVISIBLE by construction:** the scaffolder copies only the `fixtureTemplate` + `specification.md` into
+the agent's workspace — never the rest of `dev-test-projects/<id>/` — so a `_REFERENCE_SOLUTION.md` is never seen by
+the model under test (the `_` prefix also marks it as meta, like `_ENHANCEMENT_GUIDELINES.md`). The 7 active habit/smoke
+sweep presets (`small-model-smoke`, `habit-insights-mid`, `habit-product-nklein-complex`, and the four DAG presets
+`habit-{deep-chain,mixed-dag,many-small,wide-fanout}`) have reference solutions (2026-06-28); the big enterprise
+registry projects + `dschinn` are intentionally left without (long-runners — judge them by deep inspection).

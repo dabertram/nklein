@@ -46,6 +46,11 @@ next step even for things that will only be *adapted later with low effort*).
   challenge to detect flakiness/reliability, or **(b)** early-scout an *upcoming* challenge level to collect evidence
   before you need it. **Record every sweep** as a per-run table in [docs/dev/model-sweep-log.md](docs/dev/model-sweep-log.md)
   (timestamp · per-model result + a terse note — 🚀/🐢/🐞/🔧/🧱/🔁), and keep the catalog/scoreboard in sync.
+- **Judge result QUALITY, not just pass/fail.** The active habit/smoke sweep presets have a gold-standard
+  `_REFERENCE_SOLUTION.md` in their `dev-test-projects/<id>/` folder (agent-invisible — the scaffolder never copies it)
+  — the benchmark a frontier model would produce, with a quality rubric. Use it as a comparison anchor when judging how
+  well a model processed a project; still always inspect the real generated output deeply. (Big enterprise/`dschinn`
+  projects are left without — judge by inspection.)
 - **Roster discipline + weakest-model focus.** Keep EVERY model that has appeared in the roster (sweep-log table), even
   when unloaded — they pop in/out; collect the full history and adapt as new ones appear (check the live endpoint, e.g.
   LM Studio `/v1/models`). Watch the **weakest** models first each sweep — they hit a new difficulty rung earliest, so
