@@ -10,7 +10,13 @@
  * (no circles), and always terminating (park) so a stuck task surfaces instead of looping.
  */
 
-import type { ModelOutcomeKind } from "./model-behavior-profile";
+import { type FailureCapsule, summarizeFailureCapsules } from "./failure-capsule";
+import {
+	learnedRetryBudget,
+	type ModelBehaviorProfile,
+	type ModelOutcomeKind,
+	type RetryBudgetOptions,
+} from "./model-behavior-profile";
 
 /** One rung of the adaptive retry ladder (§5.AA). `park` = give up + surface for review/escalation. */
 export type RetryStrategy =
@@ -106,4 +112,50 @@ export function decideNextRetryStrategy(input: RetryDecisionInput): RetryDecisio
 /** The full ladder for a failure mode (priority order) — for the §5.AG "what could be tried" surface + tests. */
 export function retryLadderForOutcome(outcome: ModelOutcomeKind): readonly RetryStrategy[] {
 	return RELEVANT_STRATEGIES_BY_OUTCOME[outcome];
+}
+
+export interface NextAttemptPlan {
+	/** The rung to try next (`park` = stop + surface for review/escalation). */
+	strategy: RetryStrategy;
+	/** True when `strategy === "park"` — the loop should stop retrying. */
+	parked: boolean;
+	/** The learned per-model retry budget in force. */
+	retryBudget: number;
+	/** Attempts run so far (echoed for the caller's bookkeeping). */
+	attemptsSoFar: number;
+	/** The "already tried — do not repeat" note to prepend to the next attempt's context (empty when no prior capsules). */
+	doNotRepeatNote: string;
+	/** Inspectable reason (for §5.AG + the §5.AF ledger). */
+	reason: string;
+}
+
+/**
+ * The unified §5.AA retry brain — composes the three decision cores into ONE call the model-call seam makes: the learned
+ * per-model retry budget (`ModelBehaviorProfile`), the next un-tried ladder rung for the failure mode (`retry-policy`,
+ * skipping rungs already in the capsules — no circles), and the "what was tried" note (`failure-capsule`) to carry
+ * forward so a weak model doesn't rediscover state. Pure — the effectful loop fires `plan.strategy` and records the new
+ * outcome back as a capsule + a ledger event.
+ */
+export function planNextAttempt(input: {
+	lastOutcome: ModelOutcomeKind;
+	attemptsSoFar: number;
+	profile: ModelBehaviorProfile;
+	capsules: readonly FailureCapsule[];
+	retryBudgetOptions?: RetryBudgetOptions;
+}): NextAttemptPlan {
+	const retryBudget = learnedRetryBudget(input.profile, input.retryBudgetOptions);
+	const decision = decideNextRetryStrategy({
+		lastOutcome: input.lastOutcome,
+		attemptsSoFar: input.attemptsSoFar,
+		retryBudget,
+		triedStrategies: input.capsules.map((capsule) => capsule.strategy),
+	});
+	return {
+		strategy: decision.strategy,
+		parked: decision.strategy === "park",
+		retryBudget,
+		attemptsSoFar: input.attemptsSoFar,
+		doNotRepeatNote: summarizeFailureCapsules(input.capsules),
+		reason: decision.reason,
+	};
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { buildFailureCapsule } from "../../../src/core/failure-capsule";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
-import { decideNextRetryStrategy, retryLadderForOutcome } from "../../../src/core/retry-policy";
+import { emptyModelBehaviorProfile } from "../../../src/core/model-behavior-profile";
+import { decideNextRetryStrategy, planNextAttempt, retryLadderForOutcome } from "../../../src/core/retry-policy";
 
 describe("decideNextRetryStrategy", () => {
 	it("parks immediately on a success (nothing to retry)", () => {
@@ -104,5 +106,34 @@ describe("retryLadderForOutcome", () => {
 		expect(retryLadderForOutcome("success")).toEqual([]);
 		expect(retryLadderForOutcome("no_tool_call")[0]).toBe("reduced_tool_set");
 		expect(retryLadderForOutcome("timeout")).toContain("decompose");
+	});
+});
+
+describe("planNextAttempt (unified §5.AA brain)", () => {
+	it("picks the next un-tried rung, carries the do-not-repeat note, and reports the learned budget", () => {
+		const profile = emptyModelBehaviorProfile("m", 0); // cold → budget = min (1)
+		const capsules = [
+			buildFailureCapsule({ strategy: "reduced_tool_set", outcome: "no_tool_call", evidence: "still no call" }),
+		];
+		const plan = planNextAttempt({ lastOutcome: "no_tool_call", attemptsSoFar: 0, profile, capsules });
+		// reduced_tool_set already tried → next no_tool_call rung is constrained_schema.
+		expect(plan.strategy).toBe("constrained_schema");
+		expect(plan.parked).toBe(false);
+		expect(plan.retryBudget).toBe(1);
+		expect(plan.doNotRepeatNote).toContain("reduced_tool_set");
+	});
+
+	it("parks when the learned budget is spent", () => {
+		const profile = emptyModelBehaviorProfile("m", 0); // budget 1
+		const plan = planNextAttempt({ lastOutcome: "no_tool_call", attemptsSoFar: 1, profile, capsules: [] });
+		expect(plan.strategy).toBe("park");
+		expect(plan.parked).toBe(true);
+	});
+
+	it("empty capsules ⇒ empty do-not-repeat note + the first rung", () => {
+		const profile = emptyModelBehaviorProfile("m", 0);
+		const plan = planNextAttempt({ lastOutcome: "malformed", attemptsSoFar: 0, profile, capsules: [] });
+		expect(plan.doNotRepeatNote).toBe("");
+		expect(plan.strategy).toBe("constrained_schema"); // first malformed rung
 	});
 });
