@@ -138,10 +138,11 @@
 |---|:-:|:-:|---|
 | google/gemma-4-e2b (2B) | ✅ | ✅ | 🚀 **the floor holds across all met rungs** even at Low Power — C1: `decompose_project` → DAG, **0 host-path leaks** under isolation; C2: card auto-promoted Planning→In Progress via the recovery path. The harness carries the weakest 2B through C0/C1/C2. |
 
-### 2026-06-28 16:38Z · **new-model scout** · C0 single-card · `verify-task-completion` · _(Low Power)_
+### 2026-06-28 16:38Z · **new-model + loaded-roster scout** · C0 single-card · `verify-task-completion` · _(Low Power, delivery-gated)_
 | model | result | note |
 |---|:-:|---|
 | ornith-1.0-9b-mlx (NEW, ~9B) | ✅ | 🚀 clean first-try pass to `awaiting_review` in ~50 s (even Low Power) — a usable new 9B; ran with the new **live-activity** harness mode (visible real-time steps) |
+| nvidia/nemotron-3-nano-4b | ✅ | clean C0 — terminal AND `delivered=YES` (the new deliverable-gated PASS) at 17:21Z |
 | ornith-1.0-35b-mlx@8bit (NEW, ~35B, **Phase-A bigger-model lever**) | ◑→🧱 | **Root cause (live-activity dump): the model FAILED TO LOAD** — _"insufficient system resources… would overload your system and cause it to freeze."_ So it reached `awaiting_review` with nothing delivered (`delivered=NO`). **Two wins:** the live-activity mode surfaced the exact load error (old silent harness would've hidden it), and the deliverable-gate flagged it PARTIAL not PASS. **Operational finding:** @8bit (~35 GB) doesn't fit under Low Power with several scout models already resident — needs **`@4bit` (lower quant)** and/or unloading idle models first (ties the §5.AF resource-governance item: VRAM/RAM headroom check before a load). Not retried now — won't risk freezing an actively-used machine. |
 
 ### 2026-06-28 15:20Z · **infra fix** · LM Studio `/models` catalog no longer hammered
