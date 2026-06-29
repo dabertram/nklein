@@ -4012,6 +4012,15 @@ deep analysis:
       bundles are MINIFIED, so the termination rule isn't cheaply readable; the `.d.ts` only shows `continue()`/`applyStopControl`.
       ⇒ the instrumented real-runtime board-task run is the practical path. That is the exact, minimal focused-block recipe;
       it's a heavy live op (real board + reasoning model + tight budget), hence a dedicated block, not a marathon-tail commit.
+      **EXPERIMENT RUN (2026-06-29) — partial, real data:** unblocked it by adding `dev test-project --model-id` (forces the
+      seed card onto a loaded model, bypassing the stale multi-machine config roles that the residency gate correctly
+      refused). Ran `mid_task` forcing `qwen/qwen3-8b` against the instrumented real server. **Captured live:** `afterModel`
+      DOES expose `finishReason`, and its values are HYPHENATED SDK forms — observed `"tool-calls"` (the self-review hook
+      compares `"stop"`), NOT OpenAI's `tool_calls`/`length`. The plan-mode `mid_task` seed ran exactly ONE tool-call turn
+      (the decompose tool → produced 6 subcards → session ENDED — the decompose tool completes the task), so it's too short
+      to show a NO-call turn's continue-vs-end. **Remaining (now cheap):** run an ACT-mode multi-turn task (start a decomposed
+      subcard, or an act preset) with the probe to watch a no-call `"stop"` turn → loop-ends-or-continues. The harness +
+      `--model-id` make this a short follow-up, not a setup effort.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
