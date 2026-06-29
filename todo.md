@@ -1370,8 +1370,11 @@ deep analysis:
         baseline (in-process sparse tokens) = **~8,400 texts/sec (~420× faster)**. ⇒ a full cold dense index is the
         bottleneck (~1k chunks ≈ 50s; ~20k ≈ 17min); incremental re-embed of a few changed files is sub-second.
         **NB:** this is the **GPU upper bound** — the in-image **CPU-only** path will be slower, widening the gap.
-  - [ ] still TODO: in-image **CPU-only** cold-load + index-build numbers (no Metal); recall@k for lexical-only vs
-        dense-only vs **lexical→dense rerank** — does dense pay its way on retrieval *quality*?
+  - [ ] still TODO (each a bounded measurement):
+    - [ ] measure in-image **CPU-only** cold-load + index-build time (no Metal), for ~1k and ~20k chunks.
+    - [ ] compute recall@k for **lexical-only** retrieval on a labeled query set.
+    - [ ] compute recall@k for **dense-only** retrieval on the same set.
+    - [ ] compute recall@k for **lexical→dense rerank**; compare the three — does dense pay its way on quality?
   - [x] user-hosted `openai_compatible` fast path **confirmed supported** (GPU box / LM Studio / Ollama; configurable
         global + per-project; degrades to lexical when absent) — `createNKleinCodeEmbeddingProviderFromSettings`.
   - [ ] **decision (leaning, from the numbers):** keep **lexical as the instant always-on layer**; make dense
@@ -1412,7 +1415,9 @@ deep analysis:
   - [x] **project sidebar (2026-06-25):** the per-project actions menu trigger (`project.actions`, every ProjectRow's
         Ellipsis — wrapped via `ElementTooltip` outside the `DropdownMenu.Trigger asChild`, valid Radix Slot-chain) and the
         mobile collapse button (`project.collapse-sidebar`). web tsc + vitest (694) green.
-  - [ ] remaining tail: settings section headers/fields, model-registry row actions
+  - [ ] remaining tail (one leaf each):
+    - [ ] add `ELEMENT_TOOLTIPS` entries for the Settings section headers + fields.
+    - [ ] add `ELEMENT_TOOLTIPS` entries for the model-registry row actions.
 
 ### 5.K — Second-opinion reviewer workflow ✅ COMPLETE → moved to [done.md](done.md#5k--second-opinion-reviewer-workflow--complete-raised-2026-06-22)
 
@@ -1429,13 +1434,21 @@ deep analysis:
   - [x] schema + config — `agentRulesetsConfigSchema`; loads/preserves in `runtime-config.ts` (default fully_open)
   - [x] sandbox network activation (VERIFIED LIVE) — tier → `--network` (none/bridge), allowlist fail-closed, under
         `--cap-drop ALL --read-only --security-opt no-new-privileges`
-  - [~] tool gating — `resolveAgentToolAccess` built + tested; **remaining:** thread into `nklein-session-runtime`
-        (web-research enable), a sandbox-side headless-browser tool, MCP gating
-  - [~] delivery gate — `decideDeliveryAction` wired into `finalizeHeadlessAutoReviewTask` (review + tests +
-        protected-path gates; default `fully_open` → merge incl. self-merge; protected-path change holds);
-        **remaining:** auto-perform commit/open_pr, a measured regression delta, per-project + per-card overrides
-  - [ ] per-role network override (needs policy-keyed pools — a pooled container's `--network` is fixed at creation;
-        allowlist needs a real egress proxy)
+  - [~] tool gating — `resolveAgentToolAccess` built + tested; **remaining (one leaf each):**
+    - [ ] thread `resolveAgentToolAccess` into `nklein-session-runtime` so the per-role ruleset gates the agent's tools.
+    - [ ] enable web-research as a gated tool (on when the ruleset allows it).
+    - [ ] add a sandbox-side headless-browser tool (gated).
+    - [ ] gate MCP tool access by the resolved ruleset.
+  - [~] delivery gate — `decideDeliveryAction` wired into `finalizeHeadlessAutoReviewTask`; **remaining (one leaf each):**
+    - [ ] auto-perform the `commit` delivery action when the gate decides merge.
+    - [ ] auto-perform the `open_pr` delivery action when configured.
+    - [ ] compute a measured regression delta as a delivery-gate input.
+    - [ ] per-project delivery override (built with the §5.I#3 project-settings modal).
+    - [ ] per-card delivery override.
+  - [ ] **per-role network override** (needs policy-keyed pools — a pooled container's `--network` is fixed at creation):
+    - [ ] key the sandbox pool by network policy so containers are created with the right `--network`.
+    - [ ] stand up a real egress proxy to enforce the per-role allowlist.
+    - [ ] wire the per-role network tier through to pool selection + proxy config.
   - [x] **Settings UI + write-path (DONE 2026-06-24)** — surfaced `agentRulesets` in the config response
         (`buildRuntimeConfigResponse`, the missing read-path half) and added a self-contained
         [AgentRulesetsSettingsPanel](web-ui/src/components/agent-rulesets-settings-panel.tsx): both dials
@@ -1457,6 +1470,22 @@ deep analysis:
       r/w, patch capture/apply, MCP calls, egress attempts, protected-path denials, approvals — not just chat host
       actions). Folds into the §5.AF tool-capability manifest + the resolved §5.Y posture; harden tier (rootless Docker /
       seccomp / pinned digest) is a later option.
+  - [ ] **Taint-label model (pure core first):**
+    - [ ] define the `TaintLabel` union (`repo_instruction/web/mcp/private_repo/secret_like/user_trusted/runtime_policy`).
+    - [ ] define how labels attach to a content source + how they propagate into the model context.
+    - [ ] encode the core rule (untrusted content guides STYLE only; never mutates capabilities/approvals/network/
+          secrets/git-delivery/host without a trusted plan + confirmation) as a pure predicate; unit-test it.
+  - [ ] **Capability broker (pure decision core):**
+    - [ ] define the broker input `{ ruleset, role, provenance, tool trust, taint labels, action, target, is-sink? }`.
+    - [ ] implement the decision: `allow | deny | one-time-confirm | require-fresh-trusted-plan`; unit-test the matrix.
+    - [ ] wire the broker at the model↔tool seam (every tool call passes through it).
+  - [ ] **Egress broker:**
+    - [ ] DNS/SNI/domain allowlist enforcement.
+    - [ ] deny IP-literals + LAN ranges by default.
+    - [ ] per-action egress approval + a network-attempt audit log.
+  - [ ] **Task-agent action audit** (one leaf each): sandbox bash · file r/w · patch capture/apply · MCP calls ·
+        egress attempts · protected-path denials · approvals.
+  - [ ] integrate the broker + manifest with §5.AF (tool-capability manifest) and the §5.Y security posture.
 
 ### 5.M — Unified agentic coding chat + private messenger bridge *(raised + decided 2026-06-22/23)*
 > **Goal:** a board-independent strong coding agent (Claude/Codex/Cline-class) on small local models via good memory
