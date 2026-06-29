@@ -4,7 +4,7 @@ import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } 
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
-import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
+import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
 import { computePoolFreeSlots } from "../../core/model-pool-routing";
@@ -174,7 +174,7 @@ export async function handleStartTaskSession(
 		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? "http://127.0.0.1:1234/v1";
 		const loadedModelIds =
 			residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)
-				? await fetchLoadedModelIds(residencyBaseUrl)
+				? await fetchLoadedModelIdsCached(residencyBaseUrl)
 				: [];
 		if (
 			residencyCheckEnabled &&

@@ -8,6 +8,8 @@
  * Pure parser + injectable fetch so it's testable without a live endpoint. Checking availability is fine; loading is not.
  */
 
+import { modelDiscoveryCacheTtlMs } from "./model-discovery-throttle";
+
 interface LmStudioApiV0Model {
 	id?: unknown;
 	state?: unknown;
@@ -53,6 +55,33 @@ export async function fetchLoadedModelIds(baseUrl: string, fetchImpl: typeof fet
 	} catch {
 		return [];
 	}
+}
+
+// Shared TTL cache for the loaded-set, keyed by endpoint URL — so a hot path that residency-checks repeatedly (a
+// multi-card run starting/retrying many cards) polls `/api/v0/models` at most ~once per window instead of per call.
+// The 2026-06-28 hammering throttle covered the chat/roster `/models` discovery but NOT this residency path (added
+// later for the no-load enforcement) — this closes that gap. Disabled (TTL 0) under the test runner, like the others.
+const loadedIdsCache = new Map<string, { ids: string[]; at: number }>();
+
+/**
+ * TTL-cached {@link fetchLoadedModelIds} — same result, but reuses a recent fetch within the shared
+ * `modelDiscoveryCacheTtlMs` window so repeated residency checks don't hammer `/api/v0/models`. Use this on hot paths
+ * (task-start fan-out, role pools); a one-shot check can call `fetchLoadedModelIds` directly.
+ */
+export async function fetchLoadedModelIdsCached(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<string[]> {
+	const ttl = modelDiscoveryCacheTtlMs();
+	if (ttl <= 0) {
+		return fetchLoadedModelIds(baseUrl, fetchImpl);
+	}
+	const key = lmStudioApiV0ModelsUrl(baseUrl);
+	const now = Date.now();
+	const hit = loadedIdsCache.get(key);
+	if (hit && now - hit.at < ttl) {
+		return hit.ids;
+	}
+	const ids = await fetchLoadedModelIds(baseUrl, fetchImpl);
+	loadedIdsCache.set(key, { ids, at: now });
+	return ids;
 }
 
 /**
