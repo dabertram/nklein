@@ -65,6 +65,35 @@ describe("loadModelExclusive", () => {
 		expect(load).toContain("40000");
 	});
 
+	it("§5.AQ-G: opt-in right-sizing FLOORS a small task to ≥32k (not the 40k default, not the model max)", async () => {
+		const { run, calls } = fakeRunner([]);
+		const result = await loadModelExclusive(run, {
+			modelId: "qwen/qwen2.5-coder-14b-m5max",
+			totalRamBytes,
+			taskNeededTokens: 6000,
+			maxContextLength: 262_144,
+		});
+		expect(result.loaded).toBe(true);
+		const load = calls.find((c) => c[0] === "load");
+		// 6k task fits well under the floor → 32000 (NOT the 40000 default, NOT the 262144 max).
+		expect(load).toContain("32000");
+		expect(load).not.toContain("262144");
+	});
+
+	it("§5.AQ-G: opt-in right-sizing SIZES UP a big-context task but never to the model max", async () => {
+		const { run, calls } = fakeRunner([]);
+		await loadModelExclusive(run, {
+			modelId: "qwen/qwen2.5-coder-14b-m5max",
+			totalRamBytes,
+			taskNeededTokens: 80_000,
+			maxContextLength: 262_144,
+		});
+		const load = calls.find((c) => c[0] === "load");
+		// 80k * 1.25 headroom = 100000 → next 1024 multiple (100352), above the floor, well below the 262k max.
+		expect(load).toContain("100352");
+		expect(load).not.toContain("262144");
+	});
+
 	it("never unloads pinned identifiers", async () => {
 		const { run, calls } = fakeRunner([
 			"keep-me          m          IDLE      4 GB       40000      1    Local",

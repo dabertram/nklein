@@ -8,7 +8,14 @@
  * Selection (which model / size cap) is the caller's (the model-lab sweep); this runner just makes the load SAFE.
  */
 
-import { buildLmsLoadArgs, buildLmsUnloadArgs, parseLmsPs, type ResidentModel } from "./lms-model-control";
+import {
+	buildLmsLoadArgs,
+	buildLmsUnloadArgs,
+	MIN_CONTEXT_WINDOW_TOKENS,
+	parseLmsPs,
+	type ResidentModel,
+} from "./lms-model-control";
+import { planLoadContextLength } from "./load-context-plan";
 import {
 	assessModelSuitability,
 	DEFAULT_MODEL_SUITABILITY_POLICY,
@@ -45,6 +52,13 @@ export interface LoadExclusiveInput {
 	contextLength?: number;
 	/** The model's max context capability (caps `contextLength`). */
 	maxContextLength?: number;
+	/**
+	 * OPT-IN context right-sizing (§5.AQ-G — the #1 VRAM lever). When set (together with `maxContextLength`), the load
+	 * context is computed by `planLoadContextLength` — fit the task, never below the ≥32k floor, capped at the model max
+	 * — instead of `contextLength`/the 40k default, so a small task doesn't load a 262k window and waste ~GBs of KV cache.
+	 * Inert when omitted: existing callers keep the fixed-context behavior unchanged.
+	 */
+	taskNeededTokens?: number;
 	/** Candidate on-disk size in bytes (from `lms ls`); a conservative default is used when omitted. */
 	candidateSizeBytes?: number;
 	/** Identifiers to NEVER unload (the user's pinned set; embeddings are auto-kept regardless). */
@@ -131,8 +145,18 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 		return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason, suitability };
 	}
 
+	// §5.AQ-G context right-sizing: opt-in (taskNeededTokens + maxContextLength) → fit the task within [floor, max];
+	// otherwise the existing fixed-context behavior. Inert by default (no existing caller passes taskNeededTokens).
+	const loadContextLength =
+		input.taskNeededTokens !== undefined && input.maxContextLength !== undefined
+			? planLoadContextLength({
+					taskNeededTokens: input.taskNeededTokens,
+					maxContextLength: input.maxContextLength,
+					minContextFloor: MIN_CONTEXT_WINDOW_TOKENS,
+				})
+			: (input.contextLength ?? DEFAULT_CONTEXT_LENGTH);
 	const argv = buildLmsLoadArgs(input.modelId, {
-		contextLength: input.contextLength ?? DEFAULT_CONTEXT_LENGTH,
+		contextLength: loadContextLength,
 		maxContextLength: input.maxContextLength,
 		gpu: "max",
 	});
