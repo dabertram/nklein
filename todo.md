@@ -4373,10 +4373,15 @@ deep analysis:
           narrated to the deadline. **FIX:** broadened the pattern in
           [decomposition-stall-nudger.ts](src/nklein-agent/decomposition-stall-nudger.ts) to catch the decompose-intent
           tells (let me decompose / decompose this into / clear picture of the spec / I'll decompose …), validated to
-          still reject ordinary impl prose; +2 tests (6 total), tsc+biome green. **Still owed (next live step):** re-run
-          plan-mode C1 on the driver to confirm the nudge now FIRES and whether the cancel+reprompt actually recovers the
-          decompose emit (if it fires but the model still won't emit, THEN the constrained force-emit via
-          `buildConstrainedToolCallSchema` is the justified next rung).
+          still reject ordinary impl prose; +2 tests (6 total), tsc+biome green. **Fix landed but NOT yet validated
+          end-to-end:** 3 plan-mode re-runs (nudger armed) each failed differently and NONE reached a clean
+          narration→nudge→reprompt→emit cycle — run A narrated (pre-fix phrasing, the case the fix targets), run B only
+          read before the deadline, run C died on an `Agent error: Body Timeout Error` transient (§5.AF signal-3). ⇒ the
+          `verify-decompose-isolation` harness is NOT a reliable decompose-COMPLETION oracle under Low Power. **Next
+          (when resumed): build a dedicated decompose-COMPLETION harness** that waits on the `decompose_project` emit
+          (not an isolation deadline), RETRIES transient body/headers timeouts (ties §5.AF durable scheduler), and gives
+          the full nudge cycle time — THEN measure whether the broadened nudge recovers the driver; only if it fires but
+          the model still won't emit is the constrained force-emit (`buildConstrainedToolCallSchema`) the justified rung.
 - [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
   - [ ] Build phase (a) prompt: explicit "reason about which tool → explain decision"
   - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
