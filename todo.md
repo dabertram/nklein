@@ -5875,8 +5875,12 @@ deep analysis:
       ALREADY computes + records per-task `tokensPerSec` + `ttftMs` (`nklein-ledger-attempt.ts`), and the agent path runs
       through the SDK on `/v1` — so real `/api/v0` stats would need a SEPARATE probe call per task (extra latency) for a
       marginal gain over the already-recorded computed speed. ⇒ `dev model-speed` is the right surface for on-demand real
-      stats; no live-path auto-wiring. **Still owed:** thread `reasoningTokens` to the §5.AF ledger attempt too (already
-      consumed by the chat truncation rung). Also `/api/v0/models` `arch`/`quantization`/`max_context_length` give a SOLID
+      stats; no live-path auto-wiring. **reasoningTokens → ledger: DEFERRED on purpose (2026-06-29, §4A "no speculative
+      persisted schema ahead of consumers").** It's already CONSUMED where it matters (the chat truncation rung). Recording
+      it on the §5.AF `attempt` event hits a GRAIN mismatch — an attempt spans MULTIPLE model turns but `reasoningTokens` is
+      per-turn — so a clean producer is the future per-model-CALL ledger writer, not the per-attempt chat/terminal writers.
+      Adding the schema field now (built it, then reverted) would be an unconsumed persisted field, which §4A forbids. Land
+      it WITH the per-call writer. Also `/api/v0/models` `arch`/`quantization`/`max_context_length` give a SOLID
       model-class signal (replacing the §5.AE `modelClassCap` capability-threshold heuristic with arch/size facts).
 - [x] **Anthropic `/v1/messages` force-a-call — INVESTIGATED & REJECTED (2026-06-29).** Hypothesis was that
       `tool_choice:{type:"any"}` forces a call; live re-verify DISPROVED it on LM Studio (`stop_reason:end_turn`, no call, on
