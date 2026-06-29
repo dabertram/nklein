@@ -27,6 +27,7 @@ import {
 	markDurableJob,
 	replayDurableJobs,
 } from "./durable-scheduler";
+import { isTransientNetworkError } from "./transient-error";
 
 /** The lease a `dispatch` carries — enough for the runtime to start the card and bound its heartbeat. */
 export interface DurableDispatch {
@@ -84,7 +85,10 @@ export class DurableRunController {
 		config: DurableRunConfig,
 		ports: DurableRunPorts,
 	): Promise<DurableRunController> {
-		const replayed = replayDurableJobs(initialJobs, log, { reclaimBackoffMs: config.reclaimBackoffMs });
+		const replayed = replayDurableJobs(initialJobs, log, {
+			reclaimBackoffMs: config.reclaimBackoffMs,
+			maxAttempts: config.maxAttempts,
+		});
 		const controller = new DurableRunController(replayed, config, ports);
 		await controller.reclaimOrphanedLeases();
 		return controller;
@@ -128,16 +132,20 @@ export class DurableRunController {
 	}
 
 	/**
-	 * Record a worker's terminal report for its leased job (`succeeded` / `failed`) — persist a `completed` entry and
-	 * apply it. A no-op for an unknown/terminal job. The runtime should `tick()` afterwards to schedule freed dependents.
+	 * Record a worker's report for its leased job — persist a `completed` entry and apply it. A no-op for an
+	 * unknown/terminal job. The runtime should `tick()` afterwards to schedule freed dependents. §5.AF: when a `failed`
+	 * report carries a TRANSIENT error (`isTransientNetworkError` — a body/headers timeout / connection blip / 5xx),
+	 * it is recorded as `transient_retry` so the job retries (back to `ready`, one attempt burnt) instead of parking —
+	 * the lease-layer survivability for the SWARM/agent path, whose SDK model call can't itself be wrapped (#4).
 	 */
-	async reportCompletion(jobId: string, outcome: "succeeded" | "failed"): Promise<void> {
+	async reportCompletion(jobId: string, outcome: "succeeded" | "failed", error?: unknown): Promise<void> {
 		const job = this.jobs.find((candidate) => candidate.jobId === jobId);
 		if (!job || job.state === "succeeded" || job.state === "failed") {
 			return;
 		}
-		await this.ports.appendLog({ kind: "completed", jobId, outcome });
-		this.jobs = markDurableJob(this.jobs, jobId, outcome);
+		const effectiveOutcome = outcome === "failed" && isTransientNetworkError(error) ? "transient_retry" : outcome;
+		await this.ports.appendLog({ kind: "completed", jobId, outcome: effectiveOutcome });
+		this.jobs = markDurableJob(this.jobs, jobId, effectiveOutcome, this.config.maxAttempts);
 	}
 
 	/**

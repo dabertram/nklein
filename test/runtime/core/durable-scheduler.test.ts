@@ -253,3 +253,26 @@ describe("summarizeDurableRun", () => {
 		expect(summary).toMatchObject({ total: 0, progress: 0, complete: true, leased: [], failed: [] });
 	});
 });
+
+describe("markDurableJob — transient_retry (§5.AF)", () => {
+	it("returns a leased job to ready (one attempt burnt) when budget remains", () => {
+		const jobs = [job({ jobId: "a", state: "leased", lease: { workerId: "w", expiresAt: 9999 }, attempts: 1 })];
+		const [a] = markDurableJob(jobs, "a", "transient_retry", 3);
+		expect(a).toMatchObject({ state: "ready", lease: null, attempts: 2, nextEligibleAt: 0 });
+	});
+
+	it("FAILS the job instead of retrying once the attempt would reach maxAttempts (bounds a flaky endpoint)", () => {
+		const jobs = [job({ jobId: "a", state: "leased", lease: { workerId: "w", expiresAt: 9999 }, attempts: 2 })];
+		const [a] = markDurableJob(jobs, "a", "transient_retry", 3); // attempts+1 = 3 >= 3 → fail
+		expect(a).toMatchObject({ state: "failed", lease: null });
+	});
+
+	it("replays deterministically: a transient_retry log entry folds to the same state with the same maxAttempts", () => {
+		const initial = [job({ jobId: "a", state: "leased", lease: { workerId: "w", expiresAt: 9999 }, attempts: 1 })];
+		const log = [{ kind: "completed" as const, jobId: "a", outcome: "transient_retry" as const }];
+		const once = replayDurableJobs(initial, log, { reclaimBackoffMs: 100, maxAttempts: 3 });
+		const twice = replayDurableJobs(initial, log, { reclaimBackoffMs: 100, maxAttempts: 3 });
+		expect(once).toEqual(twice);
+		expect(once[0]).toMatchObject({ state: "ready", attempts: 2 });
+	});
+});

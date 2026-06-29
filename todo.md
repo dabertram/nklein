@@ -5565,9 +5565,14 @@ deep analysis:
       `LocalLlmClient.complete()` — the non-streaming chat/structured model call retries transient timeouts/5xx (502/503),
       bounded, fresh timeout per attempt, with caller-cancel + hard-timeout + 4xx/500 NOT retried (behavior-preserving;
       17 client tests green). The multi-card harness board-poll was ALREADY resilient (consecutive-error window).
-      **Owed (focused/gated):** the STREAMING chat path (mid-stream retry is unsafe — needs replay design) and the
-      SWARM/agent model call (inside the vendored SDK — must stay #4-upstream-clean, so retry belongs at the
-      durable-scheduler/lease layer, not in the SDK).
+      **LEASE-LAYER (SWARM path) DONE (2026-06-29):** the durable controller's `reportCompletion(jobId, "failed", error)`
+      now classifies a TRANSIENT error → records a `transient_retry` (new `completed` outcome) so the job returns to
+      `ready` (one attempt burnt, eligible next tick — NO clock, so replay stays deterministic) instead of parking;
+      bounded by `maxAttempts`. Threaded through `markDurableJob` + `replayDurableJobs` (maxAttempts) + the ledger
+      adapter (write+read), with replay-determinism + ledger round-trip tests (caught+fixed a read-side bug that dropped
+      `transient_retry`). +6 tests. This is the SWARM/agent survivability (its SDK model call can't be wrapped, #4).
+      **Owed (focused):** the STREAMING chat path (mid-stream retry unsafe — needs replay design); and the live wiring of
+      the durable controller itself into the runtime (the C3 turn-key-kit integration, separately tracked).
 - [~] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one

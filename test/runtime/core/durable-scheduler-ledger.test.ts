@@ -73,6 +73,13 @@ describe("readDurableSchedulerLog", () => {
 		expect(readDurableSchedulerLog(events)).toEqual(log);
 	});
 
+	it("round-trips a transient_retry completion (write → read = identity) — §5.AF", () => {
+		const entry: DurableSchedulerLogEntry = { kind: "completed", jobId: "a", outcome: "transient_retry" };
+		const event = durableLogEntryToSchedulerEvent(entry, { ...env, eventId: "ev-tr", recordedAt: 105 });
+		expect(event).toMatchObject({ event: "completed", taskId: "a", detail: "transient_retry" });
+		expect(readDurableSchedulerLog([event])).toEqual([entry]);
+	});
+
 	it("orders by recordedAt regardless of input order, and ignores foreign families + informational events", () => {
 		// A deliberately-shuffled, mixed stream.
 		const shuffled = [

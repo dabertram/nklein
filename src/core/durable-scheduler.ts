@@ -214,19 +214,31 @@ export function applyDurableSchedulerActions(
 }
 
 /**
- * Record an external completion for a leased job: the worker finished it (`succeeded`) or it hit a terminal failure
- * (`failed`, e.g. the §5.AA retry ladder parked it). A no-op if the job isn't found or is already terminal.
+ * Record an external completion for a leased job: the worker finished it (`succeeded`), it hit a terminal failure
+ * (`failed`, e.g. the §5.AA retry ladder parked it), or it failed on a TRANSIENT error (`transient_retry`, §5.AF — a
+ * body/headers timeout / connection blip / 5xx). A transient failure is NOT terminal: the job drops its lease and
+ * returns to `ready` (eligible next tick — no clock, so replay stays deterministic), burning ONE attempt so a
+ * persistently-flaky endpoint still reaches `maxAttempts` and fails rather than looping forever. A no-op if the job
+ * isn't found or is already terminal.
  */
 export function markDurableJob(
 	jobs: readonly DurableJob[],
 	jobId: string,
-	outcome: "succeeded" | "failed",
+	outcome: "succeeded" | "failed" | "transient_retry",
+	maxAttempts = Number.MAX_SAFE_INTEGER,
 ): DurableJob[] {
-	return jobs.map((job) =>
-		job.jobId === jobId && job.state !== "succeeded" && job.state !== "failed"
-			? { ...job, state: outcome, lease: null }
-			: job,
-	);
+	return jobs.map((job) => {
+		if (job.jobId !== jobId || job.state === "succeeded" || job.state === "failed") {
+			return job;
+		}
+		if (outcome === "transient_retry") {
+			const attempts = job.attempts + 1;
+			return attempts >= Math.max(1, Math.trunc(maxAttempts))
+				? { ...job, state: "failed", lease: null }
+				: { ...job, state: "ready", lease: null, attempts, nextEligibleAt: 0 };
+		}
+		return { ...job, state: outcome, lease: null };
+	});
 }
 
 /** True when every job is terminal (`succeeded`/`failed`) — the run is finished and the scheduler can stop ticking. */
@@ -347,7 +359,7 @@ export function buildDurableJobGraph(input: DurableJobGraphInput): DurableJob[] 
  */
 export type DurableSchedulerLogEntry =
 	| { kind: "scheduled"; now: number; action: DurableSchedulerAction }
-	| { kind: "completed"; jobId: string; outcome: "succeeded" | "failed" };
+	| { kind: "completed"; jobId: string; outcome: "succeeded" | "failed" | "transient_retry" };
 
 /**
  * Rebuild the current job state from the initial graph + the ordered log — the **boot-replay** that lets a restarted
@@ -359,7 +371,7 @@ export type DurableSchedulerLogEntry =
 export function replayDurableJobs(
 	initialJobs: readonly DurableJob[],
 	log: readonly DurableSchedulerLogEntry[],
-	options: { reclaimBackoffMs: number },
+	options: { reclaimBackoffMs: number; maxAttempts?: number },
 ): DurableJob[] {
 	let jobs: DurableJob[] = initialJobs.map((job) => ({ ...job }));
 	for (const entry of log) {
@@ -369,7 +381,7 @@ export function replayDurableJobs(
 						now: entry.now,
 						reclaimBackoffMs: options.reclaimBackoffMs,
 					})
-				: markDurableJob(jobs, entry.jobId, entry.outcome);
+				: markDurableJob(jobs, entry.jobId, entry.outcome, options.maxAttempts);
 	}
 	return jobs;
 }

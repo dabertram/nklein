@@ -64,6 +64,34 @@ describe("DurableRunController", () => {
 		expect(replayDurableJobs(graph, log, { reclaimBackoffMs: 0 })).toEqual(controller.jobsSnapshot());
 	});
 
+	it("a TRANSIENT failure retries the card (back to ready, re-dispatched) instead of parking it (§5.AF)", async () => {
+		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const { ports, log, dispatches } = fakePorts();
+		const controller = new DurableRunController(graph, config, ports);
+		await controller.tick(); // a leased + dispatched (attempts 1)
+		expect(dispatches.map((d) => d.jobId)).toEqual(["a"]);
+
+		// Worker reports failed with a transient (body-timeout) error → recorded transient_retry → a returns to ready.
+		await controller.reportCompletion("a", "failed", new Error("Body Timeout Error"));
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "ready", attempts: 2 });
+
+		await controller.tick(); // re-dispatched
+		expect(dispatches.map((d) => d.jobId)).toEqual(["a", "a"]);
+		// Replays to the same state (the transient_retry entry is in the log).
+		expect(replayDurableJobs(graph, log, { reclaimBackoffMs: 0, maxAttempts: config.maxAttempts })).toEqual(
+			controller.jobsSnapshot(),
+		);
+	});
+
+	it("a NON-transient failure parks the card (failed)", async () => {
+		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const { ports } = fakePorts();
+		const controller = new DurableRunController(graph, config, ports);
+		await controller.tick();
+		await controller.reportCompletion("a", "failed", new Error("Type validation failed"));
+		expect(controller.jobsSnapshot()[0]).toMatchObject({ state: "failed" });
+	});
+
 	it("reclaims an expired lease and re-dispatches the card within the attempt budget", async () => {
 		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
 		const fake = fakePorts({ startNow: 0 });
