@@ -43,8 +43,12 @@ export const DECOMPOSITION_CHAT_NUDGE_LIMIT = 2;
  * Pattern that, when found in a running assistant delta, indicates a chat-only decomposition
  * prose response rather than a tool call. Matches `DECOMPOSITION_CHAT_REPORT_PATTERN`.
  */
+// Broadened 2026-06-29 (live C1 finding): the driver narrates decompose intent in prose phrasings the old pattern
+// missed ("Let me decompose this into cards", "I have a clear picture of the spec") so the nudge never fired and the
+// model ran to the deadline. Added the high-signal decompose-intent tells (let me decompose / decompose this into /
+// clear picture of the spec / I'll decompose …) on top of the original report/plan tells.
 const DECOMPOSITION_CHAT_REPORT_PATTERN =
-	/\b(?:decompose_project|decompose this project|decomposition tool|based on my (?:analysis|review)|current (?:state|codebase state)|specification summary|implementation plan|task graph|domain analysis)\b/i;
+	/\b(?:decompose_project|decompose this (?:project|into)|decompose the (?:project|spec|specification|codebase)|let me decompose|i(?:'ll| will| am going to|'m going to| can) decompose|i(?:'ve| have) a clear picture|clear picture of the spec|decomposition tool|based on my (?:analysis|review)|current (?:state|codebase state)|specification summary|implementation plan|task graph|domain analysis)\b/i;
 
 /**
  * True when the task is *running* and the latest assistant delta looks like a chat-only

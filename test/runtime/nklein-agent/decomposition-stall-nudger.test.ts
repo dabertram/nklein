@@ -44,6 +44,25 @@ describe("isChatOnlyDecompositionActivity", () => {
 		).toBe(true);
 	});
 
+	it("flags the driver's actual decompose-narration phrasings (2026-06-29 live C1 finding)", () => {
+		// These ran to the deadline WITHOUT a decompose call because the old pattern missed them.
+		for (const text of [
+			"The spec is small: a local habit tracker with CRUD, check-ins, streaks. Let me decompose this into cards.",
+			"Good — I have a clear picture of the spec and current skeleton codebase. Let me decompose this into dependency-ordered cards.",
+		]) {
+			expect(isChatOnlyDecompositionActivity(summary(activity({ finalMessage: text })))).toBe(true);
+		}
+	});
+
+	it("does NOT flag ordinary implementation prose (no false positive)", () => {
+		for (const text of [
+			"I read the file and edited storage.ts to add a function.",
+			"Running the tests now to verify the change.",
+		]) {
+			expect(isChatOnlyDecompositionActivity(summary(activity({ activityText: text })))).toBe(false);
+		}
+	});
+
 	it("is false when the model is actually calling decompose_project", () => {
 		expect(
 			isChatOnlyDecompositionActivity(

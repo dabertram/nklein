@@ -4356,18 +4356,21 @@ deep analysis:
     - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
     - [ ] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
     - [ ] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing models.
-    - [ ] **(challenge: C1, 2026-06-29) FIRST verify the existing decompose stall-nudger under plan-mode — do NOT build
-          a new rung yet.** Two C1 scouts of `qwopus3.6-27b-v2-mlx` showed it narrating decompose intent without emitting
-          `decompose_project` — BUT (corrected, same day) that was a **harness artifact**: `verify-decompose-isolation.mts`
-          omits `startInPlanMode`, and the production `DecompositionStallNudger` (25s chat-nudge + turn-end recovery, the
-          mechanism that ALREADY targets this exact narrate-instead-of-emit shape) only arms when
-          `startInPlanMode === true` ([nklein-task-session-service.ts:1680](src/nklein-agent/nklein-task-session-service.ts#L1680)).
-          So the recovery path was never engaged. **Do this in order:** (a) run a decompose-COMPLETION test WITH
-          `startInPlanMode: true` (patch the isolation harness or add a `verify-decompose-completion` that waits for the
-          `decompose_project` emit) so the nudger is active; (b) if the driver STILL doesn't emit after the nudger's
-          chat-nudge + turn-end re-prompts, THEN consider strengthening the nudger (e.g. its chat-only pattern missed
-          "let me decompose this into…"; or a constrained force-emit via `buildConstrainedToolCallSchema` as the final
-          nudge) — but only if proven necessary. Don't build a redundant rung before (a).
+    - [x] **(challenge: C1, 2026-06-29) ROOT-CAUSED + FIXED the decompose stall-nudger detection gap.** Methodically,
+          without over-claiming: (1) the first scouts ran WITHOUT `startInPlanMode` so the nudger wasn't even armed
+          (harness artifact — added env-gated `NKLEIN_VERIFY_PLAN_MODE` to fix the harness); (2) a plan-mode re-run
+          (nudger ARMED, confirmed: `isExplicitDecompositionPrompt` matches the prompt) STILL didn't decompose; (3)
+          deterministically tested the regex — `DECOMPOSITION_CHAT_REPORT_PATTERN` did **not match** the driver's actual
+          narration ("Let me decompose this into cards", "I have a clear picture of the spec"), so the 25s chat-nudge
+          never scheduled (the scheduler gates on `isChatOnlyDecompositionActivity`,
+          [nklein-task-session-service.ts:3305](src/nklein-agent/nklein-task-session-service.ts#L3305)) → the model
+          narrated to the deadline. **FIX:** broadened the pattern in
+          [decomposition-stall-nudger.ts](src/nklein-agent/decomposition-stall-nudger.ts) to catch the decompose-intent
+          tells (let me decompose / decompose this into / clear picture of the spec / I'll decompose …), validated to
+          still reject ordinary impl prose; +2 tests (6 total), tsc+biome green. **Still owed (next live step):** re-run
+          plan-mode C1 on the driver to confirm the nudge now FIRES and whether the cancel+reprompt actually recovers the
+          decompose emit (if it fires but the model still won't emit, THEN the constrained force-emit via
+          `buildConstrainedToolCallSchema` is the justified next rung).
 - [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
   - [ ] Build phase (a) prompt: explicit "reason about which tool → explain decision"
   - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
