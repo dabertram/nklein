@@ -107,3 +107,43 @@ describe("runDevTestProject", () => {
 		expect(result.polls).toBeLessThan(10);
 	});
 });
+
+describe("runDevTestProject — session-activity-aware settle (slow-turn guard, §5.AI)", () => {
+	function planningWithActivity(activeSessionCount: number): DevTestStateRead {
+		return {
+			runtimeReachable: true,
+			activeSessionCount,
+			board: { columns: [{ id: "planning", cards: [{}] }] },
+		};
+	}
+
+	it("does NOT settle 'stagnant' while a session is actively processing, even with an unchanged board", async () => {
+		// Board stays planning:1 throughout (e.g. a slow decompose turn under Low Power). While the session is active
+		// (3 reads) the monitor must NOT accumulate toward settle; only after it goes inactive do unchanged polls count.
+		const reads = [
+			planningWithActivity(1),
+			planningWithActivity(1),
+			planningWithActivity(1),
+			planningWithActivity(0),
+			planningWithActivity(0),
+			planningWithActivity(0),
+		];
+		const deps = makeDeps(reads);
+		const result = await runDevTestProject(
+			{ scenario: SCENARIO, seedTaskId: "s", baseRef: "main", stablePollsUntilSettled: 2 },
+			deps,
+		);
+		// Did not settle during the 3 active polls; only the unchanged+inactive polls settle it ⇒ at least 5 polls.
+		expect(result.polls).toBeGreaterThanOrEqual(5);
+		expect(result.classification.outcome).not.toBe("completed");
+	});
+
+	it("still settles promptly on an unchanged board when NO session is active", async () => {
+		const deps = makeDeps([planningWithActivity(0)]);
+		const result = await runDevTestProject(
+			{ scenario: SCENARIO, seedTaskId: "s", baseRef: "main", stablePollsUntilSettled: 2 },
+			deps,
+		);
+		expect(result.polls).toBeLessThanOrEqual(3);
+	});
+});

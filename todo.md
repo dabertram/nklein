@@ -3966,6 +3966,28 @@ deep analysis:
 >   one-shot trustworthy harness: have it scaffold the scenario into the `--project-path` when absent (or document that the
 >   path must be a pre-scaffolded scenario / use `dev smoke-eval` which already scaffolds). The earlier `runNKleinDevSmokeEval`
 >   path may already be the right isolated harness — prefer it for clean verification until `dev test-project` scaffolds.
+> - **★★★ THE REAL ROOT CAUSE (2026-06-29) — the "stagnation" was a MONITOR-SETTLE ARTIFACT, not a workflow stall.** With
+>   scaffold + seed + isolation ALL fixed, a clean one-shot `dev test-project --preset mid_task` (auto-scaffolded) still
+>   reported `stagnant` (seed card in planning, no decompose) after 7 polls — BUT checking `lms ps` the instant it
+>   returned showed the 27B status = **`PROCESSINGPROMPT`**: the model was STILL actively running the decompose turn. The
+>   monitor settles after `stablePolls`(6) × `pollInterval` unchanged polls (~120s); a single 27B decompose turn, ESPECIALLY
+>   under Low Power, takes LONGER than that — so the board sits unchanged (card "thinking" in planning) and the monitor
+>   declares a false `stagnant` while the model is mid-turn. **⇒ Every "stagnant" observation this session is most likely
+>   this artifact (a too-short settle window vs. a slow single turn), NOT a real swarm/decompose bug.** The whole
+>   thread-(a)/(b) stagnation investigation is explained: contaminated workspace + no seed + no scaffold + premature settle.
+>   **FIX (owed, the real one):** make the dev-test monitor power-aware AND session-activity-aware — do NOT count a poll
+>   toward "settled" while a session is actively processing (query model/session status), and/or scale `stablePolls`/
+>   `pollInterval` by the §`power-aware-timeout` mode (Low Power ⇒ much longer settle). Until then, use a LARGE
+>   `--poll-interval-ms` + high stablePolls for slow models.
+> - **✅ MONITOR FIX SHIPPED (2026-06-29) — session-activity-aware settle.** The dev-test monitor no longer accumulates
+>   toward "settled/stagnant" while a session is actively processing: `DevTestStateRead` gained `activeSessionCount`, the
+>   CLI reader populates it from `getState().sessions` via `countActiveAgentSessions` (running + queued), and the monitor
+>   resets the unchanged-poll counter whenever `activeSessionCount > 0` — so a slow model mid-turn (decompose under Low
+>   Power) keeps the run alive instead of a false stall. It still settles promptly on a genuinely idle unchanged board.
+>   +2 unit tests (slow-turn guard + idle-still-settles); harness suite green. This is the real fix for the whole
+>   "stagnation" saga. **Live confirmation owed:** a fresh one-shot `dev test-project` should now ride out the slow 27B
+>   decompose to real children/completion (was about to be confirmed via a direct watch — the 27B was still
+>   PROCESSINGPROMPT minutes in, so the monitor giving up was indeed the artifact).
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s

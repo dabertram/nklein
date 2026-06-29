@@ -61,6 +61,12 @@ export interface DevTestStateRead {
 	runtimeReachable: boolean;
 	/** Optional count of failed sessions the column derivation cannot see. */
 	failedCardCount?: number;
+	/**
+	 * Optional count of sessions doing in-flight LLM work right now (`running` + `queued`). When > 0 the run is NOT
+	 * settled even if the board counts are unchanged — a model mid-turn (e.g. a slow decompose under Low Power) keeps the
+	 * board static for minutes, which previously tripped the "unchanged ⇒ stagnant" settle and produced a FALSE stall.
+	 */
+	activeSessionCount?: number;
 }
 
 export interface DevTestHarnessDeps {
@@ -145,7 +151,10 @@ export async function runDevTestProject(
 			break;
 		}
 		const key = countsKey(counts);
-		if (key === lastKey) {
+		// A session actively working (running/queued) means progress is in-flight even when the board count is static —
+		// so do NOT accumulate toward "settled" while one is processing (the fix for the false-stagnant-on-a-slow-turn).
+		const sessionActive = (state.activeSessionCount ?? 0) > 0;
+		if (key === lastKey && !sessionActive) {
 			unchangedPolls += 1;
 			if (unchangedPolls >= stablePolls) {
 				break;

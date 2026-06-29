@@ -37,6 +37,7 @@ import {
 } from "../core/runtime-model-verdict";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { addTaskToColumn } from "../core/task-board-mutations";
+import { countActiveAgentSessions } from "../core/task-session-api-contract";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
@@ -298,6 +299,13 @@ async function executeDevTestPreset(input: {
 	const readState = createDevTestStateReader({
 		readLiveBoard: async () => (await input.client.workspace.getState.query()).board,
 		readPersistedBoard: async () => await loadWorkspaceBoardById(input.workspaceId),
+		// Count in-flight sessions (running + queued) so the monitor doesn't settle "stagnant" while a slow model turn
+		// (e.g. a decompose under Low Power) keeps the board static for minutes (§5.AI).
+		readActiveSessionCount: async () => {
+			const sessions = Object.values((await input.client.workspace.getState.query()).sessions ?? {});
+			const counts = countActiveAgentSessions(sessions);
+			return counts.running + counts.queued;
+		},
 	});
 	const startedAt = Date.now();
 	const result = await runDevTestProject(

@@ -25,6 +25,8 @@ export interface CreateDevTestStateReaderDeps {
 	readPersistedBoard(): Promise<DevTestBoardLike>;
 	/** Optional count of failed sessions the column derivation cannot see (live runtime only). */
 	readFailedCardCount?(): Promise<number>;
+	/** Optional count of sessions doing in-flight LLM work (running + queued); keeps the monitor from settling mid-turn. */
+	readActiveSessionCount?(): Promise<number>;
 }
 
 export function createDevTestStateReader(deps: CreateDevTestStateReaderDeps): () => Promise<DevTestStateRead> {
@@ -34,10 +36,14 @@ export function createDevTestStateReader(deps: CreateDevTestStateReaderDeps): ()
 			const failedCardCount = deps.readFailedCardCount
 				? await deps.readFailedCardCount().catch(() => undefined)
 				: undefined;
+			const activeSessionCount = deps.readActiveSessionCount
+				? await deps.readActiveSessionCount().catch(() => undefined)
+				: undefined;
 			return {
 				board,
 				runtimeReachable: true,
 				...(typeof failedCardCount === "number" ? { failedCardCount } : {}),
+				...(typeof activeSessionCount === "number" ? { activeSessionCount } : {}),
 			};
 		} catch {
 			// The runtime went away mid-run; classify from the last durable board we can still read.
