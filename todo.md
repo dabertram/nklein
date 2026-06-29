@@ -4786,9 +4786,11 @@ deep analysis:
         `parseLlmfitRecommend` (`{models:[…], system}`) + `parseLlmfitModel` + `parseLlmfitSystemReport` over the real
         captured shapes (fields: name/bestQuant/fitLevel/memoryRequiredGb/estimatedTps/isMoe/moeOffloadedGb/installed/
         contextLength/capabilityIds/license), plus `llmfitFitClears` (Perfect|Good ⇒ load-OK, else/unknown ⇒ no) and
-        `llmfitClaimsToolUse` (capability pre-filter). 6 tests (real fixtures). **Still owed:** the thin effectful runner
-        (`uvx llmfit --json …` shell-out, mirroring the guarded `lms` runner) + `planModelFit(modelId,{contextLen,machine})`
-        / `recommendModels({machine,useCase})` passing `--memory/--ram` per pool.
+        `llmfitClaimsToolUse` (capability pre-filter). 6 tests. **RUNNER HALF ALSO DONE (2026-06-29):** injectable
+        `LlmfitRunner` + pure `buildLlmfitArgs` (global `--json`/`--memory`/`--ram`/`--cpu-cores`/`--max-context` BEFORE
+        the subcommand — carries the per-pool simulation) + `llmfitRecommend`/`llmfitSystem` (run → parse; empty on
+        non-zero exit / bad JSON). 9 tests total. **Still owed:** a DEFAULT runner that shells out to `uvx llmfit` (or a
+        resolved binary) + the wiring into `decideModelLoad` / §5.AB fitness / pool-routing.
   - [ ] feed llmfit's fit verdict into `decideModelLoad` (per-pool RAM/VRAM headroom) — supersede the `approxSizeGb` guess.
   - [ ] feed tok/s + score into the §5.AB fitness store + the pool-routing `predictedWallTimeMs`/`capabilityTier`.
   - [ ] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
@@ -5132,8 +5134,13 @@ deep analysis:
   - [ ] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed).
   - [ ] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow.
 - [ ] **Retrieval loop (query → search → fetch → extract → synthesize → CITE), decomposed:**
-  - [ ] Implement query formulation from task + `knowledgeDebt` (§5.B); test with simple + complex decompose cases.
-  - [ ] Wire search → fetch-top-hits loop via `web_search` + `browse_url` tools; test result ranking.
+  *(REFERENCE 2026-06-29: `llmaker` (Apache-2.0, https://github.com/raiyanyahya/llmaker) runs the explicit
+  `rewrite → retrieve → RERANK → generate` RAG DAG — borrow the **rerank** step (rank fetched hits by relevance before
+  synthesis) and its **SearXNG self-hosted search** (validates the §5.AC `web_search` SearxNG backend choice). Do NOT
+  integrate llmaker itself — it's a parallel Go+Python/LangGraph full-stack that overlaps what !Klein already is; borrow
+  the patterns only.)*
+  - [ ] Implement query formulation (a "rewrite" step) from task + `knowledgeDebt` (§5.B); test simple + complex cases.
+  - [ ] Wire search → fetch-top-hits loop via `web_search` + `browse_url` tools; **rerank hits by relevance** (llmaker pattern).
   - [ ] Implement extraction + synthesis of fetched content; test on varied content types.
   - [ ] Add source citation with freshness-judgment (reuse §5.AC `judgeRetrievedFreshness`).
   - [ ] Record retrieval attempts, results, and citations into knowledge/tool-usage telemetry (§6.7, §5.B signal).
