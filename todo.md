@@ -4736,9 +4736,13 @@ deep analysis:
       it), a pure classifier + gate ([model-class-cap.ts](src/core/model-class-cap.ts): `classifyModelClass` — cloud if
       non-local, else small/large by the registry capability threshold; `isModelAllowedByClassCap`), and a candidate
       filter in [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)'s role fan-out (no-op when unset ⇒
-      today's behavior unchanged). 8 unit tests. **Still owed:** enforce the cap at the routing DECISION (not just the
-      fan-out) + a per-role UI control; and the resolver/prompt-assembly consumer reading `effectiveSkillDynamicsLevel`
-      (now UNBLOCKED — see the model-loading authorization in §4A).
+      today's behavior unchanged). 8 unit tests. **UI CONTROL DONE (2026-06-29):** a per-role "Model class" dropdown (No
+      cap / Small only / Any local / Any) in the model-roles editor ([model-roles-editor.tsx](web-ui/src/components/model-roles-editor.tsx)),
+      writing `modelClassCap`; web gate green. **ENFORCEMENT:** the cap is enforced by EXCLUDING out-of-cap models from the
+      role's fan-out candidate set (so they can't be routed) — the meaningful mechanism. The only residual gap is the global
+      DEFAULT model (role-less, added outside the role loop), which isn't role-cap-scoped — minor + murky to "enforce" since
+      the default has no role; deferred. **Still owed:** the resolver/prompt-assembly consumer reading
+      `effectiveSkillDynamicsLevel` (now UNBLOCKED — see the model-loading authorization in §4A).
 - [ ] **Wire the composed fragments into the board + chat prompt assembly** (replacing today's hard-coded always-on blocks)
       → §5.AD arrangement orders them, §6.2 caps them. Each behind a live §5.Z re-verify (no regression; weak models should
       get *leaner, more relevant* prompts).
