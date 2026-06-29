@@ -6881,7 +6881,11 @@ deep analysis:
       the date ONLY where it's actually needed** (temporal/retriever tasks per §5.AE) — NOT into the common coding-prompt
       prefix (most prompts should carry NO date and keep a 100%-stable prefix); (3) when injected, put it in the volatile
       SUFFIX so it never breaks the cached prefix at all. Combined: the common case keeps a perfectly stable prefix, and
-      the rare date-bearing prompt loses at most a day's cache on its suffix.
+      the rare date-bearing prompt loses at most a day's cache on its suffix. **LANDED (2026-06-29):** (1) date-only is
+      now the DEFAULT in `buildTemporalAwarenessPrompt` (`<current_date>` block; `granularity:"datetime"` opt-in for the
+      rare clock-needing turn) + (2) conditional injection was already done (`isTemporalContextRelevant`). STILL OWED: (3)
+      move the block from the prompt TOP (it's currently the first system message → a daily change still re-prefills
+      everything below it) into the volatile SUFFIX, and wire `detectVolatilePrefixContent` into prompt assembly as a guard.
 - [ ] **E. Cache-HEALTH probe + adaptation playbook (caching FAILS SILENTLY + is engine/format-specific), decomposed.**
       Prefix caching only works on PURE full-attention models — **SWA / SSM-Mamba / mixed-attention silently fall back to
       full recompute** (MoE alone is fine). Real failures to be aware of: LM Studio #1697 (MLX GPT-OSS-20B broken, GGUF of
