@@ -127,7 +127,8 @@ describe("composeChatTurnContext", () => {
 		);
 		// The temporal block is the FIRST system note — before even the goal — so every model knows the real now.
 		expect(prompt[0]?.role).toBe("system");
-		expect(prompt[0]?.content).toContain("<current_datetime>");
+		// Default granularity is date-only (§5.AQ-D cache-aware: no per-minute prefix churn).
+		expect(prompt[0]?.content).toContain("<current_date>");
 		expect(prompt[0]?.content).toContain("2026-06-26");
 		expect(prompt[1]?.content).toContain("Ship it");
 		expect(prompt.at(-1)).toEqual({ role: "user", content: "hi" });

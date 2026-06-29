@@ -31,16 +31,27 @@ describe("resolveTemporalAwareness", () => {
 });
 
 describe("buildTemporalAwarenessPrompt", () => {
-	it("emits an authoritative, override-the-training-prior block", () => {
+	it("defaults to a DATE-ONLY block (cache-stable to the day — §5.AQ-D) with the override framing", () => {
 		const block = buildTemporalAwarenessPrompt(new Date("2026-06-26T21:05:00Z"));
-		expect(block).toContain("<current_datetime>");
-		expect(block).toContain("</current_datetime>");
+		expect(block).toContain("<current_date>");
+		expect(block).toContain("</current_date>");
 		expect(block).toContain("2026-06-26");
 		expect(block).toContain("tomorrow is 2026-06-27");
 		// The crux: frame the date as ground truth that overrides the model's stale training-cutoff date priors.
 		expect(block).toContain("cutoff in the PAST");
 		expect(block).toContain("ground truth");
 		expect(block.toLowerCase()).toContain("freshness");
+		// Cache-crucial: NO wall-clock time in the default block (a minute-level timestamp would churn the cache every turn).
+		expect(block).not.toContain("21:05");
+		expect(block).not.toContain("<current_datetime>");
+	});
+
+	it('includes the wall-clock time only when granularity:"datetime" is requested', () => {
+		const block = buildTemporalAwarenessPrompt(new Date("2026-06-26T21:05:00Z"), { granularity: "datetime" });
+		expect(block).toContain("<current_datetime>");
+		expect(block).toContain("21:05 UTC");
+		expect(block).toContain("2026-06-26");
+		expect(block).toContain("ground truth");
 	});
 });
 

@@ -67,23 +67,47 @@ export function resolveTemporalAwareness(now: Date): TemporalAwareness {
 	};
 }
 
+/** Temporal-block precision. `"date"` (default) is cache-stable to the day; `"datetime"` adds the wall-clock time. */
+export type TemporalGranularity = "date" | "datetime";
+
+// The freshness framing is identical across granularities — the model must treat the date as ground truth that
+// overrides its training-cutoff priors and use it to judge online-info freshness.
+const TEMPORAL_FRESHNESS_FRAMING: readonly string[] = [
+	"IMPORTANT: Your training data has a cutoff in the PAST relative to the date above. Do NOT assume that events,",
+	"releases, papers, or versions dated on or before this date are still in the future or have not happened — the",
+	"date above is ground truth and overrides any date assumptions from your training. When you use information from",
+	"online sources or your own memory, judge its freshness against this current date and prefer the most up-to-date",
+	"sources; if something you recall is likely outdated, say so and search for newer information.",
+];
+
 /**
- * The injectable system-prompt block. Wrapped in a `<current_datetime>` tag so it is unmistakable, and framed so the
- * model treats it as ground truth that OVERRIDES its training-cutoff date priors — and uses it to judge online-info
- * freshness. Wire this into every agent + chat turn (todo §5.AC).
+ * The injectable temporal system-prompt block. Framed so the model treats the date as ground truth that OVERRIDES its
+ * training-cutoff priors and uses it to judge online-info freshness (todo §5.AC). Wire it into agent + chat turns —
+ * relevance-gated via {@link isTemporalContextRelevant} (§5.AE JIT composition).
+ *
+ * DEFAULT granularity is `"date"` (date-only) — the §5.AQ-D cache-aware refinement: when this block IS injected it sits
+ * high in the prompt, so a full wall-clock timestamp would change every MINUTE and force a full prefix re-prefill on
+ * every turn (the openclaw #19892 class of cache outage). Date-only changes at most DAILY, so the cache survives within
+ * the day. Pass `granularity: "datetime"` ONLY for the rare turn that genuinely needs the wall-clock time.
  */
-export function buildTemporalAwarenessPrompt(now: Date): string {
+export function buildTemporalAwarenessPrompt(now: Date, options: { granularity?: TemporalGranularity } = {}): string {
 	const t = resolveTemporalAwareness(now);
+	if (options.granularity === "datetime") {
+		return [
+			"<current_datetime>",
+			`Authoritative current date/time (ground truth from the system clock): ${t.iso} — ${t.human}.`,
+			`Today is ${t.todayIso}; tomorrow is ${t.tomorrowIso}; yesterday was ${t.yesterdayIso}; the current year is ${t.year}.`,
+			...TEMPORAL_FRESHNESS_FRAMING,
+			"</current_datetime>",
+		].join("\n");
+	}
+	// Default: DATE-ONLY (cache-stable to the day) — no wall-clock time → no per-minute prefix churn.
 	return [
-		"<current_datetime>",
-		`Authoritative current date/time (ground truth from the system clock): ${t.iso} — ${t.human}.`,
-		`Today is ${t.todayIso}; tomorrow is ${t.tomorrowIso}; yesterday was ${t.yesterdayIso}; the current year is ${t.year}.`,
-		"IMPORTANT: Your training data has a cutoff in the PAST relative to the date above. Do NOT assume that events,",
-		"releases, papers, or versions dated on or before this date are still in the future or have not happened — the",
-		"date above is ground truth and overrides any date assumptions from your training. When you use information from",
-		"online sources or your own memory, judge its freshness against this current date and prefer the most up-to-date",
-		"sources; if something you recall is likely outdated, say so and search for newer information.",
-		"</current_datetime>",
+		"<current_date>",
+		`Authoritative current date (ground truth from the system clock): ${t.todayIso} (${t.weekday}); the current year is ${t.year}.`,
+		`Today is ${t.todayIso}; tomorrow is ${t.tomorrowIso}; yesterday was ${t.yesterdayIso}.`,
+		...TEMPORAL_FRESHNESS_FRAMING,
+		"</current_date>",
 	].join("\n");
 }
 
