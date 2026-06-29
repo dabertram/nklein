@@ -5550,6 +5550,12 @@ deep analysis:
       maps a session state to the controller call (awaiting_review→report succeeded, failed/interrupted→report failed with
       the error for transient classification, running→heartbeat, else none; 4 tests). So the remaining runtime-server
       plumbing is THIN: in `onSummary`, call the mapper → dispatch to the controller → `tick()` on a timer; then the live run.**
+      **LIFECYCLE LAYER DONE (2026-06-29):** [durable-run-registry.ts](src/core/durable-run-registry.ts) `DurableRunRegistry`
+      owns the per-workspace run lifecycle (register on decompose / get / dispose, auto-disposing a finished run) + the
+      `reactToTaskSummary(workspaceId, taskId, state, errorText)` dispatch (maps state→controller call → report+tick /
+      heartbeat; no-op for unknown ws / non-actionable state). 5 tests. So the runtime-server change is now reduced to:
+      build the ports (`createLedgerDurableRunPorts`, exists) + `registry.register` on decompose-applied + route `onSummary`
+      into `registry.reactToTaskSummary` + a tick timer — every piece around it is a tested pure/injectable core.
       **SCOUT FINDING (2026-06-28, `complex_dag`×qwen3-8b on the current non-durable pipeline):** decompose succeeded (13
       cards) but ~10 stayed in `planning` within 25 min → the gate is **wide-DAG THROUGHPUT + long-horizon transient
       survivability**, not worker death alone. Three signals structure the integration: (1) per-card latency × serial
