@@ -27,6 +27,12 @@ export interface TurnOutcomeSignals {
 	malformed?: boolean;
 	/** The turn ended on a timeout / iteration boundary with no usable output. */
 	timedOut?: boolean;
+	/**
+	 * The turn was TRUNCATED by the token budget (`finish_reason: "length"`) before producing a call — common for a
+	 * reasoning model that exhausts `maxTokens` on `reasoning_content` alone (live-confirmed with qwen3-8b, 2026-06-29).
+	 * This is a transient `aborted` (re-run with more budget), NOT a capability `no_tool_call`.
+	 */
+	truncated?: boolean;
 	/** The reply NARRATED a tool call in prose (a call-shaped phrase) without emitting a structured one. */
 	narratedCall?: boolean;
 }
@@ -34,8 +40,9 @@ export interface TurnOutcomeSignals {
 /**
  * Classify a finished model turn into the §5.AA outcome taxonomy (pure). Precedence puts the unambiguous signals first:
  * a turn that actually emitted a call is a `success` regardless of any prose around it; otherwise a hard transient
- * (timeout) → a degenerate loop → a malformed call → a narrated-but-unstructured call → a plain no-call when a tool was
- * expected; with no tool expected, a no-call turn is a legitimate direct answer (`success`).
+ * (timeout) → a budget TRUNCATION (`aborted` — re-run with more tokens) → a degenerate loop → a malformed call → a
+ * narrated-but-unstructured call → a plain no-call when a tool was expected; with no tool expected, a no-call turn is a
+ * legitimate direct answer (`success`).
  */
 export function classifyTurnOutcome(signals: TurnOutcomeSignals): ModelOutcomeKind {
 	if (signals.toolCallsEmitted > 0) {
@@ -43,6 +50,9 @@ export function classifyTurnOutcome(signals: TurnOutcomeSignals): ModelOutcomeKi
 	}
 	if (signals.timedOut) {
 		return "timeout";
+	}
+	if (signals.truncated) {
+		return "aborted";
 	}
 	if (signals.looped) {
 		return "loop";

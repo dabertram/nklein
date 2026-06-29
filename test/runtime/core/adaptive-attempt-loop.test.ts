@@ -14,9 +14,11 @@ describe("classifyTurnOutcome", () => {
 		);
 	});
 
-	it("maps the no-call failure modes by precedence (timeout → loop → malformed → narrated → no_tool_call)", () => {
+	it("maps the no-call failure modes by precedence (timeout → truncated → loop → malformed → narrated → no_tool_call)", () => {
 		const base = { toolCallsEmitted: 0, toolExpected: true };
-		expect(classifyTurnOutcome({ ...base, timedOut: true, looped: true })).toBe("timeout");
+		expect(classifyTurnOutcome({ ...base, timedOut: true, truncated: true })).toBe("timeout");
+		// A budget truncation (finish:length) is a transient `aborted` (re-run with more budget), NOT a no_tool_call.
+		expect(classifyTurnOutcome({ ...base, truncated: true, looped: true })).toBe("aborted");
 		expect(classifyTurnOutcome({ ...base, looped: true, malformed: true })).toBe("loop");
 		expect(classifyTurnOutcome({ ...base, malformed: true, narratedCall: true })).toBe("malformed");
 		expect(classifyTurnOutcome({ ...base, narratedCall: true })).toBe("narrated");
