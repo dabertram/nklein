@@ -259,3 +259,28 @@ export function taskSessionSummary(taskId: string, overrides: Record<string, unk
 		...overrides,
 	};
 }
+
+let workspaceRevisionClock = 1;
+
+/**
+ * Build a `workspace_state_updated` stream frame (a BOARD mutation — e.g. a card moved columns / a lane reconcile). The
+ * revision auto-advances so the reducer doesn't drop it as stale; pass `revision` to pin it.
+ */
+export function workspaceStateUpdatedFrame(
+	columns: BoardColumnFixture[],
+	options: { workspaceId?: string; sessions?: Record<string, unknown>; revision?: number } = {},
+): Record<string, unknown> {
+	workspaceRevisionClock += 1;
+	return {
+		type: "workspace_state_updated",
+		workspaceId: options.workspaceId ?? E2E_WORKSPACE_ID,
+		workspaceState: {
+			repoPath: "/home/user/project",
+			statePath: "/home/user/project/.nklein/state.json",
+			git: { currentBranch: "main", defaultBranch: "main", branches: ["main"] },
+			board: { columns, dependencies: [] },
+			sessions: options.sessions ?? {},
+			revision: options.revision ?? workspaceRevisionClock,
+		},
+	};
+}
