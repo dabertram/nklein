@@ -4607,6 +4607,14 @@ deep analysis:
       it's the *quality knee*. The runtime targets THIS budget (compact/summarize down to it) instead of filling the
       window. Surface in the model-telemetry panel. **Respects #3:** the ≥32k floor is the minimum a model may be used
       at; the learned budget is an operating target *at or below* the effective window, never below the floor.
+      **LEARNING CORE + CLI TELEMETRY DONE (2026-06-29):** the quality-knee is already learned —
+      `recordModelBehaviorOutcome` tracks `qualityEffectiveContextTokens` / `qualityDegradedAtTokens` and
+      `learnedQualityEffectiveBudget(profile)` ([model-behavior-profile.ts](src/core/model-behavior-profile.ts)) returns
+      the target budget (just below the known degradation point, else best-observed-good, never below the 32k floor). It is
+      now SURFACED: `nklein dev ledger` renders a "Per-model learned profile" section (success rate · learned retry budget ·
+      quality-effective budget · dominant failure mode · preferred tool-call format) from the ledger projection. **Still
+      owed:** the runtime CONSUMING it to compact/target down to the budget at prompt-assembly (behind a §5.Z re-verify),
+      eval-sweep probes (§5.AB harness), and the web Settings model-telemetry panel (the CLI surface is done).
 - [ ] **Distractor-aware retrieval pruning (per-model sensitivity).** Rank + prune repo-map / code-index / online
       results harder for models with high learned distractor sensitivity (similar-but-irrelevant context measurably
       hurts). Ties §6.7 retrieval + §5.AC online retrieval; feeds the arrangement policy's MIDDLE band.
