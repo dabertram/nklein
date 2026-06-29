@@ -6896,7 +6896,7 @@ deep analysis:
   - [ ] **Detection per runtime (don't trust one signal):** llama.cpp `timings.prompt_n`/`cache_n` + server "Cache reuse
         summary"; LM Studio `cached_tokens` is **UNRELIABLE (#778 — often unpopulated even when caching works)** → prefer the
         TTFT probe / server logs / `/v1/responses`. Record hit-rate on the §5.AF ledger.
-  - [ ] **Adaptation playbook:** prefer the cache-friendly VARIANT (MLX→GGUF for GPT-OSS) / route by architecture×engine;
+  - [~] **Adaptation playbook:** *(2026-06-29: PRE-filter done — `src/core/cache-friendly-arch.ts`: `classifyAttentionArchitecture` (full/swa/ssm from model id, most-broken-first) + `isLikelyCacheFriendly`; narrows before the live probe; 10 tests. Owed: the effectful routing + GGUF/MLX variant pick + the warn/fallback.)* prefer the cache-friendly VARIANT (MLX→GGUF for GPT-OSS) / route by architecture×engine;
         upgrade engine (mlx-engine ≥v1.8.5 256-tok checkpoints; llama.cpp `--checkpoint-every-n-tokens`); when a model's
         cache is broken AND the task is latency-sensitive, WARN + fall back to a cache-friendly model (reserve broken-cache
         models for short/one-shot calls); add a per-request TTFT/timeout WATCHDOG (the hang/OOM variants can freeze the box).
@@ -6916,12 +6916,12 @@ deep analysis:
         surface, cf. §5.AP). **LMCache** (vendor-neutral KV-cache daemon: compress/pin/persist KV to disk) is real but
         vLLM/raw-engine-oriented — it does NOT fit the LM Studio path; revisit ONLY if !Klein ever drives llama.cpp/vLLM
         directly (would also need a prime-directive review: extra daemon vs. local-only/Docker isolation).
-- [ ] **F. Small-model-safe context tools (NOT token-compression), decomposed:** summarization **compaction** + **tool-result
+- [~] **F. Small-model-safe context tools (NOT token-compression), decomposed:** *(2026-06-29: pure cores done — `src/core/context-compaction.ts`: `shouldCompact` (~80% threshold) + `planCompaction` (keep system+pinned+recent verbatim, DROP old raw tool output, summarize the rest); 12 tests. Owed: the effectful summarizer call + Provence-style pruning for §5.AC.)* summarization **compaction** + **tool-result
       clearing** for long agent loops (preserve decisions/bugs/state; drop raw tool output; high-recall-then-precision); and
       **query-aware pruning (Provence-style)** for the §5.AC retrieval path. Explicitly DO NOT adopt query-agnostic token
       compression / truncation as a primary lever (hurts weak models most).
 - [ ] **G. !Klein RESOURCE FRUGALITY audit (RAM/CPU/Disk/GPU/VRAM), decomposed — biggest wins first:**
-  - [ ] **VRAM/RAM #1 — right-size context per loaded model; never load at max.** KV cache is linear in context×layers; 128K
+  - [~] **VRAM/RAM #1 — right-size context per loaded model; never load at max.** *(2026-06-29: pure calculator done — `src/core/kv-cache-size.ts`: `kvCacheBytes` (exact formula) + `recommendContextLength` + `kvCacheSavingsBytes`; 13 tests. Owed: feed it the real per-task budget + the actual load-context knob.)* KV cache is linear in context×layers; 128K
         vs 8K can waste ~15 GB. Drive the loaded context-length from the task's actual need (ties §5.AB clamp + §5.AD budget + A/B above).
   - [ ] **VRAM — prefer Q8 KV-cache quant (+ flash attention)** where the runtime allows (−50% cache, <0.1% quality); avoid Q4 V-cache. Surface as a load knob.
   - [ ] **VRAM — avoid the spillover cliff** (weights+cache must stay in fast memory; spill → multi-× throughput collapse). Feed this into the load-headroom guard.
