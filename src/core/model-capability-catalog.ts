@@ -181,6 +181,17 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 	},
 	// ── Qwen ──────────────────────────────────────────────────────────────────────────────────────────────
 	{
+		// `qwopus*` = local qwen×opus MERGE fine-tunes (e.g. qwopus3.6-27b-v2-mlx). Match BEFORE the generic qwen rows.
+		family: "qwopus-merge",
+		match: /qwopus/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		note: "Local qwen3.6×opus merge fine-tunes (MLX). qwopus3.6-27b-v2-mlx is the capable-model-first driver (user 2026-06-29). Live-verified 2026-06-29: clean single-tool call (finish_reason=tool_calls, correct name+args; reasoning-capable, ~186 reasoning tokens on a trivial call). Multi-tool CHAINING not yet sweep-verified — promote to TOOL_NATIVE once a full e2e chain passes.",
+		sources: ["live probe 2026-06-29 (todo §5.AL capable-model-first pivot); see docs/dev/model-sweep-log.md"],
+		basis: "empirical",
+		verified: true,
+	},
+	{
 		family: "qwen2.5-coder",
 		match: /qwen2\.?5-coder/,
 		toolUse: "TOOL_CAPABLE",

@@ -327,3 +327,13 @@
 - **google/gemma-4-e4b (4B): ❌ 3/3** — used read_file then dropped the chain every run (no run_command/create_card/focus-chain), card never persisted. The vendor docs' "native structured tool use / more reliable than E2B / agentic workflows" does NOT hold at 4B in our harness. **Catalog corrected: TOOL_CAPABLE → TOOL_WEAK (research→both, verified).**
 - **google/gemma-4-e2b (2B): ❌ 2/2** — same single-tool-then-stop. Confirms TOOL_WEAK. **Marked verified.**
 > Takeaway: the ≤4B multi-tool chaining floor holds across the gemma-4 edge line too — vendor tool-use marketing ≠ multi-step reliability at 2–4B. Both `verified:false` rows are now empirically settled. This is the living-artifact loop doing its job: a research-sourced optimistic verdict got corrected by a live sweep.
+
+### 2026-06-29 · **qwopus3.6-27b-v2-mlx loaded as the capable-model-first driver** · single-tool probe
+> Per the capable-model-first pivot (user 2026-06-29 — drive the backlog with a strong model), guarded-loaded
+> `qwopus3.6-27b-v2-mlx` (8bit MLX, qwen3.6×opus merge) via `model-lab load … 40000`: auto-unloaded qwen3-8b, kept the
+> embedder, **111.9 GiB free after load** (≥25% reserve). Catalog verdict was UNKNOWN→warn (proceeded).
+- **Single-tool probe (`/v1/chat/completions`, one `create_card` tool): ✅** — `finish_reason=tool_calls`, correct
+  name + args (`{"title":"Smoke test"}`), reasoning-capable (~186 reasoning tokens on a trivial call). **Folded into the
+  catalog**: new `qwopus-merge` entry (`/qwopus/`, matched before the generic qwen rows), TOOL_CAPABLE, basis empirical.
+- **Owed:** a full multi-tool CHAIN e2e (read_file→run_command→create_card→focus-chain) to promote TOOL_CAPABLE→TOOL_NATIVE.
+> Takeaway: the driver tool-calls cleanly out of the gate; chaining strength (where the ≤4B floor lives) is the next check.
