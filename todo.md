@@ -2290,13 +2290,16 @@ deep analysis:
 >   two copies — now one shared helper), keep layers' boundaries clean, name seams by concern.
 > The hard invariant on all of the above: **preserve the exact *wanted* behaviour the task workflows need** — simplify
 > structure and flow, never change the product semantics. Each improvement still ships independently + test-backed (§3).
-- [ ] **Run the review pass** — systematically read across the runtime (`src/`), the web-ui (`web-ui/src/`), the
-      vendored SDK boundary (`src/nklein-agent/` + `vendor/`), the Python core (`core-py/`), state/telemetry, and the
-      tRPC/contract seam. For each area assess: module boundaries & separation of concerns; oversized/multi-purpose
-      files (e.g. the large `nklein-task-session-service.ts`) worth decomposing; duplication / missing shared
-      utilities (the `model-identity` extraction is the template); dead or back-compat-only code; data-flow and
-      hot-path performance (startup, event adapter, telemetry reads, embedding/index build); extension points for
-      new tools/agents/providers; type-safety gaps; test coverage shape. Capture concrete findings, not vibes.
+- [ ] **Run the review pass** — systematically read each area below against the same lens (module boundaries & SoC;
+      oversized/multi-purpose files worth decomposing; duplication / missing shared utilities — `model-identity` is the
+      template; dead or back-compat-only code; data-flow & hot-path perf; extension points; type-safety gaps; test-coverage
+      shape) and capture concrete findings, not vibes. One area per leaf:
+  - [ ] runtime read pass (`src/` — esp. the large `nklein-task-session-service.ts`).
+  - [ ] web-ui read pass (`web-ui/src/`).
+  - [ ] vendored SDK boundary read pass (`src/nklein-agent/` + `vendor/`).
+  - [ ] Python core read pass (`core-py/`).
+  - [ ] state/telemetry read pass (startup, event adapter, telemetry reads, embedding/index build hot paths).
+  - [ ] tRPC/contract seam read pass.
 - [~] **Write findings into todo.md as concrete items** — promote each finding to a checkbox item under the most
       fitting §5 section (or a new one), with enough spec to be landable independently and a note on which invariant(s)
       it touches. Cross-link duplicates to §5.R / §5.P / §5.A. *(2026-06-24: wrote 3 concrete findings — DRY the
@@ -2381,9 +2384,17 @@ deep analysis:
       are unaffected. New integration test (`§5.U M3`) saves a malformed board and asserts the response + persisted board are
       normalized; full workspace-state integration suite (16) green.
 - [ ] **(R1, risky — live verify) Extract `finalizeHeadlessAutoReviewTask`** (review→merge→complete→auto-start delivery gate)
-      out of the `runtime-server` closure into a `TaskDeliveryOrchestrator`; verify against the full delivery-gate matrix.
+      out of the `runtime-server` closure into a `TaskDeliveryOrchestrator`, decomposed:
+  - [ ] write characterization tests pinning the current delivery-gate matrix (review→merge→complete→auto-start) before moving anything.
+  - [ ] define the `TaskDeliveryOrchestrator` seam (deps injected: merge / complete / auto-start).
+  - [ ] move the closure body into the orchestrator and repoint the single `runtime-server` call site.
+  - [ ] re-run the full delivery-gate matrix + live-verify; confirm behavior-preserving.
 - [ ] **(R2, risky — live verify) Collapse the dual `onSummary` subscriptions** (hub + server) into one ordered event bus so
-      the implicit "hub lane-reconcile before server finalize" ordering becomes structural, not accidental.
+      the implicit "hub lane-reconcile before server finalize" ordering becomes structural, not accidental, decomposed:
+  - [ ] characterize the current ordering (hub lane-reconcile must precede server finalize) with a test that would fail if reversed.
+  - [ ] introduce the single ordered event bus and register hub + server handlers in the required order.
+  - [ ] remove the two separate `onSummary` subscriptions; route both through the bus.
+  - [ ] live-verify the ordering holds end-to-end; confirm no double-fire / dropped events.
 
 > **Seed findings (2026-06-24, from the §5.A isolation work)** — concrete items surfaced incidentally; promoted here
 > per the §5.U convention rather than lost. The full deliberate pass (above) is still owed.
