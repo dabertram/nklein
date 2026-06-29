@@ -37,6 +37,15 @@ export interface CreateWorkspaceRegistryDependencies {
 	hasGitRepository: (path: string) => boolean;
 	pathIsDirectory: (path: string) => Promise<boolean>;
 	onTerminalManagerReady?: (workspaceId: string, manager: TerminalSessionManager) => void;
+	/**
+	 * Resolve !Klein's OWN source-repo path (the "source workspace" that needs explicit confirmation before it shows as a
+	 * project). This MUST identify the repo by where !Klein's code is INSTALLED (`resolveKleinSourceRepoPath`), independent
+	 * of where the server runs — the same notion `addProject`'s self-project guard uses. Keying off `cwd` instead (the old
+	 * behavior, kept only as the fallback) is wrong: when the server runs from inside a user's project (server `cwd` = that
+	 * project), the source-workspace filter would treat the user's OWN project as the unconfirmed source repo and hide it
+	 * from the project list even after a successful add (the launch-from-project bug; b4a904dd fixed only the guard half).
+	 */
+	resolveSourceRepoPath?: () => Promise<string | null>;
 }
 
 export interface DisposeWorkspaceRegistryOptions {
@@ -213,9 +222,14 @@ function toProjectSummary(project: {
 }
 
 export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDependencies): Promise<WorkspaceRegistry> {
-	const sourceWorkspacePath = deps.hasGitRepository(deps.cwd)
-		? await resolveWorkspacePath(deps.cwd).catch(() => null)
-		: null;
+	// The "source workspace" (needs confirmation before listing) is !Klein's OWN installed repo — resolve it via the
+	// injected install-location resolver, consistent with `addProject`'s self-project guard. Fall back to the legacy
+	// cwd-based notion only when no resolver is injected (back-compat for direct-registry callers/tests).
+	const sourceWorkspacePath = deps.resolveSourceRepoPath
+		? await deps.resolveSourceRepoPath().catch(() => null)
+		: deps.hasGitRepository(deps.cwd)
+			? await resolveWorkspacePath(deps.cwd).catch(() => null)
+			: null;
 	const filterUnconfirmedSourceWorkspace = (projects: RuntimeWorkspaceIndexEntry[]): RuntimeWorkspaceIndexEntry[] =>
 		sourceWorkspacePath
 			? projects.filter(

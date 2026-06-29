@@ -161,6 +161,41 @@ describe("createWorkspaceRegistry", () => {
 		});
 	});
 
+	it("shows a launch-cwd project that is NOT !Klein's install location (resolveSourceRepoPath ≠ cwd)", async () => {
+		// Regression (b4a904dd follow-up): when !Klein runs from inside a user's project (server cwd = that project),
+		// the source-workspace filter must key off the INSTALL location, not cwd — otherwise a successfully-added project
+		// is hidden from the list. With an injected resolver pointing elsewhere, the cwd project is unconfirmed-source-FREE
+		// and must appear even WITHOUT selfProjectConfirmed.
+		await withTemporaryHome(async () => {
+			const repoPath = join(
+				tmpdir(),
+				`kanban-registry-launch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+			);
+			mkdirSync(repoPath, { recursive: true });
+			try {
+				initGitRepository(repoPath);
+				await loadWorkspaceContext(repoPath); // NOT self-confirmed
+
+				const registry = await createWorkspaceRegistry({
+					cwd: repoPath,
+					loadGlobalRuntimeConfig,
+					loadRuntimeConfig,
+					hasGitRepository: () => true,
+					pathIsDirectory: async () => true,
+					// !Klein's install location is somewhere else entirely → the cwd project is not the source workspace.
+					resolveSourceRepoPath: async () => "/some/other/klein/install",
+				});
+				const payload = await registry.buildProjectsPayload(null);
+
+				expect(payload.projects.some((project) => realpathSync(project.path) === realpathSync(repoPath))).toBe(
+					true,
+				);
+			} finally {
+				rmSync(repoPath, { recursive: true, force: true });
+			}
+		});
+	});
+
 	it("reports accidental task-worktree projects with parent and artifact metadata", async () => {
 		selfObservationMocks.recordSelfObservation.mockReset();
 		await withTemporaryHome(async () => {

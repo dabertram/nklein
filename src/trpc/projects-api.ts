@@ -112,7 +112,7 @@ let kleinSourceRepoPathPromise: Promise<string | null> | undefined;
  * flags the repo only when the repo itself is added (the genuine self-improvement case), and returns null for a packaged
  * (non-git) npm install — nothing to guard. Cached: the install location never changes within a process.
  */
-function resolveKleinSourceRepoPath(): Promise<string | null> {
+export function resolveKleinSourceRepoPath(): Promise<string | null> {
 	if (!kleinSourceRepoPathPromise) {
 		kleinSourceRepoPathPromise = resolveGitRootIfAvailable(dirname(fileURLToPath(import.meta.url)));
 	}

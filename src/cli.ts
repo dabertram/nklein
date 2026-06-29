@@ -449,6 +449,7 @@ async function startServer(): Promise<{
 		{ collectProjectWorktreeTaskIdsForRemoval, createWorkspaceRegistry },
 		{ clearPendingUpdateNotification, getPendingUpdateNotification },
 		{ startKleinCorePySidecar },
+		{ resolveKleinSourceRepoPath },
 	] = await Promise.all([
 		import("./projects/project-path.js"),
 		import("./server/directory-picker.js"),
@@ -459,6 +460,7 @@ async function startServer(): Promise<{
 		import("./server/workspace-registry.js"),
 		import("./update/update.js"),
 		import("./server/klein-core-sidecar.js"),
+		import("./trpc/projects-api.js"),
 	]);
 	let runtimeStateHub: RuntimeStateHub | undefined;
 	const workspaceRegistry = await createWorkspaceRegistry({
@@ -467,6 +469,9 @@ async function startServer(): Promise<{
 		loadRuntimeConfig,
 		hasGitRepository,
 		pathIsDirectory,
+		// The source workspace that needs confirmation is !Klein's INSTALLED repo, not wherever the server runs — keep this
+		// consistent with addProject's self-project guard so launch-from-project never hides the user's own project (§5.W).
+		resolveSourceRepoPath: resolveKleinSourceRepoPath,
 		onTerminalManagerReady: (workspaceId, manager) => {
 			runtimeStateHub?.trackTerminalManager(workspaceId, manager);
 		},
