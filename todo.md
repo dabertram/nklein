@@ -1101,6 +1101,34 @@ deep analysis:
       rollbackOrRepairHints / downstreamInvalidationRules` so a card is executable node-locally, and add controller repair
       semantics (retry-node / refine-spec / split-node / add-dependency / invalidate-downstream / re-review /
       global-re-decompose-only-as-last-resort).
+  - [ ] **Localization provider (read-only, cannot edit):**
+    - [ ] define a `LocalizationProvider` port + result type (file/symbol/line spans), wired as the kernel's `localize` dep.
+    - [ ] implement symbol/definition lookup over the existing code index (read-only).
+    - [ ] implement import/dependency-edge lookup for a touched file.
+    - [ ] implement call-graph neighborhood traversal (callers/callees of a symbol).
+    - [ ] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist.
+    - [ ] unit-test each localization mode with a fake index.
+  - [ ] **N-candidate patch generator (narrow model subtask):**
+    - [ ] define the generate-N-patches prompt (localized context in, unified-diff candidates out).
+    - [ ] parse the model output into N discrete diff candidates.
+    - [ ] reject malformed/empty/out-of-scope diffs before validation.
+    - [ ] unit-test the parser + rejection with a fake model.
+  - [ ] **Validator (runs the gates):**
+    - [ ] run the reproduction test and record fail-before / pass-after.
+    - [ ] run the regression suite and capture structured pass/fail.
+    - [ ] run typecheck + lint and capture structured failures.
+    - [ ] aggregate into the `ValidationResult` the ranker consumes; unit-test the aggregation.
+  - [ ] **Fill the ranker's injectable tiebreaks:**
+    - [ ] wire touched-file plausibility into the rank inputs.
+    - [ ] wire reviewer-evidence signal into the rank inputs.
+    - [ ] wire learned priors (from the §5.AF ledger) into the rank inputs; unit-test the combined order.
+  - [ ] **Ledger the kernel run (§5.AF):** record (one leaf each) localization candidates · patch candidates ·
+        validator results · refinement deltas · final ranking rationale.
+  - [ ] **Enrich generated card specs** (one leaf per field group): add `preconditions/inputs/expectedOutputs` ·
+        `acceptanceChecks/nonGoals` · `dependencyOutputsConsumed` · `rollbackOrRepairHints/downstreamInvalidationRules`
+        to the card schema, populate them in decomposition, and consume them node-locally.
+  - [ ] **Controller repair semantics** (one leaf each): retry-node · refine-spec · split-node · add-dependency ·
+        invalidate-downstream · re-review · global-re-decompose (last resort only).
 
 ### 5.C — Run summaries & timeout diagnostics
 - [x] **Timeout provenance + stats** — run summaries stamp `timeoutSource`
@@ -1130,7 +1158,11 @@ deep analysis:
       decomposition (pretty-printed JSON); machine-local (never committed) = model registry/speeds, endpoints,
       sandbox/container state, telemetry, secrets, absolute paths, worktree/result-branch artifacts. No
       secrets/abs-paths committed; provenance survives a different checkout; roles/fit re-resolve on the target machine.
-- [ ] **Verify the reconcile UX** — cross-machine fetch-and-continue end-to-end (Playwright).
+- [ ] **Verify the reconcile UX** — cross-machine fetch-and-continue end-to-end (Playwright), decomposed:
+  - [ ] machine A: create a task + commit the portable project state to the repo.
+  - [ ] machine B (fresh checkout): fetch + open the project; assert the board/task state reconciles from the repo.
+  - [ ] machine B: continue/resume the task; assert it picks up where A left off.
+  - [ ] Playwright-assert the reconcile UX end-to-end (no console errors, state matches A's).
 
 ### 5.G — Backlog (promote into a worked item when picked up)
 - **Plug-and-play, batteries-included Docker delivery** — ship a self-contained image + a provided
@@ -1146,7 +1178,12 @@ deep analysis:
   - [ ] expose runtime + web-ui ports; keep local-only/no-cloud defaults (sandboxes stay `--network none`)
   - [ ] acceptance: fresh machine + Docker → `docker compose up` (user sets endpoint + 2 mounts) → working board/
         decomposition/sandboxed parallel-exec/review-merge, zero internal-model downloads, state survives re-up
-- [ ] **CI-able dogfood smoke** — scripted 1-shot → decomposition → parallel exec → merge on a tiny model, as a CI gate.
+- [ ] **CI-able dogfood smoke** — scripted 1-shot → decomposition → parallel exec → merge on a tiny model, as a CI gate, decomposed:
+  - [ ] script: scaffold an isolated project + seed a single 1-shot card on a tiny loaded model.
+  - [ ] assert the decomposition step produces a child task graph.
+  - [ ] assert parallel execution runs the children to terminal states.
+  - [ ] assert the result merge lands cleanly.
+  - [ ] wire as a CI gate: non-zero exit + concise diagnostics on any stage failure.
 - [x] **Explicit in-UI sandbox queue list** *(DONE 2026-06-24)* — the Local-swarm header now shows a **Queued N**
       chip (when any task is in the sandbox pool's FIFO `queued` state) whose hover title lists the queued task
       titles in wait order. Previously only the per-card "queued" state existed. web tsc + biome + suite (700) green.
