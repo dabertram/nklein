@@ -17,6 +17,7 @@ import { createWorkspaceReadTools, createWorkspaceWriteTools } from "../chat/cha
 import {
 	assertPinnedChatModelLoaded,
 	DEFAULT_LOCAL_CHAT_BASE_URL,
+	decideChatModelGate,
 	discoverLoadedModelId,
 } from "../chat/local-chat-model";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
@@ -106,6 +107,18 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 	const modelId = pinnedModelId || (await discoverLoadedModelId(baseUrl));
 	if (!modelId) {
 		throw new Error(`No loaded model found at ${baseUrl}. Load a model or pass --model.`);
+	}
+
+	// §5.AL model-capability gate: refuse a not-suitable model for the tool-using agent (override env), warn otherwise.
+	const modelGate = decideChatModelGate(modelId, {
+		toolUsing: Boolean(options.workspace),
+		allowOverride: process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL === "1",
+	});
+	if (modelGate.action === "reject") {
+		throw new Error(modelGate.message);
+	}
+	if (modelGate.action === "warn") {
+		write(`⚠️  ${modelGate.message}\n`);
 	}
 
 	const session = options.session

@@ -1,4 +1,5 @@
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../core/lmstudio-loaded-models";
+import { assessModelSuitability } from "../core/model-capability-catalog";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 import { type ChatModelDeps, createChatModelDeps } from "./chat-local-llm-adapter";
@@ -53,6 +54,39 @@ export async function discoverLoadedModelId(baseUrl: string, fetchImpl: typeof f
  * ONLY when we positively know the loaded set and it lacks the model, so an unreachable / non-LM-Studio endpoint (loaded
  * set unknown) never wedges chat. Throws a clear, actionable error naming the loaded set.
  */
+/** The decision the §5.AL capability gate makes for a chat model: proceed quietly, warn, or refuse to start. */
+export interface ChatModelGateDecision {
+	action: "ok" | "warn" | "reject";
+	/** A user-facing line to print (warn) or throw (reject); empty when `action === "ok"`. */
+	message: string;
+}
+
+/**
+ * Pure §5.AL chat-model capability gate. The tool-using chat agent needs a tool-capable model, so when tools are in
+ * play a catalog-`reject` model (e.g. a reasoning-only variant) is REFUSED up front rather than left to thrash a whole
+ * session — unless `allowOverride`. The plain-completion path (`toolUsing=false`) never rejects (a reasoning/chat model
+ * is fine without tools); a `warn`/`unknown` verdict always just surfaces the caveat. Effect-free so it's unit-tested
+ * directly; the CLI wires `assessModelSuitability` (default policy) + the `--workspace` flag + the override env.
+ */
+export function decideChatModelGate(
+	modelId: string,
+	options: { toolUsing: boolean; allowOverride: boolean },
+): ChatModelGateDecision {
+	const suitability = assessModelSuitability(modelId);
+	if (suitability.severity === "ok") {
+		return { action: "ok", message: "" };
+	}
+	if (suitability.severity === "reject" && options.toolUsing && !options.allowOverride) {
+		return {
+			action: "reject",
+			message:
+				`Model "${modelId}" is not suitable for the tool-using chat agent — ${suitability.reason}\n` +
+				"Pick a tool-capable model, or set NKLEIN_ALLOW_UNSUITABLE_MODEL=1 to override.",
+		};
+	}
+	return { action: "warn", message: `Model capability ${suitability.severity}: ${suitability.reason}` };
+}
+
 export async function assertPinnedChatModelLoaded(
 	baseUrl: string,
 	modelId: string,

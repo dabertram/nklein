@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { assertPinnedChatModelLoaded, discoverLoadedModelId } from "../../../src/chat/local-chat-model";
+import {
+	assertPinnedChatModelLoaded,
+	decideChatModelGate,
+	discoverLoadedModelId,
+} from "../../../src/chat/local-chat-model";
 
 function jsonResponse(body: unknown, ok = true): Response {
 	return { ok, json: async () => body } as unknown as Response;
@@ -41,6 +45,39 @@ describe("discoverLoadedModelId", () => {
 			throw new Error("connection refused");
 		}) as unknown as typeof fetch;
 		expect(await discoverLoadedModelId("http://127.0.0.1:1234/v1", throws)).toBeNull();
+	});
+});
+
+describe("decideChatModelGate (§5.AL capability gate)", () => {
+	it("a tool-capable model proceeds quietly (ok)", () => {
+		expect(decideChatModelGate("qwen/qwen3-8b", { toolUsing: true, allowOverride: false })).toEqual({
+			action: "ok",
+			message: "",
+		});
+	});
+
+	it("REJECTS a reasoning-only model when tools are in play (default policy)", () => {
+		const gate = decideChatModelGate("microsoft/phi-4-mini-reasoning", { toolUsing: true, allowOverride: false });
+		expect(gate.action).toBe("reject");
+		expect(gate.message).toMatch(/not suitable for the tool-using chat agent/i);
+		expect(gate.message).toMatch(/NKLEIN_ALLOW_UNSUITABLE_MODEL=1/);
+	});
+
+	it("only WARNS (never rejects) for the same model when NO tools are in play", () => {
+		const gate = decideChatModelGate("microsoft/phi-4-mini-reasoning", { toolUsing: false, allowOverride: false });
+		expect(gate.action).toBe("warn");
+		expect(gate.message).toMatch(/capability reject/i);
+	});
+
+	it("the override downgrades a tool-using reject to a warn", () => {
+		const gate = decideChatModelGate("microsoft/phi-4-mini-reasoning", { toolUsing: true, allowOverride: true });
+		expect(gate.action).toBe("warn");
+	});
+
+	it("an unknown model warns (deferred to investigate, never silently ok)", () => {
+		expect(decideChatModelGate("some-obscure/model-v9", { toolUsing: true, allowOverride: false }).action).toBe(
+			"warn",
+		);
 	});
 });
 
