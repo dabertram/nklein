@@ -6869,10 +6869,14 @@ deep analysis:
 - [ ] **C. Intent modes (minimize | balance | max-task-info), decomposed:** a knob that biases B — `minimize` picks the
       smallest level that still clears the task's capability bar; `balance` trades prompt depth vs task-info room; `max-task-info`
       drives the sysprompt to its leanest viable level to free the most window for task content/retrieval.
-- [ ] **D. CACHE-AWARE prompt LAYOUT (cross-cutting; do EARLY — biggest speed win), decomposed:** enforce a **byte-stable
+- [~] **D. CACHE-AWARE prompt LAYOUT (cross-cutting; do EARLY — biggest speed win), decomposed:** enforce a **byte-stable
       prefix** (system + tool defs) with volatile content appended after. **Move the §5.AC date/"knows-today" + any UUID/
       timestamp/session id OUT of the system-prompt prefix** into the volatile suffix (this is both the §5.AE token-waste fix
       AND the cache fix). Add a lint/guard so nothing volatile leaks into the prefix; keep chat history append-only.
+      **(2026-06-29)** PURE GUARD done: `src/core/cache-aware-prompt-layout.ts` — `detectVolatilePrefixContent` (lint: 7 kinds:
+      iso_date/clock/uuid/epoch/relative-time/now-label/session-id) + `hasVolatilePrefixContent` + `prefixesAreCacheEquivalent`
+      (strict byte-equality) + `assembleCacheAwarePrompt`. 10 tests. Owed (effectful): move §5.AC date/UUID out of the actual
+      prompt prefix + wire the lint into prompt assembly.
 - [ ] **E. Cache-HEALTH probe + adaptation playbook (caching FAILS SILENTLY + is engine/format-specific), decomposed.**
       Prefix caching only works on PURE full-attention models — **SWA / SSM-Mamba / mixed-attention silently fall back to
       full recompute** (MoE alone is fine). Real failures to be aware of: LM Studio #1697 (MLX GPT-OSS-20B broken, GGUF of
