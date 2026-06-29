@@ -3995,8 +3995,15 @@ deep analysis:
 >   (NOT a harness bug — the monitor fix is right regardless): can the 27B complete this decompose under Low Power in a
 >   practical time, or does it need a per-turn timeout / smaller context / the sandbox-staging error fixed first? Re-check
 >   whether that turn ever completed; if 10-min+ single turns are the norm under Low Power, the dev-test windows must be
->   sized accordingly (or the user may prefer high-power for these runs). Also still unexplained: why a habit-insights
->   decompose tried to read the REPO's `todo.md` (718,231 bytes) at all — investigate the sandbox/cwd file resolution.
+>   sized accordingly (or the user may prefer high-power for these runs).
+> - **RESOLVED (not a bug): the "repo todo.md read" was telemetry CONFLATION across runs, not an isolation leak.** Traced
+>   the sandbox: it bind-mounts + `git clone`s `projectRepoPath` (the workspace's own git root) into the sandbox workdir.
+>   The very FIRST `mid_task` run defaulted `--project-path` to the repo CWD, so THAT run's sandbox correctly cloned the
+>   kanban repo → the agent legitimately read the repo's 718 KB `todo.md`. The SCAFFOLDED runs (own `.git` under
+>   `~/.nklein/dev-workspaces/`, outside the repo) clone the scaffold, not the repo. The shared telemetry JSONL mixed both
+>   runs' events, so the `todo.md` reads (early repo-cwd run) looked like they came from the scaffolded run. No isolation
+>   bug. (Lesson: correlate dev-test telemetry by runId to avoid this conflation — minor §5.AI nicety.) The sandbox-staging
+>   error may be similarly conflated; re-check per-run if it recurs on a clean scaffolded run.
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s
