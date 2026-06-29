@@ -3995,7 +3995,11 @@ deep analysis:
 >   (NOT a harness bug — the monitor fix is right regardless): can the 27B complete this decompose under Low Power in a
 >   practical time, or does it need a per-turn timeout / smaller context / the sandbox-staging error fixed first? Re-check
 >   whether that turn ever completed; if 10-min+ single turns are the norm under Low Power, the dev-test windows must be
->   sized accordingly (or the user may prefer high-power for these runs).
+>   sized accordingly (or the user may prefer high-power for these runs). **UPDATE: NOT stuck — `lms ps` went
+>   `PROCESSINGPROMPT` → `GENERATING` after ~15 min, so it's a genuinely slow (large prefill + Low Power) but PROGRESSING
+>   turn, not a hang. This validates the session-activity-aware monitor fix (it correctly keeps such a run alive). Takeaway:
+>   the 27B is functional-but-very-slow on decompose under Low Power (15+ min/turn) — a practical-throughput note, not a
+>   bug; size dev-test windows generously or prefer high-power for decompose-heavy runs.**
 > - **RESOLVED (not a bug): the "repo todo.md read" was telemetry CONFLATION across runs, not an isolation leak.** Traced
 >   the sandbox: it bind-mounts + `git clone`s `projectRepoPath` (the workspace's own git root) into the sandbox workdir.
 >   The very FIRST `mid_task` run defaulted `--project-path` to the repo CWD, so THAT run's sandbox correctly cloned the
