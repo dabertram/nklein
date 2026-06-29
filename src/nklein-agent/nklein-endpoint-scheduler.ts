@@ -29,6 +29,12 @@ export interface NKleinEndpointSchedulingRequest extends NKleinModelRegistryKeyI
 	 * machine-local registry `maxConcurrentRequests` constraint when supplied. `null`/`undefined` = use the registry.
 	 */
 	modelConcurrencyCap?: number | null;
+	/**
+	 * §5.AB per-MACHINE pool cap (`resolveEffectiveEndpointConcurrency`): the max concurrent sessions this task's
+	 * ENDPOINT/machine admits across ALL its models. When set, a start is held once the machine pool is full —
+	 * independent of the provider + per-model gates. `null`/`undefined` = no pool gate (default; behavior unchanged).
+	 */
+	endpointConcurrencyCap?: number | null;
 }
 
 export type NKleinEndpointSchedulingDecision =
@@ -182,6 +188,45 @@ function evaluateProviderConcurrencyGate(
 	};
 }
 
+/**
+ * §5.AB per-MACHINE pool gate — independent of the provider + per-model gates. Holds a start when this task's
+ * ENDPOINT/machine already runs `endpointConcurrencyCap` sessions across ALL its models, so a machine pool can't be
+ * over-committed regardless of which models are in flight. Only active for a LOCAL endpoint with a supplied cap;
+ * returns `null` (no opinion) otherwise, so the default behavior is unchanged.
+ */
+function evaluateEndpointPoolConcurrencyGate(
+	request: NKleinEndpointSchedulingRequest,
+): NKleinEndpointSchedulingDecision | null {
+	const cap = normalizePositiveCap(request.endpointConcurrencyCap);
+	if (cap === null) {
+		return null;
+	}
+	// The MACHINE is identified by its endpoint/baseUrl (an LM-Studio-linked machine = one endpoint), NOT the
+	// model-aware sharedEndpointId — so the pool counts ALL models on that machine. Only local endpoints have a pool.
+	const providerId = normalizeProviderId(request.providerId);
+	const endpoint = normalizeEndpoint(request.endpoint);
+	if (!endpoint || !isLocalProvider(providerId, endpoint)) {
+		return null;
+	}
+	const poolSessions = request.runningSessions.filter(
+		(session) =>
+			session.taskId !== request.taskId &&
+			session.state === "running" &&
+			normalizeEndpoint(session.endpoint) === endpoint,
+	);
+	const earliest = poolSessions[0];
+	if (poolSessions.length < cap || !earliest) {
+		return null;
+	}
+	return {
+		ok: false,
+		blockedByTaskId: earliest.taskId,
+		sharedEndpointId: `pool:${endpoint}`,
+		estimatedWaitMs: null,
+		reason: `Machine pool "${endpoint}" is at its ${cap} concurrent-session cap; another !Klein task on this machine must finish first.`,
+	};
+}
+
 export function scheduleNKleinEndpointStart(
 	request: NKleinEndpointSchedulingRequest,
 ): NKleinEndpointSchedulingDecision {
@@ -190,6 +235,11 @@ export function scheduleNKleinEndpointStart(
 	const providerBlock = evaluateProviderConcurrencyGate(request);
 	if (providerBlock) {
 		return providerBlock;
+	}
+	// §5.AB: the per-MACHINE pool cap is also independent — a full machine holds even if this specific model has room.
+	const poolBlock = evaluateEndpointPoolConcurrencyGate(request);
+	if (poolBlock) {
+		return poolBlock;
 	}
 	const sharedEndpointId = getSharedEndpointId(request.modelRegistry, request);
 	if (!sharedEndpointId) {

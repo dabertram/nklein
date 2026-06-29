@@ -410,6 +410,8 @@ export async function handleStartTaskSession(
 				modelId: nkleinLaunchConfig.modelId ?? "",
 				endpoint: nkleinLaunchConfig.baseUrl ?? null,
 			}),
+			// §5.AB per-machine pools: the endpoint/baseUrl is the machine pool key for the per-pool cap.
+			endpoint: nkleinLaunchConfig.baseUrl ?? null,
 			global: scopedRuntimeConfig.concurrencyDefaults,
 			override: scopedRuntimeConfig.concurrencyOverride,
 		});
@@ -423,6 +425,7 @@ export async function handleStartTaskSession(
 			now: Date.now(),
 			providerConcurrencyCap: concurrencyCaps.providerCap,
 			modelConcurrencyCap: concurrencyCaps.modelCap,
+			endpointConcurrencyCap: concurrencyCaps.endpointCap,
 		});
 		if (!endpointDecision.ok) {
 			if (body.queueOnEndpointBusy) {

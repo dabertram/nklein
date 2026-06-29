@@ -413,4 +413,56 @@ describe("nklein endpoint scheduler", () => {
 			}),
 		).toMatchObject({ ok: false, sharedEndpointId: "gpu-0" });
 	});
+
+	// §5.AB per-MACHINE pool gate (concurrency per LM-Studio-linked machine).
+	it("holds a start when the per-MACHINE pool cap is reached, independent of the per-model cap", () => {
+		const onGpu = (taskId: string, modelId: string) => ({
+			taskId,
+			state: "running" as const,
+			providerId: "ollama",
+			modelId,
+			endpoint: "local",
+		});
+		// modelCap is generous (5) so the per-model gate has room; but the MACHINE pool cap of 2 is reached across
+		// DIFFERENT models on the same endpoint, so the 3rd start is held by the pool gate.
+		const decision = scheduleNKleinEndpointStart({
+			taskId: "task-3",
+			providerId: "ollama",
+			modelId: "qwen",
+			endpoint: "local",
+			modelRegistry: createSnapshot("gpu-0"),
+			modelConcurrencyCap: 5,
+			endpointConcurrencyCap: 2,
+			// Different models on the SAME machine still count toward the one pool (keyed by endpoint, not model).
+			runningSessions: [onGpu("task-1", "qwen"), onGpu("task-2", "llama")],
+		});
+		expect(decision).toMatchObject({
+			ok: false,
+			blockedByTaskId: "task-1",
+			sharedEndpointId: "pool:local",
+			reason: expect.stringContaining("Machine pool"),
+		});
+	});
+
+	it("allows a start while the machine pool is under its cap", () => {
+		const onGpu = (taskId: string, modelId: string) => ({
+			taskId,
+			state: "running" as const,
+			providerId: "ollama",
+			modelId,
+			endpoint: "local",
+		});
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "ollama",
+				modelId: "qwen",
+				endpoint: "local",
+				modelRegistry: createSnapshot("gpu-0"),
+				modelConcurrencyCap: 5,
+				endpointConcurrencyCap: 3, // 2 running < 3 → pool allows; modelCap 5 also has room
+				runningSessions: [onGpu("task-1", "qwen"), onGpu("task-2", "qwen")],
+			}),
+		).toEqual({ ok: true });
+	});
 });

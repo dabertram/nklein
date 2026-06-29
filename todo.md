@@ -4624,9 +4624,15 @@ deep analysis:
         machine pool), `resolveEffectiveEndpointConcurrency` (override ?? global), and `resolveSessionConcurrencyCaps`
         now returns `endpointCap` alongside provider/model caps. Optional + SPARSE so non-pool configs round-trip
         unchanged; composes exactly like the existing provider/model grains (the scheduler ANDs all three). +1 test (21);
-        tsc+biome+full fast suite green. **Still owed (wiring):** the scheduler/admission must actually COUNT running
-        sessions per endpoint and gate on `endpointCap` (today it ANDs provider+model; add the endpoint gate), and the
-        runtime-config threading + tRPC contract must surface the `perEndpoint` grain (mirrors the provider/model threading).
+        tsc+biome+full fast suite green. **SCHEDULER GATE DONE (2026-06-29):**
+        [nklein-endpoint-scheduler.ts](src/nklein-agent/nklein-endpoint-scheduler.ts) `evaluateEndpointPoolConcurrencyGate`
+        — an independent gate (mirrors the per-provider gate) that counts ALL running sessions on the task's
+        ENDPOINT/baseUrl (the machine, NOT the model-aware sharedEndpointId — so it pools across models) and holds the
+        start at `endpointConcurrencyCap`; wired into `scheduleNKleinEndpointStart` after the provider gate, and
+        `start-task-session.ts` now passes `endpoint` + `endpointConcurrencyCap`. Null-by-default ⇒ behavior unchanged
+        until a pool cap is set. lmstudio/ollama are always-local so REMOTE LM-Studio-linked machines pool correctly. +2
+        tests (incl. cross-model pooling on one machine); full suite green. **Still owed:** surface the `perEndpoint`
+        grain in the runtime-config threading + tRPC contract + Settings UI (mirrors the provider/model threading).
   - [ ] pool-aware routing: the §5.AB / `selectSwarmRoleModel` pick becomes pool-aware — prefer a FREE pool, send
         easy/small cards to the secondary machines (m4mini / legion), reserve the m5 pool for hard/large cards.
   - [ ] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
