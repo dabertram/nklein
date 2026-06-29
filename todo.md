@@ -5627,13 +5627,21 @@ deep analysis:
       contract via `export type * from "@runtime-contract"`); +8 web-ui test fixtures updated + a dialog save test. web-ui
       suite 749 green; tsc + biome clean. **§5.AL settings is now fully shipped: global env knob + runtime-config global
       default + per-project override + the gate at all 4 use paths + the Settings UI (global + per-project).**
-- [ ] **LLM-based ONLINE capability lookup for UNKNOWN models.** When a model is UNKNOWN to the catalog (and especially
+- [~] **LLM-based ONLINE capability lookup for UNKNOWN models.** When a model is UNKNOWN to the catalog (and especially
       when it's the only one loaded), !Klein can use **that same model** to look up its own capabilities online (model
       card / docs / community reports) and either (a) succeed → synthesize advice for the user + a provisional catalog
       entry to confirm, or (b) FAIL the lookup → that failure is itself a signal the model may be unsuitable for !Klein
       (can't even drive a simple web-research tool-use flow). Surface as a **"check model" button** AND an **automatic
       attempt** — both governed by a **global setting to enable/disable automatic lookup** (default: off/ask, to respect
       the local-only + no-surprise-egress posture). Ties §5.AC (online retrieval) · §5.A­B (selection) · §5.S (ask-user).
+      **CORE done 2026-06-29:** [model-online-lookup.ts](src/core/model-online-lookup.ts) (pure, 6 tests) —
+      `buildModelInvestigationPrompt(modelId)` (asks the model to web-research its own tool-use + answer one JSON
+      `{toolUse,summary,sources}`) + `parseModelInvestigationResult(text)` (tolerant balanced-`{}` extractor → verdict in
+      the {@link ToolUseVerdict} vocabulary; `succeeded:false` on no-output/unparseable = the lookup-failure signal;
+      drops fabricated/relative sources). **REMAINING (effectful):** (1) a web-SEARCH tool the model can drive (today's
+      `browse_url` only fetches a known URL — the model can't search; this is the real blocker); (2) drive the chat agent
+      with it → parse → present advice + a provisional catalog entry; (3) the "check model" button + the opt-in
+      auto-lookup global setting (default off/ask, no-surprise-egress).
 - [ ] **Keep extending the catalog (standing).** Per §4A: every model sweep / live run that surfaces a new capability
       fact (a verdict flip, a new failure dialect, a confirmed-vs-broken quant) is folded into the catalog in the same
       change — flip the verdict, append the note, cite the source, set `basis: "empirical"`/`"both"`. Verify the
