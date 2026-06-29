@@ -15,12 +15,15 @@ import type {
 	RuntimeCodeEmbeddingSettings,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
+	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
 	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
 import {
 	agentRulesetsConfigSchema,
+	DEFAULT_RUNTIME_MODEL_SUITABILITY_POLICY,
 	runtimeCodeEmbeddingSettingsSchema,
+	runtimeModelSuitabilityPolicySchema,
 	runtimeRoleModelSettingsSchema,
 } from "../core/api-contract";
 import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
@@ -367,6 +370,29 @@ export function normalizeCodeEmbeddingOverride(value: unknown): RuntimeCodeEmbed
 export function areCodeEmbeddingSettingsEqual(
 	left: RuntimeCodeEmbeddingSettings | null,
 	right: RuntimeCodeEmbeddingSettings | null,
+): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+// §5.AL model-capability gate policy normalizers (global default + per-project override), mirroring the codeEmbedding pair.
+export const DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG = DEFAULT_RUNTIME_MODEL_SUITABILITY_POLICY;
+export function normalizeModelSuitabilityPolicy(
+	value: unknown,
+	fallback: RuntimeModelSuitabilityPolicy,
+): RuntimeModelSuitabilityPolicy {
+	const parsed = runtimeModelSuitabilityPolicySchema.safeParse(value);
+	return parsed.success ? parsed.data : fallback;
+}
+export function normalizeModelSuitabilityPolicyOverride(value: unknown): RuntimeModelSuitabilityPolicy | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	const parsed = runtimeModelSuitabilityPolicySchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
+}
+export function areModelSuitabilityPoliciesEqual(
+	left: RuntimeModelSuitabilityPolicy | null,
+	right: RuntimeModelSuitabilityPolicy | null,
 ): boolean {
 	return JSON.stringify(left) === JSON.stringify(right);
 }

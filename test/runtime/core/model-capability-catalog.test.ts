@@ -101,6 +101,17 @@ describe("model-capability-catalog: active policy from env (§5.AL global settin
 		const policy = resolveActiveModelSuitabilityPolicy({ NKLEIN_MODEL_GATE_UNSUITABLE: "warn" });
 		expect(assessModelSuitability("microsoft/phi-4-mini-reasoning", policy).severity).toBe("warn");
 	});
+
+	it("layers priority env > runtime-config base > shipped default (the §5.AL settings integration)", () => {
+		// base = the project's effective runtime-config policy (config vocabulary: allow|warn|reject; allow → ok).
+		const base = { onUnsuitable: "warn", onUnknown: "allow" };
+		// No env → the config base wins over the shipped default.
+		expect(resolveActiveModelSuitabilityPolicy({}, base)).toEqual({ onUnsuitable: "warn", onUnknown: "ok" });
+		// env override beats the config base.
+		expect(resolveActiveModelSuitabilityPolicy({ NKLEIN_MODEL_GATE_UNSUITABLE: "reject" }, base).onUnsuitable).toBe(
+			"reject",
+		);
+	});
 });
 
 describe("model-capability-catalog: policy resolution", () => {

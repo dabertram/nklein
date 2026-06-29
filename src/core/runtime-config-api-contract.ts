@@ -153,6 +153,19 @@ export const runtimeCodeEmbeddingSettingsSchema = z.object({
 	baseUrl: z.string().nullable(),
 });
 export type RuntimeCodeEmbeddingSettings = z.infer<typeof runtimeCodeEmbeddingSettingsSchema>;
+// §5.AL model-capability gate policy: the action for a not-suitable / unknown model. `allow` = use it, `warn` = use
+// with a caveat, `reject` = refuse. Global default + per-project override (the §5.W pattern), mirroring codeEmbedding.
+export const runtimeModelGateActionSchema = z.enum(["allow", "warn", "reject"]);
+export type RuntimeModelGateAction = z.infer<typeof runtimeModelGateActionSchema>;
+export const runtimeModelSuitabilityPolicySchema = z.object({
+	onUnsuitable: runtimeModelGateActionSchema,
+	onUnknown: runtimeModelGateActionSchema,
+});
+export type RuntimeModelSuitabilityPolicy = z.infer<typeof runtimeModelSuitabilityPolicySchema>;
+export const DEFAULT_RUNTIME_MODEL_SUITABILITY_POLICY: RuntimeModelSuitabilityPolicy = {
+	onUnsuitable: "reject",
+	onUnknown: "warn",
+};
 export const runtimeTaskNKleinContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
 export type RuntimeTaskNKleinContextScope = z.infer<typeof runtimeTaskNKleinContextScopeSchema>;
 export const runtimeTaskNKleinTimeoutModeSchema = z.preprocess(

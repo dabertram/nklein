@@ -306,19 +306,28 @@ function parsePolicyActionEnv(value: string | undefined): SuitabilitySeverity | 
 }
 
 /**
- * Resolve the ACTIVE global suitability policy from the environment (todo §5.AL settings — the global-setting layer).
- * `NKLEIN_MODEL_GATE_UNSUITABLE` and `NKLEIN_MODEL_GATE_UNKNOWN` each take `allow`|`warn`|`reject` and override the
- * shipped default (reject unsuitable / warn unknown); anything unset/unrecognized keeps the default. This is the single
- * source every gate consults so the user can globally relax or tighten the policy without code changes. The future
- * runtime-config UI + per-PROJECT override will layer on top via {@link resolveModelSuitabilityPolicy}.
+ * Resolve the ACTIVE suitability policy every gate consults (todo §5.AL settings). Priority, highest first:
+ * **env override** (`NKLEIN_MODEL_GATE_UNSUITABLE` / `NKLEIN_MODEL_GATE_UNKNOWN`, each `allow`|`warn`|`reject`) →
+ * **`base`** (the runtime-config effective policy: global default ← per-project override, supplied by task-start) →
+ * **shipped default** (reject unsuitable / warn unknown). `base` uses the config action vocabulary (`allow` maps to the
+ * gate's `ok`); unset/unrecognized values at any layer fall through. So the env is the always-available override on top
+ * of whatever the project's runtime-config says.
  */
 export function resolveActiveModelSuitabilityPolicy(
 	env: Record<string, string | undefined> = process.env,
+	base?: { onUnsuitable: string; onUnknown: string },
 ): ModelSuitabilityPolicy {
+	const baseUnsuitable = base ? parsePolicyActionEnv(base.onUnsuitable) : null;
+	const baseUnknown = base ? parsePolicyActionEnv(base.onUnknown) : null;
 	return {
 		onUnsuitable:
-			parsePolicyActionEnv(env.NKLEIN_MODEL_GATE_UNSUITABLE) ?? DEFAULT_MODEL_SUITABILITY_POLICY.onUnsuitable,
-		onUnknown: parsePolicyActionEnv(env.NKLEIN_MODEL_GATE_UNKNOWN) ?? DEFAULT_MODEL_SUITABILITY_POLICY.onUnknown,
+			parsePolicyActionEnv(env.NKLEIN_MODEL_GATE_UNSUITABLE) ??
+			baseUnsuitable ??
+			DEFAULT_MODEL_SUITABILITY_POLICY.onUnsuitable,
+		onUnknown:
+			parsePolicyActionEnv(env.NKLEIN_MODEL_GATE_UNKNOWN) ??
+			baseUnknown ??
+			DEFAULT_MODEL_SUITABILITY_POLICY.onUnknown,
 	};
 }
 

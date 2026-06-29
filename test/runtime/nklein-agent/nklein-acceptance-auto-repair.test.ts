@@ -120,6 +120,9 @@ function createRuntimeConfigState(): RuntimeConfigState {
 			model: "kanban-local-lexical-vector-v1",
 			baseUrl: null,
 		},
+		modelSuitabilityPolicyDefaults: { onUnsuitable: "reject", onUnknown: "warn" },
+		modelSuitabilityPolicyOverride: null,
+		effectiveModelSuitabilityPolicy: { onUnsuitable: "reject", onUnknown: "warn" },
 		modelRoles: {
 			reviewer: {
 				providerId: "anthropic",

@@ -5609,7 +5609,19 @@ deep analysis:
       `allow`|`warn`|`reject` over the shipped default (reject unsuitable / warn unknown). Threaded into ALL gate sites —
       model-lab load/check/sweep, `decideChatModelGate` (CLI + chat API), and task-start. Live-verified: default → reject,
       `NKLEIN_MODEL_GATE_UNSUITABLE=warn` → warn. +4 tests.
-- [ ] **Settings UI + per-PROJECT override (runtime-config).** The remaining piece: expose `onUnsuitable`/`onUnknown` in the
+- [x] **Runtime-config BACKEND: global default + per-project override + effective resolution (2026-06-29).** Wired the
+      policy through the full config system mirroring `codeEmbeddingSettings`: `runtimeModelSuitabilityPolicySchema` +
+      default (contract), `modelSuitabilityPolicyDefaults`/`Override`/`effective…` on the response + save-request +
+      `RuntimeConfigState` + both file shapes + update-input, the normalizers + equality, all of `runtime-config.ts` (change
+      fields, derived-field list, build #1/#2, every save/update/reset persistence variant), and the
+      `buildRuntimeConfigResponse` passthrough. Threaded into task-start as the gate's BASE policy
+      (`resolveActiveModelSuitabilityPolicy(env, scopedRuntimeConfig.effectiveModelSuitabilityPolicy)` — env override >
+      per-project override > global default > shipped default). Full suite 3117 green (the config round-trip/persistence
+      tests validate it saves+loads correctly). REMAINING: the React Settings WIDGET in the web-ui (read/write the new
+      fields — a thin follow-up now the backend + contract exist).
+- [ ] **(legacy note) Settings UI + per-PROJECT override (runtime-config).** Superseded by the row above — the backend +
+      contract + per-project override + threading are DONE; only the React Settings widget remains. Original scope notes:
+      expose `onUnsuitable`/`onUnknown` in the
       runtime config contract + Settings UI as a global setting with a per-project override (the §5.W pattern), persisted,
       and feed the resolved global+project policy into `resolveModelSuitabilityPolicy`/the gates (replacing/augmenting the
       env layer). **Scope discovered 2026-06-29 (do this as a focused unit — a partial change does NOT compile, since the

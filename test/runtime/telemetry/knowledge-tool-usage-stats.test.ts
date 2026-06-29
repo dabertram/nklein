@@ -54,6 +54,9 @@ function createRuntimeConfig(): RuntimeConfigState {
 		concurrencyDefaults: { perProvider: {}, perModel: {} },
 		concurrencyOverride: null,
 		effectiveCodeEmbeddingSettings: { provider: "local_lexical", model: null, baseUrl: null },
+		modelSuitabilityPolicyDefaults: { onUnsuitable: "reject", onUnknown: "warn" },
+		modelSuitabilityPolicyOverride: null,
+		effectiveModelSuitabilityPolicy: { onUnsuitable: "reject", onUnknown: "warn" },
 		modelRoles: {
 			worker: { providerId: "ollama", modelId: "qwen2.5-coder" },
 		},

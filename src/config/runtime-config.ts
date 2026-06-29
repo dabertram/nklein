@@ -15,6 +15,7 @@ import type {
 	RuntimeCodeEmbeddingSettings,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
+	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
@@ -61,6 +62,8 @@ import {
 	areAgentRulesetsEqual,
 	areCodeEmbeddingSettingsEqual,
 	areModelRolesEqual,
+	areModelSuitabilityPoliciesEqual,
+	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 	normalizeAgentId,
 	normalizeAgentRulesets,
 	normalizeAgentRulesetsOverride,
@@ -75,6 +78,8 @@ import {
 	normalizeMaxConcurrentTasksOverride,
 	normalizeModelRoles,
 	normalizeModelRolesOverride,
+	normalizeModelSuitabilityPolicy,
+	normalizeModelSuitabilityPolicyOverride,
 	normalizeNonNegativeInteger,
 	normalizePositiveInteger,
 	normalizePositiveNumber,
@@ -148,6 +153,7 @@ type RuntimeConfigChangeComparable = Omit<
 	| "globalConfigPath"
 	| "projectConfigPath"
 	| "effectiveCodeEmbeddingSettings"
+	| "effectiveModelSuitabilityPolicy"
 	| "effectiveMaxConcurrentTasks"
 	| "effectiveSelectedAgentId"
 	| "effectiveModelRoles"
@@ -197,6 +203,7 @@ const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] =
 	runtimeConfigChangeField("reviewMaxRounds"),
 	runtimeConfigChangeField("readyForReviewNotificationsEnabled"),
 	runtimeConfigChangeField("codeEmbeddingDefaults", areCodeEmbeddingSettingsEqual),
+	runtimeConfigChangeField("modelSuitabilityPolicyDefaults", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("concurrencyDefaults", areConcurrencyConfigsEqual),
 	runtimeConfigChangeField("modelRoles", areModelRolesEqual),
 	runtimeConfigChangeField("agentRulesets", areAgentRulesetsEqual),
@@ -210,6 +217,7 @@ const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] =
 const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] = [
 	...RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS,
 	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
+	runtimeConfigChangeField("modelSuitabilityPolicyOverride", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("concurrencyOverride", areConcurrencyOverridesEqual),
 	runtimeConfigChangeField("maxConcurrentTasksOverride"),
 	runtimeConfigChangeField("selectedAgentIdOverride"),
@@ -223,6 +231,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"globalConfigPath",
 	"projectConfigPath",
 	"effectiveCodeEmbeddingSettings",
+	"effectiveModelSuitabilityPolicy",
 	"effectiveMaxConcurrentTasks",
 	"effectiveSelectedAgentId",
 	"effectiveAgentRulesets",
@@ -373,6 +382,13 @@ function toRuntimeConfigState({
 		DEFAULT_CODE_EMBEDDING_SETTINGS,
 	);
 	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(projectConfig?.codeEmbeddingOverride);
+	const modelSuitabilityPolicyDefaults = normalizeModelSuitabilityPolicy(
+		globalConfig?.modelSuitabilityPolicyDefaults,
+		DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
+	);
+	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(
+		projectConfig?.modelSuitabilityPolicyOverride,
+	);
 	const concurrencyDefaults = normalizeConcurrencyConfig(globalConfig?.concurrencyDefaults);
 	const concurrencyOverride = normalizeConcurrencyOverride(projectConfig?.concurrencyOverride);
 	const maxConcurrentTasks = normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks);
@@ -444,6 +460,9 @@ function toRuntimeConfigState({
 		codeEmbeddingDefaults,
 		codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
+		modelSuitabilityPolicyDefaults,
+		modelSuitabilityPolicyOverride,
+		effectiveModelSuitabilityPolicy: modelSuitabilityPolicyOverride ?? modelSuitabilityPolicyDefaults,
 		concurrencyDefaults,
 		concurrencyOverride,
 		modelRoles,
@@ -534,6 +553,7 @@ async function writeRuntimeGlobalConfigFile(
 		reviewMaxRounds?: number;
 		readyForReviewNotificationsEnabled?: boolean;
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
+		modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 		concurrencyDefaults?: ConcurrencyConfig;
 		modelRoles?: RuntimeModelRoles;
 		agentRulesets?: AgentRulesetsConfigPayload;
@@ -859,6 +879,7 @@ async function writeRuntimeProjectConfigFile(
 	config: {
 		shortcuts: RuntimeProjectShortcut[];
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 		concurrencyOverride?: ConcurrencyOverride | null;
 		maxConcurrentTasksOverride?: number | null;
 		selectedAgentIdOverride?: RuntimeAgentId | null;
@@ -994,6 +1015,8 @@ function createRuntimeConfigStateFromValues(input: {
 	readyForReviewNotificationsEnabled: boolean;
 	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
+	modelSuitabilityPolicyDefaults: RuntimeModelSuitabilityPolicy;
+	modelSuitabilityPolicyOverride: RuntimeModelSuitabilityPolicy | null;
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
 	modelRoles: RuntimeModelRoles;
@@ -1072,6 +1095,14 @@ function createRuntimeConfigStateFromValues(input: {
 		effectiveCodeEmbeddingSettings:
 			normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride) ??
 			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
+		modelSuitabilityPolicyDefaults: normalizeModelSuitabilityPolicy(
+			input.modelSuitabilityPolicyDefaults,
+			DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
+		),
+		modelSuitabilityPolicyOverride: normalizeModelSuitabilityPolicyOverride(input.modelSuitabilityPolicyOverride),
+		effectiveModelSuitabilityPolicy:
+			normalizeModelSuitabilityPolicyOverride(input.modelSuitabilityPolicyOverride) ??
+			normalizeModelSuitabilityPolicy(input.modelSuitabilityPolicyDefaults, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
 		concurrencyDefaults: normalizeConcurrencyConfig(input.concurrencyDefaults),
 		concurrencyOverride: normalizeConcurrencyOverride(input.concurrencyOverride),
 		modelRoles: normalizeModelRoles(input.modelRoles),
@@ -1133,6 +1164,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
 		codeEmbeddingDefaults: current.codeEmbeddingDefaults,
 		codeEmbeddingOverride: null,
+		modelSuitabilityPolicyDefaults: current.modelSuitabilityPolicyDefaults,
+		modelSuitabilityPolicyOverride: null,
 		concurrencyDefaults: current.concurrencyDefaults,
 		concurrencyOverride: null,
 		modelRoles: current.modelRoles,
@@ -1198,6 +1231,8 @@ export async function saveRuntimeConfig(
 		readyForReviewNotificationsEnabled: boolean;
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+		modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
+		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 		concurrencyDefaults?: ConcurrencyConfig;
 		concurrencyOverride?: ConcurrencyOverride | null;
 		maxConcurrentTasksOverride?: number | null;
@@ -1262,6 +1297,7 @@ export async function saveRuntimeConfig(
 			reviewMaxRounds: normalizePositiveInteger(config.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults,
+			modelSuitabilityPolicyDefaults: config.modelSuitabilityPolicyDefaults,
 			modelRoles: config.modelRoles,
 			agentRulesets: config.agentRulesets,
 			swarmGuardrails: config.swarmGuardrails,
@@ -1271,6 +1307,7 @@ export async function saveRuntimeConfig(
 		await writeRuntimeProjectConfigFile(projectConfigPath, {
 			shortcuts: config.shortcuts,
 			codeEmbeddingOverride: config.codeEmbeddingOverride,
+			modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride,
 			maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: config.selectedAgentIdOverride,
 			agentRulesetsOverride: config.agentRulesetsOverride,
@@ -1331,6 +1368,9 @@ export async function saveRuntimeConfig(
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults ?? DEFAULT_CODE_EMBEDDING_SETTINGS,
 			codeEmbeddingOverride: config.codeEmbeddingOverride ?? null,
+			modelSuitabilityPolicyDefaults:
+				config.modelSuitabilityPolicyDefaults ?? DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
+			modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride ?? null,
 			concurrencyDefaults: config.concurrencyDefaults ?? DEFAULT_CONCURRENCY_CONFIG,
 			concurrencyOverride: config.concurrencyOverride ?? null,
 			modelRoles: normalizeModelRoles(config.modelRoles),
@@ -1440,6 +1480,16 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.codeEmbeddingOverride,
 				normalizeCodeEmbeddingOverride,
 			),
+			modelSuitabilityPolicyDefaults: keepNormalizedValue(
+				updates.modelSuitabilityPolicyDefaults,
+				current.modelSuitabilityPolicyDefaults,
+				(value) => normalizeModelSuitabilityPolicy(value, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
+			),
+			modelSuitabilityPolicyOverride: keepNormalizedValue(
+				updates.modelSuitabilityPolicyOverride,
+				current.modelSuitabilityPolicyOverride,
+				normalizeModelSuitabilityPolicyOverride,
+			),
 			concurrencyDefaults: keepNormalizedValue(
 				updates.concurrencyDefaults,
 				current.concurrencyDefaults,
@@ -1515,6 +1565,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			reviewMaxRounds: nextConfig.reviewMaxRounds,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
+			modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
 			concurrencyDefaults: nextConfig.concurrencyDefaults,
 			modelRoles: nextConfig.modelRoles,
 			agentRulesets: nextConfig.agentRulesets,
@@ -1525,6 +1576,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		await writeRuntimeProjectConfigFile(projectConfigPath, {
 			shortcuts: nextConfig.shortcuts,
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
+			modelSuitabilityPolicyOverride: nextConfig.modelSuitabilityPolicyOverride,
 			concurrencyOverride: nextConfig.concurrencyOverride,
 			maxConcurrentTasksOverride: nextConfig.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: nextConfig.selectedAgentIdOverride,
@@ -1565,6 +1617,8 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
+			modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
+			modelSuitabilityPolicyOverride: nextConfig.modelSuitabilityPolicyOverride,
 			concurrencyDefaults: nextConfig.concurrencyDefaults,
 			concurrencyOverride: nextConfig.concurrencyOverride,
 			modelRoles: nextConfig.modelRoles,
@@ -1676,6 +1730,12 @@ export async function updateGlobalRuntimeConfig(
 					(value) => normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS),
 				),
 				codeEmbeddingOverride: null,
+				modelSuitabilityPolicyDefaults: keepNormalizedValue(
+					updates.modelSuitabilityPolicyDefaults,
+					current.modelSuitabilityPolicyDefaults,
+					(value) => normalizeModelSuitabilityPolicy(value, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
+				),
+				modelSuitabilityPolicyOverride: null,
 				concurrencyDefaults: keepNormalizedValue(
 					updates.concurrencyDefaults,
 					current.concurrencyDefaults,
@@ -1731,6 +1791,7 @@ export async function updateGlobalRuntimeConfig(
 				reviewMaxRounds: nextConfig.reviewMaxRounds,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
+				modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
 				concurrencyDefaults: nextConfig.concurrencyDefaults,
 				modelRoles: nextConfig.modelRoles,
 				agentRulesets: nextConfig.agentRulesets,
@@ -1773,6 +1834,8 @@ export async function updateGlobalRuntimeConfig(
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				codeEmbeddingOverride: null,
+				modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
+				modelSuitabilityPolicyOverride: null,
 				concurrencyDefaults: nextConfig.concurrencyDefaults,
 				concurrencyOverride: null,
 				modelRoles: nextConfig.modelRoles,

@@ -187,7 +187,12 @@ export async function handleStartTaskSession(
 		// so it applies in tests too — but only a `reject` blocks, and `warn`/`unknown` proceed, so it can't wedge an
 		// ordinary run. (A non-reject caveat is left to the §5.AG operator-UX surface, not a hard block here.)
 		if (nkleinLaunchConfig.modelId && process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL !== "1") {
-			const suitability = assessModelSuitability(nkleinLaunchConfig.modelId, resolveActiveModelSuitabilityPolicy());
+			// Base policy = the project's effective runtime-config policy (global default ← per-project override), with the
+			// env knobs (NKLEIN_MODEL_GATE_*) layered on top as the always-available override.
+			const suitability = assessModelSuitability(
+				nkleinLaunchConfig.modelId,
+				resolveActiveModelSuitabilityPolicy(process.env, scopedRuntimeConfig.effectiveModelSuitabilityPolicy),
+			);
 			if (suitability.severity === "reject") {
 				return {
 					ok: false,

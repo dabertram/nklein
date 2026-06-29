@@ -9,6 +9,7 @@ import type {
 	RuntimeCodeEmbeddingSettings,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
+	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
@@ -48,6 +49,10 @@ export interface RuntimeConfigState {
 	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
 	effectiveCodeEmbeddingSettings: RuntimeCodeEmbeddingSettings;
+	/** §5.AL: global model-capability gate policy + per-project override + resolved effective policy. */
+	modelSuitabilityPolicyDefaults: RuntimeModelSuitabilityPolicy;
+	modelSuitabilityPolicyOverride: RuntimeModelSuitabilityPolicy | null;
+	effectiveModelSuitabilityPolicy: RuntimeModelSuitabilityPolicy;
 	/** §5.W: global per-provider/per-model concurrency caps + the per-project override (effective resolved per session). */
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
@@ -94,6 +99,8 @@ export interface RuntimeConfigUpdateInput {
 	readyForReviewNotificationsEnabled?: boolean;
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
+	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 	concurrencyDefaults?: ConcurrencyConfig;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
@@ -136,6 +143,7 @@ export interface RuntimeGlobalConfigFileShape {
 	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled?: boolean;
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
+	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 	concurrencyDefaults?: ConcurrencyConfig;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
@@ -149,6 +157,7 @@ export interface RuntimeGlobalConfigFileShape {
 export interface RuntimeProjectConfigFileShape {
 	shortcuts?: RuntimeProjectShortcut[];
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
+	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
 	selectedAgentIdOverride?: RuntimeAgentId | null;
