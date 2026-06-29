@@ -5560,9 +5560,14 @@ deep analysis:
       "Body Timeout Error"), connection blips, and transient 502/503 states (reads `error.cause` for the undici code);
       complements `isLocalModelRuntimeUnavailableError` (which answers the different "is the model UNLOADED?"). Plus
       `withTransientRetry(fn, opts)` — the bounded retry wrapper (retries only transient throws, rethrows fatal
-      immediately, injectable budget/backoff/sleep). 8 tests. **Still owed (wiring only):** wrap the model-call +
-      board-poll in the durable scheduler / `verify-*.mts` harnesses with `withTransientRetry`, so a transient no longer
-      kills a long run (the lease/reclaim path).
+      immediately, injectable budget/backoff/sleep). 8 tests. **WIRED into the paths we own (2026-06-29):** (a)
+      `web_research` fetch (fresh abort/timeout per attempt; caught+fixed a 404-misclassified-as-transient bug); (b)
+      `LocalLlmClient.complete()` — the non-streaming chat/structured model call retries transient timeouts/5xx (502/503),
+      bounded, fresh timeout per attempt, with caller-cancel + hard-timeout + 4xx/500 NOT retried (behavior-preserving;
+      17 client tests green). The multi-card harness board-poll was ALREADY resilient (consecutive-error window).
+      **Owed (focused/gated):** the STREAMING chat path (mid-stream retry is unsafe — needs replay design) and the
+      SWARM/agent model call (inside the vendored SDK — must stay #4-upstream-clean, so retry belongs at the
+      durable-scheduler/lease layer, not in the SDK).
 - [~] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
