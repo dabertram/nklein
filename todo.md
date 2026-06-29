@@ -4707,12 +4707,19 @@ deep analysis:
 - [ ] **Extend the role catalog with `retriever`/`researcher`.** The §5.AC online-knowledge role the user flagged as
       missing — a default skill bundle that includes the `temporal` + `freshness_rail` + `online_retrieval` fragments + the
       `web_search`/`browse_url` tools (§5.AC/§5.M G6). Thread through the role enum (§5.M) + the resolver.
-- [ ] **Dynamics-level setting (BASIC control set — DEFAULT = fully dynamic).** A role-mode enum:
+- [~] **Dynamics-level setting (BASIC control set — DEFAULT = fully dynamic).** A role-mode enum:
       `fully_dynamic` (DEFAULT — skills auto + may vary per turn, model auto via §5.AB) · `static_skills_auto_model`
       (fixed per-role skills, model auto) · `assigned_skills` (user-assigned skills) · `fully_static` (skills + model
       pinned). Plus an **orthogonal per-role model-class cap** (small-only / any-local / +cloud-when-revisited — the
       user's "only architect may use the big/cloud models" compute-control use-case; cloud stays #1-locked, idea-only).
       Global + per-project (ties §5.W overrides). Keep it minimal now; grow the control surface as needed.
+      **RUNTIME CONFIG DONE (2026-06-29):** the enum is a persisted, API-surfaced setting — `runtimeSkillDynamicsLevelSchema`
+      + `DEFAULT_RUNTIME_SKILL_DYNAMICS_LEVEL` (contract), `normalizeSkillDynamicsLevel`/`…Override`/`areSkillDynamicsLevelsEqual`
+      (normalizers), `skillDynamicsLevelDefault` / `skillDynamicsLevelOverride` / `effectiveSkillDynamicsLevel` on
+      `RuntimeConfigState` (precedence: project override ?? global default), threaded through every config site (file shapes,
+      change-detection, load, both disk-write sites, save/update merge, reset-to-global, the config response). Round-trip
+      test + per-write-site audit; backend + web gate green. **Still owed:** the web Settings UI control + the orthogonal
+      per-role model-class cap; and the resolver/prompt-assembly consumer reading `effectiveSkillDynamicsLevel` (oracle-gated).
 - [ ] **Wire the composed fragments into the board + chat prompt assembly** (replacing today's hard-coded always-on blocks)
       → §5.AD arrangement orders them, §6.2 caps them. Each behind a live §5.Z re-verify (no regression; weak models should
       get *leaner, more relevant* prompts).
