@@ -18,7 +18,13 @@ export interface ThinkingControl {
 	enableToken: string;
 }
 
-/** Model-family → verified thinking-control switches. ONLY add a family whose switch is live-verified (conservative). */
+/**
+ * Model-family → verified thinking-control switches. ONLY add a family whose switch is live-verified (conservative).
+ * Live-verified NEGATIVES (do NOT add — they ignore `/no_think`): **phi-4-mini-reasoning (Phi-3)** reasons regardless
+ * (reasoning_content stayed ~1100–1800 chars with or without `/no_think`, 2026-06-29) — it has no soft switch and is a
+ * high TRUNCATION risk (reasons ~1100+ tokens even for "2+2"). The `/qwen-?3/i` matcher also covers qwen3-arch distills
+ * (e.g. deepseek-r1-0528-qwen3-8b) but NOT qwen2-arch reasoners (qwq) — verify those before adding.
+ */
 const THINKING_CONTROL_MATCHERS: readonly { pattern: RegExp; control: ThinkingControl }[] = [
 	// Qwen3 (NOT qwen2.5/coder — those aren't reasoning models): `/no_think` ↔ `/think` soft switches. Live-verified.
 	{ pattern: /qwen-?3/i, control: { disableToken: "/no_think", enableToken: "/think" } },
