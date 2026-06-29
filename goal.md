@@ -133,6 +133,11 @@ next step even for things that will only be *adapted later with low effort*).
   runtime + a live model: start a card / chat, watch it execute, assert the durable side effects. So the §5.AA controller
   loop-wiring (and similar core-loop changes) is autonomously verifiable — build it, then drive the UI to confirm, paced
   to respect the stall budget. No need to gate on a human watching.
+- **Power-aware timeouts + THERMAL THROTTLING (user 2026-06-29).** In hot ambient temps the M5 Max **thermal-throttles
+  even in HIGH power mode** — the user keeps HIGH power (more punch) rather than Low Power, so throughput is **variable and
+  can drop unpredictably mid-run**. **Do NOT rely on narrow timeout thresholds**: use generous `--max-wait-ms`/waiter
+  budgets and treat a slow/partial/stagnant run as possibly throttle-induced, NOT a model/scheduler limitation, until
+  re-run under stable conditions.
 - **Power-aware timeouts.** The dev machine may run in **Low Power Mode** (less heat) — throughput can drop ~50%. The
   multi-card + task-completion harnesses **auto-scale their timeout** by the detected OS power mode (low ≈ ×2; never
   shortens) via `src/core/power-aware-timeout.ts`; they log `power=<mode> ×<mult>`. Override with
