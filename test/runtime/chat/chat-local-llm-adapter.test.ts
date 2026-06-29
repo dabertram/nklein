@@ -241,6 +241,30 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(prompts[1]).toBe("Use create_card to make a card. /no_think");
 	});
 
+	it("§5.AA truncation rung: ALSO fires when reasoningTokens ate ≥90% of the budget (no exact finish:length)", async () => {
+		let callIndex = 0;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => {
+				callIndex += 1;
+				// finish_reason is NOT "length" (endpoint reported "stop"), but reasoning consumed ~95% of the 1024 budget
+				// with no call — the §5.AN reasoning-starvation case. The rung should still fire and recover on retry.
+				if (callIndex === 1) {
+					return { content: "", toolCalls: [], finishReason: "stop", reasoningTokens: 980, raw: {} };
+				}
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, { sampling: { temperature: 0, maxTokens: 1024 } });
+		const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		expect(callIndex).toBe(2); // the rung fired despite finish:stop
+	});
+
 	it("§5.AA truncation rung: does NOT fire when the no-call turn finished normally (finish:stop)", async () => {
 		let calls = 0;
 		const client: ChatAgentCompletionClient = {

@@ -135,10 +135,18 @@ export function createChatAgentModel(
 		// §5.AA truncation rung (the CHEAPEST first recovery): a reasoning model can burn its whole token budget on
 		// reasoning_content and hit `finish:"length"` BEFORE emitting the tool call (live-confirmed: qwen3-8b spent 200
 		// tokens reasoning on a trivial reply). That is a budget truncation, not a complexity failure — so before shrinking
-		// the tool set or forcing a schema, just re-ask once with a larger budget. Fires only on a no-call + length finish.
-		if (allowTools && response.toolCalls.length === 0 && response.finishReason === "length") {
-			const baseMaxTokens = sampling.maxTokens ?? 1024;
-			const bumped = { ...sampling, maxTokens: Math.max(baseMaxTokens * 3, 3072) };
+		// the tool set or forcing a schema, just re-ask once with a larger budget. Fires on a no-call turn that EITHER hit
+		// `finish:"length"` OR whose `reasoningTokens` (§5.AN signal) consumed ≥90% of the budget (robust to endpoints
+		// that report the finish reason differently — reasoning still ate the budget before any call could land).
+		const baseBudget = sampling.maxTokens ?? 1024;
+		const reasoningStarvedBudget =
+			typeof response.reasoningTokens === "number" && response.reasoningTokens >= 0.9 * baseBudget;
+		if (
+			allowTools &&
+			response.toolCalls.length === 0 &&
+			(response.finishReason === "length" || reasoningStarvedBudget)
+		) {
+			const bumped = { ...sampling, maxTokens: Math.max(baseBudget * 3, 3072) };
 			// If the model has a thinking soft-switch (e.g. Qwen3 `/no_think`), DISABLE thinking on the retry — that removes
 			// the reasoning_content that caused the truncation (the ROOT cause), which is cheaper + more reliable than just
 			// enlarging the budget (live: qwen3 reasoning 965 → 2 chars, tool call still emitted). Else just re-ask bigger.
