@@ -82,6 +82,12 @@ export interface LocalLlmToolCompletion {
 	content: string;
 	toolCalls: LocalLlmToolCall[];
 	finishReason: string | null;
+	/**
+	 * §5.AN: reasoning tokens this turn consumed (`usage.completion_tokens_details.reasoning_tokens`, live-verified to
+	 * track reasoning overhead — 1 with `/no_think`, 544 when truncating). Null when the endpoint didn't report it. A
+	 * §5.AA signal: high reasoning relative to budget is the truncation / over-rumination case.
+	 */
+	reasoningTokens?: number | null;
 	raw: unknown;
 }
 
@@ -375,6 +381,7 @@ export class LocalLlmClient {
 					};
 					finish_reason?: string | null;
 				}>;
+				usage?: { completion_tokens_details?: { reasoning_tokens?: number } };
 			};
 			const choice = json.choices?.[0];
 			let toolCalls: LocalLlmToolCall[] = (choice?.message?.tool_calls ?? [])
@@ -410,6 +417,7 @@ export class LocalLlmClient {
 				content: choice?.message?.content ?? "",
 				toolCalls,
 				finishReason: choice?.finish_reason ?? null,
+				reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens ?? null,
 				raw: json,
 			};
 		} finally {

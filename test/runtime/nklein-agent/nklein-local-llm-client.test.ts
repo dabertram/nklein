@@ -190,6 +190,37 @@ describe("LocalLlmClient.completeWithTools", () => {
 		]);
 	});
 
+	it("captures reasoningTokens from usage.completion_tokens_details (§5.AN reasoning-overhead signal)", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [{ message: { content: "4" }, finish_reason: "stop" }],
+						usage: { completion_tokens: 20, completion_tokens_details: { reasoning_tokens: 544 } },
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "x" }] }, []);
+		expect(result.reasoningTokens).toBe(544);
+		// Absent usage ⇒ null (not 0), so callers can tell "not reported" from "zero reasoning".
+		const fetchNoUsage = vi.fn(async () => toolCallResponse());
+		const client2 = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchNoUsage as unknown as typeof fetch,
+		});
+		const r2 = await client2.completeWithTools({ messages: [{ role: "user", content: "x" }] }, []);
+		expect(r2.reasoningTokens).toBeNull();
+	});
+
 	it("is a plain completion when no tools are offered (no tools field sent)", async () => {
 		const fetchImpl = vi.fn(
 			async () =>
