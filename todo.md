@@ -4038,6 +4038,13 @@ deep analysis:
       REJECTED phi at task-start (vindicated live — forced through, it just narrates, never acts); (b) the new `model_stalled`
       self-observation correctly did NOT fire (textLen 2907 ≠ empty — no false-positive on a prose answer). **Net for the
       swarm rungs: build them PROACTIVE (beforeModel), not reactive.** This unblocks the swarm-path §5.AA design.
+      **STRATEGIC RE-PRIORITIZATION (2026-06-29):** the experiment also shows the swarm path is ALREADY fairly robust —
+      (a) the §5.AL gate REJECTS unsuitable ruminators at task-start (phi was blocked); (b) SUITABLE models act fine (qwen3
+      drove 8 tool-call turns, loop continued); (c) the new `model_stalled` self-observation now MEASURES any residual
+      empty-stall. So a proactive swarm recovery rung is LOWER priority than assumed: **measure real stall frequency via
+      `model_stalled` first, THEN build the rung only if stalls actually occur for SUITABLE models** (a gated ruminator can't
+      stall the swarm; a capable model rarely stalls). Observability-before-mechanism — don't build a rung for a
+      rarely-hit case. The §5.AL gate + capable-model behaviour + this observability are the current swarm robustness story.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
