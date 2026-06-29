@@ -1313,7 +1313,15 @@ deep analysis:
   - [ ] per-model metrics from MCSR (§6.4) — extend if missing, don't duplicate
   - [ ] one-to-many role→model config + free-vs-busy assignment in the swarm executor (§6.5)
   - [ ] user override (pin / preference order / speed-vs-capability weight) per role
-  - [ ] inspectable selection reasoning (why this model for this task)
+  - [x] **inspectable selection reasoning (why this model for this task) — DONE (2026-06-29).** Pure
+        [model-selection-reason.ts](src/core/model-selection-reason.ts) `explainModelSelection` projects a routing
+        decision into a per-candidate explanation (registry vs §5.AF ledger-blended `effectiveCapability`, feasible /
+        ruled-out with concrete exclusions, which won + why) + a one-line summary; `renderModelSelectionReason` formats an
+        operator text block. Wired into [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts): computed from
+        the live candidates + ledger blend + routing decision and returned as an optional `selectionReason` on the start
+        response (backward-compatible contract field), on both the started AND the decompose/escalate-blocked paths. The
+        web-ui threads it through `StartTaskSessionResult` and appends it to the blocked-task reason, so a routing block
+        shows the basis instead of a bare "needs decomposition". 5 core tests; full backend + web gate green.
 - [~] **#5 — Universal hover tooltips (name + short description for every element)** — via the `ELEMENT_TOOLTIPS`
       registry + `ElementTooltip` primitive (§6.13); single source of truth; focus-accessible.
   - [x] high-value icon-only controls: top-bar, board-column, board-card, card-detail, swarm cockpit, git-history
@@ -4967,7 +4975,9 @@ deep analysis:
       mirrors the diagnostics panel (lazy/refresh/loading/error). Verified: web typecheck + 2 component tests + full web
       vitest (738) + web:build + a live browser load (no white screen / console errors). **§5.AG escalation surface is
       now complete end-to-end: ledger → `buildTaskEscalationReport` → CLI (`dev escalation`) + tRPC endpoint + web panel.**
-      **Still owed:** the §5.AB "why this model" reason (needs the §5.AB selection-reason data); and the **Layer-2
+      **Still owed:** the §5.AB "why this model" reason — DONE 2026-06-29 via `explainModelSelection` /
+      `model-selection-reason.ts`, surfaced on the start response + the blocked-task reason (see §5.AB sub-deliverable #5);
+      a future refinement could also fold it into THIS escalation panel from the ledger. And the **Layer-2
       user-escalation suggestions** surface (§5.AB) — when the automatic ladder (all approaches × all loaded models) is
       exhausted (`isHardStuck`), render `buildEscalationSuggestions(...)` alongside the attempt chain so the user gets a
       set of "get through the wall" options (clarify · provide context · adjust a constraint · approve a blocked action ·
