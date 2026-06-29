@@ -4002,6 +4002,16 @@ deep analysis:
       the loop's continue-vs-end behavior. ⇒ the experiment needs an INSTRUMENTED agent run (a rebuilt binary with the probe,
       or a dedicated in-process mini-harness that drives `createNKleinSessionRuntime` directly + feeds a scripted truncated
       turn). That setup IS the focused-block starting point for the swarm work.
+      **HARNESS finding (2026-06-29, final): a pure in-process mini-harness WON'T work** — the session-runtime test
+      (`nklein-session-runtime.test.ts`) MOCKS the SDK host entirely (`fakeHost` with stubbed `start`/`send`) and invokes
+      the plugin hooks directly; the real `@nklein/core` agent loop NEVER runs in tests, so continue-vs-end is unobservable
+      there. ⇒ the experiment specifically needs the REAL built runtime instrumented (a temp `afterModel` log in
+      `nklein-session-runtime.ts` + `npm run build` + a real board task on a reasoning model at a tight budget, watching the
+      stderr/telemetry), OR reading the loop source for its no-tool-call termination rule. **Source route is impractical:**
+      the SDK is vendored at `vendor/nklein-sdk/` (`@nklein/agents` `createAgentRuntime` owns the loop) but the `dist`
+      bundles are MINIFIED, so the termination rule isn't cheaply readable; the `.d.ts` only shows `continue()`/`applyStopControl`.
+      ⇒ the instrumented real-runtime board-task run is the practical path. That is the exact, minimal focused-block recipe;
+      it's a heavy live op (real board + reasoning model + tight budget), hence a dedicated block, not a marathon-tail commit.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
