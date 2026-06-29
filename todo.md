@@ -4356,6 +4356,13 @@ deep analysis:
     - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
     - [ ] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
     - [ ] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing models.
+    - [ ] **(challenge: C1, 2026-06-29) redundant-read-block → steer to the owed ACTION, don't let the agent retry the
+          blocked read.** Live C1 scout: `qwopus3.6-27b-v2-mlx` explored a decompose task with read_files, hit the
+          "already read this exact content" block, then RETRIED the same blocked read → `interrupted`, never calling
+          `decompose_project` (see [cross-model-verification.md](docs/dev/cross-model-verification.md) C1 row). When a
+          redundant-read is blocked, a `beforeModel` nudge should advance the next turn toward the owed action ("context
+          gathered; now call `decompose_project`") rather than re-asking — the proactive rung above, applied to the
+          architect/decompose path. Re-attack the driver once it lands (don't judge a ceiling on one run).
 - [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
   - [ ] Build phase (a) prompt: explicit "reason about which tool → explain decision"
   - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
