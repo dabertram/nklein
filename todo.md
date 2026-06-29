@@ -4663,7 +4663,12 @@ deep analysis:
   - **named starter rosters (ref [docs/dev/model-catalog-recommendations.md](docs/dev/model-catalog-recommendations.md) "Swarm rosters"):**
     - [ ] wire **Roster Q** (quality): m5max=`Qwen3-Coder-Next` UD-Q4_K_M (architect/reviewer), m4mini=`Qwen2.5-Coder-14B` (mid coder), legion=`Qwen2.5-Coder-7B` (fast worker) / `Qwen3-8B` alt.
     - [ ] wire **Roster M** (absolute-min): m5max-or-m4mini=`Qwen3-8B` (architect), m4mini-or-legion=`Qwen2.5-Coder-7B` (coder), legion=`Qwen2.5-Coder-3B` (micro-worker) — leans on the §5.AA ladder; treat ceilings as provisional.
-    - [ ] let the pool config name a roster + per-machine model so a swarm spins up from one preset (ties the settings-UI leaf).
+    - [~] let the pool config name a roster + per-machine model so a swarm spins up from one preset (ties the settings-UI leaf).
+          **PRESET DATA DONE (2026-06-29):** [src/core/swarm-roster.ts](src/core/swarm-roster.ts) encodes ROSTER_Q +
+          ROSTER_M as typed data (machine · role · model · quant · size · alternate) with `resolveSwarmRoster(id)` +
+          `primaryAssignmentsByMachine(roster)`; one source for docs/UI/orchestration. 6 tests; tsc+biome green. **Still
+          owed:** a pool-config field that NAMES a roster + the orchestration that loads its primary assignments per
+          machine (the latter rides the deferred LM-Link remote-load cluster).
   - **LATER — control models loaded on the 2 OTHER machines via LM Link (user 2026-06-29; deferred, do NOT build before the local pools land + the user re-greenlights remote control), decomposed:**
     - [x] **research LM Studio's remote/LM-Link control surface (DONE 2026-06-29, capability spike).** Findings:
           **(1) Already linked:** `lms link status` shows `This device: m5max` + 1 connected device `m4mini` (with its
