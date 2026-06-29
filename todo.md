@@ -6299,8 +6299,18 @@ deep analysis:
         (click its title `p`) → push a running session → push a `task_chat_message` (assistant) → assert the text. The text did
         NOT render — clicking the title opens the detail panel but the AGENT CHAT PANEL (`nklein-agent-chat-panel`) didn't surface
         the streamed message. Likely the chat panel needs the chat SESSION selected/initialized (or a tab switch), or
-        `task_chat_message` routes through a store the panel only reads when the chat is active. Investigate the panel's
-        open/active condition (DOM-inspect after open) then the spec follows the proven board-stream pattern.
+        `task_chat_message` routes through a store the panel only reads when the chat is active. WIRING FOUND
+        (App.tsx:757): the panel reads `selectTaskChatMessagesForTask(selectedCard?.card.id, taskChatMessagesByTaskId)` —
+        messages DO flow from the `task_chat_message` reducer store, keyed by the SELECTED card's id. So the open question is
+        narrow: does clicking the card TITLE actually SELECT it (set `selectedCard`), and is the agent-chat panel visible at
+        the Playwright viewport or behind a MobileTab (card-detail-view.tsx MOBILE_TABS)? DOM-inspect after open to confirm,
+        then the spec is a 1-line fix (select the card / switch to the chat tab) on the proven board-stream pattern.
+        **DOM-inspected 2026-06-29 (2 runs):** clicking the card title OPENS the detail (session frame applies — shows
+        "Worker working"/"Thinking…"). PITFALL: the "Open chat" button opens the !Klein CHAT SIDEBAR (the assistant), NOT
+        the per-card agent panel — don't click it. The per-card agent's `task_chat_message` output renders in the card-detail
+        agent area (the "Thinking…" region), and it did NOT surface a pushed assistant message there — so that area's
+        message-rendering condition (vs. the terminal/agent-output view) is the remaining unknown. Next: DOM-inspect the
+        card-detail agent region's structure to find where an assistant `task_chat_message` becomes visible text.
   - [ ] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). *(buildBoardSnapshot exists in runtime-mock.ts; buildMockRuntimeConfig still owed.)*
   - [ ] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
   - [ ] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens).
