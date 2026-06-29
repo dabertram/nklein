@@ -4356,13 +4356,18 @@ deep analysis:
     - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
     - [ ] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
     - [ ] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing models.
-    - [ ] **(challenge: C1, 2026-06-29) redundant-read-block → steer to the owed ACTION, don't let the agent retry the
-          blocked read.** Live C1 scout: `qwopus3.6-27b-v2-mlx` explored a decompose task with read_files, hit the
-          "already read this exact content" block, then RETRIED the same blocked read → `interrupted`, never calling
-          `decompose_project` (see [cross-model-verification.md](docs/dev/cross-model-verification.md) C1 row). When a
-          redundant-read is blocked, a `beforeModel` nudge should advance the next turn toward the owed action ("context
-          gathered; now call `decompose_project`") rather than re-asking — the proactive rung above, applied to the
-          architect/decompose path. Re-attack the driver once it lands (don't judge a ceiling on one run).
+    - [ ] **★ (challenge: C1, 2026-06-29 — RELIABLE 2/2, C3-BLOCKER, PRIORITIZE) proactive force-`decompose_project`
+          rung for the architect/decompose path.** Two live C1 scouts of `qwopus3.6-27b-v2-mlx` BOTH failed to emit
+          `decompose_project` (see [cross-model-verification.md](docs/dev/cross-model-verification.md) C1 rows): run 1
+          looped on a redundant read; run 2 gathered context cleanly then NARRATED "Let me decompose this…" and the
+          session ended — a no-tool-call turn, no structured emit. Confirmed RELIABLE (not stochastic) + it's a CONTROL
+          gap, not a ceiling (the prose plan was correct). The driver emits simple calls fine (C0 write_file ✅) but
+          stalls transitioning reason→the complex decompose emit. **Fix:** after context-gathering on the decompose
+          path, PROACTIVELY force the `decompose_project` call via constrained decoding (`buildConstrainedToolCallSchema`
+          substrate already exists) — a `beforeModel`/loop rung that converts narrated intent into the structured emit.
+          This unblocks C3 (no multi-card without decompose). Re-attack the driver once it lands; verify across the §5.Z
+          roster. *(Also covers the redundant-read-block → steer-to-owed-action shape: when a read is blocked as
+          redundant, advance toward decompose, don't re-ask.)*
 - [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
   - [ ] Build phase (a) prompt: explicit "reason about which tool → explain decision"
   - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
