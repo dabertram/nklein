@@ -58,6 +58,22 @@ describe("assessRuntimeModelVerdict", () => {
 		expect(v.verdict).toBe("TOOL_UNSUITABLE");
 	});
 
+	it("counts DISTINCT stalled runs, not stall events — multiple empty turns in one run count once (rate stays ≤1)", () => {
+		// 5 runs; run r1 stalled THREE times (3 empty turns), the rest clean. Only 1 of 5 runs stalled ⇒ 20% ⇒ TOOL_WEAK,
+		// NOT 3/5=60% TOOL_UNSUITABLE (the pre-fix bug counted total stall EVENTS over distinct runs).
+		const events = [
+			event("m", "model_stalled", "r1"),
+			event("m", "model_stalled", "r1"),
+			event("m", "model_stalled", "r1"),
+		];
+		const runs: RuntimeRunOutcome[] = ["r1", "r2", "r3", "r4", "r5"].map((runId) => ({ runId, modelId: "m" }));
+		const v = assessRuntimeModelVerdict({ modelId: "m", events, runs });
+		expect(v.sampleCount).toBe(5);
+		expect(v.signalCounts.model_stalled).toBe(3); // raw event count preserved for detail
+		expect(v.stallRate).toBeCloseTo(0.2); // 1 distinct stalled run / 5 — bounded, not 0.6
+		expect(v.verdict).toBe("TOOL_WEAK");
+	});
+
 	it("moderate stalling (≥20%, <50%) ⇒ TOOL_WEAK", () => {
 		// 1 stall across 4 runs (runIds widen the sample) = 25%.
 		const events = [event("m", "model_stalled", "r1")];

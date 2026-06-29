@@ -96,12 +96,16 @@ export function assessRuntimeModelVerdict(input: AssessRuntimeModelVerdictInput)
 		number
 	>;
 	const runIds = new Set<string>();
+	const stalledRunIds = new Set<string>();
 	for (const event of ourEvents) {
 		if ((RUNTIME_DIFFICULTY_SIGNALS as readonly string[]).includes(event.signal)) {
 			signalCounts[event.signal as RuntimeDifficultySignal] += 1;
 		}
 		if (typeof event.runId === "string" && event.runId.length > 0) {
 			runIds.add(event.runId);
+			if (event.signal === "model_stalled") {
+				stalledRunIds.add(event.runId);
+			}
 		}
 	}
 	for (const run of input.runs ?? []) {
@@ -112,8 +116,10 @@ export function assessRuntimeModelVerdict(input: AssessRuntimeModelVerdictInput)
 
 	// Sample count = distinct runs we have evidence for; fall back to the raw event count when runIds are absent.
 	const sampleCount = runIds.size > 0 ? runIds.size : ourEvents.length;
-	const stalls = signalCounts.model_stalled;
-	const stallRate = sampleCount > 0 ? stalls / sampleCount : 0;
+	// "Stalls" for the RATE = distinct runs that stalled (so one run with several empty turns counts once, keeping the
+	// rate in [0,1]); when there are no runIds to dedup against, fall back to the raw stall-event count (≤ event count).
+	const stalledCount = runIds.size > 0 ? stalledRunIds.size : signalCounts.model_stalled;
+	const stallRate = sampleCount > 0 ? stalledCount / sampleCount : 0;
 	const confidence = confidenceForSamples(sampleCount);
 
 	if (sampleCount < MIN_RUNS_FOR_VERDICT) {
@@ -135,12 +141,12 @@ export function assessRuntimeModelVerdict(input: AssessRuntimeModelVerdictInput)
 	let reason: string;
 	if (stallRate >= UNSUITABLE_STALL_RATE) {
 		verdict = "TOOL_UNSUITABLE";
-		reason = `Stalled (empty turn) on ${stalls}/${sampleCount} runs (${Math.round(stallRate * 100)}%) — chronically fails to act.`;
+		reason = `Stalled (empty turn) on ${stalledCount}/${sampleCount} runs (${Math.round(stallRate * 100)}%) — chronically fails to act.`;
 	} else if (stallRate >= WEAK_STALL_RATE || signalCounts.tool_argument_error >= WEAK_TOOL_ARG_ERRORS) {
 		verdict = "TOOL_WEAK";
 		reason =
 			stallRate >= WEAK_STALL_RATE
-				? `Stalled on ${stalls}/${sampleCount} runs (${Math.round(stallRate * 100)}%) — unreliable but not hopeless.`
+				? `Stalled on ${stalledCount}/${sampleCount} runs (${Math.round(stallRate * 100)}%) — unreliable but not hopeless.`
 				: `${signalCounts.tool_argument_error} malformed tool-arg events across ${sampleCount} runs — weak tool use.`;
 	} else {
 		verdict = "TOOL_CAPABLE";
