@@ -27,6 +27,7 @@ import {
 	isLmStudioProviderId,
 } from "@/runtime/nklein-context-window-policy";
 import type {
+	RuntimeModelClassCap,
 	RuntimeModelRoles,
 	RuntimeNKleinProviderCatalogItem,
 	RuntimeNKleinProviderModel,
@@ -40,6 +41,15 @@ const REASONING_EFFORT_OPTIONS: Array<RuntimeNKleinReasoningEffort | "inherit"> 
 	"high",
 	"xhigh",
 ];
+
+// §5.AE per-role model-class cap options ("inherit" = no cap, the default). `any` permits any class (cloud stays #1-locked).
+const MODEL_CLASS_CAP_OPTIONS: Array<RuntimeModelClassCap | "inherit"> = ["inherit", "small_only", "any_local", "any"];
+const MODEL_CLASS_CAP_LABELS: Record<RuntimeModelClassCap | "inherit", string> = {
+	inherit: "No cap",
+	small_only: "Small only",
+	any_local: "Any local",
+	any: "Any",
+};
 
 interface ModelRolesEditorProps {
 	value: RuntimeModelRoles;
@@ -192,6 +202,18 @@ export function ModelRolesEditor({
 		});
 	};
 
+	const handleModelClassCapChange = (roleId: ModelRoleId, capValue: RuntimeModelClassCap | "inherit") => {
+		onChange((prev) => {
+			const nextRole = { ...prev[roleId] };
+			if (capValue === "inherit") {
+				delete nextRole.modelClassCap;
+			} else {
+				nextRole.modelClassCap = capValue;
+			}
+			return { ...prev, [roleId]: nextRole };
+		});
+	};
+
 	const handleResetRole = (roleId: ModelRoleId) => {
 		onChange((prev) => {
 			const next = { ...prev };
@@ -232,7 +254,7 @@ export function ModelRolesEditor({
 				const roleContextWarning = getContextWarning(roleId);
 				return (
 					<div key={roleId} className="grid gap-1">
-						<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_34px]">
+						<div className="grid items-end gap-2 lg:grid-cols-[110px_minmax(170px,0.8fr)_minmax(420px,1.7fr)_120px_120px_34px]">
 							<div className="pb-2 text-[13px] font-medium capitalize text-text-primary">
 								{MODEL_ROLE_LABELS[roleId]}
 							</div>
@@ -308,6 +330,23 @@ export function ModelRolesEditor({
 									{REASONING_EFFORT_OPTIONS.map((option) => (
 										<option key={option} value={option}>
 											{option === "inherit" ? "Default" : option}
+										</option>
+									))}
+								</NativeSelect>
+							</div>
+							<div className="min-w-0">
+								<span className="mb-1 block text-[12px] text-text-secondary">Model class</span>
+								<NativeSelect
+									fill
+									value={roleSettings.modelClassCap ?? "inherit"}
+									onChange={(event) =>
+										handleModelClassCapChange(roleId, event.target.value as RuntimeModelClassCap | "inherit")
+									}
+									disabled={disabled}
+								>
+									{MODEL_CLASS_CAP_OPTIONS.map((option) => (
+										<option key={option} value={option}>
+											{MODEL_CLASS_CAP_LABELS[option]}
 										</option>
 									))}
 								</NativeSelect>
