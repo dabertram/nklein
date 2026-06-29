@@ -7,7 +7,9 @@ import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
+import { computePoolFreeSlots } from "../../core/model-pool-routing";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
+import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -333,12 +335,57 @@ export async function handleStartTaskSession(
 			!freeFirstSelection.busyFallback
 				? freeFirstSelection.modelKey
 				: null;
+		// §5.AB per-machine pools: ONLY when per-endpoint/pool caps are configured, route the task to a free machine
+		// pool (easy cards → secondary machines, hard → strong) and prefer the in-pool model. Inert by default (no
+		// perEndpoint caps ⇒ poolRoutedModelKey stays null ⇒ selection unchanged). Behavior-changing only once an
+		// operator configures pools; gate on the resolved per-endpoint caps so the default single-machine path is identical.
+		const perEndpointPoolCaps: Record<string, number> = {
+			...(scopedRuntimeConfig.concurrencyDefaults?.perEndpoint ?? {}),
+			...(scopedRuntimeConfig.concurrencyOverride?.perEndpoint ?? {}),
+		};
+		let poolRoutedModelKey: string | null = null;
+		if (Object.keys(perEndpointPoolCaps).length > 0) {
+			const candidateList = [...guardCandidates.values()];
+			const poolEndpoints = [
+				...new Set(candidateList.map((candidate) => candidate.entry.endpoint).filter((ep): ep is string => !!ep)),
+			];
+			const runningEndpoints = nkleinTaskSessionService
+				.listModelEndpointSessions()
+				.filter((session) => session.state === "running")
+				.map((session) => session.endpoint);
+			const route = selectSwarmRouteForTask({
+				role: body.startInPlanMode ? "architect" : "worker",
+				candidates: candidateList.flatMap((candidate) =>
+					candidate.entry.endpoint
+						? [
+								{
+									modelKey: candidate.entry.key,
+									poolId: candidate.entry.endpoint,
+									capability: blendedCapabilityForKey(
+										candidate.entry.key,
+										candidate.entry.capability.effectiveScore,
+									),
+									contextWindow: candidate.entry.contextWindow.effective ?? 0,
+									predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+									isFree: !runningModelKeys.has(candidate.entry.key),
+								},
+							]
+						: [],
+				),
+				difficulty: taskDifficulty,
+				requiredContextTokens,
+				poolFreeSlots: computePoolFreeSlots(poolEndpoints, runningEndpoints, perEndpointPoolCaps),
+			});
+			if (route.model?.selection.type === "assign") {
+				poolRoutedModelKey = route.model.selection.modelKey;
+			}
+		}
 		const routingDecision = routeNKleinTask({
 			difficulty: taskDifficulty,
 			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
 			outputTokens: 1_000,
-			preferredModelKey: freeFirstModelKey ?? preferredCandidate.entry.key,
+			preferredModelKey: poolRoutedModelKey ?? freeFirstModelKey ?? preferredCandidate.entry.key,
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				entry: candidate.entry,
 				role: candidate.role,

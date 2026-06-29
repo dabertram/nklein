@@ -4654,9 +4654,14 @@ deep analysis:
         tests. **FREE-SLOTS ADAPTER DONE (2026-06-29):** `computePoolFreeSlots(poolEndpoints, runningEndpoints, caps)`
         ([model-pool-routing.ts](src/core/model-pool-routing.ts)) builds the `poolFreeSlots` feed — capped pool =
         max(0, cap−running), UNCAPPED = `UNCAPPED_POOL_FREE_SLOTS` so an unconfigured machine never starves. +2 tests.
-        **Still owed (the only remaining piece):** wire `selectSwarmRouteForTask` at the live start-task seam — resolve
-        the task's ROLE → class-gated route (the candidate-role mapping is the design point), fed by `computePoolFreeSlots`
-        over the §6.5 running counts + resolved caps. Behavior-changing ⇒ gate on perEndpoint-configured + §5.Z re-verify.
+        **LIVE WIRING DONE — GATED (2026-06-29):** [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)
+        now, ONLY when per-endpoint pool caps are configured, builds the route candidates from `guardCandidates` (poolId =
+        endpoint), resolves the task ROLE (`startInPlanMode ? architect : worker`, matching the existing plan-mode
+        preference), feeds `computePoolFreeSlots` over the running endpoints + resolved caps, and prefers
+        `selectSwarmRouteForTask`'s in-pool model as `preferredModelKey`. **INERT by default** (no perEndpoint caps ⇒
+        `poolRoutedModelKey` stays null ⇒ selection byte-identical — verified by the full suite, which configures no
+        pools). tsc+biome+2965 fast tests green. **Owed (when pools run live):** a §5.Z re-verify across ≥2 machines that
+        the routing fans out as intended (exercised once an operator configures pools + links a second machine).
   - [~] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
         cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface). **CAP EDITOR DONE (2026-06-29):** the
         per-machine/endpoint concurrency-cap editor is live in the ConcurrencyEditor (defaults + override). **Still owed:**
