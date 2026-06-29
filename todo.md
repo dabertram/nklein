@@ -3996,6 +3996,12 @@ deep analysis:
       which conflates truncation with other empty turns. (Tried a `finishReason==="length"` self-observation in
       `afterModel`; tsc rejected it; reverted to stay §4A-clean.) The CHAT path (raw `/v1` `finishReason:"length"`) detects
       truncation fine — that's why the rungs live there; the swarm path's abstraction is the blocker.
+      **EXPERIMENT-METHOD finding (2026-06-29):** `dev smoke-eval` runs the agent in a SUBPROCESS (built binary, via
+      `execFileAsync`) and its telemetry is final-outcome-only (no turn-level data) — so in-process source instrumentation
+      of `afterModel` is INVISIBLE there (verified: a temp `[turn-probe]` printed nothing), and the smoke-eval can't observe
+      the loop's continue-vs-end behavior. ⇒ the experiment needs an INSTRUMENTED agent run (a rebuilt binary with the probe,
+      or a dedicated in-process mini-harness that drives `createNKleinSessionRuntime` directly + feeds a scripted truncated
+      turn). That setup IS the focused-block starting point for the swarm work.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
