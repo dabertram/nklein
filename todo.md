@@ -4821,7 +4821,22 @@ deep analysis:
       deterministic, 6 unit tests. **Still owed (WIRING — each behind a live §5.Z re-verify):** thread the §5.AA
       `ModelBehaviorProfile` / live `priorFailures` into the resolver, and wire the composed fragments into the board +
       chat prompt assembly (replacing the hard-coded always-on blocks) so §5.AD arranges + §6.2 caps them.
-- [ ] **★ Per-SKILL (and role/task) API-feature PROFILE — match the discovered LLM API levers to the work (2026-06-29, user).**
+- [~] **★ Per-SKILL (and role/task) API-feature PROFILE — match the discovered LLM API levers to the work (2026-06-29, user).**
+      - [x] **`Skill.apiProfile` + resolver merge DONE (2026-06-29):** `SkillApiProfile` on `Skill`
+            ([skill-registry.ts](src/core/skill-registry.ts)) + per-skill defaults (review/planning→reasoning HIGH,
+            web_retrieval→structuredOutput, code_editing→inherit/difficulty-modulated) + pure `resolveApiProfileForSkills`
+            (highest reasoning intensity; OR structured/force; min temperature); `resolveActiveSkills`
+            ([skill-resolver.ts](src/core/skill-resolver.ts)) surfaces the merged `apiProfile`. Tests green.
+      - [x] **Intent → concrete request mapper DONE (2026-06-29):** `resolveApiProfileRequest(profile, modelId)`
+            ([skill-api-profile-request.ts](src/core/skill-api-profile-request.ts)) — the §5.AE→§5.AN bridge: maps the
+            abstract profile to concrete request hints, GATED by the model's real capability (reasoning soft-switch only
+            for a switch-capable family via [model-thinking-control.ts](src/core/model-thinking-control.ts); a model with
+            no switch records a skipped note, never forces a token it ignores). Structured-output/force-call/temperature
+            pass through. 7 tests. PURE — the effectful application stays at the call seam.
+      - [ ] **Remaining (call-seam WIRING, behind a live §5.Z re-verify):** apply the resolved request at the model-call
+            seam — append `thinkingDirective` to the turn, set `response_format` when `preferStructuredOutput`, fire the
+            constrained force-call rung PROACTIVELY (§5.AA: a no-call turn ends the loop), pass `temperature` — on the chat
+            adapter and (once §5.AA `beforeModel` lands) the swarm path. Plus §5.AB per-task difficulty modulation of the profile.
       The §5.AN sweep surfaced a toolbox of per-request API levers (reasoning control `/no_think`↔`/think` + effort,
       structured-output `response_format json_schema`, the constrained force-a-call rung, endpoint dialect, sampling temp,
       the §5.AD context budget). Today they're applied ad-hoc or globally. **Make them a first-class, declarative profile the
