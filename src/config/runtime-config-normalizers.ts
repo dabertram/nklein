@@ -193,6 +193,7 @@ export function normalizeModelRoles(value: unknown): RuntimeModelRoles {
 			.filter((entry) => entry.providerId || entry.modelId);
 		normalized[role] = {
 			...pickNKleinSettingsFields(settings),
+			...(settings.modelClassCap ? { modelClassCap: settings.modelClassCap } : {}),
 			...(additionalModels.length > 0 ? { additionalModels } : {}),
 		};
 	}

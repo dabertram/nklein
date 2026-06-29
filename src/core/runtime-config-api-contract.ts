@@ -200,8 +200,14 @@ export type RuntimeTaskNKleinSettings = z.infer<typeof runtimeTaskNKleinSettings
 // A role's model config = its primary model settings plus an optional pool of `additionalModels`. When the pool
 // is non-empty the role can run on more than one model; task-start fans out across the free, capability-feasible
 // members (see #4). Empty/absent `additionalModels` = the historical single-model-per-role behavior, unchanged.
+// §5.AE per-role model-class cap (compute control): the strongest model class a role may use. `small_only` = only
+// small local models; `any_local` = any local model (cloud excluded); `any` = no cap (cloud stays #1-locked regardless).
+// Absent ⇒ uncapped (today's behavior). Drives a deterministic candidate filter at task-start.
+export const runtimeModelClassCapSchema = z.enum(["small_only", "any_local", "any"]);
+export type RuntimeModelClassCap = z.infer<typeof runtimeModelClassCapSchema>;
 export const runtimeRoleModelSettingsSchema = runtimeTaskNKleinSettingsSchema.extend({
 	additionalModels: z.array(runtimeTaskNKleinSettingsSchema).optional(),
+	modelClassCap: runtimeModelClassCapSchema.optional(),
 });
 export type RuntimeRoleModelSettings = z.infer<typeof runtimeRoleModelSettingsSchema>;
 export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeRoleModelSettingsSchema);

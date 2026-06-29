@@ -6,6 +6,7 @@ import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
+import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
@@ -237,6 +238,15 @@ export async function handleStartTaskSession(
 						role,
 						modelRegistry: modelRegistrySnapshot,
 					});
+					// §5.AE per-role model-class cap: skip a candidate whose class exceeds the role's configured cap
+					// (no-op when unset — the cap is absent by default, so today's fan-out is unchanged).
+					const candidateClass = classifyModelClass({
+						isLocal: isLocalProvider(roleCandidate.entry.providerId, roleCandidate.entry.endpoint),
+						capabilityScore: roleCandidate.entry.capability.effectiveScore,
+					});
+					if (!isModelAllowedByClassCap(settings.modelClassCap, candidateClass)) {
+						continue;
+					}
 					guardCandidates.set(roleCandidate.entry.key, roleCandidate);
 				} catch (error) {
 					// The primary role model keeps the fatal-on-context-policy behavior; an over-budget or
