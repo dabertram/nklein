@@ -189,6 +189,55 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(offeredCounts).toEqual([6]); // no anchor → no retry, no wasted calls
 	});
 
+	it("§5.AA prompt-variation rung: recovers a call by re-phrasing the instruction (before the forced-schema resort)", async () => {
+		const original = 'Use create_card to make a card titled "X".';
+		let rephrasedPrompt: string | null = null;
+		let constrainedCalled = false;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request, _tools) => {
+				const lastUser = [...request.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+				// The original + every reduction retry (same text, fewer tools) come up empty; only a RE-PHRASED variant
+				// (text differs from the original) lands the call — proving the prompt-variation rung is what recovered it.
+				if (lastUser === original) {
+					return { content: "I'm not sure.", toolCalls: [], finishReason: "stop", raw: {} };
+				}
+				rephrasedPrompt = lastUser;
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+			complete: async () => {
+				constrainedCalled = true;
+				return { content: "{}" };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model([{ role: "user", content: original }], true);
+		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		// The recovering attempt's prompt was a re-FRAMED variant that still preserves the verbatim instruction.
+		expect(rephrasedPrompt).not.toBeNull();
+		expect(rephrasedPrompt).toContain(original);
+		// The natural-path recovery means the forced-schema last resort never had to fire.
+		expect(constrainedCalled).toBe(false);
+	});
+
+	it("§5.AA prompt-variation rung: does NOT fire when the instruction names no tool (no wasted re-phrasing)", async () => {
+		const prompts: string[] = [];
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request) => {
+				prompts.push([...request.messages].reverse().find((m) => m.role === "user")?.content ?? "");
+				return { content: "Merging combines branches.", toolCalls: [], finishReason: "stop", raw: {} };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		await model([{ role: "user", content: "Just explain how merging works." }], true);
+		// No anchor ⇒ only the single original attempt, no variant re-asks.
+		expect(prompts).toEqual(["Just explain how merging works."]);
+	});
+
 	it("§5.AA constrained rung: FORCES a parseable call when the model never emits one but a tool is named", async () => {
 		let constrainedFormat: unknown = null;
 		const client: ChatAgentCompletionClient = {

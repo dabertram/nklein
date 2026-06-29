@@ -8,6 +8,7 @@ import type {
 	LocalLlmToolCompletion,
 	LocalLlmToolDefinition,
 } from "../nklein-agent/nklein-local-llm-client";
+import { buildPromptVariant, PROMPT_VARIANT_LADDER } from "../nklein-agent/nklein-prompt-variation";
 import { detectResponseLoop } from "../nklein-agent/nklein-response-loop-detection";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
@@ -151,6 +152,31 @@ export function createChatAgentModel(
 		// `parseNarratedToolCalls` over content + reasoning_content when a tools-offered turn returns no structured call —
 		// see nklein-local-llm-client.ts). So by here `response.toolCalls` already includes any recovered call.
 		//
+		// §5.AA prompt-variation rung — between tool-set reduction and the forced-schema last resort. A model that won't
+		// act on one phrasing often acts on another (§5.Z), so re-FRAME the same instruction across the variant ladder
+		// (imperative → explicit-format → example-led → reason-then-act) and re-ask via the NORMAL tool path with the
+		// anchored tool set, giving the model a chance to emit a natural call before we force one. Same proven-safe anchor
+		// (the instruction must NAME an offered tool), so a legit prose answer is never re-phrased into a forced action;
+		// each family breaks on the first call. The instruction text is preserved verbatim — only the framing changes.
+		if (allowTools && response.toolCalls.length === 0) {
+			const instruction = lastUserText(messages);
+			const anchored = selectToolsForAttempt(offered, instruction, 1);
+			if (anchored.matchedNames.length > 0) {
+				const toolName = anchored.matchedNames[0];
+				for (const family of PROMPT_VARIANT_LADDER) {
+					const variantText = buildPromptVariant(family, { instruction, toolName });
+					const variantWire = replaceLastUserText(wire, variantText);
+					const variantResponse = await client.completeWithTools(
+						{ messages: variantWire, sampling },
+						anchored.tools,
+					);
+					if (variantResponse.toolCalls.length > 0) {
+						response = variantResponse;
+						break;
+					}
+				}
+			}
+		}
 		// §5.AA constrained-decoding rung — the LAST resort after tool-set reduction AND the client's narrated-recovery
 		// both came up empty. Only fires when the instruction NAMES an offered tool (the same proven-safe anchor as the
 		// reduction rung) so we never FORCE a call on a legit prose answer to a non-tool question. Re-ask with
@@ -203,6 +229,25 @@ function lastUserText(messages: readonly ChatPromptMessage[]): string {
 		}
 	}
 	return "";
+}
+
+/**
+ * Return a copy of the wire messages with the LAST user message's content replaced by `text` — the §5.AA
+ * prompt-variation rung re-frames the instruction in place, leaving the surrounding context untouched. No-op (a shallow
+ * copy) when there is no user message.
+ */
+function replaceLastUserText<TMessage extends { role: string; content: string }>(
+	messages: readonly TMessage[],
+	text: string,
+): TMessage[] {
+	const copy = messages.map((message) => ({ ...message }));
+	for (let index = copy.length - 1; index >= 0; index -= 1) {
+		if (copy[index].role === "user") {
+			copy[index] = { ...copy[index], content: text };
+			break;
+		}
+	}
+	return copy;
 }
 
 /**
