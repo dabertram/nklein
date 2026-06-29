@@ -19,6 +19,7 @@ import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
+import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
 import {
 	dominantFailureMode,
 	learnedQualityEffectiveBudget,
@@ -492,6 +493,52 @@ export async function runDevCleanupReportCommand(options: DevCleanupReportOption
 	}
 }
 
+interface DevModelSpeedOptions {
+	json?: boolean;
+	modelId?: string;
+	endpoint?: string;
+}
+
+/**
+ * §5.AN: measure a loaded model's REAL speed via LM Studio's native `/api/v0/chat/completions` `stats` (tokens_per_second
+ * + time_to_first_token), which the OpenAI `/v1` endpoint does not populate. A diagnostic for the §5.AB/MCSR speed signal
+ * — no model loading here (probes whatever's resident); the loaded model is auto-discovered when `--model-id` is omitted.
+ */
+async function runDevModelSpeedCommand(options: DevModelSpeedOptions = {}): Promise<void> {
+	const base = (options.endpoint ?? "http://localhost:1234").replace(/\/$/, "").replace(/\/v1$/, "");
+	let modelId = options.modelId?.trim();
+	if (!modelId) {
+		const modelsResponse = await fetch(`${base}/api/v0/models`).catch(() => null);
+		const modelsJson = (await modelsResponse?.json().catch(() => null)) as {
+			data?: Array<{ id?: string; type?: string; state?: string }>;
+		} | null;
+		modelId = modelsJson?.data?.find((m) => m.state === "loaded" && m.type === "llm")?.id;
+		if (!modelId) {
+			throw new Error(`No loaded LLM found at ${base}/api/v0/models — load a model or pass --model-id.`);
+		}
+	}
+	const response = await fetch(`${base}/api/v0/chat/completions`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			model: modelId,
+			max_tokens: 64,
+			temperature: 0,
+			messages: [{ role: "user", content: "Reply with the single word: ready. /no_think" }],
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(`Model speed probe failed (${response.status}) at ${base}/api/v0/chat/completions.`);
+	}
+	const json = await response.json();
+	const stats = parseLmStudioRequestStats(json);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ modelId, ...stats }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write(`Model speed (real /api/v0 stats):\n  ${renderLmStudioRequestStats(modelId, stats)}\n`);
+}
+
 async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	const events = await readAllAgentLedger();
 	const summary = summarizeLedgerForDisplay(events);
@@ -802,6 +849,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevLedgerCommand(options);
+		});
+
+	dev.command("model-speed")
+		.description("Measure a loaded model's REAL tok/s + ttft via LM Studio's native /api/v0 stats (§5.AN).")
+		.option("--json", "Print machine-readable JSON.")
+		.option("--model-id <id>", "Model id to probe (defaults to the loaded LLM).")
+		.option("--endpoint <url>", "LM Studio base URL (default http://localhost:1234).")
+		.action(async (options: DevModelSpeedOptions) => {
+			await runDevModelSpeedCommand(options);
 		});
 
 	dev.command("advice")
