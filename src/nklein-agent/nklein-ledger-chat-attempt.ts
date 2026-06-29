@@ -22,6 +22,8 @@ export interface ChatAttemptInput {
 	toolCalls: AttemptToolCall[];
 	/** True when the agent loop hit its iteration cap (a stuck/looping turn) → recorded as a `loop` outcome. */
 	hitIterationLimit: boolean;
+	/** The §5.Z flow this turn ran under (`chat` for an interactive send, `autonomous` for a §5.0.1 run). Default `chat`. */
+	flow?: string;
 	startedAt: number | null;
 	endedAt: number;
 }
@@ -39,8 +41,8 @@ export function buildChatAttemptEvent(input: ChatAttemptInput): AgentAttemptEven
 		taskId: input.sessionId,
 		workspacePathHash: hashWorkspacePathForLedger(input.workspacePath),
 		role: null,
-		flow: "chat",
-		attemptId: `chat:${input.sessionId}:${input.endedAt}`,
+		flow: input.flow ?? "chat",
+		attemptId: `${input.flow ?? "chat"}:${input.sessionId}:${input.endedAt}`,
 		modelId: buildNKleinModelRegistryKey({
 			providerId: input.providerId ?? "",
 			modelId: input.modelId ?? "",

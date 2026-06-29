@@ -43,6 +43,12 @@ describe("buildChatAttemptEvent", () => {
 		expect(looped.qualityOk).toBe(false);
 	});
 
+	it("stamps flow=autonomous (and the attemptId prefix) when the turn is an autonomous run", () => {
+		const event = buildChatAttemptEvent({ ...base, flow: "autonomous", hitIterationLimit: false, toolCalls: [] });
+		expect(event.flow).toBe("autonomous");
+		expect(event.attemptId.startsWith("autonomous:")).toBe(true);
+	});
+
 	it("hashes a null workspace path to the shared 'unknown' bucket (board-independent chat)", () => {
 		const event = buildChatAttemptEvent({ ...base, workspacePath: null, hitIterationLimit: false, toolCalls: [] });
 		expect(agentLedgerEventSchema.safeParse(event).success).toBe(true);

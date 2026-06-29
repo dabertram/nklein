@@ -448,6 +448,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						endpoint: nkleinProviderService.getLocalChatBaseUrl() ?? null,
 						toolCalls: input.toolNames.map((name) => ({ name, fingerprint: null, outcome: null })),
 						hitIterationLimit: input.hitIterationLimit,
+						flow: input.flow,
 						startedAt: input.startedAt,
 						endedAt: input.endedAt,
 					});

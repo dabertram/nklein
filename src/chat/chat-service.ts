@@ -66,6 +66,8 @@ export interface ChatServiceOptions {
 		modelId: string;
 		toolNames: readonly string[];
 		hitIterationLimit: boolean;
+		/** `chat` for an interactive send, `autonomous` for a §5.0.1 run turn (the §5.Z flow). */
+		flow: "chat" | "autonomous";
 		startedAt: number;
 		endedAt: number;
 	}) => void;
@@ -255,6 +257,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						modelId: modelDeps.modelId,
 						toolNames: agentResult.steps.map((step) => step.toolCall.name),
 						hitIterationLimit: agentResult.hitIterationLimit,
+						flow: "chat",
 						startedAt: turnStartedAt,
 						endedAt: Date.now(),
 					});
@@ -306,10 +309,23 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				assembleTurnDeps: (extra) =>
 					resolveAgentToolDeps ? resolveAgentToolDeps(session, extra) : Promise.resolve(null),
 				runAgentTurn: async ({ userMessage, maxIterations }, agentToolDeps) => {
+					const turnStartedAt = Date.now();
 					const turn = await runChatAgentTurn(
 						{ session, userMessage, tokenBudget, memoryLimit, ...(maxIterations ? { maxIterations } : {}) },
 						{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
 					);
+					// §5.AF: best-effort `autonomous`-flow ledger attempt per autonomous turn (observational; never throws).
+					if (options.recordChatAttempt && modelDeps.modelId) {
+						options.recordChatAttempt({
+							sessionId: session.id,
+							modelId: modelDeps.modelId,
+							toolNames: turn.steps.map((step) => step.toolCall.name),
+							hitIterationLimit: turn.hitIterationLimit,
+							flow: "autonomous",
+							startedAt: turnStartedAt,
+							endedAt: Date.now(),
+						});
+					}
 					return { finalText: turn.assistantMessage.content, steps: turn.steps };
 				},
 				readPlanProgress: () => readAutonomousChatPlanProgress(session.id),
