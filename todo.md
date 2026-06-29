@@ -3954,6 +3954,18 @@ deep analysis:
 >   `startTaskSession`, then assert the seed materializes within N polls (fail fast if not), so the harness is a TRUSTWORTHY
 >   isolated verification. Until then, `dev test-project` cannot validate a from-scratch decomposition. (The §5.AI eval-rail
 >   false-green fix shipped this session at least makes the empty result honest — `stagnant`, not a fake pass.)
+> - **✅ SEEDING FIX SHIPPED + a THIRD methodology gap found (2026-06-29).** Fixed: the CLI dev-test `startSeedTask` now
+>   creates the backlog card (`addTaskToColumn` → `saveState`) before `startTaskSession` — live-confirmed the seed card now
+>   materializes (`planning: 1`) in a clean isolated workspace (was 0). BUT a clean seeded `mid_task` run then **STALLED in
+>   planning** (card never decomposed), with telemetry `get_file_size` sandbox-tool failure + **"Could not stage sandbox
+>   workspace changes."** Root cause: `dev test-project` ALSO does not SCAFFOLD the scenario — `scaffoldNKleinDevTestProject`
+>   (writes `specification.md` etc.) exists but the `dev test-project` path never calls it (only `runNKleinDevSmokeEval`/the
+>   sweep scaffold a throwaway project). So my bare git workspace had no `specification.md` for the decompose card to read →
+>   it can't decompose → stalls. **⇒ The correct trustworthy isolated recipe = SCAFFOLD (scaffoldNKleinDevTestProject) +
+>   SEED (now fixed) + ISOLATED fresh workspace + `--skip-shutdown-cleanup`.** Real owed work to make `dev test-project` a
+>   one-shot trustworthy harness: have it scaffold the scenario into the `--project-path` when absent (or document that the
+>   path must be a pre-scaffolded scenario / use `dev smoke-eval` which already scaffolds). The earlier `runNKleinDevSmokeEval`
+>   path may already be the right isolated harness — prefer it for clean verification until `dev test-project` scaffolds.
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s
