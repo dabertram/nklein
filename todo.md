@@ -5862,10 +5862,14 @@ deep analysis:
       **real tok/s + ttft DONE as a diagnostic (2026-06-29):** `parseLmStudioRequestStats`
       ([lmstudio-request-stats.ts](src/core/lmstudio-request-stats.ts)) extracts `/api/v0` `stats.tokens_per_second` +
       `time_to_first_token`(s→ms) + `stop_reason` + `model_info`(arch/quant/context); `nklein dev model-speed` probes the
-      loaded LLM and prints REAL speed (live-verified: qwen3-8b → 130 tok/s · 169ms ttft · eosFound). **Still owed:** feed
-      these measured metrics into the §5.AB/MCSR selection path (vs estimation) at the live model-call seam; and consuming
-      `reasoningTokens` further (it's consumed by the chat truncation rung already; thread to the §5.AF ledger attempt too). Also `/api/v0/models` `arch`/`quantization`/`max_context_length` give a SOLID model-class signal
-      (replacing the §5.AE `modelClassCap` capability-threshold heuristic with arch/size facts).
+      loaded LLM and prints REAL speed (live-verified: qwen3-8b → 130 tok/s · 169ms ttft · eosFound). **Auto-feeding
+      `/api/v0` stats into the registry — ASSESSED & DE-SCOPED (2026-06-29):** low value / high cost. The §5.AF ledger
+      ALREADY computes + records per-task `tokensPerSec` + `ttftMs` (`nklein-ledger-attempt.ts`), and the agent path runs
+      through the SDK on `/v1` — so real `/api/v0` stats would need a SEPARATE probe call per task (extra latency) for a
+      marginal gain over the already-recorded computed speed. ⇒ `dev model-speed` is the right surface for on-demand real
+      stats; no live-path auto-wiring. **Still owed:** thread `reasoningTokens` to the §5.AF ledger attempt too (already
+      consumed by the chat truncation rung). Also `/api/v0/models` `arch`/`quantization`/`max_context_length` give a SOLID
+      model-class signal (replacing the §5.AE `modelClassCap` capability-threshold heuristic with arch/size facts).
 - [x] **Anthropic `/v1/messages` force-a-call — INVESTIGATED & REJECTED (2026-06-29).** Hypothesis was that
       `tool_choice:{type:"any"}` forces a call; live re-verify DISPROVED it on LM Studio (`stop_reason:end_turn`, no call, on
       a non-tool prompt even with `/no_think`+1500 tokens — the initial positive was a confounded tool-relevant prompt). So
