@@ -5598,10 +5598,17 @@ deep analysis:
       model with a clear error surfaced to the web-ui, override `NKLEIN_ALLOW_UNSUITABLE_MODEL=1`. Plumbed the resolved
       `modelId` onto `ChatModelDeps` (set by `resolveLocalChatModelDeps`); a fake modelDeps without it is unaffected. +2
       tests. STILL TODO: surface warn/unknown caveats through the §5.AG operator-UX (not just a hard reject), and a UI badge.
-- [ ] **Settings surface (global + project override) in the UI/config.** The policy is plumbed through the runner today;
-      expose `onUnsuitable` / `onUnknown` (allow | warn | reject) as a **global setting with a per-project override** in the
-      config contract + Settings UI (§5.W pattern), and thread the resolved policy from the live model-load + chat/agent
-      wiring (not just model-lab). Default stays warn-and-reject.
+- [x] **Global setting (env layer) + single resolver, threaded into every gate (2026-06-29).**
+      `resolveActiveModelSuitabilityPolicy(env)` ([model-capability-catalog.ts](src/core/model-capability-catalog.ts)) is the
+      ONE source every gate consults: `NKLEIN_MODEL_GATE_UNSUITABLE` and `NKLEIN_MODEL_GATE_UNKNOWN` each take
+      `allow`|`warn`|`reject` over the shipped default (reject unsuitable / warn unknown). Threaded into ALL gate sites —
+      model-lab load/check/sweep, `decideChatModelGate` (CLI + chat API), and task-start. Live-verified: default → reject,
+      `NKLEIN_MODEL_GATE_UNSUITABLE=warn` → warn. +4 tests.
+- [ ] **Settings UI + per-PROJECT override (runtime-config).** The remaining piece: expose `onUnsuitable`/`onUnknown` in the
+      runtime config contract + Settings UI as a global setting with a per-project override (the §5.W pattern), persisted,
+      and feed the resolved global+project policy into `resolveModelSuitabilityPolicy`/the gates (replacing/augmenting the
+      env layer). The merge primitive (`resolveModelSuitabilityPolicy(global, projectOverride)`) + the env global already
+      exist; this is the config-contract + UI plumbing (schema · load/save · change-detection · response · Settings panel).
 - [ ] **LLM-based ONLINE capability lookup for UNKNOWN models.** When a model is UNKNOWN to the catalog (and especially
       when it's the only one loaded), !Klein can use **that same model** to look up its own capabilities online (model
       card / docs / community reports) and either (a) succeed → synthesize advice for the user + a provisional catalog

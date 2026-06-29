@@ -18,7 +18,7 @@
 import { spawn } from "node:child_process";
 import { homedir, totalmem, userInfo } from "node:os";
 import { buildLmsUnloadArgs } from "../src/core/lms-model-control";
-import { assessModelSuitability } from "../src/core/model-capability-catalog";
+import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../src/core/model-capability-catalog";
 import { type LmsRunner, listResidentModels, loadModelExclusive } from "../src/core/lms-model-runner";
 
 /** A real `lms` runner: spawns the CLI with HOME restored to the OS passwd home (so `lms` finds its auth key). */
@@ -63,6 +63,7 @@ async function main(): Promise<void> {
 			totalRamBytes: totalmem(),
 			contextLength: ctxArg ? Number.parseInt(ctxArg, 10) : 40_000,
 			reserveFraction,
+			suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
 		});
 		console.log(JSON.stringify(result, null, 2));
 		process.exit(result.loaded ? 0 : 1);
@@ -74,7 +75,7 @@ async function main(): Promise<void> {
 			console.error("usage: model-lab check <id>");
 			process.exit(64);
 		}
-		const v = assessModelSuitability(arg);
+		const v = assessModelSuitability(arg, resolveActiveModelSuitabilityPolicy());
 		console.log(`${arg}`);
 		console.log(`  tool-use:  ${v.toolUse}`);
 		console.log(`  severity:  ${v.severity}${v.allowed ? "" : "  (would be gated under the default policy)"}`);
@@ -127,7 +128,12 @@ async function main(): Promise<void> {
 		const results: { modelId: string; loaded: boolean; verdict: string }[] = [];
 		for (const modelId of modelIds) {
 			console.log(`\n──────── ${harness} · ${modelId} ────────`);
-			const load = await loadModelExclusive(run, { modelId, totalRamBytes: totalmem(), reserveFraction });
+			const load = await loadModelExclusive(run, {
+				modelId,
+				totalRamBytes: totalmem(),
+				reserveFraction,
+				suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
+			});
 			console.log(`  load: ${load.reason}${load.unloaded.length ? ` (unloaded ${load.unloaded.join(", ")})` : ""}`);
 			if (!load.loaded) {
 				results.push({ modelId, loaded: false, verdict: "LOAD-REFUSED" });

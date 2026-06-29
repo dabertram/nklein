@@ -3,7 +3,7 @@ import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
-import { assessModelSuitability } from "../../core/model-capability-catalog";
+import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -187,7 +187,7 @@ export async function handleStartTaskSession(
 		// so it applies in tests too — but only a `reject` blocks, and `warn`/`unknown` proceed, so it can't wedge an
 		// ordinary run. (A non-reject caveat is left to the §5.AG operator-UX surface, not a hard block here.)
 		if (nkleinLaunchConfig.modelId && process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL !== "1") {
-			const suitability = assessModelSuitability(nkleinLaunchConfig.modelId);
+			const suitability = assessModelSuitability(nkleinLaunchConfig.modelId, resolveActiveModelSuitabilityPolicy());
 			if (suitability.severity === "reject") {
 				return {
 					ok: false,

@@ -290,6 +290,38 @@ export function resolveModelSuitabilityPolicy(
 	};
 }
 
+/** Parse a policy-action env value (`allow`/`ok` → ok, `warn`, `reject`); unrecognized/blank → null (use the default). */
+function parsePolicyActionEnv(value: string | undefined): SuitabilitySeverity | null {
+	switch ((value ?? "").trim().toLowerCase()) {
+		case "allow":
+		case "ok":
+			return "ok";
+		case "warn":
+			return "warn";
+		case "reject":
+			return "reject";
+		default:
+			return null;
+	}
+}
+
+/**
+ * Resolve the ACTIVE global suitability policy from the environment (todo §5.AL settings — the global-setting layer).
+ * `NKLEIN_MODEL_GATE_UNSUITABLE` and `NKLEIN_MODEL_GATE_UNKNOWN` each take `allow`|`warn`|`reject` and override the
+ * shipped default (reject unsuitable / warn unknown); anything unset/unrecognized keeps the default. This is the single
+ * source every gate consults so the user can globally relax or tighten the policy without code changes. The future
+ * runtime-config UI + per-PROJECT override will layer on top via {@link resolveModelSuitabilityPolicy}.
+ */
+export function resolveActiveModelSuitabilityPolicy(
+	env: Record<string, string | undefined> = process.env,
+): ModelSuitabilityPolicy {
+	return {
+		onUnsuitable:
+			parsePolicyActionEnv(env.NKLEIN_MODEL_GATE_UNSUITABLE) ?? DEFAULT_MODEL_SUITABILITY_POLICY.onUnsuitable,
+		onUnknown: parsePolicyActionEnv(env.NKLEIN_MODEL_GATE_UNKNOWN) ?? DEFAULT_MODEL_SUITABILITY_POLICY.onUnknown,
+	};
+}
+
 /** The outcome of gating a model: the action, a human-readable reason, and the catalog entry (if any). */
 export interface ModelSuitabilityVerdict {
 	modelId: string;

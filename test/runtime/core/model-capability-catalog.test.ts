@@ -4,6 +4,7 @@ import {
 	DEFAULT_MODEL_SUITABILITY_POLICY,
 	lookupModelCapability,
 	MODEL_CAPABILITY_CATALOG,
+	resolveActiveModelSuitabilityPolicy,
 	resolveModelSuitabilityPolicy,
 } from "../../../src/core/model-capability-catalog";
 
@@ -76,6 +77,27 @@ describe("model-capability-catalog: suitability gate", () => {
 		expect(v.severity).toBe("warn");
 		expect(v.entry).toBeNull();
 		expect(v.reason).toMatch(/capability check|model sweep/i);
+	});
+});
+
+describe("model-capability-catalog: active policy from env (§5.AL global setting)", () => {
+	it("defaults to warn-and-reject when no env override is set", () => {
+		expect(resolveActiveModelSuitabilityPolicy({})).toEqual({ onUnsuitable: "reject", onUnknown: "warn" });
+	});
+
+	it("NKLEIN_MODEL_GATE_UNSUITABLE relaxes the unsuitable action (allow/warn/reject)", () => {
+		expect(resolveActiveModelSuitabilityPolicy({ NKLEIN_MODEL_GATE_UNSUITABLE: "warn" }).onUnsuitable).toBe("warn");
+		expect(resolveActiveModelSuitabilityPolicy({ NKLEIN_MODEL_GATE_UNSUITABLE: "allow" }).onUnsuitable).toBe("ok");
+	});
+
+	it("NKLEIN_MODEL_GATE_UNKNOWN tightens/loosens the unknown action; unrecognized values keep the default", () => {
+		expect(resolveActiveModelSuitabilityPolicy({ NKLEIN_MODEL_GATE_UNKNOWN: "reject" }).onUnknown).toBe("reject");
+		expect(resolveActiveModelSuitabilityPolicy({ NKLEIN_MODEL_GATE_UNKNOWN: "nonsense" }).onUnknown).toBe("warn");
+	});
+
+	it("a relaxed env policy flows through assessModelSuitability (a reject becomes warn)", () => {
+		const policy = resolveActiveModelSuitabilityPolicy({ NKLEIN_MODEL_GATE_UNSUITABLE: "warn" });
+		expect(assessModelSuitability("microsoft/phi-4-mini-reasoning", policy).severity).toBe("warn");
 	});
 });
 
