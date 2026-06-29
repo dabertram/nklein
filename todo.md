@@ -4021,6 +4021,13 @@ deep analysis:
       to show a NO-call turn's continue-vs-end. **Remaining (now cheap):** run an ACT-mode multi-turn task (start a decomposed
       subcard, or an act preset) with the probe to watch a no-call `"stop"` turn → loop-ends-or-continues. The harness +
       `--model-id` make this a short follow-up, not a setup effort.
+      **ACT-MODE RUN (2026-06-29, added `dev test-project --no-plan`): the loop CONTINUES across multi tool-call turns** —
+      `mid_task --no-plan --model-id qwen/qwen3-8b` produced 8 consecutive `finishReason=tool-calls hasToolCall=true` turns
+      (agent kept acting). So a HEALTHY run is all tool-call turns and the loop happily continues turn-to-turn. CRUCIALLY no
+      NO-call turn occurred — confirming the no-call/truncation case is the ABNORMAL one. So the decisive sub-question is
+      narrowed to: **force a no-call turn (tiny token budget) and watch if the loop ends or continues.** That needs a
+      max-output-tokens lever on the seed (nkleinSettings has timeout fields; check for an output-budget field, else the
+      sampling/launch-config path) — the last small enabler. Everything else for the experiment is now in place + proven.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
