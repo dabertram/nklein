@@ -41,6 +41,8 @@ interface StartTaskSessionResult {
 		| "swarm_stopped"
 		| "agent_sandbox_unavailable";
 	retryAfterMs?: number | null;
+	/** §5.AB "why this model for this task" — the operator-readable selection explanation, when the backend provided one. */
+	selectionReason?: string;
 }
 
 interface StartTaskSessionOptions {
@@ -161,6 +163,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 						message: payload.error ?? "Task session start failed.",
 						errorCode: payload.errorCode,
 						retryAfterMs: payload.retryAfterMs,
+						selectionReason: payload.selectionReason,
 					};
 				}
 				upsertSession(payload.summary);

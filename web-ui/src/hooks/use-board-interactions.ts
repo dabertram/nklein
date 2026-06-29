@@ -411,10 +411,14 @@ export function useBoardInteractions({
 				notifyError(started.message ?? "Could not start task session.");
 				const blockedKind = getStartBlockedKind(started.errorCode);
 				if (blockedKind) {
+					// §5.AB: when a task is blocked on routing, append the "why this model" explanation so the operator sees
+					// the basis (difficulty/context vs each candidate's capability) rather than a bare "needs decomposition".
+					const baseReason = started.message ?? "This task needs to be decomposed before it can start.";
+					const reason = started.selectionReason ? `${baseReason}\n\n${started.selectionReason}` : baseReason;
 					setBoard((currentBoard) => {
 						const marked = updateTaskBlockedState(currentBoard, taskId, {
 							kind: blockedKind,
-							reason: started.message ?? "This task needs to be decomposed before it can start.",
+							reason,
 						});
 						return marked.updated ? marked.board : currentBoard;
 					});
