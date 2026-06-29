@@ -4754,8 +4754,11 @@ deep analysis:
       ([nklein-ledger-chat-attempt.ts](src/nklein-agent/nklein-ledger-chat-attempt.ts) `buildChatAttemptEvent`, wired
       best-effort through `chatService.recordChatAttempt` → `runtime-api`) now appends `flow:"chat"` attempts for
       tool-using chat turns — so chat is in the ledger alongside board runs (canonical model id matches the terminal
-      writer, so they group together in every projection). REMAINING: a flow-aware §5.Z projection (`…ByFlow`, vs the
-      current `…ByRole`) to break the matrix out by board/chat/autonomous; and the AUTONOMOUS-run writer. **PER-(MODEL,
+      writer, so they group together in every projection). **flow-aware §5.Z projection DONE** (`summarizeModelOutcomesByFlow`
+      + the dev display) and the **AUTONOMOUS-run writer DONE** (each §5.0.1 autonomous turn appends `flow:"autonomous"` via
+      the same sink). So all THREE flows (board / chat / autonomous) now write the ledger and the per-(model,flow) matrix is
+      real. REMAINING: live-runtime CONSUMPTION (the §5.AA retry engine / §5.AB selection reading these projections to route)
+      + the richer writer (graded quality/difficulty, gated on the §5.AB eval harness). **PER-(MODEL,
       TOOL) USAGE PROJECTION DONE (2026-06-27):** `summarizeToolUsageByModel` (ledger core) folds the
       now-written `attempt.toolCalls` into per-(model, tool) call counts + outcome (success/error/incomplete) + a
       completed-calls success rate — the §5.AA small-model signal (a weak model reliably erroring on a *specific* tool is
