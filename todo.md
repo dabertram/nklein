@@ -4651,8 +4651,12 @@ deep analysis:
         `selectSwarmRouteForTask` — the end-to-end pure route: derives each pool's `capabilityTier` from its
         class-ELIGIBLE candidates (a tool-unsuitable worker model can't make its machine count for the worker role),
         runs `selectPoolForTask` (pick machine), then `selectSwarmRoleModel` within the chosen pool (pick model). 5
-        tests. **Still owed (the only remaining piece):** wire `selectSwarmRouteForTask` at the live start-task seam,
-        fed by the §6.5 scheduler's per-pool running counts + resolved per-pool caps (behavior-changing ⇒ §5.Z re-verify).
+        tests. **FREE-SLOTS ADAPTER DONE (2026-06-29):** `computePoolFreeSlots(poolEndpoints, runningEndpoints, caps)`
+        ([model-pool-routing.ts](src/core/model-pool-routing.ts)) builds the `poolFreeSlots` feed — capped pool =
+        max(0, cap−running), UNCAPPED = `UNCAPPED_POOL_FREE_SLOTS` so an unconfigured machine never starves. +2 tests.
+        **Still owed (the only remaining piece):** wire `selectSwarmRouteForTask` at the live start-task seam — resolve
+        the task's ROLE → class-gated route (the candidate-role mapping is the design point), fed by `computePoolFreeSlots`
+        over the §6.5 running counts + resolved caps. Behavior-changing ⇒ gate on perEndpoint-configured + §5.Z re-verify.
   - [~] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
         cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface). **CAP EDITOR DONE (2026-06-29):** the
         per-machine/endpoint concurrency-cap editor is live in the ConcurrencyEditor (defaults + override). **Still owed:**
