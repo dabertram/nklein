@@ -42,7 +42,7 @@ function buildActionSchema(tools: AgentCoreTool[]): { name: string; schema: Reco
 	};
 }
 
-const BASE_SYSTEM_PROMPT = `You are !Klein's local coding agent. Work in small, verifiable steps.
+export const BASE_SYSTEM_PROMPT = `You are !Klein's local coding agent. Work in small, verifiable steps.
 Each turn, choose exactly one action: either call a tool, or finish with "final".
 Reply ONLY with a JSON object: { "thought": string, "action": <tool name or "final">, "input": object, "message": string }.
 Use "input" for tool arguments. Use "message" only when action is "final". Prefer edit_file for changes to existing files.`;
