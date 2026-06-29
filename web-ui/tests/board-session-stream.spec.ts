@@ -34,4 +34,32 @@ test.describe("board session streaming (harness pushFrame)", () => {
 		// The card reflects the streamed state live (auto-retries through the ~100ms batch flush).
 		await expect(cardLocator).toContainText("working");
 	});
+
+	test("the card tracks a streamed state-machine transition (running → paused)", async ({ page }) => {
+		const card = buildBoardCard({ id: "task-stream-2", title: "Transitioning task" });
+		const handle = await installRuntimeMock(page, {
+			snapshot: buildBoardSnapshot({ columns: buildBoardColumns({ in_progress: [card] }) }),
+		});
+		await gotoBoard(page);
+		const cardLocator = page.locator('[data-task-id="task-stream-2"]');
+		await expect(cardLocator).toBeVisible();
+
+		// running → "working".
+		handle.pushFrame(taskSessionsUpdatedFrame([taskSessionSummary("task-stream-2", { state: "running" })]));
+		await expect(cardLocator).toContainText("working");
+
+		// → paused: the card's badge tracks the streamed transition to "paused". A NEWER updatedAt so the reducer
+		// doesn't treat the second frame as a stale/out-of-order update.
+		handle.pushFrame(
+			taskSessionsUpdatedFrame([
+				taskSessionSummary("task-stream-2", {
+					state: "paused",
+					paused: true,
+					updatedAt: 1_700_000_600_000,
+					lastOutputAt: 1_700_000_600_000,
+				}),
+			]),
+		);
+		await expect(cardLocator).toContainText("paused");
+	});
 });
