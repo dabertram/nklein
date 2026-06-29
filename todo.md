@@ -4356,18 +4356,18 @@ deep analysis:
     - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
     - [ ] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
     - [ ] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing models.
-    - [ ] **★ (challenge: C1, 2026-06-29 — RELIABLE 2/2, C3-BLOCKER, PRIORITIZE) proactive force-`decompose_project`
-          rung for the architect/decompose path.** Two live C1 scouts of `qwopus3.6-27b-v2-mlx` BOTH failed to emit
-          `decompose_project` (see [cross-model-verification.md](docs/dev/cross-model-verification.md) C1 rows): run 1
-          looped on a redundant read; run 2 gathered context cleanly then NARRATED "Let me decompose this…" and the
-          session ended — a no-tool-call turn, no structured emit. Confirmed RELIABLE (not stochastic) + it's a CONTROL
-          gap, not a ceiling (the prose plan was correct). The driver emits simple calls fine (C0 write_file ✅) but
-          stalls transitioning reason→the complex decompose emit. **Fix:** after context-gathering on the decompose
-          path, PROACTIVELY force the `decompose_project` call via constrained decoding (`buildConstrainedToolCallSchema`
-          substrate already exists) — a `beforeModel`/loop rung that converts narrated intent into the structured emit.
-          This unblocks C3 (no multi-card without decompose). Re-attack the driver once it lands; verify across the §5.Z
-          roster. *(Also covers the redundant-read-block → steer-to-owed-action shape: when a read is blocked as
-          redundant, advance toward decompose, don't re-ask.)*
+    - [ ] **(challenge: C1, 2026-06-29) FIRST verify the existing decompose stall-nudger under plan-mode — do NOT build
+          a new rung yet.** Two C1 scouts of `qwopus3.6-27b-v2-mlx` showed it narrating decompose intent without emitting
+          `decompose_project` — BUT (corrected, same day) that was a **harness artifact**: `verify-decompose-isolation.mts`
+          omits `startInPlanMode`, and the production `DecompositionStallNudger` (25s chat-nudge + turn-end recovery, the
+          mechanism that ALREADY targets this exact narrate-instead-of-emit shape) only arms when
+          `startInPlanMode === true` ([nklein-task-session-service.ts:1680](src/nklein-agent/nklein-task-session-service.ts#L1680)).
+          So the recovery path was never engaged. **Do this in order:** (a) run a decompose-COMPLETION test WITH
+          `startInPlanMode: true` (patch the isolation harness or add a `verify-decompose-completion` that waits for the
+          `decompose_project` emit) so the nudger is active; (b) if the driver STILL doesn't emit after the nudger's
+          chat-nudge + turn-end re-prompts, THEN consider strengthening the nudger (e.g. its chat-only pattern missed
+          "let me decompose this into…"; or a constrained force-emit via `buildConstrainedToolCallSchema` as the final
+          nudge) — but only if proven necessary. Don't build a redundant rung before (a).
 - [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
   - [ ] Build phase (a) prompt: explicit "reason about which tool → explain decision"
   - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
