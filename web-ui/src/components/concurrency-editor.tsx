@@ -117,31 +117,49 @@ function ConcurrencyMapEditor({
 	);
 }
 
+export interface ConcurrencyMaps {
+	perProvider: ConcurrencyMap;
+	perModel: ConcurrencyMap;
+	/** §5.AB per-MACHINE pool caps, keyed by endpoint/baseUrl (an LM-Studio-linked machine). */
+	perEndpoint: ConcurrencyMap;
+}
+
 interface ConcurrencyEditorProps {
 	perProvider: ConcurrencyMap;
 	perModel: ConcurrencyMap;
-	onChange: (next: { perProvider: ConcurrencyMap; perModel: ConcurrencyMap }) => void;
+	perEndpoint: ConcurrencyMap;
+	onChange: (next: ConcurrencyMaps) => void;
 	disabled?: boolean;
 }
 
-export function ConcurrencyEditor({ perProvider, perModel, onChange, disabled }: ConcurrencyEditorProps) {
+export function ConcurrencyEditor({ perProvider, perModel, perEndpoint, onChange, disabled }: ConcurrencyEditorProps) {
 	return (
-		<div className="grid gap-2 sm:grid-cols-2">
+		<div className="flex flex-col gap-2">
+			<div className="grid gap-2 sm:grid-cols-2">
+				<ConcurrencyMapEditor
+					title="Per provider"
+					keyLabel="provider"
+					keyPlaceholder="e.g. lmstudio"
+					value={perProvider}
+					disabled={disabled}
+					onChange={(next) => onChange({ perProvider: next, perModel, perEndpoint })}
+				/>
+				<ConcurrencyMapEditor
+					title="Per model"
+					keyLabel="model"
+					keyPlaceholder="provider:model:endpoint"
+					value={perModel}
+					disabled={disabled}
+					onChange={(next) => onChange({ perProvider, perModel: next, perEndpoint })}
+				/>
+			</div>
 			<ConcurrencyMapEditor
-				title="Per provider"
-				keyLabel="provider"
-				keyPlaceholder="e.g. lmstudio"
-				value={perProvider}
+				title="Per machine (pool)"
+				keyLabel="machine"
+				keyPlaceholder="endpoint, e.g. http://m4mini.local:1234/v1"
+				value={perEndpoint}
 				disabled={disabled}
-				onChange={(next) => onChange({ perProvider: next, perModel })}
-			/>
-			<ConcurrencyMapEditor
-				title="Per model"
-				keyLabel="model"
-				keyPlaceholder="provider:model:endpoint"
-				value={perModel}
-				disabled={disabled}
-				onChange={(next) => onChange({ perProvider, perModel: next })}
+				onChange={(next) => onChange({ perProvider, perModel, perEndpoint: next })}
 			/>
 		</div>
 	);

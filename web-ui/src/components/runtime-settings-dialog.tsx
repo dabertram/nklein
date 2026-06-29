@@ -1332,9 +1332,11 @@ export function RuntimeSettingsDialog({
 	const [concurrencyDefaults, setConcurrencyDefaults] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
+		perEndpoint: ConcurrencyMap;
 	}>({
 		perProvider: {},
 		perModel: {},
+		perEndpoint: {},
 	});
 	// §5.AL global model-capability gate policy default.
 	const [modelGateUnsuitable, setModelGateUnsuitable] = useState<RuntimeModelGateAction>("reject");
@@ -1344,6 +1346,7 @@ export function RuntimeSettingsDialog({
 	const [concurrencyOverride, setConcurrencyOverride] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
+		perEndpoint: ConcurrencyMap;
 	} | null>(null);
 	const [agentRulesets, setAgentRulesets] = useState<AgentRulesetsConfigPayload>(DEFAULT_AGENT_RULESETS_CONFIG);
 	const [modelRolesOverride, setModelRolesOverride] = useState<RuntimeModelRoles | null>(null);
@@ -1493,6 +1496,7 @@ export function RuntimeSettingsDialog({
 		() => ({
 			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
 			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
+			perEndpoint: { ...(config?.concurrencyDefaults?.perEndpoint ?? {}) },
 		}),
 		[config?.concurrencyDefaults],
 	);
@@ -1506,6 +1510,7 @@ export function RuntimeSettingsDialog({
 				? {
 						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
 						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
+						perEndpoint: { ...(config.concurrencyOverride.perEndpoint ?? {}) },
 					}
 				: null,
 		[config?.concurrencyOverride],
@@ -1934,6 +1939,7 @@ export function RuntimeSettingsDialog({
 		setConcurrencyDefaults({
 			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
 			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
+			perEndpoint: { ...(config?.concurrencyDefaults?.perEndpoint ?? {}) },
 		});
 		setModelGateUnsuitable(config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject");
 		setModelGateUnknown(config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn");
@@ -1943,6 +1949,7 @@ export function RuntimeSettingsDialog({
 				? {
 						perProvider: { ...(config.concurrencyOverride.perProvider ?? {}) },
 						perModel: { ...(config.concurrencyOverride.perModel ?? {}) },
+						perEndpoint: { ...(config.concurrencyOverride.perEndpoint ?? {}) },
 					}
 				: null,
 		);
@@ -3103,6 +3110,7 @@ export function RuntimeSettingsDialog({
 							<ConcurrencyEditor
 								perProvider={concurrencyDefaults.perProvider}
 								perModel={concurrencyDefaults.perModel}
+								perEndpoint={concurrencyDefaults.perEndpoint}
 								disabled={controlsDisabled}
 								onChange={setConcurrencyDefaults}
 							/>
@@ -3756,6 +3764,7 @@ export function RuntimeSettingsDialog({
 											setConcurrencyOverride({
 												perProvider: { ...concurrencyDefaults.perProvider },
 												perModel: { ...concurrencyDefaults.perModel },
+												perEndpoint: { ...concurrencyDefaults.perEndpoint },
 											})
 										}
 										onRevert={() => setConcurrencyOverride(null)}
@@ -3764,6 +3773,7 @@ export function RuntimeSettingsDialog({
 										<ConcurrencyEditor
 											perProvider={concurrencyOverride?.perProvider ?? {}}
 											perModel={concurrencyOverride?.perModel ?? {}}
+											perEndpoint={concurrencyOverride?.perEndpoint ?? {}}
 											disabled={controlsDisabled}
 											onChange={setConcurrencyOverride}
 										/>

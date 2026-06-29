@@ -27,7 +27,12 @@ describe("ConcurrencyEditor", () => {
 	it("renders existing per-provider and per-model entries", () => {
 		act(() =>
 			root.render(
-				<ConcurrencyEditor perProvider={{ lmstudio: 2 }} perModel={{ "lmstudio:m:e": 1 }} onChange={() => {}} />,
+				<ConcurrencyEditor
+					perProvider={{ lmstudio: 2 }}
+					perModel={{ "lmstudio:m:e": 1 }}
+					perEndpoint={{}}
+					onChange={() => {}}
+				/>,
 			),
 		);
 		expect(container.textContent).toContain("lmstudio");
@@ -37,24 +42,32 @@ describe("ConcurrencyEditor", () => {
 
 	it("removes a provider entry", () => {
 		const onChange = vi.fn();
-		act(() => root.render(<ConcurrencyEditor perProvider={{ lmstudio: 2 }} perModel={{}} onChange={onChange} />));
+		act(() =>
+			root.render(
+				<ConcurrencyEditor perProvider={{ lmstudio: 2 }} perModel={{}} perEndpoint={{}} onChange={onChange} />,
+			),
+		);
 		act(() => container.querySelector<HTMLButtonElement>('[aria-label="Remove lmstudio cap"]')?.click());
-		expect(onChange).toHaveBeenCalledWith({ perProvider: {}, perModel: {} });
+		expect(onChange).toHaveBeenCalledWith({ perProvider: {}, perModel: {}, perEndpoint: {} });
 	});
 
 	it("edits a provider cap", () => {
 		const onChange = vi.fn();
-		act(() => root.render(<ConcurrencyEditor perProvider={{ lmstudio: 2 }} perModel={{}} onChange={onChange} />));
+		act(() =>
+			root.render(
+				<ConcurrencyEditor perProvider={{ lmstudio: 2 }} perModel={{}} perEndpoint={{}} onChange={onChange} />,
+			),
+		);
 		const input = container.querySelector<HTMLInputElement>('[aria-label="lmstudio concurrency cap"]');
 		if (input) {
 			act(() => setInputValue(input, "5"));
 		}
-		expect(onChange).toHaveBeenCalledWith({ perProvider: { lmstudio: 5 }, perModel: {} });
+		expect(onChange).toHaveBeenCalledWith({ perProvider: { lmstudio: 5 }, perModel: {}, perEndpoint: {} });
 	});
 
 	it("adds a new provider cap from the add-row", () => {
 		const onChange = vi.fn();
-		act(() => root.render(<ConcurrencyEditor perProvider={{}} perModel={{}} onChange={onChange} />));
+		act(() => root.render(<ConcurrencyEditor perProvider={{}} perModel={{}} perEndpoint={{}} onChange={onChange} />));
 		const keyInput = container.querySelector<HTMLInputElement>('[aria-label="New provider key"]');
 		const capInput = container.querySelector<HTMLInputElement>('[aria-label="New provider cap"]');
 		if (keyInput && capInput) {
@@ -62,6 +75,33 @@ describe("ConcurrencyEditor", () => {
 			act(() => setInputValue(capInput, "4"));
 			act(() => container.querySelector<HTMLButtonElement>('[aria-label="Add provider cap"]')?.click());
 		}
-		expect(onChange).toHaveBeenCalledWith({ perProvider: { ollama: 4 }, perModel: {} });
+		expect(onChange).toHaveBeenCalledWith({ perProvider: { ollama: 4 }, perModel: {}, perEndpoint: {} });
+	});
+
+	it("renders the per-machine (pool) section and edits an endpoint cap (§5.AB)", () => {
+		const onChange = vi.fn();
+		act(() =>
+			root.render(
+				<ConcurrencyEditor
+					perProvider={{}}
+					perModel={{}}
+					perEndpoint={{ "http://m4mini.local:1234/v1": 2 }}
+					onChange={onChange}
+				/>,
+			),
+		);
+		expect(container.textContent).toContain("Per machine (pool)");
+		expect(container.textContent).toContain("http://m4mini.local:1234/v1");
+		const input = container.querySelector<HTMLInputElement>(
+			'[aria-label="http://m4mini.local:1234/v1 concurrency cap"]',
+		);
+		if (input) {
+			act(() => setInputValue(input, "4"));
+		}
+		expect(onChange).toHaveBeenCalledWith({
+			perProvider: {},
+			perModel: {},
+			perEndpoint: { "http://m4mini.local:1234/v1": 4 },
+		});
 	});
 });

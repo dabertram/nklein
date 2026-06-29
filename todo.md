@@ -4636,8 +4636,11 @@ deep analysis:
         contract ([config-api-contract.ts](src/core/config-api-contract.ts)) uses the extended `concurrencyConfigSchema`/
         `concurrencyOverrideSchema`, and [runtime-config.ts](src/config/runtime-config.ts) threads it via
         `normalizeConcurrencyConfig`/`normalizeConcurrencyOverride` + `areConcurrencyOverridesEqual` change-detection (all
-        extended for perEndpoint). +1 round-trip test (sparse, schema round-trips). **Still owed (UI only):** a Settings
-        editor to set per-endpoint/pool caps (web-ui).
+        extended for perEndpoint). +1 round-trip test (sparse, schema round-trips). **SETTINGS EDITOR DONE (2026-06-29):** `ConcurrencyEditor`
+        ([web-ui/src/components/concurrency-editor.tsx](web-ui/src/components/concurrency-editor.tsx)) gained a third
+        "Per machine (pool)" section (keyed by endpoint/baseUrl) wired through the settings dialog's concurrency
+        defaults + per-project override; web:typecheck + concurrency-editor tests (per-machine case) + the 37-case dialog
+        oracle green.
   - [~] pool-aware routing: the §5.AB / `selectSwarmRoleModel` pick becomes pool-aware — prefer a FREE pool, send
         easy/small cards to the secondary machines (m4mini / legion), reserve the m5 pool for hard/large cards.
         **ROUTING CORE DONE (2026-06-29):** [model-pool-routing.ts](src/core/model-pool-routing.ts) `selectPoolForTask`
@@ -4650,8 +4653,11 @@ deep analysis:
         runs `selectPoolForTask` (pick machine), then `selectSwarmRoleModel` within the chosen pool (pick model). 5
         tests. **Still owed (the only remaining piece):** wire `selectSwarmRouteForTask` at the live start-task seam,
         fed by the §6.5 scheduler's per-pool running counts + resolved per-pool caps (behavior-changing ⇒ §5.Z re-verify).
-  - [ ] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
-        cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface).
+  - [~] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
+        cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface). **CAP EDITOR DONE (2026-06-29):** the
+        per-machine/endpoint concurrency-cap editor is live in the ConcurrencyEditor (defaults + override). **Still owed:**
+        the richer pool LISTING (machine label · resident models · live busy/free) — a read surface fed by `lms ps --json`
+        grouped by `deviceIdentifier` + `lms link status` (per the LM-Link research).
   - [ ] verify end-to-end: with ≥2 pools active, a wide DAG fans out across machines (easy cards land on the secondaries,
         hard on the m5) with no cross-pool deadlock + clean teardown.
   - **named starter rosters (ref [docs/dev/model-catalog-recommendations.md](docs/dev/model-catalog-recommendations.md) "Swarm rosters"):**

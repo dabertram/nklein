@@ -54,7 +54,7 @@ describe("getSessionActiveTaskCardsForFileOverlap", () => {
 	it("collects cards for active sessions (queued/running/awaiting_review), skipping inactive + excluded", () => {
 		const sessions = {
 			t1: session("t1", "running"),
-			t2: session("t2", "completed"), // inactive ⇒ skipped
+			t2: session("t2", "idle"), // inactive ⇒ skipped
 		};
 		expect(getSessionActiveTaskCardsForFileOverlap(board, sessions).map((c) => c.id)).toEqual(["t1"]);
 		expect(getSessionActiveTaskCardsForFileOverlap(board, { t1: session("t1", "running") }, new Set(["t1"]))).toEqual(
