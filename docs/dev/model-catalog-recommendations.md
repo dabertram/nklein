@@ -87,6 +87,33 @@ than dense models of the same nominal size. Avoid dense >70B (heavy swap).
 
 ### Above 130B — out of scope (heavy swapping) unless the user greenlights dedicated sessions / new hardware.
 
+## Swarm rosters — per-machine (user hardware: `m5max-128gb`, `m4mini-24gb`, `legion-5pro` RTX 4070m 8 GB)
+> Two named rosters for the §5.AB per-machine pools. Each assigns a SUITABLE model per role to a machine that can run
+> it FAST (fully in memory/VRAM, no heavy CPU offload). All picks are tool-capable per the §5.AL catalog (avoid the
+> reasoning-only tool traps) and honor the ≥32k floor (keep loaded context modest on the small machines for speed).
+
+### Roster Q — quality-leaning (from a 2026-06-29 GPT suggestion, analyzed + lightly adapted)
+| Machine | Role | Model (GGUF Q4_K_M unless noted) | Fit |
+|---|---|---|---|
+| m5max-128gb | architect / planner / final reviewer | `Qwen3-Coder-Next` (80B/3B-active) `UD-Q4_K_M` ~48 GB | big-brain agentic coder, 256k ctx; comfortably in 128 GB |
+| m4mini-24gb | mid coder / reviewer / design critic | `Qwen2.5-Coder-14B-Instruct` ~9 GB | real code 14B; keep ctx 8–16k for speed in 24 GB |
+| legion-5pro 8 GB | fast implementer / test+lint fixer | `Qwen2.5-Coder-7B-Instruct` ~4.7 GB | fully on the 4070m 8 GB with KV room at modest ctx |
+| legion alt profile | general reasoning / critic / summarizer | `Qwen3-8B` ~5 GB (thinking/non-thinking) | fits 8 GB; TOOL_NATIVE in our catalog |
+
+**GPT's analysis is sound** on the VRAM-fit math (7B Q4 fits 8 GB with KV room; 14B Q4 ≈9 GB does NOT genuinely fit 8 GB; 80B Q4 ≈48 GB fits 128 GB). **Adaptations I'd make:** (a) the m5max at 128 GB is under-used running ONE 48 GB model — per the user's "max out the roles," it can ALSO host a dedicated **reasoning reviewer** (e.g. a ~20–30 GB reasoning model) alongside the coder so architect-reasoning and code-review are distinct models (still well within 128 GB); keep single big-brain only if quality-per-card > swarm throughput. (b) For the **architect/decompose** role specifically, watch the §5.Z C1 finding (narrate-instead-of-emit) — pair whichever model with the §5.AA force-decompose rung. (c) Prefer GGUF here (the §5.AL "GGUF for tool-calling" cross-cutting rec).
+
+### Roster M — absolute-minimum size (still maxing each role), user-requested 2026-06-29
+> Goal: the SMALLEST model that still clears each role's bar — a deliberate "how low can we go" experiment. Leans HARD
+> on the §5.AA ladder (constrained decoding / reason-then-act / endpoint iteration) to carry sub-8B models over the
+> tool-call-chaining bar our §5.O/§5.Z sweeps flagged for ≤7B models.
+| Machine | Role | Model (Q4_K_M) | Min-size rationale |
+|---|---|---|---|
+| m5max-128gb (or m4mini) | architect / planner / reviewer | `Qwen3-8B` ~5 GB | smallest with solid reasoning + thinking-mode + TOOL_NATIVE; below this, planning quality drops sharply |
+| m4mini-24gb (or legion) | coder / reviewer | `Qwen2.5-Coder-7B-Instruct` ~4.7 GB | smallest reliably-tool-calling code model (3B is borderline on multi-tool chaining) |
+| legion-5pro 8 GB | fast micro-worker (lint/type/test fix, small-file edits) | `Qwen2.5-Coder-3B-Instruct` ~2 GB | min for trivial single-edit cards; escalate to 7B when it stalls |
+
+**Caveats (honest, from our own sweeps):** ≤7B models have real tool-call-chaining weaknesses (§5.O/§5.Z) — Roster M is only viable BECAUSE the §5.AA recovery ladder + the finite-state controller carry them; expect more retries/escalations and treat ceilings as provisional (§5.0.3). `Qwen2.5-Coder-3B` for non-trivial cards is the first thing to escalate off. The 8B architect must be paired with the force-decompose rung. Keep all loaded contexts ≥32k (floor) but lean (speed) on the small machines.
+
 ## Notes
 - The existing catalog is already large (40+ models across all tiers) — most "recommendations" above are already
   downloaded; the real near-term gap is **GGUF variants of the small models** for the format A/B.

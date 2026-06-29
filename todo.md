@@ -4639,6 +4639,16 @@ deep analysis:
         cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface).
   - [ ] verify end-to-end: with ≥2 pools active, a wide DAG fans out across machines (easy cards land on the secondaries,
         hard on the m5) with no cross-pool deadlock + clean teardown.
+  - **named starter rosters (ref [docs/dev/model-catalog-recommendations.md](docs/dev/model-catalog-recommendations.md) "Swarm rosters"):**
+    - [ ] wire **Roster Q** (quality): m5max=`Qwen3-Coder-Next` UD-Q4_K_M (architect/reviewer), m4mini=`Qwen2.5-Coder-14B` (mid coder), legion=`Qwen2.5-Coder-7B` (fast worker) / `Qwen3-8B` alt.
+    - [ ] wire **Roster M** (absolute-min): m5max-or-m4mini=`Qwen3-8B` (architect), m4mini-or-legion=`Qwen2.5-Coder-7B` (coder), legion=`Qwen2.5-Coder-3B` (micro-worker) — leans on the §5.AA ladder; treat ceilings as provisional.
+    - [ ] let the pool config name a roster + per-machine model so a swarm spins up from one preset (ties the settings-UI leaf).
+  - **LATER — control models loaded on the 2 OTHER machines via LM Link (user 2026-06-29; deferred, do NOT build before the local pools land + the user re-greenlights remote control), decomposed:**
+    - [ ] research LM Studio's remote/LM-Link control surface: can `lms load/unload`/the REST `/api/v1/models/{load,unload}` target a LINKED machine (per-endpoint), or only the local host? (capability spike, doc the finding).
+    - [ ] extend the guarded loader ([lms-model-runner.ts](src/core/lms-model-runner.ts) `loadModelExclusive`) to take a target POOL/endpoint, so `decideModelLoad` headroom is evaluated PER MACHINE (each pool's own RAM/VRAM budget), not the local host's.
+    - [ ] per-machine resident-set discovery: `listResidentModels` per pool/endpoint (today it reads the local host) so selection + headroom see each machine's real loaded set.
+    - [ ] orchestrate a roster: load Roster Q / Roster M across the 3 machines from one command (load→set ctx→verify resident→ready), with clean unload/restore.
+    - [ ] swarm "intelligence/punching-power" trial harness: run the cumulative challenge suite (§5.0.3) across a roster, record per-roster scoreboard rows (which roster clears which challenge tier), iterate model picks from the data.
 - [~] **Model-ladder expansion — grow the roster to meet the challenge ladder (MCF Phase A, 2026-06-28, user).** As a
       challenge's difficulty exceeds the current roster's reach, bigger/better LOCAL models are the answer (the test
       machine — 128 GB RAM + M5 Max — runs **up to ~120B at lower quantization**). **WORKING-MODE SHIFT IN PROGRESS
