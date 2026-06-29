@@ -4633,8 +4633,14 @@ deep analysis:
         until a pool cap is set. lmstudio/ollama are always-local so REMOTE LM-Studio-linked machines pool correctly. +2
         tests (incl. cross-model pooling on one machine); full suite green. **Still owed:** surface the `perEndpoint`
         grain in the runtime-config threading + tRPC contract + Settings UI (mirrors the provider/model threading).
-  - [ ] pool-aware routing: the §5.AB / `selectSwarmRoleModel` pick becomes pool-aware — prefer a FREE pool, send
+  - [~] pool-aware routing: the §5.AB / `selectSwarmRoleModel` pick becomes pool-aware — prefer a FREE pool, send
         easy/small cards to the secondary machines (m4mini / legion), reserve the m5 pool for hard/large cards.
+        **ROUTING CORE DONE (2026-06-29):** [model-pool-routing.ts](src/core/model-pool-routing.ts) `selectPoolForTask`
+        — pure machine-pool picker over `{poolId, capabilityTier, freeSlots}`: capability-floor + free-capacity-first +
+        `efficient` weighting (smallest-sufficient pool, so easy cards take m4mini/legion and the m5 stays free for hard
+        cards); `capability` weighting for quality-max; `no_capacity` (queue) / `no_fit` results. 7 tests; tsc+biome green.
+        **Still owed (wiring):** compose it with `selectSwarmRoleModel` (pick pool → pick model within the pool) at the
+        live start-task seam, fed by the §6.5 scheduler's per-pool running counts + the resolved per-pool caps.
   - [ ] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
         cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface).
   - [ ] verify end-to-end: with ≥2 pools active, a wide DAG fans out across machines (easy cards land on the secondaries,
