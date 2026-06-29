@@ -8,10 +8,20 @@
 ## The standing goal
 
 Drive **!Klein / nKlein** (the local-only, Docker-isolated, multi-LLM kanban swarm) forward **autonomously and
-continuously** — clearing the backlog while raising the ceiling of what the swarm can reliably do, **especially from the
-smallest / most-limited local models**, while pushing the biggest/best models to their absolute maximum. Work in clean,
+continuously** — clearing the backlog while raising the ceiling of what the swarm can reliably do. Work in clean,
 bounded, always-green increments. **Don't stop while anything on the backlog can still be advanced** (decide a sensible
 next step even for things that will only be *adapted later with low effort*).
+
+> **DIRECTION CHANGE — capable-model-first to punch the backlog (user 2026-06-29; supersedes the earlier "smallest /
+> most-limited models first" emphasis).** We've already learned a lot from weak models and *substantially improved the
+> model interface* (the §5.AN leverage map, the §5.AA robustness ladder, the §5.AL suitability gate). So **shift the
+> primary effort to a more capable model and drive !Klein's features + the §5 backlog hard with it** — less time spent
+> hardening against potentially-unsuitable weak models. Concretely: **work with `qwen3.6-27b q8` until we hit its
+> limits**, then research the best bigger/stronger local candidate online (§5.AL/`model-catalog-recommendations.md`) and
+> escalate. **Broad small/less-capable-model testing is POSTPONED, not abandoned** — it resumes later; the learnings and
+> the robustness machinery stay. **In parallel, the runtime-unsuitability story must be solid + ready2use**: !Klein
+> detects an unsuitable model *at runtime* (not only the pre-flight §5.AL gate) and **collects persistent data** about
+> it, so the catalog/ledger keep learning while we focus elsewhere.
 
 ## Prime directives (never traded away — see todo.md §4A / §5 for the canonical text)
 
@@ -57,18 +67,21 @@ next step even for things that will only be *adapted later with low effort*).
   - **One model resident at a time** — UNLOAD the current model before LOADING the next (no pile-up; relieves the
     consecutive-load stalls). (The user's own pinned/embedding models are the exception; never unload those.)
   - **Context size = 40000** for every load (≥32k floor honored; one fixed window for now).
-  - **Size cap = ≤14B for now** (qwen2.5-coder-14b is the current ceiling). Raise the cap only as the tier roadmap below
-    is explicitly advanced.
+  - **Size cap = ≤35B for now (raised 2026-06-29 for the capable-model-first pivot)** — the working driver is
+    **`qwen3.6-27b q8`** (≈29 GB weights; well within the 128 GB / M5 Max headroom guard). Load bigger only after a
+    headroom check and as the tier roadmap below is explicitly advanced; above that, research a stronger candidate first.
   - **Always headroom-check before a load** (`src/core/model-load-headroom.ts` `decideModelLoad`, keep ~25% RAM free) and
     build the command via `src/core/lms-model-control.ts` (`planGuardedModelLoad` → `lms load … --context-length 40000`).
     Restore the user's working set after a sweep.
   - Detect the resident set via `/api/v0/models` `state` (`src/core/lmstudio-loaded-models.ts`); read sizes via `lms ps`
     (`parseLmsPs`). `/v1/models` = available, `/api/v0/models` = resident.
-- **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** Work the classes in order, only
-  advancing when the current one is solid: **(1) smallest models** — make !Klein robust against them FIRST (the current
-  focus); **(2) mid ≤40B** — speed + quality/performance checks; **(3) ≤80B**; **(4) ≤130B** — "fun," only as long as the
-  M5 Max/128 GB runs them without heavy stalling/swapping; **above 130B** — out of scope (heavy swapping) unless the user
-  decides it's worth dedicated compute sessions / new hardware. Working hypothesis: ≤40B (occasionally ≤80B) gets us far.
+- **Model-size tier roadmap (user 2026-06-29 — REVISED for the capable-model-first pivot).** The *current focus* is the
+  **mid tier (≤35B), driving with `qwen3.6-27b q8`** — use it to push !Klein's features + the backlog and find the real
+  product limits, escalating only when it actually walls: **(current) mid ≤35B** — the working driver; **next ≤80B** when
+  27b walls (research the best candidate first); **then ≤130B** — only as long as the M5 Max/128 GB runs it without heavy
+  stalling/swapping; **above 130B** — out of scope (heavy swapping) unless the user dedicates compute / new hardware.
+  **The smallest-models robustness tier is POSTPONED (not dropped)** — resume the broad weak-model sweeps later; the
+  §5.AA/§5.AL machinery already built keeps running passively (runtime detection + persistent data) while we focus up.
 - **Research model catalogs + recommend downloads (user 2026-06-29).** Continuously research online model catalogs
   (HF / LM Studio community / etc.) for promising LOCAL agentic models per the active tier (tool-calling + coding +
   instruction-following strength), and surface a **download list for the USER** (the user downloads; !Klein then
@@ -82,10 +95,12 @@ next step even for things that will only be *adapted later with low effort*).
   `verified:false` row confirmed/refuted) MUST be folded into the catalog in the same change — flip the verdict, append the
   note, cite the source, set `basis`. Quick check: `tsx scripts/model-lab.mts check <id>`. On the §5.AL agenda (not yet
   built): a settings surface (global + project override) and an LLM-based ONLINE capability lookup for UNKNOWN models.
-- **Roster discipline + weakest-model focus.** Keep EVERY model that has appeared in the roster (sweep-log table), even
+- **Roster discipline (capable-model-first).** Keep EVERY model that has appeared in the roster (sweep-log table), even
   when unloaded — they pop in/out; collect the full history and adapt as new ones appear. **Each sweep, query the LOADED
-  set first** (`/api/v0/models`) and target only those. Watch the **weakest** loaded models first — they hit a new
-  difficulty rung earliest, the signal for where the §5.AA ladder (or a user-loaded bigger model) is next needed.
+  set first** (`/api/v0/models`) and target only those. For now the driver is the capable model (`qwen3.6-27b q8`); the
+  weakest-model-first watch is PAUSED with the small-tier robustness work — but **runtime unsuitability detection +
+  persistent data collection stay always-on** so any model (weak or strong) that walls at runtime is recorded for the
+  catalog/ledger. When 27b walls a backlog item, that's the signal to research + escalate to a bigger model.
 - **Quality is a standing mandate with a widening horizon.** Always strive for clean code, design, structure,
   maintainability, extendability — a slightly-moving target you keep raising, not a one-time bar.
 

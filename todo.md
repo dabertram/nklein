@@ -395,6 +395,23 @@ deep analysis:
 > truth. Rather than editing every task line, a task's single-model live proof (e.g. "verified on qwen3-8b") keeps its
 > text and its cross-model obligation is tracked as a §5.Z checkbox + a row in
 > [cross-model-verification.md](docs/dev/cross-model-verification.md).
+>
+> **★ DIRECTION CHANGE — CAPABLE-MODEL-FIRST: punch the backlog with a strong model (2026-06-29, user — STANDING,
+> supersedes the "smallest-models-first robustness" emphasis where they conflict).** We've learned a lot from weak
+> models and *substantially improved the model interface* (§5.AN leverage map · §5.AA robustness ladder · §5.AL gate).
+> So **shift the primary effort to driving !Klein's features + this backlog with a more capable model**, spending less
+> time hardening against potentially-unsuitable weak ones. Operating rules:
+> - **Driver = `qwen3.6-27b q8`** (load/unload-managed, one-resident, headroom-checked; size cap raised to ≤35B — see
+>   goal.md). Work it **until it walls** on a real backlog item; that wall is the signal to **research the best
+>   bigger/stronger local candidate online** (§5.AL + `docs/dev/model-catalog-recommendations.md`) and escalate the tier.
+> - **Broad small/less-capable-model sweeps are POSTPONED, not abandoned** — the §5.O/§5.Z/§5.AA weak-model robustness
+>   work resumes later; nothing built is removed. The cross-model-verification obligation above is **relaxed to the
+>   active driver model for now** (re-broaden when the small-tier sweeps resume).
+> - **Runtime unsuitability detection + persistent data stays ALWAYS-ON (the ready2use safety net) — see [§5.AL](#5al)**:
+>   even while we focus on a strong model, !Klein keeps detecting an unsuitable model *at runtime* (not just the
+>   pre-flight gate) and persisting that evidence so the catalog/ledger keep learning passively.
+> - **Net effect on "what next":** when picking the next step, prefer **!Klein feature/backlog depth** that the stronger
+>   model now unlocks over weak-model hardening. The MCF still drives order; the ladder just runs against the capable driver.
 
 ### 5.0.1 — Long-run mandate + decisions (2026-06-25; FINAL — supersedes earlier "parked" steers where they conflict)
 > The user front-loaded a batch of decisions so the agent can run autonomously for a long stretch toward a
@@ -5877,6 +5894,27 @@ deep analysis:
       `browse_url` only fetches a known URL — the model can't search; this is the real blocker); (2) drive the chat agent
       with it → parse → present advice + a provisional catalog entry; (3) the "check model" button + the opt-in
       auto-lookup global setting (default off/ask, no-surprise-egress).
+- [~] **RUNTIME unsuitability detection + PERSISTENT data collection (user 2026-06-29 — ACTIVE; the capable-model-first
+      pivot makes this the "ready2use safety net" while we drive with a strong model).** The §5.AL gate above is
+      **pre-flight** (catalog verdict at task-start). The user wants !Klein to ALSO detect an unsuitable model *during/
+      after a run* from observed behaviour and **persist** that, so the catalog/ledger keep learning even while broad
+      weak-model sweeps are paused. Make the basics + extended features ready2use:
+      - **Basics that EXIST (✅, wire-verified):** the `model_stalled` self-observation signal (empty turn = no tool-call +
+        no text — [self-observation-sink.ts](src/telemetry/self-observation-sink.ts) + the lifecycle contract), recorded
+        from the agent loop (`nklein-session-runtime.ts` `afterModel`); the §5.AB ledger of learned per-model/role
+        capability + the `dev ledger` surface; the §5.AA diagnostic signals (`tool_argument_error`, `repeated_read`,
+        `verification_failed`, `task_abandoned`). These already accrue durable, per-model evidence on disk.
+      - **OWED (extended features, to make it a closed loop):**
+        1. **A runtime "unsuitability verdict" aggregator (pure, testable).** Read the persisted self-observation +
+           run-summary records for a model and classify a *runtime-observed* verdict (e.g. repeated `model_stalled` /
+           never-calls-a-tool / chronic malformed tool-args ⇒ `TOOL_WEAK`/`TOOL_UNSUITABLE` with a confidence + sample
+           count). Mirrors `assessModelSuitability` but from EVIDENCE, not the curated catalog.
+        2. **Feed it back:** surface the runtime verdict where the catalog verdict is `unknown`/`warn` (a provisional,
+           evidence-backed entry the operator can confirm into `MODEL_CAPABILITY_CATALOG`), and blend it into the §5.AB
+           selection alongside the ledger. Keep the catalog hand-curated (no silent auto-writes) — surface, don't mutate.
+        3. **Operator surface (§5.AG):** show "this model stalled N× / failed to call tools" on the model selector + the
+           diagnostics view, so an unsuitable strong-tier model is visible at a glance during the pivot.
+      First pure increment: the aggregator over `readSelfObservationEvents` + run-summaries → a `RuntimeModelVerdict`.
 - [ ] **Keep extending the catalog (standing).** Per §4A: every model sweep / live run that surfaces a new capability
       fact (a verdict flip, a new failure dialect, a confirmed-vs-broken quant) is folded into the catalog in the same
       change — flip the verdict, append the note, cite the source, set `basis: "empirical"`/`"both"`. Verify the
