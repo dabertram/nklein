@@ -4654,7 +4654,20 @@ deep analysis:
     - [ ] wire **Roster M** (absolute-min): m5max-or-m4mini=`Qwen3-8B` (architect), m4mini-or-legion=`Qwen2.5-Coder-7B` (coder), legion=`Qwen2.5-Coder-3B` (micro-worker) — leans on the §5.AA ladder; treat ceilings as provisional.
     - [ ] let the pool config name a roster + per-machine model so a swarm spins up from one preset (ties the settings-UI leaf).
   - **LATER — control models loaded on the 2 OTHER machines via LM Link (user 2026-06-29; deferred, do NOT build before the local pools land + the user re-greenlights remote control), decomposed:**
-    - [ ] research LM Studio's remote/LM-Link control surface: can `lms load/unload`/the REST `/api/v1/models/{load,unload}` target a LINKED machine (per-endpoint), or only the local host? (capability spike, doc the finding).
+    - [x] **research LM Studio's remote/LM-Link control surface (DONE 2026-06-29, capability spike).** Findings:
+          **(1) Already linked:** `lms link status` shows `This device: m5max` + 1 connected device `m4mini` (with its
+          loaded-model instances) — the m4 mini is ALREADY reachable via LM Link. **(2) Discovery is rich:**
+          `lms ps --json` returns per-model `deviceIdentifier` (null = local/m5max, else the remote device id) PLUS
+          `architecture`/`contextLength`/`maxContextLength`/`quantization`/`format`/`paramsString`/`sizeBytes`/
+          **`trainedForToolUse`**/`parallel`/`type`/`vision`/`ttlMs`/`status` — so per-machine resident discovery =
+          `lms ps --json` grouped by `deviceIdentifier` (and `trainedForToolUse` even feeds the §5.AL suitability).
+          `lms link status` enumerates devices + their loaded instances. **(3) Targeting a machine:**
+          `lms link set-preferred-device <deviceId>` sets the preferred device for model RESOLUTION — there is NO
+          per-`lms load` `--host` flag, so remote load is (preferred-device + load). **OPEN (live test once remote
+          control is re-greenlit):** does `lms load` place the model on the preferred REMOTE device or always local? does
+          `/api/v0|v1/models` expose the device per loaded model for the runtime path? **(4) Headroom:** `lms ps` gives no
+          per-device RAM/VRAM; `lms load --estimate-only` returns a resource estimate — per-pool `decideModelLoad` needs
+          each machine's RAM/VRAM (likely user-configured per pool + the estimate).
     - [ ] extend the guarded loader ([lms-model-runner.ts](src/core/lms-model-runner.ts) `loadModelExclusive`) to take a target POOL/endpoint, so `decideModelLoad` headroom is evaluated PER MACHINE (each pool's own RAM/VRAM budget), not the local host's.
     - [ ] per-machine resident-set discovery: `listResidentModels` per pool/endpoint (today it reads the local host) so selection + headroom see each machine's real loaded set.
     - [ ] orchestrate a roster: load Roster Q / Roster M across the 3 machines from one command (load→set ctx→verify resident→ready), with clean unload/restore.
