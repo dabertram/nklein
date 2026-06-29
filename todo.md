@@ -5932,17 +5932,23 @@ deep analysis:
       "9 models" — `/api/v0/models` lists 40+ incl. 122B/70B/35B-MoE/vlm models; pace per the §4A tier roadmap + headroom guard.)
       **TABLE STARTED (2026-06-29, live-verified rows via paced load/probe/restore under the §4A guardrails):**
 
-      | model (≤14B loadable) | arch | reasoning switch | notes |
-      |---|---|---|---|
-      | qwen/qwen3-8b | qwen3 | **`/no_think` WORKS** (965→2 chars) | clean tool calls within 1024 budget; reasoning ~150–250 tok typical |
-      | deepseek/deepseek-r1-0528-qwen3-8b | qwen3 | **NONE** — `/no_think` ignored (R1 distill, always reasons) | ~1950-char reasoning; truncates at 500 even for "2+2"; matcher EXCLUDES it |
-      | microsoft/phi-4-mini-reasoning | phi3 | **NONE** — `/no_think` ignored | reasons ~1100+ tok even for "2+2"; high truncation risk; matcher excludes |
+      | model (≤14B loadable) | arch | tool-call format | reasoning switch | notes |
+      |---|---|---|---|---|
+      | qwen/qwen3-8b | qwen3 | **structured** ✓ | **`/no_think` WORKS** (965→2 chars) | clean tool calls within 1024 budget; reasoning ~150–250 tok typical |
+      | deepseek/deepseek-r1-0528-qwen3-8b | qwen3 | structured (qwen3-arch) | **NONE** — `/no_think` ignored (R1 distill, always reasons) | ~1950-char reasoning; truncates at 500 even for "2+2"; matcher EXCLUDES it |
+      | microsoft/phi-4-mini-reasoning | phi3 | (not probed) | **NONE** — `/no_think` ignored | reasons ~1100+ tok even for "2+2"; high truncation risk; matcher excludes |
+      | google/gemma-4-e4b | gemma4 | **structured** ✓ | n/a (light reasoning channel ~150 tok) | newer gemma-4 emits clean structured calls — NOT the old gemma narration problem |
+      | nvidia/nemotron-3-nano-4b | nemotron_h | **structured** ✓ | n/a (light reasoning ~190 tok) | tool-capable — contradicts the old "nemotron-mini not tool-trained" catalog flag (this is nemotron-3) |
+      | qwen/qwen2.5-coder-14b | qwen2 | **structured** ✓ | none (no reasoning channel) | structured-output (`response_format`) also verified working; the ≤14B ceiling |
 
-      Cross-model API facts (all live-verified): structured output (`response_format json_schema`) FORCES schema-valid output
-      (the real force-a-call lever); OpenAI `tool_choice:"required"` + Anthropic `tool_choice` do NOT force on LM Studio;
-      `/v1` `usage…reasoning_tokens` is a real per-request reasoning-overhead signal; `/api/v0` gives real tok/s+ttft+arch+quant.
-      **Still owed:** the >14B / non-reasoning / vlm rows (pace per tier roadmap), and the per-family tool-format + endpoint-fit
-      columns (needs a tool-call probe per family).
+      **STRATEGIC FINDING (2026-06-29, live-verified across the batch above): EVERY probed model on this NEWER roster emits
+      STRUCTURED tool calls cleanly — NONE narrate.** So narration-recovery (the old §5.Z 9-model pain) matters far less on
+      this roster; the real robustness lever here is REASONING-OVERHEAD / TRUNCATION handling (the reasoning models), which
+      the §5.AA truncation rung + thinking-control already target. This re-prioritizes the §5.AA backlog toward reasoning
+      models, away from narration parsers. Cross-model API facts (all live-verified): structured output (`response_format
+      json_schema`) FORCES schema-valid output (the real force-a-call lever); OpenAI `tool_choice:"required"` + Anthropic
+      `tool_choice` do NOT force on LM Studio; `/v1` `usage…reasoning_tokens` is a real reasoning-overhead signal; `/api/v0`
+      gives real tok/s+ttft+arch+quant. **Still owed:** the >14B / vlm rows (pace per tier roadmap).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
