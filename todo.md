@@ -5150,7 +5150,7 @@ deep analysis:
       7 unit tests; tsc+biome green. **Date-based only** — VERSION freshness ("is v3.1 the latest?") needs an external
       "known latest" the retrieval loop supplies, deferred to that. Feeds the §5.AC retrieval loop + the researcher role.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
-  - [ ] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling.
+  - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
   - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
   - [ ] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed).
   - [ ] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow.
@@ -5160,8 +5160,8 @@ deep analysis:
   synthesis) and its **SearXNG self-hosted search** (validates the §5.AC `web_search` SearxNG backend choice). Do NOT
   integrate llmaker itself — it's a parallel Go+Python/LangGraph full-stack that overlaps what !Klein already is; borrow
   the patterns only.)*
-  - [ ] Implement query formulation (a "rewrite" step) from task + `knowledgeDebt` (§5.B); test simple + complex cases.
-  - [ ] Wire search → fetch-top-hits loop via `web_search` + `browse_url` tools; **rerank hits by relevance** (llmaker pattern).
+  - [x] Implement query formulation (a "rewrite" step) from task + `knowledgeDebt` (§5.B); test simple + complex cases. **(2026-06-29, batch #4)** `src/core/retrieval-query-plan.ts` — `buildRetrievalQueryPlan` (primary + per-debt alternates deduped/capped + freshnessNeed from recency cues). 8 tests. (Pure rewrite core; a model-assisted rewrite can refine it later.)
+  - [~] Wire search → fetch-top-hits loop via `web_search` + `browse_url` tools; **rerank hits by relevance** (llmaker pattern). **(2026-06-29, batch #4)** RERANK core done: `src/core/retrieval-rerank.ts` — `lexicalRelevanceScore` + `rerankByRelevance` (deterministic lexical baseline; an LLM cross-encoder can augment later; stable ties). 12 tests. Owed: the live search→fetch loop wiring (needs the egress-gated tools).
   - [ ] Implement extraction + synthesis of fetched content; test on varied content types.
   - [ ] Add source citation with freshness-judgment (reuse §5.AC `judgeRetrievedFreshness`).
   - [ ] Record retrieval attempts, results, and citations into knowledge/tool-usage telemetry (§6.7, §5.B signal).
