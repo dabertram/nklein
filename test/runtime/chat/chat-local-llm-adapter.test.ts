@@ -216,6 +216,31 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(budgets[1]).toBe(3072);
 	});
 
+	it("§5.AA truncation rung: DISABLES thinking on the retry for a model with a soft-switch (qwen3 /no_think)", async () => {
+		const prompts: string[] = [];
+		let callIndex = 0;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request) => {
+				prompts.push([...request.messages].reverse().find((m) => m.role === "user")?.content ?? "");
+				callIndex += 1;
+				if (callIndex === 1) {
+					return { content: "", toolCalls: [], finishReason: "length", raw: {} };
+				}
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen/qwen3-8b" });
+		await model([{ role: "user", content: "Use create_card to make a card." }], true);
+		// The truncation retry appended the /no_think switch (root-cause fix); the first attempt did not.
+		expect(prompts[0]).toBe("Use create_card to make a card.");
+		expect(prompts[1]).toBe("Use create_card to make a card. /no_think");
+	});
+
 	it("§5.AA truncation rung: does NOT fire when the no-call turn finished normally (finish:stop)", async () => {
 		let calls = 0;
 		const client: ChatAgentCompletionClient = {

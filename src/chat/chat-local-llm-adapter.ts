@@ -1,3 +1,4 @@
+import { applyThinkingDisable, supportsThinkingControl } from "../core/model-thinking-control";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
 import type {
@@ -119,7 +120,7 @@ export interface ChatAgentCompletionClient {
 export function createChatAgentModel(
 	client: ChatAgentCompletionClient,
 	toolDefinitions: readonly LocalLlmToolDefinition[],
-	options: { sampling?: LocalLlmSamplingOptions } = {},
+	options: { sampling?: LocalLlmSamplingOptions; modelId?: string } = {},
 ): (
 	messages: readonly ChatPromptMessage[],
 	allowTools: boolean,
@@ -138,7 +139,14 @@ export function createChatAgentModel(
 		if (allowTools && response.toolCalls.length === 0 && response.finishReason === "length") {
 			const baseMaxTokens = sampling.maxTokens ?? 1024;
 			const bumped = { ...sampling, maxTokens: Math.max(baseMaxTokens * 3, 3072) };
-			response = await client.completeWithTools({ messages: wire, sampling: bumped }, offered);
+			// If the model has a thinking soft-switch (e.g. Qwen3 `/no_think`), DISABLE thinking on the retry — that removes
+			// the reasoning_content that caused the truncation (the ROOT cause), which is cheaper + more reliable than just
+			// enlarging the budget (live: qwen3 reasoning 965 → 2 chars, tool call still emitted). Else just re-ask bigger.
+			const retryWire =
+				options.modelId && supportsThinkingControl(options.modelId)
+					? replaceLastUserText(wire, applyThinkingDisable(lastUserText(messages), options.modelId))
+					: wire;
+			response = await client.completeWithTools({ messages: retryWire, sampling: bumped }, offered);
 		}
 		// §5.AA task-complexity ladder: a model that returns NO tool call when several were offered AND the instruction
 		// names a tool it didn't call is likely drowning in tool-set complexity (grounded: phi-4 emits a clean call with

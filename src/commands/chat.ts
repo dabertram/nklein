@@ -208,7 +208,7 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			appendMessage: (sessionId, input) => appendChatMessage(sessionId, input),
 			summarize: createChatModelDeps(client).summarize,
 			estimateTokens: estimateChatTokens,
-			model: createChatAgentModel(client, definitions),
+			model: createChatAgentModel(client, definitions, { modelId }),
 			executeTool,
 			appendToolExchange: appendChatToolExchange,
 			readFocusChain: (sessionId) => readChatFocusChain(sessionId),

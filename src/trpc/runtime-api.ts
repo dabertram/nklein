@@ -377,7 +377,7 @@ function buildChatAgentToolDepsResolver(input: {
 			},
 		});
 
-		const toolModel = createChatAgentModel(client, definitions);
+		const toolModel = createChatAgentModel(client, definitions, { modelId });
 		// Streaming final-answer dep: the tools-disabled final reply streams via the plain SSE completion (no tools);
 		// tool-discovery turns use the non-streaming tools-aware completion so the model can still request tools.
 		const streamComplete = createChatModelDeps(client).complete;
