@@ -184,6 +184,11 @@ export const startTsBackend: BackendFactory = async (options: BackendStartOption
 				// covered separately (Suite 11 + klein-core-sidecar.test.ts). Avoids a uv/Python dependency + a stray
 				// process per spawned server.
 				NKLEIN_CORE_PY: "0",
+				// These spawned backends are ephemeral and share the host Docker with the agent-sandbox unit test running in
+				// a parallel vitest worker. Startup orphan-reaping `docker rm -f`s ALL sandbox-labeled containers by label, so
+				// without this opt-out a spawned backend would reap the unit test's live container mid-exec (exit 137). The
+				// reaper itself is covered by its own unit tests; these HTTP-contract backends don't need it. (todo §5.AM.)
+				NKLEIN_SANDBOX_SKIP_STARTUP_REAP: "1",
 				...(options.extraEnv ?? {}),
 			},
 			stdio: ["ignore", "pipe", "pipe", "ipc"],

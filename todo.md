@@ -5602,25 +5602,23 @@ deep analysis:
       `verified: false` rows (gemma-4 E2B/E4B) against live sweeps and promote/demote them.
 
 ### 5.AM — Surfaced test-failure debts (discharge per the "never waive a failure" rule) *(2026-06-29)*
-> Concrete failures that have SURFACED and are not yet root-caused/fixed. Top-of-queue by the §4A no-waive rule.
-- [ ] **agent-sandbox Docker integration: 2 tests fail under the FULL parallel suite, pass in isolation (surfaced 2026-06-29).**
-      `test/integration/agent-sandbox.integration.test.ts` — "isolates sibling workspaces, runs tools, captures patches…"
-      fails with `AgentSandboxExecutionError: Sandbox tool readFile failed … exitCode: 137` (137 = 128+SIGKILL — the
-      container/process was KILLED), and "queues the third task when one real container allows two agents" fails with
-      "Could not create sandbox workspace root." Both pass reliably when the file is run alone (verified ×2). **Status:
-      NOT root-caused.** The machine is in HIGH power mode (so do NOT hand-wave this as "Low Power"). The leading
-      *hypothesis* is Docker resource/concurrency pressure when many spawned-backend + container suites run in parallel
-      (memory → OOM-kill 137; volume/root creation racing), but that is unverified — could equally be a container memory
-      limit, a Docker-volume cleanup race between suites, or a real concurrency bug in the sandbox manager. **Next:**
-      reproduce deterministically (run the full suite repeatedly; bisect which concurrent suite triggers it; capture
-      `docker stats`/dmesg/exit reason at failure), then fix the actual cause (e.g. per-suite container mem limits +
-      serialized workspace-root creation, or a sandbox-manager lock) — NOT by loosening the assertion.
-      **Mechanism narrowed (2026-06-29):** both failures are `docker exec` ops (`mkdir -p /workspaces` via
-      `assertSandboxExecOk`, and a `readFile` tool) returning **exit 137 = 128+SIGKILL** — the container/exec was KILLED,
-      not a logic error. Note for the next investigator: on macOS, Docker Desktop runs a VM with a FIXED memory budget
-      **independent of the host CPU power mode**, so parallel containers across suites can OOM-kill execs even in high
-      power — i.e. "high power mode" does NOT refute the memory-pressure hypothesis, but it is still UNVERIFIED until
-      `docker stats`/the kill reason is actually captured at failure time. Don't assert the cause; measure it.
+> Concrete failures that have SURFACED. Top-of-queue by the §4A no-waive rule. (Currently: all discharged.)
+- [x] **agent-sandbox Docker integration: flaky 137 under the full parallel suite — ROOT-CAUSED & FIXED (2026-06-29).**
+      Symptom: `test/integration/agent-sandbox.integration.test.ts` execs (`mkdir`/`readFile`/`editor`…) intermittently
+      returned `exitCode: 137`; passed in isolation, failed under the full `vitest run`. **Root cause (measured, not
+      guessed):** `docker events` showed `kill signal=9 → die 137`, `oomKilled` UNSET → NOT a kernel OOM (the tempting
+      7.7 GiB-VM/2 GiB-container theory was wrong). It was **cross-process orphan-reaping**: `runtime-server` startup calls
+      `AgentSandboxManager.reapOrphanResources()`, which `docker rm -f`s EVERY container carrying the sandbox label, and
+      container names are a FIXED global slot (`nklein-agent-sandbox-1`). Under the full suite, OTHER suites boot a server
+      in a parallel worker — spawned backends (`startTsBackend`, used by all contract suites) AND in-process boots
+      (`createRuntimeServer`, e.g. `ws-upgrade-passcode`) — and their startup reap destroyed the agent-sandbox test's LIVE
+      container mid-exec → 137. (Confirmed by debug-logging the `rm -f` sites + bisecting: it tracked exactly with
+      backend-spawning suites.) **Fix:** gate the startup reap — skip when `NKLEIN_SANDBOX_SKIP_STARTUP_REAP=1` (set by the
+      test backend factory for spawned backends) OR `process.env.VITEST === "true"` (covers in-process boots, since
+      hand-built spawn envs don't inherit VITEST). Production single-instance startup still reaps. Full suite now
+      **3101/3101 green ×2 consecutive**. NOTE the latent PRODUCT fragility this exposed (separate, lower-priority):
+      label-based reaping + fixed global container/volume names mean **two real !Klein instances on one host would reap
+      each other's sandbox containers** — if multi-instance-per-host is ever supported, scope reaping/naming per instance.
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
