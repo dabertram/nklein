@@ -1,3 +1,5 @@
+import { summarizeModelOutcomes } from "../../core/agent-attempt-ledger";
+import { blendCapabilityWithLedgerEvidence } from "../../core/agent-ledger-projections";
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
@@ -32,6 +34,7 @@ import {
 	type NKleinStartGuardCandidate,
 } from "../../nklein-agent/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-agent/nklein-timeout-scaling";
+import { readAllAgentLedger } from "../../state/agent-attempt-ledger-store";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
 import type { CreateRuntimeApiDependencies } from "../runtime-api.js";
@@ -266,6 +269,27 @@ export async function handleStartTaskSession(
 		// parallel tasks spread across free models instead of all queueing on the single smallest-sufficient
 		// one. Fully fallback-safe — with a single candidate this resolves to that candidate (no change), and
 		// when no free feasible candidate exists the preferred candidate below is used unchanged.
+		// §5.AF live consumption: blend each candidate's registry capability with its LEDGER-observed success rate so
+		// routing follows real-run evidence. Best-effort — an unreadable/empty ledger (e.g. first run, or test) yields no
+		// rows, the blend returns the registry score unchanged, and routing behaves exactly as before. Read once here and
+		// reuse for both the swarm free-pick (`selectRoleModel`) and the main router (`routeNKleinTask`).
+		const ledgerSuccessByKey = new Map<string, { successRate: number; samples: number }>();
+		try {
+			const ledgerEvents = await readAllAgentLedger();
+			for (const outcome of summarizeModelOutcomes(ledgerEvents)) {
+				ledgerSuccessByKey.set(outcome.modelId, { successRate: outcome.successRate, samples: outcome.samples });
+			}
+		} catch {
+			// best-effort: any ledger read failure leaves the map empty ⇒ registry capability used unchanged.
+		}
+		const blendedCapabilityForKey = (modelKey: string, baseCapability: number): number => {
+			const observed = ledgerSuccessByKey.get(modelKey);
+			return blendCapabilityWithLedgerEvidence(
+				baseCapability,
+				observed?.successRate ?? null,
+				observed?.samples ?? 0,
+			);
+		};
 		const runningModelKeys = new Set(
 			nkleinTaskSessionService
 				.listModelEndpointSessions()
@@ -281,7 +305,7 @@ export async function handleStartTaskSession(
 		const freeFirstSelection = selectRoleModel({
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				modelKey: candidate.entry.key,
-				capability: candidate.entry.capability.effectiveScore,
+				capability: blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore),
 				contextWindow: candidate.entry.contextWindow.effective ?? 0,
 				predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
 				isFree: !runningModelKeys.has(candidate.entry.key),
@@ -305,6 +329,7 @@ export async function handleStartTaskSession(
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				entry: candidate.entry,
 				role: candidate.role,
+				observedCapability: blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore),
 			})),
 		});
 		if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {

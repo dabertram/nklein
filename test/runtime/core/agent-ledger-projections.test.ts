@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildAttemptEvent, buildSchedulerEvent } from "../../../src/core/agent-attempt-ledger";
 import {
+	blendCapabilityWithLedgerEvidence,
 	buildAttemptRetryNoteFromLedger,
 	buildFailingModelList,
 	buildModelBehaviorProfilesFromLedger,
@@ -313,5 +314,31 @@ describe("rankModelsByLedgerFitness", () => {
 		const events = [fitAttempt("m", "worker", "success", 500), fitAttempt("m", "reviewer", "success", 500)];
 		expect(rankModelsByLedgerFitness(events, { role: "reviewer" }).map((r) => r.role)).toEqual(["reviewer"]);
 		expect(rankModelsByLedgerFitness([])).toEqual([]);
+	});
+});
+
+describe("blendCapabilityWithLedgerEvidence", () => {
+	it("returns the base capability unchanged below the evidence threshold (new / under-observed model)", () => {
+		// 2 samples < default minSamples 3 ⇒ no shift, even with a terrible success rate.
+		expect(blendCapabilityWithLedgerEvidence(80, 0, 2)).toBe(80);
+		// null success rate (no ledger row for this model) ⇒ unchanged.
+		expect(blendCapabilityWithLedgerEvidence(80, null, 50)).toBe(80);
+	});
+
+	it("nudges capability toward the observed success rate, weighted by evidence", () => {
+		// base 80, observed 50% success (=50), 10 samples ⇒ weight 0.5, raw shift (50-80)*0.5 = -15 ⇒ 65.
+		expect(blendCapabilityWithLedgerEvidence(80, 0.5, 10)).toBe(65);
+		// strong real-world success lifts a modest registry prior: base 60, observed 80, 10 samples ⇒ weight 0.5,
+		// shift (80-60)*0.5 = +10 ⇒ 70.
+		expect(blendCapabilityWithLedgerEvidence(60, 0.8, 10)).toBe(70);
+	});
+
+	it("clamps the shift to ±maxShift and the result to 0..100", () => {
+		// huge negative pull capped at -30: 90 - 30 = 60.
+		expect(blendCapabilityWithLedgerEvidence(90, 0, 100)).toBe(60);
+		// custom maxShift narrows the pull.
+		expect(blendCapabilityWithLedgerEvidence(90, 0, 100, { maxShift: 10 })).toBe(80);
+		// result never leaves 0..100.
+		expect(blendCapabilityWithLedgerEvidence(5, 0, 100)).toBe(0);
 	});
 });

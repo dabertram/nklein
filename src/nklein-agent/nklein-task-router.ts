@@ -6,6 +6,13 @@ export interface NKleinTaskRoutingCandidate {
 	entry: NKleinModelRegistryEntry;
 	role?: string | null;
 	costRank?: number | null;
+	/**
+	 * §5.AF live consumption: the registry capability blended with this model's LEDGER-observed success rate (see
+	 * `blendCapabilityWithLedgerEvidence`). When supplied, it REPLACES the registry `effectiveScore` for both
+	 * feasibility (`capability >= difficulty`) and ranking, so routing follows real-run evidence. Null / undefined
+	 * (no evidence) ⇒ the registry score is used unchanged — today's behavior.
+	 */
+	observedCapability?: number | null;
 }
 
 export interface NKleinTaskRoutingRequest {
@@ -66,6 +73,9 @@ function normalizeTokenBudget(value: number): number {
 }
 
 function getCandidateCapability(candidate: NKleinTaskRoutingCandidate): number {
+	if (candidate.observedCapability !== undefined && candidate.observedCapability !== null) {
+		return normalizeScore(candidate.observedCapability);
+	}
 	return normalizeScore(candidate.entry.capability.effectiveScore);
 }
 

@@ -277,6 +277,46 @@ describe("routeNKleinTask", () => {
 		});
 	});
 
+	it("uses observedCapability (ledger-blended) over the registry score for feasibility (§5.AF live consumption)", () => {
+		// Registry says the small model clears difficulty 50, but its ledger-observed capability is only 30 ⇒ it is no
+		// longer feasible and routing escalates to the wider model instead of assigning the small one.
+		const decision = routeNKleinTask({
+			difficulty: 50,
+			fitBudgetTokens: 8_000,
+			preferredModelKey: "ollama:small:default",
+			candidates: [
+				{
+					entry: createEntry({ key: "ollama:small:default", capability: 60, contextWindow: 16_000 }),
+					role: "worker",
+					observedCapability: 30,
+				},
+				{
+					entry: createEntry({ key: "lmstudio:wide:default", capability: 80, contextWindow: 80_000 }),
+					role: "architect",
+					observedCapability: 80,
+				},
+			],
+		});
+		expect(decision).toMatchObject({ type: "route_up", modelKey: "lmstudio:wide:default" });
+	});
+
+	it("falls back to the registry score when observedCapability is null/undefined (no ledger evidence)", () => {
+		const decision = routeNKleinTask({
+			difficulty: 40,
+			fitBudgetTokens: 8_000,
+			candidates: [
+				{
+					entry: createEntry({ key: "ollama:small:default", capability: 45, contextWindow: 16_000 }),
+					role: "worker",
+					observedCapability: null,
+				},
+				{ entry: createEntry({ key: "openrouter:large:default", capability: 90, contextWindow: 200_000 }) },
+			],
+		});
+		// Unchanged from the baseline "smallest sufficient" assignment.
+		expect(decision).toMatchObject({ type: "assign", modelKey: "ollama:small:default" });
+	});
+
 	it("escalates when no connected model is capable or large enough", () => {
 		const decision = routeNKleinTask({
 			difficulty: 90,

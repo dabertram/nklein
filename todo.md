@@ -4757,8 +4757,21 @@ deep analysis:
       writer, so they group together in every projection). **flow-aware §5.Z projection DONE** (`summarizeModelOutcomesByFlow`
       + the dev display) and the **AUTONOMOUS-run writer DONE** (each §5.0.1 autonomous turn appends `flow:"autonomous"` via
       the same sink). So all THREE flows (board / chat / autonomous) now write the ledger and the per-(model,flow) matrix is
-      real. REMAINING: live-runtime CONSUMPTION (the §5.AA retry engine / §5.AB selection reading these projections to route)
-      + the richer writer (graded quality/difficulty, gated on the §5.AB eval harness). **PER-(MODEL,
+      real. **§5.AB LIVE SELECTION CONSUMPTION DONE (2026-06-29):** task-start now ROUTES off the ledger. A pure,
+      evidence-gated `blendCapabilityWithLedgerEvidence` ([agent-ledger-projections.ts](src/core/agent-ledger-projections.ts))
+      nudges a model's registry capability toward its ledger-observed success rate — weighted by evidence (more real runs →
+      more pull, capped) and clamped (±30) so one streak can't flip the ranking; BELOW `minSamples` (3) real runs, or with no
+      ledger row, it returns the registry score UNCHANGED (so a new/under-observed model and an empty ledger behave exactly
+      as before). [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts) reads the ledger once at task-start
+      (best-effort try/catch — an unreadable ledger ⇒ empty map ⇒ unchanged routing), builds a per-model success-rate map via
+      `summarizeModelOutcomes`, and feeds the blended capability into BOTH the swarm free-pick (`selectRoleModel`) and the
+      main router (`routeNKleinTask`, via a new optional `observedCapability` on `NKleinTaskRoutingCandidate` that replaces
+      the registry `effectiveScore` for feasibility + ranking when present). So a model that looks strong on paper but
+      reliably FAILS on real runs is now re-ranked DOWN from evidence (and vice-versa) — the §5.AF read→route loop is closed.
+      3 blend unit tests + 2 router `observedCapability` tests (override + null-fallback); full gate (tsc+biome+`test:fast`
+      2756) + the start-task-session contract suites green. REMAINING: live-runtime CONSUMPTION by the §5.AA RETRY engine
+      (the selection side is now wired; the retry-ladder side still reads its own state) + the richer writer (graded
+      quality/difficulty, gated on the §5.AB eval harness). **PER-(MODEL,
       TOOL) USAGE PROJECTION DONE (2026-06-27):** `summarizeToolUsageByModel` (ledger core) folds the
       now-written `attempt.toolCalls` into per-(model, tool) call counts + outcome (success/error/incomplete) + a
       completed-calls success rate — the §5.AA small-model signal (a weak model reliably erroring on a *specific* tool is
@@ -4769,9 +4782,10 @@ deep analysis:
       null, not a misleading 0), surfaced in `summarizeLedgerForDisplay.speed` + a new "Per-model speed" section of
       `nklein dev ledger`; 3 unit tests. Speed is a §5.AB selection signal (slow-but-capable vs fast-but-weak). This is the
       READ side of "folding MCSR speed into the stream"; the WRITE side (live MCSR observations → a richer writer) remains.
-      **Still owed:** the FLOW field for the non-board flows (premature until chat/autonomous get their own writers);
-      reading these profiles/fitness from the LIVE runtime
-      (the §5.AA retry engine / §5.AB scheduler consume them); folding live MCSR speed observations into the writer; and
+      **Still owed:** the FLOW field for the non-board flows (premature until chat/autonomous get their own writers) — DONE;
+      reading these profiles/fitness from the LIVE runtime — the §5.AB SELECTION side is now wired (task-start routes off the
+      ledger, see "LIVE SELECTION CONSUMPTION" above); the §5.AA retry-ladder side still reads its own state; folding live
+      MCSR speed observations into the writer; and
       the graded-quality/difficulty a richer writer + the §5.AB eval harness supply (today quality is the coarse
       success-rate proxy).
 - [ ] **Replay / simulation mode (ties §5.V).** A captured ledger attempt's model outputs become a deterministic
