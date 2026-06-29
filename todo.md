@@ -3895,6 +3895,17 @@ deep analysis:
 >   **reasoning models hide the call in `reasoning_content`** → parse-and-recover across channels + endpoint iteration.
 > - **The swarm path (with afterModel recovery) is more robust than the chat path was** → recovery + the levers below
 >   must live at a shared seam both paths use.
+> - **Capable-driver mid_task run leaves cards undrained + the seed task registered-as-running (qwopus3.6-27b, 2026-06-29
+>   — needs a clean re-run to root-cause; thermal throttling is a confounder).** First backlog run on the capable driver:
+>   decomposed `habit-insights` → **4 cards COMPLETED** (real chains) then went **IDLE** (model IDLE in `lms ps`, swarm not
+>   working) with **5 planning + 1 backlog** unfinished. Two recoverable tool errors (NOT a model wall): `read_files`
+>   correctly blocked a 718 KB / ~179k-token file + `specification.md` unreadable; `get_file_size` ENOENT on a missing
+>   path — agent file-DISCOVERY fumbles. **And the seed task stayed registered-as-running** so a follow-up `dev test-project`
+>   was refused by the endpoint-busy guard ("Another !Klein task is already running … est. wait ~1s") even though the model
+>   was idle. **Two threads to chase (the "first proven workflow path" = decompose→drain ALL cards→complete):** (a) why the
+>   swarm stops draining decomposed cards (concurrency/scheduler idle vs unmet card deps vs window/throttle); (b) the seed
+>   task left registered-as-running while idle (zombie registration blocking the endpoint). Re-run under stable thermal
+>   conditions with a generous window before concluding it's a bug vs a throttle/window artifact.
 >
 > **LM Studio API surface to exploit (checked the dev docs):** OpenAI-compat `/v1/chat/completions` (what we use today;
 > relies on the model emitting OpenAI `tool_calls`, conflates reasoning into `content`/`reasoning_content`); the
