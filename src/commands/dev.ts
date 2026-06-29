@@ -19,6 +19,12 @@ import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
+import {
+	dominantFailureMode,
+	learnedQualityEffectiveBudget,
+	learnedRetryBudget,
+	preferredToolCallFormat,
+} from "../core/model-behavior-profile";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
@@ -568,6 +574,25 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 			const over = row.overBudget > 0 ? `  ${row.overBudget} over-budget` : "";
 			process.stdout.write(
 				`  ${row.modelId.padEnd(40)} ${String(row.samples).padStart(3)} sample(s)  ${avg.padStart(12)}  ${max.padStart(12)}${over}\n`,
+			);
+		}
+	}
+
+	if (summary.profiles.length > 0) {
+		// §5.AA/§5.AD: the LEARNED per-model signals the adaptive loop reads — made inspectable. Retry budget (more for a
+		// flakier model), quality-effective context budget (the §5.AD knee to target, never the max), the dominant failure
+		// mode, and the preferred tool-call format — all derived from the ledger, not a second store.
+		process.stdout.write("\nPer-model learned profile (§5.AA/§5.AD — what the adaptive loop has learned):\n");
+		for (const profile of summary.profiles) {
+			const retry = `retry≤${learnedRetryBudget(profile)}`;
+			const qualityBudget = learnedQualityEffectiveBudget(profile);
+			const budget = qualityBudget !== null ? `qbudget ${qualityBudget}` : "qbudget n/a";
+			const failure = dominantFailureMode(profile);
+			const failureLabel = failure ? `mostly ${failure}` : "no dominant failure";
+			const format = preferredToolCallFormat(profile);
+			const formatLabel = format ? `, fmt ${format}` : "";
+			process.stdout.write(
+				`  ${profile.modelId.padEnd(40)} ${String(profile.samples).padStart(3)} sample(s)  ${`${Math.round(profile.successRate * 100)}% ok`.padStart(7)}  ${retry.padStart(9)}  ${budget.padStart(14)}  ${failureLabel}${formatLabel}\n`,
 			);
 		}
 	}
