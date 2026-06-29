@@ -6795,6 +6795,96 @@ deep analysis:
       (helped/hurt) feeds §5.B. (No sigstore-style skill signing exists ecosystem-wide yet — biggest gap; pinning is the
       available substitute.)
 
+### 5.AQ — Context economy: tiered sysprompt + cache-aware layout + resource frugality *(2026-06-29, user — research done, NOT started)*
+> **Vision (user, 2026-06-29):** a user-facing **"sysprompt size" setting** with **4–5+ levels**, PLUS an **auto** mode that
+> adjusts sys-prompt depth to (a) the actually-available context window and (b) the context the TASK needs, PLUS intent
+> modes: **"minimize"** vs **"balance prompt + task info"** vs **"max actual task information"**. !Klein must **NEVER waste
+> context space** — it matters for processing SPEED, processing QUALITY, and how much SMALL machines can still do. Also:
+> deeply research keeping context overhead minimal + best use of **LM Studio / MLX prompt-CACHING** so the prompt-processing
+> experience is best-possible while still targeting best-quality prompts. AND: **!Klein itself must waste NO system
+> resources** — RAM, CPU, Disk, GPU, VRAM — deeply optimized for all.
+>
+> **RESEARCH SYNTHESIS (2026-06-29, 4 opus passes — see [[context-economy-research]]). Three prompt-economy pillars that
+> all point the SAME way, plus the resource mandate:**
+> 1. **LEAN + JIT + MODULAR (quality).** "Smallest set of HIGH-SIGNAL tokens" (Anthropic). Minimal ≠ short — *no token
+>    without purpose*; **bloat actively DEGRADES quality** (attention dilution / context-rot / lost-in-the-middle), not
+>    just cost. The biggest structural lever is **progressive disclosure / just-in-time**: keep only name+description
+>    resident, load the rest on demand (exactly the §5.AE skill-set + §5.O tool-card direction). Claude Code itself is
+>    110+ **conditionally-assembled** instructions where only relevant sections load → validates a LEVELED/conditional
+>    sysprompt. Techniques: examples > exhaustive rules; tool-description response-format enums (Anthropic 206→72 tok);
+>    strip filler.
+> 2. **CACHE-AWARE LAYOUT (speed) — the new, high-impact finding.** llama.cpp / LM Studio / MLX all use **automatic prefix
+>    KV-caching keyed on EXACT BYTE-equality** (no manual cache_control). So: a **byte-identical STABLE PREFIX** (system
+>    prompt + tool defs) reused every turn, with ALL volatile content (date, RAG, task, turns) appended AFTER. One changed
+>    byte in the prefix ⇒ full re-prefill (**~200 ms cached vs 30–120 s uncached**, up to 93% TTFT loss). **CRITICAL:
+>    injecting today's date into the system prompt — the §5.AC behavior that spawned §5.AE — silently DEFEATS caching.**
+>    Caveats: hybrid-attention models (Qwen3.5/Gemma3/GPT-OSS, SWA/Mamba) SILENTLY disable prefix reuse in LM Studio + MLX
+>    → verify per-model via `cached_tokens`; MLX has file-persisted prompt caches for a warm prefix.
+> 3. **COMPACTION/PRUNING, NOT TOKEN-COMPRESSION (small-model-safe).** For LOCAL small models, query-agnostic token
+>    compression (LLMLingua) + truncation HURT weak models most (truncation → 74–96% task collapse) and the compressor
+>    itself costs wall-clock (~5× slower on M1 than A100) — it's a *fit-more-context / RAG-noise-removal* tool, NOT a local
+>    latency play. The local wins: **summarization compaction + tool-result clearing** for long agent loops (mandatory once
+>    history > window; preserve decisions/bugs/state, drop raw tool output) and **query-aware pruning (Provence, a 0.4B
+>    DeBERTa that runs locally, 50–80% cut at ≈0 loss, near-free when fused with a reranker)** for RAG.
+>
+> **The convergence:** a LEVELED, MODULAR system prompt that stays a byte-stable cacheable PREFIX and loads task detail JIT
+> is simultaneously leaner (quality), faster (cache hits), and smaller-machine-friendly — all three user goals from ONE
+> design. Ties §5.AD (smart-zone + learned budget), §5.AE (dynamics levels), §5.AB (context-window clamp), §5.AF (ledger).
+>
+> **EMPIRICAL JUSTIFICATION (why this matters most on small machines).** Effective context ≪ advertised (RULER: GPT-4
+> 128K→~64K effective; many ≥32K-claimed models hold baseline only to ~16K). Length ALONE degrades quality even with
+> PERFECT retrieval, and **small/open models collapse hardest** — up to **85%** loss from length alone (arXiv 2510.05381),
+> NoLiMa: Llama-70B 97%→43% at 32K. Middle-buried info can be WORSE than no context (Lost-in-the-Middle: 56.1% closed-book
+> floor); a SINGLE irrelevant sentence costs ~22 pts (GSM-IC); even "repeat the words" rots past a few thousand tokens
+> (Chroma Context Rot). Fixed sysprompt overhead is real: Claude Code ~14.3k tok, Cline ~11.7k, Cursor ~5k — on a 32k local
+> window a 14k prompt is ~44% gone BEFORE the task. **PRIOR ART:** no shipped agent exposes a sysprompt-DEPTH ladder
+> (Aider tiers by model/edit-format, Cursor Max-Mode by window, Agent Skills by relevance) — the exact feature is only a
+> Cline feature-REQUEST (#1310/#2889) → genuinely novel. Best models to borrow: Agent-Skills 3-level progressive
+> disclosure (~30-80 tok/skill at rest) for JIT, and RouteLLM (a cheap complexity classifier → 85% strong-model-call
+> reduction at 95% quality) for AUTO selection. Guardrail (Anthropic + Aider): "minimal ≠ short" — dropping HIGH-SIGNAL
+> content has measurable cost (Aider: removing "high-level diff" guidance → +30-50% edit errors); protect load-bearing
+> instructions in EVERY level, and put the few non-negotiable rules at the TOP and BOTTOM (never mid-prompt).
+
+- [ ] **A. Tiered sysprompt levels (the user-facing config), decomposed:** define 5 ADDITIVE named depth levels (each a
+      superset of the one below), as a MODULAR composition — gate optional sections behind priority flags. A research-grounded
+      starting ladder (calibrate budgets to our models): **L0 minimal** (≤~250 tok: 1-line identity + 2-4 hard safety/output
+      rules + bare tool NAMES) → **L1 lean** (~250-700: + 1-line tool descs + output contract + top do/don'ts) → **L2 balanced**
+      *(default)* (~700-2k: + 1 canonical example + core workflow + JIT skill/tool INDEX names-only) → **L3 full** (~2k-6k: + full
+      schemas for the ACTIVE tool subset + 2-3 examples + recovery guidance + project conventions) → **L4 max** (6k+: + extended-
+      thinking + self-critique + multiple examples + full domain skill bodies; reserve for hard tasks on big-context strong
+      models). Pure `level → component-set` resolver first (testable), then wire into prompt assembly. Settings control +
+      per-role/per-task override.
+- [ ] **B. AUTO mode, decomposed:** pick the level from (a) the model's available/quality-effective context budget
+      (§5.AD `learnedQualityEffectiveBudget`, §5.AB clamp) and (b) the task's needs (size/complexity/role/knowledge-debt).
+      Pure `selectSysPromptLevel({availableContext, taskProfile, mode})` core. Leave headroom for the task — never let the
+      sysprompt crowd out the actual task information.
+- [ ] **C. Intent modes (minimize | balance | max-task-info), decomposed:** a knob that biases B — `minimize` picks the
+      smallest level that still clears the task's capability bar; `balance` trades prompt depth vs task-info room; `max-task-info`
+      drives the sysprompt to its leanest viable level to free the most window for task content/retrieval.
+- [ ] **D. CACHE-AWARE prompt LAYOUT (cross-cutting; do EARLY — biggest speed win), decomposed:** enforce a **byte-stable
+      prefix** (system + tool defs) with volatile content appended after. **Move the §5.AC date/"knows-today" + any UUID/
+      timestamp/session id OUT of the system-prompt prefix** into the volatile suffix (this is both the §5.AE token-waste fix
+      AND the cache fix). Add a lint/guard so nothing volatile leaks into the prefix; keep chat history append-only.
+- [ ] **E. Cache verification + hybrid-model awareness, decomposed:** read `cached_tokens` (LM Studio `/v1/responses`
+      `usage.input_tokens_details`) / llama.cpp `cache_n` to MEASURE prefix-cache hit rate per model; flag models that
+      silently disable prefix reuse (hybrid/SWA/Mamba) so §5.AB selection can prefer cache-friendly models when speed matters;
+      consider MLX file-persisted prompt caches for a warm system prefix. Record hit-rate on the §5.AF ledger.
+- [ ] **F. Small-model-safe context tools (NOT token-compression), decomposed:** summarization **compaction** + **tool-result
+      clearing** for long agent loops (preserve decisions/bugs/state; drop raw tool output; high-recall-then-precision); and
+      **query-aware pruning (Provence-style)** for the §5.AC retrieval path. Explicitly DO NOT adopt query-agnostic token
+      compression / truncation as a primary lever (hurts weak models most).
+- [ ] **G. !Klein RESOURCE FRUGALITY audit (RAM/CPU/Disk/GPU/VRAM), decomposed — biggest wins first:**
+  - [ ] **VRAM/RAM #1 — right-size context per loaded model; never load at max.** KV cache is linear in context×layers; 128K
+        vs 8K can waste ~15 GB. Drive the loaded context-length from the task's actual need (ties §5.AB clamp + §5.AD budget + A/B above).
+  - [ ] **VRAM — prefer Q8 KV-cache quant (+ flash attention)** where the runtime allows (−50% cache, <0.1% quality); avoid Q4 V-cache. Surface as a load knob.
+  - [ ] **VRAM — avoid the spillover cliff** (weights+cache must stay in fast memory; spill → multi-× throughput collapse). Feed this into the load-headroom guard.
+  - [ ] **RAM (Apple unified) — keep peak < ~75% of unified RAM; cap the MLX KV cache** (`mx.metal.set_memory_limit` since `mlx_lm.server` lacks `--max-kv-size`) to prevent WIRED-memory kernel panics (worse than OOM). Extends the existing freeze-avoidance reserve.
+  - [ ] **GPU/VRAM idle — lean on LM Studio Idle TTL + Auto-Evict + JIT load** to reclaim a whole model's VRAM when idle; set a short TTL; never pre-load. The orchestrator stays event-driven.
+  - [ ] **CPU — event-driven, NOT poll-driven** (idle loop must block at OS level → ~0 CPU; tight polling can cost 30–50% CPU). Audit all `setInterval`/watchers; `unref()` + stop idle timers. (Ties the v0/models-hammering fix + the discovery-cache throttle.)
+  - [ ] **Node RAM — bound the heap (`--max-old-space-size`), LRU+TTL every cache, clear timers/listeners, stream (don't buffer) model output, bounded worker pool.** Hunt the 4 classic leak sources.
+  - [ ] **Disk — rotate+cap logs (Pino/logrotate) + SNAPSHOT-COMPACT the §5.AF durable ledger/jsonl** (snapshot then keep only post-snapshot events; size/TTL retention on discovery caches).
+  - [ ] **Observability — surface a resource panel** (RAM/CPU/VRAM/disk + cache-hit-rate) so the frugality is measured, not assumed (ties §6.4/§5.AG).
+
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
 > **SUPERSEDED / deferred indefinitely (owner decision 2026-06-26, via §5.X Phase 2): NO Python port — !Klein stays
 > all-TS.** This section is kept for history (the original rationale + open questions below mirror §5.X Phase 2's
