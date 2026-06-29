@@ -139,3 +139,48 @@ export function primaryAssignmentsByMachine(roster: SwarmRoster): Map<string, Ro
 	}
 	return byMachine;
 }
+
+/**
+ * The user's hardware budgets in GB — the FAST-RESIDENT constraint per machine (the m5max/m4mini are unified memory;
+ * the legion's binding limit is its RTX 4070m's 8 GB VRAM, since a model must fit fully on the GPU to stay fast).
+ */
+export const USER_MACHINE_BUDGETS_GB: Readonly<Record<string, number>> = { m5max: 128, m4mini: 24, legion: 8 };
+
+export interface MachineFit {
+	machine: string;
+	/** Sum of the machine's PRIMARY (non-alternate) assignment sizes. */
+	usedGb: number;
+	budgetGb: number;
+	/** True when `usedGb` clears the budget minus the headroom reserve. */
+	fits: boolean;
+}
+
+export interface RosterFit {
+	fits: boolean;
+	machines: readonly MachineFit[];
+}
+
+/**
+ * Pure: does a roster fit the machine budgets (with a headroom reserve for KV-cache/OS)? Sums each machine's PRIMARY
+ * assignments (alternates excluded — a second profile isn't loaded at the same time) and checks against
+ * `budgetGb × (1 − headroomFraction)`. A machine in the roster but absent from `budgetsGb` is treated as 0 budget
+ * (cannot fit) so a typo/unknown machine surfaces rather than silently passing.
+ */
+export function assessRosterFit(
+	roster: SwarmRoster,
+	budgetsGb: Readonly<Record<string, number>> = USER_MACHINE_BUDGETS_GB,
+	headroomFraction = 0.1,
+): RosterFit {
+	const usedByMachine = new Map<string, number>();
+	for (const assignment of roster.assignments) {
+		if (assignment.alternate) {
+			continue;
+		}
+		usedByMachine.set(assignment.machine, (usedByMachine.get(assignment.machine) ?? 0) + assignment.approxSizeGb);
+	}
+	const machines: MachineFit[] = [...usedByMachine.entries()].map(([machine, usedGb]) => {
+		const budgetGb = budgetsGb[machine] ?? 0;
+		return { machine, usedGb, budgetGb, fits: usedGb <= budgetGb * (1 - headroomFraction) };
+	});
+	return { fits: machines.every((m) => m.fits), machines };
+}

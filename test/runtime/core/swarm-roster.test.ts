@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+	assessRosterFit,
 	primaryAssignmentsByMachine,
 	ROSTER_M,
 	ROSTER_Q,
 	resolveSwarmRoster,
 	SWARM_ROSTERS,
+	USER_MACHINE_BUDGETS_GB,
 } from "../../../src/core/swarm-roster";
 
 describe("SWARM_ROSTERS", () => {
@@ -53,5 +55,48 @@ describe("primaryAssignmentsByMachine", () => {
 		// legion's primary is the 7B coder, not the alternate Qwen3-8B general profile.
 		expect(primaries.get("legion")?.model).toBe("Qwen/Qwen2.5-Coder-7B-Instruct-GGUF");
 		expect(primaries.get("legion")?.alternate).toBeUndefined();
+	});
+});
+
+describe("assessRosterFit", () => {
+	it("both rosters FIT the user's hardware budgets (validates the GPT fit analysis programmatically)", () => {
+		expect(assessRosterFit(ROSTER_Q).fits).toBe(true);
+		expect(assessRosterFit(ROSTER_M).fits).toBe(true);
+		// legion's binding 8 GB VRAM: Roster Q's 7B (4.7) clears 8×0.9=7.2; Roster M's 3B (2) clears easily.
+		const qLegion = assessRosterFit(ROSTER_Q).machines.find((m) => m.machine === "legion");
+		expect(qLegion?.fits).toBe(true);
+		expect(qLegion?.budgetGb).toBe(USER_MACHINE_BUDGETS_GB.legion);
+	});
+
+	it("flags a machine that overcommits its budget", () => {
+		// A 14B (~9 GB) does NOT fit the legion's 8 GB VRAM — the classic over-commit GPT warned about.
+		const tooBig = {
+			id: "x",
+			label: "x",
+			assignments: [
+				{
+					machine: "legion",
+					role: "worker" as const,
+					model: "Qwen/Qwen2.5-Coder-14B-Instruct-GGUF",
+					quant: "Q4_K_M",
+					approxSizeGb: 9,
+					note: "14B on 8 GB VRAM = overcommit",
+				},
+			],
+		};
+		const fit = assessRosterFit(tooBig);
+		expect(fit.fits).toBe(false);
+		expect(fit.machines[0]?.fits).toBe(false);
+	});
+
+	it("treats an unknown machine as zero budget (surfaces typos rather than silently passing)", () => {
+		const roster = {
+			id: "y",
+			label: "y",
+			assignments: [
+				{ machine: "mystery", role: "worker" as const, model: "m", quant: "Q4_K_M", approxSizeGb: 1, note: "" },
+			],
+		};
+		expect(assessRosterFit(roster).fits).toBe(false);
 	});
 });
