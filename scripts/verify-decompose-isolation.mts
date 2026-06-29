@@ -27,6 +27,10 @@ const execFileAsync = promisify(execFile);
 
 const PROVIDER_ID = process.env.NKLEIN_VERIFY_PROVIDER?.trim() || "lmstudio";
 const MODEL_ID = process.env.NKLEIN_VERIFY_MODEL?.trim() || "";
+// NKLEIN_VERIFY_PLAN_MODE=1 starts the task in PLAN mode, which (with the explicit-decompose prompt) registers it as an
+// explicit-decomposition task and ARMS the production DecompositionStallNudger — so a decompose run actually exercises
+// the stall-recovery path (the default-off behavior keeps the pure isolation check unchanged).
+const PLAN_MODE = process.env.NKLEIN_VERIFY_PLAN_MODE === "1";
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL?.trim() || "http://127.0.0.1:1234/v1";
 const CONTEXT_WINDOW = Number(process.env.NKLEIN_VERIFY_CONTEXT_WINDOW ?? "40000");
 const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "180000");
@@ -178,6 +182,7 @@ async function main(): Promise<void> {
 			baseUrl: BASE_URL,
 			contextWindow: Number.isFinite(CONTEXT_WINDOW) ? CONTEXT_WINDOW : 40000,
 			timeoutMode: "long",
+			startInPlanMode: PLAN_MODE,
 		})
 		.catch((error) => {
 			startError = error;
