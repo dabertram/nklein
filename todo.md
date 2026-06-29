@@ -5935,6 +5935,17 @@ deep analysis:
         3. **Operator surface (§5.AG):** show "this model stalled N× / failed to call tools" on the model selector + the
            diagnostics view, so an unsuitable strong-tier model is visible at a glance during the pivot.
       First pure increment: the aggregator over `readSelfObservationEvents` + run-summaries → a `RuntimeModelVerdict`.
+      - [x] **Pure aggregator DONE (2026-06-29):** [`runtime-model-verdict.ts`](src/core/runtime-model-verdict.ts)
+            `assessRuntimeModelVerdict` (model_stalled rate headline + tool_argument_error/verification_failed/
+            task_abandoned; conservative UNKNOWN below `MIN_RUNS_FOR_VERDICT`; surfaces, never auto-writes). 7 tests.
+      - [x] **Operator surface DONE (2026-06-29):** `dev model-verdict [modelId]` ([dev.ts](src/commands/dev.ts)) runs
+            the aggregator over persisted self-observation events + the agent ledger (attempts → run denominator) and
+            prints a per-model verdict table (or `--json`). Live-dogfooded: qwen3-8b→TOOL_CAPABLE (5 runs, 0% stall),
+            qwopus-27b→UNKNOWN (2 runs, too few). **Minor data-hygiene note:** the ledger records both bare (`qwopus3.6-27b-v2-mlx`)
+            and provider-qualified (`lmstudio:…:http://…/v1`) model ids → they show as separate rows; a future
+            `normalizeModelId` pass could collapse them.
+      - [ ] **Remaining:** blend the runtime verdict into §5.AB selection (alongside the ledger) + surface where the
+            catalog verdict is `unknown`/`warn` (a provisional entry to confirm), and the §5.AG model-selector badge.
 - [ ] **Keep extending the catalog (standing).** Per §4A: every model sweep / live run that surfaces a new capability
       fact (a verdict flip, a new failure dialect, a confirmed-vs-broken quant) is folded into the catalog in the same
       change — flip the verdict, append the note, cite the source, set `basis: "empirical"`/`"both"`. Verify the

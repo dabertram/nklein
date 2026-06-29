@@ -7,7 +7,7 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { Command } from "commander";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
-import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
+import { buildTaskEscalationReport, selectAttempts } from "../core/agent-attempt-ledger";
 import {
 	buildModelCapabilityAdvice,
 	buildStucknessSignalsFromLedger,
@@ -29,6 +29,7 @@ import {
 } from "../core/model-behavior-profile";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
+import { assessRuntimeModelVerdict, type RuntimeRunOutcome } from "../core/runtime-model-verdict";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
@@ -51,6 +52,7 @@ import { resolveProjectInputPath } from "../projects/project-path";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
+import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 import type { RuntimeAppRouter } from "../trpc/app-router";
 
 interface DevSmokeEvalOptions {
@@ -663,6 +665,46 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	}
 }
 
+async function runDevModelVerdictCommand(options: { modelId?: string; json?: boolean } = {}): Promise<void> {
+	// §5.AL runtime-unsuitability surface: derive an evidence-based verdict per model from the persisted telemetry —
+	// self-observation signals (model_stalled etc.) for the negatives + the agent ledger for the run denominator.
+	const events = await readSelfObservationEvents({ limit: 500 });
+	const attempts = selectAttempts(await readAllAgentLedger());
+	const runs: RuntimeRunOutcome[] = attempts.map((attempt) => ({
+		runId: attempt.attemptId,
+		modelId: attempt.modelId,
+	}));
+
+	const requested = options.modelId?.trim();
+	const modelIds = requested
+		? [requested]
+		: [...new Set([...runs.map((run) => run.modelId), ...events.map((event) => event.modelId)])].filter(
+				(id): id is string => typeof id === "string" && id.length > 0,
+			);
+
+	const verdicts = modelIds
+		.map((modelId) => assessRuntimeModelVerdict({ modelId, events, runs }))
+		.sort((left, right) => right.sampleCount - left.sampleCount || left.modelId.localeCompare(right.modelId));
+
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(verdicts, null, 2)}\n`);
+		return;
+	}
+	if (verdicts.length === 0) {
+		process.stdout.write("(no runtime evidence recorded yet — run some tasks, then re-check)\n");
+		return;
+	}
+	process.stdout.write("Runtime model verdicts (§5.AL — evidence-based, from persisted telemetry):\n");
+	for (const v of verdicts) {
+		const stalls = v.signalCounts.model_stalled;
+		process.stdout.write(
+			`  ${v.modelId.padEnd(40)} ${v.verdict.padEnd(16)} ${v.confidence.padEnd(6)} ` +
+				`${String(v.sampleCount).padStart(3)} run(s)  ${`${Math.round(v.stallRate * 100)}% stall`.padStart(10)} (${stalls})\n` +
+				`      ${v.reason}\n`,
+		);
+	}
+}
+
 async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {
 	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
 	if (options.json) {
@@ -867,6 +909,14 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevLedgerCommand(options);
+		});
+
+	dev.command("model-verdict")
+		.description("Show evidence-based runtime suitability verdicts per model from persisted telemetry (§5.AL).")
+		.argument("[modelId]", "Limit to one model id (default: every model with runtime evidence).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (modelId: string | undefined, options: { json?: boolean }) => {
+			await runDevModelVerdictCommand({ modelId, json: options.json });
 		});
 
 	dev.command("model-speed")
