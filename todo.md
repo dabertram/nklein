@@ -5603,6 +5603,13 @@ deep analysis:
       model with a clear error surfaced to the web-ui, override `NKLEIN_ALLOW_UNSUITABLE_MODEL=1`. Plumbed the resolved
       `modelId` onto `ChatModelDeps` (set by `resolveLocalChatModelDeps`); a fake modelDeps without it is unaffected. +2
       tests. STILL TODO: surface warn/unknown caveats through the §5.AG operator-UX (not just a hard reject), and a UI badge.
+- [ ] **Consistency follow-up: thread the per-PROJECT policy into the CHAT gate.** `decideChatModelGate` (CLI + chat-API)
+      currently consults `resolveActiveModelSuitabilityPolicy()` with NO config base — i.e. env + shipped default only — so
+      the per-project runtime-config override (now honored at task-start via
+      `resolveActiveModelSuitabilityPolicy(env, scopedRuntimeConfig.effectiveModelSuitabilityPolicy)`) does NOT apply to
+      chat. Plumb the active project's `effectiveModelSuitabilityPolicy` into the chat-service gate (the chat send path has
+      the workspace; load+pass the effective policy) so chat and task-start agree. Low-risk; the env knob already provides a
+      global override for chat in the meantime.
 - [x] **Global setting (env layer) + single resolver, threaded into every gate (2026-06-29).**
       `resolveActiveModelSuitabilityPolicy(env)` ([model-capability-catalog.ts](src/core/model-capability-catalog.ts)) is the
       ONE source every gate consults: `NKLEIN_MODEL_GATE_UNSUITABLE` and `NKLEIN_MODEL_GATE_UNKNOWN` each take
