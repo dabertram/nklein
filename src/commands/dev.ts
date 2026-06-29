@@ -221,6 +221,8 @@ interface DevTestProjectOptions {
 	/** §5.AN: force the seed card onto a specific loaded model (provider:model), bypassing stale config roles. */
 	modelId?: string;
 	providerId?: string;
+	/** Commander sets `plan: false` for `--no-plan` → start the seed in ACT mode (agent works directly). */
+	plan?: boolean;
 	json?: boolean;
 	cwd?: string;
 	write?: (text: string) => void;
@@ -275,6 +277,8 @@ async function executeDevTestPreset(input: {
 	maxWaitMs?: number;
 	/** §5.AN: force the seed card onto a specific (loaded) model, bypassing stale/multi-machine config roles. */
 	nkleinSettings?: RuntimeTaskNKleinSettings;
+	/** When false, the seed card starts in ACT mode (the agent does the work directly) instead of plan/decompose. */
+	startInPlanMode?: boolean;
 }): Promise<{
 	scenario: ReturnType<typeof resolveNKleinDevTestProjectScenario>;
 	result: Awaited<ReturnType<typeof runDevTestProject>>;
@@ -292,6 +296,7 @@ async function executeDevTestPreset(input: {
 			scenario,
 			seedTaskId,
 			baseRef: input.baseRef,
+			...(typeof input.startInPlanMode === "boolean" ? { startInPlanMode: input.startInPlanMode } : {}),
 			...(input.nkleinSettings ? { nkleinSettings: input.nkleinSettings } : {}),
 			...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
 			...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
@@ -334,6 +339,7 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		preset,
 		baseRef: options.baseRef ?? "main",
 		...(nkleinSettings ? { nkleinSettings } : {}),
+		...(options.plan === false ? { startInPlanMode: false } : {}),
 		...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
 		...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
 	});
@@ -912,6 +918,7 @@ export function registerDevCommand(program: Command): void {
 		.option("--base-ref <ref>", "Base git ref for the seed card. Defaults to main.")
 		.option("--model-id <id>", "Force the seed card onto a specific (loaded) model, bypassing config roles.")
 		.option("--provider-id <id>", "Provider for --model-id (default lmstudio).")
+		.option("--no-plan", "Start the seed in ACT mode (agent works directly) instead of plan/decompose.")
 		.option("--poll-interval-ms <ms>", "Board poll interval in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--max-wait-ms <ms>", "Maximum monitor duration in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--json", "Print machine-readable JSON.")
