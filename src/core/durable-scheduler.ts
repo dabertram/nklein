@@ -98,7 +98,9 @@ function anyDependencyFailed(job: DurableJob, byId: ReadonlyMap<string, DurableJ
  */
 export function decideDurableSchedulerActions(input: DurableSchedulerInput): DurableSchedulerAction[] {
 	const maxConcurrent = Math.max(1, Math.trunc(input.maxConcurrentLeases));
-	const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts));
+	// NaN guard: `Math.max(1, Math.trunc(NaN))` is NaN and `attempts >= NaN` is always false, which would reclaim an
+	// expired lease FOREVER (never fail) on a misconfigured `maxAttempts`. Treat any non-finite value as the floor 1.
+	const maxAttempts = Number.isFinite(input.maxAttempts) ? Math.max(1, Math.trunc(input.maxAttempts)) : 1;
 	const leaseDurationMs = Math.max(1, Math.trunc(input.leaseDurationMs));
 	const reclaimBackoffMs = Math.max(0, Math.trunc(input.reclaimBackoffMs));
 	const byId = new Map(input.jobs.map((job) => [job.jobId, job]));
@@ -233,7 +235,10 @@ export function markDurableJob(
 		}
 		if (outcome === "transient_retry") {
 			const attempts = job.attempts + 1;
-			return attempts >= Math.max(1, Math.trunc(maxAttempts))
+			// NaN guard: `Math.max(1, Math.trunc(NaN))` is NaN and `attempts >= NaN` is always false, which would loop a
+			// transient retry back to `ready` FOREVER (never fail) on a misconfigured `maxAttempts`. Non-finite ⇒ floor 1.
+			const budget = Number.isFinite(maxAttempts) ? Math.max(1, Math.trunc(maxAttempts)) : 1;
+			return attempts >= budget
 				? { ...job, state: "failed", lease: null }
 				: { ...job, state: "ready", lease: null, attempts, nextEligibleAt: 0 };
 		}
