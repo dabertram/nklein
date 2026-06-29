@@ -86,6 +86,21 @@ export const BACKGROUND_EVAL_RUNTIME_SWARM_GUARDRAILS: RuntimeSwarmGuardrails = 
 	maxRepeatedToolCallsPerTask: 6,
 };
 
+// §5.AB parallel-swarm guardrail profile (near-term user steer 2026-06-29): when several models run as a swarm on
+// the serialized local endpoints, each role's model queues behind the others, so per-task wall-time is much longer —
+// and the user has explicitly ACCEPTED long waits ("the reference bar is a comparably very slow human developer;
+// if quality pays for it, long waits are fine — !Klein runs unattended"). So this profile is lenient on the
+// SLOW-PROGRESS guards (turns / wall-time / no-diff) — generously, since the bottleneck is queueing not looping —
+// while keeping the LOOP guard (`maxRepeatedToolCallsPerTask`) protective so a genuinely stuck/looping agent still
+// parks. All values stay inside RUNTIME_SWARM_GUARDRAIL_BOUNDS. NOT the interactive single-model default — apply it
+// only when running the multi-model swarm (the per-role wiring leaf, below), never silently to single-model use.
+export const PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS: RuntimeSwarmGuardrails = {
+	maxAutonomousTurnsPerTask: 48,
+	maxAutonomousWallTimeMs: 8 * 60 * 60 * 1000,
+	maxRepeatedNoDiffCheckpoints: 8,
+	maxRepeatedToolCallsPerTask: 6,
+};
+
 function clampGuardrailInteger(value: unknown, bounds: { min: number; max: number }, fallback: number): number {
 	if (typeof value !== "number" || !Number.isFinite(value)) {
 		return fallback;

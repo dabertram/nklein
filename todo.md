@@ -4552,11 +4552,22 @@ deep analysis:
         writes no code) — that would be a NEW `SwarmRole` with a tool-heavy, code-light class preference, not a split of
         the worker.
   - [ ] wire per-role assignment off the §5.AB selection (best-fit among LOADED models) so the 3+ roles run on distinct
-        resident models concurrently.
+        resident models concurrently. **SEAM SCOPED (2026-06-29):** the live role→model resolution is already in
+        [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts) — it builds a role-tagged `guardCandidates`
+        map from `effectiveModelRoles` (filtered to LOADED + context-policy + the §5.AE class cap) and runs
+        `selectRoleModel` for free-first swarm picking. `rankModelsForRole` (the new CLASS stage) plugs in HERE — rank a
+        role's loaded candidates by class fit, then `selectRoleModel` picks the free/feasible one within. This is
+        behavior-changing on the task-start path ⇒ needs a live re-verify (§5.Z) before landing; do as a focused slice.
   - [ ] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
         (ties §5.AE skills-on-workers); easy cards to fast/small, hard cards reserve the strong model.
-  - [ ] raise the default autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs (config +
-        sensible defaults); make "quality over latency" explicit in the swarm settings.
+  - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
+        **PROFILE DONE (2026-06-29):** `PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS`
+        ([runtime-config-api-contract.ts](src/core/runtime-config-api-contract.ts)) — 48 turns / 8h wall-time / 8 no-diff
+        (lenient on the slow-progress guards, since queueing not looping is the cost) while the LOOP guard stays
+        protective (6 repeated-tool-calls); all within `RUNTIME_SWARM_GUARDRAIL_BOUNDS`, mirrors the
+        `BACKGROUND_EVAL` profile pattern, does NOT touch the interactive single-model default. 3 tests; tsc+biome green.
+        **Still owed:** APPLY it on the multi-model swarm path (rides the wiring leaf above — never silently to
+        single-model use); surface "quality over latency" in the swarm settings UI.
   - [ ] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
         endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
   - [ ] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection).
