@@ -431,6 +431,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getLocalChatBaseUrl: () => nkleinProviderService.getLocalChatBaseUrl(),
 				isRemoteMode: deps.isRemoteMode ?? false,
 			}),
+			// §5.AL: feed the active project's effective gate policy as the chat gate's base, so chat honors a per-project
+			// policy like task-start does (env knobs still override on top).
+			resolveModelGatePolicyBase: async () =>
+				deps.getActiveRuntimeConfig?.()?.effectiveModelSuitabilityPolicy ?? null,
 		});
 	// Autonomous chat runs (todo §5.0.1): background driver + per-session status, bounded by the global swarm guardrails.
 	const autonomousChatRun = createAutonomousChatRunController({

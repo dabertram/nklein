@@ -79,6 +79,20 @@ describe("decideChatModelGate (§5.AL capability gate)", () => {
 			"warn",
 		);
 	});
+
+	it("§5.AL: a per-project policyBase relaxes the gate (a reject model becomes warn) — chat ↔ task-start consistency", () => {
+		// Default: phi-4-mini-reasoning is rejected for the tool agent.
+		expect(
+			decideChatModelGate("microsoft/phi-4-mini-reasoning", { toolUsing: true, allowOverride: false }).action,
+		).toBe("reject");
+		// With a project policy that loosens unsuitable→warn, the same model is allowed-with-caveat (matching task-start).
+		const gate = decideChatModelGate("microsoft/phi-4-mini-reasoning", {
+			toolUsing: true,
+			allowOverride: false,
+			policyBase: { onUnsuitable: "warn", onUnknown: "warn" },
+		});
+		expect(gate.action).toBe("warn");
+	});
 });
 
 describe("assertPinnedChatModelLoaded", () => {

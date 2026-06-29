@@ -55,6 +55,9 @@ export interface ChatServiceOptions {
 	 *  Mirrors the `resolveModelDeps` seam so the service never touches the tool infrastructure. Omitted ⇒ always
 	 *  plain (every session stays on `runChatTurn`). */
 	resolveAgentToolDeps?: (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null>;
+	/** §5.AL: the active project's effective model-gate policy (global default ← per-project override) used as the gate's
+	 *  base, so chat honors a per-project policy like task-start does (the env knobs still layer on top). Omit ⇒ env+default. */
+	resolveModelGatePolicyBase?: () => Promise<{ onUnsuitable: string; onUnknown: string } | null>;
 	/** Token estimator for the lean-window budget; defaults to ≈4 chars/token. */
 	estimateTokens?: (text: string) => number;
 }
@@ -204,9 +207,13 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				// can't drive tools. Override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1; warn/unknown proceed. Only when the model
 				// id is known (the live local resolver supplies it); a fake/test modelDeps without it is unaffected.
 				if (modelDeps.modelId) {
+					const policyBase = options.resolveModelGatePolicyBase
+						? await options.resolveModelGatePolicyBase()
+						: null;
 					const gate = decideChatModelGate(modelDeps.modelId, {
 						toolUsing: true,
 						allowOverride: process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL === "1",
+						...(policyBase ? { policyBase } : {}),
 					});
 					if (gate.action === "reject") {
 						throw new Error(gate.message);

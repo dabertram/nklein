@@ -67,12 +67,19 @@ export interface ChatModelGateDecision {
  * session — unless `allowOverride`. The plain-completion path (`toolUsing=false`) never rejects (a reasoning/chat model
  * is fine without tools); a `warn`/`unknown` verdict always just surfaces the caveat. Effect-free so it's unit-tested
  * directly; the CLI wires `assessModelSuitability` (default policy) + the `--workspace` flag + the override env.
+ *
+ * `policyBase` (§5.AL) is the project's effective runtime-config policy (global default ← per-project override) — when
+ * supplied (the chat-API path has the active workspace), the env knobs layer ON TOP of it, so chat honors a per-project
+ * policy the same way task-start does. Omitted (the CLI path, no project scope) ⇒ env + shipped default.
  */
 export function decideChatModelGate(
 	modelId: string,
-	options: { toolUsing: boolean; allowOverride: boolean },
+	options: { toolUsing: boolean; allowOverride: boolean; policyBase?: { onUnsuitable: string; onUnknown: string } },
 ): ChatModelGateDecision {
-	const suitability = assessModelSuitability(modelId, resolveActiveModelSuitabilityPolicy());
+	const suitability = assessModelSuitability(
+		modelId,
+		resolveActiveModelSuitabilityPolicy(process.env, options.policyBase),
+	);
 	if (suitability.severity === "ok") {
 		return { action: "ok", message: "" };
 	}
