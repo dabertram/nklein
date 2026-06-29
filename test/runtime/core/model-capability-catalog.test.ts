@@ -66,9 +66,10 @@ describe("model-capability-catalog: suitability gate", () => {
 		expect(v.reason).toMatch(/4k context/i);
 	});
 
-	it("surfaces the unverified caveat for a verdict we haven't confirmed (gemma-4-e4b)", () => {
+	it("a verified entry carries NO unverified caveat (gemma-4-e4b, corrected to TOOL_WEAK from live e2e 2026-06-29)", () => {
 		const v = assessModelSuitability("google/gemma-4-e4b");
-		expect(v.reason).toMatch(/unverified/i);
+		expect(v.toolUse).toBe("TOOL_WEAK");
+		expect(v.reason).not.toMatch(/unverified/i);
 	});
 
 	it("defers an UNKNOWN model to policy.onUnknown (default warn) and explains how to investigate", () => {

@@ -321,3 +321,9 @@
 - **run 1: ❌ INCOMPLETE** — used `read_file` then NARRATED steps 2-4 as prose ("create_card(…) Output: Card created successfully") while only read_file actually executed; card did NOT persist. The §5.AA evidence-gate correctly refused the false "All steps completed" → INCOMPLETE (not a fake pass), but the layer couldn't force qwen to emit the real calls.
 - **run 2: ✅ PASS** — drove read_file + run_command + create_card + update_focus_chain; card persisted.
 > Conclusion: qwen3-8b multi-tool chaining is **stochastic even fresh-loaded** — the prior "✅ when fresh-loaded/spaced" note was too absolute; softened the catalog note accordingly. Key positive: the robustness layer's evidence-gate did its job (no false success on the narrated run). n=2, so judge qwen by a distribution of runs, not one.
+
+### 2026-06-29 · **gemma-4 E4B + E2B verified — vendor "agentic/more-reliable" claim REFUTED at ≤4B (HIGH power)** · chat-agent e2e
+> Verified the two `verified:false` catalog rows against live sweeps (each fresh-loaded via the guarded runner; gate allowed/​warned correctly).
+- **google/gemma-4-e4b (4B): ❌ 3/3** — used read_file then dropped the chain every run (no run_command/create_card/focus-chain), card never persisted. The vendor docs' "native structured tool use / more reliable than E2B / agentic workflows" does NOT hold at 4B in our harness. **Catalog corrected: TOOL_CAPABLE → TOOL_WEAK (research→both, verified).**
+- **google/gemma-4-e2b (2B): ❌ 2/2** — same single-tool-then-stop. Confirms TOOL_WEAK. **Marked verified.**
+> Takeaway: the ≤4B multi-tool chaining floor holds across the gemma-4 edge line too — vendor tool-use marketing ≠ multi-step reliability at 2–4B. Both `verified:false` rows are now empirically settled. This is the living-artifact loop doing its job: a research-sourced optimistic verdict got corrected by a live sweep.
