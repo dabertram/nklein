@@ -4580,20 +4580,25 @@ deep analysis:
       machine — 128 GB RAM + M5 Max — runs **up to ~120B at lower quantization**). **WORKING-MODE SHIFT IN PROGRESS
       (2026-06-29, user):** the user is moving from "we never load" → **"!Klein may load/unload to work the catalog
       systematically, GUARDED"** (they confirmed the API exposes quant/state/context clearly + asked me to take it over).
-      **GUARD SUBSTRATE BUILT (2026-06-29, pending the explicit greenlight to actually load):**
+      **GREENLIGHT GIVEN + GUARD SUBSTRATE BUILT (2026-06-29, user — reaffirmed: "you can load and unload models as you
+      need, as long as you stick within the machine's safe RAM budget, until further notice"):**
       [model-load-headroom.ts](src/core/model-load-headroom.ts) `decideModelLoad` (refuse any load that breaches a RAM
       freeze-reserve / resident budget — proactively prevents the `ornith-35b@8bit` "would overload" freeze) +
       [lms-model-control.ts](src/core/lms-model-control.ts) `planGuardedModelLoad` / `buildLmsLoadArgs` /
       `buildLmsUnloadArgs` (pure planner → the exact `lms load --context-length … --gpu max` argv only on guard approval;
-      context floored to ≥32k + capped to capability). 14 tests. `lms` CLI (`load`/`unload`/`ps`/`ls`) confirmed available;
-      `/api/v0/models` exposes id·quant·state·max/loaded-context·arch·type. **STILL OWED (the greenlit step):** the
-      effectful `lms` runner that consults the planner (the ONLY place a load happens) + a **model-lab sweep** (load → set
-      context → test → unload → restore the user's pinned set) to drive the §5.AB eval matrix + q4/q8/size A/Bs across the
-      catalog. Until greenlit, the no-load enforcement below stays active. Each newly-resident model becomes a §5.Z matrix
+      context floored to ≥32k + capped to capability) + **the effectful runner DONE** —
+      [lms-model-runner.ts](src/core/lms-model-runner.ts) `loadModelExclusive` (the ONE place a load happens, via an
+      injected `LmsRunner`) + `listResidentModels`. 14+ tests. `lms` CLI (`load`/`unload`/`ps`/`ls`) confirmed available;
+      `/api/v0/models` exposes id·quant·state·max/loaded-context·arch·type. **So loading is UNBLOCKED — the RAM-budget guard
+      (`decideModelLoad`) is the only gate now** (load/unload as needed within safe headroom; revocable "until further
+      notice"). **STILL OWED:** a **model-lab sweep** (load → set context → test → unload → restore the user's pinned set)
+      to drive the §5.AB eval matrix + q4/q8/size A/Bs across the catalog. Each newly-resident model becomes a §5.Z matrix
       column / run-log entry; a model that still can't pass a tier (after repeat-runs + the full §5.AA ladder — **never
       judge prematurely**) is a recorded `⚠️` capability-floor.
-- [~] **!Klein RUNTIME must not load models either (user directive 2026-06-28) — selection/resolution restricted to the
-      LOADED set.** Harness side done (`assertModelLoaded`). **PRIMARY-MODEL ENFORCEMENT DONE (2026-06-28, `8715fda6`):**
+- [~] **!Klein RUNTIME must not SILENTLY-auto-load at task-start — selection/resolution restricted to the LOADED set.**
+      *(Still correct under the 2026-06-29 greenlight: deliberate agent-driven loads happen OUT-OF-BAND via
+      `loadModelExclusive` ahead of a run; the task-start/chat/selection paths must still never silently auto-load — they
+      pick among the resident set.)* Harness side done (`assertModelLoaded`). **PRIMARY-MODEL ENFORCEMENT DONE (2026-06-28, `8715fda6`):**
       `start-task-session` now checks the SELECTED (primary) local model against LM Studio's loaded set
       ([src/core/lmstudio-loaded-models.ts](src/core/lmstudio-loaded-models.ts) `fetchLoadedModelIds` + pure
       `shouldBlockUnloadedModel`) and returns a clear "load it first" error instead of auto-loading; lenient (block only a
