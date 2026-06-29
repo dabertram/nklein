@@ -235,8 +235,14 @@ export function taskReadyForReviewFrame(
 	return { type: "task_ready_for_review", workspaceId, taskId, triggeredAt: 1_700_000_600_000 };
 }
 
+// The runtime-state reducer is updatedAt-GATED: a streamed summary whose updatedAt is not newer than the resident one
+// is dropped as stale/out-of-order. So each builder call advances a monotonic default updatedAt — sequential frames for
+// the same task "just work" without the spec author bumping it manually. Override `updatedAt` to pin it explicitly.
+let summaryUpdateClock = 1_700_000_500_000;
+
 /** Minimal task-session summary for {@link taskSessionsUpdatedFrame}; override any field (e.g. `state`). */
 export function taskSessionSummary(taskId: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	summaryUpdateClock += 1000;
 	return {
 		taskId,
 		state: "running",
@@ -246,8 +252,8 @@ export function taskSessionSummary(taskId: string, overrides: Record<string, unk
 		workspacePath: "/home/user/project",
 		pid: 4242,
 		startedAt: 1_700_000_400_000,
-		updatedAt: 1_700_000_500_000,
-		lastOutputAt: 1_700_000_500_000,
+		updatedAt: summaryUpdateClock,
+		lastOutputAt: summaryUpdateClock,
 		reviewReason: null,
 		exitCode: null,
 		...overrides,

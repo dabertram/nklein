@@ -48,17 +48,10 @@ test.describe("board session streaming (harness pushFrame)", () => {
 		handle.pushFrame(taskSessionsUpdatedFrame([taskSessionSummary("task-stream-2", { state: "running" })]));
 		await expect(cardLocator).toContainText("working");
 
-		// → paused: the card's badge tracks the streamed transition to "paused". A NEWER updatedAt so the reducer
-		// doesn't treat the second frame as a stale/out-of-order update.
+		// → paused: the card's badge tracks the streamed transition to "paused". (taskSessionSummary auto-advances
+		// updatedAt, so this sequential frame isn't dropped as stale by the updatedAt-gated reducer.)
 		handle.pushFrame(
-			taskSessionsUpdatedFrame([
-				taskSessionSummary("task-stream-2", {
-					state: "paused",
-					paused: true,
-					updatedAt: 1_700_000_600_000,
-					lastOutputAt: 1_700_000_600_000,
-				}),
-			]),
+			taskSessionsUpdatedFrame([taskSessionSummary("task-stream-2", { state: "paused", paused: true })]),
 		);
 		await expect(cardLocator).toContainText("paused");
 	});
