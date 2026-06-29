@@ -36,6 +36,7 @@ import {
 	type RuntimeRunOutcome,
 } from "../core/runtime-model-verdict";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
+import { assessRosterFit, formatSwarmRosterReport, SWARM_ROSTERS } from "../core/swarm-roster";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { countActiveAgentSessions } from "../core/task-session-api-contract";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
@@ -890,6 +891,17 @@ async function runDevRailEvidenceCommand(options: { json?: boolean; advisor?: bo
 	}
 }
 
+async function runDevRostersCommand(options: { json?: boolean } = {}): Promise<void> {
+	if (options.json) {
+		const payload = SWARM_ROSTERS.map((roster) => ({ roster, fit: assessRosterFit(roster) }));
+		process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+		return;
+	}
+	for (const roster of SWARM_ROSTERS) {
+		process.stdout.write(`${formatSwarmRosterReport(roster)}\n\n`);
+	}
+}
+
 export function registerDevCommand(program: Command): void {
 	const dev = program.command("dev").description("Developer-only !Klein diagnostics and smoke tests.");
 
@@ -993,6 +1005,13 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (modelId: string | undefined, options: { json?: boolean }) => {
 			await runDevModelVerdictCommand({ modelId, json: options.json });
+		});
+
+	dev.command("rosters")
+		.description("Show the named swarm rosters (§5.AB per-machine pools) + whether each FITS the machine budgets.")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevRostersCommand(options);
 		});
 
 	dev.command("model-speed")

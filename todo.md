@@ -4666,7 +4666,9 @@ deep analysis:
     - [~] let the pool config name a roster + per-machine model so a swarm spins up from one preset (ties the settings-UI leaf).
           **PRESET DATA DONE (2026-06-29):** [src/core/swarm-roster.ts](src/core/swarm-roster.ts) encodes ROSTER_Q +
           ROSTER_M as typed data (machine · role · model · quant · size · alternate) with `resolveSwarmRoster(id)` +
-          `primaryAssignmentsByMachine(roster)`; one source for docs/UI/orchestration. 6 tests; tsc+biome green. **Still
+          `primaryAssignmentsByMachine(roster)` + `assessRosterFit` (vs `USER_MACHINE_BUDGETS_GB`) + `formatSwarmRosterReport`;
+          one source for docs/UI/orchestration. 11 tests; tsc+biome green. **CLI INSPECTOR DONE:** `nklein dev rosters`
+          (`--json`) prints both rosters + per-machine FIT verdicts (live-verified: Q + M both FIT the hardware). **Still
           owed:** a pool-config field that NAMES a roster + the orchestration that loads its primary assignments per
           machine (the latter rides the deferred LM-Link remote-load cluster).
   - **LATER — control models loaded on the 2 OTHER machines via LM Link (user 2026-06-29; deferred, do NOT build before the local pools land + the user re-greenlights remote control), decomposed:**
