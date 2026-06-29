@@ -3988,6 +3988,15 @@ deep analysis:
 >   "stagnation" saga. **Live confirmation owed:** a fresh one-shot `dev test-project` should now ride out the slow 27B
 >   decompose to real children/completion (was about to be confirmed via a direct watch — the 27B was still
 >   PROCESSINGPROMPT minutes in, so the monitor giving up was indeed the artifact).
+> - **⚠️ SEPARATE concern surfaced (2026-06-29): the 27B stayed `PROCESSINGPROMPT` for 10+ MINUTES on the single decompose
+>   turn under Low Power.** That's beyond "slow" — likely Low-Power prefill of a LARGE context (the decompose prompt +
+>   accumulated tool-error retries: the run logged a blocked `read_files todo.md` ~179k tokens + `get_file_size` sandbox
+>   failures + "Could not stage sandbox workspace changes"), though a stuck/runaway prefill isn't ruled out. Open question
+>   (NOT a harness bug — the monitor fix is right regardless): can the 27B complete this decompose under Low Power in a
+>   practical time, or does it need a per-turn timeout / smaller context / the sandbox-staging error fixed first? Re-check
+>   whether that turn ever completed; if 10-min+ single turns are the norm under Low Power, the dev-test windows must be
+>   sized accordingly (or the user may prefer high-power for these runs). Also still unexplained: why a habit-insights
+>   decompose tried to read the REPO's `todo.md` (718,231 bytes) at all — investigate the sandbox/cwd file resolution.
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s
