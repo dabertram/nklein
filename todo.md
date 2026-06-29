@@ -6295,6 +6295,12 @@ deep analysis:
       (2 tests, green in chromium) proves the UI reacts live to a streamed `task_sessions_updated` frame (running→working,
       running→paused). LEARNED: the runtime-state reducer is **updatedAt-GATED** — sequential summary frames need an
       increasing `updatedAt` (the builder now auto-advances it). The "LLM-use" payoff (chat-send→assistant-stream) follows this pattern.
+  - [ ] **chat-agent stream spec (the LLM-use payoff) — needs one more investigation.** Attempted 2026-06-29: open the card
+        (click its title `p`) → push a running session → push a `task_chat_message` (assistant) → assert the text. The text did
+        NOT render — clicking the title opens the detail panel but the AGENT CHAT PANEL (`nklein-agent-chat-panel`) didn't surface
+        the streamed message. Likely the chat panel needs the chat SESSION selected/initialized (or a tab switch), or
+        `task_chat_message` routes through a store the panel only reads when the chat is active. Investigate the panel's
+        open/active condition (DOM-inspect after open) then the spec follows the proven board-stream pattern.
   - [ ] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). *(buildBoardSnapshot exists in runtime-mock.ts; buildMockRuntimeConfig still owed.)*
   - [ ] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
   - [ ] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens).
