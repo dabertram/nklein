@@ -539,6 +539,42 @@ function restoreEnvVar(name: "NKLEIN_API_KEY" | "OCA_API_KEY", value: string | u
 	process.env[name] = value;
 }
 
+/**
+ * Run `body` with a guaranteed restore of the named process-env keys, even if `body` throws.
+ *
+ * This is the isolation harness for the residency/suitability gates, which can only be armed by MUTATING
+ * process-wide env: `delete process.env.VITEST` flips EVERY VITEST-gated branch (residencyCheckEnabled,
+ * modelDiscoveryCacheTtlMs, …) for the whole runner until restored, so a leak here would silently turn
+ * sibling tests' residency checks live (real network) or re-enable the discovery cache. Each key's ORIGINAL
+ * value is captured up front and restored exactly in `finally`: an absent key is deleted again, a set key
+ * is reassigned to its captured string (no `""`/undefined confusion). Mutate only via the supplied setter.
+ */
+async function withEnvRestored<T>(
+	keys: readonly string[],
+	mutate: (setEnv: (key: string, value: string | undefined) => void) => void,
+	body: () => Promise<T>,
+): Promise<T> {
+	const original = new Map<string, string | undefined>();
+	for (const key of keys) {
+		original.set(key, process.env[key]);
+	}
+	const setEnv = (key: string, value: string | undefined): void => {
+		if (value === undefined) {
+			delete process.env[key];
+			return;
+		}
+		process.env[key] = value;
+	};
+	mutate(setEnv);
+	try {
+		return await body();
+	} finally {
+		for (const [key, value] of original) {
+			setEnv(key, value);
+		}
+	}
+}
+
 function createNKleinTaskSessionServiceMock() {
 	return {
 		startTaskSession: vi.fn<(...args: unknown[]) => Promise<RuntimeTaskSessionSummary>>(async () =>
@@ -582,6 +618,9 @@ describe("createRuntimeApi startTaskSession", () => {
 	const originalNKleinMcpSettingsPath = process.env.NKLEIN_MCP_SETTINGS_PATH;
 	const originalNKleinMcpOauthSettingsPath = process.env.NKLEIN_MCP_OAUTH_SETTINGS_PATH;
 	const originalProviderSelectionPath = process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH;
+	// Captured once so the afterEach tripwire can prove the residency test (T1) restored VITEST. The runner
+	// always sets VITEST (it is what keeps residencyCheckEnabled false suite-wide), so a leak ⇒ this is undefined.
+	const originalVitest = process.env.VITEST;
 	let mcpSettingsPath = "";
 	let mcpOauthSettingsPath = "";
 
@@ -759,6 +798,9 @@ describe("createRuntimeApi startTaskSession", () => {
 	});
 
 	afterEach(() => {
+		// Tripwire for the residency test (T1): if its delete-of-VITEST ever leaks past withEnvRestored, VITEST
+		// would be undefined here and every later test's residency check would silently go live. Fail loud instead.
+		expect(process.env.VITEST).toBe(originalVitest);
 		restoreEnvVar("NKLEIN_API_KEY", originalNKleinApiKey);
 		restoreEnvVar("OCA_API_KEY", originalOcaApiKey);
 		if (originalNKleinMcpSettingsPath === undefined) {
@@ -1648,6 +1690,286 @@ describe("createRuntimeApi startTaskSession", () => {
 			ok: false,
 			error: expect.stringContaining("requires at least 32,000"),
 		});
+		// T4a (folded): the sub-min model here is the role's PRIMARY, so the role-loop catch re-raises the
+		// context-window policy error as a fatal escalation (start-task-session.ts L256-262), tagging it
+		// errorCode: "routing_escalation". Contrast T4b below, where the same sub-min condition on a
+		// NON-primary pool member is swallowed and the start still succeeds.
+		expect(response.errorCode).toBe("routing_escalation");
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("swallows a sub-min context-window pool member and still starts on the valid primary (T4b)", async () => {
+		// T4b — the high-value asymmetry guard. A role's primary is valid (good-worker @ 64k) and its
+		// additionalModels pool contains a sub-min member (tiny-extra @ 16k). When the role loop resolves
+		// the pool member, buildNKleinStartGuardCandidate/resolveLaunchConfig throws a context-window policy
+		// error, but because it is NON-primary the catch falls through to start-task-session.ts L264 and
+		// silently skips it. The start therefore succeeds on a valid model and tiny-extra is never launched.
+		// (Pins the CURRENT contract; the over-broad non-primary swallow is a flagged follow-up, not fixed here.)
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-opus",
+			apiKey: "anthropic-api-key",
+		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "anthropic",
+			models: [
+				{ id: "claude-opus", name: "Opus", contextWindow: 200_000 },
+				{ id: "good-worker", name: "Worker", contextWindow: 64_000 },
+				{ id: "tiny-extra", name: "Tiny extra", contextWindow: 16_000 },
+			],
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:claude-opus:default": createModelRegistryEntry({
+					key: "anthropic:claude-opus:default",
+					providerId: "anthropic",
+					modelId: "claude-opus",
+					contextWindow: 200_000,
+					capability: 90,
+				}),
+				"anthropic:good-worker:default": createModelRegistryEntry({
+					key: "anthropic:good-worker:default",
+					providerId: "anthropic",
+					modelId: "good-worker",
+					contextWindow: 64_000,
+					capability: 70,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "anthropic",
+						modelId: "good-worker",
+						additionalModels: [{ providerId: "anthropic", modelId: "tiny-extra" }],
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{ taskId: "task-1", baseRef: "main", prompt: "Implement a focused change." },
+		);
+
+		// The swallowed pool-member error did NOT block the start (asymmetry vs T4a's primary escalation).
+		expect(response.ok).toBe(true);
+		expect(response.errorCode).toBeUndefined();
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledTimes(1);
+		// The model actually launched is one of the valid candidates — never the sub-min pool member.
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: expect.stringMatching(/^(claude-opus|good-worker)$/),
+			}),
+		);
+		const startedWith = nkleinTaskSessionService.startTaskSession.mock.calls[0]?.[0] as { modelId?: string };
+		expect(startedWith.modelId).not.toBe("tiny-extra");
+	});
+
+	it("refuses to start a model that is not loaded in LM Studio (residency gate, T1)", async () => {
+		// T1 — the model-not-loaded residency block (start-task-session.ts L179-190). The gate is disabled under
+		// the runner because process.env.VITEST is truthy; arming it requires deleting VITEST (and pinning the
+		// discovery cache TTL to 0 so the per-test fetch stub is authoritative). withEnvRestored guarantees BOTH
+		// keys are restored even if an assertion throws — a VITEST leak would turn sibling residency checks live.
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			apiKey: "anthropic-api-key",
+		});
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const originalFetch = globalThis.fetch;
+		// Non-empty loaded set that OMITS the requested model ⇒ shouldBlockUnloadedModel returns true. A bare
+		// vi.fn ignores the URL (http://127.0.0.1:1234/api/v0/models), so the stub is robust to the exact path.
+		globalThis.fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({ data: [{ id: "some-other-loaded-model", state: "loaded" }] }),
+		})) as unknown as typeof globalThis.fetch;
+		try {
+			const response = await withEnvRestored(
+				["VITEST", "NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS"],
+				(setEnv) => {
+					setEnv("VITEST", undefined);
+					setEnv("NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS", "0");
+				},
+				() =>
+					api.startTaskSession(
+						{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+						{ taskId: "task-1", baseRef: "main", prompt: "Investigate startup freeze" },
+					),
+			);
+
+			expect(response.ok).toBe(false);
+			expect(response.error).toContain('Model "claude-sonnet-4-6" is not loaded in LM Studio');
+			expect(response.error).toContain("!Klein does not load models");
+			expect(response.error).toContain("loaded: some-other-loaded-model");
+			// This return intentionally carries NO errorCode today; assert its absence so a future tidy-up that
+			// bolts one on is caught and reviewed.
+			expect(response).not.toHaveProperty("errorCode");
+			expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+		// Tripwire: withEnvRestored must have put VITEST back (a leak would silently break sibling tests).
+		expect(process.env.VITEST).toBeDefined();
+	});
+
+	it("refuses a catalog-reject (tool-unsuitable) primary model up front (suitability gate, T2)", async () => {
+		// T2 — the §5.AL suitability reject (start-task-session.ts L196-210). Pure gate (no fetch, no VITEST flip):
+		// a TOOL_UNSUITABLE reasoning-only model selected as the primary yields severity "reject" under the
+		// default reject policy. phi-4-mini-reasoning is reported at 64k so it clears the context-window floor and
+		// lands on the suitability gate (not the window gate). The override env is explicitly cleared (and restored)
+		// so a leaked NKLEIN_ALLOW_UNSUITABLE_MODEL="1" from another test can't silently skip the gate.
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "phi-4-mini-reasoning",
+			apiKey: "anthropic-api-key",
+		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "anthropic",
+			models: [{ id: "phi-4-mini-reasoning", name: "Phi-4 mini reasoning", contextWindow: 64_000 }],
+		});
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await withEnvRestored(
+			["NKLEIN_ALLOW_UNSUITABLE_MODEL"],
+			(setEnv) => setEnv("NKLEIN_ALLOW_UNSUITABLE_MODEL", undefined),
+			() =>
+				api.startTaskSession(
+					{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+					{ taskId: "task-1", baseRef: "main", prompt: "Implement a focused change." },
+				),
+		);
+
+		expect(response.ok).toBe(false);
+		expect(response.error).toContain('Model "phi-4-mini-reasoning" is not suitable for agentic tasks');
+		expect(response.error).toMatch(/NKLEIN_ALLOW_UNSUITABLE_MODEL=1/);
+		expect(response).not.toHaveProperty("errorCode");
+		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
+	});
+
+	it("lets NKLEIN_ALLOW_UNSUITABLE_MODEL=1 override the suitability gate and start anyway (T2 companion)", async () => {
+		// T2 companion — the override arm of the L196 condition: with NKLEIN_ALLOW_UNSUITABLE_MODEL="1" the
+		// suitability gate is skipped entirely, so the same reject-class model is allowed to start. Pins the
+		// documented escape hatch (and that the gate is the ONLY thing blocking this model here).
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "phi-4-mini-reasoning",
+			apiKey: "anthropic-api-key",
+		});
+		localProviderMocks.getLocalProviderModels.mockResolvedValue({
+			providerId: "anthropic",
+			models: [{ id: "phi-4-mini-reasoning", name: "Phi-4 mini reasoning", contextWindow: 64_000 }],
+		});
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await withEnvRestored(
+			["NKLEIN_ALLOW_UNSUITABLE_MODEL"],
+			(setEnv) => setEnv("NKLEIN_ALLOW_UNSUITABLE_MODEL", "1"),
+			() =>
+				api.startTaskSession(
+					{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+					{ taskId: "task-1", baseRef: "main", prompt: "Implement a focused change." },
+				),
+		);
+
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledTimes(1);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({ providerId: "anthropic", modelId: "phi-4-mini-reasoning" }),
+		);
+	});
+
+	it("blocks a cloud provider with errorCode cloud_provider_disabled (T3)", async () => {
+		// T3 — the top-level catch's cloud-disabled branch (start-task-session.ts L540-547), reached via the real
+		// resolver guard (nklein-provider-service.ts L1201). The cloud provider is supplied as a per-task OVERRIDE
+		// (nkleinSettings.providerId), which the handler forwards as providerIdOverride to the FIRST
+		// resolveLaunchConfig (L147-148). That override branch (provider-service L1185) skips the
+		// getSelectedProviderSettings local-only pre-filter (which would otherwise null out a cloud selection and
+		// surface a generic "no provider configured" error instead), so resolution reaches assertLocalProviderAllowed
+		// and throws CloudProviderDisabledError before any residency/network path. No fetch stub, no VITEST flip.
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			apiKey: "anthropic-api-key",
+		});
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => createRuntimeConfigState()),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Continue task",
+				nkleinSettings: { providerId: "openrouter", modelId: "openrouter/auto" },
+			},
+		);
+
+		expect(response.ok).toBe(false);
+		expect(response.errorCode).toBe("cloud_provider_disabled");
+		expect(response.error).toContain("local-only mode");
+		expect(response.error).toContain("openrouter");
+		expect(response.summary).toBeNull();
 		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 	});
 
