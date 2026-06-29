@@ -538,6 +538,18 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 			);
 		}
 	}
+
+	if (summary.contextUsage.length > 0) {
+		process.stdout.write("\nPer-model context usage (prompt tokens — a §5.AD budget / §5.AB routing signal):\n");
+		for (const row of summary.contextUsage) {
+			const avg = row.avgContextTokens !== null ? `${Math.round(row.avgContextTokens)} avg` : "n/a";
+			const max = row.maxContextTokens !== null ? `${row.maxContextTokens} max` : "n/a";
+			const over = row.overBudget > 0 ? `  ${row.overBudget} over-budget` : "";
+			process.stdout.write(
+				`  ${row.modelId.padEnd(40)} ${String(row.samples).padStart(3)} sample(s)  ${avg.padStart(12)}  ${max.padStart(12)}${over}\n`,
+			);
+		}
+	}
 }
 
 async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {

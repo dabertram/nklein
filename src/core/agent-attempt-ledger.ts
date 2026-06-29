@@ -472,6 +472,50 @@ export function summarizeModelOutcomes(events: readonly AgentLedgerEvent[]): Mod
 	return rollups;
 }
 
+export interface ModelContextUsageRollup {
+	modelId: string;
+	/** Attempts that recorded a prompt-token count. */
+	samples: number;
+	avgContextTokens: number | null;
+	maxContextTokens: number | null;
+	/** Attempts whose prompt exceeded the recorded `contextBudgetTarget` (when both are present) — overflow pressure. */
+	overBudget: number;
+}
+
+/**
+ * Roll up per-model CONTEXT usage from the ledger's attempt records (todo §5.AF / §5.AD) — the `contextTokens` the
+ * terminal writer captures (prompt size), with avg + max + an over-budget count (prompt > `contextBudgetTarget` when
+ * both are set). A §5.AD budget-tuning + §5.AB routing input: a model that routinely runs near or over its window is a
+ * candidate for smart-zone trimming or a larger-context peer. Only attempts that recorded a prompt size count. Sorted by
+ * samples desc, then modelId.
+ */
+export function summarizeModelContextUsage(events: readonly AgentLedgerEvent[]): ModelContextUsageRollup[] {
+	const byModel = new Map<string, { tokens: number[]; overBudget: number }>();
+	for (const attempt of selectAttempts(events)) {
+		if (typeof attempt.contextTokens !== "number") {
+			continue;
+		}
+		const entry = byModel.get(attempt.modelId) ?? { tokens: [], overBudget: 0 };
+		entry.tokens.push(attempt.contextTokens);
+		if (typeof attempt.contextBudgetTarget === "number" && attempt.contextTokens > attempt.contextBudgetTarget) {
+			entry.overBudget += 1;
+		}
+		byModel.set(attempt.modelId, entry);
+	}
+	const rollups: ModelContextUsageRollup[] = [];
+	for (const [modelId, { tokens, overBudget }] of byModel) {
+		rollups.push({
+			modelId,
+			samples: tokens.length,
+			avgContextTokens: meanOrNull(tokens),
+			maxContextTokens: tokens.length > 0 ? Math.max(...tokens) : null,
+			overBudget,
+		});
+	}
+	rollups.sort((left, right) => right.samples - left.samples || left.modelId.localeCompare(right.modelId));
+	return rollups;
+}
+
 export interface ModelSpeedRollup {
 	modelId: string;
 	/** Attempts that carried at least one speed datum (ttft or tok/s) — the denominator for these stats. */

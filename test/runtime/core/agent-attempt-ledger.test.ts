@@ -9,6 +9,7 @@ import {
 	selectAttempts,
 	selectAttemptsForModel,
 	selectEventsForWorkflow,
+	summarizeModelContextUsage,
 	summarizeModelOutcomes,
 	summarizeModelSpeed,
 	summarizeToolUsageByModel,
@@ -264,5 +265,40 @@ describe("summarizeModelSpeed", () => {
 
 	it("returns an empty list when no attempts carry timing", () => {
 		expect(summarizeModelSpeed([speedAttempt("m", null, null)])).toEqual([]);
+	});
+});
+
+describe("summarizeModelContextUsage", () => {
+	const ctxAttempt = (
+		modelId: string,
+		contextTokens: number | null,
+		contextBudgetTarget: number | null,
+	): AgentLedgerEvent => {
+		attemptSeq += 1;
+		return buildAttemptEvent({
+			...base,
+			attemptId: `c-${attemptSeq}`,
+			modelId,
+			outcome: "success",
+			contextTokens,
+			contextBudgetTarget,
+		});
+	};
+
+	it("rolls up per-model avg + max prompt tokens and counts over-budget attempts", () => {
+		const rows = summarizeModelContextUsage([
+			ctxAttempt("m", 1000, 4000),
+			ctxAttempt("m", 5000, 4000), // over budget
+			ctxAttempt("m", 3000, null), // no budget target → not over
+		]);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.samples).toBe(3);
+		expect(rows[0]?.avgContextTokens).toBe(3000);
+		expect(rows[0]?.maxContextTokens).toBe(5000);
+		expect(rows[0]?.overBudget).toBe(1);
+	});
+
+	it("ignores attempts with no prompt-token count", () => {
+		expect(summarizeModelContextUsage([ctxAttempt("m", null, 4000)])).toEqual([]);
 	});
 });

@@ -94,6 +94,7 @@ describe("summarizeLedgerForDisplay", () => {
 			profiles: [],
 			toolUsage: [],
 			speed: [],
+			contextUsage: [],
 		});
 	});
 });
