@@ -195,6 +195,7 @@ export const runtimeTaskDiagnosticEventSchema = z.object({
 		"decomposition_rejected",
 		"plan_gap",
 		"eval_score",
+		"model_stalled",
 		"custom",
 	]),
 	severity: z.enum(["debug", "info", "warning", "error"]),

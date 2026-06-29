@@ -398,6 +398,27 @@ function createKanbanContextFocusExtension(
 					});
 					return undefined;
 				}
+				// §5.AA/§5.AN: surface a STALLED turn — neither a (recovered) tool call NOR any text — on the swarm path,
+				// where it was previously invisible (the SDK abstracts the truncation finishReason away, so detect by
+				// content-shape instead). A reasoning model that burns its budget on reasoning_content emits exactly this
+				// (live-grounded). Observational only (returns nothing); makes stalls countable so the §5.AA recovery
+				// (proactive thinking-control / budget bump) can be decided + measured on real swarm evidence.
+				{
+					const hasToolCallPart = context.assistantMessage.content.some((part) => part.type === "tool-call");
+					const assistantTextLength = context.assistantMessage.content
+						.filter((part) => part.type === "text")
+						.reduce((total, part) => total + ((part as { text?: string }).text?.trim().length ?? 0), 0);
+					if (!hasToolCallPart && assistantTextLength === 0) {
+						recordSelfObservation({
+							signal: "model_stalled",
+							severity: "warning",
+							message:
+								"Model turn produced no tool call and no text (stall/truncation) — likely budget exhausted on reasoning.",
+							workspacePath: agentPerceivedCwd,
+							metadata: { category: "model_stalled", sessionId },
+						});
+					}
+				}
 				const largeFileControl = await largeFileWorkflow.afterModel(context);
 				return (
 					largeFileControl ??
