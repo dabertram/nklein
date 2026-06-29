@@ -358,6 +358,45 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("defaults the model-suitability gate policy and round-trips the global default + per-project override (§5.AL)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-modelgate-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-modelgate-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.modelSuitabilityPolicyDefaults).toEqual({ onUnsuitable: "reject", onUnknown: "warn" });
+				expect(defaults.modelSuitabilityPolicyOverride).toBeNull();
+				expect(defaults.effectiveModelSuitabilityPolicy).toEqual({ onUnsuitable: "reject", onUnknown: "warn" });
+
+				// Global default persists across reload (regression: the global save must write the field to disk).
+				await updateRuntimeConfig(tempProject, {
+					modelSuitabilityPolicyDefaults: { onUnsuitable: "warn", onUnknown: "allow" },
+				});
+				const withGlobal = await loadRuntimeConfig(tempProject);
+				expect(withGlobal.modelSuitabilityPolicyDefaults).toEqual({ onUnsuitable: "warn", onUnknown: "allow" });
+
+				// Per-project override persists too (regression: the project save must NOT drop it / delete the file as empty),
+				// and the global default is preserved on the override save. Effective = override.
+				await updateRuntimeConfig(tempProject, {
+					modelSuitabilityPolicyOverride: { onUnsuitable: "reject", onUnknown: "reject" },
+				});
+				const withOverride = await loadRuntimeConfig(tempProject);
+				expect(withOverride.modelSuitabilityPolicyOverride).toEqual({
+					onUnsuitable: "reject",
+					onUnknown: "reject",
+				});
+				expect(withOverride.modelSuitabilityPolicyDefaults).toEqual({ onUnsuitable: "warn", onUnknown: "allow" });
+				expect(withOverride.effectiveModelSuitabilityPolicy).toEqual({
+					onUnsuitable: "reject",
+					onUnknown: "reject",
+				});
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("defaults swarm guardrails, round-trips overrides, clamps bad values, and preserves on unrelated saves (§5.T)", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-guardrails-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-guardrails-");

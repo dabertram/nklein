@@ -662,6 +662,13 @@ async function writeRuntimeGlobalConfigFile(
 		config.codeEmbeddingDefaults === undefined
 			? DEFAULT_CODE_EMBEDDING_SETTINGS
 			: normalizeCodeEmbeddingSettings(config.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS);
+	const modelSuitabilityPolicyDefaults =
+		config.modelSuitabilityPolicyDefaults === undefined
+			? DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG
+			: normalizeModelSuitabilityPolicy(
+					config.modelSuitabilityPolicyDefaults,
+					DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
+				);
 	const concurrencyDefaults =
 		config.concurrencyDefaults === undefined
 			? DEFAULT_CONCURRENCY_CONFIG
@@ -837,6 +844,12 @@ async function writeRuntimeGlobalConfigFile(
 		payload.codeEmbeddingDefaults = codeEmbeddingDefaults;
 	}
 	if (
+		hasOwnKey(existing, "modelSuitabilityPolicyDefaults") ||
+		!areModelSuitabilityPoliciesEqual(modelSuitabilityPolicyDefaults, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG)
+	) {
+		payload.modelSuitabilityPolicyDefaults = modelSuitabilityPolicyDefaults;
+	}
+	if (
 		hasOwnKey(existing, "concurrencyDefaults") ||
 		!areConcurrencyConfigsEqual(concurrencyDefaults, DEFAULT_CONCURRENCY_CONFIG)
 	) {
@@ -889,6 +902,9 @@ async function writeRuntimeProjectConfigFile(
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
 	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(config.codeEmbeddingOverride);
+	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(
+		config.modelSuitabilityPolicyOverride,
+	);
 	const concurrencyOverride = normalizeConcurrencyOverride(config.concurrencyOverride);
 	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(config.maxConcurrentTasksOverride);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(config.selectedAgentIdOverride);
@@ -900,6 +916,9 @@ async function writeRuntimeProjectConfigFile(
 		}
 		if (codeEmbeddingOverride) {
 			throw new Error("Cannot save project embedding overrides without a selected project.");
+		}
+		if (modelSuitabilityPolicyOverride) {
+			throw new Error("Cannot save project model-suitability override without a selected project.");
 		}
 		if (maxConcurrentTasksOverride !== null) {
 			throw new Error("Cannot save project concurrent task override without a selected project.");
@@ -918,6 +937,7 @@ async function writeRuntimeProjectConfigFile(
 	if (
 		normalizedShortcuts.length === 0 &&
 		codeEmbeddingOverride === null &&
+		modelSuitabilityPolicyOverride === null &&
 		concurrencyOverride === null &&
 		maxConcurrentTasksOverride === null &&
 		selectedAgentIdOverride === null &&
@@ -937,6 +957,7 @@ async function writeRuntimeProjectConfigFile(
 		{
 			shortcuts: normalizedShortcuts,
 			...(codeEmbeddingOverride ? { codeEmbeddingOverride } : {}),
+			...(modelSuitabilityPolicyOverride ? { modelSuitabilityPolicyOverride } : {}),
 			...(concurrencyOverride ? { concurrencyOverride } : {}),
 			...(maxConcurrentTasksOverride !== null ? { maxConcurrentTasksOverride } : {}),
 			...(selectedAgentIdOverride !== null ? { selectedAgentIdOverride } : {}),
