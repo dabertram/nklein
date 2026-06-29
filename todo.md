@@ -4631,8 +4631,13 @@ deep analysis:
         start at `endpointConcurrencyCap`; wired into `scheduleNKleinEndpointStart` after the provider gate, and
         `start-task-session.ts` now passes `endpoint` + `endpointConcurrencyCap`. Null-by-default ⇒ behavior unchanged
         until a pool cap is set. lmstudio/ollama are always-local so REMOTE LM-Studio-linked machines pool correctly. +2
-        tests (incl. cross-model pooling on one machine); full suite green. **Still owed:** surface the `perEndpoint`
-        grain in the runtime-config threading + tRPC contract + Settings UI (mirrors the provider/model threading).
+        tests (incl. cross-model pooling on one machine); full suite green. **THREADING VERIFIED + LOCKED (2026-06-29):**
+        the `perEndpoint` grain already rides the existing `concurrencyDefaults`/`concurrencyOverride` plumbing — the wire
+        contract ([config-api-contract.ts](src/core/config-api-contract.ts)) uses the extended `concurrencyConfigSchema`/
+        `concurrencyOverrideSchema`, and [runtime-config.ts](src/config/runtime-config.ts) threads it via
+        `normalizeConcurrencyConfig`/`normalizeConcurrencyOverride` + `areConcurrencyOverridesEqual` change-detection (all
+        extended for perEndpoint). +1 round-trip test (sparse, schema round-trips). **Still owed (UI only):** a Settings
+        editor to set per-endpoint/pool caps (web-ui).
   - [~] pool-aware routing: the §5.AB / `selectSwarmRoleModel` pick becomes pool-aware — prefer a FREE pool, send
         easy/small cards to the secondary machines (m4mini / legion), reserve the m5 pool for hard/large cards.
         **ROUTING CORE DONE (2026-06-29):** [model-pool-routing.ts](src/core/model-pool-routing.ts) `selectPoolForTask`

@@ -82,6 +82,22 @@ describe("normalizeConcurrencyConfig", () => {
 		).toEqual({ perProvider: { lmstudio: 2 }, perModel: { "lmstudio:qwen3-8b:default": 3 } });
 		expect(normalizeConcurrencyConfig(null)).toEqual({ perProvider: {}, perModel: {} });
 	});
+
+	it("carries the per-ENDPOINT (machine-pool) grain sparsely + round-trips through the wire schema (§5.AB threading)", () => {
+		const withPool = normalizeConcurrencyConfig({
+			perProvider: {},
+			perModel: {},
+			perEndpoint: { "http://m4mini.local:1234/v1": 2 },
+		});
+		expect(withPool).toEqual({ perProvider: {}, perModel: {}, perEndpoint: { "http://m4mini.local:1234/v1": 2 } });
+		// Threaded via the same concurrencyConfigSchema the runtime-config + tRPC contract use → round-trips intact.
+		expect(concurrencyConfigSchema.parse(withPool)).toEqual(withPool);
+		// SPARSE: a config without a pool cap stays the exact 2-grain shape (no perEndpoint key → no round-trip drift).
+		expect(normalizeConcurrencyConfig({ perProvider: { lmstudio: 2 }, perModel: {} })).toEqual({
+			perProvider: { lmstudio: 2 },
+			perModel: {},
+		});
+	});
 });
 
 describe("normalizeConcurrencyOverride (null-when-empty)", () => {
