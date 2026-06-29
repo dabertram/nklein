@@ -5162,7 +5162,7 @@ deep analysis:
   the patterns only.)*
   - [x] Implement query formulation (a "rewrite" step) from task + `knowledgeDebt` (§5.B); test simple + complex cases. **(2026-06-29, batch #4)** `src/core/retrieval-query-plan.ts` — `buildRetrievalQueryPlan` (primary + per-debt alternates deduped/capped + freshnessNeed from recency cues). 8 tests. (Pure rewrite core; a model-assisted rewrite can refine it later.)
   - [~] Wire search → fetch-top-hits loop via `web_search` + `browse_url` tools; **rerank hits by relevance** (llmaker pattern). **(2026-06-29, batch #4)** RERANK core done: `src/core/retrieval-rerank.ts` — `lexicalRelevanceScore` + `rerankByRelevance` (deterministic lexical baseline; an LLM cross-encoder can augment later; stable ties). 12 tests. Owed: the live search→fetch loop wiring (needs the egress-gated tools).
-  - [ ] Implement extraction + synthesis of fetched content; test on varied content types.
+  - [~] Implement extraction + synthesis of fetched content; test on varied content types. **(2026-06-29, batch #5 + hardening)** EXTRACT core done: `src/core/extraction-span.ts` — `extractRelevantSpans` (windows around first query-term matches; sort/merge/clamp/cap) + `toEvidenceSpan` adapter; uses `tokenizeQuery` from rerank for term-agreement. 14 tests. Owed: the synthesis step (assemble extracted spans → cited answer) + the live wiring.
   - [ ] Add source citation with freshness-judgment (reuse §5.AC `judgeRetrievedFreshness`).
   - [ ] Record retrieval attempts, results, and citations into knowledge/tool-usage telemetry (§6.7, §5.B signal).
 - [ ] **Make the knowledge-retrieval TESTS cover ONLINE too, decomposed:**
@@ -5180,7 +5180,7 @@ deep analysis:
       (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).
 - [ ] **First-class `RetrievedEvidence` objects + citation verification, decomposed:**
   - [x] Define `RetrievedEvidence` zod schema: url/fileRef, title, sourceType, author/publisher?, dates, contentHash, trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags. **(2026-06-29, parallel batch)** `src/core/retrieved-evidence.ts` — `retrievedEvidenceSchema` + inferred `RetrievedEvidence` (web/MCP `untrusted` by default). 11 tests.
-  - [ ] Build adaptive retrieval loop: knowledge-debt/task → query plan → local vs online → retrieve → relevance/sufficiency/freshness judgment → cite or search again.
+  - [~] Build adaptive retrieval loop: knowledge-debt/task → query plan → local vs online → retrieve → relevance/sufficiency/freshness judgment → cite or search again. **(2026-06-29, batch #5)** PURE substrate done: `retrieval-loop-state.ts` (`nextRetrievalAction` strict-precedence state machine) + `retrieval-sufficiency.ts` (`assessRetrievalSufficiency`: covered-subQs ∧ source-floor ∧ fresh). 26 tests. Owed: the effectful driver that runs the loop against the live tools using these pure deciders.
   - [~] Implement citation verification: map material claims to evidence spans; mark unsupported claims; prefer newer release notes in conflicts. **(2026-06-29)** PURE CORE done: `verifyCitations({claims, evidence})` → `{supported, unsupported}` (a claim is supported only when every cited evidence id exists AND has ≥1 extraction span). Owed: the "prefer newer release notes in conflicts" tie-break + wiring into the retrieval loop.
   - [ ] Add prompt-injection risk flags (web/MCP content is untrusted; wire to §5.L).
   - [ ] Record attempts / pruned distractors / citations / signal (helped-or-hurt) into the §5.AF ledger.
