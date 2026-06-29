@@ -516,6 +516,15 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 				`${String(Math.round(row.successRate * 100)).padStart(3)}% success\n`,
 		);
 	}
+	if (summary.byFlow.length > 0) {
+		process.stdout.write("\nPer-model × flow (the §5.Z matrix by board/chat/autonomous):\n");
+		for (const row of summary.byFlow) {
+			process.stdout.write(
+				`  ${row.modelId.padEnd(40)} ${row.flow.padEnd(10)} ${String(row.samples).padStart(3)} run(s)  ` +
+					`${String(Math.round(row.successRate * 100)).padStart(3)}% success\n`,
+			);
+		}
+	}
 	if (summary.toolUsage.length > 0) {
 		process.stdout.write("\nPer-model × tool (usage + outcome — the §5.AA small-model signal):\n");
 		for (const row of summary.toolUsage) {

@@ -6,6 +6,7 @@ import {
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
 	summarizeLedgerForDisplay,
+	summarizeModelOutcomesByFlow,
 	summarizeModelOutcomesByRole,
 } from "../../../src/core/agent-ledger-projections";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
@@ -91,6 +92,7 @@ describe("summarizeLedgerForDisplay", () => {
 			totalAttempts: 0,
 			outcomes: [],
 			byRole: [],
+			byFlow: [],
 			profiles: [],
 			toolUsage: [],
 			speed: [],
@@ -248,5 +250,34 @@ describe("buildFailingModelList", () => {
 
 	it("is empty when nothing is below the bar", () => {
 		expect(buildFailingModelList([])).toEqual([]);
+	});
+});
+
+describe("summarizeModelOutcomesByFlow", () => {
+	const flowAttempt = (modelId: string, flow: string | null, outcome: ModelOutcomeKind) =>
+		buildAttemptEvent({
+			...base,
+			attemptId: `${modelId}-${flow}-${outcome}-${Math.random()}`,
+			modelId,
+			flow,
+			outcome,
+		});
+
+	it("rolls up per-(model, flow); a null flow is treated as 'board'", () => {
+		const rows = summarizeModelOutcomesByFlow([
+			flowAttempt("m", null, "success"), // board
+			flowAttempt("m", "board", "loop"), // board
+			flowAttempt("m", "chat", "success"),
+		]);
+		const board = rows.find((r) => r.flow === "board");
+		const chat = rows.find((r) => r.flow === "chat");
+		expect(board?.samples).toBe(2);
+		expect(board?.successRate).toBe(0.5);
+		expect(chat?.samples).toBe(1);
+		expect(chat?.successRate).toBe(1);
+	});
+
+	it("is empty for a stream with no attempts", () => {
+		expect(summarizeModelOutcomesByFlow([])).toEqual([]);
 	});
 });

@@ -4749,8 +4749,14 @@ deep analysis:
       is complete as projections (10 unit tests over the projection module). **§5.Z matrix as a ledger query — PARTIAL
       DONE (2026-06-27):** `summarizeModelOutcomesByRole` rolls attempts up per (model, role) — the board role (architect
       /worker/reviewer) ≈ the §5.Z board flow (decompose/single-card/review) — and it's surfaced in `nklein dev ledger`.
-      The remaining §5.Z flows (chat / autonomous) need an explicit per-attempt FLOW field the terminal writer doesn't set
-      yet. **PER-(MODEL, TOOL) USAGE PROJECTION DONE (2026-06-27):** `summarizeToolUsageByModel` (ledger core) folds the
+      The remaining §5.Z flows (chat / autonomous) need an explicit per-attempt FLOW field. **FLOW field + CHAT WRITER
+      DONE (2026-06-29):** an additive `flow` field is on the attempt event, and the chat-flow writer
+      ([nklein-ledger-chat-attempt.ts](src/nklein-agent/nklein-ledger-chat-attempt.ts) `buildChatAttemptEvent`, wired
+      best-effort through `chatService.recordChatAttempt` → `runtime-api`) now appends `flow:"chat"` attempts for
+      tool-using chat turns — so chat is in the ledger alongside board runs (canonical model id matches the terminal
+      writer, so they group together in every projection). REMAINING: a flow-aware §5.Z projection (`…ByFlow`, vs the
+      current `…ByRole`) to break the matrix out by board/chat/autonomous; and the AUTONOMOUS-run writer. **PER-(MODEL,
+      TOOL) USAGE PROJECTION DONE (2026-06-27):** `summarizeToolUsageByModel` (ledger core) folds the
       now-written `attempt.toolCalls` into per-(model, tool) call counts + outcome (success/error/incomplete) + a
       completed-calls success rate — the §5.AA small-model signal (a weak model reliably erroring on a *specific* tool is
       a parse-and-recover / tool-simplification target, not just "bad model"). Surfaced in `summarizeLedgerForDisplay` +
