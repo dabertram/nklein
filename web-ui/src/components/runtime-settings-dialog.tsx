@@ -133,6 +133,7 @@ import type {
 	RuntimeNKleinProviderModel,
 	RuntimeNKleinSmokeEvalResponse,
 	RuntimeProjectShortcut,
+	RuntimeSkillDynamicsLevel,
 	RuntimeTaskAutoReviewMode,
 } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
@@ -1338,6 +1339,8 @@ export function RuntimeSettingsDialog({
 	// §5.AL global model-capability gate policy default.
 	const [modelGateUnsuitable, setModelGateUnsuitable] = useState<RuntimeModelGateAction>("reject");
 	const [modelGateUnknown, setModelGateUnknown] = useState<RuntimeModelGateAction>("warn");
+	// §5.AE global skill-dynamics level default.
+	const [skillDynamicsLevel, setSkillDynamicsLevel] = useState<RuntimeSkillDynamicsLevel>("fully_dynamic");
 	const [concurrencyOverride, setConcurrencyOverride] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
@@ -1496,6 +1499,7 @@ export function RuntimeSettingsDialog({
 	const initialModelGateUnsuitable: RuntimeModelGateAction =
 		config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject";
 	const initialModelGateUnknown: RuntimeModelGateAction = config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn";
+	const initialSkillDynamicsLevel: RuntimeSkillDynamicsLevel = config?.skillDynamicsLevelDefault ?? "fully_dynamic";
 	const initialConcurrencyOverride = useMemo(
 		() =>
 			config?.concurrencyOverride != null
@@ -1746,6 +1750,9 @@ export function RuntimeSettingsDialog({
 		if (modelGateUnsuitable !== initialModelGateUnsuitable || modelGateUnknown !== initialModelGateUnknown) {
 			return true;
 		}
+		if (skillDynamicsLevel !== initialSkillDynamicsLevel) {
+			return true;
+		}
 		if (JSON.stringify(concurrencyOverride) !== JSON.stringify(initialConcurrencyOverride)) {
 			return true;
 		}
@@ -1825,6 +1832,8 @@ export function RuntimeSettingsDialog({
 		modelGateUnsuitable,
 		initialModelGateUnknown,
 		modelGateUnknown,
+		initialSkillDynamicsLevel,
+		skillDynamicsLevel,
 		initialConcurrencyOverride,
 		concurrencyOverride,
 		initialAgentRulesets,
@@ -1928,6 +1937,7 @@ export function RuntimeSettingsDialog({
 		});
 		setModelGateUnsuitable(config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject");
 		setModelGateUnknown(config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn");
+		setSkillDynamicsLevel(config?.skillDynamicsLevelDefault ?? "fully_dynamic");
 		setConcurrencyOverride(
 			config?.concurrencyOverride != null
 				? {
@@ -2416,6 +2426,7 @@ export function RuntimeSettingsDialog({
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
 			modelSuitabilityPolicyDefaults: { onUnsuitable: modelGateUnsuitable, onUnknown: modelGateUnknown },
+			skillDynamicsLevelDefault: skillDynamicsLevel,
 			concurrencyDefaults,
 			concurrencyOverride,
 			agentRulesets,
@@ -3374,6 +3385,31 @@ export function RuntimeSettingsDialog({
 												</NativeSelect>
 											</div>
 										</div>
+									</div>
+									<div className="mt-4 border-t border-border pt-4">
+										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+											Skill dynamics
+										</h6>
+										<p className="m-0 mb-3 text-[12px] text-text-secondary">
+											How dynamic vs. strict !Klein’s per-task skill/prompt assignment is (§5.AE). A project
+											can override this in its Project Settings.
+										</p>
+										<NativeSelect
+											id="runtime-settings-skill-dynamics-level"
+											value={skillDynamicsLevel}
+											onChange={(event) =>
+												setSkillDynamicsLevel(event.target.value as RuntimeSkillDynamicsLevel)
+											}
+											disabled={controlsDisabled}
+											fill
+										>
+											<option value="fully_dynamic">
+												Fully dynamic (auto skills + model, may vary per turn)
+											</option>
+											<option value="static_skills_auto_model">Static skills, auto model</option>
+											<option value="assigned_skills">Assigned skills</option>
+											<option value="fully_static">Fully static (skills + model pinned)</option>
+										</NativeSelect>
 									</div>
 								</div>
 							</>
