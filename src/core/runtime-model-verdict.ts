@@ -237,3 +237,38 @@ export function combineSuitabilityVerdicts(
 		note: `Catalog and runtime agree (${catalogVerdict}${catalogVerdict === runtime.verdict ? "" : ` / runtime ${runtime.verdict}`}, ${runtime.sampleCount} run(s)).`,
 	};
 }
+
+/** Fitness multipliers applied per runtime verdict — the §5.AB lever that lets runtime EVIDENCE de-prioritize a model. */
+export interface RuntimeVerdictFitnessPenalty {
+	/** Multiplier for a `TOOL_UNSUITABLE` runtime verdict (chronic stalls) — strongly de-prioritize. Default 0.1. */
+	unsuitable?: number;
+	/** Multiplier for a `TOOL_WEAK` runtime verdict — moderately de-prioritize. Default 0.5. */
+	weak?: number;
+}
+
+const DEFAULT_RUNTIME_VERDICT_PENALTY: Required<RuntimeVerdictFitnessPenalty> = { unsuitable: 0.1, weak: 0.5 };
+
+/**
+ * §5.AB blend (pure, decoupled): re-weight a fitness-ranked model list by each model's RUNTIME verdict, so accumulated
+ * evidence — not just the curated catalog — actually steers selection away from a model that stalls/misbehaves in
+ * practice. Generic over any `{ modelId, fitnessScore }` row (mirrors `pruneDistractors`); `TOOL_UNSUITABLE`/`TOOL_WEAK`
+ * runtime verdicts scale the score down, everything else (CAPABLE/NATIVE/UNKNOWN/absent) is unchanged. Returns a NEW
+ * array re-sorted by the adjusted score (desc), stable on ties. **ID alignment is the CALLER's concern** — it supplies
+ * `verdictByModelId` keyed to match each row's `modelId` (e.g. both bare, or both the registry key), keeping this core
+ * free of the bare-vs-composite-id question. Never mutates the input rows.
+ */
+export function penalizeFitnessByRuntimeVerdict<T extends { modelId: string; fitnessScore: number }>(
+	ranked: readonly T[],
+	verdictByModelId: ReadonlyMap<string, ToolUseVerdict>,
+	options: RuntimeVerdictFitnessPenalty = {},
+): T[] {
+	const unsuitable = options.unsuitable ?? DEFAULT_RUNTIME_VERDICT_PENALTY.unsuitable;
+	const weak = options.weak ?? DEFAULT_RUNTIME_VERDICT_PENALTY.weak;
+	const adjusted = ranked.map((row, index) => {
+		const verdict = verdictByModelId.get(row.modelId);
+		const multiplier = verdict === "TOOL_UNSUITABLE" ? unsuitable : verdict === "TOOL_WEAK" ? weak : 1;
+		return { row: { ...row, fitnessScore: row.fitnessScore * multiplier }, index };
+	});
+	adjusted.sort((left, right) => right.row.fitnessScore - left.row.fitnessScore || left.index - right.index);
+	return adjusted.map((entry) => entry.row);
+}

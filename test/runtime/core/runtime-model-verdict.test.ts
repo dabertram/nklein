@@ -3,6 +3,7 @@ import {
 	assessRuntimeModelVerdict,
 	combineSuitabilityVerdicts,
 	MIN_RUNS_FOR_VERDICT,
+	penalizeFitnessByRuntimeVerdict,
 	type RuntimeModelVerdict,
 	type RuntimeRunOutcome,
 } from "../../../src/core/runtime-model-verdict";
@@ -174,5 +175,44 @@ describe("combineSuitabilityVerdicts", () => {
 		const c = combineSuitabilityVerdicts("TOOL_NATIVE", runtimeVerdict("TOOL_CAPABLE", 8));
 		expect(c.flag).toBe("agree");
 		expect(c.recommended).toBe("TOOL_NATIVE");
+	});
+});
+
+describe("penalizeFitnessByRuntimeVerdict", () => {
+	const ranked = [
+		{ modelId: "a", fitnessScore: 0.9 },
+		{ modelId: "b", fitnessScore: 0.8 },
+		{ modelId: "c", fitnessScore: 0.7 },
+	];
+
+	it("de-prioritizes a runtime-UNSUITABLE model below better-behaved ones", () => {
+		// 'a' is top by raw fitness but chronically stalls at runtime ⇒ heavy penalty drops it last.
+		const verdicts = new Map<string, "TOOL_UNSUITABLE">([["a", "TOOL_UNSUITABLE"]]);
+		const out = penalizeFitnessByRuntimeVerdict(ranked, verdicts);
+		expect(out.map((r) => r.modelId)).toEqual(["b", "c", "a"]);
+		expect(out.find((r) => r.modelId === "a")?.fitnessScore).toBeCloseTo(0.09);
+	});
+
+	it("moderately penalizes TOOL_WEAK; leaves CAPABLE/UNKNOWN/absent untouched", () => {
+		const verdicts = new Map<string, "TOOL_WEAK" | "TOOL_CAPABLE">([
+			["a", "TOOL_WEAK"],
+			["b", "TOOL_CAPABLE"],
+		]);
+		const out = penalizeFitnessByRuntimeVerdict(ranked, verdicts);
+		// a: 0.9×0.5=0.45; b: 0.8 (unchanged); c: 0.7 (absent ⇒ unchanged) ⇒ order b, c, a.
+		expect(out.map((r) => r.modelId)).toEqual(["b", "c", "a"]);
+		expect(out.find((r) => r.modelId === "b")?.fitnessScore).toBeCloseTo(0.8);
+	});
+
+	it("is a no-op (order + scores preserved) when no verdicts penalize", () => {
+		const out = penalizeFitnessByRuntimeVerdict(ranked, new Map());
+		expect(out.map((r) => r.modelId)).toEqual(["a", "b", "c"]);
+		expect(out.map((r) => r.fitnessScore)).toEqual([0.9, 0.8, 0.7]);
+	});
+
+	it("does not mutate the input rows", () => {
+		const verdicts = new Map<string, "TOOL_UNSUITABLE">([["a", "TOOL_UNSUITABLE"]]);
+		penalizeFitnessByRuntimeVerdict(ranked, verdicts);
+		expect(ranked[0]).toEqual({ modelId: "a", fitnessScore: 0.9 });
 	});
 });
