@@ -36,6 +36,7 @@ import {
 	type RuntimeRunOutcome,
 } from "../core/runtime-model-verdict";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
+import { addTaskToColumn } from "../core/task-board-mutations";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
@@ -310,6 +311,39 @@ async function executeDevTestPreset(input: {
 		},
 		{
 			startSeedTask: async (payload) => {
+				// `startTaskSession` only RECONCILES an existing card's lane — it does not create the board card. The UI
+				// always creates the card first; the CLI dev-test previously skipped that, so on a CLEAN workspace no seed
+				// card ever appeared and the board stayed empty (§5.AI). Mirror the UI: create the backlog card, then start.
+				try {
+					const state = await input.client.workspace.getState.query();
+					const cardExists = state.board.columns.some((column) =>
+						column.cards.some((card) => card.id === payload.taskId),
+					);
+					if (!cardExists) {
+						const seeded = addTaskToColumn(
+							state.board,
+							"backlog",
+							{
+								taskId: payload.taskId,
+								prompt: payload.prompt,
+								title: payload.taskTitle,
+								baseRef: payload.baseRef,
+								startInPlanMode: payload.startInPlanMode,
+								...(payload.nkleinSettings ? { nkleinSettings: payload.nkleinSettings } : {}),
+							},
+							() => crypto.randomUUID(),
+						);
+						await input.client.workspace.saveState.mutate({
+							board: seeded.board,
+							expectedRevision: state.revision,
+						});
+					}
+				} catch (error) {
+					return {
+						ok: false,
+						message: `Failed to seed board card: ${error instanceof Error ? error.message : String(error)}`,
+					};
+				}
 				const started = await input.client.runtime.startTaskSession.mutate({
 					taskId: payload.taskId,
 					prompt: payload.prompt,
