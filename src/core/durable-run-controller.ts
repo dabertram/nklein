@@ -102,10 +102,15 @@ export class DurableRunController {
 	 */
 	async reclaimOrphanedLeases(): Promise<void> {
 		const now = this.ports.now();
+		// NaN guard: `Math.max(1, Math.trunc(NaN))` is NaN and `attempts >= NaN` is always false, which would reclaim an
+		// orphaned lease FOREVER (never fail) on a misconfigured `maxAttempts`. Treat any non-finite value as the floor 1.
+		const maxAttempts = Number.isFinite(this.config.maxAttempts)
+			? Math.max(1, Math.trunc(this.config.maxAttempts))
+			: 1;
 		const actions: DurableSchedulerAction[] = this.jobs
 			.filter((job) => job.state === "leased")
 			.map((job) =>
-				job.attempts >= Math.max(1, Math.trunc(this.config.maxAttempts))
+				job.attempts >= maxAttempts
 					? { type: "fail", jobId: job.jobId, reason: "max_attempts" }
 					: { type: "reclaim", jobId: job.jobId, reason: "lease_expired" },
 			);
@@ -164,6 +169,10 @@ export class DurableRunController {
 	 * (a dispatched-but-unlogged lease would be lost on crash). Entries are appended in decision order.
 	 */
 	private async commit(actions: readonly DurableSchedulerAction[], now: number): Promise<void> {
+		// CONTRACT — on a mid-commit append failure (an `appendLog` rejecting after earlier appends in this batch
+		// persisted) the caller MUST discard this controller and `resume()` from the log: the in-memory mirror is
+		// intentionally NOT advanced (apply + dispatch are skipped), so it can lag its own persisted prefix until a
+		// restart replays the log. Continuing to tick this same instance would decide against a stale snapshot.
 		for (const action of actions) {
 			await this.ports.appendLog({ kind: "scheduled", now, action });
 		}
