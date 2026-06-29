@@ -3918,9 +3918,18 @@ deep analysis:
       [nklein-prompt-variation.ts](src/nklein-agent/nklein-prompt-variation.ts) — `buildPromptVariant(family, {instruction,
       toolName?, exampleArguments?})` re-frames the SAME instruction (preserved verbatim — framing changes, intent never
       does) across a `PROMPT_VARIANT_LADDER` of `imperative → explicit_format → example_led → reason_then_act` (the last =
-      the reason-then-act phase (a) prompt). Pure, generic, 8 tests; tsc + biome green. **Still owed (WIRING):** fire the
-      next un-tried family at the model-call seam on a no-call/malformed outcome (the `prompt_variant` rung in
-      `retry-policy.ts`), and learn each model's responsive family into the `ModelBehaviorProfile`.
+      the reason-then-act phase (a) prompt). Pure, generic, 8 tests; tsc + biome green. **CHAT-PATH WIRING DONE
+      (2026-06-29):** `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires
+      this rung in the recovery ladder BETWEEN tool-set reduction and the forced-schema last resort — when a tools-offered
+      turn still returns no call after reduction, it re-FRAMES the instruction across the `PROMPT_VARIANT_LADDER` and
+      re-asks via the NORMAL tool path (`completeWithTools`) with the anchored tool set, so the model gets a chance to emit
+      a natural call before the constrained-decoding hammer. Gated on the same proven-safe anchor (the instruction must
+      NAME an offered tool) so a legit prose answer is never re-phrased into a forced action; each family breaks on the
+      first call (`replaceLastUserText` swaps only the last user message, leaving surrounding context intact). +2 adapter
+      tests (recovers via re-phrase · no-fire without an anchor). **Still owed (WIRING):** the SWARM/SDK path seam
+      (`nklein-session-runtime` afterModel — shared with the constrained rung's owed re-invoke seam); recording the rung +
+      winning family on the §5.AF ledger; and learning each model's responsive family into the `ModelBehaviorProfile` so a
+      known-responsive phrasing is tried first.
 - [~] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder. **PURE FORMAT CORE DONE
