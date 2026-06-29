@@ -15,6 +15,7 @@ import {
 	summarizeLedgerForDisplay,
 } from "../core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
+import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
 import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
@@ -217,6 +218,9 @@ interface DevTestProjectOptions {
 	baseRef?: string;
 	pollIntervalMs?: number;
 	maxWaitMs?: number;
+	/** §5.AN: force the seed card onto a specific loaded model (provider:model), bypassing stale config roles. */
+	modelId?: string;
+	providerId?: string;
 	json?: boolean;
 	cwd?: string;
 	write?: (text: string) => void;
@@ -269,6 +273,8 @@ async function executeDevTestPreset(input: {
 	baseRef: string;
 	pollIntervalMs?: number;
 	maxWaitMs?: number;
+	/** §5.AN: force the seed card onto a specific (loaded) model, bypassing stale/multi-machine config roles. */
+	nkleinSettings?: RuntimeTaskNKleinSettings;
 }): Promise<{
 	scenario: ReturnType<typeof resolveNKleinDevTestProjectScenario>;
 	result: Awaited<ReturnType<typeof runDevTestProject>>;
@@ -286,6 +292,7 @@ async function executeDevTestPreset(input: {
 			scenario,
 			seedTaskId,
 			baseRef: input.baseRef,
+			...(input.nkleinSettings ? { nkleinSettings: input.nkleinSettings } : {}),
 			...(typeof input.pollIntervalMs === "number" ? { pollIntervalMs: input.pollIntervalMs } : {}),
 			...(typeof input.maxWaitMs === "number" ? { maxWaitMs: input.maxWaitMs } : {}),
 		},
@@ -317,11 +324,16 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	const projectPath = resolveProjectInputPath(options.projectPath ?? cwd, cwd);
 	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
 	const client = createDevRuntimeClient(workspace.workspaceId);
+	const modelId = options.modelId?.trim();
+	const nkleinSettings: RuntimeTaskNKleinSettings | undefined = modelId
+		? { providerId: options.providerId?.trim() || "lmstudio", modelId }
+		: undefined;
 	const { scenario, result } = await executeDevTestPreset({
 		client,
 		workspaceId: workspace.workspaceId,
 		preset,
 		baseRef: options.baseRef ?? "main",
+		...(nkleinSettings ? { nkleinSettings } : {}),
 		...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
 		...(typeof options.maxWaitMs === "number" ? { maxWaitMs: options.maxWaitMs } : {}),
 	});
@@ -898,6 +910,8 @@ export function registerDevCommand(program: Command): void {
 		)
 		.option("--project-path <path>", "Workspace path to run the dev-test scenario in. Defaults to the cwd.")
 		.option("--base-ref <ref>", "Base git ref for the seed card. Defaults to main.")
+		.option("--model-id <id>", "Force the seed card onto a specific (loaded) model, bypassing config roles.")
+		.option("--provider-id <id>", "Provider for --model-id (default lmstudio).")
 		.option("--poll-interval-ms <ms>", "Board poll interval in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--max-wait-ms <ms>", "Maximum monitor duration in milliseconds.", (value) => Number.parseInt(value, 10))
 		.option("--json", "Print machine-readable JSON.")
