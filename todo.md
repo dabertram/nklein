@@ -3906,6 +3906,25 @@ deep analysis:
 >   swarm stops draining decomposed cards (concurrency/scheduler idle vs unmet card deps vs window/throttle); (b) the seed
 >   task left registered-as-running while idle (zombie registration blocking the endpoint). Re-run under stable thermal
 >   conditions with a generous window before concluding it's a bug vs a throttle/window artifact.
+> - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
+>   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
+>   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s
+>   with a warning. The ONLY thing that later re-attempts a waiting card is the completion handler's
+>   `completeTaskAndGetReadyLinkedTaskIds` → `getLinkedBacklogTaskIdsReadyAfterTaskTrashed`, which returns ONLY the cards
+>   with a **dependency edge** to the just-completed task (`dependency.toTaskId === completed`). A card skipped for FILE
+>   OVERLAP (not a dependency block) with no dep edge to the completing task is **never retried once the overlap clears →
+>   orphaned in planning/backlog** = the exact "stagnant: cards remain, none in progress, model idle" symptom.
+>   **Why the naive fix fails (verified by a unit test that caught it — fix reverted, not shipped):** a post-hoc "re-scan
+>   the dependency graph for freed cards" does NOT work, because `updateTaskDependencies` (run on every board mutation via
+>   `moveTaskToColumn`) PRUNES any dependency edge touching a `completed`/`trash` task (`resolveDependencyEndpoints` →
+>   `trash_task`). So by the time a card is freed, its edges to the completed prereq are already gone — a freed
+>   decomposition card becomes indistinguishable from a user-parked isolated backlog card, so we must NOT just auto-start
+>   "all dep-free planning/backlog cards" (that would wrongly start parked cards). **Correct fix (owed):** capture the skip
+>   at the moment it happens — when `autoStartTaskIds` skips a card for overlap, record it in a per-workspace
+>   **deferred-for-overlap set** and retry that set on the next completion (ideally also persisted per §5.AF so it survives
+>   a restart). That's a small STATEFUL runtime-server change (the pure post-hoc approach is a dead end given the pruning).
+>   Lower-cost interim: widen the file-overlap skip to REQUEUE via the existing endpoint-busy queue (`queueOnEndpointBusy`)
+>   instead of dropping, if the queue's drain re-checks overlap. Verify with a live multi-card run (generous window).
 >
 > **LM Studio API surface to exploit (checked the dev docs):** OpenAI-compat `/v1/chat/completions` (what we use today;
 > relies on the model emitting OpenAI `tool_calls`, conflates reasoning into `content`/`reasoning_content`); the
