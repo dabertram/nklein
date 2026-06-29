@@ -728,6 +728,13 @@ deep analysis:
 > in sync. **NEXT ACTION when unsure what to do:** run the cumulative challenge suite, take the first failing/weakest
 > challenge, and work its root-caused limitations as the current chapter (substrate-first when they collide). The
 > first build target the ladder points at is the **§5.AF durable scheduler** (the C3 unattended/restart gate).
+>
+> **NEAR-TERM USER STEER (2026-06-29):** in parallel with the §5.AF scheduler spine, stand up the **≥3-agent multi-model
+> swarm** — a suitable model per role (strong reasoning → plan/review; strong+fast coder → worker; per-task fit as
+> skills attach), with **3–5+ models resident + used concurrently** (loading guarded + user-greenlit). This pulls **C4
+> (all-model adaptive)** forward to interleave with C3. The user **ACCEPTS the lower per-model throughput** — raise the
+> timeouts; the bar is a *slow human developer*, quality over speed, unattended-autonomous is the point. See the ★ item
+> at the top of [§5.AB](#5ab--automatic-rolemodel-selection--a-model-evaluation-harness-2026-06-26-user--active).
 
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
@@ -4519,6 +4526,29 @@ deep analysis:
 > models that CLEAR the quality bar for a task's difficulty, prefer the fastest (Pareto / weighted); reserve the
 > most-capable models for the hardest tasks; let easy tasks take the fast/small model. Weights are user-tunable (a
 > speed-vs-quality dial, §5.I#4).
+- [ ] **★ NEAR-TERM (user 2026-06-29) — run a ≥3-agent PARALLEL swarm with a SUITABLE model assigned per role.** The
+      user's explicit near-term steer: move past driving the backlog with a single 27B and stand up a real multi-model
+      swarm — distinct LOADED models filling distinct roles concurrently, each role getting the model that best fits it,
+      and (once skills attach to workers, §5.AE) each TASK picking its own good-fit model. Expect **3–5+ models resident
+      + in use in parallel**; loading stays GUARDED (`decideModelLoad`) + user-greenlit (the working-mode shift below),
+      never silent. **Throughput stance (STANDING, user 2026-06-29):** parallel multi-model use lowers per-model
+      throughput on the serialized local endpoints — that is **ACCEPTED**. Raise the timeouts / guardrail wall-times to
+      suit; the reference bar is a *comparably very slow human developer*, so if quality pays for it, long waits are
+      fine — !Klein's purpose is unattended autonomous running, not interactive speed. Pulls **C4 (all-model adaptive)**
+      forward to interleave with the C3 scheduler chapter. Decomposed:
+  - [ ] define the role→model-class mapping: strong REASONING model for planning (architect) + reviewing (§5.K); strong
+        + fast CODING model for the worker/implement role.
+  - [ ] investigate whether a strong + fast TOOL-CALLING model is a DISTINCT worker role (vs. overlapping the coding
+        model) — only split it out if the use case is genuinely separate; otherwise fold tool-calling into the coder.
+  - [ ] wire per-role assignment off the §5.AB selection (best-fit among LOADED models) so the 3+ roles run on distinct
+        resident models concurrently.
+  - [ ] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
+        (ties §5.AE skills-on-workers); easy cards to fast/small, hard cards reserve the strong model.
+  - [ ] raise the default autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs (config +
+        sensible defaults); make "quality over latency" explicit in the swarm settings.
+  - [ ] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
+        endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
+  - [ ] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection).
 - [~] **Model-ladder expansion — grow the roster to meet the challenge ladder (MCF Phase A, 2026-06-28, user).** As a
       challenge's difficulty exceeds the current roster's reach, bigger/better LOCAL models are the answer (the test
       machine — 128 GB RAM + M5 Max — runs **up to ~120B at lower quantization**). **WORKING-MODE SHIFT IN PROGRESS
