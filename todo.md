@@ -4680,14 +4680,23 @@ deep analysis:
       tokens. Lean-inclusive by design. 8 predicate tests + a chat "skips the date for a non-temporal turn" test; **the
       §5.Z 9/9 live grounding proof still PASSES** (its prompt has "today"+"2026" → still injects). tsc + biome + 2031 fast
       tests green.
-- [ ] **`Skill` registry + the context-fragment catalog.** A small hand-authored set: each existing prompt block becomes a
-      named fragment (`temporal`, `repo_map`/orientation, `focus_chain`, `refinement_preamble`, `efficiency_rules`,
-      `freshness_rail`, `online_retrieval`), and each skill declares the fragments + tools it needs + its relevance. Pure +
-      tested; the fragments feed §5.AD arrangement + §6.3 budget.
-- [ ] **Dynamic skill resolver.** `resolveActiveSkills({role, taskText, history, modelProfile, priorFailures, dynamicsLevel})`
-      → the active skill set (and thus the fragments + tools) for this turn. Honors the dynamics level (below); on the
-      fully-dynamic default it may vary message-to-message; on stubborn failure it **varies the skill set** as a §5.AA/§5.AB
-      escalation rung. Pure + tested.
+- [x] **`Skill` registry + the context-fragment catalog — DONE (2026-06-29).**
+      [src/core/skill-registry.ts](src/core/skill-registry.ts): `ContextFragmentId` names today's hard-coded blocks
+      (`temporal` / `repo_map` / `focus_chain` / `refinement_preamble` / `efficiency_rules` / `freshness_rail` /
+      `online_retrieval`); `SKILL_REGISTRY` is the small hand-authored set (`code_editing`/worker, `planning`/architect,
+      `review`/reviewer, `web_retrieval`/retriever+researcher) — each `Skill` declares its `contextFragments` + `tools` +
+      relevance signals (`defaultRoles` + task `keywords` + `temporalSensitive`). `skillRelevance` is a pure 0..1 score
+      (default-role match 1.0 > keyword 0.6 > temporal lift 0.7 reusing the §5.AC predicate); `fragmentsForSkills` /
+      `toolsForSkills` give deduped order-preserving unions. Data-driven (no closures), 6 unit tests; tsc + biome green.
+- [x] **Dynamic skill resolver — DONE (2026-06-29).** [src/core/skill-resolver.ts](src/core/skill-resolver.ts)
+      `resolveActiveSkills({role, taskText, dynamicsLevel, assignedSkillIds?, priorFailures?, relevanceThreshold?})` →
+      `{skills, fragments, tools, dynamicsLevel, reason}`. `fully_dynamic` (default) selects every skill clearing the
+      relevance threshold (the role bundle is always in, since a role match scores 1.0) and, on a prior failure, **varies
+      the set** by adding one untried skill (the §5.AA/§5.AB stuck-task rung); the two static levels resolve the role's
+      default bundle (no variation; relevance fallback when no role); `assigned_skills` uses the user's exact list. Pure +
+      deterministic, 6 unit tests. **Still owed (WIRING — each behind a live §5.Z re-verify):** thread the §5.AA
+      `ModelBehaviorProfile` / live `priorFailures` into the resolver, and wire the composed fragments into the board +
+      chat prompt assembly (replacing the hard-coded always-on blocks) so §5.AD arranges + §6.2 caps them.
 - [ ] **Extend the role catalog with `retriever`/`researcher`.** The §5.AC online-knowledge role the user flagged as
       missing — a default skill bundle that includes the `temporal` + `freshness_rail` + `online_retrieval` fragments + the
       `web_search`/`browse_url` tools (§5.AC/§5.M G6). Thread through the role enum (§5.M) + the resolver.
