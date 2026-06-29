@@ -25,6 +25,23 @@ export type ContextFragmentId =
 
 export type SkillId = "code_editing" | "planning" | "review" | "web_retrieval";
 
+/**
+ * §5.AE/§5.AN per-skill API-feature profile — declares the BEST-MATCH LM Studio API configuration for this skill's work
+ * (the levers the §5.AN sweep surfaced). The resolver merges the active skills' profiles; the model-call seam applies
+ * each lever only if the chosen model actually supports it (§5.AN/§5.AL gate it — e.g. `/no_think` only for a
+ * switch-capable family). The profile expresses INTENT; per-task difficulty (§5.AB) + per-model capability filter it.
+ */
+export interface SkillApiProfile {
+	/** Reasoning intensity intent: `off` (`/no_think` for a switch-capable model) · `low` · `high` · `inherit` (model default). */
+	reasoning?: "off" | "low" | "high" | "inherit";
+	/** Prefer constrained structured output (`response_format json_schema`) for this skill's result. */
+	structuredOutput?: boolean;
+	/** Force a tool call (the constrained rung) when the model won't call on its own — PROACTIVELY (§5.AA: a no-call turn ends the loop). */
+	forceToolCall?: boolean;
+	/** Sampling temperature override for this skill's turns. */
+	temperature?: number;
+}
+
 export interface Skill {
 	id: SkillId;
 	description: string;
@@ -40,6 +57,8 @@ export interface Skill {
 	keywords: readonly string[];
 	/** When true, a §5.AC temporal/freshness signal in the task (or a temporal role) raises relevance. */
 	temporalSensitive?: boolean;
+	/** §5.AE/§5.AN: the best-match API-feature configuration for this skill (resolver-merged; model-capability-gated). */
+	apiProfile?: SkillApiProfile;
 }
 
 /** The hand-authored skill set (small by design). Each existing role maps to a default bundle here. */
@@ -51,6 +70,8 @@ export const SKILL_REGISTRY: readonly Skill[] = [
 		contextFragments: ["repo_map", "focus_chain", "efficiency_rules"],
 		tools: ["read_file", "list_dir", "edit_file", "run_command"],
 		keywords: ["fix", "implement", "edit", "add", "refactor", "bug", "test", "code", "function", "file"],
+		// Reasoning scales with task difficulty (modulated at the call site, §5.AB) — `inherit` = no fixed opinion.
+		apiProfile: { reasoning: "inherit" },
 	},
 	{
 		id: "planning",
@@ -60,6 +81,8 @@ export const SKILL_REGISTRY: readonly Skill[] = [
 		tools: ["read_file", "list_dir"],
 		preamble: "Plan the approach before making changes; decompose the work into ordered steps.",
 		keywords: ["plan", "design", "decompose", "architecture", "approach", "break down", "strategy"],
+		// Planning/architecture benefits from deliberation.
+		apiProfile: { reasoning: "high" },
 	},
 	{
 		id: "review",
@@ -68,6 +91,8 @@ export const SKILL_REGISTRY: readonly Skill[] = [
 		contextFragments: ["focus_chain", "efficiency_rules"],
 		tools: ["read_file", "run_command"],
 		keywords: ["review", "check", "verify", "validate", "inspect", "audit", "correct"],
+		// A reviewer benefits from deliberation to catch defects.
+		apiProfile: { reasoning: "high" },
 	},
 	{
 		id: "web_retrieval",
@@ -77,8 +102,47 @@ export const SKILL_REGISTRY: readonly Skill[] = [
 		tools: ["web_search", "browse_url"],
 		keywords: ["search", "look up", "find out", "documentation", "online", "latest", "release"],
 		temporalSensitive: true,
+		// Retrieval results are consumed structured; prefer constrained JSON output.
+		apiProfile: { structuredOutput: true },
 	},
 ];
+
+/** Reasoning-intensity rank for merging (higher = more deliberation). `inherit` carries no opinion (excluded). */
+const REASONING_RANK: Record<"off" | "low" | "high", number> = { off: 0, low: 1, high: 2 };
+
+/**
+ * Merge the active skills' `apiProfile`s into one (pure). Per field, the STRONGEST need wins: reasoning takes the highest
+ * explicit intensity (off<low<high; `inherit` is no-opinion and ignored); `structuredOutput`/`forceToolCall` are true if
+ * ANY active skill asks; `temperature` takes the lowest defined (most deterministic). Returns `{}` when no skill opines.
+ */
+export function resolveApiProfileForSkills(skills: readonly Skill[]): SkillApiProfile {
+	const profile: SkillApiProfile = {};
+	let bestReasoningRank = -1;
+	for (const skill of skills) {
+		const p = skill.apiProfile;
+		if (!p) {
+			continue;
+		}
+		if (p.reasoning && p.reasoning !== "inherit") {
+			const rank = REASONING_RANK[p.reasoning];
+			if (rank > bestReasoningRank) {
+				bestReasoningRank = rank;
+				profile.reasoning = p.reasoning;
+			}
+		}
+		if (p.structuredOutput) {
+			profile.structuredOutput = true;
+		}
+		if (p.forceToolCall) {
+			profile.forceToolCall = true;
+		}
+		if (typeof p.temperature === "number") {
+			profile.temperature =
+				profile.temperature === undefined ? p.temperature : Math.min(profile.temperature, p.temperature);
+		}
+	}
+	return profile;
+}
 
 export interface SkillRelevanceInput {
 	/** The active role (architect | worker | reviewer | retriever | researcher | …), when known. */

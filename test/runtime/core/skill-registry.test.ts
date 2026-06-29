@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	fragmentsForSkills,
 	getSkillById,
+	resolveApiProfileForSkills,
 	SKILL_REGISTRY,
 	type Skill,
 	skillRelevance,
@@ -65,5 +66,36 @@ describe("fragmentsForSkills / toolsForSkills", () => {
 	it("is empty for no skills", () => {
 		expect(fragmentsForSkills([])).toEqual([]);
 		expect(toolsForSkills([])).toEqual([]);
+	});
+});
+
+describe("resolveApiProfileForSkills", () => {
+	const codeEditing = getSkillById("code_editing") as Skill;
+	const planning = getSkillById("planning") as Skill;
+	const review = getSkillById("review") as Skill;
+	const webRetrieval = getSkillById("web_retrieval") as Skill;
+
+	it("returns an empty profile for no skills", () => {
+		expect(resolveApiProfileForSkills([])).toEqual({});
+	});
+
+	it("ignores `inherit` reasoning (no opinion) — code_editing alone yields no reasoning lever", () => {
+		expect(resolveApiProfileForSkills([codeEditing])).toEqual({});
+	});
+
+	it("takes the highest explicit reasoning intensity across skills", () => {
+		// planning + review both ask for "high"; code_editing's "inherit" is ignored.
+		expect(resolveApiProfileForSkills([codeEditing, planning, review]).reasoning).toBe("high");
+	});
+
+	it("ORs structuredOutput / forceToolCall across skills", () => {
+		// web_retrieval asks for structuredOutput; merging with planning keeps it true and adds high reasoning.
+		const merged = resolveApiProfileForSkills([planning, webRetrieval]);
+		expect(merged.structuredOutput).toBe(true);
+		expect(merged.reasoning).toBe("high");
+	});
+
+	it("web_retrieval alone yields structured output but no reasoning opinion", () => {
+		expect(resolveApiProfileForSkills([webRetrieval])).toEqual({ structuredOutput: true });
 	});
 });

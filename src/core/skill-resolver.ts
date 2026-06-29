@@ -9,8 +9,10 @@ import {
 	type ContextFragmentId,
 	fragmentsForSkills,
 	getSkillById,
+	resolveApiProfileForSkills,
 	SKILL_REGISTRY,
 	type Skill,
+	type SkillApiProfile,
 	type SkillId,
 	skillRelevance,
 	toolsForSkills,
@@ -48,6 +50,8 @@ export interface ActiveSkillSet {
 	tools: string[];
 	/** The dynamics level in force (echoed for the caller's model policy). */
 	dynamicsLevel: SkillDynamicsLevel;
+	/** §5.AE/§5.AN: the merged best-match API-feature profile for the active skills (model-capability-gated at the call seam). */
+	apiProfile: SkillApiProfile;
 	/** Inspectable reason for the chosen set (for §5.AG surfaces / debugging). */
 	reason: string;
 }
@@ -107,6 +111,7 @@ export function resolveActiveSkills(input: ResolveActiveSkillsInput): ActiveSkil
 		fragments: fragmentsForSkills(skills),
 		tools: toolsForSkills(skills),
 		dynamicsLevel,
+		apiProfile: resolveApiProfileForSkills(skills),
 		reason,
 	};
 }

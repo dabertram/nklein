@@ -57,4 +57,15 @@ describe("resolveActiveSkills", () => {
 		expect(result.skills.map((s) => s.id)).toContain("code_editing");
 		expect(result.reason).toMatch(/fell back to relevance/);
 	});
+
+	it("surfaces the merged apiProfile for the active skills (reviewer ⇒ high reasoning)", () => {
+		const result = resolveActiveSkills({ role: "reviewer", taskText: "review the change" });
+		expect(result.skills.map((s) => s.id)).toEqual(["review"]);
+		expect(result.apiProfile.reasoning).toBe("high");
+	});
+
+	it("a worker's code_editing bundle carries no fixed reasoning opinion (inherit ⇒ empty profile)", () => {
+		const result = resolveActiveSkills({ role: "worker", taskText: "fix the bug" });
+		expect(result.apiProfile).toEqual({});
+	});
 });
