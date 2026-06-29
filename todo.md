@@ -3925,6 +3925,18 @@ deep analysis:
 >   card stays stuck (inspect the dev-test workspace board + dependencies live, not just the runtime's default workspace).
 >   The fix stays committed as a valid LATENT-bug fix (overlap-skip orphaning is a genuine code defect regardless), but it
 >   is NOT confirmed to resolve the observed stagnation.
+> - **★ METHODOLOGY BUG found 2026-06-29 (offline, explains the confusing results) — `dev test-project` verifications were
+>   CONTAMINATED by workspace reuse + shutdown-trashing.** `dev test-project` runs in the **cwd-derived workspace**
+>   (`loadWorkspaceContext(projectPath ?? cwd)`), so consecutive runs SHARE one board and counts accumulate. AND on a
+>   runtime kill WITHOUT `--skip-shutdown-cleanup` (which I omitted), `shutdown-coordinator` moves every card in
+>   `{planning, in_progress, review}` to **trash** (`SHUTDOWN_ACTIVE_COLUMN_IDS`). So the timeline that produced the
+>   confusing `wide_fanout` result was: mid_task left 4 completed + 5 planning + 1 backlog → I killed the runtime →
+>   shutdown trashed the 5 planning → the next `wide_fanout` run REUSED that workspace and just re-read the stale leftover
+>   (4 completed / **5 trash** / 1 backlog). **⇒ The "5 trashed" + "multiple stagnation shapes" were largely my own
+>   contaminated methodology, NOT distinct product bugs.** **Methodology fix (do this for all future dev-test verification
+>   runs):** give each run an ISOLATED fresh workspace — pass `--project-path <fresh temp dir>` per run (and/or start the
+>   runtime with `--skip-shutdown-cleanup` so a kill doesn't trash in-flight cards). Only the FIRST mid_task run
+>   (4 completed / 5 planning / 1 backlog, fresh) is a trustworthy signal; re-diagnose thread (a) from a clean isolated run.
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s
