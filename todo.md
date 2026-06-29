@@ -3968,9 +3968,18 @@ deep analysis:
       **CHAIN-ADVANCE refinement (2026-06-28):** the loop now threads the already-executed tool names into the rung, which
       drops them from the forced schema so a stalled chain is steered to the NEXT undone step (diagnosis: 6/8 models
       stalled at `read_file` because the rung re-forced an already-done tool → the loop's dedup nudged → premature finish).
-      +1 test. **Still owed:** the SWARM/SDK path seam (`nklein-session-runtime` afterModel — needs a re-invoke seam for
-      the forced call) + recording the rung outcome on the §5.AF ledger + a **finite-state controller** that keeps the run
-      going until every required step is done (the deeper fix for models that end with a prose summary mid-chain).
+      +1 test. **Still owed:** the SWARM/SDK path seam + recording the rung outcome on the §5.AF ledger + a
+      **finite-state controller** that keeps the run going until every required step is done (the deeper fix for models that
+      end with a prose summary mid-chain). **SWARM SEAM SCOPED (2026-06-29, code-confirmed):** the SDK `afterModel` hook
+      CANNOT re-invoke the model — it can only mutate the current `assistantMessage` (as narrated-recovery does, injecting a
+      structured call) or return a completion directive; only `beforeModel` can modify the NEXT request (as the §5.N
+      focus-chain re-anchor does, returning `{messages}`). ⇒ swarm-path retry rungs can't be a reactive re-invoke of the
+      same turn; the viable pattern is **a `beforeModel` nudge on the NEXT turn, gated on the prior turn's outcome** (track
+      per-session "last turn was truncated / no-call / reasoning-starved" in `afterModel`, then in `beforeModel` apply the
+      rung — e.g. append `/no_think` for a switch-capable model, or a forced-call instruction — to the next request). This
+      is SAFE as recovery-only (fires only AFTER a failure, so it can't hurt a healthy hard task) and needs no SDK change.
+      OPEN: confirm the `afterModel` context exposes `finishReason`/`usage` (else detect truncation via the response text /
+      the §5.AN `reasoningTokens` once threaded). This is the concrete approach for the swarm rungs + reason-then-act.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
