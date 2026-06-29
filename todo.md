@@ -3937,6 +3937,23 @@ deep analysis:
 >   runs):** give each run an ISOLATED fresh workspace — pass `--project-path <fresh temp dir>` per run (and/or start the
 >   runtime with `--skip-shutdown-cleanup` so a kill doesn't trash in-flight cards). Only the FIRST mid_task run
 >   (4 completed / 5 planning / 1 backlog, fresh) is a trustworthy signal; re-diagnose thread (a) from a clean isolated run.
+> - **★★ BIGGER METHODOLOGY FINDING 2026-06-29 — `dev test-project` does NOT materialize its seed card in a CLEAN isolated
+>   workspace, so ALL prior stagnation observations were contaminated/pre-existing state (the stagnation investigation is
+>   INVALID as it stands).** Ran `mid_task` twice in a fresh git-initialized `--project-path` (with the fixed runtime):
+>   `started:true` but the board stayed **completely empty (0 cards in every column)** across 7 polls — confirmed live via
+>   `projects.list` on the workspace. Code trace of why: the CLI dev-test's `startSeedTask` (dev.ts `executeDevTestPreset`)
+>   ONLY calls `runtime.startTaskSession({taskId: seedTaskId, …})`, and `handleStartTaskSession` does **not create a board
+>   card** — it only RECONCILES an existing card's lane (`reconcileStartedTaskBoardLane`; its own comment notes "a dev-test
+>   seed started programmatically stayed in backlog", i.e. the card is assumed to already exist). Nothing in the CLI path
+>   adds the seed card to the board first. ⇒ On a clean board no card ever appears; the earlier "4 completed / 5 planning"
+>   etc. were therefore most likely **pre-existing board state in the reused repo-cwd workspace** rather than reliably this
+>   run's output (not fully proven, but the clean-workspace result shows the harness can't be trusted to seed). **Implications:**
+>   (1) the whole thread-(a)/(b) "stagnation" diagnosis above is built on contaminated data — DO NOT trust it; the
+>   overlap-orphan fix stays only as a latent-bug fix. (2) **Real owed work (§5.AI):** make `dev test-project` actually
+>   SEED its card on a clean board — create the backlog card (e.g. `workspace.addTask`/board mutation) BEFORE
+>   `startTaskSession`, then assert the seed materializes within N polls (fail fast if not), so the harness is a TRUSTWORTHY
+>   isolated verification. Until then, `dev test-project` cannot validate a from-scratch decomposition. (The §5.AI eval-rail
+>   false-green fix shipped this session at least makes the empty result honest — `stagnant`, not a fake pass.)
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s
