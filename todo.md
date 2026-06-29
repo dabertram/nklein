@@ -2182,6 +2182,18 @@ deep analysis:
       for the internal action IR where the local runtime supports it; per-provider **schema profiles** (smallest safe
       subset for LM Studio / llama.cpp grammar / OpenAI-compatible + JSON-repair fallback). This is the small-model-
       optimization layer on top of §5.O's existing robustness work + the §5.AA tool-set-reduction rung.
+  - [ ] **Tool cards** (the short per-tool descriptor): define the `ToolCard` shape (name · one-line purpose · use-when ·
+        do-not-use-when · example · common-recovery) and author one per existing tool.
+  - [ ] **Two-phase tool use** (pure core first): phase-1 picker over tool cards → `none | one_tool | plan_needed`;
+        phase-2 reveal ONLY the selected tool's full schema; unit-test the selection; then wire at the model seam.
+  - [ ] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
+        suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder.
+  - [ ] **Result handles** — return `result://<tool>/<id>` references instead of dumping bulk output into context, plus
+        a resolver the model can fetch through.
+  - [ ] **Action-plan IR** — a typed intermediate representation for multi-step tool workflows (define + validate).
+  - [ ] **Grammar-constrained decoding for the IR** where the local runtime supports it (LM Studio / llama.cpp grammar).
+  - [ ] **Per-provider schema profiles** — smallest safe subset per provider (LM Studio · llama.cpp grammar ·
+        OpenAI-compatible) with a JSON-repair fallback; select by the active provider.
 
 ### 5.Q — Model telemetry & performance-stats consistency ✅ COMPLETE → moved to [done.md](done.md#5q--model-telemetry--performance-stats-consistency-raised-2026-06-23)
 
@@ -2242,8 +2254,11 @@ deep analysis:
     - [ ] invoke after `decompose_project` applies
     - [ ] persist onto the plan `questions.md` / card
     - [ ] settings (global + per-project) for auto-vs-manual + the hard limit
-- [ ] **Manual-mode UI** — board-header badge + per-card indicators → clarifying dialog (≥4 options + free-text,
-      multi-choice/radio per question, tooltips per §5.I #5); persist answers back through the question state.
+- [ ] **Manual-mode UI**, decomposed:
+  - [ ] board-header badge showing the unresolved-clarification count.
+  - [ ] per-card clarifying-question indicators.
+  - [ ] clarifying dialog: ≥4 options + free-text, multi-choice/radio per question, tooltips per §5.I #5.
+  - [ ] persist the user's answers back through the question state (onto the card/plan).
 
 ### 5.T — Settings/UI polish ✅ COMPLETE → moved to [done.md](done.md#5t--settingsui-polish-raised-2026-06-23-from-a-swarmsettings-review)
 
