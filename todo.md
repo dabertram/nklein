@@ -5821,10 +5821,17 @@ deep analysis:
 >   (POST — STATEFUL sessions, streaming, **MCP integration**, model-load streaming events, prompt-processing streaming
 >   events, **per-request custom context length**), `/api/v1/models`, **`/api/v1/models/load` · `/unload` · `/download` ·
 >   `/download/status`** ⇒ **REST model management** (we currently shell out to `lms` — this API is the in-process alternative).
-> - **Anthropic-compat `/v1/messages`** (live-verified — EXISTS, 200): and **`tool_choice:{type:"any"}` FORCES a tool call**
->   (live: `stop_reason:"tool_use"`, clean `create_card({title})`). This is the **reliable force-a-call lever** (OpenAI's
->   `required` is ignored here). `{type:"tool",name:…}` should force a SPECIFIC tool. A strong §5.AA rung for a model that
->   won't call on its own — an ALTERNATIVE to constrained-decoding json_schema, via a different endpoint dialect.
+> - **Anthropic-compat `/v1/messages`** (live-verified — EXISTS, 200; accepts `tools`/`tool_choice`/`system`). **CORRECTION
+>   (re-verified 2026-06-29, don't-conclude-prematurely lesson): `tool_choice` does NOT actually FORCE a call on LM Studio.**
+>   The first "it forces!" probe was confounded — the prompt was "make a card titled Z", which the model calls anyway. On a
+>   genuinely non-tool prompt ("Tell me a joke"), BOTH `{type:"any"}` AND `{type:"tool",name}` returned `stop_reason:end_turn`
+>   with NO call (even with `/no_think` + 1500 tokens). So the Anthropic endpoint is NOT a reliable force-a-call lever here;
+>   no dedicated client path is warranted for it. **The REAL forcing lever is constrained decoding (below).**
+> - **THE forcing lever = constrained decoding (live-verified 2026-06-29):** `response_format:{type:"json_schema",strict:true,…}`
+>   on `/v1/chat/completions` genuinely FORCES schema-valid output even on a non-tool prompt — "Tell me a joke" returned
+>   `{"tool":"create_card","arguments":{…}}` (the model stuffed the joke into the args but WAS forced into the call shape).
+>   This is the §5.AA constrained-tool-call rung, ALREADY wired on the chat path; it's the reliable "make a stubborn model
+>   emit a parseable call" mechanism (OpenAI `tool_choice:"required"` ignored; Anthropic `tool_choice` doesn't force).
 >
 > **Cross-cutting features (doc-sourced + live where noted):**
 > - **Structured output** = `response_format:{type:"json_schema",json_schema:{schema:…}}` on `/v1/chat/completions`
@@ -5843,9 +5850,12 @@ deep analysis:
 - [ ] **Use `/api/v0` (or `/api/v1`) per-request `stats` for REAL speed/MCSR** instead of estimating tok/s + ttft — feeds §5.AB
       selection + §5.AD budget + the §4A stall detector. Also `model_info.context_length` + `/api/v0/models` `arch`/`quantization`
       give a SOLID model-class signal (replacing the §5.AE `modelClassCap` capability-threshold heuristic with arch/size facts).
-- [ ] **Anthropic `/v1/messages` `tool_choice` as the force-a-call rung** (the reliable one; OpenAI `required` is ignored). Wire as
-      a §5.AA rung BELOW narrated-recovery: when a model won't call, re-ask via `/v1/messages` with `tool_choice:{type:"any"}` (or a
-      named tool to steer the next undone step). Needs an Anthropic-dialect client path (request/response shapes differ from OpenAI).
+- [x] **Anthropic `/v1/messages` force-a-call — INVESTIGATED & REJECTED (2026-06-29).** Hypothesis was that
+      `tool_choice:{type:"any"}` forces a call; live re-verify DISPROVED it on LM Studio (`stop_reason:end_turn`, no call, on
+      a non-tool prompt even with `/no_think`+1500 tokens — the initial positive was a confounded tool-relevant prompt). So
+      NO Anthropic-dialect forcing path is warranted; the built-then-removed `nklein-anthropic-tool-force.ts` was dropped.
+      **The forcing lever stays the constrained-decoding rung** (`response_format json_schema`, live-verified to force even a
+      non-tool prompt), already wired. (Lesson logged: verify a "forcing" claim with a prompt the model would NOT call on anyway.)
 - [ ] **Native `/api/v1/chat` structured tool_call + reasoning SSE events** — strictly more structured than the OpenAI path for
       tool/reasoning models; a fallback endpoint when the OpenAI path misses a call. Also its **stateful sessions** (avoid resending
       history) = an efficiency + long-context lever, and **MCP integration** ties §5.AC/§5.M tool expansion.
