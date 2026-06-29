@@ -4789,8 +4789,12 @@ deep analysis:
         `llmfitClaimsToolUse` (capability pre-filter). 6 tests. **RUNNER HALF ALSO DONE (2026-06-29):** injectable
         `LlmfitRunner` + pure `buildLlmfitArgs` (global `--json`/`--memory`/`--ram`/`--cpu-cores`/`--max-context` BEFORE
         the subcommand — carries the per-pool simulation) + `llmfitRecommend`/`llmfitSystem` (run → parse; empty on
-        non-zero exit / bad JSON). 9 tests total. **Still owed:** a DEFAULT runner that shells out to `uvx llmfit` (or a
-        resolved binary) + the wiring into `decideModelLoad` / §5.AB fitness / pool-routing.
+        non-zero exit / bad JSON). 9 tests total. **DEFAULT RUNNER DONE (2026-06-29):**
+        [llmfit-runner.ts](src/core/llmfit-runner.ts) `createLlmfitRunner` — the ONE effectful shell-out (default
+        `uvx llmfit …` ephemeral, overridable to a resolved binary; injectable exec; a non-zero exit / spawn error →
+        `{stdout, exitCode}`, never throws). 4 tests. **Still owed (the integration):** call llmfit at the live seam +
+        feed `fitLevel`/`memoryRequiredGb` → `decideModelLoad` (per-pool, supersede `approxSizeGb`), `estimatedTps` →
+        §5.AB fitness + pool-routing `predictedWallTimeMs`/`capabilityTier`, `installed` → resident detection.
   - [ ] feed llmfit's fit verdict into `decideModelLoad` (per-pool RAM/VRAM headroom) — supersede the `approxSizeGb` guess.
   - [ ] feed tok/s + score into the §5.AB fitness store + the pool-routing `predictedWallTimeMs`/`capabilityTier`.
   - [ ] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
