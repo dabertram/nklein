@@ -3912,9 +3912,19 @@ deep analysis:
 >   set (minus the just-completed task) alongside the dependency-newly-ready cards — so an overlap-skipped card is re-tried
 >   once the active task releases its file lock and can no longer orphan. Safe-by-construction: the retry goes through the
 >   SAME `autoStartTaskIds` guards (it re-checks live overlap and simply re-defers a still-conflicting card), so worst case
->   it's a no-op — it cannot start a card the guard would block, and cannot make orphaning worse than today. **Owed:** a
->   live multi-card run (e.g. `wide_fanout`, generous window) to CONFIRM all cards drain to completed (the change is unit-
->   safe but the end-to-end drain wants a live check; deferred to stable thermals if a run is too noisy).
+>   it's a no-op — it cannot start a card the guard would block, and cannot make orphaning worse than today.
+>   **⚠️ Live run did NOT exercise the fix (2026-06-29, honest result):** a `wide_fanout` run on the 27B drained planning
+>   to 0 but ended `completed 4 / trash 5 / backlog 1` — and the runtime log shows **0 "Skipped auto-start" / "deferred
+>   for retry"** lines, so NO file-overlap skip occurred this run ⇒ the deferred-retry path never fired ⇒ the fix is
+>   shipped-but-not-yet-live-exercised. **This also means the original file-overlap ROOT-CAUSE was a code-traced
+>   HYPOTHESIS, never log-confirmed** as the actual cause of the observed stagnation. The stagnation shows MULTIPLE shapes
+>   (mid_task: 5 stuck in planning; wide_fanout: 5 trashed + 1 backlog) ⇒ likely more than one cause (model trashing/
+>   abandoning cards, deps blocked by trashed prereqs, `begin_implementation` not called, …), not just overlap-skip.
+>   **Owed to truly close thread (a):** (1) confirm overlap-skip is real-in-practice — a run that LOGS "Skipped auto-start"
+>   (then verify the deferred-retry drains it); (2) diagnose the OTHER shapes — why cards get TRASHED and why a backlog
+>   card stays stuck (inspect the dev-test workspace board + dependencies live, not just the runtime's default workspace).
+>   The fix stays committed as a valid LATENT-bug fix (overlap-skip orphaning is a genuine code defect regardless), but it
+>   is NOT confirmed to resolve the observed stagnation.
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s
