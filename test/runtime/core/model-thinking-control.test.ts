@@ -13,6 +13,14 @@ describe("getThinkingControl / supportsThinkingControl", () => {
 		expect(getThinkingControl("qwen2.5-coder-14b")).toBeNull();
 		expect(supportsThinkingControl("phi-4-mini")).toBe(false);
 	});
+
+	it("EXCLUDES R1 distills that are qwen3-arch but always reason (live-verified: /no_think ignored)", () => {
+		// deepseek-r1-0528-qwen3-8b contains "qwen3" but ignores /no_think — must NOT get a switch.
+		expect(getThinkingControl("deepseek/deepseek-r1-0528-qwen3-8b")).toBeNull();
+		expect(supportsThinkingControl("deepseek/deepseek-r1-0528-qwen3-8b")).toBe(false);
+		// a plain qwen3 (no r1/deepseek marker) still gets the switch.
+		expect(supportsThinkingControl("qwen/qwen3-8b")).toBe(true);
+	});
 });
 
 describe("applyThinkingDisable", () => {

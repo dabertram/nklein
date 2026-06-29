@@ -30,8 +30,18 @@ const THINKING_CONTROL_MATCHERS: readonly { pattern: RegExp; control: ThinkingCo
 	{ pattern: /qwen-?3/i, control: { disableToken: "/no_think", enableToken: "/think" } },
 ];
 
+/**
+ * Models that LOOK like a switch-capable family by name but ALWAYS reason (ignore the soft switch) — live-verified
+ * exclusions. `deepseek-r1-0528-qwen3-8b` is qwen3-arch (so the qwen3 matcher would catch it) but is an R1 distill
+ * trained to always reason: `/no_think` had ZERO effect (reasoning_content ~1950 chars either way, 2026-06-29).
+ */
+const ALWAYS_REASONING_EXCLUDE = /deepseek|[-_/]r1\b|r1[-_]/i;
+
 /** The thinking-control switches for a model id, or null when the model has no known soft switch (most models). */
 export function getThinkingControl(modelId: string): ThinkingControl | null {
+	if (ALWAYS_REASONING_EXCLUDE.test(modelId)) {
+		return null;
+	}
 	for (const { pattern, control } of THINKING_CONTROL_MATCHERS) {
 		if (pattern.test(modelId)) {
 			return control;
