@@ -3988,6 +3988,14 @@ deep analysis:
       reintroduces the when-to-disable policy needing the live A/B. ⇒ precise next experiment: run the swarm path with a
       reasoning model at a tight budget (force truncation), observe continue-vs-end. That decides reactive-nudge vs
       proactive-gate — don't implement blind.
+      **TWO SDK findings (2026-06-29, via tsc + code):** (1) RESOLVED — `afterModel` context DOES expose `finishReason`
+      (`reviewNKleinAfterModelCompletion` + `nklein-large-file-workflow` read it, comparing `!== "stop"`). (2) NEW BLOCKER
+      — the SDK's `AgentModelFinishReason` union does NOT include `"length"`/a truncation value (tsc: `'length'` has no
+      overlap; the codebase only ever compares to `"stop"`). So the SDK ABSTRACTS truncation away — swarm-path truncation
+      is NOT detectable via `finishReason`; detection there needs a content-heuristic (empty `text` + no `tool-call` part),
+      which conflates truncation with other empty turns. (Tried a `finishReason==="length"` self-observation in
+      `afterModel`; tsc rejected it; reverted to stay §4A-clean.) The CHAT path (raw `/v1` `finishReason:"length"`) detects
+      truncation fine — that's why the rungs live there; the swarm path's abstraction is the blocker.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
