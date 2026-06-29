@@ -397,6 +397,34 @@ describe.sequential("runtime-config auto agent selection", () => {
 		}
 	});
 
+	it("defaults the skill-dynamics level and round-trips the global default + per-project override (§5.AE)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-skilldyn-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-skilldyn-");
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.skillDynamicsLevelDefault).toBe("fully_dynamic");
+				expect(defaults.skillDynamicsLevelOverride).toBeNull();
+				expect(defaults.effectiveSkillDynamicsLevel).toBe("fully_dynamic");
+
+				// Global default persists across reload (regression: the global save must write the field to disk).
+				await updateRuntimeConfig(tempProject, { skillDynamicsLevelDefault: "static_skills_auto_model" });
+				const withGlobal = await loadRuntimeConfig(tempProject);
+				expect(withGlobal.skillDynamicsLevelDefault).toBe("static_skills_auto_model");
+
+				// Per-project override persists, the global default is preserved, and effective = override.
+				await updateRuntimeConfig(tempProject, { skillDynamicsLevelOverride: "fully_static" });
+				const withOverride = await loadRuntimeConfig(tempProject);
+				expect(withOverride.skillDynamicsLevelOverride).toBe("fully_static");
+				expect(withOverride.skillDynamicsLevelDefault).toBe("static_skills_auto_model");
+				expect(withOverride.effectiveSkillDynamicsLevel).toBe("fully_static");
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
 	it("defaults swarm guardrails, round-trips overrides, clamps bad values, and preserves on unrelated saves (§5.T)", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-guardrails-");
 		const { path: tempProject, cleanup: cleanupProject } = createTempDir("kanban-project-runtime-config-guardrails-");

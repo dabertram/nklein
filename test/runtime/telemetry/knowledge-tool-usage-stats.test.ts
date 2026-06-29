@@ -57,6 +57,9 @@ function createRuntimeConfig(): RuntimeConfigState {
 		modelSuitabilityPolicyDefaults: { onUnsuitable: "reject", onUnknown: "warn" },
 		modelSuitabilityPolicyOverride: null,
 		effectiveModelSuitabilityPolicy: { onUnsuitable: "reject", onUnknown: "warn" },
+		skillDynamicsLevelDefault: "fully_dynamic",
+		skillDynamicsLevelOverride: null,
+		effectiveSkillDynamicsLevel: "fully_dynamic",
 		modelRoles: {
 			worker: { providerId: "ollama", modelId: "qwen2.5-coder" },
 		},

@@ -166,6 +166,16 @@ export const DEFAULT_RUNTIME_MODEL_SUITABILITY_POLICY: RuntimeModelSuitabilityPo
 	onUnsuitable: "reject",
 	onUnknown: "warn",
 };
+// §5.AE skill-dynamics level: how dynamic vs. strict the per-task skill assignment is (the role-mode control surface).
+// Global default + per-project override (the §5.W pattern). Mirrors the §5.AE `SkillDynamicsLevel` resolver type.
+export const runtimeSkillDynamicsLevelSchema = z.enum([
+	"fully_dynamic",
+	"static_skills_auto_model",
+	"assigned_skills",
+	"fully_static",
+]);
+export type RuntimeSkillDynamicsLevel = z.infer<typeof runtimeSkillDynamicsLevelSchema>;
+export const DEFAULT_RUNTIME_SKILL_DYNAMICS_LEVEL: RuntimeSkillDynamicsLevel = "fully_dynamic";
 export const runtimeTaskNKleinContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
 export type RuntimeTaskNKleinContextScope = z.infer<typeof runtimeTaskNKleinContextScopeSchema>;
 export const runtimeTaskNKleinTimeoutModeSchema = z.preprocess(

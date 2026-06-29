@@ -17,14 +17,17 @@ import type {
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
+	RuntimeSkillDynamicsLevel,
 	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
 import {
 	agentRulesetsConfigSchema,
 	DEFAULT_RUNTIME_MODEL_SUITABILITY_POLICY,
+	DEFAULT_RUNTIME_SKILL_DYNAMICS_LEVEL,
 	runtimeCodeEmbeddingSettingsSchema,
 	runtimeModelSuitabilityPolicySchema,
 	runtimeRoleModelSettingsSchema,
+	runtimeSkillDynamicsLevelSchema,
 } from "../core/api-contract";
 import { CLOUD_ENABLED } from "../nklein-agent/nklein-local-only-policy";
 import { isDebugOverrideEnvEnabled } from "./debug-override";
@@ -395,4 +398,27 @@ export function areModelSuitabilityPoliciesEqual(
 	right: RuntimeModelSuitabilityPolicy | null,
 ): boolean {
 	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+// §5.AE skill-dynamics level normalizers (global default + per-project override), mirroring the suitability-policy pair.
+export const DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG = DEFAULT_RUNTIME_SKILL_DYNAMICS_LEVEL;
+export function normalizeSkillDynamicsLevel(
+	value: unknown,
+	fallback: RuntimeSkillDynamicsLevel,
+): RuntimeSkillDynamicsLevel {
+	const parsed = runtimeSkillDynamicsLevelSchema.safeParse(value);
+	return parsed.success ? parsed.data : fallback;
+}
+export function normalizeSkillDynamicsLevelOverride(value: unknown): RuntimeSkillDynamicsLevel | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	const parsed = runtimeSkillDynamicsLevelSchema.safeParse(value);
+	return parsed.success ? parsed.data : null;
+}
+export function areSkillDynamicsLevelsEqual(
+	left: RuntimeSkillDynamicsLevel | null,
+	right: RuntimeSkillDynamicsLevel | null,
+): boolean {
+	return left === right;
 }

@@ -17,6 +17,7 @@ import type {
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
+	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
 import {
@@ -63,7 +64,9 @@ import {
 	areCodeEmbeddingSettingsEqual,
 	areModelRolesEqual,
 	areModelSuitabilityPoliciesEqual,
+	areSkillDynamicsLevelsEqual,
 	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
+	DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
 	normalizeAgentId,
 	normalizeAgentRulesets,
 	normalizeAgentRulesetsOverride,
@@ -86,6 +89,8 @@ import {
 	normalizePromptTemplateWithLegacyDefault,
 	normalizeSelectedAgentIdOverride,
 	normalizeShortcuts,
+	normalizeSkillDynamicsLevel,
+	normalizeSkillDynamicsLevelOverride,
 	normalizeTimeoutMsValue,
 	readLegacyDeveloperModeEnabled,
 	resolveProfileTimeoutDefaults,
@@ -154,6 +159,7 @@ type RuntimeConfigChangeComparable = Omit<
 	| "projectConfigPath"
 	| "effectiveCodeEmbeddingSettings"
 	| "effectiveModelSuitabilityPolicy"
+	| "effectiveSkillDynamicsLevel"
 	| "effectiveMaxConcurrentTasks"
 	| "effectiveSelectedAgentId"
 	| "effectiveModelRoles"
@@ -204,6 +210,7 @@ const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] =
 	runtimeConfigChangeField("readyForReviewNotificationsEnabled"),
 	runtimeConfigChangeField("codeEmbeddingDefaults", areCodeEmbeddingSettingsEqual),
 	runtimeConfigChangeField("modelSuitabilityPolicyDefaults", areModelSuitabilityPoliciesEqual),
+	runtimeConfigChangeField("skillDynamicsLevelDefault", areSkillDynamicsLevelsEqual),
 	runtimeConfigChangeField("concurrencyDefaults", areConcurrencyConfigsEqual),
 	runtimeConfigChangeField("modelRoles", areModelRolesEqual),
 	runtimeConfigChangeField("agentRulesets", areAgentRulesetsEqual),
@@ -218,6 +225,7 @@ const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] 
 	...RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS,
 	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
 	runtimeConfigChangeField("modelSuitabilityPolicyOverride", areModelSuitabilityPoliciesEqual),
+	runtimeConfigChangeField("skillDynamicsLevelOverride", areSkillDynamicsLevelsEqual),
 	runtimeConfigChangeField("concurrencyOverride", areConcurrencyOverridesEqual),
 	runtimeConfigChangeField("maxConcurrentTasksOverride"),
 	runtimeConfigChangeField("selectedAgentIdOverride"),
@@ -232,6 +240,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"projectConfigPath",
 	"effectiveCodeEmbeddingSettings",
 	"effectiveModelSuitabilityPolicy",
+	"effectiveSkillDynamicsLevel",
 	"effectiveMaxConcurrentTasks",
 	"effectiveSelectedAgentId",
 	"effectiveAgentRulesets",
@@ -389,6 +398,11 @@ function toRuntimeConfigState({
 	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(
 		projectConfig?.modelSuitabilityPolicyOverride,
 	);
+	const skillDynamicsLevelDefault = normalizeSkillDynamicsLevel(
+		globalConfig?.skillDynamicsLevelDefault,
+		DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
+	);
+	const skillDynamicsLevelOverride = normalizeSkillDynamicsLevelOverride(projectConfig?.skillDynamicsLevelOverride);
 	const concurrencyDefaults = normalizeConcurrencyConfig(globalConfig?.concurrencyDefaults);
 	const concurrencyOverride = normalizeConcurrencyOverride(projectConfig?.concurrencyOverride);
 	const maxConcurrentTasks = normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks);
@@ -463,6 +477,9 @@ function toRuntimeConfigState({
 		modelSuitabilityPolicyDefaults,
 		modelSuitabilityPolicyOverride,
 		effectiveModelSuitabilityPolicy: modelSuitabilityPolicyOverride ?? modelSuitabilityPolicyDefaults,
+		skillDynamicsLevelDefault,
+		skillDynamicsLevelOverride,
+		effectiveSkillDynamicsLevel: skillDynamicsLevelOverride ?? skillDynamicsLevelDefault,
 		concurrencyDefaults,
 		concurrencyOverride,
 		modelRoles,
@@ -554,6 +571,7 @@ async function writeRuntimeGlobalConfigFile(
 		readyForReviewNotificationsEnabled?: boolean;
 		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 		modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
+		skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
 		concurrencyDefaults?: ConcurrencyConfig;
 		modelRoles?: RuntimeModelRoles;
 		agentRulesets?: AgentRulesetsConfigPayload;
@@ -669,6 +687,10 @@ async function writeRuntimeGlobalConfigFile(
 					config.modelSuitabilityPolicyDefaults,
 					DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 				);
+	const skillDynamicsLevelDefault =
+		config.skillDynamicsLevelDefault === undefined
+			? DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG
+			: normalizeSkillDynamicsLevel(config.skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG);
 	const concurrencyDefaults =
 		config.concurrencyDefaults === undefined
 			? DEFAULT_CONCURRENCY_CONFIG
@@ -850,6 +872,12 @@ async function writeRuntimeGlobalConfigFile(
 		payload.modelSuitabilityPolicyDefaults = modelSuitabilityPolicyDefaults;
 	}
 	if (
+		hasOwnKey(existing, "skillDynamicsLevelDefault") ||
+		!areSkillDynamicsLevelsEqual(skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG)
+	) {
+		payload.skillDynamicsLevelDefault = skillDynamicsLevelDefault;
+	}
+	if (
 		hasOwnKey(existing, "concurrencyDefaults") ||
 		!areConcurrencyConfigsEqual(concurrencyDefaults, DEFAULT_CONCURRENCY_CONFIG)
 	) {
@@ -893,6 +921,7 @@ async function writeRuntimeProjectConfigFile(
 		shortcuts: RuntimeProjectShortcut[];
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
+		skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 		concurrencyOverride?: ConcurrencyOverride | null;
 		maxConcurrentTasksOverride?: number | null;
 		selectedAgentIdOverride?: RuntimeAgentId | null;
@@ -905,6 +934,7 @@ async function writeRuntimeProjectConfigFile(
 	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(
 		config.modelSuitabilityPolicyOverride,
 	);
+	const skillDynamicsLevelOverride = normalizeSkillDynamicsLevelOverride(config.skillDynamicsLevelOverride);
 	const concurrencyOverride = normalizeConcurrencyOverride(config.concurrencyOverride);
 	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(config.maxConcurrentTasksOverride);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(config.selectedAgentIdOverride);
@@ -919,6 +949,9 @@ async function writeRuntimeProjectConfigFile(
 		}
 		if (modelSuitabilityPolicyOverride) {
 			throw new Error("Cannot save project model-suitability override without a selected project.");
+		}
+		if (skillDynamicsLevelOverride) {
+			throw new Error("Cannot save project skill-dynamics override without a selected project.");
 		}
 		if (maxConcurrentTasksOverride !== null) {
 			throw new Error("Cannot save project concurrent task override without a selected project.");
@@ -938,6 +971,7 @@ async function writeRuntimeProjectConfigFile(
 		normalizedShortcuts.length === 0 &&
 		codeEmbeddingOverride === null &&
 		modelSuitabilityPolicyOverride === null &&
+		skillDynamicsLevelOverride === null &&
 		concurrencyOverride === null &&
 		maxConcurrentTasksOverride === null &&
 		selectedAgentIdOverride === null &&
@@ -958,6 +992,7 @@ async function writeRuntimeProjectConfigFile(
 			shortcuts: normalizedShortcuts,
 			...(codeEmbeddingOverride ? { codeEmbeddingOverride } : {}),
 			...(modelSuitabilityPolicyOverride ? { modelSuitabilityPolicyOverride } : {}),
+			...(skillDynamicsLevelOverride ? { skillDynamicsLevelOverride } : {}),
 			...(concurrencyOverride ? { concurrencyOverride } : {}),
 			...(maxConcurrentTasksOverride !== null ? { maxConcurrentTasksOverride } : {}),
 			...(selectedAgentIdOverride !== null ? { selectedAgentIdOverride } : {}),
@@ -1038,6 +1073,8 @@ function createRuntimeConfigStateFromValues(input: {
 	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
 	modelSuitabilityPolicyDefaults: RuntimeModelSuitabilityPolicy;
 	modelSuitabilityPolicyOverride: RuntimeModelSuitabilityPolicy | null;
+	skillDynamicsLevelDefault: RuntimeSkillDynamicsLevel;
+	skillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null;
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
 	modelRoles: RuntimeModelRoles;
@@ -1124,6 +1161,14 @@ function createRuntimeConfigStateFromValues(input: {
 		effectiveModelSuitabilityPolicy:
 			normalizeModelSuitabilityPolicyOverride(input.modelSuitabilityPolicyOverride) ??
 			normalizeModelSuitabilityPolicy(input.modelSuitabilityPolicyDefaults, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
+		skillDynamicsLevelDefault: normalizeSkillDynamicsLevel(
+			input.skillDynamicsLevelDefault,
+			DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
+		),
+		skillDynamicsLevelOverride: normalizeSkillDynamicsLevelOverride(input.skillDynamicsLevelOverride),
+		effectiveSkillDynamicsLevel:
+			normalizeSkillDynamicsLevelOverride(input.skillDynamicsLevelOverride) ??
+			normalizeSkillDynamicsLevel(input.skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
 		concurrencyDefaults: normalizeConcurrencyConfig(input.concurrencyDefaults),
 		concurrencyOverride: normalizeConcurrencyOverride(input.concurrencyOverride),
 		modelRoles: normalizeModelRoles(input.modelRoles),
@@ -1187,6 +1232,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		codeEmbeddingOverride: null,
 		modelSuitabilityPolicyDefaults: current.modelSuitabilityPolicyDefaults,
 		modelSuitabilityPolicyOverride: null,
+		skillDynamicsLevelDefault: current.skillDynamicsLevelDefault,
+		skillDynamicsLevelOverride: null,
 		concurrencyDefaults: current.concurrencyDefaults,
 		concurrencyOverride: null,
 		modelRoles: current.modelRoles,
@@ -1254,6 +1301,8 @@ export async function saveRuntimeConfig(
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
+		skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
+		skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 		concurrencyDefaults?: ConcurrencyConfig;
 		concurrencyOverride?: ConcurrencyOverride | null;
 		maxConcurrentTasksOverride?: number | null;
@@ -1319,6 +1368,7 @@ export async function saveRuntimeConfig(
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: config.codeEmbeddingDefaults,
 			modelSuitabilityPolicyDefaults: config.modelSuitabilityPolicyDefaults,
+			skillDynamicsLevelDefault: config.skillDynamicsLevelDefault,
 			modelRoles: config.modelRoles,
 			agentRulesets: config.agentRulesets,
 			swarmGuardrails: config.swarmGuardrails,
@@ -1329,6 +1379,7 @@ export async function saveRuntimeConfig(
 			shortcuts: config.shortcuts,
 			codeEmbeddingOverride: config.codeEmbeddingOverride,
 			modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride,
+			skillDynamicsLevelOverride: config.skillDynamicsLevelOverride,
 			maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: config.selectedAgentIdOverride,
 			agentRulesetsOverride: config.agentRulesetsOverride,
@@ -1392,6 +1443,8 @@ export async function saveRuntimeConfig(
 			modelSuitabilityPolicyDefaults:
 				config.modelSuitabilityPolicyDefaults ?? DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 			modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride ?? null,
+			skillDynamicsLevelDefault: config.skillDynamicsLevelDefault ?? DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
+			skillDynamicsLevelOverride: config.skillDynamicsLevelOverride ?? null,
 			concurrencyDefaults: config.concurrencyDefaults ?? DEFAULT_CONCURRENCY_CONFIG,
 			concurrencyOverride: config.concurrencyOverride ?? null,
 			modelRoles: normalizeModelRoles(config.modelRoles),
@@ -1511,6 +1564,16 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.modelSuitabilityPolicyOverride,
 				normalizeModelSuitabilityPolicyOverride,
 			),
+			skillDynamicsLevelDefault: keepNormalizedValue(
+				updates.skillDynamicsLevelDefault,
+				current.skillDynamicsLevelDefault,
+				(value) => normalizeSkillDynamicsLevel(value, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
+			),
+			skillDynamicsLevelOverride: keepNormalizedValue(
+				updates.skillDynamicsLevelOverride,
+				current.skillDynamicsLevelOverride,
+				normalizeSkillDynamicsLevelOverride,
+			),
 			concurrencyDefaults: keepNormalizedValue(
 				updates.concurrencyDefaults,
 				current.concurrencyDefaults,
@@ -1587,6 +1650,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 			modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
+			skillDynamicsLevelDefault: nextConfig.skillDynamicsLevelDefault,
 			concurrencyDefaults: nextConfig.concurrencyDefaults,
 			modelRoles: nextConfig.modelRoles,
 			agentRulesets: nextConfig.agentRulesets,
@@ -1598,6 +1662,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			shortcuts: nextConfig.shortcuts,
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 			modelSuitabilityPolicyOverride: nextConfig.modelSuitabilityPolicyOverride,
+			skillDynamicsLevelOverride: nextConfig.skillDynamicsLevelOverride,
 			concurrencyOverride: nextConfig.concurrencyOverride,
 			maxConcurrentTasksOverride: nextConfig.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: nextConfig.selectedAgentIdOverride,
@@ -1640,6 +1705,8 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			codeEmbeddingOverride: nextConfig.codeEmbeddingOverride,
 			modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
 			modelSuitabilityPolicyOverride: nextConfig.modelSuitabilityPolicyOverride,
+			skillDynamicsLevelDefault: nextConfig.skillDynamicsLevelDefault,
+			skillDynamicsLevelOverride: nextConfig.skillDynamicsLevelOverride,
 			concurrencyDefaults: nextConfig.concurrencyDefaults,
 			concurrencyOverride: nextConfig.concurrencyOverride,
 			modelRoles: nextConfig.modelRoles,
@@ -1757,6 +1824,12 @@ export async function updateGlobalRuntimeConfig(
 					(value) => normalizeModelSuitabilityPolicy(value, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
 				),
 				modelSuitabilityPolicyOverride: null,
+				skillDynamicsLevelDefault: keepNormalizedValue(
+					updates.skillDynamicsLevelDefault,
+					current.skillDynamicsLevelDefault,
+					(value) => normalizeSkillDynamicsLevel(value, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
+				),
+				skillDynamicsLevelOverride: null,
 				concurrencyDefaults: keepNormalizedValue(
 					updates.concurrencyDefaults,
 					current.concurrencyDefaults,
@@ -1813,6 +1886,7 @@ export async function updateGlobalRuntimeConfig(
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				codeEmbeddingDefaults: nextConfig.codeEmbeddingDefaults,
 				modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
+				skillDynamicsLevelDefault: nextConfig.skillDynamicsLevelDefault,
 				concurrencyDefaults: nextConfig.concurrencyDefaults,
 				modelRoles: nextConfig.modelRoles,
 				agentRulesets: nextConfig.agentRulesets,
@@ -1857,6 +1931,8 @@ export async function updateGlobalRuntimeConfig(
 				codeEmbeddingOverride: null,
 				modelSuitabilityPolicyDefaults: nextConfig.modelSuitabilityPolicyDefaults,
 				modelSuitabilityPolicyOverride: null,
+				skillDynamicsLevelDefault: nextConfig.skillDynamicsLevelDefault,
+				skillDynamicsLevelOverride: null,
 				concurrencyDefaults: nextConfig.concurrencyDefaults,
 				concurrencyOverride: null,
 				modelRoles: nextConfig.modelRoles,

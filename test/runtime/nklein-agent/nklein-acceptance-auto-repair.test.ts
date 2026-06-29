@@ -123,6 +123,9 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		modelSuitabilityPolicyDefaults: { onUnsuitable: "reject", onUnknown: "warn" },
 		modelSuitabilityPolicyOverride: null,
 		effectiveModelSuitabilityPolicy: { onUnsuitable: "reject", onUnknown: "warn" },
+		skillDynamicsLevelDefault: "fully_dynamic",
+		skillDynamicsLevelOverride: null,
+		effectiveSkillDynamicsLevel: "fully_dynamic",
 		modelRoles: {
 			reviewer: {
 				providerId: "anthropic",

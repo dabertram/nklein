@@ -11,6 +11,7 @@ import type {
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
 	RuntimeProjectShortcut,
+	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
@@ -53,6 +54,10 @@ export interface RuntimeConfigState {
 	modelSuitabilityPolicyDefaults: RuntimeModelSuitabilityPolicy;
 	modelSuitabilityPolicyOverride: RuntimeModelSuitabilityPolicy | null;
 	effectiveModelSuitabilityPolicy: RuntimeModelSuitabilityPolicy;
+	/** §5.AE: global skill-dynamics level + per-project override + resolved effective level. */
+	skillDynamicsLevelDefault: RuntimeSkillDynamicsLevel;
+	skillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null;
+	effectiveSkillDynamicsLevel: RuntimeSkillDynamicsLevel;
 	/** §5.W: global per-provider/per-model concurrency caps + the per-project override (effective resolved per session). */
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
@@ -101,6 +106,8 @@ export interface RuntimeConfigUpdateInput {
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
+	skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
+	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 	concurrencyDefaults?: ConcurrencyConfig;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
@@ -144,6 +151,7 @@ export interface RuntimeGlobalConfigFileShape {
 	readyForReviewNotificationsEnabled?: boolean;
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
+	skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
 	concurrencyDefaults?: ConcurrencyConfig;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
@@ -158,6 +166,7 @@ export interface RuntimeProjectConfigFileShape {
 	shortcuts?: RuntimeProjectShortcut[];
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
+	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
 	selectedAgentIdOverride?: RuntimeAgentId | null;
