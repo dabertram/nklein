@@ -185,7 +185,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /qwen2\.?5-coder/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "code",
-		note: "Supports tool calling but emits a non-Hermes <tools>/code-block format — fails SILENTLY unless the parser/prompt matches it. Our sweeps: ◑ at 14B with the constrained rung.",
+		note: "Supports tool calling; historically emitted a non-Hermes <tools>/code-block format that failed SILENTLY unless the parser matched. BUT live 2026-06-29 on `qwen/qwen2.5-coder-14b` via LM Studio's OpenAI `/v1`: a single-tool prompt returned a CLEAN STRUCTURED `tool_calls` (`create_card({title})`, finish=tool_calls) AND `response_format json_schema` produced valid structured output — so LM Studio's parser DOES surface its single-tool calls (not silently failing at that grain). Not a reasoning model (reasoning_len 0). The ◑ at 14B caveat is about multi-tool CHAINING, which the constrained rung helps.",
 		sources: ["https://github.com/QwenLM/Qwen3-Coder/issues/180"],
 		basis: "both",
 		verified: true,
