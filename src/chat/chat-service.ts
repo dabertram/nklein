@@ -65,6 +65,8 @@ export interface ChatServiceOptions {
 export interface ChatSendResult {
 	userMessage: RuntimeChatMessage;
 	assistantMessage: RuntimeChatMessage;
+	/** §5.AL/§5.AG: a model-capability caveat to surface (warn/unknown verdict — the turn still ran). Null when none. */
+	capabilityNotice?: string | null;
 }
 
 function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
@@ -206,6 +208,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				// catalog-`reject` model up front (e.g. a reasoning-only variant) rather than burning the turn on a model that
 				// can't drive tools. Override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1; warn/unknown proceed. Only when the model
 				// id is known (the live local resolver supplies it); a fake/test modelDeps without it is unaffected.
+				let capabilityNotice: string | null = null;
 				if (modelDeps.modelId) {
 					const policyBase = options.resolveModelGatePolicyBase
 						? await options.resolveModelGatePolicyBase()
@@ -217,6 +220,9 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					});
 					if (gate.action === "reject") {
 						throw new Error(gate.message);
+					}
+					if (gate.action === "warn") {
+						capabilityNotice = gate.message;
 					}
 				}
 				const agentResult = await runChatAgentTurn(
@@ -232,6 +238,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 				return {
 					userMessage: toRuntimeChatMessage(agentResult.userMessage),
 					assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
+					...(capabilityNotice ? { capabilityNotice } : {}),
 				};
 			}
 

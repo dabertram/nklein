@@ -88,7 +88,12 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 			void ctx.runtimeApi
 				.sendChatMessage(input, (delta) => queue.push({ type: "token", delta }))
 				.then((result) => {
-					queue.push({ type: "done", userMessage: result.userMessage, assistantMessage: result.assistantMessage });
+					queue.push({
+						type: "done",
+						userMessage: result.userMessage,
+						assistantMessage: result.assistantMessage,
+						capabilityNotice: result.capabilityNotice ?? null,
+					});
 					queue.close();
 				})
 				.catch((error) => queue.fail(error));

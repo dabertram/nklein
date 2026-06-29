@@ -118,6 +118,8 @@ export const runtimeChatSendMessageResponseSchema = z.object({
 	/** Null when the session no longer exists; otherwise the persisted user + assistant messages. */
 	userMessage: runtimeChatMessageSchema.nullable(),
 	assistantMessage: runtimeChatMessageSchema.nullable(),
+	/** §5.AL/§5.AG: a model-capability caveat to surface (the model is flagged warn/unknown but the turn still ran). */
+	capabilityNotice: z.string().nullable().optional(),
 });
 export type RuntimeChatSendMessageResponse = z.infer<typeof runtimeChatSendMessageResponseSchema>;
 
@@ -128,6 +130,7 @@ export const runtimeChatStreamEventSchema = z.discriminatedUnion("type", [
 		type: z.literal("done"),
 		userMessage: runtimeChatMessageSchema.nullable(),
 		assistantMessage: runtimeChatMessageSchema.nullable(),
+		capabilityNotice: z.string().nullable().optional(),
 	}),
 ]);
 export type RuntimeChatStreamEvent = z.infer<typeof runtimeChatStreamEventSchema>;

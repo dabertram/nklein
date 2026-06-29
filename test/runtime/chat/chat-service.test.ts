@@ -176,6 +176,8 @@ describe("createChatService", () => {
 		const result = await service.sendMessage({ sessionId: session.id, message: "do a thing" });
 		expect(ran).toBe(true);
 		expect(result?.assistantMessage.content).toBe("ok");
+		// §5.AG: the warn caveat is surfaced on the result so the web-ui can show it (the turn still ran).
+		expect(result?.capabilityNotice).toMatch(/capability (warn|reject)/i);
 	});
 
 	it("§5.AL gate: a tool-capable model on the tool path proceeds (no false reject)", async () => {

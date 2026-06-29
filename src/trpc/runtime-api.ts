@@ -1366,7 +1366,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
 		sendChatMessage: async (input, onToken) => {
 			const result = await chatService.sendMessage(input, onToken);
-			return { userMessage: result?.userMessage ?? null, assistantMessage: result?.assistantMessage ?? null };
+			return {
+				userMessage: result?.userMessage ?? null,
+				assistantMessage: result?.assistantMessage ?? null,
+				capabilityNotice: result?.capabilityNotice ?? null,
+			};
 		},
 		startAutonomousChatRun: (input) => autonomousChatRun.start(input),
 		getAutonomousChatRunStatus: (input) => autonomousChatRun.status(input),

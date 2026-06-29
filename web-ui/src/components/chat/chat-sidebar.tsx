@@ -678,6 +678,15 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 				</section>
 			</div>
 
+			{chat.capabilityNotice ? (
+				<div
+					className="px-3 py-2 text-[12px] text-status-amber border-t border-border bg-surface-1 shrink-0"
+					data-testid="chat-capability-notice"
+				>
+					⚠️ {chat.capabilityNotice}
+				</div>
+			) : null}
+
 			{chat.error ? (
 				<div
 					className="px-3 py-2 text-[12px] text-status-red border-t border-border bg-surface-1 shrink-0"

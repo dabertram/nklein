@@ -28,6 +28,8 @@ export interface UseChatDataResult {
 	pendingUserText: string | null;
 	/** The assistant reply as it streams in (token by token); null when not streaming. */
 	streamingText: string | null;
+	/** §5.AL/§5.AG: a model-capability caveat from the last turn (warn/unknown model that still ran); null when none. */
+	capabilityNotice: string | null;
 	error: string | null;
 	createSession: (input: RuntimeChatCreateSessionRequest) => Promise<RuntimeChatSession | null>;
 	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<void>;
@@ -46,6 +48,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const [sending, setSending] = useState(false);
 	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
 	const [streamingText, setStreamingText] = useState<string | null>(null);
+	const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [autonomousStatus, setAutonomousStatus] = useState<RuntimeChatAutonomousRunStatus | null>(null);
 	// A cancellation token for the active status-poll loop; flipped when a new run starts or the hook unmounts.
@@ -133,6 +136,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			setError(null);
 			setPendingUserText(trimmed);
 			setStreamingText("");
+			setCapabilityNotice(null);
 			// Stream the reply token-by-token over the SSE subscription; resolve when the terminal `done` arrives.
 			await new Promise<void>((resolve) => {
 				client.chat.streamMessage.subscribe(
@@ -141,6 +145,9 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 						onData: (event) => {
 							if (event.type === "token") {
 								setStreamingText((current) => (current ?? "") + event.delta);
+							} else if (event.type === "done") {
+								// §5.AL/§5.AG: surface a model-capability caveat (the model is flagged warn/unknown but ran).
+								setCapabilityNotice(event.capabilityNotice ?? null);
 							}
 						},
 						onError: (caught: unknown) => {
@@ -220,6 +227,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		sending,
 		pendingUserText,
 		streamingText,
+		capabilityNotice,
 		error,
 		createSession,
 		updateSession,

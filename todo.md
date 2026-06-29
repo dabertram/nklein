@@ -5602,7 +5602,11 @@ deep analysis:
       `decideChatModelGate` on the TOOL-using branch (when `resolveAgentToolDeps` is non-null) — refuses a catalog-`reject`
       model with a clear error surfaced to the web-ui, override `NKLEIN_ALLOW_UNSUITABLE_MODEL=1`. Plumbed the resolved
       `modelId` onto `ChatModelDeps` (set by `resolveLocalChatModelDeps`); a fake modelDeps without it is unaffected. +2
-      tests. STILL TODO: surface warn/unknown caveats through the §5.AG operator-UX (not just a hard reject), and a UI badge.
+      tests. **Warn/unknown surfacing DONE 2026-06-29 (§5.AG):** the chat-service gate now carries the warn caveat on the
+      send result (`ChatSendResult.capabilityNotice`) → the `chat.sendMessage`/`streamMessage` `done` response →
+      `use-chat-data` → an amber `chat-capability-notice` strip in the chat sidebar. So the web-ui chat now WARNS the user
+      (not just rejects), completing the "warn the user OR reject" ask for the chat path. Remaining: an at-a-glance badge
+      on the model selector itself (vs. the per-turn notice) is a nice-to-have.
 - [x] **Consistency: per-PROJECT policy now threads into the CHAT gate (2026-06-29).** `decideChatModelGate` takes an
       optional `policyBase` (the project's effective runtime-config policy); `resolveActiveModelSuitabilityPolicy(env,
       base)` layers the env knobs on top. `chatService.sendMessage` resolves it via a new `resolveModelGatePolicyBase`
