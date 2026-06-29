@@ -3980,6 +3980,14 @@ deep analysis:
       is SAFE as recovery-only (fires only AFTER a failure, so it can't hurt a healthy hard task) and needs no SDK change.
       OPEN: confirm the `afterModel` context exposes `finishReason`/`usage` (else detect truncation via the response text /
       the §5.AN `reasoningTokens` once threaded). This is the concrete approach for the swarm rungs + reason-then-act.
+      **REFINEMENT (2026-06-29, code-inspection — corrects the above):** detection without `finishReason` IS possible
+      (`AgentMessage.content` is a parts array; a truncated reasoning turn = no `type:"tool-call"` part + empty `text`,
+      checkable in `afterModel` like `recoverNarratedToolCalls` does). BUT the "nudge on the NEXT turn" hinges on the SDK
+      loop CONTINUING after an empty no-call turn vs. ENDING the run — UNVERIFIED. If it ends, there's no next turn to nudge
+      and only PROACTIVE thinking-control (apply `/no_think` in `beforeModel` BEFORE the call, policy-gated) works — which
+      reintroduces the when-to-disable policy needing the live A/B. ⇒ precise next experiment: run the swarm path with a
+      reasoning model at a tight budget (force truncation), observe continue-vs-end. That decides reactive-nudge vs
+      proactive-gate — don't implement blind.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
