@@ -20,6 +20,38 @@
 
 import type { ModelSelectionWeighting } from "./role-model-selection";
 
+/** Sentinel free-slot count for an UNCAPPED pool — large enough to never gate, distinct from a real cap. */
+export const UNCAPPED_POOL_FREE_SLOTS = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Pure: the free-slot count per machine pool, the `poolFreeSlots` input {@link selectPoolForTask}/`selectSwarmRouteForTask`
+ * need. For each pool endpoint: an UNCAPPED endpoint is "unlimited" ({@link UNCAPPED_POOL_FREE_SLOTS} — so routing never
+ * starves a machine that simply has no configured cap), and a CAPPED endpoint is `max(0, cap − running-on-that-endpoint)`.
+ * `runningEndpoints` is the endpoint of each currently-running session (null/blank = no endpoint, ignored).
+ */
+export function computePoolFreeSlots(
+	poolEndpoints: readonly string[],
+	runningEndpoints: readonly (string | null | undefined)[],
+	endpointCaps: Readonly<Record<string, number>>,
+): Record<string, number> {
+	const runningByEndpoint = new Map<string, number>();
+	for (const ep of runningEndpoints) {
+		const key = ep?.trim();
+		if (key) {
+			runningByEndpoint.set(key, (runningByEndpoint.get(key) ?? 0) + 1);
+		}
+	}
+	const out: Record<string, number> = {};
+	for (const endpoint of poolEndpoints) {
+		const cap = endpointCaps[endpoint];
+		out[endpoint] =
+			typeof cap === "number" && Number.isFinite(cap)
+				? Math.max(0, cap - (runningByEndpoint.get(endpoint) ?? 0))
+				: UNCAPPED_POOL_FREE_SLOTS;
+	}
+	return out;
+}
+
 export interface RoleModelPoolCandidate {
 	/** The machine pool id (its endpoint/baseUrl). */
 	poolId: string;

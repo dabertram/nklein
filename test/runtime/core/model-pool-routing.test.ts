@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type RoleModelPoolCandidate, selectPoolForTask } from "../../../src/core/model-pool-routing";
+import {
+	computePoolFreeSlots,
+	type RoleModelPoolCandidate,
+	selectPoolForTask,
+	UNCAPPED_POOL_FREE_SLOTS,
+} from "../../../src/core/model-pool-routing";
 
 const pool = (over: Partial<RoleModelPoolCandidate> & { poolId: string }): RoleModelPoolCandidate => ({
 	capabilityTier: 80,
@@ -56,5 +61,23 @@ describe("selectPoolForTask", () => {
 			difficulty: 10,
 		});
 		expect(result).toMatchObject({ type: "assign", poolId: "a" }); // more free slots wins
+	});
+});
+
+describe("computePoolFreeSlots", () => {
+	it("capped pool = max(0, cap - running on that endpoint); uncapped = unlimited", () => {
+		const slots = computePoolFreeSlots(
+			["m4", "m5", "legion"],
+			["m4", "m4", "m5"], // 2 running on m4, 1 on m5, 0 on legion
+			{ m4: 3, m5: 1 }, // legion has NO cap → unlimited
+		);
+		expect(slots.m4).toBe(1); // 3 - 2
+		expect(slots.m5).toBe(0); // 1 - 1 (full)
+		expect(slots.legion).toBe(UNCAPPED_POOL_FREE_SLOTS); // uncapped → never starves
+	});
+
+	it("never goes negative when running exceeds the cap, and ignores blank endpoints", () => {
+		const slots = computePoolFreeSlots(["m4"], ["m4", "m4", "m4", null, "  "], { m4: 2 });
+		expect(slots.m4).toBe(0);
 	});
 });
