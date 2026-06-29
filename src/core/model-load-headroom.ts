@@ -10,6 +10,8 @@
  * sizes) + the host RAM. Loading itself (`lms load --context-length …`) stays in the effectful wrapper that consults this.
  */
 
+import { type LlmfitModel, llmfitFitClears } from "./llmfit-adapter";
+
 const BYTES_PER_UNIT: Record<string, number> = {
 	B: 1,
 	KB: 1024,
@@ -100,5 +102,32 @@ export function decideModelLoad(input: LoadHeadroomInput): LoadHeadroomDecision 
 		projectedResidentBytes,
 		freeBytesAfter,
 		reason: `OK — ${gib(freeBytesAfter)} free after load (≥ ${Math.round(reserveFraction * 100)}% reserve).`,
+	};
+}
+
+/**
+ * Refine a {@link decideModelLoad} verdict with llmfit's per-quant/MoE-aware FIT estimate (§5.AB). The RAM headroom
+ * guard stays the HARD gate (it prevents the freeze, #safety) — a headroom DENY is final, llmfit can never override it.
+ * But when headroom allows, llmfit can still REFUSE a `Marginal`/`Too Tight`/unknown fit (its estimate is tighter than
+ * our bytes heuristic — e.g. VRAM vs unified RAM, KV-cache at context, MoE active-vs-total params). No llmfit data ⇒ the
+ * headroom verdict stands. Pure — the caller fetches the llmfit model (via the runner) and passes it here.
+ */
+export function refineLoadDecisionWithLlmfit(
+	headroom: LoadHeadroomDecision,
+	llmfit: LlmfitModel | null,
+): LoadHeadroomDecision {
+	if (!headroom.allow || !llmfit) {
+		return headroom;
+	}
+	if (llmfitFitClears(llmfit)) {
+		return {
+			...headroom,
+			reason: `${headroom.reason} llmfit: ${llmfit.fitLevel} (~${llmfit.memoryRequiredGb ?? "?"} GB).`,
+		};
+	}
+	return {
+		...headroom,
+		allow: false,
+		reason: `llmfit fit is "${llmfit.fitLevel ?? "unknown"}" (~${llmfit.memoryRequiredGb ?? "?"} GB needed) — refusing despite RAM headroom; its per-quant/MoE estimate is tighter than the bytes heuristic.`,
 	};
 }

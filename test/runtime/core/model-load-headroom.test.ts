@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { decideModelLoad, parseModelSizeBytes, sumResidentBytes } from "../../../src/core/model-load-headroom";
+import type { LlmfitModel } from "../../../src/core/llmfit-adapter";
+import {
+	decideModelLoad,
+	parseModelSizeBytes,
+	refineLoadDecisionWithLlmfit,
+	sumResidentBytes,
+} from "../../../src/core/model-load-headroom";
 
 const GiB = 1024 ** 3;
 
@@ -59,5 +65,56 @@ describe("decideModelLoad", () => {
 		const base = { candidateSizeBytes: 10 * GiB, residentSizeBytes: 60 * GiB, totalRamBytes };
 		expect(decideModelLoad({ ...base, reserveFraction: 0.5 }).allow).toBe(false);
 		expect(decideModelLoad({ ...base, reserveFraction: 0.25 }).allow).toBe(true);
+	});
+});
+
+describe("refineLoadDecisionWithLlmfit", () => {
+	const GiB2 = 1024 ** 3;
+	const totalRam = 128 * GiB2;
+	const allow = decideModelLoad({
+		candidateSizeBytes: 6 * GiB2,
+		residentSizeBytes: 10 * GiB2,
+		totalRamBytes: totalRam,
+	});
+	const deny = decideModelLoad({
+		candidateSizeBytes: 200 * GiB2,
+		residentSizeBytes: 10 * GiB2,
+		totalRamBytes: totalRam,
+	});
+	const model = (over: Partial<LlmfitModel>): LlmfitModel => ({
+		name: "m",
+		bestQuant: null,
+		fitLevel: null,
+		memoryRequiredGb: null,
+		memoryAvailableGb: null,
+		estimatedTps: null,
+		isMoe: false,
+		moeOffloadedGb: null,
+		installed: false,
+		contextLength: null,
+		effectiveContextLength: null,
+		capabilityIds: [],
+		license: null,
+		...over,
+	});
+
+	it("a RAM-headroom DENY is final — llmfit cannot override it", () => {
+		expect(deny.allow).toBe(false);
+		expect(refineLoadDecisionWithLlmfit(deny, model({ fitLevel: "Perfect" })).allow).toBe(false);
+	});
+
+	it("headroom-allow + llmfit Perfect/Good ⇒ allow, noting llmfit", () => {
+		const r = refineLoadDecisionWithLlmfit(allow, model({ fitLevel: "Good", memoryRequiredGb: 5 }));
+		expect(r.allow).toBe(true);
+		expect(r.reason).toContain("llmfit: Good");
+	});
+
+	it("headroom-allow + llmfit Marginal/Too Tight ⇒ REFUSE (tighter estimate)", () => {
+		expect(refineLoadDecisionWithLlmfit(allow, model({ fitLevel: "Too Tight" })).allow).toBe(false);
+		expect(refineLoadDecisionWithLlmfit(allow, model({ fitLevel: "Marginal" })).allow).toBe(false);
+	});
+
+	it("no llmfit data ⇒ the headroom verdict stands", () => {
+		expect(refineLoadDecisionWithLlmfit(allow, null)).toEqual(allow);
 	});
 });
