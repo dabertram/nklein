@@ -3998,9 +3998,31 @@ deep analysis:
       → prompt-variant → cross-model-carry; `timeout` → context-shrink → reduced-tool-set → decompose) so a failure only
       tries rungs that plausibly help, **skips already-tried rungs (no circles)**, and **always parks** (budget spent /
       success / no untried rung) with an inspectable `reason` (feeds §5.AG + the §5.AF ledger). Pure, 8 unit tests; tsc +
-      biome green. **Still owed (the WIRING):** fire the chosen strategy at the shared model-call seam (chat + swarm),
-      feed `retryBudget` from the §5.AA `ModelBehaviorProfile` (now a ledger projection), and record each rung's outcome
-      back to the ledger so the ladder learns.
+      biome green. **DRIVER + CLASSIFIER SEAM DONE (2026-06-29):** the two pieces that turn the pure brain into an
+      effectful loop now exist in [src/core/adaptive-attempt-loop.ts](src/core/adaptive-attempt-loop.ts): (1)
+      `classifyTurnOutcome(signals)` maps ONE finished model turn (`toolCallsEmitted` / `toolExpected` / `looped` /
+      `malformed` / `timedOut` / `narratedCall`) to a §5.AA `ModelOutcomeKind` by precedence (a real call is always
+      `success`; a no-call with no tool expected is a legit answer, never `no_tool_call`); (2) `runAdaptiveAttemptLoop`
+      is the GENERIC, injectable driver over a `runAttempt(strategy, doNotRepeatNote)` closure — it fires ladder rungs in
+      the table's per-outcome order, skips tried rungs via capsules (no circles), carries the do-not-repeat note forward,
+      bounds by the learned per-model retry budget + a hard `maxAttempts` cap, and ALWAYS returns the best partial + an
+      inspectable park reason. Pure over the injected closure ⇒ one seam both the chat path and the swarm runtime can adopt
+      with no duplicated ladder logic; 9 unit tests (classifier precedence + loop ordering/skip/park/cap/best-partial).
+      **WIRING into the LIVE chat path is BEHAVIOR-CHANGING — DEFERRED pending the §5.Z oracle + a decision (2026-06-29):**
+      `createChatAgentModel`'s recovery ladder is currently a hand-ordered, LIVE-PROVEN sequence (reduced-tool-set →
+      prompt-variant → constrained-decoding; the proven phi-4-mini/coder-14b flips were via constrained firing after
+      reduction). Driving it through the engine collides on three concrete points that each alter the proven path and so
+      want the 9-model re-verify before landing: (a) **rung ORDER** — the table puts `constrained_schema` BEFORE
+      `prompt_variant`, the opposite of the just-shipped chat order; (b) **budget gating** — a cold-start profile yields
+      `minBudget` (=1) so the driver would PARK after the first failure and never ladder at all, UNLESS fed a real
+      profile (blocked on the `ModelBehaviorProfile` persistence item above) or a sensible fixed floor; (c) **reduction is
+      a multi-LEVEL loop** inside one rung today (level 1 then 2), which the one-attempt-per-rung driver would have to
+      preserve inside its `reduced_tool_set` executor. **Recommended sequencing:** land `ModelBehaviorProfile` persistence
+      first (gives the driver a real `retryBudget`), then adopt the driver on the chat path as ONE engine-ordered ladder
+      (accepting reduced→constrained→variant) with a live §5.Z re-verify that the proven flips hold + the 7 passing models
+      don't regress, then the swarm seam. **Still owed (the WIRING):** the above — fire the chosen strategy at the shared
+      model-call seam (chat + swarm) via `runAdaptiveAttemptLoop`, feed `retryBudget` from the §5.AA `ModelBehaviorProfile`
+      (a ledger projection), and record each rung's outcome back to the §5.AF ledger so the ladder learns.
 - [x] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)` (DONE 2026-06-26)** — gemma-e2b
       leaked exactly that into its final reply (§5.Z). Added a deliberately-specific `PLAIN_PROSE_TOOL_CALL` pattern
       (`tool call:` immediately followed by an identifier + `(` — a function-call shape) checked independently of the
