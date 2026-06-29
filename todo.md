@@ -1815,8 +1815,10 @@ deep analysis:
   - [x] **capability gate (2026-06-24)** — [src/chat/chat-modality.ts](src/chat/chat-modality.ts):
         `resolveChatModalities` / `isChatModalityAllowed` map a model's `supportsVision`/`supportsAttachments`
         (existing provider/registry metadata) to allowed modalities — text always on, image/attachment gated, audio
-        degraded to text (no flag yet). Pure + unit-tested. Still owed: wire it into the chat runtime + UI (offer/accept
-        attachments per the gate) + carry images over the bridge.
+        degraded to text (no flag yet). Pure + unit-tested.
+  - [ ] wire `resolveChatModalities` into the chat runtime (gate what the agent may accept per the model).
+  - [ ] UI: offer/accept image attachments only when the gate allows them.
+  - [ ] carry images over the messenger bridge (when bridged).
 - [~] **Execution-access modes (default = most isolated)**
   - [x] **policy gate (2026-06-24)** — [src/chat/chat-execution-mode.ts](src/chat/chat-execution-mode.ts):
         `decideChatActionAccess(mode, action)` → allow | confirm | deny, the pure single-source policy for the three
@@ -1834,7 +1836,9 @@ deep analysis:
         that fit a token budget (kept verbatim) vs the older overflow, always keeping the current/last turn even if it
         alone exceeds the budget; `consolidateChatContextWindow` folds the overflow into one summary via an injected
         summarizer (model call), invoked only when something overflows. Unit-tested (budget split, last-message-kept,
-        no-overflow, summarize-only-when-present). Still owed: wiring the runtime token estimator + the summarizer model.
+        no-overflow, summarize-only-when-present).
+    - [ ] wire the runtime token estimator into `splitChatContextWindow`.
+    - [ ] wire the summarizer model call into `consolidateChatContextWindow`.
   - [x] **long-term store + recall (2026-06-24)** — [src/chat/chat-memory-store.ts](src/chat/chat-memory-store.ts):
         persisted memories (append-only JSONL) + `recallChatMemories` — the pure, testable recall core that ranks
         session-accessible memories against a query by **cosine similarity when embeddings are present and degrades to
@@ -1845,7 +1849,10 @@ deep analysis:
         long-term memories from a session's rolling summary (extractor injected — a model call) and keeps only the
         genuinely new ones, dropping any that near-duplicate an already-accessible memory or an earlier candidate in
         the batch (embedding cosine when available, else lexical). Pure + unit-tested (existing-dup + within-batch-dup +
-        empty drop; embedding-based dedup). Still owed: wire the real embedder + extractor model + persist on session end.
+        empty drop; embedding-based dedup).
+    - [ ] wire the real embedder into `proposeConsolidatedMemories` dedup.
+    - [ ] wire the extractor model call that proposes candidate memories.
+    - [ ] persist consolidated memories on session end.
   - [ ] the ≥32k-floor budget integration (memory wired against the context floor)
   - [ ] opt-in access-all-loaded-projects memory scope
 - [x] **Rename the misleading chat "sandboxed" scope naming → make host-access explicit — DONE (2026-06-27, user
@@ -1899,7 +1906,9 @@ deep analysis:
         ([chat-tool-executor.ts](src/chat/chat-tool-executor.ts)) calls the gate per tool call, prompts the typed
         confirmation (the CLI's `--allow-write` stdin `y/N`), executes only on approval, and writes the audit entry
         every time. Live-verified: a spammed `write_file` ran only the one confirmed call; the rest were refused +
-        audited. Still owed: messenger access-control (with the bridge, LATER); a web-ui confirm affordance.
+        audited.
+    - [ ] add a web-ui confirm affordance for a gated host action (replace the CLI stdin y/N in the browser path).
+    - [>] messenger access-control — ships with the Signal bridge (LATER; bridge is `[?]`).
 - [x] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
       (persisted, editable, shown in UI + bridge; the §5.N focus-chain north star). **(shipped 2026-06-24: persisted +
       re-anchored into every turn + editable in the chat UI's session header; bridge surfacing LATER with the bridge.)**
@@ -1909,8 +1918,11 @@ deep analysis:
         ([chat-turn-context.ts](src/chat/chat-turn-context.ts)) carries it into **every** turn's context so it stays
         in focus across turns. Unit-tested (goal create/update/clear/preserve + goal in the composed turn context).
         Surfaced + editable in the chat UI's session header (2026-06-24); over the bridge LATER with the bridge.
-- [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling; reuse the runtime's
-      `"queue" | "steer"` delivery mode; wire through UI + bridge.
+- [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling, decomposed:
+  - [ ] backend: accept a mid-turn `steer` message and fold it into the active turn (reuse the runtime's
+        `"queue" | "steer"` delivery mode) without cancelling.
+  - [ ] UI: a composer affordance to send a steering message during an in-flight turn.
+  - [>] bridge: surface steering over the messenger bridge (LATER, with the bridge).
 - [ ] **LAYERED memory as one projection over the §5.AF substrate (2026-06-27, small-LLM research pass).**
       The chat memory core is a good start; the long-horizon
       story is four layers: **working** (active state + current step), **episodic** (the immutable §5.AF event/attempt
@@ -1921,6 +1933,18 @@ deep analysis:
       memory" a **namespaced scope**, not a shared boolean; add memory **governance** (provenance, scopes, deletion,
       contradiction-replacement, recency/frequency/importance, reversible history) + **"why recalled"** surfacing.
       Gate broadening memory scope on an internal LongMemEval-style task (§5.V).
+  - [ ] **Four memory layers** (one leaf each): define the **working** layer (active state + current step) ·
+        project the **episodic** layer over the §5.AF event/attempt ledger · build the **semantic** layer (extract
+        facts/preferences/project-constraints from episodes) · project the **procedural** layer over the §5.AE
+        `ProceduralSkillBank`.
+  - [ ] **Turn-budget allocator** (pure core): apportion the context window across the bands (system/invariants ·
+        objective/focus-chain · current message · recent transcript · overflow summary · semantic · episodic ·
+        procedural · tool defs), respecting the ≥32k floor; unit-test the allocation. (Ties §5.AD smart-zone.)
+  - [ ] **Namespaced memory scope** — replace the owed "access-all-loaded-projects" boolean with a namespaced scope.
+  - [ ] **Memory governance** (one leaf each): provenance tagging · scope enforcement · deletion · contradiction-
+        replacement · recency/frequency/importance weighting · reversible history.
+  - [ ] **"Why recalled" surfacing** — show, per recalled memory, why it was selected.
+  - [ ] gate broadening memory scope on passing an internal LongMemEval-style task (built under §5.V).
 
 ### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*
 > Every agent drafts an ordered checklist at task start + works through it — keeps small models on-task, makes
@@ -1928,11 +1952,13 @@ deep analysis:
 > + native kanban agent + chat agents (§5.M). Needs a real todo-list visual.
 - [~] **Model & store** — persisted ordered steps (text + status pending/in_progress/done/skipped) per task/session
   - [x] pure core (`src/core/focus-chain.ts`: normalize/summarize/format, cap 30) + `runtimeFocusChainSchema` on card; tested
-  - [ ] per-chat-session store (§5.M) + CRDT round-trip check (additive optional field)
+  - [ ] add a per-chat-session focus-chain store (§5.M).
+  - [ ] CRDT round-trip check for the focus-chain field (additive optional field).
 - [x] **Agent tool** — `update_focus_chain` (full-list re-emit, relaxed schema, `onUpdated`); unit-tested
 - [~] **Wire into every agent surface** — seed "draft a chain first" into per-task prompts; reviewer checks adherence
   - [x] board agents: "Focus Chain" rule pack + tool attached in the session runtime + state-hub persists onto `card.focusChain`
-  - [ ] chat-agent surface (§5.M) + optional re-prompt nudge when a task runs without a chain
+  - [ ] seed the "draft a chain first" rule into the chat-agent surface (§5.M).
+  - [ ] optional re-prompt nudge when a task runs without a focus chain.
 - [~] **Visual representation (todo list)** — checklist UI with done/in-progress/pending
   - [x] board: `FocusChainPanel` in card detail (✓/▸/○/– + x/total), threaded through `BoardCard` + normalizer
   - [ ] chat surface (§5.M)
