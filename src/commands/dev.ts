@@ -27,9 +27,14 @@ import {
 	learnedRetryBudget,
 	preferredToolCallFormat,
 } from "../core/model-behavior-profile";
+import { lookupModelCapability } from "../core/model-capability-catalog";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
-import { assessRuntimeModelVerdict, type RuntimeRunOutcome } from "../core/runtime-model-verdict";
+import {
+	assessRuntimeModelVerdict,
+	combineSuitabilityVerdicts,
+	type RuntimeRunOutcome,
+} from "../core/runtime-model-verdict";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
@@ -682,25 +687,33 @@ async function runDevModelVerdictCommand(options: { modelId?: string; json?: boo
 				(id): id is string => typeof id === "string" && id.length > 0,
 			);
 
-	const verdicts = modelIds
-		.map((modelId) => assessRuntimeModelVerdict({ modelId, events, runs }))
-		.sort((left, right) => right.sampleCount - left.sampleCount || left.modelId.localeCompare(right.modelId));
+	const combined = modelIds
+		.map((modelId) => {
+			const runtime = assessRuntimeModelVerdict({ modelId, events, runs });
+			const catalogVerdict = lookupModelCapability(modelId)?.toolUse ?? "UNKNOWN";
+			return combineSuitabilityVerdicts(catalogVerdict, runtime);
+		})
+		.sort(
+			(left, right) =>
+				right.runtime.sampleCount - left.runtime.sampleCount || left.modelId.localeCompare(right.modelId),
+		);
 
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify(verdicts, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify(combined, null, 2)}\n`);
 		return;
 	}
-	if (verdicts.length === 0) {
+	if (combined.length === 0) {
 		process.stdout.write("(no runtime evidence recorded yet — run some tasks, then re-check)\n");
 		return;
 	}
-	process.stdout.write("Runtime model verdicts (§5.AL — evidence-based, from persisted telemetry):\n");
-	for (const v of verdicts) {
+	process.stdout.write("Model suitability — catalog (pre-flight) × runtime (evidence) (§5.AL):\n");
+	for (const c of combined) {
+		const v = c.runtime;
 		const stalls = v.signalCounts.model_stalled;
 		process.stdout.write(
-			`  ${v.modelId.padEnd(40)} ${v.verdict.padEnd(16)} ${v.confidence.padEnd(6)} ` +
-				`${String(v.sampleCount).padStart(3)} run(s)  ${`${Math.round(v.stallRate * 100)}% stall`.padStart(10)} (${stalls})\n` +
-				`      ${v.reason}\n`,
+			`  ${c.modelId.padEnd(40)} catalog ${c.catalogVerdict.padEnd(16)} runtime ${v.verdict.padEnd(16)} ` +
+				`⇒ ${c.recommended.padEnd(16)} [${c.flag}]\n` +
+				`      ${String(v.sampleCount).padStart(3)} run(s)  ${`${Math.round(v.stallRate * 100)}% stall`.padStart(10)} (${stalls})  ${c.note}\n`,
 		);
 	}
 }

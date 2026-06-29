@@ -149,3 +149,85 @@ export function assessRuntimeModelVerdict(input: AssessRuntimeModelVerdictInput)
 
 	return { modelId: input.modelId, verdict, confidence, sampleCount, signalCounts, stallRate, reason };
 }
+
+/** Ordering of verdicts from worst→best for "take the more conservative" merges (`UNKNOWN` excluded — it's no-signal). */
+const VERDICT_RANK: Record<Exclude<ToolUseVerdict, "UNKNOWN">, number> = {
+	TOOL_UNSUITABLE: 0,
+	TOOL_WEAK: 1,
+	TOOL_CAPABLE: 2,
+	TOOL_NATIVE: 3,
+};
+
+/** How the curated catalog verdict and the runtime-evidence verdict relate — drives the operator surface (§5.AG/§5.AL). */
+export type CombinedSuitabilityFlag =
+	/** Both sources agree (or the runtime simply confirms the catalog). */
+	| "agree"
+	/** The catalog is `UNKNOWN` but runtime evidence gives a verdict — suggest a PROVISIONAL catalog entry to confirm. */
+	| "runtime_fills_unknown"
+	/** Runtime evidence is materially worse/better than the catalog says — investigate + reconcile the catalog. */
+	| "runtime_contradicts_catalog"
+	/** Not enough runtime evidence yet — the catalog verdict stands. */
+	| "insufficient_runtime_evidence";
+
+export interface CombinedSuitability {
+	modelId: string;
+	/** The curated, pre-flight catalog verdict (from `lookupModelCapability`); `UNKNOWN` when uncatalogued. */
+	catalogVerdict: ToolUseVerdict;
+	/** The evidence-derived runtime verdict. */
+	runtime: RuntimeModelVerdict;
+	/** The blended recommendation (conservative on a contradiction; runtime fills an `UNKNOWN` catalog). */
+	recommended: ToolUseVerdict;
+	flag: CombinedSuitabilityFlag;
+	note: string;
+}
+
+/**
+ * Blend the curated catalog verdict with the runtime-evidence verdict (pure) — the §5.AL "surface, don't auto-write"
+ * feedback step. With insufficient runtime evidence the catalog stands. When the catalog is `UNKNOWN`, runtime fills it
+ * (and we flag a provisional entry to confirm). When both have a verdict and they DISAGREE on the suitability ladder,
+ * take the more CONSERVATIVE (worse) one and flag it for the operator to reconcile the catalog. Never mutates anything.
+ */
+export function combineSuitabilityVerdicts(
+	catalogVerdict: ToolUseVerdict,
+	runtime: RuntimeModelVerdict,
+): CombinedSuitability {
+	const base = { modelId: runtime.modelId, catalogVerdict, runtime };
+
+	if (runtime.verdict === "UNKNOWN") {
+		return {
+			...base,
+			recommended: catalogVerdict,
+			flag: "insufficient_runtime_evidence",
+			note: `Catalog says ${catalogVerdict}; ${runtime.reason}`,
+		};
+	}
+	if (catalogVerdict === "UNKNOWN") {
+		return {
+			...base,
+			recommended: runtime.verdict,
+			flag: "runtime_fills_unknown",
+			note: `Uncatalogued — runtime evidence suggests ${runtime.verdict} (${runtime.sampleCount} run(s)). Confirm a provisional catalog entry.`,
+		};
+	}
+	// Runtime evidence tops out at TOOL_CAPABLE (no signal distinguishes NATIVE from CAPABLE), so collapse NATIVE→CAPABLE
+	// when comparing — otherwise every catalogued-NATIVE model would perpetually "contradict" once it logs clean runs.
+	const positiveFloor = (verdict: ToolUseVerdict): ToolUseVerdict =>
+		verdict === "TOOL_NATIVE" ? "TOOL_CAPABLE" : verdict;
+	if (positiveFloor(catalogVerdict) !== positiveFloor(runtime.verdict)) {
+		const recommended =
+			VERDICT_RANK[catalogVerdict] <= VERDICT_RANK[runtime.verdict] ? catalogVerdict : runtime.verdict;
+		return {
+			...base,
+			recommended,
+			flag: "runtime_contradicts_catalog",
+			note: `Catalog ${catalogVerdict} vs runtime ${runtime.verdict} (${runtime.sampleCount} run(s)) — using the more conservative ${recommended}; reconcile the catalog.`,
+		};
+	}
+	// Agree on the suitability axis — keep the catalog's (possibly more specific, e.g. NATIVE) verdict, runtime confirms it.
+	return {
+		...base,
+		recommended: catalogVerdict,
+		flag: "agree",
+		note: `Catalog and runtime agree (${catalogVerdict}${catalogVerdict === runtime.verdict ? "" : ` / runtime ${runtime.verdict}`}, ${runtime.sampleCount} run(s)).`,
+	};
+}

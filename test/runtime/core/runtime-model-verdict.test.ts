@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
 	assessRuntimeModelVerdict,
+	combineSuitabilityVerdicts,
 	MIN_RUNS_FOR_VERDICT,
+	type RuntimeModelVerdict,
 	type RuntimeRunOutcome,
 } from "../../../src/core/runtime-model-verdict";
 import type { SelfObservationEventRecord, SelfObservationSignal } from "../../../src/telemetry/self-observation-sink";
@@ -107,5 +109,54 @@ describe("assessRuntimeModelVerdict", () => {
 		expect(v.signalCounts.model_stalled).toBe(0);
 		expect(v.sampleCount).toBe(3);
 		expect(v.verdict).toBe("TOOL_CAPABLE");
+	});
+});
+
+describe("combineSuitabilityVerdicts", () => {
+	function runtimeVerdict(verdict: RuntimeModelVerdict["verdict"], sampleCount: number): RuntimeModelVerdict {
+		return {
+			modelId: "m",
+			verdict,
+			confidence: "medium",
+			sampleCount,
+			signalCounts: { model_stalled: 0, tool_argument_error: 0, verification_failed: 0, task_abandoned: 0 },
+			stallRate: 0,
+			reason: "test",
+		};
+	}
+
+	it("insufficient runtime evidence ⇒ the catalog verdict stands", () => {
+		const c = combineSuitabilityVerdicts("TOOL_NATIVE", runtimeVerdict("UNKNOWN", 1));
+		expect(c.recommended).toBe("TOOL_NATIVE");
+		expect(c.flag).toBe("insufficient_runtime_evidence");
+	});
+
+	it("UNKNOWN catalog ⇒ runtime fills it, flagged for a provisional entry", () => {
+		const c = combineSuitabilityVerdicts("UNKNOWN", runtimeVerdict("TOOL_CAPABLE", 6));
+		expect(c.recommended).toBe("TOOL_CAPABLE");
+		expect(c.flag).toBe("runtime_fills_unknown");
+	});
+
+	it("a contradiction takes the more conservative verdict + flags reconciliation", () => {
+		// catalog optimistic, runtime worse ⇒ recommend the worse one.
+		const c = combineSuitabilityVerdicts("TOOL_NATIVE", runtimeVerdict("TOOL_WEAK", 8));
+		expect(c.recommended).toBe("TOOL_WEAK");
+		expect(c.flag).toBe("runtime_contradicts_catalog");
+		// catalog pessimistic, runtime better ⇒ still take the more conservative (catalog).
+		const c2 = combineSuitabilityVerdicts("TOOL_WEAK", runtimeVerdict("TOOL_CAPABLE", 8));
+		expect(c2.recommended).toBe("TOOL_WEAK");
+		expect(c2.flag).toBe("runtime_contradicts_catalog");
+	});
+
+	it("agreement passes through", () => {
+		const c = combineSuitabilityVerdicts("TOOL_CAPABLE", runtimeVerdict("TOOL_CAPABLE", 5));
+		expect(c.recommended).toBe("TOOL_CAPABLE");
+		expect(c.flag).toBe("agree");
+	});
+
+	it("NATIVE catalog + CAPABLE runtime is NOT a contradiction (runtime can't prove NATIVE) — agree, keep NATIVE", () => {
+		const c = combineSuitabilityVerdicts("TOOL_NATIVE", runtimeVerdict("TOOL_CAPABLE", 8));
+		expect(c.flag).toBe("agree");
+		expect(c.recommended).toBe("TOOL_NATIVE");
 	});
 });

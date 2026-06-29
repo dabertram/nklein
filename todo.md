@@ -5944,8 +5944,15 @@ deep analysis:
             qwopus-27b→UNKNOWN (2 runs, too few). **Minor data-hygiene note:** the ledger records both bare (`qwopus3.6-27b-v2-mlx`)
             and provider-qualified (`lmstudio:…:http://…/v1`) model ids → they show as separate rows; a future
             `normalizeModelId` pass could collapse them.
-      - [ ] **Remaining:** blend the runtime verdict into §5.AB selection (alongside the ledger) + surface where the
-            catalog verdict is `unknown`/`warn` (a provisional entry to confirm), and the §5.AG model-selector badge.
+      - [x] **Catalog × runtime combiner DONE (2026-06-29):** `combineSuitabilityVerdicts` (pure) blends the curated
+            pre-flight catalog verdict with the runtime-evidence verdict — `insufficient_runtime_evidence` (catalog
+            stands) · `runtime_fills_unknown` (uncatalogued → suggest a provisional entry) · `runtime_contradicts_catalog`
+            (take the more conservative + reconcile) · `agree`. NATIVE↔CAPABLE collapsed so a catalogued-NATIVE model
+            doesn't perpetually "contradict" (runtime tops out at CAPABLE). `dev model-verdict` shows the combined
+            catalog×runtime×recommended table; +5 tests. Live: qwen3-8b → catalog NATIVE × runtime CAPABLE ⇒ NATIVE [agree].
+      - [ ] **Remaining:** blend the recommended verdict into the §5.AB selection ranking (alongside the ledger) so a
+            runtime-contradicted model is de-prioritized live; the §5.AG model-selector badge; and a one-button
+            "confirm provisional entry → catalog" flow for `runtime_fills_unknown`.
 - [ ] **Keep extending the catalog (standing).** Per §4A: every model sweep / live run that surfaces a new capability
       fact (a verdict flip, a new failure dialect, a confirmed-vs-broken quant) is folded into the catalog in the same
       change — flip the verdict, append the note, cite the source, set `basis: "empirical"`/`"both"`. Verify the
