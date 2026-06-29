@@ -4721,8 +4721,11 @@ deep analysis:
       test + per-write-site audit; backend + web gate green. **GLOBAL SETTINGS UI DONE (2026-06-29):** a "Skill dynamics"
       dropdown in the runtime Settings dialog ([runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx))
       — wired through state + initial + dirty-detection + reset + the save payload (`skillDynamicsLevelDefault`), mirroring
-      the §5.AL model-gate control; web gate (749) green. **Still owed:** the per-PROJECT Settings dialog control (the
-      override) + the orthogonal per-role model-class cap; and the resolver/prompt-assembly consumer reading
+      the §5.AL model-gate control; web gate (749) green. **PER-PROJECT SETTINGS UI DONE (2026-06-29):** a "Skill dynamics"
+      override section in the Project Settings dialog ([project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx))
+      — a toggle + level dropdown seeded from the global default, saving a scoped `skillDynamicsLevelOverride` (null when
+      off), mirroring the model-gate override. So the control surface is COMPLETE end-to-end (config + global + per-project
+      UI). **Still owed:** the orthogonal per-role model-class cap; and the resolver/prompt-assembly consumer reading
       `effectiveSkillDynamicsLevel` (oracle-gated).
 - [ ] **Wire the composed fragments into the board + chat prompt assembly** (replacing today's hard-coded always-on blocks)
       → §5.AD arrangement orders them, §6.2 caps them. Each behind a live §5.Z re-verify (no regression; weak models should
