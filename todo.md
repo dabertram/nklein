@@ -6295,7 +6295,12 @@ deep analysis:
       (2 tests, green in chromium) proves the UI reacts live to a streamed `task_sessions_updated` frame (running→working,
       running→paused). LEARNED: the runtime-state reducer is **updatedAt-GATED** — sequential summary frames need an
       increasing `updatedAt` (the builder now auto-advances it). The "LLM-use" payoff (chat-send→assistant-stream) follows this pattern.
-  - [ ] **chat-agent stream spec (the LLM-use payoff) — needs one more investigation.** Attempted 2026-06-29: open the card
+  - [x] **chat-agent stream spec (the LLM-use payoff) — LANDED 2026-06-29.** `web-ui/tests/chat-agent-stream.spec.ts`
+        (green in chromium): a streamed `task_chat_message` assistant response renders LIVE in the card's agent chat panel
+        — the "UI + LLM use" e2e, deterministic + model-free. The key (found via browser DOM-inspection): the per-card agent
+        chat panel renders ONLY for an `agentId:"nklein"` card (card-detail-view.tsx:515); "Open chat" (chat SIDEBAR) and a
+        running session ("Thinking…" view) were both red herrings. Pattern documented below for any further per-card specs.
+  - [ ] *(historical investigation notes — superseded by the LANDED spec above)* Attempted 2026-06-29: open the card
         (click its title `p`) → push a running session → push a `task_chat_message` (assistant) → assert the text. The text did
         NOT render — clicking the title opens the detail panel but the AGENT CHAT PANEL (`nklein-agent-chat-panel`) didn't surface
         the streamed message. Likely the chat panel needs the chat SESSION selected/initialized (or a tab switch), or
