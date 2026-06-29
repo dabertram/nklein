@@ -22,6 +22,7 @@ import {
 } from "./chat-session-store";
 import type { ChatMessage } from "./chat-transcript-store";
 import { appendChatMessage, readChatTranscript } from "./chat-transcript-store";
+import { decideChatModelGate } from "./local-chat-model";
 
 /**
  * Board-independent chat service (todo §5.M) — the single aggregation seam over the chat session + transcript
@@ -198,6 +199,19 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			// plain model deps. Null ⇒ fall through to the plain `runChatTurn` path below (e.g. no active workspace).
 			const agentToolDeps = options.resolveAgentToolDeps ? await options.resolveAgentToolDeps(session) : null;
 			if (agentToolDeps) {
+				// §5.AL capability gate (web-ui/API chat path): the tool-using agent needs a tool-capable model, so refuse a
+				// catalog-`reject` model up front (e.g. a reasoning-only variant) rather than burning the turn on a model that
+				// can't drive tools. Override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1; warn/unknown proceed. Only when the model
+				// id is known (the live local resolver supplies it); a fake/test modelDeps without it is unaffected.
+				if (modelDeps.modelId) {
+					const gate = decideChatModelGate(modelDeps.modelId, {
+						toolUsing: true,
+						allowOverride: process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL === "1",
+					});
+					if (gate.action === "reject") {
+						throw new Error(gate.message);
+					}
+				}
 				const agentResult = await runChatAgentTurn(
 					{
 						session,

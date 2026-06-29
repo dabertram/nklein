@@ -38,6 +38,8 @@ export interface ChatModelDeps {
 	/** Completes the prompt; when `onToken` is given and the client streams, tokens arrive incrementally. */
 	complete: (prompt: ChatPromptMessage[], onToken?: (delta: string) => void) => Promise<string>;
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
+	/** The resolved model id (§5.AL) — lets the chat service apply the capability gate when tools are in play. */
+	modelId?: string;
 }
 
 /** Strip inline `<think>…</think>` reasoning blocks a model may leave in its content. */
@@ -58,10 +60,11 @@ const DEFAULT_SAMPLING: LocalLlmSamplingOptions = { temperature: 0.3, maxTokens:
 
 export function createChatModelDeps(
 	client: ChatCompletionClient,
-	options: { sampling?: LocalLlmSamplingOptions } = {},
+	options: { sampling?: LocalLlmSamplingOptions; modelId?: string } = {},
 ): ChatModelDeps {
 	const sampling = options.sampling ?? DEFAULT_SAMPLING;
 	return {
+		...(options.modelId ? { modelId: options.modelId } : {}),
 		complete: async (prompt, onToken) => {
 			const messages = prompt.map((message) => ({ role: message.role, content: message.content }));
 			if (onToken && client.completeStream) {

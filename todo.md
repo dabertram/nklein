@@ -5592,8 +5592,12 @@ deep analysis:
 - [x] **Live-use gate: runtime task-start (2026-06-29).** [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)
       refuses a catalog-`reject` PRIMARY model up front (a task session is an agentic tool-using run) with a clear error +
       the `NKLEIN_ALLOW_UNSUITABLE_MODEL=1` override; pure check (applies in tests, but only `reject` blocks so it can't
-      wedge ordinary runs). STILL TODO: the chat send-turn API endpoint (the web-ui chat path), and surfacing warn/unknown
-      caveats through the §5.AG operator-UX rather than only at the CLI.
+      wedge ordinary runs).
+- [x] **Live-use gate: chat send-turn API / web-ui path (2026-06-29).** `chatService.sendMessage` applies
+      `decideChatModelGate` on the TOOL-using branch (when `resolveAgentToolDeps` is non-null) — refuses a catalog-`reject`
+      model with a clear error surfaced to the web-ui, override `NKLEIN_ALLOW_UNSUITABLE_MODEL=1`. Plumbed the resolved
+      `modelId` onto `ChatModelDeps` (set by `resolveLocalChatModelDeps`); a fake modelDeps without it is unaffected. +2
+      tests. STILL TODO: surface warn/unknown caveats through the §5.AG operator-UX (not just a hard reject), and a UI badge.
 - [ ] **Settings surface (global + project override) in the UI/config.** The policy is plumbed through the runner today;
       expose `onUnsuitable` / `onUnknown` (allow | warn | reject) as a **global setting with a per-project override** in the
       config contract + Settings UI (§5.W pattern), and thread the resolved policy from the live model-load + chat/agent

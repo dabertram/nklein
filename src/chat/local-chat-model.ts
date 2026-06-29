@@ -127,5 +127,5 @@ export async function resolveLocalChatModelDeps(options: ResolveLocalChatModelOp
 		throw new Error(`No loaded local model found at ${baseUrl}. Load a model (e.g. in LM Studio) and try again.`);
 	}
 	const client = new LocalLlmClient({ providerId, modelId, baseUrl });
-	return createChatModelDeps(client);
+	return createChatModelDeps(client, { modelId });
 }

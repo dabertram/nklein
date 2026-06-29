@@ -130,6 +130,51 @@ describe("createChatService", () => {
 		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
 	});
 
+	it("§5.AL gate: refuses a catalog-`reject` model on the tool-using path (modelId known)", async () => {
+		const service = createChatService({
+			rootDir,
+			// A reasoning-only model id (TOOL_UNSUITABLE) supplied on the model deps + tools in play → reject.
+			resolveModelDeps: async () => ({
+				complete: async () => "unused",
+				summarize: async () => "",
+				modelId: "microsoft/phi-4-mini-reasoning",
+			}),
+			resolveAgentToolDeps: async () => ({
+				model: async () => ({ text: "should not run", toolCalls: [] }),
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+		});
+		const session = await service.createSession({ title: "Gate", scope: "chat_only" });
+		await expect(service.sendMessage({ sessionId: session.id, message: "do a thing" })).rejects.toThrow(
+			/not suitable for the tool-using chat agent/i,
+		);
+	});
+
+	it("§5.AL gate: a tool-capable model on the tool path proceeds (no false reject)", async () => {
+		let ran = false;
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({
+				complete: async () => "unused",
+				summarize: async () => "",
+				modelId: "qwen/qwen3-8b",
+			}),
+			resolveAgentToolDeps: async () => ({
+				model: async () => {
+					ran = true;
+					return { text: "done", toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+		});
+		const session = await service.createSession({ title: "GateOk", scope: "chat_only" });
+		const result = await service.sendMessage({ sessionId: session.id, message: "hi" });
+		expect(ran).toBe(true);
+		expect(result?.assistantMessage.content).toBe("done");
+	});
+
 	it("runs an autonomous session to completion when the agent declares the goal done (todo §5.0.1)", async () => {
 		const executed: string[] = [];
 		let modelCall = 0;
