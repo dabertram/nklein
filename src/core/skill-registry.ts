@@ -144,6 +144,40 @@ export function resolveApiProfileForSkills(skills: readonly Skill[]): SkillApiPr
 	return profile;
 }
 
+const REASONING_BY_RANK = ["off", "low", "high"] as const;
+
+/** Difficulty thresholds (the `estimateTaskDifficulty` 0..1 score) for the implied reasoning intensity. */
+export const DIFFICULTY_REASONING_LOW_MAX = 0.33;
+export const DIFFICULTY_REASONING_HIGH_MIN = 0.66;
+
+/** The reasoning intensity a task's difficulty alone implies: trivial ⇒ `off` (fast, less truncation), hard ⇒ `high`. */
+function reasoningForDifficulty(difficulty: number): "off" | "low" | "high" {
+	if (difficulty >= DIFFICULTY_REASONING_HIGH_MIN) {
+		return "high";
+	}
+	if (difficulty < DIFFICULTY_REASONING_LOW_MAX) {
+		return "off";
+	}
+	return "low";
+}
+
+/**
+ * §5.AE/§5.AB per-TASK modulation of a merged profile by the task's difficulty (pure). The §5.AB `estimateTaskDifficulty`
+ * 0..1 score implies a reasoning intensity (trivial ⇒ `off` for speed + less truncation per §5.AN; hard ⇒ `high`). An
+ * UNOPINIONATED reasoning (`inherit`/absent — e.g. `code_editing`, by design) is FILLED with the difficulty-implied
+ * value; an EXPLICIT skill intensity (a reviewer's `high`) is only ever RAISED by difficulty, never lowered (the skill's
+ * deliberate floor wins). All other levers pass through untouched. Returns a new profile; never mutates the input.
+ */
+export function modulateApiProfileForDifficulty(profile: SkillApiProfile, difficulty: number): SkillApiProfile {
+	const implied = reasoningForDifficulty(difficulty);
+	const current = profile.reasoning;
+	const reasoning =
+		current === undefined || current === "inherit"
+			? implied
+			: REASONING_BY_RANK[Math.max(REASONING_RANK[current], REASONING_RANK[implied])];
+	return { ...profile, reasoning };
+}
+
 export interface SkillRelevanceInput {
 	/** The active role (architect | worker | reviewer | retriever | researcher | …), when known. */
 	role?: string | null;

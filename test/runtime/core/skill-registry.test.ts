@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	fragmentsForSkills,
 	getSkillById,
+	modulateApiProfileForDifficulty,
 	resolveApiProfileForSkills,
 	SKILL_REGISTRY,
 	type Skill,
@@ -97,5 +98,30 @@ describe("resolveApiProfileForSkills", () => {
 
 	it("web_retrieval alone yields structured output but no reasoning opinion", () => {
 		expect(resolveApiProfileForSkills([webRetrieval])).toEqual({ structuredOutput: true });
+	});
+});
+
+describe("modulateApiProfileForDifficulty", () => {
+	it("fills an unopinionated reasoning from difficulty (trivial ⇒ off, hard ⇒ high, mid ⇒ low)", () => {
+		expect(modulateApiProfileForDifficulty({}, 0.1).reasoning).toBe("off");
+		expect(modulateApiProfileForDifficulty({ reasoning: "inherit" }, 0.5).reasoning).toBe("low");
+		expect(modulateApiProfileForDifficulty({ reasoning: "inherit" }, 0.9).reasoning).toBe("high");
+	});
+
+	it("difficulty only RAISES an explicit skill intensity, never lowers it", () => {
+		// reviewer's explicit high stays high even on a trivial task.
+		expect(modulateApiProfileForDifficulty({ reasoning: "high" }, 0.0).reasoning).toBe("high");
+		// an explicit low is raised to high by a hard task.
+		expect(modulateApiProfileForDifficulty({ reasoning: "low" }, 0.9).reasoning).toBe("high");
+		// an explicit off is NOT lowered (already lowest) and is raised on a hard task.
+		expect(modulateApiProfileForDifficulty({ reasoning: "off" }, 0.9).reasoning).toBe("high");
+		expect(modulateApiProfileForDifficulty({ reasoning: "low" }, 0.1).reasoning).toBe("low");
+	});
+
+	it("passes through the other levers and does not mutate the input", () => {
+		const input = { reasoning: "inherit", structuredOutput: true, temperature: 0.2 } as const;
+		const out = modulateApiProfileForDifficulty(input, 0.9);
+		expect(out).toEqual({ reasoning: "high", structuredOutput: true, temperature: 0.2 });
+		expect(input.reasoning).toBe("inherit"); // input untouched
 	});
 });

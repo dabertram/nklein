@@ -4833,10 +4833,16 @@ deep analysis:
             for a switch-capable family via [model-thinking-control.ts](src/core/model-thinking-control.ts); a model with
             no switch records a skipped note, never forces a token it ignores). Structured-output/force-call/temperature
             pass through. 7 tests. PURE — the effectful application stays at the call seam.
+      - [x] **Per-TASK difficulty modulation DONE (2026-06-29):** `modulateApiProfileForDifficulty(profile, difficulty)`
+            ([skill-registry.ts](src/core/skill-registry.ts)) — the §5.AB `estimateTaskDifficulty` 0..1 score implies a
+            reasoning intensity (trivial ⇒ `off`, mid ⇒ `low`, hard ⇒ `high`); an unopinionated `inherit`/absent reasoning
+            (e.g. `code_editing`) is filled, an explicit skill intensity (a reviewer's `high`) is only ever RAISED, never
+            lowered. Pure, non-mutating; +3 tests.
       - [ ] **Remaining (call-seam WIRING, behind a live §5.Z re-verify):** apply the resolved request at the model-call
             seam — append `thinkingDirective` to the turn, set `response_format` when `preferStructuredOutput`, fire the
             constrained force-call rung PROACTIVELY (§5.AA: a no-call turn ends the loop), pass `temperature` — on the chat
-            adapter and (once §5.AA `beforeModel` lands) the swarm path. Plus §5.AB per-task difficulty modulation of the profile.
+            adapter and (once §5.AA `beforeModel` lands) the swarm path. The pure pieces (merge → difficulty-modulate →
+            `resolveApiProfileRequest` model-gating) are all in place; this is the effectful seam + the §5.AB difficulty source.
       The §5.AN sweep surfaced a toolbox of per-request API levers (reasoning control `/no_think`↔`/think` + effort,
       structured-output `response_format json_schema`, the constrained force-a-call rung, endpoint dialect, sampling temp,
       the §5.AD context budget). Today they're applied ad-hoc or globally. **Make them a first-class, declarative profile the
