@@ -44,6 +44,7 @@ import {
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	type NKleinDevTestProjectPreset,
 	resolveNKleinDevTestProjectScenario,
+	scaffoldNKleinDevTestProject,
 } from "../nklein-agent/nklein-dev-test-project";
 import {
 	createDevTestStateReader,
@@ -367,7 +368,27 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	const write = options.write ?? ((text: string) => process.stdout.write(text));
 	const cwd = options.cwd ?? process.cwd();
 	const preset = parseDevTestPreset(options.preset);
-	const projectPath = resolveProjectInputPath(options.projectPath ?? cwd, cwd);
+	// With NO `--project-path`, SCAFFOLD a fresh isolated scenario project (template + `specification.md` + git init) and
+	// run against it — a true one-shot trustworthy verification (scaffold + seed + run, §5.AI). Without the scaffolded
+	// spec the decompose card has nothing to read and stalls; running against the cwd also risks workspace contamination.
+	// An explicit `--project-path` is used as-is (a real project or a pre-scaffolded one).
+	let projectPath: string;
+	let scaffoldedBaseRef: string | null = null;
+	if (options.projectPath) {
+		projectPath = resolveProjectInputPath(options.projectPath, cwd);
+	} else {
+		const globalConfig = await loadGlobalRuntimeConfig();
+		const scaffold = await scaffoldNKleinDevTestProject({
+			scenario: resolveNKleinDevTestProjectScenario(preset),
+			...(globalConfig.workspaceBaseDir ? { workspaceBaseDir: globalConfig.workspaceBaseDir } : {}),
+		});
+		projectPath = scaffold.workspacePath;
+		// Use the scaffold's actual default branch as the seed baseRef (its `git init` does not force `main`).
+		scaffoldedBaseRef = await execFileAsync("git", ["-C", projectPath, "rev-parse", "--abbrev-ref", "HEAD"])
+			.then(({ stdout }) => stdout.trim() || null)
+			.catch(() => null);
+		write(`Scaffolded isolated dev-test workspace: ${projectPath}\n`);
+	}
 	const workspace = await loadWorkspaceContext(projectPath, { autoCreateIfMissing: true });
 	const client = createDevRuntimeClient(workspace.workspaceId);
 	const modelId = options.modelId?.trim();
@@ -378,7 +399,7 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 		client,
 		workspaceId: workspace.workspaceId,
 		preset,
-		baseRef: options.baseRef ?? "main",
+		baseRef: options.baseRef ?? scaffoldedBaseRef ?? "main",
 		...(nkleinSettings ? { nkleinSettings } : {}),
 		...(options.plan === false ? { startInPlanMode: false } : {}),
 		...(typeof options.pollIntervalMs === "number" ? { pollIntervalMs: options.pollIntervalMs } : {}),
