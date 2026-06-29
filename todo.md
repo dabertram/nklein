@@ -4762,6 +4762,30 @@ deep analysis:
       stuck-point: extend the §5.AG "what was tried / get through the wall" surface + the §5.AA Layer-2 escalation into a
       **guided-resume** flow (inject targeted guidance → re-run the stuck card/job with it). The long-horizon payoff of
       the whole MCF; design-only until Phases A/B mature.
+- [ ] **★ Integrate `llmfit` for FIT + SPEED estimation + model DB (user 2026-06-29; MIT, https://github.com/AlexsJones/llmfit).**
+      A local Rust CLI/REST that does exactly the dimensions we hand-rolled crudely: (a) **fit** — does a model at a
+      given quant+context fit a machine's VRAM/RAM (per-quant, MoE-offload-aware, dynamic Q8→Q2 quant walk); (b) **speed**
+      — predicted tok/s; (c) **ranking** — quality/speed/fit/context → 0–100; plus a **206-model HF database**
+      (`data/hf_models.json`, refreshable via `make update-models`/`scrape_hf_models.py`) and **LM Studio provider
+      detection**. JSON output (`llmfit recommend --json`, `llmfit plan "<model>" --context N`, `llmfit fit`), also
+      `llmfit serve` (REST). **This COMPLEMENTS (doesn't replace) the §5.AL catalog:** llmfit = fit/speed/hardware;
+      §5.AL = our unique **tool-use / agentic suitability** verdicts (llmfit has none). Combine: llmfit narrows to what
+      FITS + is FAST on each pool → §5.AL filters to what's TOOL-CAPABLE for the role → §5.AB picks. Replaces the crude
+      `assessRosterFit`/`approxSizeGb` + `USER_MACHINE_BUDGETS_GB` heuristics with real estimates; feeds `decideModelLoad`
+      (§5.AB Model-ladder) + the per-machine pool routing (capabilityTier/predictedWallTime) + the §5.AB fitness store.
+      Decomposed:
+  - [ ] capability spike: install llmfit (homebrew/scoop/uv) + run `llmfit recommend --json` / `llmfit plan --json` on
+        this hardware; capture the exact JSON shapes (fit verdict, mem estimate, tok/s, score) into a doc.
+  - [ ] guarded CLI adapter `src/core/llmfit-adapter.ts` (pure parser for the JSON + a thin effectful runner, mirroring
+        the `lms` runner pattern) — `planModelFit(modelId, {contextLen, machine})` + `recommendModels({machine, useCase})`.
+  - [ ] feed llmfit's fit verdict into `decideModelLoad` (per-pool RAM/VRAM headroom) — supersede the `approxSizeGb` guess.
+  - [ ] feed tok/s + score into the §5.AB fitness store + the pool-routing `predictedWallTimeMs`/`capabilityTier`.
+  - [ ] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
+  - [ ] **EGRESS-GATED (prime directive #1):** the model-DB refresh (`make update-models` hits the HF API) + the
+        Community-Leaderboard/localmaxxing.com features are OUTBOUND network — opt-in/default-off + allow-listed, like the
+        §5.AC online-research tools; the offline embedded DB is fine local-only. Also a "update llmfit version" action.
+  - [ ] decide invocation mode: CLI shell-out (default, matches the `lms` pattern) vs `llmfit serve` REST (only if a
+        long-lived query surface is worth a second local process).
 - [ ] **Eval-prompt corpus (per role × difficulty × size), decomposed:**
   - [ ] Design + collect role-specific prompt templates (architect/decompose, worker/implement, reviewer) across difficulty tiers (trivial–very-hard).
   - [ ] Build deterministic scorers for each prompt family (valid DAG, passing code, defect-catching review).
