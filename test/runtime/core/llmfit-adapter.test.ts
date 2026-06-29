@@ -156,3 +156,15 @@ describe("llmfitRecommend / llmfitSystem (injected runner)", () => {
 		expect(await llmfitSystem(async () => ({ stdout: "boom", exitCode: 0 }))).toBeNull();
 	});
 });
+
+describe("llmfitPredictedWallTimeMs", () => {
+	it("converts estimated_tps + output tokens → wall ms (null when no usable tps)", async () => {
+		const { llmfitPredictedWallTimeMs, parseLlmfitModel } = await import("../../../src/core/llmfit-adapter");
+		const m = parseLlmfitModel({ name: "x", estimated_tps: 40 });
+		if (!m) throw new Error("parse");
+		expect(llmfitPredictedWallTimeMs(m, 1000)).toBe(25000); // 1000 / 40 * 1000
+		expect(llmfitPredictedWallTimeMs(m, 0)).toBeNull();
+		const noTps = parseLlmfitModel({ name: "y" });
+		expect(noTps && llmfitPredictedWallTimeMs(noTps, 1000)).toBeNull(); // no tps
+	});
+});

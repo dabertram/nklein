@@ -137,6 +137,19 @@ export function llmfitClaimsToolUse(model: LlmfitModel): boolean {
 	return model.capabilityIds.includes("tool_use");
 }
 
+/**
+ * Convert llmfit's `estimated_tps` (tokens/sec) into a predicted wall time (ms) for `outputTokens` — the
+ * `predictedWallTimeMs` input the §5.AB `role-model-selection` / `model-pool-routing` comparators rank by. Null when
+ * llmfit gave no usable tok/s (caller falls back to its observed-speed source). A rough estimate (decode only; ignores
+ * prompt/TTFT), but enough to order candidates speed-wise when no measured wall time exists yet.
+ */
+export function llmfitPredictedWallTimeMs(model: LlmfitModel, outputTokens: number): number | null {
+	if (model.estimatedTps === null || model.estimatedTps <= 0 || !(outputTokens > 0)) {
+		return null;
+	}
+	return Math.round((outputTokens / model.estimatedTps) * 1000);
+}
+
 // ───────────────────────────── effectful runner (the thin shell-out half) ─────────────────────────────
 
 /** Runs `llmfit` with argv, returns stdout + exit code. Injected so the calls are testable without a real binary. */
