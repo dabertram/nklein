@@ -5859,10 +5859,12 @@ deep analysis:
 - [~] **Use per-request API metrics for REAL speed/MCSR + reasoning-overhead.** **reasoning_tokens DONE (2026-06-29):**
       `/v1` `usage.completion_tokens_details.reasoning_tokens` is captured on `LocalLlmToolCompletion.reasoningTokens`
       (live-verified to track reasoning overhead) — a §5.AA truncation/over-rumination signal on the endpoint we already use.
-      **Still owed:** real tok/s + ttft (`/api/v0/chat/completions` `stats` — `/v1` carries a `stats` key but it's EMPTY here,
-      so this needs the `/api/v0` endpoint) to replace estimation, feeding §5.AB selection + §5.AD budget + the §4A stall
-      detector; and consuming `reasoningTokens` (thread to the §5.AF ledger attempt + let it trigger thinking-disable
-      proactively). Also `/api/v0/models` `arch`/`quantization`/`max_context_length` give a SOLID model-class signal
+      **real tok/s + ttft DONE as a diagnostic (2026-06-29):** `parseLmStudioRequestStats`
+      ([lmstudio-request-stats.ts](src/core/lmstudio-request-stats.ts)) extracts `/api/v0` `stats.tokens_per_second` +
+      `time_to_first_token`(s→ms) + `stop_reason` + `model_info`(arch/quant/context); `nklein dev model-speed` probes the
+      loaded LLM and prints REAL speed (live-verified: qwen3-8b → 130 tok/s · 169ms ttft · eosFound). **Still owed:** feed
+      these measured metrics into the §5.AB/MCSR selection path (vs estimation) at the live model-call seam; and consuming
+      `reasoningTokens` further (it's consumed by the chat truncation rung already; thread to the §5.AF ledger attempt too). Also `/api/v0/models` `arch`/`quantization`/`max_context_length` give a SOLID model-class signal
       (replacing the §5.AE `modelClassCap` capability-threshold heuristic with arch/size facts).
 - [x] **Anthropic `/v1/messages` force-a-call — INVESTIGATED & REJECTED (2026-06-29).** Hypothesis was that
       `tool_choice:{type:"any"}` forces a call; live re-verify DISPROVED it on LM Studio (`stop_reason:end_turn`, no call, on
