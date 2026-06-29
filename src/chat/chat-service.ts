@@ -58,6 +58,17 @@ export interface ChatServiceOptions {
 	/** §5.AL: the active project's effective model-gate policy (global default ← per-project override) used as the gate's
 	 *  base, so chat honors a per-project policy like task-start does (the env knobs still layer on top). Omit ⇒ env+default. */
 	resolveModelGatePolicyBase?: () => Promise<{ onUnsuitable: string; onUnknown: string } | null>;
+	/** §5.AF best-effort ledger sink for a tool-using chat turn (the chat-flow writer). Called AFTER the turn with the
+	 *  chat-specific attempt facts; the wiring assembles the envelope (workspace/provider/endpoint) + appends. Fire-and-
+	 *  forget — must never affect the turn (the implementation swallows its own errors). Omit to not write the ledger. */
+	recordChatAttempt?: (input: {
+		sessionId: string;
+		modelId: string;
+		toolNames: readonly string[];
+		hitIterationLimit: boolean;
+		startedAt: number;
+		endedAt: number;
+	}) => void;
 	/** Token estimator for the lean-window budget; defaults to ≈4 chars/token. */
 	estimateTokens?: (text: string) => number;
 }
@@ -225,6 +236,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						capabilityNotice = gate.message;
 					}
 				}
+				const turnStartedAt = Date.now();
 				const agentResult = await runChatAgentTurn(
 					{
 						session,
@@ -235,6 +247,18 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					},
 					{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
 				);
+				// §5.AF: best-effort append a `chat`-flow attempt event to the ledger (observational; never throws into
+				// the turn — the sink swallows its own errors). Only when the model id is known.
+				if (options.recordChatAttempt && modelDeps.modelId) {
+					options.recordChatAttempt({
+						sessionId: session.id,
+						modelId: modelDeps.modelId,
+						toolNames: agentResult.steps.map((step) => step.toolCall.name),
+						hitIterationLimit: agentResult.hitIterationLimit,
+						startedAt: turnStartedAt,
+						endedAt: Date.now(),
+					});
+				}
 				return {
 					userMessage: toRuntimeChatMessage(agentResult.userMessage),
 					assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),

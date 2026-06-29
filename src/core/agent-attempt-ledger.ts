@@ -111,6 +111,8 @@ const attemptEventSchema = z.object({
 	contextBudgetTarget: z.number().nullable(),
 	/** §5.AB task-difficulty label (trivial → very-hard) when estimated. */
 	difficulty: z.string().nullable(),
+	/** §5.AF/§5.Z FLOW the attempt ran under (e.g. `board` task / `chat` / `autonomous`) — distinguishes non-board attempts. */
+	flow: z.string().nullable(),
 	startedAt: z.number().nullable(),
 	completedAt: z.number().nullable(),
 	ttftMs: z.number().nullable(),
@@ -201,6 +203,7 @@ export interface BuildAttemptEventInput extends LedgerEnvelopeInput {
 	contextTokens?: number | null;
 	contextBudgetTarget?: number | null;
 	difficulty?: string | null;
+	flow?: string | null;
 	startedAt?: number | null;
 	completedAt?: number | null;
 	ttftMs?: number | null;
@@ -230,6 +233,7 @@ export function buildAttemptEvent(input: BuildAttemptEventInput): AgentAttemptEv
 		contextTokens: input.contextTokens ?? null,
 		contextBudgetTarget: input.contextBudgetTarget ?? null,
 		difficulty: input.difficulty ?? null,
+		flow: input.flow ?? null,
 		startedAt: input.startedAt ?? null,
 		completedAt: input.completedAt ?? null,
 		ttftMs: input.ttftMs ?? null,

@@ -83,6 +83,7 @@ import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
 import { applyNKleinPlanTaskGraphToBoard } from "../nklein-agent/nklein-decomposition-tool";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
+import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { createNKleinMcpRuntimeService } from "../nklein-agent/nklein-mcp-runtime-service";
@@ -99,7 +100,7 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import { setNKleinLostHeartbeatPolicy } from "../nklein-agent/nklein-session-state";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { openInBrowser } from "../server/browser";
-import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { readTaskRunSummaries } from "../state/task-run-summary-store";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
@@ -435,6 +436,26 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// policy like task-start does (env knobs still override on top).
 			resolveModelGatePolicyBase: async () =>
 				deps.getActiveRuntimeConfig?.()?.effectiveModelSuitabilityPolicy ?? null,
+			// §5.AF: the chat-flow ledger writer — assemble the envelope (workspace/provider/endpoint) from the active
+			// runtime + append one `chat` attempt event. Fully best-effort: any failure is swallowed (observational only).
+			recordChatAttempt: (input) => {
+				try {
+					const event = buildChatAttemptEvent({
+						sessionId: input.sessionId,
+						workspacePath: deps.getActiveWorkspacePath?.() ?? null,
+						providerId: DEFAULT_LOCAL_CHAT_PROVIDER_ID,
+						modelId: input.modelId,
+						endpoint: nkleinProviderService.getLocalChatBaseUrl() ?? null,
+						toolCalls: input.toolNames.map((name) => ({ name, fingerprint: null, outcome: null })),
+						hitIterationLimit: input.hitIterationLimit,
+						startedAt: input.startedAt,
+						endedAt: input.endedAt,
+					});
+					void appendAgentLedgerEvent(event).catch(() => {});
+				} catch {
+					// Observational only — never let ledger writing affect the chat turn.
+				}
+			},
 		});
 	// Autonomous chat runs (todo §5.0.1): background driver + per-session status, bounded by the global swarm guardrails.
 	const autonomousChatRun = createAutonomousChatRunController({

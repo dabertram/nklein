@@ -151,6 +151,42 @@ describe("createChatService", () => {
 		);
 	});
 
+	it("§5.AF: records a chat-flow ledger attempt after a tool-using turn (modelId + tool names + iteration flag)", async () => {
+		const recorded: Array<{ modelId: string; toolNames: readonly string[]; hitIterationLimit: boolean }> = [];
+		let turn = 0;
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({
+				complete: async () => "x",
+				summarize: async () => "",
+				modelId: "qwen/qwen3-8b",
+			}),
+			recordChatAttempt: (input) =>
+				recorded.push({
+					modelId: input.modelId,
+					toolNames: input.toolNames,
+					hitIterationLimit: input.hitIterationLimit,
+				}),
+			resolveAgentToolDeps: async () => ({
+				model: async (_messages, _allow) =>
+					(turn++ === 0
+						? { text: "", toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "x" } }] }
+						: { text: "done", toolCalls: [] }) as never,
+				executeTool: async (call) => ({ callId: call.id, content: "ok" }),
+				appendToolExchange: (messages, _r, results) => [
+					...messages,
+					...results.map((r) => ({ role: "system" as const, content: r.content })),
+				],
+			}),
+		});
+		const session = await service.createSession({ title: "Ledger", scope: "chat_only" });
+		await service.sendMessage({ sessionId: session.id, message: "read x" });
+		expect(recorded).toHaveLength(1);
+		expect(recorded[0]?.modelId).toBe("qwen/qwen3-8b");
+		expect(recorded[0]?.toolNames).toEqual(["read_file"]);
+		expect(recorded[0]?.hitIterationLimit).toBe(false);
+	});
+
 	it("§5.AL gate: a per-project policyBase (resolveModelGatePolicyBase) relaxes the chat reject to a warn-and-proceed", async () => {
 		let ran = false;
 		const service = createChatService({
