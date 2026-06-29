@@ -5615,6 +5615,12 @@ deep analysis:
       reproduce deterministically (run the full suite repeatedly; bisect which concurrent suite triggers it; capture
       `docker stats`/dmesg/exit reason at failure), then fix the actual cause (e.g. per-suite container mem limits +
       serialized workspace-root creation, or a sandbox-manager lock) — NOT by loosening the assertion.
+      **Mechanism narrowed (2026-06-29):** both failures are `docker exec` ops (`mkdir -p /workspaces` via
+      `assertSandboxExecOk`, and a `readFile` tool) returning **exit 137 = 128+SIGKILL** — the container/exec was KILLED,
+      not a logic error. Note for the next investigator: on macOS, Docker Desktop runs a VM with a FIXED memory budget
+      **independent of the host CPU power mode**, so parallel containers across suites can OOM-kill execs even in high
+      power — i.e. "high power mode" does NOT refute the memory-pressure hypothesis, but it is still UNVERIFIED until
+      `docker stats`/the kill reason is actually captured at failure time. Don't assert the cause; measure it.
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
