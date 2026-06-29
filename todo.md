@@ -4028,6 +4028,16 @@ deep analysis:
       narrowed to: **force a no-call turn (tiny token budget) and watch if the loop ends or continues.** That needs a
       max-output-tokens lever on the seed (nkleinSettings has timeout fields; check for an output-budget field, else the
       sampling/launch-config path) — the last small enabler. Everything else for the experiment is now in place + proven.
+      **★ ANSWERED (2026-06-29): a NO-CALL turn ENDS the swarm loop.** Forced phi-4-mini-reasoning through the gate
+      (`NKLEIN_ALLOW_UNSUITABLE_MODEL=1`) on an act run: it produced exactly ONE turn — `finishReason=stop hasToolCall=false
+      textLen=2907` (narrated a long prose answer, no tool call) — and the loop ENDED (1 turn, then stagnant). So
+      **reactive-nudge-on-the-NEXT-turn is INVALID** (there is no next turn after a no-call turn); the swarm recovery for a
+      ruminating/narrating/stalling reasoning model MUST be **PROACTIVE** — apply the lever (thinking-control `/no_think` for
+      a switch-capable model; or a forced-tool-call constrained turn) in `beforeModel` BEFORE the call, or as a §5.AA
+      pre-emptive policy for known-ruminators. Bonus validations from the same run: (a) the §5.AL suitability gate correctly
+      REJECTED phi at task-start (vindicated live — forced through, it just narrates, never acts); (b) the new `model_stalled`
+      self-observation correctly did NOT fire (textLen 2907 ≠ empty — no false-positive on a prose answer). **Net for the
+      swarm rungs: build them PROACTIVE (beforeModel), not reactive.** This unblocks the swarm-path §5.AA design.
 - [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
       Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
       reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
