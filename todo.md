@@ -4639,8 +4639,12 @@ deep analysis:
         — pure machine-pool picker over `{poolId, capabilityTier, freeSlots}`: capability-floor + free-capacity-first +
         `efficient` weighting (smallest-sufficient pool, so easy cards take m4mini/legion and the m5 stays free for hard
         cards); `capability` weighting for quality-max; `no_capacity` (queue) / `no_fit` results. 7 tests; tsc+biome green.
-        **Still owed (wiring):** compose it with `selectSwarmRoleModel` (pick pool → pick model within the pool) at the
-        live start-task seam, fed by the §6.5 scheduler's per-pool running counts + the resolved per-pool caps.
+        **COMPOSITION CORE DONE (2026-06-29):** [model-swarm-route.ts](src/core/model-swarm-route.ts)
+        `selectSwarmRouteForTask` — the end-to-end pure route: derives each pool's `capabilityTier` from its
+        class-ELIGIBLE candidates (a tool-unsuitable worker model can't make its machine count for the worker role),
+        runs `selectPoolForTask` (pick machine), then `selectSwarmRoleModel` within the chosen pool (pick model). 5
+        tests. **Still owed (the only remaining piece):** wire `selectSwarmRouteForTask` at the live start-task seam,
+        fed by the §6.5 scheduler's per-pool running counts + resolved per-pool caps (behavior-changing ⇒ §5.Z re-verify).
   - [ ] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
         cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface).
   - [ ] verify end-to-end: with ≥2 pools active, a wide DAG fans out across machines (easy cards land on the secondaries,
