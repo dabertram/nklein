@@ -6,6 +6,7 @@ import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
+import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -302,6 +303,8 @@ export async function handleStartTaskSession(
 					}),
 				),
 		);
+		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens);
+		const requiredContextTokens = estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow);
 		const freeFirstSelection = selectRoleModel({
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				modelKey: candidate.entry.key,
@@ -310,8 +313,8 @@ export async function handleStartTaskSession(
 				predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
 				isFree: !runningModelKeys.has(candidate.entry.key),
 			})),
-			difficulty: estimateNKleinStartDifficulty(promptTokens),
-			requiredContextTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
+			difficulty: taskDifficulty,
+			requiredContextTokens,
 			weighting: "efficient",
 		});
 		const freeFirstModelKey =
@@ -321,8 +324,8 @@ export async function handleStartTaskSession(
 				? freeFirstSelection.modelKey
 				: null;
 		const routingDecision = routeNKleinTask({
-			difficulty: estimateNKleinStartDifficulty(promptTokens),
-			fitBudgetTokens: estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow),
+			difficulty: taskDifficulty,
+			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
 			outputTokens: 1_000,
 			preferredModelKey: freeFirstModelKey ?? preferredCandidate.entry.key,
@@ -332,12 +335,42 @@ export async function handleStartTaskSession(
 				observedCapability: blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore),
 			})),
 		});
+		// §5.AB "why this model" — explain the routing decision so the operator (and §5.AG surfaces) can see the basis.
+		const selectionReason = renderModelSelectionReason(
+			explainModelSelection({
+				difficulty: taskDifficulty,
+				requiredContextTokens,
+				decisionKind: routingDecision.type,
+				selectedModelKey:
+					routingDecision.type === "assign" || routingDecision.type === "route_up"
+						? routingDecision.modelKey
+						: null,
+				decisionReason: routingDecision.reason,
+				candidates: [...guardCandidates.values()].map((candidate) => {
+					const ledgerSamples = ledgerSuccessByKey.get(candidate.entry.key)?.samples ?? 0;
+					return {
+						modelKey: candidate.entry.key,
+						role: candidate.role,
+						registryCapability: candidate.entry.capability.effectiveScore,
+						observedCapability:
+							ledgerSamples > 0
+								? blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore)
+								: null,
+						ledgerSamples,
+						contextWindow: candidate.entry.contextWindow.effective ?? 0,
+						isFree: !runningModelKeys.has(candidate.entry.key),
+						predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+					};
+				}),
+			}),
+		);
 		if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
 			return {
 				ok: false,
 				summary: null,
 				error: formatNKleinTaskRoutingBlockMessage(routingDecision),
 				errorCode: routingDecision.type === "decompose" ? "needs_decomposition" : "routing_escalation",
+				selectionReason,
 			};
 		}
 		const routedCandidate = guardCandidates.get(routingDecision.modelKey) ?? null;
@@ -442,6 +475,7 @@ export async function handleStartTaskSession(
 		return {
 			ok: true,
 			summary,
+			selectionReason,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);

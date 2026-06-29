@@ -119,6 +119,12 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 		.optional(),
 	retryAfterMs: z.number().int().nonnegative().nullable().optional(),
 	queued: z.boolean().optional(),
+	/**
+	 * §5.AB "why this model for this task" — an operator-readable explanation of the model-selection decision (the task
+	 * difficulty + context need, each candidate's registry vs ledger-blended capability, why each was kept/ruled out, and
+	 * which won). Present on a started/blocked routing decision; absent on early gate failures. Backward-compatible.
+	 */
+	selectionReason: z.string().optional(),
 });
 export type RuntimeTaskSessionStartResponse = z.infer<typeof runtimeTaskSessionStartResponseSchema>;
 
