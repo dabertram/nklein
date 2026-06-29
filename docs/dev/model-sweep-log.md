@@ -315,3 +315,9 @@
 - **Gate warn (live):** the `nklein chat` path printed `⚠️ Model capability warn: …` for the (then-uncatalogued) `nemotron-3-nano-4b` and proceeded — warn/unknown never wedges a run.
 - **nemotron-3-nano-4b e2e (HIGH power, correcting any prior Low-Power assumption):** used `read_file` then DROPPED the chain — no `run_command`/`create_card`/`update_focus_chain`, card NOT persisted → single-tool only, multi-tool chain fails (the ≤4B floor again). **Folded into the catalog**: broadened the Nemotron-Nano matcher to `/nemotron(-\d+)?-nano/` (covers the `nemotron-3-nano` generation) with the live note, verdict TOOL_WEAK (basis: both).
 > Takeaway: the catalog/gate now actively protect the load path + the chat use-path + task-start, and the "living artifact" loop works — a surfaced UNKNOWN model got a live capability check and a catalog entry in the same session.
+
+### 2026-06-29 · **qwen3-8b stochastic chaining — live positive+negative (HIGH power, fresh-loaded)** · chat-agent e2e
+> Loaded `qwen/qwen3-8b` via the guarded runner (gate ALLOWED TOOL_NATIVE, auto-unloaded nemotron, ctx 40000, 111.9 GiB free). Two back-to-back e2e runs:
+- **run 1: ❌ INCOMPLETE** — used `read_file` then NARRATED steps 2-4 as prose ("create_card(…) Output: Card created successfully") while only read_file actually executed; card did NOT persist. The §5.AA evidence-gate correctly refused the false "All steps completed" → INCOMPLETE (not a fake pass), but the layer couldn't force qwen to emit the real calls.
+- **run 2: ✅ PASS** — drove read_file + run_command + create_card + update_focus_chain; card persisted.
+> Conclusion: qwen3-8b multi-tool chaining is **stochastic even fresh-loaded** — the prior "✅ when fresh-loaded/spaced" note was too absolute; softened the catalog note accordingly. Key positive: the robustness layer's evidence-gate did its job (no false success on the narrated run). n=2, so judge qwen by a distribution of runs, not one.

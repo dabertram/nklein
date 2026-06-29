@@ -195,7 +195,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /qwen-?3-8b/,
 		toolUse: "TOOL_NATIVE",
 		kind: "agentic",
-		note: "Marketed for agentic tool use (Qwen-Agent, MCP). Strong single-turn; multi-turn/chaining degrades. Our best small performer — ✅ when fresh-loaded and spaced, with the constrained rung.",
+		note: "Marketed for agentic tool use (Qwen-Agent, MCP). Strong single-turn; multi-turn chaining is STOCHASTIC — live 2026-06-29 (HIGH power, fresh-loaded, back-to-back e2e): run 1 narrated steps 2-4 as prose → INCOMPLETE (the evidence-gate correctly refused the false 'done'), run 2 drove the full chain + persisted → PASS. Our best small performer, but don't assume a single run is representative.",
 		sources: ["https://qwenlm.github.io/blog/qwen3/"],
 		basis: "both",
 		verified: true,
