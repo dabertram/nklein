@@ -3102,11 +3102,13 @@ deep analysis:
   - [ ] **Chat e2e** — open the chat sidebar, create a session, send a message (mocked chat tRPC), assert the transcript
         grows + the `AutonomousRunBar` renders/disables correctly. Needs chat-procedure mocking added to the harness.
   - [~] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
-        trash, drag rules — Playwright, deep. **(Build on the harness.)** **(2026-06-29) LANDED 7 specs (full e2e 46→53):**
-        card-start (`runtime.startTaskSession`), card-pause (`runtime.pauseTask`), card-trash (`workspace.saveState`),
-        chat-send (`runtime.sendTaskChatMessage`), chat-agent-stream (a streamed assistant message renders — the LLM-use
-        payoff), board-session-stream (running→working, running→paused via streamed frames). Owed: resume, drag-move (dnd —
-        hard; use the programmatic affordance), and the lane-reconcile column move (needs a `workspace_state_updated` board frame).
+        trash, drag rules — Playwright, deep. **(Build on the harness.)** **(2026-06-29) LANDED 9 specs (full e2e 46→55):**
+        card-start (`runtime.startTaskSession`), card-pause (`runtime.pauseTask`), card-resume (`runtime.resumeTask`),
+        card-trash (`workspace.saveState`), chat-send (`runtime.sendTaskChatMessage`), chat-agent-stream (a streamed
+        assistant message renders — the LLM-use payoff), board-session-stream ×2 (running→working, running→paused),
+        board-lane-reconcile (streamed `workspace_state_updated` moves a card backlog→in_progress). Owed: drag-move (dnd —
+        hard; use the programmatic affordance) + the TIER-2 settings sub-sections (concurrency / model-roles editors — need
+        the settings-config mock, cf. settings.spec.ts's MOCK_CONFIG).
 - [~] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
       isolation status/pool UI, project-settings menu. Pair with §5.W.
       **Contract-seam coverage DONE (2026-06-26, 44 tests, Suite 16 — `test/contract/settings-config-contract.test.ts`).**
