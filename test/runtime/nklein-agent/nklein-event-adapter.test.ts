@@ -945,4 +945,344 @@ describe("applyNKleinSessionEvent", () => {
 		expect(result.entry.summary.latestHookActivity?.finalMessage).toBe("Unauthorized");
 		expect(result.entry.activeAssistantMessageId).toBeNull();
 	});
+
+	it("moves run-finished failed results into awaiting review without a warning message", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "run-finished",
+						snapshot: runtimeSnapshot(),
+						result: {
+							agentId: "agent-1",
+							runId: "run-1",
+							status: "failed",
+							iterations: 1,
+							outputText: "",
+							messages: [],
+						},
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.heartbeatStatus).toBe("lost");
+		expect(result.entry.summary.latestHookActivity?.hookEventName).toBe("agent_end");
+		expect(result.entry.summary.warningMessage).toBeNull();
+		expect(result.messages).toHaveLength(0);
+	});
+
+	it("attaches the final assistant message when a run-finished failed result carries output text", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "run-finished",
+						snapshot: runtimeSnapshot(),
+						result: {
+							agentId: "agent-1",
+							runId: "run-1",
+							status: "failed",
+							iterations: 1,
+							outputText: "Partial work, then crashed.",
+							messages: [],
+						},
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.latestHookActivity?.finalMessage).toBe("Partial work, then crashed.");
+		expect(result.messages[0]?.role).toBe("assistant");
+		expect(result.messages[0]?.content).toBe("Partial work, then crashed.");
+	});
+
+	it("moves done error events into awaiting review without a warning message", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "done",
+						reason: "error",
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.heartbeatStatus).toBe("lost");
+		expect(result.entry.summary.latestHookActivity?.hookEventName).toBe("agent_end");
+		expect(result.entry.summary.warningMessage).toBeNull();
+		expect(result.messages).toHaveLength(0);
+	});
+
+	it("attaches the final assistant message when a done error event carries text", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "done",
+						reason: "error",
+						text: "Failed: provider returned 500.",
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.latestHookActivity?.finalMessage).toBe("Failed: provider returned 500.");
+		expect(result.messages[0]?.role).toBe("assistant");
+		expect(result.messages[0]?.content).toBe("Failed: provider returned 500.");
+	});
+
+	it("parks a crashed agent into awaiting review with the error surfaced as a warning", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "run-failed",
+						snapshot: runtimeSnapshot(),
+						error: new Error("Runtime worker exited unexpectedly"),
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.warningMessage).toBe("Runtime worker exited unexpectedly");
+		expect(result.entry.summary.heartbeatStatus).toBe("lost");
+		expect(result.entry.summary.latestHookActivity?.hookEventName).toBe("agent_error");
+		expect(result.entry.summary.latestHookActivity?.notificationType).toBeNull();
+	});
+
+	it("trims a string run-failed error before surfacing it as a warning", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "run-failed",
+						snapshot: runtimeSnapshot(),
+						error: "  segfault in tool host  ",
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.warningMessage).toBe("segfault in tool host");
+	});
+
+	it("falls back to a generic warning when run-failed carries no error", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "run-failed",
+						snapshot: runtimeSnapshot(),
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.warningMessage).toBe("Unknown agent error");
+	});
+
+	it("flags credit-limit run-failed errors for NKlein providers", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			isNKleinProvider: true,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "run-failed",
+						snapshot: runtimeSnapshot(),
+						error: new Error("402 Insufficient balance. Your NKlein Credits balance is $0.00"),
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.latestHookActivity?.notificationType).toBe("credit_limit");
+		// KNOWN INCONSISTENCY B1: run-failed credit-limit keeps the raw warning text while the error-event arm suppresses it to null — pinned here; alignment is a deliberate UX decision, not changed in this coverage pass.
+		expect(result.entry.summary.warningMessage).toBe(
+			"402 Insufficient balance. Your NKlein Credits balance is $0.00",
+		);
+	});
+
+	it("does not flag credit-limit run-failed errors for non-NKlein providers", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			isNKleinProvider: false,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "run-failed",
+						snapshot: runtimeSnapshot(),
+						error: new Error("402 Insufficient balance. Your NKlein Credits balance is $0.00"),
+					},
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("error");
+		expect(result.entry.summary.latestHookActivity?.notificationType).toBeNull();
+		expect(result.entry.summary.warningMessage).toBe(
+			"402 Insufficient balance. Your NKlein Credits balance is $0.00",
+		);
+	});
+
+	it("treats an aborted ended event as interrupted", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "ended",
+				payload: {
+					sessionId: "session-1",
+					reason: "aborted",
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("interrupted");
+		expect(result.entry.summary.reviewReason).toBe("interrupted");
+		expect(result.entry.summary.heartbeatStatus).toBe("lost");
+	});
+
+	it("treats a user-interrupt ended event as interrupted", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "ended",
+				payload: {
+					sessionId: "session-1",
+					reason: "user-interrupt",
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("interrupted");
+		expect(result.entry.summary.reviewReason).toBe("interrupted");
+	});
+
+	it("moves an error ended event into awaiting review with an exit reason", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+
+		const result = applyEvent({
+			entry,
+			pendingTurnCancelTaskIds: new Set<string>(),
+			event: {
+				type: "ended",
+				payload: {
+					sessionId: "session-1",
+					reason: "error",
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("awaiting_review");
+		expect(result.entry.summary.reviewReason).toBe("exit");
+		expect(result.entry.summary.heartbeatStatus).toBe("lost");
+	});
+
+	it("converts an aborted ended event with pending cancel state back to idle", () => {
+		const entry = createEntry("task-1");
+		entry.summary.state = "running";
+		const pendingTurnCancelTaskIds = new Set<string>(["task-1"]);
+
+		const result = applyEvent({
+			entry,
+			pendingTurnCancelTaskIds,
+			event: {
+				type: "ended",
+				payload: {
+					sessionId: "session-1",
+					reason: "aborted",
+				},
+			},
+		});
+
+		expect(result.entry.summary.state).toBe("idle");
+		expect(result.entry.summary.reviewReason).toBeNull();
+		expect(result.entry.summary.latestHookActivity?.hookEventName).toBe("turn_canceled");
+		expect(result.pendingTurnCancelTaskIds.has("task-1")).toBe(false);
+	});
 });
