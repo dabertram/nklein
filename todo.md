@@ -3906,6 +3906,15 @@ deep analysis:
 >   swarm stops draining decomposed cards (concurrency/scheduler idle vs unmet card deps vs window/throttle); (b) the seed
 >   task left registered-as-running while idle (zombie registration blocking the endpoint). Re-run under stable thermal
 >   conditions with a generous window before concluding it's a bug vs a throttle/window artifact.
+> - **✅ FIX IMPLEMENTED 2026-06-29 (thread (a)) — deferred-for-overlap retry set (live multi-card confirmation owed).**
+>   `runtime-server.ts` now keeps a per-workspace `deferredOverlapTaskIdsByWorkspaceId` set: when `autoStartTaskIds` skips
+>   a card for file-overlap it records the id (instead of silently dropping it), and the completion handler retries that
+>   set (minus the just-completed task) alongside the dependency-newly-ready cards — so an overlap-skipped card is re-tried
+>   once the active task releases its file lock and can no longer orphan. Safe-by-construction: the retry goes through the
+>   SAME `autoStartTaskIds` guards (it re-checks live overlap and simply re-defers a still-conflicting card), so worst case
+>   it's a no-op — it cannot start a card the guard would block, and cannot make orphaning worse than today. **Owed:** a
+>   live multi-card run (e.g. `wide_fanout`, generous window) to CONFIRM all cards drain to completed (the change is unit-
+>   safe but the end-to-end drain wants a live check; deferred to stable thermals if a run is too noisy).
 > - **★ ROOT-CAUSED 2026-06-29 (thread (a)): the file-overlap auto-start skip ORPHANS a decomposed card.** Code trace, not a
 >   guess: `runtime-server.ts` `autoStartTaskIds` SKIPS a linked card when it likely touches the same files as an active
 >   task (`findActiveTaskLikelyTouchedFileOverlap`, a deliberate concurrency guard — lines ~352-363) and just `continue`s

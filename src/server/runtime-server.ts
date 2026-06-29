@@ -309,6 +309,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const getScopedTerminalManager = async (scope: RuntimeTrpcWorkspaceScope): Promise<TerminalSessionManager> =>
 		await deps.ensureTerminalManagerForWorkspace(scope.workspaceId, scope.workspacePath);
 	const nkleinTaskSessionServiceByWorkspaceId = new Map<string, NKleinTaskSessionService>();
+	// §5.AA/§5.AI: cards auto-start SKIPPED because they likely touch the same files as an active task (the concurrency
+	// guard below). Without this they orphan in planning/backlog — the completion handler only re-attempts dependency-edge
+	// successors, and a file-overlap skip is not a dependency block. We remember them per workspace and retry them on the
+	// next completion (when the overlapping task's file lock is released); `autoStartTaskIds` re-checks live overlap on
+	// each retry, so a still-overlapping card is simply deferred again. (In-memory for now; §5.AF could persist it.)
+	const deferredOverlapTaskIdsByWorkspaceId = new Map<string, Set<string>>();
 	const queuedStartDrainUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const nkleinWatcherRegistry = createNKleinWatcherRegistry();
 	// §5.AF durable queued-start store: one global JSONL snapshot under the runtime home, persisted on every queue
@@ -356,11 +362,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				});
 				if (overlappingTask) {
 					const sharedPaths = getSharedLikelyTouchedPaths(task, overlappingTask);
+					// Remember it so the completion handler retries it once the overlapping task releases its file lock —
+					// otherwise this card orphans (no dependency edge re-triggers it). Re-checked on each retry.
+					const deferred = deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+					deferred.add(task.id);
+					deferredOverlapTaskIdsByWorkspaceId.set(scope.workspaceId, deferred);
 					deps.warn(
-						`Skipped auto-start for linked task ${task.id} because it likely touches the same files as active task ${overlappingTask.id} (shared: ${sharedPaths.join(", ") || "?"}).`,
+						`Skipped auto-start for linked task ${task.id} because it likely touches the same files as active task ${overlappingTask.id} (shared: ${sharedPaths.join(", ") || "?"}); deferred for retry on next completion.`,
 					);
 					continue;
 				}
+				// About to start it — it is no longer deferred-for-overlap.
+				deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(task.id);
 				// Every started card enters the Planning/Refinement lane first (todo §5.B), work or decompose alike.
 				const targetColumnId = STARTED_CARD_ENTRY_LANE;
 				const started = await runtimeApi.startTaskSession(scope, {
@@ -634,7 +647,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					await service.stopTaskSession(taskId).catch(() => null);
 					drainQueuedTaskStarts(scope, { force: true });
-					await autoStartTaskIds(scope, readyTaskIds);
+					// §5.AA/§5.AI: retry cards deferred for file-overlap (this completion may have released the file lock)
+					// alongside the dependency-newly-ready ones, so an overlap-skipped card can no longer orphan. The just-
+					// completed task is excluded; `autoStartTaskIds` re-checks overlap and re-defers any still-conflicting card.
+					const deferredOverlapTaskIds = [
+						...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? []),
+					].filter((deferredTaskId) => deferredTaskId !== taskId);
+					await autoStartTaskIds(scope, [...new Set([...readyTaskIds, ...deferredOverlapTaskIds])]);
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
