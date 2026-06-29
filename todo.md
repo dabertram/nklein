@@ -6288,8 +6288,14 @@ deep analysis:
       `package.json` (it's the best merge-safety layer — spawned backend, isolated home, free ports, raw HTTP/WS, mock
       LLM, on-disk seams; was hidden inside the broad `test`). Named in the path→gate manifest above for every tRPC /
       config-schema / persistence / task-lifecycle / settings change. Verified: runs green — 18 files / 272 tests.
-- [ ] **`web:e2e:smoke` canary — hermetic mock foundation, decomposed:**
-  - [ ] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema).
+- [~] **`web:e2e:smoke` canary — hermetic mock foundation, decomposed:** **(2026-06-29) STREAMING layer built + PROVEN
+      in-browser:** `web-ui/tests/harness/runtime-mock.ts` now exposes `pushFrame` + typed frame builders
+      (`taskSessionsUpdatedFrame`/`taskChatMessageFrame`/`taskReadyForReviewFrame`/`chatMessage`/`taskSessionSummary`) so a
+      spec can stream post-hydration runtime frames deterministically (model-free). `web-ui/tests/board-session-stream.spec.ts`
+      (2 tests, green in chromium) proves the UI reacts live to a streamed `task_sessions_updated` frame (running→working,
+      running→paused). LEARNED: the runtime-state reducer is **updatedAt-GATED** — sequential summary frames need an
+      increasing `updatedAt` (the builder now auto-advances it). The "LLM-use" payoff (chat-send→assistant-stream) follows this pattern.
+  - [ ] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). *(buildBoardSnapshot exists in runtime-mock.ts; buildMockRuntimeConfig still owed.)*
   - [ ] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
   - [ ] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens).
   - [ ] Create `playwright.smoke.config.ts` with `reuseExistingServer:false` + `--strictPort` on stable module constant port.
