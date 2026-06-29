@@ -6717,6 +6717,67 @@ deep analysis:
   incompatible with `--network none`). They compile as parked helpers + render no local-only UI.
   (`nklein-trusted-auto-merge.ts` self-merge is NOT parked — allowed + configurable; §5.L.)
 
+### 5.AP — Agent Skills (SKILL.md) — community-skill ingestion, the SAFE way *(2026-06-29, user — research done, NOT yet started)*
+> **Vision (user, 2026-06-29):** ride the "skill hype" — let users give *their* agents skills from the public ecosystem
+> (skillsmp.com ~2M index; github.com/hoodini/ai-agents-skills; many more), in a **user-controlled** form (pick skills →
+> the agent uses them) AND an **auto mode** (the planner looks up skills and references them onto cards / tasks /
+> focus-chain checkpoints). The user flagged the hard part up front: **every skill that reaches a prompt must be checked
+> for security/safety/correctness — but checking it with an LLM already feeds it to an LLM (the recursion). This might
+> invalidate the idea; find a safe way or say so.**
+>
+> **SECURITY VERDICT (researched 2026-06-29, two opus research passes — see [[skillsmp-skills-ecosystem]]):** the user is
+> RIGHT. A skills marketplace is achievable but **ONLY as a containment problem, never a detection one.** You cannot
+> reliably *classify* a skill as safe — the classifier is itself injectable (OWASP/NIST/Anthropic/Willison all converge),
+> and **84.2% of malicious payloads hide in the SKILL.md natural-language text, not code**, so code scanners structurally
+> miss them. Real campaigns already exist (ClawHub Feb-2026: 30+ malicious skills; Snyk ToxicSkills: 36% of 3,984 flawed,
+> 76 confirmed malicious). A skill fuses TWO attack surfaces — bundled-script RCE *and* prompt injection — and runs with
+> the agent's privileges. So: **do NOT bless the 2M raw indexes as a trusted source, and do NOT gate on an LLM verdict.**
+> Safety = constraining what an *activated* skill can DO (least-privilege + sandbox + no auto-exec + human-in-loop for the
+> "lethal trifecta": never untrusted-input + sensitive-access + egress in one session).
+>
+> **!Klein's structural ADVANTAGE:** it is already containment-first — local-only (`CLOUD_ENABLED=false`), strict Docker
+> isolation (#2), §5.L egress-gating + per-role capability rulesets, §5.AC untrusted trust-tiers. That architecture
+> ALREADY cuts the exfiltration leg of the lethal trifecta, which is exactly what makes this defensible here when it
+> would not be in a cloud agent. The feature is "feed the EXISTING §5.AE skill system from a new untrusted source, gated
+> by the EXISTING §5.L containment, plus a deterministic pre-screen + provenance pinning." SKILL.md is a real open
+> standard now (agentskills.io, Anthropic-originated Dec-2025, ~40 products) → align the §5.AE format to it.
+
+- [ ] **A. Format alignment (low-risk first):** make the §5.AE skill system read the open SKILL.md standard (agentskills.io
+      spec — `name`/`description`/`license`/`compatibility`/`allowed-tools` frontmatter + `scripts/`/`references/`/`assets/`).
+      A pure parser/validator (mirror `skills-ref validate`) — no execution, no network. Decompose into leaves.
+- [ ] **B. Trusted-source default, untrusted opt-in.** Curated allowlist of ORIGINS: official `anthropics/skills` +
+      `agentskills.io`, and the one community registry with real posture, `tech-leads-club/agent-skills` (CI static-analysis +
+      Snyk + content-hashing + immutable lockfiles, no binaries). The 2M indexes (SkillsMP via its REST `/api/v1/skills/search`
+      + MCP `/.well-known/mcp`, LobeHub, Skills.sh, hoodini, wshobson) are **discovery-only**, behind an explicit untrusted gate.
+- [ ] **C. User-controlled mode (ship FIRST — the safe one), decomposed:** browse/select → show the FULL SKILL.md source +
+      the bundled-file manifest + the deterministic-scan flags + a clear "UNTRUSTED community content" banner → explicit
+      per-skill opt-in **pinned to a content hash** (TOFU; no silent updates) → re-screen + re-confirm on any hash change
+      (anti-rug-pull, per Invariant tool-pinning). Record provenance (origin, stars, age) as a non-authoritative signal.
+- [ ] **D. Containment execution (the real protection), decomposed:** an activated skill runs under the SAME §5.L per-role
+      capability ruleset (default-deny tools; least-privilege `allowed-tools`), inside the Docker sandbox + egress allowlist.
+      **NEVER auto-execute bundled scripts** (`scripts/*` = RCE-by-default; require explicit human review/approval; treat any
+      executable in a "productivity" skill as a red flag). Constrain CREDENTIALS/identity, not just destination domains (the
+      silent-internal-API-key exfil PoC bypassed a domain allowlist). Enforce the Rule of Two at the session level.
+- [ ] **E. Deterministic NON-LLM pre-screen (the only "checking" that adds zero prompt-exposure), decomposed:** static scan
+      for injection markers ("ignore previous", role-override, zero-width/homoglyph unicode, hidden HTML/base64 blobs),
+      bundled executables/binaries, secret-access + egress patterns, size/complexity limits. Surface as `promptInjectionRiskFlags`
+      (§5.AC). Optionally shell out to an existing scanner as an ADVISORY signal only (Snyk `agent-scan` Apache-2.0, NVIDIA
+      SkillSpector, Invariant `mcp-scan` for hash-pinning) — never as the gate ("risk reduction, not elimination"; blind to
+      post-install updates + conditional/time-delayed activation).
+- [ ] **F. Sacrificial LLM classifier — ONLY if used at all, decomposed:** if an LLM must read a skill, run it in a
+      ZERO-privilege ephemeral context (no tools, no secrets, no egress) emitting a constrained verdict — treat the verdict as
+      ADVISORY and NEGATIVE-only (it may flag-dangerous; a "safe" is never trusted, since a hijacked classifier lies, and
+      grammar-constrained decoding is itself a jailbreak surface ~82% ASR). The CONTAINMENT protects you, not the classification.
+- [ ] **G. Auto mode (RISKY — gate behind the above; may stay SUGGEST-only), decomposed:** the planner may LOOK UP + SUGGEST
+      skills onto cards/tasks/focus-chain checkpoints, but untrusted skill text must NOT auto-enter an execution agent's context
+      as instructions. Constraints: only allowlisted + hash-pinned + pre-screened skills; skill text injected as clearly-delimited
+      quarantined DATA ("untrusted reference, never instructions"), not as agent guidance; human approval before any skill
+      reaches an execution context; no "always allow"/scope-creep for untrusted skills. **Open risk: auto-mode may remain too
+      unsafe to fully automate — ship user-controlled mode (C) first, prove containment, then revisit auto-mode.**
+- [ ] **H. Provenance + ledger:** content-hash + source + scan-verdict recorded on the §5.AF ledger per skill use; signal
+      (helped/hurt) feeds §5.B. (No sigstore-style skill signing exists ecosystem-wide yet — biggest gap; pinning is the
+      available substitute.)
+
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
 > **SUPERSEDED / deferred indefinitely (owner decision 2026-06-26, via §5.X Phase 2): NO Python port — !Klein stays
 > all-TS.** This section is kept for history (the original rationale + open questions below mirror §5.X Phase 2's
