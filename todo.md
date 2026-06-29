@@ -923,9 +923,16 @@ deep analysis:
         show, and this session's editors render — the **swarm-guardrails** number inputs + Reset, **Parallel
         requests** concurrency field, and the **Python core** health line — with **zero console/page errors**.
         Screenshot evidence at `/tmp/nklein-settings-ui.png`.
-  - [ ] **Still owed (needs a loaded project + live models/tasks):** pool-control inspection with a real pool +
-        queue, model-registry prune with entries, live loaded-model line, embedding auto-discovery; and the swarm
-        concurrency cap + sandbox-pool queue composing visibly in the card/header UI during a run.
+  - [ ] **Still owed (needs a loaded project + live models/tasks)** — each a single ~1-5 min live check:
+    - [ ] pool-control inspection: open Settings with a real sandbox pool active + a queued task; confirm the pool
+          counts (containers/agents-per-container in use) render correctly.
+    - [ ] model-registry prune: with ≥1 stale registry entry present, trigger prune in Settings and confirm the
+          entry is removed and the list refreshes.
+    - [ ] live loaded-model line: with a model resident, confirm Settings shows the loaded-model line naming it.
+    - [ ] embedding auto-discovery: confirm the embedding model is auto-discovered + surfaced in Settings.
+    - [ ] swarm concurrency cap composes visibly: start more tasks than the cap during a run; confirm the
+          card/header UI shows the cap holding excess tasks queued.
+    - [ ] sandbox-pool queue composes visibly: confirm the sandbox-pool queue depth shows in the header during a run.
 - [~] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
       consider extracting sandbox-lifecycle/pause out of the large
       [src/nklein-agent/nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts); reconcile
@@ -939,8 +946,12 @@ deep analysis:
         surfaces an **"Isolation unavailable"** marker (with the daemon/image failure message) when the Docker sandbox
         is `blocked`, so a new/empty board explains itself instead of showing six blank columns. Web-tested (renders +
         CTA fires + hidden once any card exists).
-  - [ ] still TODO: paused-card polish, and the session-service sandbox-lifecycle extraction (overlaps the §5.U
-        decompose finding — coupled, needs the careful pass).
+  - [ ] still TODO (each a bounded leaf):
+    - [ ] paused-card UX polish: a clear paused-state visual on the card + a resume affordance (verify it renders
+          for a paused card and resume re-queues it).
+    - [ ] (coupled, larger — see §5.U) extract the sandbox-lifecycle/pause logic out of
+          `nklein-task-session-service.ts` into a focused module — defer to the §5.U careful decompose pass, not a
+          1-5 min leaf; tracked here as a pointer, decomposed under §5.U.
 - [~] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
       preview still renders; confirm plain-language park reasons display; run a fresh-config local dogfood day on
       the in-use model and assert the telemetry diff shows zero insufficient-balance / 1s-timeout / >1M-overflow /
