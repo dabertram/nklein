@@ -3,6 +3,7 @@ import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
+import { assessModelSuitability } from "../../core/model-capability-catalog";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -179,6 +180,21 @@ export async function handleStartTaskSession(
 				summary: null,
 				error: `Model "${nkleinLaunchConfig.modelId}" is not loaded in LM Studio. !Klein does not load models — load it in LM Studio first (loaded: ${loadedModelIds.join(", ") || "none"}).`,
 			};
+		}
+		// §5.AL capability gate: a task session is an agentic, tool-using run, so REFUSE a catalog-`reject` primary model
+		// (e.g. a reasoning-only variant that can't drive tool chains) up front rather than burning a whole task on it.
+		// Honors the default warn-and-reject policy; override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1. Pure (no live endpoint),
+		// so it applies in tests too — but only a `reject` blocks, and `warn`/`unknown` proceed, so it can't wedge an
+		// ordinary run. (A non-reject caveat is left to the §5.AG operator-UX surface, not a hard block here.)
+		if (nkleinLaunchConfig.modelId && process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL !== "1") {
+			const suitability = assessModelSuitability(nkleinLaunchConfig.modelId);
+			if (suitability.severity === "reject") {
+				return {
+					ok: false,
+					summary: null,
+					error: `Model "${nkleinLaunchConfig.modelId}" is not suitable for agentic tasks — ${suitability.reason} Set NKLEIN_ALLOW_UNSUITABLE_MODEL=1 to override.`,
+				};
+			}
 		}
 		for (const [role, settings] of Object.entries(scopedRuntimeConfig.effectiveModelRoles)) {
 			// #4 model pools: a role contributes its primary model plus every member of its additionalModels

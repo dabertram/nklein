@@ -5588,8 +5588,12 @@ deep analysis:
 - [x] **Live-use gate: `nklein chat` (2026-06-29).** `decideChatModelGate` (pure, in [local-chat-model.ts](src/chat/local-chat-model.ts))
       refuses a catalog-`reject` model for the TOOL-using chat agent (`--workspace`) up front — override
       `NKLEIN_ALLOW_UNSUITABLE_MODEL=1` — and only WARNS on the plain-completion path (a reasoning/chat model is fine
-      without tools) or for warn/unknown verdicts. Wired into [commands/chat.ts](src/commands/chat.ts); 5 tests. STILL TODO:
-      wire the same gate into the runtime task-start path (`start-task-session.ts`) + the chat send-turn API endpoint.
+      without tools) or for warn/unknown verdicts. Wired into [commands/chat.ts](src/commands/chat.ts); 5 tests.
+- [x] **Live-use gate: runtime task-start (2026-06-29).** [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)
+      refuses a catalog-`reject` PRIMARY model up front (a task session is an agentic tool-using run) with a clear error +
+      the `NKLEIN_ALLOW_UNSUITABLE_MODEL=1` override; pure check (applies in tests, but only `reject` blocks so it can't
+      wedge ordinary runs). STILL TODO: the chat send-turn API endpoint (the web-ui chat path), and surfacing warn/unknown
+      caveats through the §5.AG operator-UX rather than only at the CLI.
 - [ ] **Settings surface (global + project override) in the UI/config.** The policy is plumbed through the runner today;
       expose `onUnsuitable` / `onUnknown` (allow | warn | reject) as a **global setting with a per-project override** in the
       config contract + Settings UI (§5.W pattern), and thread the resolved policy from the live model-load + chat/agent
