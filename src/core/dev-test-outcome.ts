@@ -80,7 +80,10 @@ export function classifyDevTestRun(input: ClassifyDevTestRunInput): DevTestRunCl
 	const incompleteCardCount = countIncomplete(counts);
 
 	const outcome = ((): DevTestRunOutcome => {
-		if (incompleteCardCount === 0) {
+		// "Completed" requires at least one card to have actually reached Completed. An EMPTY board (or one where every
+		// card was discarded to trash) trivially has zero incomplete cards, but nothing ran — that must NOT read as a
+		// successful completion (it previously did, so a dev-test whose seed never materialized reported a false green).
+		if (incompleteCardCount === 0 && counts.completed > 0) {
 			return "completed";
 		}
 		if (!runtimeReachable) {
@@ -127,7 +130,9 @@ function formatDevTestRunSummary(
 		case "blocked_by_review_cards":
 			return `Blocked by review cards: ${counts.review} card(s) awaiting review, none in progress (${acceptanceText}).`;
 		case "stagnant":
-			return `Stagnant: ${incompleteCardCount} card(s) remain, none in progress (${acceptanceText}).`;
+			return incompleteCardCount === 0
+				? `Stagnant: no card reached Completed — the board is empty or every card was discarded (${acceptanceText}).`
+				: `Stagnant: ${incompleteCardCount} card(s) remain, none in progress (${acceptanceText}).`;
 		case "runtime_down":
 			return `Runtime unreachable; last persisted board state has ${incompleteCardCount} unfinished card(s) (${board}).`;
 		case "failed":

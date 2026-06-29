@@ -20,6 +20,23 @@ describe("classifyDevTestRun", () => {
 		expect(result.success).toBe(true);
 	});
 
+	it("an EMPTY board is NOT a successful completion (no card ran)", () => {
+		const result = classifyDevTestRun({ counts: counts(), acceptancePassed: null, runtimeReachable: true });
+		expect(result.outcome).not.toBe("completed");
+		expect(result.success).toBe(false);
+		expect(result.summary).toMatch(/no card reached Completed/i);
+	});
+
+	it("a board where every card was discarded to trash (0 completed) is NOT a success", () => {
+		const result = classifyDevTestRun({
+			counts: counts({ trash: 5 }),
+			acceptancePassed: null,
+			runtimeReachable: true,
+		});
+		expect(result.success).toBe(false);
+		expect(result.outcome).not.toBe("completed");
+	});
+
 	it("distinguishes acceptance-green from workflow-complete (the audio-VST case)", () => {
 		const result = classifyDevTestRun({
 			counts: counts({ completed: 8, review: 2, planning: 3 }),

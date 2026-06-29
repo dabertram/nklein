@@ -99,7 +99,12 @@ function countsKey(counts: DevTestBoardCounts): string {
 }
 
 function isComplete(counts: DevTestBoardCounts): boolean {
-	return counts.review + counts.planning + counts.inProgress + counts.backlog + counts.failed === 0;
+	// Require at least one card to have actually reached Completed — otherwise an EMPTY board (e.g. before the seed card
+	// has materialized at the first poll) trivially satisfies "no incomplete cards" and the monitor would break early and
+	// report a false green. With this guard the monitor keeps polling until real work completes (or the run settles/times out).
+	return (
+		counts.completed > 0 && counts.review + counts.planning + counts.inProgress + counts.backlog + counts.failed === 0
+	);
 }
 
 function readCounts(state: DevTestStateRead): DevTestBoardCounts {
