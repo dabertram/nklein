@@ -4536,8 +4536,12 @@ deep analysis:
       suit; the reference bar is a *comparably very slow human developer*, so if quality pays for it, long waits are
       fine — !Klein's purpose is unattended autonomous running, not interactive speed. Pulls **C4 (all-model adaptive)**
       forward to interleave with the C3 scheduler chapter. Decomposed:
-  - [ ] define the role→model-class mapping: strong REASONING model for planning (architect) + reviewing (§5.K); strong
-        + fast CODING model for the worker/implement role.
+  - [x] **define the role→model-class mapping (2026-06-29).** Pure core
+        [src/core/role-model-class.ts](src/core/role-model-class.ts): `ROLE_MODEL_CLASS_PREFERENCES` (architect/reviewer
+        reasoning-led; worker coding-led + tool-use-required) + `scoreModelClassFitForRole` (blends the §5.AL catalog's
+        `kind` + `toolUse` verdict into a 0–100 class-fit, marks a tool-unsuitable model INELIGIBLE for the worker) +
+        `rankModelsForRole` (eligible-first, score-desc; unknown id → neutral fallback). 8 tests; tsc + biome green.
+        This is the CLASS stage; `role-model-selection.ts` `selectRoleModel` is the within-class instance pick.
   - [ ] investigate whether a strong + fast TOOL-CALLING model is a DISTINCT worker role (vs. overlapping the coding
         model) — only split it out if the use case is genuinely separate; otherwise fold tool-calling into the coder.
   - [ ] wire per-role assignment off the §5.AB selection (best-fit among LOADED models) so the 3+ roles run on distinct
