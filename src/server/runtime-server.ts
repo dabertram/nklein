@@ -341,6 +341,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				const state = await loadWorkspaceState(scope.workspacePath);
 				const sourceColumnId = getTaskColumnId(state.board, taskId);
 				if (sourceColumnId !== "backlog" && sourceColumnId !== "planning") {
+					// No longer a waiting card (started elsewhere, completed, trashed) — drop any deferred-overlap entry so
+					// the set doesn't retain ids that can never be auto-started again (it would no-op here every completion).
+					deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(taskId);
 					continue;
 				}
 				const task = state.board.columns
