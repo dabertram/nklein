@@ -735,6 +735,12 @@ deep analysis:
 > (all-model adaptive)** forward to interleave with C3. The user **ACCEPTS the lower per-model throughput** — raise the
 > timeouts; the bar is a *slow human developer*, quality over speed, unattended-autonomous is the point. See the ★ item
 > at the top of [§5.AB](#5ab--automatic-rolemodel-selection--a-model-evaluation-harness-2026-06-26-user--active).
+>
+> **NEAR-TERM USER STEER #2 (2026-06-29) — per-MACHINE concurrency pools:** LM Studio links models from OTHER machines
+> into the local server, so the real parallelism lever is **multiple machines/endpoints**. Model each machine as a POOL
+> with its own concurrency cap and OFFLOAD small/easy cards to the secondary machines (m4mini-24gb, legion-5pro
+> 4070m-8gb) so the m5max-128gb stays free for hard/large cards — a big throughput win. Implement early; ties §6.5
+> (endpoint scheduler), §5.AF (durable lease/admission), §5.AB (pool-aware routing). See the ★ per-machine-pools item in §5.AB.
 
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
@@ -4590,6 +4596,30 @@ deep analysis:
   - [ ] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
         endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
   - [ ] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection).
+- [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
+      LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple
+      machines/endpoints**, not just multiple models on one box (confirmed by the §5.AI C5 finding: a single endpoint
+      serializes, so wide fan-out needs more endpoints — [§6.5 endpoint scheduler] already serializes *per endpoint*).
+      Model each **machine as a POOL** with its own **concurrency setting**, and route work so small/easy cards OFFLOAD to
+      the weaker machines while the strong box stays free for hard cards. **Available hardware (user):** `m5max-128gb`
+      (the beast — big models, hard cards), `m4mini-24gb` (small models / easy cards), `legion-5pro` (Ryzen7 32GB +
+      RTX 4070m 8GB — small/medium offload). Offloading small tasks to the 2 secondary machines is a **big** throughput
+      win vs. queueing everything on the m5. Ties the ★ swarm item above (per-role/per-task selection becomes
+      pool-aware), §6.5 (the endpoint scheduler is the seam), §5.AF (the durable scheduler's per-endpoint leasing + the
+      resource-governance leaf), §5.W (concurrency UI), and the `decideModelLoad` headroom guard (per-machine RAM budget,
+      not one global). Decomposed:
+  - [ ] define the `ModelPool` model — one pool per machine: `{ id/label, baseUrl/endpoint, maxConcurrency, ramBudget,
+        residentModels[] }`; the loaded-set fetch + `decideModelLoad` headroom become **per-pool**, not global.
+  - [ ] discover/declare linked machines: read LM Studio's linked-endpoint set (or a user-configured pool list) and tag
+        each loaded model with its owning pool/endpoint.
+  - [ ] per-pool concurrency accounting in the scheduler — extend the §6.5 per-endpoint serialize + the §5.AF durable
+        scheduler's lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
+  - [ ] pool-aware routing: the §5.AB / `selectSwarmRoleModel` pick becomes pool-aware — prefer a FREE pool, send
+        easy/small cards to the secondary machines (m4mini / legion), reserve the m5 pool for hard/large cards.
+  - [ ] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency
+        cap (§5.W); show per-pool busy/free at a glance (§5.AG operator surface).
+  - [ ] verify end-to-end: with ≥2 pools active, a wide DAG fans out across machines (easy cards land on the secondaries,
+        hard on the m5) with no cross-pool deadlock + clean teardown.
 - [~] **Model-ladder expansion — grow the roster to meet the challenge ladder (MCF Phase A, 2026-06-28, user).** As a
       challenge's difficulty exceeds the current roster's reach, bigger/better LOCAL models are the answer (the test
       machine — 128 GB RAM + M5 Max — runs **up to ~120B at lower quantization**). **WORKING-MODE SHIFT IN PROGRESS
