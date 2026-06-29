@@ -289,6 +289,18 @@ deep analysis:
   `model-lab.mts` (the guarded loader CLI) drives this: `ps` | `load <lms-key> [ctx]` | `unload <id>` | `sweep <harness>
   <keys>`; every load goes through `loadModelExclusive` (one resident at a time, ctx 40000, headroom-checked). Verified
   live 2026-06-29: load qwen/qwen3-8b + gemma-4-e2b (auto-unloads the prior, keeps the embedder).
+- **The model-capability catalog ([model-capability-catalog.ts](src/core/model-capability-catalog.ts), §5.AL) is a LIVING
+  artifact — extend it with EVERY new capability fact you surface (2026-06-29, user).** It is the curated, shipped-in-code
+  knowledge of which models suit our use cases (tool calling / agentic chains); `loadModelExclusive` gates on it (refuses a
+  `reject` before any unload/spawn; `warn`/`unknown` proceed with a caveat), default policy **warn-and-reject**, overridable
+  per-project. **Rule:** whenever a sweep or live run teaches you something — a model narrates instead of calling tools, a
+  quant is confirmed-good or ships FC broken, a reasoning-only variant can't chain, a `verified: false` row is confirmed or
+  refuted — fold it into the catalog **in the same change**: flip the verdict, append the note, cite the source, set
+  `basis: "empirical"`/`"both"`. Don't let hard-won model knowledge live only in a sweep log or your head. Verdict buckets:
+  `TOOL_NATIVE / TOOL_CAPABLE / TOOL_WEAK / TOOL_UNSUITABLE / UNKNOWN`. Quick check: `tsx scripts/model-lab.mts check <id>`.
+  Cross-cutting truths already encoded: **reasoning-only variants are the trap** (Phi-4-mini-reasoning, Phi-4-reasoning-plus,
+  Magistral, DeepSeek-R1 distill — default to the instruct sibling); **"native" ≠ reliable at small sizes** (Qwen3-8B,
+  Nemotron-Nano degrade on multi-step chains); **many "failures" are template/parser mismatches, not the model**.
 - **Keep an eye on LM Studio's dev logs during any LLM work (sweeps, scouts, live runs).** They surface things nothing else does: the **catalog endpoint being hammered** (`/api/v0/models` request-rate spikes — the 2026-06-28 incident: a roster-discovery path with no cache; fixed with a 30 s TTL cache in `nklein-provider-service.ts`, so the live `/models` is polled ~once/30 s regardless of caller), request errors, model **load/unload/crash** events (deepseek vanishing mid-run), and slow-prefill warnings. **The verify harness should tail/monitor the LM Studio dev log during runs and flag anomalies** (request-rate, errors, dropped models) — see the §5.Z harness item. Rule of thumb: roster/`/models` discovery should never exceed ~1 call per 30–60 s; if you see faster, find the caller (or add/lower a TTL cache).
 - **Low Power Mode (~50% throughput) does NOT corrupt sweep/fitness data — the agent/task path auto-adapts; don't misdiagnose a low-power abort as a model ceiling.** The agent path's request/stream/turn timeouts are scaled from the model's **observed** tokens/sec (`applyMcsrAwareLocalTimeoutScaling`, [nklein-timeout-scaling.ts](src/nklein-agent/nklein-timeout-scaling.ts), wired at [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)) — slower regime → measured-slower → proportionally LONGER timeout (×3 + 60 s buffer); cold-start (no samples) uses deliberately conservative priors (~4 tok/s decode). So a genuine `aborted` on the swarm path is real signal, not a timeout artifact. **Exception:** the interactive CHAT client ([nklein-local-llm-client.ts](src/nklein-agent/nklein-local-llm-client.ts)) is a FIXED fallback (not MCSR-aware) — default 120 s, now overridable via `NKLEIN_CHAT_REQUEST_TIMEOUT_MS` for a slow regime. The runtime also disables undici body/headers timeouts (`installKanbanFetchTimeoutPolicy`, bodyTimeout/headersTimeout 0) so streaming inference never trips a transport timeout; the `HeadersTimeoutError` seen in scouts is the *harness's* own poll fetch, not the runtime. Verify/scout harness timeouts are separately power-scaled (`power-aware-timeout.ts`).
 - **Sustained back-to-back LLM runs under Low Power provoke ENDPOINT STALLS, not model failures — pace live sweeps, don't hammer (2026-06-28).** A C0 reliability repeat (qwen3-8b ×3 back-to-back) went ✅✅ then **STALLED** on run 3: the model went silent ~480 s (a hung/unresponsive call), the stall detector aborted at 498 s. This is the local endpoint (serialized inference) buckling under sustained load at ~50% throughput, not a wrong answer or a model ceiling — it's the `aborted`/transient class (re-run mitigates). Practical rule: space repeated live runs (one model at a time, let the prior finish), and read a lone stall in a repeat batch as load/transient, not a capability regression. Loading BIGGER models under this regime makes stalls worse, not better.
@@ -5545,6 +5557,41 @@ deep analysis:
       small model must **not** be left to thrash its way out of a hole it cannot climb — !Klein detects the hard limit and
       escalates to the user with options (one of which is making a stronger model available to analyze + guide). Ties
       §5.AA (detection) · §5.AB (the escalation path) · §5.AG (the surface).
+
+### 5.AL — Model-capability catalog + suitability gate + online capability lookup *(2026-06-29, user — ACTIVE)*
+> **Why:** "the model is loaded" says nothing about whether it can DO the job. Many popular small models are
+> reasoning-only (Phi-4-mini-reasoning, Phi-4-reasoning-plus, Magistral, the DeepSeek-R1 distill) or chat-only
+> (Gemma 2/3) and were never trained for function calling; others advertise tool use yet ship it broken in the
+> quantized artifacts or degrade hard on multi-step chains at small sizes. Driving !Klein with one wastes a whole
+> run on a guaranteed failure. So !Klein carries a **curated, persistent, shipped-in-code capability catalog** and
+> **gates on it before use** — warn or reject a not-suitable model, governed by a global setting with a project
+> override (default: **warn-and-reject**). The catalog is a **living artifact**: every sweep / live run that
+> surfaces a new capability fact MUST be folded back in (see §4A rule).
+
+- [x] **Catalog + gate shipped (2026-06-29).** [`src/core/model-capability-catalog.ts`](src/core/model-capability-catalog.ts):
+      `MODEL_CAPABILITY_CATALOG` (family-level regex match, ordered specific→general; seeded from the §5.AL research
+      sweep + our own sweeps), `lookupModelCapability`, `assessModelSuitability` (verdict → `ok`/`warn`/`reject`/`unknown`),
+      `ModelSuitabilityPolicy` + `DEFAULT_MODEL_SUITABILITY_POLICY` (reject unsuitable / warn unknown) +
+      `resolveModelSuitabilityPolicy` (global ← project override; a hard per-entry `severityOverride` like Nemotron-Mini's
+      4k-context reject can't be loosened by a permissive policy). Verdict buckets: `TOOL_NATIVE / TOOL_CAPABLE /
+      TOOL_WEAK / TOOL_UNSUITABLE / UNKNOWN`. **Gate wired** into `loadModelExclusive` (refuses a `reject` BEFORE any
+      unload/spawn — a known-bad model never costs the resident good model; `warn`/`unknown` proceed with the caveat on
+      the result) + a `model-lab check <id>` subcommand (the CLI seed of the "check model" button; exit 0/1/2). 23 tests.
+- [ ] **Settings surface (global + project override) in the UI/config.** The policy is plumbed through the runner today;
+      expose `onUnsuitable` / `onUnknown` (allow | warn | reject) as a **global setting with a per-project override** in the
+      config contract + Settings UI (§5.W pattern), and thread the resolved policy from the live model-load + chat/agent
+      wiring (not just model-lab). Default stays warn-and-reject.
+- [ ] **LLM-based ONLINE capability lookup for UNKNOWN models.** When a model is UNKNOWN to the catalog (and especially
+      when it's the only one loaded), !Klein can use **that same model** to look up its own capabilities online (model
+      card / docs / community reports) and either (a) succeed → synthesize advice for the user + a provisional catalog
+      entry to confirm, or (b) FAIL the lookup → that failure is itself a signal the model may be unsuitable for !Klein
+      (can't even drive a simple web-research tool-use flow). Surface as a **"check model" button** AND an **automatic
+      attempt** — both governed by a **global setting to enable/disable automatic lookup** (default: off/ask, to respect
+      the local-only + no-surprise-egress posture). Ties §5.AC (online retrieval) · §5.A­B (selection) · §5.S (ask-user).
+- [ ] **Keep extending the catalog (standing).** Per §4A: every model sweep / live run that surfaces a new capability
+      fact (a verdict flip, a new failure dialect, a confirmed-vs-broken quant) is folded into the catalog in the same
+      change — flip the verdict, append the note, cite the source, set `basis: "empirical"`/`"both"`. Verify the
+      `verified: false` rows (gemma-4 E2B/E4B) against live sweeps and promote/demote them.
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.

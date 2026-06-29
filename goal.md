@@ -73,6 +73,15 @@ next step even for things that will only be *adapted later with low effort*).
   (HF / LM Studio community / etc.) for promising LOCAL agentic models per the active tier (tool-calling + coding +
   instruction-following strength), and surface a **download list for the USER** (the user downloads; !Klein then
   load/unload-tests them). Keep the recommendations in `docs/dev/model-catalog-recommendations.md`.
+- **Model-capability catalog is a LIVING artifact — extend it as you learn (user 2026-06-29).**
+  [`src/core/model-capability-catalog.ts`](src/core/model-capability-catalog.ts) (§5.AL) is !Klein's curated, shipped-in-code
+  knowledge of which models suit our use cases (tool calling / agentic chains). `loadModelExclusive` GATES on it: a `reject`
+  (e.g. reasoning-only Phi-4-mini-reasoning, or Nemotron-Mini's 4k context) is refused before any unload; `warn`/`unknown`
+  proceed with a caveat. Default policy = **warn-and-reject**, overridable per project. **Every** sweep / live run that
+  surfaces a new capability fact (a verdict flip, a confirmed-vs-broken quant, a reasoning-only variant that can't chain, a
+  `verified:false` row confirmed/refuted) MUST be folded into the catalog in the same change — flip the verdict, append the
+  note, cite the source, set `basis`. Quick check: `tsx scripts/model-lab.mts check <id>`. On the §5.AL agenda (not yet
+  built): a settings surface (global + project override) and an LLM-based ONLINE capability lookup for UNKNOWN models.
 - **Roster discipline + weakest-model focus.** Keep EVERY model that has appeared in the roster (sweep-log table), even
   when unloaded — they pop in/out; collect the full history and adapt as new ones appear. **Each sweep, query the LOADED
   set first** (`/api/v0/models`) and target only those. Watch the **weakest** loaded models first — they hit a new

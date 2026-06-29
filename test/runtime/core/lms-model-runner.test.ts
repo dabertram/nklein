@@ -23,6 +23,32 @@ function fakeRunner(psRows: string[], loadExit = 0) {
 }
 
 describe("loadModelExclusive", () => {
+	it("§5.AL gate: REFUSES a catalog-rejected model without unloading the resident or spawning a load", async () => {
+		const { run, calls } = fakeRunner([
+			"qwen/qwen3-8b-m5max          qwen3-8b          IDLE      4.62 GB    40000      1    Local",
+		]);
+		// phi-4-mini-reasoning is TOOL_UNSUITABLE → reject under the default policy.
+		const result = await loadModelExclusive(run, { modelId: "microsoft/phi-4-mini-reasoning", totalRamBytes });
+		expect(result.loaded).toBe(false);
+		expect(result.unloaded).toEqual([]); // the good resident model was NOT unloaded
+		expect(result.suitability.severity).toBe("reject");
+		expect(result.reason).toMatch(/capability gate/i);
+		// No unload, no load — the gate is first, before any side effect.
+		expect(calls.some((c) => c[0] === "unload" || c[0] === "load")).toBe(false);
+	});
+
+	it("§5.AL gate: a relaxed policy lets a rejected model through (warn), and the caveat rides the reason", async () => {
+		const { run } = fakeRunner([]);
+		const result = await loadModelExclusive(run, {
+			modelId: "microsoft/phi-4-mini-reasoning",
+			totalRamBytes,
+			suitabilityPolicy: { onUnsuitable: "warn", onUnknown: "warn" },
+		});
+		expect(result.loaded).toBe(true);
+		expect(result.suitability.severity).toBe("warn");
+		expect(result.reason).toMatch(/capability warn/i);
+	});
+
 	it("unloads every non-pinned, non-embedding model, then loads the target with context 40000", async () => {
 		const { run, calls } = fakeRunner([
 			"qwen/qwen3-8b-m5max          qwen3-8b          IDLE      4.62 GB    40000      1    Local",

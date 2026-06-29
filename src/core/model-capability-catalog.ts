@@ -1,0 +1,367 @@
+import { normalizeModelId } from "./model-identity.js";
+
+/**
+ * Persistent model-capability catalog (todo §5.AL) — !Klein's curated, checked-in knowledge of which local
+ * models are actually suited to our use cases (above all: TOOL CALLING and multi-step agentic tool chains).
+ *
+ * Why a catalog at all: "the model is loaded" tells us nothing about whether it can DO the job. Some popular
+ * small models are reasoning-only (Phi-4-mini-reasoning, Phi-4-reasoning-plus, Magistral) or chat-only
+ * (Gemma 2/3) and were never trained for function calling; others advertise tool use yet ship it broken in
+ * the quantized artifacts (DeepSeek-R1 distill) or degrade hard on multi-step chains at small sizes
+ * (Qwen3-8B, Nemotron-Nano). Letting a user unknowingly drive !Klein with one of these wastes a long run on
+ * a guaranteed failure. So we keep a curated verdict per model family, sourced from vendor model cards +
+ * community reports AND hardened by our own empirical sweeps, and gate on it before use.
+ *
+ * This catalog is INTENTIONALLY code (persistent, shipped with !Klein, reviewed in diffs). The working-mode
+ * rule (goal.md / todo.md §4A) is: whenever a sweep or live run surfaces a new capability fact about a model,
+ * ADD it here — flip a verdict, append a note, cite the source. The catalog is a living artifact.
+ *
+ * The matching layer ({@link lookupModelCapability}) is deliberately family-level (regex on the normalized
+ * id) so a new quant / served-alias of a known family (`phi-4-mini-instruct@8bit`, `google/gemma-4-e2b`,
+ * `qwen/qwen3-8b`) resolves without a new entry. The suitability layer ({@link assessModelSuitability})
+ * maps a verdict + the active policy (warn vs reject; global default with a project override) to an action.
+ */
+
+/** Tool-use capability bucket for a model family — the headline axis we gate on (see module doc for sources). */
+export type ToolUseVerdict =
+	/** Explicitly trained/fine-tuned for tool/function calling; reliable at the family's size class. */
+	| "TOOL_NATIVE"
+	/** Tool calling works but isn't a headline feature; may need a matched parser/template. */
+	| "TOOL_CAPABLE"
+	/** Community/empirical reports of unreliable tool use (leaks calls into text, breaks on multi-tool). */
+	| "TOOL_WEAK"
+	/** Not trained for tool use (reasoning-/chat-only) or ships it broken — avoid for agentic tool chains. */
+	| "TOOL_UNSUITABLE"
+	/** No reliable information found — neither the catalog nor empirical data covers this model yet. */
+	| "UNKNOWN";
+
+/** What we primarily designed/tested the model for — context for the verdict (reasoning-only is the classic trap). */
+export type ModelKind = "instruct" | "agentic" | "code" | "reasoning" | "chat" | "roleplay" | "unknown";
+
+/** A curated knowledge record for one model family. `match` is tested (case-insensitively) against the normalized id. */
+export interface ModelCapabilityEntry {
+	/** Stable slug for the family (for telemetry / messages), e.g. `"phi-4-mini-reasoning"`. */
+	family: string;
+	/** Regex matched against the lowercased normalized model id; FIRST hit in the catalog wins (order specific→general). */
+	match: RegExp;
+	/** Headline tool-use verdict (see {@link ToolUseVerdict}). */
+	toolUse: ToolUseVerdict;
+	/** What the model is for — `reasoning`/`chat`/`roleplay` are the tool-use traps. */
+	kind: ModelKind;
+	/** One-line, honest justification (the "why" a future reader / the user sees). */
+	note: string;
+	/** Source URLs (model cards / docs / community reports) backing the verdict. */
+	sources: readonly string[];
+	/**
+	 * OPTIONAL hard override of the gate severity, for unsuitability the tool-use verdict alone misses — e.g.
+	 * Nemotron-Mini is tool-trained on paper (TOOL_CAPABLE) but its 4k context is below our 32k floor, so it's a
+	 * `reject` for agentic use regardless. When set, it wins over the verdict-derived severity.
+	 */
+	severityOverride?: SuitabilitySeverity;
+	/** OPTIONAL extra disqualifiers surfaced in the message (e.g. "4k context below the 32k floor", "GGUF FC disabled"). */
+	disqualifiers?: readonly string[];
+	/** Provenance of the verdict — `research` (cards/reports), `empirical` (our sweeps), or `both`. */
+	basis: "research" | "empirical" | "both";
+	/** OPTIONAL confidence flag; `false` marks a verdict we haven't fully verified (e.g. a release past a knowledge cutoff). */
+	verified?: boolean;
+}
+
+/**
+ * The curated catalog. ORDER MATTERS: {@link lookupModelCapability} returns the first entry whose `match`
+ * hits, so list the most specific patterns first (e.g. `phi-4-mini-reasoning` before `phi-4-mini`, `e4b`
+ * before a generic `gemma-4`). Seeded 2026-06-29 from the §5.AL research sweep + our own model sweeps.
+ */
+export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
+	// ── Reasoning-only Phi variants: the classic trap — NOT trained for tool use ──────────────────────────
+	{
+		family: "phi-4-mini-reasoning",
+		match: /phi-?4-mini-reasoning/,
+		toolUse: "TOOL_UNSUITABLE",
+		kind: "reasoning",
+		note: 'Math-reasoning-only; the card states it is "designed and tested for math reasoning only" and never mentions tool use. Use phi-4-mini-instruct instead for tool chains.',
+		sources: ["https://huggingface.co/microsoft/Phi-4-mini-reasoning"],
+		basis: "research",
+		verified: true,
+	},
+	{
+		family: "phi-4-reasoning-plus",
+		match: /phi-?4-reasoning(-plus)?/,
+		toolUse: "TOOL_UNSUITABLE",
+		kind: "reasoning",
+		note: 'Pure chain-of-thought reasoning model. Microsoft staff: "Function calling is only supported on Phi-4-mini-based models." No tool format in the chat template.',
+		sources: ["https://huggingface.co/microsoft/Phi-4-reasoning-plus/discussions/13"],
+		basis: "research",
+		verified: true,
+	},
+	{
+		family: "phi-4-mini-instruct",
+		match: /phi-?4-mini(-instruct)?/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		note: 'The only Phi-4 variant trained for function calling (<|tool|> JSON). Fragile in practice — parser bugs across frameworks and the card admits it "could sometimes hallucinate function names". Our sweeps: ◑ with the constrained rung.',
+		sources: ["https://huggingface.co/microsoft/Phi-4-mini-instruct"],
+		basis: "both",
+		verified: true,
+	},
+	// ── Gemma: chat/instruct families, tool use only via prompt-engineering (no tool tokens) ───────────────
+	{
+		family: "gemma-4-e4b",
+		match: /gemma-?4[-_]?e4b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		note: "Gemma 4 edge E4B — vendor docs advertise native structured tool use; E4B notably more reliable than E2B on multi-tool schemas. UNVERIFIED: release postdates research cutoff; confirm against live sweeps before trusting.",
+		sources: ["https://ai.google.dev/gemma/docs/capabilities/text/function-calling-gemma4"],
+		basis: "research",
+		verified: false,
+	},
+	{
+		family: "gemma-4-e2b",
+		match: /gemma-?4[-_]?e2b/,
+		toolUse: "TOOL_WEAK",
+		kind: "instruct",
+		note: "Gemma 4 edge E2B (2B). Even granting vendor tool-use claims, 2B is below our empirical multi-tool chaining floor — our sweeps show 0/3 reliable chains (a recorded ≤4B capability floor). Single-tool calls only.",
+		sources: ["https://ai.google.dev/gemma/docs/capabilities/text/function-calling-gemma4"],
+		basis: "both",
+		verified: false,
+	},
+	{
+		family: "gemma-3",
+		match: /gemma-?3/,
+		toolUse: "TOOL_WEAK",
+		kind: "chat",
+		note: 'Function calling documented but "exclusively through prompt engineering" — no dedicated tool tokens; reliability hinges entirely on the parsing scaffold.',
+		sources: ["https://www.philschmid.de/gemma-function-calling"],
+		basis: "research",
+		verified: true,
+	},
+	{
+		family: "gemma-2",
+		match: /gemma-?2/,
+		toolUse: "TOOL_WEAK",
+		kind: "chat",
+		note: "No native function calling and no tool tokens; tool use only via prompt engineering or third-party fine-tunes. Pure chat/instruct model.",
+		sources: ["https://simonwillison.net/2025/Mar/26/function-calling-with-gemma/"],
+		basis: "research",
+		verified: true,
+	},
+	// ── NVIDIA Nemotron ───────────────────────────────────────────────────────────────────────────────────
+	{
+		family: "nemotron-mini",
+		match: /nemotron-mini/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "roleplay",
+		note: "Tool-call template on paper, but a roleplay/game-character model (NVIDIA ACE) with only 4k context — below our 32k floor — so it is a reject for agentic use despite the on-paper support.",
+		sources: ["https://huggingface.co/nvidia/Nemotron-Mini-4B-Instruct"],
+		severityOverride: "reject",
+		disqualifiers: ["4k context is below the 32k agentic floor", "roleplay-tuned, not agentic"],
+		basis: "research",
+		verified: true,
+	},
+	{
+		family: "nemotron-nano",
+		match: /nemotron-nano|llama-3\.1-nemotron-nano/,
+		toolUse: "TOOL_WEAK",
+		kind: "reasoning",
+		note: "SFT+RL post-trained for tool calling with a parser + 128k context, BUT user reports show the 4B emitting tool calls as plain text and failing once multiple tools are present (NIM + Ollama).",
+		sources: ["https://community.n8n.io/t/nvidia-llama-3-1-nemotron-nano-4b-v1-1-tool-calling-issue/135282"],
+		basis: "both",
+		verified: true,
+	},
+	// ── DeepSeek R1 distill (matched BEFORE Qwen: its id contains "qwen3-8b" but it's a reasoning distill) ──
+	{
+		family: "deepseek-r1-distill",
+		match: /deepseek-r1.*qwen3?-8b|deepseek-r1-0528/,
+		toolUse: "TOOL_WEAK",
+		kind: "reasoning",
+		note: 'Reasoning distill: card claims "enhanced function calling" but ships no parser/template; calls leak into content and </think> tags break parsers. Poor fit for unattended tool chaining.',
+		sources: ["https://github.com/vllm-project/vllm/issues/19001"],
+		basis: "research",
+		verified: true,
+	},
+	// ── Qwen ──────────────────────────────────────────────────────────────────────────────────────────────
+	{
+		family: "qwen2.5-coder",
+		match: /qwen2\.?5-coder/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "code",
+		note: "Supports tool calling but emits a non-Hermes <tools>/code-block format — fails SILENTLY unless the parser/prompt matches it. Our sweeps: ◑ at 14B with the constrained rung.",
+		sources: ["https://github.com/QwenLM/Qwen3-Coder/issues/180"],
+		basis: "both",
+		verified: true,
+	},
+	{
+		family: "qwen3-8b",
+		match: /qwen-?3-8b/,
+		toolUse: "TOOL_NATIVE",
+		kind: "agentic",
+		note: "Marketed for agentic tool use (Qwen-Agent, MCP). Strong single-turn; multi-turn/chaining degrades. Our best small performer — ✅ when fresh-loaded and spaced, with the constrained rung.",
+		sources: ["https://qwenlm.github.io/blog/qwen3/"],
+		basis: "both",
+		verified: true,
+	},
+	// ── Mistral 24B family ────────────────────────────────────────────────────────────────────────────────
+	{
+		family: "magistral-small",
+		match: /magistral/,
+		toolUse: "TOOL_WEAK",
+		kind: "reasoning",
+		note: "Reasoning-first. Function calling is undocumented on the cards, disabled in official GGUF/Ollama builds, and reasoning-mode + tool parsing returns empty tool_calls. Weakest Mistral for tool use.",
+		sources: ["https://github.com/vllm-project/vllm/issues/30139"],
+		basis: "research",
+		verified: true,
+	},
+	{
+		family: "devstral-small",
+		match: /devstral/,
+		toolUse: "TOOL_NATIVE",
+		kind: "agentic",
+		note: "Purpose-built agentic coding model (Mistral × All Hands); tool use is the whole point (53.6% SWE-Bench Verified). Chaining bugs traced to GGUF template mismatches, not the model — use official quants.",
+		sources: ["https://mistral.ai/news/devstral-2507/"],
+		basis: "research",
+		verified: true,
+	},
+	{
+		family: "mistral-small",
+		match: /mistral-small-3\.?2|mistral-small/,
+		toolUse: "TOOL_NATIVE",
+		kind: "instruct",
+		note: 'First-class function calling; 3.2 shipped a "more robust function calling template". Reported failures are GGUF chat-template bugs (fixed in good quants), not model limitations.',
+		sources: ["https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506"],
+		basis: "research",
+		verified: true,
+	},
+	// ── Meta ──────────────────────────────────────────────────────────────────────────────────────────────
+	{
+		family: "llama-3.3-70b",
+		match: /llama-?3\.?3-70b/,
+		toolUse: "TOOL_NATIVE",
+		kind: "instruct",
+		note: "Official Meta tool support (built-in + custom JSON FC); rated most reliable on chained tool calls among local models. Limiting factor is planning depth, not call formatting. Meta recommends 70B (not 8B) for tools.",
+		sources: ["https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct"],
+		basis: "research",
+		verified: true,
+	},
+];
+
+/**
+ * Look up the curated capability entry for a model id (served id or lms key, e.g. `phi-4-mini-instruct@8bit`,
+ * `google/gemma-4-e2b`, `qwen/qwen3-8b`). Matches family patterns case-insensitively; returns the FIRST hit
+ * (catalog is ordered specific→general) or `null` when the family is unknown to the catalog.
+ */
+export function lookupModelCapability(modelId: string): ModelCapabilityEntry | null {
+	const id = normalizeModelId(modelId).toLowerCase();
+	for (const entry of MODEL_CAPABILITY_CATALOG) {
+		if (entry.match.test(id)) {
+			return entry;
+		}
+	}
+	return null;
+}
+
+/** The gate action for a model: `ok` to use freely, `warn` to use with a caveat, `reject` to refuse, `unknown` = no data. */
+export type SuitabilitySeverity = "ok" | "warn" | "reject" | "unknown";
+
+/** How the active policy treats the two non-`ok` knowledge states. Default: reject the unsuitable, warn the unknown. */
+export interface ModelSuitabilityPolicy {
+	/** Action when the catalog says a model is TOOL_UNSUITABLE (default `reject`). */
+	onUnsuitable: SuitabilitySeverity;
+	/** Action when the model is UNKNOWN to the catalog (default `warn` — don't hard-block an unstudied model). */
+	onUnknown: SuitabilitySeverity;
+}
+
+/** The shipped default policy (the user's chosen default): warn-and-reject not-suitable models right away. */
+export const DEFAULT_MODEL_SUITABILITY_POLICY: ModelSuitabilityPolicy = {
+	onUnsuitable: "reject",
+	onUnknown: "warn",
+};
+
+/**
+ * Merge a global policy with an OPTIONAL project-level override (the user's "global setting with project-level
+ * override" requirement). Any field set on the override wins; unset fields inherit the global policy.
+ */
+export function resolveModelSuitabilityPolicy(
+	global: ModelSuitabilityPolicy = DEFAULT_MODEL_SUITABILITY_POLICY,
+	projectOverride?: Partial<ModelSuitabilityPolicy>,
+): ModelSuitabilityPolicy {
+	return {
+		onUnsuitable: projectOverride?.onUnsuitable ?? global.onUnsuitable,
+		onUnknown: projectOverride?.onUnknown ?? global.onUnknown,
+	};
+}
+
+/** The outcome of gating a model: the action, a human-readable reason, and the catalog entry (if any). */
+export interface ModelSuitabilityVerdict {
+	modelId: string;
+	severity: SuitabilitySeverity;
+	/** True only when `severity === "ok"` — convenience for `if (!verdict.allowed) ...` call sites. */
+	allowed: boolean;
+	/** The headline tool-use verdict (or `UNKNOWN`). */
+	toolUse: ToolUseVerdict;
+	/** A one-paragraph, user-facing explanation incorporating the note, disqualifiers, and policy decision. */
+	reason: string;
+	/** The matched catalog entry, or `null` when the family is unknown. */
+	entry: ModelCapabilityEntry | null;
+}
+
+/** Verdict → base gate severity, BEFORE policy is applied. Native/capable are fine; weak warns; the rest defer to policy. */
+function baseSeverityForVerdict(verdict: ToolUseVerdict, policy: ModelSuitabilityPolicy): SuitabilitySeverity {
+	switch (verdict) {
+		case "TOOL_NATIVE":
+		case "TOOL_CAPABLE":
+			return "ok";
+		case "TOOL_WEAK":
+			return "warn";
+		case "TOOL_UNSUITABLE":
+			return policy.onUnsuitable;
+		case "UNKNOWN":
+			return policy.onUnknown;
+	}
+}
+
+/**
+ * Assess whether a model is suitable for agentic tool use under the active policy. This is the gate !Klein
+ * consults before driving a model (load path, chat, agent loop). Unknown models defer to `policy.onUnknown`
+ * (default `warn`) — paired with the §5.AL online-lookup task, an unknown model is a prompt to investigate,
+ * not a silent pass.
+ */
+export function assessModelSuitability(
+	modelId: string,
+	policy: ModelSuitabilityPolicy = DEFAULT_MODEL_SUITABILITY_POLICY,
+): ModelSuitabilityVerdict {
+	const entry = lookupModelCapability(modelId);
+	if (!entry) {
+		const severity = policy.onUnknown;
+		return {
+			modelId,
+			severity,
+			allowed: severity === "ok",
+			toolUse: "UNKNOWN",
+			reason:
+				`"${modelId}" is not in the model-capability catalog, so its tool-use reliability is unverified. ` +
+				"Run a capability check (or a model sweep) before relying on it for agentic tool chains.",
+			entry: null,
+		};
+	}
+	const base = baseSeverityForVerdict(entry.toolUse, policy);
+	// A per-entry severityOverride wins when it is STRICTER than the policy-derived base (so a project that loosens
+	// onUnsuitable to "warn" still can't accidentally promote a hard disqualifier like Nemotron-Mini's 4k context).
+	const severity = entry.severityOverride ? strictest(base, entry.severityOverride) : base;
+	const disq =
+		entry.disqualifiers && entry.disqualifiers.length > 0 ? ` Disqualifiers: ${entry.disqualifiers.join("; ")}.` : "";
+	const unverified =
+		entry.verified === false ? " (NOTE: this verdict is unverified — confirm against a live sweep.)" : "";
+	return {
+		modelId,
+		severity,
+		allowed: severity === "ok",
+		toolUse: entry.toolUse,
+		reason: `${entry.family} [${entry.toolUse}]: ${entry.note}${disq}${unverified}`,
+		entry,
+	};
+}
+
+/** Severity ordering for picking the stricter of two (reject > warn > unknown > ok). */
+const SEVERITY_RANK: Record<SuitabilitySeverity, number> = { ok: 0, unknown: 1, warn: 2, reject: 3 };
+function strictest(a: SuitabilitySeverity, b: SuitabilitySeverity): SuitabilitySeverity {
+	return SEVERITY_RANK[a] >= SEVERITY_RANK[b] ? a : b;
+}

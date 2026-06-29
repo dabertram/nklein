@@ -9,6 +9,12 @@
  */
 
 import { buildLmsLoadArgs, buildLmsUnloadArgs, parseLmsPs, type ResidentModel } from "./lms-model-control";
+import {
+	assessModelSuitability,
+	DEFAULT_MODEL_SUITABILITY_POLICY,
+	type ModelSuitabilityPolicy,
+	type ModelSuitabilityVerdict,
+} from "./model-capability-catalog";
 import { decideModelLoad } from "./model-load-headroom";
 
 /** Injected `lms` CLI runner — `run(["load", id, …])` → its stdout + exit code. */
@@ -45,6 +51,13 @@ export interface LoadExclusiveInput {
 	pinnedIdentifiers?: readonly string[];
 	/** RAM fraction to keep free (default 0.25 — the freeze-avoidance reserve). */
 	reserveFraction?: number;
+	/**
+	 * §5.AL model-capability gate. The active suitability policy (global default, optionally project-overridden).
+	 * A `reject` verdict REFUSES the load (no unload, no spawn) so a known-unsuitable model never wastes a run; a
+	 * `warn`/`unknown` proceeds but the caveat is carried on the result. Defaults to the shipped warn-and-reject
+	 * policy. Pass `{ onUnsuitable: "warn", onUnknown: "warn" }` (or "allow") to relax it.
+	 */
+	suitabilityPolicy?: ModelSuitabilityPolicy;
 }
 
 export interface LoadExclusiveResult {
@@ -53,6 +66,8 @@ export interface LoadExclusiveResult {
 	/** Identifiers unloaded to honor the one-at-a-time rule. */
 	unloaded: string[];
 	reason: string;
+	/** The §5.AL capability verdict consulted for this load (so the caller can surface a warning even on success). */
+	suitability: ModelSuitabilityVerdict;
 }
 
 /**
@@ -62,6 +77,23 @@ export interface LoadExclusiveResult {
  * target is already resident, it still clears the others and reports it resident.
  */
 export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInput): Promise<LoadExclusiveResult> {
+	// §5.AL capability gate FIRST — before any unload/spawn — so a known-unsuitable model never costs us the
+	// currently-resident good model nor a wasted load. A `reject` refuses outright; `warn`/`unknown` proceeds with
+	// the caveat carried on the result for the caller to surface.
+	const suitability = assessModelSuitability(
+		input.modelId,
+		input.suitabilityPolicy ?? DEFAULT_MODEL_SUITABILITY_POLICY,
+	);
+	if (suitability.severity === "reject") {
+		return {
+			loaded: false,
+			modelId: input.modelId,
+			unloaded: [],
+			reason: `Refused by the model-capability gate: ${suitability.reason}`,
+			suitability,
+		};
+	}
+
 	const pinned = new Set(input.pinnedIdentifiers ?? []);
 	const resident = await listResidentModels(run);
 
@@ -75,7 +107,13 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 	}
 
 	if (resident.some((model) => model.identifier === input.modelId)) {
-		return { loaded: true, modelId: input.modelId, unloaded, reason: "Already resident; cleared other models." };
+		return {
+			loaded: true,
+			modelId: input.modelId,
+			unloaded,
+			reason: "Already resident; cleared other models.",
+			suitability,
+		};
 	}
 
 	// After unload, the only resident bytes left are the kept (pinned + embedding) models.
@@ -90,7 +128,7 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 		reserveFraction: input.reserveFraction,
 	});
 	if (!decision.allow) {
-		return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason };
+		return { loaded: false, modelId: input.modelId, unloaded, reason: decision.reason, suitability };
 	}
 
 	const argv = buildLmsLoadArgs(input.modelId, {
@@ -99,11 +137,16 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 		gpu: "max",
 	});
 	const { stdout, exitCode } = await run(argv);
+	// On a successful load, fold any warn/unknown caveat into the reason so the caller sees it without re-querying.
+	const caveat = suitability.severity === "ok" ? "" : ` [capability ${suitability.severity}: ${suitability.reason}]`;
 	return {
 		loaded: exitCode === 0,
 		modelId: input.modelId,
 		unloaded,
 		reason:
-			exitCode === 0 ? `Loaded (${decision.reason})` : `lms load failed (exit ${exitCode}): ${stdout.slice(0, 200)}`,
+			exitCode === 0
+				? `Loaded (${decision.reason})${caveat}`
+				: `lms load failed (exit ${exitCode}): ${stdout.slice(0, 200)}`,
+		suitability,
 	};
 }

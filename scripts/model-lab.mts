@@ -7,6 +7,7 @@
  *
  * Subcommands:
  *   model-lab ps                 — list resident models (read-only; safe anytime).
+ *   model-lab check <id>         — print the §5.AL capability-catalog verdict for a model id (read-only; no load).
  *   model-lab load <id> [ctx]    — make <id> the sole resident LLM (unloads others, headroom-checked, ctx default 40000).
  *   model-lab unload <id>        — unload one model.
  *
@@ -17,6 +18,7 @@
 import { spawn } from "node:child_process";
 import { homedir, totalmem, userInfo } from "node:os";
 import { buildLmsUnloadArgs } from "../src/core/lms-model-control";
+import { assessModelSuitability } from "../src/core/model-capability-catalog";
 import { type LmsRunner, listResidentModels, loadModelExclusive } from "../src/core/lms-model-runner";
 
 /** A real `lms` runner: spawns the CLI with HOME restored to the OS passwd home (so `lms` finds its auth key). */
@@ -64,6 +66,24 @@ async function main(): Promise<void> {
 		});
 		console.log(JSON.stringify(result, null, 2));
 		process.exit(result.loaded ? 0 : 1);
+	}
+	if (subcommand === "check") {
+		// model-lab check <id> — print the §5.AL capability-catalog verdict for a model id (the CLI seed of the
+		// "check model" feature). Read-only; no load. Exit 0 ok, 1 warn/unknown, 2 reject — so it's scriptable.
+		if (!arg) {
+			console.error("usage: model-lab check <id>");
+			process.exit(64);
+		}
+		const v = assessModelSuitability(arg);
+		console.log(`${arg}`);
+		console.log(`  tool-use:  ${v.toolUse}`);
+		console.log(`  severity:  ${v.severity}${v.allowed ? "" : "  (would be gated under the default policy)"}`);
+		console.log(`  reason:    ${v.reason}`);
+		if (v.entry) {
+			console.log(`  kind:      ${v.entry.kind}  ·  basis: ${v.entry.basis}${v.entry.verified === false ? " (UNVERIFIED)" : ""}`);
+			console.log(`  sources:   ${v.entry.sources.join("  ")}`);
+		}
+		process.exit(v.severity === "reject" ? 2 : v.severity === "ok" ? 0 : 1);
 	}
 	if (subcommand === "unload") {
 		if (!arg) {
@@ -140,7 +160,7 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
-	console.log("usage: tsx scripts/model-lab.mts ps | load <id> [ctx] | unload <id> | get <name>[@quant] | sweep <harness> <id1,id2,…>");
+	console.log("usage: tsx scripts/model-lab.mts ps | check <id> | load <id> [ctx] | unload <id> | get <name>[@quant] | sweep <harness> <id1,id2,…>");
 }
 
 main().catch((error) => {
