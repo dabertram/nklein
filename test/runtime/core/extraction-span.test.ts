@@ -172,3 +172,17 @@ describe("extractRelevantSpans", () => {
 		}
 	});
 });
+
+describe("toEvidenceSpan + first-occurrence-only behavior", () => {
+	it("drops the ephemeral text field, keeping only offsets", async () => {
+		const { toEvidenceSpan } = await import("../../../src/core/extraction-span");
+		expect(toEvidenceSpan({ start: 3, end: 9, text: "abcdef" })).toEqual({ start: 3, end: 9 });
+	});
+	it("anchors on the FIRST occurrence only (a distant repeat is ignored)", async () => {
+		const { extractRelevantSpans } = await import("../../../src/core/extraction-span");
+		const text = `${"x".repeat(5)}fox${"y".repeat(400)}fox`;
+		const spans = extractRelevantSpans(text, ["fox"], { windowChars: 10, maxSpans: 5 });
+		expect(spans).toHaveLength(1);
+		expect(spans[0]?.start).toBeLessThan(20);
+	});
+});

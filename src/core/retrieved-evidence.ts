@@ -81,7 +81,7 @@ export const retrievedEvidenceSchema = z.object({
 	 * evidence is only considered grounded when at least one span is present (an empty array means the evidence was
 	 * fetched but not used — it cannot support any claim).
 	 */
-	extractionSpans: z.array(z.object({ start: z.number(), end: z.number() })),
+	extractionSpans: z.array(z.object({ start: z.number().int().nonnegative(), end: z.number().int().positive() })),
 	/**
 	 * The stable citation ids by which this evidence is referenced in LLM responses.  Populated by the citation
 	 * registry before the evidence object enters the context window.

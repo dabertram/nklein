@@ -125,3 +125,14 @@ export function extractRelevantSpans(
 	// Step 6: build result spans from the original-case text.
 	return capped.map((w) => ({ start: w.start, end: w.end, text: text.slice(w.start, w.end) }));
 }
+
+/**
+ * Project an {@link ExtractionSpan} onto the offset-only shape `RetrievedEvidence.extractionSpans` persists
+ * (`{ start, end }`). The `text` field is EPHEMERAL — it is a convenience slice for the synthesis step and is
+ * re-sliceable from the stored source document, so it MUST be dropped before an extraction span is persisted as
+ * evidence (the evidence schema has no `text` field; passing the full span would be silently stripped). Use this
+ * adapter at the extract → evidence seam to make that contract explicit.
+ */
+export function toEvidenceSpan(span: ExtractionSpan): { start: number; end: number } {
+	return { start: span.start, end: span.end };
+}

@@ -152,3 +152,15 @@ describe("assessRetrievalSufficiency", () => {
 		expect(coveredSubQuestions).toEqual(["What is X?"]);
 	});
 });
+
+describe("minSources no-floor semantics", () => {
+	it("minSources <= 0 means no source floor (passes regardless of count); positive still gates", async () => {
+		const { assessRetrievalSufficiency } = await import("../../../src/core/retrieval-sufficiency");
+		const base = { subQuestions: [], coveredSubQuestions: [], freshnessSatisfied: true };
+		expect(assessRetrievalSufficiency({ ...base, sourceCount: 0, minSources: 0 }).sufficient).toBe(true);
+		expect(assessRetrievalSufficiency({ ...base, sourceCount: 0, minSources: -3 }).sufficient).toBe(true);
+		const gated = assessRetrievalSufficiency({ ...base, sourceCount: 0, minSources: 2 });
+		expect(gated.sufficient).toBe(false);
+		expect(gated.reasons.some((r) => r.includes("source"))).toBe(true);
+	});
+});

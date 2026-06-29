@@ -200,3 +200,30 @@ describe("verifyCitations", () => {
 		expect(result.unsupported).toEqual(["claim-nocite"]);
 	});
 });
+
+describe("extractionSpans schema tightening (int + sign)", () => {
+	it("rejects negative or non-integer span offsets, accepts clean ones", async () => {
+		const { retrievedEvidenceSchema } = await import("../../../src/core/retrieved-evidence");
+		const base = {
+			url: "https://example.com",
+			sourceType: "web",
+			fetchedAt: "2026-06-29T00:00:00Z",
+			contentHash: "abc123",
+			trustTier: "untrusted",
+			citationIds: [],
+			promptInjectionRiskFlags: [],
+		};
+		expect(retrievedEvidenceSchema.safeParse({ ...base, extractionSpans: [{ start: -1, end: 5 }] }).success).toBe(
+			false,
+		);
+		expect(retrievedEvidenceSchema.safeParse({ ...base, extractionSpans: [{ start: 1.5, end: 5 }] }).success).toBe(
+			false,
+		);
+		expect(retrievedEvidenceSchema.safeParse({ ...base, extractionSpans: [{ start: 0, end: 0 }] }).success).toBe(
+			false,
+		);
+		expect(retrievedEvidenceSchema.safeParse({ ...base, extractionSpans: [{ start: 0, end: 5 }] }).success).toBe(
+			true,
+		);
+	});
+});

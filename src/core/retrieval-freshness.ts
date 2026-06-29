@@ -93,3 +93,31 @@ export function judgeRetrievedFreshness(
 export function shouldSearchForFresher(verdict: FreshnessVerdict): boolean {
 	return verdict === "possibly_stale" || verdict === "stale" || verdict === "unknown";
 }
+
+/**
+ * The explicit POSITIVE form of {@link shouldSearchForFresher}: true when the source is fresh enough to STOP and rely on
+ * it. This is the value `retrieval-sufficiency.ts`'s `freshnessSatisfied` expects — exposed by name so a driver writes
+ * `freshnessSatisfied: isFreshnessSatisfied(verdict)` rather than the easily-inverted `!shouldSearchForFresher(verdict)`.
+ * Invariant: `isFreshnessSatisfied(v) === !shouldSearchForFresher(v)` for every verdict.
+ */
+export function isFreshnessSatisfied(verdict: FreshnessVerdict): boolean {
+	return !shouldSearchForFresher(verdict);
+}
+
+/**
+ * Project the 5-value {@link FreshnessVerdict} onto the 3-value enum `RetrievedEvidence.freshnessVerdict` stores
+ * (`"fresh" | "stale" | "unknown"`). `current`/`recent` ⇒ `"fresh"`; `possibly_stale`/`stale` ⇒ `"stale"`; `unknown` ⇒
+ * `"unknown"`. The explicit adapter prevents a driver from guessing where `possibly_stale` maps.
+ */
+export function toEvidenceFreshnessVerdict(verdict: FreshnessVerdict): "fresh" | "stale" | "unknown" {
+	switch (verdict) {
+		case "current":
+		case "recent":
+			return "fresh";
+		case "possibly_stale":
+		case "stale":
+			return "stale";
+		default:
+			return "unknown";
+	}
+}

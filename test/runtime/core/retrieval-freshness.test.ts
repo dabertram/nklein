@@ -53,3 +53,23 @@ describe("shouldSearchForFresher", () => {
 		expect(shouldSearchForFresher("unknown")).toBe(true);
 	});
 });
+
+describe("freshness adapters (isFreshnessSatisfied, toEvidenceFreshnessVerdict)", () => {
+	const verdicts = ["current", "recent", "possibly_stale", "stale", "unknown"] as const;
+	it("isFreshnessSatisfied is the exact complement of shouldSearchForFresher", async () => {
+		const { isFreshnessSatisfied, shouldSearchForFresher } = await import("../../../src/core/retrieval-freshness");
+		for (const v of verdicts) {
+			expect(isFreshnessSatisfied(v)).toBe(!shouldSearchForFresher(v));
+		}
+		expect(isFreshnessSatisfied("current")).toBe(true);
+		expect(isFreshnessSatisfied("stale")).toBe(false);
+	});
+	it("toEvidenceFreshnessVerdict projects the 5 verdicts onto the 3-value evidence enum", async () => {
+		const { toEvidenceFreshnessVerdict } = await import("../../../src/core/retrieval-freshness");
+		expect(toEvidenceFreshnessVerdict("current")).toBe("fresh");
+		expect(toEvidenceFreshnessVerdict("recent")).toBe("fresh");
+		expect(toEvidenceFreshnessVerdict("possibly_stale")).toBe("stale");
+		expect(toEvidenceFreshnessVerdict("stale")).toBe("stale");
+		expect(toEvidenceFreshnessVerdict("unknown")).toBe("unknown");
+	});
+});

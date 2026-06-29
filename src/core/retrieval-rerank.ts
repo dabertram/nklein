@@ -26,6 +26,17 @@ export interface RerankedHit {
 }
 
 /**
+ * Tokenize a query into DISTINCT lowercased word terms (split on non-word chars, drop empties). This is the canonical
+ * query tokenizer for the §5.AC retrieval loop: `rerankByRelevance` uses it to score, and `extractRelevantSpans` callers
+ * should derive their `queryTerms` from it so the rerank and extract steps agree on what a "term" is (avoids the seam
+ * where rerank splits on /\W+/ but extraction receives differently-split terms incl. punctuation).
+ */
+export function tokenizeQuery(query: string): string[] {
+	const rawTerms = query.split(/\W+/).filter((term) => term.length > 0);
+	return Array.from(new Set(rawTerms.map((term) => term.toLowerCase())));
+}
+
+/**
  * Score a piece of text by the fraction of distinct query terms it contains (as substrings).
  *
  * @param queryTerms Distinct lowercased word terms (already split and normalized).
@@ -61,10 +72,8 @@ export function lexicalRelevanceScore(queryTerms: readonly string[], text: strin
  * @returns RerankedHit[] sorted by score DESC, with stable tie-breaking.
  */
 export function rerankByRelevance(query: string, candidates: readonly RerankCandidate[]): RerankedHit[] {
-	// Tokenize query: split on non-word chars, lowercase, deduplicate.
-	const rawTerms = query.split(/\W+/).filter((term) => term.length > 0);
-	const queryTermsSet = new Set(rawTerms.map((term) => term.toLowerCase()));
-	const queryTerms = Array.from(queryTermsSet);
+	// Tokenize query via the canonical shared tokenizer (so extract + rerank agree on terms).
+	const queryTerms = tokenizeQuery(query);
 
 	// Score each candidate and pair with its original index (for stable sort).
 	const scored = candidates.map((candidate, index) => ({

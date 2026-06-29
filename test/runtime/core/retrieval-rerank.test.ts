@@ -107,3 +107,12 @@ describe("rerankByRelevance", () => {
 		expect(result.every((hit) => hit.score === 2 / 3)).toBe(true);
 	});
 });
+
+describe("tokenizeQuery (shared canonical tokenizer)", () => {
+	it("splits on non-word chars, lowercases, dedupes, drops empties", async () => {
+		const { tokenizeQuery } = await import("../../../src/core/retrieval-rerank");
+		expect(tokenizeQuery("Fox, fox; the QUICK  fox!")).toEqual(["fox", "the", "quick"]);
+		expect(tokenizeQuery("")).toEqual([]);
+		expect(tokenizeQuery("   ...  ")).toEqual([]);
+	});
+});

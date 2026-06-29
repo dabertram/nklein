@@ -93,3 +93,19 @@ describe("nextRetrievalAction", () => {
 		expect(nextRetrievalAction({ ...base, hasQueryPlan: true, hitCount: -3, fetchedCount: 0 })).toBe("search");
 	});
 });
+
+describe("maxIterations=0 boundary", () => {
+	it("stops immediately on a zero budget regardless of other state", async () => {
+		const { nextRetrievalAction } = await import("../../../src/core/retrieval-loop-state");
+		expect(
+			nextRetrievalAction({
+				iteration: 0,
+				maxIterations: 0,
+				hasQueryPlan: false,
+				hitCount: 0,
+				fetchedCount: 0,
+				sufficient: false,
+			}),
+		).toBe("stop_budget_exhausted");
+	});
+});

@@ -19,12 +19,14 @@
  *
  * @property subQuestions        - The full set of sub-questions that must be answered (order-preserving; may contain
  *                                 duplicates — deduplication by normalised form is applied internally, keeping the
- *                                 first occurrence).
+ *                                 first occurrence). Typically derived from `RetrievalQueryPlan.alternateQueries` — the
+ *                                 queries that must each be covered before the loop terminates.
  * @property coveredSubQuestions - The sub-questions that retrieval has satisfied so far. Matched via normalised form
  *                                 (trimmed, lowercased, collapsed whitespace), so exact capitalisation/spacing is not
  *                                 required.
  * @property sourceCount         - Total number of distinct retrieved sources available.
- * @property minSources          - Minimum number of sources required for the verdict to be sufficient.
+ * @property minSources          - Minimum number of sources required for the verdict to be sufficient. A value ≤ 0
+ *                                 means "no minimum" (the source-count gate always passes).
  * @property freshnessSatisfied  - Whether the freshness gate (e.g. assessed by retrieval-freshness.ts) has been met.
  */
 export interface SufficiencyInput {
@@ -83,7 +85,9 @@ export function assessRetrievalSufficiency(input: SufficiencyInput): Sufficiency
 
 	// Evaluate conditions.
 	const allCovered = unmetSubQuestions.length === 0;
-	const enoughSources = input.sourceCount >= input.minSources;
+	// minSources <= 0 means "no source floor" (gate always passes) — made explicit so a stray non-positive value can't
+	// silently look like a bypassed comparison.
+	const enoughSources = input.minSources <= 0 || input.sourceCount >= input.minSources;
 	const fresh = input.freshnessSatisfied;
 
 	// Build reasons for every UNMET condition.
