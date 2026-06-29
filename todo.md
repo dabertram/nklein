@@ -4615,9 +4615,16 @@ deep analysis:
       quality-effective budget · dominant failure mode · preferred tool-call format) from the ledger projection. **Still
       owed:** the runtime CONSUMING it to compact/target down to the budget at prompt-assembly (behind a §5.Z re-verify),
       eval-sweep probes (§5.AB harness), and the web Settings model-telemetry panel (the CLI surface is done).
-- [ ] **Distractor-aware retrieval pruning (per-model sensitivity).** Rank + prune repo-map / code-index / online
+- [~] **Distractor-aware retrieval pruning (per-model sensitivity).** Rank + prune repo-map / code-index / online
       results harder for models with high learned distractor sensitivity (similar-but-irrelevant context measurably
-      hurts). Ties §6.7 retrieval + §5.AC online retrieval; feeds the arrangement policy's MIDDLE band.
+      hurts). Ties §6.7 retrieval + §5.AC online retrieval; feeds the arrangement policy's MIDDLE band. **PURE CORE DONE
+      (2026-06-29):** [src/core/distractor-pruning.ts](src/core/distractor-pruning.ts) `pruneDistractors(items,
+      {sensitivity, minKeep?, maxKeep?})` — generic over any `{ score }`-bearing result (code-search match / repo-map
+      symbol / online snippet); drops the low-relevance tail harder as sensitivity rises (floor = topScore × sensitivity ×
+      0.8), keeps `minKeep` top items so it never empties a non-empty set, caps at `maxKeep`, stable for ties, sensitivity
+      0 ⇒ no pruning. 5 unit tests; tsc + biome green. **Still owed (WIRING — behind a live §5.Z re-verify):** source the
+      per-model `sensitivity` (a §5.AA learnable signal, once an A/B observation exists) and call it on the retrieval
+      results before they feed §5.AD's MIDDLE band in board + chat prompt assembly.
 - [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first).** A bounded reason→critique→revise loop for
       models that reason poorly alone: (a) **cross-model bounce** — a stronger loaded model critiques/repairs a weaker
       model's draft (the robust technique — one round can carry the weak model); (b) **self-bounce with VARIED system
