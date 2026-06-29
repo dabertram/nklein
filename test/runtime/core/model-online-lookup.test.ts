@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildModelInvestigationPrompt, parseModelInvestigationResult } from "../../../src/core/model-online-lookup";
+import {
+	buildModelInvestigationPrompt,
+	buildProvisionalCatalogEntry,
+	deriveModelFamily,
+	parseModelInvestigationResult,
+} from "../../../src/core/model-online-lookup";
 
 describe("model-online-lookup: prompt", () => {
 	it("names the model + asks for the JSON verdict shape with every bucket", () => {
@@ -57,5 +62,48 @@ describe("model-online-lookup: parse", () => {
 		expect(res.succeeded).toBe(true);
 		expect(res.summary).toBe("");
 		expect(res.sources).toEqual(["https://ok.co/a"]);
+	});
+});
+
+describe("model-online-lookup: deriveModelFamily", () => {
+	it("strips the provider prefix and quant/instance suffixes", () => {
+		expect(deriveModelFamily("qwen/qwen3-8b@4bit")).toBe("qwen3-8b");
+		expect(deriveModelFamily("google/gemma-4-e2b-m5max")).toBe("gemma-4-e2b");
+		expect(deriveModelFamily("phi-4-mini-instruct@8bit")).toBe("phi-4-mini-instruct");
+		expect(deriveModelFamily("SomeVendor/Cool-Model-Q8")).toBe("cool-model");
+	});
+});
+
+describe("model-online-lookup: buildProvisionalCatalogEntry", () => {
+	it("builds a verified:false, basis:research provisional entry from a successful lookup", () => {
+		const entry = buildProvisionalCatalogEntry("acme/new-coder-7b@4bit", {
+			succeeded: true,
+			toolUse: "TOOL_CAPABLE",
+			summary: "Trained for function calling per its card.",
+			sources: ["https://hf.co/acme/new-coder-7b"],
+		});
+		expect(entry).not.toBeNull();
+		expect(entry?.family).toBe("new-coder-7b");
+		expect(entry?.matchSource).toBe("new-coder-7b"); // hyphens need no escaping outside a char-class
+		expect(entry?.toolUse).toBe("TOOL_CAPABLE");
+		expect(entry?.basis).toBe("research");
+		expect(entry?.verified).toBe(false);
+		expect(entry?.note).toMatch(/PROVISIONAL/);
+		expect(entry?.note).toMatch(/confirm against a live sweep/i);
+		expect(entry?.sources).toEqual(["https://hf.co/acme/new-coder-7b"]);
+	});
+
+	it("returns null for a failed lookup or an UNKNOWN verdict (nothing trustworthy to propose)", () => {
+		expect(
+			buildProvisionalCatalogEntry("x/y", { succeeded: false, toolUse: "UNKNOWN", summary: "", sources: [] }),
+		).toBeNull();
+		expect(
+			buildProvisionalCatalogEntry("x/y", {
+				succeeded: true,
+				toolUse: "UNKNOWN",
+				summary: "no evidence",
+				sources: [],
+			}),
+		).toBeNull();
 	});
 });

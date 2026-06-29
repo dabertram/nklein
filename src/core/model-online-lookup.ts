@@ -95,6 +95,68 @@ export function parseModelInvestigationResult(text: string): ModelInvestigationR
 	};
 }
 
+/**
+ * A PROVISIONAL catalog entry synthesized from a successful online lookup (todo §5.AL) — what the user is shown to
+ * confirm before it's pasted into `MODEL_CAPABILITY_CATALOG`. Deliberately `verified: false` + `basis: "research"`:
+ * an online self-lookup is a starting hypothesis, not a substitute for a live sweep.
+ */
+export interface ProvisionalCatalogEntry {
+	/** Family slug derived from the model id (provider prefix + quant/instance suffix stripped). */
+	family: string;
+	/** A regex-source string (escaped) that matches the family — drops straight into a catalog entry's `match`. */
+	matchSource: string;
+	toolUse: ToolUseVerdict;
+	/** The lookup summary, tagged provisional so no reader mistakes it for a verified verdict. */
+	note: string;
+	sources: string[];
+	basis: "research";
+	verified: false;
+}
+
+/** Strip the provider prefix (`qwen/…`) and quant/instance suffixes (`@4bit`, `-m5max`, `-q8`, …) to a family slug. */
+export function deriveModelFamily(modelId: string): string {
+	const afterProvider = modelId.includes("/") ? modelId.slice(modelId.lastIndexOf("/") + 1) : modelId;
+	return afterProvider
+		.trim()
+		.toLowerCase()
+		.replace(/@.*$/, "") // drop an `@quant` suffix
+		.replace(/-(m5max|m4mini|q4|q8|q4_k_m|q8_0|4bit|8bit|gguf|mlx|instance|local)\b.*$/i, "") // drop instance/quant tails
+		.replace(/[^a-z0-9.\-_]+/g, "-") // collapse stray punctuation
+		.replace(/^-+|-+$/g, "");
+}
+
+/** Escape a literal string for safe use inside a `RegExp` source. */
+function escapeRegexSource(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Turn a SUCCESSFUL investigation into a provisional catalog entry suggestion for the user to confirm (todo §5.AL).
+ * Returns null for a failed lookup (nothing trustworthy to propose) or one that came back `UNKNOWN` (no verdict to add).
+ */
+export function buildProvisionalCatalogEntry(
+	modelId: string,
+	result: ModelInvestigationResult,
+): ProvisionalCatalogEntry | null {
+	if (!result.succeeded || result.toolUse === "UNKNOWN") {
+		return null;
+	}
+	const family = deriveModelFamily(modelId);
+	if (family.length === 0) {
+		return null;
+	}
+	const summary = result.summary.trim();
+	return {
+		family,
+		matchSource: escapeRegexSource(family),
+		toolUse: result.toolUse,
+		note: `${summary ? `${summary} ` : ""}(PROVISIONAL — from an online self-lookup of "${modelId}"; confirm against a live sweep before trusting.)`,
+		sources: result.sources,
+		basis: "research",
+		verified: false,
+	};
+}
+
 /** Map a raw `toolUse` value (case-insensitive, trimmed) to a {@link ToolUseVerdict}, or null when unrecognized. */
 function normalizeVerdict(value: unknown): ToolUseVerdict | null {
 	if (typeof value !== "string") {
