@@ -4782,8 +4782,13 @@ deep analysis:
         we can plan each pool from the m5 alone. **Correction:** llmfit DOES have a coarse `tool_use` capability tag (HF
         metadata) — but NOT the empirical §5.AL reliability verdict, so still complementary. Local subcommands
         (system/list/fit/recommend/plan) are network-free; only `update`/`download`/`hf-search` are outbound (egress-gate).
-  - [ ] guarded CLI adapter `src/core/llmfit-adapter.ts` (pure parser for the JSON + a thin effectful runner, mirroring
-        the `lms` runner pattern) — `planModelFit(modelId, {contextLen, machine})` + `recommendModels({machine, useCase})`.
+  - [~] guarded CLI adapter `src/core/llmfit-adapter.ts`. **PURE PARSER HALF DONE (2026-06-29):** tolerant
+        `parseLlmfitRecommend` (`{models:[…], system}`) + `parseLlmfitModel` + `parseLlmfitSystemReport` over the real
+        captured shapes (fields: name/bestQuant/fitLevel/memoryRequiredGb/estimatedTps/isMoe/moeOffloadedGb/installed/
+        contextLength/capabilityIds/license), plus `llmfitFitClears` (Perfect|Good ⇒ load-OK, else/unknown ⇒ no) and
+        `llmfitClaimsToolUse` (capability pre-filter). 6 tests (real fixtures). **Still owed:** the thin effectful runner
+        (`uvx llmfit --json …` shell-out, mirroring the guarded `lms` runner) + `planModelFit(modelId,{contextLen,machine})`
+        / `recommendModels({machine,useCase})` passing `--memory/--ram` per pool.
   - [ ] feed llmfit's fit verdict into `decideModelLoad` (per-pool RAM/VRAM headroom) — supersede the `approxSizeGb` guess.
   - [ ] feed tok/s + score into the §5.AB fitness store + the pool-routing `predictedWallTimeMs`/`capabilityTier`.
   - [ ] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
