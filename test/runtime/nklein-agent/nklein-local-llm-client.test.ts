@@ -23,6 +23,40 @@ describe("LocalLlmClient local-only enforcement", () => {
 });
 
 describe("LocalLlmClient.complete", () => {
+	it("retries a transient failure then succeeds (§5.AF), with a fresh request per attempt", async () => {
+		let calls = 0;
+		const fetchImpl = vi.fn(async () => {
+			calls += 1;
+			if (calls === 1) {
+				throw new Error("Body Timeout Error");
+			}
+			return jsonResponse("recovered");
+		});
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.complete({ messages: [{ role: "user", content: "hi" }] });
+		expect(result.content).toBe("recovered");
+		expect(calls).toBe(2);
+	});
+
+	it("does NOT retry a non-transient 500 (a generic server error is a real failure)", async () => {
+		const fetchImpl = vi.fn(async () => new Response("boom", { status: 500 }));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(client.complete({ messages: [{ role: "user", content: "hi" }] })).rejects.toBeInstanceOf(
+			LocalLlmRequestError,
+		);
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+	});
+
 	it("sends full sampling params and json_schema response_format to the endpoint", async () => {
 		const fetchImpl = vi.fn(async () => jsonResponse("ok"));
 		const client = new LocalLlmClient({

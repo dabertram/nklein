@@ -1,3 +1,4 @@
+import { withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import { parseNarratedToolCalls, parseToolValidatedNarration } from "./nklein-narrated-tool-call";
 
@@ -177,38 +178,44 @@ export class LocalLlmClient {
 
 	async complete(request: LocalLlmCompletionRequest): Promise<LocalLlmCompletion> {
 		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
-		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-		const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
-		try {
-			const response = await this.fetchImpl(url, {
-				method: "POST",
-				headers: {
-					"content-type": "application/json",
-					...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
-				},
-				body: JSON.stringify(this.buildBody(request)),
-				signal,
-			});
-			if (!response.ok) {
-				const text = await response.text().catch(() => "");
-				throw new LocalLlmRequestError(
-					`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
-					response.status,
-				);
+		// §5.AF transient survivability: retry only TRANSIENT failures (undici timeout / connection blip / 5xx),
+		// bounded, with a FRESH internal timeout per attempt. A caller-cancel or our hard-timeout abort is not transient
+		// ⇒ not retried; a successful call returns on the first attempt (behavior unchanged).
+		const attempt = async (): Promise<LocalLlmCompletion> => {
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+			const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
+			try {
+				const response = await this.fetchImpl(url, {
+					method: "POST",
+					headers: {
+						"content-type": "application/json",
+						...(this.config.apiKey?.trim() ? { authorization: `Bearer ${this.config.apiKey.trim()}` } : {}),
+					},
+					body: JSON.stringify(this.buildBody(request)),
+					signal,
+				});
+				if (!response.ok) {
+					const text = await response.text().catch(() => "");
+					throw new LocalLlmRequestError(
+						`Local model request failed (${response.status}): ${text.slice(0, 500)}`,
+						response.status,
+					);
+				}
+				const json = (await response.json()) as {
+					choices?: Array<{ message?: { content?: string }; finish_reason?: string | null }>;
+				};
+				const choice = json.choices?.[0];
+				return {
+					content: choice?.message?.content ?? "",
+					finishReason: choice?.finish_reason ?? null,
+					raw: json,
+				};
+			} finally {
+				clearTimeout(timeout);
 			}
-			const json = (await response.json()) as {
-				choices?: Array<{ message?: { content?: string }; finish_reason?: string | null }>;
-			};
-			const choice = json.choices?.[0];
-			return {
-				content: choice?.message?.content ?? "",
-				finishReason: choice?.finish_reason ?? null,
-				raw: json,
-			};
-		} finally {
-			clearTimeout(timeout);
-		}
+		};
+		return withTransientRetry(attempt, { maxRetries: 2 });
 	}
 
 	/**
