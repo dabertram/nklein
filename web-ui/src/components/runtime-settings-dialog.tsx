@@ -122,6 +122,7 @@ import type {
 	RuntimeCodeEmbeddingSettings,
 	RuntimeConfigResponse,
 	RuntimeLostHeartbeatPolicy,
+	RuntimeModelGateAction,
 	RuntimeModelRoles,
 	RuntimeNKleinAdvisorKind,
 	RuntimeNKleinAdvisorRequest,
@@ -1334,6 +1335,9 @@ export function RuntimeSettingsDialog({
 		perProvider: {},
 		perModel: {},
 	});
+	// §5.AL global model-capability gate policy default.
+	const [modelGateUnsuitable, setModelGateUnsuitable] = useState<RuntimeModelGateAction>("reject");
+	const [modelGateUnknown, setModelGateUnknown] = useState<RuntimeModelGateAction>("warn");
 	const [concurrencyOverride, setConcurrencyOverride] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
@@ -1489,6 +1493,9 @@ export function RuntimeSettingsDialog({
 		}),
 		[config?.concurrencyDefaults],
 	);
+	const initialModelGateUnsuitable: RuntimeModelGateAction =
+		config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject";
+	const initialModelGateUnknown: RuntimeModelGateAction = config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn";
 	const initialConcurrencyOverride = useMemo(
 		() =>
 			config?.concurrencyOverride != null
@@ -1736,6 +1743,9 @@ export function RuntimeSettingsDialog({
 		if (JSON.stringify(concurrencyDefaults) !== JSON.stringify(initialConcurrencyDefaults)) {
 			return true;
 		}
+		if (modelGateUnsuitable !== initialModelGateUnsuitable || modelGateUnknown !== initialModelGateUnknown) {
+			return true;
+		}
 		if (JSON.stringify(concurrencyOverride) !== JSON.stringify(initialConcurrencyOverride)) {
 			return true;
 		}
@@ -1811,6 +1821,10 @@ export function RuntimeSettingsDialog({
 		initialModelRoles,
 		initialConcurrencyDefaults,
 		concurrencyDefaults,
+		initialModelGateUnsuitable,
+		modelGateUnsuitable,
+		initialModelGateUnknown,
+		modelGateUnknown,
 		initialConcurrencyOverride,
 		concurrencyOverride,
 		initialAgentRulesets,
@@ -1912,6 +1926,8 @@ export function RuntimeSettingsDialog({
 			perProvider: { ...(config?.concurrencyDefaults?.perProvider ?? {}) },
 			perModel: { ...(config?.concurrencyDefaults?.perModel ?? {}) },
 		});
+		setModelGateUnsuitable(config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject");
+		setModelGateUnknown(config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn");
 		setConcurrencyOverride(
 			config?.concurrencyOverride != null
 				? {
@@ -2399,6 +2415,7 @@ export function RuntimeSettingsDialog({
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
+			modelSuitabilityPolicyDefaults: { onUnsuitable: modelGateUnsuitable, onUnknown: modelGateUnknown },
 			concurrencyDefaults,
 			concurrencyOverride,
 			agentRulesets,
@@ -3309,6 +3326,52 @@ export function RuntimeSettingsDialog({
 													onModelChange={setCodeEmbeddingDefaultsModel}
 													onError={setSaveError}
 												/>
+											</div>
+										</div>
+									</div>
+									<div className="mt-4 border-t border-border pt-4">
+										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+											Model capability gate
+										</h6>
+										<p className="m-0 mb-3 text-[12px] text-text-secondary">
+											How !Klein treats a model the capability catalog flags as not-suitable (e.g.
+											reasoning-only) or unknown for agentic tool use. A project can override this in its
+											Project Settings.
+										</p>
+										<div className="grid gap-2 lg:grid-cols-2">
+											<div className="min-w-0">
+												<span className="mb-1 block text-[12px] text-text-secondary">
+													Not-suitable model
+												</span>
+												<NativeSelect
+													id="runtime-settings-model-gate-unsuitable"
+													value={modelGateUnsuitable}
+													onChange={(event) =>
+														setModelGateUnsuitable(event.target.value as RuntimeModelGateAction)
+													}
+													disabled={controlsDisabled}
+													fill
+												>
+													<option value="reject">Reject (refuse to use)</option>
+													<option value="warn">Warn (use with a caveat)</option>
+													<option value="allow">Allow (use anyway)</option>
+												</NativeSelect>
+											</div>
+											<div className="min-w-0">
+												<span className="mb-1 block text-[12px] text-text-secondary">Unknown model</span>
+												<NativeSelect
+													id="runtime-settings-model-gate-unknown"
+													value={modelGateUnknown}
+													onChange={(event) =>
+														setModelGateUnknown(event.target.value as RuntimeModelGateAction)
+													}
+													disabled={controlsDisabled}
+													fill
+												>
+													<option value="reject">Reject (refuse to use)</option>
+													<option value="warn">Warn (use with a caveat)</option>
+													<option value="allow">Allow (use anyway)</option>
+												</NativeSelect>
 											</div>
 										</div>
 									</div>

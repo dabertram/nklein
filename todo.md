@@ -5617,25 +5617,16 @@ deep analysis:
       `buildRuntimeConfigResponse` passthrough. Threaded into task-start as the gate's BASE policy
       (`resolveActiveModelSuitabilityPolicy(env, scopedRuntimeConfig.effectiveModelSuitabilityPolicy)` — env override >
       per-project override > global default > shipped default). Full suite 3117 green (the config round-trip/persistence
-      tests validate it saves+loads correctly). REMAINING: the React Settings WIDGET in the web-ui (read/write the new
-      fields — a thin follow-up now the backend + contract exist).
-- [ ] **(legacy note) Settings UI + per-PROJECT override (runtime-config).** Superseded by the row above — the backend +
-      contract + per-project override + threading are DONE; only the React Settings widget remains. Original scope notes:
-      expose `onUnsuitable`/`onUnknown` in the
-      runtime config contract + Settings UI as a global setting with a per-project override (the §5.W pattern), persisted,
-      and feed the resolved global+project policy into `resolveModelSuitabilityPolicy`/the gates (replacing/augmenting the
-      env layer). **Scope discovered 2026-06-29 (do this as a focused unit — a partial change does NOT compile, since the
-      fields are required on `RuntimeConfigState`):** it mirrors `codeEmbeddingSettings` across ~40 sites: the contract
-      schema (`runtime-config-api-contract` add a `runtimeModelSuitabilityPolicySchema` + default; `config-api-contract`
-      response + save-request) · the `RuntimeConfigState` / `RuntimeGlobalConfigFileShape` / `RuntimeProjectConfigFileShape`
-      types (`runtime-config-types.ts`) · the normalizers + equality (`runtime-config-normalizers.ts`) · `runtime-config.ts`
-      (the change-field lists, the derived-field list, build #1, build #2, and the MANY save/update/reset persistence
-      variants — ~grep `codeEmbeddingOverride` for every site) · `agent-registry.ts` `buildRuntimeConfigResponse`
-      passthrough · then ~6 test fixtures that construct `RuntimeConfigState` literals (task-verify, acceptance-auto-repair,
-      knowledge-tool-usage-stats, model-performance-stats, agent-registry, runtime-api). Plus the React Settings widget in
-      the web-ui. An env-layer global setting already ships (above), so this is a refinement, not a blocker. The merge
-      primitive (`resolveModelSuitabilityPolicy(global, projectOverride)`) + the env global already
-      exist; this is the config-contract + UI plumbing (schema · load/save · change-detection · response · Settings panel).
+      tests validate it saves+loads correctly).
+- [x] **React Settings WIDGET (web-ui) — global default + per-project override (2026-06-29).** Global default in
+      [runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx) (a "Model capability gate" section,
+      `Not-suitable`/`Unknown` → allow|warn|reject selects, wired into state/load/dirty-tracking/save mirroring
+      `concurrencyDefaults`), and the per-project override in
+      [project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx) (override toggle + the two selects,
+      saved via `modelSuitabilityPolicyOverride`). The web-ui types already carried the fields (it re-exports the backend
+      contract via `export type * from "@runtime-contract"`); +8 web-ui test fixtures updated + a dialog save test. web-ui
+      suite 749 green; tsc + biome clean. **§5.AL settings is now fully shipped: global env knob + runtime-config global
+      default + per-project override + the gate at all 4 use paths + the Settings UI (global + per-project).**
 - [ ] **LLM-based ONLINE capability lookup for UNKNOWN models.** When a model is UNKNOWN to the catalog (and especially
       when it's the only one loaded), !Klein can use **that same model** to look up its own capabilities online (model
       card / docs / community reports) and either (a) succeed → synthesize advice for the user + a provisional catalog

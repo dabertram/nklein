@@ -1,5 +1,5 @@
 import * as RadixSwitch from "@radix-ui/react-switch";
-import { Database, FolderCog } from "lucide-react";
+import { Database, FolderCog, ShieldCheck } from "lucide-react";
 import { type ReactElement, useEffect, useState } from "react";
 import {
 	buildCodeEmbeddingSettings,
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import type { RuntimeCodeEmbeddingSettings } from "@/runtime/types";
+import type { RuntimeCodeEmbeddingSettings, RuntimeModelGateAction } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
 
 export interface ProjectSettingsDialogProps {
@@ -38,6 +38,10 @@ export function ProjectSettingsDialog({
 	const [provider, setProvider] = useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
 	const [model, setModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
 	const [baseUrl, setBaseUrl] = useState("");
+	// §5.AL per-project model-capability gate policy override.
+	const [policyOverrideEnabled, setPolicyOverrideEnabled] = useState(false);
+	const [policyUnsuitable, setPolicyUnsuitable] = useState<RuntimeModelGateAction>("reject");
+	const [policyUnknown, setPolicyUnknown] = useState<RuntimeModelGateAction>("warn");
 	const [saveError, setSaveError] = useState<string | null>(null);
 
 	// Load the per-project override into local state whenever the config (re)loads.
@@ -49,6 +53,15 @@ export function ProjectSettingsDialog({
 		setBaseUrl(override?.baseUrl ?? "");
 	}, [config?.codeEmbeddingOverride]);
 
+	// §5.AL: load the model-gate policy override (seed the selects from the global default when no override).
+	useEffect(() => {
+		const override = config?.modelSuitabilityPolicyOverride ?? null;
+		const fallback = config?.modelSuitabilityPolicyDefaults ?? null;
+		setPolicyOverrideEnabled(override !== null);
+		setPolicyUnsuitable(override?.onUnsuitable ?? fallback?.onUnsuitable ?? "reject");
+		setPolicyUnknown(override?.onUnknown ?? fallback?.onUnknown ?? "warn");
+	}, [config?.modelSuitabilityPolicyOverride, config?.modelSuitabilityPolicyDefaults]);
+
 	const defaults = config?.codeEmbeddingDefaults ?? null;
 	const effective = overrideEnabled ? buildCodeEmbeddingSettings(provider, model, baseUrl) : defaults;
 	const controlsDisabled = isSaving || !workspaceId;
@@ -56,7 +69,10 @@ export function ProjectSettingsDialog({
 	const handleSave = async (): Promise<void> => {
 		setSaveError(null);
 		const override = overrideEnabled ? buildCodeEmbeddingSettings(provider, model, baseUrl) : null;
-		const saved = await save({ codeEmbeddingOverride: override });
+		const policyOverride = policyOverrideEnabled
+			? { onUnsuitable: policyUnsuitable, onUnknown: policyUnknown }
+			: null;
+		const saved = await save({ codeEmbeddingOverride: override, modelSuitabilityPolicyOverride: policyOverride });
 		if (!saved) {
 			setSaveError("Could not save project settings. Check runtime logs and try again.");
 			return;
@@ -132,6 +148,61 @@ export function ProjectSettingsDialog({
 										onModelChange={setModel}
 										onError={setSaveError}
 									/>
+								</div>
+							</div>
+						</div>
+						<div>
+							<div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-text-primary">
+								<ShieldCheck size={14} />
+								Model capability gate
+							</div>
+							<p className="m-0 mb-3 text-[12px] text-text-secondary">
+								How this project treats a model that the capability catalog flags as not-suitable or unknown for
+								agentic tool use. When off, the project uses the global default
+								{config?.modelSuitabilityPolicyDefaults
+									? ` (unsuitable: ${config.modelSuitabilityPolicyDefaults.onUnsuitable}, unknown: ${config.modelSuitabilityPolicyDefaults.onUnknown})`
+									: ""}
+								.
+							</p>
+							<div className="rounded-md border border-border bg-surface-1 p-3">
+								<div className="mb-3 flex items-center gap-2 text-[13px] text-text-primary">
+									<RadixSwitch.Root
+										checked={policyOverrideEnabled}
+										disabled={controlsDisabled}
+										onCheckedChange={setPolicyOverrideEnabled}
+										className="relative h-5 w-9 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+									<span>Override for this project</span>
+								</div>
+								<div className="grid gap-2 lg:grid-cols-2">
+									<div className="min-w-0">
+										<span className="mb-1 block text-[12px] text-text-secondary">Not-suitable model</span>
+										<NativeSelect
+											value={policyUnsuitable}
+											onChange={(event) => setPolicyUnsuitable(event.target.value as RuntimeModelGateAction)}
+											disabled={controlsDisabled || !policyOverrideEnabled}
+											fill
+										>
+											<option value="reject">Reject (refuse to use)</option>
+											<option value="warn">Warn (use with a caveat)</option>
+											<option value="allow">Allow (use anyway)</option>
+										</NativeSelect>
+									</div>
+									<div className="min-w-0">
+										<span className="mb-1 block text-[12px] text-text-secondary">Unknown model</span>
+										<NativeSelect
+											value={policyUnknown}
+											onChange={(event) => setPolicyUnknown(event.target.value as RuntimeModelGateAction)}
+											disabled={controlsDisabled || !policyOverrideEnabled}
+											fill
+										>
+											<option value="reject">Reject (refuse to use)</option>
+											<option value="warn">Warn (use with a caveat)</option>
+											<option value="allow">Allow (use anyway)</option>
+										</NativeSelect>
+									</div>
 								</div>
 							</div>
 						</div>
