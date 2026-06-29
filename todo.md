@@ -4551,13 +4551,17 @@ deep analysis:
         non-coding tool-orchestration role emerges (e.g. a §5.L retriever/researcher that calls search/browse tools but
         writes no code) — that would be a NEW `SwarmRole` with a tool-heavy, code-light class preference, not a split of
         the worker.
-  - [ ] wire per-role assignment off the §5.AB selection (best-fit among LOADED models) so the 3+ roles run on distinct
-        resident models concurrently. **SEAM SCOPED (2026-06-29):** the live role→model resolution is already in
-        [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts) — it builds a role-tagged `guardCandidates`
-        map from `effectiveModelRoles` (filtered to LOADED + context-policy + the §5.AE class cap) and runs
-        `selectRoleModel` for free-first swarm picking. `rankModelsForRole` (the new CLASS stage) plugs in HERE — rank a
-        role's loaded candidates by class fit, then `selectRoleModel` picks the free/feasible one within. This is
-        behavior-changing on the task-start path ⇒ needs a live re-verify (§5.Z) before landing; do as a focused slice.
+  - [~] wire per-role assignment off the §5.AB selection (best-fit among LOADED models) so the 3+ roles run on distinct
+        resident models concurrently. **COMPOSITION CORE DONE (2026-06-29):** the two-stage pick is now a pure, tested
+        function — [src/core/role-model-swarm-pick.ts](src/core/role-model-swarm-pick.ts) `selectSwarmRoleModel`
+        composes the CLASS gate (`rankModelsForRole` — drop wrong-class models, e.g. a tool-unsuitable worker) with the
+        INSTANCE pick (`selectRoleModel` — free-first/difficulty/context within the eligible pool), preserves class-fit
+        tie-order, ignores a class-ineligible pin, and surfaces `no_fit` from either stage. 5 tests; tsc+biome green.
+        **SEAM SCOPED + STILL OWED (the live plumbing):** the live role→model resolution is in
+        [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts) (role-tagged `guardCandidates` from
+        `effectiveModelRoles`, filtered to LOADED + context-policy + the §5.AE class cap, then `selectRoleModel`). Map
+        those `guardCandidates` into `SwarmRoleModelCandidate`s and call `selectSwarmRoleModel` instead — behavior-changing
+        on the task-start path ⇒ needs a live §5.Z re-verify before landing; do as a focused slice.
   - [ ] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
         (ties §5.AE skills-on-workers); easy cards to fast/small, hard cards reserve the strong model.
   - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
