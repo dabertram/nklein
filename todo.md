@@ -4542,8 +4542,15 @@ deep analysis:
         `kind` + `toolUse` verdict into a 0–100 class-fit, marks a tool-unsuitable model INELIGIBLE for the worker) +
         `rankModelsForRole` (eligible-first, score-desc; unknown id → neutral fallback). 8 tests; tsc + biome green.
         This is the CLASS stage; `role-model-selection.ts` `selectRoleModel` is the within-class instance pick.
-  - [ ] investigate whether a strong + fast TOOL-CALLING model is a DISTINCT worker role (vs. overlapping the coding
-        model) — only split it out if the use case is genuinely separate; otherwise fold tool-calling into the coder.
+  - [x] **investigated: tool-calling is NOT a distinct worker role now — folded into the coder (2026-06-29).**
+        Decision + rationale: in !Klein's agentic loop the worker BOTH writes code AND drives the edit/run/file tools, so
+        coding and tool-calling are the same capability axis for that role — the catalog's `agentic`/`code` kinds already
+        overlap (e.g. devstral = "agentic coding"), and a strong-coder/weak-tool-caller model is a poor worker regardless.
+        The `worker` preference already encodes this: `toolUseWeight: 0.5` + `requiresToolUse: true` rank a tool-native
+        coder above a code model that can't call tools, with no separate role needed. **Revisit ONLY if** a genuinely
+        non-coding tool-orchestration role emerges (e.g. a §5.L retriever/researcher that calls search/browse tools but
+        writes no code) — that would be a NEW `SwarmRole` with a tool-heavy, code-light class preference, not a split of
+        the worker.
   - [ ] wire per-role assignment off the §5.AB selection (best-fit among LOADED models) so the 3+ roles run on distinct
         resident models concurrently.
   - [ ] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
