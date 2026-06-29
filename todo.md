@@ -4774,8 +4774,14 @@ deep analysis:
       `assessRosterFit`/`approxSizeGb` + `USER_MACHINE_BUDGETS_GB` heuristics with real estimates; feeds `decideModelLoad`
       (§5.AB Model-ladder) + the per-machine pool routing (capabilityTier/predictedWallTime) + the §5.AB fitness store.
       Decomposed:
-  - [ ] capability spike: install llmfit (homebrew/scoop/uv) + run `llmfit recommend --json` / `llmfit plan --json` on
-        this hardware; capture the exact JSON shapes (fit verdict, mem estimate, tok/s, score) into a doc.
+  - [x] **capability spike DONE (2026-06-29) → [docs/dev/llmfit-spike.md](docs/dev/llmfit-spike.md).** Runs ephemerally
+        via `uvx llmfit --json …` (no permanent install). Confirmed: `system` detects the m5max (128GB/Metal); `recommend
+        --json` → `{models:[{name, best_quant, fit_level (Perfect|Good|Marginal|Too Tight), memory_required_gb,
+        estimated_tps, is_moe/moe_offloaded_gb, installed, capabilities/tool_use, gguf_sources, license, …}], system}`;
+        and **`--memory/--ram` hardware-simulation works** (legion 8GB sim → only fitting models, req ~5.5GB tps ~84) — so
+        we can plan each pool from the m5 alone. **Correction:** llmfit DOES have a coarse `tool_use` capability tag (HF
+        metadata) — but NOT the empirical §5.AL reliability verdict, so still complementary. Local subcommands
+        (system/list/fit/recommend/plan) are network-free; only `update`/`download`/`hf-search` are outbound (egress-gate).
   - [ ] guarded CLI adapter `src/core/llmfit-adapter.ts` (pure parser for the JSON + a thin effectful runner, mirroring
         the `lms` runner pattern) — `planModelFit(modelId, {contextLen, machine})` + `recommendModels({machine, useCase})`.
   - [ ] feed llmfit's fit verdict into `decideModelLoad` (per-pool RAM/VRAM headroom) — supersede the `approxSizeGb` guess.
