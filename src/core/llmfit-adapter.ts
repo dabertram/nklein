@@ -136,3 +136,76 @@ export function llmfitFitClears(model: LlmfitModel): boolean {
 export function llmfitClaimsToolUse(model: LlmfitModel): boolean {
 	return model.capabilityIds.includes("tool_use");
 }
+
+// ───────────────────────────── effectful runner (the thin shell-out half) ─────────────────────────────
+
+/** Runs `llmfit` with argv, returns stdout + exit code. Injected so the calls are testable without a real binary. */
+export type LlmfitRunner = (args: readonly string[]) => Promise<{ stdout: string; exitCode: number }>;
+
+/** A machine's resource envelope, used to SIMULATE a pool (e.g. the legion's 8 GB VRAM) from any host. */
+export interface LlmfitMachineEnvelope {
+	/** GPU VRAM override, llmfit `--memory` syntax (e.g. "8G", "8000M"). */
+	vram?: string;
+	/** System RAM override, `--ram` (e.g. "32G"). */
+	ram?: string;
+	/** CPU core override, `--cpu-cores`. */
+	cpuCores?: number;
+}
+
+export interface LlmfitQueryOptions {
+	/** Plan against THIS machine's envelope (per-pool simulation) instead of the detected host. */
+	machine?: LlmfitMachineEnvelope;
+	/** Cap context for the memory estimate (`--max-context`), e.g. the role's budget. */
+	maxContext?: number;
+}
+
+/**
+ * Pure: build the llmfit argv. Global flags (`--json` + the machine/context overrides) come BEFORE the subcommand
+ * (llmfit is `llmfit [OPTIONS] [COMMAND]`). Keeping this pure makes the per-pool simulation args unit-testable.
+ */
+export function buildLlmfitArgs(subcommand: string, options: LlmfitQueryOptions = {}): string[] {
+	const args = ["--json"];
+	if (options.machine?.vram) {
+		args.push("--memory", options.machine.vram);
+	}
+	if (options.machine?.ram) {
+		args.push("--ram", options.machine.ram);
+	}
+	if (typeof options.machine?.cpuCores === "number" && Number.isFinite(options.machine.cpuCores)) {
+		args.push("--cpu-cores", String(Math.trunc(options.machine.cpuCores)));
+	}
+	if (typeof options.maxContext === "number" && Number.isFinite(options.maxContext)) {
+		args.push("--max-context", String(Math.trunc(options.maxContext)));
+	}
+	args.push(subcommand);
+	return args;
+}
+
+function parseJsonSafe(stdout: string): unknown {
+	try {
+		return JSON.parse(stdout);
+	} catch {
+		return null;
+	}
+}
+
+/** Run `llmfit recommend` for a machine/context envelope → parsed recommendation (empty on a non-zero exit / bad JSON). */
+export async function llmfitRecommend(
+	run: LlmfitRunner,
+	options: LlmfitQueryOptions = {},
+): Promise<LlmfitRecommendation> {
+	const { stdout, exitCode } = await run(buildLlmfitArgs("recommend", options));
+	if (exitCode !== 0) {
+		return { models: [], system: null };
+	}
+	return parseLlmfitRecommend(parseJsonSafe(stdout));
+}
+
+/** Run `llmfit system` → the detected (or overridden) hardware, or null on a non-zero exit / bad JSON. */
+export async function llmfitSystem(run: LlmfitRunner, options: LlmfitQueryOptions = {}): Promise<LlmfitSystem | null> {
+	const { stdout, exitCode } = await run(buildLlmfitArgs("system", options));
+	if (exitCode !== 0) {
+		return null;
+	}
+	return parseLlmfitSystemReport(parseJsonSafe(stdout));
+}
