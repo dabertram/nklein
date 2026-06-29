@@ -5875,10 +5875,23 @@ deep analysis:
       to deliver (or an unknown model, ties §5.AL online lookup), DEEP-DIVE the web at runtime for that model's known switches /
       prompt format / tool dialect / reasoning controls / quirks, and apply them. Opt-in/default-off + egress-gated (prime directive
       #1); a "research this model" action + an automatic attempt. Composes the §5.AL capability lookup + this API-surface map.
-- [ ] **Verify + table the per-FAMILY fit** across the (large) live roster (qwen3/qwen3_5_moe, phi3, gemma4, nemotron_h,
+- [~] **Verify + table the per-FAMILY fit** across the (large) live roster (qwen3/qwen3_5_moe, phi3, gemma4, nemotron_h,
       deepseek_v4, glm4_moe_lite, mistral3, llama, qwen2): which endpoint + tool format + reasoning switch + structured-output
       support works best for each — the §5.Z matrix EXTENDED with the API-surface dimension. (The roster is far larger than the old
       "9 models" — `/api/v0/models` lists 40+ incl. 122B/70B/35B-MoE/vlm models; pace per the §4A tier roadmap + headroom guard.)
+      **TABLE STARTED (2026-06-29, live-verified rows via paced load/probe/restore under the §4A guardrails):**
+
+      | model (≤14B loadable) | arch | reasoning switch | notes |
+      |---|---|---|---|
+      | qwen/qwen3-8b | qwen3 | **`/no_think` WORKS** (965→2 chars) | clean tool calls within 1024 budget; reasoning ~150–250 tok typical |
+      | deepseek/deepseek-r1-0528-qwen3-8b | qwen3 | **NONE** — `/no_think` ignored (R1 distill, always reasons) | ~1950-char reasoning; truncates at 500 even for "2+2"; matcher EXCLUDES it |
+      | microsoft/phi-4-mini-reasoning | phi3 | **NONE** — `/no_think` ignored | reasons ~1100+ tok even for "2+2"; high truncation risk; matcher excludes |
+
+      Cross-model API facts (all live-verified): structured output (`response_format json_schema`) FORCES schema-valid output
+      (the real force-a-call lever); OpenAI `tool_choice:"required"` + Anthropic `tool_choice` do NOT force on LM Studio;
+      `/v1` `usage…reasoning_tokens` is a real per-request reasoning-overhead signal; `/api/v0` gives real tok/s+ttft+arch+quant.
+      **Still owed:** the >14B / non-reasoning / vlm rows (pace per tier roadmap), and the per-family tool-format + endpoint-fit
+      columns (needs a tool-call probe per family).
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
