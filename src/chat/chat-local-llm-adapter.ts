@@ -131,6 +131,15 @@ export function createChatAgentModel(
 		const wire = messages.map((message) => ({ role: message.role, content: message.content }));
 		const offered = allowTools ? toolDefinitions : [];
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
+		// §5.AA truncation rung (the CHEAPEST first recovery): a reasoning model can burn its whole token budget on
+		// reasoning_content and hit `finish:"length"` BEFORE emitting the tool call (live-confirmed: qwen3-8b spent 200
+		// tokens reasoning on a trivial reply). That is a budget truncation, not a complexity failure — so before shrinking
+		// the tool set or forcing a schema, just re-ask once with a larger budget. Fires only on a no-call + length finish.
+		if (allowTools && response.toolCalls.length === 0 && response.finishReason === "length") {
+			const baseMaxTokens = sampling.maxTokens ?? 1024;
+			const bumped = { ...sampling, maxTokens: Math.max(baseMaxTokens * 3, 3072) };
+			response = await client.completeWithTools({ messages: wire, sampling: bumped }, offered);
+		}
 		// §5.AA task-complexity ladder: a model that returns NO tool call when several were offered AND the instruction
 		// names a tool it didn't call is likely drowning in tool-set complexity (grounded: phi-4 emits a clean call with
 		// 1 tool but fails with 6). Retry with a progressively narrowed set anchored on the instruction — shrink the ask

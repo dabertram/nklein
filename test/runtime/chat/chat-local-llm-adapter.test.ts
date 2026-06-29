@@ -189,6 +189,47 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(offeredCounts).toEqual([6]); // no anchor → no retry, no wasted calls
 	});
 
+	it("§5.AA truncation rung: re-asks with a larger token budget when a no-call turn hit finish:length", async () => {
+		const budgets: (number | undefined)[] = [];
+		let callIndex = 0;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request, _tools) => {
+				budgets.push(request.sampling?.maxTokens);
+				callIndex += 1;
+				// First call: truncated by the budget (reasoning model ran out) → no call. Retry with more budget lands it.
+				if (callIndex === 1) {
+					return { content: "", toolCalls: [], finishReason: "length", raw: {} };
+				}
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, { sampling: { temperature: 0, maxTokens: 1024 } });
+		const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		// The retry used a BIGGER budget than the first attempt (3× = 3072).
+		expect(budgets[0]).toBe(1024);
+		expect(budgets[1]).toBe(3072);
+	});
+
+	it("§5.AA truncation rung: does NOT fire when the no-call turn finished normally (finish:stop)", async () => {
+		let calls = 0;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => {
+				calls += 1;
+				return { content: "Here is a direct answer.", toolCalls: [], finishReason: "stop", raw: {} };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		await model([{ role: "user", content: "Just explain how merging works." }], true);
+		// No anchor + a clean stop ⇒ only the single attempt (no truncation retry, no reduction).
+		expect(calls).toBe(1);
+	});
+
 	it("§5.AA prompt-variation rung: recovers a call by re-phrasing the instruction (before the forced-schema resort)", async () => {
 		const original = 'Use create_card to make a card titled "X".';
 		let rephrasedPrompt: string | null = null;
