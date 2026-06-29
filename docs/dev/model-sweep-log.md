@@ -337,3 +337,19 @@
   catalog**: new `qwopus-merge` entry (`/qwopus/`, matched before the generic qwen rows), TOOL_CAPABLE, basis empirical.
 - **Owed:** a full multi-tool CHAIN e2e (read_file→run_command→create_card→focus-chain) to promote TOOL_CAPABLE→TOOL_NATIVE.
 > Takeaway: the driver tool-calls cleanly out of the gate; chaining strength (where the ≤4B floor lives) is the next check.
+
+### 2026-06-29 · **qwopus3.6-27b-v2-mlx mid_task e2e — chains + completes real cards (first backlog-driver run)** · dev test-project
+> First real agentic run on the capable-model-first driver (`dev test-project --preset mid_task --model-id
+> qwopus3.6-27b-v2-mlx`, live runtime on :3484, ctx 40000).
+- **Result:** `started:true` → decomposed the `habit-insights` project → **4 cards COMPLETED** (full tool chains:
+  planning→…→completed), then **stagnant** (finalCounts: completed 4, planning 5, backlog 1, inProgress 0). Classified
+  `success:false / stagnant` because the run idled with cards still in planning.
+- **Telemetry:** NO `model_stalled`/`tool_argument_error` events for the driver this run (the only errors in the log are
+  stale `qwen/qwen3-8b` reads from the prior session). So the stagnation is an **orchestration/scheduler idle** (planning
+  cards not picked up within the window), **not a model stall** — the 27B drove + completed real multi-tool chains.
+- **Verdict:** the driver is a working backlog driver (multi-tool chaining CONFIRMED via 4 real completions). Catalog stays
+  TOOL_CAPABLE; promote→TOOL_NATIVE once a full decomposition reaches all-cards-terminal cleanly. **Open thread (separate
+  from the model):** why mid_task goes stagnant with cards left in planning — a swarm-promotion/scheduler question to chase
+  while punching the backlog, not a driver limitation.
+> Cross-check plan (user 2026-06-29): free to pull OTHER catalog models for second opinions on issues/solutions — curious
+> about the **35B MoE ornith** evals (`ornith-1.0-35b-mlx@8bit` / `qwen3.6-35b-a3b`) when a slot fits; focus stays on backlog.

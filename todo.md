@@ -412,6 +412,15 @@ deep analysis:
 >   pre-flight gate) and persisting that evidence so the catalog/ledger keep learning passively.
 > - **Net effect on "what next":** when picking the next step, prefer **!Klein feature/backlog depth** that the stronger
 >   model now unlocks over weak-model hardening. The MCF still drives order; the ladder just runs against the capable driver.
+> - **Immediate aim = confidence in the "first proven workflow paths" (user 2026-06-29).** Keep punching through !Klein's
+>   basic core until the core workflow paths are reliably green on the capable driver. Extensive model-attribute A/B
+>   testing + broad weak-model hardening are a LATER dedicated phase — see **[§5.AO](#5ao)** (parked with its un-park trigger).
+> - **⚠️ STANDING OBLIGATION — when the driver WALLS, TELL THE USER with a ready recommendation (user 2026-06-29, explicit).**
+>   The moment the capable driver hits a real limitation (a backlog item it can't carry, repeated stalls/chain-drops the
+>   §5.AA ladder can't lift, a quality wall), **surface it to the user** — don't silently absorb it. Have the **next-model
+>   recommendation ready** from [`docs/dev/model-catalog-recommendations.md`](docs/dev/model-catalog-recommendations.md)
+>   (the failure-mode-keyed escalation ladder): if the pick is **already downloaded**, name it (and you may just load + try
+>   it), and if it needs a **download**, say so clearly. The user wants to be told at that moment and is curious about the pick.
 
 ### 5.0.1 — Long-run mandate + decisions (2026-06-25; FINAL — supersedes earlier "parked" steers where they conflict)
 > The user front-loaded a batch of decisions so the agent can run autonomously for a long stretch toward a
@@ -6049,6 +6058,20 @@ deep analysis:
       json_schema`) FORCES schema-valid output (the real force-a-call lever); OpenAI `tool_choice:"required"` + Anthropic
       `tool_choice` do NOT force on LM Studio; `/v1` `usage…reasoning_tokens` is a real reasoning-overhead signal; `/api/v0`
       gives real tok/s+ttft+arch+quant. **Still owed:** the >14B / vlm rows (pace per tier roadmap).
+
+### 5.AO — DEFERRED: extensive model-attribute A/B hardening sessions *(2026-06-29, user — PARKED until "first proven workflow paths" land)*
+> **User steer (2026-06-29):** do **extensive A/B testing across ALL available model attributes / characteristics** at a
+> LATER point. **For now we keep punching through !Klein's basic core implementation** to reach confidence in the **"first
+> proven workflow paths"**; THEN we return to extensive hardening sessions. This is the explicit pairing with the
+> capable-model-first pivot (§5 banner): drive depth now with a strong model, broad model hardening later.
+- [-] **The A/B matrix to run later (parked, not counted as ready work):** systematically A/B every model lever we've
+      mapped, on the e2e capstone + chat tool flows + the difficulty ladder — **format** (GGUF vs MLX — the standing
+      open question, §5.AN + `model-catalog-recommendations.md`), **quant** (q4/q8/bf16 per family — extend the 2026-06-29
+      gemma 2B q4-vs-q8 result), **reasoning control** (`/no_think` ↔ `/think`, reasoning intensity per §5.AE apiProfile),
+      **context window** (40k vs larger), **sampling** (temperature/top-p per skill), and **per-skill apiProfile** combos.
+      Capture each as a sweep-log table + fold verdicts into the §5.AL catalog. **Trigger to un-park:** the "first proven
+      workflow paths" are reliably green on the capable driver (the §5.0.3 MCF ladder passes end-to-end) — then resume the
+      broad small/less-capable-model sweeps (§5.O/§5.Z) AND this attribute matrix together as the dedicated hardening phase.
 
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.

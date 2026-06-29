@@ -1,9 +1,38 @@
 # Model catalog — recommendations & sweep plan
 
-> Living list (goal.md mandate, 2026-06-29): which LOCAL models to make available + the order to work them, for the
-> robustness-first, smallest-up tier roadmap. **!Klein now load/unload-tests them itself** (guarded: one resident at a
-> time, context 40000, ≤14B for now). The **user downloads** new variants; !Klein tests what's resident/available.
-> Sources at the bottom.
+> Living list (goal.md mandate, 2026-06-29): which LOCAL models to make available + the order to work them. **!Klein now
+> load/unload-tests them itself** (guarded: one resident at a time, context 40000, ≤35B for now). The **user downloads**
+> new variants; !Klein tests what's resident/available. Sources at the bottom.
+
+## ★ CAPABLE-MODEL-FIRST (current direction, user 2026-06-29)
+
+Primary effort is now **driving !Klein's features + the backlog with a capable model**, not smallest-up robustness (that's
+postponed — the Tier roadmap below stays valid for when it resumes). **Current driver = `qwopus3.6-27b-v2-mlx`** (8bit MLX,
+qwen3.6×opus merge; single-tool live-verified + completed real multi-card chains 2026-06-29). Work it **until it walls a
+real backlog item**, then escalate per the ladder below — and **TELL THE USER** with the recommendation (the user wants
+to be told at that moment and is curious about the pick).
+
+### NEXT-MODEL escalation ladder — when the driver walls (ALL already downloaded ⇒ !Klein can just load + try)
+
+Pick by the *failure mode* the driver hits (verified live before relying — §5.AL gate + the runtime-verdict aggregator):
+
+1. **Orchestration / tool-chaining walls** (drops chains, narrates instead of acting, stalls on multi-step):
+   → **`mistralai/devstral-small-2-2512`** (24B, 4bit) — *purpose-built for tool-calling / multi-step agent loops*
+     (OpenHands). The targeted fix when the wall is agentic control, not raw smarts. **Top pick for this failure mode.**
+   → fallback **`qwen/qwen3-coder-next`** (8bit) — Qwen3 agentic-coder, q8.
+2. **Raw capability / quality walls** (reasoning depth, plan quality, code correctness — but tools work):
+   → **`qwen/qwen3.6-35b-a3b`** (35B MoE ~3B active, 4bit) — *same qwen3.6 generation as the driver* ⇒ least behavioral
+     surprise, bigger, MoE-fast. **Top pick for this failure mode.** (Ideal q8 not downloaded — see gap below.)
+   → then **`qwen3.5-122b-a10b`** (122B MoE ~10B active, 4bit) — the big jump; MoE keeps it viable on 128 GB.
+3. **Deep reasoning needed for a specific skill** (reviewer/planner, not the general driver):
+   → **`qwen/qwq-32b`** (8bit) — reasoning-heavy; assign to the `review`/`planning` skill, not the whole run (reasoning
+     models can be tool-weaker).
+4. **Heavyweight dense option** (only if MoE choices underperform): **`meta/llama-3.3-70b`** (Q8_0) — strong but slow
+   (dense 70B ≈ 70 GB, no MoE speedup); fits 128 GB but expect lower throughput.
+
+**Download gap to flag to the user (not yet local):** a **q8 of `qwen/qwen3.6-35b-a3b`** (only 4bit is downloaded) — the
+cleanest "same family, bigger, full precision" step up from the q8 27B driver. Worth fetching before we lean on tier-2 raw
+capability.
 
 ## The one cross-cutting recommendation: try GGUF for tool-calling
 
@@ -21,9 +50,11 @@ e2e capstone + the chat tool flows. If GGUF reduces the narration/early-stop (ou
 reliability tier on the *same* models — more impactful than going bigger. (The 2026-06-29 gemma q4-vs-q8 A/B already
 showed *quant* isn't the lever for the 2B chaining failure; *format* is the next thing to isolate.)
 
-## Tier roadmap (work in order; advance only when the current tier is solid)
+## Tier roadmap (POSTPONED — robustness-first, smallest-up; resumes after the capable-model-first push)
 
-### Tier 1 — smallest (CURRENT FOCUS: harden !Klein against these)
+> Kept intact for when broad weak-model hardening resumes. The *current* direction is the capable-model-first section above.
+
+### Tier 1 — smallest (the eventual robustness focus; PAUSED for now)
 Already downloaded (test these first, smallest-up):
 - `google/gemma-4-e2b` — **2B**, the capability floor (have q4 `-m5max`, q8, + instruct@4/8bit). The chain wall lives here.
 - `phi-4-mini` — **3.8B** (reasoning + instruct@4bit/@8bit + reasoning-plus; reasoning-q8 downloading). The

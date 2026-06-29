@@ -97,10 +97,23 @@ next step even for things that will only be *adapted later with low effort*).
   built): a settings surface (global + project override) and an LLM-based ONLINE capability lookup for UNKNOWN models.
 - **Roster discipline (capable-model-first).** Keep EVERY model that has appeared in the roster (sweep-log table), even
   when unloaded — they pop in/out; collect the full history and adapt as new ones appear. **Each sweep, query the LOADED
-  set first** (`/api/v0/models`) and target only those. For now the driver is the capable model (`qwen3.6-27b q8`); the
-  weakest-model-first watch is PAUSED with the small-tier robustness work — but **runtime unsuitability detection +
-  persistent data collection stay always-on** so any model (weak or strong) that walls at runtime is recorded for the
-  catalog/ledger. When 27b walls a backlog item, that's the signal to research + escalate to a bigger model.
+  set first** (`/api/v0/models`) and target only those. For now the driver is the capable model (`qwopus3.6-27b-v2-mlx`,
+  the q8 27B — see model-catalog-recommendations.md); the weakest-model-first watch is PAUSED with the small-tier
+  robustness work — but **runtime unsuitability detection + persistent data collection stay always-on** so any model
+  (weak or strong) that walls at runtime is recorded for the catalog/ledger.
+- **⚠️ When the driver WALLS, TELL THE USER with a ready recommendation (user 2026-06-29 — standing obligation).** The
+  moment the capable driver hits a real limitation (a backlog item it can't carry, repeated stalls/chain-drops the §5.AA
+  ladder can't lift, a quality wall), **surface it to the user** — don't silently absorb it or quietly swap models. Have
+  the **next-model recommendation ready** from the failure-mode-keyed escalation ladder in
+  [docs/dev/model-catalog-recommendations.md](docs/dev/model-catalog-recommendations.md): if the pick is **already
+  downloaded**, name it (you may load + try it), and if it needs a **download**, say so clearly. The user wants to be told
+  at that moment and is curious about the pick. (First aim meanwhile: confidence in the "first proven workflow paths";
+  extensive model-attribute A/B + broad weak-model hardening is a LATER dedicated phase — todo.md §5.AO.)
+- **Free to cross-check with ANY catalog model for second opinions (user 2026-06-29).** Not limited to the driver — when
+  you want another model's "opinion" on an issue/solution/design (or to sanity-check a wall), pull any available model
+  from the catalog for a quick cross-check, then unload + restore. The user is **particularly curious about the 35B MoE
+  ornith evals** (`ornith-1.0-35b-mlx@8bit` / the qwen3.6-35b-a3b MoE) — run some when a slot fits. **Focus stays on
+  punching through the backlog**; cross-checks are opportunistic, not a detour.
 - **Quality is a standing mandate with a widening horizon.** Always strive for clean code, design, structure,
   maintainability, extendability — a slightly-moving target you keep raising, not a one-time bar.
 
