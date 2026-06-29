@@ -257,6 +257,10 @@ deep analysis:
 - Legacy host task worktrees (when they exist) intentionally preserve agent progress. External project-folder changes are copied only onto paths still owned by the project sync state; overlapping agent edits must remain isolated + produce a warning. Removing an entire project ≠ trashing a task: await all worktree cleanup and delete saved task patches so re-adding the folder can't restore stale content.
 - !Klein is launched from the user's shell and inherits its environment. For agent detection + task-agent startup, prefer direct PATH checks and direct process launches over spawning an interactive shell. Avoid `zsh -i`, shell fallback command discovery, or "launch shell then type command into it" on hot paths — heavy shell init (`conda`/`nvm`) per task can freeze the runtime. Interactive shells are fine for explicit shell terminals, not for normal agent session work.
 - **MODEL LOADING — !Klein MANAGES IT, GUARDED (user handover 2026-06-29; supersedes the 2026-06-28 no-load rule).**
+  **TEMPORARY / REVOCABLE: the user re-confirmed (2026-06-29) "you can load/unload yourself, as you need — just don't
+  overload the system … not a forever rule, until further notice."** So treat load control as ON now, but watch for the
+  user revoking it, and always keep the system safe (the headroom guard below is non-negotiable; when in doubt, unload
+  rather than pile on).
   The user unloaded everything and handed loading/unloading control to !Klein, under HARD guardrails:
   **(1) one model resident at a time** — UNLOAD before LOADING the next (never pile up; the user's pinned/embedding
   models excepted); **(2) context = 40000** for every load (≥32k floor honored); **(3) size cap ≤14B for now**
@@ -4725,8 +4729,14 @@ deep analysis:
       override section in the Project Settings dialog ([project-settings-dialog.tsx](web-ui/src/components/project-settings-dialog.tsx))
       — a toggle + level dropdown seeded from the global default, saving a scoped `skillDynamicsLevelOverride` (null when
       off), mirroring the model-gate override. So the control surface is COMPLETE end-to-end (config + global + per-project
-      UI). **Still owed:** the orthogonal per-role model-class cap; and the resolver/prompt-assembly consumer reading
-      `effectiveSkillDynamicsLevel` (oracle-gated).
+      UI). **PER-ROLE MODEL-CLASS CAP DONE (2026-06-29):** an optional `modelClassCap` (`small_only` / `any_local` / `any`)
+      on each role's settings (carried through the existing `modelRoles` config plumbing — schema + normalizer preserves
+      it), a pure classifier + gate ([model-class-cap.ts](src/core/model-class-cap.ts): `classifyModelClass` — cloud if
+      non-local, else small/large by the registry capability threshold; `isModelAllowedByClassCap`), and a candidate
+      filter in [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)'s role fan-out (no-op when unset ⇒
+      today's behavior unchanged). 8 unit tests. **Still owed:** enforce the cap at the routing DECISION (not just the
+      fan-out) + a per-role UI control; and the resolver/prompt-assembly consumer reading `effectiveSkillDynamicsLevel`
+      (now UNBLOCKED — see the model-loading authorization in §4A).
 - [ ] **Wire the composed fragments into the board + chat prompt assembly** (replacing today's hard-coded always-on blocks)
       → §5.AD arrangement orders them, §6.2 caps them. Each behind a live §5.Z re-verify (no regression; weak models should
       get *leaner, more relevant* prompts).
