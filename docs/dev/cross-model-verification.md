@@ -624,3 +624,8 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-06-28 23:37:07 · verify-chat-agent-e2e
 - ❌ **FAIL** · `nvidia/nemotron-3-nano-4b` · 8s · INCOMPLETE — see above.
   - matrix row: nemotron-3-nano-4b=❌
+
+### 2026-06-29 15:36:11 · verify-task-completion (capable-model-first driver, idle-LLM background run)
+- ✅ **PASS** · `qwopus3.6-27b-v2-mlx` · ~159s · SWEEP-ROW | C0 single-card | result=PASS ✓ | terminal=awaiting_review | delivered=YES (hello.txt content matches) | result branch `nklein/tasks/verify-completion-1-…` | power=low×2.
+  - Clean: one `write_file` tool call → terminal → captured result patch; 0 narration leaks. Confirms single-card C0 delivery for the driver (multi-tool CHAINING still owed before TOOL_NATIVE per the catalog note).
+  - matrix row: qwopus3.6-27b-v2-mlx=✅ (C0)
