@@ -5799,6 +5799,72 @@ deep analysis:
       label-based reaping + fixed global container/volume names mean **two real !Klein instances on one host would reap
       each other's sandbox containers** — if multi-instance-per-host is ever supported, scope reaping/naming per instance.
 
+### 5.AN — LM Studio API surface: full-leverage map ("get more out of every model") *(2026-06-29, user — ACTIVE; reference + backlog)*
+> **Vision (user, 2026-06-29):** leverage EVERY LM Studio API surface + feature — OpenAI-compat, LM Studio's own native
+> API, Anthropic-compat, … — for ALL model families as-things-fit-and-work. Try through ALL options before giving up on
+> getting a model to run to its full potential. Take notes even about not-yet-needed features. Includes ONLINE RESEARCH —
+> now in dev AND later at runtime (an advanced but powerful lever — "deep-dive whenever needed to get more out of a model").
+> This is the reference map + the backlog of leverage opportunities; mark each finding **live-verified** vs **doc-sourced**.
+>
+> **Endpoint families on the local server (probed live 2026-06-29 @ `localhost:1234`):**
+> - **OpenAI-compat `/v1/*`** (what we use today): `/v1/chat/completions`, `/v1/completions` (legacy, 200), `/v1/embeddings`,
+>   `/v1/models`. Supports `tools`+`tool_choice`, `response_format` (structured output), `reasoning_content` split, `ttl`.
+>   **GOTCHA (live-verified):** `tool_choice:"required"` is **IGNORED** by LM Studio here (returned `finish:stop`, no call) —
+>   do NOT rely on it to force a call; use the Anthropic endpoint (below) or constrained decoding instead.
+> - **Native `/api/v0/*`** (DEPRECATED per docs in favor of v1, but LIVE + uniquely useful): `/api/v0/models` gives rich
+>   metadata per model — **`arch`** (qwen3 / qwen3_5_moe / phi3 / gemma4 / nemotron_h / deepseek_v4 / glm4_moe_lite /
+>   mistral3 / llama / qwen2 …), **`type`** (llm / vlm / embeddings), **`state`** (loaded / not-loaded), **`max_context_length`**,
+>   **`loaded_context_length`**, **`quantization`**. And `/api/v0/chat/completions` returns **per-request `stats`** (live-verified):
+>   **`tokens_per_second`**, **`time_to_first_token`**, **`generation_time`**, **`stop_reason`** (`eosFound` / etc.) + **`model_info`**
+>   (`arch`/`quant`/`format`/`context_length`) + **`runtime`**. ⇒ REAL speed/MCSR metrics straight from the API, no estimation.
+> - **Native `/api/v1/*`** (LM Studio 0.4.0+, the RECOMMENDED native API; live: `GET /api/v1/models` → 200): `/api/v1/chat`
+>   (POST — STATEFUL sessions, streaming, **MCP integration**, model-load streaming events, prompt-processing streaming
+>   events, **per-request custom context length**), `/api/v1/models`, **`/api/v1/models/load` · `/unload` · `/download` ·
+>   `/download/status`** ⇒ **REST model management** (we currently shell out to `lms` — this API is the in-process alternative).
+> - **Anthropic-compat `/v1/messages`** (live-verified — EXISTS, 200): and **`tool_choice:{type:"any"}` FORCES a tool call**
+>   (live: `stop_reason:"tool_use"`, clean `create_card({title})`). This is the **reliable force-a-call lever** (OpenAI's
+>   `required` is ignored here). `{type:"tool",name:…}` should force a SPECIFIC tool. A strong §5.AA rung for a model that
+>   won't call on its own — an ALTERNATIVE to constrained-decoding json_schema, via a different endpoint dialect.
+>
+> **Cross-cutting features (doc-sourced + live where noted):**
+> - **Structured output** = `response_format:{type:"json_schema",json_schema:{schema:…}}` on `/v1/chat/completions`
+>   (constraint-based generation engine → guaranteed schema-valid JSON; the §5.AA constrained-tool-call rung already uses it).
+>   Caveat: not all models <7B handle it well.
+> - **Tool-call parsing:** native families (Qwen2.5, Llama-3.1/3.2, Ministral — "hammer" badge) emit `<tool_call>{name,arguments}`;
+>   all others get LM Studio's **`[TOOL_REQUEST]…[END_TOOL_REQUEST]`** default-format injection (exactly the §5.AA narrated-recovery case).
+> - **Reasoning control (live-verified):** Qwen3 **`/no_think`** soft switch (message-appended) disables reasoning (965→2 chars,
+>   tool call still emitted) ↔ `/think`; **`chat_template_kwargs.enable_thinking` is IGNORED** by the OpenAI endpoint. Reasoning is
+>   split into **`reasoning_content`** vs `content` (llama.cpp `--reasoning-format deepseek` default). DeepSeek-R1 uses `<think>…</think>`.
+>   Captured in [model-thinking-control.ts](src/core/model-thinking-control.ts) (extend the matcher per family as verified).
+> - **`ttl` (auto-evict) + JIT loading:** a request-level `ttl` controls how long a model stays loaded; JIT-load on first request.
+>   (Doc page 404'd on fetch — re-verify the exact field; the `lms load --ttl` flag is the CLI analogue.)
+>
+> **Leverage backlog (try ALL of these to lift a weak/stuck model — wire as §5.AA rungs / §5.AB signals; each behind a §5.Z re-verify):**
+- [ ] **Use `/api/v0` (or `/api/v1`) per-request `stats` for REAL speed/MCSR** instead of estimating tok/s + ttft — feeds §5.AB
+      selection + §5.AD budget + the §4A stall detector. Also `model_info.context_length` + `/api/v0/models` `arch`/`quantization`
+      give a SOLID model-class signal (replacing the §5.AE `modelClassCap` capability-threshold heuristic with arch/size facts).
+- [ ] **Anthropic `/v1/messages` `tool_choice` as the force-a-call rung** (the reliable one; OpenAI `required` is ignored). Wire as
+      a §5.AA rung BELOW narrated-recovery: when a model won't call, re-ask via `/v1/messages` with `tool_choice:{type:"any"}` (or a
+      named tool to steer the next undone step). Needs an Anthropic-dialect client path (request/response shapes differ from OpenAI).
+- [ ] **Native `/api/v1/chat` structured tool_call + reasoning SSE events** — strictly more structured than the OpenAI path for
+      tool/reasoning models; a fallback endpoint when the OpenAI path misses a call. Also its **stateful sessions** (avoid resending
+      history) = an efficiency + long-context lever, and **MCP integration** ties §5.AC/§5.M tool expansion.
+- [ ] **REST model management via `/api/v1/models/{load,unload,download}`** — an in-process alternative to the `lms` CLI shell-outs
+      (still GUARDED by `decideModelLoad` + the §4A 1-at-a-time/size/headroom rules). `download` enables the §5-roadmap "introduce a
+      bigger/better local model" step without leaving the app. Re-verify the exact load-params (context length, gpu, ttl) shape.
+- [ ] **Reasoning control as a first-class §5.AA lever (per family):** disable thinking for SIMPLE/execution turns (kill the
+      reasoning-token overhead + truncation risk + latency); KEEP it for hard tasks; as a truncation-recovery rung (DONE for chat,
+      qwen3). Extend [model-thinking-control.ts](src/core/model-thinking-control.ts) with each family's verified switch (DeepSeek-R1,
+      qwq, qwen3.5/3.6, nemotron, gemma-4, phi-4-reasoning — verify live per family as loaded).
+- [ ] **RUNTIME online research to "get more out of a model" (user — advanced, powerful).** When !Klein hits a model it can't get
+      to deliver (or an unknown model, ties §5.AL online lookup), DEEP-DIVE the web at runtime for that model's known switches /
+      prompt format / tool dialect / reasoning controls / quirks, and apply them. Opt-in/default-off + egress-gated (prime directive
+      #1); a "research this model" action + an automatic attempt. Composes the §5.AL capability lookup + this API-surface map.
+- [ ] **Verify + table the per-FAMILY fit** across the (large) live roster (qwen3/qwen3_5_moe, phi3, gemma4, nemotron_h,
+      deepseek_v4, glm4_moe_lite, mistral3, llama, qwen2): which endpoint + tool format + reasoning switch + structured-output
+      support works best for each — the §5.Z matrix EXTENDED with the API-surface dimension. (The roster is far larger than the old
+      "9 models" — `/api/v0/models` lists 40+ incl. 122B/70B/35B-MoE/vlm models; pace per the §4A tier roadmap + headroom guard.)
+
 ### 5.J — LATER (deferred by decision)
 > Everything here is intentionally `[-]` (deferred / parked by decision) — kept for traceability, not counted as ready work.
 - [-] **LATER: proper end-user + engineering documentation suite** *(2026-06-28, user — deferred as premature)*. Once the
