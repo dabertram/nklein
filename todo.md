@@ -4784,6 +4784,34 @@ deep analysis:
       deterministic, 6 unit tests. **Still owed (WIRING — each behind a live §5.Z re-verify):** thread the §5.AA
       `ModelBehaviorProfile` / live `priorFailures` into the resolver, and wire the composed fragments into the board +
       chat prompt assembly (replacing the hard-coded always-on blocks) so §5.AD arranges + §6.2 caps them.
+- [ ] **★ Per-SKILL (and role/task) API-feature PROFILE — match the discovered LLM API levers to the work (2026-06-29, user).**
+      The §5.AN sweep surfaced a toolbox of per-request API levers (reasoning control `/no_think`↔`/think` + effort,
+      structured-output `response_format json_schema`, the constrained force-a-call rung, endpoint dialect, sampling temp,
+      the §5.AD context budget). Today they're applied ad-hoc or globally. **Make them a first-class, declarative profile the
+      §5.AE skill resolver emits per turn** — so the right API configuration is matched to the work, by SKILL (the user's
+      preferred unit) + role + the current task's needs, and re-applied message-to-message like the rest of §5.AE.
+      **Design (figure-it-out, grounded in what exists):**
+      - **Extend `Skill`** ([skill-registry.ts](src/core/skill-registry.ts)) with an optional `apiProfile`: `{ reasoning?:
+        "off" | "low" | "high" | "inherit", structuredOutput?: boolean, forceToolCall?: boolean, temperature?: number,
+        contextScope?: … }`. The resolver ([skill-resolver.ts](src/core/skill-resolver.ts)) already returns the active-skill
+        set + fragments + tools; have it ALSO resolve a merged `apiProfile` (most-specific/most-conservative wins on conflict),
+        analogous to `fragmentsForSkills`/`toolsForSkills`. Pure + testable; consumed at the model-call seam (chat adapter +,
+        once the §5.AA swarm `beforeModel` lands, the swarm path).
+      - **Skill → profile defaults (initial, refine from §5.Z evidence):** `review`/`planning` → reasoning HIGH (a reviewer
+        benefits from deliberation — catch the planted defect; an architect from planning depth); `code_editing` → reasoning
+        scales with task DIFFICULTY (a trivial rename ⇒ `/no_think` for speed + less truncation risk per §5.AN; a gnarly
+        refactor ⇒ reasoning on); `web_retrieval` → structured-output for the JSON result + temporal/freshness fragments.
+      - **Per-TASK modulation:** the §5.AB difficulty estimate + task shape (acceptance/file footprint) adjust the profile
+        (e.g. raise reasoning for high-difficulty, force a constrained tool call after a no-tool-call failure — but PROACTIVELY
+        per the §5.AA finding that a no-call turn ENDS the swarm loop, so configure BEFORE the call, not reactively).
+      - **Honor the model's REAL capabilities (§5.AN/§5.AL):** only apply a lever the active model supports — `/no_think` only
+        for a switch-capable family ([model-thinking-control.ts](src/core/model-thinking-control.ts) — R1 distills/phi excluded),
+        structured-output only where verified, etc. The profile expresses INTENT; the per-model capability map filters it.
+      - **Skill-catalog-first (user preference):** prefer encoding this on SKILLS (composable, per-turn) over a bigger role
+        enum; roles stay default skill bundles. Ties §5.AB (the profile is a selection/config input alongside model choice),
+        §5.AD (context budget), §5.AN (the lever catalog), §5.AL (per-model capability gate). **Standing:** as the §5.AN
+        per-family table + §5.Z sweeps learn which lever-config wins for which work, fold it into the skill `apiProfile`
+        defaults (same discipline as extending the capability catalog).
 - [ ] **Extend the role catalog with `retriever`/`researcher`.** The §5.AC online-knowledge role the user flagged as
       missing — a default skill bundle that includes the `temporal` + `freshness_rail` + `online_retrieval` fragments + the
       `web_search`/`browse_url` tools (§5.AC/§5.M G6). Thread through the role enum (§5.M) + the resolver.
