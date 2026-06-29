@@ -6853,7 +6853,7 @@ deep analysis:
 > content has measurable cost (Aider: removing "high-level diff" guidance → +30-50% edit errors); protect load-bearing
 > instructions in EVERY level, and put the few non-negotiable rules at the TOP and BOTTOM (never mid-prompt).
 
-- [ ] **A. Tiered sysprompt levels (the user-facing config), decomposed:** define 5 ADDITIVE named depth levels (each a
+- [~] **A. Tiered sysprompt levels (the user-facing config), decomposed:** **(2026-06-29: pure cores done — `src/core/sysprompt-level.ts`: `SYSPROMPT_LEVEL_COMPONENTS` (5 additive levels) + `resolveSysPromptComponents` + `selectSysPromptLevel` (AUTO + minimize/balance/max_task_info), covering A+B+C; 16 tests. Owed: the component CONTENT per level + wiring into prompt assembly + the Settings control.)** define 5 ADDITIVE named depth levels (each a
       superset of the one below), as a MODULAR composition — gate optional sections behind priority flags. A research-grounded
       starting ladder (calibrate budgets to our models): **L0 minimal** (≤~250 tok: 1-line identity + 2-4 hard safety/output
       rules + bare tool NAMES) → **L1 lean** (~250-700: + 1-line tool descs + output contract + top do/don'ts) → **L2 balanced**
@@ -6862,11 +6862,11 @@ deep analysis:
       thinking + self-critique + multiple examples + full domain skill bodies; reserve for hard tasks on big-context strong
       models). Pure `level → component-set` resolver first (testable), then wire into prompt assembly. Settings control +
       per-role/per-task override.
-- [ ] **B. AUTO mode, decomposed:** pick the level from (a) the model's available/quality-effective context budget
+- [~] **B. AUTO mode, decomposed:** *(pure core done in `selectSysPromptLevel` — see A; owed: feed real available-context + a task-complexity signal)* pick the level from (a) the model's available/quality-effective context budget
       (§5.AD `learnedQualityEffectiveBudget`, §5.AB clamp) and (b) the task's needs (size/complexity/role/knowledge-debt).
       Pure `selectSysPromptLevel({availableContext, taskProfile, mode})` core. Leave headroom for the task — never let the
       sysprompt crowd out the actual task information.
-- [ ] **C. Intent modes (minimize | balance | max-task-info), decomposed:** a knob that biases B — `minimize` picks the
+- [~] **C. Intent modes (minimize | balance | max-task-info), decomposed:** *(pure core done — the `SysPromptMode` bias in `selectSysPromptLevel`; see A)* a knob that biases B — `minimize` picks the
       smallest level that still clears the task's capability bar; `balance` trades prompt depth vs task-info room; `max-task-info`
       drives the sysprompt to its leanest viable level to free the most window for task content/retrieval.
 - [~] **D. CACHE-AWARE prompt LAYOUT (cross-cutting; do EARLY — biggest speed win), decomposed:** enforce a **byte-stable
@@ -6876,15 +6876,23 @@ deep analysis:
       **(2026-06-29)** PURE GUARD done: `src/core/cache-aware-prompt-layout.ts` — `detectVolatilePrefixContent` (lint: 7 kinds:
       iso_date/clock/uuid/epoch/relative-time/now-label/session-id) + `hasVolatilePrefixContent` + `prefixesAreCacheEquivalent`
       (strict byte-equality) + `assembleCacheAwarePrompt`. 10 tests. Owed (effectful): move §5.AC date/UUID out of the actual
-      prompt prefix + wire the lint into prompt assembly.
+      prompt prefix + wire the lint into prompt assembly. **Date-injection refinement (user 2026-06-29) — three stacking
+      wins:** (1) **DATE-ONLY granularity** (no clock time) ⇒ at worst DAILY cache loss, not per-minute/second; (2) **inject
+      the date ONLY where it's actually needed** (temporal/retriever tasks per §5.AE) — NOT into the common coding-prompt
+      prefix (most prompts should carry NO date and keep a 100%-stable prefix); (3) when injected, put it in the volatile
+      SUFFIX so it never breaks the cached prefix at all. Combined: the common case keeps a perfectly stable prefix, and
+      the rare date-bearing prompt loses at most a day's cache on its suffix.
 - [ ] **E. Cache-HEALTH probe + adaptation playbook (caching FAILS SILENTLY + is engine/format-specific), decomposed.**
       Prefix caching only works on PURE full-attention models — **SWA / SSM-Mamba / mixed-attention silently fall back to
       full recompute** (MoE alone is fine). Real failures to be aware of: LM Studio #1697 (MLX GPT-OSS-20B broken, GGUF of
       the SAME model fine), mlx-lm #980 (Qwen3.5/GPT-OSS/Gemma3/Llama4), llama.cpp #20225/#19794/#21468 (Qwen3.5/Qwen3-Coder/
       Gemma4), and the hang/OOM variants (#22450 slot hang, #24265 system hard-hang near the RAM limit). Build:
-  - [ ] **Per-`(engine,model,format,quant,ctx)` cache-health PROBE** — the universal TTFT double-prefix test (send a fixed
+  - [~] **Per-`(engine,model,format,quant,ctx)` cache-health PROBE** — the universal TTFT double-prefix test (send a fixed
         ~4-8k prefix + tiny suffix twice; healthy if the 2nd TTFT is ≥3-5× lower). Cache the verdict; re-probe only on
         version change. Slots next to the §5.AL catalog as a new "cache-health" dimension; feeds §5.AB routing.
+        **(2026-06-29)** PURE INTERPRETER done: `src/core/cache-health.ts` — `classifyCacheHealth` (TTFT speedup verdict) +
+        `interpretLlamaCppCacheTimings` (prompt_n/cache_n) + `cacheHealthFromCachedTokens` (advisory). 11 tests. Owed: the
+        effectful probe (actually send the 2 requests + measure TTFT) + record on the §5.AF ledger.
   - [ ] **Detection per runtime (don't trust one signal):** llama.cpp `timings.prompt_n`/`cache_n` + server "Cache reuse
         summary"; LM Studio `cached_tokens` is **UNRELIABLE (#778 — often unpopulated even when caching works)** → prefer the
         TTFT probe / server logs / `/v1/responses`. Record hit-rate on the §5.AF ledger.
@@ -6895,6 +6903,19 @@ deep analysis:
   - [ ] **Swarm caveat — parallel slots EVICT each other's cache** (subagents thrash the main agent, openclaw #19892 class):
         pin a stable agent session to a fixed `id_slot`, give subagents distinct slots, prefer stateful endpoints
         (`/v1/responses`) over rebuilding stateless history. Ties §5 per-machine pools + the swarm.
+  - [ ] **Use LM Studio's STATEFUL `/v1/responses` (`previous_response_id`) where usable (user 2026-06-29 starting-point):**
+        the SERVER holds the conversation register, so the CLIENT never re-formats history — which is a common silent
+        cache-killer (e.g. reasoning/`<think>` tokens re-templated differently per turn). Reported ~95%+ cached input
+        tokens vs. resending stateless history each turn. Evaluate against !Klein's multi-session model + the vendored SDK
+        path (the SDK may rebuild history itself); fall back to byte-stable stateless assembly (item D) where stateful isn't
+        usable. (Note: the LM Studio PLUGIN architecture canNOT touch the KV-cache layer — only tools/generators/prompt-
+        preprocessors — so caching is a prompt-structure + endpoint + engine/format problem, not a plugin fix.)
+  - [ ] **(evaluated → DEFER) third-party caching options (user 2026-06-29 starting-point):** the compact-verbosity /
+        memory-offload PLUGIN ideas (maestro, tupik/memory) are already !Klein's own §5.AQ-A (lean levels) + §5.AQ-F
+        (compaction + structured notes) — borrow the IDEAS, do NOT add a 3rd-party plugin into the prompt path (trust
+        surface, cf. §5.AP). **LMCache** (vendor-neutral KV-cache daemon: compress/pin/persist KV to disk) is real but
+        vLLM/raw-engine-oriented — it does NOT fit the LM Studio path; revisit ONLY if !Klein ever drives llama.cpp/vLLM
+        directly (would also need a prime-directive review: extra daemon vs. local-only/Docker isolation).
 - [ ] **F. Small-model-safe context tools (NOT token-compression), decomposed:** summarization **compaction** + **tool-result
       clearing** for long agent loops (preserve decisions/bugs/state; drop raw tool output; high-recall-then-precision); and
       **query-aware pruning (Provence-style)** for the §5.AC retrieval path. Explicitly DO NOT adopt query-agnostic token
@@ -6910,7 +6931,7 @@ deep analysis:
   - [ ] **Node RAM — bound the heap (`--max-old-space-size`), LRU+TTL every cache, clear timers/listeners, stream (don't buffer) model output, bounded worker pool.** Hunt the 4 classic leak sources.
   - [ ] **Disk — rotate+cap logs (Pino/logrotate) + SNAPSHOT-COMPACT the §5.AF durable ledger/jsonl** (snapshot then keep only post-snapshot events; size/TTL retention on discovery caches).
   - [ ] **Observability — surface a resource panel** (RAM/CPU/VRAM/disk + cache-hit-rate) so the frugality is measured, not assumed (ties §6.4/§5.AG).
-- [ ] **H. Per-REQUEST inference speed+quality (compute is the bottleneck on small HW — every request must be fast AND correct AND complete AND high-quality), decomposed — ranked by no-regret impact:**
+- [~] **H. Per-REQUEST inference speed+quality (compute is the bottleneck on small HW — every request must be fast AND correct AND complete AND high-quality), decomposed — ranked by no-regret impact:** **(2026-06-29: pure decision cores done — `src/core/inference-levers.ts`: `shouldUseSpeculativeDecoding` (opt-in+measured) + `recommendKvCacheQuant` (q8 only w/ flash-attn) + `recommendSampler`; 13 tests. Owed: wire into §5.AB selection + the load knobs.)**
   - [ ] **Tier 0: healthy prefix caching** (item D+E) — biggest lever of all (~5s vs ~200s at 40k context; nothing below matters if the cache is cold).
   - [ ] **#1 right-size context** (item G) — O(n) prefill + per-token decode cost; zero-cost, zero-quality-loss, also avoids the overflow→full-reprocess landmine.
   - [ ] **#2 Flash Attention (`-fa`)** — faster long-context prefill, no quality loss, and a PREREQUISITE for KV-quant (without it quantized KV is *slower*). Apple Silicon has a Metal FA kernel. Default ON.
