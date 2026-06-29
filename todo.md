@@ -6885,7 +6885,10 @@ deep analysis:
       now the DEFAULT in `buildTemporalAwarenessPrompt` (`<current_date>` block; `granularity:"datetime"` opt-in for the
       rare clock-needing turn) + (2) conditional injection was already done (`isTemporalContextRelevant`). STILL OWED: (3)
       move the block from the prompt TOP (it's currently the first system message → a daily change still re-prefills
-      everything below it) into the volatile SUFFIX, and wire `detectVolatilePrefixContent` into prompt assembly as a guard.
+      everything below it) into the volatile SUFFIX. (Lint-guard now wired onto a real surface: a test asserts
+      `detectVolatilePrefixContent(BASE_SYSTEM_PROMPT)` is empty — fails loudly if volatile content re-enters the stable
+      prefix; extend the guard to the other static prompts.) Suffix reordering is LOW priority — date-only captured the
+      intra-day win and reordering fights the deliberate temporal-first prominence.
 - [ ] **E. Cache-HEALTH probe + adaptation playbook (caching FAILS SILENTLY + is engine/format-specific), decomposed.**
       Prefix caching only works on PURE full-attention models — **SWA / SSM-Mamba / mixed-attention silently fall back to
       full recompute** (MoE alone is fine). Real failures to be aware of: LM Studio #1697 (MLX GPT-OSS-20B broken, GGUF of
