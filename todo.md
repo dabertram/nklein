@@ -4617,8 +4617,16 @@ deep analysis:
         residentModels[] }`; the loaded-set fetch + `decideModelLoad` headroom become **per-pool**, not global.
   - [ ] discover/declare linked machines: read LM Studio's linked-endpoint set (or a user-configured pool list) and tag
         each loaded model with its owning pool/endpoint.
-  - [ ] per-pool concurrency accounting in the scheduler — extend the §6.5 per-endpoint serialize + the §5.AF durable
-        scheduler's lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
+  - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
+        lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
+        **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
+        [concurrency-config.ts](src/core/concurrency-config.ts) — `perEndpoint` map (keyed by endpoint/baseUrl = the
+        machine pool), `resolveEffectiveEndpointConcurrency` (override ?? global), and `resolveSessionConcurrencyCaps`
+        now returns `endpointCap` alongside provider/model caps. Optional + SPARSE so non-pool configs round-trip
+        unchanged; composes exactly like the existing provider/model grains (the scheduler ANDs all three). +1 test (21);
+        tsc+biome+full fast suite green. **Still owed (wiring):** the scheduler/admission must actually COUNT running
+        sessions per endpoint and gate on `endpointCap` (today it ANDs provider+model; add the endpoint gate), and the
+        runtime-config threading + tRPC contract must surface the `perEndpoint` grain (mirrors the provider/model threading).
   - [ ] pool-aware routing: the §5.AB / `selectSwarmRoleModel` pick becomes pool-aware — prefer a FREE pool, send
         easy/small cards to the secondary machines (m4mini / legion), reserve the m5 pool for hard/large cards.
   - [ ] settings UI: list pools (machine label · endpoint · models · concurrency) with an editable per-pool concurrency

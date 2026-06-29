@@ -155,13 +155,41 @@ describe("resolveSessionConcurrencyCaps (both grains independent)", () => {
 				override: { perModel: { "lmstudio:coder:default": 4 } },
 				registryModelFallback: 9,
 			}),
-		).toEqual({ providerCap: 2, modelCap: 4 });
+		).toEqual({ providerCap: 2, modelCap: 4, endpointCap: null });
 	});
 
 	it("null caps when no layer constrains the session", () => {
 		expect(resolveSessionConcurrencyCaps({ providerId: "ollama", modelId: "ollama:x:default" })).toEqual({
 			providerCap: null,
 			modelCap: null,
+			endpointCap: null,
 		});
+	});
+
+	it("resolves the per-ENDPOINT (machine-pool) cap when an endpoint is given (§5.AB per-machine pools)", () => {
+		const global: ConcurrencyConfig = {
+			perProvider: {},
+			perModel: {},
+			perEndpoint: { "http://m4mini.local:1234/v1": 2, "http://m5max.local:1234/v1": 6 },
+		};
+		expect(
+			resolveSessionConcurrencyCaps({
+				providerId: "lmstudio",
+				modelId: "lmstudio:small:default",
+				endpoint: "http://m4mini.local:1234/v1",
+				global,
+			}),
+		).toEqual({ providerCap: null, modelCap: null, endpointCap: 2 });
+		// A project override wins for its pool; absent endpoint ⇒ no endpoint gate.
+		expect(
+			resolveSessionConcurrencyCaps({
+				providerId: "lmstudio",
+				modelId: "lmstudio:small:default",
+				endpoint: "http://m5max.local:1234/v1",
+				global,
+				override: { perEndpoint: { "http://m5max.local:1234/v1": 3 } },
+			}).endpointCap,
+		).toBe(3);
+		expect(resolveSessionConcurrencyCaps({ providerId: "lmstudio", modelId: "m", global }).endpointCap).toBe(null);
 	});
 });

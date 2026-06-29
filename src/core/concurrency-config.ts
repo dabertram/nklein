@@ -23,12 +23,19 @@ export interface ConcurrencyConfig {
 	perProvider: ConcurrencyMap;
 	/** Global per-model caps (canonical `provider:model:endpoint` id). */
 	perModel: ConcurrencyMap;
+	/**
+	 * Global per-ENDPOINT caps keyed by endpoint/baseUrl — todo §5.AB per-machine pools (user 2026-06-29). LM Studio links
+	 * each machine as a distinct endpoint, so an endpoint cap IS the machine pool's concurrency. Optional + sparse so
+	 * configs that don't use pools keep their exact shape (no round-trip change).
+	 */
+	perEndpoint?: ConcurrencyMap;
 }
 
 /** A per-project override layer: a sparse map per grain; only the keys a project overrides appear. */
 export interface ConcurrencyOverride {
 	perProvider?: ConcurrencyMap | null;
 	perModel?: ConcurrencyMap | null;
+	perEndpoint?: ConcurrencyMap | null;
 }
 
 /**
@@ -40,10 +47,12 @@ export const concurrencyMapSchema: z.ZodType<ConcurrencyMap> = z.record(z.string
 export const concurrencyConfigSchema = z.object({
 	perProvider: concurrencyMapSchema,
 	perModel: concurrencyMapSchema,
+	perEndpoint: concurrencyMapSchema.optional(),
 });
 export const concurrencyOverrideSchema = z.object({
 	perProvider: concurrencyMapSchema.nullable().optional(),
 	perModel: concurrencyMapSchema.nullable().optional(),
+	perEndpoint: concurrencyMapSchema.nullable().optional(),
 });
 // Compile-time drift guards: keep the wire schemas in lockstep with the threaded types.
 const _concurrencyConfigGuard: z.ZodType<ConcurrencyConfig> = concurrencyConfigSchema;
@@ -87,9 +96,12 @@ export function normalizeConcurrencyMap(value: unknown): ConcurrencyMap {
 }
 
 export function normalizeConcurrencyConfig(value: Partial<ConcurrencyConfig> | null | undefined): ConcurrencyConfig {
+	const perEndpoint = normalizeConcurrencyMap(value?.perEndpoint);
 	return {
 		perProvider: normalizeConcurrencyMap(value?.perProvider),
 		perModel: normalizeConcurrencyMap(value?.perModel),
+		// Sparse: only emit perEndpoint when a pool cap is actually set, so non-pool configs round-trip unchanged.
+		...(Object.keys(perEndpoint).length > 0 ? { perEndpoint } : {}),
 	};
 }
 
@@ -105,14 +117,17 @@ export function normalizeConcurrencyOverride(
 	}
 	const perProvider = normalizeConcurrencyMap(value.perProvider);
 	const perModel = normalizeConcurrencyMap(value.perModel);
+	const perEndpoint = normalizeConcurrencyMap(value.perEndpoint);
 	const hasProvider = Object.keys(perProvider).length > 0;
 	const hasModel = Object.keys(perModel).length > 0;
-	if (!hasProvider && !hasModel) {
+	const hasEndpoint = Object.keys(perEndpoint).length > 0;
+	if (!hasProvider && !hasModel && !hasEndpoint) {
 		return null;
 	}
 	return {
 		...(hasProvider ? { perProvider } : {}),
 		...(hasModel ? { perModel } : {}),
+		...(hasEndpoint ? { perEndpoint } : {}),
 	};
 }
 
@@ -136,7 +151,8 @@ function areConcurrencyMapsEqual(
 export function areConcurrencyConfigsEqual(left: ConcurrencyConfig, right: ConcurrencyConfig): boolean {
 	return (
 		areConcurrencyMapsEqual(left.perProvider, right.perProvider) &&
-		areConcurrencyMapsEqual(left.perModel, right.perModel)
+		areConcurrencyMapsEqual(left.perModel, right.perModel) &&
+		areConcurrencyMapsEqual(left.perEndpoint, right.perEndpoint)
 	);
 }
 
@@ -150,7 +166,8 @@ export function areConcurrencyOverridesEqual(
 	}
 	return (
 		areConcurrencyMapsEqual(left.perProvider, right.perProvider) &&
-		areConcurrencyMapsEqual(left.perModel, right.perModel)
+		areConcurrencyMapsEqual(left.perModel, right.perModel) &&
+		areConcurrencyMapsEqual(left.perEndpoint, right.perEndpoint)
 	);
 }
 
@@ -179,6 +196,14 @@ export function resolveEffectiveProviderConcurrency(
 	return resolveKeyCap(providerId, input.override?.perProvider, input.global?.perProvider, null);
 }
 
+/** The effective per-ENDPOINT (machine-pool) cap for a session, or null when no layer sets one (§5.AB per-machine pools). */
+export function resolveEffectiveEndpointConcurrency(
+	endpoint: string,
+	input: { global?: ConcurrencyConfig | null; override?: ConcurrencyOverride | null },
+): number | null {
+	return resolveKeyCap(endpoint, input.override?.perEndpoint, input.global?.perEndpoint, null);
+}
+
 /** The effective per-model cap for a session: override ?? global ?? the per-model registry `maxConcurrentRequests`. */
 export function resolveEffectiveModelConcurrency(
 	modelId: string,
@@ -197,6 +222,8 @@ export interface SessionConcurrencyCaps {
 	providerCap: number | null;
 	/** Max concurrent sessions for this session's model (null = no model-grain limit). */
 	modelCap: number | null;
+	/** Max concurrent sessions for this session's ENDPOINT/machine pool (null = no endpoint-grain limit). */
+	endpointCap: number | null;
 }
 
 /**
@@ -206,6 +233,8 @@ export interface SessionConcurrencyCaps {
 export function resolveSessionConcurrencyCaps(input: {
 	providerId: string;
 	modelId: string;
+	/** The session's endpoint/baseUrl (its machine pool). Optional so existing callers are unaffected until pool-wired. */
+	endpoint?: string | null;
 	global?: ConcurrencyConfig | null;
 	override?: ConcurrencyOverride | null;
 	registryModelFallback?: number | null;
@@ -220,5 +249,9 @@ export function resolveSessionConcurrencyCaps(input: {
 			override: input.override,
 			registryFallback: input.registryModelFallback ?? null,
 		}),
+		endpointCap:
+			input.endpoint && input.endpoint.trim().length > 0
+				? resolveEffectiveEndpointConcurrency(input.endpoint, { global: input.global, override: input.override })
+				: null,
 	};
 }
