@@ -5,6 +5,7 @@ import {
 	buildFailingModelList,
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
+	rankModelsByLedgerFitness,
 	summarizeLedgerForDisplay,
 	summarizeModelOutcomesByFlow,
 	summarizeModelOutcomesByRole,
@@ -279,5 +280,38 @@ describe("summarizeModelOutcomesByFlow", () => {
 
 	it("is empty for a stream with no attempts", () => {
 		expect(summarizeModelOutcomesByFlow([])).toEqual([]);
+	});
+});
+
+describe("rankModelsByLedgerFitness", () => {
+	const fitAttempt = (modelId: string, role: string, outcome: ModelOutcomeKind, latencyMs: number) =>
+		buildAttemptEvent({
+			...base,
+			attemptId: `${modelId}-${role}-${outcome}-${latencyMs}-${Math.random()}`,
+			modelId,
+			role,
+			outcome,
+			startedAt: 0,
+			completedAt: latencyMs,
+		});
+
+	it("ranks higher-success / faster models first, attaching the fitness score", () => {
+		const ranked = rankModelsByLedgerFitness([
+			// good: 2/2 success, fast
+			fitAttempt("good", "worker", "success", 500),
+			fitAttempt("good", "worker", "success", 700),
+			// bad: 0/2 success, slow
+			fitAttempt("bad", "worker", "timeout", 5000),
+			fitAttempt("bad", "worker", "other_failure", 6000),
+		]);
+		expect(ranked[0]?.modelId).toBe("good");
+		expect(ranked[1]?.modelId).toBe("bad");
+		expect(ranked[0]?.fitnessScore).toBeGreaterThan(ranked[1]?.fitnessScore ?? 1);
+	});
+
+	it("filters by role and is empty for no attempts", () => {
+		const events = [fitAttempt("m", "worker", "success", 500), fitAttempt("m", "reviewer", "success", 500)];
+		expect(rankModelsByLedgerFitness(events, { role: "reviewer" }).map((r) => r.role)).toEqual(["reviewer"]);
+		expect(rankModelsByLedgerFitness([])).toEqual([]);
 	});
 });

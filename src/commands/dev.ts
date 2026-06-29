@@ -11,6 +11,7 @@ import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
 import {
 	buildModelCapabilityAdvice,
 	buildStucknessSignalsFromLedger,
+	rankModelsByLedgerFitness,
 	summarizeLedgerForDisplay,
 } from "../core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
@@ -486,9 +487,11 @@ export async function runDevCleanupReportCommand(options: DevCleanupReportOption
 }
 
 async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
-	const summary = summarizeLedgerForDisplay(await readAllAgentLedger());
+	const events = await readAllAgentLedger();
+	const summary = summarizeLedgerForDisplay(events);
+	const ranked = rankModelsByLedgerFitness(events);
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+		process.stdout.write(`${JSON.stringify({ ...summary, fitnessRanking: ranked }, null, 2)}\n`);
 		return;
 	}
 	process.stdout.write(
@@ -508,6 +511,15 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 			`  ${outcome.modelId.padEnd(40)} ${String(outcome.samples).padStart(3)} run(s)  ` +
 				`${String(Math.round(outcome.successRate * 100)).padStart(3)}% success  [${breakdown}]\n`,
 		);
+	}
+	if (ranked.length > 0) {
+		process.stdout.write("\nFitness ranking (§5.AB routing recommendation from real runs — best first):\n");
+		for (const row of ranked) {
+			process.stdout.write(
+				`  ${String(Math.round(row.fitnessScore * 100)).padStart(3)}  ${row.modelId.padEnd(40)} ${row.role.padEnd(10)} ` +
+					`${String(row.samples).padStart(3)} run(s)\n`,
+			);
+		}
 	}
 	process.stdout.write("\nPer-model × role (the §5.Z matrix, as a ledger query):\n");
 	for (const row of summary.byRole) {
