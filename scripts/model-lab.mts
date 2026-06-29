@@ -18,7 +18,11 @@
 import { spawn } from "node:child_process";
 import { homedir, totalmem, userInfo } from "node:os";
 import { buildLmsUnloadArgs } from "../src/core/lms-model-control";
-import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../src/core/model-capability-catalog";
+import {
+	assessModelSuitability,
+	buildCatalogRosterRecommendation,
+	resolveActiveModelSuitabilityPolicy,
+} from "../src/core/model-capability-catalog";
 import { type LmsRunner, listResidentModels, loadModelExclusive } from "../src/core/lms-model-runner";
 
 /** A real `lms` runner: spawns the CLI with HOME restored to the OS passwd home (so `lms` finds its auth key). */
@@ -67,6 +71,19 @@ async function main(): Promise<void> {
 		});
 		console.log(JSON.stringify(result, null, 2));
 		process.exit(result.loaded ? 0 : 1);
+	}
+	if (subcommand === "roster") {
+		// model-lab roster — print the §5.AL catalog roster recommendation (prefer / caution / avoid), the catalog-side of
+		// the keep-list. Read-only; no load. Pure projection over the curated catalog.
+		const tiers = buildCatalogRosterRecommendation();
+		const mark = { prefer: "✅", caution: "◑", avoid: "⛔" } as const;
+		for (const tier of tiers) {
+			console.log(`\n${mark[tier.tier]} ${tier.tier.toUpperCase()} — ${tier.rationale}`);
+			for (const f of tier.families) {
+				console.log(`   ${f.toolUse.padEnd(16)} ${f.family}${f.verified ? "" : "  (unverified)"}`);
+			}
+		}
+		return;
 	}
 	if (subcommand === "check") {
 		// model-lab check <id> — print the §5.AL capability-catalog verdict for a model id (the CLI seed of the
@@ -166,7 +183,7 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
-	console.log("usage: tsx scripts/model-lab.mts ps | check <id> | load <id> [ctx] | unload <id> | get <name>[@quant] | sweep <harness> <id1,id2,…>");
+	console.log("usage: tsx scripts/model-lab.mts ps | roster | check <id> | load <id> [ctx] | unload <id> | get <name>[@quant] | sweep <harness> <id1,id2,…>");
 }
 
 main().catch((error) => {

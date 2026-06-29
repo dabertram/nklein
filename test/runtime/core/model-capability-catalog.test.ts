@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	assessModelSuitability,
+	buildCatalogRosterRecommendation,
 	DEFAULT_MODEL_SUITABILITY_POLICY,
 	lookupModelCapability,
 	MODEL_CAPABILITY_CATALOG,
@@ -124,6 +125,41 @@ describe("model-capability-catalog: policy resolution", () => {
 		const policy = resolveModelSuitabilityPolicy(undefined, { onUnsuitable: "warn" });
 		// Nemotron-Mini's override is a reject regardless of policy (its base verdict is TOOL_CAPABLE anyway).
 		expect(assessModelSuitability("nvidia/nemotron-mini-4b-instruct", policy).severity).toBe("reject");
+	});
+});
+
+describe("model-capability-catalog: roster recommendation (§5.AL keep-list projection)", () => {
+	it("groups every catalog family into exactly one of prefer/caution/avoid", () => {
+		const tiers = buildCatalogRosterRecommendation();
+		const total = tiers.reduce((n, t) => n + t.families.length, 0);
+		expect(total).toBe(MODEL_CAPABILITY_CATALOG.length);
+		expect(tiers.map((t) => t.tier)).toEqual(["prefer", "caution", "avoid"]);
+	});
+
+	it("puts TOOL_NATIVE/CAPABLE in prefer, TOOL_WEAK in caution, TOOL_UNSUITABLE in avoid", () => {
+		const tiers = buildCatalogRosterRecommendation();
+		const prefer = tiers.find((t) => t.tier === "prefer")?.families.map((f) => f.family) ?? [];
+		const avoid = tiers.find((t) => t.tier === "avoid")?.families.map((f) => f.family) ?? [];
+		const caution = tiers.find((t) => t.tier === "caution")?.families.map((f) => f.family) ?? [];
+		expect(prefer).toContain("qwen3-8b"); // TOOL_NATIVE
+		expect(avoid).toContain("phi-4-mini-reasoning"); // TOOL_UNSUITABLE
+		expect(caution).toContain("gemma-4-e2b"); // TOOL_WEAK
+	});
+
+	it("a hard severityOverride:reject forces AVOID even for a TOOL_CAPABLE verdict (Nemotron-Mini's 4k context)", () => {
+		const tiers = buildCatalogRosterRecommendation();
+		const prefer = tiers.find((t) => t.tier === "prefer")?.families.map((f) => f.family) ?? [];
+		const avoid = tiers.find((t) => t.tier === "avoid")?.families.map((f) => f.family) ?? [];
+		expect(avoid).toContain("nemotron-mini"); // TOOL_CAPABLE verdict, but gate-rejected → avoid
+		expect(prefer).not.toContain("nemotron-mini");
+	});
+
+	it("sorts each tier strongest-verdict first (NATIVE before CAPABLE in prefer)", () => {
+		const prefer = buildCatalogRosterRecommendation().find((t) => t.tier === "prefer")?.families ?? [];
+		const firstNativeIdx = prefer.findIndex((f) => f.toolUse === "TOOL_NATIVE");
+		const firstCapableIdx = prefer.findIndex((f) => f.toolUse === "TOOL_CAPABLE");
+		expect(firstNativeIdx).toBeGreaterThanOrEqual(0);
+		expect(firstCapableIdx).toBeGreaterThan(firstNativeIdx);
 	});
 });
 

@@ -398,3 +398,89 @@ const SEVERITY_RANK: Record<SuitabilitySeverity, number> = { ok: 0, unknown: 1, 
 function strictest(a: SuitabilitySeverity, b: SuitabilitySeverity): SuitabilitySeverity {
 	return SEVERITY_RANK[a] >= SEVERITY_RANK[b] ? a : b;
 }
+
+/** A roster recommendation tier (todo §5.AL — the catalog-side of the keep-list/drop-list). */
+export interface CatalogRosterTier {
+	/** `prefer` = drive agents with these · `caution` = works but flaky, use knowingly · `avoid` = not for tool chains. */
+	tier: "prefer" | "caution" | "avoid";
+	/** One-line rationale for the tier. */
+	rationale: string;
+	/** The catalog families in this tier (each with its headline verdict + note), sorted strongest-first. */
+	families: readonly { family: string; toolUse: ToolUseVerdict; verified: boolean; note: string }[];
+}
+
+/**
+ * Entry → roster tier reflecting EFFECTIVE suitability (so it matches the gate, not just the headline verdict): a hard
+ * `severityOverride: "reject"` (e.g. Nemotron-Mini's 4k context) forces `avoid` even though its tool-use verdict is
+ * TOOL_CAPABLE. Otherwise NATIVE/CAPABLE → prefer, WEAK/UNKNOWN → caution, UNSUITABLE → avoid.
+ */
+function rosterTierForEntry(entry: ModelCapabilityEntry): CatalogRosterTier["tier"] {
+	if (entry.severityOverride === "reject") {
+		return "avoid";
+	}
+	switch (entry.toolUse) {
+		case "TOOL_NATIVE":
+		case "TOOL_CAPABLE":
+			return "prefer";
+		case "TOOL_WEAK":
+		case "UNKNOWN":
+			return "caution";
+		case "TOOL_UNSUITABLE":
+			return "avoid";
+	}
+}
+
+/** Strength order within a tier (best-in-class first), used to sort each tier's families. */
+const VERDICT_STRENGTH: Record<ToolUseVerdict, number> = {
+	TOOL_NATIVE: 0,
+	TOOL_CAPABLE: 1,
+	TOOL_WEAK: 2,
+	UNKNOWN: 3,
+	TOOL_UNSUITABLE: 4,
+};
+
+/**
+ * Project the curated catalog into a tiered roster recommendation (todo §5.AL) — the catalog-side input to the
+ * keep-list/drop-list: which model families to PREFER for agentic tool use, which to use with CAUTION (flaky), and
+ * which to AVOID (not tool-capable). Pure over {@link MODEL_CAPABILITY_CATALOG}; refines automatically as verdicts are
+ * corrected by live sweeps. The on-disk *variant* keep-list (which quant to keep/drop) layers download/size data on top.
+ */
+export function buildCatalogRosterRecommendation(
+	catalog: readonly ModelCapabilityEntry[] = MODEL_CAPABILITY_CATALOG,
+): CatalogRosterTier[] {
+	const byTier: Record<CatalogRosterTier["tier"], CatalogRosterTier["families"][number][]> = {
+		prefer: [],
+		caution: [],
+		avoid: [],
+	};
+	for (const entry of catalog) {
+		byTier[rosterTierForEntry(entry)].push({
+			family: entry.family,
+			toolUse: entry.toolUse,
+			verified: entry.verified !== false,
+			note: entry.note,
+		});
+	}
+	const sortStrongestFirst = (families: CatalogRosterTier["families"][number][]) =>
+		[...families].sort(
+			(a, b) => VERDICT_STRENGTH[a.toolUse] - VERDICT_STRENGTH[b.toolUse] || a.family.localeCompare(b.family),
+		);
+	return [
+		{
+			tier: "prefer",
+			rationale: "Trained for / reliable at tool use — drive agents with these (best-in-class first).",
+			families: sortStrongestFirst(byTier.prefer),
+		},
+		{
+			tier: "caution",
+			rationale: "Tool use is flaky or unverified (small-model chaining, reasoning distills) — use knowingly.",
+			families: sortStrongestFirst(byTier.caution),
+		},
+		{
+			tier: "avoid",
+			rationale:
+				"Not suited to agentic tool chains (reasoning-only / wrong context) — don't drive agents with these.",
+			families: sortStrongestFirst(byTier.avoid),
+		},
+	];
+}
