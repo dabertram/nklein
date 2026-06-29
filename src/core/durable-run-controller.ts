@@ -25,6 +25,7 @@ import {
 	decideDurableSchedulerActions,
 	isDurableRunComplete,
 	markDurableJob,
+	renewDurableLease,
 	replayDurableJobs,
 } from "./durable-scheduler";
 import { isTransientNetworkError } from "./transient-error";
@@ -146,6 +147,15 @@ export class DurableRunController {
 		const effectiveOutcome = outcome === "failed" && isTransientNetworkError(error) ? "transient_retry" : outcome;
 		await this.ports.appendLog({ kind: "completed", jobId, outcome: effectiveOutcome });
 		this.jobs = markDurableJob(this.jobs, jobId, effectiveOutcome, this.config.maxAttempts);
+	}
+
+	/**
+	 * Heartbeat a running card: extend its lease by `leaseDurationMs` from now so the scheduler doesn't reclaim a
+	 * worker that is alive but slow (the §5.AF lease-expiry guard is for DEAD workers, not slow ones). In-memory only
+	 * (not logged) — a restart orphans the lease anyway and `resume` reclaims it. A no-op for a non-leased job.
+	 */
+	heartbeat(jobId: string): void {
+		this.jobs = renewDurableLease(this.jobs, jobId, this.ports.now() + this.config.leaseDurationMs);
 	}
 
 	/**

@@ -83,6 +83,19 @@ describe("DurableRunController", () => {
 		);
 	});
 
+	it("heartbeat extends a running lease so a slow-but-alive worker is NOT reclaimed", async () => {
+		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+		const fake = fakePorts({ startNow: 0 });
+		const controller = new DurableRunController(graph, config, fake.ports);
+		await controller.tick(); // a leased; expiresAt = 0 + leaseDurationMs(100) = 100
+		fake.setClock(90);
+		controller.heartbeat("a"); // extend to 90 + 100 = 190
+		fake.setClock(150); // past the ORIGINAL 100, before the renewed 190
+		const actions = await controller.tick();
+		expect(actions.some((x) => x.type === "reclaim")).toBe(false);
+		expect(controller.jobsSnapshot()[0]?.state).toBe("leased");
+	});
+
 	it("a NON-transient failure parks the card (failed)", async () => {
 		const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
 		const { ports } = fakePorts();

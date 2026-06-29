@@ -8,6 +8,7 @@ import {
 	decideDurableSchedulerActions,
 	isDurableRunComplete,
 	markDurableJob,
+	renewDurableLease,
 	replayDurableJobs,
 	summarizeDurableRun,
 } from "../../../src/core/durable-scheduler";
@@ -274,5 +275,16 @@ describe("markDurableJob — transient_retry (§5.AF)", () => {
 		const twice = replayDurableJobs(initial, log, { reclaimBackoffMs: 100, maxAttempts: 3 });
 		expect(once).toEqual(twice);
 		expect(once[0]).toMatchObject({ state: "ready", attempts: 2 });
+	});
+});
+
+describe("renewDurableLease (heartbeat)", () => {
+	it("extends a leased job's expiry; leaves a non-leased job untouched", () => {
+		const jobs = [
+			job({ jobId: "a", state: "leased", lease: { workerId: "w", expiresAt: 100 }, attempts: 1 }),
+			job({ jobId: "b", state: "ready" }),
+		];
+		expect(renewDurableLease(jobs, "a", 500)[0]?.lease?.expiresAt).toBe(500);
+		expect(renewDurableLease(jobs, "b", 500)[1]).toEqual(jobs[1]); // ready ⇒ no-op
 	});
 });

@@ -241,6 +241,20 @@ export function markDurableJob(
 	});
 }
 
+/**
+ * Extend a `leased` job's lease expiry (a heartbeat) — the worker is alive but slow, so push back the reclaim
+ * deadline. Pure; a no-op for a job that isn't currently leased. NOT a durable-log transition: a process restart
+ * orphans every lease anyway (`resume` reclaims them), so heartbeats only matter for the live in-memory expiry and
+ * needn't be replayed.
+ */
+export function renewDurableLease(jobs: readonly DurableJob[], jobId: string, newExpiresAt: number): DurableJob[] {
+	return jobs.map((job) =>
+		job.jobId === jobId && job.state === "leased" && job.lease !== null
+			? { ...job, lease: { ...job.lease, expiresAt: newExpiresAt } }
+			: job,
+	);
+}
+
 /** True when every job is terminal (`succeeded`/`failed`) — the run is finished and the scheduler can stop ticking. */
 export function isDurableRunComplete(jobs: readonly DurableJob[]): boolean {
 	return jobs.every((job) => job.state === "succeeded" || job.state === "failed");

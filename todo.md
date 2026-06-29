@@ -5539,9 +5539,13 @@ deep analysis:
       are all built + tested; only the LIVE INTEGRATION remains (a focused pass w/ live Docker):** per run, build a
       `DurableLedgerEnvelope`, `createLedgerDurableRunPorts({appendEvent: appendAgentLedgerEvent, enqueueStart: <task-start
       queue enqueue>})`, construct/`resume` a `DurableRunController` (resume from `readDurableSchedulerLog(readAllAgentLedger,
-      {workflowId})`), drive `tick()` on the runtime timer, add a **heartbeat** that extends the lease while a session runs,
-      and call `reportCompletion` on session finish (unblock of dependents is already done by
-      `completeTaskAndGetReadyLinkedTaskIds`). Then run C3 (`complex_dag` unattended + restart-mid-run) on the §5.Z roster.
+      {workflowId})`), drive `tick()` on the runtime timer, call the **heartbeat** (DONE: `DurableRunController.heartbeat(jobId)`
+      + pure `renewDurableLease` — extends a running card's lease by `leaseDurationMs` so a slow-but-alive worker isn't
+      reclaimed; in-memory only since a restart orphans leases anyway; +2 tests) while a session runs, and call
+      `reportCompletion` on session finish (which now also classifies transient failures → retry, see the §5.AF transient
+      item; unblock of dependents is already done by `completeTaskAndGetReadyLinkedTaskIds`). Then run C3 (`complex_dag`
+      unattended + restart-mid-run) on the §5.Z roster. **So the controller's API surface for the live wiring is now
+      complete (tick / resume / reportCompletion+transient / heartbeat); only the runtime-server plumbing + the live run remain.**
       **SCOUT FINDING (2026-06-28, `complex_dag`×qwen3-8b on the current non-durable pipeline):** decompose succeeded (13
       cards) but ~10 stayed in `planning` within 25 min → the gate is **wide-DAG THROUGHPUT + long-horizon transient
       survivability**, not worker death alone. Three signals structure the integration: (1) per-card latency × serial
