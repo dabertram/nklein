@@ -5166,9 +5166,9 @@ deep analysis:
       `knowledgeDebt` + the decomposition knowledge signal), §6.7 (codebase-intelligence / knowledge telemetry), §5.AA/§5.AB
       (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).
 - [ ] **First-class `RetrievedEvidence` objects + citation verification, decomposed:**
-  - [ ] Define `RetrievedEvidence` zod schema: url/fileRef, title, sourceType, author/publisher?, dates, contentHash, trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags.
+  - [x] Define `RetrievedEvidence` zod schema: url/fileRef, title, sourceType, author/publisher?, dates, contentHash, trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags. **(2026-06-29, parallel batch)** `src/core/retrieved-evidence.ts` — `retrievedEvidenceSchema` + inferred `RetrievedEvidence` (web/MCP `untrusted` by default). 11 tests.
   - [ ] Build adaptive retrieval loop: knowledge-debt/task → query plan → local vs online → retrieve → relevance/sufficiency/freshness judgment → cite or search again.
-  - [ ] Implement citation verification: map material claims to evidence spans; mark unsupported claims; prefer newer release notes in conflicts.
+  - [~] Implement citation verification: map material claims to evidence spans; mark unsupported claims; prefer newer release notes in conflicts. **(2026-06-29)** PURE CORE done: `verifyCitations({claims, evidence})` → `{supported, unsupported}` (a claim is supported only when every cited evidence id exists AND has ≥1 extraction span). Owed: the "prefer newer release notes in conflicts" tie-break + wiring into the retrieval loop.
   - [ ] Add prompt-injection risk flags (web/MCP content is untrusted; wire to §5.L).
   - [ ] Record attempts / pruned distractors / citations / signal (helped-or-hurt) into the §5.AF ledger.
 
@@ -5217,7 +5217,7 @@ deep analysis:
       `renderChatTurnPrompt` (§5.M) to **end-anchor the task** (today only the new user message is last; extend to the
       board card's task/acceptance block) + aggressive distractor pruning — each behind a live §5.Z re-verify (no regression).
 - [ ] **End-of-context task re-anchor on long runs, decomposed:**
-  - [ ] Implement generic re-anchor helper: takes goal + current step + board-card context; formats for end-of-context placement.
+  - [x] Implement generic re-anchor helper: takes goal + current step + board-card context; formats for end-of-context placement. **(2026-06-29, parallel batch)** `src/core/context-reanchor.ts` — `buildContextReanchor` (`<reanchor>` block: GOAL→CARD→STEP→RECENT TOOLS, drops blanks) + `shouldReanchor` (cadence gate, never turn 0). 10 tests. Next leaf = the `beforeModel` integration.
   - [ ] Integrate into `beforeModel` hook (reuse §5.N focus-chain seam) to inject re-anchor after large tool outputs.
   - [ ] Test on a multi-turn task: verify goal + step are restated near context tail on 2nd+ model calls.
   - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models).
@@ -5239,7 +5239,7 @@ deep analysis:
 - [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first), decomposed:**
   - [ ] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
   - [ ] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
-  - [ ] Implement self-consistency: sample N paths, majority-vote (tie §5.AB reliability metric).
+  - [~] Implement self-consistency: sample N paths, majority-vote (tie §5.AB reliability metric). **(2026-06-29, parallel batch)** PURE CORE done: `src/core/self-consistency.ts` — `majorityVote<T>(samples, keyFn?)` → `{winner, count, total, agreement}` (first-seen tie-break). 5 tests. Owed: sample N reasoning paths at the call site + feed `agreement` into the §5.AB reliability metric.
   - [ ] Add difficulty gate: only apply reasoning loops when task difficulty is high + observed failure exists.
   - [ ] Integrate round-limit + stall/identical-loop detection (reuse §5.K + §5.S + §5.AA seams); compose into one explicit loop.
   - [ ] Test: verify weak model on hard task gets cross-model carry; robust model on easy task skips loop.
