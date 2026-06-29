@@ -151,6 +151,33 @@ describe("createChatService", () => {
 		);
 	});
 
+	it("§5.AL gate: a per-project policyBase (resolveModelGatePolicyBase) relaxes the chat reject to a warn-and-proceed", async () => {
+		let ran = false;
+		const service = createChatService({
+			rootDir,
+			// Same reasoning-only (TOOL_UNSUITABLE) model that the default policy rejects above…
+			resolveModelDeps: async () => ({
+				complete: async () => "unused",
+				summarize: async () => "",
+				modelId: "microsoft/phi-4-mini-reasoning",
+			}),
+			// …but the active project's policy loosens unsuitable→warn, so the turn proceeds (chat ↔ task-start parity).
+			resolveModelGatePolicyBase: async () => ({ onUnsuitable: "warn", onUnknown: "warn" }),
+			resolveAgentToolDeps: async () => ({
+				model: async () => {
+					ran = true;
+					return { text: "ok", toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+		});
+		const session = await service.createSession({ title: "GatePolicy", scope: "chat_only" });
+		const result = await service.sendMessage({ sessionId: session.id, message: "do a thing" });
+		expect(ran).toBe(true);
+		expect(result?.assistantMessage.content).toBe("ok");
+	});
+
 	it("§5.AL gate: a tool-capable model on the tool path proceeds (no false reject)", async () => {
 		let ran = false;
 		const service = createChatService({
