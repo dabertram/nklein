@@ -5438,10 +5438,11 @@ deep analysis:
 
 ### 5.AF — Shared substrate: the Agent Attempt Ledger + durable scheduler + replay + tool-capability manifest *(2026-06-26, from the spec audit — the keystone; build BEFORE widening §5.AA–§5.AE)*
 > **COVERAGE ROUND (2026-06-29, user "200% before wiring") — durable substrate hardened + bugs surfaced.** A
-> review-gated TDD round drove the workflow/durable modules to comprehensive coverage BEFORE the hot-path wiring is
-> fanned out. durable-run-controller 7→32 (+25), durable-scheduler 22→65 (+43), durable-scheduler-ledger 6→23 (+17),
-> nklein-event-adapter 26→39 (+13) — all mutation-verified where an invariant was load-bearing (persist-before-dispatch;
-> the NaN guards). **FIXED:** the NaN-`maxAttempts` immortal-job bug (`Math.max(1, Math.trunc(NaN))` is NaN ⇒
+> review-gated TDD round drove the workflow/durable + task-state modules to comprehensive coverage BEFORE the hot-path
+> wiring is fanned out. durable-run-controller 7→32 (+25), durable-scheduler 22→65 (+43), durable-scheduler-ledger 6→23
+> (+17), nklein-event-adapter 26→39 (+13, the terminal-crash arms), runtime-api/start-task-session 87→92 (+5, the
+> VITEST-dead residency/suitability/cloud_provider_disabled gates) — all mutation-verified where an invariant was
+> load-bearing (persist-before-dispatch; the NaN guards). **FIXED:** the NaN-`maxAttempts` immortal-job bug (`Math.max(1, Math.trunc(NaN))` is NaN ⇒
 > `attempts >= NaN` always false ⇒ never fails) at all 3 sites — durable-run-controller.ts (reclaimOrphanedLeases),
 > durable-scheduler.ts (decideDurableSchedulerActions + markDurableJob). **OPEN (deliberate decisions, pinned + tested):**
 > - [ ] **SB#3 (HIGH) — boot-replay drops a malformed `completed` event** (`durable-scheduler-ledger.ts:~149`): an
@@ -5453,6 +5454,8 @@ deep analysis:
 > - [ ] **SB#2 (LOW)** `cancelled` with an unknown/null detail fabricates reason `max_attempts` (ledger:~143) — counter to "explain exactly". Pinned T7/T9.
 > - [ ] **S1–S3 (cosmetic/contract, pinned not bugs):** transient-fail keeps pre-increment `attempts` on the terminal job; `markDurableJob` will mutate a non-leased (blocked/ready) job; a `succeededTaskIds` id not in `taskIds` drops its edge. (durable-scheduler T19/T16-18/T32.)
 > - [ ] **partial-log contract** on a mid-commit `appendLog` rejection: documented in `durable-run-controller.commit()` (caller must discard + `resume()`); revisit when the controller is WIRED (currently unreachable — no live caller). Pinned by controller DRC-11/12.
+> - [ ] **over-broad pool-member error SWALLOW** in `start-task-session.ts:~253-265`: the re-raise guard fires only for the `primary` role + a context-window-policy error, so for a POOL MEMBER ALL errors (transient/auth/programming) are silently swallowed — indistinguishable from "doesn't fit", no telemetry. Narrow the non-primary swallow to known unrunnable/context-policy errors + log the rest (mirror the primary path). Pinned by runtime-api T4b.
+> - [ ] **intermittent full-suite flake (1 test):** the full parallel `vitest run` (3660) flaked 1 test ONCE then passed clean on re-run; not from this round's source (the changed suites are deterministically green). Belongs with §5.AK's `test:integration` port/parallelism flakiness — identify + stabilize (a flake can mask a real regression).
 
 > **The consolidation the audit identified.** Every new ambition (§5.AA model-behavior learning, §5.AB fitness/selection,
 > §5.AC retrieval, §5.AD context-quality, §5.Z cross-model matrix, retry budgets, loop salvage, deterministic
