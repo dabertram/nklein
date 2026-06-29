@@ -42,6 +42,29 @@ describe("nklein web research tool", () => {
 		expect(fetch).toHaveBeenCalled();
 	});
 
+	it("retries a transient fetch failure then succeeds (§5.AF transient survivability)", async () => {
+		let calls = 0;
+		const fetch = vi.fn(async () => {
+			calls += 1;
+			if (calls === 1) {
+				throw new Error("Body Timeout Error");
+			}
+			return createResponse("Recovered", { contentType: "text/plain" });
+		}) as unknown as typeof globalThis.fetch;
+
+		const result = await runWebResearchFetch({ url: "https://docs.nklein.bot/x", fetch });
+		expect(result.content).toBe("Recovered");
+		expect(calls).toBe(2); // 1 transient throw + 1 success
+	});
+
+	it("does NOT retry a non-transient 404 (a 4xx is a real failure)", async () => {
+		const fetch = vi.fn(async () =>
+			createResponse("nope", { status: 404, ok: false }),
+		) as unknown as typeof globalThis.fetch;
+		await expect(runWebResearchFetch({ url: "https://docs.nklein.bot/missing", fetch })).rejects.toThrow("HTTP 404");
+		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
 	it("creates an executable AgentTool when enabled", async () => {
 		const fetch = vi.fn(async () =>
 			createResponse("Fresh model data", { contentType: "text/plain" }),

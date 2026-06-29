@@ -1,4 +1,5 @@
 import type { AgentTool } from "@nklein/shared";
+import { withTransientRetry } from "../core/transient-error";
 
 const DEFAULT_ALLOWED_DOMAINS = [
 	"docs.nklein.bot",
@@ -84,33 +85,37 @@ export async function runWebResearchFetch(input: {
 	if (!isAllowedHost(url.hostname, allowedDomains)) {
 		throw new Error(`web_research blocked ${url.hostname}. This source is not in the allow-list.`);
 	}
-	const abort = new AbortController();
-	const timeout = setTimeout(() => abort.abort(), input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-	try {
-		const response = await (input.fetch ?? globalThis.fetch)(url, {
-			headers: {
-				accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.1",
-				"user-agent": "KanbanWebResearch/1.0",
-			},
-			signal: abort.signal,
-		});
-		if (!response.ok) {
-			throw new Error(`web_research fetch failed with HTTP ${response.status}.`);
+	// Bounded retry on transient network/server hiccups (§5.AF): a fresh abort+timeout per attempt; the body is read
+	// INSIDE so a body-timeout retries too. A 5xx becomes a retryable throw (classifier matches); a 4xx is non-transient.
+	const fetchOnce = async (): Promise<{ raw: string; contentType: string }> => {
+		const abort = new AbortController();
+		const timeout = setTimeout(() => abort.abort(), input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+		try {
+			const response = await (input.fetch ?? globalThis.fetch)(url, {
+				headers: {
+					accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.1",
+					"user-agent": "KanbanWebResearch/1.0",
+				},
+				signal: abort.signal,
+			});
+			if (!response.ok) {
+				throw new Error(`web_research request returned HTTP ${response.status}.`);
+			}
+			return { raw: await response.text(), contentType: response.headers.get("content-type") ?? "" };
+		} finally {
+			clearTimeout(timeout);
 		}
-		const raw = await response.text();
-		const contentType = response.headers.get("content-type") ?? "";
-		const text = contentType.includes("text/html") ? stripHtml(raw) : raw.replace(/\s+/g, " ").trim();
-		const maxChars = input.maxChars ?? DEFAULT_MAX_CHARS;
-		return {
-			url: url.toString(),
-			title: contentType.includes("text/html") ? extractTitle(raw) : null,
-			content: text.slice(0, maxChars),
-			truncated: text.length > maxChars,
-			sourceDomain: url.hostname,
-		};
-	} finally {
-		clearTimeout(timeout);
-	}
+	};
+	const { raw, contentType } = await withTransientRetry(fetchOnce, { maxRetries: 2 });
+	const text = contentType.includes("text/html") ? stripHtml(raw) : raw.replace(/\s+/g, " ").trim();
+	const maxChars = input.maxChars ?? DEFAULT_MAX_CHARS;
+	return {
+		url: url.toString(),
+		title: contentType.includes("text/html") ? extractTitle(raw) : null,
+		content: text.slice(0, maxChars),
+		truncated: text.length > maxChars,
+		sourceDomain: url.hostname,
+	};
 }
 
 export function createWebResearchTool(options: CreateWebResearchToolOptions = {}): AgentTool[] {
