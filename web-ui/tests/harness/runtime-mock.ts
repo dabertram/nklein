@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Page, WebSocketRoute } from "@playwright/test";
 
 /**
  * Reusable runtime-mock harness for UI e2e specs (2026-06-27). Extracted from the per-spec ad-hoc mocking
@@ -105,6 +105,13 @@ export interface RuntimeMockOptions {
 export interface RuntimeMockHandle {
 	/** Captured request bodies per mocked mutation procedure (in call order). */
 	readonly calls: Record<string, unknown[]>;
+	/**
+	 * Push a runtime stream frame to the page over the mocked WebSocket — AFTER `page.goto` + board hydration (the WS
+	 * must be open). Lets a spec simulate live streaming (agent output, chat tokens, session-state transitions, ready-
+	 * for-review) deterministically. Frames MUST carry `workspaceId: E2E_WORKSPACE_ID` or the client drops them (it
+	 * filters on the active workspace). Use the `*Frame` builders below. Throws if called before the WS connects.
+	 */
+	pushFrame(frame: Record<string, unknown>): void;
 }
 
 function defaultQueryStubs(snapshot: Record<string, unknown>): Record<string, unknown> {
@@ -130,13 +137,17 @@ export async function installRuntimeMock(page: Page, options: RuntimeMockOptions
 		window.localStorage.setItem("nklein.onboarding.dialog.shown", "true");
 	});
 
+	let currentWs: WebSocketRoute | null = null;
 	await page.routeWebSocket(/\/api\/runtime\/ws/, (ws) => {
+		// Track the latest socket so a spec can push frames after hydration (and reconnects re-hydrate).
+		currentWs = ws;
 		ws.onMessage(() => {
 			/* absorb keep-alives */
 		});
 		ws.onClose(() => {
 			/* no-op */
 		});
+		// The server sends the snapshot on every (re)connect.
 		ws.send(JSON.stringify(snapshot));
 	});
 
@@ -171,5 +182,74 @@ export async function installRuntimeMock(page: Page, options: RuntimeMockOptions
 		);
 	}
 
-	return { calls };
+	const pushFrame = (frame: Record<string, unknown>): void => {
+		if (currentWs === null) {
+			throw new Error(
+				"pushFrame() called before the runtime WebSocket opened — push frames AFTER page.goto + board hydration.",
+			);
+		}
+		currentWs.send(JSON.stringify(frame));
+	};
+
+	return { calls, pushFrame };
+}
+
+// ─────────────────────────── stream-frame builders (the §5.AC/§5.AK e2e streaming layer) ───────────────────────────
+// Shapes mirror `RuntimeStateStreamMessage` (src/core/stream-events-api-contract.ts). Kept as plain records so the
+// harness stays self-contained; the runtime green-gate + the protocol doc keep them honest.
+
+export type ChatMessageRole = "user" | "assistant" | "system" | "tool" | "reasoning" | "status";
+
+/** One chat message object. The UI upserts by `id`: resend the SAME id with growing `content` to simulate streaming. */
+export function chatMessage(
+	id: string,
+	role: ChatMessageRole,
+	content: string,
+	meta: Record<string, unknown> | null = null,
+): Record<string, unknown> {
+	return { id, role, content, createdAt: 1_700_000_500_000, meta };
+}
+
+/** Build a `task_chat_message` stream frame (assistant/tool/reasoning output for a task's chat panel). */
+export function taskChatMessageFrame(
+	taskId: string,
+	message: Record<string, unknown>,
+	workspaceId: string = E2E_WORKSPACE_ID,
+): Record<string, unknown> {
+	return { type: "task_chat_message", workspaceId, taskId, message };
+}
+
+/** Build a `task_sessions_updated` stream frame (drives the session-state badge + chat/terminal enablement). */
+export function taskSessionsUpdatedFrame(
+	summaries: Array<Record<string, unknown>>,
+	workspaceId: string = E2E_WORKSPACE_ID,
+): Record<string, unknown> {
+	return { type: "task_sessions_updated", workspaceId, summaries };
+}
+
+/** Build a `task_ready_for_review` stream frame (the agent finished and wants human review). */
+export function taskReadyForReviewFrame(
+	taskId: string,
+	workspaceId: string = E2E_WORKSPACE_ID,
+): Record<string, unknown> {
+	return { type: "task_ready_for_review", workspaceId, taskId, triggeredAt: 1_700_000_600_000 };
+}
+
+/** Minimal task-session summary for {@link taskSessionsUpdatedFrame}; override any field (e.g. `state`). */
+export function taskSessionSummary(taskId: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return {
+		taskId,
+		state: "running",
+		mode: "act",
+		role: "worker",
+		agentId: "agent-e2e",
+		workspacePath: "/home/user/project",
+		pid: 4242,
+		startedAt: 1_700_000_400_000,
+		updatedAt: 1_700_000_500_000,
+		lastOutputAt: 1_700_000_500_000,
+		reviewReason: null,
+		exitCode: null,
+		...overrides,
+	};
 }
