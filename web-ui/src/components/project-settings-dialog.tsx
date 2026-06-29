@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
-import type { RuntimeCodeEmbeddingSettings, RuntimeModelGateAction } from "@/runtime/types";
+import type { RuntimeCodeEmbeddingSettings, RuntimeModelGateAction, RuntimeSkillDynamicsLevel } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
 
 export interface ProjectSettingsDialogProps {
@@ -42,6 +42,9 @@ export function ProjectSettingsDialog({
 	const [policyOverrideEnabled, setPolicyOverrideEnabled] = useState(false);
 	const [policyUnsuitable, setPolicyUnsuitable] = useState<RuntimeModelGateAction>("reject");
 	const [policyUnknown, setPolicyUnknown] = useState<RuntimeModelGateAction>("warn");
+	// §5.AE per-project skill-dynamics level override.
+	const [skillDynamicsOverrideEnabled, setSkillDynamicsOverrideEnabled] = useState(false);
+	const [skillDynamicsLevel, setSkillDynamicsLevel] = useState<RuntimeSkillDynamicsLevel>("fully_dynamic");
 	const [saveError, setSaveError] = useState<string | null>(null);
 
 	// Load the per-project override into local state whenever the config (re)loads.
@@ -62,6 +65,13 @@ export function ProjectSettingsDialog({
 		setPolicyUnknown(override?.onUnknown ?? fallback?.onUnknown ?? "warn");
 	}, [config?.modelSuitabilityPolicyOverride, config?.modelSuitabilityPolicyDefaults]);
 
+	// §5.AE: load the skill-dynamics level override (seed from the global default when no override).
+	useEffect(() => {
+		const override = config?.skillDynamicsLevelOverride ?? null;
+		setSkillDynamicsOverrideEnabled(override !== null);
+		setSkillDynamicsLevel(override ?? config?.skillDynamicsLevelDefault ?? "fully_dynamic");
+	}, [config?.skillDynamicsLevelOverride, config?.skillDynamicsLevelDefault]);
+
 	const defaults = config?.codeEmbeddingDefaults ?? null;
 	const effective = overrideEnabled ? buildCodeEmbeddingSettings(provider, model, baseUrl) : defaults;
 	const controlsDisabled = isSaving || !workspaceId;
@@ -72,7 +82,11 @@ export function ProjectSettingsDialog({
 		const policyOverride = policyOverrideEnabled
 			? { onUnsuitable: policyUnsuitable, onUnknown: policyUnknown }
 			: null;
-		const saved = await save({ codeEmbeddingOverride: override, modelSuitabilityPolicyOverride: policyOverride });
+		const saved = await save({
+			codeEmbeddingOverride: override,
+			modelSuitabilityPolicyOverride: policyOverride,
+			skillDynamicsLevelOverride: skillDynamicsOverrideEnabled ? skillDynamicsLevel : null,
+		});
 		if (!saved) {
 			setSaveError("Could not save project settings. Check runtime logs and try again.");
 			return;
@@ -204,6 +218,40 @@ export function ProjectSettingsDialog({
 										</NativeSelect>
 									</div>
 								</div>
+							</div>
+						</div>
+						<div>
+							<div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-text-primary">
+								<FolderCog size={14} />
+								Skill dynamics
+							</div>
+							<p className="m-0 mb-3 text-[12px] text-text-secondary">
+								How dynamic vs. strict this project’s per-task skill/prompt assignment is (§5.AE). When off, the
+								project uses the global default ({config?.skillDynamicsLevelDefault ?? "fully_dynamic"}).
+							</p>
+							<div className="rounded-md border border-border bg-surface-1 p-3">
+								<div className="mb-3 flex items-center gap-2 text-[13px] text-text-primary">
+									<RadixSwitch.Root
+										checked={skillDynamicsOverrideEnabled}
+										disabled={controlsDisabled}
+										onCheckedChange={setSkillDynamicsOverrideEnabled}
+										className="relative h-5 w-9 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+									<span>Override for this project</span>
+								</div>
+								<NativeSelect
+									value={skillDynamicsLevel}
+									onChange={(event) => setSkillDynamicsLevel(event.target.value as RuntimeSkillDynamicsLevel)}
+									disabled={controlsDisabled || !skillDynamicsOverrideEnabled}
+									fill
+								>
+									<option value="fully_dynamic">Fully dynamic</option>
+									<option value="static_skills_auto_model">Static skills, auto model</option>
+									<option value="assigned_skills">Assigned skills</option>
+									<option value="fully_static">Fully static</option>
+								</NativeSelect>
 							</div>
 						</div>
 						{saveError ? <p className="m-0 text-[12px] text-status-red">{saveError}</p> : null}
