@@ -5612,7 +5612,17 @@ deep analysis:
 - [ ] **Settings UI + per-PROJECT override (runtime-config).** The remaining piece: expose `onUnsuitable`/`onUnknown` in the
       runtime config contract + Settings UI as a global setting with a per-project override (the §5.W pattern), persisted,
       and feed the resolved global+project policy into `resolveModelSuitabilityPolicy`/the gates (replacing/augmenting the
-      env layer). The merge primitive (`resolveModelSuitabilityPolicy(global, projectOverride)`) + the env global already
+      env layer). **Scope discovered 2026-06-29 (do this as a focused unit — a partial change does NOT compile, since the
+      fields are required on `RuntimeConfigState`):** it mirrors `codeEmbeddingSettings` across ~40 sites: the contract
+      schema (`runtime-config-api-contract` add a `runtimeModelSuitabilityPolicySchema` + default; `config-api-contract`
+      response + save-request) · the `RuntimeConfigState` / `RuntimeGlobalConfigFileShape` / `RuntimeProjectConfigFileShape`
+      types (`runtime-config-types.ts`) · the normalizers + equality (`runtime-config-normalizers.ts`) · `runtime-config.ts`
+      (the change-field lists, the derived-field list, build #1, build #2, and the MANY save/update/reset persistence
+      variants — ~grep `codeEmbeddingOverride` for every site) · `agent-registry.ts` `buildRuntimeConfigResponse`
+      passthrough · then ~6 test fixtures that construct `RuntimeConfigState` literals (task-verify, acceptance-auto-repair,
+      knowledge-tool-usage-stats, model-performance-stats, agent-registry, runtime-api). Plus the React Settings widget in
+      the web-ui. An env-layer global setting already ships (above), so this is a refinement, not a blocker. The merge
+      primitive (`resolveModelSuitabilityPolicy(global, projectOverride)`) + the env global already
       exist; this is the config-contract + UI plumbing (schema · load/save · change-detection · response · Settings panel).
 - [ ] **LLM-based ONLINE capability lookup for UNKNOWN models.** When a model is UNKNOWN to the catalog (and especially
       when it's the only one loaded), !Klein can use **that same model** to look up its own capabilities online (model
