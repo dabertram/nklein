@@ -3461,8 +3461,12 @@ deep analysis:
         second-opinion review, the swarm-guardrails panel, advanced-policy visibility, and agent rulesets (379 lines,
         extracted as a div-balance-verified clean range). General now = Developer Mode + Advanced. Verified: web:typecheck +
         36-test dialog oracle + web:build. *(Live Playwright pass of the new nav still owed.)*
-  - [ ] remaining regroup sections per the ~9-section plan: !Klein Provider & Models, Guardrails vs Agents boundary, Code
-        Intelligence (keep reachable for non-!Klein users), relabel "Git Prompts" → "Git", Workspace/Project polish
+  - [ ] remaining regroup sections per the ~9-section plan, decomposed:
+    - [ ] !Klein Provider & Models section (move provider + model config controls)
+    - [ ] Guardrails vs Agents boundary (clarify boundary, move shared controls)
+    - [ ] Code Intelligence (keep reachable for non-!Klein users)
+    - [ ] relabel "Git Prompts" → "Git"
+    - [ ] Workspace/Project settings polish
   - [x] **live-verified (2026-06-26, Playwright)** — booted `dev:full`, opened Settings (⌘⇧S), confirmed the **Agents**
         nav entry renders (Boxes icon) alongside a retained **General**, clicking Agents scrolls the moved content (Docker
         isolation + swarm guardrails + rulesets) into view, **zero console/page errors**. Reusable smoke at
@@ -3938,8 +3942,11 @@ deep analysis:
       starting the run. Boot
       recipe confirmed: `npm run dev:full` skips `npm ci` when deps are installed; **use an ABSOLUTE `PLAYWRIGHT_BROWSERS_PATH`**
       (a `~` after `HOME=<isolated>` expands to the isolated HOME → no chromium). Remaining roster models pending.
-- [ ] **Multi-card pipeline e2e** (`verify-multi-card-pipeline.mts`) — proven: qwen3-8b. SAMPLE a few representative
-      models (it serializes on the single-request endpoint → ~25 min/run; not full-swept across all 9).
+- [ ] **Multi-card pipeline e2e**, decomposed:
+  - [ ] Build `verify-multi-card-pipeline.mts` test harness with multi-card chaining on qwen3-8b
+  - [ ] Sample 2-3 representative mid-tier models (not full 9-model sweep)
+  - [ ] Record per-model results matrix row in cross-model-verification.md
+  - [ ] Verify no host-path leaks + correct card chain execution
 - [~] **Small-model output robustness** (`sweep-capture.mts`) — proven clean: gemma-4-e2b (mid+complex), gemma-4-e4b
       (complex), qwen3-8b (mid+complex, slow/non-terminal in window). **mid_task sweep extended 2026-06-28** (against a
       booted isolated-HOME runtime on :3484): **qwen2.5-coder-14b ✅ CLEAN** (awaiting_review, 0 leaks/0 repeats);
@@ -3950,8 +3957,14 @@ deep analysis:
       holds; the remaining non-termination cases are §5.AA control problems, not output-format problems. Remaining:
       phi-4-mini-reasoning (sweeping), phi-4-reasoning-plus + deepseek (not currently loaded) + the unfinished presets.
       (Folds into §5.O — that section IS the output-robustness sweep; §5.Z just tracks its all-models coverage.)
-- [ ] **Embedding / code-intelligence flows** — sweep the loaded embedder(s) (currently only
-      `text-embedding-nomic-embed-text-v1.5@q8_0`); re-run when more are loaded.
+  - [ ] Finish phi-4-mini-reasoning sweep (in progress)
+  - [ ] Sweep phi-4-reasoning-plus + deepseek (await load)
+  - [ ] Complete unfinished output-robustness presets in §5.O
+  - [ ] Update cross-model-verification.md with final sweep results
+- [ ] **Embedding / code-intelligence flows**, decomposed:
+  - [ ] Sweep current embedder (`text-embedding-nomic-embed-text-v1.5@q8_0`) across use cases
+  - [ ] Record results in cross-model-verification.md
+  - [ ] Re-run with each new loaded embedder (add to roster watch list)
 - [x] **Temporal-awareness lighthouse (§5.AC) — ALL 9 PASS (2026-06-26)** (`verify-temporal-awareness-live.mts`) — a real
       chat turn with the host clock injected; asserts the model grounds in the injected "now" (places a current-year past
       month in the past, which its ~2024 training prior would call the future). **9/9 across the whole roster**: gemma-4-e2b
@@ -4200,19 +4213,13 @@ deep analysis:
       tests + 2 adapter retry tests. **Still owed (next rungs, for phi-4-reasoning-plus which over-reasons even with 1
       tool):** single-step prompt + stripped-preamble rung; learn each model's complexity ceiling into the profile so a
       known-weak model starts simplified on attempt 0.
-- [ ] **Endpoint-iteration adapter — native `/api/v1/chat` + Anthropic `/v1/messages` fallback.** A
-      `LocalModelEndpointStrategy`: try OpenAI-compat `/v1/chat/completions` first; on a no-call/malformed outcome, retry
-      via the **native `/api/v1/chat`** (parse its structured `tool_call.*` + separate `reasoning.*` SSE events — catches
-      calls the OpenAI path misses for phi/deepseek) and/or the **Anthropic-compat `/v1/messages`** (which accepts
-      **`tool_choice:{type:"any"}` to FORCE a tool call** — a strong rung when a model won't call on its own). Record the
-      winning endpoint per model in the profile. **LM Studio docs findings (2026-06-26, checked thoroughly):** (a) for
-      "default-support" models LM Studio injects a system prompt + parses a **`[TOOL_REQUEST]…[END_TOOL_REQUEST]`** default
-      format — this is exactly phi's format, confirming our recovery addition; the docs warn small models "may output
-      improperly formatted tool calls LM Studio cannot parse → no `tool_calls`", which IS the narrated-recovery /
-      endpoint-iteration case. (b) **Stateful chat** (`/api/v1/chat` `previous_response_id` + `store`) avoids resending
-      history → an efficiency + long-context lever (and conversation branching). (c) Structured output is grammar-based
-      (GGUF→llama.cpp grammar sampling, MLX→Outlines) and **guarantees** schema-valid JSON, but the docs caution "not all
-      models below 7B are capable of structured output" — so the constrained-decoding rung helps mid/large models most.
+- [ ] **Endpoint-iteration adapter**, decomposed:
+  - [ ] Build `LocalModelEndpointStrategy` type + try-order (OpenAI → native `/api/v1/chat` → Anthropic)
+  - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing
+  - [ ] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing
+  - [ ] Wire endpoint-iteration into retry loop (record winning endpoint per model)
+  - [ ] Add to `ModelBehaviorProfile` for per-model persistence
+  - [ ] Test across phi/deepseek models (canonical weak models)
 - [~] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
       explicit-format) when a model won't act; learn which template family each model responds to. ("Try different
       prompts" — user.) **PURE TEMPLATE CORE DONE (2026-06-28):**
@@ -4231,6 +4238,11 @@ deep analysis:
       (`nklein-session-runtime` afterModel — shared with the constrained rung's owed re-invoke seam); recording the rung +
       winning family on the §5.AF ledger; and learning each model's responsive family into the `ModelBehaviorProfile` so a
       known-responsive phrasing is tried first.
+  - [ ] Wire prompt-variation rung into SWARM/SDK path seam (afterModel hook)
+  - [ ] Record rung outcome + winning family on §5.AF ledger per attempt
+  - [ ] Add model's responsive family to `ModelBehaviorProfile` for persistence
+  - [ ] Test via phi/reasoning models (canonical ruminator cases)
+  - [ ] Re-verify across 9-model roster with chat path (ensure no regression)
 - [~] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder. **PURE FORMAT CORE DONE
@@ -4332,27 +4344,18 @@ deep analysis:
       `model_stalled` first, THEN build the rung only if stalls actually occur for SUITABLE models** (a gated ruminator can't
       stall the swarm; a capable model rarely stalls). Observability-before-mechanism — don't build a rung for a
       rarely-hit case. The §5.AL gate + capable-model behaviour + this observability are the current swarm robustness story.
-- [ ] **Reason-THEN-act rung for reasoning models (2026-06-28, user idea — the canonical fix for phi-4-mini-reasoning).**
-      Reasoning models (phi-4-mini/-plus, deepseek-r1, qwen3-thinking) **ruminate without acting** — they fill the
-      reasoning channel speculating ("Wait not sure", "Alternatively…") and emit **no tool call** (proven via the LM
-      Studio dev logs, §5.Z). Instead of fighting their nature, **lean into it**: a two-phase turn that turns reasoning
-      INTO action. **(a)** Let the model reason freely, explicitly prompted to *decide which tool call applies* ("reason
-      about the exact edit + which tool call would make it"). **(b)** Then a **constrained second step** (the
-      constrained-decoding rung above, `response_format: json_schema` over the tool-call shape) that says "now emit that
-      tool call" — converting its decided-but-unspoken action into a structured call it can't skip. **Phase (b)'s pure
-      substrate is now BUILT** (`buildConstrainedToolCallSchema` + `parseConstrainedToolCall`, see the constrained-decoding
-      item above) — what remains for this rung is the two-phase ORCHESTRATION + phase (a) prompt at the model-call seam.
-      This is the parse-and-recover principle applied to the *act* step (don't rely on the model choosing to call — force
-      the structured emit after it reasons). Combine with the **endpoint-iteration** rung (native `/api/v1/chat` exposes the
-      reasoning channel separately, so phase (a)'s reasoning is cleanly captured) and **prompt-variation** (an
-      example-led "reason → call" template). **phi-4-mini-reasoning is the canonical test case** — if any rung gets it to
-      deliver an edit, this is it; if not, it confirms the capability-floor verdict (§5.Z). NOTE (answering "are we
-      maxing out prompting options?"): **NO — we are not.** On the SWARM/task path (what the dev-test sweep exercises),
-      the recovery ladder is **thin**: narrated-recovery is wired on the CHAT path, tool-set-reduction is wired, but
-      **constrained-decoding, prompt-variation, endpoint-iteration, and this reason-then-act rung are unbuilt**, and the
-      **retry-policy engine that fires the rungs at the model-call seam is decision-core-only (unwired)**. So phi-4 has
-      NOT yet seen the full ladder — wiring §5.AA's retry engine into the task path (+ building these rungs) is the real
-      test of whether weak/reasoning models can be lifted over the bar before declaring a capability-floor.
+  - **still owed (WIRING), decomposed:**
+    - [ ] measure real `model_stalled` frequency for SUITABLE models first (observability-before-mechanism gate).
+    - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
+    - [ ] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
+    - [ ] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing models.
+- [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
+  - [ ] Build phase (a) prompt: explicit "reason about which tool → explain decision"
+  - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
+  - [ ] Wire into chat path + SWARM path seam (uses beforeModel nudge)
+  - [ ] Test on phi-4-mini/phi-4-plus + deepseek-r1 (canonical ruminators)
+  - [ ] Verify it can convert reasoning-only models into tool-calling models (phi flip goal)
+  - [ ] Re-verify across 9-model roster (ensure no regression)
 - [~] **`ModelBehaviorProfile` store (persisted, GLOBAL) + read/adapt/update.** **PURE LEARNING CORE DONE (2026-06-26):**
       [src/core/model-behavior-profile.ts](src/core/model-behavior-profile.ts) — `recordModelBehaviorOutcome(profile,
       outcome)` is the online update (EWMA success-rate + retries, per-kind failure counts, preferred tool-call format,
@@ -4362,6 +4365,11 @@ deep analysis:
       biome green. **Still owed (wiring):** the thin JSON persistence layer in the runtime home (like MCSR) + read/update
       hooks from the attempt loop (choose the best first approach + skip known-failing ones, no circles) + Settings
       model-telemetry surface. Built core-first to avoid a speculative persisted schema ahead of its consumers.
+  - [ ] Build thin JSON persistence layer in runtime home (like MCSR)
+  - [ ] Add read hooks in attempt loop (choose best first, skip known-failing, no circles)
+  - [ ] Add update hooks after each outcome (record to persisted profile)
+  - [ ] Expose model-telemetry surface in Settings UI
+  - [ ] Test with real multi-model runs (verify learning across sessions)
 - [~] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure
       (no-call/narrated/loop/timeout/malformed) and selects the next ladder strategy (different endpoint / fewer tools /
       simpler prompt / prompt variant / constrained decoding / salvage), capped by the learned budget, always
@@ -4398,6 +4406,12 @@ deep analysis:
       don't regress, then the swarm seam. **Still owed (the WIRING):** the above — fire the chosen strategy at the shared
       model-call seam (chat + swarm) via `runAdaptiveAttemptLoop`, feed `retryBudget` from the §5.AA `ModelBehaviorProfile`
       (a ledger projection), and record each rung's outcome back to the §5.AF ledger so the ladder learns.
+  - [ ] Land `ModelBehaviorProfile` persistence first (supplies real `retryBudget`)
+  - [ ] Adopt retry-policy engine on chat path (engine-ordered ladder: reduced→constrained→variant)
+  - [ ] Re-verify 9-model roster (proven phi-4/coder flips must hold, 7 passing models must not regress)
+  - [ ] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt)
+  - [ ] Record each rung outcome on §5.AF ledger (enables learning)
+  - [ ] Decide between 3 collision points: rung order, budget gating, reduction multi-level loop
 - [x] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)` (DONE 2026-06-26)** — gemma-e2b
       leaked exactly that into its final reply (§5.Z). Added a deliberately-specific `PLAIN_PROSE_TOOL_CALL` pattern
       (`tool call:` immediately followed by an identifier + `(` — a function-call shape) checked independently of the
@@ -4426,9 +4440,11 @@ deep analysis:
       correct + unit-proven but gemma's narration format VARIES run-to-run — the e2e didn't flip this run. The durable fix
       for the e2e chain-narration wall is the broader §5.AA retry-engine (constrained-decoding rung forcing a parseable
       call mid-chain), not markerless-JSON recovery.
-- [ ] **Re-verify across all 9 models after each increment** (the §5.Z sweep + matrix is the oracle): especially that
-      phi-4-mini/-plus flip ❌→✅ on `create_card`/`run_command` once tool-set reduction + endpoint iteration land, with
-      NO regression for the 7 models that already pass.
+- [ ] **Re-verify across all 9 models after each increment**, decomposed:
+  - [ ] After tool-set reduction landed: run §5.Z sweep, verify phi-4 flip status
+  - [ ] After endpoint iteration lands: re-run §5.Z sweep, confirm no regression on 7 passing
+  - [ ] After each retry-rung increment: dedicated sweep focusing on improvement + regression
+  - [ ] Update cross-model-verification.md matrix with results
 - [~] **Finite-state CONTROLLER for the outer loop, not free-form ReAct (2026-06-27, small-LLM research pass).** Small
       models shouldn't own global process transitions — the harness should. **(a) PURE STATE-MACHINE CORE DONE
       (2026-06-28):** [src/core/run-state-machine.ts](src/core/run-state-machine.ts) — the typed `RunPhase` ladder
@@ -4475,6 +4491,12 @@ deep analysis:
       next-attempt context at the model-call seam (rides the broader controller wiring).
       **(c)** **auto split/decompose** is a retry rung (local repair first; global re-decompose only when local repair
       can't restore coherence). Strengthens §5.AF/§5.AB, not a new track.
+  - [ ] Supply real `assessCompletion` from task acceptance spec (vs. model self-report)
+  - [ ] Drive full phase ladder: per-phase context + tool subset + budget assignment
+  - [ ] Record each transition on §5.AF ledger (`transition` event kind)
+  - [ ] Wire retry-note into live next-attempt context at model-call seam
+  - [ ] Verify full phase flow works end-to-end (intake→plan→validate→localize→execute→…→done)
+  - [ ] Test with small models (ensures they can't own global transitions)
 
 ### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
 > **Vision (user, 2026-06-26):** !Klein should AUTOMATICALLY pick the best model per **role** and per **task** by
@@ -4555,19 +4577,22 @@ deep analysis:
       stuck-point: extend the §5.AG "what was tried / get through the wall" surface + the §5.AA Layer-2 escalation into a
       **guided-resume** flow (inject targeted guidance → re-run the stuck card/job with it). The long-horizon payoff of
       the whole MCF; design-only until Phases A/B mature.
-- [ ] **Eval-prompt corpus (per role × difficulty × size).** A curated, versioned set of evaluation prompts for each
-      role (architect/decompose, worker/implement, reviewer) at graded difficulty tiers (trivial → simple → moderate →
-      hard → very-hard) and size/context footprints, **each with a deterministic-ish scorer** (valid structured tool
-      call / valid decompose DAG that passes graph-quality / code that passes a known check / a review that catches a
-      planted defect). Local, no network. The corpus is the measuring stick — invest in it; version it so re-evals compare.
-- [ ] **Evaluation harness (run a model through the matrix → fitness).** For each connected model, run the corpus
-      (repeated N× per cell for stochastic stability), score quality + measure speed + count retries-needed, and emit a
-      per-(model, role, difficulty) **fitness record**. Reuse the §5.Z `scripts/verify-all-models.mts` sweep machinery +
-      the `sweep-capture` harness; persist into the `ModelBehaviorProfile`/MCSR. Runnable on demand (Settings: "Evaluate
-      connected models") and incrementally refreshed from REAL task outcomes (online learning — every real run is also a
-      data point).
-- [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`).** Global, per-model × per-role ×
-      per-difficulty fitness + the learned **retry budget** + observed failure modes. The single source the scheduler reads.
+- [ ] **Eval-prompt corpus (per role × difficulty × size), decomposed:**
+  - [ ] Design + collect role-specific prompt templates (architect/decompose, worker/implement, reviewer) across difficulty tiers (trivial–very-hard).
+  - [ ] Build deterministic scorers for each prompt family (valid DAG, passing code, defect-catching review).
+  - [ ] Set up versioning infrastructure so re-evals compare corpus versions.
+  - [ ] Integrate size/context footprint variants (per the research findings on effective context budgets).
+- [ ] **Evaluation harness (run a model through the matrix → fitness), decomposed:**
+  - [ ] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
+  - [ ] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
+  - [ ] Capture + compute quality score, speed (tok/s, TTFT), and retry-count metrics per model/role/difficulty.
+  - [ ] Emit + persist `ModelFitnessRecord` output into the `ModelBehaviorProfile` store.
+  - [ ] Add on-demand trigger (Settings: "Evaluate connected models") with UI feedback.
+- [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`), decomposed:**
+  - [ ] Design the fitness table schema (model × role × difficulty dimensions + retry budget, failure modes).
+  - [ ] Implement storage layer + schema migrations for the global fitness store.
+  - [ ] Wire write side: feed evaluation harness + live task outcomes into the store.
+  - [ ] Wire read side: expose projections for the swarm scheduler + model-selection logic.
 - [~] **Task-difficulty estimate (ties §5.I#4).** Estimate a task's difficulty/size (objective text, expected file/
       context footprint, acceptance shape, bounce history) → the key into the fitness table. **CORE DONE (2026-06-27):**
       `estimateTaskDifficulty(input)` ([src/core/model-fitness.ts](src/core/model-fitness.ts)) → a **0..1** score (matching
@@ -4615,18 +4640,11 @@ deep analysis:
         larger window (e.g. `obs=40960` vs loaded `adv=40000`) can't win `effective = userOverride ?? observed ??
         advertised` and overflow the model. A deliberate `userOverride` is left untouched. Regression test added (obs
         40960 + adv 40000 → observed & effective both clamped to 40000; 18 pass).
-- [ ] **Agent UI does not show the model's REASONING output during a run (2026-06-27, user-found via the live test).** With
-      2+ task agents running, the card's NKlein chat panel shows only the "Thinking…" spinner ([nklein-thinking-indicator.tsx](web-ui/src/components/detail-panels/nklein-thinking-indicator.tsx)),
-      never the reasoning text. **The display pipeline is CORRECT + wired** — the backend stamps streaming reasoning with
-      `hookEventName:"reasoning_delta"` (`appendReasoningChunk`), and `ReasoningMessageBlock` ([nklein-chat-message-item.tsx](web-ui/src/components/detail-panels/nklein-chat-message-item.tsx))
-      auto-expands a reasoning block while that's live. The gap is CAPTURE: LM Studio reasoning models (deepseek-r1, qwen3-
-      thinking, phi-4-reasoning) emit reasoning in `reasoning_content` / `<think>…</think>`, but the **agent path** (SDK host
-      → `nklein-event-adapter` `contentType:"reasoning"` events) isn't surfacing it as reasoning, so no reasoning message is
-      created. **Fix:** capture reasoning in the agent streaming path (a §5.O parse-and-recover for `reasoning_content` +
-      inline `<think>` → reasoning content events / messages), mirroring how `nklein-local-llm-client.ts` already *reads*
-      `reasoning_content` (but only for narrated-tool-call recovery — the CHAT path discards it too, a parallel gap). Needs
-      LM Studio free for live verification (watch reasoning stream in on a real run). Also "improve by a lot" the multi-agent
-      activity reflection (what each of N running models is doing at a glance).
+- [ ] **Agent UI reasoning capture + board multi-agent reflection, decomposed:**
+  - [ ] Capture `reasoning_content` + `<think>` in agent streaming path (§5.O parse-and-recover mirroring chat path).
+  - [ ] Wire reasoning events into `nklein-event-adapter` → `contentType:"reasoning"` → `ReasoningMessageBlock`.
+  - [ ] Live-verify on reasoning models (deepseek-r1, qwen3-thinking, phi-4-reasoning) via LM Studio.
+  - [ ] Build board-level multi-agent activity summary: live reason/tool snippet per running card (no per-card open needed).
   - **ROOT CAUSE LOCATED (deeper trace, 2026-06-27):** the agent's model calls go through the **vendored `ai`-package SDK**
         (`vendor/nklein-sdk/llms/`, compiled *dist only*), whose openai-compatible provider wires **zero reasoning
         extraction** — `grep` finds no `extractReasoning` / `reasoning_content` / `<think>` in the vendored llms; it composes
@@ -4668,15 +4686,12 @@ deep analysis:
         genuine "improve by a lot" gap = BOARD-LEVEL multi-agent activity reflection:** at a glance, what each of N running
         agents is doing/thinking (live reasoning/tool snippet per running card), so you don't have to open each card. THAT
         is worth building. (Live end-to-end repro on the user's instance still owed to rule out (c).)
-- [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (approaches × ALL loaded models, no user) — LAYER 1**
-      *(escalation order clarified 2026-06-27, user)*. On repeated failure, escalate **with NO user intervention**
-      through (i) the §5.AA approaches (endpoint iteration, tool-set reduction, prompt variation, constrained-decoding
-      force, loop detect+salvage), **tried AND retried**, then (ii) **across models — best-fit first, but try EVERYTHING
-      possible**: every other available + loaded model, in fitness order. Each attempt is informed by the profile so
-      known-bad approaches/models are SKIPPED (no circles); bounded by the learned per-model retry budgets. This entire
-      layer is automatic — the user is involved **only after it is fully exhausted** (the user-escalation item below),
-      never as an intermediate step. *(Be creative — add approaches beyond the ones listed as sweeps surface new failure
-      modes.)*
+- [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (Layer 1), decomposed:**
+  - [ ] Wire the runtime hot-path that feeds live ledger signals + tried/available models into `decideEscalationAction`.
+  - [ ] Implement model-switching logic: on hard-stuck, pick best untried loaded model, auto-select + retry (Layer 1 automatic).
+  - [ ] Record escalation as a ledger event (ties §5.AA, §5.AF, §5.AG).
+  - [ ] Build the escalation action dispatcher (continue loop vs escalate).
+  - [ ] Test with multiple models + failure scenarios to surface new approach variants.
 - [~] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
       failure — a learned per-model metric (part of the profile). Only when the budget is exhausted across approaches ×
       models does the task become a genuine failure. **CORE DONE (already shipped):** `learnedRetryBudget(profile)`
@@ -4744,9 +4759,12 @@ deep analysis:
       web:build (the new modules bundle clean — web-clean confirmed). **Still owed (wiring):** the runtime hook that
       resumes the agent with the user's chosen input (incl. running the analysis request on the user-provided stronger
       model and feeding its guidance back) — and the upstream hot-path that *drives* the ladder (`decideEscalationAction`).
-- [ ] **Settings UI.** Show the fitness table + the current automatic role assignments; let the user pin / prefer /
-      weight per role (the speed-vs-quality dial) and set the wait-vs-attempt policy; a "Re-evaluate connected models"
-      action. (Builds on the MCSR telemetry panel §6.4.)
+- [ ] **Settings UI (fitness + role assignment controls), decomposed:**
+  - [ ] Design + implement fitness table browser (per-model × role display + filter/sort).
+  - [ ] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs.
+  - [ ] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
+  - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table.
+  - [ ] Live-test the settings flow end-to-end (launch eval, observe results, adjust policy).
 - [-] **LATER / OUT OF SCOPE — cloud fallback rung (idea-collection only, per the user).** When !Klein has matured to
       where the real limitation is genuinely model quality, AND the user has connected cloud models AND explicitly opted
       in to escalate to them, the FINAL rung (after all local models × approaches fail) could try a connected cloud model.
@@ -4754,18 +4772,13 @@ deep analysis:
       the escalation design already has the seam. Gated behind an explicit per-escalation user allow **and** the
       deliberate cloud-lockdown lift (a reviewed code change, never a feature toggle). Related idea to collect: a
       per-task "max local spend/time before offering cloud escalation" budget the user sets.
-- [ ] **Confidence- and RESOURCE-aware routing (2026-06-27, small-LLM research pass).** Refine the §5.AB fitness with:
-      **(a) Calibrated confidence computed from EVIDENCE, never model self-report** — from tool-call validity,
-      tests/acceptance evidence, no-diff/loop signals, semantic/sample disagreement (self-consistency, §5.AD), and the
-      §5.K reviewer verdict, calibrated historically by **model × role × task-shape × tool-set-size × endpoint ×
-      prompt-family**. **(b) Local resource cost is the real cost** — fold wall+queue time, RAM/VRAM pressure,
-      model-load time, endpoint occupancy, and a thermal/energy proxy into the fitness, and **schedule GLOBALLY across
-      ALL queued cards** so hard cards reserve strong models while easy cards drain through fast small models (the §5.AF
-      unified admission controller is the seam). **(c) BFCL-style per-model tool probes** feed the fitness table (built
-      in §5.V below). At runtime use cross-model debate/review (§5.AD) **selectively** for low-confidence/high-risk
-      outputs, preferring a **different model family** for the reviewer/carry (reduces correlated errors); keep the §5.Z
-      full matrix for release confidence. **Per routing decision, ledger (§5.AF):** predicted route · actual outcome ·
-      verifier outcome · uncertainty score · selected rung · queue/resource state · accept/reject reason.
+- [ ] **Confidence- and RESOURCE-aware routing, decomposed:**
+  - [ ] (a) Build calibrated-confidence scorer from evidence (tool-call validity, test pass/fail, reviewer verdict, self-consistency) keyed by model × role × task-shape.
+  - [ ] (b) Implement resource-cost tracking (wall+queue time, RAM/VRAM pressure, load time, endpoint occupancy).
+  - [ ] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models.
+  - [ ] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table.
+  - [ ] Add selective cross-model debate/review for low-confidence outputs (different model families, per §5.AD).
+  - [ ] Log per-routing decision: predicted route, actual outcome, verifier outcome, uncertainty, resource state.
 
 > **★ 2026-06-28 user emphasis — the user-triggerable capability sweep + fully-automatic assignment + ALWAYS-FRESH
 > grounded metrics (sharpens this section; do NOT re-litigate the §5.AB direction — this is the same crown, made
@@ -4893,32 +4906,36 @@ deep analysis:
       Pure + clock-injected (deterministic), tolerant of string/number/Date/absent dates, future-dated clamps to current.
       7 unit tests; tsc+biome green. **Date-based only** — VERSION freshness ("is v3.1 the latest?") needs an external
       "known latest" the retrieval loop supplies, deferred to that. Feeds the §5.AC retrieval loop + the researcher role.
-- [ ] **`web_search` tool (first-class, egress-gated).** A search tool (query → ranked results: title / url / snippet /
-      published-date) governed by the §5.L network tier (network-enabled sandbox ONLY; allowlist; fail-closed; NEVER a
-      cloud LLM). Backend = a USER-CONFIGURED local/permitted search endpoint (self-hosted SearxNG / a permitted search
-      API / DuckDuckGo-HTML) — the search PROVIDER is user-configured + egress-gated, not hardcoded cloud. Pairs with the
-      existing `browse_url` (§5.M G6) to fetch a chosen result.
-- [ ] **Retrieval loop (query → search → fetch → extract → synthesize → CITE).** An agent skill: formulate queries from
-      the task + `knowledgeDebt` (§5.B), search, fetch the top hits via `browse_url`, extract + synthesize, and cite
-      sources WITH their dates (freshness-judged). Record into the knowledge/tool-usage telemetry (§6.7, §5.B signal).
-- [ ] **Make the knowledge-retrieval TESTS cover ONLINE too (the user's observation).** The existing knowledge tests
-      check only local retrieval; add a deterministic test (mocked search/fetch) + a live `verify-*.mts` harness that
-      exercises the online path end-to-end (search → fetch → synthesize → cite a fresh source).
-- [ ] **Wire temporal + freshness into the researcher/architect roles.** The decompose/research pass uses "now" +
-      freshness to decide its knowledge is stale → trigger online retrieval (ties §5.B knowledge-acquisition mandate +
-      §5.L researcher tier). Surfaces inspectable "is this current?" reasoning.
+- [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
+  - [ ] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling.
+  - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
+  - [ ] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed).
+  - [ ] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow.
+- [ ] **Retrieval loop (query → search → fetch → extract → synthesize → CITE), decomposed:**
+  - [ ] Implement query formulation from task + `knowledgeDebt` (§5.B); test with simple + complex decompose cases.
+  - [ ] Wire search → fetch-top-hits loop via `web_search` + `browse_url` tools; test result ranking.
+  - [ ] Implement extraction + synthesis of fetched content; test on varied content types.
+  - [ ] Add source citation with freshness-judgment (reuse §5.AC `judgeRetrievedFreshness`).
+  - [ ] Record retrieval attempts, results, and citations into knowledge/tool-usage telemetry (§6.7, §5.B signal).
+- [ ] **Make the knowledge-retrieval TESTS cover ONLINE too, decomposed:**
+  - [ ] Add deterministic unit test: mocked `web_search` + `browse_url` calls; verify query, result handling, citation.
+  - [ ] Build live `verify-online-retrieval.mts` harness: real online search → fetch → synthesis on a test task.
+  - [ ] Verify freshness-judgment is applied + cited sources carry dates in the output.
+  - [ ] Test fallback when search returns no results or network is unavailable.
+- [ ] **Wire temporal + freshness into researcher/architect roles, decomposed:**
+  - [ ] Add freshness-check gate into decompose/research-pass logic: if `judgeRetrievedFreshness` signals stale, trigger online retrieval.
+  - [ ] Thread the authoritative "now" (from §5.AC temporal context) into freshness judgment on every search.
+  - [ ] Expose "is this current?" reasoning in agent output (surface the freshness verdict to the user).
+  - [ ] Test on a decompose task: verify stale knowledge triggers search, fresh knowledge skips it.
 - *(cross-links)* §5.L (web/egress tiers + browser tool), §5.M G6 (`browse_url`), §5.B (knowledge-expansion loop +
       `knowledgeDebt` + the decomposition knowledge signal), §6.7 (codebase-intelligence / knowledge telemetry), §5.AA/§5.AB
       (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).
-- [ ] **First-class `RetrievedEvidence` objects + citation verification (2026-06-27, small-LLM research pass).**
-      Give retrieval a concrete data model — `{ url/
-      fileRef, title, sourceType, author/publisher?, published/updatedDate, fetchedAt, package/version?, contentHash,
-      trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags }` — and an **adaptive loop**
-      (`knowledgeDebt/task → query plan → local-repo vs online → retrieve → relevance/sufficiency/freshness judgment →
-      cite or search again`). **Citation verification:** every material claim maps to evidence spans; unsupported claims
-      lower confidence or force another retrieval; freshness conflicts prefer newer release notes (keep older as
-      historical). Record retrieval attempts / pruned distractors / citations / helped-or-hurt into the §5.AF ledger.
-      Provenance/taint flags tie to §5.L (prompt-injection: web/MCP content is untrusted).
+- [ ] **First-class `RetrievedEvidence` objects + citation verification, decomposed:**
+  - [ ] Define `RetrievedEvidence` zod schema: url/fileRef, title, sourceType, author/publisher?, dates, contentHash, trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags.
+  - [ ] Build adaptive retrieval loop: knowledge-debt/task → query plan → local vs online → retrieve → relevance/sufficiency/freshness judgment → cite or search again.
+  - [ ] Implement citation verification: map material claims to evidence spans; mark unsupported claims; prefer newer release notes in conflicts.
+  - [ ] Add prompt-injection risk flags (web/MCP content is untrusted; wire to §5.L).
+  - [ ] Record attempts / pruned distractors / citations / signal (helped-or-hurt) into the §5.AF ledger.
 
 ### 5.AD — Context as a capability lever: "smart-zone" arrangement, learned quality-effective budget, enforced reasoning loops *(2026-06-26, user — ACTIVE)*
 > **Vision (user, 2026-06-26):** **context SIZE is part of a model's capability + reasoning quality, in BOTH
@@ -4964,24 +4981,16 @@ deep analysis:
       and wire into the board-agent prompt assembly (`buildNKleinStartPromptParts` / §6.3 budget breakdown) +
       `renderChatTurnPrompt` (§5.M) to **end-anchor the task** (today only the new user message is last; extend to the
       board card's task/acceptance block) + aggressive distractor pruning — each behind a live §5.Z re-verify (no regression).
-- [ ] **End-of-context task re-anchor on long runs.** Generalize the §5.N focus-chain / §5.AC date re-anchor: after big
-      tool outputs, restate the goal + current step near the tail (the strong zone) so a small model doesn't lose the
-      task to mid-context dilution. Reuse the `beforeModel` re-anchor seam.
-- [ ] **Learned per-model "quality-effective" context budget (extends §6.4 MCSR + §5.AA `ModelBehaviorProfile`).** Track
-      the budget past which *output quality* (not just overflow) degrades for each model — learned from real task
-      outcomes (success/bounce vs. used-token-count) + optional eval-sweep probes (§5.AB harness, RULER/NoLiMa-style, NOT
-      NIAH-only). Distinct from the advertised/observed/override window (§6.3) and the overflow/compaction threshold:
-      it's the *quality knee*. The runtime targets THIS budget (compact/summarize down to it) instead of filling the
-      window. Surface in the model-telemetry panel. **Respects #3:** the ≥32k floor is the minimum a model may be used
-      at; the learned budget is an operating target *at or below* the effective window, never below the floor.
-      **LEARNING CORE + CLI TELEMETRY DONE (2026-06-29):** the quality-knee is already learned —
-      `recordModelBehaviorOutcome` tracks `qualityEffectiveContextTokens` / `qualityDegradedAtTokens` and
-      `learnedQualityEffectiveBudget(profile)` ([model-behavior-profile.ts](src/core/model-behavior-profile.ts)) returns
-      the target budget (just below the known degradation point, else best-observed-good, never below the 32k floor). It is
-      now SURFACED: `nklein dev ledger` renders a "Per-model learned profile" section (success rate · learned retry budget ·
-      quality-effective budget · dominant failure mode · preferred tool-call format) from the ledger projection. **Still
-      owed:** the runtime CONSUMING it to compact/target down to the budget at prompt-assembly (behind a §5.Z re-verify),
-      eval-sweep probes (§5.AB harness), and the web Settings model-telemetry panel (the CLI surface is done).
+- [ ] **End-of-context task re-anchor on long runs, decomposed:**
+  - [ ] Implement generic re-anchor helper: takes goal + current step + board-card context; formats for end-of-context placement.
+  - [ ] Integrate into `beforeModel` hook (reuse §5.N focus-chain seam) to inject re-anchor after large tool outputs.
+  - [ ] Test on a multi-turn task: verify goal + step are restated near context tail on 2nd+ model calls.
+  - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models).
+- [ ] **Learned per-model "quality-effective" context budget — runtime consumption + UI wiring, decomposed:**
+  - [ ] Wire learned budget into prompt-assembly: compact/summarize down to `learnedQualityEffectiveBudget(profile)` instead of filling the window (behind §5.Z re-verify).
+  - [ ] Add eval-sweep probes (§5.AB harness, RULER/NoLiMa-style) for models without prior outcome data.
+  - [ ] Surface learned budget + quality-knee in web Settings model-telemetry panel (CLI surface already done).
+  - [ ] Test: verify small-model output quality improves when compacting to learned budget instead of overflow threshold.
 - [~] **Distractor-aware retrieval pruning (per-model sensitivity).** Rank + prune repo-map / code-index / online
       results harder for models with high learned distractor sensitivity (similar-but-irrelevant context measurably
       hurts). Ties §6.7 retrieval + §5.AC online retrieval; feeds the arrangement policy's MIDDLE band. **PURE CORE DONE
@@ -4992,19 +5001,19 @@ deep analysis:
       0 ⇒ no pruning. 5 unit tests; tsc + biome green. **Still owed (WIRING — behind a live §5.Z re-verify):** source the
       per-model `sensitivity` (a §5.AA learnable signal, once an A/B observation exists) and call it on the retrieval
       results before they feed §5.AD's MIDDLE band in board + chat prompt assembly.
-- [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first).** A bounded reason→critique→revise loop for
-      models that reason poorly alone: (a) **cross-model bounce** — a stronger loaded model critiques/repairs a weaker
-      model's draft (the robust technique — one round can carry the weak model); (b) **self-bounce with VARIED system
-      prompts/personas** (varied prompt = real diversity, not "are you sure?" — the latter is the failure mode Huang
-      2023 warns about); (c) **self-consistency** — sample N paths, majority-vote (cheap, ties the §5.AB reliability
-      metric). Gate on difficulty + observed failure ("debate only when necessary"), bound rounds + detect stalls/loops
-      (reuse §5.K reviewer round-limit + identical-loop detection; §5.S no-progress detector; the §5.AA loop-detector
-      core). Compose the existing seams (§5.K reviewer, §5.S auto-clarify ping-pong, §5.AA prompt-variation, §5.AB
-      multi-model scheduler) into one explicit, difficulty-gated, cross-model loop — don't build a parallel mechanism.
-- [ ] **Learn "needs enforced reasoning?" + which kind (per model).** Record in the `ModelBehaviorProfile` (§5.AA):
-      native-reasoning quality, whether enforced reasoning pays off for this model, which kind wins (self-consistency vs.
-      cross-model debate vs. stronger-model carry), and a learned rounds budget — so §5.AB applies it only where it
-      helps (a robust model on an easy card skips it; a weak reasoner on a hard card gets a cross-model carry).
+- [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first), decomposed:**
+  - [ ] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
+  - [ ] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
+  - [ ] Implement self-consistency: sample N paths, majority-vote (tie §5.AB reliability metric).
+  - [ ] Add difficulty gate: only apply reasoning loops when task difficulty is high + observed failure exists.
+  - [ ] Integrate round-limit + stall/identical-loop detection (reuse §5.K + §5.S + §5.AA seams); compose into one explicit loop.
+  - [ ] Test: verify weak model on hard task gets cross-model carry; robust model on easy task skips loop.
+- [ ] **Learn "needs enforced reasoning?" + kind (per model), decomposed:**
+  - [ ] Track native-reasoning quality in `ModelBehaviorProfile`: measure how often model reasons correctly alone.
+  - [ ] Record whether enforced reasoning helps (A/B: outcome with vs. without reasoning loop).
+  - [ ] Learn which kind wins for this model: self-consistency vs. cross-model debate vs. stronger-model carry.
+  - [ ] Compute learned rounds budget (when to stop iterating).
+  - [ ] Wire into §5.AB model selector: apply reasoning loop only where it helps; skip for robust models on easy tasks.
 - [ ] **Re-verify across the §5.Z roster + matrix.** After each increment, sweep all loaded models: arrangement +
       learned budget + enforced reasoning should LIFT the weak/small models (esp. phi-4-mini/-plus on the harder flows)
       with NO regression for the models that already pass — the §5.Z matrix is the oracle.
@@ -5088,11 +5097,12 @@ deep analysis:
             reasoning intensity (trivial ⇒ `off`, mid ⇒ `low`, hard ⇒ `high`); an unopinionated `inherit`/absent reasoning
             (e.g. `code_editing`) is filled, an explicit skill intensity (a reviewer's `high`) is only ever RAISED, never
             lowered. Pure, non-mutating; +3 tests.
-      - [ ] **Remaining (call-seam WIRING, behind a live §5.Z re-verify):** apply the resolved request at the model-call
-            seam — append `thinkingDirective` to the turn, set `response_format` when `preferStructuredOutput`, fire the
-            constrained force-call rung PROACTIVELY (§5.AA: a no-call turn ends the loop), pass `temperature` — on the chat
-            adapter and (once §5.AA `beforeModel` lands) the swarm path. The pure pieces (merge → difficulty-modulate →
-            `resolveApiProfileRequest` model-gating) are all in place; this is the effectful seam + the §5.AB difficulty source.
+      - [ ] **Remaining (call-seam WIRING, decomposed):**
+            - [ ] append `thinkingDirective` to chat adapter + swarm path
+            - [ ] set `response_format` when `preferStructuredOutput`
+            - [ ] fire constrained force-call rung PROACTIVELY on no-tool-call
+            - [ ] pass `temperature` from profile to model call
+            - [ ] re-verify across §5.Z roster (no regression)
       The §5.AN sweep surfaced a toolbox of per-request API levers (reasoning control `/no_think`↔`/think` + effort,
       structured-output `response_format json_schema`, the constrained force-a-call rung, endpoint dialect, sampling temp,
       the §5.AD context budget). Today they're applied ad-hoc or globally. **Make them a first-class, declarative profile the
@@ -5153,9 +5163,11 @@ deep analysis:
       DEFAULT model (role-less, added outside the role loop), which isn't role-cap-scoped — minor + murky to "enforce" since
       the default has no role; deferred. **Still owed:** the resolver/prompt-assembly consumer reading
       `effectiveSkillDynamicsLevel` (now UNBLOCKED — see the model-loading authorization in §4A).
-- [ ] **Wire the composed fragments into the board + chat prompt assembly** (replacing today's hard-coded always-on blocks)
-      → §5.AD arrangement orders them, §6.2 caps them. Each behind a live §5.Z re-verify (no regression; weak models should
-      get *leaner, more relevant* prompts).
+- [ ] **Wire the composed fragments into the board + chat prompt assembly, decomposed:**
+  - [ ] replace hard-coded always-on blocks with resolved skill fragments (board + chat)
+  - [ ] thread fragments through §5.AD arrangement (zone ordering)
+  - [ ] thread fragments through §6.2 capping (never overflow)
+  - [ ] re-verify across §5.Z roster (no regression, weak models get leaner prompts)
 - [ ] **Skill-variation as a stuck-task escalation rung (ties §5.AA/§5.AB).** When a task stubbornly fails, the resolver
       tries a different skill set / preamble / fragment mix (e.g. add a `reasoning` or `retriever` skill) as one rung of the
       §5.AA ladder, learned into the §5.AA profile (which skill mixes work for which model/task).
@@ -5291,12 +5303,12 @@ deep analysis:
       MCSR speed observations into the writer; and
       the graded-quality/difficulty a richer writer + the §5.AB eval harness supply (today quality is the coarse
       success-rate proxy).
-- [ ] **Replay / simulation mode (ties §5.V).** A captured ledger attempt's model outputs become a deterministic
-      fixture → replay the live orchestration without a model. Turns the currently "live-only, deferred to e2e" §5.V
-      flows into deterministically-testable ones; debugs orchestration races without a GPU. `replayable` is a per-tool
-      manifest facet (below). **Research addendum:** replay also needs per-tool idempotency keys + durable tool result
-      hashes/refs and a replay mode (`reuse`/`simulate`/`skip`/`reconfirm`) so nondeterministic side effects are never
-      silently repeated.
+- [ ] **Replay / simulation mode (ties §5.V), decomposed:**
+  - [ ] Capture + index ledger attempt model outputs as deterministic test fixtures.
+  - [ ] Implement replay orchestrator: substitute fixtures for live model calls, run workflow.
+  - [ ] Add per-tool idempotency keys + durable result hashes/refs.
+  - [ ] Implement replay modes: `reuse` (use fixture), `simulate` (mock), `skip`, `reconfirm` (compare fixture vs live).
+  - [ ] Convert §5.V live-only flows to deterministic replay tests; debug races without GPU.
 - [~] **Durable long-run job scheduler (C3 spine).** A background job runner that **checkpoints to the ledger** and
       **resumes** — the cross-run, restart-survivable layer the fragile foreground `verify-*.mts` scripts lack (proven:
       the 30-min multi-card run died on one transient `fetch failed`). Seeds: the endpoint scheduler (§6.5) + per-model
@@ -5368,13 +5380,23 @@ deep analysis:
       So the manifest provably subsumes mechanism #1 (chat). **STILL OWED:** subsume #2 (§5.L delivery rulesets) + #3 (the
       NKlein tool-approval policy) onto the same manifest (each with its own characterization), add the research-addendum
       fields (`allowedRunStates`/taint/`auditDetail`), then **migrate the 3 call sites to the one gate** (the wiring).
-- [ ] **Resource governance (operational, NOT perf-benchmarking).** Model load/unload policy, VRAM/RAM/disk headroom
-      check before a sweep, endpoint-saturation backpressure (the scheduler already serializes per endpoint),
-      background-vs-interactive priority — so a local multi-model lab doesn't OOM/thrash/deadlock. **Distinct from** the
-      §5.O-deferred perf/efficiency *comparison* sweeps; this is "don't melt the machine," which is in-scope.
-- [ ] **Self-improvement quarantine (M4 safety).** !Klein-proposed patches to itself land only through stricter gates:
-      protected-tests (#1.5) + a replay-eval pass + a security review (§5.Y posture) before merge. Ties the existing
-      self-improvement project (§6.11) + the agent-write-guard.
+  - [ ] Subsume §5.L delivery rulesets onto the manifest (add characterization test matching current rulesets).
+  - [ ] Subsume NKlein tool-approval policy onto the manifest (characterization test for all approval paths).
+  - [ ] Add research-addendum fields: `allowedRunStates`, source/sink taint labels, semantic error contracts, replay mode.
+  - [ ] Implement the unified gate: wire all 3 call sites (chat, delivery, NKlein) to `decideManifestAccess`.
+  - [ ] Verify that all 18 (mode × action) test cases still pass + all existing rulesets are preserved.
+- [ ] **Resource governance (operational, NOT perf-benchmarking), decomposed:**
+  - [ ] Design + implement model load/unload policy (safe headroom, resident budget guards).
+  - [ ] Add VRAM/RAM/disk headroom checks before sweep start.
+  - [ ] Implement background-vs-interactive priority (interactive tasks preempt idle sweeps).
+  - [ ] Wire endpoint-saturation backpressure into the durable scheduler (already per-endpoint serialize).
+  - [ ] Test multi-model lab scenario to prevent OOM/thrash/deadlock.
+- [ ] **Self-improvement quarantine (M4 safety), decomposed:**
+  - [ ] Set up protected-tests gate (#1.5): auto-patches require full suite + new test coverage.
+  - [ ] Add replay-eval pass: proposed patch runs deterministic replay tests before approval.
+  - [ ] Implement security review workflow (§5.Y posture): human review + automated taint/capability checks.
+  - [ ] Wire gate into agent-write-guard (blocks merge until all gates pass).
+  - [ ] Document approval policy + escalation path for edge cases.
 - *(cross-links)* §5.AA/§5.AB (read the ledger) · §6.4 MCSR (its observations become a ledger projection) · §5.Z (the
       matrix becomes a ledger query) · §5.V (replay makes live-only flows testable) · §5.L + chat-execution-mode (unified
       by the tool manifest) · §6.5 + §5.T (scheduler seeds) · §5.Y (quarantine security gates).
@@ -5779,14 +5801,15 @@ deep analysis:
       fixed); (3) the **parallel-LLM reality** (LM Studio serial-gated, much of the perception was the now-fixed hang). So
       the rail demonstrably uncovers dormant issues. **Still owed:** the *sustained, unattended* window on the always-on
       runner + a regular together-review of the accumulated `rail-*.json` harvest (depends on the durable runner above).
-- [ ] **BUG — Docker errors + broken evidence creation in the dschinn dev-workspace (handoff 2026-06-28).** A live
-      dschinn run surfaced **Docker errors** (sandbox container start/exec failures) AND **broken `collect evidence`
-      creation** in that workspace. Reproduce on the dschinn dev-workspace, capture the exact Docker error text + the
-      evidence-collection failure (the `handleCollectTaskEvidence` path, [task-evidence.ts](src/trpc/runtime-api/task-evidence.ts)),
-      then fix root cause. Hypotheses to check: image/tag mismatch (`nklein/agent-sandbox:0.0.1` present?), a stale
-      container/volume from a prior crashed run, host-path leakage into the sandbox (AGENTS.md "agents must never see
-      host details" — a host mount surfacing in the agent view is a bug), or evidence bundle assembly choking on a
-      missing artifact when the sandbox never produced one. Add a focused regression once root-caused.
+- [ ] **BUG — Docker errors + broken evidence creation in the dschinn dev-workspace, decomposed:**
+  - [ ] Reproduce the Docker errors on the dschinn dev-workspace and capture exact error text.
+  - [ ] Reproduce the broken `collect evidence` creation and trace the `handleCollectTaskEvidence` path.
+  - [ ] Check hypothesis: image/tag mismatch (`nklein/agent-sandbox:0.0.1` present?).
+  - [ ] Check hypothesis: stale container/volume from a prior crashed run.
+  - [ ] Check hypothesis: host-path leakage into the sandbox (verify AGENTS.md constraint).
+  - [ ] Check hypothesis: evidence bundle assembly choking on missing artifacts from sandbox.
+  - [ ] Fix root cause.
+  - [ ] Add focused regression test once root-caused.
 - [ ] **Rework the dev-test-start layout — unify the two start paths (handoff 2026-06-28).** There are currently **two
       distinct dev-test start paths** (the UI `DevTestRegistryPicker` → `projects.createDevTestProject` + the CLI/script
       `createDevTestProject` + `startTaskSession`, plus the §5.B start-lane machinery). Unify them onto **one** start path
@@ -5805,25 +5828,22 @@ deep analysis:
         `auto`/`more` alias) — it never composes the opaque `read:`/`stitch:` cursors (those are still accepted for
         back-compat); each result reports index/total progress so iteration is "where am I", not cursor bookkeeping. The
         tool description matches. 14 unit tests green; nothing regressed. No remaining simplification the handoff intended.
-- [ ] **NEW genuine PARTIAL class (surfaced 2026-06-28 by the now-hermetic full-system oracle): card reaches
-      `awaiting_review` but NO `nklein/tasks/<task>` result branch is captured** ("no result branch (nothing was
-      captured)"). This is real agent/runtime behavior, NOT the oracle (which is now hermetic, see §5.V). The small model
-      ended the session without producing a captured result branch. Investigate: did the agent make + commit changes in
-      the sandbox at all? did the trusted-runtime result-branch capture ([task-result-branches.ts](src/workspace/task-result-branches.ts))
-      run and fail/no-op? Decide whether to (a) treat "review with no captured diff" as a hard failure the runtime
-      surfaces, and/or (b) make capture more robust. Reproduce via repeated `scripts/verify-full-system.mts` runs (it was
-      intermittent — ~1 in 5 with qwen2.5-coder-14b).
-- [ ] **Cosmetic (surfaced 2026-06-28): `getState().board.cards` reads 0 on the full-system runtime even when work
-      happened.** `scripts/verify-full-system.mts` logs "Cards on board: 0" although the seed card's *session* state is
-      read correctly (it reaches `awaiting_review`). So the board-cards projection in the workspace `getState` snapshot is
-      under-reporting on that runtime path. Low priority (cosmetic in the harness report) but worth tracing — the board
-      cards vs session-state divergence may indicate a snapshot-assembly gap worth a regression.
-- [ ] **dschinn "master challenge" — RESERVED FOR LAST = the MCF capstone `CAP` (handoff 2026-06-28; framed into §5.0.3).**
-      The dschinn project is the big end-to-end real-project "master challenge" — the **`CAP` rung of the Milestone-Challenge
-      ladder** ([§5.0.3](#503--milestone-challenge-framework-mcf--the-engine-that-drives-klein-forward) ·
-      [docs/dev/milestone-challenges.md](docs/dev/milestone-challenges.md)). Run it **only once C0–C8 are green**; until then
-      keep using the smaller difficulty-graded dev-test presets as the C0–C6 challenges for UI/e2e stabilization. When run,
-      a dschinn failure follows the MCF rule: root-cause → structure the next chapter, never brute-force.
+- [ ] **NEW genuine PARTIAL class (no result branch captured), decomposed:**
+  - [ ] Reproduce via repeated `scripts/verify-full-system.mts` runs until intermittent triggers (~1 in 5).
+  - [ ] Investigate: did the agent make + commit changes in the sandbox at all?
+  - [ ] Investigate: did the result-branch capture ([task-result-branches.ts](src/workspace/task-result-branches.ts)) run and fail/no-op?
+  - [ ] Decide: treat "review with no captured diff" as hard failure the runtime surfaces? OR make capture more robust?
+  - [ ] Implement chosen approach.
+- [ ] **Cosmetic: board.cards reads 0 in full-system runtime, decomposed:**
+  - [ ] Reproduce: run `scripts/verify-full-system.mts` and confirm "Cards on board: 0" logs.
+  - [ ] Verify the session state reaches `awaiting_review` (to confirm state divergence).
+  - [ ] Trace the `getState()` snapshot-assembly code for board-cards projection under-reporting.
+  - [ ] Identify the divergence root cause (workspace.getState vs session-state sync issue).
+  - [ ] Fix and add regression test.
+- [ ] **dschinn "master challenge" — RESERVED FOR LAST = the MCF capstone, decomposed:**
+  - [ ] Wait until C0–C8 are green (use smaller dev-test presets C0–C6 for UI/e2e stabilization until then).
+  - [ ] Run the dschinn end-to-end real-project challenge.
+  - [ ] On failure: root-cause, structure the next chapter (never brute-force per MCF rule).
 - *(cross-links)* §5.O (dev-test registry + output-robustness sweep — the rail's content) · §5.V (the e2e oracle the
       rail operationalizes; hidden-split/repeat-run/failure-injection harnesses it should exercise) · §5.Z (cross-model
       coverage — the rail naturally rotates models) · §5.AF (durable lease scheduler + unified admission + the ledger
@@ -5964,24 +5984,12 @@ deep analysis:
       `package.json` (it's the best merge-safety layer — spawned backend, isolated home, free ports, raw HTTP/WS, mock
       LLM, on-disk seams; was hidden inside the broad `test`). Named in the path→gate manifest above for every tRPC /
       config-schema / persistence / task-lifecycle / settings change. Verified: runs green — 18 files / 272 tests.
-- [ ] **`web:e2e:smoke` canary — bigger than it looks; needs a hermetic mock foundation first (2026-06-27 investigation).**
-      Goal: a seconds-long Playwright smoke that **never reuses a stale dev server** (the stale-`4173`-reuse cascade burned
-      a 200s false failure), checking app boot / no Vite overlay / board render / Settings open. **What the investigation
-      found (so the next attempt doesn't re-walk it):** (1) `npm run dev` is **vite-only** and proxies `/api/*` to the
-      runtime on `:3484` — a frontend-only boot renders nothing; (2) a *fresh* runtime (isolated HOME) boots into
-      **onboarding**, not a board, so even a real backend won't render the board without **seeded** state; (3) that's why
-      the existing specs (`settings.spec.ts`, `chat-*.spec.ts`) **mock** the backend via `page.routeWebSocket` (inject a
-      board snapshot) + `page.route('/api/trpc/*')` — but **there is no shared helper**, each spec re-inlines a huge
-      `WS_SNAPSHOT` + `MOCK_CONFIG`, and **`MOCK_CONFIG` has already drifted stale** (e.g. missing `concurrencyDefaults`/
-      `concurrencyOverride`), so the unmocked `smoke.spec.ts` is backend-dependent and the mocked specs rot. **So the real
-      work, in order:** (a) **a shared hermetic e2e-mock helper** — one schema-synced `buildMockRuntimeConfig()` +
-      `buildBoardSnapshot()` (kept current with `runtimeConfigResponseSchema`) that every spec consumes (de-stales them
-      all + is the foundation); (b) a **mocked boot-smoke** spec on top of it (board columns + no `vite-error-overlay` +
-      settings opens); (c) a **`playwright.smoke.config.ts`** with `reuseExistingServer:false` + `--strictPort` on a
-      dedicated port. **Config gotcha (hit + confirmed):** the port must be a **stable module constant** — Playwright
-      re-imports the config in worker processes, so a `Math.random()` port desyncs the webServer's port from the workers'
-      `baseURL` → every test gets `ERR_CONNECTION_REFUSED`. Keep the full Playwright suite for targeted/nightly/live.
-      *(Also fix `test:protected` + `test:integration` alias/port flakiness as infra, not features.)*
+- [ ] **`web:e2e:smoke` canary — hermetic mock foundation, decomposed:**
+  - [ ] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema).
+  - [ ] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
+  - [ ] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens).
+  - [ ] Create `playwright.smoke.config.ts` with `reuseExistingServer:false` + `--strictPort` on stable module constant port.
+  - [ ] Fix `test:protected` + `test:integration` alias/port flakiness as foundational infra.
 
 > **Structure-refactor ladder (ordered by fan-out ROI; each independently shippable + test-backed; folds into §5.U's
 > no-monolith goal — do them in the normal incremental loop, not as a pause-the-world front-load):**
@@ -6007,12 +6015,11 @@ deep analysis:
       consts → `runtime-config-defaults.ts`; the ~800-line normalize/build-assembly block → `runtime-config-normalize.ts`;
       the change-field registry → `runtime-config-change-fields.ts`; load/save/update → `runtime-config-store.ts` (each a
       careful slice — config defaulting can regress quietly, so verify round-trip + corrupt-vs-missing each time).
-- [ ] **Settings draft boundary (highest-churn win).** Extract a behavior-owning Settings **draft model** from
-      `runtime-settings-dialog.tsx` (a Red monolith every new setting competes inside): typed draft state · init/reset ·
-      dirty detection · validation · save-payload construction, as `web-ui/src/features/settings/{settings-draft,
-      use-runtime-settings-draft,settings-validation}.ts`. Keep the dialog as composition; verify against the existing
-      settings-dialog oracle BEFORE extracting visual sections. After this, independent settings sections (and the §5.W
-      regroup) can be assigned separately. *(Extract behavior, not thin JSX wrappers — per AGENTS.md.)*
+- [ ] **Settings draft boundary — extract behavior model, decomposed:**
+  - [ ] Extract behavior-owning Settings draft model from `runtime-settings-dialog.tsx`: typed draft state, init/reset, dirty detection.
+  - [ ] Extract validation + save-payload construction into separate modules under `web-ui/src/features/settings/`.
+  - [ ] Keep the dialog as pure composition; verify against existing settings-dialog oracle BEFORE extracting visual sections.
+  - [ ] Enable independent settings sections to be assigned separately (pairs with §5.W regroup).
 - [x] **tRPC router composition — DONE (2026-06-27).** All four sub-routers extracted from `app-router.ts` into
       `src/trpc/routers/{runtime,chat,workspace,projects}-router.ts`, each a `build<X>Router(t[, workspaceProcedure])`
       factory built on the shared `t` (exported as `RuntimeTrpcBuilder` + `RuntimeWorkspaceProcedure`; the factories'
@@ -6086,23 +6093,21 @@ deep analysis:
 > bounds + gates that make MY fan-out safe are what keep a 7B worker from wandering off-scope or into an unrecoverable
 > tangle. The escalation path (the automatic across-all-loaded-models ladder → user escalation with "get through the
 > wall" suggestions) is specced in §5.AB; the rest:
-- [ ] **Decompose emits work-package-shaped cards.** !Klein's decomposition should produce cards carrying the
-      contract's bounds — **write-scope / forbidden paths / interfaces / acceptance shape** — not just a prose prompt, so
-      a small worker stays in-bounds by construction (and overlapping cards are conflict-classified Green/Yellow/Red like
-      direction 1). Ties §5.B (decomposition) + §5.N (focus chains as the worker's checklist).
-- [ ] **Path-owned acceptance gates per card.** The product mirror of the verification manifest: each card declares the
-      executable checks that prove it (build/test/typecheck/acceptance), the trusted runtime runs them on the result
-      branch before the §5.K review, and a failing gate is a structured outcome the worker (or, once the automatic
-      ladder is exhausted, the user escalation) acts on — not a silent pass. Ties §5.L (delivery gate) + §5.AF (gate
-      events in the ledger).
-- [ ] **Trouble-awareness — agents must recognize approaching-unrecoverable states and escalate BEFORE grinding in.**
-      Generalize the guards we already proved we need (the `core.bare` fixture-flip, the read/tool-call loops, host-path
-      confusion in the sandbox) into a first-class **stuck/at-risk signal** the worker and the runtime both watch; when it
-      fires, **drive the §5.AB escalation path** (finish the automatic across-models ladder, then escalate to the user
-      with suggestions) rather than burning the retry budget. The whole point: a
-      small model must **not** be left to thrash its way out of a hole it cannot climb — !Klein detects the hard limit and
-      escalates to the user with options (one of which is making a stronger model available to analyze + guide). Ties
-      §5.AA (detection) · §5.AB (the escalation path) · §5.AG (the surface).
+- [ ] **Decompose emits work-package-shaped cards, decomposed:**
+  - [ ] Define the richer card schema: write-scope, forbidden paths, interfaces, acceptance shape.
+  - [ ] Update decompose logic to produce cards carrying these contract bounds.
+  - [ ] Verify small workers stay in-bounds by construction (overlap classification Green/Yellow/Red).
+  - [ ] Ties §5.B decomposition + §5.N focus chains.
+- [ ] **Path-owned acceptance gates per card, decomposed:**
+  - [ ] Define executable checks that prove card delivery (build/test/typecheck/acceptance).
+  - [ ] Wire trusted runtime to run gates on result branch before §5.K review.
+  - [ ] Make failing gate a structured outcome (worker or escalation acts on it, not silent pass).
+  - [ ] Record gate events in the §5.AF ledger.
+- [ ] **Trouble-awareness — escalate before grinding, decomposed:**
+  - [ ] Generalize the stuck/at-risk guards we've proven necessary (fixture-flip, read/tool loops, host-path confusion).
+  - [ ] Define first-class stuck/at-risk signal the worker + runtime both watch.
+  - [ ] When signal fires: drive §5.AB escalation path (finish automatic ladder, then escalate to user with options).
+  - [ ] Ties §5.AA detection, §5.AB escalation, §5.AG surface.
 
 ### 5.AL — Model-capability catalog + suitability gate + online capability lookup *(2026-06-29, user — ACTIVE)*
 > **Why:** "the model is loaded" says nothing about whether it can DO the job. Many popular small models are
@@ -6230,10 +6235,10 @@ deep analysis:
             `verdictByModelId` map (assess each candidate's runtime verdict, aligning the candidate's id space to the
             self-observation `modelId`) and apply it to the ledger-fitness ranking; the §5.AG model-selector badge; and a
             one-button "confirm provisional entry → catalog" flow for `runtime_fills_unknown`.
-- [ ] **Keep extending the catalog (standing).** Per §4A: every model sweep / live run that surfaces a new capability
-      fact (a verdict flip, a new failure dialect, a confirmed-vs-broken quant) is folded into the catalog in the same
-      change — flip the verdict, append the note, cite the source, set `basis: "empirical"`/`"both"`. Verify the
-      `verified: false` rows (gemma-4 E2B/E4B) against live sweeps and promote/demote them.
+- [ ] **Keep extending the catalog (standing), decomposed:**
+  - [ ] After every model sweep / live run: fold capability findings into MODEL_CAPABILITY_CATALOG.
+  - [ ] For each finding: flip verdict, append note, cite source, set `basis: "empirical"`/`"both"`.
+  - [ ] Verify `verified: false` rows (gemma-4 E2B/E4B) against live sweeps and promote/demote them.
 
 ### 5.AM — Surfaced test-failure debts (discharge per the "never waive a failure" rule) *(2026-06-29)*
 > Concrete failures that have SURFACED. Top-of-queue by the §4A no-waive rule. (Currently: all discharged.)
@@ -6326,20 +6331,26 @@ deep analysis:
       NO Anthropic-dialect forcing path is warranted; the built-then-removed `nklein-anthropic-tool-force.ts` was dropped.
       **The forcing lever stays the constrained-decoding rung** (`response_format json_schema`, live-verified to force even a
       non-tool prompt), already wired. (Lesson logged: verify a "forcing" claim with a prompt the model would NOT call on anyway.)
-- [ ] **Native `/api/v1/chat` structured tool_call + reasoning SSE events** — strictly more structured than the OpenAI path for
-      tool/reasoning models; a fallback endpoint when the OpenAI path misses a call. Also its **stateful sessions** (avoid resending
-      history) = an efficiency + long-context lever, and **MCP integration** ties §5.AC/§5.M tool expansion.
-- [ ] **REST model management via `/api/v1/models/{load,unload,download}`** — an in-process alternative to the `lms` CLI shell-outs
-      (still GUARDED by `decideModelLoad` + the §4A 1-at-a-time/size/headroom rules). `download` enables the §5-roadmap "introduce a
-      bigger/better local model" step without leaving the app. Re-verify the exact load-params (context length, gpu, ttl) shape.
-- [ ] **Reasoning control as a first-class §5.AA lever (per family):** disable thinking for SIMPLE/execution turns (kill the
-      reasoning-token overhead + truncation risk + latency); KEEP it for hard tasks; as a truncation-recovery rung (DONE for chat,
-      qwen3). Extend [model-thinking-control.ts](src/core/model-thinking-control.ts) with each family's verified switch (DeepSeek-R1,
-      qwq, qwen3.5/3.6, nemotron, gemma-4, phi-4-reasoning — verify live per family as loaded).
-- [ ] **RUNTIME online research to "get more out of a model" (user — advanced, powerful).** When !Klein hits a model it can't get
-      to deliver (or an unknown model, ties §5.AL online lookup), DEEP-DIVE the web at runtime for that model's known switches /
-      prompt format / tool dialect / reasoning controls / quirks, and apply them. Opt-in/default-off + egress-gated (prime directive
-      #1); a "research this model" action + an automatic attempt. Composes the §5.AL capability lookup + this API-surface map.
+- [ ] **Native `/api/v1/chat` structured events, decomposed:**
+  - [ ] Implement fallback endpoint for tool-call + reasoning SSE events (more structured than OpenAI path).
+  - [ ] Use stateful sessions (avoid resending history) for efficiency + long-context leverage.
+  - [ ] Wire MCP integration (ties §5.AC/§5.M tool expansion).
+- [ ] **REST model management via /api/v1/models endpoints, decomposed:**
+  - [ ] Implement in-process alternative to `lms` CLI shell-outs (still guarded by `decideModelLoad`).
+  - [ ] Wire `/api/v1/models/{load,unload,download}` endpoints.
+  - [ ] Re-verify exact load-params (context length, gpu, ttl) shape.
+- [ ] **Reasoning control as a first-class §5.AA lever, decomposed:**
+  - [ ] Disable thinking for SIMPLE/execution turns (kill reasoning overhead + truncation risk + latency).
+  - [ ] Keep reasoning for hard tasks.
+  - [ ] Use as truncation-recovery rung (already done for chat, qwen3).
+  - [ ] Extend [model-thinking-control.ts](src/core/model-thinking-control.ts) with each family's verified switch.
+  - [ ] Verify live per family as loaded (DeepSeek-R1, qwq, qwen3.5/3.6, nemotron, gemma-4, phi-4-reasoning).
+- [ ] **RUNTIME online research to get more out of a model, decomposed:**
+  - [ ] When !Klein hits a model it can't get to deliver: deep-dive the web for that model's switches/format/tool-dialect/quirks.
+  - [ ] Opt-in/default-off + egress-gated (prime directive #1); a "research this model" action + automatic attempt.
+  - [ ] Composes §5.AL capability lookup + this API-surface map.
+  - [ ] Implement a web-SEARCH tool the model can drive (today's `browse_url` only fetches known URL).
+  - [ ] Drive the chat agent with research → parse → present advice + provisional catalog entry.
 - [~] **Verify + table the per-FAMILY fit** across the (large) live roster (qwen3/qwen3_5_moe, phi3, gemma4, nemotron_h,
       deepseek_v4, glm4_moe_lite, mistral3, llama, qwen2): which endpoint + tool format + reasoning switch + structured-output
       support works best for each — the §5.Z matrix EXTENDED with the API-surface dimension. (The roster is far larger than the old
