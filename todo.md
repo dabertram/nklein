@@ -5555,6 +5555,12 @@ deep analysis:
       (3) `board poll fetch failed (HeadersTimeoutError)` transients → exactly the lease/reclaim survivability
       case. Not a model ceiling (decompose + per-card work were sound). See
       [docs/dev/milestone-challenges.md](docs/dev/milestone-challenges.md) run log.
+      **TRANSIENT CLASSIFIER DONE (2026-06-29):** [src/core/transient-error.ts](src/core/transient-error.ts)
+      `isTransientNetworkError(error)` — pure, recognizes the undici body/headers timeouts (the live scout's
+      "Body Timeout Error"), connection blips, and transient 502/503 states (reads `error.cause` for the undici code);
+      complements `isLocalModelRuntimeUnavailableError` (which answers the different "is the model UNLOADED?"). 4 tests.
+      **Still owed:** wire a bounded retry-on-transient around the model-call + board-poll in the durable scheduler /
+      `verify-*.mts` harnesses (the lease/reclaim path), so a transient no longer kills a long run.
 - [~] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
       manifest — `{ mutationLevel: read|sandbox_write|control_plane|host_write ; networkLevel: none|egress ; fsScope:
       workspace|host ; auditDetail ; approval: auto|confirm|risk_ack|typed_host ; replayable }` — and the gate becomes one
