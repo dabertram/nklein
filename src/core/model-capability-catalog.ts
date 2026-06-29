@@ -158,11 +158,12 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		verified: true,
 	},
 	{
+		// Matches the Nano line across generations: `nemotron-nano`, `nemotron-3-nano`, `llama-3.1-nemotron-nano`, …
 		family: "nemotron-nano",
-		match: /nemotron-nano|llama-3\.1-nemotron-nano/,
+		match: /nemotron(-\d+)?-nano/,
 		toolUse: "TOOL_WEAK",
 		kind: "reasoning",
-		note: "SFT+RL post-trained for tool calling with a parser + 128k context, BUT user reports show the 4B emitting tool calls as plain text and failing once multiple tools are present (NIM + Ollama).",
+		note: "SFT+RL post-trained for tool calling with a parser + 128k context, BUT user reports show the 4B emitting tool calls as plain text and failing once multiple tools are present (NIM + Ollama). Live-confirmed 2026-06-29 on nvidia/nemotron-3-nano-4b via the chat-agent e2e: it used read_file then DROPPED the chain (no run_command/create_card/focus-chain) — single-tool only, fails multi-tool chaining (consistent with the ≤4B floor).",
 		sources: ["https://community.n8n.io/t/nvidia-llama-3-1-nemotron-nano-4b-v1-1-tool-calling-issue/135282"],
 		basis: "both",
 		verified: true,

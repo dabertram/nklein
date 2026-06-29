@@ -23,6 +23,13 @@ describe("model-capability-catalog: lookup", () => {
 		expect(lookupModelCapability("google/gemma-4-e2b")?.family).toBe("gemma-4-e2b");
 	});
 
+	it("matches the Nemotron Nano line across generations (nemotron-nano, nemotron-3-nano, llama-3.1-nemotron-nano)", () => {
+		// Regression: the `nemotron-3-nano-4b` generation must resolve (broadened matcher, live-confirmed TOOL_WEAK 2026-06-29).
+		expect(lookupModelCapability("nvidia/nemotron-3-nano-4b")?.family).toBe("nemotron-nano");
+		expect(lookupModelCapability("nvidia/llama-3.1-nemotron-nano-4b-v1.1")?.family).toBe("nemotron-nano");
+		expect(lookupModelCapability("nemotron-nano")?.family).toBe("nemotron-nano");
+	});
+
 	it("returns null for a family not in the catalog", () => {
 		expect(lookupModelCapability("some-obscure/model-v9")).toBeNull();
 	});
