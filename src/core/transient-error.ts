@@ -69,3 +69,48 @@ export function isTransientNetworkError(error: unknown): boolean {
 	}
 	return TRANSIENT_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
 }
+
+export interface TransientRetryOptions {
+	/** Max RETRIES after the first attempt (so total attempts ≤ maxRetries + 1). Default 3. */
+	maxRetries?: number;
+	/** Predicate for "is this worth retrying?". Default {@link isTransientNetworkError}. */
+	isTransient?: (error: unknown) => boolean;
+	/** Backoff before retry N (1-based). Default 0 (no wait). */
+	delayMs?: (attempt: number) => number;
+	/** Injectable sleep (for tests / custom timers). Default a real `setTimeout` promise. */
+	sleep?: (ms: number) => Promise<void>;
+	/** Observe each retry (attempt is 1-based) — e.g. log "retrying after transient". */
+	onRetry?: (attempt: number, error: unknown) => void;
+}
+
+const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Run `fn`, RETRYING it (bounded) when it throws a TRANSIENT error — the §5.AF transient-survivability wrapper so a
+ * body/headers timeout or connection blip no longer kills a long run. A non-transient error rethrows immediately; a
+ * transient error rethrows only after the retry budget is spent. Pure over the injected `fn`/`sleep`, so it's
+ * unit-testable without real timers or network.
+ */
+export async function withTransientRetry<T>(fn: () => Promise<T>, options: TransientRetryOptions = {}): Promise<T> {
+	const maxRetries = Math.max(0, options.maxRetries ?? 3);
+	const isTransient = options.isTransient ?? isTransientNetworkError;
+	const sleep = options.sleep ?? defaultSleep;
+	let lastError: unknown;
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			return await fn();
+		} catch (error) {
+			lastError = error;
+			if (attempt >= maxRetries || !isTransient(error)) {
+				throw error;
+			}
+			options.onRetry?.(attempt + 1, error);
+			const waitMs = options.delayMs?.(attempt + 1) ?? 0;
+			if (waitMs > 0) {
+				await sleep(waitMs);
+			}
+		}
+	}
+	// Unreachable (the loop either returns or throws), but satisfies the type checker.
+	throw lastError;
+}

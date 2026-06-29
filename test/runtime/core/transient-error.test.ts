@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { isTransientNetworkError } from "../../../src/core/transient-error";
+import { describe, expect, it, vi } from "vitest";
+import { isTransientNetworkError, withTransientRetry } from "../../../src/core/transient-error";
 
 describe("isTransientNetworkError", () => {
 	it("flags the undici timeouts a live scout actually hit", () => {
@@ -27,5 +27,59 @@ describe("isTransientNetworkError", () => {
 		expect(isTransientNetworkError(null)).toBe(false);
 		expect(isTransientNetworkError(undefined)).toBe(false);
 		expect(isTransientNetworkError(42)).toBe(false);
+	});
+});
+
+describe("withTransientRetry", () => {
+	const noSleep = () => Promise.resolve();
+
+	it("retries a transient failure then succeeds, within the budget", async () => {
+		let calls = 0;
+		const result = await withTransientRetry(
+			async () => {
+				calls += 1;
+				if (calls < 3) {
+					throw new Error("Body Timeout Error");
+				}
+				return "ok";
+			},
+			{ maxRetries: 3, sleep: noSleep },
+		);
+		expect(result).toBe("ok");
+		expect(calls).toBe(3); // 2 transient throws + 1 success
+	});
+
+	it("rethrows a NON-transient error immediately (no retries)", async () => {
+		const fn = vi.fn(async () => {
+			throw new Error("Type validation failed");
+		});
+		await expect(withTransientRetry(fn, { maxRetries: 3, sleep: noSleep })).rejects.toThrow("Type validation failed");
+		expect(fn).toHaveBeenCalledTimes(1);
+	});
+
+	it("rethrows the transient error after the retry budget is exhausted", async () => {
+		const fn = vi.fn(async () => {
+			throw new Error("fetch failed");
+		});
+		const onRetry = vi.fn();
+		await expect(withTransientRetry(fn, { maxRetries: 2, sleep: noSleep, onRetry })).rejects.toThrow("fetch failed");
+		expect(fn).toHaveBeenCalledTimes(3); // 1 + 2 retries
+		expect(onRetry).toHaveBeenCalledTimes(2);
+	});
+
+	it("applies the injected backoff delay between retries", async () => {
+		const slept: number[] = [];
+		let calls = 0;
+		await withTransientRetry(
+			async () => {
+				calls += 1;
+				if (calls < 2) {
+					throw new Error("ECONNRESET");
+				}
+				return 1;
+			},
+			{ delayMs: (attempt) => attempt * 100, sleep: async (ms) => void slept.push(ms) },
+		);
+		expect(slept).toEqual([100]); // one retry, backoff for attempt 1
 	});
 });
