@@ -10,6 +10,7 @@ import {
 	selectAttemptsForModel,
 	selectEventsForWorkflow,
 	summarizeModelOutcomes,
+	summarizeModelSpeed,
 	summarizeToolUsageByModel,
 } from "../../../src/core/agent-attempt-ledger";
 
@@ -218,5 +219,50 @@ describe("summarizeToolUsageByModel", () => {
 			]),
 		]);
 		expect(rollups.map((row) => row.toolName)).toEqual(["b_tool", "a_tool"]);
+	});
+});
+
+describe("summarizeModelSpeed", () => {
+	const speedAttempt = (modelId: string, ttftMs: number | null, tokensPerSec: number | null): AgentLedgerEvent => {
+		attemptSeq += 1;
+		return buildAttemptEvent({
+			...base,
+			attemptId: `s-${attemptSeq}`,
+			modelId,
+			outcome: "success",
+			ttftMs,
+			tokensPerSec,
+		});
+	};
+
+	it("rolls up per-model avg + median ttft and tok/s over attempts that carried a datum", () => {
+		const events = [
+			speedAttempt("fast", 100, 40),
+			speedAttempt("fast", 300, 60), // median ttft = lower-of-two = 100; avg = 200; tok/s median 40, avg 50
+			speedAttempt("slow", 1000, 5),
+		];
+		const rows = summarizeModelSpeed(events);
+		expect(rows.map((r) => r.modelId)).toEqual(["fast", "slow"]); // samples desc, then modelId
+		const fast = rows.find((r) => r.modelId === "fast");
+		expect(fast?.samples).toBe(2);
+		expect(fast?.avgTtftMs).toBe(200);
+		expect(fast?.medianTtftMs).toBe(100);
+		expect(fast?.avgTokensPerSec).toBe(50);
+		expect(fast?.medianTokensPerSec).toBe(40);
+	});
+
+	it("reports null (not 0) for a model with no timing samples, and ignores attempts with neither datum", () => {
+		const events = [speedAttempt("m", null, null), speedAttempt("m", null, 12)];
+		const rows = summarizeModelSpeed(events);
+		// Only the second attempt carried a datum (tok/s); ttft has no samples → null.
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.samples).toBe(1);
+		expect(rows[0]?.avgTtftMs).toBeNull();
+		expect(rows[0]?.medianTtftMs).toBeNull();
+		expect(rows[0]?.avgTokensPerSec).toBe(12);
+	});
+
+	it("returns an empty list when no attempts carry timing", () => {
+		expect(summarizeModelSpeed([speedAttempt("m", null, null)])).toEqual([]);
 	});
 });

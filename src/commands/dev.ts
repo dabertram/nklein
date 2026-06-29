@@ -527,6 +527,17 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 			);
 		}
 	}
+
+	if (summary.speed.length > 0) {
+		process.stdout.write("\nPer-model speed (from ledger ttft + tok/s — a §5.AB selection signal):\n");
+		for (const row of summary.speed) {
+			const ttft = row.avgTtftMs !== null ? `${Math.round(row.avgTtftMs)}ms ttft` : "no ttft";
+			const tps = row.avgTokensPerSec !== null ? `${row.avgTokensPerSec.toFixed(1)} tok/s` : "no tok/s";
+			process.stdout.write(
+				`  ${row.modelId.padEnd(40)} ${String(row.samples).padStart(3)} sample(s)  ${ttft.padStart(12)}  ${tps.padStart(12)}\n`,
+			);
+		}
+	}
 }
 
 async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {

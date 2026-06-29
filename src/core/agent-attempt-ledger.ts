@@ -472,6 +472,79 @@ export function summarizeModelOutcomes(events: readonly AgentLedgerEvent[]): Mod
 	return rollups;
 }
 
+export interface ModelSpeedRollup {
+	modelId: string;
+	/** Attempts that carried at least one speed datum (ttft or tok/s) — the denominator for these stats. */
+	samples: number;
+	avgTtftMs: number | null;
+	medianTtftMs: number | null;
+	avgTokensPerSec: number | null;
+	medianTokensPerSec: number | null;
+}
+
+/** Mean of a non-empty numeric list, or null when empty. */
+function meanOrNull(values: readonly number[]): number | null {
+	return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+/** Median of a numeric list (lower-of-two for even counts), or null when empty. */
+function medianOrNull(values: readonly number[]): number | null {
+	if (values.length === 0) {
+		return null;
+	}
+	const sorted = [...values].sort((a, b) => a - b);
+	return sorted[Math.floor((sorted.length - 1) / 2)] ?? null;
+}
+
+/**
+ * Roll up per-model SPEED from the ledger's attempt records (todo §5.AF — a pure projection over the same one stream,
+ * not a parallel store). Uses the `ttftMs` + `tokensPerSec` the terminal writer computes; only attempts that carried a
+ * datum count toward each stat (a model with no timing samples reports null, not a misleading 0). Speed is a §5.AB
+ * selection signal — slow-but-capable vs fast-but-weak is a real routing trade-off. Sorted by samples desc, then modelId.
+ */
+export function summarizeModelSpeed(events: readonly AgentLedgerEvent[]): ModelSpeedRollup[] {
+	const ttftByModel = new Map<string, number[]>();
+	const tpsByModel = new Map<string, number[]>();
+	const sampledModels = new Set<string>();
+	const pushSample = (map: Map<string, number[]>, modelId: string, value: number): void => {
+		const list = map.get(modelId);
+		if (list) {
+			list.push(value);
+		} else {
+			map.set(modelId, [value]);
+		}
+	};
+	for (const attempt of selectAttempts(events)) {
+		const hasTtft = typeof attempt.ttftMs === "number";
+		const hasTps = typeof attempt.tokensPerSec === "number";
+		if (!hasTtft && !hasTps) {
+			continue;
+		}
+		sampledModels.add(attempt.modelId);
+		if (hasTtft) {
+			pushSample(ttftByModel, attempt.modelId, attempt.ttftMs as number);
+		}
+		if (hasTps) {
+			pushSample(tpsByModel, attempt.modelId, attempt.tokensPerSec as number);
+		}
+	}
+	const rollups: ModelSpeedRollup[] = [];
+	for (const modelId of sampledModels) {
+		const ttft = ttftByModel.get(modelId) ?? [];
+		const tps = tpsByModel.get(modelId) ?? [];
+		rollups.push({
+			modelId,
+			samples: Math.max(ttft.length, tps.length),
+			avgTtftMs: meanOrNull(ttft),
+			medianTtftMs: medianOrNull(ttft),
+			avgTokensPerSec: meanOrNull(tps),
+			medianTokensPerSec: medianOrNull(tps),
+		});
+	}
+	rollups.sort((left, right) => right.samples - left.samples || left.modelId.localeCompare(right.modelId));
+	return rollups;
+}
+
 export interface ModelToolUsageRollup {
 	modelId: string;
 	toolName: string;

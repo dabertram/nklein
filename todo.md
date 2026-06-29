@@ -4754,10 +4754,15 @@ deep analysis:
       now-written `attempt.toolCalls` into per-(model, tool) call counts + outcome (success/error/incomplete) + a
       completed-calls success rate — the §5.AA small-model signal (a weak model reliably erroring on a *specific* tool is
       a parse-and-recover / tool-simplification target, not just "bad model"). Surfaced in `summarizeLedgerForDisplay` +
-      a new "Per-model × tool" section of `nklein dev ledger` (and its `--json`); 3 unit tests. **Still owed:** the FLOW
-      field for the non-board flows (premature until chat/autonomous get their own writers); reading these
-      profiles/fitness from the LIVE runtime
-      (the §5.AA retry engine / §5.AB scheduler consume them); folding MCSR speed observations into the same stream; and
+      a new "Per-model × tool" section of `nklein dev ledger` (and its `--json`); 3 unit tests. **PER-MODEL SPEED
+      PROJECTION DONE (2026-06-29):** `summarizeModelSpeed` (ledger core) rolls the attempt records' `ttftMs`+`tokensPerSec`
+      into per-model avg+median ttft and tok/s (only attempts that carried a datum count — a model with no timing reports
+      null, not a misleading 0), surfaced in `summarizeLedgerForDisplay.speed` + a new "Per-model speed" section of
+      `nklein dev ledger`; 3 unit tests. Speed is a §5.AB selection signal (slow-but-capable vs fast-but-weak). This is the
+      READ side of "folding MCSR speed into the stream"; the WRITE side (live MCSR observations → a richer writer) remains.
+      **Still owed:** the FLOW field for the non-board flows (premature until chat/autonomous get their own writers);
+      reading these profiles/fitness from the LIVE runtime
+      (the §5.AA retry engine / §5.AB scheduler consume them); folding live MCSR speed observations into the writer; and
       the graded-quality/difficulty a richer writer + the §5.AB eval harness supply (today quality is the coarse
       success-rate proxy).
 - [ ] **Replay / simulation mode (ties §5.V).** A captured ledger attempt's model outputs become a deterministic
