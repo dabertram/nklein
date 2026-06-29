@@ -5424,7 +5424,11 @@ deep analysis:
       execution doesn't fit the horizon → the durable scheduler must lease *all* genuinely-independent ready cards up to
       the cap; (2) the runtime **skipped auto-start for linked cards that "likely touch the same files"** as an active
       card — over-conservative serialization (the **C5 contention axis early**); revisit so it serializes only true file
-      overlaps; (3) `board poll fetch failed (HeadersTimeoutError)` transients → exactly the lease/reclaim survivability
+      overlaps **[ADDRESSED 2026-06-29: [task-file-overlap.ts](src/core/task-file-overlap.ts) now serializes only on a
+      shared SPECIFIC source path — a shared COARSE file (defensively-listed `package.json`/lockfile/tsconfig/config) no
+      longer blocks auto-start, so a wide DAG fans out; genuine manifest conflicts are handled downstream by merge +
+      §5.AK classification. `isCoarseLikelyTouchedPath` + `getSharedSpecificLikelyTouchedPaths`, 7 tests]**;
+      (3) `board poll fetch failed (HeadersTimeoutError)` transients → exactly the lease/reclaim survivability
       case. Not a model ceiling (decompose + per-card work were sound). See
       [docs/dev/milestone-challenges.md](docs/dev/milestone-challenges.md) run log.
 - [~] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one

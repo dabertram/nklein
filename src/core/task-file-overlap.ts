@@ -33,8 +33,51 @@ export function getSharedLikelyTouchedPaths(left: RuntimeBoardCard, right: Runti
 	return [...shared].sort();
 }
 
+// Low-signal "coarse" files a decompose model defensively lists on MANY cards (a dependency manifest, a lockfile, a
+// repo-root config) — a shared one of these is not a real edit-conflict signal, and serializing a wide DAG on it is
+// the over-serialization the §5.AF/C5 scout finding flagged. Matched by basename (paths are already lowercased).
+const COARSE_LIKELY_TOUCHED_BASENAMES = new Set<string>([
+	"package.json",
+	"package-lock.json",
+	"yarn.lock",
+	"pnpm-lock.yaml",
+	"tsconfig.json",
+	"biome.json",
+	".gitignore",
+	".npmrc",
+	"readme.md",
+	"changelog.md",
+	"requirements.txt",
+	"pyproject.toml",
+	"poetry.lock",
+	"cargo.toml",
+	"cargo.lock",
+	"go.mod",
+	"go.sum",
+	"makefile",
+	"dockerfile",
+]);
+
+/** True for a low-signal shared path (manifest / lockfile / repo-root config) that shouldn't, alone, serialize cards. */
+export function isCoarseLikelyTouchedPath(normalizedPath: string): boolean {
+	const basename = normalizedPath.split("/").at(-1) ?? normalizedPath;
+	return COARSE_LIKELY_TOUCHED_BASENAMES.has(basename) || /^tsconfig\..+\.json$/.test(basename);
+}
+
+/** The shared SPECIFIC (non-coarse) paths — the real edit-conflict signal that warrants serializing two cards. */
+export function getSharedSpecificLikelyTouchedPaths(left: RuntimeBoardCard, right: RuntimeBoardCard): string[] {
+	return getSharedLikelyTouchedPaths(left, right).filter((path) => !isCoarseLikelyTouchedPath(path));
+}
+
+/**
+ * Whether two tasks have a SERIALIZING file overlap. Only a shared SPECIFIC source path counts — a shared coarse file
+ * (a defensively-listed `package.json`/lockfile/config) does NOT serialize, so a wide DAG fans out instead of queueing
+ * behind one card (§5.AF/C5 scout fix). A genuine manifest conflict is rare and handled downstream (merge + §5.AK
+ * conflict classification), not by blocking auto-start. Use {@link getSharedLikelyTouchedPaths} to LOG every shared
+ * path (incl. coarse) for diagnostics.
+ */
 export function tasksHaveLikelyTouchedFileOverlap(left: RuntimeBoardCard, right: RuntimeBoardCard): boolean {
-	return getSharedLikelyTouchedPaths(left, right).length > 0;
+	return getSharedSpecificLikelyTouchedPaths(left, right).length > 0;
 }
 
 export function findActiveTaskLikelyTouchedFileOverlap(input: {

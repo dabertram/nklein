@@ -3,6 +3,8 @@ import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskSessionSummary } fr
 import {
 	findActiveTaskLikelyTouchedFileOverlap,
 	getSharedLikelyTouchedPaths,
+	getSharedSpecificLikelyTouchedPaths,
+	isCoarseLikelyTouchedPath,
 	tasksHaveLikelyTouchedFileOverlap,
 } from "../../src/core/task-file-overlap";
 
@@ -82,5 +84,42 @@ describe("task file overlap", () => {
 				task: createTask("candidate", ["src/shared.ts"]),
 			})?.id,
 		).toBe("active");
+	});
+});
+
+describe("coarse vs specific likely-touched paths (§5.AF/C5 over-serialization fix)", () => {
+	it("classifies low-signal manifest/lockfile/config paths as coarse, specific source as not", () => {
+		expect(isCoarseLikelyTouchedPath("package.json")).toBe(true);
+		expect(isCoarseLikelyTouchedPath("pnpm-lock.yaml")).toBe(true);
+		expect(isCoarseLikelyTouchedPath("tsconfig.build.json")).toBe(true); // tsconfig.*.json pattern
+		expect(isCoarseLikelyTouchedPath("web-ui/package.json")).toBe(true); // basename match, any dir
+		expect(isCoarseLikelyTouchedPath("src/shared.ts")).toBe(false);
+		expect(isCoarseLikelyTouchedPath("src/config.ts")).toBe(false); // a real source file, not a config manifest
+	});
+
+	it("does NOT serialize two cards that share ONLY a coarse file (e.g. a defensively-listed package.json)", () => {
+		expect(
+			tasksHaveLikelyTouchedFileOverlap(
+				createTask("a", ["package.json", "src/a.ts"]),
+				createTask("b", ["package.json", "src/b.ts"]),
+			),
+		).toBe(false);
+	});
+
+	it("DOES serialize when a shared SPECIFIC source path exists (even alongside a shared coarse file)", () => {
+		expect(
+			tasksHaveLikelyTouchedFileOverlap(
+				createTask("a", ["package.json", "src/shared.ts"]),
+				createTask("b", ["package.json", "src/shared.ts"]),
+			),
+		).toBe(true);
+	});
+
+	it("getSharedSpecificLikelyTouchedPaths drops coarse paths but keeps specific (diagnostics keep all)", () => {
+		const a = createTask("a", ["package.json", "src/shared.ts", "tsconfig.json"]);
+		const b = createTask("b", ["package.json", "src/shared.ts", "tsconfig.json"]);
+		expect(getSharedSpecificLikelyTouchedPaths(a, b)).toEqual(["src/shared.ts"]);
+		// getSharedLikelyTouchedPaths still returns ALL shared (incl. coarse) for logging the culprit.
+		expect(getSharedLikelyTouchedPaths(a, b)).toEqual(["package.json", "src/shared.ts", "tsconfig.json"]);
 	});
 });
