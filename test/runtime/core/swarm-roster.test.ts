@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	assessRosterFit,
+	formatSwarmRosterReport,
 	primaryAssignmentsByMachine,
 	ROSTER_M,
 	ROSTER_Q,
@@ -55,6 +56,35 @@ describe("primaryAssignmentsByMachine", () => {
 		// legion's primary is the 7B coder, not the alternate Qwen3-8B general profile.
 		expect(primaries.get("legion")?.model).toBe("Qwen/Qwen2.5-Coder-7B-Instruct-GGUF");
 		expect(primaries.get("legion")?.alternate).toBeUndefined();
+	});
+});
+
+describe("formatSwarmRosterReport", () => {
+	it("renders a FITS report with each machine + assignment for a fitting roster", () => {
+		const report = formatSwarmRosterReport(ROSTER_Q);
+		expect(report).toContain("FITS ✓");
+		expect(report).toContain("m5max:");
+		expect(report).toContain("legion:");
+		expect(report).toContain("Qwen3-Coder-Next");
+		expect(report).toContain("[alt]"); // legion's alternate profile is shown
+	});
+
+	it("renders OVERCOMMITS for a roster that exceeds a budget", () => {
+		const tooBig = {
+			id: "x",
+			label: "Overcommit roster",
+			assignments: [
+				{
+					machine: "legion",
+					role: "worker" as const,
+					model: "big",
+					quant: "Q4_K_M",
+					approxSizeGb: 99,
+					note: "too big",
+				},
+			],
+		};
+		expect(formatSwarmRosterReport(tooBig)).toContain("OVERCOMMITS ✗");
 	});
 });
 

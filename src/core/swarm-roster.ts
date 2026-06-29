@@ -184,3 +184,26 @@ export function assessRosterFit(
 	});
 	return { fits: machines.every((m) => m.fits), machines };
 }
+
+/**
+ * Pure: a human-readable report of a roster — its per-machine assignments (role · model · quant · size) annotated with
+ * the fit verdict against the budgets. The operator-output core a `dev rosters` command / Settings panel renders.
+ */
+export function formatSwarmRosterReport(
+	roster: SwarmRoster,
+	budgetsGb: Readonly<Record<string, number>> = USER_MACHINE_BUDGETS_GB,
+): string {
+	const fit = assessRosterFit(roster, budgetsGb);
+	const fitByMachine = new Map(fit.machines.map((m) => [m.machine, m]));
+	const lines: string[] = [`${roster.label} — ${fit.fits ? "FITS ✓" : "OVERCOMMITS ✗"}`];
+	for (const machine of [...new Set(roster.assignments.map((a) => a.machine))]) {
+		const mf = fitByMachine.get(machine);
+		const budget = mf ? `${mf.usedGb.toFixed(1)}/${mf.budgetGb} GB ${mf.fits ? "✓" : "✗"}` : "(no primary)";
+		lines.push(`  ${machine}: ${budget}`);
+		for (const a of roster.assignments.filter((x) => x.machine === machine)) {
+			const alt = a.alternate ? " [alt]" : "";
+			lines.push(`    - ${a.role}${alt}: ${a.model} ${a.quant} (~${a.approxSizeGb} GB) — ${a.note}`);
+		}
+	}
+	return lines.join("\n");
+}
