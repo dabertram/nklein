@@ -6822,7 +6822,12 @@ deep analysis:
 >    byte in the prefix ⇒ full re-prefill (**~200 ms cached vs 30–120 s uncached**, up to 93% TTFT loss). **CRITICAL:
 >    injecting today's date into the system prompt — the §5.AC behavior that spawned §5.AE — silently DEFEATS caching.**
 >    Caveats: hybrid-attention models (Qwen3.5/Gemma3/GPT-OSS, SWA/Mamba) SILENTLY disable prefix reuse in LM Studio + MLX
->    → verify per-model via `cached_tokens`; MLX has file-persisted prompt caches for a warm prefix.
+>    → verify per-model via `cached_tokens`; MLX has file-persisted prompt caches for a warm prefix. **Operational reality
+>    (user 2026-06-29, LM Studio #1697): caching FAILS SILENTLY and is engine/format-specific** (MLX GPT-OSS-20B broken,
+>    GGUF of the same model fine) — and the orchestrator's OWN request construction is often the culprit (openclaw #19892:
+>    a "Current time:" line in the system prompt wiped the cache every turn, 40k context 5s→200s). So !Klein must DETECT
+>    cache health per (engine×model×format) and ADAPT — see item E. And the target is not just caching but **best
+>    speed+correctness+completeness+QUALITY on EVERY request** since compute is the small-HW bottleneck — see item H.
 > 3. **COMPACTION/PRUNING, NOT TOKEN-COMPRESSION (small-model-safe).** For LOCAL small models, query-agnostic token
 >    compression (LLMLingua) + truncation HURT weak models most (truncation → 74–96% task collapse) and the compressor
 >    itself costs wall-clock (~5× slower on M1 than A100) — it's a *fit-more-context / RAG-noise-removal* tool, NOT a local
@@ -6868,10 +6873,24 @@ deep analysis:
       prefix** (system + tool defs) with volatile content appended after. **Move the §5.AC date/"knows-today" + any UUID/
       timestamp/session id OUT of the system-prompt prefix** into the volatile suffix (this is both the §5.AE token-waste fix
       AND the cache fix). Add a lint/guard so nothing volatile leaks into the prefix; keep chat history append-only.
-- [ ] **E. Cache verification + hybrid-model awareness, decomposed:** read `cached_tokens` (LM Studio `/v1/responses`
-      `usage.input_tokens_details`) / llama.cpp `cache_n` to MEASURE prefix-cache hit rate per model; flag models that
-      silently disable prefix reuse (hybrid/SWA/Mamba) so §5.AB selection can prefer cache-friendly models when speed matters;
-      consider MLX file-persisted prompt caches for a warm system prefix. Record hit-rate on the §5.AF ledger.
+- [ ] **E. Cache-HEALTH probe + adaptation playbook (caching FAILS SILENTLY + is engine/format-specific), decomposed.**
+      Prefix caching only works on PURE full-attention models — **SWA / SSM-Mamba / mixed-attention silently fall back to
+      full recompute** (MoE alone is fine). Real failures to be aware of: LM Studio #1697 (MLX GPT-OSS-20B broken, GGUF of
+      the SAME model fine), mlx-lm #980 (Qwen3.5/GPT-OSS/Gemma3/Llama4), llama.cpp #20225/#19794/#21468 (Qwen3.5/Qwen3-Coder/
+      Gemma4), and the hang/OOM variants (#22450 slot hang, #24265 system hard-hang near the RAM limit). Build:
+  - [ ] **Per-`(engine,model,format,quant,ctx)` cache-health PROBE** — the universal TTFT double-prefix test (send a fixed
+        ~4-8k prefix + tiny suffix twice; healthy if the 2nd TTFT is ≥3-5× lower). Cache the verdict; re-probe only on
+        version change. Slots next to the §5.AL catalog as a new "cache-health" dimension; feeds §5.AB routing.
+  - [ ] **Detection per runtime (don't trust one signal):** llama.cpp `timings.prompt_n`/`cache_n` + server "Cache reuse
+        summary"; LM Studio `cached_tokens` is **UNRELIABLE (#778 — often unpopulated even when caching works)** → prefer the
+        TTFT probe / server logs / `/v1/responses`. Record hit-rate on the §5.AF ledger.
+  - [ ] **Adaptation playbook:** prefer the cache-friendly VARIANT (MLX→GGUF for GPT-OSS) / route by architecture×engine;
+        upgrade engine (mlx-engine ≥v1.8.5 256-tok checkpoints; llama.cpp `--checkpoint-every-n-tokens`); when a model's
+        cache is broken AND the task is latency-sensitive, WARN + fall back to a cache-friendly model (reserve broken-cache
+        models for short/one-shot calls); add a per-request TTFT/timeout WATCHDOG (the hang/OOM variants can freeze the box).
+  - [ ] **Swarm caveat — parallel slots EVICT each other's cache** (subagents thrash the main agent, openclaw #19892 class):
+        pin a stable agent session to a fixed `id_slot`, give subagents distinct slots, prefer stateful endpoints
+        (`/v1/responses`) over rebuilding stateless history. Ties §5 per-machine pools + the swarm.
 - [ ] **F. Small-model-safe context tools (NOT token-compression), decomposed:** summarization **compaction** + **tool-result
       clearing** for long agent loops (preserve decisions/bugs/state; drop raw tool output; high-recall-then-precision); and
       **query-aware pruning (Provence-style)** for the §5.AC retrieval path. Explicitly DO NOT adopt query-agnostic token
@@ -6887,6 +6906,16 @@ deep analysis:
   - [ ] **Node RAM — bound the heap (`--max-old-space-size`), LRU+TTL every cache, clear timers/listeners, stream (don't buffer) model output, bounded worker pool.** Hunt the 4 classic leak sources.
   - [ ] **Disk — rotate+cap logs (Pino/logrotate) + SNAPSHOT-COMPACT the §5.AF durable ledger/jsonl** (snapshot then keep only post-snapshot events; size/TTL retention on discovery caches).
   - [ ] **Observability — surface a resource panel** (RAM/CPU/VRAM/disk + cache-hit-rate) so the frugality is measured, not assumed (ties §6.4/§5.AG).
+- [ ] **H. Per-REQUEST inference speed+quality (compute is the bottleneck on small HW — every request must be fast AND correct AND complete AND high-quality), decomposed — ranked by no-regret impact:**
+  - [ ] **Tier 0: healthy prefix caching** (item D+E) — biggest lever of all (~5s vs ~200s at 40k context; nothing below matters if the cache is cold).
+  - [ ] **#1 right-size context** (item G) — O(n) prefill + per-token decode cost; zero-cost, zero-quality-loss, also avoids the overflow→full-reprocess landmine.
+  - [ ] **#2 Flash Attention (`-fa`)** — faster long-context prefill, no quality loss, and a PREREQUISITE for KV-quant (without it quantized KV is *slower*). Apple Silicon has a Metal FA kernel. Default ON.
+  - [ ] **#3 KV-cache quant (Q8 K + Q8 V, with `-fa`)** — frees memory → longer context / bigger model, perplexity Δ<0.1; Keys tolerate quant better than Values (quantize K harder than V if pushed). The no-regret stack = caching → right-size → `-fa` → Q8 KV.
+  - [ ] **#4 speculative decoding / draft models — OPT-IN + MEASURED.** Output is mathematically IDENTICAL to the target (no quality loss by construction), 1.5-3× WHEN it accepts — BUT it commonly makes **8GB GPUs SLOWER** (up to 7×) and needs acceptance ≥~0.5; SWA/hybrid + high-temp + tool-heavy traffic tank acceptance. Gate on measured `accepted/rejected_draft_tokens`; auto-disable when net tok/s drops.
+  - [ ] **#5 sampler for agent/tool work** — low temperature + tight top-p (near-greedy): better tool-call reliability + reproducibility + higher spec-decode acceptance; ~free. (Sampler changes don't touch the prefix KV cache but DO break spec-decode draft state + output reproducibility.)
+  - [ ] **#6 structured-output / grammar (GBNF) SURGICALLY** — fewer emitted tokens + valid JSON (kills the 3-5% malformed-retry loop) for MACHINE-consumed outputs; do NOT over-constrain free-form reasoning (can degrade quality; #1555 GBNF incompatible with Harmony GPT-OSS). 
+  - [ ] **#7 continuous batching** — aggregate-throughput win only under CONCURRENCY (the swarm); neutral-to-harmful for a single interactive session + risks the parallel-slot cache eviction (item E). 
+  - [ ] **Wire these into §5.AB selection + the load knobs** so each request picks the model/engine/flags that maximize speed×quality for THIS task's budget, and record the realized tok/s + TTFT + cache-hit on the §5.AF ledger (closes the loop with §5.AL).
 
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
 > **SUPERSEDED / deferred indefinitely (owner decision 2026-06-26, via §5.X Phase 2): NO Python port — !Klein stays
