@@ -134,6 +134,7 @@ import {
 	handleGetUpdateStatus,
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
+import { formatAcceptanceVerifyMessage, formatMergeMessage } from "./runtime-task-message-formatting";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const _execFileAsync = promisify(execFile);
@@ -206,21 +207,6 @@ function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKlei
 	return summary;
 }
 
-function formatAcceptanceVerifyMessage(input: {
-	present: boolean;
-	passed: boolean | null;
-	command: string | null;
-	exitCode: number | null;
-}): string {
-	if (!input.present) {
-		return "No Acceptance check line was found on this card.";
-	}
-	if (input.passed) {
-		return `Acceptance check passed: ${input.command ?? "command"}.`;
-	}
-	return `Acceptance check failed${input.exitCode === null ? "" : ` with exit ${input.exitCode}`}: ${input.command ?? "command"}.`;
-}
-
 function recordTaskWorktreeMergeObservations(input: {
 	workspacePath: string;
 	steps: readonly TaskWorktreeAutoMergeStep[];
@@ -255,24 +241,6 @@ function recordTaskWorktreeMergeObservations(input: {
 			},
 		});
 	}
-}
-
-function formatMergeMessage(input: {
-	ok: boolean;
-	mergedTaskIds: readonly string[];
-	skippedTaskIds: readonly string[];
-	conflict?: { taskId: string; conflictedPaths: readonly string[] } | null;
-	blocked?: { reason: string } | null;
-}): string {
-	if (input.conflict) {
-		const paths =
-			input.conflict.conflictedPaths.length > 0 ? ` Conflicts: ${input.conflict.conflictedPaths.join(", ")}.` : "";
-		return `Merge conflict while merging ${input.conflict.taskId}.${paths}`;
-	}
-	if (input.blocked) {
-		return `Merge blocked: ${input.blocked.reason}`;
-	}
-	return `Merged ${input.mergedTaskIds.length} task results; skipped ${input.skippedTaskIds.length}.`;
 }
 
 /**
