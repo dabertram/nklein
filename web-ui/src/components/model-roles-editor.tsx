@@ -234,6 +234,7 @@ export function ModelRolesEditor({
 				const roleProviderIsVisibleLocal = roleProvider !== null && isVisibleLocalNKleinProvider(roleProvider);
 				const providerSelectId = `runtime-settings-model-role-${roleId}-provider`;
 				const modelSelectId = `runtime-settings-model-role-${roleId}-model`;
+				const reasoningSelectId = `runtime-settings-model-role-${roleId}-reasoning`;
 				const roleModels = getProviderModels(effectiveProviderId);
 				const selectedRoleModelId = roleSettings.modelId ?? "";
 				const selectedRoleModel = roleModels.find((model) => model.id === selectedRoleModelId) ?? null;
@@ -315,8 +316,11 @@ export function ModelRolesEditor({
 								</NativeSelect>
 							</label>
 							<div className="min-w-0">
-								<span className="mb-1 block text-[12px] text-text-secondary">Reasoning</span>
+								<label className="mb-1 block text-[12px] text-text-secondary" htmlFor={reasoningSelectId}>
+									Reasoning
+								</label>
 								<NativeSelect
+									id={reasoningSelectId}
 									fill
 									value={roleSettings.reasoningEffort ?? "inherit"}
 									onChange={(event) =>
