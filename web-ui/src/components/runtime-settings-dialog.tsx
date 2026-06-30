@@ -2,7 +2,6 @@
 // Generic app settings live here, while NKlein-specific provider state and
 // side effects should stay in use-runtime-settings-nklein-controller.ts.
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
-import * as RadixPopover from "@radix-ui/react-popover";
 import * as RadixSelect from "@radix-ui/react-select";
 import * as RadixSwitch from "@radix-ui/react-switch";
 import { getRuntimeAgentCatalogEntry, getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
@@ -73,13 +72,6 @@ import {
 } from "@/components/runtime-settings-swarm-guardrails";
 import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
 import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
-import {
-	getRuntimeShortcutIconComponent,
-	getRuntimeShortcutPickerOption,
-	RUNTIME_SHORTCUT_ICON_OPTIONS,
-	type RuntimeShortcutIconOption,
-	type RuntimeShortcutPickerIconId,
-} from "@/components/shared/runtime-shortcut-icons";
 import { SwarmGuardrailsSettingsPanel } from "@/components/swarm-guardrails-settings-panel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
@@ -152,6 +144,7 @@ import {
 	normalizeTemplateForComparison,
 } from "./runtime-settings-dialog-helpers";
 import { SettingsNav, type SettingsNavId } from "./settings-nav";
+import { ShortcutIconPicker } from "./shortcut-icon-picker";
 
 interface RuntimeSettingsAgentRowModel {
 	id: RuntimeAgentId;
@@ -232,15 +225,6 @@ function readBooleanTaskDefault(key: LocalStorageKey, fallback: boolean): boolea
 function readTaskAutoReviewModeDefault(): RuntimeTaskAutoReviewMode {
 	const stored = readLocalStorageItem(LocalStorageKey.TaskAutoReviewMode);
 	return stored === "pr" ? "pr" : "commit";
-}
-
-function getShortcutIconOption(icon: string | undefined): RuntimeShortcutIconOption {
-	return getRuntimeShortcutPickerOption(icon);
-}
-
-function ShortcutIconComponent({ icon, size = 14 }: { icon: string | undefined; size?: number }): React.ReactElement {
-	const Component = getRuntimeShortcutIconComponent(icon);
-	return <Component size={size} />;
 }
 
 function AgentRow({
@@ -354,64 +338,6 @@ function InlineUtilityButton({
 		>
 			{text}
 		</Button>
-	);
-}
-
-function ShortcutIconPicker({
-	value,
-	onSelect,
-}: {
-	value: string | undefined;
-	onSelect: (icon: RuntimeShortcutPickerIconId) => void;
-}): React.ReactElement {
-	const [open, setOpen] = useState(false);
-	const selectedOption = getShortcutIconOption(value);
-
-	return (
-		<RadixPopover.Root open={open} onOpenChange={setOpen}>
-			<RadixPopover.Trigger asChild>
-				<button
-					type="button"
-					aria-label={`Shortcut icon: ${selectedOption.label}`}
-					className="inline-flex items-center gap-1 h-7 px-1.5 rounded-md border border-border bg-surface-2 text-text-primary hover:bg-surface-3"
-				>
-					<ShortcutIconComponent icon={value} size={14} />
-					<ChevronDown size={12} />
-				</button>
-			</RadixPopover.Trigger>
-			<RadixPopover.Portal>
-				<RadixPopover.Content
-					side="bottom"
-					align="start"
-					sideOffset={4}
-					className="z-50 rounded-md border border-border bg-surface-2 p-1 shadow-lg"
-					style={{ animation: "kb-tooltip-show 100ms ease" }}
-				>
-					<div className="flex gap-0.5">
-						{RUNTIME_SHORTCUT_ICON_OPTIONS.map((option) => {
-							const IconComponent = getRuntimeShortcutIconComponent(option.value);
-							return (
-								<button
-									key={option.value}
-									type="button"
-									aria-label={option.label}
-									className={cn(
-										"p-1.5 rounded hover:bg-surface-3",
-										selectedOption.value === option.value && "bg-surface-3",
-									)}
-									onClick={() => {
-										onSelect(option.value);
-										setOpen(false);
-									}}
-								>
-									<IconComponent size={14} />
-								</button>
-							);
-						})}
-					</div>
-				</RadixPopover.Content>
-			</RadixPopover.Portal>
-		</RadixPopover.Root>
 	);
 }
 
