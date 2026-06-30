@@ -48,16 +48,13 @@ import {
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
+import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS, planContextBudget } from "./nklein-context-budget-plan";
 import {
 	buildContextBudgetBreakdown,
 	estimateKanbanToolSchemaTokens,
 	estimateNextPromptTokens,
 } from "./nklein-context-budget-tokens";
-import { buildKanbanContextSafetyBudgets } from "./nklein-context-budgets";
-import {
-	compactKanbanMessagesForContextTarget,
-	countKanbanPersistedMessagesTokens,
-} from "./nklein-context-focus-policy";
+import { countKanbanPersistedMessagesTokens } from "./nklein-context-focus-policy";
 import {
 	compactPersistedMessagesForContextOverflow,
 	isContextOverflowError,
@@ -160,7 +157,6 @@ const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
 	"You ended your turn without calling `submit_review`, so no review was recorded. Your verdict is delivered ONLY by that tool. Call `submit_review` now: `approve`, or `request_changes` with concrete, actionable feedback. Do not answer in prose.";
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
 const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
-const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 
 interface NKleinTaskTimeoutSettings {
@@ -1219,59 +1215,45 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		images?: RuntimeTaskImage[];
 		contextWindow: number;
 	}): NKleinSdkPersistedMessage[] | undefined {
-		const messages = input.messages ?? [];
-		const nextPromptTokens = estimateNextPromptTokens(input.prompt, input.images);
-		const originalHistoryTokens = countKanbanPersistedMessagesTokens(messages);
-		const originalProjectedTokens = originalHistoryTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
-		const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
-		const historyTargetTokens = Math.max(
-			1,
-			Math.min(
-				budgets.safeWorkingBudget ?? input.contextWindow,
-				input.contextWindow - nextPromptTokens - CONTEXT_BUDGET_SEND_RESERVE_TOKENS,
-			),
-		);
-		const compactedMessages =
-			messages.length > 0
-				? (compactKanbanMessagesForContextTarget(messages, historyTargetTokens) ?? messages)
-				: messages;
-		const compactedHistoryTokens = countKanbanPersistedMessagesTokens(compactedMessages);
-		const projectedTokens = compactedHistoryTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
-		if (projectedTokens > input.contextWindow) {
-			const promptOnlyProjectedTokens = nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
-			const promptAloneOverflows = promptOnlyProjectedTokens > input.contextWindow;
+		const plan = planContextBudget({
+			messages: input.messages,
+			prompt: input.prompt,
+			images: input.images,
+			contextWindow: input.contextWindow,
+		});
+		if (plan.outcome === "blocked") {
 			this.recordContextBudgetGuard({
 				taskId: input.taskId,
 				action: "blocked",
 				contextWindow: input.contextWindow,
-				originalProjectedTokens,
-				projectedTokens,
-				originalHistoryTokens,
-				compactedHistoryTokens,
-				nextPromptTokens,
+				originalProjectedTokens: plan.originalProjectedTokens,
+				projectedTokens: plan.projectedTokens,
+				originalHistoryTokens: plan.originalHistoryTokens,
+				compactedHistoryTokens: plan.compactedHistoryTokens,
+				nextPromptTokens: plan.nextPromptTokens,
 			});
-			if (promptAloneOverflows) {
+			if (plan.promptAloneOverflows) {
 				throw new Error(
-					`Your message (~${nextPromptTokens.toLocaleString()} tokens) is larger than this model's ~${input.contextWindow.toLocaleString()} token working budget after reserving ${CONTEXT_BUDGET_SEND_RESERVE_TOKENS.toLocaleString()} tokens for the response. Shorten the message, ask !Klein to summarize pasted content first, or pick a larger-window local model.`,
+					`Your message (~${plan.nextPromptTokens.toLocaleString()} tokens) is larger than this model's ~${input.contextWindow.toLocaleString()} token working budget after reserving ${CONTEXT_BUDGET_SEND_RESERVE_TOKENS.toLocaleString()} tokens for the response. Shorten the message, ask !Klein to summarize pasted content first, or pick a larger-window local model.`,
 				);
 			}
 			throw new Error(
-				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after !Klein compaction (~${projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
+				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after !Klein compaction (~${plan.projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
 			);
 		}
-		if (compactedMessages !== messages || originalProjectedTokens > input.contextWindow) {
+		if (plan.outcome === "compacted") {
 			this.recordContextBudgetGuard({
 				taskId: input.taskId,
 				action: "compacted",
 				contextWindow: input.contextWindow,
-				originalProjectedTokens,
-				projectedTokens,
-				originalHistoryTokens,
-				compactedHistoryTokens,
-				nextPromptTokens,
+				originalProjectedTokens: plan.originalProjectedTokens,
+				projectedTokens: plan.projectedTokens,
+				originalHistoryTokens: plan.originalHistoryTokens,
+				compactedHistoryTokens: plan.compactedHistoryTokens,
+				nextPromptTokens: plan.nextPromptTokens,
 			});
 		}
-		return compactedMessages.length > 0 ? compactedMessages : undefined;
+		return plan.compactedMessages.length > 0 ? plan.compactedMessages : undefined;
 	}
 
 	private async maybeCompactBeforeContextOverflow(input: {
