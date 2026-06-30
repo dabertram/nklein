@@ -32,6 +32,13 @@ import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy"
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
+import {
+	hasOauthAccessToken,
+	hasOauthRefreshToken,
+	normalizeEpochMs,
+	resolveVisibleApiKey,
+	toResponseExpirySeconds,
+} from "./nklein-provider-credential-helpers";
 import { buildDiscoveredModelSourceUrls, normalizeLmStudioModelListBaseUrl } from "./nklein-provider-discovery-urls";
 import {
 	extractDiscoveredModelsFromPayload,
@@ -200,28 +207,6 @@ function formatManagedProviderDisplayName(providerId: ManagedNKleinOauthProvider
 	return "OpenAI Codex";
 }
 
-function normalizeEpochMs(expiresAt: number | null | undefined): number {
-	if (!expiresAt || !Number.isFinite(expiresAt) || expiresAt <= 0) {
-		return Date.now() - 1;
-	}
-	if (expiresAt >= 1_000_000_000_000) {
-		return Math.floor(expiresAt);
-	}
-	return Math.floor(expiresAt * 1000);
-}
-
-function toResponseExpirySeconds(expiresAt: number | null | undefined): number | null {
-	if (!expiresAt || !Number.isFinite(expiresAt) || expiresAt <= 0) {
-		return null;
-	}
-	return Math.max(1, Math.floor(normalizeEpochMs(expiresAt) / 1000));
-}
-
-function resolveVisibleApiKey(settings: SdkProviderSettings | null): string | null {
-	const apiKey = settings?.apiKey?.trim() || settings?.auth?.apiKey?.trim() || "";
-	return apiKey.length > 0 ? apiKey : null;
-}
-
 function readEnvApiKey(envKey: string): string | null {
 	const apiKey = process.env[envKey]?.trim() ?? "";
 	return apiKey.length > 0 ? apiKey : null;
@@ -260,14 +245,6 @@ function resolveManagedProviderLaunchApiKey(input: {
 	throw new Error(
 		`${formatManagedProviderDisplayName(input.providerId)} provider is selected but no ${formatManagedProviderDisplayName(input.providerId)} credentials are configured. Sign in from Settings${envHelp} before starting a native !Klein task.`,
 	);
-}
-
-function hasOauthAccessToken(settings: SdkProviderSettings | null): boolean {
-	return (settings?.auth?.accessToken?.trim() ?? "").length > 0;
-}
-
-function hasOauthRefreshToken(settings: SdkProviderSettings | null): boolean {
-	return (settings?.auth?.refreshToken?.trim() ?? "").length > 0;
 }
 
 function logLiteLlmModelListWarning(message: string, metadata?: Record<string, unknown>): void {
