@@ -128,7 +128,8 @@ import {
 	formatTaskTimeoutMessage,
 	formatTaskTimeoutReason,
 } from "./nklein-task-timeout-diagnostics";
-import { type NKleinTaskTimeoutKind, TaskTimeoutHandles } from "./nklein-task-timeout-handles";
+import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
+import { TaskTimeoutScheduler } from "./nklein-task-timeout-scheduler";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
 import {
 	createNKleinWatcherRegistry,
@@ -160,7 +161,6 @@ const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
 const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
-const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 
 interface NKleinTaskTimeoutSettings {
@@ -354,7 +354,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly pendingTimeout = new TaskPendingTimeoutStore();
 	private readonly autonomyBudgetWatchdog: AutonomyBudgetWatchdog;
 	private readonly timeoutSettingsByTaskId = new Map<string, NKleinTaskTimeoutSettings>();
-	private readonly timeoutHandles = new TaskTimeoutHandles();
+	private readonly timeoutScheduler = new TaskTimeoutScheduler();
 	private readonly explicitDecompositionTaskIds = new Set<string>();
 	private readonly decompositionStallNudger: DecompositionStallNudger;
 	private readonly repeatedToolCallGuard: RepeatedToolCallGuard;
@@ -855,11 +855,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private clearTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind): void {
-		this.timeoutHandles.clearKind(taskId, kind);
+		this.timeoutScheduler.clearKind(taskId, kind);
 	}
 
 	private clearTaskTimeouts(taskId: string): void {
-		this.timeoutHandles.clearAll(taskId);
+		this.timeoutScheduler.clearAll(taskId);
 		this.activeToolTaskIds.delete(taskId);
 	}
 
@@ -882,22 +882,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private scheduleTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind, timeoutMs: number | null): void {
-		this.clearTaskTimeout(taskId, kind);
-		if (timeoutMs === null || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-			return;
-		}
-		const deadline = Date.now() + timeoutMs;
-		const scheduleRemaining = (): void => {
-			const remainingMs = deadline - Date.now();
-			if (remainingMs <= 0) {
-				void this.handleTaskTimeout(taskId, kind, timeoutMs);
-				return;
-			}
-			const handle = setTimeout(scheduleRemaining, Math.min(remainingMs, MAX_NODE_TIMER_DELAY_MS));
-			handle.unref();
-			this.timeoutHandles.set(taskId, kind, handle);
-		};
-		scheduleRemaining();
+		this.timeoutScheduler.schedule(taskId, kind, timeoutMs, (firedTimeoutMs) => {
+			void this.handleTaskTimeout(taskId, kind, firedTimeoutMs);
+		});
 	}
 
 	private scheduleStreamTimeout(taskId: string): void {
@@ -2558,7 +2545,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async dispose(): Promise<void> {
-		for (const taskId of this.timeoutHandles.taskIds()) {
+		for (const taskId of this.timeoutScheduler.taskIds()) {
 			this.clearTaskTimeouts(taskId);
 		}
 		this.decompositionStallNudger.dispose();
