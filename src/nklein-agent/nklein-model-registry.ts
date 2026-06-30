@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
+import { normalizePositiveNumber } from "../core/normalize-number";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import { asRecord } from "./nklein-value-guards";
@@ -363,13 +364,6 @@ function normalizeConstraints(
 		outputCostPerMillionTokens: normalizePositiveNumber(record?.outputCostPerMillionTokens),
 		maxConcurrentRequests: normalizePositiveInteger(record?.maxConcurrentRequests) ?? fallback.maxConcurrentRequests,
 	};
-}
-
-function normalizePositiveNumber(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-		return null;
-	}
-	return value;
 }
 
 function normalizeScoreLikeNumber(value: unknown): number | null {

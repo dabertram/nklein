@@ -336,9 +336,7 @@ export function normalizeNonNegativeInteger(value: unknown, fallback: number): n
 	return normalized >= 0 ? normalized : fallback;
 }
 
-export function normalizePositiveNumber(value: unknown, fallback: number): number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
-}
+export { normalizePositiveNumber } from "../core/normalize-number";
 
 export function normalizeLostHeartbeatPolicy(value: unknown): RuntimeLostHeartbeatPolicy {
 	return value === "keep_running" ? "keep_running" : DEFAULT_LOST_HEARTBEAT_POLICY;

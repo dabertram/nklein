@@ -1,4 +1,5 @@
 import { countTokens } from "gpt-tokenizer";
+import { normalizePositiveNumber } from "../core/normalize-number";
 
 const DEFAULT_FILE_CHUNK_TOKEN_BUDGET = 12_000;
 const READ_FILES_TOOL_RESULT_OVERHEAD_TOKENS = 1_000;
@@ -96,10 +97,6 @@ export function countKanbanTextTokens(text: string): number {
 	// Beyond the cap, the count is a budget estimate: extrapolate from the (bounded-cost) prefix by character ratio.
 	const sampleTokens = countTokensChunked(text.slice(0, MAX_TOKENIZE_CHARS));
 	return Math.ceil((sampleTokens / MAX_TOKENIZE_CHARS) * text.length);
-}
-
-function normalizePositiveNumber(value: number | null | undefined): number | null {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
 
 export function buildKanbanContextSafetyBudgets(contextWindowInput?: number | null): KanbanContextSafetyBudgets {
