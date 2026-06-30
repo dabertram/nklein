@@ -4775,6 +4775,18 @@ source repo went private — so if it vanishes the buildable source still lives 
   - [ ] Test with small models (ensures they can't own global transitions)
 
 ### 5.AB — Automatic role→model selection + a model-evaluation harness *(2026-06-26, user — ACTIVE)*
+> **★ NORTH-STAR REFINEMENT (user, 2026-07-01) — the unifying goal for §5.AB + §5.AL + §5.AE + §5.AF + §5.AC:**
+> NO manual role→model assignment (the user's `modelRoles` config was early-testing, now deprecated — "forget my
+> config"). Each card AUTO-gets the best-fit **model + dynamic skill set**, decided by !Klein from (1) runtime empirical
+> data it collects itself (§5.AF ledger), (2) the prepared model catalog (§5.AL), (3) USER-TRIGGERED online research run
+> by a best-fit available model (§5.AL/§5.AC). The "classic roles" survive only as a **workflow STAGE signal**
+> (decompose=reasoning / implement=coder / review=judgment) that the selector READS — NOT as a manual mapping; "role"
+> becomes emergent from the card's nature (stage + content + difficulty). **Make auto-selection the DEFAULT** (pick
+> best-fit per card from the loaded/available set; manual override optional) — today a role still REQUIRES a model
+> assignment, which is the gap. Then add per-card difficulty/skill INFERENCE, the online-research trigger, and §5.AE
+> skill-set attachment. Mostly CONVERGENCE of built spine (`blendCapabilityWithLedgerEvidence` read→route loop is closed;
+> `selectModelForTask`/`routeNKleinTask`; the §5.AL catalog; cross-machine fan-out validated 2026-07-01), not greenfield.
+> See memory `auto-model-selection-vision`. ▼ The original 2026-06-26 vision (role/task evaluation harness) stands as the mechanism:
 > **Vision (user, 2026-06-26):** !Klein should AUTOMATICALLY pick the best model per **role** and per **task** by
 > EVALUATING each connected model against a prepared set of role-specific prompts spanning complexity / difficulty /
 > size, learning a **quality × speed** fitness, then assigning each task to the best *available* model — **balancing
