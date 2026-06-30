@@ -1,11 +1,11 @@
 import { createDefaultExecutors, type ToolExecutors } from "@nklein/core";
-import type { AgentToolContext } from "@nklein/shared";
 import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "../nklein-agent-sandbox-extra-tools";
 import { createEditFileTool } from "../nklein-edit-file-tool";
 import { createFileDiscoveryTools } from "../nklein-file-discovery-tools";
 import { createReadLargeFileTool } from "../nklein-large-file-workflow";
 import { createNKleinRetrievalTools } from "../nklein-retrieval-tools";
 import { createWriteFilesTool, createWriteFileTool } from "../nklein-write-files-tool";
+import type { AgentToolContext } from "../sdk-agent-types";
 import { normalizeHostPathInputs, normalizeSandboxBashInput } from "./path-normalization";
 
 type SandboxBashInput = Parameters<NonNullable<ToolExecutors["bash"]>>[0];

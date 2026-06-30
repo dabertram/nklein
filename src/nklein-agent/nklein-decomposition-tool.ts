@@ -1,4 +1,3 @@
-import type { AgentTool } from "@nklein/shared";
 import type {
 	RuntimeBoardCard,
 	RuntimeBoardData,
@@ -15,6 +14,7 @@ import {
 } from "./nklein-plan-artifacts";
 import type { NKleinTaskRoutingCandidate } from "./nklein-task-router";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
+import type { AgentTool } from "./sdk-agent-types";
 
 export {
 	applyDecomposeProjectArtifactsToWorkspace,

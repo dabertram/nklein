@@ -4,13 +4,6 @@ import { asRecord } from "./nklein-value-guards";
 // stopping native NKlein sessions without exposing SDK details upstream.
 
 import type { ToolExecutors } from "@nklein/core";
-import type {
-	AgentAfterToolContext,
-	AgentBeforeModelContext,
-	AgentBeforeModelResult,
-	AgentMessage,
-	AgentTool,
-} from "@nklein/shared";
 import {
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 	type RuntimeNKleinReasoningEffort,
@@ -61,6 +54,13 @@ import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
+import type {
+	AgentAfterToolContext,
+	AgentBeforeModelContext,
+	AgentBeforeModelResult,
+	AgentMessage,
+	AgentTool,
+} from "./sdk-agent-types";
 import { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 import {
 	createNKleinSdkSessionHost,

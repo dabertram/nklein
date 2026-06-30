@@ -1,6 +1,6 @@
-import type { AgentTool } from "@nklein/shared";
 import { z } from "zod";
 import type { ReviewVerdict } from "../core/review-loop";
+import type { AgentTool } from "./sdk-agent-types";
 
 /**
  * `submit_review` — the reviewer role's structured output, mirroring how `decompose_project` is the architect's

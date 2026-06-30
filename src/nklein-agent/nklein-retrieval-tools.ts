@@ -1,7 +1,7 @@
-import type { AgentTool } from "@nklein/shared";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { searchNKleinCode } from "./nklein-code-search";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
+import type { AgentTool } from "./sdk-agent-types";
 
 const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1_200;
 const MAX_REPO_MAP_TOKEN_BUDGET = 12_000;

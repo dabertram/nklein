@@ -1,8 +1,7 @@
-import type { AgentMessage } from "@nklein/shared";
 import { describe, expect, it } from "vitest";
-
 import type { FocusChain } from "../../../src/core/focus-chain";
 import { FOCUS_CHAIN_RAIL_KIND, reanchorFocusChainMessages } from "../../../src/nklein-agent/nklein-focus-chain-rail";
+import type { AgentMessage } from "../../../src/nklein-agent/sdk-agent-types";
 
 function userMessage(text: string, kind?: string): AgentMessage {
 	return {

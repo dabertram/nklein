@@ -8,8 +8,8 @@
  * re-anchoring logic is unit-testable without booting the session runtime.
  */
 
-import type { AgentMessage } from "@nklein/shared";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
+import type { AgentMessage } from "./sdk-agent-types";
 
 /** Marks a message as the injected focus-chain rail so it can be replaced (never stacked) each turn. */
 export const FOCUS_CHAIN_RAIL_KIND = "kanban_focus_chain_rail";

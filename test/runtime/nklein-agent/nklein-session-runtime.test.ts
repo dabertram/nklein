@@ -1,14 +1,18 @@
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult, AgentTool } from "@nklein/shared";
 import { describe, expect, it, vi } from "vitest";
-
 import {
 	createInMemoryNKleinSessionRuntime,
 	doesNKleinToolInvalidateRepoMap,
 	readKanbanLaunchConfigFromSessionRecord,
 } from "../../../src/nklein-agent/nklein-session-runtime";
+import type {
+	AgentAfterToolContext,
+	AgentBeforeModelContext,
+	AgentBeforeModelResult,
+	AgentTool,
+} from "../../../src/nklein-agent/sdk-agent-types";
 import type {
 	NKleinSdkSessionRecord,
 	NKleinSdkStartSessionInput,

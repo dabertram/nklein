@@ -1,11 +1,9 @@
 import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-import type { AgentAfterModelContext, AgentBeforeModelContext } from "@nklein/shared";
 import { afterEach, describe, expect, it } from "vitest";
-
 import { NKleinLargeFileWorkflow } from "../../../src/nklein-agent/nklein-large-file-workflow";
+import type { AgentAfterModelContext, AgentBeforeModelContext } from "../../../src/nklein-agent/sdk-agent-types";
 
 const TEMP_PREFIX = "kanban-large-file-workflow-";
 

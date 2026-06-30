@@ -1,7 +1,6 @@
-import type { AgentAfterModelContext } from "@nklein/shared";
 import { describe, expect, it } from "vitest";
-
 import { reviewNKleinAfterModelCompletion } from "../../../src/nklein-agent/nklein-self-review-hook";
+import type { AgentAfterModelContext } from "../../../src/nklein-agent/sdk-agent-types";
 
 function createAfterModelContext(text: string): AgentAfterModelContext {
 	return {

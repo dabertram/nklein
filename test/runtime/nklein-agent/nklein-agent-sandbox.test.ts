@@ -1,5 +1,4 @@
 import type { execFile } from "node:child_process";
-import type { AgentToolContext } from "@nklein/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createHomeAgentSessionId } from "../../../src/core/home-agent-session";
 import {
@@ -21,6 +20,7 @@ import {
 	resolveNKleinAgentPerceivedCwd,
 } from "../../../src/nklein-agent/nklein-agent-sandbox";
 import { NKleinPauseController } from "../../../src/nklein-agent/nklein-pause-controller";
+import type { AgentToolContext } from "../../../src/nklein-agent/sdk-agent-types";
 import { resolveNKleinSdkSystemPrompt } from "../../../src/nklein-agent/sdk-runtime-boundary";
 
 interface ExecFileStubOptions {

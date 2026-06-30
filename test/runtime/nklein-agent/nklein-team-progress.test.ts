@@ -1,5 +1,5 @@
-import { TeamMessageType } from "@nklein/shared";
 import { describe, expect, it } from "vitest";
+import { TeamMessageType } from "../../../src/nklein-agent/nklein-team-message-type";
 
 import { projectNKleinTeamProgressEvent } from "../../../src/nklein-agent/nklein-team-progress";
 import type { NKleinSdkTeamEvent } from "../../../src/nklein-agent/sdk-runtime-boundary";

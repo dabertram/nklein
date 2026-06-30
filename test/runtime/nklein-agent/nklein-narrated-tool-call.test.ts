@@ -1,12 +1,11 @@
-import type { AgentMessage, AgentMessagePart } from "@nklein/shared";
 import { describe, expect, it } from "vitest";
-
 import {
 	parseNarratedToolCalls,
 	parseToolValidatedNarration,
 	recoverNarratedToolCalls,
 	stripNarratedToolCallMarkup,
 } from "../../../src/nklein-agent/nklein-narrated-tool-call";
+import type { AgentMessage, AgentMessagePart } from "../../../src/nklein-agent/sdk-agent-types";
 
 function message(...content: AgentMessagePart[]): AgentMessage {
 	return { id: "m1", role: "assistant", content, createdAt: 0 };

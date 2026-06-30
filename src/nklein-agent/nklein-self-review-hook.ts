@@ -1,4 +1,4 @@
-import type { AgentAfterModelContext, AgentMessage, AgentStopControl } from "@nklein/shared";
+import type { AgentAfterModelContext, AgentMessage, AgentStopControl } from "./sdk-agent-types";
 
 const UNFINISHED_PATTERNS = [
 	/\bnot implemented\b/i,

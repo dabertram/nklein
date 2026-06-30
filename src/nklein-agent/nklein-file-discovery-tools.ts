@@ -1,8 +1,8 @@
 import { lstat, readdir, readFile } from "node:fs/promises";
 import { basename, extname, isAbsolute, relative, resolve, sep } from "node:path";
-import type { AgentTool } from "@nklein/shared";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import { isLargeFileForWorkflow } from "./nklein-large-file-workflow";
+import type { AgentTool } from "./sdk-agent-types";
 
 const DEFAULT_MAX_RESULTS = 200;
 const MAX_RESULTS_LIMIT = 1_000;

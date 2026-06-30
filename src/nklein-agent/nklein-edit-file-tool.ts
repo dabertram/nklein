@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import type { AgentTool } from "@nklein/shared";
 import {
 	countTextLines,
 	findPotentialSecretInText,
@@ -11,6 +10,7 @@ import { lockedFileSystem } from "../fs/locked-file-system";
 import { applySearchReplaceBlocks, type SearchReplaceBlock } from "./nklein-fuzzy-edit";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
 import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
+import type { AgentTool } from "./sdk-agent-types";
 
 /**
  * `edit_file` — a token-efficient, lenient search/replace edit tool for small/quantized local models.

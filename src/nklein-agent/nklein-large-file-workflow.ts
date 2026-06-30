@@ -1,14 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type {
-	AgentAfterModelContext,
-	AgentBeforeModelContext,
-	AgentBeforeModelResult,
-	AgentMessage,
-	AgentTool,
-	AgentToolDefinition,
-} from "@nklein/shared";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath } from "../state/workspace-state";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
@@ -21,6 +13,14 @@ import {
 	mergeRanges,
 } from "./nklein-large-file-line-ranges";
 import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
+import type {
+	AgentAfterModelContext,
+	AgentBeforeModelContext,
+	AgentBeforeModelResult,
+	AgentMessage,
+	AgentTool,
+	AgentToolDefinition,
+} from "./sdk-agent-types";
 
 const STITCH_CONTEXT_LINES = 20;
 const READ_LARGE_FILE_TOOL_NAME = "read_large_file";

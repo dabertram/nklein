@@ -1,6 +1,6 @@
-import type { AgentTool } from "@nklein/shared";
 import { z } from "zod";
 import { type FocusChain, normalizeFocusChain, summarizeFocusChain } from "../core/focus-chain";
+import type { AgentTool } from "./sdk-agent-types";
 
 /**
  * `update_focus_chain` — an agent's self-directed task checklist tool (todo §5.N). The agent calls it once at

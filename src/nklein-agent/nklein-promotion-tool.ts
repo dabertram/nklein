@@ -1,7 +1,7 @@
-import type { AgentTool } from "@nklein/shared";
 import type { RuntimeBoardColumnId } from "../core/api-contract";
 import { findBoardCardWithColumn, moveTaskToColumn } from "../core/task-board-mutations";
 import { mutateWorkspaceState } from "../state/workspace-state";
+import type { AgentTool } from "./sdk-agent-types";
 
 /**
  * The Planning/Refinement → In Progress promotion tool (todo §5.B).

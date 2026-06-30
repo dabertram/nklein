@@ -1,14 +1,13 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentToolContext } from "@nklein/shared";
 import { afterEach, describe, expect, it } from "vitest";
-
 import {
 	createWriteFilesTool,
 	createWriteFileTool,
 	parseWriteFilesRequests,
 } from "../../../src/nklein-agent/nklein-write-files-tool";
+import type { AgentToolContext } from "../../../src/nklein-agent/sdk-agent-types";
 
 const TEMP_PREFIX = "kanban-write-files-tool-";
 const TOOL_CONTEXT: AgentToolContext = {

@@ -1,5 +1,5 @@
-import type { AgentTool } from "@nklein/shared";
 import { withTransientRetry } from "../core/transient-error";
+import type { AgentTool } from "./sdk-agent-types";
 
 const DEFAULT_ALLOWED_DOMAINS = [
 	"docs.nklein.bot",

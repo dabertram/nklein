@@ -1,4 +1,3 @@
-import type { AgentToolContext } from "@nklein/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	resolveShellExecution,
@@ -13,6 +12,7 @@ import {
 	AGENT_SANDBOX_EXTRA_TOOL_RUNNER,
 	createAgentSandboxExtraTools,
 } from "../../../src/nklein-agent/nklein-agent-sandbox-extra-tools";
+import type { AgentToolContext } from "../../../src/nklein-agent/sdk-agent-types";
 
 const childProcessMocks = vi.hoisted(() => ({
 	execFile: vi.fn(() => {

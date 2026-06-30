@@ -26,9 +26,9 @@
  * Bare JSON without a marker is left untouched (it is too easily a legitimate answer).
  */
 
-import type { AgentMessage, AgentToolCallPart } from "@nklein/shared";
 import { repairJsonStringValue, repairJsonValue } from "./nklein-tool-argument-repair";
 import { extractBalancedParens, parsePythonKwargs } from "./python-call-syntax";
+import type { AgentMessage, AgentToolCallPart } from "./sdk-agent-types";
 
 export interface NarratedToolCall {
 	toolName: string;

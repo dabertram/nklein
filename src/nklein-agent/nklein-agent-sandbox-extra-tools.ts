@@ -1,10 +1,10 @@
-import type { AgentTool } from "@nklein/shared";
 import type { AgentSandboxManager } from "./nklein-agent-sandbox";
 import { createEditFileTool } from "./nklein-edit-file-tool";
 import { createFileDiscoveryTools } from "./nklein-file-discovery-tools";
 import { createReadLargeFileTool, releaseNKleinLargeFileWorkflow } from "./nklein-large-file-workflow";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
+import type { AgentTool } from "./sdk-agent-types";
 
 export const AGENT_SANDBOX_EXTRA_TOOL_RUNNER = "kanbanExtraTool";
 

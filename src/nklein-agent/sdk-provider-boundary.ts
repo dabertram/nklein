@@ -36,7 +36,7 @@ import {
 	completeNKleinDeviceAuth as sdkCompleteNKleinDeviceAuth,
 	startNKleinDeviceAuth as sdkStartNKleinDeviceAuth,
 } from "@nklein/core";
-import type { AgentTool } from "@nklein/shared";
+import type { AgentTool } from "./sdk-agent-types";
 
 export type ManagedNKleinOauthProviderId = "nklein" | "oca" | "openai-codex";
 export type SdkReasoningEffort = NonNullable<NonNullable<ProviderSettings["reasoning"]>["effort"]>;

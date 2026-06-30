@@ -1,4 +1,3 @@
-import type { AgentTool } from "@nklein/shared";
 import {
 	countTextLines,
 	findPotentialSecretInText,
@@ -9,6 +8,7 @@ import {
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
 import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
+import type { AgentTool } from "./sdk-agent-types";
 
 export interface WriteFilesRequest {
 	path: string;

@@ -1,10 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentToolContext } from "@nklein/shared";
 import { afterEach, describe, expect, it } from "vitest";
-
 import { createFileDiscoveryTools } from "../../../src/nklein-agent/nklein-file-discovery-tools";
+import type { AgentToolContext } from "../../../src/nklein-agent/sdk-agent-types";
 
 const TEMP_PREFIX = "kanban-file-discovery-tools-";
 const TOOL_CONTEXT: AgentToolContext = {
