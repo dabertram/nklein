@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
-import ts from "typescript";
 import { countKanbanTextTokens } from "./nklein-context-budgets";
+import { createSymbol, extractAstSourceFacts } from "./nklein-repo-map-ast";
 import { addWeightedEdge, buildPersonalizationVector, calculatePageRank } from "./pagerank";
 
 const DEFAULT_MAX_FILES = 1_000;
@@ -125,123 +125,6 @@ async function listSourceFiles(rootPath: string, maxFiles: number): Promise<stri
 	}
 	await visit(rootPath);
 	return results;
-}
-
-function createSymbol(
-	path: string,
-	content: string,
-	name: string,
-	kind: string,
-	position: number,
-): NKleinRepoMapSymbol {
-	return {
-		name,
-		kind,
-		path,
-		line: content.slice(0, position).split("\n").length,
-		referenceCount: 0,
-		rankScore: 0,
-	};
-}
-
-function getDeclarationName(node: ts.Node): ts.Identifier | null {
-	if (
-		(ts.isFunctionDeclaration(node) ||
-			ts.isClassDeclaration(node) ||
-			ts.isInterfaceDeclaration(node) ||
-			ts.isTypeAliasDeclaration(node) ||
-			ts.isEnumDeclaration(node)) &&
-		node.name
-	) {
-		return node.name;
-	}
-	return null;
-}
-
-function getDeclarationKind(node: ts.Node, name: string): string {
-	if (ts.isFunctionDeclaration(node)) {
-		return name.startsWith("use") && /^use[A-Z]/.test(name) ? "hook" : "function";
-	}
-	if (ts.isClassDeclaration(node)) {
-		return "class";
-	}
-	if (ts.isInterfaceDeclaration(node)) {
-		return "interface";
-	}
-	if (ts.isTypeAliasDeclaration(node)) {
-		return "type";
-	}
-	if (ts.isEnumDeclaration(node)) {
-		return "enum";
-	}
-	return "symbol";
-}
-
-function readImportNames(clause: ts.ImportClause | undefined): string[] {
-	if (!clause) {
-		return [];
-	}
-	const names: string[] = [];
-	if (clause.name) {
-		names.push(clause.name.text);
-	}
-	if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
-		for (const element of clause.namedBindings.elements) {
-			names.push((element.propertyName ?? element.name).text);
-		}
-	}
-	return names;
-}
-
-function extractAstSourceFacts(path: string, content: string): Pick<SourceFile, "identifiers" | "imports" | "symbols"> {
-	const sourceKind =
-		getExtension(path) === ".tsx" || getExtension(path) === ".jsx" ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-	const sourceFile = ts.createSourceFile(path, content, ts.ScriptTarget.Latest, true, sourceKind);
-	const identifiers: string[] = [];
-	const imports: SourceImport[] = [];
-	const symbols: NKleinRepoMapSymbol[] = [];
-	const visit = (node: ts.Node): void => {
-		if (ts.isIdentifier(node)) {
-			identifiers.push(node.text);
-		}
-		if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-			imports.push({
-				modulePath: node.moduleSpecifier.text,
-				importedNames: readImportNames(node.importClause),
-			});
-		}
-		const declarationName = getDeclarationName(node);
-		if (declarationName) {
-			symbols.push(
-				createSymbol(
-					path,
-					content,
-					declarationName.text,
-					getDeclarationKind(node, declarationName.text),
-					declarationName.getStart(sourceFile),
-				),
-			);
-		}
-		if (ts.isVariableStatement(node)) {
-			for (const declaration of node.declarationList.declarations) {
-				if (ts.isIdentifier(declaration.name)) {
-					const name = declaration.name.text;
-					symbols.push(
-						createSymbol(
-							path,
-							content,
-							name,
-							name.startsWith("use") && /^use[A-Z]/.test(name) ? "hook" : "const",
-							declaration.name.getStart(sourceFile),
-						),
-					);
-				}
-			}
-		}
-		ts.forEachChild(node, visit);
-	};
-	visit(sourceFile);
-	return { identifiers, imports, symbols };
 }
 
 function extractRegexSymbolsFromContent(path: string, content: string): NKleinRepoMapSymbol[] {
