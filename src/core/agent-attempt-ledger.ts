@@ -24,6 +24,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { ModelOutcomeKind } from "./model-behavior-profile";
+import { meanOrNull, medianOrNull } from "./number-stats";
 
 /** The classified model outcomes, as a zod enum kept in lock-step with `ModelOutcomeKind` (the typed-const guard below). */
 const modelOutcomeKindSchema = z.enum([
@@ -531,19 +532,6 @@ export interface ModelSpeedRollup {
 }
 
 /** Mean of a non-empty numeric list, or null when empty. */
-function meanOrNull(values: readonly number[]): number | null {
-	return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-}
-
-/** Median of a numeric list (lower-of-two for even counts), or null when empty. */
-function medianOrNull(values: readonly number[]): number | null {
-	if (values.length === 0) {
-		return null;
-	}
-	const sorted = [...values].sort((a, b) => a - b);
-	return sorted[Math.floor((sorted.length - 1) / 2)] ?? null;
-}
-
 /**
  * Roll up per-model SPEED from the ledger's attempt records (todo §5.AF — a pure projection over the same one stream,
  * not a parallel store). Uses the `ttftMs` + `tokensPerSec` the terminal writer computes; only attempts that carried a
