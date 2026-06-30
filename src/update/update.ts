@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { readEnvWithLegacyFallback } from "../config/legacy-env";
+import { extractDirectoryForSegmentPattern, extractDirectoryForSegmentSequence } from "./update-install-paths";
 import { compareVersions, getNpmTag } from "./update-version";
 
 export enum UpdatePackageManager {
@@ -133,10 +134,6 @@ function toPosixLowerPath(path: string): string {
 	return path.replaceAll("\\", "/").toLowerCase();
 }
 
-function toPosixPath(path: string): string {
-	return path.replaceAll("\\", "/");
-}
-
 function isPathInside(targetPath: string, containerPath: string): boolean {
 	const normalizedTarget = toPosixLowerPath(resolve(targetPath));
 	const normalizedContainer = toPosixLowerPath(resolve(containerPath));
@@ -151,90 +148,6 @@ function buildShutdownCacheRefreshCommand(cacheDirectory: string): UpdateInstall
 		command: process.execPath,
 		args: ["-e", DELETE_DIRECTORY_AFTER_DELAY_SCRIPT, cacheDirectory],
 	};
-}
-
-function splitResolvedPath(path: string): {
-	hasLeadingSlash: boolean;
-	segments: string[];
-	normalizedSegments: string[];
-} {
-	const resolvedPath = toPosixPath(resolve(path));
-	const hasLeadingSlash = resolvedPath.startsWith("/");
-	const segments = resolvedPath.split("/").filter((_segment, index) => !(hasLeadingSlash && index === 0));
-	return {
-		hasLeadingSlash,
-		segments,
-		normalizedSegments: segments.map((segment) => segment.toLowerCase()),
-	};
-}
-
-function buildDirectoryFromSegments(segments: string[], hasLeadingSlash: boolean, endIndex: number): string | null {
-	if (endIndex <= 0 || segments.length < endIndex) {
-		return null;
-	}
-	const directory = segments.slice(0, endIndex).join("/");
-	if (directory.length === 0) {
-		return null;
-	}
-	return hasLeadingSlash ? `/${directory}` : directory;
-}
-
-function findSegmentSequence(segments: string[], sequence: string[]): number {
-	if (sequence.length === 0 || segments.length < sequence.length) {
-		return -1;
-	}
-
-	for (let index = 0; index <= segments.length - sequence.length; index += 1) {
-		let matches = true;
-		for (let offset = 0; offset < sequence.length; offset += 1) {
-			if (segments[index + offset] !== sequence[offset]) {
-				matches = false;
-				break;
-			}
-		}
-		if (matches) {
-			return index;
-		}
-	}
-
-	return -1;
-}
-
-function extractDirectoryForSegmentSequence(
-	entrypointPath: string,
-	sequences: string[][],
-	trailingSegmentCount: number,
-): string | null {
-	const { hasLeadingSlash, segments, normalizedSegments } = splitResolvedPath(entrypointPath);
-
-	for (const sequence of sequences) {
-		const sequenceIndex = findSegmentSequence(normalizedSegments, sequence);
-		if (sequenceIndex < 0) {
-			continue;
-		}
-		const endIndex = sequenceIndex + sequence.length + trailingSegmentCount;
-		const requiredSegments = normalizedSegments.slice(sequenceIndex + sequence.length, endIndex);
-		if (
-			requiredSegments.length !== trailingSegmentCount ||
-			requiredSegments.some(
-				(segment) => segment.length === 0 || segment === "." || segment === ".." || segment === "node_modules",
-			)
-		) {
-			continue;
-		}
-		const directory = buildDirectoryFromSegments(segments, hasLeadingSlash, endIndex);
-		if (directory) {
-			return directory;
-		}
-	}
-
-	return null;
-}
-
-function extractDirectoryForSegmentPattern(entrypointPath: string, pattern: RegExp): string | null {
-	const { hasLeadingSlash, segments, normalizedSegments } = splitResolvedPath(entrypointPath);
-	const matchingIndex = normalizedSegments.findIndex((segment) => pattern.test(segment));
-	return buildDirectoryFromSegments(segments, hasLeadingSlash, matchingIndex + 1);
 }
 
 function looksLikeTransientCachePath(path: string): boolean {
