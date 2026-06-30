@@ -2321,7 +2321,7 @@ deep analysis:
       oversized/multi-purpose files worth decomposing; duplication / missing shared utilities — `model-identity` is the
       template; dead or back-compat-only code; data-flow & hot-path perf; extension points; type-safety gaps; test-coverage
       shape) and capture concrete findings, not vibes. One area per leaf:
-  - [ ] runtime read pass (`src/` — esp. the large `nklein-task-session-service.ts`).
+  - [ ] runtime read pass (`src/` — esp. the large `nklein-task-session-service.ts`). *(2026-06-30 down-payment, behavior-preserving + test-gated: extracted two cohesive PURE clusters off `nklein-task-session-service.ts` — `nklein-context-budget-tokens.ts` (history-token classification + tool-schema estimate, +10 colocated tests) and `nklein-kanban-efficiency-rules.ts` (the ~70-line efficiency-rules prompt builder). 3417 → 3243 lines. The remaining bulk is the InMemoryNKleinTaskSessionService CLASS itself (~2900 lines) — that needs a responsibility split (architectural, decide the collaborator seams), not more helper-nibbling. **Finding:** `toErrorMessage` is duplicated ~8× across modules — a codebase-wide DRY consolidation opportunity (verify identical first).)*
   - [ ] web-ui read pass (`web-ui/src/`).
   - [ ] vendored SDK boundary read pass (`src/nklein-agent/` + `vendor/`).
   - [ ] Python core read pass (`core-py/`).
