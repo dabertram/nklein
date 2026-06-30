@@ -6324,7 +6324,7 @@ deep analysis:
         agent area (the "Thinking…" region), and it did NOT surface a pushed assistant message there — so that area's
         message-rendering condition (vs. the terminal/agent-output view) is the remaining unknown. Next: DOM-inspect the
         card-detail agent region's structure to find where an assistant `task_chat_message` becomes visible text.
-  - [ ] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). *(buildBoardSnapshot exists in runtime-mock.ts; buildMockRuntimeConfig still owed.)*
+  - [x] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). **(2026-06-29) DONE** — both in `runtime-mock.ts`; `buildMockRuntimeConfig()` (complete `runtime.getConfig`, override-able) renders the Settings dialog → unlocked the concurrency-editor + agent-rulesets settings specs. Full e2e now **57** (11 new this round: start/pause/resume/trash/send/chat-stream/board-stream×2/lane-reconcile/concurrency/rulesets).
   - [ ] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
   - [ ] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens).
   - [ ] Create `playwright.smoke.config.ts` with `reuseExistingServer:false` + `--strictPort` on stable module constant port.
