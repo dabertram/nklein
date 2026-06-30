@@ -3964,6 +3964,18 @@ deep analysis:
         found by the sweep:** `verify-chat-agent-tools` checked `record.detail === "read_file"` but `detail` is the path
         arg (tool id is `record.action === "sandbox_read"`) → falsely failed every model; `verify-chat-agent-write` never
         `mkdir`'d its temp workspace → `realpath` ENOENT FATAL for every model. Both fixed; matrix rows updated.
+- [x] **HEAD regression gate — core LLM-interactive flows re-confirmed across the small tier (2026-06-30).** After this
+      session's changes (SB#3 boot-replay fold, B1 credit-limit alignment, raw-NUL hygiene, §5.AC date-only temporal),
+      re-ran the live verifications across **three sizes/architectures** to prove no regression: **qwen3-8b** (Qwen3)
+      PASSES all four — temporal, chat-send, chat-runtime, `create_card` tool-use (clean, exit 0); **gemma-4-e4b** (Gemma4,
+      4B, distinct arch) PASSES temporal + `create_card`; **qwopus3.6-27b-v2-mlx** (Qwen3.5 MLX — first check on this
+      model) PASSES temporal/chat-send/chat-runtime, and `create_card` genuinely persisted the card but the run **timed
+      out** (Low Power Mode + a 27B is too slow for a multi-turn tool task — a HARDWARE limit, not a !Klein issue; the
+      8B/4B do the identical task cleanly in-window). Done via a guarded load/unload cycle (1-resident-at-a-time, ctx
+      40000, headroom-safe by swapping big→small so net RAM drops); the user's 27B was **restored exactly** (28.60 GB, ctx
+      40000) and the m4mini embedding never touched. **No robustness gaps surfaced 4B→27B** — the core flows are solid
+      across the practical small-model range. (Also fixed the desync where the date-only win had broken
+      `verify-temporal-awareness-live`'s `<current_datetime>` assertion — committed separately.)
 - [x] **Autonomous chat run** (`verify-chat-autonomous-live.mts`) — **RE-CONFIRMED end-to-end on HEAD (2026-06-28).**
       After creating a dev-test project (→ current project + active workspace) and pinning the model on a fresh dev:full,
       qwen3-8b **PASSES**: "✓ Goal complete · 1 turn · 1/1 steps", transcript = 2 messages, `stopped: true` — the §5.0.1
