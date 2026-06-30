@@ -1,6 +1,5 @@
 import { type RuntimeConfigState, toGlobalRuntimeConfigState } from "../config/runtime-config";
 import type {
-	RuntimeBoardColumnId,
 	RuntimeBoardData,
 	RuntimeProjectHealthIssue,
 	RuntimeProjectSummary,
@@ -25,6 +24,11 @@ import {
 	detectProjectHealthIssuesByWorkspaceId,
 	type ProjectHealthIssuesByWorkspaceId,
 } from "../workspace/project-health";
+import {
+	applyLiveSessionStateToProjectTaskCounts,
+	countTasksByColumn,
+	createEmptyProjectTaskCounts,
+} from "./project-task-counts";
 
 export interface WorkspaceRegistryScope {
 	workspaceId: string;
@@ -118,45 +122,6 @@ export interface WorkspaceRegistry {
 	}>;
 }
 
-function createEmptyProjectTaskCounts(): RuntimeProjectTaskCounts {
-	return {
-		backlog: 0,
-		planning: 0,
-		in_progress: 0,
-		review: 0,
-		completed: 0,
-		trash: 0,
-	};
-}
-
-function countTasksByColumn(board: RuntimeBoardData): RuntimeProjectTaskCounts {
-	const counts = createEmptyProjectTaskCounts();
-	for (const column of board.columns) {
-		const count = column.cards.length;
-		switch (column.id) {
-			case "backlog":
-				counts.backlog += count;
-				break;
-			case "planning":
-				counts.planning += count;
-				break;
-			case "in_progress":
-				counts.in_progress += count;
-				break;
-			case "review":
-				counts.review += count;
-				break;
-			case "completed":
-				counts.completed += count;
-				break;
-			case "trash":
-				counts.trash += count;
-				break;
-		}
-	}
-	return counts;
-}
-
 export function collectProjectWorktreeTaskIdsForRemoval(board: RuntimeBoardData): Set<string> {
 	const taskIds = new Set<string>();
 	for (const column of board.columns) {
@@ -165,37 +130,6 @@ export function collectProjectWorktreeTaskIdsForRemoval(board: RuntimeBoardData)
 		}
 	}
 	return taskIds;
-}
-
-function applyLiveSessionStateToProjectTaskCounts(
-	counts: RuntimeProjectTaskCounts,
-	board: RuntimeBoardData,
-	sessionSummaries: RuntimeWorkspaceStateResponse["sessions"],
-): RuntimeProjectTaskCounts {
-	const taskColumnById = new Map<string, RuntimeBoardColumnId>();
-	for (const column of board.columns) {
-		for (const card of column.cards) {
-			taskColumnById.set(card.id, column.id);
-		}
-	}
-	const next = {
-		...counts,
-	};
-	for (const summary of Object.values(sessionSummaries)) {
-		const columnId = taskColumnById.get(summary.taskId);
-		if (!columnId) {
-			continue;
-		}
-		if (summary.state === "awaiting_review" && (columnId === "in_progress" || columnId === "planning")) {
-			if (columnId === "planning") {
-				next.planning = Math.max(0, next.planning - 1);
-			} else {
-				next.in_progress = Math.max(0, next.in_progress - 1);
-			}
-			next.review += 1;
-		}
-	}
-	return next;
 }
 
 function toProjectSummary(project: {
