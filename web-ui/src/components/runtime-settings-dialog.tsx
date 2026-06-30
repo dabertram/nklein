@@ -140,6 +140,7 @@ import { useRuntimeConfig } from "@/runtime/use-runtime-config";
 import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import {
 	type BrowserNotificationPermission,
+	formatNotificationPermissionStatus,
 	getBrowserNotificationPermission,
 	requestBrowserNotificationPermission,
 } from "@/utils/notification-permission";
@@ -249,13 +250,6 @@ function getShortcutIconOption(icon: string | undefined): RuntimeShortcutIconOpt
 function ShortcutIconComponent({ icon, size = 14 }: { icon: string | undefined; size?: number }): React.ReactElement {
 	const Component = getRuntimeShortcutIconComponent(icon);
 	return <Component size={size} />;
-}
-
-function formatNotificationPermissionStatus(permission: BrowserNotificationPermission): string {
-	if (permission === "default") {
-		return "not requested yet";
-	}
-	return permission;
 }
 
 function AgentRow({

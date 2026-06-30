@@ -9,6 +9,14 @@ export function getBrowserNotificationPermission(): BrowserNotificationPermissio
 	return Notification.permission;
 }
 
+/** Human-readable status for the notification permission ("default" reads as "not requested yet"). */
+export function formatNotificationPermissionStatus(permission: BrowserNotificationPermission): string {
+	if (permission === "default") {
+		return "not requested yet";
+	}
+	return permission;
+}
+
 function readPromptedFlag(): boolean {
 	return readLocalStorageItem(LocalStorageKey.NotificationPermissionPrompted) === "true";
 }

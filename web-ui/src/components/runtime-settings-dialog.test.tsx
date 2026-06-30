@@ -263,6 +263,8 @@ vi.mock("@/runtime/runtime-config-query", () => ({
 vi.mock("@/utils/notification-permission", () => ({
 	getBrowserNotificationPermission: () => "unsupported",
 	requestBrowserNotificationPermission: vi.fn(async () => "unsupported"),
+	formatNotificationPermissionStatus: (permission: string) =>
+		permission === "default" ? "not requested yet" : permission,
 }));
 
 function findButtonByText(container: ParentNode, text: string): HTMLButtonElement | null {
