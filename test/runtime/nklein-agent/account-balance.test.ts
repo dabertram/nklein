@@ -29,20 +29,20 @@ const localProviderMocks = vi.hoisted(() => ({
 	getLocalProviderModels: vi.fn(),
 }));
 
-vi.mock("@nklein/core", () => ({
+vi.mock("@cline/sdk", () => ({
 	addLocalProvider: vi.fn(),
 	ensureCustomProvidersLoaded: vi.fn(),
 	getLocalProviderModels: localProviderMocks.getLocalProviderModels,
-	getValidNKleinCredentials: vi.fn(),
+	getValidClineCredentials: vi.fn(),
 	getValidOcaCredentials: vi.fn(),
 	getValidOpenAICodexCredentials: vi.fn(),
-	loginNKleinOAuth: vi.fn(),
+	loginClineOAuth: vi.fn(),
 	loginOcaOAuth: vi.fn(),
 	loginOpenAICodex: vi.fn(),
 	resolveDefaultMcpSettingsPath: vi.fn(),
-	resolveNKleinDataDir: vi.fn(() => "/tmp/nklein"),
+	resolveClineDataDir: vi.fn(() => "/tmp/nklein"),
 	loadMcpSettingsFile: vi.fn(),
-	NKleinAccountService: class {
+	ClineAccountService: class {
 		constructor(options: { apiBaseUrl: string; getAuthToken: () => Promise<string | undefined | null> }) {
 			nkleinAccountMocks.constructedOptions.push(options);
 		}

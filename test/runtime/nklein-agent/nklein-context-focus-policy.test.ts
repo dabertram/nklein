@@ -45,6 +45,7 @@ function createReadFilesMessages(input: {
 			content: [
 				{
 					type: "tool_result",
+					name: input.toolName ?? "read_files",
 					tool_use_id: input.toolUseId,
 					content: input.content,
 					...(input.isError ? { is_error: true } : {}),
@@ -134,7 +135,7 @@ describe("compactKanbanFocusedMessages", () => {
 				id: "claude-sonnet-4-6",
 				provider: "anthropic",
 			},
-			contextWindowTokens: 80_000,
+			maxInputTokens: 80_000,
 			triggerTokens: 64_000,
 			thresholdRatio: 0.8,
 			utilizationRatio: 0.9,
@@ -181,7 +182,7 @@ describe("compactKanbanFocusedMessages", () => {
 				id: "claude-sonnet-4-6",
 				provider: "anthropic",
 			},
-			contextWindowTokens: 2_000,
+			maxInputTokens: 2_000,
 			triggerTokens: 60,
 			thresholdRatio: 0.8,
 			utilizationRatio: 0.9,

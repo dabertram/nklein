@@ -15,7 +15,7 @@ function readFileMessages(
 ): NKleinSdkPersistedMessage[] {
 	return [
 		{ role: "assistant", content: [{ type: "tool_use", id: toolUseId, name: toolName, input: { path: "a.ts" } }] },
-		{ role: "user", content: [{ type: "tool_result", tool_use_id: toolUseId, content }] },
+		{ role: "user", content: [{ type: "tool_result", tool_use_id: toolUseId, name: toolName, content }] },
 	];
 }
 
@@ -48,7 +48,14 @@ describe("classifyContextHistoryTokens", () => {
 			},
 			{
 				role: "user",
-				content: [{ type: "tool_result", tool_use_id: "bash-1", content: "lots of shell output ".repeat(20) }],
+				content: [
+					{
+						type: "tool_result",
+						tool_use_id: "bash-1",
+						name: "run_command",
+						content: "lots of shell output ".repeat(20),
+					},
+				],
 			},
 		];
 		expect(classifyContextHistoryTokens(messages).includedFileContentTokens).toBe(0);

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@nklein/core";
+import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/sdk";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import {
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
@@ -4200,6 +4200,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				content: [
 					{
 						type: "tool_result",
+						name: "read_files",
 						tool_use_id: "read-1",
 						content: "export function run() {\n  return true;\n}\n",
 					},

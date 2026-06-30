@@ -36,14 +36,14 @@ const evalHarnessMocks = vi.hoisted(() => ({
 const oauthMocks = vi.hoisted(() => ({
 	addLocalProvider: vi.fn(),
 	ensureCustomProvidersLoaded: vi.fn(),
-	getValidNKleinCredentials: vi.fn(),
+	getValidClineCredentials: vi.fn(),
 	getValidOcaCredentials: vi.fn(),
 	getValidOpenAICodexCredentials: vi.fn(),
-	loginNKleinOAuth: vi.fn(),
+	loginClineOAuth: vi.fn(),
 	loginOcaOAuth: vi.fn(),
 	loginOpenAICodex: vi.fn(),
 	resolveDefaultMcpSettingsPath: vi.fn(),
-	resolveNKleinDataDir: vi.fn(() => "/tmp/nklein"),
+	resolveClineDataDir: vi.fn(() => "/tmp/nklein"),
 	loadMcpSettingsFile: vi.fn(),
 	saveProviderSettings: vi.fn(),
 	getProviderSettings: vi.fn(),
@@ -100,21 +100,21 @@ vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
 	readSelfObservationEvents: selfObservationMocks.readSelfObservationEvents,
 }));
 
-vi.mock("@nklein/core", () => ({
+vi.mock("@cline/sdk", () => ({
 	addLocalProvider: oauthMocks.addLocalProvider,
 	ensureCustomProvidersLoaded: oauthMocks.ensureCustomProvidersLoaded,
 	getLocalProviderModels: localProviderMocks.getLocalProviderModels,
-	getValidNKleinCredentials: oauthMocks.getValidNKleinCredentials,
+	getValidClineCredentials: oauthMocks.getValidClineCredentials,
 	getValidOcaCredentials: oauthMocks.getValidOcaCredentials,
 	getValidOpenAICodexCredentials: oauthMocks.getValidOpenAICodexCredentials,
-	loginNKleinOAuth: oauthMocks.loginNKleinOAuth,
+	loginClineOAuth: oauthMocks.loginClineOAuth,
 	loginOcaOAuth: oauthMocks.loginOcaOAuth,
 	loginOpenAICodex: oauthMocks.loginOpenAICodex,
 	resolveDefaultMcpSettingsPath: oauthMocks.resolveDefaultMcpSettingsPath,
-	resolveNKleinDataDir: oauthMocks.resolveNKleinDataDir,
+	resolveClineDataDir: oauthMocks.resolveClineDataDir,
 	loadMcpSettingsFile: oauthMocks.loadMcpSettingsFile,
 	resolveProviderConfig: llmsModelMocks.resolveProviderConfig,
-	NKleinAccountService: class {
+	ClineAccountService: class {
 		constructor(options: { apiBaseUrl: string; getAuthToken: () => Promise<string | undefined | null> }) {
 			nkleinAccountMocks.constructedOptions.push(options);
 		}
@@ -640,10 +640,10 @@ describe("createRuntimeApi startTaskSession", () => {
 		selfObservationMocks.readSelfObservationEvents.mockResolvedValue([]);
 		oauthMocks.addLocalProvider.mockReset();
 		oauthMocks.ensureCustomProvidersLoaded.mockReset();
-		oauthMocks.loginNKleinOAuth.mockReset();
+		oauthMocks.loginClineOAuth.mockReset();
 		oauthMocks.loginOcaOAuth.mockReset();
 		oauthMocks.loginOpenAICodex.mockReset();
-		oauthMocks.getValidNKleinCredentials.mockReset();
+		oauthMocks.getValidClineCredentials.mockReset();
 		oauthMocks.getValidOcaCredentials.mockReset();
 		oauthMocks.getValidOpenAICodexCredentials.mockReset();
 		oauthMocks.resolveDefaultMcpSettingsPath.mockReset();
@@ -687,7 +687,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			commit: "1111111",
 			createdAt: Date.now(),
 		});
-		oauthMocks.loginNKleinOAuth.mockResolvedValue({
+		oauthMocks.loginClineOAuth.mockResolvedValue({
 			access: "oauth-access",
 			refresh: "oauth-refresh",
 			expires: 1_700_000_000_000,
@@ -705,7 +705,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			expires: 1_700_000_000_000,
 			accountId: "codex-acct",
 		});
-		oauthMocks.getValidNKleinCredentials.mockResolvedValue({
+		oauthMocks.getValidClineCredentials.mockResolvedValue({
 			access: "oauth-access",
 			refresh: "oauth-refresh",
 			expires: 1_700_000_000_000,
@@ -2762,7 +2762,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		};
 		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
 		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
-		oauthMocks.getValidNKleinCredentials.mockResolvedValue({
+		oauthMocks.getValidClineCredentials.mockResolvedValue({
 			access: "oauth-access",
 			refresh: "oauth-refresh",
 			expires: 1_700_000_000_000,
@@ -2810,7 +2810,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			summary: null,
 			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
 		expect(oauthMocks.saveProviderSettings).not.toHaveBeenCalled();
@@ -2863,7 +2863,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
@@ -3568,7 +3568,7 @@ describe("createRuntimeApi startTaskSession", () => {
 			error: expect.stringContaining("No native !Klein provider is configured"),
 		});
 		expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 	});
 
 	it("starts home chat sessions from persisted history with current launch config", async () => {
@@ -3650,7 +3650,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 
 		expect(response.ok).toBe(true);
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
 			expect.objectContaining({
 				providerId: "anthropic",
@@ -4636,7 +4636,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.profile).toBeNull();
 		expect(nkleinAccountMocks.constructedOptions).toHaveLength(0);
 		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 	});
 
 	it("does not refresh nklein OAuth credentials for profile lookup in local-only mode", async () => {
@@ -4673,7 +4673,7 @@ describe("createRuntimeApi startTaskSession", () => {
 
 		expect(response.profile).toBeNull();
 		expect(nkleinAccountMocks.fetchMe).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 	});
 
 	it("does not fetch nklein remote config in local-only mode", async () => {
@@ -4813,7 +4813,7 @@ describe("createRuntimeApi startTaskSession", () => {
 		expect(response.provider).toBe("nklein");
 		expect(response.error).toContain("Cloud models are disabled");
 		expect(oauthMocks.saveProviderSettings).not.toHaveBeenCalled();
-		expect(oauthMocks.loginNKleinOAuth).not.toHaveBeenCalled();
+		expect(oauthMocks.loginClineOAuth).not.toHaveBeenCalled();
 		expect(bumpNKleinSessionContextVersion).not.toHaveBeenCalled();
 	});
 
@@ -5147,7 +5147,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 		process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH = providerSelectionPath;
 		oauthMocks.getProviderSettings.mockReset();
 		oauthMocks.getLastUsedProviderSettings.mockReset();
-		oauthMocks.getValidNKleinCredentials.mockReset();
+		oauthMocks.getValidClineCredentials.mockReset();
 		oauthMocks.saveProviderSettings.mockReset();
 		nkleinAccountMocks.fetchFeaturebaseToken.mockReset();
 		nkleinAccountMocks.constructedOptions.length = 0;
@@ -5265,7 +5265,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 		nkleinAccountMocks.fetchFeaturebaseToken.mockRejectedValueOnce(new Error("Unauthorized"));
 
 		// OAuth refresh returns fresh credentials
-		oauthMocks.getValidNKleinCredentials.mockResolvedValueOnce({
+		oauthMocks.getValidClineCredentials.mockResolvedValueOnce({
 			access: "fresh-access",
 			refresh: "fresh-refresh",
 			expires: 1_800_000_000_000,
@@ -5284,7 +5284,7 @@ describe("createRuntimeApi getFeaturebaseToken", () => {
 			}),
 		).rejects.toThrow("No provider settings configured.");
 		expect(nkleinAccountMocks.fetchFeaturebaseToken).not.toHaveBeenCalled();
-		expect(oauthMocks.getValidNKleinCredentials).not.toHaveBeenCalled();
+		expect(oauthMocks.getValidClineCredentials).not.toHaveBeenCalled();
 	});
 });
 

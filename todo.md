@@ -215,6 +215,23 @@ deep analysis:
 - NEVER use inline imports. No `await import("./foo.js")`, no `import("pkg").Type` in type positions, no dynamic imports for types. Always standard top-level imports.
 - NEVER remove or downgrade code to fix type errors from outdated dependencies. Upgrade the dependency instead.
 
+### Cline SDK (vendored agent engine — base we build on, not a path we follow)
+The agent engine is the **Cline SDK** (`@cline/*`, Apache-2.0), vendored as **source** under `vendor/cline-sdk/`
+(pinned upstream commit in its [`NOTICE.md`](vendor/cline-sdk/NOTICE.md)) and built by us
+(`npm install --prefix vendor/cline-sdk` once, then `node scripts/build-cline-sdk.mjs` → esbuild self-contained `.js`
++ tsc `.d.ts`; the host resolves `@cline/*` to that built `dist` via tsconfig `paths` + esbuild aliases). We build from
+**source, not the prebuilt npm bundles**, for a hard safety net (upstream has reorganized once — `@clinebot`→`@cline`,
+source repo went private — so if it vanishes the buildable source still lives here) and for deep control of internals.
+- **Pull upstream selectively — only when it benefits us.** Do NOT auto-upgrade or chase parity. Cline's gravity is the
+  cloud platform (accounts/hub/remote/subscriptions); ours is offline/local/small-model. Different products, shared engine.
+- **Patch our copy deliberately when upstream steers against our target** (e.g. context/compaction tuning for small, slow
+  local LLMs). Apache-2.0 permits it. Keep patches MINIMAL and log every one in the patch ledger in
+  [`vendor/cline-sdk/NOTICE.md`](vendor/cline-sdk/NOTICE.md); re-apply the ledger on each sync. Be strong about our
+  direction, fair to the source (attribution + license intact, upstream fixes contributed back where sensible).
+- **Keep cloud code present but disabled** (don't strip it) — out of scope now, in scope later.
+- **Host coupling is centralized** in `src/nklein-agent/sdk-*-boundary.ts` (+ a few siblings). On upgrade, API drift
+  surfaces there as tsc errors — reconcile at the boundary, not by scattering SDK calls.
+
 ### Code quality
 - Write production-quality code, not prototypes. Break components into small, single-responsibility files. Extract shared logic into hooks/utilities. Prioritize maintainability + clean architecture over speed. Follow DRY + clear separation of concerns.
 - In `web-ui`, prefer `react-use` hooks (via `@/kanban/utils/react-use`) whenever possible.

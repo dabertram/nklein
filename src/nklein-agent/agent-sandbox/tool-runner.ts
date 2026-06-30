@@ -1,4 +1,4 @@
-import { createDefaultExecutors, type ToolExecutors } from "@nklein/core";
+import { createDefaultExecutors, type ToolExecutors } from "@cline/sdk";
 import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "../nklein-agent-sandbox-extra-tools";
 import { createEditFileTool } from "../nklein-edit-file-tool";
 import { createFileDiscoveryTools } from "../nklein-file-discovery-tools";

@@ -5,13 +5,15 @@
     "types": ["node", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
-      "@nklein/core": ["./vendor/nklein-sdk/core/dist"],
-      "@nklein/core/telemetry": ["./vendor/nklein-sdk/core/dist/services/telemetry"],
-      "@nklein/agents": ["./vendor/nklein-sdk/agents/dist"],
-      "@nklein/llms": ["./vendor/nklein-sdk/llms/dist"],
-      "@nklein/shared": ["./vendor/nklein-sdk/shared/dist"],
-      "@nklein/shared/db": ["./vendor/nklein-sdk/shared/dist/db"],
-      "@nklein/shared/storage": ["./vendor/nklein-sdk/shared/dist/storage"]
+      "@cline/sdk": ["./vendor/cline-sdk/packages/sdk/dist"],
+      "@cline/core": ["./vendor/cline-sdk/packages/core/dist"],
+      "@cline/core/telemetry": ["./vendor/cline-sdk/packages/core/dist/services/telemetry"],
+      "@cline/core/hub": ["./vendor/cline-sdk/packages/core/dist/hub"],
+      "@cline/agents": ["./vendor/cline-sdk/packages/agents/dist"],
+      "@cline/llms": ["./vendor/cline-sdk/packages/llms/dist"],
+      "@cline/shared": ["./vendor/cline-sdk/packages/shared/dist"],
+      "@cline/shared/db": ["./vendor/cline-sdk/packages/shared/dist/db"],
+      "@cline/shared/storage": ["./vendor/cline-sdk/packages/shared/dist/storage"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"],

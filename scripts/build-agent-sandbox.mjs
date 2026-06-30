@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import packageJson from "../package.json" with { type: "json" };
 import { spawn } from "node:child_process";
-import { nkleinSdkEsbuildAlias } from "./nklein-sdk-alias.mjs";
+import { clineSdkEsbuildAlias } from "./cline-sdk-alias.mjs";
 
 const rootDir = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const dockerContextDir = join(rootDir, "docker", "agent-sandbox");
@@ -20,7 +20,7 @@ await esbuild.build({
 	platform: "node",
 	target: "node22",
 	packages: "bundle",
-	alias: nkleinSdkEsbuildAlias,
+	alias: clineSdkEsbuildAlias,
 	banner: {
 		js: 'const __nkleinImportMetaUrl = require("node:url").pathToFileURL(__filename).href;',
 	},

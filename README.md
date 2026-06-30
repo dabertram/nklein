@@ -31,6 +31,8 @@ Run `nklein` from a git repository to open that project, or launch it without a 
 
 !Klein may periodically check whether upstream Cline Kanban changes are worth integrating. It does not treat upstream parity as a primary goal. This codebase is moving forward around the needs that prompted the fork: local LLM reliability, limited-hardware usability, and practical small-model orchestration.
 
+The agent engine underneath is the **Cline SDK** (`@cline/*`, Apache-2.0), which we keep as our base. We vendor its **source** — not the prebuilt npm bundles — under [`vendor/cline-sdk/`](./vendor/cline-sdk/NOTICE.md) and build it ourselves, for two reasons: a hard safety net (if upstream ever disappears or unpublishes, the buildable source still lives in this repo), and deep control over internals such as context/compaction budgeting that small, slow, local models need. We treat Cline as a base we build on, not a path we follow by default: we pull upstream changes **selectively, only when they benefit !Klein**, and we patch our own copy when upstream steers away from our local-only, small-model direction. Attribution and license are kept fully intact — see the [NOTICE](./vendor/cline-sdk/NOTICE.md) and its patch ledger. We aim to be **strong** about our direction and **fair** to the source.
+
 ### Development
 
 ```bash

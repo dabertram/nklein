@@ -10,7 +10,13 @@ function toolResult(toolUseId: string, isError = false): NKleinSdkPersistedMessa
 	return {
 		role: "user",
 		content: [
-			{ type: "tool_result", tool_use_id: toolUseId, content: "result", ...(isError ? { is_error: true } : {}) },
+			{
+				type: "tool_result",
+				tool_use_id: toolUseId,
+				name: "run_command",
+				content: "result",
+				...(isError ? { is_error: true } : {}),
+			},
 		],
 	};
 }

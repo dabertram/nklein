@@ -1,6 +1,10 @@
 import * as os from "node:os";
-import { type BasicLogger, createNKleinTelemetryServiceConfig, type ITelemetryService } from "@nklein/core";
-import { createConfiguredTelemetryService } from "@nklein/core/telemetry";
+import {
+	type BasicLogger,
+	createClineTelemetryServiceConfig,
+	createConfiguredTelemetryService,
+	type ITelemetryService,
+} from "@cline/sdk";
 import packageJson from "../../package.json" with { type: "json" };
 
 const appVersion = typeof packageJson.version === "string" ? packageJson.version : "0.1.0";
@@ -15,10 +19,10 @@ let telemetrySingleton:
 export function getCliTelemetryService(logger?: BasicLogger): ITelemetryService {
 	if (!telemetrySingleton) {
 		const { telemetry } = createConfiguredTelemetryService({
-			...createNKleinTelemetryServiceConfig({
+			...createClineTelemetryServiceConfig({
 				metadata: {
 					extension_version: appVersion,
-					nklein_type: "kanban",
+					cline_type: "kanban",
 					platform: "kanban",
 					platform_version: process.version,
 					os_type: os.platform(),

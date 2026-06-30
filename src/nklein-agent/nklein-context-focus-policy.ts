@@ -696,7 +696,7 @@ export function focusKanbanReadFilesForNextRequest(
 export async function compactKanbanFocusedMessages(
 	context: NKleinSdkContextCompactionContext,
 ): Promise<Awaited<NKleinSdkContextCompactionResult>> {
-	const targetTokens = Math.max(1, Math.min(context.triggerTokens, context.contextWindowTokens));
+	const targetTokens = Math.max(1, Math.min(context.triggerTokens, context.maxInputTokens));
 	const messages =
 		(await compactKanbanMessagesForContextTargetWithModelProvider(context.messages, targetTokens)) ??
 		compactKanbanMessagesForContextTarget(context.messages, targetTokens);

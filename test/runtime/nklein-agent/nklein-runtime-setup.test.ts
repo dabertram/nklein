@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { promisify } from "node:util";
 
-import type { ToolApprovalRequest } from "@nklein/core";
+import type { ToolApprovalRequest } from "@cline/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildProtectedTestApprovalRequest } from "../../../src/core/agent-write-guard";
 import { createProtectedTestApprovalStore } from "../../../src/core/protected-test-approval-store";

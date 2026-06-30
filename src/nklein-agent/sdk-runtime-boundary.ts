@@ -7,16 +7,16 @@ import {
 	type AgentEvent,
 	type BasicLogger,
 	buildWorkspaceMetadata,
+	ClineCore,
+	type ClineCoreStartInput,
 	type CoreSessionEvent,
 	createUserInstructionConfigService,
 	formatRulesForSystemPrompt,
-	getNKleinDefaultSystemPrompt,
+	getClineDefaultSystemPrompt,
 	isRuleEnabled,
 	type MessageWithMetadata,
-	NKleinCore,
-	type NKleinCoreStartInput,
 	type RuleConfig,
-	resolveNKleinDataDir,
+	resolveClineDataDir,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	type SessionHistoryRecord,
@@ -24,20 +24,20 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 	type UserInstructionConfigService,
-} from "@nklein/core";
+} from "@cline/sdk";
 import { NKLEIN_BUILTIN_SLASH_COMMANDS } from "./nklein-slash-commands";
 import { getCliTelemetryService } from "./nklein-telemetry-service";
 
-export { TelemetryLoggerSink, TelemetryService } from "@nklein/core";
+export { TelemetryLoggerSink, TelemetryService } from "@cline/sdk";
 
-export type NKleinSdkSessionHost = NKleinCore;
+export type NKleinSdkSessionHost = ClineCore;
 export type NKleinSdkBasicLogger = BasicLogger;
 export type NKleinSdkAgentEvent = AgentEvent;
 export type NKleinSdkTeamEvent = TeamEvent;
 
 export type NKleinSdkSessionEvent = CoreSessionEvent;
 
-export type NKleinSdkStartSessionInput = NKleinCoreStartInput;
+export type NKleinSdkStartSessionInput = ClineCoreStartInput;
 export type NKleinSdkSessionRecord = SessionHistoryRecord;
 export type NKleinSdkPersistedMessage = MessageWithMetadata;
 export type NKleinSdkUserInstructionService = UserInstructionConfigService;
@@ -55,14 +55,14 @@ export async function createNKleinSdkSessionHost(): Promise<NKleinSdkSessionHost
 	// daemon, whose cron/automation entrypoint is broken in the pinned SDK build
 	// (its bundled daemon entry throws on load), so it crash-loops in the background.
 	// We do not use the hub's scheduled-agent features, so force the local backend.
-	return await NKleinCore.create({
+	return await ClineCore.create({
 		backendMode: "local",
 		telemetry: getCliTelemetryService(),
 	});
 }
 
 export function resolveNKleinSdkDataDir(): string {
-	return resolveNKleinDataDir();
+	return resolveClineDataDir();
 }
 export async function buildNKleinSdkWorkspaceMetadata(cwd: string): Promise<string> {
 	return await buildWorkspaceMetadata(cwd);
@@ -133,7 +133,7 @@ export async function resolveNKleinSdkSystemPrompt(input: {
 	// its repo-aware behavior in the same way the official CLI does.
 	const shouldAppendWorkspaceMetadata = input.providerId === "nklein";
 	const workspaceMetadata = shouldAppendWorkspaceMetadata ? await buildWorkspaceMetadata(input.cwd) : "";
-	return getNKleinDefaultSystemPrompt({
+	return getClineDefaultSystemPrompt({
 		ide: "!Klein",
 		rootPath: input.cwd,
 		providerId: input.providerId,

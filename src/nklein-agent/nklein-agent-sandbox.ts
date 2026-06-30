@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promisify } from "node:util";
-import type { ToolExecutors } from "@nklein/core";
+import type { ToolExecutors } from "@cline/sdk";
 import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import {

@@ -7,7 +7,7 @@ describe("buildNKleinContextCompactionConfig", () => {
 		expect(buildNKleinContextCompactionConfig(80_000)).toEqual({
 			enabled: true,
 			strategy: "basic",
-			contextWindowTokens: 80_000,
+			maxInputTokens: 80_000,
 			reserveTokens: 16_000,
 			preserveRecentTokens: 20_000,
 		});
@@ -17,14 +17,14 @@ describe("buildNKleinContextCompactionConfig", () => {
 		expect(buildNKleinContextCompactionConfig(null)).toEqual({
 			enabled: true,
 			strategy: "basic",
-			contextWindowTokens: 80_000,
+			maxInputTokens: 80_000,
 			reserveTokens: 16_000,
 			preserveRecentTokens: 20_000,
 		});
 		expect(buildNKleinContextCompactionConfig(0)).toEqual({
 			enabled: true,
 			strategy: "basic",
-			contextWindowTokens: 80_000,
+			maxInputTokens: 80_000,
 			reserveTokens: 16_000,
 			preserveRecentTokens: 20_000,
 		});

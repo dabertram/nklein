@@ -3,7 +3,7 @@ import { asRecord } from "./nklein-value-guards";
 // This is the runtime-facing layer for starting, looking up, resuming, and
 // stopping native NKlein sessions without exposing SDK details upstream.
 
-import type { ToolExecutors } from "@nklein/core";
+import type { ToolExecutors } from "@cline/sdk";
 import {
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 	type RuntimeNKleinReasoningEffort,
@@ -414,7 +414,7 @@ export function buildNKleinContextCompactionConfig(
 	return {
 		enabled: true,
 		strategy: "basic",
-		contextWindowTokens,
+		maxInputTokens: contextWindowTokens,
 		reserveTokens: Math.max(
 			1,
 			Math.min(

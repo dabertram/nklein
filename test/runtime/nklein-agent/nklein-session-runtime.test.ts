@@ -712,7 +712,7 @@ describe("InMemoryNKleinSessionRuntime", () => {
 				config: expect.objectContaining({
 					compaction: expect.objectContaining({
 						enabled: true,
-						contextWindowTokens: 80_000,
+						maxInputTokens: 80_000,
 						reserveTokens: 16_000,
 						preserveRecentTokens: 20_000,
 					}),
@@ -1793,7 +1793,7 @@ describe("InMemoryNKleinSessionRuntime", () => {
 					baseUrl: "http://127.0.0.1:1234/v1",
 					reasoningEffort: "none",
 					compaction: expect.objectContaining({
-						contextWindowTokens: 80_000,
+						maxInputTokens: 80_000,
 					}),
 				}),
 			}),

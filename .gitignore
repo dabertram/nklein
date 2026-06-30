@@ -1,9 +1,5 @@
 node_modules
 dist
-# The vendored NKlein SDK ships prebuilt dist (there is no package source to build
-# from in-repo), so it must stay tracked despite the global `dist` ignore above.
-!vendor/nklein-sdk/*/dist
-!vendor/nklein-sdk/*/dist/**
 coverage
 .DS_Store
 test-results

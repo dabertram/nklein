@@ -1,7 +1,17 @@
-import { sanitizeTeamName } from "@nklein/core";
 import type { RuntimeTaskSessionMode } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
 import { CLOUD_ENABLED } from "./nklein-local-only-policy";
+
+/**
+ * Slugify a team name. Ported from the Cline SDK's `sanitizeTeamName` (0.0.54 no longer re-exports
+ * it from the public entry); kept byte-identical so delegated team names match SDK-internal naming.
+ */
+function sanitizeTeamName(name: string): string {
+	return name
+		.toLowerCase()
+		.replace(/[^a-z0-9._-]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
 
 export interface NKleinTeamDelegationPolicyInput {
 	taskId: string;

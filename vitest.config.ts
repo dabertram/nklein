@@ -1,11 +1,11 @@
 import { defineConfig } from "vitest/config";
-import { nkleinSdkViteAlias } from "./scripts/nklein-sdk-alias.mjs";
+import { clineSdkViteAlias } from "./scripts/cline-sdk-alias.mjs";
 
 process.env.NODE_ENV = "production";
 
 export default defineConfig({
 	resolve: {
-		alias: nkleinSdkViteAlias,
+		alias: clineSdkViteAlias,
 	},
 	test: {
 		globals: true,
@@ -22,6 +22,9 @@ export default defineConfig({
 			"packages/**",
 			"web-ui/**",
 			"third_party/**",
+			// The vendored Cline SDK ships its own source + tests (vendor/cline-sdk/packages/*/src/**/*.test.ts);
+			// those are upstream's tests with their own setup/branding and are not part of !Klein's suite.
+			"vendor/**",
 			"**/node_modules/**",
 			"**/dist/**",
 			".worktrees/**",

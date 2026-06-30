@@ -141,6 +141,7 @@ describe("InMemoryNKleinMessageRepository", () => {
 					content: [
 						{
 							type: "tool_result",
+							name: "read_files",
 							tool_use_id: "tool-1",
 							content: "console.log('ready')",
 						},

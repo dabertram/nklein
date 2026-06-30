@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ToolExecutors } from "@nklein/core";
+import type { ToolExecutors } from "@cline/sdk";
 import { describe, expect, it, vi } from "vitest";
 
 import {

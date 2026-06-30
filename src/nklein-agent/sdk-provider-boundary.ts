@@ -4,7 +4,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import * as NKleinCore from "@nklein/core";
+import * as NKleinCore from "@cline/sdk";
 import {
 	addLocalProvider,
 	type CreateMcpToolsOptions,
@@ -17,25 +17,25 @@ import {
 	DEFAULT_INTERNAL_IDCS_URL,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
-	getValidNKleinCredentials,
+	getValidClineCredentials as getValidNKleinCredentials,
 	getValidOcaCredentials,
 	getValidOpenAICodexCredentials,
 	InMemoryMcpManager,
-	loginNKleinOAuth,
+	loginClineOAuth as loginNKleinOAuth,
 	loginOcaOAuth,
 	loginOpenAICodex,
-	type NKleinAccountBalance,
-	type NKleinAccountOrganizationBalance,
-	NKleinAccountService,
-	type NKleinAccountUser,
-	type NKleinOrganization,
+	type ClineAccountBalance as NKleinAccountBalance,
+	type ClineAccountOrganizationBalance as NKleinAccountOrganizationBalance,
+	ClineAccountService as NKleinAccountService,
+	type ClineAccountUser as NKleinAccountUser,
+	type ClineOrganization as NKleinOrganization,
 	type OcaOAuthProviderOptions,
 	type ProviderSettings,
 	ProviderSettingsManager,
 	resolveProviderConfig,
-	completeNKleinDeviceAuth as sdkCompleteNKleinDeviceAuth,
-	startNKleinDeviceAuth as sdkStartNKleinDeviceAuth,
-} from "@nklein/core";
+	completeClineDeviceAuth as sdkCompleteNKleinDeviceAuth,
+	startClineDeviceAuth as sdkStartNKleinDeviceAuth,
+} from "@cline/sdk";
 import type { AgentTool } from "./sdk-agent-types";
 
 export type ManagedNKleinOauthProviderId = "nklein" | "oca" | "openai-codex";
