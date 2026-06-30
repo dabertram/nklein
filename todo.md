@@ -6844,6 +6844,17 @@ source repo went private — so if it vanishes the buildable source still lives 
 >   (POST — STATEFUL sessions, streaming, **MCP integration**, model-load streaming events, prompt-processing streaming
 >   events, **per-request custom context length**), `/api/v1/models`, **`/api/v1/models/load` · `/unload` · `/download` ·
 >   `/download/status`** ⇒ **REST model management** (we currently shell out to `lms` — this API is the in-process alternative).
+- [ ] **★ Liveness heartbeat + prefill-awareness (2026-06-30, user — OPTIONAL/advanced, auto-detected).** The PREFILL phase
+      emits NO OpenAI-`/v1` stream tokens, so !Klein's stream-inactivity guard counted a long cold prefill as "silence" and
+      killed an *actively-prefilling* model (proven via `NKLEIN_DEBUG_STREAM_EVENTS`: 3 prefill gaps 118–128 s/turn,
+      generation streams <1 s/delta; now MITIGATED by ultra-long timeouts in `autonomous-timeout-defaults.ts`). The PROPER
+      signal is **`/api/v1/chat` prompt-processing streaming events** = the `PROCESSINGPROMPT`/`GENERATING` activity `lms ps`
+      shows. **Live-tested 2026-06-30:** `/api/v0/models` `state` stays `loaded` THROUGH inference (5/5 polls) — the simple
+      REST gives **residency only**, NOT activity; the rich signal needs `/api/v1/chat` (or `@lmstudio/sdk`). **Build OPTIONAL
+      + AUTO-DETECTED + TRANSPARENT:** probe the model host's native API — works LOCAL or over NETWORK (same host:port as the
+      model `baseUrl`; `lmStudioApiV0ModelsUrl` already derives it). Enable the "is-it-actually-alive" observation when
+      reachable; surface that it's unavailable when the host isn't LM Studio (llama.cpp/vLLM). LIGHTER first cut (no new dep):
+      poll `/api/v0/models` residency during the ultra-long wait → fail-fast if the model crashed/unloaded (memory pressure).
 > - **Anthropic-compat `/v1/messages`** (live-verified — EXISTS, 200; accepts `tools`/`tool_choice`/`system`). **CORRECTION
 >   (re-verified 2026-06-29, don't-conclude-prematurely lesson): `tool_choice` does NOT actually FORCE a call on LM Studio.**
 >   The first "it forces!" probe was confounded — the prompt was "make a card titled Z", which the model calls anyway. On a

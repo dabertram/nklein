@@ -59,6 +59,32 @@
 
 ## Run log (newest first)
 
+- _(2026-06-30)_ **Cumulative suite on `qwopus3.6-27b-v2-mlx` (Low Power ×2) — C0–C2 green, and C3 surfaced a REAL
+  non-power-aware-timeout bug (not the predicted throughput wall).** Ran the full ladder on the capable 27B (the
+  capable-model-first roster): **C0 PASS ✓** (`awaiting_review` + delivered `hello.txt`), **C1 PASS ✓** (DAG, no host
+  leak), **C2 PASS ✓** ×3 (autopromote + strict + restart-resume) — the won capabilities all hold on the 27B. **C3
+  (`complex_dag`) STALLED at decompose — `decompose=NO`**, and root-causing it (per the MCF "don't fiddle, diagnose")
+  found it is **NOT** the qwen3-8b throughput wall: the seed decompose card went `running → read_files → silent`, and
+  **!Klein's own stream-inactivity timeout killed the model stream at 360s** ("Send failed: stream inactivity timeout
+  after 360 seconds … Agent active") — i.e. `AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS.streamTimeoutMs = 6min` was **not
+  power-aware** (the harness's OWN patience WAS power-scaled — it waited 40 min — exposing the mismatch). **LM Studio dev
+  logs (the §4A directive) gave the ground truth on the FIXED run's decompose request** — and corrected the initial
+  guess: prompt **12,170 tokens** (NOT 40k), **TTFT 112 s** (~108 tok/s prefill — NOT a 6-min prefill), generation **6.2
+  tok/s**, 4,587 predicted tokens, **total 735 s (~12 min)**. **PRECISE root cause (proven 2026-06-30 with the new opt-in
+  `NKLEIN_DEBUG_STREAM_EVENTS` tracer, commit `0fb9d6bd`):** the "stream inactivity" timer is reset ONLY by streamed tokens
+  (+ tool boundaries), **never during PREFILL** — and prefill emits no tokens. Gap histogram on a complex_dag decompose:
+  274 gaps <1 s + one 5.6 s + one 10.3 s + **three >60 s (128/119/118 s), all at turn_start/tool_result** = the prefill
+  phases. So GENERATION/reasoning streams fine and DOES reach !Klein (<1 s/delta); both "buffered reasoning" and "slow
+  generation" were wrong — it's the **prefill silence**, and a turn whose cold prefill exceeds the budget is killed while
+  the model is actively prefilling ("last tool: read_files" = last event before the silent prefill). **This is a real
+  product bug:** any user running autonomously hits it. **FINAL FIX (`14136541`, user-steered): ULTRA-LONG autonomous
+  timeouts** — !Klein's approach is ultra-long/unlimited by default; never kill a working model (streamTimeoutMs 6→60 min,
+  request 30→60, tool 10→30, agent 30→60, conversation 4→8 h). The earlier power-aware commit (`a8edb9b0`) was a band-aid,
+  now superseded (kept as harmless general scaling). tsc+biome+timeout suite green. **Liveness heartbeat filed OPTIONAL
+  (§5.AN):** the proper activity signal is `/api/v1/chat` prompt-processing events (`/api/v0/models` is residency-only —
+  live-tested). **MCF note:** C3 never reached the EXECUTION phase, so the §5.AF durable scheduler was NOT this model's
+  binding constraint — decompose-turn survivability was. The durable scheduler remains the gate for the *execution* phase
+  once decompose clears (the qwen3-8b throughput finding stands).
 - _(2026-06-28)_ **Harness rigor upgrade — and a caveat it exposed about the baseline matrix.** Added to
   `verify-task-completion`: a **stall detector** (abort early as `STALLED` on no-activity, power-scaled), **live activity**
   printing, and a **delivery-gated PASS** (terminal lane is necessary but NOT sufficient — the deliverable must exist;
