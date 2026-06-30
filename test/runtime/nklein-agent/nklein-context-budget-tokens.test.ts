@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	buildContextBudgetBreakdown,
 	classifyContextHistoryTokens,
 	estimateKanbanToolSchemaTokens,
+	estimateNextPromptTokens,
 } from "../../../src/nklein-agent/nklein-context-budget-tokens";
 import type { NKleinSdkPersistedMessage } from "../../../src/nklein-agent/sdk-runtime-boundary";
 
@@ -100,5 +102,47 @@ describe("estimateKanbanToolSchemaTokens", () => {
 
 	it("treats a policy without an explicit `enabled` as enabled (default-on)", () => {
 		expect(estimateKanbanToolSchemaTokens({ create_card: {} })).toBeGreaterThan(0);
+	});
+});
+
+describe("estimateNextPromptTokens", () => {
+	it("floors at the prompt-overhead reserve and adds per-image overhead", () => {
+		const empty = estimateNextPromptTokens("");
+		const withText = estimateNextPromptTokens("write a parser for the config file");
+		const withImage = estimateNextPromptTokens("", [{ id: "img1", data: "AAAA", mimeType: "image/png" }]);
+		expect(empty).toBeGreaterThan(0); // floored at the reserve
+		expect(withText).toBeGreaterThanOrEqual(empty);
+		expect(withImage).toBeGreaterThan(empty); // a flat per-image overhead is added
+	});
+});
+
+describe("buildContextBudgetBreakdown", () => {
+	it("sums the segments into projectedTokens and leaves the remainder free", () => {
+		const b = buildContextBudgetBreakdown({
+			systemPrompt: "You are a careful assistant.",
+			toolSchemaTokens: 100,
+			messages: [{ role: "user", content: "please read and summarize the file" }],
+			prompt: "go",
+			contextWindow: 40_000,
+		});
+		expect(b.effectiveContextWindow).toBe(40_000);
+		expect(b.systemPromptTokens).toBeGreaterThan(0);
+		expect(b.toolSchemaTokens).toBe(100);
+		expect(b.projectedTokens).toBe(
+			b.systemPromptTokens +
+				b.toolSchemaTokens +
+				b.taskPromptTokens +
+				b.userMessageTokens +
+				b.includedFileContentTokens +
+				b.otherHistoryTokens +
+				b.reservedPromptOverheadTokens +
+				b.reservedOutputTokens,
+		);
+		expect(b.freeWorkingTokens).toBe(Math.max(0, 40_000 - b.projectedTokens));
+	});
+
+	it("coerces a non-finite toolSchemaTokens to 0", () => {
+		const b = buildContextBudgetBreakdown({ toolSchemaTokens: Number.NaN, prompt: "x", contextWindow: 8_000 });
+		expect(b.toolSchemaTokens).toBe(0);
 	});
 });

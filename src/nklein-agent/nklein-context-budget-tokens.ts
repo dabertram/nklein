@@ -7,7 +7,8 @@
  * content-block helpers + the `Sdk*Block` aliases that only it used) now lives in one small module instead of bloating the
  * task-session service. Consumed by the service's context-budget path; the full suite gates byte-for-byte behavior.
  */
-import { countKanbanTextTokens } from "./nklein-context-budgets";
+import type { RuntimeContextBudgetBreakdown, RuntimeTaskImage } from "../core/api-contract";
+import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import { countKanbanPersistedMessagesTokens } from "./nklein-context-focus-policy";
 import type { NKleinSdkPersistedMessage, NKleinSdkStartSessionInput } from "./sdk-runtime-boundary.js";
 
@@ -113,4 +114,64 @@ export function estimateKanbanToolSchemaTokens(toolPolicies?: NKleinSdkStartSess
 			kanbanToolPolicies: enabledToolNames,
 		}),
 	);
+}
+
+const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
+const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
+
+/** Estimate the tokens the NEXT user turn adds: the prompt text + a flat per-image overhead, floored at the prompt reserve. */
+export function estimateNextPromptTokens(prompt: string, images?: RuntimeTaskImage[]): number {
+	const promptTokens = countKanbanTextTokens(prompt.trim());
+	const imageTokens = (images?.length ?? 0) * CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS;
+	return Math.max(
+		CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS,
+		promptTokens + imageTokens + CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS,
+	);
+}
+
+/**
+ * Build the full context-budget breakdown for a task turn: system-prompt + tool-schema + next-prompt + classified history
+ * tokens, plus the overhead/output reserves, against the model's context window. Pure (the service passes the window).
+ */
+export function buildContextBudgetBreakdown(input: {
+	systemPrompt?: string | null;
+	toolSchemaTokens?: number | null;
+	messages?: NKleinSdkPersistedMessage[] | null;
+	prompt: string;
+	images?: RuntimeTaskImage[];
+	contextWindow: number;
+}): RuntimeContextBudgetBreakdown {
+	const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
+	const messages = input.messages ?? [];
+	const systemPromptTokens = input.systemPrompt ? countKanbanTextTokens(input.systemPrompt) : 0;
+	const toolSchemaTokens =
+		typeof input.toolSchemaTokens === "number" && Number.isFinite(input.toolSchemaTokens)
+			? Math.max(0, Math.trunc(input.toolSchemaTokens))
+			: 0;
+	const taskPromptTokens = estimateNextPromptTokens(input.prompt, input.images);
+	const historySegments = classifyContextHistoryTokens(messages);
+	const projectedTokens =
+		systemPromptTokens +
+		toolSchemaTokens +
+		taskPromptTokens +
+		historySegments.userMessageTokens +
+		historySegments.includedFileContentTokens +
+		historySegments.otherHistoryTokens +
+		budgets.promptOverheadReserveTokens +
+		budgets.outputReserveTokens;
+	const usedWorkingTokens = Math.max(0, projectedTokens - budgets.outputReserveTokens);
+	return {
+		systemPromptTokens,
+		toolSchemaTokens,
+		taskPromptTokens,
+		userMessageTokens: historySegments.userMessageTokens,
+		includedFileContentTokens: historySegments.includedFileContentTokens,
+		otherHistoryTokens: historySegments.otherHistoryTokens,
+		reservedPromptOverheadTokens: budgets.promptOverheadReserveTokens,
+		reservedOutputTokens: budgets.outputReserveTokens,
+		usedWorkingTokens,
+		freeWorkingTokens: Math.max(0, input.contextWindow - projectedTokens),
+		effectiveContextWindow: input.contextWindow,
+		projectedTokens,
+	};
 }

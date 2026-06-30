@@ -5,7 +5,6 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // host, repository, or event-adapter details.
 
 import type {
-	RuntimeContextBudgetBreakdown,
 	RuntimeModelPerformanceRole,
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -55,8 +54,12 @@ import {
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
-import { classifyContextHistoryTokens, estimateKanbanToolSchemaTokens } from "./nklein-context-budget-tokens";
-import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
+import {
+	buildContextBudgetBreakdown,
+	estimateKanbanToolSchemaTokens,
+	estimateNextPromptTokens,
+} from "./nklein-context-budget-tokens";
+import { buildKanbanContextSafetyBudgets } from "./nklein-context-budgets";
 import {
 	compactKanbanMessagesForContextTarget,
 	countKanbanPersistedMessagesTokens,
@@ -138,8 +141,6 @@ const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
 const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
-const CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS = 1_200;
-const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
@@ -1212,58 +1213,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
 	}
 
-	private estimateNextPromptTokens(prompt: string, images?: RuntimeTaskImage[]): number {
-		const promptTokens = countKanbanTextTokens(prompt.trim());
-		const imageTokens = (images?.length ?? 0) * CONTEXT_BUDGET_IMAGE_OVERHEAD_TOKENS;
-		return Math.max(
-			CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS,
-			promptTokens + imageTokens + CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS,
-		);
-	}
-
-	private buildContextBudgetBreakdown(input: {
-		systemPrompt?: string | null;
-		toolSchemaTokens?: number | null;
-		messages?: NKleinSdkPersistedMessage[] | null;
-		prompt: string;
-		images?: RuntimeTaskImage[];
-		contextWindow: number;
-	}): RuntimeContextBudgetBreakdown {
-		const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
-		const messages = input.messages ?? [];
-		const systemPromptTokens = input.systemPrompt ? countKanbanTextTokens(input.systemPrompt) : 0;
-		const toolSchemaTokens =
-			typeof input.toolSchemaTokens === "number" && Number.isFinite(input.toolSchemaTokens)
-				? Math.max(0, Math.trunc(input.toolSchemaTokens))
-				: 0;
-		const taskPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
-		const historySegments = classifyContextHistoryTokens(messages);
-		const projectedTokens =
-			systemPromptTokens +
-			toolSchemaTokens +
-			taskPromptTokens +
-			historySegments.userMessageTokens +
-			historySegments.includedFileContentTokens +
-			historySegments.otherHistoryTokens +
-			budgets.promptOverheadReserveTokens +
-			budgets.outputReserveTokens;
-		const usedWorkingTokens = Math.max(0, projectedTokens - budgets.outputReserveTokens);
-		return {
-			systemPromptTokens,
-			toolSchemaTokens,
-			taskPromptTokens,
-			userMessageTokens: historySegments.userMessageTokens,
-			includedFileContentTokens: historySegments.includedFileContentTokens,
-			otherHistoryTokens: historySegments.otherHistoryTokens,
-			reservedPromptOverheadTokens: budgets.promptOverheadReserveTokens,
-			reservedOutputTokens: budgets.outputReserveTokens,
-			usedWorkingTokens,
-			freeWorkingTokens: Math.max(0, input.contextWindow - projectedTokens),
-			effectiveContextWindow: input.contextWindow,
-			projectedTokens,
-		};
-	}
-
 	private normalizeEffectiveContextWindow(contextWindow: number): number {
 		return Math.trunc(contextWindow);
 	}
@@ -1325,7 +1274,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		contextWindow: number;
 	}): NKleinSdkPersistedMessage[] | undefined {
 		const messages = input.messages ?? [];
-		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
+		const nextPromptTokens = estimateNextPromptTokens(input.prompt, input.images);
 		const originalHistoryTokens = countKanbanPersistedMessagesTokens(messages);
 		const originalProjectedTokens = originalHistoryTokens + nextPromptTokens + CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
 		const budgets = buildKanbanContextSafetyBudgets(input.contextWindow);
@@ -1388,7 +1337,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides;
 		contextWindow: number;
 	}): Promise<{ result: unknown; warnings?: string[] } | null> {
-		const nextPromptTokens = this.estimateNextPromptTokens(input.prompt, input.images);
+		const nextPromptTokens = estimateNextPromptTokens(input.prompt, input.images);
 		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
 		const compactedMessages = this.prepareMessagesForKnownContextWindow({
 			taskId: input.taskId,
@@ -1707,7 +1656,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				});
 				this.emitSummary(
 					updateSummary(entry, {
-						contextBudgetBreakdown: this.buildContextBudgetBreakdown({
+						contextBudgetBreakdown: buildContextBudgetBreakdown({
 							systemPrompt,
 							toolSchemaTokens,
 							messages: initialMessages,
@@ -2062,7 +2011,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							.catch(() => null);
 						this.emitSummary(
 							updateSummary(entry, {
-								contextBudgetBreakdown: this.buildContextBudgetBreakdown({
+								contextBudgetBreakdown: buildContextBudgetBreakdown({
 									systemPrompt: this.systemPromptByTaskId.get(taskId) ?? null,
 									toolSchemaTokens: this.toolSchemaTokensByTaskId.get(taskId) ?? 0,
 									messages: persistedSnapshotForBudget?.messages,
