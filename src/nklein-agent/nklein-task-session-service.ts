@@ -109,6 +109,7 @@ import {
 	updateSummary,
 } from "./nklein-session-state";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
+import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
 import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
@@ -147,7 +148,6 @@ const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
-const UNCONFIGURED_MODEL_ID = "unconfigured";
 
 interface NKleinTaskTimeoutSettings {
 	streamTimeoutMs: number | null;
@@ -374,8 +374,7 @@ function appendVisibleSystemPromptMessage(entry: NKleinTaskSessionEntry, taskId:
 export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionService {
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdByTaskId = new Map<string, string>();
-	private readonly modelIdByTaskId = new Map<string, string>();
-	private readonly endpointByTaskId = new Map<string, string | null>();
+	private readonly modelEndpoint = new TaskModelEndpointStore();
 	private readonly contextWindowByTaskId = new Map<string, number | null>();
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
@@ -462,7 +461,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			isExplicitDecompositionTask: (taskId) => this.explicitDecompositionTaskIds.has(taskId),
 			getTaskSummary: (taskId) => this.messageRepository.getTaskEntry(taskId)?.summary ?? null,
 			resolveProviderId: (taskId) => this.resolveProviderIdForTask(taskId),
-			resolveModelId: (taskId) => this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			resolveModelId: (taskId) => this.modelEndpoint.getModelId(taskId),
 			resolveWorkspacePath: (taskId) => this.messageRepository.getTaskEntry(taskId)?.summary.workspacePath ?? null,
 			recordObservation: ({ taskId, workspacePath, providerId, modelId, message, metadata }) => {
 				recordSelfObservation({
@@ -567,8 +566,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		};
 		this.launchConfigByTaskId.set(taskId, normalized);
 		this.providerIdByTaskId.set(taskId, normalized.providerId);
-		this.modelIdByTaskId.set(taskId, normalized.modelId);
-		this.endpointByTaskId.set(taskId, normalized.baseUrl ?? null);
+		this.modelEndpoint.set(taskId, normalized.modelId, normalized.baseUrl ?? null);
 		if (Object.hasOwn(normalized, "contextWindow")) {
 			this.resolveContextWindowForTask(taskId, normalized.contextWindow);
 		}
@@ -754,8 +752,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const errorMessage = toErrorMessage(error);
 		const creditLimitError = this.isNKleinProviderForTask(taskId) && isCreditLimitError(errorMessage);
 		const providerId = this.resolveProviderIdForTask(taskId);
-		const modelId = this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID;
-		const endpoint = this.endpointByTaskId.get(taskId) ?? null;
+		const modelId = this.modelEndpoint.getModelId(taskId);
+		const endpoint = this.modelEndpoint.getEndpoint(taskId);
 		// A local model host (LM Studio/Ollama) that crashed or unloaded its model won't recover by retrying the
 		// dead endpoint; classify it so the task parks fast with reload guidance instead of storming a gone model.
 		const localModelUnavailable =
@@ -839,7 +837,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			message: `NKlein session recovery failed during ${input.operation}: ${errorMessage}`,
 			taskId: input.taskId,
 			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(input.taskId),
 			metadata: {
 				operation: input.operation,
 				recoveryAction: true,
@@ -862,7 +860,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			taskId: input.taskId,
 			workspacePath: input.workspacePath ?? null,
 			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(input.taskId),
 			metadata: {
 				operation: "lost_session_recovery",
 				transition: input.transition,
@@ -968,7 +966,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			taskId,
 			workspacePath: entry.summary.workspacePath ?? null,
 			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(taskId),
 			metadata: {
 				category: "stream_inactivity_timeout",
 				timeoutKind: kind,
@@ -1147,7 +1145,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			message: toErrorMessage(input.error),
 			taskId: input.taskId,
 			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(input.taskId),
 			metadata: {
 				mode: input.mode,
 			},
@@ -1235,7 +1233,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					: `Pre-send context guard compacted history before provider dispatch (~${input.originalProjectedTokens.toLocaleString()} → ~${input.projectedTokens.toLocaleString()} projected tokens).`,
 			taskId: input.taskId,
 			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(input.taskId),
 			metadata: {
 				action: input.action,
 				contextWindow: input.contextWindow,
@@ -1417,10 +1415,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
-		this.modelIdByTaskId.set(request.taskId, modelId);
 		const endpoint = request.baseUrl?.trim() || null;
 		const sharedEndpointId = buildSharedLocalEndpointId({ providerId, modelId, endpoint });
-		this.endpointByTaskId.set(request.taskId, endpoint);
+		this.modelEndpoint.set(request.taskId, modelId, endpoint);
 		this.recordLaunchContextWindow({
 			providerId,
 			modelId,
@@ -1755,8 +1752,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
-		this.modelIdByTaskId.delete(taskId);
-		this.endpointByTaskId.delete(taskId);
+		this.modelEndpoint.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
@@ -1799,8 +1795,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
-		this.modelIdByTaskId.delete(taskId);
-		this.endpointByTaskId.delete(taskId);
+		this.modelEndpoint.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
@@ -1846,8 +1841,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
-		this.modelIdByTaskId.delete(taskId);
-		this.endpointByTaskId.delete(taskId);
+		this.modelEndpoint.forget(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
@@ -2152,8 +2146,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.providerIdByTaskId.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
-		this.modelIdByTaskId.delete(taskId);
-		this.endpointByTaskId.delete(taskId);
+		this.modelEndpoint.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
@@ -2253,8 +2246,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			state: summary.state,
 			startedAt: summary.startedAt,
 			providerId: this.providerIdByTaskId.get(summary.taskId) ?? UNCONFIGURED_PROVIDER_ID,
-			modelId: this.modelIdByTaskId.get(summary.taskId) ?? UNCONFIGURED_MODEL_ID,
-			endpoint: this.endpointByTaskId.get(summary.taskId) ?? null,
+			modelId: this.modelEndpoint.getModelId(summary.taskId),
+			endpoint: this.modelEndpoint.getEndpoint(summary.taskId),
 		}));
 	}
 
@@ -2423,8 +2416,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			await this.agentSandboxManager.disposeWorkspace(reviewTaskId).catch(() => undefined);
 			this.launchConfigByTaskId.delete(reviewTaskId);
 			this.providerIdByTaskId.delete(reviewTaskId);
-			this.modelIdByTaskId.delete(reviewTaskId);
-			this.endpointByTaskId.delete(reviewTaskId);
+			this.modelEndpoint.forget(reviewTaskId);
 			this.sandboxState.deleteSandbox(reviewTaskId);
 		}
 	}
@@ -2532,7 +2524,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			message: input.message,
 			taskId: input.taskId,
 			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(input.taskId),
 			metadata: input.metadata,
 		});
 		const systemMessage = createMessage(input.taskId, "system", input.message);
@@ -2573,7 +2565,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			message: input.message,
 			taskId: input.taskId,
 			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelIdByTaskId.get(input.taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(input.taskId),
 			metadata: input.metadata,
 		});
 		const systemMessage = createMessage(input.taskId, "system", input.message);
@@ -2610,8 +2602,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTurnCancelTaskIds.clear();
 		this.providerIdByTaskId.clear();
 		this.contextWindowByTaskId.clear();
-		this.modelIdByTaskId.clear();
-		this.endpointByTaskId.clear();
+		this.modelEndpoint.clear();
 		this.modelRequestStartedAtByTaskId.clear();
 		this.explicitDecompositionTaskIds.clear();
 		this.sandboxState.clear();
@@ -2668,8 +2659,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				state,
 				reviewReason: summary.reviewReason ?? null,
 				providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
-				modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
-				endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
+				modelId: summary.modelId ?? this.modelEndpoint.peekModelId(taskId) ?? null,
+				endpoint: summary.endpoint ?? this.modelEndpoint.getEndpoint(taskId),
 				lastActivity: summary.latestHookActivity?.activityText ?? null,
 				warningMessage: summary.warningMessage ?? null,
 				exitCode: summary.exitCode ?? null,
@@ -2705,8 +2696,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						state,
 						role,
 						providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
-						modelId: summary.modelId ?? this.modelIdByTaskId.get(taskId) ?? null,
-						endpoint: summary.endpoint ?? this.endpointByTaskId.get(taskId) ?? null,
+						modelId: summary.modelId ?? this.modelEndpoint.peekModelId(taskId) ?? null,
+						endpoint: summary.endpoint ?? this.modelEndpoint.getEndpoint(taskId),
 						startedAt: summary.startedAt ?? null,
 						endedAt: summary.updatedAt,
 						promptTokens,
@@ -3046,8 +3037,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			event,
 			{
 				providerId: this.resolveProviderIdForTask(taskId),
-				modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
-				endpoint: this.endpointByTaskId.get(taskId) ?? null,
+				modelId: this.modelEndpoint.getModelId(taskId),
+				endpoint: this.modelEndpoint.getEndpoint(taskId),
 				contextWindow: this.resolveKnownContextWindowForTask(taskId, null),
 			},
 			observedAt,
@@ -3117,7 +3108,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			message: errorMessage,
 			taskId,
 			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID,
+			modelId: this.modelEndpoint.getModelId(taskId),
 			metadata: {
 				eventType: agentEvent.type,
 			},
