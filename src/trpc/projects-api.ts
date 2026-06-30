@@ -63,6 +63,7 @@ import { deleteTaskResultBranchesForRepo } from "../workspace/task-result-branch
 import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/task-worktree";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import type { RuntimeTrpcContext } from "./app-router";
+import { buildSelfImprovementTaskPrompt } from "./self-improvement-task-prompt";
 
 interface DisposeWorkspaceOptions {
 	stopTerminalSessions?: boolean;
@@ -155,40 +156,6 @@ export function createDevTestBoard(input: {
 		],
 		dependencies: [],
 	};
-}
-
-function buildSelfImprovementTaskPrompt(input: {
-	workspacePath: string;
-	notes?: string | null;
-	evidenceBundlePath?: string | null;
-}): string {
-	const lines = [
-		"/nklein-ts",
-		"",
-		"Improve !Klein using the currently running development checkout.",
-		"",
-		"Source:",
-		`- Current dev checkout: ${input.workspacePath}`,
-		"",
-		"Main driver:",
-		"- Keep improving support for small local LLMs on limited hardware.",
-		"- Preserve the local-only, forward-moving fork direction.",
-		"- Keep protected-test guardrails intact; do not weaken protected tests without explicit human approval.",
-	];
-	if (input.evidenceBundlePath?.trim()) {
-		lines.push("", "Evidence:", `- Bundle: ${input.evidenceBundlePath.trim()}`);
-	}
-	if (input.notes?.trim()) {
-		lines.push("", "User notes:", input.notes.trim());
-	}
-	lines.push(
-		"",
-		"Acceptance:",
-		"- Make the smallest coherent improvement that addresses the evidence or notes.",
-		"- Add or update focused tests.",
-		"- Run the relevant focused checks and report exact commands/results.",
-	);
-	return lines.join("\n");
 }
 
 async function readEvidenceBundleBaseCommit(evidenceBundlePath: string | null | undefined): Promise<string | null> {
