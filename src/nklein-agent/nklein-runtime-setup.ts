@@ -21,6 +21,7 @@ import { isLargeFileForWorkflow } from "./nklein-large-file-workflow";
 import { parseReadFileRequests } from "./nklein-read-file-request";
 import { confineToolPath } from "./nklein-tool-path-containment";
 import { parseWriteFilesRequests } from "./nklein-write-files-tool";
+import { normalizeScopePath, normalizeWriteScope } from "./nklein-write-scope";
 import {
 	createNKleinSdkUserInstructionService,
 	loadNKleinSdkRulesForSystemPrompt,
@@ -88,56 +89,6 @@ function asNumber(value: unknown): number | null {
 
 function buildSecretWriteBlockReason(toolName: string, path: string, label: string): string {
 	return `Blocked ${toolName}: potential ${label} detected in ${path}. Remove the secret, replace it with a placeholder, or store it in the runtime's configured secret store before retrying.`;
-}
-
-function trimMatchingQuotes(value: string): string {
-	const trimmed = value.trim();
-	if (trimmed.length < 2) {
-		return trimmed;
-	}
-	const first = trimmed.at(0);
-	const last = trimmed.at(-1);
-	if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-		return trimmed.slice(1, -1).trim();
-	}
-	return trimmed;
-}
-
-function normalizeScopePath(rawPath: string, workspacePath: string, taskId?: string | null): string {
-	let path = trimMatchingQuotes(rawPath).replaceAll("\\", "/").replace(/\/+/gu, "/");
-	const workspacePrefix = workspacePath.replaceAll("\\", "/").replace(/\/+/gu, "/").replace(/\/+$/u, "");
-	if (workspacePrefix && path.startsWith(`${workspacePrefix}/`)) {
-		path = path.slice(workspacePrefix.length + 1);
-	}
-	const normalizedTaskId = taskId?.trim();
-	if (normalizedTaskId) {
-		const sandboxPrefix = `/workspaces/${normalizedTaskId}/`;
-		if (path.startsWith(sandboxPrefix)) {
-			path = path.slice(sandboxPrefix.length);
-		}
-	}
-	while (path.startsWith("./")) {
-		path = path.slice(2);
-	}
-	while (path.startsWith("/")) {
-		path = path.slice(1);
-	}
-	return path.replace(/\/+$/u, "");
-}
-
-function normalizeWriteScope(
-	workspacePath: string,
-	taskId: string | null | undefined,
-	filesLikelyTouched: readonly string[] | null | undefined,
-): Set<string> {
-	const scope = new Set<string>();
-	for (const filePath of filesLikelyTouched ?? []) {
-		const normalized = normalizeScopePath(filePath, workspacePath, taskId);
-		if (normalized && normalized !== ".." && !normalized.startsWith("../")) {
-			scope.add(normalized);
-		}
-	}
-	return scope;
 }
 
 function extractScopedWriteTargetPaths(request: NKleinSdkToolApprovalRequest): string[] {
