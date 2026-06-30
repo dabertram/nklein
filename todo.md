@@ -245,6 +245,8 @@ source repo went private — so if it vanishes the buildable source still lives 
   **This evaluation must happen BEFORE writing the custom version** (don't build, then discover the off-the-shelf option).
   Precedents: the **Cline SDK** (evaluated → forked the source — special case, it's our engine; see the §4A note above);
   **`codebase-memory-mcp`** (evaluate as the LocalizationProvider backing **before** building that custom — §5.U).
+  **TRACK every integration in [docs/dev/integrations.md](docs/dev/integrations.md)** (the registry — name · what · status ·
+  license · #1/egress posture · where wired; user 2026-07-01). Update it whenever we adopt, evaluate, partial-wire, or drop one.
 
 ### Architecture opinions
 - Avoid thin shell wrappers that only forward props or relocate JSX for a single call site.
