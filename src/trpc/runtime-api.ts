@@ -70,7 +70,6 @@ import {
 import { setCardPaused } from "../core/card-pause";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
-import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
@@ -116,6 +115,7 @@ import {
 } from "./runtime-api/plan-artifact-application.js";
 import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
+import { handleClearSwarmStop, handleGetSwarmStop, handleRequestSwarmStop } from "./runtime-api/swarm-stop-control.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
 import { handleAbortTaskChatTurn, handleCancelTaskChatTurn } from "./runtime-api/task-chat-turn-control.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
@@ -425,33 +425,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getKnowledgeToolUsageStats: async (workspaceScope) => {
 			return await handleGetKnowledgeToolUsageStats(workspaceScope);
 		},
-		getSwarmStop: async (workspaceScope) => {
-			return {
-				ok: true,
-				signal: await readSwarmStopSignal(workspaceScope.workspacePath),
-			};
-		},
-		requestSwarmStop: async (workspaceScope, input) => {
-			const signal = await requestSwarmStop({
-				workspacePath: workspaceScope.workspacePath,
-				reason: input.reason,
-			});
-			deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.setBoardPaused(true);
-			return {
-				ok: true,
-				signal,
-			};
-		},
-		clearSwarmStop: async (workspaceScope) => {
-			await clearSwarmStop(workspaceScope.workspacePath);
-			const nkleinTaskSessionService = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
-			nkleinTaskSessionService?.setBoardPaused(false);
-			await nkleinTaskSessionService?.resumePausedTasks();
-			return {
-				ok: true,
-				signal: null,
-			};
-		},
+		getSwarmStop: async (workspaceScope) => handleGetSwarmStop(workspaceScope),
+		requestSwarmStop: async (workspaceScope, input) =>
+			handleRequestSwarmStop(workspaceScope, input, {
+				getLoadedScopedNKleinTaskSessionService: deps.getLoadedScopedNKleinTaskSessionService,
+			}),
+		clearSwarmStop: async (workspaceScope) =>
+			handleClearSwarmStop(workspaceScope, {
+				getLoadedScopedNKleinTaskSessionService: deps.getLoadedScopedNKleinTaskSessionService,
+			}),
 		getTaskDiagnostics: async (workspaceScope, input) => {
 			const [events, runSummaries] = await Promise.all([
 				readSelfObservationEvents({
