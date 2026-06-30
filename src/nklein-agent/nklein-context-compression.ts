@@ -1,3 +1,4 @@
+import { isTruthyEnv } from "../core/env-flag";
 import { countKanbanTextTokens } from "./nklein-context-budgets";
 import { compressByTokenImportance, type TokenImportanceScorer } from "./nklein-prompt-compression";
 
@@ -78,10 +79,6 @@ function readOpenAiChatText(value: unknown): string | null {
 	}
 	const content = (message as Record<string, unknown>).content;
 	return typeof content === "string" ? content : null;
-}
-
-function isTruthyEnv(value: string | undefined): boolean {
-	return value === "1" || value?.toLowerCase() === "true";
 }
 
 export function createNKleinModelCompressionProvider(

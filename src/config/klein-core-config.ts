@@ -8,20 +8,14 @@
  * delivers without the user launching it by hand.
  */
 
+import { isTruthyEnv } from "../core/env-flag";
+
 export interface KleinCorePyConfig {
 	enabled: boolean;
 	sidecarUrl: string;
 }
 
 const DEFAULT_SIDECAR_URL = "http://127.0.0.1:3585";
-
-function isTruthyEnv(value: string | undefined): boolean {
-	if (!value) {
-		return false;
-	}
-	const normalized = value.trim().toLowerCase();
-	return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
 
 export function resolveKleinCorePyConfig(env: NodeJS.ProcessEnv = process.env): KleinCorePyConfig {
 	const raw = env.NKLEIN_CORE_PY;

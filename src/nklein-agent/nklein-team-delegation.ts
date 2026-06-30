@@ -1,5 +1,6 @@
 import { sanitizeTeamName } from "@nklein/core";
 import type { RuntimeTaskSessionMode } from "../core/api-contract";
+import { isTruthyEnv } from "../core/env-flag";
 import { CLOUD_ENABLED } from "./nklein-local-only-policy";
 
 export interface NKleinTeamDelegationPolicyInput {
@@ -12,10 +13,6 @@ export interface NKleinTeamDelegationPolicy {
 	enabled: boolean;
 	teamName?: string;
 	reason: string;
-}
-
-function isTruthyEnv(value: string | undefined): boolean {
-	return value === "1" || value?.toLowerCase() === "true";
 }
 
 export function resolveNKleinTeamDelegationPolicy(input: NKleinTeamDelegationPolicyInput): NKleinTeamDelegationPolicy {

@@ -1,3 +1,5 @@
+import { isTruthyEnv } from "../core/env-flag";
+
 const PROTECTED_AUTO_MERGE_PATH_PREFIXES = [
 	"src/core/agent-write-guard.ts",
 	"src/core/runtime-endpoint.ts",
@@ -35,10 +37,6 @@ function normalizedPath(path: string): string {
 export function isTrustedAutoMergeProtectedPath(path: string): boolean {
 	const normalized = normalizedPath(path);
 	return PROTECTED_AUTO_MERGE_PATH_PREFIXES.some((prefix) => normalized === prefix || normalized.startsWith(prefix));
-}
-
-function isTruthyEnv(value: string | undefined): boolean {
-	return value === "1" || value?.toLowerCase() === "true";
 }
 
 export function evaluateTrustedAutoMerge(input: TrustedAutoMergeInput): TrustedAutoMergeDecision {
