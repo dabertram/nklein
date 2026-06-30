@@ -1,7 +1,8 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
-import { fetchLoadedModelIds } from "../../core/lmstudio-loaded-models";
+import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../../core/lmstudio-loaded-model-descriptors";
 import { lookupModelCapability, type ToolUseVerdict } from "../../core/model-capability-catalog";
-import { buildLoadedModelRoutingCandidates } from "../nklein-loaded-model-candidates";
+import { affinityTagsForCapabilities, affinityTagsForModelKind } from "../../core/model-task-affinity";
+import { buildLoadedModelRoutingCandidates, type LoadedModelRoutingProfile } from "../nklein-loaded-model-candidates";
 import { getDefaultNKleinModelRegistry } from "../nklein-model-registry";
 import { createNKleinProviderService } from "../nklein-provider-service";
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
@@ -24,6 +25,44 @@ const CATALOG_VERDICT_PRIOR: Record<ToolUseVerdict, number | null> = {
 function catalogCapabilityPrior(modelId: string): number | null {
 	const entry = lookupModelCapability(modelId);
 	return entry ? CATALOG_VERDICT_PRIOR[entry.toolUse] : null;
+}
+
+/** A coder model by name (matched on the REAL model key, e.g. `qwen2.5-coder`, `qwopus…-coder`, `devstral`). */
+const CODER_NAME_PATTERN = /cod(?:e|er|ing)|devstral/i;
+/** An opus-trained custom reasoner by name (user, 2026-07-01: "qwopus" = qwen + opus long-reasoning training). The API
+ * card omits a `reasoning` flag for such local merges, so the name is the only runtime signal that they're reasoners. */
+const OPUS_REASONER_NAME_PATTERN = /opus/i;
+
+/**
+ * Resolve a LOADED model's routing profile keyed on its REAL name (the descriptor's `modelKey`, NOT the per-machine
+ * runtime alias). Combines the two signals that reinforce each other: the runtime card facts from `/api/v1/models`
+ * (`trained_for_tool_use`, a declared `reasoning` capability) and the static §5.AL catalog (kind + tool-use verdict).
+ * The cold-start prior comes from the catalog; the affinity tags are the UNION of the API-fact tags and the catalog
+ * kind tags — so e.g. a coder whose card says `trained_for_tool_use:false` still gets the `agentic` tag from the
+ * catalog's `code` kind, and a custom opus merge the catalog mis-labels still gets `reasoning` from its name.
+ */
+function resolveLoadedModelProfile(descriptor: LoadedModelDescriptor): LoadedModelRoutingProfile {
+	if (descriptor.isEmbedding) {
+		return { isEmbedding: true };
+	}
+	const realName = descriptor.modelKey;
+	const catalogKind = lookupModelCapability(realName)?.kind ?? null;
+	const coder = CODER_NAME_PATTERN.test(realName);
+	const reasoning =
+		descriptor.reasoning === true ||
+		catalogKind === "reasoning" ||
+		(OPUS_REASONER_NAME_PATTERN.test(realName) && !coder);
+	const affinityTags = [
+		...new Set([
+			...affinityTagsForCapabilities({ reasoning, coder, toolUse: descriptor.toolUse }),
+			...affinityTagsForModelKind(catalogKind),
+		]),
+	];
+	return {
+		isEmbedding: false,
+		capabilityPrior: catalogCapabilityPrior(realName),
+		affinityTags,
+	};
 }
 
 /**
@@ -61,16 +100,20 @@ export async function buildDecompositionRoutingCandidates(
 		// endpoint yields []); reuses each model's observed registry entry so the ledger history drives ranking. The
 		// configured default/role candidates already set take precedence (richer guard-built entries) — don't clobber them.
 		if (launchConfig.baseUrl) {
-			const loadedModelIds = await fetchLoadedModelIds(launchConfig.baseUrl);
+			// Read the RICH `/api/v1/models` descriptors so each loaded model's REAL key (not the per-machine alias) drives
+			// the catalog/affinity lookups, and the authoritative `type` drives the embedding filter. The candidate identity
+			// stays the runtime alias (what's actually invoked). A profile is resolved once per loaded model up front.
+			const descriptors = await fetchLoadedModelDescriptors(launchConfig.baseUrl);
+			const profilesByRuntimeId = new Map(descriptors.map((d) => [d.runtimeId, resolveLoadedModelProfile(d)]));
 			for (const loadedCandidate of buildLoadedModelRoutingCandidates({
-				loadedModelIds,
+				loadedModelIds: descriptors.map((d) => d.runtimeId),
 				registryEntries: Object.values(modelRegistry.models),
 				providerId: launchConfig.providerId,
 				endpoint: launchConfig.baseUrl,
 				now: Date.now(),
-				// Cold-start prior so a never-observed loaded model is ranked by its model card (§5.AL catalog), not a flat
-				// default. llmfit's richer score can chain ahead of this later (resolver: ledger > llmfit > catalog > default).
-				capabilityPrior: catalogCapabilityPrior,
+				// Cold-start prior (catalog, keyed on the real name) + best-fit affinity tags (runtime caps ∪ catalog), so a
+				// never-observed loaded model is ranked by its card. llmfit's richer score can chain into the prior later.
+				resolveProfile: (runtimeId) => profilesByRuntimeId.get(runtimeId) ?? null,
 			})) {
 				if (!candidates.has(loadedCandidate.entry.key)) {
 					candidates.set(loadedCandidate.entry.key, loadedCandidate);

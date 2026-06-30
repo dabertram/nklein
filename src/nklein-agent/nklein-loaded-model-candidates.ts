@@ -17,11 +17,30 @@ import { createNKleinModelRegistryEntry } from "./nklein-model-registry-deserial
 import { buildNKleinModelRegistryKey } from "./nklein-model-registry-key";
 import type { NKleinTaskRoutingCandidate } from "./nklein-task-router";
 
-/** Embedding model ids are not agentic routing candidates (e.g. `text-embedding-nomic-embed-text-…`). */
+/** Fallback embedding guess from a runtime id, used ONLY when the caller's profile doesn't carry the authoritative
+ * `isEmbedding` flag (the LM Studio `/api/v1/models` `type` is preferred — see {@link LoadedModelRoutingProfile}). */
 const EMBEDDING_ID_PATTERN = /(?:^|[-/@])(?:text-)?embed/i;
 
+/**
+ * Per-model facts the CALLER resolves (keyed on the model's REAL name — LM Studio aliases the runtime id, so the caller
+ * maps alias→real key via `/api/v1/models` before catalog/affinity lookups). Injected so this builder stays pure of
+ * catalog/llmfit/API I/O. All fields optional — an absent profile reproduces the old id-only behavior.
+ */
+export interface LoadedModelRoutingProfile {
+	/** Authoritative embedding flag (LM Studio `type === "embedding"`); when omitted the builder name-guesses the id. */
+	isEmbedding?: boolean;
+	/**
+	 * Cold-start capability prior (0–100, keyed on the real name) for an UNOBSERVED model — set as the candidate's
+	 * `observedCapability` (the router's score override) so a cold model is ranked by a real estimate, not the flat
+	 * default. Ignored for an OBSERVED model (it keeps its learned ledger score).
+	 */
+	capabilityPrior?: number | null;
+	/** Best-fit affinity tags (runtime caps ∪ §5.AL catalog) carried onto the candidate for task↔model routing. */
+	affinityTags?: readonly string[];
+}
+
 export interface LoadedModelCandidatesInput {
-	/** Currently-loaded model ids on `endpoint` (e.g. from `fetchLoadedModelIds`). Embedding ids are filtered out here. */
+	/** Currently-loaded model RUNTIME ids (LM Studio per-instance aliases — the invocation identity / candidate key). */
 	loadedModelIds: readonly string[];
 	/** The model-registry snapshot's entries — used to reuse a model's OBSERVED capability/stats when known. */
 	registryEntries: readonly NKleinModelRegistryEntry[];
@@ -31,12 +50,8 @@ export interface LoadedModelCandidatesInput {
 	now: number;
 	/** Optional role tag carried onto each candidate (a workflow-STAGE signal for the selector, not a manual mapping). */
 	role?: string | null;
-	/**
-	 * Cold-start capability prior for an UNOBSERVED model (id → 0–100 score, or null). Set as the candidate's
-	 * `observedCapability` so the router ranks a cold model by a real estimate (llmfit score → §5.AL catalog) instead of
-	 * the flat default. Pure + injected so the builder stays free of llmfit/catalog I/O. Skipped for OBSERVED models.
-	 */
-	capabilityPrior?: (modelId: string) => number | null;
+	/** Resolve a runtime id's {@link LoadedModelRoutingProfile} (real-name catalog/affinity/embedding facts). */
+	resolveProfile?: (runtimeId: string) => LoadedModelRoutingProfile | null | undefined;
 }
 
 /**
@@ -50,8 +65,14 @@ export function buildLoadedModelRoutingCandidates(input: LoadedModelCandidatesIn
 	const seenKeys = new Set<string>();
 	for (const rawModelId of input.loadedModelIds) {
 		const modelId = rawModelId.trim();
-		if (!modelId || EMBEDDING_ID_PATTERN.test(modelId)) {
-			continue; // skip blanks + embedding models (not agentic routing candidates)
+		if (!modelId) {
+			continue;
+		}
+		const profile = input.resolveProfile?.(modelId) ?? null;
+		// Embedding models aren't agentic routing candidates — prefer the caller's authoritative flag, name-guess only as
+		// a fallback when the profile is absent.
+		if (profile ? profile.isEmbedding : EMBEDDING_ID_PATTERN.test(modelId)) {
+			continue;
 		}
 		const keyInput = { providerId: input.providerId, modelId, endpoint: input.endpoint };
 		const key = buildNKleinModelRegistryKey(keyInput);
@@ -62,14 +83,15 @@ export function buildLoadedModelRoutingCandidates(input: LoadedModelCandidatesIn
 		const known = entriesByKey.get(key);
 		const entry = known ?? createNKleinModelRegistryEntry(keyInput, input.now);
 		// Cold-start capability prior: an UNOBSERVED loaded model gets a prior via the candidate's `observedCapability`
-		// (the router's score override) from the injected resolver (llmfit score → §5.AL catalog → null), so the router
-		// can tell a coder from a reasoner instead of treating every cold model identically. An OBSERVED model (already
-		// in the registry, with accrued stats) keeps its learned score — no override.
-		const prior = known ? null : (input.capabilityPrior?.(modelId) ?? null);
+		// (the router's score override), so the router can tell a coder from a reasoner instead of treating every cold
+		// model identically. An OBSERVED model (already in the registry, with accrued stats) keeps its learned score.
+		const prior = known ? null : (profile?.capabilityPrior ?? null);
+		const affinityTags = profile?.affinityTags ?? [];
 		candidates.push({
 			entry,
 			role: input.role ?? null,
-			...(prior !== null ? { observedCapability: prior } : {}),
+			...(prior !== null && prior !== undefined ? { observedCapability: prior } : {}),
+			...(affinityTags.length > 0 ? { affinityTags } : {}),
 		});
 	}
 	return candidates;

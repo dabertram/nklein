@@ -69,20 +69,23 @@ describe("buildLoadedModelRoutingCandidates", () => {
 		expect(candidates.map((c) => c.entry.modelId)).toEqual(["qwen3.5-9b"]);
 	});
 
-	it("sets observedCapability from the cold-start prior for an UNOBSERVED model", () => {
+	it("sets observedCapability + affinityTags from the resolved profile for an UNOBSERVED model", () => {
 		const candidates = buildLoadedModelRoutingCandidates({
 			loadedModelIds: ["coder", "chatty"],
 			registryEntries: [],
 			providerId: PROVIDER,
 			endpoint: ENDPOINT,
 			now: NOW,
-			capabilityPrior: (id) => (id === "coder" ? 80 : id === "chatty" ? 28 : null),
+			resolveProfile: (id) =>
+				id === "coder"
+					? { capabilityPrior: 80, affinityTags: ["code", "agentic"] }
+					: { capabilityPrior: 28, affinityTags: ["instruct"] },
 		});
-		expect(candidates[0]?.observedCapability).toBe(80);
-		expect(candidates[1]?.observedCapability).toBe(28);
+		expect(candidates[0]).toMatchObject({ observedCapability: 80, affinityTags: ["code", "agentic"] });
+		expect(candidates[1]).toMatchObject({ observedCapability: 28, affinityTags: ["instruct"] });
 	});
 
-	it("does NOT override an OBSERVED model's learned score with the prior (ledger wins)", () => {
+	it("does NOT override an OBSERVED model's learned score with the prior, but still tags it", () => {
 		const known = createNKleinModelRegistryEntry({ providerId: PROVIDER, modelId: "known", endpoint: ENDPOINT }, NOW);
 		const candidates = buildLoadedModelRoutingCandidates({
 			loadedModelIds: ["known", "fresh"],
@@ -90,21 +93,37 @@ describe("buildLoadedModelRoutingCandidates", () => {
 			providerId: PROVIDER,
 			endpoint: ENDPOINT,
 			now: NOW,
-			capabilityPrior: () => 99,
+			resolveProfile: () => ({ capabilityPrior: 99, affinityTags: ["code"] }),
 		});
-		expect(candidates[0]?.observedCapability).toBeUndefined(); // observed → no override
+		expect(candidates[0]?.observedCapability).toBeUndefined(); // observed → no score override
+		expect(candidates[0]?.affinityTags).toEqual(["code"]); // …but affinity still applies (it's the model's nature)
 		expect(candidates[1]?.observedCapability).toBe(99); // cold → prior applied
 	});
 
-	it("omits observedCapability when the prior returns null (keeps the registry default)", () => {
+	it("omits observedCapability when the profile prior is null (keeps the registry default)", () => {
 		const candidates = buildLoadedModelRoutingCandidates({
 			loadedModelIds: ["unknown-card"],
 			registryEntries: [],
 			providerId: PROVIDER,
 			endpoint: ENDPOINT,
 			now: NOW,
-			capabilityPrior: () => null,
+			resolveProfile: () => ({ capabilityPrior: null }),
 		});
 		expect(candidates[0]?.observedCapability).toBeUndefined();
+		expect(candidates[0]?.affinityTags).toBeUndefined();
+	});
+
+	it("uses the profile's AUTHORITATIVE isEmbedding flag (a non-embedding name can be flagged, and vice-versa)", () => {
+		const candidates = buildLoadedModelRoutingCandidates({
+			// "weird-vectorizer" wouldn't match the name regex, but the profile says it's an embedding → dropped.
+			// "embed-but-llm" WOULD match the regex, but the profile says it's an LLM → kept.
+			loadedModelIds: ["weird-vectorizer", "embed-but-llm"],
+			registryEntries: [],
+			providerId: PROVIDER,
+			endpoint: ENDPOINT,
+			now: NOW,
+			resolveProfile: (id) => ({ isEmbedding: id === "weird-vectorizer" }),
+		});
+		expect(candidates.map((c) => c.entry.modelId)).toEqual(["embed-but-llm"]);
 	});
 });

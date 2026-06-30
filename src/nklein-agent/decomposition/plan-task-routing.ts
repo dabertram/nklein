@@ -1,4 +1,6 @@
 import type { RuntimeTaskNKleinSettings } from "../../core/api-contract";
+import { affinityTagsForSkills } from "../../core/model-task-affinity";
+import { resolveActiveSkills } from "../../core/skill-resolver";
 import type { NKleinPlanTaskGraphPreview, NKleinPlanTaskSharedContext } from "../nklein-decomposition-tool";
 import type { NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
 import { type NKleinTaskRoutingCandidate, routeNKleinTask } from "../nklein-task-router";
@@ -23,6 +25,13 @@ export function selectTaskRoutingCandidate(
 		prompt: taskPrompt,
 		taskTitle: task.title,
 	});
+	// §5.AE→§5.AB: resolve the card's skills, then project them onto the same affinity tags a fitting model carries, so a
+	// code-editing card prefers a `code` model and a planning card a `reasoning` one (best-fit BEFORE smallest-sufficient).
+	const taskAffinityTags = affinityTagsForSkills(
+		resolveActiveSkills({ role: task.suggestedRole, taskText: `${task.title}\n${taskPrompt}` }).skills.map(
+			(skill) => skill.id,
+		),
+	);
 	const largestContextWindow =
 		routingCandidates
 			.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
@@ -38,6 +47,7 @@ export function selectTaskRoutingCandidate(
 		outputTokens: 1_000,
 		preferredModelKey,
 		candidates: routingCandidates,
+		taskAffinityTags,
 	});
 	if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
 		throw new Error(
