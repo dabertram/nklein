@@ -361,13 +361,17 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		const errorMessage = "error" in agentEvent ? extractAgentErrorMessage(agentEvent.error) : null;
 		const retainedToolActivity = getRetainedNKleinToolActivity(entry);
 		clearActiveTurnState(entry);
+		// B1 alignment: on a credit-limit run-failed, suppress the raw warning text (matching the error-event arm above and
+		// the service arm in nklein-task-session-service) — the dedicated `credit_limit` notice + "Out of credits" card
+		// state already convey it, so a raw "402 Insufficient balance" warning would be a redundant double-display.
+		const creditLimitError = input.isNKleinProvider && isCreditLimitError(errorMessage);
 		emitSummary(
 			input,
 			withHeartbeat(
 				{
 					state: "awaiting_review",
 					reviewReason: "error",
-					warningMessage: errorMessage ?? "Unknown agent error",
+					warningMessage: creditLimitError ? null : (errorMessage ?? "Unknown agent error"),
 					lastOutputAt: now(),
 					lastHookAt: now(),
 					latestHookActivity: {
@@ -376,7 +380,7 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 						toolInputSummary: retainedToolActivity.toolInputSummary,
 						finalMessage: errorMessage ?? "Unknown agent error",
 						hookEventName: "agent_error",
-						notificationType: input.isNKleinProvider && isCreditLimitError(errorMessage) ? "credit_limit" : null,
+						notificationType: creditLimitError ? "credit_limit" : null,
 						source: "nklein-sdk",
 					},
 				},

@@ -1166,8 +1166,11 @@ describe("applyNKleinSessionEvent", () => {
 		expect(result.entry.summary.state).toBe("awaiting_review");
 		expect(result.entry.summary.reviewReason).toBe("error");
 		expect(result.entry.summary.latestHookActivity?.notificationType).toBe("credit_limit");
-		// KNOWN INCONSISTENCY B1: run-failed credit-limit keeps the raw warning text while the error-event arm suppresses it to null — pinned here; alignment is a deliberate UX decision, not changed in this coverage pass.
-		expect(result.entry.summary.warningMessage).toBe(
+		// B1 ALIGNED: run-failed credit-limit now SUPPRESSES the raw warning text to null (matching the error-event arm and
+		// the service arm). The dedicated `credit_limit` notice + "Out of credits" card state convey it; a raw "402…"
+		// warning in the composer would be a redundant double-display. finalMessage still carries the text for diagnostics.
+		expect(result.entry.summary.warningMessage).toBeNull();
+		expect(result.entry.summary.latestHookActivity?.finalMessage).toBe(
 			"402 Insufficient balance. Your NKlein Credits balance is $0.00",
 		);
 	});
