@@ -43,6 +43,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
 import { detectInstalledCommands } from "../terminal/agent-registry";
+import { resolveRuntimeConcurrencyConfig } from "./runtime-config-concurrency-resolver";
 import {
 	AUTO_SELECT_AGENT_PRIORITY,
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -359,10 +360,6 @@ function toRuntimeConfigState({
 		DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
 	);
 	const skillDynamicsLevelOverride = normalizeSkillDynamicsLevelOverride(projectConfig?.skillDynamicsLevelOverride);
-	const concurrencyDefaults = normalizeConcurrencyConfig(globalConfig?.concurrencyDefaults);
-	const concurrencyOverride = normalizeConcurrencyOverride(projectConfig?.concurrencyOverride);
-	const maxConcurrentTasks = normalizeMaxConcurrentTasks(globalConfig?.maxConcurrentTasks);
-	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(projectConfig?.maxConcurrentTasksOverride);
 	const selectedAgentId = normalizeAgentId(globalConfig?.selectedAgentId);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(projectConfig?.selectedAgentIdOverride);
 	const agentRulesetsOverride = normalizeAgentRulesetsOverride(projectConfig?.agentRulesetsOverride);
@@ -382,9 +379,7 @@ function toRuntimeConfigState({
 		),
 		...resolveRuntimeTimeoutConfig(globalConfig),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
-		maxConcurrentTasks,
-		maxConcurrentTasksOverride,
-		effectiveMaxConcurrentTasks: maxConcurrentTasksOverride ?? maxConcurrentTasks,
+		...resolveRuntimeConcurrencyConfig(globalConfig, projectConfig),
 		selectedAgentIdOverride,
 		effectiveSelectedAgentId: selectedAgentIdOverride ?? selectedAgentId,
 		...resolveRuntimeSandboxConfig(globalConfig),
@@ -399,8 +394,6 @@ function toRuntimeConfigState({
 		skillDynamicsLevelDefault,
 		skillDynamicsLevelOverride,
 		effectiveSkillDynamicsLevel: skillDynamicsLevelOverride ?? skillDynamicsLevelDefault,
-		concurrencyDefaults,
-		concurrencyOverride,
 		modelRoles,
 		modelRolesOverride,
 		effectiveModelRoles: modelRolesOverride ?? modelRoles,
