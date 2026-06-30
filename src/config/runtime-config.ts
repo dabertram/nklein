@@ -108,6 +108,14 @@ import type {
 	RuntimeProjectConfigFileShape,
 } from "./runtime-config-types";
 import {
+	assignChangedConfigField,
+	hasOwnKey,
+	keepNormalizedValue,
+	keepUpdatedValue,
+	normalizeShortcutLabel,
+	normalizeWorkspaceBaseDir,
+} from "./runtime-config-value-helpers";
+import {
 	NKLEIN_HOME_DIR_NAME,
 	NKLEIN_PROJECT_CONFIG_DIR_NAME,
 	NKLEIN_RUNTIME_DIR_NAME,
@@ -259,61 +267,6 @@ function runtimeConfigStateHasChanges(
 	current: RuntimeConfigChangeComparable,
 ): boolean {
 	return fields.some((field) => field.changed(next, current));
-}
-
-// Per-field save-merge helpers (todo §5.U): "keep the current value unless the update explicitly provided
-// one" — flattening the repetitive `updates.X === undefined ? current.X : …` ternaries in the two update
-// builders to one uniform line per field. `keepUpdatedValue` is the pass-through form; `keepNormalizedValue`
-// runs the field's normalizer on an explicitly-provided value. Locked by the per-field save-coverage test.
-function keepUpdatedValue<T>(updateValue: T | undefined, currentValue: T): T {
-	return updateValue === undefined ? currentValue : updateValue;
-}
-
-function keepNormalizedValue<U, T>(updateValue: U | undefined, currentValue: T, normalize: (value: U) => T): T {
-	return updateValue === undefined ? currentValue : normalize(updateValue);
-}
-
-function normalizeShortcutLabel(value: unknown): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const normalized = value.trim();
-	return normalized.length > 0 ? normalized : null;
-}
-
-/** §5.W: trim a configured workspace base dir to a non-empty string, or null to fall back to the home default. */
-function normalizeWorkspaceBaseDir(value: unknown): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const normalized = value.trim();
-	return normalized.length > 0 ? normalized : null;
-}
-
-function hasOwnKey<T extends object>(value: T | null, key: keyof T): boolean {
-	if (!value) {
-		return false;
-	}
-	return Object.hasOwn(value, key);
-}
-
-/**
- * Diff-gated config-file write (todo §5.U DRY finding): persist a scalar field only when it differs from its
- * default OR the existing file already carried it (so explicit non-default values survive, and defaults stay out
- * of the file). Collapses the many repetitive `if (hasOwnKey(existing, "x") || x !== DEFAULT_X) payload.x = x`
- * blocks for simple `===`-comparable fields. (Profile-coupled timeouts and nested-object fields keep their bespoke
- * comparisons.)
- */
-function assignChangedConfigField<K extends keyof RuntimeGlobalConfigFileShape>(
-	payload: RuntimeGlobalConfigFileShape,
-	existing: RuntimeGlobalConfigFileShape | null,
-	key: K,
-	value: RuntimeGlobalConfigFileShape[K],
-	defaultValue: RuntimeGlobalConfigFileShape[K],
-): void {
-	if (hasOwnKey(existing, key) || value !== defaultValue) {
-		payload[key] = value;
-	}
 }
 
 export function getRuntimeGlobalConfigPath(): string {
