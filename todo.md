@@ -3107,9 +3107,14 @@ deep analysis:
         card-start (`runtime.startTaskSession`), card-pause (`runtime.pauseTask`), card-resume (`runtime.resumeTask`),
         card-trash (`workspace.saveState`), chat-send (`runtime.sendTaskChatMessage`), chat-agent-stream (a streamed
         assistant message renders — the LLM-use payoff), board-session-stream ×2 (running→working, running→paused),
-        board-lane-reconcile (streamed `workspace_state_updated` moves a card backlog→in_progress). Owed: drag-move (dnd —
-        hard; use the programmatic affordance) + the TIER-2 settings sub-sections (concurrency / model-roles editors — need
-        the settings-config mock, cf. settings.spec.ts's MOCK_CONFIG).
+        board-lane-reconcile (streamed `workspace_state_updated` moves a card backlog→in_progress). **(2026-06-30) +4 more
+        (full e2e 55→59):** chat-agent-stream test 2 (incremental token-streaming — same msg id grows text in place, the
+        upsert-by-id streaming core), concurrency-editor (per-machine pool cap → saveConfig), agent-rulesets (global-preset
+        tier → saveConfig), model-roles-editor (architect reasoning-effort → saveConfig; gave the reasoning select a stable
+        id + `<label htmlFor>` for a11y/testability). **Owed: only drag-move (dnd — DELIBERATELY SKIPPED:** raw
+        @hello-pangea/dnd is flaky in Playwright (a flaky e2e erodes suite trust) + the programmatic-move seam is an internal
+        flow, not a clean user shortcut; the move LOGIC is already unit-covered by kanban-board.test.tsx onDragEnd cases +
+        pure `moveTaskToColumn`/`drag-rules`. Revisit only if a stable keyboard-dnd or test affordance is added.)
 - [~] **Settings/config + isolation UI** — every setting persists + is wired (global + per-project override), the
       isolation status/pool UI, project-settings menu. Pair with §5.W.
       **Contract-seam coverage DONE (2026-06-26, 44 tests, Suite 16 — `test/contract/settings-config-contract.test.ts`).**
@@ -6327,7 +6332,7 @@ deep analysis:
         agent area (the "Thinking…" region), and it did NOT surface a pushed assistant message there — so that area's
         message-rendering condition (vs. the terminal/agent-output view) is the remaining unknown. Next: DOM-inspect the
         card-detail agent region's structure to find where an assistant `task_chat_message` becomes visible text.
-  - [x] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). **(2026-06-29) DONE** — both in `runtime-mock.ts`; `buildMockRuntimeConfig()` (complete `runtime.getConfig`, override-able) renders the Settings dialog → unlocked the concurrency-editor + agent-rulesets settings specs. Full e2e now **57** (11 new this round: start/pause/resume/trash/send/chat-stream/board-stream×2/lane-reconcile/concurrency/rulesets).
+  - [x] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). **(2026-06-29) DONE** — both in `runtime-mock.ts`; `buildMockRuntimeConfig()` (complete `runtime.getConfig`, override-able) renders the Settings dialog → unlocked the concurrency-editor + agent-rulesets settings specs. Full e2e now **59** (13 new: start/pause/resume/trash/send/chat-stream + incremental-token-stream/board-stream×2/lane-reconcile/concurrency/rulesets/model-roles).
   - [ ] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
   - [ ] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens).
   - [ ] Create `playwright.smoke.config.ts` with `reuseExistingServer:false` + `--strictPort` on stable module constant port.
