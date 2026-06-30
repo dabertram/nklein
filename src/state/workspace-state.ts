@@ -1,8 +1,7 @@
 import { execFile } from "node:child_process";
-import { randomBytes } from "node:crypto";
 import { readFile, realpath, rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 import {
@@ -28,6 +27,7 @@ import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
 import { createEmptyBoard, normalizeRuntimeBoardData } from "./runtime-board-normalization";
 import { formatSchemaIssues } from "./schema-issue-formatting";
+import { createWorkspaceIdCollisionSuffix, toWorkspaceIdBase } from "./workspace-id-generation";
 
 const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
 const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
@@ -540,32 +540,6 @@ async function writeWorkspaceIndex(index: WorkspaceIndexFile): Promise<void> {
 	await lockedFileSystem.writeJsonFileAtomic(getWorkspaceIndexPath(), index, {
 		lock: null,
 	});
-}
-
-function toWorkspaceIdBase(repoPath: string): string {
-	const trimmed = repoPath.trim().replace(/[\\/]+$/g, "");
-	const folderName = basename(trimmed) || "project";
-	const normalized = folderName
-		.normalize("NFKD")
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return normalized || "project";
-}
-
-function createWorkspaceIdCollisionSuffix(length: number): string {
-	const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
-	let suffix = "";
-	while (suffix.length < length) {
-		const bytes = randomBytes(length);
-		for (const byte of bytes) {
-			suffix += alphabet[byte % alphabet.length] ?? "";
-			if (suffix.length === length) {
-				break;
-			}
-		}
-	}
-	return suffix;
 }
 
 function createWorkspaceId(index: WorkspaceIndexFile, repoPath: string, preferredWorkspaceId?: string): string {
