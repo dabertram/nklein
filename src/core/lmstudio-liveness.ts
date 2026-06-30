@@ -1,0 +1,75 @@
+/**
+ * LM Studio liveness probe (todo §5.AN — the "never assume silence = death" guard, user 2026-06-30).
+ *
+ * The PREFILL phase emits no stream tokens, so a long cold prefill looks "silent" to !Klein even though the model is
+ * actively working. The primary defence is ultra-long timeouts (don't kill a working model — see autonomous-timeout-
+ * defaults). This module adds the OPTIONAL, AUTO-DETECTED complement: when the model host exposes LM Studio's native API,
+ * we can read whether the model is still RESIDENT and fail FAST on a real death (crash / unload under memory pressure)
+ * instead of waiting out the ultra-long timeout. It works LOCAL or over NETWORK — the native URL derives from the model's
+ * own `baseUrl` ({@link lmStudioApiV0ModelsUrl}), so wherever !Klein reaches the model it can reach this probe.
+ *
+ * IMPORTANT — this is a COARSE liveness signal: `/api/v0/models` reports residency (`loaded`/`not-loaded`) but NOT the
+ * live `PROCESSINGPROMPT`/`GENERATING` activity that `lms ps` shows (verified 2026-06-30: `state` stays `loaded` through
+ * inference). So "resident" means "the model is still loaded" (alive, possibly prefilling) — it does NOT prove it is
+ * actively processing THIS request. Use it to fail-fast on `absent`, never to PROLONG a kill (a hung-but-resident model
+ * is the ultra-long timeout's job). The richer activity signal is `/api/v1/chat` prompt-processing events — a later step.
+ *
+ * Pure + injectable fetch ⇒ unit-testable without a live endpoint.
+ */
+
+import { lmStudioApiV0ModelsUrl, parseLoadedModelIds } from "./lmstudio-loaded-models";
+
+/**
+ * - `resident`     — LM Studio reachable AND the model is in its loaded set (alive; may be prefilling/generating).
+ * - `absent`       — LM Studio reachable but the model is NOT loaded → it crashed / was unloaded (memory pressure).
+ * - `unobservable` — the host is not LM Studio, or unreachable (plain OpenAI server / llama.cpp / vLLM / down) ⇒ the
+ *                    caller CANNOT use this advanced observation and must rely on its timeout (be transparent to the user).
+ */
+export type ModelLiveness = "resident" | "absent" | "unobservable";
+
+/** Does this payload have LM Studio's native `/api/v0/models` shape (`{ data: [...] }`)? Distinguishes it from a 404 body. */
+function isLmStudioModelsPayload(payload: unknown): payload is { data: unknown[] } {
+	return typeof payload === "object" && payload !== null && Array.isArray((payload as { data?: unknown }).data);
+}
+
+/**
+ * Probe whether `modelId` is currently resident on its host's LM Studio native API. Read-only GET, bounded so it can
+ * never hang the caller; any failure / non-LM-Studio shape ⇒ `unobservable` (the safe "can't tell" verdict — the caller
+ * then falls back to its timeout, never killing on an unconfirmed signal).
+ */
+export async function probeModelResidency(
+	baseUrl: string,
+	modelId: string,
+	fetchImpl: typeof fetch = fetch,
+	timeoutMs = 3_000,
+): Promise<ModelLiveness> {
+	let payload: unknown;
+	try {
+		const res = await fetchImpl(lmStudioApiV0ModelsUrl(baseUrl), { signal: AbortSignal.timeout(timeoutMs) });
+		if (!res.ok) {
+			return "unobservable"; // 404 (not LM Studio) / 5xx — can't observe.
+		}
+		payload = await res.json();
+	} catch {
+		return "unobservable"; // unreachable / network error / non-JSON.
+	}
+	if (!isLmStudioModelsPayload(payload)) {
+		return "unobservable"; // reachable but not the LM Studio native shape.
+	}
+	return parseLoadedModelIds(payload).includes(modelId) ? "resident" : "absent";
+}
+
+/**
+ * Auto-detect whether the model host exposes the LM Studio native API at all (so the caller can ENABLE the advanced
+ * liveness observation when available and be TRANSPARENT that it isn't otherwise). True when a probe returns a definite
+ * residency verdict (`resident`/`absent`), false when `unobservable`. (A model id that is genuinely loaded yields
+ * `resident`; pass a known-loaded id, e.g. the one being used, for the most reliable detection.)
+ */
+export async function isLmStudioHostObservable(
+	baseUrl: string,
+	modelId: string,
+	fetchImpl: typeof fetch = fetch,
+	timeoutMs = 3_000,
+): Promise<boolean> {
+	return (await probeModelResidency(baseUrl, modelId, fetchImpl, timeoutMs)) !== "unobservable";
+}
