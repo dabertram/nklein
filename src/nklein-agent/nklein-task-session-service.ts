@@ -19,6 +19,7 @@ import {
 	normalizeRuntimeSwarmGuardrails,
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 } from "../core/api-contract";
+import { isTruthyEnv } from "../core/env-flag";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
@@ -151,6 +152,13 @@ export { computeRepeatedToolCallCandidate, formatRepeatedToolCallParkMessage } f
 
 /** Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned (todo §5.K). */
 const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
+/**
+ * Opt-in stream-event tracing (`NKLEIN_DEBUG_STREAM_EVENTS=1`). Prints every SDK event reaching the service with a
+ * wall-clock timestamp + the gap since the previous event for that task — so a "stream inactivity" stall can be read
+ * from the data (is the model actively streaming events, or genuinely silent?) instead of inferred. Default off.
+ */
+const DEBUG_STREAM_EVENTS = isTruthyEnv(process.env.NKLEIN_DEBUG_STREAM_EVENTS);
+const debugStreamEventLastAtByTaskId = new Map<string, number>();
 /** Re-prompt budget when a reviewer turn ends without calling `submit_review` (small models often forget). */
 const MAX_SECOND_OPINION_REVIEW_NUDGES = 2;
 const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
@@ -2910,6 +2918,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			return;
+		}
+		if (DEBUG_STREAM_EVENTS) {
+			const evtType =
+				event && typeof event === "object" && "type" in event
+					? String((event as { type: unknown }).type)
+					: typeof event;
+			const nowMs = Date.now();
+			const lastAt = debugStreamEventLastAtByTaskId.get(taskId);
+			debugStreamEventLastAtByTaskId.set(taskId, nowMs);
+			process.stderr.write(
+				`[nklein-stream-debug] ${new Date(nowMs).toISOString()} task=${taskId} evt=${evtType} gapMs=${lastAt ? nowMs - lastAt : 0} state=${entry.summary.state} hook=${entry.summary.latestHookActivity?.hookEventName ?? "-"}\n`,
+			);
 		}
 		const previousSummary = cloneSummary(entry.summary);
 		let latestSummary: RuntimeTaskSessionSummary | null = null;
