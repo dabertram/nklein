@@ -97,16 +97,6 @@ export interface RuntimeDeleteTasksResult {
 	deletedTaskIds: string[];
 }
 
-function collectExistingTaskIds(board: RuntimeBoardData): Set<string> {
-	const existingIds = new Set<string>();
-	for (const column of board.columns) {
-		for (const card of column.cards) {
-			existingIds.add(card.id);
-		}
-	}
-	return existingIds;
-}
-
 function collectTaskIds(board: RuntimeBoardData): Set<string> {
 	const taskIds = new Set<string>();
 	for (const column of board.columns) {
@@ -296,7 +286,7 @@ export function addTaskToColumn(
 	if (!baseRef) {
 		throw new Error("Task baseRef is required.");
 	}
-	const existingIds = collectExistingTaskIds(board);
+	const existingIds = collectTaskIds(board);
 	const explicitTaskId = input.taskId?.trim();
 	if (explicitTaskId && existingIds.has(explicitTaskId)) {
 		throw new Error(`Task "${explicitTaskId}" already exists.`);
