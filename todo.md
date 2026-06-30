@@ -6963,10 +6963,13 @@ deep analysis:
         `interpretLlamaCppCacheTimings` (prompt_n/cache_n) + `cacheHealthFromCachedTokens` (advisory). 11 tests.
         **(2026-06-30) EFFECTFUL PROBE DEMONSTRATED LIVE + a heuristic-refuting finding.** Ran the real TTFT double-prefix
         test (stream a unique-nonced ~2k prefix warmup→cold→warm×2, time first token, feed `classifyCacheHealth`) against
-        the resident **qwopus3.6-27b-v2-mlx** (MLX + qwen3.5 = a "hybrid_swa" arch the pre-filter flags as cache-risky):
-        **cold 52,557 ms → warm 733 ms = 71.7× speedup → `healthy: true`.** So (a) `classifyCacheHealth` is VALIDATED on a
-        real cache hit, and (b) **this MLX qwen3.5 caches PERFECTLY — refuting the "MLX hybrid = broken caching" prior.**
-        #1697's failure is **model-specific (MLX GPT-OSS-20B)**, NOT a blanket MLX/hybrid property. ⇒ The empirical probe
+        **two distinct "affected" arches**, both flagged cache-risky by the pre-filter: **qwopus3.6-27b-v2-mlx** (MLX +
+        qwen3.5 SSM-hybrid) → **cold 52,557 ms → warm 733 ms = 71.7×**, and **gemma-4-e4b** (Gemma SWA, llama.cpp #21468
+        list) → **cold 8,114 ms → warm 69 ms = 116.8×** — **both `healthy: true`.** So (a) `classifyCacheHealth` is
+        VALIDATED on real cache hits, and (b) **both caches REUSE PERFECTLY — refuting the "hybrid/SWA = broken caching"
+        prior across two arch families.** #1697's failure is **model-specific (MLX GPT-OSS-20B)**, and the mlx-lm/llama.cpp
+        "affected" lists are **engine/version-specific (largely fixed in the current LM Studio MLX engine)**, NOT a blanket
+        property. ⇒ The empirical probe
         MUST OVERRIDE the static `classifyAttentionArchitecture` guess (a weak prior only), never the reverse — routing this
         model away to GGUF "for caching" would be wrong. Still owed: fold the probe into a small reusable
         `scripts/verify-cache-health-live.mts` + cache the per-`(engine,model,ctx)` verdict on the §5.AF ledger.

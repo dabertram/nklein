@@ -13,11 +13,12 @@
  * Qwen3.5/3.6, Falcon-H1, Jamba and Mamba are SSM-hybrids; Llama/Mistral/Mixtral/Qwen2.5/Phi-3/4/MiniMax are pure
  * full-attention.
  *
- * **EMPIRICAL CAVEAT (2026-06-30 live TTFT probe).** Despite mlx-lm #980 listing Qwen3.5 as "affected", the resident
- * `qwopus3.6-27b-v2-mlx` (qwen3.5, MLX) measured **cold 52,557 ms → warm 733 ms = 71.7× speedup — a HEALTHY cache hit**.
- * So the "affected" lists are per-`(engine,model,version)`, not a blanket arch property, and `#1697`'s failure is
- * GPT-OSS-specific. Treat a non-`full_attention` result here as a WEAK PRIOR only: it may be used to PRIORITIZE the live
- * probe, but NEVER to SKIP it and assume broken (that would false-positive a model like this one that caches fine). The
+ * **EMPIRICAL CAVEAT (2026-06-30 live TTFT probe — TWO arch families).** Despite the "affected" lists, both hybrid arches
+ * tested cache PERFECTLY in the current LM Studio MLX engine: `qwopus3.6-27b-v2-mlx` (qwen3.5 SSM-hybrid) → 71.7× warm/cold
+ * speedup, and `gemma-4-e4b` (Gemma SWA, llama.cpp #21468 list) → 116.8× — both HEALTHY cache hits. So the mlx-lm #980 /
+ * llama.cpp "affected" lists are per-`(engine,model,version)` and largely fixed, NOT a blanket arch property, and `#1697`'s
+ * failure is GPT-OSS-specific. Treat a non-`full_attention` result here as a WEAK PRIOR only: it may be used to PRIORITIZE
+ * the live probe, but NEVER to SKIP it and assume broken (that would false-positive models like these that cache fine). The
  * `classifyCacheHealth` probe in `cache-health.ts` is the sole authority for a cache-broken verdict.
  *
  * MoE-NESS DOES NOT MATTER: a plain Mixture-of-Experts model caches fine as long as its attention is full (MiniMax
