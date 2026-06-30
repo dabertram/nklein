@@ -5,7 +5,6 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // host, repository, or event-adapter details.
 
 import type {
-	RuntimeModelPerformanceRole,
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
 	RuntimeSwarmGuardrails,
@@ -20,7 +19,6 @@ import {
 	normalizeRuntimeSwarmGuardrails,
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 } from "../core/api-contract";
-import { toErrorMessage as formatErrorMessage } from "../core/error-message";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { buildTemporalAwarenessPrompt, isTemporalContextRelevant } from "../core/temporal-awareness";
@@ -41,7 +39,6 @@ import type { DecompositionStallNudgerCallbacks } from "./decomposition-stall-nu
 import { DecompositionStallNudger, isChatOnlyDecompositionActivity } from "./decomposition-stall-nudger";
 import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
 import {
-	AgentSandboxExecutionError,
 	type AgentSandboxManager,
 	type AgentSandboxPoolConfig,
 	type AgentSandboxShellTarget,
@@ -118,6 +115,12 @@ import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
 import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
 import { TaskRequestTimer } from "./nklein-task-request-timer";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
+import {
+	formatStartWarnings,
+	isBenignSandboxPatchStagingTeardown,
+	resolveNKleinTaskRole,
+	toErrorMessage,
+} from "./nklein-task-session-helpers";
 import { type NKleinTaskTimeoutKind, TaskTimeoutHandles } from "./nklein-task-timeout-handles";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
 import {
@@ -160,18 +163,6 @@ interface NKleinTaskTimeoutSettings {
 	streamTimeoutSource: TaskRunTimeoutSource;
 	toolTimeoutSource: TaskRunTimeoutSource;
 	conversationTimeoutSource: TaskRunTimeoutSource;
-}
-
-/**
- * Resolve a task's coarse launch role (todo §5.G/§5.U): reviewer for the synthetic `<taskId>::review` session,
- * architect for an explicit decomposition, worker otherwise. Single source for both the live summary stamp and
- * the terminal run-summary role attribution so they can't drift.
- */
-function resolveNKleinTaskRole(taskId: string, isDecomposition: boolean): RuntimeModelPerformanceRole {
-	if (taskId.endsWith("::review")) {
-		return "reviewer";
-	}
-	return isDecomposition ? "architect" : "worker";
 }
 
 export interface StartNKleinTaskSessionRequest {
@@ -326,40 +317,6 @@ export type CreateInMemoryNKleinTaskSessionServiceOptions =
 			 */
 			allowUnisolatedTestRuntime: true;
 	  });
-
-function toErrorMessage(error: unknown): string {
-	return formatErrorMessage(error, "Unknown error");
-}
-
-function isBenignSandboxPatchStagingTeardown(error: unknown): boolean {
-	if (!(error instanceof AgentSandboxExecutionError)) {
-		return false;
-	}
-	if (!error.message.startsWith("Could not stage sandbox workspace changes.")) {
-		return false;
-	}
-	const output = `${error.result.stderr}\n${error.result.stdout}`.toLowerCase();
-	return (
-		output.includes("chdir to cwd") ||
-		output.includes("unable to get current working directory") ||
-		output.includes("no such file or directory") ||
-		output.includes("not a git repository")
-	);
-}
-
-function formatStartWarnings(warnings: readonly string[] | undefined): string | null {
-	if (!warnings) {
-		return null;
-	}
-	const normalized = warnings.map((warning) => warning.trim()).filter((warning) => warning.length > 0);
-	if (normalized.length === 0) {
-		return null;
-	}
-	if (normalized.length === 1) {
-		return normalized[0] ?? null;
-	}
-	return `${normalized[0]} (+${normalized.length - 1} more MCP warning${normalized.length === 2 ? "" : "s"})`;
-}
 
 function appendVisibleSystemPromptMessage(entry: NKleinTaskSessionEntry, taskId: string, content: string | null): void {
 	const trimmed = content?.trim();
