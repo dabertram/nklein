@@ -5,6 +5,11 @@ import type {
 	RuntimeGitRef,
 	RuntimeGitRefsResponse,
 } from "../core/api-contract";
+import {
+	parseCommitNameStatusEntries,
+	parseCommitNumstatEntries,
+	parseCommitPatchEntries,
+} from "./git-commit-diff-parsing";
 import { runGit } from "./git-utils";
 
 const LOG_FIELD_SEPARATOR = "\x1f";
@@ -271,137 +276,6 @@ export interface CommitDiffFile {
 	additions: number;
 	deletions: number;
 	patch: string;
-}
-
-interface CommitDiffStatEntry {
-	path: string;
-	previousPath?: string;
-	additions: number;
-	deletions: number;
-}
-
-function parseCommitNameStatusEntries(output: string): Array<{
-	path: string;
-	previousPath?: string;
-	status: "modified" | "added" | "deleted" | "renamed";
-}> {
-	const tokens = output.split("\0").filter(Boolean);
-	const entries: Array<{
-		path: string;
-		previousPath?: string;
-		status: "modified" | "added" | "deleted" | "renamed";
-	}> = [];
-
-	for (let index = 0; index < tokens.length; index += 1) {
-		const statusCode = tokens[index];
-		if (!statusCode) {
-			continue;
-		}
-		const kind = statusCode.charAt(0);
-		if (kind === "R") {
-			const previousPath = tokens[index + 1];
-			const path = tokens[index + 2];
-			if (previousPath && path) {
-				entries.push({
-					path,
-					previousPath,
-					status: "renamed",
-				});
-			}
-			index += 2;
-			continue;
-		}
-		const path = tokens[index + 1];
-		if (!path) {
-			continue;
-		}
-		entries.push({
-			path,
-			status: kind === "A" ? "added" : kind === "D" ? "deleted" : "modified",
-		});
-		index += 1;
-	}
-
-	return entries;
-}
-
-function parseCommitNumstatEntries(output: string): CommitDiffStatEntry[] {
-	const tokens = output.split("\0").filter(Boolean);
-	const entries: CommitDiffStatEntry[] = [];
-
-	for (let index = 0; index < tokens.length; index += 1) {
-		const token = tokens[index];
-		if (!token) {
-			continue;
-		}
-		const simpleMatch = token.match(/^([-\d]+)\t([-\d]+)\t(.+)$/);
-		if (simpleMatch) {
-			const additions = simpleMatch[1] === "-" ? 0 : Number.parseInt(simpleMatch[1] ?? "", 10);
-			const deletions = simpleMatch[2] === "-" ? 0 : Number.parseInt(simpleMatch[2] ?? "", 10);
-			const path = simpleMatch[3];
-			if (path) {
-				entries.push({
-					path,
-					additions: Number.isFinite(additions) ? additions : 0,
-					deletions: Number.isFinite(deletions) ? deletions : 0,
-				});
-			}
-			continue;
-		}
-
-		const renameMatch = token.match(/^([-\d]+)\t([-\d]+)\t$/);
-		if (!renameMatch) {
-			continue;
-		}
-		const previousPath = tokens[index + 1];
-		const path = tokens[index + 2];
-		const additions = renameMatch[1] === "-" ? 0 : Number.parseInt(renameMatch[1] ?? "", 10);
-		const deletions = renameMatch[2] === "-" ? 0 : Number.parseInt(renameMatch[2] ?? "", 10);
-		if (previousPath && path) {
-			entries.push({
-				path,
-				previousPath,
-				additions: Number.isFinite(additions) ? additions : 0,
-				deletions: Number.isFinite(deletions) ? deletions : 0,
-			});
-		}
-		index += 2;
-	}
-
-	return entries;
-}
-
-function parseCommitPatchEntries(output: string): Array<{
-	path: string;
-	previousPath?: string;
-	patch: string;
-}> {
-	const patchSegments = output.split(/^diff --git /m);
-	const entries: Array<{
-		path: string;
-		previousPath?: string;
-		patch: string;
-	}> = [];
-
-	for (const segment of patchSegments) {
-		if (!segment.trim()) {
-			continue;
-		}
-		const fullPatch = `diff --git ${segment}`;
-		const headerMatch = fullPatch.match(/^diff --git a\/(.+) b\/(.+)$/m);
-		if (!headerMatch?.[1] || !headerMatch[2]) {
-			continue;
-		}
-		const previousPath = headerMatch[1];
-		const path = headerMatch[2];
-		entries.push({
-			path,
-			previousPath: previousPath !== path ? previousPath : undefined,
-			patch: fullPatch,
-		});
-	}
-
-	return entries;
 }
 
 export async function getCommitDiff(options: {
