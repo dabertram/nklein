@@ -55,11 +55,8 @@ import {
 	parseNKleinProviderModelsRequest,
 	parseProtectedTestApprovalGrantRequest,
 	parseShellSessionStartRequest,
-	parseTaskChatMessagesRequest,
-	parseTaskChatReloadRequest,
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
-import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
@@ -111,6 +108,11 @@ import { handleLoadConfig, handleSaveConfig } from "./runtime-api/runtime-config
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleClearSwarmStop, handleGetSwarmStop, handleRequestSwarmStop } from "./runtime-api/swarm-stop-control.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
+import {
+	handleGetNKleinSlashCommands,
+	handleGetTaskChatMessages,
+	handleReloadTaskChatSession,
+} from "./runtime-api/task-chat-session.js";
 import { handleAbortTaskChatTurn, handleCancelTaskChatTurn } from "./runtime-api/task-chat-turn-control.js";
 import { handleGetTaskDiagnostics, handleGetTaskEscalation } from "./runtime-api/task-diagnostics.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
@@ -471,84 +473,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			handleSendTaskSessionInput(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
 			}),
-		getTaskChatMessages: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskChatMessagesRequest(input);
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				const summary = nkleinTaskSessionService.getSummary(body.taskId);
-				const messages = await nkleinTaskSessionService.loadTaskSessionMessages(body.taskId);
-				if (!summary && messages.length === 0) {
-					return {
-						ok: false,
-						messages: [],
-						error: "Task chat session is not available.",
-					};
-				}
-				return {
-					ok: true,
-					messages,
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					messages: [],
-					error: message,
-				};
-			}
-		},
-		getNKleinSlashCommands: async (workspaceScope) => {
-			if (!workspaceScope) {
-				return {
-					commands: [],
-				};
-			}
-			const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-			return {
-				commands: await nkleinTaskSessionService.listSlashCommands(workspaceScope.workspacePath),
-			};
-		},
-		reloadTaskChatSession: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskChatReloadRequest(input);
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				let summary = await nkleinTaskSessionService.reloadTaskSession(body.taskId);
-				if (!summary && isHomeAgentSessionId(body.taskId)) {
-					const nkleinLaunchConfig = await nkleinProviderService.resolveLaunchConfig();
-					summary = await nkleinTaskSessionService.startTaskSession({
-						taskId: body.taskId,
-						cwd: workspaceScope.workspacePath,
-						workspaceRoot: workspaceScope.workspacePath,
-						prompt: "",
-						resumeFromPersistence: true,
-						providerId: nkleinLaunchConfig.providerId,
-						modelId: nkleinLaunchConfig.modelId,
-						apiKey: nkleinLaunchConfig.apiKey,
-						baseUrl: nkleinLaunchConfig.baseUrl,
-						reasoningEffort: nkleinLaunchConfig.reasoningEffort,
-						contextWindow: nkleinLaunchConfig.contextWindow ?? null,
-					});
-				}
-				if (!summary) {
-					return {
-						ok: false,
-						summary: null,
-						error: "Task chat session is not available.",
-					};
-				}
-				return {
-					ok: true,
-					summary,
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					summary: null,
-					error: message,
-				};
-			}
-		},
+		getTaskChatMessages: async (workspaceScope, input) =>
+			handleGetTaskChatMessages(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				nkleinProviderService,
+			}),
+		getNKleinSlashCommands: async (workspaceScope) =>
+			handleGetNKleinSlashCommands(workspaceScope, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				nkleinProviderService,
+			}),
+		reloadTaskChatSession: async (workspaceScope, input) =>
+			handleReloadTaskChatSession(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				nkleinProviderService,
+			}),
 		abortTaskChatTurn: async (workspaceScope, input) =>
 			handleAbortTaskChatTurn(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
