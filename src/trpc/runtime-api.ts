@@ -66,11 +66,10 @@ import {
 	parseTaskChatMessagesRequest,
 	parseTaskChatReloadRequest,
 	parseTaskContextImportRequest,
-	parseTaskPauseRequest,
 	parseTaskSessionInputRequest,
 	parseTaskSessionStopRequest,
 } from "../core/api-validation";
-import { readPausedTasks, setCardPaused } from "../core/card-pause";
+import { setCardPaused } from "../core/card-pause";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
@@ -121,6 +120,7 @@ import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
+import { handlePauseTask, handleResumeTask } from "./runtime-api/task-pause-resume.js";
 import {
 	handleGetKnowledgeToolUsageStats,
 	handleGetModelPerformanceStats,
@@ -555,82 +555,16 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				};
 			}
 		},
-		pauseTask: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskPauseRequest(input);
-				const pausedTaskIds = await setCardPaused({
-					workspacePath: workspaceScope.workspacePath,
-					taskId: body.taskId,
-					paused: true,
-				});
-				const nkleinTaskSessionService = deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope) ?? null;
-				nkleinTaskSessionService?.setCardPaused(body.taskId, true);
-				const summary = withTaskPausedState(
-					nkleinTaskSessionService?.getSummary(body.taskId) ?? null,
-					pausedTaskIds,
-				);
-				return {
-					ok: true,
-					summary,
-					pausedTaskIds: [...pausedTaskIds].sort(),
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				const pausedTaskIds = await readPausedTasks(workspaceScope.workspacePath);
-				return {
-					ok: false,
-					summary: null,
-					pausedTaskIds: [...pausedTaskIds].sort(),
-					error: message,
-				};
-			}
-		},
-		resumeTask: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskPauseRequest(input);
-				const wasTaskPaused = (await readPausedTasks(workspaceScope.workspacePath)).has(body.taskId);
-				const pausedTaskIds = await setCardPaused({
-					workspacePath: workspaceScope.workspacePath,
-					taskId: body.taskId,
-					paused: false,
-				});
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				nkleinTaskSessionService.setCardPaused(body.taskId, false);
-				const resumedSummaries = await nkleinTaskSessionService.resumePausedTasks();
-				let resumedSummary = resumedSummaries.find((summary) => summary.taskId === body.taskId) ?? null;
-				let fallbackSummary = nkleinTaskSessionService.getSummary(body.taskId);
-				if (!resumedSummary && !fallbackSummary && wasTaskPaused) {
-					fallbackSummary = await nkleinTaskSessionService
-						.rebindPersistedTaskSession(body.taskId)
-						.catch(() => null);
-				}
-				if (
-					!resumedSummary &&
-					wasTaskPaused &&
-					(fallbackSummary?.state === "paused" || fallbackSummary?.state === "awaiting_review")
-				) {
-					resumedSummary = await nkleinTaskSessionService.sendTaskSessionInput(
-						body.taskId,
-						"Continue from the paused checkpoint.",
-					);
-					fallbackSummary = resumedSummary ?? fallbackSummary;
-				}
-				return {
-					ok: true,
-					summary: withTaskPausedState(resumedSummary ?? fallbackSummary, pausedTaskIds),
-					pausedTaskIds: [...pausedTaskIds].sort(),
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				const pausedTaskIds = await readPausedTasks(workspaceScope.workspacePath);
-				return {
-					ok: false,
-					summary: null,
-					pausedTaskIds: [...pausedTaskIds].sort(),
-					error: message,
-				};
-			}
-		},
+		pauseTask: async (workspaceScope, input) =>
+			handlePauseTask(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				getLoadedScopedNKleinTaskSessionService: deps.getLoadedScopedNKleinTaskSessionService,
+			}),
+		resumeTask: async (workspaceScope, input) =>
+			handleResumeTask(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+				getLoadedScopedNKleinTaskSessionService: deps.getLoadedScopedNKleinTaskSessionService,
+			}),
 		sendTaskSessionInput: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskSessionInputRequest(input);
