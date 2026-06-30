@@ -235,7 +235,14 @@ source repo went private — so if it vanishes the buildable source still lives 
 ### Code quality
 - Write production-quality code, not prototypes. Break components into small, single-responsibility files. Extract shared logic into hooks/utilities. Prioritize maintainability + clean architecture over speed. Follow DRY + clear separation of concerns.
 - In `web-ui`, prefer `react-use` hooks (via `@/kanban/utils/react-use`) whenever possible.
-- Before adding custom utility code, evaluate whether a well-maintained third-party package can reduce complexity and long-term maintenance cost.
+- **Prefer existing solutions over custom implementations — a standing directive.** Before hand-crafting any non-trivial
+  capability, FIRST check for a valid, well-maintained, *suitable* existing solution (library, tool, MCP server, service)
+  and evaluate its fit against our constraints — **license, strict local-only/offline + Docker-sandbox compatibility,
+  token/footprint cost for small local LLMs, maintenance health, and overlap with what we already have.** If it fits,
+  **integrate it properly** rather than reinventing it; only build custom when nothing suitable exists or the fit is poor.
+  **This evaluation must happen BEFORE writing the custom version** (don't build, then discover the off-the-shelf option).
+  Precedents: the **Cline SDK** (evaluated → forked the source — special case, it's our engine; see the §4A note above);
+  **`codebase-memory-mcp`** (evaluate as the LocalizationProvider backing **before** building that custom — §5.U).
 
 ### Architecture opinions
 - Avoid thin shell wrappers that only forward props or relocate JSX for a single call site.
@@ -1135,21 +1142,22 @@ source repo went private — so if it vanishes the buildable source still lives 
       global-re-decompose-only-as-last-resort).
   - [ ] **Localization provider (read-only, cannot edit):**
     - [ ] define a `LocalizationProvider` port + result type (file/symbol/line spans), wired as the kernel's `localize` dep.
-    - [ ] implement symbol/definition lookup over the existing code index (read-only).
-    - [ ] implement import/dependency-edge lookup for a touched file.
-    - [ ] implement call-graph neighborhood traversal (callers/callees of a symbol).
+    - [ ] **FIRST — before building ANY custom lookup below — evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)
+          as the `localize` backing (and/or a token-frugal agent retrieval tool), per the §4A "prefer existing solutions"
+          directive.** (DeusData, MIT, single static local binary, 100% local + no telemetry, 158 languages, persistent
+          knowledge graph with call chains + LSP-grade type inference, ~10–120× fewer tokens — it ships exactly the
+          symbol/def + import-edge + call-graph lookups below, and its token savings directly serve the small/slow-local-LLM
+          + ≥32k-context-floor mission; we already have MCP wiring
+          [nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts).) **If it clears the gate, integrate
+          it properly and SKIP the three native lookups below.** **Gate:** (a) division of labor vs. our existing embeddings /
+          repo-map-AST / PageRank retrieval (semantic "find by meaning" stays ours; exact structural "who calls X / where
+          defined" → this) so we don't duplicate; (b) offline operation inside the strict-local Docker sandbox + vetting /
+          bundling the third-party binary; (c) consume as an agent MCP tool, as the `localize` backing, or both.
+    - [ ] *(native fallback — only if the eval above rejects it)* implement symbol/definition lookup over the existing code index (read-only).
+    - [ ] *(native fallback)* implement import/dependency-edge lookup for a touched file.
+    - [ ] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol).
     - [ ] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist.
     - [ ] unit-test each localization mode with a fake index.
-    - [ ] **Evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp) as the backing for the
-          symbol/def + import-edge + call-graph lookups above (1138–1140), and/or as a token-frugal agent retrieval tool**
-          (DeusData, MIT, single static C binary, 100% local + no telemetry, 158 languages, persistent knowledge graph with
-          call chains + LSP-grade type inference, ~10–120× fewer tokens). It ships exactly the three lookups we'd otherwise
-          build, and its token savings directly serve the small/slow-local-LLM + ≥32k-context-floor mission; we already have
-          MCP wiring ([nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts)). **GATE on:** (a)
-          division of labor vs. our existing embeddings / repo-map-AST / PageRank retrieval (keep semantic "find by meaning"
-          ours; route exact structural "who calls X / where defined" to this) so we don't duplicate; (b) offline operation
-          inside the strict-local Docker sandbox + vetting/bundling the third-party binary; (c) consume as an agent MCP tool,
-          as the `localize` backing, or both. If it can't clear the sandbox/overlap bar, build 1138–1140 natively as planned.
   - [ ] **N-candidate patch generator (narrow model subtask):**
     - [ ] define the generate-N-patches prompt (localized context in, unified-diff candidates out).
     - [ ] parse the model output into N discrete diff candidates.
