@@ -27,6 +27,7 @@ import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
+import { formatSchemaIssues } from "./schema-issue-formatting";
 
 const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
 const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
@@ -361,24 +362,6 @@ async function readJsonFile(path: string): Promise<unknown | null> {
 		const message = error instanceof Error ? error.message : String(error);
 		throw new Error(`Could not read JSON file at ${path}. ${message}`);
 	}
-}
-
-function formatSchemaIssuePath(pathSegments: PropertyKey[]): string {
-	if (pathSegments.length === 0) {
-		return "root";
-	}
-	return pathSegments
-		.map((segment) => {
-			if (typeof segment === "number") {
-				return `[${segment}]`;
-			}
-			return String(segment);
-		})
-		.join(".");
-}
-
-function formatSchemaIssues(error: z.ZodError): string {
-	return error.issues.map((issue) => `${formatSchemaIssuePath(issue.path)}: ${issue.message}`).join("; ");
 }
 
 function parsePersistedStateFile<T>(
