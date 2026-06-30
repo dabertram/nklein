@@ -1,4 +1,4 @@
-import { parseReadFileRequests } from "./nklein-large-file-workflow";
+import { parseReadFileRequests } from "./nklein-read-file-request";
 
 /**
  * Read-files request fingerprinting, extracted from nklein-session-runtime.

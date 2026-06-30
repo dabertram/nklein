@@ -16,7 +16,8 @@ import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein
 import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./nklein-decomposition-workflow";
 import { parseEditFileRequest } from "./nklein-edit-file-tool";
 import { NKLEIN_GUIDANCE_SKILL_DEFAULTS } from "./nklein-guidance-skills";
-import { isLargeFileForWorkflow, parseReadFileRequests } from "./nklein-large-file-workflow";
+import { isLargeFileForWorkflow } from "./nklein-large-file-workflow";
+import { parseReadFileRequests } from "./nklein-read-file-request";
 import { confineToolPath } from "./nklein-tool-path-containment";
 import { parseWriteFilesRequests } from "./nklein-write-files-tool";
 import {

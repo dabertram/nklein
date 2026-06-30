@@ -32,12 +32,6 @@ const READ_LARGE_FILE_TOOL_NAME = "read_large_file";
  */
 const SIMPLE_ADVANCE_CURSORS = new Set(["next", "continue", "auto", "more"]);
 
-export interface ReadFileRequest {
-	path: string;
-	startLine: number | null;
-	endLine: number | null;
-}
-
 interface StitchBoundary {
 	leftLine: number;
 	rightLine: number;
@@ -86,58 +80,6 @@ interface LargeFileWorkflowIndex {
 		endLine: number;
 		createdAt: number;
 	}>;
-}
-
-function asNumber(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return null;
-	}
-	return Math.trunc(value);
-}
-
-export function parseReadFileRequests(input: unknown): ReadFileRequest[] {
-	const toRequest = (value: unknown): ReadFileRequest | null => {
-		if (typeof value === "string") {
-			const path = value.trim();
-			return path ? { path, startLine: null, endLine: null } : null;
-		}
-		if (!value || typeof value !== "object") {
-			return null;
-		}
-		const record = value as Record<string, unknown>;
-		const path = typeof record.path === "string" ? record.path.trim() : "";
-		return path
-			? {
-					path,
-					startLine: asNumber(record.start_line),
-					endLine: asNumber(record.end_line),
-				}
-			: null;
-	};
-
-	if (typeof input === "string") {
-		const request = toRequest(input);
-		return request ? [request] : [];
-	}
-	if (Array.isArray(input)) {
-		return input.map(toRequest).filter((request): request is ReadFileRequest => request !== null);
-	}
-	if (!input || typeof input !== "object") {
-		return [];
-	}
-	const record = input as Record<string, unknown>;
-	for (const key of ["files", "file_paths", "paths"] as const) {
-		const value = record[key];
-		if (Array.isArray(value)) {
-			return value.map(toRequest).filter((request): request is ReadFileRequest => request !== null);
-		}
-		if (value !== undefined) {
-			const request = toRequest(value);
-			return request ? [request] : [];
-		}
-	}
-	const request = toRequest(record);
-	return request ? [request] : [];
 }
 
 export function isLargeFileForWorkflow(_sizeBytes: number, tokenCount: number, tokenBudget: number): boolean {
