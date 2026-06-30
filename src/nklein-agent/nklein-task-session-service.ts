@@ -33,11 +33,7 @@ import {
 } from "../state/task-run-summary-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isTaskPatchCaptureError, type TaskPatchCaptureError } from "../workspace/task-patch-capture-diagnostics";
-import {
-	applyTaskPatchToResultBranch,
-	resolveTaskResultBranchCommit,
-	type TaskResultBranch,
-} from "../workspace/task-result-branches";
+import { applyTaskPatchToResultBranch, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog";
 import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
@@ -114,6 +110,7 @@ import {
 } from "./nklein-session-state";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
 import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
+import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
 import {
 	createNKleinWatcherRegistry,
@@ -395,10 +392,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly decompositionStallNudger: DecompositionStallNudger;
 	private readonly repeatedToolCallGuard: RepeatedToolCallGuard;
 	private readonly activeToolTaskIds = new Set<string>();
-	private readonly sandboxRepoPathByTaskId = new Map<string, string>();
-	private readonly sandboxBaseRefByTaskId = new Map<string, string>();
-	private readonly finalizingSandboxReviewTaskIds = new Set<string>();
-	private readonly taskResultBranchByTaskId = new Map<string, TaskResultBranch>();
+	private readonly sandboxState = new TaskSandboxStateStore();
 	private readonly sessionRuntime: NKleinSessionRuntime;
 	private readonly messageRepository: NKleinMessageRepository;
 	private readonly watcherRegistry: NKleinWatcherRegistry;
@@ -512,8 +506,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			baseRef,
 			onQueued: options?.onQueued,
 		});
-		this.sandboxRepoPathByTaskId.set(request.taskId, projectRepoPath);
-		this.sandboxBaseRefByTaskId.set(request.taskId, baseRef?.trim() || "HEAD");
+		this.sandboxState.setSandbox(request.taskId, projectRepoPath, baseRef?.trim() || "HEAD");
 		return {
 			manager: this.agentSandboxManager,
 			workdir: workspace.workdir,
@@ -2000,8 +1993,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.scheduleStreamTimeout(taskId);
 			this.scheduleConversationTimeout(taskId);
 			const assistantCountBeforeSend = entry.messages.filter((message) => message.role === "assistant").length;
-			const runtimeSetupWorkspacePath =
-				this.sandboxRepoPathByTaskId.get(taskId) ?? entry.summary.workspacePath ?? "";
+			const runtimeSetupWorkspacePath = this.sandboxState.getRepoPath(taskId) ?? entry.summary.workspacePath ?? "";
 			void this.ensureRuntimeSetup(runtimeSetupWorkspacePath)
 				.then(async (runtimeSetup) => {
 					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
@@ -2368,8 +2360,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			projectRepoPath: input.projectRepoPath,
 			baseRef: resultCommit ?? input.baseRef ?? null,
 		});
-		this.sandboxRepoPathByTaskId.set(reviewTaskId, input.projectRepoPath);
-		this.sandboxBaseRefByTaskId.set(reviewTaskId, (resultCommit ?? input.baseRef)?.trim() || "HEAD");
+		this.sandboxState.setSandbox(
+			reviewTaskId,
+			input.projectRepoPath,
+			(resultCommit ?? input.baseRef)?.trim() || "HEAD",
+		);
 		let verdict: NKleinReviewResult | null = null;
 		const deadlineMs = Date.now() + (input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS);
 		const recordReviewSessionError = (error: unknown): void => {
@@ -2444,8 +2439,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.providerIdByTaskId.delete(reviewTaskId);
 			this.modelIdByTaskId.delete(reviewTaskId);
 			this.endpointByTaskId.delete(reviewTaskId);
-			this.sandboxRepoPathByTaskId.delete(reviewTaskId);
-			this.sandboxBaseRefByTaskId.delete(reviewTaskId);
+			this.sandboxState.deleteSandbox(reviewTaskId);
 		}
 	}
 
@@ -2634,10 +2628,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.endpointByTaskId.clear();
 		this.modelRequestStartedAtByTaskId.clear();
 		this.explicitDecompositionTaskIds.clear();
-		this.sandboxRepoPathByTaskId.clear();
-		this.sandboxBaseRefByTaskId.clear();
-		this.finalizingSandboxReviewTaskIds.clear();
-		this.taskResultBranchByTaskId.clear();
+		this.sandboxState.clear();
 		this.focusChainByTaskId.clear();
 		this.teamProgressListeners.clear();
 		await this.agentSandboxManager?.stopNow().catch(() => null);
@@ -2749,9 +2740,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private forgetSandboxTask(taskId: string): void {
-		this.sandboxRepoPathByTaskId.delete(taskId);
-		this.sandboxBaseRefByTaskId.delete(taskId);
-		this.finalizingSandboxReviewTaskIds.delete(taskId);
+		this.sandboxState.deleteSandbox(taskId);
+		this.sandboxState.unmarkFinalizing(taskId);
 		this.focusChainByTaskId.delete(taskId);
 	}
 
@@ -2793,25 +2783,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!nextSummary || previousSummary.state === "awaiting_review" || nextSummary.state !== "awaiting_review") {
 			return false;
 		}
-		if (isHomeAgentSessionId(nextSummary.taskId) || this.finalizingSandboxReviewTaskIds.has(nextSummary.taskId)) {
+		if (isHomeAgentSessionId(nextSummary.taskId) || this.sandboxState.isFinalizing(nextSummary.taskId)) {
 			return false;
 		}
-		return Boolean(
-			this.agentSandboxManager &&
-				this.sandboxRepoPathByTaskId.has(nextSummary.taskId) &&
-				this.sandboxBaseRefByTaskId.has(nextSummary.taskId),
-		);
+		return Boolean(this.agentSandboxManager && this.sandboxState.hasSandbox(nextSummary.taskId));
 	}
 
 	private finalizeSandboxReview(taskId: string): void {
 		const manager = this.agentSandboxManager;
-		const repoPath = this.sandboxRepoPathByTaskId.get(taskId);
-		const baseRef = this.sandboxBaseRefByTaskId.get(taskId);
+		const repoPath = this.sandboxState.getRepoPath(taskId);
+		const baseRef = this.sandboxState.getBaseRef(taskId);
 		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (!manager || !repoPath || !baseRef || !entry || this.finalizingSandboxReviewTaskIds.has(taskId)) {
+		if (!manager || !repoPath || !baseRef || !entry || this.sandboxState.isFinalizing(taskId)) {
 			return;
 		}
-		this.finalizingSandboxReviewTaskIds.add(taskId);
+		this.sandboxState.markFinalizing(taskId);
 		void (async () => {
 			try {
 				const patch = await manager.captureWorkspacePatch(taskId, { baseRef });
@@ -2822,7 +2808,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					patch,
 				});
 				if (branch) {
-					this.taskResultBranchByTaskId.set(taskId, branch);
+					this.sandboxState.setResultBranch(taskId, branch);
 					recordSelfObservation({
 						signal: "custom",
 						severity: "info",
@@ -2883,7 +2869,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				await manager.disposeWorkspace(taskId);
 				this.forgetSandboxTask(taskId);
 			} catch (error) {
-				this.finalizingSandboxReviewTaskIds.delete(taskId);
+				this.sandboxState.unmarkFinalizing(taskId);
 				const errorMessage = toErrorMessage(error);
 				// Benign teardown race: the sandbox workspace was disposed concurrently before the patch could
 				// be captured. Genuine capture failures while the workspace still exists fall through below.
