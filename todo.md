@@ -2501,6 +2501,20 @@ source repo went private — so if it vanishes the buildable source still lives 
     `applyTaskPatchToResultBranch`, `TaskTimeoutHandles`, the guard stores — are already collaborators); extracting their
     coordination would be §3 churn. **NET: the task-session timeout subsystem is now cleanly decomposed (mechanics/policy/
     response); what genuinely remains is only further response-coordination that belongs where it is.**
+    **SECOND orchestration-core subsystem extracted the same way (2026-06-30, suite 4011):** `nklein-context-budget-plan.ts`
+    `planContextBudget` — the pure token-budget computation (estimate prompt+history tokens → compact history toward the
+    window's safe working budget → classify ok/compacted/blocked) out of `prepareMessagesForKnownContextWindow`; the
+    method keeps the SIDE EFFECTS (the context-guard observation + the overflow throws + their exact wording). Gate-verified
+    by the existing context-overflow tests + 3 new planner tests. **TWO orchestration-core computation subsystems now
+    extracted via the mechanics/side-effect split (TaskTimeoutScheduler + ContextBudgetPlanner), both gate-verified — NO
+    live-model run needed.** Surveyed the rest (`recordModelRegistryObservation`, the park/finalize/emit* methods): their
+    pure parts are ALREADY extracted (`extractNKleinModelRegistryObservationFromEvent`, `applyTaskPatchToResultBranch`, the
+    guard stores) and what remains is genuine RESPONSE coordination of the service's own collaborators — extracting it would
+    be §3 churn. **CONCLUSION: the §5.U "task-session behavior split" is substantively DONE** — every extractable
+    mechanics/computation subsystem is now a focused tested module; the InMemoryNKleinTaskSessionService is now a
+    coordination layer over its collaborators, which is the correct end-state (not a monolith of mixed mechanics+policy).
+    The earlier "needs deliberate seam design + live re-validation" framing proved overcautious: the right seam
+    (mechanics/policy/response) made each step a gate-verified relocation, exactly like the rest of §5.U.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
