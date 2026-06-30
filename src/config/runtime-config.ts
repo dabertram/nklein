@@ -105,6 +105,7 @@ import {
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
+import { resolveRuntimeRulesetsConfig } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
 import { resolveRuntimeSkillDynamicsConfig } from "./runtime-config-skill-dynamics-resolver";
 import { resolveRuntimeSuitabilityConfig } from "./runtime-config-suitability-resolver";
@@ -349,8 +350,6 @@ function toRuntimeConfigState({
 }): RuntimeConfigState {
 	const selectedAgentId = normalizeAgentId(globalConfig?.selectedAgentId);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(projectConfig?.selectedAgentIdOverride);
-	const agentRulesetsOverride = normalizeAgentRulesetsOverride(projectConfig?.agentRulesetsOverride);
-	const agentRulesets = normalizeAgentRulesets(globalConfig?.agentRulesets);
 	return {
 		globalConfigPath,
 		projectConfigPath,
@@ -374,9 +373,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeSuitabilityConfig(globalConfig, projectConfig),
 		...resolveRuntimeSkillDynamicsConfig(globalConfig, projectConfig),
 		...resolveRuntimeModelRolesConfig(globalConfig, projectConfig),
-		agentRulesets,
-		agentRulesetsOverride,
-		effectiveAgentRulesets: agentRulesetsOverride ?? agentRulesets,
+		...resolveRuntimeRulesetsConfig(globalConfig, projectConfig),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(globalConfig?.swarmGuardrails),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
