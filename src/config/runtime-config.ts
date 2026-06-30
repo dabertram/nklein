@@ -101,6 +101,7 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
+import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
 import type {
 	RuntimeConfigState,
 	RuntimeConfigUpdateInput,
@@ -390,26 +391,7 @@ function toRuntimeConfigState({
 		effectiveMaxConcurrentTasks: maxConcurrentTasksOverride ?? maxConcurrentTasks,
 		selectedAgentIdOverride,
 		effectiveSelectedAgentId: selectedAgentIdOverride ?? selectedAgentId,
-		sandboxMaxContainers: normalizePositiveInteger(
-			globalConfig?.sandboxMaxContainers,
-			DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-		),
-		sandboxAgentsPerContainer: normalizeNonNegativeInteger(
-			globalConfig?.sandboxAgentsPerContainer,
-			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-		),
-		sandboxMemoryPerContainerMb: normalizePositiveInteger(
-			globalConfig?.sandboxMemoryPerContainerMb,
-			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-		),
-		sandboxCpusPerContainer: normalizePositiveNumber(
-			globalConfig?.sandboxCpusPerContainer,
-			DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-		),
-		sandboxIdleTimeoutMinutes: normalizePositiveInteger(
-			globalConfig?.sandboxIdleTimeoutMinutes,
-			DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-		),
+		...resolveRuntimeSandboxConfig(globalConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		decompositionAutoApplyEnabled: normalizeBoolean(
 			globalConfig?.decompositionAutoApplyEnabled,
