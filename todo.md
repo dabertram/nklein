@@ -275,6 +275,25 @@ source repo went private — so if it vanishes the buildable source still lives 
 > - "All green" claims only ever refer to a suite where **nothing is failing**. Never report green while quietly excluding a failing suite. If `test:fast` is green but the full `vitest run` (integration) is not, SAY SO and record the integration failures as todos.
 > This rule outranks momentum: a passing build is worth more than one more feature increment.
 
+### When debugging an LLM, READ THE LM STUDIO DEV LOGS FIRST (non-negotiable, user 2026-06-30)
+> **Any time a model behaves unexpectedly — a stall, timeout, slow/empty response, a tool-call that never lands, a
+> mysterious "inactivity" abort — go to the LM Studio dev logs for GROUND TRUTH before theorizing from runtime/harness
+> symptoms.** The harness/runtime only tells you *something* is slow or wrong; the model-server logs tell you *what* and
+> *how slow*. (Caught 2026-06-30: I rationalized a decompose stall as "a ~6-min/40k-token prefill" and shipped a fix on
+> that guess — the user rightly pushed back; `lms ps` showed the real state immediately.)
+> - **`lms ps`** — live per-model state: `PROCESSINGPROMPT` (prefilling — emits NO stream tokens, so this is what trips a
+>   stream-INACTIVITY timeout) vs `GENERATING` (emitting tokens) vs `IDLE`, plus loaded context window + parallelism. This
+>   alone distinguishes "prefilling slowly", "generating a long reasoning block", and "actually hung".
+> - **`lms log stream --stats --source model [--filter output|input]`** — per-request prediction stats: prompt tokens,
+>   predicted tokens, tok/s, **time-to-first-token** (= the prefill time). Compute prefill speed = promptTokens / TTFT to
+>   judge whether a slow turn is a *large context* or *throttled/pathological prefill*. **Caveat:** `--stats` emits on
+>   request **completion**, and only for requests that **start after** the stream is attached — so start the stream
+>   BEFORE triggering the model call you want to measure.
+> - The model server is local LM Studio on `:1234`; `lms` lives at `~/.lmstudio/bin/lms`. Per-request stats are NOT
+>   written to `~/.lmstudio/server-logs/` by default (that dir is sparse) — capture them LIVE via `lms log stream`.
+> - Note the OS power mode (`pmset -g | grep -i lowpower`): Low Power throttles GPU ~50%, so prefill/gen are ~2× slower —
+>   factor it into "is this speed legit?" and remember the runtime's own timeouts must be power-aware (the §5.AF C3 fix).
+
 ### Misc. tribal knowledge (engineering invariants & hard-won gotchas)
 > (WORKING MODE — autonomous, full capabilities — is the callout at the **top of this file**; don't re-litigate it. `/clear` at clean breakpoints once a milestone is committed and all durable state is in `todo.md`/`git`.)
 - !Klein's native NKlein agent is powered by the installed `@nkleinbot/core` + `@nkleinbot/llms` packages plus the local `src/nklein-agent/` boundary layer — when NKlein behavior is unclear, inspect those packages and `src/nklein-agent/` for the real implementation.
