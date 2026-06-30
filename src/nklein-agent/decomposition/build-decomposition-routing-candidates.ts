@@ -1,10 +1,30 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
 import { fetchLoadedModelIds } from "../../core/lmstudio-loaded-models";
+import { lookupModelCapability, type ToolUseVerdict } from "../../core/model-capability-catalog";
 import { buildLoadedModelRoutingCandidates } from "../nklein-loaded-model-candidates";
 import { getDefaultNKleinModelRegistry } from "../nklein-model-registry";
 import { createNKleinProviderService } from "../nklein-provider-service";
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
 import { buildNKleinStartGuardCandidate } from "../nklein-task-start-guard";
+
+/**
+ * Map the §5.AL catalog's tool-use verdict to a 0–100 cold-start capability prior, so a freshly-LOADED model the ledger
+ * has never observed is still ranked by what its model card implies (a tool-native coder/agentic model outranks a
+ * tool-weak chat model) instead of the flat registry default. Null when the model isn't catalogued — the builder then
+ * leaves the default in place. This is the FAST, pure, always-available prior; llmfit's richer score layers on top.
+ */
+const CATALOG_VERDICT_PRIOR: Record<ToolUseVerdict, number | null> = {
+	TOOL_NATIVE: 80,
+	TOOL_CAPABLE: 62,
+	TOOL_WEAK: 28,
+	TOOL_UNSUITABLE: 6,
+	// UNKNOWN carries no signal → no override, fall back to the registry default rather than inventing a number.
+	UNKNOWN: null,
+};
+function catalogCapabilityPrior(modelId: string): number | null {
+	const entry = lookupModelCapability(modelId);
+	return entry ? CATALOG_VERDICT_PRIOR[entry.toolUse] : null;
+}
 
 /**
  * Build the runnable model "routing candidates" a decomposition can choose from: the default NKlein provider (when one
@@ -48,6 +68,9 @@ export async function buildDecompositionRoutingCandidates(
 				providerId: launchConfig.providerId,
 				endpoint: launchConfig.baseUrl,
 				now: Date.now(),
+				// Cold-start prior so a never-observed loaded model is ranked by its model card (§5.AL catalog), not a flat
+				// default. llmfit's richer score can chain ahead of this later (resolver: ledger > llmfit > catalog > default).
+				capabilityPrior: catalogCapabilityPrior,
 			})) {
 				if (!candidates.has(loadedCandidate.entry.key)) {
 					candidates.set(loadedCandidate.entry.key, loadedCandidate);

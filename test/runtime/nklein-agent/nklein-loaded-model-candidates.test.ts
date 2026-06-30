@@ -57,4 +57,54 @@ describe("buildLoadedModelRoutingCandidates", () => {
 		});
 		expect(candidates[0]?.role).toBeNull();
 	});
+
+	it("filters out embedding models (not agentic routing candidates)", () => {
+		const candidates = buildLoadedModelRoutingCandidates({
+			loadedModelIds: ["qwen3.5-9b", "text-embedding-nomic-embed-text-v1.5", "nomic-embed-text-v1.5", "bge-embed"],
+			registryEntries: [],
+			providerId: PROVIDER,
+			endpoint: ENDPOINT,
+			now: NOW,
+		});
+		expect(candidates.map((c) => c.entry.modelId)).toEqual(["qwen3.5-9b"]);
+	});
+
+	it("sets observedCapability from the cold-start prior for an UNOBSERVED model", () => {
+		const candidates = buildLoadedModelRoutingCandidates({
+			loadedModelIds: ["coder", "chatty"],
+			registryEntries: [],
+			providerId: PROVIDER,
+			endpoint: ENDPOINT,
+			now: NOW,
+			capabilityPrior: (id) => (id === "coder" ? 80 : id === "chatty" ? 28 : null),
+		});
+		expect(candidates[0]?.observedCapability).toBe(80);
+		expect(candidates[1]?.observedCapability).toBe(28);
+	});
+
+	it("does NOT override an OBSERVED model's learned score with the prior (ledger wins)", () => {
+		const known = createNKleinModelRegistryEntry({ providerId: PROVIDER, modelId: "known", endpoint: ENDPOINT }, NOW);
+		const candidates = buildLoadedModelRoutingCandidates({
+			loadedModelIds: ["known", "fresh"],
+			registryEntries: [known],
+			providerId: PROVIDER,
+			endpoint: ENDPOINT,
+			now: NOW,
+			capabilityPrior: () => 99,
+		});
+		expect(candidates[0]?.observedCapability).toBeUndefined(); // observed → no override
+		expect(candidates[1]?.observedCapability).toBe(99); // cold → prior applied
+	});
+
+	it("omits observedCapability when the prior returns null (keeps the registry default)", () => {
+		const candidates = buildLoadedModelRoutingCandidates({
+			loadedModelIds: ["unknown-card"],
+			registryEntries: [],
+			providerId: PROVIDER,
+			endpoint: ENDPOINT,
+			now: NOW,
+			capabilityPrior: () => null,
+		});
+		expect(candidates[0]?.observedCapability).toBeUndefined();
+	});
 });

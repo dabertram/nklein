@@ -17,9 +17,11 @@ import { createNKleinModelRegistryEntry } from "./nklein-model-registry-deserial
 import { buildNKleinModelRegistryKey } from "./nklein-model-registry-key";
 import type { NKleinTaskRoutingCandidate } from "./nklein-task-router";
 
+/** Embedding model ids are not agentic routing candidates (e.g. `text-embedding-nomic-embed-text-…`). */
+const EMBEDDING_ID_PATTERN = /(?:^|[-/@])(?:text-)?embed/i;
+
 export interface LoadedModelCandidatesInput {
-	/** Currently-loaded model ids on `endpoint` (e.g. from `fetchLoadedModelIds`). Embeddings are tolerated — the
-	 * downstream suitability/feasibility gate drops a non-agentic model, so the caller need not pre-filter them. */
+	/** Currently-loaded model ids on `endpoint` (e.g. from `fetchLoadedModelIds`). Embedding ids are filtered out here. */
 	loadedModelIds: readonly string[];
 	/** The model-registry snapshot's entries — used to reuse a model's OBSERVED capability/stats when known. */
 	registryEntries: readonly NKleinModelRegistryEntry[];
@@ -29,6 +31,12 @@ export interface LoadedModelCandidatesInput {
 	now: number;
 	/** Optional role tag carried onto each candidate (a workflow-STAGE signal for the selector, not a manual mapping). */
 	role?: string | null;
+	/**
+	 * Cold-start capability prior for an UNOBSERVED model (id → 0–100 score, or null). Set as the candidate's
+	 * `observedCapability` so the router ranks a cold model by a real estimate (llmfit score → §5.AL catalog) instead of
+	 * the flat default. Pure + injected so the builder stays free of llmfit/catalog I/O. Skipped for OBSERVED models.
+	 */
+	capabilityPrior?: (modelId: string) => number | null;
 }
 
 /**
@@ -42,8 +50,8 @@ export function buildLoadedModelRoutingCandidates(input: LoadedModelCandidatesIn
 	const seenKeys = new Set<string>();
 	for (const rawModelId of input.loadedModelIds) {
 		const modelId = rawModelId.trim();
-		if (!modelId) {
-			continue;
+		if (!modelId || EMBEDDING_ID_PATTERN.test(modelId)) {
+			continue; // skip blanks + embedding models (not agentic routing candidates)
 		}
 		const keyInput = { providerId: input.providerId, modelId, endpoint: input.endpoint };
 		const key = buildNKleinModelRegistryKey(keyInput);
@@ -51,8 +59,18 @@ export function buildLoadedModelRoutingCandidates(input: LoadedModelCandidatesIn
 			continue;
 		}
 		seenKeys.add(key);
-		const entry = entriesByKey.get(key) ?? createNKleinModelRegistryEntry(keyInput, input.now);
-		candidates.push({ entry, role: input.role ?? null });
+		const known = entriesByKey.get(key);
+		const entry = known ?? createNKleinModelRegistryEntry(keyInput, input.now);
+		// Cold-start capability prior: an UNOBSERVED loaded model gets a prior via the candidate's `observedCapability`
+		// (the router's score override) from the injected resolver (llmfit score → §5.AL catalog → null), so the router
+		// can tell a coder from a reasoner instead of treating every cold model identically. An OBSERVED model (already
+		// in the registry, with accrued stats) keeps its learned score — no override.
+		const prior = known ? null : (input.capabilityPrior?.(modelId) ?? null);
+		candidates.push({
+			entry,
+			role: input.role ?? null,
+			...(prior !== null ? { observedCapability: prior } : {}),
+		});
 	}
 	return candidates;
 }
