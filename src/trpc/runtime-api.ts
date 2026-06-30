@@ -31,7 +31,7 @@ import {
 } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
-import { loadGlobalRuntimeConfig, updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
+import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeCommandRunResponse,
@@ -55,7 +55,6 @@ import {
 	parseNKleinOauthLoginRequest,
 	parseNKleinProviderModelsRequest,
 	parseProtectedTestApprovalGrantRequest,
-	parseRuntimeConfigSaveRequest,
 	parseShellSessionStartRequest,
 	parseTaskChatMessagesRequest,
 	parseTaskChatReloadRequest,
@@ -82,7 +81,6 @@ import {
 	type NKleinPlanArtifactSummary,
 } from "../nklein-agent/nklein-plan-artifacts";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
-import { setNKleinLostHeartbeatPolicy } from "../nklein-agent/nklein-session-state";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { openInBrowser } from "../server/browser";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
@@ -114,6 +112,7 @@ import {
 	handleUpdateNKleinProvider,
 } from "./runtime-api/provider-settings.js";
 import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
+import { handleLoadConfig, handleSaveConfig } from "./runtime-api/runtime-config-io.js";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleClearSwarmStop, handleGetSwarmStop, handleRequestSwarmStop } from "./runtime-api/swarm-stop-control.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
@@ -380,46 +379,22 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		);
 
 	return {
-		loadConfig: async (workspaceScope) => {
-			const activeRuntimeConfig = deps.getActiveRuntimeConfig?.();
-			if (!workspaceScope && !activeRuntimeConfig) {
-				throw new Error("No active runtime config provider is available.");
-			}
-			let scopedRuntimeConfig: RuntimeConfigState;
-			if (workspaceScope) {
-				scopedRuntimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
-			} else if (activeRuntimeConfig) {
-				scopedRuntimeConfig = activeRuntimeConfig;
-			} else {
-				throw new Error("No active runtime config provider is available.");
-			}
-			setNKleinLostHeartbeatPolicy(scopedRuntimeConfig.lostHeartbeatPolicy);
-			return buildConfigResponse(scopedRuntimeConfig);
-		},
-		saveConfig: async (workspaceScope, input) => {
-			const parsed = parseRuntimeConfigSaveRequest(input);
-			let nextRuntimeConfig: RuntimeConfigState;
-			if (workspaceScope) {
-				nextRuntimeConfig = await updateRuntimeConfig(workspaceScope.workspacePath, parsed);
-			} else {
-				const activeRuntimeConfig = deps.getActiveRuntimeConfig?.();
-				if (!activeRuntimeConfig) {
-					throw new TRPCError({
-						code: "BAD_REQUEST",
-						message: "No active runtime config is available.",
-					});
-				}
-				nextRuntimeConfig = await updateGlobalRuntimeConfig(activeRuntimeConfig, parsed);
-			}
-			if (workspaceScope && workspaceScope.workspaceId === deps.getActiveWorkspaceId()) {
-				deps.setActiveRuntimeConfig(nextRuntimeConfig);
-			}
-			if (!workspaceScope) {
-				deps.setActiveRuntimeConfig(nextRuntimeConfig);
-			}
-			setNKleinLostHeartbeatPolicy(nextRuntimeConfig.lostHeartbeatPolicy);
-			return buildConfigResponse(nextRuntimeConfig);
-		},
+		loadConfig: async (workspaceScope) =>
+			handleLoadConfig(workspaceScope, {
+				buildConfigResponse,
+				getActiveRuntimeConfig: deps.getActiveRuntimeConfig,
+				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
+				getActiveWorkspaceId: deps.getActiveWorkspaceId,
+				setActiveRuntimeConfig: deps.setActiveRuntimeConfig,
+			}),
+		saveConfig: async (workspaceScope, input) =>
+			handleSaveConfig(workspaceScope, input, {
+				buildConfigResponse,
+				getActiveRuntimeConfig: deps.getActiveRuntimeConfig,
+				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
+				getActiveWorkspaceId: deps.getActiveWorkspaceId,
+				setActiveRuntimeConfig: deps.setActiveRuntimeConfig,
+			}),
 		getModelPerformanceStats: async (workspaceScope) => {
 			return await handleGetModelPerformanceStats(workspaceScope);
 		},
