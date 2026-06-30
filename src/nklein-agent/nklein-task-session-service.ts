@@ -543,6 +543,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return UNCONFIGURED_PROVIDER_ID;
 	}
 
+	/**
+	 * The {providerId, modelId} a task is running under — the identity stamped on the model
+	 * observations / telemetry rows the service records. Consolidates the repeated inline pair so
+	 * the call sites spread `...this.resolveTaskModelIdentity(taskId)` instead of duplicating both
+	 * lookups (provider via the re-derivable cache, model via the model-endpoint store).
+	 */
+	private resolveTaskModelIdentity(taskId: string): { providerId: string; modelId: string } {
+		return {
+			providerId: this.resolveProviderIdForTask(taskId),
+			modelId: this.modelEndpoint.getModelId(taskId),
+		};
+	}
+
 	private cacheLaunchConfig(
 		taskId: string,
 		launchConfig: NKleinTaskRestartLaunchConfig,
@@ -838,8 +851,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			severity: "warning",
 			message: `NKlein session recovery failed during ${input.operation}: ${errorMessage}`,
 			taskId: input.taskId,
-			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelEndpoint.getModelId(input.taskId),
+			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				operation: input.operation,
 				recoveryAction: true,
@@ -861,8 +873,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					: "Lost session marked interrupted.",
 			taskId: input.taskId,
 			workspacePath: input.workspacePath ?? null,
-			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelEndpoint.getModelId(input.taskId),
+			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				operation: "lost_session_recovery",
 				transition: input.transition,
@@ -967,8 +978,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			message: `!Klein ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds`,
 			taskId,
 			workspacePath: entry.summary.workspacePath ?? null,
-			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelEndpoint.getModelId(taskId),
+			...this.resolveTaskModelIdentity(taskId),
 			metadata: {
 				category: "stream_inactivity_timeout",
 				timeoutKind: kind,
@@ -1146,8 +1156,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			severity: "warning",
 			message: toErrorMessage(input.error),
 			taskId: input.taskId,
-			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelEndpoint.getModelId(input.taskId),
+			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				mode: input.mode,
 			},
@@ -1234,8 +1243,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					? `Pre-send context guard blocked an oversized prompt before provider dispatch (~${input.projectedTokens.toLocaleString()} projected tokens for ${input.contextWindow.toLocaleString()} available).`
 					: `Pre-send context guard compacted history before provider dispatch (~${input.originalProjectedTokens.toLocaleString()} → ~${input.projectedTokens.toLocaleString()} projected tokens).`,
 			taskId: input.taskId,
-			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelEndpoint.getModelId(input.taskId),
+			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				action: input.action,
 				contextWindow: input.contextWindow,
@@ -2530,8 +2538,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			severity: "info",
 			message: input.message,
 			taskId: input.taskId,
-			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelEndpoint.getModelId(input.taskId),
+			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: input.metadata,
 		});
 		const systemMessage = createMessage(input.taskId, "system", input.message);
@@ -2571,8 +2578,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			severity: "warning",
 			message: input.message,
 			taskId: input.taskId,
-			providerId: this.resolveProviderIdForTask(input.taskId),
-			modelId: this.modelEndpoint.getModelId(input.taskId),
+			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: input.metadata,
 		});
 		const systemMessage = createMessage(input.taskId, "system", input.message);
@@ -3044,8 +3050,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const observation = extractNKleinModelRegistryObservationFromEvent(
 			event,
 			{
-				providerId: this.resolveProviderIdForTask(taskId),
-				modelId: this.modelEndpoint.getModelId(taskId),
+				...this.resolveTaskModelIdentity(taskId),
 				endpoint: this.modelEndpoint.getEndpoint(taskId),
 				contextWindow: this.resolveKnownContextWindowForTask(taskId, null),
 			},
@@ -3115,8 +3120,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			severity: "error",
 			message: errorMessage,
 			taskId,
-			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelEndpoint.getModelId(taskId),
+			...this.resolveTaskModelIdentity(taskId),
 			metadata: {
 				eventType: agentEvent.type,
 			},
