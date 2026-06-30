@@ -2476,11 +2476,22 @@ source repo went private — so if it vanishes the buildable source still lives 
     spread, and the 8 model-attributed observation sites route through it (a new observation site can no longer forget/diverge
     on the `{providerId, modelId}` stamp). The 1 non-observation identity spread (the model-registry-key builder, different
     shape) is correctly left intact — a mis-conversion there was **caught by tsc** and excluded (the gate works). Behavior
-    byte-identical. **Surveyed the rest: NO further clean mechanical slice remains** — the service's remaining `build*Callbacks`
-    methods are collaborator-seam wiring (callbacks capturing `this`), and the observation-recording methods are cohesively
-    placed with their lifecycle context (extracting them would SCATTER cohesion, anti-§5.U). What's left is exactly the
-    seam-DESIGN behavior split the notes flag as "real collaborator-seam decisions, not mechanical lifts" — a deliberate
-    design pass + live re-validation, the one §5.U item that is genuinely not a safe gate-only autonomous refactor.
+    byte-identical. **TWO MORE safe slices landed (2026-06-30, suite 3995 → 4002):** (b) `nklein-task-timeout-diagnostics.ts`
+    — the pure diagnostic construction out of `handleTaskTimeout` (`formatTaskTimeoutLabel`/`Reason`/`Message`/
+    `FailureMessage`, incl. the conditional last-tool clause + second-rounding); the handler keeps clear→abort→record→
+    observe→emit, only the string-building moved, +4 tests. (c) `isEnteringAwaitingReview` (into `core/task-session-guards.ts`
+    beside `isReviewableNKleinSummary`) — the pure state-machine half of `shouldFinalizeSandboxReview` (transition INTO
+    awaiting-review, type-guarded), tested apart from the sandbox-availability checks, +3 tests. **3 safe gate-verified
+    slices total this turn, all behavior-byte-identical.** **The clean PURE slices are now genuinely extracted** — the
+    remaining pure bits (the park `latestHookActivity` object, the timeout observation-metadata literal) are marginal AND
+    carry subtle risk (the park summary patch calls `now()` twice — collapsing it could change the timestamp-call count),
+    so extracting them would be §3 churn, not improvement. **What's left is ONLY the orchestration core**: even after the
+    pure extractions, `handleTaskTimeout` / the park / finalize methods still orchestrate clear→abort→record→observe→emit
+    across ~8 collaborators (`messageRepository`, `sessionRuntime` abort+restart-check, `pendingTimeout`, the observation
+    helper, `emitTaskFailure`, sandbox state…). That orchestration IS the seam-DESIGN behavior split the notes flag as
+    "real collaborator-seam decisions, not mechanical lifts" — moving it into a `TaskTimeoutController`/etc. defines an
+    ~8-callback surface and changes the agent's runtime control flow, where gate-green ≠ correct → it wants the deliberate
+    seam design + the live-on-a-real-model re-validation the prior task-session steps each used (model loading = user's call).
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
