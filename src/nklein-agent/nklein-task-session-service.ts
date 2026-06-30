@@ -112,6 +112,7 @@ import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
 import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
+import { type NKleinTaskTimeoutKind, TaskTimeoutHandles } from "./nklein-task-timeout-handles";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
 import {
 	createNKleinWatcherRegistry,
@@ -146,7 +147,6 @@ const CONTEXT_BUDGET_SEND_RESERVE_TOKENS = 2_000;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
-type NKleinTaskTimeoutKind = "stream" | "tool" | "conversation";
 
 interface NKleinTaskTimeoutSettings {
 	streamTimeoutMs: number | null;
@@ -387,7 +387,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly pendingTimeout = new TaskPendingTimeoutStore();
 	private readonly autonomyBudgetWatchdog: AutonomyBudgetWatchdog;
 	private readonly timeoutSettingsByTaskId = new Map<string, NKleinTaskTimeoutSettings>();
-	private readonly timeoutHandlesByTaskId = new Map<string, Map<NKleinTaskTimeoutKind, NodeJS.Timeout>>();
+	private readonly timeoutHandles = new TaskTimeoutHandles();
 	private readonly explicitDecompositionTaskIds = new Set<string>();
 	private readonly decompositionStallNudger: DecompositionStallNudger;
 	private readonly repeatedToolCallGuard: RepeatedToolCallGuard;
@@ -871,25 +871,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private clearTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind): void {
-		const handles = this.timeoutHandlesByTaskId.get(taskId);
-		const handle = handles?.get(kind);
-		if (handle) {
-			clearTimeout(handle);
-			handles?.delete(kind);
-		}
-		if (handles?.size === 0) {
-			this.timeoutHandlesByTaskId.delete(taskId);
-		}
+		this.timeoutHandles.clearKind(taskId, kind);
 	}
 
 	private clearTaskTimeouts(taskId: string): void {
-		const handles = this.timeoutHandlesByTaskId.get(taskId);
-		if (handles) {
-			for (const handle of handles.values()) {
-				clearTimeout(handle);
-			}
-		}
-		this.timeoutHandlesByTaskId.delete(taskId);
+		this.timeoutHandles.clearAll(taskId);
 		this.activeToolTaskIds.delete(taskId);
 	}
 
@@ -925,9 +911,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 			const handle = setTimeout(scheduleRemaining, Math.min(remainingMs, MAX_NODE_TIMER_DELAY_MS));
 			handle.unref();
-			const handles = this.timeoutHandlesByTaskId.get(taskId) ?? new Map<NKleinTaskTimeoutKind, NodeJS.Timeout>();
-			handles.set(kind, handle);
-			this.timeoutHandlesByTaskId.set(taskId, handles);
+			this.timeoutHandles.set(taskId, kind, handle);
 		};
 		scheduleRemaining();
 	}
@@ -2616,7 +2600,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async dispose(): Promise<void> {
-		for (const taskId of this.timeoutHandlesByTaskId.keys()) {
+		for (const taskId of this.timeoutHandles.taskIds()) {
 			this.clearTaskTimeouts(taskId);
 		}
 		this.decompositionStallNudger.dispose();
