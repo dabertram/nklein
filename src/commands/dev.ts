@@ -63,6 +63,7 @@ import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 import type { RuntimeAppRouter } from "../trpc/app-router";
+import { parseDevTestPreset, parseDevTestSweepPresets } from "./dev-test-preset-parsing";
 
 interface DevSmokeEvalOptions {
 	json?: boolean;
@@ -239,27 +240,6 @@ interface DevTestProjectOptions {
 	write?: (text: string) => void;
 }
 
-function parseDevTestPreset(value: string | undefined): NKleinDevTestProjectPreset {
-	if (value === undefined) {
-		return "mid_task";
-	}
-	if (
-		value === "mid_task" ||
-		value === "complex_dag" ||
-		value === "audio_vst" ||
-		value === "daw_foundation" ||
-		value === "wide_fanout" ||
-		value === "deep_chain" ||
-		value === "mixed_dag" ||
-		value === "many_small"
-	) {
-		return value;
-	}
-	throw new Error(
-		"Invalid preset. Expected one of: mid_task, complex_dag, audio_vst, daw_foundation, wide_fanout, deep_chain, mixed_dag, many_small.",
-	);
-}
-
 function createDevRuntimeClient(workspaceId: string | null) {
 	return createTRPCProxyClient<RuntimeAppRouter>({
 		links: [
@@ -428,13 +408,6 @@ export async function runDevTestProjectCommand(options: DevTestProjectOptions = 
 	write(`${result.classification.summary}\n`);
 }
 
-const DEFAULT_DEV_TEST_SWEEP_PRESETS: readonly NKleinDevTestProjectPreset[] = [
-	"wide_fanout",
-	"deep_chain",
-	"mixed_dag",
-	"many_small",
-];
-
 interface DevTestSweepOptions {
 	presets?: string;
 	projectPath?: string;
@@ -444,17 +417,6 @@ interface DevTestSweepOptions {
 	json?: boolean;
 	cwd?: string;
 	write?: (text: string) => void;
-}
-
-function parseDevTestSweepPresets(value: string | undefined): NKleinDevTestProjectPreset[] {
-	if (value === undefined || value.trim().length === 0) {
-		return [...DEFAULT_DEV_TEST_SWEEP_PRESETS];
-	}
-	return value
-		.split(",")
-		.map((entry) => entry.trim())
-		.filter((entry) => entry.length > 0)
-		.map((entry) => parseDevTestPreset(entry));
 }
 
 export async function runDevTestSweepCommand(options: DevTestSweepOptions = {}): Promise<void> {
