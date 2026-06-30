@@ -6960,8 +6960,16 @@ deep analysis:
         ~4-8k prefix + tiny suffix twice; healthy if the 2nd TTFT is ≥3-5× lower). Cache the verdict; re-probe only on
         version change. Slots next to the §5.AL catalog as a new "cache-health" dimension; feeds §5.AB routing.
         **(2026-06-29)** PURE INTERPRETER done: `src/core/cache-health.ts` — `classifyCacheHealth` (TTFT speedup verdict) +
-        `interpretLlamaCppCacheTimings` (prompt_n/cache_n) + `cacheHealthFromCachedTokens` (advisory). 11 tests. Owed: the
-        effectful probe (actually send the 2 requests + measure TTFT) + record on the §5.AF ledger.
+        `interpretLlamaCppCacheTimings` (prompt_n/cache_n) + `cacheHealthFromCachedTokens` (advisory). 11 tests.
+        **(2026-06-30) EFFECTFUL PROBE DEMONSTRATED LIVE + a heuristic-refuting finding.** Ran the real TTFT double-prefix
+        test (stream a unique-nonced ~2k prefix warmup→cold→warm×2, time first token, feed `classifyCacheHealth`) against
+        the resident **qwopus3.6-27b-v2-mlx** (MLX + qwen3.5 = a "hybrid_swa" arch the pre-filter flags as cache-risky):
+        **cold 52,557 ms → warm 733 ms = 71.7× speedup → `healthy: true`.** So (a) `classifyCacheHealth` is VALIDATED on a
+        real cache hit, and (b) **this MLX qwen3.5 caches PERFECTLY — refuting the "MLX hybrid = broken caching" prior.**
+        #1697's failure is **model-specific (MLX GPT-OSS-20B)**, NOT a blanket MLX/hybrid property. ⇒ The empirical probe
+        MUST OVERRIDE the static `classifyAttentionArchitecture` guess (a weak prior only), never the reverse — routing this
+        model away to GGUF "for caching" would be wrong. Still owed: fold the probe into a small reusable
+        `scripts/verify-cache-health-live.mts` + cache the per-`(engine,model,ctx)` verdict on the §5.AF ledger.
   - [ ] **Detection per runtime (don't trust one signal):** llama.cpp `timings.prompt_n`/`cache_n` + server "Cache reuse
         summary"; LM Studio `cached_tokens` is **UNRELIABLE (#778 — often unpopulated even when caching works)** → prefer the
         TTFT probe / server logs / `/v1/responses`. Record hit-rate on the §5.AF ledger.
