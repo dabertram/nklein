@@ -1753,6 +1753,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
 		this.modelEndpoint.forget(taskId);
+		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
@@ -1796,6 +1797,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
 		this.modelEndpoint.forget(taskId);
+		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
@@ -1842,6 +1844,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
 		this.modelEndpoint.forget(taskId);
+		this.contextBudgetInputs.forget(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
@@ -2147,6 +2150,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.providerIdByTaskId.delete(taskId);
 		this.contextWindowByTaskId.delete(taskId);
 		this.modelEndpoint.forget(taskId);
+		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
@@ -2417,6 +2421,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.launchConfigByTaskId.delete(reviewTaskId);
 			this.providerIdByTaskId.delete(reviewTaskId);
 			this.modelEndpoint.forget(reviewTaskId);
+			this.contextBudgetInputs.forget(reviewTaskId);
 			this.sandboxState.deleteSandbox(reviewTaskId);
 		}
 	}
@@ -2603,6 +2608,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.providerIdByTaskId.clear();
 		this.contextWindowByTaskId.clear();
 		this.modelEndpoint.clear();
+		this.contextBudgetInputs.clear();
 		this.modelRequestStartedAtByTaskId.clear();
 		this.explicitDecompositionTaskIds.clear();
 		this.sandboxState.clear();

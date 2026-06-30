@@ -5,12 +5,13 @@
  * are stashed here; a later turn's budget projection reads them back (alongside the live message
  * history) to estimate how much of the context window is already committed before the next prompt.
  *
- * Behavior-preserving extraction: {@link record} mirrors the two inline `.set()`s and the getters
- * bake in the same defaults the call sites used (`?? null` for the prompt, `?? 0` for the tokens).
+ * {@link record} mirrors the two inline `.set()`s and the getters bake in the same defaults the
+ * call sites used (`?? null` for the prompt, `?? 0` for the tokens).
  *
- * Note: like the pre-extraction maps, these entries are NOT swept on task teardown — set on start,
- * read during the run. That is a (small, bounded-by-task-count) leak preserved here for parity; a
- * `forget(taskId)` wired into the terminal cleanup paths would fix it as a separate change.
+ * Unlike the pre-extraction maps — which were never swept and leaked one entry per task ever
+ * started — {@link forget} is now wired into the terminal cleanup paths (the inputs are only read
+ * during an active turn's budget projection, so dropping them on teardown is safe and plugs the
+ * leak); {@link clear} drops everything on full disposal.
  */
 export class TaskContextBudgetInputs {
 	private readonly systemPromptByTaskId = new Map<string, string>();
@@ -30,5 +31,16 @@ export class TaskContextBudgetInputs {
 	/** The stashed tool-schema token estimate, or 0 if the task never recorded one. */
 	getToolSchemaTokens(taskId: string): number {
 		return this.toolSchemaTokensByTaskId.get(taskId) ?? 0;
+	}
+
+	/** Drops a finished task's stashed inputs (called from the terminal cleanup paths). */
+	forget(taskId: string): void {
+		this.systemPromptByTaskId.delete(taskId);
+		this.toolSchemaTokensByTaskId.delete(taskId);
+	}
+
+	clear(): void {
+		this.systemPromptByTaskId.clear();
+		this.toolSchemaTokensByTaskId.clear();
 	}
 }

@@ -39,4 +39,30 @@ describe("TaskContextBudgetInputs", () => {
 		expect(inputs.getSystemPrompt("t1")).toBe("");
 		expect(inputs.getSystemPrompt("other")).toBeNull();
 	});
+
+	it("forget drops a task's inputs back to the defaults (plugging the leak)", () => {
+		const inputs = new TaskContextBudgetInputs();
+		inputs.record("t1", "a prompt", 42);
+		inputs.record("t2", "another", 7);
+		inputs.forget("t1");
+		expect(inputs.getSystemPrompt("t1")).toBeNull();
+		expect(inputs.getToolSchemaTokens("t1")).toBe(0);
+		// forget is scoped to the one task — t2 is untouched.
+		expect(inputs.getSystemPrompt("t2")).toBe("another");
+		expect(inputs.getToolSchemaTokens("t2")).toBe(7);
+	});
+
+	it("forget of an unknown task is a harmless no-op", () => {
+		const inputs = new TaskContextBudgetInputs();
+		expect(() => inputs.forget("never-recorded")).not.toThrow();
+	});
+
+	it("clear drops every task's inputs", () => {
+		const inputs = new TaskContextBudgetInputs();
+		inputs.record("t1", "p1", 1);
+		inputs.record("t2", "p2", 2);
+		inputs.clear();
+		expect(inputs.getSystemPrompt("t1")).toBeNull();
+		expect(inputs.getSystemPrompt("t2")).toBeNull();
+	});
 });
