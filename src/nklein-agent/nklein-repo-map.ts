@@ -2,12 +2,11 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import ts from "typescript";
 import { countKanbanTextTokens } from "./nklein-context-budgets";
+import { addWeightedEdge, buildPersonalizationVector, calculatePageRank } from "./pagerank";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_TOKEN_BUDGET = 1_200;
 const MAX_REFERENCE_RANK_SYMBOLS = 500;
-const PAGERANK_DAMPING = 0.85;
-const PAGERANK_ITERATIONS = 24;
 const TYPESCRIPT_AST_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SOURCE_EXTENSIONS = new Set([
 	".ts",
@@ -365,62 +364,6 @@ function buildPersonalizationWeights(
 			personalization.seedPaths.has(symbol.path) || personalization.seedPaths.has(normalizedPath) ? 50 : 0;
 		return 1 + identifierBoost + fileBoost;
 	});
-}
-
-function buildPersonalizationVector(weights: readonly number[]): number[] | null {
-	const hasBoost = weights.some((weight) => weight > 1);
-	if (!hasBoost) {
-		return null;
-	}
-	const totalWeight = weights.reduce((total, weight) => total + weight, 0);
-	return weights.map((weight) => weight / totalWeight);
-}
-
-function addWeightedEdge(
-	edges: Map<number, Map<number, number>>,
-	fromIndex: number,
-	toIndex: number,
-	weight: number,
-): void {
-	if (fromIndex === toIndex || weight <= 0) {
-		return;
-	}
-	const outgoing = edges.get(fromIndex) ?? new Map<number, number>();
-	outgoing.set(toIndex, (outgoing.get(toIndex) ?? 0) + weight);
-	edges.set(fromIndex, outgoing);
-}
-
-function calculatePageRank(
-	symbolCount: number,
-	edges: ReadonlyMap<number, ReadonlyMap<number, number>>,
-	personalizationVector?: readonly number[] | null,
-): number[] {
-	if (symbolCount === 0) {
-		return [];
-	}
-	const teleportVector =
-		personalizationVector?.length === symbolCount
-			? [...personalizationVector]
-			: Array.from({ length: symbolCount }, () => 1 / symbolCount);
-	let ranks = [...teleportVector];
-	for (let iteration = 0; iteration < PAGERANK_ITERATIONS; iteration += 1) {
-		const nextRanks = teleportVector.map((weight) => (1 - PAGERANK_DAMPING) * weight);
-		let danglingRank = 0;
-		for (let fromIndex = 0; fromIndex < symbolCount; fromIndex += 1) {
-			const outgoing = edges.get(fromIndex);
-			if (!outgoing || outgoing.size === 0) {
-				danglingRank += ranks[fromIndex] ?? 0;
-				continue;
-			}
-			const totalWeight = [...outgoing.values()].reduce((total, weight) => total + weight, 0);
-			for (const [toIndex, weight] of outgoing) {
-				nextRanks[toIndex] =
-					(nextRanks[toIndex] ?? 0) + PAGERANK_DAMPING * (ranks[fromIndex] ?? 0) * (weight / totalWeight);
-			}
-		}
-		ranks = nextRanks.map((rank, index) => rank + PAGERANK_DAMPING * danglingRank * (teleportVector[index] ?? 0));
-	}
-	return ranks;
 }
 
 function rankSymbols(files: readonly SourceFile[], personalization: RepoMapPersonalization): NKleinRepoMapSymbol[] {
