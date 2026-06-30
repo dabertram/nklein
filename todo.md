@@ -236,8 +236,10 @@ source repo went private — so if it vanishes the buildable source still lives 
 - Write production-quality code, not prototypes. Break components into small, single-responsibility files. Extract shared logic into hooks/utilities. Prioritize maintainability + clean architecture over speed. Follow DRY + clear separation of concerns.
 - In `web-ui`, prefer `react-use` hooks (via `@/kanban/utils/react-use`) whenever possible.
 - **Prefer existing solutions over custom implementations — a standing directive.** Before hand-crafting any non-trivial
-  capability, FIRST check for a valid, well-maintained, *suitable* existing solution (library, tool, MCP server, service)
-  and evaluate its fit against our constraints — **license, strict local-only/offline + Docker-sandbox compatibility,
+  capability, FIRST do **extensive, current online research** for a valid, well-maintained, *suitable* existing solution
+  (library, tool, MCP server, service) — **web-search the ecosystem broadly; do NOT rely on training-cutoff memory (it is
+  stale), and verify each candidate is current + actively maintained** (recent releases / last commit / open-issue health).
+  Then evaluate fit against our constraints — **license, strict local-only/offline + Docker-sandbox compatibility,
   token/footprint cost for small local LLMs, maintenance health, and overlap with what we already have.** If it fits,
   **integrate it properly** rather than reinventing it; only build custom when nothing suitable exists or the fit is poor.
   **This evaluation must happen BEFORE writing the custom version** (don't build, then discover the off-the-shelf option).
