@@ -20,20 +20,29 @@ export type RuntimeSuitabilityConfigFields = Pick<
  * `effective = override ?? default` derivation. Extracted from the toRuntimeConfigState builder
  * (§5.U) as a focused, independently tested override-pattern sub-resolver.
  */
-export function resolveRuntimeSuitabilityConfig(
-	globalConfig: RuntimeGlobalConfigFileShape | null,
-	projectConfig: RuntimeProjectConfigFileShape | null,
+/** Derive the model-suitability fields from raw default + override values (shared by the file-shape resolver and the flat-values builder, so they can't drift). */
+export function deriveSuitabilityFields(
+	defaultsValue: Parameters<typeof normalizeModelSuitabilityPolicy>[0],
+	overrideValue: Parameters<typeof normalizeModelSuitabilityPolicyOverride>[0],
 ): RuntimeSuitabilityConfigFields {
 	const modelSuitabilityPolicyDefaults = normalizeModelSuitabilityPolicy(
-		globalConfig?.modelSuitabilityPolicyDefaults,
+		defaultsValue,
 		DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 	);
-	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(
-		projectConfig?.modelSuitabilityPolicyOverride,
-	);
+	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(overrideValue);
 	return {
 		modelSuitabilityPolicyDefaults,
 		modelSuitabilityPolicyOverride,
 		effectiveModelSuitabilityPolicy: modelSuitabilityPolicyOverride ?? modelSuitabilityPolicyDefaults,
 	};
+}
+
+export function resolveRuntimeSuitabilityConfig(
+	globalConfig: RuntimeGlobalConfigFileShape | null,
+	projectConfig: RuntimeProjectConfigFileShape | null,
+): RuntimeSuitabilityConfigFields {
+	return deriveSuitabilityFields(
+		globalConfig?.modelSuitabilityPolicyDefaults,
+		projectConfig?.modelSuitabilityPolicyOverride,
+	);
 }

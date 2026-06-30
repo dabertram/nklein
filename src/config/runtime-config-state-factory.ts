@@ -26,10 +26,10 @@ import {
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
+import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
-	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -37,30 +37,18 @@ import {
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
+import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
+import { deriveModelRolesFields } from "./runtime-config-model-roles-resolver";
 import {
-	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
-	DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
-	normalizeAgentId,
-	normalizeAgentRulesets,
-	normalizeAgentRulesetsOverride,
 	normalizeAgentTimeoutMode,
 	normalizeAgentTimeoutProfile,
 	normalizeBoolean,
-	normalizeCodeEmbeddingOverride,
-	normalizeCodeEmbeddingSettings,
 	normalizeLostHeartbeatPolicy,
-	normalizeModelRoles,
-	normalizeModelRolesOverride,
-	normalizeModelSuitabilityPolicy,
-	normalizeModelSuitabilityPolicyOverride,
 	normalizeNonNegativeInteger,
 	normalizePositiveInteger,
 	normalizePositiveNumber,
 	normalizePromptTemplateWithLegacyDefault,
-	normalizeSelectedAgentIdOverride,
 	normalizeShortcuts,
-	normalizeSkillDynamicsLevel,
-	normalizeSkillDynamicsLevelOverride,
 	normalizeTimeoutMsValue,
 } from "./runtime-config-normalizers";
 import {
@@ -69,6 +57,9 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
+import { deriveRulesetsFields } from "./runtime-config-rulesets-resolver";
+import { deriveSkillDynamicsFields } from "./runtime-config-skill-dynamics-resolver";
+import { deriveSuitabilityFields } from "./runtime-config-suitability-resolver";
 import type { RuntimeConfigState } from "./runtime-config-types";
 import { normalizeShortcutLabel, normalizeWorkspaceBaseDir } from "./runtime-config-value-helpers";
 
@@ -125,7 +116,6 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 	return {
 		globalConfigPath: input.globalConfigPath,
 		projectConfigPath: input.projectConfigPath,
-		selectedAgentId: normalizeAgentId(input.selectedAgentId),
 		selectedShortcutLabel: normalizeShortcutLabel(input.selectedShortcutLabel),
 		developerModeEnabled: normalizeBoolean(input.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 		replayCardsEnabled: normalizeBoolean(input.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
@@ -147,9 +137,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			input.concurrencyDefaults,
 			input.concurrencyOverride,
 		),
-		selectedAgentIdOverride: normalizeSelectedAgentIdOverride(input.selectedAgentIdOverride),
-		effectiveSelectedAgentId:
-			normalizeSelectedAgentIdOverride(input.selectedAgentIdOverride) ?? normalizeAgentId(input.selectedAgentId),
+		...deriveAgentIdFields(input.selectedAgentId, input.selectedAgentIdOverride),
 		sandboxMaxContainers: normalizePositiveInteger(input.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
 		sandboxAgentsPerContainer: normalizeNonNegativeInteger(
 			input.sandboxAgentsPerContainer,
@@ -181,38 +169,11 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			input.readyForReviewNotificationsEnabled,
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 		),
-		codeEmbeddingDefaults: normalizeCodeEmbeddingSettings(
-			input.codeEmbeddingDefaults,
-			DEFAULT_CODE_EMBEDDING_SETTINGS,
-		),
-		codeEmbeddingOverride: normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride),
-		effectiveCodeEmbeddingSettings:
-			normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride) ??
-			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
-		modelSuitabilityPolicyDefaults: normalizeModelSuitabilityPolicy(
-			input.modelSuitabilityPolicyDefaults,
-			DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
-		),
-		modelSuitabilityPolicyOverride: normalizeModelSuitabilityPolicyOverride(input.modelSuitabilityPolicyOverride),
-		effectiveModelSuitabilityPolicy:
-			normalizeModelSuitabilityPolicyOverride(input.modelSuitabilityPolicyOverride) ??
-			normalizeModelSuitabilityPolicy(input.modelSuitabilityPolicyDefaults, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
-		skillDynamicsLevelDefault: normalizeSkillDynamicsLevel(
-			input.skillDynamicsLevelDefault,
-			DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
-		),
-		skillDynamicsLevelOverride: normalizeSkillDynamicsLevelOverride(input.skillDynamicsLevelOverride),
-		effectiveSkillDynamicsLevel:
-			normalizeSkillDynamicsLevelOverride(input.skillDynamicsLevelOverride) ??
-			normalizeSkillDynamicsLevel(input.skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
-		modelRoles: normalizeModelRoles(input.modelRoles),
-		modelRolesOverride: normalizeModelRolesOverride(input.modelRolesOverride),
-		effectiveModelRoles:
-			normalizeModelRolesOverride(input.modelRolesOverride) ?? normalizeModelRoles(input.modelRoles),
-		agentRulesets: normalizeAgentRulesets(input.agentRulesets),
-		agentRulesetsOverride: normalizeAgentRulesetsOverride(input.agentRulesetsOverride),
-		effectiveAgentRulesets:
-			normalizeAgentRulesetsOverride(input.agentRulesetsOverride) ?? normalizeAgentRulesets(input.agentRulesets),
+		...deriveEmbeddingFields(input.codeEmbeddingDefaults, input.codeEmbeddingOverride),
+		...deriveSuitabilityFields(input.modelSuitabilityPolicyDefaults, input.modelSuitabilityPolicyOverride),
+		...deriveSkillDynamicsFields(input.skillDynamicsLevelDefault, input.skillDynamicsLevelOverride),
+		...deriveModelRolesFields(input.modelRoles, input.modelRolesOverride),
+		...deriveRulesetsFields(input.agentRulesets, input.agentRulesetsOverride),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(input.swarmGuardrails),
 		shortcuts: normalizeShortcuts(input.shortcuts),
 		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(

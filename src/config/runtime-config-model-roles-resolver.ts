@@ -16,15 +16,23 @@ export type RuntimeModelRolesConfigFields = Pick<
  * `effective = override ?? default` derivation. Extracted from the toRuntimeConfigState builder
  * (§5.U) as a focused, independently tested override-pattern sub-resolver.
  */
-export function resolveRuntimeModelRolesConfig(
-	globalConfig: RuntimeGlobalConfigFileShape | null,
-	projectConfig: RuntimeProjectConfigFileShape | null,
+/** Derive the model-roles fields from raw default + override values (shared by the resolver and the flat-values builder). */
+export function deriveModelRolesFields(
+	defaultValue: Parameters<typeof normalizeModelRoles>[0],
+	overrideValue: Parameters<typeof normalizeModelRolesOverride>[0],
 ): RuntimeModelRolesConfigFields {
-	const modelRoles = normalizeModelRoles(globalConfig?.modelRoles);
-	const modelRolesOverride = normalizeModelRolesOverride(projectConfig?.modelRolesOverride);
+	const modelRoles = normalizeModelRoles(defaultValue);
+	const modelRolesOverride = normalizeModelRolesOverride(overrideValue);
 	return {
 		modelRoles,
 		modelRolesOverride,
 		effectiveModelRoles: modelRolesOverride ?? modelRoles,
 	};
+}
+
+export function resolveRuntimeModelRolesConfig(
+	globalConfig: RuntimeGlobalConfigFileShape | null,
+	projectConfig: RuntimeProjectConfigFileShape | null,
+): RuntimeModelRolesConfigFields {
+	return deriveModelRolesFields(globalConfig?.modelRoles, projectConfig?.modelRolesOverride);
 }

@@ -17,18 +17,23 @@ export type RuntimeEmbeddingConfigFields = Pick<
  * `effective = override ?? default` derivation. Extracted from the toRuntimeConfigState builder
  * (§5.U) as a focused, independently tested override-pattern sub-resolver.
  */
-export function resolveRuntimeEmbeddingConfig(
-	globalConfig: RuntimeGlobalConfigFileShape | null,
-	projectConfig: RuntimeProjectConfigFileShape | null,
+/** Derive the code-embedding fields from raw default + override values (shared by the resolver and the flat-values builder). */
+export function deriveEmbeddingFields(
+	defaultsValue: Parameters<typeof normalizeCodeEmbeddingSettings>[0],
+	overrideValue: Parameters<typeof normalizeCodeEmbeddingOverride>[0],
 ): RuntimeEmbeddingConfigFields {
-	const codeEmbeddingDefaults = normalizeCodeEmbeddingSettings(
-		globalConfig?.codeEmbeddingDefaults,
-		DEFAULT_CODE_EMBEDDING_SETTINGS,
-	);
-	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(projectConfig?.codeEmbeddingOverride);
+	const codeEmbeddingDefaults = normalizeCodeEmbeddingSettings(defaultsValue, DEFAULT_CODE_EMBEDDING_SETTINGS);
+	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(overrideValue);
 	return {
 		codeEmbeddingDefaults,
 		codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
 	};
+}
+
+export function resolveRuntimeEmbeddingConfig(
+	globalConfig: RuntimeGlobalConfigFileShape | null,
+	projectConfig: RuntimeProjectConfigFileShape | null,
+): RuntimeEmbeddingConfigFields {
+	return deriveEmbeddingFields(globalConfig?.codeEmbeddingDefaults, projectConfig?.codeEmbeddingOverride);
 }

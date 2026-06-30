@@ -16,15 +16,23 @@ export type RuntimeRulesetsConfigFields = Pick<
  * `effective = override ?? default` derivation. Extracted from the toRuntimeConfigState builder
  * (§5.U) as a focused, independently tested override-pattern sub-resolver.
  */
-export function resolveRuntimeRulesetsConfig(
-	globalConfig: RuntimeGlobalConfigFileShape | null,
-	projectConfig: RuntimeProjectConfigFileShape | null,
+/** Derive the agent-rulesets fields from raw default + override values (shared by the resolver and the flat-values builder). */
+export function deriveRulesetsFields(
+	defaultValue: Parameters<typeof normalizeAgentRulesets>[0],
+	overrideValue: Parameters<typeof normalizeAgentRulesetsOverride>[0],
 ): RuntimeRulesetsConfigFields {
-	const agentRulesetsOverride = normalizeAgentRulesetsOverride(projectConfig?.agentRulesetsOverride);
-	const agentRulesets = normalizeAgentRulesets(globalConfig?.agentRulesets);
+	const agentRulesetsOverride = normalizeAgentRulesetsOverride(overrideValue);
+	const agentRulesets = normalizeAgentRulesets(defaultValue);
 	return {
 		agentRulesets,
 		agentRulesetsOverride,
 		effectiveAgentRulesets: agentRulesetsOverride ?? agentRulesets,
 	};
+}
+
+export function resolveRuntimeRulesetsConfig(
+	globalConfig: RuntimeGlobalConfigFileShape | null,
+	projectConfig: RuntimeProjectConfigFileShape | null,
+): RuntimeRulesetsConfigFields {
+	return deriveRulesetsFields(globalConfig?.agentRulesets, projectConfig?.agentRulesetsOverride);
 }
