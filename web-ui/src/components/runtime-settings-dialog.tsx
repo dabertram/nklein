@@ -4,7 +4,7 @@
 import * as RadixCheckbox from "@radix-ui/react-checkbox";
 import * as RadixSelect from "@radix-ui/react-select";
 import * as RadixSwitch from "@radix-ui/react-switch";
-import { getRuntimeAgentCatalogEntry, getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
+import { getRuntimeLaunchSupportedAgentCatalog } from "@runtime-agent-catalog";
 import {
 	AGENT_CAPABILITY_TIER_INFO,
 	AGENT_DELIVERY_TIER_INFO,
@@ -20,8 +20,6 @@ import {
 	Boxes,
 	Check,
 	ChevronDown,
-	Circle,
-	CircleDot,
 	ExternalLink,
 	FolderOpen,
 	GitCommit,
@@ -62,7 +60,6 @@ import { AccountOrganizationSection } from "@/components/shared/account-organiza
 import { NKleinSetupSection } from "@/components/shared/nklein-setup-section";
 import { SwarmGuardrailsSettingsPanel } from "@/components/swarm-guardrails-settings-panel";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/components/ui/cn";
 import { Dialog, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { TASK_GIT_BASE_REF_PROMPT_VARIABLE, type TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
@@ -113,16 +110,14 @@ import {
 	normalizeAgentTimeoutProfile,
 	normalizeTemplateForComparison,
 } from "./runtime-settings-dialog-helpers";
+import {
+	AgentRow,
+	InlineUtilityButton,
+	OverrideRow,
+	type RuntimeSettingsAgentRowModel,
+} from "./runtime-settings-dialog-rows";
 import { SettingsNav, type SettingsNavId } from "./settings-nav";
 import { ShortcutIconPicker } from "./shortcut-icon-picker";
-
-interface RuntimeSettingsAgentRowModel {
-	id: RuntimeAgentId;
-	label: string;
-	binary: string;
-	command: string;
-	installed: boolean | null;
-}
 
 const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }> = [
 	{ value: "commit", label: "Commit" },
@@ -195,160 +190,6 @@ function readBooleanTaskDefault(key: LocalStorageKey, fallback: boolean): boolea
 function readTaskAutoReviewModeDefault(): RuntimeTaskAutoReviewMode {
 	const stored = readLocalStorageItem(LocalStorageKey.TaskAutoReviewMode);
 	return stored === "pr" ? "pr" : "commit";
-}
-
-function AgentRow({
-	agent,
-	isSelected,
-	onSelect,
-	disabled,
-}: {
-	agent: RuntimeSettingsAgentRowModel;
-	isSelected: boolean;
-	onSelect: () => void;
-	disabled: boolean;
-}): React.ReactElement {
-	const installUrl = getRuntimeAgentCatalogEntry(agent.id)?.installUrl;
-	const isNativeNKlein = agent.id === "nklein";
-	const isInstalled = agent.installed === true;
-	const isInstallStatusPending = !isNativeNKlein && agent.installed === null;
-
-	return (
-		<div
-			role="button"
-			tabIndex={0}
-			onClick={() => {
-				if (isInstalled && !disabled) {
-					onSelect();
-				}
-			}}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" && isInstalled && !disabled) {
-					onSelect();
-				}
-			}}
-			className="flex items-center justify-between gap-3 py-1.5"
-			style={{ cursor: isInstalled ? "pointer" : "default" }}
-		>
-			<div className="flex items-start gap-2 min-w-0">
-				{isSelected ? (
-					<CircleDot size={16} className="text-accent mt-0.5 shrink-0" />
-				) : (
-					<Circle
-						size={16}
-						className={cn("mt-0.5 shrink-0", !isInstalled ? "text-text-tertiary" : "text-text-secondary")}
-					/>
-				)}
-				<div className="min-w-0">
-					<div className="flex items-center gap-2">
-						<span className="text-[13px] text-text-primary">{agent.label}</span>
-						{!isNativeNKlein && isInstalled ? (
-							<span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-status-green/10 text-status-green">
-								Installed
-							</span>
-						) : isInstallStatusPending ? (
-							<span className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium bg-surface-3 text-text-secondary">
-								Checking...
-							</span>
-						) : null}
-					</div>
-					{agent.command ? (
-						<p className="text-text-secondary font-mono text-xs mt-0.5 m-0">{agent.command}</p>
-					) : null}
-				</div>
-			</div>
-			{!isNativeNKlein && agent.installed === false && installUrl ? (
-				<a
-					href={installUrl}
-					target="_blank"
-					rel="noreferrer"
-					onClick={(event: React.MouseEvent) => event.stopPropagation()}
-					className="inline-flex items-center justify-center rounded-md font-medium duration-150 cursor-default select-none h-7 px-2 text-xs bg-surface-2 border border-border text-text-primary hover:bg-surface-3 hover:border-border-bright"
-				>
-					Install
-				</a>
-			) : !isNativeNKlein && agent.installed === false ? (
-				<Button size="sm" disabled>
-					Install
-				</Button>
-			) : null}
-		</div>
-	);
-}
-
-function InlineUtilityButton({
-	text,
-	onClick,
-	disabled,
-	monospace,
-	widthCh,
-}: {
-	text: string;
-	onClick: () => void;
-	disabled?: boolean;
-	monospace?: boolean;
-	widthCh?: number;
-}): React.ReactElement {
-	return (
-		<Button
-			size="sm"
-			disabled={disabled}
-			onClick={onClick}
-			className={cn(monospace && "font-mono")}
-			style={{
-				fontSize: 10,
-				verticalAlign: "middle",
-				...(typeof widthCh === "number"
-					? {
-							width: `${widthCh}ch`,
-							justifyContent: "center",
-						}
-					: {}),
-			}}
-		>
-			{text}
-		</Button>
-	);
-}
-
-function OverrideRow({
-	label,
-	inheritLabel,
-	isOverridden,
-	onOverride,
-	onRevert,
-	disabled,
-	children,
-}: {
-	label: string;
-	inheritLabel: string;
-	isOverridden: boolean;
-	onOverride: () => void;
-	onRevert: () => void;
-	disabled: boolean;
-	children: React.ReactNode;
-}): React.ReactElement {
-	return (
-		<div className="grid gap-1">
-			<div className="flex items-center justify-between gap-2">
-				<span className="text-[13px] text-text-primary">{label}</span>
-				{isOverridden ? (
-					<Button size="sm" variant="ghost" onClick={onRevert} disabled={disabled}>
-						Revert to global
-					</Button>
-				) : (
-					<Button size="sm" variant="default" onClick={onOverride} disabled={disabled}>
-						Override for this project
-					</Button>
-				)}
-			</div>
-			{isOverridden ? (
-				children
-			) : (
-				<p className="text-[12px] text-text-secondary m-0">Inherits global: {inheritLabel}</p>
-			)}
-		</div>
-	);
 }
 
 export function RuntimeSettingsDialog({
