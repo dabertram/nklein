@@ -17,6 +17,7 @@ import type {
 } from "../core/api-contract";
 import { runtimeModelPerformanceObservationSchema } from "../core/api-contract";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
+import { parseJsonLineWithSchema } from "../core/parse-json-line";
 import { normalizeOptionalString, normalizeRole } from "./telemetry-normalizers";
 
 const DEFAULT_MODEL_PERFORMANCE_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "model-performance");
@@ -221,12 +222,7 @@ export function buildModelPerformanceObservation(
 }
 
 function parseObservationRecord(line: string): RuntimeModelPerformanceObservation | null {
-	try {
-		const parsed = runtimeModelPerformanceObservationSchema.safeParse(JSON.parse(line));
-		return parsed.success ? parsed.data : null;
-	} catch {
-		return null;
-	}
+	return parseJsonLineWithSchema(line, runtimeModelPerformanceObservationSchema);
 }
 
 async function readAllObservations(rootDir: string): Promise<RuntimeModelPerformanceObservation[]> {

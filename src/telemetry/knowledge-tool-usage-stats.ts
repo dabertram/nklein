@@ -17,6 +17,7 @@ import type {
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract";
 import { runtimeKnowledgeToolUsageObservationSchema } from "../core/api-contract";
+import { parseJsonLineWithSchema } from "../core/parse-json-line";
 import {
 	aggregateDecompositionKnowledgeSignals,
 	correlateDecompositionKnowledgeSignals,
@@ -219,12 +220,7 @@ export function buildKnowledgeToolUsageObservation(
 }
 
 function parseObservationRecord(line: string): RuntimeKnowledgeToolUsageObservation | null {
-	try {
-		const parsed = runtimeKnowledgeToolUsageObservationSchema.safeParse(JSON.parse(line));
-		return parsed.success ? parsed.data : null;
-	} catch {
-		return null;
-	}
+	return parseJsonLineWithSchema(line, runtimeKnowledgeToolUsageObservationSchema);
 }
 
 function deduplicateObservations(
