@@ -30,6 +30,10 @@ export interface LlmfitModel {
 	effectiveContextLength: number | null;
 	/** Normalized capability ids (e.g. `vision`, `tool_use`) — a claimed-support tag, NOT the §5.AL verdict. */
 	capabilityIds: string[];
+	/** llmfit's 0–100 quality×speed×fit score — the cold-start capability BASELINE (used as a routing prior). */
+	score: number | null;
+	/** llmfit's use-case category (e.g. `Coding`, `Multimodal`, `General`) — a skill-match signal. */
+	category: string | null;
 	license: string | null;
 }
 
@@ -90,6 +94,8 @@ export function parseLlmfitModel(raw: unknown): LlmfitModel | null {
 		contextLength: num(r.context_length),
 		effectiveContextLength: num(r.effective_context_length),
 		capabilityIds: strArray(r.capability_ids),
+		score: num(r.score),
+		category: str(r.category),
 		license: str(r.license),
 	};
 }

@@ -94,6 +94,8 @@ describe("refineLoadDecisionWithLlmfit", () => {
 		contextLength: null,
 		effectiveContextLength: null,
 		capabilityIds: [],
+		score: null,
+		category: null,
 		license: null,
 		...over,
 	});

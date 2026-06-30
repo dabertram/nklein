@@ -16,6 +16,8 @@ function model(name: string, fitLevel: LlmfitFitLevel | null, toolUse: boolean):
 		contextLength: null,
 		effectiveContextLength: null,
 		capabilityIds: toolUse ? ["tool_use"] : ["vision"],
+		score: null,
+		category: null,
 		license: null,
 	};
 }
