@@ -39,7 +39,6 @@ import type {
 	RuntimeRunUpdateResponse,
 	RuntimeTaskContextImportResponse,
 	RuntimeTaskEvidenceResponse,
-	RuntimeTaskSessionSummary,
 	RuntimeUpdateStatusResponse,
 } from "../core/api-contract";
 import {
@@ -59,13 +58,9 @@ import {
 	parseTaskChatMessagesRequest,
 	parseTaskChatReloadRequest,
 	parseTaskContextImportRequest,
-	parseTaskSessionInputRequest,
-	parseTaskSessionStopRequest,
 } from "../core/api-validation";
-import { setCardPaused } from "../core/card-pause";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
-import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
@@ -120,6 +115,7 @@ import { handleAbortTaskChatTurn, handleCancelTaskChatTurn } from "./runtime-api
 import { handleGetTaskDiagnostics, handleGetTaskEscalation } from "./runtime-api/task-diagnostics.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
 import { handlePauseTask, handleResumeTask } from "./runtime-api/task-pause-resume.js";
+import { handleSendTaskSessionInput, handleStopTaskSession } from "./runtime-api/task-session-io.js";
 import {
 	handleGetKnowledgeToolUsageStats,
 	handleGetModelPerformanceStats,
@@ -127,7 +123,6 @@ import {
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
 import { handleVerifyTaskAcceptance } from "./runtime-api/verify-task-acceptance.js";
-import { withTaskPausedState } from "./runtime-task-paused-state";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const _execFileAsync = promisify(execFile);
@@ -169,13 +164,6 @@ export interface CreateRuntimeApiDependencies {
 	 * test helpers that do not set it continue to work.
 	 */
 	isRemoteMode?: boolean;
-}
-
-async function reconcileRunningTaskBoardLane(
-	workspaceScope: RuntimeTrpcWorkspaceScope,
-	summary: RuntimeTaskSessionSummary,
-): Promise<void> {
-	await reconcileStartedTaskBoardLane({ workspacePath: workspaceScope.workspacePath, summary });
 }
 
 function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKleinPlanArtifactSummary {
@@ -465,30 +453,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				nkleinProviderService,
 			});
 		},
-		stopTaskSession: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskSessionStopRequest(input);
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				const nkleinSummary = await nkleinTaskSessionService.stopTaskSession(body.taskId);
-				const pausedTaskIds = await setCardPaused({
-					workspacePath: workspaceScope.workspacePath,
-					taskId: body.taskId,
-					paused: false,
-				});
-				// Terminal/CLI agents are disabled under the local-only lockdown (§5.A); only NKlein sessions exist.
-				return {
-					ok: Boolean(nkleinSummary),
-					summary: withTaskPausedState(nkleinSummary, pausedTaskIds),
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					summary: null,
-					error: message,
-				};
-			}
-		},
+		stopTaskSession: async (workspaceScope, input) =>
+			handleStopTaskSession(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+			}),
 		pauseTask: async (workspaceScope, input) =>
 			handlePauseTask(workspaceScope, input, {
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
@@ -499,34 +467,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
 				getLoadedScopedNKleinTaskSessionService: deps.getLoadedScopedNKleinTaskSessionService,
 			}),
-		sendTaskSessionInput: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskSessionInputRequest(input);
-				const payloadText = body.appendNewline ? `${body.text}\n` : body.text;
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				const nkleinSummary = await nkleinTaskSessionService.sendTaskSessionInput(body.taskId, payloadText);
-				// Terminal/CLI agents are disabled under the local-only lockdown (§5.A); only NKlein sessions exist.
-				if (!nkleinSummary) {
-					return {
-						ok: false,
-						summary: null,
-						error: "Task session is not running.",
-					};
-				}
-				await reconcileRunningTaskBoardLane(workspaceScope, nkleinSummary);
-				return {
-					ok: true,
-					summary: nkleinSummary,
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					summary: null,
-					error: message,
-				};
-			}
-		},
+		sendTaskSessionInput: async (workspaceScope, input) =>
+			handleSendTaskSessionInput(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+			}),
 		getTaskChatMessages: async (workspaceScope, input) => {
 			try {
 				const body = parseTaskChatMessagesRequest(input);
