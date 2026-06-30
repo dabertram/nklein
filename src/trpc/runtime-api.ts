@@ -106,16 +106,13 @@ import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-sta
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
-import {
-	mergeTaskWorktreesInDependencyOrder,
-	type TaskWorktreeAutoMergeStep,
-} from "../workspace/task-worktree-auto-merge";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
 import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { handleExpandNKleinPlanTask } from "./runtime-api/expand-plan-task.js";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
+import { handleMergeTaskWorktrees } from "./runtime-api/merge-task-worktrees.js";
 import {
 	handleGetNKleinModelRegistry,
 	handlePruneNKleinModelRegistry,
@@ -134,7 +131,7 @@ import {
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
 import { findBoardCardById, findSourceCardBaseRef } from "./runtime-board-card-lookup";
-import { formatAcceptanceVerifyMessage, formatMergeMessage } from "./runtime-task-message-formatting";
+import { formatAcceptanceVerifyMessage } from "./runtime-task-message-formatting";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const _execFileAsync = promisify(execFile);
@@ -194,42 +191,6 @@ async function reconcileRunningTaskBoardLane(
 
 function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKleinPlanArtifactSummary {
 	return summary;
-}
-
-function recordTaskWorktreeMergeObservations(input: {
-	workspacePath: string;
-	steps: readonly TaskWorktreeAutoMergeStep[];
-	ok: boolean;
-}): void {
-	for (const step of input.steps) {
-		if (!step.taskId) {
-			continue;
-		}
-		const severity = step.type === "conflict" || step.type === "blocked" ? "warning" : "info";
-		const message =
-			step.type === "merged"
-				? `Task result merged: ${step.taskId}`
-				: step.type === "skipped"
-					? `Task result merge skipped: ${step.taskId}`
-					: step.type === "conflict"
-						? `Task result merge conflict: ${step.taskId}`
-						: `Task result merge blocked: ${step.reason}`;
-		recordSelfObservation({
-			signal: "custom",
-			severity,
-			message,
-			taskId: step.taskId,
-			workspacePath: input.workspacePath,
-			metadata: {
-				category: "task_worktree_merge",
-				ok: input.ok,
-				type: step.type,
-				reason: "reason" in step ? step.reason : null,
-				headCommit: "headCommit" in step ? step.headCommit : null,
-				conflictedPaths: "conflictedPaths" in step ? step.conflictedPaths : null,
-			},
-		});
-	}
 }
 
 /**
@@ -653,30 +614,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				message: formatAcceptanceVerifyMessage(acceptance),
 			};
 		},
-		mergeTaskWorktrees: async (workspaceScope, input) => {
-			const state = await loadWorkspaceState(workspaceScope.workspacePath);
-			const result = await mergeTaskWorktreesInDependencyOrder({
-				repoPath: workspaceScope.workspacePath,
-				board: state.board,
-				columns: [input.column ?? "review"],
-				taskIds: input.taskId ? [input.taskId] : undefined,
-			});
-			recordTaskWorktreeMergeObservations({
-				workspacePath: workspaceScope.workspacePath,
-				steps: result.steps,
-				ok: result.ok,
-			});
-			return {
-				ok: result.ok,
-				column: input.column ?? "review",
-				mergedTaskIds: result.mergedTaskIds,
-				skippedTaskIds: result.skippedTaskIds,
-				steps: result.steps,
-				conflict: result.conflict ?? null,
-				blocked: result.blocked ?? null,
-				message: formatMergeMessage(result),
-			};
-		},
+		mergeTaskWorktrees: async (workspaceScope, input) => handleMergeTaskWorktrees(workspaceScope, input),
 		saveNKleinProviderSettings: async (_workspaceScope, input) => {
 			const body = parseNKleinProviderSettingsSaveRequest(input);
 			const response = await nkleinProviderService.saveProviderSettings(body);
