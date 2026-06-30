@@ -114,6 +114,7 @@ import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-mod
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
 import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
+import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
 import { type NKleinTaskTimeoutKind, TaskTimeoutHandles } from "./nklein-task-timeout-handles";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
@@ -374,7 +375,7 @@ function appendVisibleSystemPromptMessage(entry: NKleinTaskSessionEntry, taskId:
 
 export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionService {
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
-	private readonly providerIdByTaskId = new Map<string, string>();
+	private readonly providerIdStore = new TaskProviderIdStore();
 	private readonly modelEndpoint = new TaskModelEndpointStore();
 	private readonly contextWindowStore = new TaskContextWindowStore();
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
@@ -529,14 +530,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private resolveProviderIdForTask(taskId: string): string {
-		const cached = this.providerIdByTaskId.get(taskId);
+		const cached = this.providerIdStore.get(taskId);
 		if (cached) {
 			return cached;
 		}
 		// Fall back to the runtime's last-start-request for tasks rebound from persistence.
 		const fromRuntime = this.sessionRuntime.getTaskProviderId(taskId);
 		if (fromRuntime) {
-			this.providerIdByTaskId.set(taskId, fromRuntime);
+			this.providerIdStore.set(taskId, fromRuntime);
 			return fromRuntime;
 		}
 		return UNCONFIGURED_PROVIDER_ID;
@@ -566,7 +567,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			...(Object.hasOwn(launchConfig, "turnTimeoutMs") ? { turnTimeoutMs: launchConfig.turnTimeoutMs } : {}),
 		};
 		this.launchConfigByTaskId.set(taskId, normalized);
-		this.providerIdByTaskId.set(taskId, normalized.providerId);
+		this.providerIdStore.set(taskId, normalized.providerId);
 		this.modelEndpoint.set(taskId, normalized.modelId, normalized.baseUrl ?? null);
 		if (Object.hasOwn(normalized, "contextWindow")) {
 			this.resolveContextWindowForTask(taskId, normalized.contextWindow);
@@ -1405,7 +1406,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return cloneSummary(existing.summary);
 		}
 		const providerId = request.providerId?.trim().toLowerCase() || UNCONFIGURED_PROVIDER_ID;
-		this.providerIdByTaskId.set(request.taskId, providerId);
+		this.providerIdStore.set(request.taskId, providerId);
 		this.autonomyBudgetWatchdog.resetTask(request.taskId);
 		this.repeatedToolCallGuard.resetTask(request.taskId);
 		this.decompositionStallNudger.resetTask(request.taskId);
@@ -2148,7 +2149,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	async clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
 		const existingEntry = this.messageRepository.getTaskEntry(taskId);
 		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.providerIdByTaskId.delete(taskId);
+		this.providerIdStore.forget(taskId);
 		this.contextWindowStore.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
@@ -2250,7 +2251,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			taskId: summary.taskId,
 			state: summary.state,
 			startedAt: summary.startedAt,
-			providerId: this.providerIdByTaskId.get(summary.taskId) ?? UNCONFIGURED_PROVIDER_ID,
+			providerId: this.providerIdStore.get(summary.taskId) ?? UNCONFIGURED_PROVIDER_ID,
 			modelId: this.modelEndpoint.getModelId(summary.taskId),
 			endpoint: this.modelEndpoint.getEndpoint(summary.taskId),
 		}));
@@ -2420,7 +2421,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			await this.sessionRuntime.clearTaskSessions(reviewTaskId).catch(() => undefined);
 			await this.agentSandboxManager.disposeWorkspace(reviewTaskId).catch(() => undefined);
 			this.launchConfigByTaskId.delete(reviewTaskId);
-			this.providerIdByTaskId.delete(reviewTaskId);
+			this.providerIdStore.forget(reviewTaskId);
 			this.modelEndpoint.forget(reviewTaskId);
 			this.contextBudgetInputs.forget(reviewTaskId);
 			this.sandboxState.deleteSandbox(reviewTaskId);
@@ -2606,7 +2607,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.timeoutSettingsByTaskId.clear();
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
-		this.providerIdByTaskId.clear();
+		this.providerIdStore.clear();
 		this.contextWindowStore.clear();
 		this.modelEndpoint.clear();
 		this.contextBudgetInputs.clear();
