@@ -1140,6 +1140,16 @@ source repo went private — so if it vanishes the buildable source still lives 
     - [ ] implement call-graph neighborhood traversal (callers/callees of a symbol).
     - [ ] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist.
     - [ ] unit-test each localization mode with a fake index.
+    - [ ] **Evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp) as the backing for the
+          symbol/def + import-edge + call-graph lookups above (1138–1140), and/or as a token-frugal agent retrieval tool**
+          (DeusData, MIT, single static C binary, 100% local + no telemetry, 158 languages, persistent knowledge graph with
+          call chains + LSP-grade type inference, ~10–120× fewer tokens). It ships exactly the three lookups we'd otherwise
+          build, and its token savings directly serve the small/slow-local-LLM + ≥32k-context-floor mission; we already have
+          MCP wiring ([nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts)). **GATE on:** (a)
+          division of labor vs. our existing embeddings / repo-map-AST / PageRank retrieval (keep semantic "find by meaning"
+          ours; route exact structural "who calls X / where defined" to this) so we don't duplicate; (b) offline operation
+          inside the strict-local Docker sandbox + vetting/bundling the third-party binary; (c) consume as an agent MCP tool,
+          as the `localize` backing, or both. If it can't clear the sandbox/overlap bar, build 1138–1140 natively as planned.
   - [ ] **N-candidate patch generator (narrow model subtask):**
     - [ ] define the generate-N-patches prompt (localized context in, unified-diff candidates out).
     - [ ] parse the model output into N discrete diff candidates.
