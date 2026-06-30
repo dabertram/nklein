@@ -1,17 +1,17 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
 import { fetchLoadedModelIds } from "../../core/lmstudio-loaded-models";
-import { buildLoadedModelRoutingCandidates } from "../../nklein-agent/nklein-loaded-model-candidates";
-import { getDefaultNKleinModelRegistry } from "../../nklein-agent/nklein-model-registry";
-import { createNKleinProviderService } from "../../nklein-agent/nklein-provider-service";
-import type { NKleinTaskRoutingCandidate } from "../../nklein-agent/nklein-task-router";
-import { buildNKleinStartGuardCandidate } from "../../nklein-agent/nklein-task-start-guard";
+import { buildLoadedModelRoutingCandidates } from "../nklein-loaded-model-candidates";
+import { getDefaultNKleinModelRegistry } from "../nklein-model-registry";
+import { createNKleinProviderService } from "../nklein-provider-service";
+import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
+import { buildNKleinStartGuardCandidate } from "../nklein-task-start-guard";
 
 /**
  * Build the runnable model "routing candidates" a decomposition can choose from: the default NKlein provider (when one
  * is runnable), **every model currently LOADED on that endpoint** (§5.AB north-star — auto-selection with no manual
- * role→model config), plus any explicitly-configured per-role model. Extracted from the task CLI (§5.U) — independent of
- * task.ts internals (only the provider service + model registry + start-guard), so the decomposition-routing concern
- * stands on its own. Roles/models that aren't currently runnable are skipped, not fatal.
+ * role→model config), plus any explicitly-configured per-role model. Used by BOTH the task CLI and the runtime
+ * decompose-apply path (so it lives in the agent layer, not `commands/`). Roles/models that aren't currently runnable
+ * are skipped, not fatal.
  */
 export async function buildDecompositionRoutingCandidates(
 	runtimeConfig: RuntimeConfigState,

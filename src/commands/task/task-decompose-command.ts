@@ -1,6 +1,7 @@
 import { loadRuntimeConfig } from "../../config/runtime-config";
 import type { RuntimeWorkspaceStateResponse } from "../../core/api-contract";
 import { resolveAutonomousTimeoutPowerMultiplier } from "../../core/autonomous-timeout-defaults";
+import { buildDecompositionRoutingCandidates } from "../../nklein-agent/decomposition/build-decomposition-routing-candidates.js";
 import { applyNKleinPlanTaskGraphToBoard } from "../../nklein-agent/nklein-decomposition-tool";
 import {
 	readNKleinPlanArtifacts,
@@ -8,7 +9,6 @@ import {
 } from "../../nklein-agent/nklein-plan-artifacts";
 import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import { toErrorMessage } from "./task-command-output.js";
-import { buildDecompositionRoutingCandidates } from "./task-decomposition-routing.js";
 import { formatDependencyRecord, formatTaskRecord } from "./task-record-format.js";
 import {
 	createRuntimeTrpcClient,

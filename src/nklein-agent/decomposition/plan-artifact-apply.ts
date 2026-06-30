@@ -17,6 +17,7 @@ import {
 	writeNKleinPlanTaskGraph,
 } from "../nklein-plan-artifacts";
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
+import { buildDecompositionRoutingCandidates } from "./build-decomposition-routing-candidates";
 import { applyNKleinPlanTaskGraphToBoard, replaceNKleinPlanTaskInGraph } from "./plan-task-board-apply";
 import { previewNKleinPlanTaskGraph } from "./plan-task-routing";
 
@@ -59,8 +60,15 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 }): Promise<ApplyDecomposeProjectArtifactsResult> {
 	const runtimeConfig = await loadRuntimeConfig(input.workspacePath).catch(() => null);
 	const powerMultiplier = await resolveAutonomousTimeoutPowerMultiplier();
+	// §5.AB north-star: auto-discover routing candidates (the default model + every model currently LOADED on the
+	// endpoint + any configured role) so each card is routed to the best-fit AVAILABLE model with NO manual role→model
+	// config. Best-effort — an unresolvable provider yields undefined ⇒ deferred selection (today's behavior).
+	const routingCandidates = runtimeConfig
+		? await buildDecompositionRoutingCandidates(runtimeConfig).catch(() => undefined)
+		: undefined;
 	const fallbackPreview = previewNKleinPlanTaskGraph({
 		taskGraph: input.taskGraph,
+		routingCandidates,
 		sharedContext: input.sharedContext,
 	});
 	if (runtimeConfig?.decompositionAutoApplyEnabled === false) {
@@ -94,7 +102,7 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 					},
 				};
 			}
-			const applied = applyNKleinPlanTaskGraphToBoard({
+			const applyInput = {
 				board: state.board,
 				taskGraph: input.taskGraph,
 				baseRef,
@@ -103,7 +111,15 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				modelRoleSettings: runtimeConfig?.effectiveModelRoles,
 				powerMultiplier,
 				sharedContext: input.sharedContext,
-			});
+			};
+			let applied: ReturnType<typeof applyNKleinPlanTaskGraphToBoard>;
+			try {
+				applied = applyNKleinPlanTaskGraphToBoard({ ...applyInput, routingCandidates });
+			} catch {
+				// A card was infeasible for EVERY available model — don't FAIL the decompose; defer that card's model
+				// selection to card start (the prior behavior). Routing applies whenever all cards are feasible.
+				applied = applyNKleinPlanTaskGraphToBoard(applyInput);
+			}
 			return {
 				board: applied.board,
 				value: {
