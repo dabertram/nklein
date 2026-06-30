@@ -6,6 +6,7 @@ import {
 	type NKleinCodeEmbeddingProvider,
 	type NKleinCodeEmbeddingVector,
 } from "./nklein-code-embeddings";
+import { cosineSimilarity, entriesToVector, vectorToEntries } from "./nklein-sparse-vector";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_RESULTS = 8;
@@ -268,14 +269,6 @@ function tokenizeForLexicalScore(text: string): string[] {
 		.filter((token) => token.length >= 2);
 }
 
-function vectorToEntries(vector: SparseVector): Array<[string, number]> {
-	return [...vector.entries()].sort(([left], [right]) => left.localeCompare(right));
-}
-
-function entriesToVector(entries: Array<[string, number]>): SparseVector {
-	return new Map(entries.filter(([token, value]) => token.trim().length > 0 && Number.isFinite(value)));
-}
-
 function hashText(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
 }
@@ -418,25 +411,6 @@ async function persistVectorCache(options: {
 	};
 	await mkdir(dirname(options.cache.cachePath), { recursive: true });
 	await writeFile(options.cache.cachePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-}
-
-function cosineSimilarity(left: SparseVector, right: SparseVector): number {
-	let dot = 0;
-	let leftMagnitude = 0;
-	let rightMagnitude = 0;
-	for (const value of left.values()) {
-		leftMagnitude += value * value;
-	}
-	for (const value of right.values()) {
-		rightMagnitude += value * value;
-	}
-	for (const [token, leftValue] of left) {
-		dot += leftValue * (right.get(token) ?? 0);
-	}
-	if (leftMagnitude === 0 || rightMagnitude === 0) {
-		return 0;
-	}
-	return dot / Math.sqrt(leftMagnitude * rightMagnitude);
 }
 
 function lexicalScore(chunkText: string, query: string): number {
