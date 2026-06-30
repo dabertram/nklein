@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { readEnvWithLegacyFallback } from "../config/legacy-env";
+import { compareVersions, getNpmTag } from "./update-version";
 
 export enum UpdatePackageManager {
 	NPM = "npm",
@@ -60,11 +61,6 @@ export interface OnDemandUpdateResult {
 	latestVersion: string | null;
 	packageManager: UpdatePackageManager;
 	message: string;
-}
-
-interface ParsedVersion {
-	core: number[];
-	prerelease: Array<number | string> | null;
 }
 
 interface PendingShutdownAutoUpdate {
@@ -148,33 +144,6 @@ function isPathInside(targetPath: string, containerPath: string): boolean {
 		return true;
 	}
 	return normalizedTarget.startsWith(`${normalizedContainer}/`);
-}
-
-function isNightlyVersion(version: string): boolean {
-	return version.includes("-nightly.");
-}
-
-function getNpmTag(currentVersion: string): string {
-	return isNightlyVersion(currentVersion) ? "nightly" : "latest";
-}
-
-function parseVersion(version: string): ParsedVersion {
-	const versionWithoutBuild = version.split("+", 1)[0] ?? "";
-	const [corePart, prereleasePart] = versionWithoutBuild.split("-", 2);
-	const core = corePart
-		.split(".")
-		.filter((part) => part.length > 0)
-		.map((part) => Number.parseInt(part, 10));
-	const prerelease = prereleasePart
-		? prereleasePart
-				.split(".")
-				.filter((part) => part.length > 0)
-				.map((part) => (/^\d+$/u.test(part) ? Number.parseInt(part, 10) : part))
-		: null;
-	return {
-		core,
-		prerelease,
-	};
 }
 
 function buildShutdownCacheRefreshCommand(cacheDirectory: string): UpdateInstallCommand {
@@ -338,64 +307,6 @@ function detectTransientAutoUpdateInstallation(options: {
 	}
 
 	return null;
-}
-
-function comparePrereleaseParts(left: Array<number | string> | null, right: Array<number | string> | null): number {
-	if (!left && !right) {
-		return 0;
-	}
-	if (!left) {
-		return 1;
-	}
-	if (!right) {
-		return -1;
-	}
-
-	const length = Math.max(left.length, right.length);
-	for (let index = 0; index < length; index += 1) {
-		const leftPart = left[index];
-		const rightPart = right[index];
-		if (leftPart === undefined && rightPart === undefined) {
-			return 0;
-		}
-		if (leftPart === undefined) {
-			return -1;
-		}
-		if (rightPart === undefined) {
-			return 1;
-		}
-		if (leftPart === rightPart) {
-			continue;
-		}
-		if (typeof leftPart === "number" && typeof rightPart === "number") {
-			return leftPart > rightPart ? 1 : -1;
-		}
-		if (typeof leftPart === "number") {
-			return -1;
-		}
-		if (typeof rightPart === "number") {
-			return 1;
-		}
-		return leftPart.localeCompare(rightPart);
-	}
-	return 0;
-}
-
-export function compareVersions(leftVersion: string, rightVersion: string): number {
-	const left = parseVersion(leftVersion);
-	const right = parseVersion(rightVersion);
-	const length = Math.max(left.core.length, right.core.length);
-	for (let index = 0; index < length; index += 1) {
-		const leftPart = left.core[index] ?? 0;
-		const rightPart = right.core[index] ?? 0;
-		if (leftPart > rightPart) {
-			return 1;
-		}
-		if (leftPart < rightPart) {
-			return -1;
-		}
-	}
-	return comparePrereleaseParts(left.prerelease, right.prerelease);
 }
 
 export function detectAutoUpdateInstallation(options: {

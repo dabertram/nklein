@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
 	clearPendingUpdateNotification,
-	compareVersions,
 	detectAutoUpdateInstallation,
 	getPendingUpdateNotification,
 	resolveUpdateCommandForPlatform,
@@ -11,6 +10,7 @@ import {
 	runPendingAutoUpdateOnShutdown,
 	UpdatePackageManager,
 } from "../../../src/update/update";
+import { compareVersions } from "../../../src/update/update-version";
 
 function normalizePath(value: string): string {
 	return value.replaceAll("\\", "/");
