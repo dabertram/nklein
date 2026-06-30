@@ -18,12 +18,7 @@ import type {
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
 import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
-import {
-	type ConcurrencyConfig,
-	type ConcurrencyOverride,
-	normalizeConcurrencyConfig,
-	normalizeConcurrencyOverride,
-} from "../core/concurrency-config";
+import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
@@ -31,6 +26,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
+import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
@@ -53,8 +49,6 @@ import {
 	normalizeCodeEmbeddingOverride,
 	normalizeCodeEmbeddingSettings,
 	normalizeLostHeartbeatPolicy,
-	normalizeMaxConcurrentTasks,
-	normalizeMaxConcurrentTasksOverride,
 	normalizeModelRoles,
 	normalizeModelRolesOverride,
 	normalizeModelSuitabilityPolicy,
@@ -147,11 +141,12 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		agentTimeoutMs: normalizeTimeoutMsValue(input.agentTimeoutMs),
 		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
-		maxConcurrentTasks: normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
-		maxConcurrentTasksOverride: normalizeMaxConcurrentTasksOverride(input.maxConcurrentTasksOverride),
-		effectiveMaxConcurrentTasks:
-			normalizeMaxConcurrentTasksOverride(input.maxConcurrentTasksOverride) ??
-			normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
+		...deriveConcurrencyFields(
+			input.maxConcurrentTasks,
+			input.maxConcurrentTasksOverride,
+			input.concurrencyDefaults,
+			input.concurrencyOverride,
+		),
 		selectedAgentIdOverride: normalizeSelectedAgentIdOverride(input.selectedAgentIdOverride),
 		effectiveSelectedAgentId:
 			normalizeSelectedAgentIdOverride(input.selectedAgentIdOverride) ?? normalizeAgentId(input.selectedAgentId),
@@ -210,8 +205,6 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		effectiveSkillDynamicsLevel:
 			normalizeSkillDynamicsLevelOverride(input.skillDynamicsLevelOverride) ??
 			normalizeSkillDynamicsLevel(input.skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
-		concurrencyDefaults: normalizeConcurrencyConfig(input.concurrencyDefaults),
-		concurrencyOverride: normalizeConcurrencyOverride(input.concurrencyOverride),
 		modelRoles: normalizeModelRoles(input.modelRoles),
 		modelRolesOverride: normalizeModelRolesOverride(input.modelRolesOverride),
 		effectiveModelRoles:
