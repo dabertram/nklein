@@ -4,6 +4,7 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { extractAgentErrorMessage, readMessagePartText, readToolResult } from "./nklein-message-content-readers";
 import { normalizePreviewText, toPreviewText } from "./nklein-preview-text";
+import { isLikelySerializedAgentEventChunk } from "./nklein-serialized-event-chunk";
 import {
 	appendAssistantChunk,
 	appendReasoningChunk,
@@ -825,20 +826,4 @@ function emitTurnCanceled(input: ApplyNKleinSessionEventInput): void {
 			source: "nklein-sdk",
 		},
 	});
-}
-
-function isLikelySerializedAgentEventChunk(chunk: string): boolean {
-	const trimmed = chunk.trim();
-	if (!trimmed) {
-		return false;
-	}
-	if (!(trimmed.startsWith("{") || trimmed.startsWith("["))) {
-		return false;
-	}
-	try {
-		const parsed = JSON.parse(trimmed);
-		return Boolean(parsed && typeof parsed === "object" && "type" in parsed);
-	} catch {
-		return false;
-	}
 }
