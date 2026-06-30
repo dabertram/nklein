@@ -32,7 +32,6 @@ import {
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig, updateGlobalRuntimeConfig, updateRuntimeConfig } from "../config/runtime-config";
-import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
 import type {
 	RuntimeAgentSandboxStatus,
 	RuntimeCommandRunResponse,
@@ -89,10 +88,9 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import { setNKleinLostHeartbeatPolicy } from "../nklein-agent/nklein-session-state";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { openInBrowser } from "../server/browser";
-import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { readMergeHistory } from "../state/merge-history-store";
-import { readTaskRunSummaries } from "../state/task-run-summary-store";
-import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
@@ -118,6 +116,7 @@ import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleClearSwarmStop, handleGetSwarmStop, handleRequestSwarmStop } from "./runtime-api/swarm-stop-control.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
 import { handleAbortTaskChatTurn, handleCancelTaskChatTurn } from "./runtime-api/task-chat-turn-control.js";
+import { handleGetTaskDiagnostics, handleGetTaskEscalation } from "./runtime-api/task-diagnostics.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
 import { handlePauseTask, handleResumeTask } from "./runtime-api/task-pause-resume.js";
 import {
@@ -434,28 +433,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			handleClearSwarmStop(workspaceScope, {
 				getLoadedScopedNKleinTaskSessionService: deps.getLoadedScopedNKleinTaskSessionService,
 			}),
-		getTaskDiagnostics: async (workspaceScope, input) => {
-			const [events, runSummaries] = await Promise.all([
-				readSelfObservationEvents({
-					taskId: input.taskId,
-					workspacePath: workspaceScope.workspacePath,
-					limit: input.limit ?? 25,
-				}),
-				readTaskRunSummaries({
-					taskId: input.taskId,
-					workspacePath: workspaceScope.workspacePath,
-					limit: input.limit ?? 25,
-				}),
-			]);
-			return {
-				ok: true,
-				events,
-				runSummaries,
-			};
-		},
-		getTaskEscalation: async (_workspaceScope, input) => {
-			return buildTaskEscalationReport(await readAllAgentLedger(), input.taskId);
-		},
+		getTaskDiagnostics: async (workspaceScope, input) => handleGetTaskDiagnostics(workspaceScope, input),
+		getTaskEscalation: async (_workspaceScope, input) => handleGetTaskEscalation(input),
 		listNKleinPlanArtifacts: async (workspaceScope, input) => {
 			const artifacts = await listNKleinPlanArtifactsForSourceTask({
 				workspacePath: workspaceScope.workspacePath,
