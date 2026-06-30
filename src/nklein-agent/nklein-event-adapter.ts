@@ -2,6 +2,7 @@
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { extractAgentErrorMessage, readMessagePartText, readToolResult } from "./nklein-message-content-readers";
 import { normalizePreviewText, toPreviewText } from "./nklein-preview-text";
 import {
 	appendAssistantChunk,
@@ -151,22 +152,6 @@ function isReviewableAbortedToolCompletion(entry: NKleinTaskSessionEntry): boole
 	]).has(toolName);
 }
 
-function extractAgentErrorMessage(error: unknown): string | null {
-	if (typeof error === "string") {
-		const normalized = error.trim();
-		return normalized.length > 0 ? normalized : null;
-	}
-	if (error instanceof Error) {
-		const normalized = error.message.trim();
-		return normalized.length > 0 ? normalized : null;
-	}
-	if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
-		const normalized = error.message.trim();
-		return normalized.length > 0 ? normalized : null;
-	}
-	return null;
-}
-
 function emitAssistantTextSummary(input: ApplyNKleinSessionEventInput, text: string | null): void {
 	const currentTime = now();
 	const fullPreviewText = normalizePreviewText(text);
@@ -201,42 +186,6 @@ function withHeartbeat(
 		lastHeartbeatAt: currentTime,
 		heartbeatStatus: options.status ?? "healthy",
 		...(options.token ? { lastTokenAt: currentTime } : {}),
-	};
-}
-
-function readMessagePartText(message: unknown, partType: "text" | "reasoning"): string | null {
-	const messageRecord = asRecord(message);
-	const content = messageRecord?.content;
-	if (!Array.isArray(content)) {
-		return null;
-	}
-	const text = content
-		.map((part) => {
-			const partRecord = asRecord(part);
-			if (!partRecord || partRecord.type !== partType || typeof partRecord.text !== "string") {
-				return "";
-			}
-			return partRecord.text;
-		})
-		.join("");
-	return text.length > 0 ? text : null;
-}
-
-function readToolResult(message: unknown): { output: unknown; error: string | null } {
-	const messageRecord = asRecord(message);
-	const content = messageRecord?.content;
-	if (!Array.isArray(content)) {
-		return { output: undefined, error: null };
-	}
-	const result = content.map((part) => asRecord(part)).find((part) => part?.type === "tool-result");
-	if (!result) {
-		return { output: undefined, error: null };
-	}
-	const isError = result.isError === true;
-	const output = result.output;
-	return {
-		output,
-		error: isError ? (extractAgentErrorMessage(output) ?? "Tool execution failed") : null,
 	};
 }
 
