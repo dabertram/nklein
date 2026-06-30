@@ -105,6 +105,7 @@ import {
 } from "./runtime-config-prompt-templates";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
+import { resolveRuntimeSuitabilityConfig } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type {
 	RuntimeConfigState,
@@ -344,13 +345,6 @@ function toRuntimeConfigState({
 	globalConfig: RuntimeGlobalConfigFileShape | null;
 	projectConfig: RuntimeProjectConfigFileShape | null;
 }): RuntimeConfigState {
-	const modelSuitabilityPolicyDefaults = normalizeModelSuitabilityPolicy(
-		globalConfig?.modelSuitabilityPolicyDefaults,
-		DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
-	);
-	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(
-		projectConfig?.modelSuitabilityPolicyOverride,
-	);
 	const skillDynamicsLevelDefault = normalizeSkillDynamicsLevel(
 		globalConfig?.skillDynamicsLevelDefault,
 		DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
@@ -382,9 +376,7 @@ function toRuntimeConfigState({
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig(globalConfig),
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
-		modelSuitabilityPolicyDefaults,
-		modelSuitabilityPolicyOverride,
-		effectiveModelSuitabilityPolicy: modelSuitabilityPolicyOverride ?? modelSuitabilityPolicyDefaults,
+		...resolveRuntimeSuitabilityConfig(globalConfig, projectConfig),
 		skillDynamicsLevelDefault,
 		skillDynamicsLevelOverride,
 		effectiveSkillDynamicsLevel: skillDynamicsLevelOverride ?? skillDynamicsLevelDefault,
