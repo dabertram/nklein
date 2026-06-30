@@ -25,7 +25,7 @@ import {
 } from "../core/api-validation";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
-import { loadDevTestProjectRegistry, loadDevTestProjectScenario } from "../nklein-agent/dev-test-project-registry";
+import { loadDevTestProjectScenario } from "../nklein-agent/dev-test-project-registry";
 import {
 	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	resolveNKleinDevTestProjectScenario,
@@ -58,6 +58,7 @@ import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/ta
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import type { RuntimeTrpcContext } from "./app-router";
 import { buildDevTestTaskId, createDevTestBoard } from "./dev-test-board";
+import { handleListDevTestProjects } from "./projects-api/dev-test-projects.js";
 import { handleListDirectoryContents, handlePickProjectDirectory } from "./projects-api/directory-browse.js";
 import { buildSelfImprovementTaskPrompt } from "./self-improvement-task-prompt";
 
@@ -415,18 +416,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				} satisfies RuntimeProjectAddResponse;
 			}
 		},
-		listDevTestProjects: async (): Promise<RuntimeDevTestProjectRegistryResponse> => {
-			const entries = loadDevTestProjectRegistry();
-			return {
-				entries: entries.map((entry) => ({
-					id: entry.config.id,
-					title: entry.config.title,
-					...(entry.config.tier !== undefined ? { tier: entry.config.tier } : {}),
-					...(entry.config.tags !== undefined ? { tags: entry.config.tags } : {}),
-					...(entry.config.complexity !== undefined ? { complexity: entry.config.complexity } : {}),
-				})),
-			};
-		},
+		listDevTestProjects: async (): Promise<RuntimeDevTestProjectRegistryResponse> => handleListDevTestProjects(),
 		createDevTestProject: async (
 			_preferredWorkspaceId,
 			input?: RuntimeDevTestProjectRequest,
