@@ -108,6 +108,7 @@ import {
 	setOrCreateAssistantMessage,
 	updateSummary,
 } from "./nklein-session-state";
+import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
 import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
@@ -383,8 +384,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
 	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
-	private readonly pendingTimeoutReasonByTaskId = new Map<string, string>();
-	private readonly pendingTimeoutSourceByTaskId = new Map<string, TaskRunTimeoutSource>();
+	private readonly pendingTimeout = new TaskPendingTimeoutStore();
 	private readonly autonomyBudgetWatchdog: AutonomyBudgetWatchdog;
 	private readonly timeoutSettingsByTaskId = new Map<string, NKleinTaskTimeoutSettings>();
 	private readonly timeoutHandlesByTaskId = new Map<string, Map<NKleinTaskTimeoutKind, NodeJS.Timeout>>();
@@ -958,7 +958,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
 		const timeoutLabel =
 			kind === "stream" ? "stream inactivity" : kind === "tool" ? "tool execution" : "conversation";
-		this.pendingTimeoutReasonByTaskId.set(taskId, `${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)}s`);
 		const timeoutSettings = this.timeoutSettingsByTaskId.get(taskId);
 		const timeoutSource =
 			kind === "stream"
@@ -966,7 +965,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				: kind === "tool"
 					? timeoutSettings?.toolTimeoutSource
 					: timeoutSettings?.conversationTimeoutSource;
-		this.pendingTimeoutSourceByTaskId.set(taskId, timeoutSource ?? null);
+		this.pendingTimeout.record(
+			taskId,
+			`${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)}s`,
+			timeoutSource ?? null,
+		);
 		// follow-up-6 §3.5: a stream/tool inactivity timeout should leave a structured note on the card —
 		// what the model was last doing, the last tool, whether any work was captured, and whether resuming is
 		// safe — so a review caused by a stall is diagnosable instead of just "timeout after N seconds".
@@ -2668,10 +2671,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const usage = summary.latestUsage ?? null;
 		const promptTokens = usage?.inputTokens ?? null;
 		const completionTokens = usage?.outputTokens ?? null;
-		const timeoutReason = this.pendingTimeoutReasonByTaskId.get(taskId) ?? null;
-		this.pendingTimeoutReasonByTaskId.delete(taskId);
-		const timeoutSource = this.pendingTimeoutSourceByTaskId.get(taskId) ?? null;
-		this.pendingTimeoutSourceByTaskId.delete(taskId);
+		const { reason: timeoutReason, source: timeoutSource } = this.pendingTimeout.consume(taskId);
 		// Coarse role attribution (todo §5.C) for by-role timeout breakdowns — same resolution as the live summary
 		// stamp (resolveNKleinTaskRole), so the run summary and the session summary agree.
 		const role = resolveNKleinTaskRole(taskId, this.explicitDecompositionTaskIds.has(taskId));
