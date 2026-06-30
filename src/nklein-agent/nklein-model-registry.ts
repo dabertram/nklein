@@ -7,6 +7,12 @@ import { normalizePositiveInteger, normalizePositiveNumber } from "../core/norma
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import {
+	normalizeNullableString,
+	normalizePassRate,
+	normalizeScore,
+	normalizeScoreLikeNumber,
+} from "./nklein-model-registry-normalizers";
+import {
 	calculateEffectiveCapability,
 	calculateEffectiveContextWindow,
 	DEFAULT_CAPABILITY_PRIOR,
@@ -126,21 +132,6 @@ interface NKleinModelRegistryFileShape {
 
 function getDefaultModelRegistryPath(): string {
 	return join(resolveNkleinRuntimeHomePath(homedir()), "model-registry.json");
-}
-
-function normalizeScore(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return null;
-	}
-	return Math.max(0, Math.min(100, value));
-}
-
-function normalizeNullableString(value: unknown): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
 }
 
 function registryEntryObservationCount(entry: NKleinModelRegistryEntry): number {
@@ -325,20 +316,6 @@ function normalizeConstraints(
 		outputCostPerMillionTokens: normalizePositiveNumber(record?.outputCostPerMillionTokens),
 		maxConcurrentRequests: normalizePositiveInteger(record?.maxConcurrentRequests) ?? fallback.maxConcurrentRequests,
 	};
-}
-
-function normalizeScoreLikeNumber(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-		return null;
-	}
-	return value;
-}
-
-function normalizePassRate(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
-		return null;
-	}
-	return value;
 }
 
 function normalizeEntry(value: unknown, fallbackNow: number): NKleinModelRegistryEntry | null {
