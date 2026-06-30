@@ -24,7 +24,6 @@ import {
 	type ConcurrencyConfig,
 	type ConcurrencyOverride,
 	DEFAULT_CONCURRENCY_CONFIG,
-	normalizeConcurrencyConfig,
 	normalizeConcurrencyOverride,
 } from "../core/concurrency-config";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
@@ -68,14 +67,12 @@ import {
 	normalizeAgentRulesetsOverride,
 	normalizeBoolean,
 	normalizeCodeEmbeddingOverride,
-	normalizeCodeEmbeddingSettings,
 	normalizeDeveloperModeEnabled,
 	normalizeLostHeartbeatPolicy,
 	normalizeMaxConcurrentTasks,
 	normalizeMaxConcurrentTasksOverride,
 	normalizeModelRoles,
 	normalizeModelRolesOverride,
-	normalizeModelSuitabilityPolicy,
 	normalizeModelSuitabilityPolicyOverride,
 	normalizeNonNegativeInteger,
 	normalizePositiveInteger,
@@ -83,7 +80,6 @@ import {
 	normalizePromptTemplateWithLegacyDefault,
 	normalizeSelectedAgentIdOverride,
 	normalizeShortcuts,
-	normalizeSkillDynamicsLevel,
 	normalizeSkillDynamicsLevelOverride,
 } from "./runtime-config-normalizers";
 import {
@@ -105,12 +101,8 @@ import type {
 	RuntimeGlobalConfigFileShape,
 	RuntimeProjectConfigFileShape,
 } from "./runtime-config-types";
-import {
-	keepNormalizedValue,
-	keepUpdatedValue,
-	normalizeShortcutLabel,
-	normalizeWorkspaceBaseDir,
-} from "./runtime-config-value-helpers";
+import { mergeGlobalRuntimeConfigFields } from "./runtime-config-update-merge";
+import { keepNormalizedValue, normalizeShortcutLabel, normalizeWorkspaceBaseDir } from "./runtime-config-value-helpers";
 import {
 	buildRuntimeGlobalConfigFilePayload,
 	type RuntimeGlobalConfigFileWriteInput,
@@ -702,119 +694,21 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			throw new Error("Cannot save project shortcuts without a selected project.");
 		}
 		const nextConfig = {
-			selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
-			selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
-			workspaceBaseDir: keepUpdatedValue(updates.workspaceBaseDir, current.workspaceBaseDir),
-			developerModeEnabled: keepNormalizedValue(
-				updates.developerModeEnabled,
-				current.developerModeEnabled,
-				(value) => normalizeBoolean(value, DEFAULT_DEVELOPER_MODE_ENABLED),
-			),
-			replayCardsEnabled: keepNormalizedValue(updates.replayCardsEnabled, current.replayCardsEnabled, (value) =>
-				normalizeBoolean(value, DEFAULT_REPLAY_CARDS_ENABLED),
-			),
-			agentAutonomousModeEnabled: keepUpdatedValue(
-				updates.agentAutonomousModeEnabled,
-				current.agentAutonomousModeEnabled,
-			),
-			agentTimeoutMode: keepUpdatedValue(updates.agentTimeoutMode, current.agentTimeoutMode),
-			agentTimeoutProfile: keepUpdatedValue(updates.agentTimeoutProfile, current.agentTimeoutProfile),
-			requestTimeoutMs: keepUpdatedValue(updates.requestTimeoutMs, current.requestTimeoutMs),
-			streamTimeoutMs: keepUpdatedValue(updates.streamTimeoutMs, current.streamTimeoutMs),
-			toolTimeoutMs: keepUpdatedValue(updates.toolTimeoutMs, current.toolTimeoutMs),
-			agentTimeoutMs: keepUpdatedValue(updates.agentTimeoutMs, current.agentTimeoutMs),
-			conversationTimeoutMs: keepUpdatedValue(updates.conversationTimeoutMs, current.conversationTimeoutMs),
-			maxAgentWritableFileLines: keepNormalizedValue(
-				updates.maxAgentWritableFileLines,
-				current.maxAgentWritableFileLines,
-				normalizeMaxAgentWritableFileLines,
-			),
-			maxConcurrentTasks: keepNormalizedValue(
-				updates.maxConcurrentTasks,
-				current.maxConcurrentTasks,
-				normalizeMaxConcurrentTasks,
-			),
-			sandboxMaxContainers: keepNormalizedValue(
-				updates.sandboxMaxContainers,
-				current.sandboxMaxContainers,
-				(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
-			),
-			sandboxAgentsPerContainer: keepNormalizedValue(
-				updates.sandboxAgentsPerContainer,
-				current.sandboxAgentsPerContainer,
-				(value) => normalizeNonNegativeInteger(value, DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER),
-			),
-			sandboxMemoryPerContainerMb: keepNormalizedValue(
-				updates.sandboxMemoryPerContainerMb,
-				current.sandboxMemoryPerContainerMb,
-				(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB),
-			),
-			sandboxCpusPerContainer: keepNormalizedValue(
-				updates.sandboxCpusPerContainer,
-				current.sandboxCpusPerContainer,
-				(value) => normalizePositiveNumber(value, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
-			),
-			sandboxIdleTimeoutMinutes: keepNormalizedValue(
-				updates.sandboxIdleTimeoutMinutes,
-				current.sandboxIdleTimeoutMinutes,
-				(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES),
-			),
-			lostHeartbeatPolicy: keepNormalizedValue(
-				updates.lostHeartbeatPolicy,
-				current.lostHeartbeatPolicy,
-				normalizeLostHeartbeatPolicy,
-			),
-			decompositionAutoApplyEnabled: keepNormalizedValue(
-				updates.decompositionAutoApplyEnabled,
-				current.decompositionAutoApplyEnabled,
-				(value) => normalizeBoolean(value, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
-			),
-			secondOpinionReviewEnabled: keepNormalizedValue(
-				updates.secondOpinionReviewEnabled,
-				current.secondOpinionReviewEnabled,
-				(value) => normalizeBoolean(value, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
-			),
-			reviewMaxRounds: keepNormalizedValue(updates.reviewMaxRounds, current.reviewMaxRounds, (value) =>
-				normalizePositiveInteger(value, DEFAULT_REVIEW_MAX_ROUNDS),
-			),
-			readyForReviewNotificationsEnabled: keepUpdatedValue(
-				updates.readyForReviewNotificationsEnabled,
-				current.readyForReviewNotificationsEnabled,
-			),
-			codeEmbeddingDefaults: keepNormalizedValue(
-				updates.codeEmbeddingDefaults,
-				current.codeEmbeddingDefaults,
-				(value) => normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS),
-			),
+			...mergeGlobalRuntimeConfigFields(updates, current),
 			codeEmbeddingOverride: keepNormalizedValue(
 				updates.codeEmbeddingOverride,
 				current.codeEmbeddingOverride,
 				normalizeCodeEmbeddingOverride,
-			),
-			modelSuitabilityPolicyDefaults: keepNormalizedValue(
-				updates.modelSuitabilityPolicyDefaults,
-				current.modelSuitabilityPolicyDefaults,
-				(value) => normalizeModelSuitabilityPolicy(value, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
 			),
 			modelSuitabilityPolicyOverride: keepNormalizedValue(
 				updates.modelSuitabilityPolicyOverride,
 				current.modelSuitabilityPolicyOverride,
 				normalizeModelSuitabilityPolicyOverride,
 			),
-			skillDynamicsLevelDefault: keepNormalizedValue(
-				updates.skillDynamicsLevelDefault,
-				current.skillDynamicsLevelDefault,
-				(value) => normalizeSkillDynamicsLevel(value, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
-			),
 			skillDynamicsLevelOverride: keepNormalizedValue(
 				updates.skillDynamicsLevelOverride,
 				current.skillDynamicsLevelOverride,
 				normalizeSkillDynamicsLevelOverride,
-			),
-			concurrencyDefaults: keepNormalizedValue(
-				updates.concurrencyDefaults,
-				current.concurrencyDefaults,
-				normalizeConcurrencyConfig,
 			),
 			concurrencyOverride: keepNormalizedValue(
 				updates.concurrencyOverride,
@@ -841,16 +735,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.modelRolesOverride,
 				normalizeModelRolesOverride,
 			),
-			modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
-			agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
-			swarmGuardrails: keepNormalizedValue(
-				updates.swarmGuardrails,
-				current.swarmGuardrails,
-				normalizeRuntimeSwarmGuardrails,
-			),
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
-			commitPromptTemplate: keepUpdatedValue(updates.commitPromptTemplate, current.commitPromptTemplate),
-			openPrPromptTemplate: keepUpdatedValue(updates.openPrPromptTemplate, current.openPrPromptTemplate),
 		};
 
 		const hasChanges = runtimeConfigStateHasChanges(RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS, nextConfig, current);
@@ -970,123 +855,16 @@ export async function updateGlobalRuntimeConfig(
 		],
 		async () => {
 			const nextConfig = {
-				selectedAgentId: keepUpdatedValue(updates.selectedAgentId, current.selectedAgentId),
-				selectedShortcutLabel: keepUpdatedValue(updates.selectedShortcutLabel, current.selectedShortcutLabel),
-				workspaceBaseDir: keepUpdatedValue(updates.workspaceBaseDir, current.workspaceBaseDir),
-				developerModeEnabled: keepNormalizedValue(
-					updates.developerModeEnabled,
-					current.developerModeEnabled,
-					(value) => normalizeBoolean(value, DEFAULT_DEVELOPER_MODE_ENABLED),
-				),
-				replayCardsEnabled: keepNormalizedValue(updates.replayCardsEnabled, current.replayCardsEnabled, (value) =>
-					normalizeBoolean(value, DEFAULT_REPLAY_CARDS_ENABLED),
-				),
-				agentAutonomousModeEnabled: keepUpdatedValue(
-					updates.agentAutonomousModeEnabled,
-					current.agentAutonomousModeEnabled,
-				),
-				agentTimeoutMode: keepUpdatedValue(updates.agentTimeoutMode, current.agentTimeoutMode),
-				agentTimeoutProfile: keepUpdatedValue(updates.agentTimeoutProfile, current.agentTimeoutProfile),
-				requestTimeoutMs: keepUpdatedValue(updates.requestTimeoutMs, current.requestTimeoutMs),
-				streamTimeoutMs: keepUpdatedValue(updates.streamTimeoutMs, current.streamTimeoutMs),
-				toolTimeoutMs: keepUpdatedValue(updates.toolTimeoutMs, current.toolTimeoutMs),
-				agentTimeoutMs: keepUpdatedValue(updates.agentTimeoutMs, current.agentTimeoutMs),
-				conversationTimeoutMs: keepUpdatedValue(updates.conversationTimeoutMs, current.conversationTimeoutMs),
-				maxAgentWritableFileLines: keepNormalizedValue(
-					updates.maxAgentWritableFileLines,
-					current.maxAgentWritableFileLines,
-					normalizeMaxAgentWritableFileLines,
-				),
-				maxConcurrentTasks: keepNormalizedValue(
-					updates.maxConcurrentTasks,
-					current.maxConcurrentTasks,
-					normalizeMaxConcurrentTasks,
-				),
-				sandboxMaxContainers: keepNormalizedValue(
-					updates.sandboxMaxContainers,
-					current.sandboxMaxContainers,
-					(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
-				),
-				sandboxAgentsPerContainer: keepNormalizedValue(
-					updates.sandboxAgentsPerContainer,
-					current.sandboxAgentsPerContainer,
-					(value) => normalizeNonNegativeInteger(value, DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER),
-				),
-				sandboxMemoryPerContainerMb: keepNormalizedValue(
-					updates.sandboxMemoryPerContainerMb,
-					current.sandboxMemoryPerContainerMb,
-					(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB),
-				),
-				sandboxCpusPerContainer: keepNormalizedValue(
-					updates.sandboxCpusPerContainer,
-					current.sandboxCpusPerContainer,
-					(value) => normalizePositiveNumber(value, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
-				),
-				sandboxIdleTimeoutMinutes: keepNormalizedValue(
-					updates.sandboxIdleTimeoutMinutes,
-					current.sandboxIdleTimeoutMinutes,
-					(value) => normalizePositiveInteger(value, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES),
-				),
-				lostHeartbeatPolicy: keepNormalizedValue(
-					updates.lostHeartbeatPolicy,
-					current.lostHeartbeatPolicy,
-					normalizeLostHeartbeatPolicy,
-				),
-				decompositionAutoApplyEnabled: keepNormalizedValue(
-					updates.decompositionAutoApplyEnabled,
-					current.decompositionAutoApplyEnabled,
-					(value) => normalizeBoolean(value, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
-				),
-				secondOpinionReviewEnabled: keepNormalizedValue(
-					updates.secondOpinionReviewEnabled,
-					current.secondOpinionReviewEnabled,
-					(value) => normalizeBoolean(value, DEFAULT_SECOND_OPINION_REVIEW_ENABLED),
-				),
-				reviewMaxRounds: keepNormalizedValue(updates.reviewMaxRounds, current.reviewMaxRounds, (value) =>
-					normalizePositiveInteger(value, DEFAULT_REVIEW_MAX_ROUNDS),
-				),
-				readyForReviewNotificationsEnabled: keepUpdatedValue(
-					updates.readyForReviewNotificationsEnabled,
-					current.readyForReviewNotificationsEnabled,
-				),
-				codeEmbeddingDefaults: keepNormalizedValue(
-					updates.codeEmbeddingDefaults,
-					current.codeEmbeddingDefaults,
-					(value) => normalizeCodeEmbeddingSettings(value, DEFAULT_CODE_EMBEDDING_SETTINGS),
-				),
+				...mergeGlobalRuntimeConfigFields(updates, current),
 				codeEmbeddingOverride: null,
-				modelSuitabilityPolicyDefaults: keepNormalizedValue(
-					updates.modelSuitabilityPolicyDefaults,
-					current.modelSuitabilityPolicyDefaults,
-					(value) => normalizeModelSuitabilityPolicy(value, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
-				),
 				modelSuitabilityPolicyOverride: null,
-				skillDynamicsLevelDefault: keepNormalizedValue(
-					updates.skillDynamicsLevelDefault,
-					current.skillDynamicsLevelDefault,
-					(value) => normalizeSkillDynamicsLevel(value, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
-				),
 				skillDynamicsLevelOverride: null,
-				concurrencyDefaults: keepNormalizedValue(
-					updates.concurrencyDefaults,
-					current.concurrencyDefaults,
-					normalizeConcurrencyConfig,
-				),
 				concurrencyOverride: null,
 				maxConcurrentTasksOverride: null,
 				selectedAgentIdOverride: null,
 				agentRulesetsOverride: null,
 				modelRolesOverride: null,
-				modelRoles: keepNormalizedValue(updates.modelRoles, current.modelRoles, normalizeModelRoles),
-				agentRulesets: keepNormalizedValue(updates.agentRulesets, current.agentRulesets, normalizeAgentRulesets),
-				swarmGuardrails: keepNormalizedValue(
-					updates.swarmGuardrails,
-					current.swarmGuardrails,
-					normalizeRuntimeSwarmGuardrails,
-				),
 				shortcuts: current.shortcuts,
-				commitPromptTemplate: keepUpdatedValue(updates.commitPromptTemplate, current.commitPromptTemplate),
-				openPrPromptTemplate: keepUpdatedValue(updates.openPrPromptTemplate, current.openPrPromptTemplate),
 			};
 
 			const hasChanges = runtimeConfigStateHasChanges(RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS, nextConfig, current);
