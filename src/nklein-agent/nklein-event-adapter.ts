@@ -2,6 +2,13 @@
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import {
+	readAgentEvent,
+	readChunkEvent,
+	readEndedEvent,
+	readHookEvent,
+	readStatusEvent,
+} from "./nklein-event-adapter-readers";
 import { extractAgentErrorMessage, readMessagePartText, readToolResult } from "./nklein-message-content-readers";
 import { normalizePreviewText, toPreviewText } from "./nklein-preview-text";
 import { isLikelySerializedAgentEventChunk } from "./nklein-serialized-event-chunk";
@@ -29,7 +36,6 @@ import { readSessionUsage } from "./nklein-session-usage-parser";
 import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-tool-call-display";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import { asRecord } from "./nklein-value-guards";
-import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
 
 export interface ApplyNKleinSessionEventInput {
 	event: unknown;
@@ -39,79 +45,6 @@ export interface ApplyNKleinSessionEventInput {
 	isNKleinProvider: boolean;
 	emitSummary: (summary: RuntimeTaskSessionSummary) => void;
 	emitMessage: (taskId: string, message: NKleinTaskMessage) => void;
-}
-
-type NKleinSdkChunkEvent = Extract<NKleinSdkSessionEvent, { type: "chunk" }>;
-type NKleinSdkHookEvent = Extract<NKleinSdkSessionEvent, { type: "hook" }>;
-type NKleinSdkEndedEvent = Extract<NKleinSdkSessionEvent, { type: "ended" }>;
-type NKleinSdkStatusEvent = Extract<NKleinSdkSessionEvent, { type: "status" }>;
-type RawNKleinSdkAgentEvent = NKleinSdkAgentEvent | (Record<string, unknown> & { type: string });
-
-function readAgentEvent(event: unknown): RawNKleinSdkAgentEvent | null {
-	const record = asRecord(event);
-	if (record?.type !== "agent_event") {
-		return null;
-	}
-	const payload = asRecord(record.payload);
-	if (!payload) {
-		return null;
-	}
-	const agentEvent = asRecord(payload.event);
-	if (!agentEvent || typeof agentEvent.type !== "string") {
-		return null;
-	}
-	return agentEvent as unknown as RawNKleinSdkAgentEvent;
-}
-
-function readChunkEvent(event: unknown): NKleinSdkChunkEvent | null {
-	const record = asRecord(event);
-	if (record?.type !== "chunk") {
-		return null;
-	}
-	const payload = asRecord(record.payload);
-	if (!payload || typeof payload.sessionId !== "string" || typeof payload.chunk !== "string") {
-		return null;
-	}
-	if (payload.stream !== "stdout" && payload.stream !== "stderr" && payload.stream !== "agent") {
-		return null;
-	}
-	return { type: "chunk", payload: payload as unknown as NKleinSdkChunkEvent["payload"] };
-}
-
-function readHookEvent(event: unknown): NKleinSdkHookEvent | null {
-	const record = asRecord(event);
-	if (record?.type !== "hook") {
-		return null;
-	}
-	const payload = asRecord(record.payload);
-	if (!payload || typeof payload.sessionId !== "string") {
-		return null;
-	}
-	return { type: "hook", payload: payload as unknown as NKleinSdkHookEvent["payload"] };
-}
-
-function readEndedEvent(event: unknown): NKleinSdkEndedEvent | null {
-	const record = asRecord(event);
-	if (record?.type !== "ended") {
-		return null;
-	}
-	const payload = asRecord(record.payload);
-	if (!payload || typeof payload.sessionId !== "string" || typeof payload.reason !== "string") {
-		return null;
-	}
-	return { type: "ended", payload: payload as unknown as NKleinSdkEndedEvent["payload"] };
-}
-
-function readStatusEvent(event: unknown): NKleinSdkStatusEvent | null {
-	const record = asRecord(event);
-	if (record?.type !== "status") {
-		return null;
-	}
-	const payload = asRecord(record.payload);
-	if (!payload || typeof payload.sessionId !== "string" || typeof payload.status !== "string") {
-		return null;
-	}
-	return { type: "status", payload: payload as NKleinSdkStatusEvent["payload"] };
 }
 
 function getRetainedNKleinToolActivity(entry: NKleinTaskSessionEntry): {
