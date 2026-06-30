@@ -3,6 +3,7 @@
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary, RuntimeTaskSessionUsage } from "../core/api-contract";
 import { normalizeNonNegativeInteger } from "../core/normalize-number";
+import { normalizePreviewText, toPreviewText } from "./nklein-preview-text";
 import {
 	appendAssistantChunk,
 	appendReasoningChunk,
@@ -27,22 +28,6 @@ import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-to
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
-
-function normalizePreviewText(value: string | null | undefined): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const normalized = value.replace(/\s+/g, " ").trim();
-	return normalized || null;
-}
-
-function toPreviewText(value: string | null | undefined, maxLength = 160): string | null {
-	const normalized = normalizePreviewText(value);
-	if (!normalized) {
-		return null;
-	}
-	return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1).trimEnd()}…` : normalized;
-}
 
 export interface ApplyNKleinSessionEventInput {
 	event: unknown;
