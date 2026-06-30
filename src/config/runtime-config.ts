@@ -61,6 +61,7 @@ import {
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
 import { resolveRuntimeEmbeddingConfig } from "./runtime-config-embedding-resolver";
+import { resolveRuntimeModelRolesConfig } from "./runtime-config-model-roles-resolver";
 import {
 	areAgentRulesetsEqual,
 	areCodeEmbeddingSettingsEqual,
@@ -350,8 +351,6 @@ function toRuntimeConfigState({
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(projectConfig?.selectedAgentIdOverride);
 	const agentRulesetsOverride = normalizeAgentRulesetsOverride(projectConfig?.agentRulesetsOverride);
 	const agentRulesets = normalizeAgentRulesets(globalConfig?.agentRulesets);
-	const modelRoles = normalizeModelRoles(globalConfig?.modelRoles);
-	const modelRolesOverride = normalizeModelRolesOverride(projectConfig?.modelRolesOverride);
 	return {
 		globalConfigPath,
 		projectConfigPath,
@@ -374,9 +373,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
 		...resolveRuntimeSuitabilityConfig(globalConfig, projectConfig),
 		...resolveRuntimeSkillDynamicsConfig(globalConfig, projectConfig),
-		modelRoles,
-		modelRolesOverride,
-		effectiveModelRoles: modelRolesOverride ?? modelRoles,
+		...resolveRuntimeModelRolesConfig(globalConfig, projectConfig),
 		agentRulesets,
 		agentRulesetsOverride,
 		effectiveAgentRulesets: agentRulesetsOverride ?? agentRulesets,
