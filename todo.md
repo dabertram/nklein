@@ -2407,6 +2407,14 @@ source repo went private — so if it vanishes the buildable source still lives 
     (load/save/update IO + lock handling); the pure logic lives in the focused tested modules. The earlier-noted
     **sibling-builder dedup** (toRuntimeConfigState's sub-resolvers vs createRuntimeConfigStateFromValues) is still the next
     runtime-config item — now easier since the state assembler is isolated.
+  - **More clean pure-cluster cuts this session (2026-06-30, suite 3920 → 3943), surveying previously-untouched files
+    (lesson: keep surveying — the vein still yields):** (a) `nklein-runtime-setup.ts` → `nklein-apply-patch-targets.ts`
+    (the apply_patch patch-text parser: `*** Add|Update|Delete File` headers + per-hunk add/remove tally, +6 tests) and
+    `nklein-write-scope.ts` (the tool-approval scoped-write path normalizer — quote/host-prefix/sandbox-prefix strip +
+    `..`-escape drop, +10 tests); (b) `trpc/runtime-api.ts` → `runtime-api/chat-agent-tool-deps-resolver.ts` (the §5.M
+    scope→tool-set wiring lifted out of the createRuntimeApi factory; 890 → 755, the now-unused chat imports stripped);
+    (c) `terminal/ws-server.ts` → `terminal/ws-payload-parsing.ts` (`rawDataToBuffer` RawData→Buffer normalize +
+    `parseWebSocketPayload`, +7 tests). All behavior-preserving + tsc/biome/full-suite-gated, committed clean.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
