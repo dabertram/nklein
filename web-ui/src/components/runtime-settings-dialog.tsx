@@ -145,6 +145,7 @@ import {
 } from "@/utils/notification-permission";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useUnmount, useWindowEvent } from "@/utils/react-use";
+import { getNextShortcutLabel, normalizeTemplateForComparison } from "./runtime-settings-dialog-helpers";
 
 interface RuntimeSettingsAgentRowModel {
 	id: RuntimeAgentId;
@@ -152,10 +153,6 @@ interface RuntimeSettingsAgentRowModel {
 	binary: string;
 	command: string;
 	installed: boolean | null;
-}
-
-function normalizeTemplateForComparison(value: string): string {
-	return value.replaceAll("\r\n", "\n").trim();
 }
 
 const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }> = [
@@ -268,22 +265,6 @@ function formatNotificationPermissionStatus(permission: BrowserNotificationPermi
 		return "not requested yet";
 	}
 	return permission;
-}
-
-function getNextShortcutLabel(shortcuts: RuntimeProjectShortcut[], baseLabel: string): string {
-	const normalizedTakenLabels = new Set(
-		shortcuts.map((shortcut) => shortcut.label.trim().toLowerCase()).filter((label) => label.length > 0),
-	);
-	const normalizedBaseLabel = baseLabel.trim().toLowerCase();
-	if (!normalizedTakenLabels.has(normalizedBaseLabel)) {
-		return baseLabel;
-	}
-
-	let suffix = 2;
-	while (normalizedTakenLabels.has(`${normalizedBaseLabel} ${suffix}`)) {
-		suffix += 1;
-	}
-	return `${baseLabel} ${suffix}`;
 }
 
 function AgentRow({
