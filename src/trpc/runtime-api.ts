@@ -4,7 +4,6 @@
 // should stay in focused services instead of accumulating here.
 
 import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -78,7 +77,6 @@ import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/s
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
-import { applyNKleinPlanTaskGraphToBoard } from "../nklein-agent/nklein-decomposition-tool";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
@@ -90,9 +88,6 @@ import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-
 import {
 	listNKleinPlanArtifactsForSourceTask,
 	type NKleinPlanArtifactSummary,
-	readNKleinPlanArtifactsByArtifactId,
-	summarizeNKleinPlanArtifacts,
-	updateNKleinPlanArtifactApplicationStatus,
 } from "../nklein-agent/nklein-plan-artifacts";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
 import { setNKleinLostHeartbeatPolicy } from "../nklein-agent/nklein-session-state";
@@ -101,7 +96,6 @@ import { openInBrowser } from "../server/browser";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { readTaskRunSummaries } from "../state/task-run-summary-store";
-import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -119,6 +113,10 @@ import {
 	handleSaveNKleinModelContextWindowOverride,
 	handleSaveNKleinModelMaxConcurrentRequests,
 } from "./runtime-api/model-registry.js";
+import {
+	handleApplyNKleinPlanArtifact,
+	handleRejectNKleinPlanArtifact,
+} from "./runtime-api/plan-artifact-application.js";
 import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
@@ -130,7 +128,6 @@ import {
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
 import { handleVerifyTaskAcceptance } from "./runtime-api/verify-task-acceptance.js";
-import { findBoardCardById, findSourceCardBaseRef } from "./runtime-board-card-lookup";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const _execFileAsync = promisify(execFile);
@@ -494,94 +491,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				artifacts: artifacts.map(toRuntimePlanArtifactSummary),
 			};
 		},
-		applyNKleinPlanArtifact: async (workspaceScope, input) => {
-			const artifacts = await readNKleinPlanArtifactsByArtifactId({
-				workspacePath: workspaceScope.workspacePath,
-				artifactId: input.artifactId,
-			});
-			if (artifacts.metadata.applicationStatus === "rejected") {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Rejected plan artifacts cannot be applied.",
-				});
-			}
-			const runtimeConfig = await deps.loadScopedRuntimeConfig(workspaceScope).catch(() => null);
-			const mutation = await mutateWorkspaceState(workspaceScope.workspacePath, (state) => {
-				const cards = state.board.columns.flatMap((column) => column.cards);
-				const baseRef =
-					findSourceCardBaseRef(cards, artifacts.metadata.sourceTaskId) ??
-					state.git.currentBranch ??
-					state.git.defaultBranch;
-				if (!baseRef) {
-					throw new Error("Could not determine a base branch for applying the plan artifact.");
-				}
-				if (artifacts.metadata.sourceTaskId && !findBoardCardById(cards, artifacts.metadata.sourceTaskId)) {
-					throw new Error(`Source card ${artifacts.metadata.sourceTaskId} was not found on this board.`);
-				}
-				const applied = applyNKleinPlanTaskGraphToBoard({
-					board: state.board,
-					taskGraph: artifacts.taskGraph,
-					baseRef,
-					randomUuid: randomUUID,
-					sourceTaskId: artifacts.metadata.sourceTaskId,
-					modelRoleSettings: runtimeConfig?.effectiveModelRoles,
-					sharedContext: {
-						spec: artifacts.spec,
-						decisionsMarkdown: artifacts.decisionsMarkdown,
-					},
-				});
-				return {
-					board: applied.board,
-					value: {
-						createdTaskCount: applied.createdTasks.length,
-						createdDependencyCount: applied.createdDependencies.length,
-					},
-				};
-			});
-			await updateNKleinPlanArtifactApplicationStatus({
-				workspacePath: workspaceScope.workspacePath,
-				slug: artifacts.taskGraph.slug,
-				applicationStatus: "applied",
-			});
-			const updatedArtifacts = await readNKleinPlanArtifactsByArtifactId({
-				workspacePath: workspaceScope.workspacePath,
-				artifactId: input.artifactId,
-			});
-			return {
-				ok: true,
-				artifact: summarizeNKleinPlanArtifacts(updatedArtifacts),
-				createdTaskCount: mutation.value.createdTaskCount,
-				createdDependencyCount: mutation.value.createdDependencyCount,
-				message: `Applied ${artifacts.taskGraph.title}: created ${mutation.value.createdTaskCount} cards and ${mutation.value.createdDependencyCount} dependencies.`,
-				workspaceState: mutation.state,
-			};
-		},
-		rejectNKleinPlanArtifact: async (workspaceScope, input) => {
-			const artifacts = await readNKleinPlanArtifactsByArtifactId({
-				workspacePath: workspaceScope.workspacePath,
-				artifactId: input.artifactId,
-			});
-			if (artifacts.metadata.applicationStatus === "applied") {
-				throw new TRPCError({
-					code: "BAD_REQUEST",
-					message: "Applied plan artifacts cannot be rejected.",
-				});
-			}
-			await updateNKleinPlanArtifactApplicationStatus({
-				workspacePath: workspaceScope.workspacePath,
-				slug: artifacts.taskGraph.slug,
-				applicationStatus: "rejected",
-			});
-			const updatedArtifacts = await readNKleinPlanArtifactsByArtifactId({
-				workspacePath: workspaceScope.workspacePath,
-				artifactId: input.artifactId,
-			});
-			return {
-				ok: true,
-				artifact: summarizeNKleinPlanArtifacts(updatedArtifacts),
-				message: `Rejected ${artifacts.taskGraph.title}.`,
-			};
-		},
+		applyNKleinPlanArtifact: async (workspaceScope, input) =>
+			handleApplyNKleinPlanArtifact(workspaceScope, input, {
+				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
+			}),
+		rejectNKleinPlanArtifact: async (workspaceScope, input) => handleRejectNKleinPlanArtifact(workspaceScope, input),
 		recordNKleinPlanGap: async (workspaceScope, input) => {
 			return await handleRecordNKleinPlanGap(workspaceScope, input);
 		},
