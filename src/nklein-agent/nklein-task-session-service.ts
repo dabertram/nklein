@@ -21,6 +21,7 @@ import {
 } from "../core/api-contract";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { buildTemporalAwarenessPrompt, isTemporalContextRelevant } from "../core/temporal-awareness";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
@@ -2721,7 +2722,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		previousSummary: RuntimeTaskSessionSummary,
 		nextSummary: RuntimeTaskSessionSummary | null,
 	): nextSummary is RuntimeTaskSessionSummary {
-		if (!nextSummary || previousSummary.state === "awaiting_review" || nextSummary.state !== "awaiting_review") {
+		if (!isEnteringAwaitingReview(previousSummary, nextSummary)) {
 			return false;
 		}
 		if (isHomeAgentSessionId(nextSummary.taskId) || this.sandboxState.isFinalizing(nextSummary.taskId)) {

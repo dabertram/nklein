@@ -16,3 +16,18 @@ export function isReviewableNKleinSummary(summary: RuntimeTaskSessionSummary): b
 			summary.reviewReason === "error")
 	);
 }
+
+/**
+ * Did a summary update transition a task INTO awaiting-review (i.e. it wasn't already there)? The pure
+ * state-machine half of the sandbox-review-finalization trigger — extracted from
+ * `nklein-task-session-service`'s `shouldFinalizeSandboxReview` so the transition rule is testable apart from the
+ * sandbox-availability checks that gate the actual finalize. A type guard so callers narrow `next` to non-null.
+ */
+export function isEnteringAwaitingReview(
+	previousSummary: RuntimeTaskSessionSummary,
+	nextSummary: RuntimeTaskSessionSummary | null,
+): nextSummary is RuntimeTaskSessionSummary {
+	return (
+		nextSummary !== null && previousSummary.state !== "awaiting_review" && nextSummary.state === "awaiting_review"
+	);
+}

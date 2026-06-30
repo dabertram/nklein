@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/task-session-api-contract";
-import { isReviewableNKleinSummary } from "../../../src/core/task-session-guards";
+import { isEnteringAwaitingReview, isReviewableNKleinSummary } from "../../../src/core/task-session-guards";
 
 function summary(over: Partial<RuntimeTaskSessionSummary>): RuntimeTaskSessionSummary {
 	return {
@@ -35,5 +35,22 @@ describe("isReviewableNKleinSummary", () => {
 	it("is false for awaiting_review with a non-actionable reason (interrupted / null)", () => {
 		expect(isReviewableNKleinSummary(summary({ reviewReason: "interrupted" }))).toBe(false);
 		expect(isReviewableNKleinSummary(summary({ reviewReason: null }))).toBe(false);
+	});
+});
+
+describe("isEnteringAwaitingReview", () => {
+	it("is true when the task transitions into awaiting_review", () => {
+		expect(isEnteringAwaitingReview(summary({ state: "running" }), summary({ state: "awaiting_review" }))).toBe(true);
+	});
+
+	it("is false when it was already awaiting_review (not a fresh transition)", () => {
+		expect(
+			isEnteringAwaitingReview(summary({ state: "awaiting_review" }), summary({ state: "awaiting_review" })),
+		).toBe(false);
+	});
+
+	it("is false when the next summary is null or not awaiting_review", () => {
+		expect(isEnteringAwaitingReview(summary({ state: "running" }), null)).toBe(false);
+		expect(isEnteringAwaitingReview(summary({ state: "running" }), summary({ state: "running" }))).toBe(false);
 	});
 });
