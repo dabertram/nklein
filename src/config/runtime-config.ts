@@ -105,6 +105,7 @@ import {
 } from "./runtime-config-prompt-templates";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
+import { resolveRuntimeSkillDynamicsConfig } from "./runtime-config-skill-dynamics-resolver";
 import { resolveRuntimeSuitabilityConfig } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type {
@@ -345,11 +346,6 @@ function toRuntimeConfigState({
 	globalConfig: RuntimeGlobalConfigFileShape | null;
 	projectConfig: RuntimeProjectConfigFileShape | null;
 }): RuntimeConfigState {
-	const skillDynamicsLevelDefault = normalizeSkillDynamicsLevel(
-		globalConfig?.skillDynamicsLevelDefault,
-		DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
-	);
-	const skillDynamicsLevelOverride = normalizeSkillDynamicsLevelOverride(projectConfig?.skillDynamicsLevelOverride);
 	const selectedAgentId = normalizeAgentId(globalConfig?.selectedAgentId);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(projectConfig?.selectedAgentIdOverride);
 	const agentRulesetsOverride = normalizeAgentRulesetsOverride(projectConfig?.agentRulesetsOverride);
@@ -377,9 +373,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeReviewConfig(globalConfig),
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
 		...resolveRuntimeSuitabilityConfig(globalConfig, projectConfig),
-		skillDynamicsLevelDefault,
-		skillDynamicsLevelOverride,
-		effectiveSkillDynamicsLevel: skillDynamicsLevelOverride ?? skillDynamicsLevelDefault,
+		...resolveRuntimeSkillDynamicsConfig(globalConfig, projectConfig),
 		modelRoles,
 		modelRolesOverride,
 		effectiveModelRoles: modelRolesOverride ?? modelRoles,
