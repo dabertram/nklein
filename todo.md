@@ -2442,6 +2442,27 @@ source repo went private — so if it vanishes the buildable source still lives 
     volume names / task-uid / network-args) — now that shell is out, the remaining blocker is the ~13 shared consts; do a
     `nklein-agent-sandbox-constants.ts` first (both the core and the new docker-args module import from it, one-directional),
     THEN move the builders + re-export. A focused fresh-context pass.
+    **DONE — the two VERBATIM-relocatable coupled cuts landed (suite 3983 → 3989, 25 commits this session):** (k)
+    `nklein-agent-sandbox.ts` → `nklein-agent-sandbox-docker.ts` — the consts + pool/run-option types + the Docker
+    arg/name/uid builders moved together (the consts are shared with the effectful manager, so they go in the same
+    self-contained module, no separate constants module needed); the facade does `import` (what the manager uses) +
+    `export *` so all external importers (runtime-config + sub-resolvers, server, task-session-service, the existing
+    sandbox tests incl. createAgentSandboxTaskUid ×12) are unchanged. **agent-sandbox 987 → 807 across the 3 cuts
+    (tool-result/shell/docker).** (l) `core/agent-attempt-ledger.ts` → `core/agent-ledger-selectors.ts` — the 6 pure
+    event selectors (kind guards + attempt/workflow selectors + latestRunState); type-only import of the zod-derived
+    event types back = runtime-cycle-free; ledger imports `selectAttempts` back (5 projection sites) + `export *`; +6
+    tests. **KEY LESSON (corrects the earlier "fresh-context" hedge): a const-value-cycle does NOT force a separate
+    constants module — co-locating the shared consts WITH the builders in one self-contained module + `export *` from the
+    facade is cleaner, and these verbatim relocations are fully gate-verified (tsc + full suite), so they are NOT
+    fresh-context-gated — only BEHAVIOR-CHANGING refactors are.** REMAINING §5.U is exactly those behavior-sensitive ones,
+    which genuinely need design + characterization tests / live validation, NOT verbatim lifts: (1) **runtime-config
+    sibling-builder dedup** — `toRuntimeConfigState` (file-shape input → 10 sub-resolvers) vs
+    `createRuntimeConfigStateFromValues` (flat-values input → inline `effective = override ?? default`) share the
+    effective-computation but at different input layers; deduping needs a shared per-group "effective from default+override"
+    helper that BOTH paths route through, and the two normalize/effective paths must stay byte-equivalent (no tsc safety
+    net for a subtle divergence) → needs characterization tests first. (2) **task-session behavior split** — rewires the
+    lifecycle methods into collaborator seams (callbacks back into the service), changing runtime structure, and the notes
+    live-validate it on a real model each time → a deliberate design pass, not a relocation.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
