@@ -615,7 +615,7 @@ export function summarizeToolUsageByModel(events: readonly AgentLedgerEvent[]): 
 	const byKey = new Map<string, ModelToolUsageRollup>();
 	for (const attempt of selectAttempts(events)) {
 		for (const call of attempt.toolCalls) {
-			const key = `${attempt.modelId} ${call.name}`;
+			const key = `${attempt.modelId}\u0000${call.name}`;
 			const rollup = byKey.get(key) ?? {
 				modelId: attempt.modelId,
 				toolName: call.name,
