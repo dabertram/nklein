@@ -33,7 +33,6 @@ import { createNKleinFocusChainTool, type NKleinFocusChainSubmittedHandler } fro
 import {
 	createReadLargeFileTool,
 	getNKleinLargeFileWorkflow,
-	parseReadFileRequests,
 	releaseAllNKleinLargeFileWorkflows,
 	releaseNKleinLargeFileWorkflow,
 } from "./nklein-large-file-workflow";
@@ -50,6 +49,7 @@ import {
 	type NKleinCardPromotedHandler,
 	promoteCardToImplementation,
 } from "./nklein-promotion-tool";
+import { buildReadFilesRequestFingerprint, buildReadFilesTargetKeys } from "./nklein-read-files-fingerprint";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
@@ -92,41 +92,6 @@ const REPO_MAP_INVALIDATING_TOOL_NAMES = new Set([
 	"write_files",
 	"write_to_file",
 ]);
-
-interface ReadFilesTargetKey {
-	path: string;
-	rangeKey: string;
-	fullFile: boolean;
-}
-
-function buildReadFilesTargetKeys(input: unknown): ReadFilesTargetKey[] {
-	return parseReadFileRequests(input)
-		.map((request) => {
-			const path = request.path.trim();
-			if (!path) {
-				return null;
-			}
-			const startLine = typeof request.startLine === "number" ? request.startLine : null;
-			const endLine = typeof request.endLine === "number" ? request.endLine : null;
-			const fullFile = startLine === null && endLine === null;
-			return {
-				path,
-				rangeKey: `${path}:${startLine ?? ""}:${endLine ?? ""}`,
-				fullFile,
-			};
-		})
-		.filter((key): key is ReadFilesTargetKey => key !== null);
-}
-
-function buildReadFilesRequestFingerprint(keys: ReadFilesTargetKey[]): string | null {
-	if (keys.length === 0) {
-		return null;
-	}
-	return [...keys]
-		.map((key) => key.rangeKey)
-		.sort((left, right) => left.localeCompare(right))
-		.join("\n");
-}
 
 type NKleinSdkContextCompactionConfig = NonNullable<NKleinSdkStartSessionInput["config"]["compaction"]>;
 type NKleinSdkLocalRuntimeOptions = NonNullable<NKleinSdkStartSessionInput["localRuntime"]>;
