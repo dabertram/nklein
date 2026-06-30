@@ -9,6 +9,12 @@ import type {
 	RuntimeTaskImage,
 	RuntimeTaskNKleinSettings,
 } from "./api-contract";
+import {
+	cloneTaskImages,
+	cloneTaskNKleinSettings,
+	normalizeFilesLikelyTouched,
+	normalizeTaskAutoReviewMode,
+} from "./task-field-normalization";
 import { createUniqueTaskId } from "./task-id";
 import { resolveTaskTitle } from "./task-title";
 
@@ -49,48 +55,6 @@ export interface RuntimeUpdateTaskInput {
 	agentId?: RuntimeAgentId | null;
 	nkleinSettings?: RuntimeTaskNKleinSettings | null;
 	baseRef: string;
-}
-
-function normalizeTaskAutoReviewMode(value: RuntimeTaskAutoReviewMode | null | undefined): RuntimeTaskAutoReviewMode {
-	if (value === "pr") {
-		return value;
-	}
-	return "commit";
-}
-
-// Copy image metadata so board tasks do not retain caller-owned array or object references.
-function cloneTaskImages(images?: RuntimeTaskImage[]): RuntimeTaskImage[] | undefined {
-	return images && images.length > 0 ? images.map((image) => ({ ...image })) : undefined;
-}
-
-function cloneTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings | null): RuntimeTaskNKleinSettings | undefined {
-	if (settings === undefined || settings === null) {
-		return undefined;
-	}
-	const providerId = settings.providerId?.trim();
-	const modelId = settings.modelId?.trim();
-	return {
-		...(providerId ? { providerId } : {}),
-		...(modelId ? { modelId } : {}),
-		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
-		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
-		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
-		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
-		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
-		...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
-		...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
-		...(settings.conversationTimeoutMs !== undefined
-			? { conversationTimeoutMs: settings.conversationTimeoutMs }
-			: {}),
-	};
-}
-
-function normalizeFilesLikelyTouched(files?: string[]): string[] | undefined {
-	if (!files || files.length === 0) {
-		return undefined;
-	}
-	const normalized = Array.from(new Set(files.map((path) => path.trim()).filter((path) => path.length > 0)));
-	return normalized.length > 0 ? normalized : undefined;
 }
 
 export interface RuntimeCreateTaskResult {
