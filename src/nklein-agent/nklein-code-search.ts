@@ -1,43 +1,13 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import { extname, join, relative } from "node:path";
+import { readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { searchNKleinCodeIndex } from "./nklein-code-index";
 import { buildNKleinRepoMap, type NKleinRepoMapSymbol } from "./nklein-repo-map";
+import { listSourceFiles } from "./source-file-scan";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_RESULTS = 8;
-const MAX_FILE_BYTES = 512_000;
 const DEFAULT_CONTEXT_LINES = 3;
-const SOURCE_EXTENSIONS = new Set([
-	".ts",
-	".tsx",
-	".js",
-	".jsx",
-	".mjs",
-	".cjs",
-	".py",
-	".go",
-	".rs",
-	".java",
-	".kt",
-	".swift",
-	".rb",
-	".php",
-	".cs",
-	".css",
-]);
-const SKIPPED_DIRS = new Set([
-	".git",
-	".next",
-	".turbo",
-	".vite",
-	"coverage",
-	"dist",
-	"node_modules",
-	"out",
-	"target",
-	"tmp",
-]);
 
 export interface NKleinCodeSearchMatch {
 	path: string;
@@ -89,41 +59,6 @@ function tokenizeQuery(query: string): string[] {
 				.filter((token) => token.length >= 2),
 		),
 	);
-}
-
-function shouldScanFile(fileName: string): boolean {
-	return SOURCE_EXTENSIONS.has(extname(fileName).toLowerCase());
-}
-
-async function listSourceFiles(rootPath: string, maxFiles: number): Promise<string[]> {
-	const results: string[] = [];
-	async function visit(directoryPath: string): Promise<void> {
-		if (results.length >= maxFiles) {
-			return;
-		}
-		const entries = await readdir(directoryPath, { withFileTypes: true });
-		for (const entry of entries) {
-			if (results.length >= maxFiles) {
-				return;
-			}
-			const entryPath = join(directoryPath, entry.name);
-			if (entry.isDirectory()) {
-				if (!SKIPPED_DIRS.has(entry.name)) {
-					await visit(entryPath);
-				}
-				continue;
-			}
-			if (!entry.isFile() || !shouldScanFile(entry.name)) {
-				continue;
-			}
-			const fileStat = await stat(entryPath);
-			if (fileStat.size <= MAX_FILE_BYTES) {
-				results.push(entryPath);
-			}
-		}
-	}
-	await visit(rootPath);
-	return results;
 }
 
 function scoreLine(line: string, query: string, queryTokens: readonly string[]): number {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { dirname, extname, join, relative } from "node:path";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, join, relative } from "node:path";
 import {
 	createNKleinCodeEmbeddingProvider,
 	type NKleinCodeEmbeddingProvider,
@@ -8,42 +8,12 @@ import {
 } from "./nklein-code-embeddings";
 import { lexicalScore } from "./nklein-lexical-score";
 import { cosineSimilarity, entriesToVector, vectorToEntries } from "./nklein-sparse-vector";
+import { listSourceFiles } from "./source-file-scan";
 
 const DEFAULT_MAX_FILES = 1_000;
 const DEFAULT_MAX_RESULTS = 8;
 const DEFAULT_CHUNK_LINES = 80;
-const MAX_FILE_BYTES = 512_000;
 const CODE_INDEX_SCHEMA_VERSION = 1;
-const SOURCE_EXTENSIONS = new Set([
-	".ts",
-	".tsx",
-	".js",
-	".jsx",
-	".mjs",
-	".cjs",
-	".py",
-	".go",
-	".rs",
-	".java",
-	".kt",
-	".swift",
-	".rb",
-	".php",
-	".cs",
-	".css",
-]);
-const SKIPPED_DIRS = new Set([
-	".git",
-	".next",
-	".turbo",
-	".vite",
-	"coverage",
-	"dist",
-	"node_modules",
-	"out",
-	"target",
-	"tmp",
-]);
 
 export interface NKleinCodeIndexChunk {
 	path: string;
@@ -224,41 +194,6 @@ function getCodeIndexProgressSnapshot(workspacePath: string): NKleinCodeIndexPro
 
 function asPositiveInteger(value: number | undefined, fallback: number): number {
 	return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
-}
-
-function shouldScanFile(fileName: string): boolean {
-	return SOURCE_EXTENSIONS.has(extname(fileName).toLowerCase());
-}
-
-async function listSourceFiles(rootPath: string, maxFiles: number): Promise<string[]> {
-	const results: string[] = [];
-	async function visit(directoryPath: string): Promise<void> {
-		if (results.length >= maxFiles) {
-			return;
-		}
-		const entries = await readdir(directoryPath, { withFileTypes: true });
-		for (const entry of entries) {
-			if (results.length >= maxFiles) {
-				return;
-			}
-			const entryPath = join(directoryPath, entry.name);
-			if (entry.isDirectory()) {
-				if (!SKIPPED_DIRS.has(entry.name)) {
-					await visit(entryPath);
-				}
-				continue;
-			}
-			if (!entry.isFile() || !shouldScanFile(entry.name)) {
-				continue;
-			}
-			const fileStat = await stat(entryPath);
-			if (fileStat.size <= MAX_FILE_BYTES) {
-				results.push(entryPath);
-			}
-		}
-	}
-	await visit(rootPath);
-	return results;
 }
 
 function hashText(text: string): string {
