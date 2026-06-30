@@ -3,11 +3,19 @@ import { detectSystemPowerMode, powerModeTimeoutMultiplier } from "./power-aware
 
 export const AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS = {
 	timeoutMode: "normal",
-	requestTimeoutMs: 30 * 60 * 1000,
-	streamTimeoutMs: 6 * 60 * 1000,
-	toolTimeoutMs: 10 * 60 * 1000,
-	agentTimeoutMs: 30 * 60 * 1000,
-	conversationTimeoutMs: 4 * 60 * 60 * 1000,
+	requestTimeoutMs: 60 * 60 * 1000,
+	// ULTRA-LONG by design (user 2026-06-30). The "stream inactivity" guard is reset only by STREAMED TOKENS, but the
+	// PREFILL phase (PROCESSINGPROMPT) emits none — so a long cold prefill (large context on slow hardware) looks
+	// "inactive" and the old 6-min value killed a model that was actively prefilling (proven via
+	// NKLEIN_DEBUG_STREAM_EVENTS: 3 prefill gaps of 118–128 s/turn, generation streams fine at <1 s/delta). 60 min
+	// comfortably exceeds any worst-case prefill within the context window (~7 min for a 40k cold prefill under Low
+	// Power) while staying a finite safety net for non-LM-Studio hosts. !Klein's approach is ultra-long/unlimited
+	// timeouts by default; bound them deliberately via per-role/config timeout settings (or the optional LM Studio
+	// liveness heartbeat, which catches a TRUE hang faster when the model host exposes its native API).
+	streamTimeoutMs: 60 * 60 * 1000,
+	toolTimeoutMs: 30 * 60 * 1000,
+	agentTimeoutMs: 60 * 60 * 1000,
+	conversationTimeoutMs: 8 * 60 * 60 * 1000,
 } as const satisfies RuntimeTaskNKleinSettings;
 
 /**
