@@ -29,7 +29,7 @@ import {
 	type TaskRunTerminalState,
 	type TaskRunTimeoutSource,
 } from "../state/task-run-summary-store";
-import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { recordSelfObservation, type SelfObservationEventInput } from "../telemetry/self-observation-sink";
 import { isTaskPatchCaptureError, type TaskPatchCaptureError } from "../workspace/task-patch-capture-diagnostics";
 import { applyTaskPatchToResultBranch, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
@@ -515,6 +515,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		};
 	}
 
+	/**
+	 * Record a self-observation with this task's model identity ({providerId, modelId}) stamped on it — wraps the
+	 * recordSelfObservation + `...resolveTaskModelIdentity` pair the service repeats at every model-attributed
+	 * observation site, so the identity attachment lives in one place.
+	 */
+	private recordObservationWithModel(event: SelfObservationEventInput & { taskId: string }): void {
+		recordSelfObservation({ ...event, ...this.resolveTaskModelIdentity(event.taskId) });
+	}
+
 	private cacheLaunchConfig(
 		taskId: string,
 		launchConfig: NKleinTaskRestartLaunchConfig,
@@ -805,12 +814,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		error: unknown;
 	}): void {
 		const errorMessage = toErrorMessage(input.error);
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal: "runtime_error",
 			severity: "warning",
 			message: `NKlein session recovery failed during ${input.operation}: ${errorMessage}`,
 			taskId: input.taskId,
-			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				operation: input.operation,
 				recoveryAction: true,
@@ -823,7 +831,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		transition: "rebound_for_review" | "marked_interrupted";
 		workspacePath?: string | null;
 	}): void {
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal: "custom",
 			severity: "info",
 			message:
@@ -832,7 +840,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					: "Lost session marked interrupted.",
 			taskId: input.taskId,
 			workspacePath: input.workspacePath ?? null,
-			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				operation: "lost_session_recovery",
 				transition: input.transition,
@@ -931,13 +938,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const lastTool = entry.summary.latestHookActivity?.toolName ?? null;
 		const changesCaptured = Boolean(entry.summary.latestTurnCheckpoint);
 		const restartSafe = this.sessionRuntime.canRestartTaskSession(taskId);
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal: "budget_wall",
 			severity: "warning",
 			message: `!Klein ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds`,
 			taskId,
 			workspacePath: entry.summary.workspacePath ?? null,
-			...this.resolveTaskModelIdentity(taskId),
 			metadata: {
 				category: "stream_inactivity_timeout",
 				timeoutKind: kind,
@@ -1110,12 +1116,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!isContextOverflowError(input.error)) {
 			return null;
 		}
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal: "context_overflow",
 			severity: "warning",
 			message: toErrorMessage(input.error),
 			taskId: input.taskId,
-			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				mode: input.mode,
 			},
@@ -1194,7 +1199,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		compactedHistoryTokens: number;
 		nextPromptTokens: number;
 	}): void {
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal: "context_overflow",
 			severity: input.action === "blocked" ? "error" : "warning",
 			message:
@@ -1202,7 +1207,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					? `Pre-send context guard blocked an oversized prompt before provider dispatch (~${input.projectedTokens.toLocaleString()} projected tokens for ${input.contextWindow.toLocaleString()} available).`
 					: `Pre-send context guard compacted history before provider dispatch (~${input.originalProjectedTokens.toLocaleString()} → ~${input.projectedTokens.toLocaleString()} projected tokens).`,
 			taskId: input.taskId,
-			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: {
 				action: input.action,
 				contextWindow: input.contextWindow,
@@ -2489,12 +2493,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.resetGuardsForPark(input.taskId);
 		this.pauseController.markTaskParked(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal: "custom",
 			severity: "info",
 			message: input.message,
 			taskId: input.taskId,
-			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: input.metadata,
 		});
 		this.pushParkSystemMessage(input.taskId, input.entry, input.message);
@@ -2524,12 +2527,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}): RuntimeTaskSessionSummary {
 		this.resetGuardsForPark(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal: "budget_wall",
 			severity: "warning",
 			message: input.message,
 			taskId: input.taskId,
-			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: input.metadata,
 		});
 		this.pushParkSystemMessage(input.taskId, input.entry, input.message);
@@ -3047,7 +3049,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		const rawMessage = typeof agentEvent.message === "string" ? agentEvent.message : null;
 		const errorMessage = toErrorMessage(agentEvent.error ?? rawMessage);
-		recordSelfObservation({
+		this.recordObservationWithModel({
 			signal:
 				this.isNKleinProviderForTask(taskId) && isCreditLimitError(errorMessage)
 					? "provider_error"
@@ -3055,7 +3057,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			severity: "error",
 			message: errorMessage,
 			taskId,
-			...this.resolveTaskModelIdentity(taskId),
 			metadata: {
 				eventType: agentEvent.type,
 			},
