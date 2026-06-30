@@ -94,6 +94,8 @@ export interface ApplyNKleinPlanTaskGraphInput {
 	modelRoleSettings?: Record<string, RuntimeTaskNKleinSettings>;
 	routingCandidates?: readonly NKleinTaskRoutingCandidate[];
 	sharedContext?: NKleinPlanTaskSharedContext;
+	/** OS power-mode multiplier for the autonomous timeout defaults (≥1; Low Power ≈ 2). Defaults to 1 (no scaling). */
+	powerMultiplier?: number;
 	now?: number;
 }
 

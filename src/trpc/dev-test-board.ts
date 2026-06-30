@@ -30,13 +30,17 @@ export function createDevTestBoard(input: {
 	prompt: string;
 	acceptanceCommand: string;
 	modelRoles?: RuntimeModelRoles;
+	/** OS power-mode multiplier for the autonomous timeout defaults (≥1; Low Power ≈ 2). Defaults to 1 (no scaling). */
+	powerMultiplier?: number;
 	now: number;
 }): RuntimeBoardData {
 	const architectSettings = input.modelRoles?.architect;
 	const firstRoleSettings = Object.values(input.modelRoles ?? {}).find(
 		(settings): settings is RuntimeTaskNKleinSettings => Boolean(settings.providerId || settings.modelId),
 	);
-	const nkleinSettings = withAutonomousNKleinTimeoutSettings(architectSettings ?? firstRoleSettings);
+	const nkleinSettings = withAutonomousNKleinTimeoutSettings(architectSettings ?? firstRoleSettings, {
+		powerMultiplier: input.powerMultiplier,
+	});
 	const card = {
 		id: input.taskId,
 		title: `Decompose ${input.title}`,

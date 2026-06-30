@@ -140,6 +140,7 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 				baseRef: input.baseRef,
 				nkleinSettings: withAutonomousNKleinTimeoutSettings(
 					resolveTaskRoleSettings(task, input.modelRoleSettings, selectedRole),
+					{ powerMultiplier: input.powerMultiplier },
 				),
 				filesLikelyTouched: task.filesLikelyTouched,
 				generatedFromPlan: {

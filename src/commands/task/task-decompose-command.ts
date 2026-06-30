@@ -1,5 +1,6 @@
 import { loadRuntimeConfig } from "../../config/runtime-config";
 import type { RuntimeWorkspaceStateResponse } from "../../core/api-contract";
+import { resolveAutonomousTimeoutPowerMultiplier } from "../../core/autonomous-timeout-defaults";
 import { applyNKleinPlanTaskGraphToBoard } from "../../nklein-agent/nklein-decomposition-tool";
 import {
 	readNKleinPlanArtifacts,
@@ -76,6 +77,7 @@ export async function decomposeTaskGraph(input: {
 	const artifacts = await readNKleinPlanArtifacts(workspaceRepoPath, input.slug);
 	const runtimeConfig = await loadRuntimeConfig(workspaceRepoPath);
 	const routingCandidates = await buildDecompositionRoutingCandidates(runtimeConfig);
+	const powerMultiplier = await resolveAutonomousTimeoutPowerMultiplier();
 	let applied: {
 		createdTasks: JsonRecord[];
 		createdDependencies: JsonRecord[];
@@ -94,6 +96,7 @@ export async function decomposeTaskGraph(input: {
 				baseRef: resolvedBaseRef,
 				randomUuid: () => globalThis.crypto.randomUUID(),
 				modelRoleSettings: runtimeConfig.effectiveModelRoles,
+				powerMultiplier,
 				routingCandidates,
 				sharedContext: {
 					spec: artifacts.spec,

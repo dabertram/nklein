@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { relative, sep } from "node:path";
 import { loadRuntimeConfig } from "../../config/runtime-config";
+import { resolveAutonomousTimeoutPowerMultiplier } from "../../core/autonomous-timeout-defaults";
 import { mutateWorkspaceState } from "../../state/workspace-state";
 import { recordSelfObservation } from "../../telemetry/self-observation-sink";
 import type {
@@ -57,6 +58,7 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	sharedContext?: NKleinPlanTaskSharedContext;
 }): Promise<ApplyDecomposeProjectArtifactsResult> {
 	const runtimeConfig = await loadRuntimeConfig(input.workspacePath).catch(() => null);
+	const powerMultiplier = await resolveAutonomousTimeoutPowerMultiplier();
 	const fallbackPreview = previewNKleinPlanTaskGraph({
 		taskGraph: input.taskGraph,
 		sharedContext: input.sharedContext,
@@ -99,6 +101,7 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				randomUuid: randomUUID,
 				sourceTaskId: input.sourceTaskId,
 				modelRoleSettings: runtimeConfig?.effectiveModelRoles,
+				powerMultiplier,
 				sharedContext: input.sharedContext,
 			});
 			return {

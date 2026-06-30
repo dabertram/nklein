@@ -23,6 +23,7 @@ import {
 	parseProjectRemoveRequest,
 	parseSelfImprovementProjectRequest,
 } from "../core/api-validation";
+import { resolveAutonomousTimeoutPowerMultiplier } from "../core/autonomous-timeout-defaults";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { loadDevTestProjectScenario } from "../nklein-agent/dev-test-project-registry";
@@ -454,12 +455,14 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 
 				const now = Date.now();
 				const runtimeConfig = await loadRuntimeConfig(context.repoPath);
+				const powerMultiplier = await resolveAutonomousTimeoutPowerMultiplier();
 				const board = createDevTestBoard({
 					taskId: buildDevTestTaskId(scenario.id),
 					title: scenario.title,
 					prompt: scenario.prompt,
 					acceptanceCommand: scenario.acceptanceCommand,
 					modelRoles: runtimeConfig.effectiveModelRoles,
+					powerMultiplier,
 					now,
 				});
 				const state = await saveWorkspaceState(context.repoPath, {
