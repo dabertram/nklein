@@ -5,8 +5,7 @@ import { copyFile, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { getRuntimeAgentCatalogEntry } from "../core/agent-catalog";
-import { DEFAULT_AGENT_RULESETS_CONFIG } from "../core/agent-rulesets";
-import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
+import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
 	AgentRulesetsConfigPayload,
 	RuntimeAgentId,
@@ -20,13 +19,8 @@ import type {
 	RuntimeSkillDynamicsLevel,
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
+import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import {
-	areRuntimeSwarmGuardrailsEqual,
-	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
-	normalizeRuntimeSwarmGuardrails,
-} from "../core/api-contract";
-import {
-	areConcurrencyConfigsEqual,
 	type ConcurrencyConfig,
 	type ConcurrencyOverride,
 	DEFAULT_CONCURRENCY_CONFIG,
@@ -58,14 +52,9 @@ import { resolveRuntimeConcurrencyConfig } from "./runtime-config-concurrency-re
 import {
 	AUTO_SELECT_AGENT_PRIORITY,
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
-	DEFAULT_AGENT_ID,
-	DEFAULT_AGENT_TIMEOUT_MODE,
-	DEFAULT_AGENT_TIMEOUT_PROFILE,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
-	DEFAULT_LOST_HEARTBEAT_POLICY,
-	DEFAULT_MAX_CONCURRENT_TASKS,
 	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
@@ -74,10 +63,6 @@ import {
 import { resolveRuntimeEmbeddingConfig } from "./runtime-config-embedding-resolver";
 import { resolveRuntimeModelRolesConfig } from "./runtime-config-model-roles-resolver";
 import {
-	areAgentRulesetsEqual,
-	areCodeEmbeddingSettingsEqual,
-	areModelSuitabilityPoliciesEqual,
-	areSkillDynamicsLevelsEqual,
 	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 	DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
 	normalizeAgentId,
@@ -105,8 +90,6 @@ import {
 	normalizeSkillDynamicsLevel,
 	normalizeSkillDynamicsLevelOverride,
 	normalizeTimeoutMsValue,
-	readLegacyDeveloperModeEnabled,
-	resolveProfileTimeoutDefaults,
 } from "./runtime-config-normalizers";
 import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
@@ -127,13 +110,15 @@ import type {
 	RuntimeProjectConfigFileShape,
 } from "./runtime-config-types";
 import {
-	assignChangedConfigField,
-	hasOwnKey,
 	keepNormalizedValue,
 	keepUpdatedValue,
 	normalizeShortcutLabel,
 	normalizeWorkspaceBaseDir,
 } from "./runtime-config-value-helpers";
+import {
+	buildRuntimeGlobalConfigFilePayload,
+	type RuntimeGlobalConfigFileWriteInput,
+} from "./runtime-global-config-file-payload";
 import {
 	NKLEIN_HOME_DIR_NAME,
 	NKLEIN_PROJECT_CONFIG_DIR_NAME,
@@ -319,372 +304,10 @@ async function readRuntimeConfigFile<T>(configPath: string): Promise<T | null> {
 
 async function writeRuntimeGlobalConfigFile(
 	configPath: string,
-	config: {
-		selectedAgentId?: RuntimeAgentId;
-		selectedShortcutLabel?: string | null;
-		developerModeEnabled?: boolean;
-		replayCardsEnabled?: boolean;
-		agentAutonomousModeEnabled?: boolean;
-		agentTimeoutMode?: RuntimeAgentTimeoutMode;
-		agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
-		requestTimeoutMs?: number | null;
-		streamTimeoutMs?: number | null;
-		toolTimeoutMs?: number | null;
-		agentTimeoutMs?: number | null;
-		conversationTimeoutMs?: number | null;
-		maxAgentWritableFileLines?: number;
-		maxConcurrentTasks?: number;
-		sandboxMaxContainers?: number;
-		sandboxAgentsPerContainer?: number;
-		sandboxMemoryPerContainerMb?: number;
-		sandboxCpusPerContainer?: number;
-		sandboxIdleTimeoutMinutes?: number;
-		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
-		decompositionAutoApplyEnabled?: boolean;
-		secondOpinionReviewEnabled?: boolean;
-		reviewMaxRounds?: number;
-		readyForReviewNotificationsEnabled?: boolean;
-		codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
-		modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
-		skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
-		concurrencyDefaults?: ConcurrencyConfig;
-		modelRoles?: RuntimeModelRoles;
-		agentRulesets?: AgentRulesetsConfigPayload;
-		swarmGuardrails?: RuntimeSwarmGuardrails;
-		commitPromptTemplate?: string;
-		openPrPromptTemplate?: string;
-		workspaceBaseDir?: string | null;
-	},
+	config: RuntimeGlobalConfigFileWriteInput,
 ): Promise<void> {
 	const existing = await readRuntimeConfigFile<RuntimeGlobalConfigFileShape>(configPath);
-	const selectedAgentId = config.selectedAgentId === undefined ? undefined : normalizeAgentId(config.selectedAgentId);
-	const existingSelectedAgentId = hasOwnKey(existing, "selectedAgentId")
-		? normalizeAgentId(existing?.selectedAgentId)
-		: undefined;
-	const selectedShortcutLabel =
-		config.selectedShortcutLabel === undefined ? undefined : normalizeShortcutLabel(config.selectedShortcutLabel);
-	const developerModeEnabled = normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
-	const replayCardsEnabled = normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
-	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
-		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
-		: undefined;
-	const workspaceBaseDir =
-		config.workspaceBaseDir === undefined ? undefined : normalizeWorkspaceBaseDir(config.workspaceBaseDir);
-	const existingWorkspaceBaseDir = hasOwnKey(existing, "workspaceBaseDir")
-		? normalizeWorkspaceBaseDir(existing?.workspaceBaseDir)
-		: undefined;
-	const agentAutonomousModeEnabled = normalizeBoolean(
-		config.agentAutonomousModeEnabled,
-		DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
-	);
-	const agentTimeoutMode =
-		config.agentTimeoutMode === undefined
-			? DEFAULT_AGENT_TIMEOUT_MODE
-			: normalizeAgentTimeoutMode(config.agentTimeoutMode);
-	const agentTimeoutProfile =
-		config.agentTimeoutProfile === undefined
-			? DEFAULT_AGENT_TIMEOUT_PROFILE
-			: normalizeAgentTimeoutProfile(config.agentTimeoutProfile);
-	const defaultTimeouts = resolveProfileTimeoutDefaults(agentTimeoutProfile);
-	const requestTimeoutMs =
-		config.requestTimeoutMs === undefined
-			? defaultTimeouts.requestTimeoutMs
-			: normalizeTimeoutMsValue(config.requestTimeoutMs);
-	const streamTimeoutMs =
-		config.streamTimeoutMs === undefined
-			? defaultTimeouts.streamTimeoutMs
-			: normalizeTimeoutMsValue(config.streamTimeoutMs);
-	const toolTimeoutMs =
-		config.toolTimeoutMs === undefined
-			? defaultTimeouts.toolTimeoutMs
-			: normalizeTimeoutMsValue(config.toolTimeoutMs);
-	const agentTimeoutMs =
-		config.agentTimeoutMs === undefined
-			? defaultTimeouts.agentTimeoutMs
-			: normalizeTimeoutMsValue(config.agentTimeoutMs);
-	const conversationTimeoutMs =
-		config.conversationTimeoutMs === undefined
-			? defaultTimeouts.conversationTimeoutMs
-			: normalizeTimeoutMsValue(config.conversationTimeoutMs);
-	const maxAgentWritableFileLines =
-		config.maxAgentWritableFileLines === undefined
-			? DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES
-			: normalizeMaxAgentWritableFileLines(config.maxAgentWritableFileLines);
-	const maxConcurrentTasks =
-		config.maxConcurrentTasks === undefined
-			? DEFAULT_MAX_CONCURRENT_TASKS
-			: normalizeMaxConcurrentTasks(config.maxConcurrentTasks);
-	const sandboxMaxContainers = normalizePositiveInteger(
-		config.sandboxMaxContainers,
-		DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-	);
-	const sandboxAgentsPerContainer = normalizeNonNegativeInteger(
-		config.sandboxAgentsPerContainer,
-		DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-	);
-	const sandboxMemoryPerContainerMb = normalizePositiveInteger(
-		config.sandboxMemoryPerContainerMb,
-		DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-	);
-	const sandboxCpusPerContainer = normalizePositiveNumber(
-		config.sandboxCpusPerContainer,
-		DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-	);
-	const sandboxIdleTimeoutMinutes = normalizePositiveInteger(
-		config.sandboxIdleTimeoutMinutes,
-		DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-	);
-	const lostHeartbeatPolicy =
-		config.lostHeartbeatPolicy === undefined
-			? DEFAULT_LOST_HEARTBEAT_POLICY
-			: normalizeLostHeartbeatPolicy(config.lostHeartbeatPolicy);
-	const decompositionAutoApplyEnabled = normalizeBoolean(
-		config.decompositionAutoApplyEnabled,
-		DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
-	);
-	const secondOpinionReviewEnabled = normalizeBoolean(
-		config.secondOpinionReviewEnabled,
-		DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
-	);
-	const reviewMaxRounds = normalizePositiveInteger(config.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS);
-	const readyForReviewNotificationsEnabled = normalizeBoolean(
-		config.readyForReviewNotificationsEnabled,
-		DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
-	);
-	const codeEmbeddingDefaults =
-		config.codeEmbeddingDefaults === undefined
-			? DEFAULT_CODE_EMBEDDING_SETTINGS
-			: normalizeCodeEmbeddingSettings(config.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS);
-	const modelSuitabilityPolicyDefaults =
-		config.modelSuitabilityPolicyDefaults === undefined
-			? DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG
-			: normalizeModelSuitabilityPolicy(
-					config.modelSuitabilityPolicyDefaults,
-					DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
-				);
-	const skillDynamicsLevelDefault =
-		config.skillDynamicsLevelDefault === undefined
-			? DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG
-			: normalizeSkillDynamicsLevel(config.skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG);
-	const concurrencyDefaults =
-		config.concurrencyDefaults === undefined
-			? DEFAULT_CONCURRENCY_CONFIG
-			: normalizeConcurrencyConfig(config.concurrencyDefaults);
-	const modelRoles =
-		config.modelRoles === undefined
-			? normalizeModelRoles(existing?.modelRoles)
-			: normalizeModelRoles(config.modelRoles);
-	const agentRulesets =
-		config.agentRulesets === undefined
-			? normalizeAgentRulesets(existing?.agentRulesets)
-			: normalizeAgentRulesets(config.agentRulesets);
-	const swarmGuardrails =
-		config.swarmGuardrails === undefined
-			? normalizeRuntimeSwarmGuardrails(existing?.swarmGuardrails)
-			: normalizeRuntimeSwarmGuardrails(config.swarmGuardrails);
-	const commitPromptTemplate =
-		config.commitPromptTemplate === undefined
-			? DEFAULT_COMMIT_PROMPT_TEMPLATE
-			: normalizePromptTemplateWithLegacyDefault(
-					config.commitPromptTemplate,
-					DEFAULT_COMMIT_PROMPT_TEMPLATE,
-					LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
-				);
-	const openPrPromptTemplate =
-		config.openPrPromptTemplate === undefined
-			? DEFAULT_OPEN_PR_PROMPT_TEMPLATE
-			: normalizePromptTemplateWithLegacyDefault(
-					config.openPrPromptTemplate,
-					DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
-					LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
-				);
-
-	const payload: RuntimeGlobalConfigFileShape = {};
-	if (selectedAgentId !== undefined) {
-		if (hasOwnKey(existing, "selectedAgentId") || selectedAgentId !== DEFAULT_AGENT_ID) {
-			payload.selectedAgentId = selectedAgentId;
-		}
-	} else if (existingSelectedAgentId !== undefined) {
-		payload.selectedAgentId = existingSelectedAgentId;
-	}
-	if (selectedShortcutLabel !== undefined) {
-		if (selectedShortcutLabel) {
-			payload.selectedShortcutLabel = selectedShortcutLabel;
-		}
-	} else if (existingSelectedShortcutLabel) {
-		payload.selectedShortcutLabel = existingSelectedShortcutLabel;
-	}
-	if (workspaceBaseDir !== undefined) {
-		if (workspaceBaseDir) {
-			payload.workspaceBaseDir = workspaceBaseDir;
-		}
-	} else if (existingWorkspaceBaseDir) {
-		payload.workspaceBaseDir = existingWorkspaceBaseDir;
-	}
-	if (
-		hasOwnKey(existing, "developerModeEnabled") ||
-		readLegacyDeveloperModeEnabled(existing) !== null ||
-		developerModeEnabled !== DEFAULT_DEVELOPER_MODE_ENABLED
-	) {
-		payload.developerModeEnabled = developerModeEnabled;
-	}
-	assignChangedConfigField(payload, existing, "replayCardsEnabled", replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"agentAutonomousModeEnabled",
-		agentAutonomousModeEnabled,
-		DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
-	);
-	assignChangedConfigField(payload, existing, "agentTimeoutMode", agentTimeoutMode, DEFAULT_AGENT_TIMEOUT_MODE);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"agentTimeoutProfile",
-		agentTimeoutProfile,
-		DEFAULT_AGENT_TIMEOUT_PROFILE,
-	);
-	if (hasOwnKey(existing, "requestTimeoutMs") || requestTimeoutMs !== defaultTimeouts.requestTimeoutMs) {
-		payload.requestTimeoutMs = requestTimeoutMs;
-	}
-	if (hasOwnKey(existing, "streamTimeoutMs") || streamTimeoutMs !== defaultTimeouts.streamTimeoutMs) {
-		payload.streamTimeoutMs = streamTimeoutMs;
-	}
-	if (hasOwnKey(existing, "toolTimeoutMs") || toolTimeoutMs !== defaultTimeouts.toolTimeoutMs) {
-		payload.toolTimeoutMs = toolTimeoutMs;
-	}
-	if (hasOwnKey(existing, "agentTimeoutMs") || agentTimeoutMs !== defaultTimeouts.agentTimeoutMs) {
-		payload.agentTimeoutMs = agentTimeoutMs;
-	}
-	if (
-		hasOwnKey(existing, "conversationTimeoutMs") ||
-		conversationTimeoutMs !== defaultTimeouts.conversationTimeoutMs
-	) {
-		payload.conversationTimeoutMs = conversationTimeoutMs;
-	}
-	assignChangedConfigField(
-		payload,
-		existing,
-		"maxAgentWritableFileLines",
-		maxAgentWritableFileLines,
-		DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES,
-	);
-	assignChangedConfigField(payload, existing, "maxConcurrentTasks", maxConcurrentTasks, DEFAULT_MAX_CONCURRENT_TASKS);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"sandboxMaxContainers",
-		sandboxMaxContainers,
-		DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"sandboxAgentsPerContainer",
-		sandboxAgentsPerContainer,
-		DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"sandboxMemoryPerContainerMb",
-		sandboxMemoryPerContainerMb,
-		DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"sandboxCpusPerContainer",
-		sandboxCpusPerContainer,
-		DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"sandboxIdleTimeoutMinutes",
-		sandboxIdleTimeoutMinutes,
-		DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"lostHeartbeatPolicy",
-		lostHeartbeatPolicy,
-		DEFAULT_LOST_HEARTBEAT_POLICY,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"decompositionAutoApplyEnabled",
-		decompositionAutoApplyEnabled,
-		DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"secondOpinionReviewEnabled",
-		secondOpinionReviewEnabled,
-		DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
-	);
-	assignChangedConfigField(payload, existing, "reviewMaxRounds", reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"readyForReviewNotificationsEnabled",
-		readyForReviewNotificationsEnabled,
-		DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
-	);
-	if (
-		hasOwnKey(existing, "codeEmbeddingDefaults") ||
-		!areCodeEmbeddingSettingsEqual(codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS)
-	) {
-		payload.codeEmbeddingDefaults = codeEmbeddingDefaults;
-	}
-	if (
-		hasOwnKey(existing, "modelSuitabilityPolicyDefaults") ||
-		!areModelSuitabilityPoliciesEqual(modelSuitabilityPolicyDefaults, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG)
-	) {
-		payload.modelSuitabilityPolicyDefaults = modelSuitabilityPolicyDefaults;
-	}
-	if (
-		hasOwnKey(existing, "skillDynamicsLevelDefault") ||
-		!areSkillDynamicsLevelsEqual(skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG)
-	) {
-		payload.skillDynamicsLevelDefault = skillDynamicsLevelDefault;
-	}
-	if (
-		hasOwnKey(existing, "concurrencyDefaults") ||
-		!areConcurrencyConfigsEqual(concurrencyDefaults, DEFAULT_CONCURRENCY_CONFIG)
-	) {
-		payload.concurrencyDefaults = concurrencyDefaults;
-	}
-	if (hasOwnKey(existing, "modelRoles") || Object.keys(modelRoles).length > 0) {
-		payload.modelRoles = modelRoles;
-	}
-	if (hasOwnKey(existing, "agentRulesets") || !areAgentRulesetsEqual(agentRulesets, DEFAULT_AGENT_RULESETS_CONFIG)) {
-		payload.agentRulesets = agentRulesets;
-	}
-	if (
-		hasOwnKey(existing, "swarmGuardrails") ||
-		!areRuntimeSwarmGuardrailsEqual(swarmGuardrails, DEFAULT_RUNTIME_SWARM_GUARDRAILS)
-	) {
-		payload.swarmGuardrails = swarmGuardrails;
-	}
-	assignChangedConfigField(
-		payload,
-		existing,
-		"commitPromptTemplate",
-		commitPromptTemplate,
-		DEFAULT_COMMIT_PROMPT_TEMPLATE,
-	);
-	assignChangedConfigField(
-		payload,
-		existing,
-		"openPrPromptTemplate",
-		openPrPromptTemplate,
-		DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
-	);
-
+	const payload = buildRuntimeGlobalConfigFilePayload(config, existing);
 	await lockedFileSystem.writeJsonFileAtomic(configPath, payload, {
 		lock: null,
 	});
