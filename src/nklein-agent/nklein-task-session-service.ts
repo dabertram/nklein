@@ -121,6 +121,12 @@ import {
 	resolveNKleinTaskRole,
 	toErrorMessage,
 } from "./nklein-task-session-helpers";
+import {
+	formatTaskTimeoutFailureMessage,
+	formatTaskTimeoutLabel,
+	formatTaskTimeoutMessage,
+	formatTaskTimeoutReason,
+} from "./nklein-task-timeout-diagnostics";
 import { type NKleinTaskTimeoutKind, TaskTimeoutHandles } from "./nklein-task-timeout-handles";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
 import {
@@ -917,8 +923,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.clearTaskTimeouts(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
-		const timeoutLabel =
-			kind === "stream" ? "stream inactivity" : kind === "tool" ? "tool execution" : "conversation";
+		const timeoutLabel = formatTaskTimeoutLabel(kind);
 		const timeoutSettings = this.timeoutSettingsByTaskId.get(taskId);
 		const timeoutSource =
 			kind === "stream"
@@ -926,11 +931,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				: kind === "tool"
 					? timeoutSettings?.toolTimeoutSource
 					: timeoutSettings?.conversationTimeoutSource;
-		this.pendingTimeout.record(
-			taskId,
-			`${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)}s`,
-			timeoutSource ?? null,
-		);
+		this.pendingTimeout.record(taskId, formatTaskTimeoutReason(timeoutLabel, timeoutMs), timeoutSource ?? null);
 		// follow-up-6 §3.5: a stream/tool inactivity timeout should leave a structured note on the card —
 		// what the model was last doing, the last tool, whether any work was captured, and whether resuming is
 		// safe — so a review caused by a stall is diagnosable instead of just "timeout after N seconds".
@@ -941,7 +942,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.recordObservationWithModel({
 			signal: "budget_wall",
 			severity: "warning",
-			message: `!Klein ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds`,
+			message: formatTaskTimeoutMessage(timeoutLabel, timeoutMs),
 			taskId,
 			workspacePath: entry.summary.workspacePath ?? null,
 			metadata: {
@@ -961,10 +962,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			entry,
 			"send",
 			new Error(
-				`!Klein ${timeoutLabel} timeout after ${Math.round(timeoutMs / 1000)} seconds` +
-					` (last activity: ${lastActivity ?? "unknown"}${lastTool ? `, last tool: ${lastTool}` : ""};` +
-					` workspace changes captured: ${changesCaptured ? "yes" : "no"};` +
-					` resume safe: ${restartSafe ? "yes" : "no"})`,
+				formatTaskTimeoutFailureMessage(timeoutLabel, timeoutMs, {
+					lastActivity,
+					lastTool,
+					changesCaptured,
+					restartSafe,
+				}),
 			),
 		);
 	}
