@@ -21,6 +21,7 @@ import {
 	aggregateDecompositionKnowledgeSignals,
 	correlateDecompositionKnowledgeSignals,
 } from "./knowledge-tool-decomposition-signal";
+import { normalizeOptionalString, normalizeRole, normalizeToolName } from "./telemetry-normalizers";
 
 const DEFAULT_KNOWLEDGE_TOOL_USAGE_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "knowledge-tool-usage");
 const DEFAULT_OBSERVATION_LIMIT = 1_000;
@@ -54,14 +55,6 @@ function formatLogDate(timestamp: number): string {
 
 function resolveLogPath(rootDir: string, timestamp: number): string {
 	return join(rootDir, `${formatLogDate(timestamp)}.jsonl`);
-}
-
-function normalizeOptionalString(value: string | null | undefined): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
 }
 
 function normalizeRequiredString(value: string | null | undefined): string | null {
@@ -110,14 +103,6 @@ function matchesSettings(summary: RuntimeTaskSessionSummary, settings: RuntimeTa
 	return (!providerId || providerId === summaryProviderId) && (!modelId || modelId === summaryModelId);
 }
 
-function normalizeRole(value: string | null | undefined): RuntimeModelPerformanceRole | null {
-	const normalized = normalizeOptionalString(value)?.toLowerCase();
-	if (normalized === "architect" || normalized === "worker" || normalized === "reviewer") {
-		return normalized;
-	}
-	return null;
-}
-
 function resolveObservationRole(input: {
 	card: RuntimeBoardCard | null;
 	runtimeConfig: RuntimeConfigState | null;
@@ -138,14 +123,6 @@ function resolveObservationRole(input: {
 		return { role: "worker", roleSource: "default" };
 	}
 	return { role: "unknown", roleSource: "unknown" };
-}
-
-function normalizeToolName(toolName: string): string {
-	return toolName
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "_")
-		.replace(/^_+|_+$/g, "");
 }
 
 export function classifyKnowledgeTool(toolName: string): RuntimeKnowledgeToolCategory {

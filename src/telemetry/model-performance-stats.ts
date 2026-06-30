@@ -17,6 +17,7 @@ import type {
 } from "../core/api-contract";
 import { runtimeModelPerformanceObservationSchema } from "../core/api-contract";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
+import { normalizeOptionalString, normalizeRole } from "./telemetry-normalizers";
 
 const DEFAULT_MODEL_PERFORMANCE_ROOT = join(resolveNkleinRuntimeHomePath(homedir()), "model-performance");
 const DEFAULT_OBSERVATION_LIMIT = 500;
@@ -57,14 +58,6 @@ function resolveLogPath(rootDir: string, timestamp: number): string {
 	return join(rootDir, `${formatLogDate(timestamp)}.jsonl`);
 }
 
-function normalizeOptionalString(value: string | null | undefined): string | null {
-	if (typeof value !== "string") {
-		return null;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : null;
-}
-
 function hashValue(value: string | null): string | null {
 	return value ? createHash("sha256").update(value).digest("hex") : null;
 }
@@ -101,14 +94,6 @@ function matchesSettings(summary: RuntimeTaskSessionSummary, settings: RuntimeTa
 	const summaryProviderId = normalizeOptionalString(summary.providerId);
 	const summaryModelId = normalizeOptionalString(summary.modelId);
 	return (!providerId || providerId === summaryProviderId) && (!modelId || modelId === summaryModelId);
-}
-
-function normalizeRole(value: string | null | undefined): RuntimeModelPerformanceRole | null {
-	const normalized = normalizeOptionalString(value)?.toLowerCase();
-	if (normalized === "architect" || normalized === "worker" || normalized === "reviewer") {
-		return normalized;
-	}
-	return null;
 }
 
 function resolveObservationRole(input: {

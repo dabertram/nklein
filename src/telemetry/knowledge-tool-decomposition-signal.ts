@@ -5,6 +5,7 @@ import type {
 	RuntimeKnowledgeToolUsageObservation,
 	RuntimeModelPerformanceRole,
 } from "../core/api-contract";
+import { normalizeToolName } from "./telemetry-normalizers";
 
 /**
  * §5.B decomposition-quality signal: did a planning session actually consult knowledge tools — codebase
@@ -31,14 +32,6 @@ export const DEFAULT_KNOWLEDGE_DECOMPOSITION_CATEGORIES: ReadonlySet<RuntimeKnow
 export type DecompositionKnowledgeSignal = RuntimeDecompositionKnowledgeSignal;
 export type DecompositionKnowledgeScope = RuntimeDecompositionKnowledgeUsageAggregate["scope"];
 export type DecompositionKnowledgeUsageAggregate = RuntimeDecompositionKnowledgeUsageAggregate;
-
-function normalizeToolName(toolName: string): string {
-	return toolName
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "_")
-		.replace(/^_+|_+$/g, "");
-}
 
 function isDecomposeProjectCall(observation: RuntimeKnowledgeToolUsageObservation): boolean {
 	return normalizeToolName(observation.toolName) === "decompose_project";
