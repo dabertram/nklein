@@ -60,6 +60,7 @@ import {
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
+import { resolveRuntimeEmbeddingConfig } from "./runtime-config-embedding-resolver";
 import {
 	areAgentRulesetsEqual,
 	areCodeEmbeddingSettingsEqual,
@@ -343,11 +344,6 @@ function toRuntimeConfigState({
 	globalConfig: RuntimeGlobalConfigFileShape | null;
 	projectConfig: RuntimeProjectConfigFileShape | null;
 }): RuntimeConfigState {
-	const codeEmbeddingDefaults = normalizeCodeEmbeddingSettings(
-		globalConfig?.codeEmbeddingDefaults,
-		DEFAULT_CODE_EMBEDDING_SETTINGS,
-	);
-	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(projectConfig?.codeEmbeddingOverride);
 	const modelSuitabilityPolicyDefaults = normalizeModelSuitabilityPolicy(
 		globalConfig?.modelSuitabilityPolicyDefaults,
 		DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
@@ -385,9 +381,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeSandboxConfig(globalConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig(globalConfig),
-		codeEmbeddingDefaults,
-		codeEmbeddingOverride,
-		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
+		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
 		modelSuitabilityPolicyDefaults,
 		modelSuitabilityPolicyOverride,
 		effectiveModelSuitabilityPolicy: modelSuitabilityPolicyOverride ?? modelSuitabilityPolicyDefaults,
