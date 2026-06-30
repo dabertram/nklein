@@ -6,14 +6,18 @@ import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../cor
 import { normalizePositiveInteger, normalizePositiveNumber } from "../core/normalize-number";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./nklein-local-only-policy";
+import {
+	calculateEffectiveCapability,
+	calculateEffectiveContextWindow,
+	DEFAULT_CAPABILITY_PRIOR,
+	ewma,
+} from "./nklein-model-registry-scoring";
 import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
 
 const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
-const DEFAULT_CAPABILITY_PRIOR = 35;
 const DEFAULT_PERSIST_DEBOUNCE_MS = 25;
-const CAPABILITY_OBSERVATION_HALF_LIFE_MS = 30 * 24 * 60 * 60 * 1000;
 export interface NKleinModelRegistryKeyInput {
 	providerId: string;
 	modelId: string;
@@ -185,13 +189,6 @@ export function buildNKleinModelRegistryKey(input: NKleinModelRegistryKeyInput):
 	return `${providerId}:${modelId}:${endpoint}`;
 }
 
-function ewma(previous: number | null, next: number, alpha: number): number {
-	if (previous === null) {
-		return next;
-	}
-	return previous * (1 - alpha) + next * alpha;
-}
-
 function createEmptySpeedStats(): NKleinModelRegistrySpeedStats {
 	return {
 		samples: 0,
@@ -265,41 +262,6 @@ function cloneEntry(entry: NKleinModelRegistryEntry, now?: number): NKleinModelR
 		capability,
 		constraints: { ...entry.constraints },
 	};
-}
-
-function calculateEffectiveContextWindow(windowStats: NKleinModelRegistryWindowStats): number | null {
-	return windowStats.userOverride ?? windowStats.observed ?? windowStats.advertised;
-}
-
-function decayObservedCapabilityScore(
-	score: number,
-	capability: NKleinModelRegistryCapabilityStats,
-	now?: number,
-): number {
-	if (typeof now !== "number" || capability.lastObservedAt === null) {
-		return score;
-	}
-	const ageMs = Math.max(0, now - capability.lastObservedAt);
-	const observationWeight = 0.5 ** (ageMs / CAPABILITY_OBSERVATION_HALF_LIFE_MS);
-	return capability.staticPrior + (score - capability.staticPrior) * observationWeight;
-}
-
-function calculateEffectiveCapability(capability: NKleinModelRegistryCapabilityStats, now?: number): number {
-	const observedScores = [
-		capability.evalScore,
-		capability.externalScore,
-		capability.observedPassRate === null ? null : capability.observedPassRate * 100,
-	]
-		.filter((score): score is number => score !== null)
-		.map((score) => decayObservedCapabilityScore(score, capability, now));
-	const priorWeight = 1 / (1 + Math.max(0, capability.samples));
-	const weightedTotal =
-		observedScores.reduce((total, score) => total + score, 0) + capability.staticPrior * priorWeight;
-	const totalWeight = observedScores.length + priorWeight;
-	if (totalWeight === 0) {
-		return DEFAULT_CAPABILITY_PRIOR;
-	}
-	return Math.round(weightedTotal / totalWeight);
 }
 
 function normalizeWindowStats(value: unknown): NKleinModelRegistryWindowStats {
