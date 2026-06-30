@@ -10,6 +10,7 @@ import {
 	type RuntimeTaskSessionSummary,
 } from "../../../src/core/api-contract";
 import { AgentSandboxExecutionError, type AgentSandboxManager } from "../../../src/nklein-agent/nklein-agent-sandbox";
+import { buildKanbanEfficiencyRules } from "../../../src/nklein-agent/nklein-kanban-efficiency-rules";
 import type { NKleinRuntimeSetup } from "../../../src/nklein-agent/nklein-runtime-setup";
 import type {
 	CreateInMemoryNKleinSessionRuntimeOptions,
@@ -24,7 +25,6 @@ import type {
 	NKleinTaskSessionService,
 } from "../../../src/nklein-agent/nklein-task-session-service";
 import {
-	buildKanbanEfficiencyRules,
 	computeRepeatedToolCallCandidate,
 	createInMemoryNKleinTaskSessionService,
 	formatRepeatedToolCallParkMessage,

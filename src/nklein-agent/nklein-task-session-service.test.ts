@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-	buildKanbanContextPressurePolicy,
-	buildKanbanContextSafetyBudgets,
-	buildKanbanEfficiencyRules,
-} from "./nklein-task-session-service";
+import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
+import { buildKanbanContextPressurePolicy, buildKanbanContextSafetyBudgets } from "./nklein-task-session-service";
 
 describe("buildKanbanContextSafetyBudgets", () => {
 	it("keeps file chunks safely below an 80k active context window", () => {
