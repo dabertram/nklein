@@ -5,6 +5,12 @@ import { toSlug } from "../core/slugify";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { loadWorkspaceContext } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import {
+	formatInitialDecisionsMarkdown,
+	formatInitialRevisionsMarkdown,
+	formatQuestionsMarkdown,
+	formatRevisionEntry,
+} from "./plan-artifact-markdown";
 
 const PLAN_ARTIFACT_KIND = "decomposition";
 const PLAN_ARTIFACT_METADATA_FILENAME = "artifact.json";
@@ -152,74 +158,6 @@ async function resolveWorkspaceId(workspacePath: string, explicitWorkspaceId?: s
 	}
 	const context = await loadWorkspaceContext(workspacePath, { autoCreateIfMissing: false }).catch(() => null);
 	return context?.workspaceId ?? null;
-}
-
-function formatQuestionsMarkdown(questions: readonly NKleinPlanQuestion[]): string {
-	if (questions.length === 0) {
-		return "# Questions\n\nNo clarifying questions were recorded.\n";
-	}
-	const sections = ["# Questions"];
-	for (const question of questions) {
-		const lines = [`## ${question.id}`, "", `Status: ${question.status}`, "", question.question.trim()];
-		if (question.options.length > 0) {
-			lines.push("", "Options:");
-			for (const option of question.options) {
-				const recommended = option.recommended ? " (recommended)" : "";
-				const description = option.description?.trim() ? ` - ${option.description.trim()}` : "";
-				lines.push(`- ${option.id}: ${option.label}${recommended}${description}`);
-			}
-		}
-		if (question.answer?.trim()) {
-			lines.push("", `Answer: ${question.answer.trim()}`);
-		}
-		if (question.assumption?.trim()) {
-			lines.push("", `Assumption: ${question.assumption.trim()}`);
-		}
-		sections.push(lines.join("\n"));
-	}
-	return `${sections.join("\n\n")}\n`;
-}
-
-function formatInitialDecisionsMarkdown(questions: readonly NKleinPlanQuestion[]): string {
-	const decisions = questions.filter((question) => question.answer?.trim() || question.assumption?.trim());
-	if (decisions.length === 0) {
-		return "# Decisions\n\nNo shared decisions have been recorded yet.\n";
-	}
-	const sections = ["# Decisions"];
-	for (const question of decisions) {
-		const lines = [`## ${question.id}`, "", question.question.trim()];
-		if (question.answer?.trim()) {
-			lines.push("", `Decision: ${question.answer.trim()}`);
-		}
-		if (question.assumption?.trim()) {
-			lines.push("", `Assumption: ${question.assumption.trim()}`);
-		}
-		sections.push(lines.join("\n"));
-	}
-	return `${sections.join("\n\n")}\n`;
-}
-
-function formatInitialRevisionsMarkdown(): string {
-	return "# Revisions\n\nNo plan revisions have been recorded yet.\n";
-}
-
-function formatRevisionTimestamp(timestamp: number): string {
-	return new Date(timestamp).toISOString();
-}
-
-function formatRevisionEntry(input: AppendNKleinPlanRevisionInput): string {
-	const lines = [
-		`## ${formatRevisionTimestamp(input.createdAt ?? Date.now())} - ${input.kind.trim() || "plan_gap"}`,
-		"",
-	];
-	if (input.taskId?.trim()) {
-		lines.push(`Task: ${input.taskId.trim()}`, "");
-	}
-	lines.push(input.description.trim() || "Plan revision recorded.");
-	if (input.evidence?.trim()) {
-		lines.push("", `Evidence: ${input.evidence.trim()}`);
-	}
-	return `${lines.join("\n")}\n`;
 }
 
 function slugify(input: string): string {

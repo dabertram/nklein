@@ -1,0 +1,80 @@
+import type { AppendNKleinPlanRevisionInput, NKleinPlanQuestion } from "./nklein-plan-artifacts";
+
+/**
+ * Pure markdown renderers for NKlein plan artifacts (questions / decisions / revisions), extracted
+ * from nklein-plan-artifacts. No I/O — they build the artifact file bodies from data, so they are
+ * behavior-preserving. The data types are type-only imports from the owner module (erased at build,
+ * so there is no runtime cycle).
+ */
+
+/** Render the `questions.md` body: each question's status, prompt, options, and any answer/assumption. */
+export function formatQuestionsMarkdown(questions: readonly NKleinPlanQuestion[]): string {
+	if (questions.length === 0) {
+		return "# Questions\n\nNo clarifying questions were recorded.\n";
+	}
+	const sections = ["# Questions"];
+	for (const question of questions) {
+		const lines = [`## ${question.id}`, "", `Status: ${question.status}`, "", question.question.trim()];
+		if (question.options.length > 0) {
+			lines.push("", "Options:");
+			for (const option of question.options) {
+				const recommended = option.recommended ? " (recommended)" : "";
+				const description = option.description?.trim() ? ` - ${option.description.trim()}` : "";
+				lines.push(`- ${option.id}: ${option.label}${recommended}${description}`);
+			}
+		}
+		if (question.answer?.trim()) {
+			lines.push("", `Answer: ${question.answer.trim()}`);
+		}
+		if (question.assumption?.trim()) {
+			lines.push("", `Assumption: ${question.assumption.trim()}`);
+		}
+		sections.push(lines.join("\n"));
+	}
+	return `${sections.join("\n\n")}\n`;
+}
+
+/** Render the initial `decisions.md` body from the questions that already carry an answer or assumption. */
+export function formatInitialDecisionsMarkdown(questions: readonly NKleinPlanQuestion[]): string {
+	const decisions = questions.filter((question) => question.answer?.trim() || question.assumption?.trim());
+	if (decisions.length === 0) {
+		return "# Decisions\n\nNo shared decisions have been recorded yet.\n";
+	}
+	const sections = ["# Decisions"];
+	for (const question of decisions) {
+		const lines = [`## ${question.id}`, "", question.question.trim()];
+		if (question.answer?.trim()) {
+			lines.push("", `Decision: ${question.answer.trim()}`);
+		}
+		if (question.assumption?.trim()) {
+			lines.push("", `Assumption: ${question.assumption.trim()}`);
+		}
+		sections.push(lines.join("\n"));
+	}
+	return `${sections.join("\n\n")}\n`;
+}
+
+/** The empty `revisions.md` body for a freshly created plan. */
+export function formatInitialRevisionsMarkdown(): string {
+	return "# Revisions\n\nNo plan revisions have been recorded yet.\n";
+}
+
+function formatRevisionTimestamp(timestamp: number): string {
+	return new Date(timestamp).toISOString();
+}
+
+/** Render one appended revision entry: an ISO-timestamped heading plus optional task id, description, and evidence. */
+export function formatRevisionEntry(input: AppendNKleinPlanRevisionInput): string {
+	const lines = [
+		`## ${formatRevisionTimestamp(input.createdAt ?? Date.now())} - ${input.kind.trim() || "plan_gap"}`,
+		"",
+	];
+	if (input.taskId?.trim()) {
+		lines.push(`Task: ${input.taskId.trim()}`, "");
+	}
+	lines.push(input.description.trim() || "Plan revision recorded.");
+	if (input.evidence?.trim()) {
+		lines.push("", `Evidence: ${input.evidence.trim()}`);
+	}
+	return `${lines.join("\n")}\n`;
+}
