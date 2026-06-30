@@ -56,6 +56,7 @@ import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nkl
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
 import { readOptionalNumber, readOptionalReasoningEffort, readOptionalString } from "./nklein-session-record-readers";
+import { resolveContextWindowTokens, resolveSdkApiTimeoutMs, toSdkUserImages } from "./nklein-session-sdk-inputs";
 import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
@@ -403,40 +404,6 @@ interface NKleinSessionHostBoundary {
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>;
 	readMessages(sessionId: string): Promise<NKleinSdkPersistedMessage[]>;
 	subscribe(listener: (event: unknown) => void): () => void;
-}
-
-function toSdkUserImages(images?: RuntimeTaskImage[]): string[] | undefined {
-	if (!images || images.length === 0) {
-		return undefined;
-	}
-	const userImages = images
-		.map((image) => {
-			const mimeType = image.mimeType.trim();
-			const data = image.data.trim();
-			if (!mimeType || !data) {
-				return null;
-			}
-			return `data:${mimeType};base64,${data}`;
-		})
-		.filter((image): image is string => image !== null);
-	return userImages.length > 0 ? userImages : undefined;
-}
-
-function resolveSdkApiTimeoutMs(timeoutMs: number | null | undefined): number | undefined {
-	if (timeoutMs === undefined || timeoutMs === null || timeoutMs === 0) {
-		return undefined;
-	}
-	if (!Number.isFinite(timeoutMs) || timeoutMs < 0) {
-		return undefined;
-	}
-	return Math.trunc(timeoutMs);
-}
-
-function resolveContextWindowTokens(contextWindow: number | null | undefined): number | null {
-	if (typeof contextWindow !== "number" || !Number.isFinite(contextWindow) || contextWindow <= 0) {
-		return null;
-	}
-	return Math.trunc(contextWindow);
 }
 
 export function buildNKleinContextCompactionConfig(
