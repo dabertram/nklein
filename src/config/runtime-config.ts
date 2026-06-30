@@ -27,7 +27,6 @@ import {
 } from "../core/api-contract";
 import {
 	areConcurrencyConfigsEqual,
-	areConcurrencyOverridesEqual,
 	type ConcurrencyConfig,
 	type ConcurrencyOverride,
 	DEFAULT_CONCURRENCY_CONFIG,
@@ -44,6 +43,17 @@ import {
 } from "../nklein-agent/nklein-agent-sandbox";
 import { detectInstalledCommands } from "../terminal/agent-registry";
 import { resolveRuntimeAgentIdConfig } from "./runtime-config-agent-id-resolver";
+import {
+	RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS,
+	RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS,
+	runtimeConfigStateHasChanges,
+} from "./runtime-config-change-detection";
+
+export {
+	RUNTIME_CONFIG_DERIVED_FIELD_KEYS,
+	RUNTIME_PROJECT_CONFIG_CHANGE_FIELD_KEYS,
+} from "./runtime-config-change-detection";
+
 import { resolveRuntimeConcurrencyConfig } from "./runtime-config-concurrency-resolver";
 import {
 	AUTO_SELECT_AGENT_PRIORITY,
@@ -66,7 +76,6 @@ import { resolveRuntimeModelRolesConfig } from "./runtime-config-model-roles-res
 import {
 	areAgentRulesetsEqual,
 	areCodeEmbeddingSettingsEqual,
-	areModelRolesEqual,
 	areModelSuitabilityPoliciesEqual,
 	areSkillDynamicsLevelsEqual,
 	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
@@ -130,7 +139,6 @@ import {
 	NKLEIN_PROJECT_CONFIG_DIR_NAME,
 	NKLEIN_RUNTIME_DIR_NAME,
 } from "./runtime-path-constants";
-import { areRuntimeProjectShortcutsEqual } from "./shortcut-utils";
 
 // Re-exported from their dedicated types module (§5.AK runtime-config facade slice) so existing importers of this
 // path (`./runtime-config`) keep resolving RuntimeConfigState / RuntimeConfigUpdateInput unchanged.
@@ -161,122 +169,6 @@ function getRuntimeHomePath(): string {
 
 function pickBestInstalledAgentId(): RuntimeAgentId | null {
 	return pickBestInstalledAgentIdFromDetected(detectInstalledCommands());
-}
-
-// Field-equality registry (todo §5.U): one declarative entry per RuntimeConfigState field that participates
-// in a save's change detection. Replaces the two long, parallel `!==` OR-chains that `updateRuntimeConfig`
-// and `updateGlobalRuntimeConfig` each hand-maintained (a drift risk: add a field, forget a chain → a real
-// change is silently treated as no-op). Each entry captures its field's comparison — referential `!==` by
-// default, or a custom deep-equality for nested objects/arrays. (First slice toward the full field-descriptor
-// registry; the resolve/update/write sites can adopt the same source of truth next.)
-// The change-detection input: a resolved config minus the derived/path fields a save never round-trips
-// (those are recomputed on load), so the partial `nextConfig` the update functions build satisfies it too.
-type RuntimeConfigChangeComparable = Omit<
-	RuntimeConfigState,
-	| "globalConfigPath"
-	| "projectConfigPath"
-	| "effectiveCodeEmbeddingSettings"
-	| "effectiveModelSuitabilityPolicy"
-	| "effectiveSkillDynamicsLevel"
-	| "effectiveMaxConcurrentTasks"
-	| "effectiveSelectedAgentId"
-	| "effectiveModelRoles"
-	| "commitPromptTemplateDefault"
-	| "openPrPromptTemplateDefault"
->;
-
-interface RuntimeConfigChangeField {
-	key: keyof RuntimeConfigChangeComparable;
-	changed: (next: RuntimeConfigChangeComparable, current: RuntimeConfigChangeComparable) => boolean;
-}
-
-function runtimeConfigChangeField<K extends keyof RuntimeConfigChangeComparable>(
-	key: K,
-	equals?: (a: RuntimeConfigChangeComparable[K], b: RuntimeConfigChangeComparable[K]) => boolean,
-): RuntimeConfigChangeField {
-	return {
-		key,
-		changed: (next, current) => (equals ? !equals(next[key], current[key]) : next[key] !== current[key]),
-	};
-}
-
-// Global-scoped fields (written to the global config file). Order is irrelevant to the result (it's an OR).
-const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] = [
-	runtimeConfigChangeField("selectedAgentId"),
-	runtimeConfigChangeField("selectedShortcutLabel"),
-	runtimeConfigChangeField("developerModeEnabled"),
-	runtimeConfigChangeField("replayCardsEnabled"),
-	runtimeConfigChangeField("agentAutonomousModeEnabled"),
-	runtimeConfigChangeField("agentTimeoutMode"),
-	runtimeConfigChangeField("agentTimeoutProfile"),
-	runtimeConfigChangeField("requestTimeoutMs"),
-	runtimeConfigChangeField("streamTimeoutMs"),
-	runtimeConfigChangeField("toolTimeoutMs"),
-	runtimeConfigChangeField("agentTimeoutMs"),
-	runtimeConfigChangeField("conversationTimeoutMs"),
-	runtimeConfigChangeField("maxAgentWritableFileLines"),
-	runtimeConfigChangeField("maxConcurrentTasks"),
-	runtimeConfigChangeField("sandboxMaxContainers"),
-	runtimeConfigChangeField("sandboxAgentsPerContainer"),
-	runtimeConfigChangeField("sandboxMemoryPerContainerMb"),
-	runtimeConfigChangeField("sandboxCpusPerContainer"),
-	runtimeConfigChangeField("sandboxIdleTimeoutMinutes"),
-	runtimeConfigChangeField("lostHeartbeatPolicy"),
-	runtimeConfigChangeField("decompositionAutoApplyEnabled"),
-	runtimeConfigChangeField("secondOpinionReviewEnabled"),
-	runtimeConfigChangeField("reviewMaxRounds"),
-	runtimeConfigChangeField("readyForReviewNotificationsEnabled"),
-	runtimeConfigChangeField("codeEmbeddingDefaults", areCodeEmbeddingSettingsEqual),
-	runtimeConfigChangeField("modelSuitabilityPolicyDefaults", areModelSuitabilityPoliciesEqual),
-	runtimeConfigChangeField("skillDynamicsLevelDefault", areSkillDynamicsLevelsEqual),
-	runtimeConfigChangeField("concurrencyDefaults", areConcurrencyConfigsEqual),
-	runtimeConfigChangeField("modelRoles", areModelRolesEqual),
-	runtimeConfigChangeField("agentRulesets", areAgentRulesetsEqual),
-	runtimeConfigChangeField("swarmGuardrails", areRuntimeSwarmGuardrailsEqual),
-	runtimeConfigChangeField("commitPromptTemplate"),
-	runtimeConfigChangeField("openPrPromptTemplate"),
-	runtimeConfigChangeField("workspaceBaseDir"),
-];
-
-// Project-scoped save additionally diffs the project-only fields (the per-project override + shortcuts).
-const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] = [
-	...RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS,
-	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
-	runtimeConfigChangeField("modelSuitabilityPolicyOverride", areModelSuitabilityPoliciesEqual),
-	runtimeConfigChangeField("skillDynamicsLevelOverride", areSkillDynamicsLevelsEqual),
-	runtimeConfigChangeField("concurrencyOverride", areConcurrencyOverridesEqual),
-	runtimeConfigChangeField("maxConcurrentTasksOverride"),
-	runtimeConfigChangeField("selectedAgentIdOverride"),
-	runtimeConfigChangeField("agentRulesetsOverride", (a, b) => areAgentRulesetsEqual(a ?? undefined, b ?? undefined)),
-	runtimeConfigChangeField("modelRolesOverride", (a, b) => areModelRolesEqual(a ?? {}, b ?? {})),
-	runtimeConfigChangeField("shortcuts", areRuntimeProjectShortcutsEqual),
-];
-
-/** Derived/path fields a save never round-trips (recomputed on load), excluded from change detection. */
-export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
-	"globalConfigPath",
-	"projectConfigPath",
-	"effectiveCodeEmbeddingSettings",
-	"effectiveModelSuitabilityPolicy",
-	"effectiveSkillDynamicsLevel",
-	"effectiveMaxConcurrentTasks",
-	"effectiveSelectedAgentId",
-	"effectiveAgentRulesets",
-	"effectiveModelRoles",
-	"commitPromptTemplateDefault",
-	"openPrPromptTemplateDefault",
-] as const satisfies readonly (keyof RuntimeConfigState)[];
-
-/** The keys diffed by a project-scoped save (the full comparable set). Exposed for a completeness guard. */
-export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELD_KEYS: readonly (keyof RuntimeConfigChangeComparable)[] =
-	RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS.map((field) => field.key);
-
-function runtimeConfigStateHasChanges(
-	fields: readonly RuntimeConfigChangeField[],
-	next: RuntimeConfigChangeComparable,
-	current: RuntimeConfigChangeComparable,
-): boolean {
-	return fields.some((field) => field.changed(next, current));
 }
 
 export function getRuntimeGlobalConfigPath(): string {
