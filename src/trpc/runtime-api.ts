@@ -36,7 +36,6 @@ import { loadGlobalRuntimeConfig, updateGlobalRuntimeConfig, updateRuntimeConfig
 import { buildTaskEscalationReport } from "../core/agent-attempt-ledger";
 import type {
 	RuntimeAgentSandboxStatus,
-	RuntimeBoardCard,
 	RuntimeCommandRunResponse,
 	RuntimeProtectedTestApprovalGrantResponse,
 	RuntimeRunUpdateResponse,
@@ -134,6 +133,7 @@ import {
 	handleGetUpdateStatus,
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
+import { findBoardCardById, findSourceCardBaseRef } from "./runtime-board-card-lookup";
 import { formatAcceptanceVerifyMessage, formatMergeMessage } from "./runtime-task-message-formatting";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
@@ -183,17 +183,6 @@ export interface CreateRuntimeApiDependencies {
 	 * test helpers that do not set it continue to work.
 	 */
 	isRemoteMode?: boolean;
-}
-
-function findBoardCardById(cards: readonly RuntimeBoardCard[], taskId: string): RuntimeBoardCard | null {
-	return cards.find((card) => card.id === taskId) ?? null;
-}
-
-function findSourceCardBaseRef(cards: readonly RuntimeBoardCard[], sourceTaskId: string | null): string | null {
-	if (!sourceTaskId) {
-		return null;
-	}
-	return findBoardCardById(cards, sourceTaskId)?.baseRef ?? null;
 }
 
 async function reconcileRunningTaskBoardLane(
