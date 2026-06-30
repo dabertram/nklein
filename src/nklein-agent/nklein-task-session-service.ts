@@ -66,7 +66,7 @@ import {
 } from "./nklein-context-overflow-compaction";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
-import { computeNKleinFailureBackoff, type NKleinTaskFailureBackoffState } from "./nklein-failure-backoff";
+import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
 import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
@@ -110,6 +110,7 @@ import {
 } from "./nklein-session-state";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
 import { TaskContextWindowStore } from "./nklein-task-context-window-store";
+import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker";
 import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
@@ -382,7 +383,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
 	private readonly requestTimer = new TaskRequestTimer(now);
-	private readonly failureBackoffByTaskId = new Map<string, NKleinTaskFailureBackoffState>();
+	private readonly failureBackoff = new TaskFailureBackoffTracker();
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
 	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
@@ -779,7 +780,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const backoff = computeNKleinFailureBackoff({
 			context,
 			errorMessage,
-			previousFailure: this.failureBackoffByTaskId.get(taskId),
+			previousFailure: this.failureBackoff.getPrevious(taskId),
 			localModelUnavailable,
 		});
 		if (backoff.alreadyParked) {
@@ -789,7 +790,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const localModelUnavailableGuidance = localModelUnavailable
 			? `Local model "${modelId}" on ${endpoint ?? "its endpoint"} became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure, which a reasoning model at a large context window on limited hardware can trigger). Reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume this task.`
 			: null;
-		this.failureBackoffByTaskId.set(taskId, backoff.nextState);
+		this.failureBackoff.record(taskId, backoff.nextState);
 		recordSelfObservation({
 			signal: creditLimitError ? "provider_error" : localModelUnavailable ? "provider_error" : "runtime_error",
 			severity: "error",
@@ -1717,7 +1718,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					},
 				});
 				const warningMessage = formatStartWarnings(startResult.warnings);
-				this.failureBackoffByTaskId.delete(request.taskId);
+				this.failureBackoff.forget(request.taskId);
 				if (warningMessage) {
 					this.emitSummary(
 						updateSummary(entry, {
@@ -1767,7 +1768,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.requestTimer.forget(taskId);
-		this.failureBackoffByTaskId.delete(taskId);
+		this.failureBackoff.forget(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
@@ -1811,7 +1812,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.requestTimer.forget(taskId);
-		this.failureBackoffByTaskId.delete(taskId);
+		this.failureBackoff.forget(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
@@ -1857,7 +1858,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.requestTimer.forget(taskId);
-		this.failureBackoffByTaskId.delete(taskId);
+		this.failureBackoff.forget(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.pauseController.abortTaskWaiters(taskId);
@@ -1943,7 +1944,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (normalized.length === 0 && !hasImages) {
 			return null;
 		}
-		this.failureBackoffByTaskId.delete(taskId);
+		this.failureBackoff.forget(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		if (!this.sessionRuntime.getTaskSessionId(taskId)) {
 			if (isHomeAgentSessionId(taskId) && !this.sessionRuntime.canRestartTaskSession(taskId)) {
@@ -2049,7 +2050,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				})
 				.then(({ result, warnings }) => {
 					const warningMessage = formatStartWarnings(warnings);
-					this.failureBackoffByTaskId.delete(taskId);
+					this.failureBackoff.forget(taskId);
 					if (warningMessage) {
 						this.emitSummary(
 							updateSummary(entry, {
@@ -2140,7 +2141,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			const alreadyParkedByThisError = computeNKleinFailureBackoff({
 				context: "start",
 				errorMessage: toErrorMessage(error),
-				previousFailure: this.failureBackoffByTaskId.get(taskId),
+				previousFailure: this.failureBackoff.getPrevious(taskId),
 				localModelUnavailable: false,
 			}).alreadyParked;
 			if (!alreadyParkedByThisError) {
@@ -2164,7 +2165,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
 		this.requestTimer.forget(taskId);
-		this.failureBackoffByTaskId.delete(taskId);
+		this.failureBackoff.forget(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.clearTaskTimeouts(taskId);
