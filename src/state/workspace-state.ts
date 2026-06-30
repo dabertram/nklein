@@ -11,7 +11,6 @@ import {
 	TASK_WORKTREES_DIR_NAME,
 } from "../config/runtime-path-constants";
 import {
-	type RuntimeBoardColumnId,
 	type RuntimeBoardData,
 	type RuntimeGitRepositoryInfo,
 	type RuntimeTaskSessionSummary,
@@ -27,6 +26,7 @@ import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
+import { createEmptyBoard, normalizeRuntimeBoardData } from "./runtime-board-normalization";
 import { formatSchemaIssues } from "./schema-issue-formatting";
 
 const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
@@ -41,15 +41,6 @@ const WORKSPACE_LOCAL_STATE_DIR = "workspace";
 const WORKSPACE_IDENTITY_FILENAME = "identity.json";
 const INDEX_VERSION = 1;
 const WORKSPACE_ID_COLLISION_SUFFIX_LENGTH = 4;
-
-const BOARD_COLUMNS: Array<{ id: RuntimeBoardColumnId; title: string }> = [
-	{ id: "backlog", title: "Backlog" },
-	{ id: "planning", title: "Planning" },
-	{ id: "in_progress", title: "In Progress" },
-	{ id: "review", title: "Review" },
-	{ id: "completed", title: "Completed" },
-	{ id: "trash", title: "Trash" },
-];
 
 interface WorkspaceIndexEntry {
 	workspaceId: string;
@@ -217,37 +208,6 @@ function recordWorkspaceResolutionDecision(input: {
 			...(input.metadata ?? {}),
 		},
 	});
-}
-
-function createEmptyBoard(): RuntimeBoardData {
-	return {
-		columns: BOARD_COLUMNS.map((column) => ({
-			id: column.id,
-			title: column.title,
-			cards: [],
-		})),
-		dependencies: [],
-	};
-}
-
-function normalizeRuntimeBoardData(board: RuntimeBoardData): RuntimeBoardData {
-	const normalizedColumns: RuntimeBoardData["columns"] = BOARD_COLUMNS.map((column) => ({
-		id: column.id,
-		title: column.title,
-		cards: [],
-	}));
-	const columnById = new Map(normalizedColumns.map((column) => [column.id, column]));
-	for (const column of board.columns) {
-		const normalizedColumn = columnById.get(column.id);
-		if (!normalizedColumn) {
-			continue;
-		}
-		normalizedColumn.cards.push(...column.cards);
-	}
-	return {
-		columns: normalizedColumns,
-		dependencies: board.dependencies,
-	};
 }
 
 function createEmptyWorkspaceIndex(): WorkspaceIndexFile {
