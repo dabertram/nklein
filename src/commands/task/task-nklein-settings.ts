@@ -3,6 +3,7 @@ import {
 	type RuntimeTaskNKleinSettings,
 	runtimeNKleinReasoningEffortSchema,
 } from "../../core/api-contract.js";
+import { cloneTaskNKleinSettings } from "../../core/task-field-normalization.js";
 
 /**
  * Pure helpers for the `nklein task` CLI's per-task NKlein settings (provider / model / reasoning effort / timeouts),
@@ -30,28 +31,6 @@ export function parseTaskNKleinReasoningEffort(value: string | undefined): Parse
 		return result.data;
 	}
 	throw new Error("Invalid !Klein reasoning effort. Expected one of: default, low, medium, high, xhigh, inherit.");
-}
-
-export function cloneTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): RuntimeTaskNKleinSettings | undefined {
-	if (settings === undefined) {
-		return undefined;
-	}
-	const providerId = settings.providerId?.trim();
-	const modelId = settings.modelId?.trim();
-	return {
-		...(providerId ? { providerId } : {}),
-		...(modelId ? { modelId } : {}),
-		...(settings.reasoningEffort ? { reasoningEffort: settings.reasoningEffort } : {}),
-		...(settings.contextScope ? { contextScope: settings.contextScope } : {}),
-		...(settings.timeoutMode ? { timeoutMode: settings.timeoutMode } : {}),
-		...(settings.requestTimeoutMs !== undefined ? { requestTimeoutMs: settings.requestTimeoutMs } : {}),
-		...(settings.streamTimeoutMs !== undefined ? { streamTimeoutMs: settings.streamTimeoutMs } : {}),
-		...(settings.toolTimeoutMs !== undefined ? { toolTimeoutMs: settings.toolTimeoutMs } : {}),
-		...(settings.agentTimeoutMs !== undefined ? { agentTimeoutMs: settings.agentTimeoutMs } : {}),
-		...(settings.conversationTimeoutMs !== undefined
-			? { conversationTimeoutMs: settings.conversationTimeoutMs }
-			: {}),
-	};
 }
 
 export function formatTaskNKleinSettings(settings?: RuntimeTaskNKleinSettings): Record<string, unknown> {

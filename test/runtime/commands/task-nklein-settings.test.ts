@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	buildTaskNKleinSettingsForCreate,
 	buildTaskNKleinSettingsForUpdate,
-	cloneTaskNKleinSettings,
 	parseTaskNKleinReasoningEffort,
 } from "../../../src/commands/task/task-nklein-settings";
 
@@ -13,18 +12,6 @@ describe("parseTaskNKleinReasoningEffort", () => {
 		expect(parseTaskNKleinReasoningEffort("default")).toBe("default");
 		expect(parseTaskNKleinReasoningEffort("high")).toBe("high");
 		expect(() => parseTaskNKleinReasoningEffort("bogus")).toThrow(/Invalid !Klein reasoning effort/);
-	});
-});
-
-describe("cloneTaskNKleinSettings", () => {
-	it("returns undefined for undefined input", () => {
-		expect(cloneTaskNKleinSettings(undefined)).toBeUndefined();
-	});
-	it("trims provider/model, drops empties, and preserves a 0 timeout", () => {
-		expect(cloneTaskNKleinSettings({ providerId: "  lmstudio  ", modelId: "   " })).toEqual({
-			providerId: "lmstudio",
-		});
-		expect(cloneTaskNKleinSettings({ requestTimeoutMs: 0 })).toEqual({ requestTimeoutMs: 0 });
 	});
 });
 
