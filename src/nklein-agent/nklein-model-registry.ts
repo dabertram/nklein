@@ -5,7 +5,7 @@ import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { normalizePositiveInteger, normalizePositiveNumber } from "../core/normalize-number";
 import { lockedFileSystem } from "../fs/locked-file-system";
-import { isLocalProvider } from "./nklein-local-only-policy";
+import { buildNKleinModelRegistryKey, buildSharedLocalEndpointId } from "./nklein-model-registry-key";
 import { normalizeScore } from "./nklein-model-registry-normalizers";
 import { calculateEffectiveCapability, calculateEffectiveContextWindow, ewma } from "./nklein-model-registry-scoring";
 import {
@@ -18,6 +18,9 @@ import {
 } from "./nklein-model-registry-stats";
 import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
+
+// Re-exported from the extracted key module so existing importers keep their `nklein-model-registry` path.
+export { buildNKleinModelRegistryKey, buildSharedLocalEndpointId } from "./nklein-model-registry-key";
 
 const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
@@ -151,31 +154,6 @@ function mergeDuplicateRegistryEntries(
 		return incomingCount > existingCount ? incoming : existing;
 	}
 	return incoming.updatedAt >= existing.updatedAt ? incoming : existing;
-}
-
-/**
- * The shared local-endpoint id for a (provider, model, endpoint) — the per-model key the swarm scheduler serializes on
- * (or `null` for non-local providers, which don't share a host endpoint). Trims the model id so a stray-whitespace value
- * doesn't change the key. The canonical impl, shared by the model registry + the task-session service.
- */
-export function buildSharedLocalEndpointId(input: {
-	providerId: string;
-	modelId: string;
-	endpoint: string | null;
-}): string | null {
-	if (!isLocalProvider(input.providerId, input.endpoint)) {
-		return null;
-	}
-	const endpoint = input.endpoint ?? `${input.providerId}:default`;
-	const modelId = input.modelId.trim();
-	return modelId.length > 0 ? `${endpoint}#${modelId}` : endpoint;
-}
-
-export function buildNKleinModelRegistryKey(input: NKleinModelRegistryKeyInput): string {
-	const providerId = normalizeProviderId(input.providerId);
-	const modelId = normalizeModelId(input.modelId);
-	const endpoint = normalizeEndpoint(input.endpoint) ?? "default";
-	return `${providerId}:${modelId}:${endpoint}`;
 }
 
 export function createNKleinModelRegistryEntry(
