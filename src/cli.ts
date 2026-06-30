@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import ora, { type Ora } from "ora";
 import packageJson from "../package.json" with { type: "json" };
+import { parseCliPortValue, shouldAutoOpenBrowserTabForInvocation } from "./cli-invocation-parsing";
 import { registerChatCommand } from "./commands/chat";
 import { registerDevCommand } from "./commands/dev";
 import { registerTaskCommand } from "./commands/task";
@@ -27,7 +28,6 @@ import {
 	getRuntimeFetch,
 	installKanbanFetchTimeoutPolicy,
 	isKanbanRemoteHost,
-	parseRuntimePort,
 	setKanbanRuntimeHost,
 	setKanbanRuntimePort,
 	setKanbanRuntimeTls,
@@ -57,21 +57,6 @@ interface CliOptions {
 }
 
 const KANBAN_VERSION = typeof packageJson.version === "string" ? packageJson.version : "0.1.0";
-
-function parseCliPortValue(rawValue: string): { mode: "fixed"; value: number } | { mode: "auto" } {
-	const normalized = rawValue.trim().toLowerCase();
-	if (!normalized) {
-		throw new Error("Missing value for --port.");
-	}
-	if (normalized === "auto") {
-		return { mode: "auto" };
-	}
-	try {
-		return { mode: "fixed", value: parseRuntimePort(normalized) };
-	} catch {
-		throw new Error(`Invalid port value: ${rawValue}. Expected an integer from 1-65535 or "auto".`);
-	}
-}
 
 interface RootCommandOptions {
 	host?: string;
@@ -110,53 +95,6 @@ function safeShutdownIndicatorWrite(stream: NodeJS.WriteStream, text: string): v
 			throw error;
 		}
 	}
-}
-
-/**
- * Decide whether this CLI invocation should auto-open a browser tab.
- *
- * This uses a positive allowlist for app-launch shapes like `kanban`,
- * `kanban --agent codex`, and `kanban --port 3484`. Any subcommand or
- * unexpected argument is treated as a command-style invocation instead.
- */
-function shouldAutoOpenBrowserTabForInvocation(argv: string[]): boolean {
-	const launchFlags = new Set([
-		"--open",
-		"--no-open",
-		"--skip-shutdown-cleanup",
-		"--https",
-		"--no-passcode",
-		"--insecure-remote-http",
-		"--dangerously-disable-remote-auth",
-	]);
-	const launchOptionsWithValues = new Set(["--host", "--port", "--agent", "--cert", "--key"]);
-
-	for (let index = 0; index < argv.length; index += 1) {
-		const arg = argv[index];
-		if (!arg) {
-			continue;
-		}
-		if (!arg.startsWith("-")) {
-			return false;
-		}
-		if (launchFlags.has(arg)) {
-			continue;
-		}
-		const optionName = arg.split("=", 1)[0] ?? arg;
-		if (!launchOptionsWithValues.has(optionName)) {
-			return false;
-		}
-		if (arg.includes("=")) {
-			continue;
-		}
-		const optionValue = argv[index + 1];
-		if (!optionValue) {
-			return false;
-		}
-		index += 1;
-	}
-
-	return true;
 }
 
 function createShutdownIndicator(stream: NodeJS.WriteStream = process.stderr): ShutdownIndicator {
