@@ -11,6 +11,7 @@ import {
 } from "../core/normalize-number";
 import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
 import { normalizeTaskIdForSandboxPath } from "./nklein-agent-sandbox-task-path";
+import { formatSandboxToolFailure, parseToolRunnerResult } from "./nklein-agent-sandbox-tool-result";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -953,29 +954,6 @@ function isAgentSandboxExecResult(value: unknown): value is AgentSandboxExecResu
 		"stdout" in value &&
 		"stderr" in value
 	);
-}
-
-function parseToolRunnerResult(stdout: string): { ok: true; result: unknown } | { ok: false; error: string } {
-	try {
-		const parsed = JSON.parse(stdout) as unknown;
-		if (parsed && typeof parsed === "object" && "ok" in parsed) {
-			const record = parsed as Record<string, unknown>;
-			if (record.ok === true) {
-				return { ok: true, result: record.result };
-			}
-			return { ok: false, error: typeof record.error === "string" ? record.error : "Tool runner failed." };
-		}
-	} catch {
-		// Fall through to a plain output error.
-	}
-	return { ok: false, error: stdout.trim() || "Tool runner returned invalid JSON." };
-}
-
-function formatSandboxToolFailure(tool: string, details: string): string {
-	const normalizedTool = tool.trim() || "unknown";
-	const normalizedDetails = details.trim();
-	const detailText = normalizedDetails ? `\n${normalizedDetails}` : "";
-	return `Sandbox tool ${normalizedTool} failed.${detailText}\nNext step: inspect the command, file path, permissions, and sandbox output above; then retry with a smaller focused ${normalizedTool} request.`;
 }
 
 function assertSandboxExecOk(result: AgentSandboxExecResult, operation: string): void {
