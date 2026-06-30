@@ -128,16 +128,10 @@ import {
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
 import { handleVerifyTaskAcceptance } from "./runtime-api/verify-task-acceptance.js";
+import { withTaskPausedState } from "./runtime-task-paused-state";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const _execFileAsync = promisify(execFile);
-
-function withTaskPausedState(
-	summary: RuntimeTaskSessionSummary | null,
-	pausedTaskIds: Set<string>,
-): RuntimeTaskSessionSummary | null {
-	return summary ? { ...summary, paused: pausedTaskIds.has(summary.taskId) } : null;
-}
 
 export interface CreateRuntimeApiDependencies {
 	getActiveWorkspaceId: () => string | null;
