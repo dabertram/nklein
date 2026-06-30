@@ -320,23 +320,11 @@ export function normalizeSelectedAgentIdOverride(value: unknown): RuntimeAgentId
 	return null;
 }
 
-export function normalizePositiveInteger(value: unknown, fallback: number): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return fallback;
-	}
-	const normalized = Math.trunc(value);
-	return normalized > 0 ? normalized : fallback;
-}
-
-export function normalizeNonNegativeInteger(value: unknown, fallback: number): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return fallback;
-	}
-	const normalized = Math.trunc(value);
-	return normalized >= 0 ? normalized : fallback;
-}
-
-export { normalizePositiveNumber } from "../core/normalize-number";
+export {
+	normalizeNonNegativeInteger,
+	normalizePositiveInteger,
+	normalizePositiveNumber,
+} from "../core/normalize-number";
 
 export function normalizeLostHeartbeatPolicy(value: unknown): RuntimeLostHeartbeatPolicy {
 	return value === "keep_running" ? "keep_running" : DEFAULT_LOST_HEARTBEAT_POLICY;

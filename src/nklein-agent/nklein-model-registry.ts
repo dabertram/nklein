@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
-import { normalizePositiveNumber } from "../core/normalize-number";
+import { normalizePositiveInteger, normalizePositiveNumber } from "../core/normalize-number";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import { asRecord } from "./nklein-value-guards";
@@ -122,13 +122,6 @@ interface NKleinModelRegistryFileShape {
 
 function getDefaultModelRegistryPath(): string {
 	return join(resolveNkleinRuntimeHomePath(homedir()), "model-registry.json");
-}
-
-function normalizePositiveInteger(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
-		return null;
-	}
-	return Math.trunc(value);
 }
 
 function normalizeScore(value: unknown): number | null {

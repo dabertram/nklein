@@ -4,7 +4,11 @@ import { promisify } from "node:util";
 import type { ToolExecutors } from "@nklein/core";
 import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { normalizePositiveNumber } from "../core/normalize-number";
+import {
+	normalizeNonNegativeInteger,
+	normalizePositiveInteger,
+	normalizePositiveNumber,
+} from "../core/normalize-number";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -891,14 +895,6 @@ export class AgentSandboxManager {
 			};
 		}
 	}
-}
-
-function normalizePositiveInteger(value: number | undefined, fallback: number): number {
-	return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
-}
-
-function normalizeNonNegativeInteger(value: number | undefined, fallback: number): number {
-	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : fallback;
 }
 
 function normalizeTaskIdForSandboxPath(taskId: string): string {

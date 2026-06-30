@@ -2,6 +2,7 @@
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary, RuntimeTaskSessionUsage } from "../core/api-contract";
+import { normalizeNonNegativeInteger } from "../core/normalize-number";
 import {
 	appendAssistantChunk,
 	appendReasoningChunk,
@@ -58,13 +59,6 @@ type NKleinSdkHookEvent = Extract<NKleinSdkSessionEvent, { type: "hook" }>;
 type NKleinSdkEndedEvent = Extract<NKleinSdkSessionEvent, { type: "ended" }>;
 type NKleinSdkStatusEvent = Extract<NKleinSdkSessionEvent, { type: "status" }>;
 type RawNKleinSdkAgentEvent = NKleinSdkAgentEvent | (Record<string, unknown> & { type: string });
-
-function normalizeNonNegativeInteger(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-		return null;
-	}
-	return Math.trunc(value);
-}
 
 function readSessionUsage(value: unknown): RuntimeTaskSessionUsage | null {
 	const usage = asRecord(value);
