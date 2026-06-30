@@ -16,7 +16,6 @@ import {
 	type RuntimeNKleinReasoningEffort,
 	type RuntimeTaskImage,
 	type RuntimeTaskSessionMode,
-	runtimeNKleinReasoningEffortSchema,
 } from "../core/api-contract";
 import type { FocusChain } from "../core/focus-chain";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -56,6 +55,7 @@ import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
+import { readOptionalNumber, readOptionalReasoningEffort, readOptionalString } from "./nklein-session-record-readers";
 import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
@@ -143,43 +143,6 @@ export interface NKleinPersistedLaunchConfig {
 	maxAgentWritableFileLines?: number | null;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
-}
-
-function readOptionalString(record: Record<string, unknown>, key: string): string | null | undefined {
-	if (!Object.hasOwn(record, key)) {
-		return undefined;
-	}
-	const value = record[key];
-	if (value === null) {
-		return null;
-	}
-	return typeof value === "string" ? value : undefined;
-}
-
-function readOptionalNumber(record: Record<string, unknown>, key: string): number | null | undefined {
-	if (!Object.hasOwn(record, key)) {
-		return undefined;
-	}
-	const value = record[key];
-	if (value === null) {
-		return null;
-	}
-	return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : undefined;
-}
-
-function readOptionalReasoningEffort(
-	record: Record<string, unknown>,
-	key: string,
-): RuntimeNKleinReasoningEffort | null | undefined {
-	if (!Object.hasOwn(record, key)) {
-		return undefined;
-	}
-	const value = record[key];
-	if (value === null) {
-		return null;
-	}
-	const parsed = runtimeNKleinReasoningEffortSchema.safeParse(value);
-	return parsed.success ? parsed.data : undefined;
 }
 
 export function readKanbanLaunchConfigFromSessionRecord(
