@@ -1762,22 +1762,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				return reboundSummary;
 			}
 		}
-		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.contextWindowStore.forget(taskId);
-		this.modelEndpoint.forget(taskId);
-		this.contextBudgetInputs.forget(taskId);
+		this.resetInterruptedTaskState(taskId);
 		this.launchConfigByTaskId.delete(taskId);
-		this.requestTimer.forget(taskId);
-		this.failureBackoff.forget(taskId);
-		this.autonomyBudgetWatchdog.resetTask(taskId);
-		this.repeatedToolCallGuard.resetTask(taskId);
-		this.pauseController.abortTaskWaiters(taskId);
-		this.pauseController.clearTaskParked(taskId);
-		this.pauseController.setCardPaused(taskId, false);
-		this.clearTaskTimeouts(taskId);
-		this.decompositionStallNudger.resetTask(taskId);
-		this.explicitDecompositionTaskIds.delete(taskId);
-		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.forgetSandboxTask(taskId);
@@ -1806,22 +1792,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!entry) {
 			return null;
 		}
-		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.contextWindowStore.forget(taskId);
-		this.modelEndpoint.forget(taskId);
-		this.contextBudgetInputs.forget(taskId);
+		this.resetInterruptedTaskState(taskId);
 		this.launchConfigByTaskId.delete(taskId);
-		this.requestTimer.forget(taskId);
-		this.failureBackoff.forget(taskId);
-		this.autonomyBudgetWatchdog.resetTask(taskId);
-		this.repeatedToolCallGuard.resetTask(taskId);
-		this.pauseController.abortTaskWaiters(taskId);
-		this.pauseController.clearTaskParked(taskId);
-		this.pauseController.setCardPaused(taskId, false);
-		this.clearTaskTimeouts(taskId);
-		this.decompositionStallNudger.resetTask(taskId);
-		this.explicitDecompositionTaskIds.delete(taskId);
-		this.timeoutSettingsByTaskId.delete(taskId);
 		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.forgetSandboxTask(taskId);
@@ -1853,21 +1825,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!entry) {
 			return null;
 		}
-		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.contextWindowStore.forget(taskId);
-		this.modelEndpoint.forget(taskId);
-		this.contextBudgetInputs.forget(taskId);
-		this.requestTimer.forget(taskId);
-		this.failureBackoff.forget(taskId);
-		this.autonomyBudgetWatchdog.resetTask(taskId);
-		this.repeatedToolCallGuard.resetTask(taskId);
-		this.pauseController.abortTaskWaiters(taskId);
-		this.pauseController.clearTaskParked(taskId);
-		this.pauseController.setCardPaused(taskId, false);
-		this.clearTaskTimeouts(taskId);
-		this.decompositionStallNudger.resetTask(taskId);
-		this.explicitDecompositionTaskIds.delete(taskId);
-		this.timeoutSettingsByTaskId.delete(taskId);
+		this.resetInterruptedTaskState(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.forgetSandboxTask(taskId);
@@ -2154,6 +2112,32 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.emitTaskFailure(taskId, entry, "start", error);
 			return cloneSummary(entry.summary);
 		}
+	}
+
+	/**
+	 * The shared interrupted-task teardown: drop the per-task tracking state and reset the per-task
+	 * guards. Used by the interrupt / decomposition-complete / trash paths (each then handles its own
+	 * launch-config delete, session stop-vs-abort, and sandbox disposal). Order within is immaterial —
+	 * every op targets an independent per-task map/guard with no read in between.
+	 * (clearTaskSession deliberately does NOT use this — it has a different shape: provider-id forget,
+	 * no pause-controller trio, no decomposition resets.)
+	 */
+	private resetInterruptedTaskState(taskId: string): void {
+		this.pendingTurnCancelTaskIds.delete(taskId);
+		this.contextWindowStore.forget(taskId);
+		this.modelEndpoint.forget(taskId);
+		this.contextBudgetInputs.forget(taskId);
+		this.requestTimer.forget(taskId);
+		this.failureBackoff.forget(taskId);
+		this.autonomyBudgetWatchdog.resetTask(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
+		this.pauseController.abortTaskWaiters(taskId);
+		this.pauseController.clearTaskParked(taskId);
+		this.pauseController.setCardPaused(taskId, false);
+		this.clearTaskTimeouts(taskId);
+		this.decompositionStallNudger.resetTask(taskId);
+		this.explicitDecompositionTaskIds.delete(taskId);
+		this.timeoutSettingsByTaskId.delete(taskId);
 	}
 
 	async clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
