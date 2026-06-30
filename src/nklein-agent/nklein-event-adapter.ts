@@ -1,8 +1,7 @@
 // Translates raw SDK session events into !Klein summary and message mutations.
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
-import type { RuntimeTaskSessionSummary, RuntimeTaskSessionUsage } from "../core/api-contract";
-import { normalizeNonNegativeInteger } from "../core/normalize-number";
+import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { normalizePreviewText, toPreviewText } from "./nklein-preview-text";
 import {
 	appendAssistantChunk,
@@ -24,6 +23,7 @@ import {
 	startToolCallMessage,
 	updateSummary,
 } from "./nklein-session-state";
+import { readSessionUsage } from "./nklein-session-usage-parser";
 import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-tool-call-display";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import { asRecord } from "./nklein-value-guards";
@@ -44,28 +44,6 @@ type NKleinSdkHookEvent = Extract<NKleinSdkSessionEvent, { type: "hook" }>;
 type NKleinSdkEndedEvent = Extract<NKleinSdkSessionEvent, { type: "ended" }>;
 type NKleinSdkStatusEvent = Extract<NKleinSdkSessionEvent, { type: "status" }>;
 type RawNKleinSdkAgentEvent = NKleinSdkAgentEvent | (Record<string, unknown> & { type: string });
-
-function readSessionUsage(value: unknown): RuntimeTaskSessionUsage | null {
-	const usage = asRecord(value);
-	if (!usage) {
-		return null;
-	}
-	const inputTokens =
-		normalizeNonNegativeInteger(usage.inputTokens) ?? normalizeNonNegativeInteger(usage.promptTokens);
-	const outputTokens =
-		normalizeNonNegativeInteger(usage.outputTokens) ??
-		normalizeNonNegativeInteger(usage.completionTokens) ??
-		normalizeNonNegativeInteger(usage.generatedTokens);
-	if (inputTokens === null || outputTokens === null) {
-		return null;
-	}
-	return {
-		inputTokens,
-		outputTokens,
-		cacheReadTokens: normalizeNonNegativeInteger(usage.cacheReadTokens) ?? 0,
-		cacheWriteTokens: normalizeNonNegativeInteger(usage.cacheWriteTokens) ?? 0,
-	};
-}
 
 function readAgentEvent(event: unknown): RawNKleinSdkAgentEvent | null {
 	const record = asRecord(event);
