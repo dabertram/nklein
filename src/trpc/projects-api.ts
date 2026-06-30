@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { cp, mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import type {
@@ -9,7 +9,6 @@ import type {
 	RuntimeDevTestProjectRegistryResponse,
 	RuntimeDevTestProjectRequest,
 	RuntimeDevTestProjectResponse,
-	RuntimeDirectoryListResponse,
 	RuntimeProjectAddResponse,
 	RuntimeProjectArtifactMigrationResponse,
 	RuntimeProjectHealthIssue,
@@ -19,7 +18,6 @@ import type {
 	RuntimeSelfImprovementProjectResponse,
 } from "../core/api-contract";
 import {
-	parseDirectoryListRequest,
 	parseProjectAddRequest,
 	parseProjectArtifactMigrationRequest,
 	parseProjectRemoveRequest,
@@ -53,7 +51,6 @@ import {
 	isGitRepositoryCreatedByKanban,
 	markGitRepositoryCreatedByKanban,
 } from "../workspace/initialize-repo";
-import { isPathWithinRoot } from "../workspace/path-sandbox";
 import { detectProjectHealthIssuesByWorkspaceId } from "../workspace/project-health";
 import { confineToAllowedRoots } from "../workspace/remote-path-confinement";
 import { deleteTaskResultBranchesForRepo } from "../workspace/task-result-branches";
@@ -61,6 +58,7 @@ import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/ta
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import type { RuntimeTrpcContext } from "./app-router";
 import { buildDevTestTaskId, createDevTestBoard } from "./dev-test-board";
+import { handleListDirectoryContents, handlePickProjectDirectory } from "./projects-api/directory-browse.js";
 import { buildSelfImprovementTaskPrompt } from "./self-improvement-task-prompt";
 
 interface DisposeWorkspaceOptions {
@@ -990,154 +988,19 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				};
 			}
 		},
-		pickProjectDirectory: async () => {
-			try {
-				const selectedPath = deps.pickDirectoryPathFromSystemDialog();
-				if (!selectedPath) {
-					return {
-						ok: false,
-						path: null,
-						error: "No directory was selected.",
-					};
-				}
-				return {
-					ok: true,
-					path: selectedPath,
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					path: null,
-					error: message,
-				};
-			}
-		},
-		listDirectoryContents: async (_preferredWorkspaceId, input) => {
-			const body = parseDirectoryListRequest(input);
-			const rootPath = filesystemRoot;
-			const requestedPath = body.path?.trim() || "";
-
-			// Remote mode: every resolved path must be within an allowed root.
-			// We check before the local rootPath sandbox so the error message is
-			// consistent regardless of whether the path is absolute or relative.
-			if (deps.isRemoteMode && requestedPath) {
-				const candidate = isAbsolute(requestedPath) ? requestedPath : resolve(rootPath, requestedPath);
-				const confinement = confineToAllowedRoots(candidate, deps.allowedBrowseRoots);
-				if (!confinement.allowed) {
-					return {
-						ok: false,
-						currentPath: rootPath,
-						parentPath: null,
-						rootPath,
-						entries: [],
-						error: "Access denied: path is outside the allowed directories for remote mode.",
-					} satisfies RuntimeDirectoryListResponse;
-				}
-			}
-
-			// Reject absolute paths that fall outside the sandbox
-			if (requestedPath && isAbsolute(requestedPath)) {
-				if (!isPathWithinRoot(rootPath, requestedPath)) {
-					return {
-						ok: false,
-						currentPath: rootPath,
-						parentPath: null,
-						rootPath,
-						entries: [],
-						error: "Access denied: absolute path is outside the server root directory.",
-					} satisfies RuntimeDirectoryListResponse;
-				}
-				// Absolute path is within sandbox — fall through to existing stat/readdir logic
-			}
-			const resolvedPath = resolve(rootPath, requestedPath) || rootPath;
-
-			if (!isPathWithinRoot(rootPath, resolvedPath)) {
-				return {
-					ok: false,
-					currentPath: rootPath,
-					parentPath: null,
-					rootPath,
-					entries: [],
-					error: "Access denied: path is outside the server root directory.",
-				} satisfies RuntimeDirectoryListResponse;
-			}
-
-			try {
-				const dirStat = await stat(resolvedPath);
-				if (!dirStat.isDirectory()) {
-					return {
-						ok: false,
-						currentPath: resolvedPath,
-						parentPath: null,
-						rootPath,
-						entries: [],
-						error: "The specified path is not a directory.",
-					} satisfies RuntimeDirectoryListResponse;
-				}
-
-				const dirEntries = await readdir(resolvedPath, { withFileTypes: true });
-				const directoryEntries = dirEntries.filter((entry) => {
-					if (!entry.isDirectory()) {
-						return false;
-					}
-					if (entry.name.startsWith(".")) {
-						return false;
-					}
-					return true;
-				});
-
-				directoryEntries.sort((a, b) => a.name.localeCompare(b.name));
-
-				const entries = await Promise.all(
-					directoryEntries.map(async (entry) => {
-						const entryPath = resolve(resolvedPath, entry.name);
-						let isGitRepository = false;
-						try {
-							const gitDirStat = await stat(resolve(entryPath, ".git"));
-							isGitRepository = gitDirStat.isDirectory() || gitDirStat.isFile();
-						} catch {
-							// .git does not exist or is not accessible
-						}
-						return {
-							name: entry.name,
-							path: entryPath,
-							isGitRepository,
-						};
-					}),
-				);
-
-				const isAtRoot = resolvedPath === rootPath;
-				const rawParent = dirname(resolvedPath);
-				const parentIsWithinRoot = isPathWithinRoot(rootPath, rawParent);
-				const parentPath = isAtRoot ? null : parentIsWithinRoot ? rawParent : null;
-
-				return {
-					ok: true,
-					currentPath: resolvedPath,
-					parentPath,
-					rootPath,
-					entries,
-				} satisfies RuntimeDirectoryListResponse;
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				const isPermissionError =
-					error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "EACCES";
-				const isNotFoundError =
-					error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
-				return {
-					ok: false,
-					currentPath: resolvedPath,
-					parentPath: null,
-					rootPath,
-					entries: [],
-					error: isPermissionError
-						? "Permission denied: cannot read this directory."
-						: isNotFoundError
-							? "Directory not found."
-							: message,
-				} satisfies RuntimeDirectoryListResponse;
-			}
-		},
+		pickProjectDirectory: async () =>
+			handlePickProjectDirectory({
+				filesystemRoot,
+				isRemoteMode: deps.isRemoteMode,
+				allowedBrowseRoots: deps.allowedBrowseRoots,
+				pickDirectoryPathFromSystemDialog: deps.pickDirectoryPathFromSystemDialog,
+			}),
+		listDirectoryContents: async (_preferredWorkspaceId, input) =>
+			handleListDirectoryContents(input, {
+				filesystemRoot,
+				isRemoteMode: deps.isRemoteMode,
+				allowedBrowseRoots: deps.allowedBrowseRoots,
+				pickDirectoryPathFromSystemDialog: deps.pickDirectoryPathFromSystemDialog,
+			}),
 	};
 }
