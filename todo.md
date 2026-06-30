@@ -2392,6 +2392,21 @@ source repo went private — so if it vanishes the buildable source still lives 
   - **Meta-finding (still governs the remaining monoliths):** task.ts decomposed beautifully because its bulk was *clean leaf
     command implementations*; the others (provider-service, runtime-settings-dialog) are *interspersed + helper-coupled* →
     they need restructuring passes, not incremental leaf extraction.
+  - **FURTHER decomposition of `config/runtime-config.ts` (2026-06-30, this session — 1722 → 794, −54%):** five
+    behavior-preserving, tsc+biome+full-suite-gated cuts pulling the remaining pure cores out of the save/update
+    orchestration, each with colocated tests: (1) `runtime-config-change-detection.ts` (the save-time field-descriptor
+    registry + `runtimeConfigStateHasChanges`); (2) `runtime-global-config-file-payload.ts`
+    (`buildRuntimeGlobalConfigFilePayload` — the normalize-then-minimize global-file payload core, only non-default/
+    pre-existing keys persisted, +5 tests); (3) `runtime-config-state-factory.ts` (`createRuntimeConfigStateFromValues` —
+    the raw-values→resolved-state assembler with the `effective = override ?? default` derivations, +4 tests);
+    (4) `runtime-config-update-merge.ts` (`mergeGlobalRuntimeConfigFields` — the ~34-field update-onto-current merge that
+    `updateRuntimeConfig` + `updateGlobalRuntimeConfig` BOTH built near-identically; each caller now spreads it and composes
+    its scope-specific override/shortcut fields, +4 tests); (5) passthrough collapse — `nextConfig` now holds exactly the
+    factory-input non-path fields and the writers read by key, so the field-by-field re-mappings into both writers + the
+    final factory call collapsed to spreads. Suite 3907 → 3920. runtime-config.ts is now a thin orchestration layer
+    (load/save/update IO + lock handling); the pure logic lives in the focused tested modules. The earlier-noted
+    **sibling-builder dedup** (toRuntimeConfigState's sub-resolvers vs createRuntimeConfigStateFromValues) is still the next
+    runtime-config item — now easier since the state assembler is isolated.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
