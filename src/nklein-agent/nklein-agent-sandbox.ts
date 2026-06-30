@@ -9,6 +9,7 @@ import {
 	normalizePositiveInteger,
 	normalizePositiveNumber,
 } from "../core/normalize-number";
+import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -928,27 +929,6 @@ export function buildAgentSandboxWorkdir(taskId: string): string {
  */
 export function resolveNKleinAgentPerceivedCwd(taskId: string, hostCwd: string): string {
 	return isHomeAgentSessionId(taskId) ? hostCwd : buildAgentSandboxWorkdir(taskId);
-}
-
-function bufferOrStringToString(value: string | Buffer | undefined): string {
-	if (typeof value === "string") {
-		return value;
-	}
-	return value?.toString("utf8") ?? "";
-}
-
-function joinDockerOutput(result: AgentSandboxExecResult): string {
-	return [result.stderr, result.stdout]
-		.map((part) => part.trim())
-		.filter(Boolean)
-		.join("\n");
-}
-
-function parseDockerOutputLines(stdout: string): string[] {
-	return stdout
-		.split(/\r?\n/g)
-		.map((line) => line.trim())
-		.filter(Boolean);
 }
 
 function isAgentSandboxWorkspaceVolumeName(volumeName: string): boolean {
