@@ -20,12 +20,8 @@ import {
 	saveWorkspaceState,
 } from "../../../src/state/workspace-state";
 import type { TerminalSessionManager } from "../../../src/terminal/session-manager";
-import {
-	buildDevTestTaskId,
-	type CreateProjectsApiDependencies,
-	createDevTestBoard,
-	createProjectsApi,
-} from "../../../src/trpc/projects-api";
+import { buildDevTestTaskId, createDevTestBoard } from "../../../src/trpc/dev-test-board";
+import { type CreateProjectsApiDependencies, createProjectsApi } from "../../../src/trpc/projects-api";
 import { confineToAllowedRoots, resolveRemoteBrowseRoots } from "../../../src/workspace/remote-path-confinement";
 import { createGitTestEnv } from "../../utilities/git-env";
 

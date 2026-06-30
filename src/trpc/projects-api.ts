@@ -10,7 +10,6 @@ import type {
 	RuntimeDevTestProjectRequest,
 	RuntimeDevTestProjectResponse,
 	RuntimeDirectoryListResponse,
-	RuntimeModelRoles,
 	RuntimeProjectAddResponse,
 	RuntimeProjectArtifactMigrationResponse,
 	RuntimeProjectHealthIssue,
@@ -18,7 +17,6 @@ import type {
 	RuntimeProjectTaskCounts,
 	RuntimeSelfImprovementProjectRequest,
 	RuntimeSelfImprovementProjectResponse,
-	RuntimeTaskNKleinSettings,
 } from "../core/api-contract";
 import {
 	parseDirectoryListRequest,
@@ -27,7 +25,6 @@ import {
 	parseProjectRemoveRequest,
 	parseSelfImprovementProjectRequest,
 } from "../core/api-validation";
-import { withAutonomousNKleinTimeoutSettings } from "../core/autonomous-timeout-defaults";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { loadDevTestProjectRegistry, loadDevTestProjectScenario } from "../nklein-agent/dev-test-project-registry";
@@ -63,19 +60,11 @@ import { deleteTaskResultBranchesForRepo } from "../workspace/task-result-branch
 import { deleteTaskPatchFilesForRepo, deleteTaskWorktree } from "../workspace/task-worktree";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import type { RuntimeTrpcContext } from "./app-router";
+import { buildDevTestTaskId, createDevTestBoard } from "./dev-test-board";
 import { buildSelfImprovementTaskPrompt } from "./self-improvement-task-prompt";
 
 interface DisposeWorkspaceOptions {
 	stopTerminalSessions?: boolean;
-}
-
-export function buildDevTestTaskId(scenarioId: string): string {
-	const normalizedScenarioId = scenarioId
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return `dev-${normalizedScenarioId || "test"}-decompose`;
 }
 
 async function isMarkedDevTestWorkspaceEntry(entry: {
@@ -118,44 +107,6 @@ export function resolveKleinSourceRepoPath(): Promise<string | null> {
 		kleinSourceRepoPathPromise = resolveGitRootIfAvailable(dirname(fileURLToPath(import.meta.url)));
 	}
 	return kleinSourceRepoPathPromise;
-}
-
-export function createDevTestBoard(input: {
-	taskId: string;
-	title: string;
-	prompt: string;
-	acceptanceCommand: string;
-	modelRoles?: RuntimeModelRoles;
-	now: number;
-}): RuntimeBoardData {
-	const architectSettings = input.modelRoles?.architect;
-	const firstRoleSettings = Object.values(input.modelRoles ?? {}).find(
-		(settings): settings is RuntimeTaskNKleinSettings => Boolean(settings.providerId || settings.modelId),
-	);
-	const nkleinSettings = withAutonomousNKleinTimeoutSettings(architectSettings ?? firstRoleSettings);
-	const card = {
-		id: input.taskId,
-		title: `Decompose ${input.title}`,
-		prompt: input.prompt.trim(),
-		startInPlanMode: true,
-		autoReviewEnabled: true,
-		agentId: "nklein" as const,
-		nkleinSettings,
-		baseRef: "main",
-		createdAt: input.now,
-		updatedAt: input.now,
-	};
-	return {
-		columns: [
-			{ id: "backlog", title: "Backlog", cards: [card] },
-			{ id: "planning", title: "Planning", cards: [] },
-			{ id: "in_progress", title: "In Progress", cards: [] },
-			{ id: "review", title: "Review", cards: [] },
-			{ id: "completed", title: "Completed", cards: [] },
-			{ id: "trash", title: "Trash", cards: [] },
-		],
-		dependencies: [],
-	};
 }
 
 async function readEvidenceBundleBaseCommit(evidenceBundlePath: string | null | undefined): Promise<string | null> {
