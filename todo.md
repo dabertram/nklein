@@ -2471,6 +2471,16 @@ source repo went private — so if it vanishes the buildable source still lives 
     recording) into collaborator seams with callbacks back into the service. Unlike everything above this is NOT a
     relocation — it changes the agent's runtime control flow, so it wants a deliberate seam design + the live-on-a-real-model
     re-validation the prior task-session steps each did (model loading is the user's call — [[never-load-models-directive]]).
+    **SAFE SLICE DONE (2026-06-30, suite 3995):** centralized the model-observation **identity attachment** — a private
+    `recordObservationWithModel(event)` wraps `recordSelfObservation` + the repeated `...resolveTaskModelIdentity(taskId)`
+    spread, and the 8 model-attributed observation sites route through it (a new observation site can no longer forget/diverge
+    on the `{providerId, modelId}` stamp). The 1 non-observation identity spread (the model-registry-key builder, different
+    shape) is correctly left intact — a mis-conversion there was **caught by tsc** and excluded (the gate works). Behavior
+    byte-identical. **Surveyed the rest: NO further clean mechanical slice remains** — the service's remaining `build*Callbacks`
+    methods are collaborator-seam wiring (callbacks capturing `this`), and the observation-recording methods are cohesively
+    placed with their lifecycle context (extracting them would SCATTER cohesion, anti-§5.U). What's left is exactly the
+    seam-DESIGN behavior split the notes flag as "real collaborator-seam decisions, not mechanical lifts" — a deliberate
+    design pass + live re-validation, the one §5.U item that is genuinely not a safe gate-only autonomous refactor.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
