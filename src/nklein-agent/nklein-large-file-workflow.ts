@@ -12,6 +12,14 @@ import type {
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath } from "../state/workspace-state";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
+import {
+	coveredLineCount,
+	findRangeContainingLine,
+	formatRange,
+	hasEofCoverage,
+	type LineRange,
+	mergeRanges,
+} from "./nklein-large-file-line-ranges";
 import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
 
 const STITCH_CONTEXT_LINES = 20;
@@ -28,11 +36,6 @@ export interface ReadFileRequest {
 	path: string;
 	startLine: number | null;
 	endLine: number | null;
-}
-
-interface LineRange {
-	start: number;
-	end: number;
 }
 
 interface StitchBoundary {
@@ -146,30 +149,6 @@ function sanitizePathSegment(value: string): string {
 	return normalized || "session";
 }
 
-function mergeRanges(ranges: readonly LineRange[]): LineRange[] {
-	const sorted = [...ranges].sort((left, right) => left.start - right.start || left.end - right.end);
-	const merged: LineRange[] = [];
-	for (const range of sorted) {
-		const previous = merged.at(-1);
-		if (previous && range.start <= previous.end + 1) {
-			previous.end = Math.max(previous.end, range.end);
-			continue;
-		}
-		merged.push({ ...range });
-	}
-	return merged;
-}
-
-function hasEofCoverage(ranges: readonly LineRange[], totalLines: number): boolean {
-	const firstRange = mergeRanges(ranges)[0];
-	return Boolean(firstRange && firstRange.start === 1 && firstRange.end >= totalLines);
-}
-
-/** Distinct lines covered so far (overlaps merged) — drives the index/total progress in read results (§5.O). */
-function coveredLineCount(ranges: readonly LineRange[]): number {
-	return mergeRanges(ranges).reduce((total, range) => total + (range.end - range.start + 1), 0);
-}
-
 function buildStitchBoundaries(ranges: readonly LineRange[]): StitchBoundary[] {
 	const sorted = [...ranges].sort((left, right) => left.start - right.start || left.end - right.end);
 	const boundaries: StitchBoundary[] = [];
@@ -278,14 +257,6 @@ function formatOutputHeader(output: {
 	endLine: number;
 }): string {
 	return `### ${output.kind} ${output.sourcePath}:${output.startLine}-${output.endLine}`;
-}
-
-function findRangeContainingLine(ranges: readonly LineRange[], line: number): LineRange | null {
-	return ranges.find((range) => range.start <= line && range.end >= line) ?? null;
-}
-
-function formatRange(range: LineRange | null): string {
-	return range ? `${range.start}-${range.end}` : "unknown";
 }
 
 function formatStitchingAreaContent(options: {
