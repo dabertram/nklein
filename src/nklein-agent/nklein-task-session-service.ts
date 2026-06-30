@@ -109,6 +109,7 @@ import {
 	updateSummary,
 } from "./nklein-session-state";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
+import { TaskContextWindowStore } from "./nklein-task-context-window-store";
 import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
@@ -375,7 +376,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdByTaskId = new Map<string, string>();
 	private readonly modelEndpoint = new TaskModelEndpointStore();
-	private readonly contextWindowByTaskId = new Map<string, number | null>();
+	private readonly contextWindowStore = new TaskContextWindowStore();
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
 	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
@@ -1202,10 +1203,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private resolveContextWindowForTask(taskId: string, launchContextWindow?: number | null): number | null {
 		if (typeof launchContextWindow === "number" && Number.isFinite(launchContextWindow) && launchContextWindow > 0) {
 			const normalized = this.normalizeEffectiveContextWindow(launchContextWindow);
-			this.contextWindowByTaskId.set(taskId, normalized);
+			this.contextWindowStore.set(taskId, normalized);
 			return normalized;
 		}
-		return this.contextWindowByTaskId.get(taskId) ?? null;
+		return this.contextWindowStore.get(taskId);
 	}
 
 	private resolveKnownContextWindowForTask(taskId: string, launchContextWindow?: number | null): number {
@@ -1751,7 +1752,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.contextWindowByTaskId.delete(taskId);
+		this.contextWindowStore.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
@@ -1795,7 +1796,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.contextWindowByTaskId.delete(taskId);
+		this.contextWindowStore.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
@@ -1842,7 +1843,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.contextWindowByTaskId.delete(taskId);
+		this.contextWindowStore.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.modelRequestStartedAtByTaskId.delete(taskId);
@@ -2148,7 +2149,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const existingEntry = this.messageRepository.getTaskEntry(taskId);
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.providerIdByTaskId.delete(taskId);
-		this.contextWindowByTaskId.delete(taskId);
+		this.contextWindowStore.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
@@ -2606,7 +2607,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
 		this.providerIdByTaskId.clear();
-		this.contextWindowByTaskId.clear();
+		this.contextWindowStore.clear();
 		this.modelEndpoint.clear();
 		this.contextBudgetInputs.clear();
 		this.modelRequestStartedAtByTaskId.clear();
