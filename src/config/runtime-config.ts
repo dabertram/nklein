@@ -102,6 +102,7 @@ import {
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
+import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type {
 	RuntimeConfigState,
 	RuntimeConfigUpdateInput,
@@ -378,13 +379,7 @@ function toRuntimeConfigState({
 			globalConfig?.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
 		),
-		agentTimeoutMode: normalizeAgentTimeoutMode(globalConfig?.agentTimeoutMode),
-		agentTimeoutProfile: normalizeAgentTimeoutProfile(globalConfig?.agentTimeoutProfile),
-		requestTimeoutMs: normalizeTimeoutMsValue(globalConfig?.requestTimeoutMs),
-		streamTimeoutMs: normalizeTimeoutMsValue(globalConfig?.streamTimeoutMs),
-		toolTimeoutMs: normalizeTimeoutMsValue(globalConfig?.toolTimeoutMs),
-		agentTimeoutMs: normalizeTimeoutMsValue(globalConfig?.agentTimeoutMs),
-		conversationTimeoutMs: normalizeTimeoutMsValue(globalConfig?.conversationTimeoutMs),
+		...resolveRuntimeTimeoutConfig(globalConfig),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
 		maxConcurrentTasks,
 		maxConcurrentTasksOverride,
