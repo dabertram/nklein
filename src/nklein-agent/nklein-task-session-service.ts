@@ -55,6 +55,7 @@ import {
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
+import { classifyContextHistoryTokens, estimateKanbanToolSchemaTokens } from "./nklein-context-budget-tokens";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import {
 	compactKanbanMessagesForContextTarget,
@@ -117,7 +118,6 @@ import {
 	type NKleinSdkPersistedMessage,
 	type NKleinSdkSessionEvent,
 	type NKleinSdkSlashCommand,
-	type NKleinSdkStartSessionInput,
 	type NKleinSdkTeamEvent,
 	resolveNKleinSdkSystemPrompt,
 } from "./sdk-runtime-boundary.js";
@@ -141,8 +141,6 @@ const CONTEXT_BUDGET_PROMPT_OVERHEAD_TOKENS = 1_200;
 const MAX_NODE_TIMER_DELAY_MS = 2_147_483_647;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 const UNCONFIGURED_MODEL_ID = "unconfigured";
-type NKleinSdkContentBlock = Exclude<NKleinSdkPersistedMessage["content"], string>[number];
-type NKleinSdkToolResultBlock = Extract<NKleinSdkContentBlock, { type: "tool_result" }>;
 type NKleinTaskTimeoutKind = "stream" | "tool" | "conversation";
 
 interface NKleinTaskTimeoutSettings {
@@ -152,12 +150,6 @@ interface NKleinTaskTimeoutSettings {
 	streamTimeoutSource: TaskRunTimeoutSource;
 	toolTimeoutSource: TaskRunTimeoutSource;
 	conversationTimeoutSource: TaskRunTimeoutSource;
-}
-
-interface ContextHistoryTokenSegments {
-	userMessageTokens: number;
-	includedFileContentTokens: number;
-	otherHistoryTokens: number;
 }
 
 interface NKleinTaskFailureBackoffState {
@@ -316,79 +308,6 @@ export function buildKanbanEfficiencyRules(options: {
 	].join("\n");
 }
 
-function toPersistedContentBlocks(message: NKleinSdkPersistedMessage): NKleinSdkContentBlock[] {
-	return typeof message.content === "string" ? [] : message.content;
-}
-
-function stringifyToolResultContent(content: NKleinSdkToolResultBlock["content"]): string {
-	if (typeof content === "string") {
-		return content;
-	}
-	if (Array.isArray(content)) {
-		return content
-			.map((item) => {
-				if (typeof item === "string") {
-					return item;
-				}
-				if (item && typeof item === "object" && "text" in item && typeof item.text === "string") {
-					return item.text;
-				}
-				return JSON.stringify(item);
-			})
-			.join("\n");
-	}
-	return JSON.stringify(content);
-}
-
-function countContextBudgetTextTokens(text: string): number {
-	return text.length > 0 ? countKanbanTextTokens(text) : 0;
-}
-
-function isFileReadToolName(toolName: string | undefined): boolean {
-	return toolName === "read_files" || toolName === "read_large_file";
-}
-
-function classifyContextHistoryTokens(messages: readonly NKleinSdkPersistedMessage[]): ContextHistoryTokenSegments {
-	const totalHistoryTokens = countKanbanPersistedMessagesTokens(messages);
-	const toolNameByUseId = new Map<string, string>();
-	let userMessageTokens = 0;
-	let includedFileContentTokens = 0;
-
-	for (const message of messages) {
-		if (typeof message.content === "string") {
-			if (message.role === "user") {
-				userMessageTokens += countContextBudgetTextTokens(message.content);
-			}
-			continue;
-		}
-		for (const block of toPersistedContentBlocks(message)) {
-			if (block.type === "tool_use") {
-				toolNameByUseId.set(block.id, block.name);
-				if (block.call_id) {
-					toolNameByUseId.set(block.call_id, block.name);
-				}
-				continue;
-			}
-			if (block.type === "tool_result") {
-				const toolName = toolNameByUseId.get(block.tool_use_id);
-				if (isFileReadToolName(toolName)) {
-					includedFileContentTokens += countContextBudgetTextTokens(stringifyToolResultContent(block.content));
-				}
-				continue;
-			}
-			if (message.role === "user" && block.type === "text") {
-				userMessageTokens += countContextBudgetTextTokens(block.text);
-			}
-		}
-	}
-
-	return {
-		userMessageTokens,
-		includedFileContentTokens,
-		otherHistoryTokens: Math.max(0, totalHistoryTokens - userMessageTokens - includedFileContentTokens),
-	};
-}
-
 export interface NKleinTaskSessionService {
 	onSummary(listener: (summary: RuntimeTaskSessionSummary) => void): () => void;
 	onMessage(listener: (taskId: string, message: NKleinTaskMessage) => void): () => void;
@@ -539,25 +458,6 @@ function appendVisibleSystemPromptMessage(entry: NKleinTaskSessionEntry, taskId:
 			hookEventName: null,
 			messageKind: "system_prompt",
 			displayRole: "System prompt",
-		}),
-	);
-}
-
-function estimateKanbanToolSchemaTokens(toolPolicies?: NKleinSdkStartSessionInput["toolPolicies"]): number {
-	if (!toolPolicies) {
-		return 0;
-	}
-	const enabledToolNames = Object.entries(toolPolicies)
-		.filter(([, policy]) => policy?.enabled !== false)
-		.map(([toolName]) => toolName)
-		.sort();
-	if (enabledToolNames.length === 0) {
-		return 0;
-	}
-	return countKanbanTextTokens(
-		JSON.stringify({
-			nativeSdkToolsEnabled: true,
-			kanbanToolPolicies: enabledToolNames,
 		}),
 	);
 }
