@@ -13,6 +13,13 @@ export interface NKleinTaskRoutingCandidate {
 	 * (no evidence) ⇒ the registry score is used unchanged — today's behavior.
 	 */
 	observedCapability?: number | null;
+	/**
+	 * §5.AB/§5.AE best-fit signal: opaque strength tags for this model (e.g. `"code"`, `"reasoning"`), derived by the
+	 * caller from the model card / §5.AL catalog kind. The router treats them as plain strings (it stays decoupled from
+	 * any kind enum): among FEASIBLE candidates it prefers those whose tags overlap the request's `taskAffinityTags`
+	 * BEFORE applying smallest-sufficient. Empty/absent ⇒ no affinity preference — pure smallest-sufficient as before.
+	 */
+	affinityTags?: readonly string[];
 }
 
 export interface NKleinTaskRoutingRequest {
@@ -22,6 +29,12 @@ export interface NKleinTaskRoutingRequest {
 	outputTokens?: number | null;
 	preferredModelKey?: string | null;
 	candidates: readonly NKleinTaskRoutingCandidate[];
+	/**
+	 * Best-fit tags the TASK needs (e.g. a code-editing card → `"code"`; a planning card → `"reasoning"`), derived by
+	 * the caller from the card's resolved skills. Among feasible candidates, the router prefers a higher tag-overlap
+	 * with this set before smallest-sufficient. Empty/absent ⇒ no preference (smallest-sufficient only) — back-compat.
+	 */
+	taskAffinityTags?: readonly string[];
 }
 
 export type NKleinTaskRoutingDecision =
@@ -132,6 +145,37 @@ function scoreCandidates(request: NKleinTaskRoutingRequest): ScoredCandidate[] {
 		}));
 }
 
+/** How many of the task's wanted tags this candidate carries (0 when either side has no tags). Higher = better fit. */
+function affinityOverlap(candidate: ScoredCandidate, taskAffinityTags: readonly string[]): number {
+	if (taskAffinityTags.length === 0 || !candidate.affinityTags || candidate.affinityTags.length === 0) {
+		return 0;
+	}
+	let overlap = 0;
+	for (const tag of candidate.affinityTags) {
+		if (taskAffinityTags.includes(tag)) {
+			overlap += 1;
+		}
+	}
+	return overlap;
+}
+
+/**
+ * Order feasible candidates: BEST-FIT first (more task-tag overlap), then the existing smallest-sufficient rule. So a
+ * code-editing card prefers a `"code"` model over an equally-capable general one, but the affinity only reorders models
+ * that ALREADY clear difficulty + the context-window guard — it never makes an incapable model win.
+ */
+function compareCandidatesWithAffinity(
+	left: ScoredCandidate,
+	right: ScoredCandidate,
+	taskAffinityTags: readonly string[],
+): number {
+	const overlapDelta = affinityOverlap(right, taskAffinityTags) - affinityOverlap(left, taskAffinityTags);
+	if (overlapDelta !== 0) {
+		return overlapDelta; // more overlap sorts first
+	}
+	return compareCandidates(left, right);
+}
+
 function compareCandidates(left: ScoredCandidate, right: ScoredCandidate): number {
 	const capabilityDelta = left.capability - right.capability;
 	if (capabilityDelta !== 0) {
@@ -156,12 +200,13 @@ export function routeNKleinTask(request: NKleinTaskRoutingRequest): NKleinTaskRo
 	const difficulty = normalizeScore(request.difficulty);
 	const fitBudgetTokens = normalizeTokenBudget(request.fitBudgetTokens);
 	const candidates = scoreCandidates(request);
+	const taskAffinityTags = request.taskAffinityTags ?? [];
 	const feasible = candidates
 		.filter(
 			(candidate) =>
 				candidate.capability >= difficulty && candidate.contextWindow >= candidate.requiredContextWindow,
 		)
-		.sort(compareCandidates);
+		.sort((left, right) => compareCandidatesWithAffinity(left, right, taskAffinityTags));
 	const preferredModelKey = request.preferredModelKey ?? null;
 	const preferred = preferredModelKey
 		? candidates.find((candidate) => candidate.entry.key === preferredModelKey)

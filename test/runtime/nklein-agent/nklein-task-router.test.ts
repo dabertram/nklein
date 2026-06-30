@@ -333,4 +333,66 @@ describe("routeNKleinTask", () => {
 			requiredContextWindow: 200_000,
 		});
 	});
+
+	it("prefers a tag-matching model among equally-capable feasible candidates (best-fit before smallest-sufficient)", () => {
+		// Both clear difficulty 50 with identical capability; `a-general` sorts first by key, so WITHOUT affinity it wins.
+		const candidates = [
+			{
+				entry: createEntry({ key: "lmstudio:a-general:default", capability: 60, contextWindow: 40_000 }),
+				affinityTags: ["instruct"],
+			},
+			{
+				entry: createEntry({ key: "lmstudio:z-coder:default", capability: 60, contextWindow: 40_000 }),
+				affinityTags: ["code"],
+			},
+		];
+		// No task tags ⇒ smallest-sufficient tie-break (key order) picks the general model — back-compat.
+		expect(routeNKleinTask({ difficulty: 50, fitBudgetTokens: 8_000, candidates })).toMatchObject({
+			modelKey: "lmstudio:a-general:default",
+		});
+		// A code card ⇒ the `code` model wins despite the worse key order.
+		expect(
+			routeNKleinTask({ difficulty: 50, fitBudgetTokens: 8_000, candidates, taskAffinityTags: ["code"] }),
+		).toMatchObject({ type: "assign", modelKey: "lmstudio:z-coder:default" });
+	});
+
+	it("affinity never overrides feasibility — an INCAPABLE tag-match is not chosen", () => {
+		const decision = routeNKleinTask({
+			difficulty: 70,
+			fitBudgetTokens: 8_000,
+			taskAffinityTags: ["code"],
+			candidates: [
+				// tag matches but capability 50 < difficulty 70 → infeasible
+				{
+					entry: createEntry({ key: "lmstudio:weak-coder:default", capability: 50, contextWindow: 40_000 }),
+					affinityTags: ["code"],
+				},
+				// no tag match but capable enough → the only feasible one
+				{
+					entry: createEntry({ key: "lmstudio:strong-general:default", capability: 80, contextWindow: 40_000 }),
+					affinityTags: ["instruct"],
+				},
+			],
+		});
+		expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:strong-general:default" });
+	});
+
+	it("prefers higher tag OVERLAP when several feasible candidates match", () => {
+		const decision = routeNKleinTask({
+			difficulty: 50,
+			fitBudgetTokens: 8_000,
+			taskAffinityTags: ["code", "agentic"],
+			candidates: [
+				{
+					entry: createEntry({ key: "lmstudio:a-one-tag:default", capability: 60, contextWindow: 40_000 }),
+					affinityTags: ["code"], // overlap 1
+				},
+				{
+					entry: createEntry({ key: "lmstudio:z-two-tags:default", capability: 60, contextWindow: 40_000 }),
+					affinityTags: ["code", "agentic"], // overlap 2 — wins despite worse key order
+				},
+			],
+		});
+		expect(decision).toMatchObject({ modelKey: "lmstudio:z-two-tags:default" });
+	});
 });
