@@ -2328,6 +2328,23 @@ source repo went private — so if it vanishes the buildable source still lives 
 ### 5.T — Settings/UI polish ✅ COMPLETE → moved to [done.md](done.md#5t--settingsui-polish-raised-2026-06-23-from-a-swarmsettings-review)
 
 ### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24; re-affirmed by the user 2026-06-24 — emphasis: **no large monolith files**, SOTA architecture/structure, efficiency in **both development and runtime**)*
+> **✅ DONE BAR (2026-06-30, user — FINAL; supersedes the unbounded "implement every safe improvement" completion
+> criterion).** §5.U is **DONE** when BOTH hold:
+> 1. **No non-test source file exceeds ~1000 lines** (`src/` + `web-ui/src/`, excluding `*.test.*`/`*.spec.*` and vendored
+>    `.venv`). Snapshot 2026-06-30 = **15 files over the line** (task-session 3044, runtime-settings-dialog 2855,
+>    provider-service 1651, nklein-agent-chat-panel 1442, App 1359, session-runtime 1348, board-card 1227, runtime-server
+>    1195, use-board-interactions 1146, card-detail-view 1100, dev 1064, workspace-state 1046, kanban-board 1040,
+>    dependency-overlay 1018, nklein-setup-section 1008).
+> 2. **The named architectural splits land:** the `InMemoryNKleinTaskSessionService` behavior split (task-session →
+>    collaborators), the provider-service `resolveVisibleApiKey`-anchored auth core, and the runtime-api `createRuntimeApi`
+>    router factory.
+> **The retired part:** the 2026-06-25 scope expansion ("implement EVERY safe improvement the analysis surfaces") is **no
+> longer a completion gate** — it becomes *opportunistic* (the MCF §5.0.3 clean-structure clause: refactor-as-you-go, pay
+> in-chapter), NOT a blocker. **Process lesson (user, 2026-06-30):** an unbounded refactor target was allowed to absorb
+> effort ahead of the real MCF-driven work; bound such targets up front, and drive "what next" from the MCF (§5.0.3), whose
+> named first build target is the **§5.AF durable scheduler**, not file-size nibbling. §5.U is now bounded; pursue it
+> *as chapter clean-up alongside* the real work, not instead of it.
+>
 > **Goal (meta-task):** do a deliberate, whole-codebase reasoning pass over !Klein's architecture and structure and
 > surface **every** worthwhile improvement — simplification, maintainability, performance, extensibility,
 > architecture, and code quality — then **write each finding into this todo.md as its own concrete, landable item**
