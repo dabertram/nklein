@@ -101,6 +101,7 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
+import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type {
@@ -388,19 +389,7 @@ function toRuntimeConfigState({
 		effectiveSelectedAgentId: selectedAgentIdOverride ?? selectedAgentId,
 		...resolveRuntimeSandboxConfig(globalConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
-		decompositionAutoApplyEnabled: normalizeBoolean(
-			globalConfig?.decompositionAutoApplyEnabled,
-			DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
-		),
-		secondOpinionReviewEnabled: normalizeBoolean(
-			globalConfig?.secondOpinionReviewEnabled,
-			DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
-		),
-		reviewMaxRounds: normalizePositiveInteger(globalConfig?.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
-		readyForReviewNotificationsEnabled: normalizeBoolean(
-			globalConfig?.readyForReviewNotificationsEnabled,
-			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
-		),
+		...resolveRuntimeReviewConfig(globalConfig),
 		codeEmbeddingDefaults,
 		codeEmbeddingOverride,
 		effectiveCodeEmbeddingSettings: codeEmbeddingOverride ?? codeEmbeddingDefaults,
