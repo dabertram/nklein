@@ -3,7 +3,37 @@ import { describe, expect, it } from "vitest";
 import {
 	extractDirectoryForSegmentPattern,
 	extractDirectoryForSegmentSequence,
+	isPathInside,
+	toPosixLowerPath,
 } from "../../../src/update/update-install-paths";
+
+describe("toPosixLowerPath", () => {
+	it("converts backslashes to forward slashes and lowercases", () => {
+		expect(toPosixLowerPath("C:\\Users\\Foo\\App.JS")).toBe("c:/users/foo/app.js");
+	});
+});
+
+describe("isPathInside", () => {
+	it("treats an identical path as inside", () => {
+		expect(isPathInside("/home/u/app", "/home/u/app")).toBe(true);
+	});
+
+	it("treats a nested path as inside", () => {
+		expect(isPathInside("/home/u/app/dist/cli.js", "/home/u/app")).toBe(true);
+	});
+
+	it("rejects a sibling sharing a name prefix (no /foo-inside-/foobar bug)", () => {
+		expect(isPathInside("/home/u/foobar/cli.js", "/home/u/foo")).toBe(false);
+	});
+
+	it("rejects an unrelated path", () => {
+		expect(isPathInside("/var/lib/other", "/home/u/app")).toBe(false);
+	});
+
+	it("compares case-insensitively", () => {
+		expect(isPathInside("/Home/U/App/Cli.js", "/home/u/app")).toBe(true);
+	});
+});
 
 describe("extractDirectoryForSegmentSequence", () => {
 	it("returns the directory ending one segment after an npx-cache sequence", () => {

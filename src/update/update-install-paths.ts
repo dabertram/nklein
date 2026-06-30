@@ -12,6 +12,24 @@ function toPosixPath(path: string): string {
 	return path.replaceAll("\\", "/");
 }
 
+/** Normalize Windows separators to POSIX `/` AND lowercase, for case-insensitive path comparison. */
+export function toPosixLowerPath(path: string): string {
+	return path.replaceAll("\\", "/").toLowerCase();
+}
+
+/**
+ * Case-insensitive containment: is `targetPath` the same as, or nested under, `containerPath`? Both are resolved
+ * first; the trailing-slash check on the prefix avoids the sibling-prefix bug (`/foo` is NOT inside `/foobar`).
+ */
+export function isPathInside(targetPath: string, containerPath: string): boolean {
+	const normalizedTarget = toPosixLowerPath(resolve(targetPath));
+	const normalizedContainer = toPosixLowerPath(resolve(containerPath));
+	if (normalizedTarget === normalizedContainer) {
+		return true;
+	}
+	return normalizedTarget.startsWith(`${normalizedContainer}/`);
+}
+
 /** Resolve a path and split it into segments (and lowercased segments), recording whether it was absolute. */
 function splitResolvedPath(path: string): {
 	hasLeadingSlash: boolean;

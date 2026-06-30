@@ -1,8 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
 import { readEnvWithLegacyFallback } from "../config/legacy-env";
-import { extractDirectoryForSegmentPattern, extractDirectoryForSegmentSequence } from "./update-install-paths";
+import {
+	extractDirectoryForSegmentPattern,
+	extractDirectoryForSegmentSequence,
+	isPathInside,
+	toPosixLowerPath,
+} from "./update-install-paths";
 import { compareVersions, getNpmTag } from "./update-version";
 
 export enum UpdatePackageManager {
@@ -128,19 +132,6 @@ export function getPendingUpdateNotification(): PendingUpdateNotification | null
 
 export function clearPendingUpdateNotification(): void {
 	pendingUpdateNotification = null;
-}
-
-function toPosixLowerPath(path: string): string {
-	return path.replaceAll("\\", "/").toLowerCase();
-}
-
-function isPathInside(targetPath: string, containerPath: string): boolean {
-	const normalizedTarget = toPosixLowerPath(resolve(targetPath));
-	const normalizedContainer = toPosixLowerPath(resolve(containerPath));
-	if (normalizedTarget === normalizedContainer) {
-		return true;
-	}
-	return normalizedTarget.startsWith(`${normalizedContainer}/`);
 }
 
 function buildShutdownCacheRefreshCommand(cacheDirectory: string): UpdateInstallCommand {
