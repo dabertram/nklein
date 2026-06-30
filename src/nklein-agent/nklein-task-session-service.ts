@@ -67,6 +67,7 @@ import {
 } from "./nklein-context-overflow-compaction";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
+import { computeNKleinFailureBackoff, type NKleinTaskFailureBackoffState } from "./nklein-failure-backoff";
 import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
@@ -152,17 +153,6 @@ interface NKleinTaskTimeoutSettings {
 	toolTimeoutSource: TaskRunTimeoutSource;
 	conversationTimeoutSource: TaskRunTimeoutSource;
 }
-
-interface NKleinTaskFailureBackoffState {
-	fingerprint: string;
-	count: number;
-	parked: boolean;
-}
-
-const NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD = 3;
-// A crashed/unloaded local model won't recover by retrying the dead endpoint, so park after a single
-// transient retry (instead of the generic 3) with reload guidance rather than storming a model that is gone.
-const NKLEIN_LOCAL_MODEL_UNAVAILABLE_PARK_THRESHOLD = 2;
 
 /**
  * Resolve a task's coarse launch role (todo §5.G/§5.U): reviewer for the synthetic `<taskId>::review` session,
@@ -774,25 +764,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			!creditLimitError &&
 			isLocalProvider(providerId, endpoint) &&
 			isLocalModelRuntimeUnavailableError(errorMessage);
-		const failureFingerprint = `${context}:${errorMessage}`;
-		const previousFailure = this.failureBackoffByTaskId.get(taskId);
-		const consecutiveFailures = previousFailure?.fingerprint === failureFingerprint ? previousFailure.count + 1 : 1;
-		const alreadyParked = previousFailure?.fingerprint === failureFingerprint && previousFailure.parked;
-		if (alreadyParked) {
+		const backoff = computeNKleinFailureBackoff({
+			context,
+			errorMessage,
+			previousFailure: this.failureBackoffByTaskId.get(taskId),
+			localModelUnavailable,
+		});
+		if (backoff.alreadyParked) {
 			return;
 		}
-		const parkThreshold = localModelUnavailable
-			? NKLEIN_LOCAL_MODEL_UNAVAILABLE_PARK_THRESHOLD
-			: NKLEIN_FAILURE_BACKOFF_PARK_THRESHOLD;
-		const shouldPark = consecutiveFailures >= parkThreshold;
+		const { consecutiveFailures, shouldPark } = backoff;
 		const localModelUnavailableGuidance = localModelUnavailable
 			? `Local model "${modelId}" on ${endpoint ?? "its endpoint"} became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure, which a reasoning model at a large context window on limited hardware can trigger). Reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume this task.`
 			: null;
-		this.failureBackoffByTaskId.set(taskId, {
-			fingerprint: failureFingerprint,
-			count: consecutiveFailures,
-			parked: shouldPark,
-		});
+		this.failureBackoffByTaskId.set(taskId, backoff.nextState);
 		recordSelfObservation({
 			signal: creditLimitError ? "provider_error" : localModelUnavailable ? "provider_error" : "runtime_error",
 			severity: "error",
@@ -2211,9 +2196,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.emitSummary(summary);
 			return cloneSummary(summary);
 		} catch (error) {
-			const failureFingerprint = `start:${toErrorMessage(error)}`;
-			const previousFailure = this.failureBackoffByTaskId.get(taskId);
-			if (!(previousFailure?.fingerprint === failureFingerprint && previousFailure.parked)) {
+			// Only `alreadyParked` is read here (it is independent of localModelUnavailable) — skip duplicate
+			// recovery-failure recording when this exact error already parked the task.
+			const alreadyParkedByThisError = computeNKleinFailureBackoff({
+				context: "start",
+				errorMessage: toErrorMessage(error),
+				previousFailure: this.failureBackoffByTaskId.get(taskId),
+				localModelUnavailable: false,
+			}).alreadyParked;
+			if (!alreadyParkedByThisError) {
 				this.recordSessionRecoveryFailure({
 					taskId,
 					operation: "reload_task_session",
