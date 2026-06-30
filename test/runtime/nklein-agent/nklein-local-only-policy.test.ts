@@ -23,6 +23,10 @@ const CLOUD_LITERAL_ALLOWLIST = new Map<string, string>([
 		"The provider service blocks managed NKlein OAuth/cloud settings before persistence or dispatch.",
 	],
 	[
+		"src/nklein-agent/nklein-provider-id-classification.ts",
+		"Classifies provider ids (managed-OAuth vs live-only) and maps managed ids to display names; the provider-id boundary helpers extracted from nklein-provider-service.",
+	],
+	[
 		"src/nklein-agent/sdk-provider-boundary.ts",
 		"The SDK boundary maps managed NKlein OAuth provider settings into SDK-owned shapes.",
 	],

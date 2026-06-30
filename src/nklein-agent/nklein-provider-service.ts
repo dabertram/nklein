@@ -41,6 +41,11 @@ import {
 } from "./nklein-provider-credential-helpers";
 import { buildDiscoveredModelSourceUrls, normalizeLmStudioModelListBaseUrl } from "./nklein-provider-discovery-urls";
 import {
+	formatManagedProviderDisplayName,
+	isLiveOnlyProviderId,
+	isManagedOauthProviderId,
+} from "./nklein-provider-id-classification";
+import {
 	extractDiscoveredModelsFromPayload,
 	mergeProviderModelsWithContextWindowFallback,
 	mergeProviderModelsWithModelRegistry,
@@ -187,24 +192,6 @@ function toErrorMessage(error: unknown): string {
 function parseNKleinRemoteConfigValue(value: string): NKleinRemoteConfig {
 	const parsed = JSON.parse(value) as unknown;
 	return NKLEIN_REMOTE_CONFIG_SCHEMA.parse(parsed);
-}
-
-function isManagedOauthProviderId(providerId: string): providerId is ManagedNKleinOauthProviderId {
-	return providerId === "nklein" || providerId === "oca" || providerId === "openai-codex";
-}
-
-function isLiveOnlyProviderId(providerId: string): boolean {
-	return providerId.trim().toLowerCase() === "lmstudio";
-}
-
-function formatManagedProviderDisplayName(providerId: ManagedNKleinOauthProviderId): string {
-	if (providerId === "nklein") {
-		return "!Klein";
-	}
-	if (providerId === "oca") {
-		return "Oracle Code Assist";
-	}
-	return "OpenAI Codex";
 }
 
 function readEnvApiKey(envKey: string): string | null {
