@@ -3,7 +3,7 @@
  *
  * Drives one `runChatTurn` with the real host clock injected (the §5.AC wiring) and asks the model a question whose
  * correct answer depends on knowing the REAL current date — one a model reasoning from its (past) training-cutoff
- * prior would get wrong. Asserts: (1) the `<current_datetime>` block actually leads the prompt, and (2) the model's
+ * prior would get wrong. Asserts: (1) the temporal block (`<current_date>` default, or `<current_datetime>`) actually leads the prompt, and (2) the model's
  * reply reflects the injected year (not a stale prior). The override proof — placing a date that's in the past
  * relative to "now" but in the future relative to the model's training as PAST — is logged as the strong signal.
  *
@@ -98,9 +98,11 @@ async function main(): Promise<void> {
 
 		const reply = result.assistantMessage.content.trim();
 		const replyLower = reply.toLowerCase();
-		const temporalNote = lastPrompt.find((m) => m.role === "system" && m.content.includes("<current_datetime>"));
+		// Accept either temporal block: the date-only `<current_date>` (now the cache-stable DEFAULT) or the opt-in
+		// `<current_datetime>`. `<current_date` is a prefix of both, so a prefix match covers both granularities.
+		const temporalNote = lastPrompt.find((m) => m.role === "system" && m.content.includes("<current_date"));
 		const temporalBlockOk = Boolean(temporalNote?.content.includes(t.todayIso));
-		const temporalLeadsOk = lastPrompt[0]?.role === "system" && lastPrompt[0].content.includes("<current_datetime>");
+		const temporalLeadsOk = lastPrompt[0]?.role === "system" && lastPrompt[0].content.includes("<current_date");
 		const yearOk = reply.includes(String(t.year));
 		// Strong override signal: the model correctly places a current-year past month in the PAST.
 		const pastSignal = /\bpast\b|already (happened|passed|occurred)|earlier this year|behind us|has passed/i.test(
@@ -109,7 +111,7 @@ async function main(): Promise<void> {
 
 		log("");
 		log("=== §5.AC temporal-awareness live verification ===");
-		log(`<current_datetime> block carries today's date:  ${temporalBlockOk ? "YES ✓" : "NO ⚠️"}`);
+		log(`<current_date(time)> block carries today's date: ${temporalBlockOk ? "YES ✓" : "NO ⚠️"}`);
 		log(`Temporal block LEADS the prompt (first note):    ${temporalLeadsOk ? "YES ✓" : "NO ⚠️"}`);
 		log(`Reply reflects the injected year (${t.year}):        ${yearOk ? "YES ✓" : "NO ⚠️"}`);
 		log(`Reply places ${t.year}-03-01 in the PAST (override): ${pastSignal ? "YES ✓ (strong)" : "—  (weak/unclear)"}`);

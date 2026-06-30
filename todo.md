@@ -4012,6 +4012,13 @@ deep analysis:
       phi-4-reasoning-plus, **deepseek-r1** (no crash this run — replied *"According to the authoritative current date/time
       (groundtruth), today is 2026-06-26 … in the past, as it occurred earlier this year"*, quoting the block verbatim).
       The lighthouse is robust regardless of model.
+      - **(2026-06-30) Desync fix + re-verify on a 27B.** The §5.AC date-only cache-stability win (default block is now
+        `<current_date>`, not `<current_datetime>`) had silently broken this script's two `<current_datetime>` assertions →
+        it reported a false **INCOMPLETE** (model behavior was correct all along). Fixed to prefix-match `<current_date`
+        (covers BOTH `<current_date>` and `<current_datetime>`). **Re-verified live on `qwopus3.6-27b-v2-mlx`** (resident,
+        USE-only — no load): **PASS ✓** all four — block carries today + leads the prompt, reply grounds year 2026, and
+        places `2026-03-01` in the PAST (training-prior overridden; the model's own reasoning quoted the injected
+        "Authoritative current date … 2026-06-30 (Tuesday)"). The first 27B confirmation, post-date-only-change.
 > **Sweep-derived hardening candidates (record-as-found; promote to §5.O when worked):**
 - [x] **Final-answer-repeat finalization watchdog — WIRED + TESTED (2026-06-28)** (from the qwen3.5-9b single-card sweep).
       A model that finishes the work then **loops re-emitting an identical no-tool "Done!" final message** used to sit
