@@ -10,6 +10,7 @@ import {
 	normalizePositiveNumber,
 } from "../core/normalize-number";
 import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
+import { normalizeTaskIdForSandboxPath } from "./nklein-agent-sandbox-task-path";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
 export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
@@ -896,16 +897,6 @@ export class AgentSandboxManager {
 			};
 		}
 	}
-}
-
-function normalizeTaskIdForSandboxPath(taskId: string): string {
-	return (
-		taskId
-			.trim()
-			.replaceAll(/[^a-zA-Z0-9._-]/g, "-")
-			.replace(/^-+/g, "")
-			.slice(0, 80) || "task"
-	);
 }
 
 /**
