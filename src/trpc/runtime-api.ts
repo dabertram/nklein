@@ -45,7 +45,6 @@ import type {
 import {
 	parseCommandRunRequest,
 	parseNKleinAccountSwitchRequest,
-	parseNKleinAddProviderRequest,
 	parseNKleinAdvisorBuildRequest,
 	parseNKleinAdvisorSendRequest,
 	parseNKleinDeviceAuthCompleteRequest,
@@ -55,8 +54,6 @@ import {
 	parseNKleinMcpSettingsSaveRequest,
 	parseNKleinOauthLoginRequest,
 	parseNKleinProviderModelsRequest,
-	parseNKleinProviderSettingsSaveRequest,
-	parseNKleinUpdateProviderRequest,
 	parseProtectedTestApprovalGrantRequest,
 	parseRuntimeConfigSaveRequest,
 	parseShellSessionStartRequest,
@@ -111,6 +108,11 @@ import {
 	handleApplyNKleinPlanArtifact,
 	handleRejectNKleinPlanArtifact,
 } from "./runtime-api/plan-artifact-application.js";
+import {
+	handleAddNKleinProvider,
+	handleSaveNKleinProviderSettings,
+	handleUpdateNKleinProvider,
+} from "./runtime-api/provider-settings.js";
 import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleClearSwarmStop, handleGetSwarmStop, handleRequestSwarmStop } from "./runtime-api/swarm-stop-control.js";
@@ -461,24 +463,21 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
 			}),
 		mergeTaskWorktrees: async (workspaceScope, input) => handleMergeTaskWorktrees(workspaceScope, input),
-		saveNKleinProviderSettings: async (_workspaceScope, input) => {
-			const body = parseNKleinProviderSettingsSaveRequest(input);
-			const response = await nkleinProviderService.saveProviderSettings(body);
-			deps.bumpNKleinSessionContextVersion?.();
-			return response;
-		},
-		addNKleinProvider: async (_workspaceScope, input) => {
-			const body = parseNKleinAddProviderRequest(input);
-			const response = await nkleinProviderService.addCustomProvider(body);
-			deps.bumpNKleinSessionContextVersion?.();
-			return response;
-		},
-		updateNKleinProvider: async (_workspaceScope, input) => {
-			const body = parseNKleinUpdateProviderRequest(input);
-			const response = await nkleinProviderService.updateCustomProvider(body);
-			deps.bumpNKleinSessionContextVersion?.();
-			return response;
-		},
+		saveNKleinProviderSettings: async (_workspaceScope, input) =>
+			handleSaveNKleinProviderSettings(input, {
+				nkleinProviderService,
+				bumpNKleinSessionContextVersion: deps.bumpNKleinSessionContextVersion,
+			}),
+		addNKleinProvider: async (_workspaceScope, input) =>
+			handleAddNKleinProvider(input, {
+				nkleinProviderService,
+				bumpNKleinSessionContextVersion: deps.bumpNKleinSessionContextVersion,
+			}),
+		updateNKleinProvider: async (_workspaceScope, input) =>
+			handleUpdateNKleinProvider(input, {
+				nkleinProviderService,
+				bumpNKleinSessionContextVersion: deps.bumpNKleinSessionContextVersion,
+			}),
 		startTaskSession: async (workspaceScope, input) => {
 			return await handleStartTaskSession(workspaceScope, input, {
 				loadScopedRuntimeConfig: deps.loadScopedRuntimeConfig,
