@@ -12,6 +12,7 @@ import {
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { type ProtectedTestApprovalStore, protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildAgentSandboxWorkdir } from "./nklein-agent-sandbox";
+import { parseApplyPatchTargets } from "./nklein-apply-patch-targets";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import { KANBAN_DECOMPOSE_WORKFLOW_MARKDOWN } from "./nklein-decomposition-workflow";
 import { parseEditFileRequest } from "./nklein-edit-file-tool";
@@ -85,87 +86,8 @@ function asNumber(value: unknown): number | null {
 	return Math.trunc(value);
 }
 
-type ApplyPatchTarget =
-	| { type: "add"; path: string; addedLines: number; addedText: string }
-	| { type: "update"; path: string; delta: number; addedText: string }
-	| { type: "delete"; path: string };
-
-function appendPatchAddedLine(existing: string, line: string): string {
-	return existing ? `${existing}\n${line}` : line;
-}
-
 function buildSecretWriteBlockReason(toolName: string, path: string, label: string): string {
 	return `Blocked ${toolName}: potential ${label} detected in ${path}. Remove the secret, replace it with a placeholder, or store it in the runtime's configured secret store before retrying.`;
-}
-
-function parseApplyPatchTargets(input: unknown): ApplyPatchTarget[] {
-	const rawPatch =
-		typeof input === "string"
-			? input
-			: input && typeof input === "object" && typeof (input as Record<string, unknown>).input === "string"
-				? ((input as Record<string, unknown>).input as string)
-				: "";
-	if (!rawPatch.trim()) {
-		return [];
-	}
-
-	const lines = rawPatch.split("\n");
-	const targets: ApplyPatchTarget[] = [];
-	let current: ApplyPatchTarget | null = null;
-
-	const flushCurrent = (): void => {
-		if (current) {
-			targets.push(current);
-			current = null;
-		}
-	};
-
-	for (const line of lines) {
-		const headerMatch = line.match(/^\*\*\*\s+(Add|Update|Delete)\s+File:\s+(.+)$/);
-		if (headerMatch) {
-			flushCurrent();
-			const action = headerMatch[1];
-			const path = headerMatch[2]?.trim() ?? "";
-			if (!path) {
-				continue;
-			}
-			if (action === "Add") {
-				current = { type: "add", path, addedLines: 0, addedText: "" };
-			} else if (action === "Update") {
-				current = { type: "update", path, delta: 0, addedText: "" };
-			} else {
-				current = { type: "delete", path };
-			}
-			continue;
-		}
-		if (!current) {
-			continue;
-		}
-		if (line.startsWith("***")) {
-			continue;
-		}
-		if (current.type === "add") {
-			if (line.startsWith("+")) {
-				current.addedLines += 1;
-				current.addedText = appendPatchAddedLine(current.addedText, line.slice(1));
-			}
-			continue;
-		}
-		if (current.type === "update") {
-			if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@")) {
-				continue;
-			}
-			if (line.startsWith("+")) {
-				current.delta += 1;
-				current.addedText = appendPatchAddedLine(current.addedText, line.slice(1));
-			} else if (line.startsWith("-")) {
-				current.delta -= 1;
-			}
-		}
-	}
-	flushCurrent();
-
-	return targets;
 }
 
 function trimMatchingQuotes(value: string): string {
