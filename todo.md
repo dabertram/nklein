@@ -2414,7 +2414,12 @@ source repo went private — so if it vanishes the buildable source still lives 
     `..`-escape drop, +10 tests); (b) `trpc/runtime-api.ts` → `runtime-api/chat-agent-tool-deps-resolver.ts` (the §5.M
     scope→tool-set wiring lifted out of the createRuntimeApi factory; 890 → 755, the now-unused chat imports stripped);
     (c) `terminal/ws-server.ts` → `terminal/ws-payload-parsing.ts` (`rawDataToBuffer` RawData→Buffer normalize +
-    `parseWebSocketPayload`, +7 tests). All behavior-preserving + tsc/biome/full-suite-gated, committed clean.
+    `parseWebSocketPayload`, +7 tests); (d) `server/workspace-registry.ts` → `server/project-task-counts.ts` (the pure
+    per-project task tally `countTasksByColumn` + the live `awaiting_review` overlay `applyLiveSessionStateToProjectTaskCounts`,
+    +6 tests); (e) `nklein-agent/nklein-session-runtime.ts` → `nklein-repo-map-rail-messages.ts` (the repo-map rail message
+    builder + the AgentMessage content-shape text extraction + 12k personalization cap, hoisting the duplicated
+    `kanban_repo_map_rail` literal into a shared const, +5 tests). All behavior-preserving + tsc/biome/full-suite-gated
+    (3920 → 3954), committed clean. **7 distinct monoliths reduced this session (runtime-config ×5 + these), suite 3907 → 3954.**
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
