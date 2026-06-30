@@ -1,5 +1,6 @@
 import { countKanbanTextTokens } from "./nklein-context-budgets";
 import { buildCompressedContextPreview, buildCompressedContextPreviewWithProvider } from "./nklein-context-compression";
+import { buildReadCoverageByPath, splitReadInputSummary } from "./nklein-read-coverage";
 import type { NKleinSdkPersistedMessage, NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
 
 type NKleinSdkContentBlock = Exclude<NKleinSdkPersistedMessage["content"], string>[number];
@@ -381,74 +382,6 @@ function buildFocusBrief(input: {
 		FOCUS_BRIEF_END,
 	);
 	return lines.join("\n");
-}
-
-function splitReadInputSummary(summary: string): string[] {
-	return summary
-		.split(",")
-		.map((part) => part.trim())
-		.filter((part) => part.length > 0);
-}
-
-function parseReadCoveragePart(part: string): { path: string; start: number; end: number } | null {
-	const colonIndex = part.lastIndexOf(":");
-	if (colonIndex <= 0) {
-		return null;
-	}
-	const path = part.slice(0, colonIndex).trim();
-	const range = part.slice(colonIndex + 1).trim();
-	const match = /^(\d+)-(\d+)$/.exec(range);
-	if (!path || !match?.[1] || !match[2]) {
-		return null;
-	}
-	const start = Number.parseInt(match[1], 10);
-	const end = Number.parseInt(match[2], 10);
-	return Number.isFinite(start) && Number.isFinite(end) && start > 0 && end >= start ? { path, start, end } : null;
-}
-
-interface ReadCoverageByPath {
-	path: string;
-	ranges: Array<{ start: number; end: number }>;
-	nextUnreadLine: number;
-}
-
-function buildReadCoverageByPath(ledger: readonly ReadFilesLedgerEntry[]): ReadCoverageByPath[] {
-	const rangesByPath = new Map<string, Array<{ start: number; end: number }>>();
-	for (const entry of ledger) {
-		for (const part of splitReadInputSummary(entry.inputSummary)) {
-			const parsed = parseReadCoveragePart(part);
-			if (!parsed) {
-				continue;
-			}
-			const ranges = rangesByPath.get(parsed.path) ?? [];
-			ranges.push({ start: parsed.start, end: parsed.end });
-			rangesByPath.set(parsed.path, ranges);
-		}
-	}
-	return [...rangesByPath.entries()].map(([path, ranges]) => {
-		const sortedRanges = [...ranges].sort((left, right) => left.start - right.start || left.end - right.end);
-		const mergedRanges: Array<{ start: number; end: number }> = [];
-		for (const range of sortedRanges) {
-			const previous = mergedRanges.at(-1);
-			if (previous && range.start <= previous.end + 1) {
-				previous.end = Math.max(previous.end, range.end);
-				continue;
-			}
-			mergedRanges.push({ ...range });
-		}
-		let nextUnreadLine = 1;
-		for (const range of mergedRanges) {
-			if (range.start > nextUnreadLine) {
-				break;
-			}
-			nextUnreadLine = Math.max(nextUnreadLine, range.end + 1);
-		}
-		return {
-			path,
-			ranges: mergedRanges,
-			nextUnreadLine,
-		};
-	});
 }
 
 function basename(path: string): string {
