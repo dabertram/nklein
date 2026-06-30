@@ -1,14 +1,22 @@
 import { execFile } from "node:child_process";
-import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import type { ToolExecutors } from "@cline/sdk";
-import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
+import type { SandboxNetworkPolicy } from "../core/agent-rulesets";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import {
-	normalizeNonNegativeInteger,
-	normalizePositiveInteger,
-	normalizePositiveNumber,
-} from "../core/normalize-number";
+	AGENT_SANDBOX_CONTAINER_LABEL,
+	AGENT_SANDBOX_VOLUME_PREFIX,
+	AGENT_SANDBOX_WORKSPACES_DIR,
+	type AgentSandboxPoolConfig,
+	type AgentSandboxProjectMount,
+	buildAgentSandboxDockerRunArgs,
+	createAgentSandboxContainerName,
+	createAgentSandboxProjectKey,
+	createAgentSandboxTaskUid,
+	createAgentSandboxVolumeName,
+	normalizeAgentSandboxPoolConfig,
+	resolveAgentSandboxImageName,
+} from "./nklein-agent-sandbox-docker";
 import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
 import {
 	type AgentSandboxShellTarget,
@@ -21,6 +29,10 @@ import { normalizeTaskIdForSandboxPath } from "./nklein-agent-sandbox-task-path"
 import { formatSandboxToolFailure, parseToolRunnerResult } from "./nklein-agent-sandbox-tool-result";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
+// Re-export the Docker construction surface (consts, run-option types, arg/name/uid builders) now in
+// nklein-agent-sandbox-docker so existing importers of this module (runtime-config, server, task-session-service)
+// are unchanged.
+export * from "./nklein-agent-sandbox-docker";
 // Re-export the interactive-shell builders (now in nklein-agent-sandbox-shell) so existing importers of this
 // module — runtime-api (buildTaskShellSpawnSpec) and task-session-service (AgentSandboxShellTarget) — are unchanged.
 export {
@@ -31,21 +43,7 @@ export {
 	type TaskShellSpawnSpec,
 };
 
-export const DEFAULT_AGENT_SANDBOX_IMAGE = "nklein/agent-sandbox:0.0.1";
-export const AGENT_SANDBOX_IMAGE_ENV = "NKLEIN_AGENT_SANDBOX_IMAGE";
-export const AGENT_SANDBOX_CONTAINER_LABEL = "nklein.kind=agent-sandbox";
-export const AGENT_SANDBOX_VOLUME_PREFIX = "nklein-agent-ws";
-export const AGENT_SANDBOX_CONTAINER_PREFIX = "nklein-agent-sandbox";
-export const AGENT_SANDBOX_WORKSPACES_DIR = "/workspaces";
 const DEFAULT_EXEC_TIMEOUT_MS = 30_000;
-export const DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
-export const DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS = DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES * 60 * 1000;
-export const DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB = 2048;
-export const DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER = 2;
-export const DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS = 1;
-export const DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER = 0;
-const TASK_UID_BASE = 70_000;
-const TASK_UID_SPAN = 20_000;
 const DOCKER_UNAVAILABLE_MARKERS = [
 	"cannot connect to the docker daemon",
 	"is the docker daemon running",
@@ -61,32 +59,6 @@ type SandboxApplyPatchInput = Parameters<NonNullable<ToolExecutors["applyPatch"]
 
 export interface AgentSandboxToolExecutorOptions {
 	pauseController?: Pick<NKleinPauseController, "waitUntilResumed">;
-}
-
-export interface AgentSandboxPoolConfig {
-	maxContainers: number;
-	agentsPerContainer: number;
-	memoryPerContainerMb: number;
-	cpusPerContainer: number;
-	idleTimeoutMs: number;
-}
-
-export interface AgentSandboxProjectMount {
-	projectKey: string;
-	projectRepoPath: string;
-}
-
-export interface AgentSandboxDockerRunOptions {
-	slot: number;
-	image: string;
-	projectMounts: readonly AgentSandboxProjectMount[];
-	config: AgentSandboxPoolConfig;
-	/**
-	 * Sandbox network posture from the resolved capability ruleset. Defaults to `"none"` (the historical,
-	 * fully-isolated behavior). Docker isolation itself (cap-drop, read-only rootfs, etc.) is unconditional and
-	 * NEVER affected by this value — only outbound network reachability changes.
-	 */
-	networkPolicy?: SandboxNetworkPolicy;
 }
 
 export interface AgentSandboxExecResult {
@@ -175,102 +147,6 @@ export class AgentSandboxExecutionError extends Error {
 		super(message);
 		this.name = "AgentSandboxExecutionError";
 	}
-}
-
-export function normalizeAgentSandboxPoolConfig(
-	config: Partial<AgentSandboxPoolConfig> | undefined,
-): AgentSandboxPoolConfig {
-	return {
-		maxContainers: normalizePositiveInteger(config?.maxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
-		agentsPerContainer: normalizeNonNegativeInteger(
-			config?.agentsPerContainer,
-			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-		),
-		memoryPerContainerMb: normalizePositiveInteger(
-			config?.memoryPerContainerMb,
-			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-		),
-		cpusPerContainer: normalizePositiveNumber(config?.cpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
-		idleTimeoutMs: normalizeNonNegativeInteger(config?.idleTimeoutMs, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS),
-	};
-}
-
-export function resolveAgentSandboxImageName(): string {
-	return process.env[AGENT_SANDBOX_IMAGE_ENV]?.trim() || DEFAULT_AGENT_SANDBOX_IMAGE;
-}
-
-export function createAgentSandboxProjectKey(projectRepoPath: string): string {
-	return createHash("sha256").update(projectRepoPath).digest("hex").slice(0, 12);
-}
-
-export function createAgentSandboxTaskUid(taskId: string): number {
-	const digest = createHash("sha256").update(taskId).digest();
-	const offset = digest.readUInt32BE(0) % TASK_UID_SPAN;
-	return TASK_UID_BASE + offset;
-}
-
-/**
- * Map a resolved {@link SandboxNetworkPolicy} to Docker `--network` arguments.
- *
- *  - `none`  → `--network none` (no outbound reachability; the historical default).
- *  - `full`  → `--network bridge` (default bridge network with NAT egress).
- *  - `allowlist` → **fail-closed to `none` for now.** A real per-domain egress allowlist needs an egress proxy
- *    or firewalled network that does not yet exist; granting full egress under an "allowlist" label would be a
- *    security lie, so until the proxy lands we deny rather than over-grant. Tracked as a follow-up.
- *
- * Hard invariant: this only changes outbound reachability. The container's other isolation flags
- * (`--cap-drop ALL`, `--read-only`, `no-new-privileges`, tmpfs, read-only mounts) are unconditional.
- */
-export function resolveAgentSandboxNetworkArgs(policy: SandboxNetworkPolicy): string[] {
-	return sandboxNetworkHasEgress(policy) ? ["--network", "bridge"] : ["--network", "none"];
-}
-
-export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOptions): string[] {
-	const containerName = createAgentSandboxContainerName(options.slot);
-	const volumeName = createAgentSandboxVolumeName(options.slot);
-	const pidsLimit =
-		options.config.agentsPerContainer > 0 ? Math.max(256, 256 * options.config.agentsPerContainer) : 1024;
-	const args = [
-		"run",
-		"-d",
-		"--name",
-		containerName,
-		"--label",
-		AGENT_SANDBOX_CONTAINER_LABEL,
-		"--label",
-		`nklein.slot=${options.slot}`,
-		...resolveAgentSandboxNetworkArgs(options.networkPolicy ?? "none"),
-		"--cap-drop",
-		"ALL",
-		"--security-opt",
-		"no-new-privileges",
-		"--pids-limit",
-		String(pidsLimit),
-		"--memory",
-		`${options.config.memoryPerContainerMb}m`,
-		"--cpus",
-		String(options.config.cpusPerContainer),
-		"--read-only",
-		"--tmpfs",
-		"/tmp:noexec,nosuid,size=512m",
-		"--mount",
-		`type=volume,src=${volumeName},dst=${AGENT_SANDBOX_WORKSPACES_DIR}`,
-		"--user",
-		"0:0",
-	];
-	for (const mount of options.projectMounts) {
-		args.push("--mount", `type=bind,src=${mount.projectRepoPath},dst=/repos/${mount.projectKey},readonly`);
-	}
-	args.push(options.image, "sleep", "infinity");
-	return args;
-}
-
-export function createAgentSandboxContainerName(slot: number): string {
-	return `${AGENT_SANDBOX_CONTAINER_PREFIX}-${slot}`;
-}
-
-export function createAgentSandboxVolumeName(slot: number): string {
-	return `${AGENT_SANDBOX_VOLUME_PREFIX}-${slot}`;
 }
 
 export function createAgentSandboxToolExecutors(
