@@ -1,3 +1,4 @@
+import { summarizeReadFileInput, summarizeText, summarizeValue } from "./nklein-content-summaries";
 import { countKanbanTextTokens } from "./nklein-context-budgets";
 import { buildCompressedContextPreview, buildCompressedContextPreviewWithProvider } from "./nklein-context-compression";
 import { buildReadCoverageByPath, splitReadInputSummary } from "./nklein-read-coverage";
@@ -70,73 +71,6 @@ function stringifyToolResultContent(content: NKleinSdkToolResultBlock["content"]
 			return "";
 		})
 		.join("\n");
-}
-
-function summarizeValue(value: unknown): string {
-	if (typeof value === "string") {
-		return value;
-	}
-	if (typeof value === "number" || typeof value === "boolean") {
-		return String(value);
-	}
-	if (value === null || value === undefined) {
-		return "";
-	}
-	try {
-		return JSON.stringify(value);
-	} catch {
-		return String(value);
-	}
-}
-
-function summarizeReadFileInput(input: Record<string, unknown>): string {
-	const appendRequest = (request: unknown, summaries: string[]): void => {
-		if (typeof request === "string") {
-			const trimmed = request.trim();
-			if (trimmed) {
-				summaries.push(trimmed);
-			}
-			return;
-		}
-		if (!request || typeof request !== "object") {
-			return;
-		}
-		const record = request as Record<string, unknown>;
-		const path = typeof record.path === "string" ? record.path.trim() : "";
-		if (!path) {
-			return;
-		}
-		const start = summarizeValue(record.start_line).trim();
-		const end = summarizeValue(record.end_line).trim();
-		summaries.push(start || end ? `${path}:${start || "?"}-${end || "?"}` : path);
-	};
-
-	const summaries: string[] = [];
-	for (const key of ["files", "file_paths", "paths"] as const) {
-		const value = input[key];
-		if (Array.isArray(value)) {
-			for (const item of value) {
-				appendRequest(item, summaries);
-			}
-		} else {
-			appendRequest(value, summaries);
-		}
-	}
-	appendRequest(input, summaries);
-
-	const uniqueSummaries = Array.from(new Set(summaries));
-	if (uniqueSummaries.length > 0) {
-		return uniqueSummaries.join(", ");
-	}
-	return summarizeValue(input);
-}
-
-function summarizeText(text: string, maxChars: number): string {
-	const normalized = text.replace(/\s+/g, " ").trim();
-	if (!normalized) {
-		return "empty";
-	}
-	return normalized.length <= maxChars ? normalized : `${normalized.slice(0, maxChars)}...`;
 }
 
 function addUniqueValue(values: string[], value: string): void {
