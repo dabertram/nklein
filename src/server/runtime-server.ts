@@ -40,7 +40,6 @@ import {
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
-import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
 import {
 	AgentSandboxManager,
 	type AgentSandboxPoolConfig,
@@ -98,6 +97,7 @@ import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
+import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
 
 interface DisposeTrackedWorkspaceResult {
@@ -134,27 +134,6 @@ export interface RuntimeServer {
 
 const WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
 const SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS = [100, 250, 500, 1_000, 2_000] as const;
-
-function readWorkspaceIdFromRequest(request: IncomingMessage, requestUrl: URL): string | null {
-	for (const headerName of [WORKSPACE_ID_HEADER, LEGACY_WORKSPACE_ID_HEADER]) {
-		const headerValue = request.headers[headerName];
-		const headerWorkspaceId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-		if (typeof headerWorkspaceId === "string") {
-			const normalized = headerWorkspaceId.trim();
-			if (normalized) {
-				return normalized;
-			}
-		}
-	}
-	const queryWorkspaceId = requestUrl.searchParams.get("workspaceId");
-	if (typeof queryWorkspaceId === "string") {
-		const normalized = queryWorkspaceId.trim();
-		if (normalized) {
-			return normalized;
-		}
-	}
-	return null;
-}
 
 async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {
 	let lastError: unknown = null;
