@@ -33,4 +33,28 @@ test.describe("agent chat streaming (harness pushFrame)", () => {
 		);
 		await expect(page.getByText("Hello from the streamed agent.")).toBeVisible({ timeout: 10_000 });
 	});
+
+	test("incremental token-streaming: re-emitting the same message id grows the text in place", async ({ page }) => {
+		const card = { ...buildBoardCard({ id: "task-chat-2", title: "Token streaming task" }), agentId: "nklein" };
+		const handle = await installRuntimeMock(page, {
+			snapshot: buildBoardSnapshot({ columns: buildBoardColumns({ in_progress: [card] }) }),
+		});
+		await gotoBoard(page);
+
+		const cardLocator = page.locator('[data-task-id="task-chat-2"]');
+		await expect(cardLocator).toBeVisible();
+		await cardLocator.locator("p").filter({ hasText: "Token streaming task" }).first().click();
+
+		// First token chunk for msg-stream renders…
+		handle.pushFrame(taskChatMessageFrame("task-chat-2", chatMessage("msg-stream", "assistant", "Streaming")));
+		await expect(page.getByText("Streaming", { exact: true })).toBeVisible({ timeout: 10_000 });
+
+		// …then the SAME message id is re-emitted with grown content (token-by-token append). The upsert-by-id reducer
+		// must replace in place — the final text shows, and the partial chunk no longer lingers as its own bubble.
+		handle.pushFrame(
+			taskChatMessageFrame("task-chat-2", chatMessage("msg-stream", "assistant", "Streaming token by token.")),
+		);
+		await expect(page.getByText("Streaming token by token.")).toBeVisible({ timeout: 10_000 });
+		await expect(page.getByText("Streaming", { exact: true })).toHaveCount(0);
+	});
 });
