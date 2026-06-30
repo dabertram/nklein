@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
+import { toSlug } from "../core/slugify";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { loadWorkspaceContext } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -222,11 +223,7 @@ function formatRevisionEntry(input: AppendNKleinPlanRevisionInput): string {
 }
 
 function slugify(input: string): string {
-	const slug = input
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
+	const slug = toSlug(input);
 	if (!slug) {
 		throw new Error("Plan slug cannot be empty.");
 	}

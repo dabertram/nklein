@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { toSlug } from "../core/slugify";
 import type {
 	SelfObservationEventRecord,
 	SelfObservationSeverity,
@@ -122,14 +123,7 @@ function normalizeMessageKey(message: string): string {
 }
 
 function slugify(input: string): string {
-	return (
-		input
-			.trim()
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, "-")
-			.replace(/^-+|-+$/g, "")
-			.slice(0, 48) || "dogfood"
-	);
+	return toSlug(input).slice(0, 48) || "dogfood";
 }
 
 function titleForSignal(signal: SelfObservationSignal): string {

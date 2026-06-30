@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import { toSlug } from "../../core/slugify";
 import type { NKleinPlanQuestion, NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
 import { expandDecomposeProjectTasks } from "./plan-task-expansion";
 import { decomposeProjectToolInputSchema } from "./plan-task-schemas";
@@ -19,12 +20,7 @@ export type DecomposeProjectToolInput = {
 };
 
 export function slugifyTaskId(input: string): string {
-	const slug = input
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return slug || "task";
+	return toSlug(input) || "task";
 }
 
 // `title` is intentionally NOT required: small models routinely omit it while sending a perfectly good

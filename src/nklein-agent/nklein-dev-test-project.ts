@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { isPathInsideGitWorkTree, resolveSafeCreatedWorkspaceParentDir } from "../config/workspace-location";
 import type { RuntimeDevTestProjectPreset } from "../core/projects-api-contract";
+import { toSlug } from "../core/slugify";
 import { loadDevTestProjectScenario } from "./dev-test-project-registry";
 
 const execFileAsync = promisify(execFile);
@@ -141,12 +142,7 @@ function getRepoRootFromCurrentModule(): string {
 }
 
 function slugify(input: string): string {
-	const slug = input
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return slug || "dev-test";
+	return toSlug(input) || "dev-test";
 }
 
 export function resolveNKleinDevTestTemplatePath(templateName = DEFAULT_TEMPLATE_NAME): string {

@@ -1,4 +1,5 @@
 import { type RuntimeAgentId, runtimeAgentIdSchema } from "../../core/api-contract";
+import { toSlug } from "../../core/slugify";
 import type { TaskWorktreeAutoMergeColumn } from "../../workspace/task-worktree-auto-merge";
 
 /**
@@ -8,12 +9,7 @@ import type { TaskWorktreeAutoMergeColumn } from "../../workspace/task-worktree-
  */
 
 export function slugifyPlanTaskId(input: string): string {
-	const slug = input
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return slug || "task";
+	return toSlug(input) || "task";
 }
 
 export function parseAutoMergeColumn(value: string | undefined): TaskWorktreeAutoMergeColumn {

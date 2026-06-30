@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { toSlug } from "../core/slugify";
 import { lockedFileSystem } from "../fs/locked-file-system";
 
 export interface EvidenceBundleTaskTranscript {
@@ -57,12 +58,7 @@ function getDefaultDevRunsParent(): string {
 }
 
 function slugifyScenario(input: string): string {
-	const slug = input
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "-")
-		.replace(/^-+|-+$/g, "");
-	return slug || "scenario";
+	return toSlug(input) || "scenario";
 }
 
 function formatTimestampForPath(timestamp: number): string {
