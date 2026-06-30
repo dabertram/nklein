@@ -24,6 +24,7 @@ import { updateTaskDependencies } from "../core/task-board-mutations";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
+import { parsePersistedStateFile } from "./persisted-state-file";
 import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
 import { createEmptyBoard, normalizeRuntimeBoardData } from "./runtime-board-normalization";
 import { formatSchemaIssues } from "./schema-issue-formatting";
@@ -322,26 +323,6 @@ async function readJsonFile(path: string): Promise<unknown | null> {
 		const message = error instanceof Error ? error.message : String(error);
 		throw new Error(`Could not read JSON file at ${path}. ${message}`);
 	}
-}
-
-function parsePersistedStateFile<T>(
-	filePath: string,
-	fileLabel: string,
-	raw: unknown | null,
-	schema: z.ZodType<T>,
-	defaultValue: T,
-): T {
-	if (raw === null) {
-		return defaultValue;
-	}
-	const parsed = schema.safeParse(raw);
-	if (!parsed.success) {
-		throw new Error(
-			`Invalid ${fileLabel} file at ${filePath}. ` +
-				`Fix or remove the file. Validation errors: ${formatSchemaIssues(parsed.error)}`,
-		);
-	}
-	return parsed.data;
 }
 
 function parseWorkspaceIndex(rawIndex: unknown | null): WorkspaceIndexFile {
