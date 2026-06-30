@@ -5,10 +5,10 @@ import type { RawData, WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 
 import type { RuntimeTerminalWsServerMessage } from "../core/api-contract";
-import { parseTerminalWsClientMessage } from "../core/api-validation";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint";
 import { handleSocketUpgrade } from "../server/middleware";
 import type { TerminalSessionService } from "./terminal-session-service";
+import { parseWebSocketPayload, rawDataToBuffer } from "./ws-payload-parsing";
 
 interface TerminalWebSocketConnectionContext {
 	taskId: string;
@@ -85,29 +85,6 @@ const OUTPUT_RESUME_CHECK_INTERVAL_MS = 16;
 function getWebSocketTransportSocket(ws: WebSocket): Socket | null {
 	const transportSocket = (ws as WebSocket & { _socket?: Socket })._socket;
 	return transportSocket ?? null;
-}
-
-function rawDataToBuffer(message: RawData): Buffer {
-	if (typeof message === "string") {
-		return Buffer.from(message, "utf8");
-	}
-	if (Buffer.isBuffer(message)) {
-		return message;
-	}
-	if (Array.isArray(message)) {
-		return Buffer.concat(message.map((part) => rawDataToBuffer(part)));
-	}
-	return Buffer.from(message);
-}
-
-function parseWebSocketPayload(message: RawData) {
-	try {
-		const text = typeof message === "string" ? message : message.toString("utf8");
-		const parsed = JSON.parse(text) as unknown;
-		return parseTerminalWsClientMessage(parsed);
-	} catch {
-		return null;
-	}
 }
 
 function sendControlMessage(ws: WebSocket, message: RuntimeTerminalWsServerMessage): void {
