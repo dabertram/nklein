@@ -2524,15 +2524,28 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return this.autonomyBudgetWatchdog.check(taskId, checkpoint, entry);
 	}
 
+	/** Shared park teardown: stop the task's timers and reset its per-task guards (before the abort). */
+	private resetGuardsForPark(taskId: string): void {
+		this.clearTaskTimeouts(taskId);
+		this.autonomyBudgetWatchdog.resetTask(taskId);
+		this.repeatedToolCallGuard.resetTask(taskId);
+	}
+
+	/** Appends a park system message to the task transcript, emits it, and clears the active-turn state. */
+	private pushParkSystemMessage(taskId: string, entry: NKleinTaskSessionEntry, message: string): void {
+		const systemMessage = createMessage(taskId, "system", message);
+		entry.messages.push(systemMessage);
+		this.emitMessage(taskId, systemMessage);
+		clearActiveTurnState(entry);
+	}
+
 	private parkTaskForPause(input: {
 		taskId: string;
 		entry: NKleinTaskSessionEntry;
 		message: string;
 		metadata: Record<string, unknown>;
 	}): RuntimeTaskSessionSummary {
-		this.clearTaskTimeouts(input.taskId);
-		this.autonomyBudgetWatchdog.resetTask(input.taskId);
-		this.repeatedToolCallGuard.resetTask(input.taskId);
+		this.resetGuardsForPark(input.taskId);
 		this.pauseController.markTaskParked(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
 		recordSelfObservation({
@@ -2543,10 +2556,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: input.metadata,
 		});
-		const systemMessage = createMessage(input.taskId, "system", input.message);
-		input.entry.messages.push(systemMessage);
-		this.emitMessage(input.taskId, systemMessage);
-		clearActiveTurnState(input.entry);
+		this.pushParkSystemMessage(input.taskId, input.entry, input.message);
 		return updateSummary(input.entry, {
 			state: "paused",
 			reviewReason: null,
@@ -2571,9 +2581,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		message: string;
 		metadata: Record<string, unknown>;
 	}): RuntimeTaskSessionSummary {
-		this.clearTaskTimeouts(input.taskId);
-		this.autonomyBudgetWatchdog.resetTask(input.taskId);
-		this.repeatedToolCallGuard.resetTask(input.taskId);
+		this.resetGuardsForPark(input.taskId);
 		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
 		recordSelfObservation({
 			signal: "budget_wall",
@@ -2583,10 +2591,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			...this.resolveTaskModelIdentity(input.taskId),
 			metadata: input.metadata,
 		});
-		const systemMessage = createMessage(input.taskId, "system", input.message);
-		input.entry.messages.push(systemMessage);
-		this.emitMessage(input.taskId, systemMessage);
-		clearActiveTurnState(input.entry);
+		this.pushParkSystemMessage(input.taskId, input.entry, input.message);
 		return updateSummary(input.entry, {
 			state: "awaiting_review",
 			reviewReason: "attention",
