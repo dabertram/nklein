@@ -2,27 +2,22 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
-import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { normalizePositiveInteger, normalizePositiveNumber } from "../core/normalize-number";
 import { lockedFileSystem } from "../fs/locked-file-system";
-import { buildNKleinModelRegistryKey, buildSharedLocalEndpointId } from "./nklein-model-registry-key";
+import {
+	createNKleinModelRegistryEntry,
+	normalizeSnapshot,
+	registryEntryObservationCount,
+} from "./nklein-model-registry-deserialize";
+import { buildNKleinModelRegistryKey } from "./nklein-model-registry-key";
 import { normalizeScore } from "./nklein-model-registry-normalizers";
 import { calculateEffectiveCapability, calculateEffectiveContextWindow, ewma } from "./nklein-model-registry-scoring";
-import {
-	createEmptyCapabilityStats,
-	createEmptySpeedStats,
-	normalizeCapabilityStats,
-	normalizeConstraints,
-	normalizeSpeedStats,
-	normalizeWindowStats,
-} from "./nklein-model-registry-stats";
-import { asRecord } from "./nklein-value-guards";
 import type { NKleinSdkAgentEvent, NKleinSdkSessionEvent } from "./sdk-runtime-boundary";
 
-// Re-exported from the extracted key module so existing importers keep their `nklein-model-registry` path.
+// Re-exported from the extracted key/deserialize modules so existing importers keep their `nklein-model-registry` path.
+export { createNKleinModelRegistryEntry } from "./nklein-model-registry-deserialize";
 export { buildNKleinModelRegistryKey, buildSharedLocalEndpointId } from "./nklein-model-registry-key";
 
-const MODEL_REGISTRY_SCHEMA_VERSION = 1;
 const DEFAULT_EWMA_ALPHA = 0.25;
 const DEFAULT_PERSIST_DEBOUNCE_MS = 25;
 export interface NKleinModelRegistryKeyInput {
@@ -125,66 +120,8 @@ export interface NKleinModelRegistryOptions {
 	persistDebounceMs?: number;
 }
 
-interface NKleinModelRegistryFileShape {
-	schemaVersion?: unknown;
-	updatedAt?: unknown;
-	models?: unknown;
-}
-
 function getDefaultModelRegistryPath(): string {
 	return join(resolveNkleinRuntimeHomePath(homedir()), "model-registry.json");
-}
-
-function registryEntryObservationCount(entry: NKleinModelRegistryEntry): number {
-	return entry.speed.samples + entry.capability.samples;
-}
-
-/**
- * Two persisted records can canonicalize to the same key (e.g. a `127.0.0.1` config and a
- * `localhost` observation). Keep the one carrying real observations so its telemetry survives
- * the merge instead of being clobbered by a blank duplicate.
- */
-function mergeDuplicateRegistryEntries(
-	existing: NKleinModelRegistryEntry,
-	incoming: NKleinModelRegistryEntry,
-): NKleinModelRegistryEntry {
-	const existingCount = registryEntryObservationCount(existing);
-	const incomingCount = registryEntryObservationCount(incoming);
-	if (existingCount !== incomingCount) {
-		return incomingCount > existingCount ? incoming : existing;
-	}
-	return incoming.updatedAt >= existing.updatedAt ? incoming : existing;
-}
-
-export function createNKleinModelRegistryEntry(
-	input: NKleinModelRegistryKeyInput,
-	now: number,
-): NKleinModelRegistryEntry {
-	const providerId = normalizeProviderId(input.providerId);
-	const modelId = normalizeModelId(input.modelId);
-	const endpoint = normalizeEndpoint(input.endpoint);
-	return {
-		key: buildNKleinModelRegistryKey({ providerId, modelId, endpoint }),
-		providerId,
-		modelId,
-		endpoint,
-		contextWindow: {
-			advertised: null,
-			observed: null,
-			userOverride: null,
-			effective: null,
-		},
-		speed: createEmptySpeedStats(),
-		capability: createEmptyCapabilityStats(),
-		constraints: {
-			sharedEndpointId: buildSharedLocalEndpointId({ providerId, modelId, endpoint }),
-			inputCostPerMillionTokens: null,
-			outputCostPerMillionTokens: null,
-			maxConcurrentRequests: null,
-		},
-		createdAt: now,
-		updatedAt: now,
-	};
 }
 
 function cloneEntry(entry: NKleinModelRegistryEntry, now?: number): NKleinModelRegistryEntry {
@@ -198,51 +135,6 @@ function cloneEntry(entry: NKleinModelRegistryEntry, now?: number): NKleinModelR
 		speed: { ...entry.speed },
 		capability,
 		constraints: { ...entry.constraints },
-	};
-}
-
-function normalizeEntry(value: unknown, fallbackNow: number): NKleinModelRegistryEntry | null {
-	const record = asRecord(value);
-	if (!record) {
-		return null;
-	}
-	const providerId = typeof record?.providerId === "string" ? normalizeProviderId(record.providerId) : null;
-	const modelId = typeof record?.modelId === "string" ? normalizeModelId(record.modelId) : null;
-	if (!providerId || !modelId) {
-		return null;
-	}
-	const endpoint = normalizeEndpoint(typeof record?.endpoint === "string" ? record.endpoint : null);
-	const base = createNKleinModelRegistryEntry({ providerId, modelId, endpoint }, fallbackNow);
-	const contextWindow = normalizeWindowStats(record.contextWindow);
-	const capability = normalizeCapabilityStats(record.capability, fallbackNow);
-	return {
-		...base,
-		contextWindow,
-		speed: normalizeSpeedStats(record.speed),
-		capability,
-		constraints: normalizeConstraints(record.constraints, base.constraints),
-		createdAt: normalizePositiveInteger(record.createdAt) ?? base.createdAt,
-		updatedAt: normalizePositiveInteger(record.updatedAt) ?? base.updatedAt,
-	};
-}
-
-function normalizeSnapshot(value: unknown, fallbackNow: number): NKleinModelRegistrySnapshot {
-	const record = asRecord(value) as NKleinModelRegistryFileShape | null;
-	const rawModels = asRecord(record?.models);
-	const models: Record<string, NKleinModelRegistryEntry> = {};
-	if (rawModels) {
-		for (const model of Object.values(rawModels)) {
-			const entry = normalizeEntry(model, fallbackNow);
-			if (entry) {
-				const existing = models[entry.key];
-				models[entry.key] = existing ? mergeDuplicateRegistryEntries(existing, entry) : entry;
-			}
-		}
-	}
-	return {
-		schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION,
-		updatedAt: normalizePositiveInteger(record?.updatedAt) ?? fallbackNow,
-		models,
 	};
 }
 
