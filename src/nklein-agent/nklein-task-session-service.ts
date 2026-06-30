@@ -80,7 +80,11 @@ import {
 	createTaskEntryFromPersistedSession,
 	type NKleinMessageRepository,
 } from "./nklein-message-repository";
-import { extractNKleinModelRegistryObservationFromEvent, getDefaultNKleinModelRegistry } from "./nklein-model-registry";
+import {
+	buildSharedLocalEndpointId,
+	extractNKleinModelRegistryObservationFromEvent,
+	getDefaultNKleinModelRegistry,
+} from "./nklein-model-registry";
 import { NKleinPauseController } from "./nklein-pause-controller";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
@@ -1435,7 +1439,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		this.modelIdByTaskId.set(request.taskId, modelId);
 		const endpoint = request.baseUrl?.trim() || null;
-		const sharedEndpointId = this.resolveSharedEndpointId({ providerId, modelId, endpoint });
+		const sharedEndpointId = buildSharedLocalEndpointId({ providerId, modelId, endpoint });
 		this.endpointByTaskId.set(request.taskId, endpoint);
 		this.recordLaunchContextWindow({
 			providerId,
@@ -3113,19 +3117,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				advertisedContextWindow: input.contextWindow,
 			})
 			.catch(() => undefined);
-	}
-
-	private resolveSharedEndpointId(input: {
-		providerId: string;
-		modelId: string;
-		endpoint: string | null;
-	}): string | null {
-		if (!isLocalProvider(input.providerId, input.endpoint)) {
-			return null;
-		}
-		const endpoint = input.endpoint ?? `${input.providerId}:default`;
-		const modelId = input.modelId.trim();
-		return modelId.length > 0 ? `${endpoint}#${modelId}` : endpoint;
 	}
 
 	private markModelRequestStarted(taskId: string): void {

@@ -160,7 +160,12 @@ function mergeDuplicateRegistryEntries(
 	return incoming.updatedAt >= existing.updatedAt ? incoming : existing;
 }
 
-function getDefaultSharedEndpointId(input: {
+/**
+ * The shared local-endpoint id for a (provider, model, endpoint) — the per-model key the swarm scheduler serializes on
+ * (or `null` for non-local providers, which don't share a host endpoint). Trims the model id so a stray-whitespace value
+ * doesn't change the key. The canonical impl, shared by the model registry + the task-session service.
+ */
+export function buildSharedLocalEndpointId(input: {
 	providerId: string;
 	modelId: string;
 	endpoint: string | null;
@@ -169,7 +174,8 @@ function getDefaultSharedEndpointId(input: {
 		return null;
 	}
 	const endpoint = input.endpoint ?? `${input.providerId}:default`;
-	return input.modelId ? `${endpoint}#${input.modelId}` : endpoint;
+	const modelId = input.modelId.trim();
+	return modelId.length > 0 ? `${endpoint}#${modelId}` : endpoint;
 }
 
 export function buildNKleinModelRegistryKey(input: NKleinModelRegistryKeyInput): string {
@@ -237,7 +243,7 @@ export function createNKleinModelRegistryEntry(
 		speed: createEmptySpeedStats(),
 		capability: createEmptyCapabilityStats(),
 		constraints: {
-			sharedEndpointId: getDefaultSharedEndpointId({ providerId, modelId, endpoint }),
+			sharedEndpointId: buildSharedLocalEndpointId({ providerId, modelId, endpoint }),
 			inputCostPerMillionTokens: null,
 			outputCostPerMillionTokens: null,
 			maxConcurrentRequests: null,

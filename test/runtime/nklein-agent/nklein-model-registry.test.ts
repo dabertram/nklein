@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	buildNKleinModelRegistryKey,
+	buildSharedLocalEndpointId,
 	extractNKleinModelRegistryObservationFromEvent,
 	NKleinModelRegistry,
 } from "../../../src/nklein-agent/nklein-model-registry";
@@ -610,5 +611,23 @@ describe("extractNKleinModelRegistryObservationFromEvent", () => {
 		);
 
 		expect(observation).toBeNull();
+	});
+});
+
+describe("buildSharedLocalEndpointId", () => {
+	it("builds endpoint#model for a local provider, defaulting the endpoint when absent", () => {
+		expect(
+			buildSharedLocalEndpointId({ providerId: "lmstudio", modelId: "qwen3-8b", endpoint: "http://x:1234" }),
+		).toBe("http://x:1234#qwen3-8b");
+		expect(buildSharedLocalEndpointId({ providerId: "lmstudio", modelId: "qwen3-8b", endpoint: null })).toBe(
+			"lmstudio:default#qwen3-8b",
+		);
+	});
+
+	it("trims the model id so stray whitespace doesn't change the key (empty after trim → just the endpoint)", () => {
+		expect(buildSharedLocalEndpointId({ providerId: "lmstudio", modelId: "  qwen3-8b  ", endpoint: "ep" })).toBe(
+			"ep#qwen3-8b",
+		);
+		expect(buildSharedLocalEndpointId({ providerId: "lmstudio", modelId: "   ", endpoint: "ep" })).toBe("ep");
 	});
 });
