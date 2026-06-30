@@ -260,6 +260,95 @@ export function taskSessionSummary(taskId: string, overrides: Record<string, unk
 	};
 }
 
+/**
+ * A complete mock `runtime.getConfig` response — the §5.AK shared e2e helper. Mock `runtime.getConfig` with this (via
+ * `installRuntimeMock`'s queryStubs or a route) so the Settings dialog renders; override any field for the test.
+ */
+export function buildMockRuntimeConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+	return {
+		selectedAgentId: "nklein",
+		selectedShortcutLabel: null,
+		cloudProviderSupportEnabled: false,
+		agentAutonomousModeEnabled: true,
+		agentTimeoutMode: "normal",
+		agentTimeoutProfile: "local",
+		requestTimeoutMs: null,
+		streamTimeoutMs: null,
+		toolTimeoutMs: null,
+		agentTimeoutMs: null,
+		conversationTimeoutMs: null,
+		maxAgentWritableFileLines: 1000,
+		maxConcurrentTasks: 3,
+		sandboxMaxContainers: 1,
+		sandboxAgentsPerContainer: 0,
+		sandboxMemoryPerContainerMb: 2048,
+		sandboxCpusPerContainer: 2,
+		sandboxIdleTimeoutMinutes: 10,
+		lostHeartbeatPolicy: "park",
+		decompositionAutoApplyEnabled: true,
+		secondOpinionReviewEnabled: true,
+		reviewMaxRounds: 20,
+		codeEmbeddingDefaults: { provider: "local_lexical", model: "local", baseUrl: null },
+		codeEmbeddingOverride: null,
+		effectiveCodeEmbeddingSettings: { provider: "local_lexical", model: "local", baseUrl: null },
+		developerModeEnabled: false,
+		replayCardsEnabled: false,
+		effectiveCommand: null,
+		globalConfigPath: "/home/user/.nklein/config.json",
+		projectConfigPath: null,
+		readyForReviewNotificationsEnabled: true,
+		detectedCommands: [],
+		agents: [
+			{
+				id: "nklein",
+				label: "!Klein",
+				binary: "nklein",
+				command: "",
+				defaultArgs: [],
+				installed: true,
+				configured: true,
+			},
+		],
+		agentSandboxStatus: {
+			state: "checking",
+			dockerAvailable: null,
+			imageAvailable: null,
+			image: "nklein/agent-sandbox:0.0.1",
+			message: null,
+			checkedAt: null,
+		},
+		shortcuts: [],
+		nkleinProviderSettings: {
+			providerId: "lm-studio",
+			modelId: "test-model",
+			baseUrl: "http://localhost:1234",
+			reasoningEffort: null,
+			apiKeyConfigured: false,
+			oauthProvider: null,
+			oauthAccessTokenConfigured: false,
+			oauthRefreshTokenConfigured: false,
+			oauthAccountId: null,
+			oauthExpiresAt: null,
+		},
+		modelRoles: {},
+		agentRulesets: {
+			capability: { globalPreset: "fully_open" },
+			delivery: { globalPreset: "fully_open" },
+		},
+		swarmGuardrails: {
+			maxAutonomousTurnsPerTask: 12,
+			maxAutonomousWallTimeMs: 7200000,
+			maxRepeatedNoDiffCheckpoints: 4,
+			maxRepeatedToolCallsPerTask: 3,
+		},
+		commitPromptTemplate: "",
+		openPrPromptTemplate: "",
+		commitPromptTemplateDefault: "Commit message",
+		openPrPromptTemplateDefault: "PR description",
+		...overrides,
+	};
+}
+
 let workspaceRevisionClock = 1;
 
 /**
