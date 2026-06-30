@@ -43,6 +43,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
 import { detectInstalledCommands } from "../terminal/agent-registry";
+import { resolveRuntimeAgentIdConfig } from "./runtime-config-agent-id-resolver";
 import { resolveRuntimeConcurrencyConfig } from "./runtime-config-concurrency-resolver";
 import {
 	AUTO_SELECT_AGENT_PRIORITY,
@@ -348,12 +349,10 @@ function toRuntimeConfigState({
 	globalConfig: RuntimeGlobalConfigFileShape | null;
 	projectConfig: RuntimeProjectConfigFileShape | null;
 }): RuntimeConfigState {
-	const selectedAgentId = normalizeAgentId(globalConfig?.selectedAgentId);
-	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(projectConfig?.selectedAgentIdOverride);
 	return {
 		globalConfigPath,
 		projectConfigPath,
-		selectedAgentId,
+		...resolveRuntimeAgentIdConfig(globalConfig, projectConfig),
 		selectedShortcutLabel: normalizeShortcutLabel(globalConfig?.selectedShortcutLabel),
 		developerModeEnabled: normalizeDeveloperModeEnabled(globalConfig),
 		replayCardsEnabled: normalizeBoolean(globalConfig?.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
@@ -364,8 +363,6 @@ function toRuntimeConfigState({
 		...resolveRuntimeTimeoutConfig(globalConfig),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
 		...resolveRuntimeConcurrencyConfig(globalConfig, projectConfig),
-		selectedAgentIdOverride,
-		effectiveSelectedAgentId: selectedAgentIdOverride ?? selectedAgentId,
 		...resolveRuntimeSandboxConfig(globalConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig(globalConfig),
