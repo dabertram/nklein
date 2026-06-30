@@ -2430,6 +2430,18 @@ source repo went private — so if it vanishes the buildable source still lives 
     constants module to avoid a value-cycle; the mcp/provider OAuth helpers are local-zod-schema-derived-type-coupled) —
     i.e. the verifiable clean-leaf vein for THIS pass is substantially harvested; what's left is the documented
     coupled/architectural work (runtime-config sibling-builder dedup; task-session behavior split; runtime-api factory).
+    **MORE landed after that note (suite 3969 → 3983):** (h) `nklein-context-focus-policy.ts` →
+    `nklein-observed-path-extraction.ts` (strip the focus-brief block + regex observed/missing file paths out of
+    transcript text, ENOENT-gated, +9 tests); (i) `core/task-board-mutations.ts` — deduped the byte-identical
+    `collectExistingTaskIds`/`collectTaskIds`; (j) `nklein-agent-sandbox.ts` → `nklein-agent-sandbox-shell.ts` (the
+    interactive shell-spawn builders `buildAgentSandboxInteractiveShellArgs`/`buildTaskShellSpawnSpec` + DEFAULT shell +
+    types — self-contained, no broader-const coupling; **re-exported from the sandbox facade so runtime-api +
+    task-session-service importers are unchanged** — the re-export technique that ALSO unblocks the bigger Docker-args
+    cut once a shared constants module exists, +5 tests). **11 distinct monoliths reduced this session, suite 3907 → 3983
+    (+76 tests), 22 gated commits.** NEXT for the agent-sandbox: extract the Docker-arg builders (run-args / container &
+    volume names / task-uid / network-args) — now that shell is out, the remaining blocker is the ~13 shared consts; do a
+    `nklein-agent-sandbox-constants.ts` first (both the core and the new docker-args module import from it, one-directional),
+    THEN move the builders + re-export. A focused fresh-context pass.
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
