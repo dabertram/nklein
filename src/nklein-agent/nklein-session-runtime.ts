@@ -44,6 +44,11 @@ import {
 } from "./nklein-promotion-tool";
 import { buildReadFilesRequestFingerprint, buildReadFilesTargetKeys } from "./nklein-read-files-fingerprint";
 import { buildNKleinRepoMap } from "./nklein-repo-map";
+import {
+	collectRepoMapPersonalizationText,
+	createRepoMapRailMessage,
+	REPO_MAP_RAIL_MESSAGE_KIND,
+} from "./nklein-repo-map-rail-messages";
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
@@ -58,7 +63,6 @@ import type {
 	AgentAfterToolContext,
 	AgentBeforeModelContext,
 	AgentBeforeModelResult,
-	AgentMessage,
 	AgentTool,
 } from "./sdk-agent-types";
 import { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
@@ -152,53 +156,12 @@ export function readKanbanLaunchConfigFromSessionRecord(
 	};
 }
 
-function createRepoMapRailMessage(text: string): AgentMessage {
-	return {
-		id: `kanban-repo-map-rail-${Date.now()}`,
-		role: "user",
-		content: [{ type: "text", text }],
-		createdAt: Date.now(),
-		metadata: {
-			kind: "kanban_repo_map_rail",
-		},
-	};
-}
-
 /**
  * Latest focus chain (todo §5.N) per live session, captured when the agent calls `update_focus_chain`. The
  * beforeModel hook re-anchors it into each request so a small model stays on its own plan across turns and after
  * context compaction (the chain is otherwise only present as the tool call/result, which compaction can drop).
  */
 const focusChainBySessionId = new Map<string, FocusChain>();
-
-function readAgentMessageText(message: AgentMessage): string {
-	const content = message.content;
-	if (typeof content === "string") {
-		return content;
-	}
-	if (!Array.isArray(content)) {
-		return "";
-	}
-	return content
-		.map((part) => {
-			if (!part || typeof part !== "object" || !("text" in part)) {
-				return "";
-			}
-			const text = part.text;
-			return typeof text === "string" ? text : "";
-		})
-		.filter(Boolean)
-		.join("\n");
-}
-
-function collectRepoMapPersonalizationText(messages: readonly AgentMessage[]): string {
-	const text = messages
-		.filter((message) => message.metadata?.kind !== "kanban_repo_map_rail")
-		.map(readAgentMessageText)
-		.filter(Boolean)
-		.join("\n\n");
-	return text.length > 12_000 ? text.slice(-12_000) : text;
-}
 
 export function doesNKleinToolInvalidateRepoMap(context: AgentAfterToolContext): boolean {
 	if (context.result.isError === true) {
@@ -222,7 +185,7 @@ async function appendRepoMapBeforeModel(
 	if (!repoMap) {
 		return baseResult ?? undefined;
 	}
-	const alreadyInjected = messages.some((message) => message.metadata?.kind === "kanban_repo_map_rail");
+	const alreadyInjected = messages.some((message) => message.metadata?.kind === REPO_MAP_RAIL_MESSAGE_KIND);
 	if (alreadyInjected) {
 		return baseResult ?? undefined;
 	}
