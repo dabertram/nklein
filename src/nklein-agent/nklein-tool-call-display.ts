@@ -1,3 +1,5 @@
+import { extractReadFileSummaries } from "./nklein-read-file-input-summary";
+
 export interface NKleinToolCallDisplay {
 	toolName: string;
 	inputSummary: string | null;
@@ -45,86 +47,6 @@ function normalizeDisplayToolName(toolName: string | null | undefined): string {
 function summarizeStringInput(input: string): string | null {
 	const firstLine = input.split("\n").find((line) => line.trim().length > 0);
 	return firstLine ? firstLine.trim().slice(0, 120) : null;
-}
-
-function appendReadFileSummary(summaries: string[], value: unknown): void {
-	if (typeof value === "string") {
-		const trimmed = value.trim();
-		if (trimmed.length > 0) {
-			summaries.push(trimmed);
-		}
-		return;
-	}
-
-	if (!isRecord(value)) {
-		return;
-	}
-
-	const path =
-		typeof value.path === "string"
-			? value.path.trim()
-			: typeof value.file_path === "string"
-				? value.file_path.trim()
-				: typeof value.filePath === "string"
-					? value.filePath.trim()
-					: "";
-	if (path.length === 0) {
-		return;
-	}
-
-	const startLine = Number.isInteger(value.start_line) ? Number(value.start_line) : null;
-	const endLine = Number.isInteger(value.end_line) ? Number(value.end_line) : null;
-
-	if (startLine === null && endLine === null) {
-		summaries.push(path);
-		return;
-	}
-
-	const start = startLine ?? 1;
-	const end = endLine ?? "EOF";
-	summaries.push(`${path}:${start}-${end}`);
-}
-
-function extractReadFileSummaries(input: unknown): string[] {
-	const summaries: string[] = [];
-
-	if (typeof input === "string") {
-		appendReadFileSummary(summaries, input);
-		return Array.from(new Set(summaries));
-	}
-
-	if (Array.isArray(input)) {
-		for (const value of input) {
-			appendReadFileSummary(summaries, value);
-		}
-		return Array.from(new Set(summaries));
-	}
-
-	if (!isRecord(input)) {
-		return summaries;
-	}
-
-	appendReadFileSummary(summaries, input);
-
-	const filePaths = input.file_paths;
-	if (typeof filePaths === "string") {
-		appendReadFileSummary(summaries, filePaths);
-	} else if (Array.isArray(filePaths)) {
-		for (const value of filePaths) {
-			appendReadFileSummary(summaries, value);
-		}
-	}
-
-	const files = input.files;
-	if (Array.isArray(files)) {
-		for (const value of files) {
-			appendReadFileSummary(summaries, value);
-		}
-	} else if (files !== undefined) {
-		appendReadFileSummary(summaries, files);
-	}
-
-	return Array.from(new Set(summaries));
 }
 
 function readNumber(value: unknown): number | null {
