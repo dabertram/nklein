@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
-import { loadGlobalRuntimeConfig, loadRuntimeConfig, type RuntimeConfigState } from "../config/runtime-config";
+import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import {
 	capabilitiesForTier,
@@ -40,11 +40,7 @@ import {
 } from "../core/task-board-mutations";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
-import {
-	AgentSandboxManager,
-	type AgentSandboxPoolConfig,
-	resolveAgentSandboxImageName,
-} from "../nklein-agent/nklein-agent-sandbox";
+import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
@@ -93,6 +89,7 @@ import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-chang
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
 import { createTaskResultBranchRef, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
+import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import type { RuntimeStateHub } from "./runtime-state-hub";
@@ -177,27 +174,6 @@ async function resolveReviewSandboxResult(options: {
 		}
 	}
 	return "unknown";
-}
-
-function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSandboxPoolConfig {
-	return {
-		maxContainers: runtimeConfig.sandboxMaxContainers,
-		agentsPerContainer: runtimeConfig.sandboxAgentsPerContainer,
-		memoryPerContainerMb: runtimeConfig.sandboxMemoryPerContainerMb,
-		cpusPerContainer: runtimeConfig.sandboxCpusPerContainer,
-		idleTimeoutMs: runtimeConfig.sandboxIdleTimeoutMinutes * 60 * 1000,
-	};
-}
-
-function createCheckingAgentSandboxStatus(): RuntimeAgentSandboxStatus {
-	return {
-		state: "checking",
-		dockerAvailable: null,
-		imageAvailable: null,
-		image: resolveAgentSandboxImageName(),
-		message: null,
-		checkedAt: null,
-	};
 }
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
