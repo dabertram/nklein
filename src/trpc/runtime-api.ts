@@ -61,8 +61,6 @@ import {
 	parseProtectedTestApprovalGrantRequest,
 	parseRuntimeConfigSaveRequest,
 	parseShellSessionStartRequest,
-	parseTaskChatAbortRequest,
-	parseTaskChatCancelRequest,
 	parseTaskChatMessagesRequest,
 	parseTaskChatReloadRequest,
 	parseTaskContextImportRequest,
@@ -119,6 +117,7 @@ import {
 import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
+import { handleAbortTaskChatTurn, handleCancelTaskChatTurn } from "./runtime-api/task-chat-turn-control.js";
 import { handleCollectTaskEvidence } from "./runtime-api/task-evidence.js";
 import { handlePauseTask, handleResumeTask } from "./runtime-api/task-pause-resume.js";
 import {
@@ -671,56 +670,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				};
 			}
 		},
-		abortTaskChatTurn: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskChatAbortRequest(input);
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				const summary = await nkleinTaskSessionService.abortTaskSession(body.taskId);
-				if (!summary) {
-					return {
-						ok: false,
-						summary: null,
-						error: "Task chat session is not running.",
-					};
-				}
-				return {
-					ok: true,
-					summary,
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					summary: null,
-					error: message,
-				};
-			}
-		},
-		cancelTaskChatTurn: async (workspaceScope, input) => {
-			try {
-				const body = parseTaskChatCancelRequest(input);
-				const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-				const summary = await nkleinTaskSessionService.cancelTaskTurn(body.taskId);
-				if (!summary) {
-					return {
-						ok: false,
-						summary: null,
-						error: "Task chat session turn is not running.",
-					};
-				}
-				return {
-					ok: true,
-					summary,
-				};
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				return {
-					ok: false,
-					summary: null,
-					error: message,
-				};
-			}
-		},
+		abortTaskChatTurn: async (workspaceScope, input) =>
+			handleAbortTaskChatTurn(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+			}),
+		cancelTaskChatTurn: async (workspaceScope, input) =>
+			handleCancelTaskChatTurn(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+			}),
 		getNKleinProviderCatalog: async (_workspaceScope) => {
 			return await nkleinProviderService.getProviderCatalog();
 		},
