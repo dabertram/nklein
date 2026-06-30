@@ -2403,7 +2403,7 @@ deep analysis:
       direction). Unifying means either injecting a "live summaries provider" into the low layer (inversion) or routing
       every persisted-read caller through the registry merge — a real design change across workspace-state / registry /
       hub / runtime-server / workspace-api, with merge-semantics + dependency-cycle risk. Deserves a focused design pass +
-      its own characterization tests; do NOT fold into a tail-of-session batch.)*
+      its own characterization tests; do NOT fold into a tail-of-session batch.)* **PREREQUISITE DONE (2026-06-30):** the merge itself is now an explicit, unit-tested primitive — `applyLiveSessionsToWorkspaceState(response, liveSummaries)` in `src/state/workspace-live-session-merge.ts` (+5 characterization tests pinning the semantics: live REPLACES persisted per taskId, persisted-only kept, live-only added, empty = no-op), and `buildWorkspaceStateSnapshot` uses it. The REMAINING (still a focused-pass, NOT tail-of-session): route every persisted-read caller through this merge (inject a live-summaries provider into the low `workspace-state` layer, or route through the registry) — the dependency-direction/merge-semantics design across workspace-state / registry / hub / runtime-server / workspace-api.
 - [x] **(M3, low-med) Guarded the UI `saveState` write path** (2026-06-26) — `saveWorkspaceState` now runs
       `updateTaskDependencies(normalizeRuntimeBoardData(board))` on the incoming board (the same normalization every load
       path applies) before persisting, so a stale/buggy/hostile UI can't write illegal state (cards in unknown columns,
