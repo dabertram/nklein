@@ -32,6 +32,7 @@ import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy"
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
+import { buildDiscoveredModelSourceUrls, normalizeLmStudioModelListBaseUrl } from "./nklein-provider-discovery-urls";
 import {
 	extractDiscoveredModelsFromPayload,
 	mergeProviderModelsWithContextWindowFallback,
@@ -295,59 +296,6 @@ function resolveLiteLlmModelListItemId(item: LiteLlmModelListItem, pathname: Lit
 	return modelId?.trim() ?? "";
 }
 
-function normalizeDiscoveryBaseUrl(baseUrl: string): string {
-	const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/u, "");
-	try {
-		const parsedUrl = new URL(trimmedBaseUrl);
-		if (parsedUrl.pathname.endsWith("/embeddings")) {
-			parsedUrl.pathname = parsedUrl.pathname.slice(0, -"/embeddings".length) || "/";
-		}
-		parsedUrl.search = "";
-		parsedUrl.hash = "";
-		return parsedUrl.toString().replace(/\/+$/u, "");
-	} catch {
-		return trimmedBaseUrl.replace(/\/embeddings$/iu, "");
-	}
-}
-
-function buildDiscoveredModelSourceUrls(input: { baseUrl: string; modelsSourceUrl?: string | null }): string[] {
-	const candidates = new Set<string>();
-	const addCandidate = (value: string | null | undefined) => {
-		const trimmed = value?.trim();
-		if (trimmed) {
-			candidates.add(trimmed.replace(/\/+$/u, ""));
-		}
-	};
-	addCandidate(input.modelsSourceUrl);
-	const normalizedBaseUrl = normalizeDiscoveryBaseUrl(input.baseUrl);
-	addCandidate(normalizedBaseUrl);
-	try {
-		const parsedUrl = new URL(normalizedBaseUrl);
-		const pathname = parsedUrl.pathname.replace(/\/+$/u, "");
-		if (pathname.endsWith("/models") || pathname.endsWith("/api/v0/models") || pathname.endsWith("/api/v1/models")) {
-			addCandidate(parsedUrl.toString());
-		} else {
-			const joinPath = (nextPathname: string) => {
-				const nextUrl = new URL(parsedUrl.toString());
-				nextUrl.pathname = nextPathname;
-				nextUrl.search = "";
-				nextUrl.hash = "";
-				addCandidate(nextUrl.toString());
-			};
-			joinPath(`${pathname || ""}/models`);
-			const trimmedV1Path = pathname.endsWith("/v1") ? pathname.slice(0, -"/v1".length) : pathname;
-			joinPath(`${trimmedV1Path || ""}/api/v1/models`);
-			joinPath(`${trimmedV1Path || ""}/api/v0/models`);
-		}
-	} catch {
-		addCandidate(`${normalizedBaseUrl}/models`);
-		const trimmedV1BaseUrl = normalizedBaseUrl.replace(/\/v1$/iu, "");
-		addCandidate(`${trimmedV1BaseUrl}/api/v1/models`);
-		addCandidate(`${trimmedV1BaseUrl}/api/v0/models`);
-	}
-	return [...candidates];
-}
-
 async function discoverModelsFromEndpoint(input: {
 	baseUrl: string;
 	apiKey?: string | null;
@@ -547,21 +495,6 @@ async function fetchLmStudioBaseUrlModels(settings: SdkProviderSettings | null):
 		}
 	}
 	return [];
-}
-
-function normalizeLmStudioModelListBaseUrl(baseUrl: string): string {
-	const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, "");
-	try {
-		const parsedUrl = new URL(trimmedBaseUrl);
-		if (parsedUrl.pathname.endsWith("/v1")) {
-			parsedUrl.pathname = parsedUrl.pathname.slice(0, -"/v1".length) || "/";
-		}
-		parsedUrl.search = "";
-		parsedUrl.hash = "";
-		return parsedUrl.toString().replace(/\/+$/, "");
-	} catch {
-		return trimmedBaseUrl.replace(/\/v1$/i, "");
-	}
 }
 
 /**
