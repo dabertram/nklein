@@ -6,6 +6,7 @@ import type {
 	SelfObservationSeverity,
 	SelfObservationSignal,
 } from "../telemetry/self-observation-sink";
+import { isSelfObservationSeverity } from "../telemetry/self-observation-sink";
 import { type NKleinPlanArtifacts, type NKleinPlanTaskGraph, writeNKleinPlanArtifacts } from "./nklein-plan-artifacts";
 import {
 	evaluateTrustedAutoMerge,
@@ -63,10 +64,6 @@ export interface BuildNKleinDogfoodBacklogOptions {
 export interface WriteNKleinDogfoodBacklogOptions extends Omit<BuildNKleinDogfoodBacklogOptions, "events"> {
 	workspacePath: string;
 	telemetryRootDir: string;
-}
-
-function isSelfObservationSeverity(value: unknown): value is SelfObservationSeverity {
-	return value === "debug" || value === "info" || value === "warning" || value === "error";
 }
 
 function isSelfObservationSignal(value: unknown): value is SelfObservationSignal {

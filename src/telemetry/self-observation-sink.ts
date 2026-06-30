@@ -188,7 +188,7 @@ function isSelfObservationSignal(value: unknown): value is SelfObservationSignal
 	);
 }
 
-function isSelfObservationSeverity(value: unknown): value is SelfObservationSeverity {
+export function isSelfObservationSeverity(value: unknown): value is SelfObservationSeverity {
 	return value === "debug" || value === "info" || value === "warning" || value === "error";
 }
 

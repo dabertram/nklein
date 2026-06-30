@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import type { SelfObservationEventRecord, SelfObservationSignal } from "../telemetry/self-observation-sink";
+import { isSelfObservationSeverity } from "../telemetry/self-observation-sink";
 import {
 	DEFAULT_NKLEIN_DEV_TEST_SCENARIO,
 	type NKleinDevTestProjectScenario,
@@ -96,10 +97,6 @@ async function readGitDiff(workspacePath: string): Promise<string | null> {
 	} catch {
 		return null;
 	}
-}
-
-function isSelfObservationSeverity(value: unknown): value is SelfObservationEventRecord["severity"] {
-	return value === "debug" || value === "info" || value === "warning" || value === "error";
 }
 
 function parseDevSmokeTelemetryLine(line: string): SelfObservationEventRecord | null {
