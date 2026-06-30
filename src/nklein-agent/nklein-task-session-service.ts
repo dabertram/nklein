@@ -115,6 +115,7 @@ import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
 import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
 import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
+import { TaskRequestTimer } from "./nklein-task-request-timer";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
 import { type NKleinTaskTimeoutKind, TaskTimeoutHandles } from "./nklein-task-timeout-handles";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
@@ -380,7 +381,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly contextWindowStore = new TaskContextWindowStore();
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
-	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
+	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoffByTaskId = new Map<string, NKleinTaskFailureBackoffState>();
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
 	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
@@ -679,7 +680,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		})}`;
 
 		await this.waitUntilTaskResumed(input.taskId);
-		this.markModelRequestStarted(input.taskId);
+		this.requestTimer.markStarted(input.taskId);
 		// Sandbox-proxied tool executors / extra tools for the rebuilt session (or the caller's, if supplied).
 		const sandboxToolExecutors =
 			input.toolExecutors ??
@@ -1020,7 +1021,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			!this.sessionRuntime.requiresTaskSessionRestart(input.taskId, input.mode, input.launchConfigOverrides)
 		) {
 			await this.waitUntilTaskResumed(input.taskId);
-			this.markModelRequestStarted(input.taskId);
+			this.requestTimer.markStarted(input.taskId);
 			return {
 				result: await this.sessionRuntime.sendTaskSessionInput(
 					input.taskId,
@@ -1052,7 +1053,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			await this.sessionRuntime.stopTaskSession(input.taskId);
 			if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
 				await this.waitUntilTaskResumed(input.taskId);
-				this.markModelRequestStarted(input.taskId);
+				this.requestTimer.markStarted(input.taskId);
 				const restartedSession = await this.sessionRuntime.restartTaskSession({
 					taskId: input.taskId,
 					prompt: input.prompt,
@@ -1107,7 +1108,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		});
 		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
 			await this.waitUntilTaskResumed(input.taskId);
-			this.markModelRequestStarted(input.taskId);
+			this.requestTimer.markStarted(input.taskId);
 			const restartedSession = await this.sessionRuntime.restartTaskSession({
 				taskId: input.taskId,
 				prompt: input.prompt,
@@ -1175,7 +1176,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		await this.sessionRuntime.stopTaskSession(input.taskId).catch(() => null);
 		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
 			await this.waitUntilTaskResumed(input.taskId);
-			this.markModelRequestStarted(input.taskId);
+			this.requestTimer.markStarted(input.taskId);
 			const restartedSession = await this.sessionRuntime.restartTaskSession({
 				taskId: input.taskId,
 				prompt: input.prompt,
@@ -1370,7 +1371,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			});
 		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
 			await this.waitUntilTaskResumed(input.taskId);
-			this.markModelRequestStarted(input.taskId);
+			this.requestTimer.markStarted(input.taskId);
 			const restartedSession = await this.sessionRuntime.restartTaskSession({
 				taskId: input.taskId,
 				prompt: input.prompt,
@@ -1661,7 +1662,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					this.scheduleConversationTimeout(request.taskId);
 				}
 				await this.waitUntilTaskResumed(request.taskId);
-				this.markModelRequestStarted(request.taskId);
+				this.requestTimer.markStarted(request.taskId);
 				const startResult = await this.sessionRuntime.startTaskSession({
 					taskId: request.taskId,
 					cwd: agentPerceivedCwd,
@@ -1765,7 +1766,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
-		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.requestTimer.forget(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
@@ -1809,7 +1810,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
-		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.requestTimer.forget(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
@@ -1855,7 +1856,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.contextWindowStore.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
-		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.requestTimer.forget(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
@@ -2162,7 +2163,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
-		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.requestTimer.forget(taskId);
 		this.failureBackoffByTaskId.delete(taskId);
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
@@ -2617,7 +2618,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.contextWindowStore.clear();
 		this.modelEndpoint.clear();
 		this.contextBudgetInputs.clear();
-		this.modelRequestStartedAtByTaskId.clear();
+		this.requestTimer.clear();
 		this.explicitDecompositionTaskIds.clear();
 		this.sandboxState.clear();
 		this.focusChainByTaskId.clear();
@@ -3055,12 +3056,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				contextWindow: this.resolveKnownContextWindowForTask(taskId, null),
 			},
 			observedAt,
-			this.resolveModelRequestWallTimeMs(taskId, observedAt),
+			this.requestTimer.elapsedMs(taskId, observedAt),
 		);
 		if (!observation) {
 			return;
 		}
-		this.modelRequestStartedAtByTaskId.delete(taskId);
+		this.requestTimer.forget(taskId);
 		void getDefaultNKleinModelRegistry()
 			.recordRequest(observation)
 			.catch(() => undefined);
@@ -3090,19 +3091,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				advertisedContextWindow: input.contextWindow,
 			})
 			.catch(() => undefined);
-	}
-
-	private markModelRequestStarted(taskId: string): void {
-		this.modelRequestStartedAtByTaskId.set(taskId, now());
-	}
-
-	private resolveModelRequestWallTimeMs(taskId: string, observedAt: number): number | null {
-		const startedAt = this.modelRequestStartedAtByTaskId.get(taskId);
-		if (typeof startedAt !== "number") {
-			return null;
-		}
-		const elapsed = observedAt - startedAt;
-		return elapsed > 0 ? elapsed : null;
 	}
 
 	private recordSdkEventObservation(taskId: string, event: unknown): void {
