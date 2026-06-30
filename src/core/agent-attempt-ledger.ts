@@ -23,8 +23,13 @@
 
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { selectAttempts } from "./agent-ledger-selectors";
 import type { ModelOutcomeKind } from "./model-behavior-profile";
 import { meanOrNull, medianOrNull } from "./number-stats";
+
+// Re-export the pure ledger selectors (now in agent-ledger-selectors) so existing importers of this module
+// (agent-ledger-projections, agent-attempt-ledger-store, commands/dev) are unchanged.
+export * from "./agent-ledger-selectors";
 
 /** The classified model outcomes, as a zod enum kept in lock-step with `ModelOutcomeKind` (the typed-const guard below). */
 const modelOutcomeKindSchema = z.enum([
@@ -291,23 +296,6 @@ export function buildSchedulerEvent(input: BuildSchedulerEventInput): AgentSched
 
 // ─── Projections (the keystone value: the §5.AA profile / §5.AB fitness / §5.Z matrix become queries over this) ───
 
-export function isAttemptEvent(event: AgentLedgerEvent): event is AgentAttemptEvent {
-	return event.kind === "attempt";
-}
-export function isTransitionEvent(event: AgentLedgerEvent): event is AgentTransitionEvent {
-	return event.kind === "transition";
-}
-
-/** All attempt events, in recorded order (oldest→newest by `recordedAt`, stable). */
-export function selectAttempts(events: readonly AgentLedgerEvent[]): AgentAttemptEvent[] {
-	return events.filter(isAttemptEvent);
-}
-
-/** Attempts for a given canonical model id. */
-export function selectAttemptsForModel(events: readonly AgentLedgerEvent[], modelId: string): AgentAttemptEvent[] {
-	return selectAttempts(events).filter((event) => event.modelId === modelId);
-}
-
 /** One row of the §5.AG escalation chain — what was tried at one rung. */
 export interface TaskAttemptRow {
 	rung: number;
@@ -404,28 +392,6 @@ export function buildTaskEscalationReport(events: readonly AgentLedgerEvent[], t
 		finalOutcome: rows.length > 0 ? (rows[rows.length - 1] as TaskAttemptRow).outcome : null,
 		attempts: rows,
 	};
-}
-
-/** Every event of one workflow run. */
-export function selectEventsForWorkflow(events: readonly AgentLedgerEvent[], workflowId: string): AgentLedgerEvent[] {
-	return events.filter((event) => event.workflowId === workflowId);
-}
-
-/**
- * The current controller run-state for a workflow — the `to` of its most-recent transition (by `recordedAt`), or null
- * when it never transitioned. This is how the durable scheduler resumes "exactly where it was" without re-asking a model.
- */
-export function latestRunState(events: readonly AgentLedgerEvent[], workflowId: string): string | null {
-	let latest: AgentTransitionEvent | null = null;
-	for (const event of events) {
-		if (event.kind !== "transition" || event.workflowId !== workflowId) {
-			continue;
-		}
-		if (latest === null || event.recordedAt >= latest.recordedAt) {
-			latest = event;
-		}
-	}
-	return latest?.to ?? null;
 }
 
 /** A per-model outcome rollup — the §5.Z cross-model matrix + the §5.AA profile feed, as a pure ledger query. */
