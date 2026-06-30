@@ -55,7 +55,6 @@ import {
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
-	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -65,11 +64,8 @@ import { resolveRuntimeModelRolesConfig } from "./runtime-config-model-roles-res
 import {
 	DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
 	DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
-	normalizeAgentId,
 	normalizeAgentRulesets,
 	normalizeAgentRulesetsOverride,
-	normalizeAgentTimeoutMode,
-	normalizeAgentTimeoutProfile,
 	normalizeBoolean,
 	normalizeCodeEmbeddingOverride,
 	normalizeCodeEmbeddingSettings,
@@ -89,7 +85,6 @@ import {
 	normalizeShortcuts,
 	normalizeSkillDynamicsLevel,
 	normalizeSkillDynamicsLevelOverride,
-	normalizeTimeoutMsValue,
 } from "./runtime-config-normalizers";
 import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
@@ -101,6 +96,7 @@ import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeRulesetsConfig } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
 import { resolveRuntimeSkillDynamicsConfig } from "./runtime-config-skill-dynamics-resolver";
+import { createRuntimeConfigStateFromValues } from "./runtime-config-state-factory";
 import { resolveRuntimeSuitabilityConfig } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type {
@@ -436,163 +432,6 @@ async function loadRuntimeConfigLocked(cwd: string | null): Promise<RuntimeConfi
 		}
 	}
 	return toRuntimeConfigState(configFiles);
-}
-
-function createRuntimeConfigStateFromValues(input: {
-	globalConfigPath: string;
-	projectConfigPath: string | null;
-	selectedAgentId: RuntimeAgentId;
-	selectedShortcutLabel: string | null;
-	developerModeEnabled: boolean;
-	replayCardsEnabled: boolean;
-	agentAutonomousModeEnabled: boolean;
-	agentTimeoutMode: RuntimeAgentTimeoutMode;
-	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
-	requestTimeoutMs: number | null;
-	streamTimeoutMs: number | null;
-	toolTimeoutMs: number | null;
-	agentTimeoutMs: number | null;
-	conversationTimeoutMs: number | null;
-	maxAgentWritableFileLines: number;
-	maxConcurrentTasks: number;
-	maxConcurrentTasksOverride: number | null;
-	selectedAgentIdOverride: RuntimeAgentId | null;
-	sandboxMaxContainers: number;
-	sandboxAgentsPerContainer: number;
-	sandboxMemoryPerContainerMb: number;
-	sandboxCpusPerContainer: number;
-	sandboxIdleTimeoutMinutes: number;
-	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
-	decompositionAutoApplyEnabled: boolean;
-	secondOpinionReviewEnabled: boolean;
-	reviewMaxRounds: number;
-	readyForReviewNotificationsEnabled: boolean;
-	codeEmbeddingDefaults: RuntimeCodeEmbeddingSettings;
-	codeEmbeddingOverride: RuntimeCodeEmbeddingSettings | null;
-	modelSuitabilityPolicyDefaults: RuntimeModelSuitabilityPolicy;
-	modelSuitabilityPolicyOverride: RuntimeModelSuitabilityPolicy | null;
-	skillDynamicsLevelDefault: RuntimeSkillDynamicsLevel;
-	skillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null;
-	concurrencyDefaults: ConcurrencyConfig;
-	concurrencyOverride: ConcurrencyOverride | null;
-	modelRoles: RuntimeModelRoles;
-	modelRolesOverride: RuntimeModelRoles | null;
-	agentRulesets?: AgentRulesetsConfigPayload;
-	agentRulesetsOverride: AgentRulesetsConfigPayload | null;
-	swarmGuardrails?: Partial<RuntimeSwarmGuardrails>;
-	shortcuts: RuntimeProjectShortcut[];
-	commitPromptTemplate: string;
-	openPrPromptTemplate: string;
-	workspaceBaseDir: string | null;
-}): RuntimeConfigState {
-	return {
-		globalConfigPath: input.globalConfigPath,
-		projectConfigPath: input.projectConfigPath,
-		selectedAgentId: normalizeAgentId(input.selectedAgentId),
-		selectedShortcutLabel: normalizeShortcutLabel(input.selectedShortcutLabel),
-		developerModeEnabled: normalizeBoolean(input.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
-		replayCardsEnabled: normalizeBoolean(input.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
-		agentAutonomousModeEnabled: normalizeBoolean(
-			input.agentAutonomousModeEnabled,
-			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
-		),
-		agentTimeoutMode: normalizeAgentTimeoutMode(input.agentTimeoutMode),
-		agentTimeoutProfile: normalizeAgentTimeoutProfile(input.agentTimeoutProfile),
-		requestTimeoutMs: normalizeTimeoutMsValue(input.requestTimeoutMs),
-		streamTimeoutMs: normalizeTimeoutMsValue(input.streamTimeoutMs),
-		toolTimeoutMs: normalizeTimeoutMsValue(input.toolTimeoutMs),
-		agentTimeoutMs: normalizeTimeoutMsValue(input.agentTimeoutMs),
-		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
-		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
-		maxConcurrentTasks: normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
-		maxConcurrentTasksOverride: normalizeMaxConcurrentTasksOverride(input.maxConcurrentTasksOverride),
-		effectiveMaxConcurrentTasks:
-			normalizeMaxConcurrentTasksOverride(input.maxConcurrentTasksOverride) ??
-			normalizeMaxConcurrentTasks(input.maxConcurrentTasks),
-		selectedAgentIdOverride: normalizeSelectedAgentIdOverride(input.selectedAgentIdOverride),
-		effectiveSelectedAgentId:
-			normalizeSelectedAgentIdOverride(input.selectedAgentIdOverride) ?? normalizeAgentId(input.selectedAgentId),
-		sandboxMaxContainers: normalizePositiveInteger(input.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
-		sandboxAgentsPerContainer: normalizeNonNegativeInteger(
-			input.sandboxAgentsPerContainer,
-			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-		),
-		sandboxMemoryPerContainerMb: normalizePositiveInteger(
-			input.sandboxMemoryPerContainerMb,
-			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-		),
-		sandboxCpusPerContainer: normalizePositiveNumber(
-			input.sandboxCpusPerContainer,
-			DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-		),
-		sandboxIdleTimeoutMinutes: normalizePositiveInteger(
-			input.sandboxIdleTimeoutMinutes,
-			DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-		),
-		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
-		decompositionAutoApplyEnabled: normalizeBoolean(
-			input.decompositionAutoApplyEnabled,
-			DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
-		),
-		secondOpinionReviewEnabled: normalizeBoolean(
-			input.secondOpinionReviewEnabled,
-			DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
-		),
-		reviewMaxRounds: normalizePositiveInteger(input.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
-		readyForReviewNotificationsEnabled: normalizeBoolean(
-			input.readyForReviewNotificationsEnabled,
-			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
-		),
-		codeEmbeddingDefaults: normalizeCodeEmbeddingSettings(
-			input.codeEmbeddingDefaults,
-			DEFAULT_CODE_EMBEDDING_SETTINGS,
-		),
-		codeEmbeddingOverride: normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride),
-		effectiveCodeEmbeddingSettings:
-			normalizeCodeEmbeddingOverride(input.codeEmbeddingOverride) ??
-			normalizeCodeEmbeddingSettings(input.codeEmbeddingDefaults, DEFAULT_CODE_EMBEDDING_SETTINGS),
-		modelSuitabilityPolicyDefaults: normalizeModelSuitabilityPolicy(
-			input.modelSuitabilityPolicyDefaults,
-			DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG,
-		),
-		modelSuitabilityPolicyOverride: normalizeModelSuitabilityPolicyOverride(input.modelSuitabilityPolicyOverride),
-		effectiveModelSuitabilityPolicy:
-			normalizeModelSuitabilityPolicyOverride(input.modelSuitabilityPolicyOverride) ??
-			normalizeModelSuitabilityPolicy(input.modelSuitabilityPolicyDefaults, DEFAULT_MODEL_SUITABILITY_POLICY_CONFIG),
-		skillDynamicsLevelDefault: normalizeSkillDynamicsLevel(
-			input.skillDynamicsLevelDefault,
-			DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG,
-		),
-		skillDynamicsLevelOverride: normalizeSkillDynamicsLevelOverride(input.skillDynamicsLevelOverride),
-		effectiveSkillDynamicsLevel:
-			normalizeSkillDynamicsLevelOverride(input.skillDynamicsLevelOverride) ??
-			normalizeSkillDynamicsLevel(input.skillDynamicsLevelDefault, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
-		concurrencyDefaults: normalizeConcurrencyConfig(input.concurrencyDefaults),
-		concurrencyOverride: normalizeConcurrencyOverride(input.concurrencyOverride),
-		modelRoles: normalizeModelRoles(input.modelRoles),
-		modelRolesOverride: normalizeModelRolesOverride(input.modelRolesOverride),
-		effectiveModelRoles:
-			normalizeModelRolesOverride(input.modelRolesOverride) ?? normalizeModelRoles(input.modelRoles),
-		agentRulesets: normalizeAgentRulesets(input.agentRulesets),
-		agentRulesetsOverride: normalizeAgentRulesetsOverride(input.agentRulesetsOverride),
-		effectiveAgentRulesets:
-			normalizeAgentRulesetsOverride(input.agentRulesetsOverride) ?? normalizeAgentRulesets(input.agentRulesets),
-		swarmGuardrails: normalizeRuntimeSwarmGuardrails(input.swarmGuardrails),
-		shortcuts: normalizeShortcuts(input.shortcuts),
-		commitPromptTemplate: normalizePromptTemplateWithLegacyDefault(
-			input.commitPromptTemplate,
-			DEFAULT_COMMIT_PROMPT_TEMPLATE,
-			LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
-		),
-		openPrPromptTemplate: normalizePromptTemplateWithLegacyDefault(
-			input.openPrPromptTemplate,
-			DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
-			LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
-		),
-		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
-		openPrPromptTemplateDefault: DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
-		workspaceBaseDir: normalizeWorkspaceBaseDir(input.workspaceBaseDir),
-	};
 }
 
 export function toGlobalRuntimeConfigState(current: RuntimeConfigState): RuntimeConfigState {
