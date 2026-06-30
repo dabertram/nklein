@@ -1,6 +1,12 @@
 import { summarizeReadFileInput, summarizeText, summarizeValue } from "./nklein-content-summaries";
 import { countKanbanTextTokens } from "./nklein-context-budgets";
 import { buildCompressedContextPreview, buildCompressedContextPreviewWithProvider } from "./nklein-context-compression";
+import {
+	addUniqueValue,
+	extractMissingFilePathsFromText,
+	extractObservedPathsFromText,
+	stripFocusBrief,
+} from "./nklein-observed-path-extraction";
 import { buildReadCoverageByPath, splitReadInputSummary } from "./nklein-read-coverage";
 import type { NKleinSdkPersistedMessage, NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
 
@@ -17,7 +23,6 @@ const MAX_FOCUS_BRIEF_PATHS = 24;
 const MAX_FOCUS_BRIEF_READS = 32;
 const FOCUS_BRIEF_START = "[!Klein context focus brief]";
 const FOCUS_BRIEF_END = "[/!Klein context focus brief]";
-const FOCUS_BRIEF_PATTERN = /\[!Klein context focus brief\][\s\S]*?\[\/!Klein context focus brief\]\n*/g;
 
 interface ToolResultReference {
 	messageIndex: number;
@@ -71,39 +76,6 @@ function stringifyToolResultContent(content: NKleinSdkToolResultBlock["content"]
 			return "";
 		})
 		.join("\n");
-}
-
-function addUniqueValue(values: string[], value: string): void {
-	const normalized = value.trim();
-	if (!normalized || values.includes(normalized)) {
-		return;
-	}
-	values.push(normalized);
-}
-
-function extractObservedPathsFromText(text: string): string[] {
-	const paths: string[] = [];
-	const textWithoutFocusBrief = stripFocusBrief(text);
-	const pathPattern = /(?:~|\/)[^\s"'`<>]+\.(?:txt|md|json|jsonl|yaml|yml|csv|ts|tsx|js|jsx|py|sh|log)/g;
-	for (const match of textWithoutFocusBrief.matchAll(pathPattern)) {
-		const path = match[0]?.replace(/[),.;:]+$/, "") ?? "";
-		if (path.includes("*")) {
-			continue;
-		}
-		addUniqueValue(paths, path);
-	}
-	return paths;
-}
-
-function extractMissingFilePathsFromText(text: string): string[] {
-	if (!/\bENOENT\b|no such file or directory|cannot find|not found/i.test(text)) {
-		return [];
-	}
-	return extractObservedPathsFromText(text);
-}
-
-function stripFocusBrief(text: string): string {
-	return text.replace(FOCUS_BRIEF_PATTERN, "").trimStart();
 }
 
 function collectObservedPaths(messages: readonly NKleinSdkPersistedMessage[]): string[] {
