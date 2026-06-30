@@ -23,7 +23,9 @@
  *   - completed → `completed`      (`detail` = "succeeded" | "failed" | "transient_retry")
  * The scheduled entry's `now` round-trips through the ledger envelope's `recordedAt` (which is why `recordedAt` is the
  * scheduler clock). Unrecognized scheduler events (queued/dequeued/heartbeat/lease_expired/retry_backoff — informational,
- * not part of the durable-log state model) are skipped on read.
+ * not part of the durable-log state model) are skipped on read. NOTE (SB#3): a `completed` event is the worker's TERMINAL
+ * report, so an unparseable/forward-incompatible `detail` is NOT skipped — it folds to the fail-safe terminal `failed`
+ * (skipping a terminal event would revert the job to `leased` on boot-replay and re-run already-finished work).
  */
 
 import {
@@ -146,10 +148,15 @@ function schedulerEventToDurableLogEntry(event: AgentSchedulerEvent): DurableSch
 			return { kind: "scheduled", now: event.recordedAt, action: { type: "fail", jobId, reason } };
 		}
 		case "completed": {
-			if (event.detail !== "succeeded" && event.detail !== "failed" && event.detail !== "transient_retry") {
-				return null;
+			if (event.detail === "succeeded" || event.detail === "failed" || event.detail === "transient_retry") {
+				return { kind: "completed", jobId, outcome: event.detail };
 			}
-			return { kind: "completed", jobId, outcome: event.detail };
+			// SB#3 fix (§5.AF): a `completed` event is the worker's TERMINAL report — UNLIKE the informational default arm,
+			// dropping it is unsafe. A dropped completion leaves only the job's lease, so boot-replay reverts the job to
+			// `leased` and the controller re-dispatches ALREADY-FINISHED work (wasted compute). An unparseable / forward-
+			// incompatible outcome is therefore folded to the fail-safe terminal state `failed`: never re-run, never
+			// fabricate success, surfaced as a (visible) failure the operator can inspect or re-queue deliberately.
+			return { kind: "completed", jobId, outcome: "failed" };
 		}
 		default:
 			// queued/dequeued/heartbeat/lease_expired/retry_backoff — informational; not part of the durable-log state model.

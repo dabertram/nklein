@@ -5453,11 +5453,13 @@ deep analysis:
 > load-bearing (persist-before-dispatch; the NaN guards). **FIXED:** the NaN-`maxAttempts` immortal-job bug (`Math.max(1, Math.trunc(NaN))` is NaN ⇒
 > `attempts >= NaN` always false ⇒ never fails) at all 3 sites — durable-run-controller.ts (reclaimOrphanedLeases),
 > durable-scheduler.ts (decideDurableSchedulerActions + markDurableJob). **OPEN (deliberate decisions, pinned + tested):**
-> - [ ] **SB#3 (HIGH) — boot-replay drops a malformed `completed` event** (`durable-scheduler-ledger.ts:~149`): an
->   unrecognized/out-of-domain `completed` detail is SILENTLY DROPPED on read, so on restart a *finished* card reverts to
->   `leased` and the controller **re-runs already-completed work**. Asymmetry: `cancelled` *defaults* an unknown detail
->   (→`max_attempts`) but `completed` *drops* it. Decide: map unknown→terminal `failed`, or surface loudly (quarantine).
->   Pinned by ledger T10/T11/T16/T17 (T17 demonstrates the re-run at run level). Consumed live by durable-run-ports on real restarts.
+> - [x] **SB#3 (HIGH) — boot-replay drops a malformed `completed` event** → **FIXED (2026-06-30)**. Root cause: the
+>   `completed` read-arm reused the *informational* default arm's "skip unknown" pattern, but `completed` is a TERMINAL
+>   report — skipping it reverts a finished card to `leased` on restart → re-runs already-completed work (the user's #1
+>   compute-waste concern). Fix (`durable-scheduler-ledger.ts:~148`): an unparseable/forward-incompatible `completed`
+>   detail now folds to the **fail-safe terminal `failed`** — never re-run, never fabricate success, fail-visible (operator
+>   can re-queue deliberately). Pinning tests flipped to assert the fold: T10/T11 (→`failed`), T16 (folds, not drops),
+>   **T17** (run-level: corrupted completion ⇒ `state:"failed", lease:null`, never re-leased). tsc+biome+120 durable tests green.
 > - [ ] **SB#1 (MED)** malformed `lease_acquired` (non-finite detail / null workerId) silently dropped (ledger:~125) — usually self-heals (re-leases). Pinned T4/T5.
 > - [ ] **SB#2 (LOW)** `cancelled` with an unknown/null detail fabricates reason `max_attempts` (ledger:~143) — counter to "explain exactly". Pinned T7/T9.
 > - [ ] **S1–S3 (cosmetic/contract, pinned not bugs):** transient-fail keeps pre-increment `attempts` on the terminal job; `markDurableJob` will mutate a non-leased (blocked/ready) job; a `succeededTaskIds` id not in `taskIds` drops its edge. (durable-scheduler T19/T16-18/T32.)

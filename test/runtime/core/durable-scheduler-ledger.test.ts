@@ -274,22 +274,21 @@ describe("schedulerEventToDurableLogEntry (read-side fallbacks, via readDurableS
 		]);
 	});
 
-	// T10 — completed with an out-of-domain outcome string is silently dropped (not in succeeded/failed/transient_retry).
-	it("drops a completed whose detail is an out-of-domain outcome", () => {
-		// SUSPECTED BUG SB#3 (HIGH): a malformed/unrecognized 'completed' detail is silently DROPPED on boot-replay → a
-		// finished card reverts to leased and the controller re-runs already-completed work. Pinned; fix is a deliberate
-		// §5.AF decision.
+	// T10 — completed with an out-of-domain outcome string folds to the fail-safe TERMINAL `failed` (SB#3 fix): a terminal
+	// report must never be dropped (dropping → revert to leased → re-run already-finished work).
+	it("folds a completed with an out-of-domain outcome to terminal failed (SB#3 fix)", () => {
+		// SB#3 FIXED (§5.AF): an unparseable `completed` detail is mapped to `failed` (terminal) — never re-run, never
+		// fabricate success. Distinct from the informational default arm, which is correctly skipped.
 		const ev = sched({ event: "completed", detail: "cancelled_by_user", recordedAt: 10 });
-		expect(readDurableSchedulerLog([ev])).toEqual([]);
+		expect(readDurableSchedulerLog([ev])).toEqual([{ kind: "completed", jobId: "a", outcome: "failed" }]);
 	});
 
-	// T11 — completed with no detail (null) is dropped via the same arm (distinct input from T10).
-	it("drops a completed whose detail is null", () => {
-		// SUSPECTED BUG SB#3 (HIGH): a malformed/unrecognized 'completed' detail is silently DROPPED on boot-replay → a
-		// finished card reverts to leased and the controller re-runs already-completed work. Pinned; fix is a deliberate
-		// §5.AF decision.
+	// T11 — completed with no detail (null) folds via the same fail-safe arm to terminal `failed` (distinct input from T10).
+	it("folds a completed whose detail is null to terminal failed (SB#3 fix)", () => {
+		// SB#3 FIXED (§5.AF): an unparseable `completed` detail is mapped to `failed` (terminal) — never re-run, never
+		// fabricate success.
 		const ev = sched({ event: "completed", recordedAt: 10 }); // detail defaults to null
-		expect(readDurableSchedulerLog([ev])).toEqual([]);
+		expect(readDurableSchedulerLog([ev])).toEqual([{ kind: "completed", jobId: "a", outcome: "failed" }]);
 	});
 
 	// T12 — reclaimed ignores its persisted detail entirely; the reason is hard-coded "lease_expired".
@@ -346,17 +345,15 @@ describe("schedulerEventToDurableLogEntry (read-side fallbacks, via readDurableS
 		]);
 	});
 
-	// T16 — the canonical corrupted-ledger replay: a shuffled stream where four records (bad completed, bad lease, a
-	// foreign attempt event, an informational heartbeat) vanish with no signal, and only the two valid survivors remain,
-	// ordered by recordedAt.
-	it("drops only the malformed/foreign/informational entries from a mixed stream and keeps survivor order", () => {
-		// SUSPECTED BUG SB#3 (HIGH): a malformed/unrecognized 'completed' detail is silently DROPPED on boot-replay → a
-		// finished card reverts to leased and the controller re-runs already-completed work. Pinned; fix is a deliberate
-		// §5.AF decision.
-		// Four persisted records (a bad completed, a bad lease, a foreign attempt event, an informational heartbeat) are
-		// dropped here with no throw, log, or quarantine.
+	// T16 — the canonical corrupted-ledger replay: a shuffled stream where THREE records (a bad lease, a foreign attempt
+	// event, an informational heartbeat) vanish, while the malformed `completed` is FOLDED to terminal `failed` (SB#3 fix:
+	// a terminal report is never dropped). Survivors are ordered by recordedAt.
+	it("drops malformed-lease/foreign/informational entries but folds a malformed completed to terminal failed", () => {
+		// SB#3 FIXED (§5.AF): the malformed `completed` (@40) is no longer dropped — it folds to terminal `failed`, so the
+		// finished card stays terminal on boot-replay (no re-run). The non-finite lease / foreign family / informational
+		// heartbeat are still correctly dropped (those drops are not terminal-state-bearing).
 		const stream = [
-			sched({ event: "completed", detail: "bogus", recordedAt: 40 }), // drop (unknown completed detail)
+			sched({ event: "completed", detail: "bogus", recordedAt: 40 }), // fold → terminal failed (SB#3 fix)
 			sched({ event: "lease_acquired", workerId: "w", detail: "nope", recordedAt: 10 }), // drop (non-finite detail)
 			sched({ event: "lease_acquired", workerId: "w", detail: "100", recordedAt: 20 }), // keep
 			buildAttemptEvent({
@@ -374,17 +371,18 @@ describe("schedulerEventToDurableLogEntry (read-side fallbacks, via readDurableS
 		expect(readDurableSchedulerLog(stream)).toEqual([
 			{ kind: "scheduled", now: 20, action: { type: "lease", jobId: "a", workerId: "w", expiresAt: 100 } },
 			{ kind: "completed", jobId: "a", outcome: "succeeded" },
+			{ kind: "completed", jobId: "a", outcome: "failed" },
 		]);
 	});
 });
 
 describe("readDurableSchedulerLog → replayDurableJobs (boot-replay consequence)", () => {
-	// T17 — the run-level consequence of SB#3: a good completed makes the job succeed; a corrupted completed is dropped,
-	// so the job replays back to `leased` and the controller would re-dispatch an already-finished card.
-	it("re-leases a finished card on boot-replay when its completed event is corrupted (SB#3 consequence)", () => {
-		// SUSPECTED BUG SB#3 (HIGH): a malformed/unrecognized 'completed' detail is silently DROPPED on boot-replay → a
-		// finished card reverts to leased and the controller re-runs already-completed work. Pinned; fix is a deliberate
-		// §5.AF decision.
+	// T17 — the run-level proof of the SB#3 fix: a good completed makes the job succeed; a CORRUPTED completed now folds to
+	// terminal `failed`, so the job stays terminal on boot-replay (no re-lease) — the controller never re-dispatches the
+	// already-finished card. (Pre-fix this reverted to `leased` and re-ran completed work.)
+	it("keeps a finished card terminal (failed, not re-leased) when its completed event is corrupted (SB#3 fix)", () => {
+		// SB#3 FIXED (§5.AF): an unparseable terminal completion folds to `failed` (fail-safe) instead of being dropped, so
+		// boot-replay never reverts a finished card to `leased`. Fail-visible: the operator sees a failure, not silent re-run.
 		const initial = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] }); // `a` is ready
 		const leaseEntry: DurableSchedulerLogEntry = {
 			kind: "scheduled",
@@ -417,11 +415,8 @@ describe("readDurableSchedulerLog → replayDurableJobs (boot-replay consequence
 		});
 
 		expect(good.find((j) => j.jobId === "a")).toMatchObject({ state: "succeeded", lease: null });
-		// The dropped completion leaves only the lease, so the job looks still-running on boot.
-		expect(corrupted.find((j) => j.jobId === "a")).toMatchObject({
-			state: "leased",
-			lease: { workerId: "w1", expiresAt: 100 },
-		});
+		// The corrupted completion now folds to terminal `failed` (lease released) — terminal on boot, never re-leased.
+		expect(corrupted.find((j) => j.jobId === "a")).toMatchObject({ state: "failed", lease: null });
 		expect(good).not.toEqual(corrupted);
 	});
 });
