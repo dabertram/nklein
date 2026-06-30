@@ -108,6 +108,7 @@ import {
 	setOrCreateAssistantMessage,
 	updateSummary,
 } from "./nklein-session-state";
+import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
 import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
@@ -376,8 +377,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly modelIdByTaskId = new Map<string, string>();
 	private readonly endpointByTaskId = new Map<string, string | null>();
 	private readonly contextWindowByTaskId = new Map<string, number | null>();
-	private readonly systemPromptByTaskId = new Map<string, string>();
-	private readonly toolSchemaTokensByTaskId = new Map<string, number>();
+	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
 	private readonly modelRequestStartedAtByTaskId = new Map<string, number>();
 	private readonly failureBackoffByTaskId = new Map<string, NKleinTaskFailureBackoffState>();
@@ -1628,8 +1628,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
 				})}`;
 				const toolSchemaTokens = estimateKanbanToolSchemaTokens(runtimeSetup.toolPolicies);
-				this.systemPromptByTaskId.set(request.taskId, systemPrompt);
-				this.toolSchemaTokensByTaskId.set(request.taskId, toolSchemaTokens);
+				this.contextBudgetInputs.record(request.taskId, systemPrompt, toolSchemaTokens);
 
 				const initialMessages = this.prepareMessagesForKnownContextWindow({
 					taskId: request.taskId,
@@ -1995,8 +1994,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						this.emitSummary(
 							updateSummary(entry, {
 								contextBudgetBreakdown: buildContextBudgetBreakdown({
-									systemPrompt: this.systemPromptByTaskId.get(taskId) ?? null,
-									toolSchemaTokens: this.toolSchemaTokensByTaskId.get(taskId) ?? 0,
+									systemPrompt: this.contextBudgetInputs.getSystemPrompt(taskId),
+									toolSchemaTokens: this.contextBudgetInputs.getToolSchemaTokens(taskId),
 									messages: persistedSnapshotForBudget?.messages,
 									prompt: resolvedPrompt,
 									images,
