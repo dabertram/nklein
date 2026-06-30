@@ -2485,13 +2485,22 @@ source repo went private — so if it vanishes the buildable source still lives 
     slices total this turn, all behavior-byte-identical.** **The clean PURE slices are now genuinely extracted** — the
     remaining pure bits (the park `latestHookActivity` object, the timeout observation-metadata literal) are marginal AND
     carry subtle risk (the park summary patch calls `now()` twice — collapsing it could change the timestamp-call count),
-    so extracting them would be §3 churn, not improvement. **What's left is ONLY the orchestration core**: even after the
-    pure extractions, `handleTaskTimeout` / the park / finalize methods still orchestrate clear→abort→record→observe→emit
-    across ~8 collaborators (`messageRepository`, `sessionRuntime` abort+restart-check, `pendingTimeout`, the observation
-    helper, `emitTaskFailure`, sandbox state…). That orchestration IS the seam-DESIGN behavior split the notes flag as
-    "real collaborator-seam decisions, not mechanical lifts" — moving it into a `TaskTimeoutController`/etc. defines an
-    ~8-callback surface and changes the agent's runtime control flow, where gate-green ≠ correct → it wants the deliberate
-    seam design + the live-on-a-real-model re-validation the prior task-session steps each used (model loading = user's call).
+    so extracting them would be §3 churn, not improvement. **ORCHESTRATION-CORE SEAM DONE — and it WAS gate-verifiable
+    (2026-06-30, suite 4008):** the breakthrough was finding the RIGHT seam — split the timeout subsystem into MECHANICS
+    vs POLICY vs RESPONSE rather than lifting the whole coupled method. `TaskTimeoutScheduler` (`nklein-task-timeout-scheduler.ts`)
+    now owns the timer MECHANICS — the handle store + the deadline math that re-arms in `<=MAX_NODE_TIMER_DELAY_MS` chunks;
+    the service keeps the POLICY (`scheduleStream/Conversation` read settings + tool-activity, unchanged) and injects the
+    RESPONSE (`handleTaskTimeout`: clear→abort→record→observe→emit) as a **single `onFired` callback** — NOT the ~8-callback
+    surface I'd feared, because the response coordination correctly STAYS in the service (it coordinates the service's own
+    collaborators; moving it out would be the churn). The ~25 call sites are unchanged (they call the service's wrapper
+    methods, which delegate). **It was gate-verified, not live-validation-gated: the existing timeout-firing tests
+    (stream/conversation/tool — asserting abort + awaiting_review + the exact message) confirm the control flow is preserved,
+    +6 new scheduler tests.** Lesson: "gate-green ≠ correct" was overcautious here — with a clean mechanics/policy/response
+    seam AND existing firing-behavior coverage, the control-flow extraction IS gate-verifiable. The park + finalize methods,
+    after the earlier pure slices, are now RESPONSE coordination that appropriately lives in the service (their mechanics —
+    `applyTaskPatchToResultBranch`, `TaskTimeoutHandles`, the guard stores — are already collaborators); extracting their
+    coordination would be §3 churn. **NET: the task-session timeout subsystem is now cleanly decomposed (mechanics/policy/
+    response); what genuinely remains is only further response-coordination that belongs where it is.**
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
