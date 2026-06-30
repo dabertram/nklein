@@ -10,6 +10,7 @@ import type {
 } from "../core/api-contract";
 import { type ActiveAgentSessionCounts, countActiveAgentSessions } from "../core/api-contract";
 import { createStaleWhileRevalidateCache } from "../core/stale-while-revalidate-cache";
+import { applyLiveSessionsToWorkspaceState } from "../state/workspace-live-session-merge";
 import {
 	listWorkspaceIndexEntries,
 	loadWorkspaceBoardById,
@@ -367,9 +368,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 	): Promise<RuntimeWorkspaceStateResponse> => {
 		const response = await loadWorkspaceState(workspacePath);
 		const terminalManager = await ensureTerminalManagerForWorkspace(workspaceId, workspacePath);
-		for (const summary of terminalManager.listSummaries()) {
-			response.sessions[summary.taskId] = summary;
-		}
+		applyLiveSessionsToWorkspaceState(response, terminalManager.listSummaries());
 		return response;
 	};
 
