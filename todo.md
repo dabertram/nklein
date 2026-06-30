@@ -2418,8 +2418,18 @@ source repo went private — so if it vanishes the buildable source still lives 
     per-project task tally `countTasksByColumn` + the live `awaiting_review` overlay `applyLiveSessionStateToProjectTaskCounts`,
     +6 tests); (e) `nklein-agent/nklein-session-runtime.ts` → `nklein-repo-map-rail-messages.ts` (the repo-map rail message
     builder + the AgentMessage content-shape text extraction + 12k personalization cap, hoisting the duplicated
-    `kanban_repo_map_rail` literal into a shared const, +5 tests). All behavior-preserving + tsc/biome/full-suite-gated
-    (3920 → 3954), committed clean. **7 distinct monoliths reduced this session (runtime-config ×5 + these), suite 3907 → 3954.**
+    `kanban_repo_map_rail` literal into a shared const, +5 tests); (f) `nklein-agent/nklein-agent-sandbox.ts` →
+    `nklein-agent-sandbox-tool-result.ts` (the in-sandbox tool-runner stdout envelope parser `parseToolRunnerResult` +
+    `formatSandboxToolFailure`, +8 tests); (g) `nklein-agent/nklein-event-adapter.ts` → `nklein-event-adapter-readers.ts`
+    (the 5 per-kind SDK event readers `readAgentEvent`/`readChunkEvent`/`readHookEvent`/`readEndedEvent`/`readStatusEvent`
+    + their derived event types — distinct from the coarser `nklein-sdk-event-readers.ts`, +7 tests). All
+    behavior-preserving + tsc/biome/full-suite-gated, committed clean. **9 distinct monoliths reduced this session
+    (runtime-config ×5 + runtime-setup ×2 + runtime-api + ws-server + workspace-registry + session-runtime + agent-sandbox
+    + event-adapter), suite 3907 → 3969 (+62 tests).** The remaining clean-leaf candidates in the touched files are now
+    coupled (e.g. the agent-sandbox Docker-arg builders share ~13 consts with the effectful core → need a shared
+    constants module to avoid a value-cycle; the mcp/provider OAuth helpers are local-zod-schema-derived-type-coupled) —
+    i.e. the verifiable clean-leaf vein for THIS pass is substantially harvested; what's left is the documented
+    coupled/architectural work (runtime-config sibling-builder dedup; task-session behavior split; runtime-api factory).
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
