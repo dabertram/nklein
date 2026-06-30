@@ -6,6 +6,7 @@ import {
 	type NKleinCodeEmbeddingProvider,
 	type NKleinCodeEmbeddingVector,
 } from "./nklein-code-embeddings";
+import { lexicalScore } from "./nklein-lexical-score";
 import { cosineSimilarity, entriesToVector, vectorToEntries } from "./nklein-sparse-vector";
 
 const DEFAULT_MAX_FILES = 1_000;
@@ -260,15 +261,6 @@ async function listSourceFiles(rootPath: string, maxFiles: number): Promise<stri
 	return results;
 }
 
-function tokenizeForLexicalScore(text: string): string[] {
-	return text
-		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-		.toLowerCase()
-		.split(/[^a-z0-9_$.-]+/g)
-		.map((token) => token.trim())
-		.filter((token) => token.length >= 2);
-}
-
 function hashText(text: string): string {
 	return createHash("sha256").update(text).digest("hex");
 }
@@ -411,18 +403,6 @@ async function persistVectorCache(options: {
 	};
 	await mkdir(dirname(options.cache.cachePath), { recursive: true });
 	await writeFile(options.cache.cachePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-}
-
-function lexicalScore(chunkText: string, query: string): number {
-	const lowerText = chunkText.toLowerCase();
-	const lowerQuery = query.toLowerCase();
-	let score = lowerText.includes(lowerQuery) ? 50 : 0;
-	for (const token of new Set(tokenizeForLexicalScore(query))) {
-		if (lowerText.includes(token)) {
-			score += 8;
-		}
-	}
-	return score;
 }
 
 function chunkFile(file: SourceFile, chunkLines: number): NKleinCodeIndexChunk[] {
