@@ -76,7 +76,6 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { clearSwarmStop, readSwarmStopSignal, requestSwarmStop } from "../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../core/task-board-lane-reconcile";
-import { findBoardCardWithColumn } from "../core/task-board-mutations";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
 import { applyNKleinPlanTaskGraphToBoard } from "../nklein-agent/nklein-decomposition-tool";
@@ -130,8 +129,8 @@ import {
 	handleGetUpdateStatus,
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
+import { handleVerifyTaskAcceptance } from "./runtime-api/verify-task-acceptance.js";
 import { findBoardCardById, findSourceCardBaseRef } from "./runtime-board-card-lookup";
-import { formatAcceptanceVerifyMessage } from "./runtime-task-message-formatting";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const _execFileAsync = promisify(execFile);
@@ -589,31 +588,10 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		expandNKleinPlanTask: async (workspaceScope, input) => {
 			return await handleExpandNKleinPlanTask(workspaceScope, input);
 		},
-		verifyTaskAcceptance: async (workspaceScope, input) => {
-			const state = await loadWorkspaceState(workspaceScope.workspacePath);
-			const taskRecord = findBoardCardWithColumn(state.board, input.taskId);
-			if (!taskRecord) {
-				throw new TRPCError({
-					code: "NOT_FOUND",
-					message: `Task "${input.taskId}" was not found.`,
-				});
-			}
-			const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
-			const acceptance = await nkleinTaskSessionService.verifyTaskAcceptanceInSandbox({
-				taskId: input.taskId,
-				projectRepoPath: workspaceScope.workspacePath,
-				baseRef: taskRecord.card.baseRef,
-				taskPrompt: taskRecord.card.prompt,
-				timeoutMs: input.timeoutMs,
-			});
-			return {
-				ok: acceptance.present === true && acceptance.passed === true,
-				taskId: input.taskId,
-				taskWorkspacePath: null,
-				acceptance,
-				message: formatAcceptanceVerifyMessage(acceptance),
-			};
-		},
+		verifyTaskAcceptance: async (workspaceScope, input) =>
+			handleVerifyTaskAcceptance(workspaceScope, input, {
+				getScopedNKleinTaskSessionService: deps.getScopedNKleinTaskSessionService,
+			}),
 		mergeTaskWorktrees: async (workspaceScope, input) => handleMergeTaskWorktrees(workspaceScope, input),
 		saveNKleinProviderSettings: async (_workspaceScope, input) => {
 			const body = parseNKleinProviderSettingsSaveRequest(input);
