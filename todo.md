@@ -4786,7 +4786,20 @@ source repo went private — so if it vanishes the buildable source still lives 
 > assignment, which is the gap. Then add per-card difficulty/skill INFERENCE, the online-research trigger, and §5.AE
 > skill-set attachment. Mostly CONVERGENCE of built spine (`blendCapabilityWithLedgerEvidence` read→route loop is closed;
 > `selectModelForTask`/`routeNKleinTask`; the §5.AL catalog; cross-machine fan-out validated 2026-07-01), not greenfield.
-> See memory `auto-model-selection-vision`. ▼ The original 2026-06-26 vision (role/task evaluation harness) stands as the mechanism:
+> See memory `auto-model-selection-vision`.
+> **PROGRESS (2026-07-01) — the DEFAULT-auto-selection seam is LIVE:** `buildLoadedModelRoutingCandidates`
+> ([nklein-loaded-model-candidates.ts](src/nklein-agent/nklein-loaded-model-candidates.ts), 4 tests) builds routing
+> candidates from the currently-LOADED set (reusing each model's observed registry entry so the ledger drives ranking,
+> minting a capability-prior default for unknowns). `buildDecompositionRoutingCandidates` (moved to the agent layer at
+> [build-decomposition-routing-candidates.ts](src/nklein-agent/decomposition/build-decomposition-routing-candidates.ts))
+> now fans in the loaded set, and it's wired into BOTH the CLI decompose AND the **runtime** decompose-apply
+> ([plan-artifact-apply.ts](src/nklein-agent/decomposition/plan-artifact-apply.ts)) with a graceful "defer to card-start
+> if a card is infeasible for every available model" fallback. ⇒ with NO manual roles, a decomposed card auto-routes to
+> the best-fit LOADED model. **REMAINING:** (a) the START-time path (`start-task-session` guard-candidates still build from
+> `modelRoles`; a card with no routed model + no roles should auto-discover the loaded set there too — the critical hot
+> path, do carefully); (b) llmfit ROSTER/LOAD decision (what to load per machine, fit+speed — the cleanest llmfit value,
+> see [[llmfit-integration]]); (c) per-card SKILL inference + §5.AE skill-set attachment; (d) the online-research trigger.
+> ▼ The original 2026-06-26 vision (role/task evaluation harness) stands as the mechanism:
 > **Vision (user, 2026-06-26):** !Klein should AUTOMATICALLY pick the best model per **role** and per **task** by
 > EVALUATING each connected model against a prepared set of role-specific prompts spanning complexity / difficulty /
 > size, learning a **quality × speed** fitness, then assigning each task to the best *available* model — **balancing
