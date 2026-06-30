@@ -1,4 +1,6 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
+import { fetchLoadedModelIds } from "../../core/lmstudio-loaded-models";
+import { buildLoadedModelRoutingCandidates } from "../../nklein-agent/nklein-loaded-model-candidates";
 import { getDefaultNKleinModelRegistry } from "../../nklein-agent/nklein-model-registry";
 import { createNKleinProviderService } from "../../nklein-agent/nklein-provider-service";
 import type { NKleinTaskRoutingCandidate } from "../../nklein-agent/nklein-task-router";
@@ -6,9 +8,10 @@ import { buildNKleinStartGuardCandidate } from "../../nklein-agent/nklein-task-s
 
 /**
  * Build the runnable model "routing candidates" a decomposition can choose from: the default NKlein provider (when one
- * is runnable) plus every configured per-role model that currently resolves a launch config. Extracted from the task
- * CLI (§5.U) — independent of task.ts internals (only the provider service + model registry + start-guard), so the
- * decomposition-routing concern stands on its own. Roles that aren't currently runnable are skipped, not fatal.
+ * is runnable), **every model currently LOADED on that endpoint** (§5.AB north-star — auto-selection with no manual
+ * role→model config), plus any explicitly-configured per-role model. Extracted from the task CLI (§5.U) — independent of
+ * task.ts internals (only the provider service + model registry + start-guard), so the decomposition-routing concern
+ * stands on its own. Roles/models that aren't currently runnable are skipped, not fatal.
  */
 export async function buildDecompositionRoutingCandidates(
 	runtimeConfig: RuntimeConfigState,
@@ -33,6 +36,24 @@ export async function buildDecompositionRoutingCandidates(
 			entry: candidate.entry,
 			role: candidate.role,
 		});
+		// §5.AB north-star: auto-DISCOVER every model currently loaded on this endpoint as a candidate, so a card can be
+		// routed to the best-fit model with NO manual role→model config. Best-effort + LM-Studio-only (a non-LM-Studio
+		// endpoint yields []); reuses each model's observed registry entry so the ledger history drives ranking. The
+		// configured default/role candidates already set take precedence (richer guard-built entries) — don't clobber them.
+		if (launchConfig.baseUrl) {
+			const loadedModelIds = await fetchLoadedModelIds(launchConfig.baseUrl);
+			for (const loadedCandidate of buildLoadedModelRoutingCandidates({
+				loadedModelIds,
+				registryEntries: Object.values(modelRegistry.models),
+				providerId: launchConfig.providerId,
+				endpoint: launchConfig.baseUrl,
+				now: Date.now(),
+			})) {
+				if (!candidates.has(loadedCandidate.entry.key)) {
+					candidates.set(loadedCandidate.entry.key, loadedCandidate);
+				}
+			}
+		}
 	} catch {
 		// A workspace without a runnable default NKlein provider can still decompose from explicit role models.
 	}
