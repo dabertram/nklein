@@ -25,6 +25,7 @@ import type {
 	RuntimeNKleinProviderSettingsSaveResponse,
 	RuntimeNKleinReasoningEffort,
 } from "../core/api-contract";
+import { toErrorMessage as formatErrorMessage } from "../core/error-message";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { openInBrowser } from "../server/browser";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
@@ -172,10 +173,7 @@ export interface UpdateCustomNKleinProviderInput {
 }
 
 function toErrorMessage(error: unknown): string {
-	if (error instanceof Error) {
-		return error.message;
-	}
-	return "An unexpected error occurred.";
+	return formatErrorMessage(error, "An unexpected error occurred.");
 }
 
 function parseNKleinRemoteConfigValue(value: string): NKleinRemoteConfig {

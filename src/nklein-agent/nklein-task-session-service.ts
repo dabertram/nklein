@@ -21,6 +21,7 @@ import {
 	normalizeRuntimeSwarmGuardrails,
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 } from "../core/api-contract";
+import { toErrorMessage as formatErrorMessage } from "../core/error-message";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { buildTemporalAwarenessPrompt, isTemporalContextRelevant } from "../core/temporal-awareness";
@@ -329,19 +330,7 @@ export type CreateInMemoryNKleinTaskSessionServiceOptions =
 	  });
 
 function toErrorMessage(error: unknown): string {
-	if (error instanceof Error) {
-		const message = error.message.trim();
-		if (message.length > 0) {
-			return message;
-		}
-	}
-	if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
-		const message = error.message.trim();
-		if (message.length > 0) {
-			return message;
-		}
-	}
-	return "Unknown error";
+	return formatErrorMessage(error, "Unknown error");
 }
 
 function isBenignSandboxPatchStagingTeardown(error: unknown): boolean {

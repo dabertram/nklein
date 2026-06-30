@@ -1,15 +1,12 @@
 /**
- * Shared output/error helpers for the task CLI (§5.U-extracted from task.ts): stringify an unknown thrown value to a
- * user-facing message, and print a JSON payload to stdout. Kept in one place so the per-concern command modules can
- * reuse them without re-importing task.ts (which would create an import cycle).
+ * Shared output helpers for the task CLI (§5.U-extracted from task.ts): print a JSON payload to stdout. Kept in one place
+ * so the per-concern command modules can reuse them without re-importing task.ts (which would create an import cycle).
+ *
+ * `toErrorMessage` is re-exported from the shared `src/core/error-message` (the one cross-codebase implementation) so the
+ * task CLI's existing import path keeps working.
  */
 
-export function toErrorMessage(error: unknown): string {
-	if (error instanceof Error && error.message.trim().length > 0) {
-		return error.message;
-	}
-	return String(error);
-}
+export { toErrorMessage } from "../../core/error-message";
 
 export function printJson(payload: unknown): void {
 	process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);

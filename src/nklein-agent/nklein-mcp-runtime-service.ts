@@ -13,8 +13,8 @@ import type {
 	OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { z } from "zod";
-
 import type { RuntimeNKleinMcpServer } from "../core/api-contract";
+import { toErrorMessage } from "../core/error-message";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { createNKleinMcpSettingsService, resolveMcpSettingsPath } from "./nklein-mcp-settings-service";
@@ -117,16 +117,6 @@ export interface NKleinMcpOauthCallbackResponse {
 
 export interface CreateNKleinMcpRuntimeServiceOptions {
 	onAuthStatusesChanged?: (statuses: NKleinMcpServerAuthStatus[]) => void | Promise<void>;
-}
-
-function toErrorMessage(error: unknown): string {
-	if (error instanceof Error) {
-		const message = error.message.trim();
-		if (message.length > 0) {
-			return message;
-		}
-	}
-	return String(error);
 }
 
 function resolveMcpOauthSettingsPath(): string {
