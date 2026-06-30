@@ -19,37 +19,20 @@ import type {
 } from "../core/api-contract";
 import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
-import {
-	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-} from "../nklein-agent/nklein-agent-sandbox";
 import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
-	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
-	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
-	DEFAULT_REVIEW_MAX_ROUNDS,
-	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
 import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
 import { deriveModelRolesFields } from "./runtime-config-model-roles-resolver";
 import {
-	normalizeAgentTimeoutMode,
-	normalizeAgentTimeoutProfile,
 	normalizeBoolean,
 	normalizeLostHeartbeatPolicy,
-	normalizeNonNegativeInteger,
-	normalizePositiveInteger,
-	normalizePositiveNumber,
 	normalizePromptTemplateWithLegacyDefault,
 	normalizeShortcuts,
-	normalizeTimeoutMsValue,
 } from "./runtime-config-normalizers";
 import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
@@ -57,9 +40,12 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
+import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { deriveRulesetsFields } from "./runtime-config-rulesets-resolver";
+import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
 import { deriveSkillDynamicsFields } from "./runtime-config-skill-dynamics-resolver";
 import { deriveSuitabilityFields } from "./runtime-config-suitability-resolver";
+import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type { RuntimeConfigState } from "./runtime-config-types";
 import { normalizeShortcutLabel, normalizeWorkspaceBaseDir } from "./runtime-config-value-helpers";
 
@@ -123,13 +109,15 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			input.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
 		),
-		agentTimeoutMode: normalizeAgentTimeoutMode(input.agentTimeoutMode),
-		agentTimeoutProfile: normalizeAgentTimeoutProfile(input.agentTimeoutProfile),
-		requestTimeoutMs: normalizeTimeoutMsValue(input.requestTimeoutMs),
-		streamTimeoutMs: normalizeTimeoutMsValue(input.streamTimeoutMs),
-		toolTimeoutMs: normalizeTimeoutMsValue(input.toolTimeoutMs),
-		agentTimeoutMs: normalizeTimeoutMsValue(input.agentTimeoutMs),
-		conversationTimeoutMs: normalizeTimeoutMsValue(input.conversationTimeoutMs),
+		...resolveRuntimeTimeoutConfig({
+			agentTimeoutMode: input.agentTimeoutMode,
+			agentTimeoutProfile: input.agentTimeoutProfile,
+			requestTimeoutMs: input.requestTimeoutMs,
+			streamTimeoutMs: input.streamTimeoutMs,
+			toolTimeoutMs: input.toolTimeoutMs,
+			agentTimeoutMs: input.agentTimeoutMs,
+			conversationTimeoutMs: input.conversationTimeoutMs,
+		}),
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(input.maxAgentWritableFileLines),
 		...deriveConcurrencyFields(
 			input.maxConcurrentTasks,
@@ -138,37 +126,20 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			input.concurrencyOverride,
 		),
 		...deriveAgentIdFields(input.selectedAgentId, input.selectedAgentIdOverride),
-		sandboxMaxContainers: normalizePositiveInteger(input.sandboxMaxContainers, DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS),
-		sandboxAgentsPerContainer: normalizeNonNegativeInteger(
-			input.sandboxAgentsPerContainer,
-			DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-		),
-		sandboxMemoryPerContainerMb: normalizePositiveInteger(
-			input.sandboxMemoryPerContainerMb,
-			DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-		),
-		sandboxCpusPerContainer: normalizePositiveNumber(
-			input.sandboxCpusPerContainer,
-			DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-		),
-		sandboxIdleTimeoutMinutes: normalizePositiveInteger(
-			input.sandboxIdleTimeoutMinutes,
-			DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
-		),
+		...resolveRuntimeSandboxConfig({
+			sandboxMaxContainers: input.sandboxMaxContainers,
+			sandboxAgentsPerContainer: input.sandboxAgentsPerContainer,
+			sandboxMemoryPerContainerMb: input.sandboxMemoryPerContainerMb,
+			sandboxCpusPerContainer: input.sandboxCpusPerContainer,
+			sandboxIdleTimeoutMinutes: input.sandboxIdleTimeoutMinutes,
+		}),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
-		decompositionAutoApplyEnabled: normalizeBoolean(
-			input.decompositionAutoApplyEnabled,
-			DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
-		),
-		secondOpinionReviewEnabled: normalizeBoolean(
-			input.secondOpinionReviewEnabled,
-			DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
-		),
-		reviewMaxRounds: normalizePositiveInteger(input.reviewMaxRounds, DEFAULT_REVIEW_MAX_ROUNDS),
-		readyForReviewNotificationsEnabled: normalizeBoolean(
-			input.readyForReviewNotificationsEnabled,
-			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
-		),
+		...resolveRuntimeReviewConfig({
+			decompositionAutoApplyEnabled: input.decompositionAutoApplyEnabled,
+			secondOpinionReviewEnabled: input.secondOpinionReviewEnabled,
+			reviewMaxRounds: input.reviewMaxRounds,
+			readyForReviewNotificationsEnabled: input.readyForReviewNotificationsEnabled,
+		}),
 		...deriveEmbeddingFields(input.codeEmbeddingDefaults, input.codeEmbeddingOverride),
 		...deriveSuitabilityFields(input.modelSuitabilityPolicyDefaults, input.modelSuitabilityPolicyOverride),
 		...deriveSkillDynamicsFields(input.skillDynamicsLevelDefault, input.skillDynamicsLevelOverride),
