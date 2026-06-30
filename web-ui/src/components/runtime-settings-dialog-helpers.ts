@@ -8,6 +8,23 @@ export function normalizeTemplateForComparison(value: string): string {
 }
 
 /**
+ * Resolve the agent timeout profile to a concrete mode: "custom" stays; "cloud" downgrades to "local" when the
+ * build has no cloud-provider support; anything else (incl. null/undefined) is "local".
+ */
+export function normalizeAgentTimeoutProfile(
+	value: "cloud" | "local" | "custom" | null | undefined,
+	cloudProviderSupportEnabled: boolean,
+): "cloud" | "local" | "custom" {
+	if (value === "custom") {
+		return "custom";
+	}
+	if (value === "cloud") {
+		return cloudProviderSupportEnabled ? "cloud" : "local";
+	}
+	return "local";
+}
+
+/**
  * The next unique shortcut label given the existing shortcuts: `baseLabel` when free, else `baseLabel 2`,
  * `baseLabel 3`, … (comparison is case-insensitive and ignores surrounding whitespace; blank labels are not "taken").
  */

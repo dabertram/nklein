@@ -145,7 +145,11 @@ import {
 } from "@/utils/notification-permission";
 import { formatPathForDisplay } from "@/utils/path-display";
 import { useUnmount, useWindowEvent } from "@/utils/react-use";
-import { getNextShortcutLabel, normalizeTemplateForComparison } from "./runtime-settings-dialog-helpers";
+import {
+	getNextShortcutLabel,
+	normalizeAgentTimeoutProfile,
+	normalizeTemplateForComparison,
+} from "./runtime-settings-dialog-helpers";
 
 interface RuntimeSettingsAgentRowModel {
 	id: RuntimeAgentId;
@@ -190,19 +194,6 @@ const ADVANCED_POLICY_ROWS = [
 		raw: ".nklein/nklein/telemetry, limit 20",
 	},
 ] as const;
-
-function normalizeAgentTimeoutProfile(
-	value: "cloud" | "local" | "custom" | null | undefined,
-	cloudProviderSupportEnabled: boolean,
-): "cloud" | "local" | "custom" {
-	if (value === "custom") {
-		return "custom";
-	}
-	if (value === "cloud") {
-		return cloudProviderSupportEnabled ? "cloud" : "local";
-	}
-	return "local";
-}
 
 type SettingsNavId =
 	| "general"
