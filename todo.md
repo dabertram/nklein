@@ -2455,14 +2455,22 @@ source repo went private — so if it vanishes the buildable source still lives 
     constants module — co-locating the shared consts WITH the builders in one self-contained module + `export *` from the
     facade is cleaner, and these verbatim relocations are fully gate-verified (tsc + full suite), so they are NOT
     fresh-context-gated — only BEHAVIOR-CHANGING refactors are.** REMAINING §5.U is exactly those behavior-sensitive ones,
-    which genuinely need design + characterization tests / live validation, NOT verbatim lifts: (1) **runtime-config
-    sibling-builder dedup** — `toRuntimeConfigState` (file-shape input → 10 sub-resolvers) vs
-    `createRuntimeConfigStateFromValues` (flat-values input → inline `effective = override ?? default`) share the
-    effective-computation but at different input layers; deduping needs a shared per-group "effective from default+override"
-    helper that BOTH paths route through, and the two normalize/effective paths must stay byte-equivalent (no tsc safety
-    net for a subtle divergence) → needs characterization tests first. (2) **task-session behavior split** — rewires the
-    lifecycle methods into collaborator seams (callbacks back into the service), changing runtime structure, and the notes
-    live-validate it on a real model each time → a deliberate design pass, not a relocation.
+    which genuinely need design + characterization tests / live validation, NOT verbatim lifts: (1) ~~**runtime-config
+    sibling-builder dedup**~~ **✅ DONE (2026-06-30, 3 commits, suite 3995):** the feared "byte-equivalence with no tsc
+    safety net" risk did NOT materialize — the 10 sub-resolvers were already byte-identical to
+    `createRuntimeConfigStateFromValues`' inline logic (the full suite confirms), so no characterization-test scaffolding
+    was needed. For each of the 7 **override** groups, added a `deriveXFields(rawDefault, rawOverride)` helper next to its
+    resolver — params typed via `Parameters<typeof normalizeX>[0]` to sidestep the file-shape (`| undefined`) vs flat-input
+    (`| null`) clash with NO casts — and BOTH builders delegate to it. For the 3 **non-override** single-source groups
+    (timeout/sandbox/review), the builder routes through the existing resolver by passing a minimal field literal. ALL 10
+    groups now share one implementation; the two builders cannot drift on any field, and `createRuntimeConfigStateFromValues`'
+    per-group inline blocks collapsed to spreads. **Lesson: the "behavior-sensitive, needs char-tests" worry was overstated
+    — when the duplicated logic is already provably identical, the dedup is gate-verified like any relocation.** (2)
+    **task-session behavior split** — the one genuinely-remaining §5.U item: rewires the coupled lifecycle methods
+    (timeout firing → abort+observe+emit; sandbox-review finalize; pause/autonomy-budget parking; model-telemetry
+    recording) into collaborator seams with callbacks back into the service. Unlike everything above this is NOT a
+    relocation — it changes the agent's runtime control flow, so it wants a deliberate seam design + the live-on-a-real-model
+    re-validation the prior task-session steps each did (model loading is the user's call — [[never-load-models-directive]]).
 
 > **Systems-analysis findings (2026-06-25, dedicated read-only pass over the task-execution/board/runtime core)** —
 > mapped state/data/activity flows + ownership + SoC across `workspace-state` (the locked `mutateWorkspaceState`),
