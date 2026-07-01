@@ -2286,8 +2286,13 @@ source repo went private — so if it vanishes the buildable source still lives 
         (the model never answered). Fix shipped: `interpretPhaseOneResponse({content,finishReason}, cards)` escalates a
         truncated empty answer to `plan_needed` (retry) instead of `none`; a normal blank still means `none`. (Separately, this
         probe found qwen3.5 IGNORES `/no_think` — feeds the §4A/`model-thinking-control.ts` matcher fix, see that commit.)
-        25 tests. Owed: ONLY the model-seam wiring — offer the menu, run the pick (with a reasoning-sized budget), reveal the
-        selected schema, loop — behind an opt-in flag.
+        25 tests. **DESIGN INSIGHT from the probe (compound-task cases):** for a multi-step task ("read X, then create Y…") the
+        9B picks the FIRST step's tool (read_files / find_files), NOT `plan` — correct for a PER-STEP picker (the agent loop calls
+        it each turn for the *next* tool; multi-step resolves across turns). So `plan_needed` is really a SAFETY NET for
+        ambiguous/hallucinated answers (via the parser's unknown-tool fallback), not a model-driven multi-step planner — small
+        models don't self-identify "this needs several tools." Owed wiring must therefore run the picker PER-STEP for the next
+        single tool (don't expect the model to pre-plan). Owed: ONLY the model-seam wiring — offer the menu, run the pick (with a
+        reasoning-sized budget), reveal the selected schema, loop per step — behind an opt-in flag.
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)
