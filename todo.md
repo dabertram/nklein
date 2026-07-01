@@ -4978,12 +4978,17 @@ source repo went private — so if it vanishes the buildable source still lives 
         decompose model IS overridable via the seed task's `nkleinSettings.modelId` and a 9B is far faster. Even so the run
         produced only ~1 card in-window (a small-model plan / still generating), so still no MULTI-card same-machine
         contention to observe. **The gate itself is unit-proven** (3 scheduler tests assert it holds at cap) + tsc-clean
-        wired — the live-obs gap is purely "get ≥2 cards to start concurrently on one machine in a window", which needs a
-        fast decompose AND ≥2 quick cards AND concurrency timing (hard to hit unattended; a debug-log on the hold + a
-        hand-crafted 2-card board would nail it — a focused follow-up). **ACTIONABLE for the user:** pin decompose to a 9B
-        (`--model-id` / role config) for fast iteration; the 27B is quality-max but slow to prefill.
+        wired. **LIVE-OBSERVED (2026-07-01) with the REAL machine map — no `lms load` / no card-timing needed:** a probe
+        fed the live `fetchLmsPsModels` map + a synthetic running session into `scheduleNKleinEndpointStart` and saw the
+        gate fire correctly on the user's actual machines: SAME machine at cap=1 → HOLD (`{ok:false,
+        sharedEndpointId:"machine:local", reason:'Machine "local" is at its 1 concurrent-session cap…'}`); CROSS machine
+        (busy m4mini, task on free local) → allow (`{ok:true}`); cap=2 passes the machine gate then the separate
+        shared-endpoint serialize handles the same-model case — every gate behaving correctly. So the gate is
+        unit-proven AND live-validated against the real device map; the only thing NOT yet seen is it firing inside a
+        real multi-card AGENT run (blocked only by decompose/prefill timing, not by the gate). **ACTIONABLE for the user:**
+        pin decompose to a 9B (`--model-id` / role config) for fast iteration; the 27B is quality-max but slow to prefill.
         Also still-nice: feed `queued`/`status` into free-first.
-        **Per-machine concurrency = COMPLETE + safe-by-default (unit-proven; live-obs needs a timed 2-card concurrent run).**
+        **Per-machine concurrency = COMPLETE + safe-by-default (unit-proven + LIVE-VALIDATED on the real machine map).**
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
         **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
