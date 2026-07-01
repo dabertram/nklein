@@ -5,7 +5,6 @@
 import type { ChatAgentModelResponse } from "../../chat/chat-agent-loop";
 import { type ChatToolSet, createBoardMutationTools, createBoardReadTools } from "../../chat/chat-board-tools";
 import { createBrowserTools } from "../../chat/chat-browser-tool";
-import { classifyCommandSafety } from "../../chat/chat-command-safety";
 import { createCommandRunTool } from "../../chat/chat-command-tool";
 import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../../chat/chat-focus-chain";
@@ -14,6 +13,7 @@ import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } fro
 import { chatScopeCanAct, chatScopeToExecutionMode } from "../../chat/chat-scope-capability";
 import type { ChatAgentToolDeps } from "../../chat/chat-service";
 import type { ChatSession } from "../../chat/chat-session-store";
+import { resolveChatToolConfirmation } from "../../chat/chat-tool-confirmation";
 import { createGatedChatToolExecutor } from "../../chat/chat-tool-executor";
 import type { ChatPromptMessage } from "../../chat/chat-turn-context";
 import { createWorkspaceReadTools } from "../../chat/chat-workspace-tools";
@@ -92,20 +92,13 @@ export function buildChatAgentToolDepsResolver(input: {
 			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one runs only when
 			// the user has acknowledged the risk for this session (`riskAcknowledged`, the general-ack toggle) —
 			// otherwise it's denied. Other confirm-gated actions stay denied for now (no web-ui confirm dialog yet).
-			confirm: async (call) => {
-				if (call.name === "run_command" && typeof call.arguments.command === "string") {
-					if (classifyCommandSafety(call.arguments.command).safety === "safe") {
-						return true;
-					}
-					return session.riskAcknowledged === true;
-				}
-				// §5.M G6: browsing is gated by the explicit per-session `browserEnabled` toggle — that opt-in IS the
-				// consent for the host_command confirm. (The tool is only present when enabled; this is belt-and-braces.)
-				if (call.name === "browse_url") {
-					return session.browserEnabled === true;
-				}
-				return false;
-			},
+			confirm: async (call) =>
+				resolveChatToolConfirmation({
+					name: call.name,
+					command: call.arguments.command,
+					riskAcknowledged: session.riskAcknowledged,
+					browserEnabled: session.browserEnabled,
+				}),
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });
 			},
