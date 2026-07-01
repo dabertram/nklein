@@ -17,6 +17,16 @@
 > `[-]` deferred / superseded (intentionally not now; kept for traceability) ·
 > umbrella/grouping rows that only collect children are plain **bold rows without a checkbox** so they don't inflate the count.
 > Greps: ready = `grep -c '^\s*- \[ \]'` · waiting-on-user = `grep -c '^\s*- \[?\]'` · task-blocked = `grep -c '^\s*- \[>\]'`.
+>
+> **⚡ Effort tag (2026-07-01, user — for cheap-compute routing):** an open item marked **`⚡`** (right after the checkbox,
+> e.g. `- [ ] ⚡ …`) is **LOW-EFFORT** — well-specified enough to hand to a **low-thinking model** (Sonnet at low reasoning
+> effort) with NO discovery or design judgment required. Every `⚡` item carries a **`Recipe:`** sub-line: the exact **file**
+> to create/edit, a **sibling to mimic**, the **signature + behavior**, and the **verify** command — so the worker just
+> writes it out and runs the gate. Untagged open `[ ]` items are the default: they need deeper reasoning / discovery /
+> judgment (keep them on the stronger model). Grep the Sonnet-ready queue: `grep -n '⚡' todo.md`. **Rubric for `⚡`:** a
+> bounded change with an existing pattern to copy — a pure `src/core/` leaf, one well-specified function, a mechanical
+> refactor with a named target, or a documented test. NOT `⚡`: anything that needs an approach decision, cross-file
+> design, model-landscape judgment, UI/UX design, research, or a "decide/evaluate X".
 > (The old informal prose prefixes `LATER:`/`BLOCKED:` are now formalized into the `[-]`/`[?]` markers above; env is
 > **not** a blocker — the working session has Docker + the `nklein/agent-sandbox` image, a live LM Studio with loaded
 > models, and a Playwright browser, so Docker/browser/live-model verification is actionable here, not blocked.)
