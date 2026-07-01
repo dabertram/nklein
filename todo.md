@@ -2291,8 +2291,14 @@ source repo went private — so if it vanishes the buildable source still lives 
         it each turn for the *next* tool; multi-step resolves across turns). So `plan_needed` is really a SAFETY NET for
         ambiguous/hallucinated answers (via the parser's unknown-tool fallback), not a model-driven multi-step planner — small
         models don't self-identify "this needs several tools." Owed wiring must therefore run the picker PER-STEP for the next
-        single tool (don't expect the model to pre-plan). Owed: ONLY the model-seam wiring — offer the menu, run the pick (with a
-        reasoning-sized budget), reveal the selected schema, loop per step — behind an opt-in flag.
+        single tool (don't expect the model to pre-plan). **ORCHESTRATOR + LIVE CLI shipped (2026-07-01):**
+        `runTwoPhaseToolPick({task, callModel, cards?})` (`src/nklein-agent/two-phase-tool-runner.ts`) — the reusable brain the
+        wiring needs: pure (build menu → call model → interpret truncation-aware) over an INJECTED caller, unit-tested without a
+        live model (4 tests); `nklein dev tool-pick --task … [--model --budget]` supplies a real OpenAI-compat caller
+        (auto-discovers a resident LLM, no loading, default budget 1024) and prints the decision. **Live caveat:** the pick is
+        WORDING-sensitive — near-identical single-step tasks flipped one_tool↔plan_needed (menu-prompt framing matters), but
+        safely (ambiguity escalates to `plan_needed`, never a mis-pick); prompt-tuning the menu is separate owed §5.O work. Owed:
+        ONLY the model-seam wiring — run the orchestrator per step behind an opt-in flag (the injected caller = the SDK model seam).
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)
