@@ -4742,6 +4742,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `response_format:json_schema` for confidently-NON-reasoning models. Route the choice through the new
       [structured-output-strategy.ts](src/core/structured-output-strategy.ts) `selectStructuredOutputStrategy` (§5.AN);
       wiring THIS rung onto the strategy (native-tool-call branch for reasoning ids) is the owed hot-path work.**
+      **✅ CHAT-PATH NATIVE-FORCE WIRED behind a flag (2026-07-01, uncommitted): `NKLEIN_NATIVE_FORCE_TOOL_CALL` (OFF by
+      default ⇒ byte-identical to today; when the branch is skipped the code path is unchanged).** When ON **and**
+      `isReasoningModel(options.modelId)` (from [model-thinking-control.ts](src/core/model-thinking-control.ts)) is true, the
+      constrained rung tries the NATIVE channel FIRST — `client.completeWithTools({messages, sampling}, forceTools,
+      {toolChoice:"required"})` (same anchored/chain-steered `forceTools` as the json_schema path) and, if it lands a
+      `toolCalls` entry, dispatches that; **else it falls through to the EXISTING `response_format:json_schema` path** ⇒
+      strictly ADDITIVE (never worse than today, since json_schema was the only path before). Two additive plumbing parts:
+      `nklein-local-llm-client.ts` `completeWithTools` gained an OPTIONAL `opts?:{toolChoice?:"auto"|"required"}` (default
+      `"auto"` when tools present = byte-identical; `"required"` sets `body.tool_choice="required"`; ignored with no tools),
+      and the `ChatAgentCompletionClient.completeWithTools` interface gained the same optional `opts` (optional ⇒ existing
+      impls still satisfy it). LIVE-MECHANISM-VERIFIED (the probe already proved `tool_choice:"required"` emits a valid
+      `tool_call` on the resident reasoning tier — `scratchpad/probe-tool-call.py`); the WIRING is proven by fake-client
+      unit tests (flag OFF ⇒ json_schema rung unchanged, native never forced · flag ON + reasoning ⇒ native `required` used ·
+      flag ON + reasoning but native empty ⇒ falls through to json_schema · flag ON + NON-reasoning ⇒ json_schema). +7 tests
+      (4 adapter, 3 client); tsc + biome + full fast suite (4787/4787) green. **Owed: promote to DEFAULT-ON after broader
+      live validation** (a live multi-model reasoning-tier run confirming the native force reliably advances chains) — then
+      the flag gate can drop and this becomes the reasoning-model path unconditionally.
       **WIRED ON THE CHAT PATH (2026-06-28):**
       `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
       LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the

@@ -341,14 +341,20 @@ export class LocalLlmClient {
 	}
 
 	/**
-	 * Tools-aware completion: offers the model the given function `tools` (`tool_choice: auto`) and parses any
-	 * `tool_calls` it returns (arguments decoded from their JSON-string wire form). With an empty `tools` list this
-	 * is a plain completion. The agent loop drives this; recovery of non-OpenAI tool-call formats stays the
-	 * `afterModel`/`recoverNarratedToolCalls` concern of the full NKlein agent (§5.O).
+	 * Tools-aware completion: offers the model the given function `tools` and parses any `tool_calls` it returns
+	 * (arguments decoded from their JSON-string wire form). With an empty `tools` list this is a plain completion. The
+	 * agent loop drives this; recovery of non-OpenAI tool-call formats stays the `afterModel`/`recoverNarratedToolCalls`
+	 * concern of the full NKlein agent (§5.O).
+	 *
+	 * `tool_choice` defaults to `"auto"` when tools are present (unchanged behavior). Pass `opts.toolChoice:"required"`
+	 * to FORCE a call — the §5.AA/§5.AN native-forcing lever for REASONING models, where `response_format:json_schema`
+	 * dead-ends to empty content but `tool_choice:"required"` lands a valid call in the separate `tool_calls` channel
+	 * (live-verified 2026-07-01). Ignored when no tools are offered (there is nothing to force).
 	 */
 	async completeWithTools(
 		request: LocalLlmCompletionRequest,
 		tools: readonly LocalLlmToolDefinition[],
+		opts?: { toolChoice?: "auto" | "required" },
 	): Promise<LocalLlmToolCompletion> {
 		const url = `${normalizeBaseUrl(this.config.baseUrl)}/chat/completions`;
 		const controller = new AbortController();
@@ -361,7 +367,7 @@ export class LocalLlmClient {
 					type: "function",
 					function: { name: tool.name, description: tool.description, parameters: tool.parameters },
 				}));
-				body.tool_choice = "auto";
+				body.tool_choice = opts?.toolChoice ?? "auto";
 			}
 			const response = await this.fetchImpl(url, {
 				method: "POST",

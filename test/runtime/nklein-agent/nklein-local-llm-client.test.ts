@@ -255,6 +255,58 @@ describe("LocalLlmClient.completeWithTools", () => {
 		expect(r2.reasoningTokens).toBeNull();
 	});
 
+	it("forces a call with tool_choice:required when opts.toolChoice is set (§5.AA/§5.AN native lever)", async () => {
+		const fetchImpl = vi.fn(async () => toolCallResponse());
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await client.completeWithTools(
+			{ messages: [{ role: "user", content: "read it" }] },
+			[{ name: "read_file", description: "Read a file", parameters: { type: "object" } }],
+			{ toolChoice: "required" },
+		);
+		const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+		expect(body.tool_choice).toBe("required");
+	});
+
+	it("defaults tool_choice to auto when opts is omitted (byte-identical to prior behavior)", async () => {
+		const fetchImpl = vi.fn(async () => toolCallResponse());
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await client.completeWithTools({ messages: [{ role: "user", content: "read it" }] }, [
+			{ name: "read_file", description: "Read a file", parameters: { type: "object" } },
+		]);
+		const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+		expect(body.tool_choice).toBe("auto");
+	});
+
+	it("ignores toolChoice:required when no tools are offered (nothing to force)", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await client.completeWithTools({ messages: [{ role: "user", content: "hi" }] }, [], { toolChoice: "required" });
+		const body = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+		expect(body.tools).toBeUndefined();
+		expect(body.tool_choice).toBeUndefined();
+	});
+
 	it("is a plain completion when no tools are offered (no tools field sent)", async () => {
 		const fetchImpl = vi.fn(
 			async () =>

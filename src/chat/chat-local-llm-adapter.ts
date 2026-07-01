@@ -1,4 +1,5 @@
-import { applyThinkingDisable, supportsThinkingControl } from "../core/model-thinking-control";
+import { isTruthyEnv } from "../core/env-flag";
+import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
@@ -103,6 +104,12 @@ export interface ChatAgentCompletionClient {
 	completeWithTools(
 		request: { messages: LocalLlmChatMessage[]; sampling?: LocalLlmSamplingOptions },
 		tools: readonly LocalLlmToolDefinition[],
+		/**
+		 * Optional §5.AA/§5.AN native-forcing lever: `toolChoice:"required"` FORCES a tool call (the reasoning-safe path
+		 * where json_schema dead-ends). Optional ⇒ existing impls satisfy this interface; when omitted the client defaults
+		 * to `"auto"` (byte-identical to today).
+		 */
+		opts?: { toolChoice?: "auto" | "required" },
 	): Promise<LocalLlmToolCompletion>;
 	/**
 	 * Optional plain completion with constrained decoding (`response_format: json_schema`) — the §5.AA
@@ -241,6 +248,25 @@ export function createChatAgentModel(
 			const forceTools = remaining.length > 0 ? remaining : anchored.tools;
 			const schema = anchored.matchedNames.length > 0 ? buildConstrainedToolCallSchema(forceTools) : null;
 			if (schema) {
+				// §5.AA/§5.AN native-forcing lever (OFF by default behind NKLEIN_NATIVE_FORCE_TOOL_CALL). On REASONING models
+				// the json_schema path below silently dead-ends (empty content — grammar vs the reasoning channel, live-probed
+				// 2026-07-01); native `tool_choice:"required"` lands a valid call in the separate tool_calls channel instead.
+				// Strictly additive: only tries the native channel FIRST for a reasoning model when the flag is on, and falls
+				// through to the EXISTING json_schema path when it yields no call — so it can never be worse than today, and
+				// with the flag OFF this branch is skipped entirely (byte-identical to the prior behavior).
+				if (
+					isTruthyEnv(process.env.NKLEIN_NATIVE_FORCE_TOOL_CALL) &&
+					options.modelId &&
+					isReasoningModel(options.modelId)
+				) {
+					const forced = await client.completeWithTools({ messages: wire, sampling }, forceTools, {
+						toolChoice: "required",
+					});
+					if (forced.toolCalls.length > 0) {
+						const call = forced.toolCalls[0];
+						return { text: "", toolCalls: [{ id: call.id, name: call.name, arguments: call.arguments }] };
+					}
+				}
 				const constrained = await client.complete({
 					messages: [
 						...wire,

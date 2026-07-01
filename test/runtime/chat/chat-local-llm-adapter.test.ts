@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ChatAgentModelResponse } from "../../../src/chat/chat-agent-loop";
 import {
 	appendChatToolExchange,
@@ -440,5 +440,110 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
 		expect(constrainedCalled).toBe(false);
 		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+	});
+
+	describe("§5.AA/§5.AN native-force tool-call lever (NKLEIN_NATIVE_FORCE_TOOL_CALL)", () => {
+		const FLAG = "NKLEIN_NATIVE_FORCE_TOOL_CALL";
+		let savedFlag: string | undefined;
+		beforeEach(() => {
+			savedFlag = process.env[FLAG];
+			delete process.env[FLAG];
+		});
+		afterEach(() => {
+			if (savedFlag === undefined) {
+				delete process.env[FLAG];
+			} else {
+				process.env[FLAG] = savedFlag;
+			}
+		});
+
+		/**
+		 * A fake that records the `opts` passed to every `completeWithTools` call (so a test can assert the native lever's
+		 * `toolChoice:"required"`), and whether the json_schema `complete` rung fired. The primary tools-offered turn always
+		 * comes up empty (drives the ladder to the constrained rung); a `forcedCall` (when set) is returned ONLY for a
+		 * `toolChoice:"required"` call, so the native channel is what recovers it.
+		 */
+		function forcingClient(opts: { forcedCall?: boolean }): {
+			client: ChatAgentCompletionClient;
+			toolChoices: (string | undefined)[];
+			jsonSchemaCalled: () => boolean;
+		} {
+			const toolChoices: (string | undefined)[] = [];
+			let jsonSchemaCalled = false;
+			const client: ChatAgentCompletionClient = {
+				completeWithTools: async (_request, _tools, callOpts) => {
+					toolChoices.push(callOpts?.toolChoice);
+					if (callOpts?.toolChoice === "required" && opts.forcedCall) {
+						return {
+							content: "",
+							toolCalls: [{ id: "native1", name: "create_card", arguments: { title: "X" } }],
+							finishReason: "tool_calls",
+							raw: {},
+						};
+					}
+					// Every non-forced (auto) turn comes up empty ⇒ the ladder falls to the constrained rung.
+					return { content: "Hmm, let me think.", toolCalls: [], finishReason: "stop", raw: {} };
+				},
+				complete: async () => {
+					jsonSchemaCalled = true;
+					return { content: '{"tool":"create_card","arguments":{"title":"JSON"}}' };
+				},
+			};
+			return { client, toolChoices, jsonSchemaCalled: () => jsonSchemaCalled };
+		}
+
+		const NAMED = 'Use create_card to make a card titled "X".';
+
+		it("flag OFF ⇒ constrained path is UNCHANGED (json_schema rung fires; native never forced)", async () => {
+			// No env flag set (cleared in beforeEach) — the reasoning modelId must NOT trigger the native branch.
+			const { client, toolChoices, jsonSchemaCalled } = forcingClient({ forcedCall: true });
+			const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen3.5-9b-mlx" });
+			const result = await model([{ role: "user", content: NAMED }], true);
+			// The json_schema rung recovered the call (parsed from `complete`), exactly as before the lever existed.
+			expect(jsonSchemaCalled()).toBe(true);
+			expect(result.toolCalls).toEqual([
+				expect.objectContaining({ name: "create_card", arguments: { title: "JSON" } }),
+			]);
+			// completeWithTools was NEVER called with toolChoice:"required" — every call used the default (auto ⇒ undefined).
+			expect(toolChoices.every((c) => c === undefined)).toBe(true);
+		});
+
+		it("flag ON + reasoning modelId + no primary call ⇒ forces via completeWithTools({toolChoice:'required'}), uses its toolCalls", async () => {
+			process.env[FLAG] = "1";
+			const { client, toolChoices, jsonSchemaCalled } = forcingClient({ forcedCall: true });
+			const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen3.5-9b-mlx" });
+			const result = await model([{ role: "user", content: NAMED }], true);
+			// The native tool_calls channel supplied the call — the json_schema rung was never reached.
+			expect(result.toolCalls).toEqual([{ id: "native1", name: "create_card", arguments: { title: "X" } }]);
+			expect(result.text).toBe("");
+			expect(jsonSchemaCalled()).toBe(false);
+			expect(toolChoices).toContain("required");
+		});
+
+		it("flag ON + reasoning modelId but native yields NO call ⇒ falls through to the EXISTING json_schema path (strictly additive)", async () => {
+			process.env[FLAG] = "1";
+			// forcedCall:false ⇒ even the required call comes up empty, so the native branch must fall through, not fail.
+			const { client, toolChoices, jsonSchemaCalled } = forcingClient({ forcedCall: false });
+			const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen3.5-9b-mlx" });
+			const result = await model([{ role: "user", content: NAMED }], true);
+			expect(toolChoices).toContain("required"); // native was attempted
+			expect(jsonSchemaCalled()).toBe(true); // …then fell through to json_schema
+			expect(result.toolCalls).toEqual([
+				expect.objectContaining({ name: "create_card", arguments: { title: "JSON" } }),
+			]);
+		});
+
+		it("flag ON + NON-reasoning modelId ⇒ json_schema path (native branch skipped)", async () => {
+			process.env[FLAG] = "1";
+			const { client, toolChoices, jsonSchemaCalled } = forcingClient({ forcedCall: true });
+			const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen2.5-coder-14b" });
+			const result = await model([{ role: "user", content: NAMED }], true);
+			// Non-reasoning ⇒ the flag does nothing; the classic json_schema rung runs and native is never forced.
+			expect(jsonSchemaCalled()).toBe(true);
+			expect(result.toolCalls).toEqual([
+				expect.objectContaining({ name: "create_card", arguments: { title: "JSON" } }),
+			]);
+			expect(toolChoices.every((c) => c === undefined)).toBe(true);
+		});
 	});
 });
