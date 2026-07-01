@@ -421,14 +421,19 @@ export async function handleStartTaskSession(
 		);
 		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens);
 		const requiredContextTokens = estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow);
-		// §5.AB queue-aware free-first (opt-in via NKLEIN_QUEUE_AWARE_FREE_FIRST): a model the LM Studio SERVER already has
-		// requests queued on isn't truly "free" for fan-out even if !Klein isn't running it (e.g. another client, or an
-		// in-flight prefill). OFF by default ⇒ no `lms ps` subprocess, `isModelFree` = own-sessions only (byte-identical).
-		const queueDepthByModel = isTruthyEnv(process.env.NKLEIN_QUEUE_AWARE_FREE_FIRST)
-			? new Map((await fetchLmsPsModels(createDefaultLmsRunner())).map((model) => [model.identifier, model.queued]))
+		// §5.AB queue-aware free-first (opt-in via NKLEIN_QUEUE_AWARE_FREE_FIRST): a model the LM Studio SERVER is BUSY on
+		// isn't truly "free" for fan-out even if !Klein isn't running it — busy = a non-empty `queued` (another client /
+		// backlog) OR a non-idle `status` (an in-flight prefill/generation). OFF by default ⇒ no `lms ps` subprocess,
+		// `isModelFree` = own-sessions only (byte-identical).
+		const busyModelIds = isTruthyEnv(process.env.NKLEIN_QUEUE_AWARE_FREE_FIRST)
+			? new Set(
+					(await fetchLmsPsModels(createDefaultLmsRunner()))
+						.filter((model) => model.queued > 0 || (model.status !== null && model.status !== "idle"))
+						.map((model) => model.identifier),
+				)
 			: null;
 		const isModelFree = (modelKey: string, modelId: string): boolean =>
-			!runningModelKeys.has(modelKey) && (queueDepthByModel?.get(modelId) ?? 0) === 0;
+			!runningModelKeys.has(modelKey) && !busyModelIds?.has(modelId);
 		const freeFirstSelection = selectRoleModel({
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				modelKey: candidate.entry.key,
