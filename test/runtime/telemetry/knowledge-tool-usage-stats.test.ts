@@ -26,6 +26,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 		developerModeEnabled: true,
 		replayCardsEnabled: true,
 		knowsTodayEnabled: false,
+		sandboxMcpServersEnabled: true,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

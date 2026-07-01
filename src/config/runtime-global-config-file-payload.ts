@@ -50,6 +50,7 @@ import {
 	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
+	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
 import {
@@ -99,6 +100,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
 	knowsTodayEnabled?: boolean;
+	sandboxMcpServersEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -144,6 +146,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const developerModeEnabled = normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
 	const replayCardsEnabled = normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
 	const knowsTodayEnabled = normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED);
+	const sandboxMcpServersEnabled = normalizeBoolean(
+		config.sandboxMcpServersEnabled,
+		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+	);
 	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
 		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
 		: undefined;
@@ -309,6 +315,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 	}
 	assignChangedConfigField(payload, existing, "replayCardsEnabled", replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
 	assignChangedConfigField(payload, existing, "knowsTodayEnabled", knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxMcpServersEnabled",
+		sandboxMcpServersEnabled,
+		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+	);
 	assignChangedConfigField(
 		payload,
 		existing,

@@ -26,6 +26,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
 		knowsTodayEnabled: false,
+		sandboxMcpServersEnabled: true,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "cloud",

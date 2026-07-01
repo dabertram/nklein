@@ -169,6 +169,7 @@ export function buildRuntimeConfigResponse(
 		developerModeEnabled: runtimeConfig.developerModeEnabled,
 		replayCardsEnabled: runtimeConfig.replayCardsEnabled,
 		knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
+		sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
 		effectiveCommand,
 		globalConfigPath: runtimeConfig.globalConfigPath,
 		projectConfigPath: runtimeConfig.projectConfigPath,

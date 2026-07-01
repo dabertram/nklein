@@ -25,6 +25,8 @@ export interface RuntimeConfigState {
 	replayCardsEnabled: boolean;
 	/** §5.AC "knows today" temporal-context injection — OFF BY DEFAULT; opt-in date grounding, still relevance-gated. */
 	knowsTodayEnabled: boolean;
+	/** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT; offered to fitting models, global/per-project opt-out. */
+	sandboxMcpServersEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -85,6 +87,7 @@ export interface RuntimeConfigUpdateInput {
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
 	knowsTodayEnabled?: boolean;
+	sandboxMcpServersEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -133,6 +136,7 @@ export interface RuntimeGlobalConfigFileShape {
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
 	knowsTodayEnabled?: boolean;
+	sandboxMcpServersEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;

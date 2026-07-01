@@ -726,6 +726,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				watcherRegistry: nkleinWatcherRegistry,
 				swarmGuardrails: runtimeConfig.swarmGuardrails,
 				knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
+				sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
@@ -785,6 +786,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
+			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
 		}
 		return service;
 	};

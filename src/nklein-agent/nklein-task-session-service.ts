@@ -5,7 +5,7 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // history, and subscribe to summaries and chat events without knowing SDK
 // host, repository, or event-adapter details.
 
-import { DEFAULT_KNOWS_TODAY_ENABLED } from "../config/runtime-config-defaults";
+import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
 import type {
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -279,6 +279,8 @@ export interface NKleinTaskSessionService {
 	setSwarmGuardrails(guardrails: RuntimeSwarmGuardrails): void;
 	/** Apply the §5.AC "knows today" runtime-config switch (off by default) when config changes. */
 	setKnowsTodayEnabled(enabled: boolean): void;
+	/** Apply the §5.AR curated sandbox-MCP-servers switch (on by default) when config changes. */
+	setSandboxMcpServersEnabled(enabled: boolean): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
 	verifyTaskAcceptanceInSandbox(input: {
 		taskId: string;
@@ -319,6 +321,12 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * runtime when config changes (same seam as `swarmGuardrails`); env override honored independently.
 	 */
 	knowsTodayEnabled?: boolean;
+	/**
+	 * The §5.AR curated sandbox-hosted MCP servers switch — ON BY DEFAULT. When true, a fitting model's task is offered
+	 * the curated servers baked into the sandbox image (via `docker exec`); the `NKLEIN_SANDBOX_MCP` env can force it on
+	 * independently. Live-updated when config changes (same seam as `swarmGuardrails`).
+	 */
+	sandboxMcpServersEnabled?: boolean;
 	/**
 	 * Root dir for the diagnostic stores this service writes (task-run summaries + the Agent Attempt Ledger).
 	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.
@@ -388,6 +396,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private swarmGuardrails: RuntimeSwarmGuardrails;
 	/** §5.AC "knows today" runtime-config switch (off by default); live-updated with config, OR-ed with the env override. */
 	private knowsTodayEnabled: boolean;
+	/** §5.AR curated sandbox-MCP switch (on by default); live-updated with config, OR-ed with the env override. */
+	private sandboxMcpServersEnabled: boolean;
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
 	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
@@ -421,6 +431,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
+		this.sandboxMcpServersEnabled = options.sandboxMcpServersEnabled ?? DEFAULT_SANDBOX_MCP_SERVERS_ENABLED;
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
@@ -720,9 +731,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				systemPrompt,
 				...(sandboxToolExecutors ? { toolExecutors: sandboxToolExecutors } : {}),
 				...(sandboxExtraTools ? { extraTools: sandboxExtraTools } : {}),
-				// §5.AR: offer the curated sandbox-hosted MCP servers (fit-gated per model) when enabled. Staged opt-IN via
-				// `NKLEIN_SANDBOX_MCP` for now (safe to E2E-verify); the default-on + per-project opt-out setting is next.
-				...(isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP) && sandboxWorkspace
+				// §5.AR: offer the curated sandbox-hosted MCP servers (fit-gated per model) when enabled — the runtime-config
+				// `sandboxMcpServersEnabled` (ON by default; global/per-project opt-out) OR the `NKLEIN_SANDBOX_MCP` env override.
+				...((this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && sandboxWorkspace
 					? { sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(input.taskId) }
 					: {}),
 				userInstructionService: runtimeSetup.userInstructionService,
@@ -2313,6 +2324,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** Live-update the §5.AC "knows today" switch when the runtime config changes (same seam as `setSwarmGuardrails`). */
 	setKnowsTodayEnabled(enabled: boolean): void {
 		this.knowsTodayEnabled = enabled;
+	}
+
+	setSandboxMcpServersEnabled(enabled: boolean): void {
+		this.sandboxMcpServersEnabled = enabled;
 	}
 
 	async waitUntilTaskResumed(taskId: string): Promise<void> {

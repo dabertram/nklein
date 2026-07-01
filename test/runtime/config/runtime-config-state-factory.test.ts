@@ -29,6 +29,7 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
 		knowsTodayEnabled: false,
+		sandboxMcpServersEnabled: true,
 		agentAutonomousModeEnabled: false,
 		agentTimeoutMode: DEFAULT_AGENT_TIMEOUT_MODE,
 		agentTimeoutProfile: DEFAULT_AGENT_TIMEOUT_PROFILE,

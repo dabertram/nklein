@@ -457,6 +457,9 @@ function createFakeAgentSandboxManager(): FakeAgentSandboxManagerController {
 		hasWorkspace: hasWorkspaceMock,
 		stopNow: stopNowMock,
 		updatePoolConfig: updatePoolConfigMock,
+		// §5.AR: the sandbox-MCP feature is ON by default, so task start now queries the exec target; the fake has no
+		// real container/placement, so it returns null (⇒ no curated servers offered — these tests don't exercise MCP).
+		getSandboxExecTarget: () => null,
 	} as unknown as AgentSandboxManager;
 	return {
 		manager,

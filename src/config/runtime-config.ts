@@ -57,6 +57,7 @@ import {
 	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
+	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
 import { resolveRuntimeEmbeddingConfig } from "./runtime-config-embedding-resolver";
@@ -223,6 +224,10 @@ function toRuntimeConfigState({
 		developerModeEnabled: normalizeDeveloperModeEnabled(globalConfig),
 		replayCardsEnabled: normalizeBoolean(globalConfig?.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 		knowsTodayEnabled: normalizeBoolean(globalConfig?.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
+		sandboxMcpServersEnabled: normalizeBoolean(
+			globalConfig?.sandboxMcpServersEnabled,
+			DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+		),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			globalConfig?.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -438,6 +443,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		developerModeEnabled: current.developerModeEnabled,
 		replayCardsEnabled: current.replayCardsEnabled,
 		knowsTodayEnabled: current.knowsTodayEnabled,
+		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
 		agentTimeoutProfile: current.agentTimeoutProfile,
@@ -510,6 +516,7 @@ export async function saveRuntimeConfig(
 		developerModeEnabled?: boolean;
 		replayCardsEnabled?: boolean;
 		knowsTodayEnabled?: boolean;
+		sandboxMcpServersEnabled?: boolean;
 		agentAutonomousModeEnabled: boolean;
 		agentTimeoutMode: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -559,6 +566,10 @@ export async function saveRuntimeConfig(
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			knowsTodayEnabled: normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
+			sandboxMcpServersEnabled: normalizeBoolean(
+				config.sandboxMcpServersEnabled,
+				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+			),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -628,6 +639,10 @@ export async function saveRuntimeConfig(
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 			knowsTodayEnabled: normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
+			sandboxMcpServersEnabled: normalizeBoolean(
+				config.sandboxMcpServersEnabled,
+				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+			),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,

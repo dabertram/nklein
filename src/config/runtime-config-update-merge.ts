@@ -20,6 +20,7 @@ import {
 	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
+	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
 } from "./runtime-config-defaults";
 import {
@@ -54,6 +55,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 		),
 		knowsTodayEnabled: keepNormalizedValue(updates.knowsTodayEnabled, current.knowsTodayEnabled, (value) =>
 			normalizeBoolean(value, DEFAULT_KNOWS_TODAY_ENABLED),
+		),
+		sandboxMcpServersEnabled: keepNormalizedValue(
+			updates.sandboxMcpServersEnabled,
+			current.sandboxMcpServersEnabled,
+			(value) => normalizeBoolean(value, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
 		),
 		agentAutonomousModeEnabled: keepUpdatedValue(
 			updates.agentAutonomousModeEnabled,

@@ -26,6 +26,7 @@ import {
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
+	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 } from "./runtime-config-defaults";
 import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
 import { deriveModelRolesFields } from "./runtime-config-model-roles-resolver";
@@ -59,6 +60,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	developerModeEnabled: boolean;
 	replayCardsEnabled: boolean;
 	knowsTodayEnabled: boolean;
+	sandboxMcpServersEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -108,6 +110,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		developerModeEnabled: normalizeBoolean(input.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 		replayCardsEnabled: normalizeBoolean(input.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 		knowsTodayEnabled: normalizeBoolean(input.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
+		sandboxMcpServersEnabled: normalizeBoolean(input.sandboxMcpServersEnabled, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			input.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
