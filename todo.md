@@ -5192,6 +5192,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   `ornith-1.0-35b` TOOL_UNSUITABLE+reject on a LOAD-fail without researching the family — a load-fail ≠ incapable; the §4A
 >   always-research rule applies to CATALOG VERDICTS too. Corrected → TOOL_CAPABLE/code (research: top-tier self-scaffolding
 >   coder); the @4bit/@8bit MLX is a broken quant conversion — use the official 5-bit MLX (`leonsarmiento/…-5bit-mlx`) or GGUF.
+> - **RESEARCH for the careful (E)/(F) design (2026-07-01, per "research + evaluate carefully" + §4A):** the SOTA validates +
+>   sharpens the insight — the careful implementation has a clear SPINE, not a blank page.
+>   - **ADaPT (As-Needed Decomposition and Planning)** is THE pattern: recursively decompose a subtask ONLY WHEN the executor
+>     model CAN'T directly handle it — adapting granularity to BOTH task complexity AND model capability (+33% on
+>     compositional tasks). ⇒ concrete (E) mechanism: try the card DIRECTLY on the capable model; decompose ONLY on a
+>     CAN'T-HANDLE signal — and **we ALREADY HAVE that signal** (the §5.AB force-advance stall / the evidence-gate
+>     incompleteness / a truncation). So (E) = "as-needed / REACTIVE decomposition keyed on the executor's can't-handle
+>     signal" — measurable, not speculative. (TDAG: dynamic decompose + per-subtask agent generation; "self-adaptive
+>     hierarchical planning" coarse→fine.)
+>   - **Difficulty-Aware Agent Orchestration (DAAO) / RouteLLM / confidence-aware routing (OI-MAS):** difficulty-estimate the
+>     card, match to model capability/SCALE (our §5.AL fine-grained fields), heterogeneous fan-out — heterogeneous
+>     orchestration BEATS homogeneous WHEN difficulty-aware. Validates the §5.AB north-star + the `selectRoleModel`
+>     enhancement (which today ignores kind/affinity/the fine-grained fields).
+>   Sources: ADaPT; TDAG (sciencedirect S0893608025000796); DAAO (arXiv 2509.11079); Generalized Routing (2509.07571);
+>   confidence-aware (2601.04861); self-adaptive hierarchical planning (2604.23194). **SPINE for the careful build:**
+>   REACTIVE/as-needed decomposition on the can't-handle signal we already emit + difficulty-aware selection on the
+>   fine-grained catalog. (Captured as research; implementation still gated on the user's go + measurement — do NOT rush.)
 > **PROGRESS (2026-07-01) — the DEFAULT-auto-selection seam is LIVE:** `buildLoadedModelRoutingCandidates`
 > ([nklein-loaded-model-candidates.ts](src/nklein-agent/nklein-loaded-model-candidates.ts), 4 tests) builds routing
 > candidates from the currently-LOADED set (reusing each model's observed registry entry so the ledger drives ranking,
