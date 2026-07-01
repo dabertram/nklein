@@ -3825,10 +3825,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         extracted as a div-balance-verified clean range). General now = Developer Mode + Advanced. Verified: web:typecheck +
         36-test dialog oracle + web:build. *(Live Playwright pass of the new nav still owed.)*
   - [ ] remaining regroup sections per the ~9-section plan, decomposed:
-    - [ ] !Klein Provider & Models section (move provider + model config controls) — **left as-is (verified entangled,
-          2026-07-01):** the `NKleinSetupSection` / `NKleinModelContextWindowSettingsPanel` / `ModelRolesEditor` /
-          advisor / model-gate / skill-dynamics cluster all live inside a single card wrapped in the
-          `selectedAgentId === "nklein"` fragment (`<>…</>`), so it's not a clean pure lift. Not this increment.
+    - [x] **!Klein Provider & Models section (2026-07-01)** — the existing `nkleinOnly` section already IS the provider +
+          model cluster (`NKleinSetupSection` provider setup + `NKleinModelContextWindowSettingsPanel` +
+          `ModelRolesEditor` + advisor + model-gate + skill-dynamics). Rather than a risky ~500-line lift of that
+          entangled `selectedAgentId === "nklein"` fragment, gave it its dedicated identity via a **pure display relabel**
+          (like the Git relabel): nav label `"!Klein"` → `"!Klein Provider & Models"` and the section `<h2>` header
+          `"NKlein"` → `"!Klein Provider & Models"`. Stable `nklein` `SettingsNavId` + `data-settings-section="nklein"`
+          anchor UNCHANGED; no JSX moved, no control/state touched (whole-file div-balance trivially net 0). No test
+          asserts on the old label/header (the oracle's `label: "!Klein"` refs are agent-catalog fixtures; Playwright
+          only clicks General/Tasks), so all stay green. web-ui typecheck + tests (832 passed, incl. the dialog oracle) +
+          build green.
     - [x] **Guardrails & Limits section carved out of the "Tasks" dumping ground (2026-07-01)** — new always-visible
           `"guardrails"` `SettingsNavId` (`settings-nav.tsx` union) + nav item ("Guardrails & Limits", `Gauge` icon) +
           `data-settings-section="guardrails"` body block placed **after Tasks / before !Klein**. Moved the two
