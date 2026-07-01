@@ -184,6 +184,56 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		expect(result.createdTasks.every((task) => task.streamId === "stream-habit-tracker")).toBe(true);
 	});
 
+	// Live-found 2026-07-02: a 120B architect decomposed `complex_dag` into a graph where EVERY card had a
+	// dependency (incl. a 2-cycle), so `rootTaskIds` was empty and the auto-start cascade never began (dead board).
+	// The apply path now breaks the minimal back-edges so there is always a startable root.
+	it("breaks a cyclic architect graph so the board still has a startable root (regression: dead cascade)", () => {
+		const cyclicGraph: NKleinPlanTaskGraph = {
+			schemaVersion: 1,
+			slug: "cyclic",
+			title: "Cyclic Graph",
+			tasks: [
+				{
+					id: "a",
+					title: "A",
+					prompt: "Do A.",
+					dependsOn: ["b"], // a ↔ b: mutual dependency ⇒ no dependency-free root without repair
+					complexity: 30,
+					suggestedRole: "worker",
+					filesLikelyTouched: ["src/a.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+				},
+				{
+					id: "b",
+					title: "B",
+					prompt: "Do B.",
+					dependsOn: ["a"],
+					complexity: 30,
+					suggestedRole: "worker",
+					filesLikelyTouched: ["src/b.ts"],
+					acceptanceCommand: "npm test",
+					testFirst: false,
+					acceptanceTestPrompt: null,
+				},
+			],
+		};
+		const result = applyNKleinPlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: cyclicGraph,
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+		// Both cards still materialize, but the cascade now has an entry point (root) and the broken edge is surfaced.
+		expect(result.createdTasks).toHaveLength(2);
+		expect(result.rootTaskIds.length).toBeGreaterThan(0);
+		expect(result.brokenDependencyEdges).toHaveLength(1);
+		// Exactly one direction of the cycle survives as a materialized dependency.
+		expect(result.createdDependencies).toHaveLength(1);
+	});
+
 	// follow-up-6 §2.1: a generated DAG can look correct yet be operationally dead if cards land mis-laned or
 	// mis-flagged so they cannot be started from Planning. Guard the startability preconditions directly.
 	it("lands every generated card in Planning with start preconditions met (regression: startable from Planning)", () => {

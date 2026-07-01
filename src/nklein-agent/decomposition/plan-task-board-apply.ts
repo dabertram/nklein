@@ -15,6 +15,7 @@ import type {
 import type { NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
 import { nkleinPlanTaskGraphSchema, nkleinPlanTaskSchema } from "../nklein-plan-artifacts";
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
+import { breakDependencyCycles } from "./plan-task-cycle-break";
 import { expandDecomposeProjectTasks, getReplacementBoundaryTaskIds } from "./plan-task-expansion";
 import { slugifyTaskId } from "./plan-task-input-parse";
 import { buildTaskPrompt } from "./plan-task-prompt";
@@ -101,10 +102,18 @@ export function replaceNKleinPlanTaskInGraph(input: {
 
 export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphInput): ApplyNKleinPlanTaskGraphResult {
 	let board = input.board;
-	const taskGraph = validateNKleinPlanTaskGraph({
+	const validatedTaskGraph = validateNKleinPlanTaskGraph({
 		taskGraph: input.taskGraph,
 		routingCandidates: input.routingCandidates,
 	}).taskGraph;
+	// Guarantee an acyclic, startable graph. An architect model can emit a cyclic/over-constrained dependency graph
+	// (every card depends on something) that would materialize a board with NO dependency-free root — so `rootTaskIds`
+	// below is empty and the auto-start cascade never begins (live-found 2026-07-02 on `complex_dag`). Break the minimal
+	// back-edges so the cascade can start; the runtime reorients a card's edges on start, so completing the entry card
+	// unblocks the rest. Acyclic graphs pass through untouched (no broken edges, same task references).
+	const cycleBreak = breakDependencyCycles(validatedTaskGraph.tasks);
+	const taskGraph =
+		cycleBreak.brokenEdges.length > 0 ? { ...validatedTaskGraph, tasks: cycleBreak.tasks } : validatedTaskGraph;
 	const createdTasks: RuntimeBoardCard[] = [];
 	const createdDependencies: RuntimeBoardDependency[] = [];
 	const taskIdByPlanTaskId: Record<string, string> = {};
@@ -233,5 +242,6 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 		taskIdByPlanTaskId,
 		rootTaskIds,
 		preview,
+		...(cycleBreak.brokenEdges.length > 0 ? { brokenDependencyEdges: cycleBreak.brokenEdges } : {}),
 	};
 }

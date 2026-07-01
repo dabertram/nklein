@@ -106,6 +106,12 @@ export interface ApplyNKleinPlanTaskGraphResult {
 	taskIdByPlanTaskId: Record<string, string>;
 	rootTaskIds: string[];
 	preview: NKleinPlanTaskGraphPreview;
+	/**
+	 * `dependsOn` edges removed to break a cycle in the architect's graph so the board has a startable root (absent
+	 * when the graph was already acyclic). Surfaced for observability — a non-empty list flags a model that emitted a
+	 * cyclic/over-constrained decomposition. See {@link breakDependencyCycles}.
+	 */
+	brokenDependencyEdges?: { taskId: string; dependsOnTaskId: string }[];
 }
 
 export interface ValidateNKleinPlanTaskGraphResult {

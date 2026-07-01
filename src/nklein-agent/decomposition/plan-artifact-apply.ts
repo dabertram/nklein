@@ -120,6 +120,12 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				// selection to card start (the prior behavior). Routing applies whenever all cards are feasible.
 				applied = applyNKleinPlanTaskGraphToBoard(applyInput);
 			}
+			const brokenEdges = applied.brokenDependencyEdges ?? [];
+			const brokenEdgeList = brokenEdges.map((edge) => `${edge.taskId}⇸${edge.dependsOnTaskId}`).join(", ");
+			const brokenEdgeNote =
+				brokenEdges.length > 0
+					? ` Broke ${pluralizeCount(brokenEdges.length, "dependency cycle edge")} so the board has a startable root (${brokenEdgeList}).`
+					: "";
 			return {
 				board: applied.board,
 				value: {
@@ -129,7 +135,7 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 					taskIdByPlanTaskId: applied.taskIdByPlanTaskId,
 					rootTaskIds: applied.rootTaskIds,
 					baseRef,
-					message: `Applied task graph to !Klein: created ${pluralizeCount(applied.createdTasks.length, "Planning card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.`,
+					message: `Applied task graph to !Klein: created ${pluralizeCount(applied.createdTasks.length, "Planning card")} and ${pluralizeCount(applied.createdDependencies.length, "dependency", "dependencies")}.${brokenEdgeNote}`,
 					preview: applied.preview,
 				},
 			};
