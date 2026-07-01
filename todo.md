@@ -4896,16 +4896,17 @@ source repo went private — so if it vanishes the buildable source still lives 
         `buildNKleinStartGuardCandidate` → `routeNKleinTask`) ran clean against the 3 machines: all 4 loaded models
         produced valid candidates (ctx 40000/32768) and routed best-fit (CODE→qwen2.5-coder, PLANNING→qwopus). So the glue
         CI doesn't cover is proven.
-        **STILL OWED:** (0) **★ HIGH — start-path resilience to a STALE DEFAULT (live-found 2026-07-01).** `resolveLaunchConfig`
-        HARD-THROWS when the configured provider model isn't loaded (found live: the user's default = `…-legion5pro-ctx80k`,
-        a variant that isn't loaded — only `…-legion5pro` is). In `start-task-session.ts` the PRIMARY resolve (line ~152)
-        runs BEFORE the §5.AB auto-discovery, so a stale default hard-fails the card before the loaded set can rescue it —
-        directly defeating "use whatever's loaded". Fix: on a not-loaded primary, FALL BACK to an auto-discovered loaded
-        model instead of failing (guard: try loaded models, use the first that resolves, else re-throw the original). Gotcha:
-        the fallback needs the endpoint baseUrl without a resolved primary (chicken-egg — the provider service must expose
-        the default endpoint, or reuse `residencyBaseUrl`). Behavior-changing hot-path ⇒ test the fallback helper + §5.Z.
-        Immediate user workaround: point the default provider model at a LOADED id (or load the `-ctx80k` variant).
-        (1) live §5.Z re-verify across the 3 machines (multi-card run: distinct best-fit models per card, no endpoint
+        **STALE-DEFAULT RESILIENCE — DONE + LIVE-VERIFIED (2026-07-01, 3d528220):** `resolveLaunchConfig` HARD-THROWS
+        when the configured DEFAULT model isn't loaded (live-found: the user's default = `…-legion5pro-ctx80k`, a variant
+        that isn't loaded). The primary resolve ran BEFORE §5.AB auto-discovery, so a stale default hard-failed the card.
+        Fixed: `resolveLoadedFallbackLaunchConfig` (exported, 4 tests) — on a failed DEFAULT resolve, use the first
+        already-loaded non-embedding model that resolves; null ⇒ re-throw the original (unchanged when nothing loaded).
+        Scoped to the DEFAULT case (an EXPLICIT choice keeps its error); primary-success path untouched ⇒ strictly safe.
+        Live-verified: with the stale default, the fallback picked qwopus so the card starts, then affinity-routes per card.
+        **REMAINING NUANCE:** the fallback fetches loaded ids from the hardcoded `http://127.0.0.1:1234/v1` — correct for
+        the local LM Studio case; a CONFIGURED-REMOTE endpoint would return [] → re-throw (safe, but no rescue there). If a
+        non-localhost provider endpoint becomes common, thread the provider's real default baseUrl into the fallback.
+        **STILL OWED:** (1) live §5.Z re-verify across the 3 machines (multi-card run: distinct best-fit models per card, no endpoint
         deadlock, clean teardown). (2) chain llmfit's cached score ahead of the catalog prior — LOW marginal value for the
         user's CUSTOM loaded models (qwopus/ornith aren't in llmfit's HF DB; the catalog + name heuristics already cover
         them), deprioritized (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
