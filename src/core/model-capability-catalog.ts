@@ -221,6 +221,24 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		verified: true,
 	},
 	{
+		// Gemma 4 12B-it-qat — a capable mid Gemma-4 (dense); its `12b` regex can't hit e4b/e2b/26b, so order among the
+		// gemma-4 rows is not load-bearing; kept in the family block before the generic gemma-3/gemma-2 rows.
+		family: "gemma-4-12b",
+		match: /gemma-?4[-_]?12b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "instruct",
+		chaining: "native",
+		synthesis: "full",
+		speed: "fast",
+		sizeGb: 7,
+		note: "gemma-4-12b-it-qat (12B, quantization-aware-trained). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LEGION 8 GB-VRAM box): CLEAN PASS (~21s) — drove ALL 4 tools + PERSISTED the card + echoed the marker = FULL synthesis. Here even cleaner than the 26B-A4B sibling (which had weak synth), and far above the e2b/e4b EDGE variants (which drop the chain). A capable small all-rounder that runs FAST even on the Legion's discrete 8 GB GPU.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on davidlegion5pro — gemma-4-12b-it-qat CLEAN PASS, ~21s, full synth); see docs/dev/model-sweep-log.md",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
 		family: "gemma-3",
 		match: /gemma-?3/,
 		toolUse: "TOOL_WEAK",
@@ -366,6 +384,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sources: [
 			"https://github.com/QwenLM/Qwen3-Coder/issues/180",
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — qwen2.5-coder-14b: all 4 tools + persist, weak synth, ~45s)",
+			"live chat-agent e2e 2026-07-01 (model-lab guarded sweep on davidlegion5pro — qwen2.5-coder-7b-instruct CLEAN PASS, ~18s, full synth — the 7B variant clears the full chain fast on the Legion's 8 GB GPU)",
 		],
 		basis: "both",
 		verified: true,
@@ -403,7 +422,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		structuredOutput: "native_tool_call",
 		speed: "medium",
 		sizeGb: 6,
-		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever. Medium speed (~6 GB resident 9B).",
+		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever. Medium speed (~6 GB resident 9B). UPDATE 2026-07-01: on the m4mini (fresh-loaded, 24 GB, device-targeted) a clean e2e = FULL PASS (172s) WITH the marker echoed — so its synthesis is STOCHASTIC (full IS achievable), not fixed-weak; the §5.AB force-advance still carries the chain.",
 		sources: [
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts; commits dec62245+89becd66); todo §5.AA/§5.AB force-advance + §4A structured-output-strategy/thinking-control notes",
 		],
@@ -418,6 +437,92 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		note: "Marketed for agentic tool use (Qwen-Agent, MCP). Strong single-turn; multi-turn chaining is STOCHASTIC — live 2026-06-29 (HIGH power, fresh-loaded, back-to-back e2e): run 1 narrated steps 2-4 as prose → INCOMPLETE (the evidence-gate correctly refused the false 'done'), run 2 drove the full chain + persisted → PASS. Our best small performer, but don't assume a single run is representative.",
 		sources: ["https://qwenlm.github.io/blog/qwen3/"],
 		basis: "both",
+		verified: true,
+	},
+	// ── qwen3 coder-next + larger qwen3 sizes (2026-07-01 fleet sweep) ─────────────────────────────────────
+	{
+		// Qwen3-Coder-Next — purpose-built agentic coder; NOT shadowed by qwen3.5/qwen3-8b (distinct "coder-next" token).
+		family: "qwen3-coder-next",
+		match: /qwen-?3-coder(-next)?/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "agentic",
+		chaining: "native",
+		synthesis: "full",
+		structuredOutput: "native_tool_call",
+		speed: "fast",
+		sizeGb: 45,
+		note: "Qwen3-Coder-Next (arch qwen3_next, ~80B MoE agentic coder). Live e2e 2026-07-01 (model-lab guarded sweep, m5): CLEAN PASS (exit 0) — drove ALL 4 tools (read+command+create_card+focus_chain) + PERSISTED the card + echoed the marker = FULL synthesis, FAST (~25s). Purpose-built for agentic coding and behaves like it — a top-tier local DRIVER candidate. ~45 GB resident, headroom-safe on the 128 GB box.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — qwen3-coder-next CLEAN PASS, exit 0, full synth, ~25s); see docs/dev/model-sweep-log.md",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
+		// qwen3-14b — the NON-reasoning qwen3 (arch qwen3); n=1 result, verified:false. Distinct from qwen3.5/qwen3.6.
+		family: "qwen3-14b",
+		match: /qwen-?3-14b/,
+		toolUse: "TOOL_WEAK",
+		kind: "instruct",
+		chaining: "fails",
+		synthesis: "weak",
+		speed: "slow",
+		sizeGb: 9,
+		note: "qwen3-14b (arch qwen3). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LEGION 8 GB-VRAM box): ❌ INCOMPLETE (122s) — card not persisted (dropped the chain). ODDLY weaker than the coder-7b + gemma-4-12b that PASS on the same box, so possibly a stochastic miss rather than a hard ceiling — n=1, verdict PROVISIONAL (verified:false; ×3 re-run owed, ideally on faster HW to rule out a speed confound).",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on davidlegion5pro — qwen3-14b ❌ INCOMPLETE 122s, n=1); see docs/dev/model-sweep-log.md",
+		],
+		basis: "empirical",
+		verified: false,
+	},
+	{
+		// qwen3.6-27b (base qwen3.6, arch qwen35) — NOT the qwopus3.6 merge (own row above). Only data is a SPEED-CONFOUNDED
+		// legion run, so the verdict is research-led + verified:false — do NOT read a slow-HW timeout as incapacity.
+		family: "qwen3.6-27b",
+		match: /qwen-?3[._]6-27b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		speed: "slow",
+		sizeGb: 17,
+		note: "qwen3.6-27b (base qwen3.6 reasoning family; the qwopus3.6-27b MERGE — the backlog driver — has its own row and drives multi-tool chains fine). Only live data 2026-07-01 is SPEED-CONFOUNDED: on the LEGION (8 GB VRAM + 32 GB RAM) it ran ~14 min (840s) mostly RAM-bound and hit INCOMPLETE — a throughput/timeout artifact, NOT a capability ceiling (the known 'a 27B is too slow for a multi-turn tool-chain in-window' pattern). Held TOOL_CAPABLE (the 3.6 gen chains natively on adequate HW), verified:false — a CLEAN run owed on a fast box.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on davidlegion5pro — qwen3.6-27b INCOMPLETE @840s, speed-confounded); see docs/dev/model-sweep-log.md",
+		],
+		basis: "both",
+		verified: false,
+	},
+	// ── OpenAI gpt-oss (open-weight MoE) — 2026-07-01 fleet sweep: chaining tracks ACTIVE params ──────────────
+	{
+		family: "gpt-oss-120b",
+		match: /gpt-?oss-120b/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		chaining: "native",
+		synthesis: "full",
+		structuredOutput: "native_tool_call",
+		speed: "fast",
+		sizeGb: 63,
+		note: "OpenAI gpt-oss-120b (open-weight MoE, ~116B total / ~5.1B active). Live e2e 2026-07-01 (model-lab guarded sweep, m5): CLEAN PASS (exit 0) — drove ALL 4 tools + PERSISTED the card + echoed the marker = FULL synthesis, and FAST (~22s, thanks to the ~5B active-param MoE). ~63 GB resident, headroom-safe on the 128 GB box. A high-tier winner. KEY CONTRAST with the gpt-oss-20b sibling (TOOL_WEAK): gpt-oss chaining tracks ACTIVE params — 5.1B here clears the full chain, 3.6B on the 20b does not.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — gpt-oss-120b CLEAN PASS, exit 0, full synth, ~22s); see docs/dev/model-sweep-log.md",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
+		family: "gpt-oss-20b",
+		match: /gpt-?oss-20b/,
+		toolUse: "TOOL_WEAK",
+		kind: "reasoning",
+		chaining: "single_only",
+		synthesis: "weak",
+		speed: "fast",
+		sizeGb: 22,
+		note: "OpenAI gpt-oss-20b (open-weight MoE, ~21B total / ~3.6B active). Live e2e 2026-07-01 ×3 (model-lab guarded sweep, m5): 0/3 — drives read_file + run_command then DROPS create_card + update_focus_chain (card never persisted), INCOMPLETE every run (~39-59s). A multi-tool CHAIN-dropper despite 20B total — consistent with the ≤~4B-active chaining floor (only ~3.6B active), while its 120b sibling (~5.1B active) clears the chain cleanly. Fine for single-tool use; not a reliable multi-step tool-chainer.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 ×3 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — gpt-oss-20b-mlx 0/3, chain-drop); see docs/dev/model-sweep-log.md",
+		],
+		basis: "empirical",
 		verified: true,
 	},
 	// ── Mistral 24B family ────────────────────────────────────────────────────────────────────────────────

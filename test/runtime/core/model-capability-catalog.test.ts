@@ -123,6 +123,49 @@ describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdi
 		// The size-anchored regex must NOT match the 9B sibling.
 		expect(lookupModelCapability("ornith-1.0-9b-mlx")).toBeNull();
 	});
+
+	it("gpt-oss chaining tracks ACTIVE params: 120b (~5.1B active) TOOL_CAPABLE full-synth vs 20b (~3.6B active) TOOL_WEAK chain-drop", () => {
+		const big = lookupModelCapability("openai/gpt-oss-120b");
+		expect(big?.family).toBe("gpt-oss-120b");
+		expect(big?.toolUse).toBe("TOOL_CAPABLE");
+		expect(big?.chaining).toBe("native");
+		expect(big?.synthesis).toBe("full");
+		const small = lookupModelCapability("gpt-oss-20b-mlx");
+		expect(small?.family).toBe("gpt-oss-20b");
+		expect(small?.toolUse).toBe("TOOL_WEAK");
+		expect(small?.chaining).toBe("single_only"); // drives read+command, drops create_card+focus_chain (0/3)
+	});
+
+	it("qwen3-coder-next (80B agentic coder) resolves TOOL_CAPABLE native/full — a top-tier local driver", () => {
+		const e = lookupModelCapability("qwen/qwen3-coder-next");
+		expect(e?.family).toBe("qwen3-coder-next");
+		expect(e?.toolUse).toBe("TOOL_CAPABLE");
+		expect(e?.chaining).toBe("native");
+		expect(e?.synthesis).toBe("full");
+		expect(e?.kind).toBe("agentic");
+	});
+
+	it("gemma-4-12b is its OWN TOOL_CAPABLE full-synth row, distinct from the 26B MoE + the ≤4B edge rows", () => {
+		const e = lookupModelCapability("gemma-4-12b-it-qat");
+		expect(e?.family).toBe("gemma-4-12b");
+		expect(e?.toolUse).toBe("TOOL_CAPABLE");
+		expect(e?.synthesis).toBe("full");
+		// distinct from the neighbors (regex can't cross-match)
+		expect(lookupModelCapability("google/gemma-4-26b-a4b-qat")?.family).toBe("gemma-4-26b");
+		expect(lookupModelCapability("google/gemma-4-e4b")?.family).toBe("gemma-4-e4b");
+	});
+
+	it("qwen3-14b + qwen3.6-27b are PROVISIONAL (verified:false); qwen3.6-27b does NOT shadow the qwopus3.6 driver", () => {
+		const q14 = lookupModelCapability("qwen3-14b");
+		expect(q14?.family).toBe("qwen3-14b");
+		expect(q14?.toolUse).toBe("TOOL_WEAK");
+		expect(q14?.verified).toBe(false); // n=1 legion fail — provisional
+		const q36 = lookupModelCapability("qwen3.6-27b");
+		expect(q36?.family).toBe("qwen3.6-27b");
+		expect(q36?.verified).toBe(false); // speed-confounded legion run, not a capability ceiling
+		// the qwopus3.6 MERGE (backlog driver) still resolves to ITS own row, not the base qwen3.6-27b row.
+		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.family).toBe("qwopus3.6");
+	});
 });
 
 describe("model-capability-catalog: fine-grained metadata (§5.AL — chaining/synthesis/structuredOutput/speed/sizeGb)", () => {
