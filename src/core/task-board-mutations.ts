@@ -42,6 +42,8 @@ export interface RuntimeCreateTaskInput {
 	nkleinSettings?: RuntimeTaskNKleinSettings;
 	filesLikelyTouched?: string[];
 	generatedFromPlan?: RuntimeGeneratedFromPlan;
+	/** §5.AU: the stream/epic this card belongs to (set by the decomposition write-path). */
+	streamId?: string;
 	baseRef: string;
 }
 
@@ -304,6 +306,7 @@ export function addTaskToColumn(
 		...(input.nkleinSettings !== undefined ? { nkleinSettings: cloneTaskNKleinSettings(input.nkleinSettings) } : {}),
 		...(filesLikelyTouched ? { filesLikelyTouched } : {}),
 		...(input.generatedFromPlan ? { generatedFromPlan: { ...input.generatedFromPlan } } : {}),
+		...(input.streamId ? { streamId: input.streamId } : {}),
 		baseRef,
 		createdAt: now,
 		updatedAt: now,

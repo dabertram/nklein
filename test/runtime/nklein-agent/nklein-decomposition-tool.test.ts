@@ -169,6 +169,19 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			toTaskId: "habit-tracker-storage",
 		});
 		expect(result.board.dependencies).toEqual(result.createdDependencies);
+
+		// §5.AU: the decomposition materializes ONE stream (epic) and stamps every generated card with its streamId.
+		expect(result.board.streams).toEqual([
+			{
+				id: "stream-habit-tracker",
+				title: "Habit Tracker",
+				source: "decomposition",
+				planSlug: "habit-tracker",
+				createdAt: 100,
+				updatedAt: 100,
+			},
+		]);
+		expect(result.createdTasks.every((task) => task.streamId === "stream-habit-tracker")).toBe(true);
 	});
 
 	// follow-up-6 §2.1: a generated DAG can look correct yet be operationally dead if cards land mis-laned or

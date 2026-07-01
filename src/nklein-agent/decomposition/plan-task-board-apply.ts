@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { RuntimeBoardCard, RuntimeBoardData, RuntimeBoardDependency } from "../../core/api-contract";
+import type {
+	RuntimeBoardCard,
+	RuntimeBoardData,
+	RuntimeBoardDependency,
+	RuntimeStream,
+} from "../../core/api-contract";
 import { withAutonomousNKleinTimeoutSettings } from "../../core/autonomous-timeout-defaults";
 import { addTaskDependency, addTaskToColumn, moveTaskToColumn } from "../../core/task-board-mutations";
 import type {
@@ -20,6 +25,17 @@ import {
 	selectTaskRoutingCandidate,
 } from "./plan-task-routing";
 import { validateNKleinPlanTaskGraph } from "./plan-task-validation";
+
+/** §5.AU: the deterministic stream id for a decomposition slug — matches `deriveStreams` (`stream-<slug>`). */
+function decompositionStreamId(planSlug: string): string {
+	return `stream-${planSlug}`;
+}
+
+/** Humanize a plan slug into a stream title fallback (used when the source card's title is unavailable). */
+function streamTitleFromSlug(planSlug: string): string {
+	const words = planSlug.replace(/[-_]+/g, " ").trim();
+	return words.length > 0 ? words.replace(/\b\w/g, (c) => c.toUpperCase()) : planSlug;
+}
 
 export function collectBoardTaskIds(board: RuntimeBoardData): Set<string> {
 	return new Set(board.columns.flatMap((column) => column.cards.map((card) => card.id)));
@@ -100,6 +116,25 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 		sharedContext: input.sharedContext,
 	});
 
+	// §5.AU: materialize the decomposition's STREAM (epic) once, idempotently, and stamp every generated card with its
+	// streamId below. Title from the source card when known, else the humanized slug. Additive: older boards had no
+	// `streams`, so this seeds it; a re-apply finds the existing stream and does not duplicate it.
+	const streamId = decompositionStreamId(taskGraph.slug);
+	if (!(board.streams ?? []).some((stream) => stream.id === streamId)) {
+		const sourceCardTitle = input.sourceTaskId
+			? board.columns.flatMap((column) => column.cards).find((card) => card.id === input.sourceTaskId)?.title
+			: undefined;
+		const stream: RuntimeStream = {
+			id: streamId,
+			title: sourceCardTitle?.trim() || streamTitleFromSlug(taskGraph.slug),
+			source: "decomposition",
+			planSlug: taskGraph.slug,
+			createdAt: now,
+			updatedAt: now,
+		};
+		board = { ...board, streams: [...(board.streams ?? []), stream] };
+	}
+
 	for (const task of taskGraph.tasks) {
 		const existingGeneratedCard = findGeneratedPlanTaskCard({
 			board,
@@ -149,6 +184,7 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 					planTaskId: task.id,
 					sourceTaskId: input.sourceTaskId ?? null,
 				},
+				streamId,
 			},
 			input.randomUuid,
 			now,
