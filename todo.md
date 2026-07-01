@@ -3824,7 +3824,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         second-opinion review, the swarm-guardrails panel, advanced-policy visibility, and agent rulesets (379 lines,
         extracted as a div-balance-verified clean range). General now = Developer Mode + Advanced. Verified: web:typecheck +
         36-test dialog oracle + web:build. *(Live Playwright pass of the new nav still owed.)*
-  - [ ] remaining regroup sections per the ~9-section plan, decomposed:
+  - [~] remaining regroup sections per the ~9-section plan, decomposed: **(2026-07-01: the 4 concrete moves below are all DONE
+        — !Klein Provider & Models · Guardrails vs Agents boundary · Code Intelligence · Git relabel; only the vague
+        "Workspace/Project settings polish" remains, which needs a specific UX call, not a mechanical move.)**
     - [x] **!Klein Provider & Models section (2026-07-01)** — the existing `nkleinOnly` section already IS the provider +
           model cluster (`NKleinSetupSection` provider setup + `NKleinModelContextWindowSettingsPanel` +
           `ModelRolesEditor` + advisor + model-gate + skill-dynamics). Rather than a risky ~500-line lift of that
