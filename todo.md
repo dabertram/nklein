@@ -1180,7 +1180,28 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       weakly-connected `componentCount` via union-find, `disconnectedIds`, acyclic `maxDepth`). **22 unit tests**
       ([test/runtime/core/decomposition-subtask-dag.test.ts](test/runtime/core/decomposition-subtask-dag.test.ts)); tsc +
       vitest + biome green. Owed (wiring, separate): consult it in the `decompose_project` gate alongside the existing
-      reference + coherence checks, and feed the shape summary to a re-decompose trigger.
+      reference + coherence checks; the shape summary now feeds the re-decompose trigger below (`decideRedecomposeTrigger`).
+- [x] **Re-decompose trigger (quality signals → accept | refine | split | merge | redo + why) (2026-07-01)** —
+      [src/core/decomposition-redecompose-trigger.ts](src/core/decomposition-redecompose-trigger.ts) — pure
+      `decideRedecomposeTrigger(input, options?)` that turns the decomposition **quality signals** into an actionable
+      corrective **verdict**, closing the loop the two existing gates left open: `validateSubtaskDag` and
+      `assessNKleinPlanTaskGraphQuality` *report* problems, but nothing decided what to *do* about them. It **composes
+      their outputs** as INJECTED plain values (no re-derivation, no `nklein-agent` import, no model/mcp/IO): the
+      structural shape (`DecompositionStructureSignals` — blocking-defect flag, `componentCount`, disconnected count —
+      projected 1:1 from `SubtaskDagReport`), per-subtask `SubtaskSizing` (`complexity`/`likelyFileCount`, projected from
+      an `NKleinPlanTask`), an `uncoveredGoalAspectCount` completeness signal, and the semantic `violations`/`warnings`
+      counts. Least-disruption-first priority (first firing wins): **redo** (blocking defect / disconnected islands /
+      uncovered goal) → **split** (oversized cards, ids returned) → **merge** (enough trivially-thin cards, ids returned)
+      → **refine** (semantic-only concerns) → **accept**. Sizing thresholds default to the shipped
+      `MAX_DECOMPOSED_TASK_COMPLEXITY` (75) / `MAX_DECOMPOSED_TASK_LIKELY_FILES` (3). **Loop-safety** (mirrors the §5.B
+      `enforceRepeatedFailureTargetGuard` "park, don't re-submit forever" rule + "global re-decompose = last resort"): a
+      `priorRedecomposeAttempts` budget (default cap 3) downgrades a would-be `redo` to the best non-redo action and sets
+      `shouldHaltRedecomposition` so a stubborn model can't loop the whole graph. `reasons` always lists EVERY actionable
+      signal (coverage → structure → sizing → semantic), most-significant first, regardless of which selected the action.
+      Pure/total/deterministic/non-mutating. **36 unit tests**
+      ([test/runtime/core/decomposition-redecompose-trigger.test.ts](test/runtime/core/decomposition-redecompose-trigger.test.ts));
+      tsc + vitest + biome green. Owed (wiring, separate): call it after the `decompose_project` gates run (feed it the
+      `SubtaskDagReport` shape + the quality assessment + a coverage signal) and act on the verdict.
 - **Audio dev-test rubric** — score the audio-VST fixture against a domain rubric (preset + harness shipped; this is the
       *scoring*; umbrella — the 4 scoring axes below are the counted work):
   - [ ] DSP correctness + measured phase alignment
@@ -2512,6 +2533,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       wiring consults `assessClarificationNeed` after decomposition to decide whether to open a question at all). 24
       unit tests. **Owed wiring (non-pure, deferred):** call `assessClarificationNeed` post-decompose to seed the
       §5.S loop, and thread the mode from the auto-vs-manual setting.
+- [x] **Assumption-safety decider — clarify vs. assume-and-log (pure + tested)** *(DONE 2026-07-01)* —
+      [src/core/assumption-safety.ts](src/core/assumption-safety.ts): the decision-theoretic gate that sits between
+      the two neighbours — `clarification-need.ts` scores *how ambiguous the request is*, `auto-clarify.ts` runs the
+      loop and, when it stalls, "gives up with an assumption"; **nothing decided whether that specific default was
+      safe to adopt silently.** `assumptionRisk(candidate)` = `(1 - confidence) * impact * reversibilityWeight`
+      (all three estimates INJECTED — no model call; dirty/NaN inputs fail safe toward asking), and
+      `decideAssumptionSafety(candidate, mode)` returns `assume_and_log` | `assume_but_flag` | `ask` via mode-relative
+      risk gates (`cautious`/`balanced`/`autonomous` — more autonomy tolerates more silent risk), with a hard safety
+      **floor** that an *irreversible* default is NEVER adopted silently (min `assume_but_flag`). `clarifyOrAssume`
+      composes the two §5.S gates by import (does NOT edit `clarification-need`): if the request isn't ambiguous the
+      default stands; if it is, only a genuinely risky default forces the §5.S pause. 25 unit tests; tsc + biome clean.
 - [x] **Auto-clarify core (pure + tested)** *(DONE 2026-06-24)* — [src/core/auto-clarify.ts](src/core/auto-clarify.ts):
       `decideAutoClarifyStep(rounds, config, similarity)` is the pure architect→reviewer→architect decision over a
       card's open questions — confident answer wins immediately; otherwise the round budget (safety cap tightened by
@@ -5640,8 +5672,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Evaluation harness (run a model through the matrix → fitness), decomposed:**
   - [ ] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
   - [ ] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
-  - [ ] Capture + compute quality score, speed (tok/s, TTFT), and retry-count metrics per model/role/difficulty.
-  - [ ] Emit + persist `ModelFitnessRecord` output into the `ModelBehaviorProfile` store.
+  - [~] Capture + compute quality score, speed (tok/s, TTFT), and retry-count metrics per model/role/difficulty.
+        **PURE AGGREGATOR CORE DONE (2026-07-01):** [src/core/model-eval-aggregation.ts](src/core/model-eval-aggregation.ts)
+        `aggregateModelEvalRuns` — folds the harness's graded, difficulty-tagged, REPEATED per-run results
+        (`ModelEvalRun[]` = {model, role, `EvalDifficultyTier`, passed, gradedQuality, latencyMs, retries}) into a §5.AB
+        `ModelFitnessRecord` per (model, role): `maxDifficultyCleared` = the 0..1 score of the hardest tier RELIABLY
+        cleared with MONOTONE support (walk trivial→very-hard, a cleared tier advances the ceiling, an EVALUATED-but-
+        un-cleared easier tier breaks the climb, an un-evaluated tier is skipped so an incomplete corpus isn't punished);
+        graded `qualityScore` = run-weighted mean quality AT/BELOW that ceiling (all runs when nothing clears, never a
+        hollow 0); `reliability` = pass-rate at the deepest cleared tier (else overall); real `avgLatencyMs`/
+        `avgRetriesNeeded`/`samples`. Plus `summarizeModelEvalCells` (per-(model,role,tier) rollup + `cleared` flag) for
+        an operator/§5.Z surface, and `EVAL_DIFFICULTY_TIERS`/`DIFFICULTY_TIER_SCORE` (the trivial→very-hard axis mapped
+        onto [0,1]). This is EXACTLY the graded per-difficulty computation that `buildModelFitnessFromLedger`
+        ([agent-ledger-projections.ts](src/core/agent-ledger-projections.ts)) explicitly defers ("coarse … the §5.AB eval
+        harness fills graded quality + difficulty later"): distinct from that ledger projection (COARSE, from LIVE tasks,
+        `maxDifficultyCleared:0`) AND from the freshness wrapper ([model-fitness-freshness.ts](src/core/model-fitness-freshness.ts)).
+        Pure/deterministic (no clock/IO/store); composes with `computeModelFitness`/`selectModelForTask` by import. 21
+        tests; tsc + biome green. **Still owed (effectful halves):** the graded-run stream itself (the eval corpus +
+        deterministic scorers, the bullets above) + the repeated-run loop feeding these `ModelEvalRun`s.
+  - [ ] Emit + persist `ModelFitnessRecord` output into the `ModelBehaviorProfile` store. *(the aggregator now PRODUCES the
+        records — this leaf is the persistence/store write of its output.)*
   - [ ] Add on-demand trigger (Settings: "Evaluate connected models") with UI feedback.
 - [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`), decomposed:**
   - [ ] Design the fitness table schema (model × role × difficulty dimensions + retry budget, failure modes).
