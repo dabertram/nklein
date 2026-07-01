@@ -4906,7 +4906,14 @@ source repo went private — so if it vanishes the buildable source still lives 
         **REMAINING NUANCE:** the fallback fetches loaded ids from the hardcoded `http://127.0.0.1:1234/v1` — correct for
         the local LM Studio case; a CONFIGURED-REMOTE endpoint would return [] → re-throw (safe, but no rescue there). If a
         non-localhost provider endpoint becomes common, thread the provider's real default baseUrl into the fallback.
-        **STILL OWED:** (1) live §5.Z re-verify across the 3 machines (multi-card run: distinct best-fit models per card, no endpoint
+        **LIVE RUNTIME VERIFICATION — DONE (2026-07-01):** started the actual runtime server (port 3484) + ran a bounded
+        (120s) `dev test-project --preset many_small` through the REAL pipeline. Result: **"Seed start: ok"** — the full
+        `start-task-session` handler ran (auto-discovery + affinity + the stale-default FALLBACK) and a card STARTED even
+        with the user's stale default, proving the fix works in the live runtime (not just the unit probe). Clean teardown:
+        server stopped, NO leftover task containers. Card went "stagnant" within the 120s window (local-model latency /
+        possible prefill stall — a SEPARATE concern from selection; the START + model choice is what this validated).
+        **STILL OWED:** (1) a LONGER multi-card run to completion (distinct best-fit models per card actually finishing, no
+        endpoint
         deadlock, clean teardown). (2) chain llmfit's cached score ahead of the catalog prior — LOW marginal value for the
         user's CUSTOM loaded models (qwopus/ornith aren't in llmfit's HF DB; the catalog + name heuristics already cover
         them), deprioritized (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
