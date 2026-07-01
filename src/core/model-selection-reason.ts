@@ -29,6 +29,8 @@ export interface ModelSelectionCandidateInput {
 	isFree?: boolean;
 	/** Predicted wall-time in ms, when known (a speed tiebreaker). */
 	predictedWallTimeMs?: number | null;
+	/** §5.AB best-fit: the model's strength tags (e.g. `code`, `reasoning`) — what let it win the affinity tiebreaker. */
+	affinityTags?: readonly string[];
 }
 
 export interface ModelSelectionReasonInput {
@@ -42,6 +44,8 @@ export interface ModelSelectionReasonInput {
 	selectedModelKey?: string | null;
 	/** The router's own one-line reason, carried through verbatim. */
 	decisionReason?: string;
+	/** §5.AB/§5.AE best-fit: the tags the CARD needs (from its resolved skills), matched against each candidate's tags. */
+	taskAffinityTags?: readonly string[];
 	/** Every candidate the selector considered. */
 	candidates: readonly ModelSelectionCandidateInput[];
 }
@@ -67,6 +71,19 @@ export interface ModelSelectionCandidateExplanation extends ModelSelectionCandid
 	selected: boolean;
 	/** Human-readable reasons it was ruled out (empty when feasible). */
 	exclusions: string[];
+	/** The candidate's tags that matched the task's needed tags (§5.AB best-fit) — why it won/placed on affinity. */
+	affinityMatchTags: string[];
+}
+
+/** The candidate tags that also appear in the task's needed tags (the affinity overlap the router ranks on). */
+function computeAffinityMatchTags(
+	candidateTags: readonly string[] | undefined,
+	taskTags: readonly string[] | undefined,
+): string[] {
+	if (!candidateTags || candidateTags.length === 0 || !taskTags || taskTags.length === 0) {
+		return [];
+	}
+	return candidateTags.filter((tag) => taskTags.includes(tag));
 }
 
 export interface ModelSelectionReason {
@@ -102,6 +119,7 @@ export function explainModelSelection(input: ModelSelectionReasonInput): ModelSe
 			feasible: exclusions.length === 0,
 			selected: candidate.modelKey === selectedKey,
 			exclusions,
+			affinityMatchTags: computeAffinityMatchTags(candidate.affinityTags, input.taskAffinityTags),
 		};
 	});
 	explained.sort((left, right) => {
@@ -144,7 +162,9 @@ function buildSummary(
 			? `ledger-blended capability ${Math.round(selected.effectiveCapability)} (${selected.ledgerSamples} run(s))`
 			: `registry capability ${Math.round(selected.effectiveCapability)}`;
 	const verb = input.decisionKind === "route_up" ? "routed up to" : "selected";
-	return `${head} ${verb} ${selected.modelKey} — ${evidence}, window ${selected.contextWindow}${selected.isFree === false ? " (busy)" : ""}.`;
+	const affinity =
+		selected.affinityMatchTags.length > 0 ? `, best-fit for [${selected.affinityMatchTags.join(", ")}]` : "";
+	return `${head} ${verb} ${selected.modelKey} — ${evidence}, window ${selected.contextWindow}${affinity}${selected.isFree === false ? " (busy)" : ""}.`;
 }
 
 /** Render a selection reason as a plain-text block (CLI / log / tooltip). */
@@ -157,7 +177,9 @@ export function renderModelSelectionReason(reason: ModelSelectionReason): string
 				? `cap ${Math.round(candidate.effectiveCapability)} (ledger n=${candidate.ledgerSamples}, registry ${Math.round(candidate.registryCapability)})`
 				: `cap ${Math.round(candidate.registryCapability)}`;
 		const detail = candidate.exclusions.length > 0 ? ` — ruled out: ${candidate.exclusions.join("; ")}` : "";
-		lines.push(`${marker} ${candidate.modelKey} [${cap}, window ${candidate.contextWindow}]${detail}`);
+		const affinity =
+			candidate.affinityMatchTags.length > 0 ? ` best-fit[${candidate.affinityMatchTags.join(",")}]` : "";
+		lines.push(`${marker} ${candidate.modelKey} [${cap}, window ${candidate.contextWindow}]${affinity}${detail}`);
 	}
 	return lines.join("\n");
 }

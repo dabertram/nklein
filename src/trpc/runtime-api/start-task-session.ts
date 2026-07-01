@@ -464,8 +464,10 @@ export async function handleStartTaskSession(
 						? routingDecision.modelKey
 						: null,
 				decisionReason: routingDecision.reason,
+				taskAffinityTags,
 				candidates: [...guardCandidates.values()].map((candidate) => {
 					const ledgerSamples = ledgerSuccessByKey.get(candidate.entry.key)?.samples ?? 0;
+					const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 					return {
 						modelKey: candidate.entry.key,
 						role: candidate.role,
@@ -478,6 +480,7 @@ export async function handleStartTaskSession(
 						contextWindow: candidate.entry.contextWindow.effective ?? 0,
 						isFree: !runningModelKeys.has(candidate.entry.key),
 						predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+						...(affinityTags ? { affinityTags } : {}),
 					};
 				}),
 			}),

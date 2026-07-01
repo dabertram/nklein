@@ -115,4 +115,50 @@ describe("explainModelSelection", () => {
 		expect(text).toContain("✗ ollama:small:default");
 		expect(text).toContain("ruled out:");
 	});
+
+	it("explains the §5.AB affinity match — why the best-fit model won", () => {
+		const reason = explainModelSelection({
+			difficulty: 40,
+			requiredContextTokens: 8_000,
+			decisionKind: "assign",
+			selectedModelKey: "lmstudio:coder:default",
+			taskAffinityTags: ["code", "agentic"],
+			candidates: [
+				{
+					modelKey: "lmstudio:coder:default",
+					registryCapability: 62,
+					contextWindow: 40_000,
+					isFree: true,
+					affinityTags: ["code", "agentic", "instruct"],
+				},
+				{
+					modelKey: "lmstudio:general:default",
+					registryCapability: 62,
+					contextWindow: 40_000,
+					isFree: true,
+					affinityTags: ["instruct"],
+				},
+			],
+		});
+		const coder = reason.candidates.find((c) => c.modelKey === "lmstudio:coder:default");
+		const general = reason.candidates.find((c) => c.modelKey === "lmstudio:general:default");
+		expect(new Set(coder?.affinityMatchTags)).toEqual(new Set(["code", "agentic"]));
+		expect(general?.affinityMatchTags).toEqual([]); // no overlap with the card's tags
+		expect(reason.summary).toContain("best-fit for [code, agentic]");
+		expect(renderModelSelectionReason(reason)).toContain("best-fit[");
+	});
+
+	it("omits affinity language when the task carries no tags (back-compat)", () => {
+		const reason = explainModelSelection({
+			difficulty: 40,
+			requiredContextTokens: 8_000,
+			decisionKind: "assign",
+			selectedModelKey: "lmstudio:big:default",
+			candidates: [
+				{ modelKey: "lmstudio:big:default", registryCapability: 85, contextWindow: 80_000, affinityTags: ["code"] },
+			],
+		});
+		expect(reason.candidates[0].affinityMatchTags).toEqual([]); // no task tags ⇒ no match computed
+		expect(reason.summary).not.toContain("best-fit");
+	});
 });
