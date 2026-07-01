@@ -1,5 +1,6 @@
 import { isTruthyEnv } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
+import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
@@ -46,9 +47,15 @@ export interface ChatModelDeps {
 	modelId?: string;
 }
 
-/** Strip inline `<think>…</think>` reasoning blocks a model may leave in its content. */
+/**
+ * Strip inline `<think>…</think>` reasoning a model may leave in its content — via the §5.AN truncation-safe
+ * `stripReasoningChannel` core. FIXES a latent leak: the old inline regex required the closing `</think>`, so a
+ * truncated/unclosed `<think>` (a reasoning model cut off mid-thought — the §5.AA truncation case) leaked the ENTIRE
+ * reasoning dump into the user-visible answer. The core treats an unterminated open marker as reasoning-to-end; a
+ * well-formed `<think>…</think>` block strips identically (both trim).
+ */
 function stripReasoning(content: string): string {
-	return content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+	return stripReasoningChannel(content);
 }
 
 /**

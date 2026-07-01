@@ -8295,9 +8295,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   `completion-stop-reason.ts`) and EXTRACTS the reasoning text (not just strips), so narrated-tool-call recovery can scan
 >   BOTH channels including an inline-reasoning model's. Pure/total (INJECTED message value; no I/O/model/clock; never
 >   throws; case-insensitive; conservative — `< think >` with internal whitespace and prose "I think" are NOT markers);
->   23 vitest tests (tsc + biome green). **OWED WIRING (out of this pure core's scope):** replace `chat-local-llm-adapter.ts`'s
->   `stripReasoning` with `stripReasoningChannel` (fixes the truncated-`<think>` leak) and `nklein-local-llm-client.ts`'s
->   narration concat with `reasoningAndAnswerText`.
+>   23 vitest tests (tsc + biome green). **WIRED (2026-07-01):** `chat-local-llm-adapter.ts`'s `stripReasoning` now delegates
+>   to `stripReasoningChannel` — the truncated-`<think>` LEAK is fixed LIVE (adapter regression suite + core tests green, tsc
+>   + biome clean). **STILL OWED (WIRING):** replace `nklein-local-llm-client.ts`'s narration concat (`content + "\n" +
+>   reasoning_content`) with `reasoningAndAnswerText` so an inline-`<think>` model's reasoning is also scanned for narrated
+>   tool calls.
 > - **`ttl` (auto-evict) + JIT loading:** a request-level `ttl` controls how long a model stays loaded; JIT-load on first request.
 >   (Doc page 404'd on fetch — re-verify the exact field; the `lms load --ttl` flag is the CLI analogue.)
 >   **[~] SUGGESTION-POLICY CORE DONE (2026-07-01):** [lmstudio-keep-alive-ttl.ts](src/core/lmstudio-keep-alive-ttl.ts)
