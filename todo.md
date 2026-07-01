@@ -5777,7 +5777,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
   - [ ] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
   - [~] Implement self-consistency: sample N paths, majority-vote (tie §5.AB reliability metric). **(2026-06-29, parallel batch)** PURE CORE done: `src/core/self-consistency.ts` — `majorityVote<T>(samples, keyFn?)` → `{winner, count, total, agreement}` (first-seen tie-break). 5 tests. Owed: sample N reasoning paths at the call site + feed `agreement` into the §5.AB reliability metric.
-  - [ ] Add difficulty gate: only apply reasoning loops when task difficulty is high + observed failure exists.
+  - [~] Add difficulty gate: only apply reasoning loops when task difficulty is high + observed failure exists. **PURE
+        CORE DONE (2026-07-01):** [src/core/enforced-reasoning-gate.ts](src/core/enforced-reasoning-gate.ts)
+        `decideEnforcedReasoning(input)` → `{enforce, kind, rounds, reason}`. Gates on difficulty ≥ threshold (default
+        0.6) AND an EXTERNAL struggle signal (a failure/bounce this task OR a §5.AA-learned success rate ≤ floor, trusted
+        only past `minSamplesForReliability` to skip cold-start noise) — so a robust model on an easy task, or any model
+        with no struggle signal, runs once (Huang-et-al: self-correction with no external signal tends to hurt). Selects
+        the KIND external-signal-first: `cross_model_carry` (a stronger loaded peer) > `self_consistency` (a flaky model —
+        low reliability or a stochastic `loop`/`no_tool_call`/`narrated` dominant mode) > `self_bounce_varied` (weak
+        deterministic, varied persona — never a bare "are you sure?"). Bounds `rounds` by difficulty, clamped to
+        [1, `maxRounds` (default 3)] so the loop always terminates. Pure/deterministic, reads the §5.AA
+        `ModelBehaviorProfile` + §5.AB `estimateTaskDifficulty` score; 25 unit tests; tsc + biome green. **Still owed
+        (WIRING — behind a live §5.Z re-verify):** feed the live difficulty/`observedFailure`/profile/peer-availability at
+        the model-call seam and, when it enforces, fire the chosen kind via the §5.K reviewer seam (`cross_model_carry`) /
+        §5.AA prompt-variation (`self_bounce_varied`) / the `self-consistency.ts` `majorityVote` (`self_consistency`),
+        composed with the round-limit + stall/no-progress detection (the next two leaves below).
   - [ ] Integrate round-limit + stall/identical-loop detection (reuse §5.K + §5.S + §5.AA seams); compose into one explicit loop.
   - [ ] Test: verify weak model on hard task gets cross-model carry; robust model on easy task skips loop.
 - [ ] **Learn "needs enforced reasoning?" + kind (per model), decomposed:**
@@ -7542,7 +7556,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [~] **VRAM/RAM #1 — right-size context per loaded model; never load at max.** *(2026-06-29: pure calculator done — `src/core/kv-cache-size.ts` (13 tests) + `src/core/load-context-plan.ts` `planLoadContextLength` (right-size ↔ ≥32k floor ↔ max; 5 tests). **WIRED (inert opt-in) into the load path:** `loadModelExclusive` takes an optional `taskNeededTokens` → computes the load `--context-length` via the planner instead of the fixed 40k default; inert when omitted (existing behavior unchanged, verified 3765). Owed: a caller ESTIMATES `taskNeededTokens` + passes the model's max at start-task, then ENABLE + live-verify the load actually opens at the computed context.)* KV cache is linear in context×layers; 128K
         vs 8K can waste ~15 GB. Drive the loaded context-length from the task's actual need (ties §5.AB clamp + §5.AD budget + A/B above).
   - [ ] **VRAM — prefer Q8 KV-cache quant (+ flash attention)** where the runtime allows (−50% cache, <0.1% quality); avoid Q4 V-cache. Surface as a load knob.
-  - [ ] **VRAM — avoid the spillover cliff** (weights+cache must stay in fast memory; spill → multi-× throughput collapse). Feed this into the load-headroom guard.
+  - [~] **VRAM — avoid the spillover cliff** (weights+cache must stay in fast memory; spill → multi-× throughput collapse). Feed this into the load-headroom guard. *(2026-07-01: PURE CORE done — `src/core/fast-memory-fit.ts`: `computeFastMemoryFootprint` (weights + KV-cache-at-context via `kvCacheBytes` + fixed overhead), `decideFastMemoryFit` (footprint vs a `fastMemoryFraction`×fast-memory budget, default 0.75 = the item-below Apple-unified ceiling; conservative refuse on unknown/zero), `assessFastMemoryFit` (geometry→verdict one-shot), and `kvCacheBudgetBytes` (leftover KV budget → back out the max safe context for the §5.AQ-G right-size lever). 22 tests. This is the KV-AWARE term the weights-only `decideModelLoad` (`model-load-headroom.ts`) is blind to. Owed wiring: call `decideFastMemoryFit`/`assessFastMemoryFit` from the effectful load path alongside `decideModelLoad` (needs live weights + per-model KV geometry + host fast-memory size), and use `kvCacheBudgetBytes` to cap the loaded context under the cliff.)*
   - [ ] **RAM (Apple unified) — keep peak < ~75% of unified RAM; cap the MLX KV cache** (`mx.metal.set_memory_limit` since `mlx_lm.server` lacks `--max-kv-size`) to prevent WIRED-memory kernel panics (worse than OOM). Extends the existing freeze-avoidance reserve.
   - [ ] **GPU/VRAM idle — lean on LM Studio Idle TTL + Auto-Evict + JIT load** to reclaim a whole model's VRAM when idle; set a short TTL; never pre-load. The orchestrator stays event-driven.
   - [ ] **CPU — event-driven, NOT poll-driven** (idle loop must block at OS level → ~0 CPU; tight polling can cost 30–50% CPU). Audit all `setInterval`/watchers; `unref()` + stop idle timers. (Ties the v0/models-hammering fix + the discovery-cache throttle.)
