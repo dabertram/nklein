@@ -2088,6 +2088,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [~] **More ideas**
   - [x] reviewer checks the worker followed/owned its chain (seed prompt includes it; flags unfinished/mismatched steps)
   - [x] re-anchor the chain into context on long runs/after compaction (`reanchorFocusChainMessages`, `beforeModel` hook)
+  - [x] **chain-diff pure core (2026-07-01)** — `src/core/focus-chain-diff.ts` (`diffFocusChains(previous, next)`):
+        since the agent re-emits the *whole* checklist each turn, "what actually moved" was implicit. Pure/deterministic
+        diff keyed on step text (same identity as `applyFocusChainStepTiming`) reports `added`/`removed`/`statusChanged`
+        (with per-step `progressed`/`regressed` via a status progress-rank; done↔skipped is a change but neither) +
+        `reordered` (transposition of surviving steps, ignoring shifts from add/remove) + net `changed`/`progressed`/
+        `regressed` flags. Feeds the reviewer-adherence check (dropped/rewritten steps), the re-anchor "since last time:
+        …" delta, and per-step telemetry narration. 19 unit tests (empty/missing, no-op re-emit, add/remove, reword=
+        remove+add, all transitions, mixed-turn gating, reorder-vs-shift, dup-text, purity); tsc + biome clean.
   - [x] user view/edit/reorder/add steps from the UI *(DONE 2026-06-24 — toggle/add/delete/reorder all shipped)*
     - [x] **edit / add / delete / toggle (2026-06-24)** — `FocusChainPanel` in card detail is now editable: click a
           step's status marker to cycle pending→in_progress→done→skipped, delete a step (hover ×), and add a step via
@@ -6679,6 +6687,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (`dev rail-evidence`) → analysis prompt (`--advisor`). **Remaining = only the human/agent action** the advisor
       pattern leaves to the user: run a model on the prompt + review the proposed bullets (optionally fold §5.AF ledger
       stats in too). The fixed pipeline is complete.
+  - [x] **DECISIVE-EVIDENCE core: flake/regression attribution + verdict (2026-07-01).** The "which evidence is
+        decisive" primitive the analysis pass needs so the rail never blames a change for failures it didn't cause. Pure
+        [test-regression-verdict.ts](src/core/test-regression-verdict.ts) — `classifyTestRegression({ current,
+        baselineFailingIds, flakeMinHistory?, preferFlakeOverPreExisting? })` attributes every CURRENT-run failure to
+        `new_failure` (decisive — change introduced it) vs `pre_existing` (already red on baseline) vs `flake` (recent
+        per-test history flips pass/fail ⇒ noise), rolls them into a `regressed | pre_existing_failures | clean` verdict
+        (only a genuine new failure flips it to `regressed`), and surfaces `newlyFixedIds` (baseline reds now green) as
+        positive evidence; companion `regressionGateDecision(verdict)` maps it to `block | needs_review | proceed`.
+        Fully injected inputs (no fs/exec), deterministic sort (new→pre→flake, then id), dedup last-write-wins. 20 unit
+        tests; tsc + vitest + biome green. Composes with `dev-test-outcome.ts` (run-terminal-state) — orthogonal: this
+        answers "did THIS change break any test that ran?".
 - [x] **"Collect evidence" buttons reference the specific card — VERIFIED (2026-06-27), no fix needed.** Traced the
       per-**card** "Evidence" button end-to-end: [board-card.tsx](web-ui/src/components/board-card.tsx) `onCopyEvidence(card.id)`
       → `collectTaskEvidence({ taskId })` ([runtime-config-query.ts](web-ui/src/runtime/runtime-config-query.ts)) →
@@ -7436,9 +7455,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > by the EXISTING §5.L containment, plus a deterministic pre-screen + provenance pinning." SKILL.md is a real open
 > standard now (agentskills.io, Anthropic-originated Dec-2025, ~40 products) → align the §5.AE format to it.
 
-- [ ] **A. Format alignment (low-risk first):** make the §5.AE skill system read the open SKILL.md standard (agentskills.io
+- [~] **A. Format alignment (low-risk first):** make the §5.AE skill system read the open SKILL.md standard (agentskills.io
       spec — `name`/`description`/`license`/`compatibility`/`allowed-tools` frontmatter + `scripts/`/`references/`/`assets/`).
       A pure parser/validator (mirror `skills-ref validate`) — no execution, no network. Decompose into leaves.
+      **(2026-07-01) PARSER LEAF done:** `src/core/skill-md-parse.ts` — `parseSkillMd(text)` takes the raw SKILL.md as an
+      INJECTED string (no fs/network/exec), splits the `---` YAML frontmatter from the markdown body, and STRICTLY
+      validates the manifest: `name`/`description` required (non-empty strings, no coercion); `license`/`version`/
+      `compatibility` optional scalars; `allowed-tools` → de-duped/trimmed `string[]` (the least-privilege capability
+      surface a later §5.AP.D/§5.L gate compares against — undeclared vs explicit `[]` are kept distinct); unknown keys
+      preserved verbatim in `extra` (never trusted, never dropped). Returns a discriminated `{ ok, manifest, body }` |
+      `{ ok:false, errors }` with machine-stable codes (`empty_input`/`missing_frontmatter`/`unterminated_frontmatter`/
+      `invalid_yaml`/`frontmatter_not_mapping`/`missing_required_field`/`invalid_field_shape`); collects ALL field errors.
+      Pure + total (no throw; bad YAML → `invalid_yaml`); tolerates BOM/CRLF. 24 tests; tsc + biome clean. OWED leaves:
+      (a) the §5.AP.E deterministic injection PRE-SCREEN over the parsed body (separate pure core — NOT this one, by design);
+      (b) the bundled-file manifest (`scripts/`/`references/`/`assets/`) parser; (c) wiring the parsed manifest into the
+      §5.AE `Skill` shape + reading a real SKILL.md off disk at the effectful seam.
 - [ ] **B. Trusted-source default, untrusted opt-in.** Curated allowlist of ORIGINS: official `anthropics/skills` +
       `agentskills.io`, and the one community registry with real posture, `tech-leads-club/agent-skills` (CI static-analysis +
       Snyk + content-hashing + immutable lockfiles, no binaries). The 2M indexes (SkillsMP via its REST `/api/v1/skills/search`
