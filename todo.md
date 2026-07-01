@@ -4817,6 +4817,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       prefer coder/instruct-tuned models; reserve reasoning models for genuinely hard planning. Recorded in the §5.AL catalog
       (`qwopus3.5-coder` = TOOL_CAPABLE/code, empirical). Follow-up: sweep the qwopus3.5 9b-coder + other coder variants to
       confirm the coder>reasoning pattern holds across sizes; consider a coder-preference in the auto-selection heuristic.
+      **⚠ REFINED by the full sweep (2026-07-01, 11 models — see [model-sweep-log.md](docs/dev/model-sweep-log.md)): the
+      "coder beats reasoning" claim was OVERSTATED (it was n=3). With the force-advance fix, MOST models (11/11 tested,
+      except the ≤4B nemotron which stays single-tool) drive the full 4-tool chain + persist — CHAINING is largely SOLVED
+      across the roster. The real differentiator is now SYNTHESIS (does the final reply reflect the results), and it's
+      MODEL-SPECIFIC, not kind-based: full-synthesis winners were `magistral-small-24b` (REASONING!), `devstral-small-24b`
+      (coder), `qwopus3.5-4b-coder`, AND `qwen3.5-122b-a10b` (122B MoE — full synth @ 77s, strongest all-round); weak-synth
+      included the 9B/14B coders + the 27B reasoners. ⇒ the auto-selection preference should key on the CATALOG's
+      fine-grained `synthesis`/`chaining`/`speed` fields (§5.AL), NOT a blanket kind=code rule (NO simple coder-preference —
+      prefer proven `chaining:native` + `synthesis:full` at the needed speed). The `selectRoleModel` affinity gap (it ignores
+      kind/affinity entirely) is still real — see §5.AB.**
       **WIRED ON THE CHAT PATH (2026-06-28):**
       `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
       LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the
@@ -5113,6 +5123,29 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > skill-set attachment. Mostly CONVERGENCE of built spine (`blendCapabilityWithLedgerEvidence` read→route loop is closed;
 > `selectModelForTask`/`routeNKleinTask`; the §5.AL catalog; cross-machine fan-out validated 2026-07-01), not greenfield.
 > See memory `auto-model-selection-vision`.
+>
+> **USER FOLLOW-UPS (2026-07-01) — from the model-sweep session:**
+> - **(A) Per-machine (LM-link) concurrency — VERIFY + complete the live wiring.** The DETECTION + POLICY already exist:
+>   [lms-ps-json.ts](src/core/lms-ps-json.ts) parses `deviceIdentifier`→`machineId` (built EXACTLY for LM Link, where
+>   several linked machines share ONE `localhost:1234` endpoint so per-ENDPOINT concurrency can't tell them apart: `null`
+>   ⇒ local, hex ⇒ a linked remote); [model-pool-routing.ts](src/core/model-pool-routing.ts) does per-machine pool routing
+>   (capability-tier + free-slots + fan-out); [concurrency-config.ts](src/core/concurrency-config.ts) resolves the caps.
+>   **OWED: confirm the LIVE WIRING** — that the scheduler feeds REAL per-machine `lms ps --json` running counts (keyed by
+>   `machineId`, NOT endpoint) into `computePoolFreeSlots`/`selectPoolForTask`, so two tasks on DIFFERENT linked boxes run
+>   concurrently while two on the SAME box queue. Today's swarm risks mixing up concurrency across separate hardware if it
+>   counts per-endpoint. (Context: the 2026-07-01 sweep's `model-lab` exclusive loads cycled the LAN machines' models too —
+>   expected/acceptable.) **FALLBACK (user-approved): if reliable auto per-machine pooling isn't feasible, the user
+>   PREDEFINES the model pools** (a manual per-machine pool config) — fine as a fallback.
+> - **(B) Detect ALL relevant model ATTRIBUTES (format / quant / …) for the catalog + PLAN a quant drill-down.** Today
+>   detection is PARTIAL: `quant` is a concept ([model-fitness-freshness.ts](src/core/model-fitness-freshness.ts) `quant?`
+>   fingerprint; llmfit `bestQuant`) but is NOT systematically PARSED from the model id / API card, and **FORMAT (mlx vs
+>   gguf) is not detected at all**; the §5.AL catalog has no format/quant fields. OWED: (1) parse `format` (mlx|gguf|…) +
+>   `quant` (q4_k_m|q8_0|@4bit|@8bit|…) from the served id / `lms ls` / the `/api/v1/models` card into structured
+>   attributes; (2) add `format`/`quant` fields to the §5.AL `ModelCapabilityEntry`. **LATER DRILL-DOWN (user, 2026-07-01 —
+>   NOT to sweep now, keep in the plan): compare what a q4 variant can do vs its q8 sibling** (same model, different quant →
+>   measure chaining/synthesis/speed/effective-context deltas) so we can **optimize quantization AGAINST context size** (a
+>   smaller quant frees RAM for a bigger context, but may degrade capability — measure the trade). A future targeted sweep
+>   keyed on the new `quant`/`format` fields + the §5.AD context-budget knee.
 > **PROGRESS (2026-07-01) — the DEFAULT-auto-selection seam is LIVE:** `buildLoadedModelRoutingCandidates`
 > ([nklein-loaded-model-candidates.ts](src/nklein-agent/nklein-loaded-model-candidates.ts), 4 tests) builds routing
 > candidates from the currently-LOADED set (reusing each model's observed registry entry so the ledger drives ranking,
