@@ -4987,7 +4987,10 @@ source repo went private — so if it vanishes the buildable source still lives 
         unit-proven AND live-validated against the real device map; the only thing NOT yet seen is it firing inside a
         real multi-card AGENT run (blocked only by decompose/prefill timing, not by the gate). **ACTIONABLE for the user:**
         pin decompose to a 9B (`--model-id` / role config) for fast iteration; the 27B is quality-max but slow to prefill.
-        Also still-nice: feed `queued`/`status` into free-first.
+        **QUEUE-AWARE FREE-FIRST — DONE (2026-07-01, 49c13322):** behind `NKLEIN_QUEUE_AWARE_FREE_FIRST`, free-first now
+        reads `lms ps` queued depth so a model with a non-empty SERVER queue (another client / in-flight prefill) isn't
+        treated as "free" — applied to `selectRoleModel` + both `selectSwarmRouteForTask` pools. Off by default ⇒ no
+        subprocess, byte-identical.
         **Per-machine concurrency = COMPLETE + safe-by-default (unit-proven + LIVE-VALIDATED on the real machine map).**
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
