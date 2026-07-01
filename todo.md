@@ -4955,11 +4955,15 @@ source repo went private — so if it vanishes the buildable source still lives 
         **GATE CORE DONE (2026-07-01, c9ac01ea):** `evaluateMachineConcurrencyGate`
         ([machine-concurrency-gate.ts](src/core/machine-concurrency-gate.ts)) — pure admission decision keyed on the
         model→machine map: counts only running sessions on the TASK's machine, allows below the per-machine cap, inert at
-        cap ≤0 (opt-in), unmapped ⇒ LOCAL. 5 tests. Machine map + gate decision are both built + tested. **STILL OWED
-        (wiring):** call it from the endpoint scheduler behind an opt-in cap (env/config), fed by a cached
-        `fetchLmsPsModels` map + the running-session model ids — same inert-by-default pattern as the §5.AN heartbeat;
-        `machineId` is the true pool key vs the shared LM-Link baseUrl. Also feed `queued`/`status` into free-first.
-        Behavior-changing hot path ⇒ live multi-machine §5.Z re-verify.
+        cap ≤0 (opt-in), unmapped ⇒ LOCAL. 5 tests. **WIRED END-TO-END — DONE (2026-07-01, 765369ec + 7d864fed):**
+        `scheduleNKleinEndpointStart` gained `evaluateMachinePoolConcurrencyGate` (an independent gate after provider +
+        endpoint pools, returns a `machine:<id>` hold; +3 scheduler tests), and start-task-session activates it behind
+        `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` — resolving each loaded model's machine via `fetchLmsPsModels` and passing
+        `perMachineCap` + `machineByModelId`. OFF by default ⇒ no `lms ps` subprocess, byte-identical (4099 tests
+        unchanged). So the full chain — machine map → gate core → scheduler → start path — is complete + opt-in.
+        **ONLY OWED:** exercise it live under concurrent multi-card load with the flag ON (the caps actually holding starts
+        per machine) — needs a live multi-machine run (do WITH the user). Also still-nice: feed `queued`/`status` into
+        free-first. **Per-machine concurrency = COMPLETE + safe-by-default.**
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
         **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
