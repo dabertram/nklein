@@ -38,6 +38,23 @@ export const CHAT_SESSION_ROLES: readonly ChatSessionRole[] = [
 export const DEFAULT_CHAT_SESSION_SCOPE: ChatSessionScope = "project_sandboxed";
 export const DEFAULT_CHAT_SESSION_ROLE: ChatSessionRole = "planner_architect";
 
+/** §5.AU — the chat's current addressing focus (a card/stream the user drilled into); drives `resolveMessageTarget`. */
+export interface ChatSessionFocus {
+	kind: "card" | "stream";
+	id: string;
+	/** When the focus was set (epoch ms) — for focus-decay policy. */
+	at: number;
+}
+
+/** §5.AU — an outstanding card ASK the user's next message might answer (recorded by the §5.AT feedback bridge). */
+export interface ChatOutstandingAsk {
+	/** `${taskId}:${kind}` — the §5.AT dedupe key + the reply referent. */
+	signalKey: string;
+	taskId: string;
+	streamId?: string;
+	question?: string;
+}
+
 export interface ChatSession {
 	schemaVersion: 1;
 	id: string;
@@ -50,6 +67,12 @@ export interface ChatSession {
 	riskAcknowledged: boolean;
 	/** §5.M G6: the user enabled the headless-browser/internet tool for this session (orthogonal). Default false. */
 	browserEnabled: boolean;
+	/** §5.AU: the ONE workspace this chat owns (v1 is 1 chat ↔ 1 workspace) — routes board→chat feedback here; null when unset. */
+	ownedWorkspaceId: string | null;
+	/** §5.AU: the current addressing focus (the "talking to X" target), or null (⇒ the goal). */
+	focus: ChatSessionFocus | null;
+	/** §5.AU: card ASKs currently awaiting the operator's answer (for reply-binding); empty when none. */
+	outstandingAsks: readonly ChatOutstandingAsk[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -77,6 +100,21 @@ const chatSessionPersistedSchema = z.object({
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),
 	browserEnabled: z.boolean().optional(),
+	ownedWorkspaceId: z.string().nullable().optional(),
+	focus: z
+		.object({ kind: z.enum(["card", "stream"]), id: z.string(), at: z.number() })
+		.nullable()
+		.optional(),
+	outstandingAsks: z
+		.array(
+			z.object({
+				signalKey: z.string(),
+				taskId: z.string(),
+				streamId: z.string().optional(),
+				question: z.string().optional(),
+			}),
+		)
+		.optional(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -145,6 +183,11 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				riskAcknowledged: event.session.riskAcknowledged === true,
 				// Back-compat for sessions persisted before `browserEnabled` existed (default: disabled).
 				browserEnabled: event.session.browserEnabled === true,
+				// §5.AU back-compat: addressing state absent on old records → unset / empty.
+				ownedWorkspaceId:
+					typeof event.session.ownedWorkspaceId === "string" ? event.session.ownedWorkspaceId : null,
+				focus: event.session.focus ?? null,
+				outstandingAsks: event.session.outstandingAsks ?? [],
 			});
 		}
 	}
@@ -167,6 +210,8 @@ export async function createChatSession(
 		goal?: string | null;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		/** §5.AU: the workspace this chat owns (v1 = 1 chat ↔ 1 workspace). */
+		ownedWorkspaceId?: string | null;
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession> {
@@ -180,6 +225,9 @@ export async function createChatSession(
 		goal: input.goal?.trim() || null,
 		riskAcknowledged: input.riskAcknowledged ?? false,
 		browserEnabled: input.browserEnabled ?? false,
+		ownedWorkspaceId: input.ownedWorkspaceId ?? null,
+		focus: null,
+		outstandingAsks: [],
 		createdAt: now,
 		updatedAt: now,
 	};

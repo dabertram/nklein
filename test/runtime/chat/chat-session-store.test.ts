@@ -65,6 +65,41 @@ describe("chat-session-store", () => {
 		expect(off?.browserEnabled).toBe(false);
 	});
 
+	it("§5.AU: defaults the addressing state (ownedWorkspaceId/focus/outstandingAsks) + round-trips ownership", async () => {
+		const created = await createChatSession({ title: "Board chat" }, { rootDir, now });
+		expect(created.ownedWorkspaceId).toBeNull();
+		expect(created.focus).toBeNull();
+		expect(created.outstandingAsks).toEqual([]);
+
+		const owned = await createChatSession({ title: "Owned", ownedWorkspaceId: "ws-1" }, { rootDir, now });
+		expect(owned.ownedWorkspaceId).toBe("ws-1");
+		// Persisted across a fresh read (replayed from the event log).
+		expect((await getChatSession(owned.id, { rootDir }))?.ownedWorkspaceId).toBe("ws-1");
+	});
+
+	it("§5.AU: back-compat — a record persisted before the addressing fields existed loads with defaults", async () => {
+		// Simulate an OLD event-log line missing ownedWorkspaceId/focus/outstandingAsks.
+		const { appendFile, mkdir } = await import("node:fs/promises");
+		await mkdir(rootDir, { recursive: true });
+		const legacy = {
+			type: "upsert",
+			at: 1,
+			session: {
+				schemaVersion: 1,
+				id: "legacy",
+				title: "Old",
+				scope: "chat_only",
+				role: "reviewer",
+				createdAt: 1,
+				updatedAt: 1,
+			},
+		};
+		await appendFile(join(rootDir, "sessions.jsonl"), `${JSON.stringify(legacy)}\n`, "utf8");
+
+		const loaded = await getChatSession("legacy", { rootDir });
+		expect(loaded).toMatchObject({ id: "legacy", ownedWorkspaceId: null, focus: null, outstandingAsks: [] });
+	});
+
 	it("honors an explicit scope + role", async () => {
 		const created = await createChatSession(
 			{ title: "Ops", scope: "host_access", role: "system_operator" },
