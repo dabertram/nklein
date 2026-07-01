@@ -3154,6 +3154,12 @@ source repo went private — so if it vanishes the buildable source still lives 
       prose, or no activity. (The core recovery decision `decideDecompositionStallRecovery` was already tested.)
       **Remaining content-scan finds are heavy-fixture/IO** (`plan-task-routing` needs a full `NKleinModelRegistryEntry`;
       `plan-task-board-apply`/`plan-artifact-apply` are board-mutation/IO) → integration-harness or fresh-context work.
+      **`board-api-contract` schema-TRANSFORM logic (2026-07-01, 8 tests):** the note above said the remaining `*-api-contract`
+      files are "shape-covered by the HTTP oracle" — but `runtimeBoardCardSchema` carries a non-trivial `.transform()` the
+      oracle checks only structurally: the legacy→modern nklein-settings MIGRATION (`nkleinProviderId`/`nkleinModelId`/
+      `nkleinReasoningEffort` folded into `nkleinSettings`, modern-wins, trim, drop a `"default"` effort, strip the legacy
+      top-level keys) + title resolution. Now unit-covered so a board-load migration regression fails fast. (A schema's
+      transform/refine LOGIC is the exception to "contracts are oracle-covered" — worth a unit test wherever one exists.)
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
