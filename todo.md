@@ -1173,7 +1173,7 @@ source repo went private — so if it vanishes the buildable source still lives 
           `localizationProviderAsKernelLocalize(provider, query)` — adapts a rich provider to the kernel's existing
           `localize: () => Promise<readonly string[]>` (rank → flatten → de-dupe), so a backing drops in with NO kernel change.
           7 tests. Owed: the BACKING impl (evaluate `codebase-memory-mcp` FIRST, then MCP-backed or native-index provider).
-    - [ ] **FIRST — before building ANY custom lookup below — evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)
+    - [~] **FIRST — before building ANY custom lookup below — evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)
           as the `localize` backing (and/or a token-frugal agent retrieval tool), per the §4A "prefer existing solutions"
           directive.** (DeusData, MIT, single static local binary, 100% local + no telemetry, 158 languages, persistent
           knowledge graph with call chains + LSP-grade type inference, ~10–120× fewer tokens — it ships exactly the
@@ -1184,7 +1184,16 @@ source repo went private — so if it vanishes the buildable source still lives 
           repo-map-AST / PageRank retrieval (semantic "find by meaning" stays ours; exact structural "who calls X / where
           defined" → this) so we don't duplicate; (b) offline operation inside the strict-local Docker sandbox + vetting /
           bundling the third-party binary; (c) consume as an agent MCP tool, as the `localize` backing, or both.
-    - [ ] *(native fallback — only if the eval above rejects it)* implement symbol/definition lookup over the existing code index (read-only).
+          **EVALUATED 2026-07-01 (README via WebFetch) → VERDICT: ADOPT.** MIT · **100% local/offline** (bundled `nomic-embed-code`
+          embeddings + local SQLite cache at `~/.cache/codebase-memory-mcp/`, no cloud/API keys — clears gate (b)-offline & #1) ·
+          exposes EXACTLY the port's lookups: symbol/def (`search_graph`), import edges (`IMPORTS`), call graph (`trace_path`/
+          `CALLS`), file/line spans (`get_code_snippet`), + `semantic_query`/BM25. **Gate (a) division of labor:** structural
+          "who-calls / where-defined" → this; semantic "find by meaning" stays ours (embeddings/PageRank) — no duplication.
+          Indexes via tree-sitter AST (also has 14 MCP tools incl. `index_repository`/`get_architecture`). Reported maturity
+          metrics (stars/tests/SLSA) are unverified. **STILL OWED before wiring:** gate (b)-remainder — run/vet the binary INSIDE
+          the strict-local Docker sandbox (egress-sealed) + supply-chain vetting; then wire as an MCP-backed `LocalizationProvider`
+          (the `localization-provider.ts` port maps 1:1 to its outputs). See [integrations.md](docs/dev/integrations.md) (now `planned`).
+    - [ ] *(native fallback — DEPRIORITIZED: the eval did NOT reject codebase-memory-mcp, so this is the only-if-it-regresses path)* implement symbol/definition lookup over the existing code index (read-only).
     - [ ] *(native fallback)* implement import/dependency-edge lookup for a touched file.
     - [ ] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol).
     - [ ] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist.
