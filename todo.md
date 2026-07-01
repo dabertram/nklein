@@ -2324,11 +2324,16 @@ source repo went private — so if it vanishes the buildable source still lives 
         core MERGES a hook's returned `{ tools }` into the request (`…i.tools?{tools:i.tools}:{}`, confirmed in
         `vendor/cline-sdk/packages/core/dist`), and `nklein-session-runtime.ts` already registers `beforeModel` (for repo-map +
         focus-chain re-anchoring). So the two-phase narrows tools PER TURN there — my earlier "SDK-internal-impossible" was wrong.
-        Last pure piece shipped: `narrowToolsToPick(tools, decision)` (one_tool → keep only that tool; none/plan → unchanged;
-        generic over the tool shape). Owed (opt-in, byte-identical default): in `beforeModel`, when `NKLEIN_TWO_PHASE_TOOL_PICK`
-        is on, run the orchestrator (phase-1 pick via an injected completion caller — thread one into the session runtime) →
-        `narrowToolsToPick` → return `{ tools }`; budget sized generously for reasoning. The wiring LOGIC is unit-testable with a
-        fake caller; whether the narrowing IMPROVES task success on real models is the part that needs real-swarm measurement.
+        Pure pieces shipped: `narrowToolsToPick(tools, decision)` + **the full narrowing CORE `narrowToolsForStep({tools,step,callModel})`**
+        (`src/nklein-agent/two-phase-before-model.ts`, 6 tests with a fake caller: builds a card per offered tool → orchestrator
+        pick → narrow; <2 tools skips the call; none/plan/truncated leave the set unchanged). So the two-phase-in-beforeModel
+        LOGIC is done + fully fake-tested. **Owed = the I/O glue only, and it's NOT thin:** the `beforeModel` hook lives in
+        `createKanbanContextFocusExtension(contextWindow,…)`, which does NOT receive the endpoint/model — so wiring needs (a)
+        thread `baseUrl`+`modelId` into that extension (multi-layer), (b) read `context.request.tools` + the latest step message,
+        (c) construct a fetch phase-1 caller (budget generous for reasoning), (d) `narrowToolsForStep` → return `{ tools }`, all
+        behind `NKLEIN_TWO_PHASE_TOOL_PICK` + catch-guarded (default byte-identical). The glue is I/O in the CRITICAL session loop
+        and its VALUE (does narrowing improve task success, at what latency?) needs real-swarm measurement — do it as a focused,
+        measured pass, not blind.
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)
