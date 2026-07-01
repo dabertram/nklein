@@ -18,6 +18,7 @@ import {
 	Bell,
 	Bot,
 	Boxes,
+	Braces,
 	Check,
 	ChevronDown,
 	ExternalLink,
@@ -165,6 +166,7 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	{ id: "agents", label: "Agents", icon: <Boxes size={16} /> },
 	{ id: "tasks", label: "Tasks", icon: <Check size={16} /> },
 	{ id: "nklein", label: "!Klein", icon: <Bot size={16} />, nkleinOnly: true },
+	{ id: "code-intelligence", label: "Code Intelligence", icon: <Braces size={16} /> },
 	{ id: "git-prompts", label: "Git", icon: <GitCommit size={16} /> },
 	{ id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
 	{ id: "appearance", label: "Appearance", icon: <Palette size={16} /> },
@@ -2242,50 +2244,6 @@ export function RuntimeSettingsDialog({
 									) : null}
 									<div className="mt-4 border-t border-border pt-4">
 										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-											Code intelligence embeddings
-										</h6>
-										<div className="grid gap-3">
-											<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
-												<div className="min-w-0">
-													<span className="mb-1 block text-[12px] text-text-secondary">
-														Global default provider
-													</span>
-													<NativeSelect
-														value={codeEmbeddingDefaultsProvider}
-														onChange={(event) =>
-															setCodeEmbeddingDefaultsProvider(
-																event.target.value as RuntimeCodeEmbeddingSettings["provider"],
-															)
-														}
-														disabled={controlsDisabled}
-														fill
-													>
-														{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
-															<option key={option.value} value={option.value}>
-																{option.label}
-															</option>
-														))}
-													</NativeSelect>
-												</div>
-												<EmbeddingEndpointFields
-													workspaceId={workspaceId}
-													labelPrefix="Default"
-													disabled={controlsDisabled}
-													provider={codeEmbeddingDefaultsProvider}
-													baseUrl={codeEmbeddingDefaultsBaseUrl}
-													model={codeEmbeddingDefaultsModel}
-													suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
-													endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
-													modelPlaceholder="nomic-embed-text"
-													onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
-													onModelChange={setCodeEmbeddingDefaultsModel}
-													onError={setSaveError}
-												/>
-											</div>
-										</div>
-									</div>
-									<div className="mt-4 border-t border-border pt-4">
-										<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
 											Model capability gate
 										</h6>
 										<p className="m-0 mb-3 text-[12px] text-text-secondary">
@@ -2358,6 +2316,65 @@ export function RuntimeSettingsDialog({
 								</div>
 							</>
 						) : null}
+
+						{/* ---- Code Intelligence ---- */}
+						<div data-settings-section="code-intelligence" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<Braces size={16} className="text-text-secondary" />
+								Code Intelligence
+							</h2>
+						</div>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<p className="text-text-secondary text-[13px] mt-0 mb-0">
+								Code-embedding provider used to index the workspace for semantic search. Applies to every agent
+								(a project can override it in Project Settings).
+							</p>
+							<div className="mt-4 border-t border-border pt-4">
+								<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+									Code intelligence embeddings
+								</h6>
+								<div className="grid gap-3">
+									<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
+										<div className="min-w-0">
+											<span className="mb-1 block text-[12px] text-text-secondary">
+												Global default provider
+											</span>
+											<NativeSelect
+												value={codeEmbeddingDefaultsProvider}
+												onChange={(event) =>
+													setCodeEmbeddingDefaultsProvider(
+														event.target.value as RuntimeCodeEmbeddingSettings["provider"],
+													)
+												}
+												disabled={controlsDisabled}
+												fill
+											>
+												{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
+													<option key={option.value} value={option.value}>
+														{option.label}
+													</option>
+												))}
+											</NativeSelect>
+										</div>
+										<EmbeddingEndpointFields
+											workspaceId={workspaceId}
+											labelPrefix="Default"
+											disabled={controlsDisabled}
+											provider={codeEmbeddingDefaultsProvider}
+											baseUrl={codeEmbeddingDefaultsBaseUrl}
+											model={codeEmbeddingDefaultsModel}
+											suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
+											endpointPlaceholder="http://127.0.0.1:11434/v1/embeddings"
+											modelPlaceholder="nomic-embed-text"
+											onBaseUrlChange={setCodeEmbeddingDefaultsBaseUrl}
+											onModelChange={setCodeEmbeddingDefaultsModel}
+											onError={setSaveError}
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
 
 						{/* ---- Git ---- */}
 						<div data-settings-section="git-prompts" />

@@ -9,6 +9,7 @@ export type SettingsNavId =
 	| "agents"
 	| "tasks"
 	| "nklein"
+	| "code-intelligence"
 	| "git-prompts"
 	| "notifications"
 	| "appearance"

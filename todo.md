@@ -3807,7 +3807,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] remaining regroup sections per the ~9-section plan, decomposed:
     - [ ] !Klein Provider & Models section (move provider + model config controls)
     - [ ] Guardrails vs Agents boundary (clarify boundary, move shared controls)
-    - [ ] Code Intelligence (keep reachable for non-!Klein users)
+    - [x] Code Intelligence (keep reachable for non-!Klein users) **(2026-07-01)** — the "Code intelligence embeddings"
+          block (default embedding provider select + `EmbeddingEndpointFields`) was buried inside the `selectedAgentId ===
+          "nklein"` conditional, so non-!Klein users could never reach it. Extracted it (byte-identical controls, same
+          `codeEmbeddingDefaults*` state/handlers — pure structure move, no logic change) into a **new always-visible
+          "Code Intelligence" section**: new `"code-intelligence"` `SettingsNavId` (`settings-nav.tsx`) + nav item (`Braces`
+          icon, no `nkleinOnly`) + `data-settings-section="code-intelligence"` body block placed after the !Klein section /
+          before Git. Div-balance verified (file nets 0). web-ui typecheck + tests (832, incl. the 37-test dialog oracle —
+          the embedding discover/save tests anchor on the `Code intelligence embeddings` h6 and stay green) + build green.
     - [x] relabel "Git Prompts" → "Git" **(2026-07-01)** — `runtime-settings-dialog.tsx`: tab label + section header now
           "Git" (the stable `git-prompts` id / `data-settings-section` anchor kept, so navigation is unaffected). web-ui tsc clean.
     - [ ] Workspace/Project settings polish
