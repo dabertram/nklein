@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 import type { ToolExecutors } from "@cline/sdk";
 import type { SandboxNetworkPolicy } from "../core/agent-rulesets";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
 	AGENT_SANDBOX_VOLUME_PREFIX,
@@ -348,6 +349,23 @@ export class AgentSandboxManager {
 	): Promise<AgentSandboxExecResult> {
 		const placement = this.requirePlacement(taskId);
 		return await this.execAsTaskUser(placement, [...argv], options);
+	}
+
+	/**
+	 * The identity needed to `docker exec` into a task's prepared sandbox container — for §5.AR curated MCP servers
+	 * hosted IN the sandbox (the runtime builds a `docker exec -i …` stdio transport from this). Returns `null` when no
+	 * workspace is prepared for the task (never throws — MCP hosting is best-effort and must not break session start).
+	 */
+	getSandboxExecTarget(taskId: string): SandboxExecTarget | null {
+		const placement = this.placements.get(taskId);
+		if (!placement) {
+			return null;
+		}
+		return {
+			containerName: createAgentSandboxContainerName(placement.slot),
+			uid: placement.uid,
+			workdir: placement.workdir,
+		};
 	}
 
 	async runTool(taskId: string, tool: string, input: unknown): Promise<string> {

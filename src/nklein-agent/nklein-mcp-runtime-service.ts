@@ -16,6 +16,11 @@ import { z } from "zod";
 import type { RuntimeNKleinMcpServer } from "../core/api-contract";
 import { toErrorMessage } from "../core/error-message";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint";
+import {
+	buildSandboxMcpDockerExecArgs,
+	type SandboxExecTarget,
+	selectSandboxMcpServersForModel,
+} from "../core/sandbox-mcp-catalog";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { createNKleinMcpSettingsService, resolveMcpSettingsPath } from "./nklein-mcp-settings-service";
 import {
@@ -100,8 +105,21 @@ export interface NKleinMcpToolBundle {
 	dispose: () => Promise<void>;
 }
 
+/**
+ * Options for {@link NKleinMcpRuntimeService.createToolBundle}. When BOTH are supplied, §5.AR curated MCP servers hosted
+ * inside the task's sandbox are offered to the model IF the §5.AL fit gate clears them. Omitting either (or the whole
+ * arg) yields today's behavior — only user-configured non-stdio servers. The opt-out gate lives in the CALLER: don't
+ * pass `sandboxExecTarget` when the feature is disabled globally/per-project.
+ */
+export interface NKleinMcpToolBundleOptions {
+	/** The task's model id — drives the "for models where it fits" gate over the curated sandbox servers. */
+	modelId?: string;
+	/** The task's sandbox `docker exec` target; when present + a curated server fits, its tools are added. */
+	sandboxExecTarget?: SandboxExecTarget | null;
+}
+
 export interface NKleinMcpRuntimeService {
-	createToolBundle(): Promise<NKleinMcpToolBundle>;
+	createToolBundle(options?: NKleinMcpToolBundleOptions): Promise<NKleinMcpToolBundle>;
 	getAuthStatuses(): Promise<NKleinMcpServerAuthStatus[]>;
 	authorizeServer(input: {
 		serverName: string;
@@ -721,9 +739,14 @@ export function createNKleinMcpRuntimeService(
 	};
 
 	return {
-		async createToolBundle(): Promise<NKleinMcpToolBundle> {
+		async createToolBundle(options?: NKleinMcpToolBundleOptions): Promise<NKleinMcpToolBundle> {
 			const loadedSettings = settingsService.loadSettings();
-			if (loadedSettings.servers.length === 0) {
+			// §5.AR: curated MCP servers hosted INSIDE the task's sandbox, offered only to a fitting model. Empty unless the
+			// caller supplies BOTH the exec target and the model id (the opt-out gate lives in the caller).
+			const curatedServers =
+				options?.sandboxExecTarget && options.modelId ? selectSandboxMcpServersForModel(options.modelId) : [];
+
+			if (loadedSettings.servers.length === 0 && curatedServers.length === 0) {
 				return {
 					tools: [],
 					warnings: [],
@@ -763,6 +786,30 @@ export function createNKleinMcpRuntimeService(
 					tools.push(...serverTools);
 				} catch (error) {
 					warnings.push(`Failed to load MCP server "${server.name}": ${toErrorMessage(error)}`);
+				}
+			}
+
+			// §5.AR: register the fit-gated curated servers that run IN the task's sandbox via `docker exec -i …`. Unlike a
+			// user stdio server (host process → disabled under isolation), the server runs INSIDE the container and the host
+			// runs only the exec pipe, so invariant #2 holds; the binary ships in the image, so nothing is fetched at runtime.
+			const execTarget = options?.sandboxExecTarget;
+			if (execTarget) {
+				for (const server of curatedServers) {
+					try {
+						await manager.registerServer({
+							name: server.id,
+							disabled: false,
+							transport: {
+								type: "stdio",
+								command: "docker",
+								args: buildSandboxMcpDockerExecArgs(execTarget, server.inContainerArgv),
+							},
+						});
+						const serverTools = await createSdkMcpTools({ serverName: server.id, provider: manager });
+						tools.push(...serverTools);
+					} catch (error) {
+						warnings.push(`Failed to load sandbox MCP server "${server.label}": ${toErrorMessage(error)}`);
+					}
 				}
 			}
 
