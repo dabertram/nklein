@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ToolCard } from "../../../src/core/tool-card";
 import {
+	buildPhaseOneToolMenu,
 	interpretPhaseOnePick,
 	isActionableSingleTool,
+	PHASE_ONE_NONE_ANSWER,
+	PHASE_ONE_PLAN_ANSWER,
 	type PhaseOneDecision,
 } from "../../../src/core/two-phase-tool-pick";
 
@@ -73,5 +76,42 @@ describe("isActionableSingleTool", () => {
 
 	it("returns false for a plan_needed decision", () => {
 		expect(isActionableSingleTool({ kind: "plan_needed" })).toBe(false);
+	});
+});
+
+describe("buildPhaseOneToolMenu", () => {
+	it("lists every offered tool's name in the menu", () => {
+		const menu = buildPhaseOneToolMenu(CARDS);
+		for (const card of CARDS) {
+			expect(menu).toContain(card.name);
+		}
+	});
+
+	it("teaches the canonical none / plan answers the parser accepts", () => {
+		const menu = buildPhaseOneToolMenu(CARDS);
+		expect(menu).toContain(`"${PHASE_ONE_NONE_ANSWER}"`);
+		expect(menu).toContain(`"${PHASE_ONE_PLAN_ANSWER}"`);
+	});
+
+	// Anti-drift invariant: the two canonical answers the MENU instructs must be answers the PARSER accepts, or the two
+	// halves of the protocol would silently disagree. Pins prompt vocabulary ⊆ parser vocabulary.
+	it("round-trips: the canonical answers it teaches parse to none / plan_needed", () => {
+		expect(interpretPhaseOnePick(PHASE_ONE_NONE_ANSWER, CARDS)).toEqual({ kind: "none" });
+		expect(interpretPhaseOnePick(PHASE_ONE_PLAN_ANSWER, CARDS)).toEqual({ kind: "plan_needed" });
+	});
+
+	// The menu offers exactly the tool names the parser recognizes — every listed tool, fed back, is an actionable pick.
+	it("round-trips: every tool it offers is a valid one_tool pick", () => {
+		buildPhaseOneToolMenu(CARDS); // menu is built from the same cards the parser is given
+		for (const card of CARDS) {
+			expect(interpretPhaseOnePick(card.name, CARDS)).toEqual({ kind: "one_tool", tool: card.name });
+		}
+	});
+
+	it("emits a coherent menu with no tools (only none / plan apply)", () => {
+		const menu = buildPhaseOneToolMenu([]);
+		expect(menu).toContain("(no tools available)");
+		expect(menu).toContain(`"${PHASE_ONE_NONE_ANSWER}"`);
+		expect(menu).toContain(`"${PHASE_ONE_PLAN_ANSWER}"`);
 	});
 });

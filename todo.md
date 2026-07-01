@@ -2267,7 +2267,10 @@ source repo went private — so if it vanishes the buildable source still lives 
   - [~] **Two-phase tool use** (pure core first): phase-1 picker over tool cards → `none | one_tool | plan_needed`;
         phase-2 reveal ONLY the selected tool's full schema; unit-test the selection; then wire at the model seam. **(2026-06-29, batch #3)**
         PURE CORE done: `src/core/two-phase-tool-pick.ts` — `interpretPhaseOnePick(rawPick, cards)` (unknown/hallucinated tool → `plan_needed`,
-        never invents one) + `isActionableSingleTool`. 13 tests. Owed: phase-2 schema reveal + wire at the model seam.
+        never invents one) + `isActionableSingleTool`. **PHASE-1 PROMPT SIDE done (2026-07-01):** `buildPhaseOneToolMenu(cards)` renders the
+        picker menu (instruction + `renderToolCardList`) over exported canonical answers `PHASE_ONE_NONE_ANSWER`/`PHASE_ONE_PLAN_ANSWER`, so
+        the prompt + parser share ONE vocabulary — a round-trip test pins "every answer the menu teaches, the parser accepts" (prompt ⊆ parser,
+        no silent drift). 18 tests. Owed: phase-2 schema reveal (select only the picked tool's full schema) + wire both phases at the model seam.
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)

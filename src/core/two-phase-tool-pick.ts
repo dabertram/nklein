@@ -15,7 +15,7 @@
  * isolation.
  */
 
-import type { ToolCard } from "./tool-card";
+import { renderToolCardList, type ToolCard } from "./tool-card";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,14 +35,23 @@ export type PhaseOneDecision = { kind: "none" } | { kind: "one_tool"; tool: stri
 // Constants
 // ---------------------------------------------------------------------------
 
+/**
+ * The CANONICAL phase-1 answers the menu instructs the model to use for "no tool" / "needs several tools". They are
+ * exported so the prompt side ({@link buildPhaseOneToolMenu}) and the parse side ({@link interpretPhaseOnePick}) share
+ * one vocabulary — a test pins that the parser accepts exactly these, so the two sides can never drift apart. The parser
+ * additionally tolerates the synonyms below (models phrase things loosely), but the prompt only ever teaches these two.
+ */
+export const PHASE_ONE_NONE_ANSWER = "none";
+export const PHASE_ONE_PLAN_ANSWER = "plan";
+
 /** Trimmed, lower-cased strings that map unambiguously to `{ kind: "none" }`. */
-const NONE_TOKENS = new Set(["none", "no tool", ""]);
+const NONE_TOKENS = new Set([PHASE_ONE_NONE_ANSWER, "no tool", ""]);
 
 /**
  * Trimmed, lower-cased strings that map to `{ kind: "plan_needed" }` explicitly (before the unknown-tool fallback
  * also reaches the same result).
  */
-const PLAN_TOKENS = new Set(["plan", "plan_needed", "multiple", "several"]);
+const PLAN_TOKENS = new Set([PHASE_ONE_PLAN_ANSWER, "plan_needed", "multiple", "several"]);
 
 // ---------------------------------------------------------------------------
 // Core interpreter
@@ -97,4 +106,27 @@ export function interpretPhaseOnePick(rawPick: string, cards: readonly ToolCard[
  */
 export function isActionableSingleTool(decision: PhaseOneDecision): decision is { kind: "one_tool"; tool: string } {
 	return decision.kind === "one_tool";
+}
+
+// ---------------------------------------------------------------------------
+// Phase-1 prompt (the menu side of the same protocol interpretPhaseOnePick parses)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the phase-1 PROMPT the small model sees: a terse instruction plus the {@link ToolCard} menu, teaching the model
+ * to answer with a single line — a tool name, {@link PHASE_ONE_NONE_ANSWER}, or {@link PHASE_ONE_PLAN_ANSWER}. This is
+ * the deliberate counterpart to {@link interpretPhaseOnePick} (which parses that answer): keeping both here, over the same
+ * exported vocabulary, lets a unit test round-trip the two so the prompt can never instruct an answer the parser rejects.
+ *
+ * Pure + token-frugal (the whole point of §5.O two-phase: show short cards here, reveal the selected tool's full schema
+ * only after the pick). With no cards it still emits a coherent menu whose only valid answers are none / plan.
+ */
+export function buildPhaseOneToolMenu(cards: readonly ToolCard[]): string {
+	const header =
+		"Choose the ONE tool for the next step. Reply with a single line containing only:\n" +
+		"  - the exact tool name, or\n" +
+		`  - "${PHASE_ONE_NONE_ANSWER}" if no tool is needed, or\n` +
+		`  - "${PHASE_ONE_PLAN_ANSWER}" if the step needs several tools.`;
+	const menu = renderToolCardList(cards);
+	return menu.length === 0 ? `${header}\n\n(no tools available)` : `${header}\n\nTools:\n${menu}`;
 }
