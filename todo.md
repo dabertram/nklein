@@ -5673,6 +5673,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       Pure + clock-injected (deterministic), tolerant of string/number/Date/absent dates, future-dated clamps to current.
       7 unit tests; tsc+biome green. **Date-based only** — VERSION freshness ("is v3.1 the latest?") needs an external
       "known latest" the retrieval loop supplies, deferred to that. Feeds the §5.AC retrieval loop + the researcher role.
+- [x] **Relative-date resolver (the freshness-judge feeder) — DONE 2026-07-01.**
+      [src/core/relative-date-resolver.ts](src/core/relative-date-resolver.ts): `resolveRelativeDate(phrase, now)` pins a
+      relative temporal phrase in a user request or a RETRIEVED doc ("3 days ago" / "in 2 weeks" / "last Tuesday" /
+      "yesterday" / "this month") to an absolute `YYYY-MM-DD` (UTC) against the authoritative now, plus `unit`/`direction`/
+      `matchedText`; more-specific cue wins (N-unit > last/next weekday > period anchor > named day), and an unrecognised /
+      ambiguous phrase returns `null` (never fabricates a date). `resolveRelativeDatesInText(text, now)` sweeps free text →
+      every distinct resolvable phrase (deduped, no double-count of a bare word inside a compound). Closes the temporal
+      loop: a source that only says "updated 3 days ago" becomes an absolute `publishedAt` the §5.AC
+      `judgeRetrievedFreshness` can band (integration-tested). Pure + clock-injected (deterministic, UTC calendar math with
+      month-clamp + year rollover), never reads `Date.now()`. 26 unit tests (fixed Wed-2026-06-24 anchor); tsc + biome
+      green. **Still owed (WIRING):** call it in the retrieval extract/synthesis path to resolve relative dates in fetched
+      snippets into absolute `publishedAt`s before the freshness judge, and on user query text so the temporal context can
+      surface what "last Tuesday" means.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
   - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
@@ -5952,7 +5965,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Wire the composed fragments into the board + chat prompt assembly, decomposed:**
   - [ ] replace hard-coded always-on blocks with resolved skill fragments (board + chat)
   - [ ] thread fragments through §5.AD arrangement (zone ordering)
-  - [ ] thread fragments through §6.2 capping (never overflow)
+  - [~] thread fragments through §6.2 capping (never overflow) — **PURE CORE DONE (2026-07-01):**
+        [src/core/jit-fragment-budget.ts](src/core/jit-fragment-budget.ts) `selectFragmentsWithinBudget(candidates, budgetTokens)`
+        → `{ kept, dropped, usedTokens, overBudget, reason }`: the missing JIT seam between `fragmentsForSkills` (the union,
+        no budget) and §5.AD `arrangeContextForSmartZone` (orders, explicitly leaves trimming aside). REQUIRED fragments are
+        kept first (may overrun — reported truthfully via `overBudget` so §6.2's hard cap still governs, never hidden), then
+        the remaining budget is filled greedily by importance desc (ties → lower cost → input order). Pure/non-mutating;
+        non-finite/negative costs floored to 0; keyed on `ContextFragmentId` so it composes directly with the resolver
+        output. 13 unit tests; tsc + biome green. **Still owed (WIRING, behind a live §5.Z re-verify):** feed it real
+        per-fragment token estimates + importance (from `skillRelevance`) at the board + chat assembly seam and hand the
+        `kept` set to §5.AD.
   - [ ] re-verify across §5.Z roster (no regression, weak models get leaner prompts)
 - [ ] **Skill-variation as a stuck-task escalation rung (ties §5.AA/§5.AB).** When a task stubbornly fails, the resolver
       tries a different skill set / preamble / fragment mix (e.g. add a `reasoning` or `retriever` skill) as one rung of the
@@ -7260,7 +7282,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Reasoning control as a first-class §5.AA lever, decomposed:**
   - [ ] Disable thinking for SIMPLE/execution turns (kill reasoning overhead + truncation risk + latency).
   - [ ] Keep reasoning for hard tasks.
-  - [ ] Use as truncation-recovery rung (already done for chat, qwen3).
+  - [~] Use as truncation-recovery rung (already done for chat, qwen3). **CROSS-DIALECT CLASSIFIER CORE DONE (2026-07-01):**
+        [completion-stop-reason.ts](src/core/completion-stop-reason.ts) normalizes the stop reason across ALL THREE request
+        dialects — OpenAI `/v1` `finish_reason` (`stop`/`length`/`tool_calls`/…), Anthropic `/v1/messages` `stop_reason`
+        (`end_turn`/`max_tokens`/`tool_use`/…), native `/api/v0` `stats.stop_reason` (`eosFound`/`maxTokensReached`/
+        `maxPredictedTokensReached`/`contextLengthReached`/`userStopped`/…) — into one `CompletionOutcome` enum. Exports:
+        `classifyCompletionOutcome(raw)`→outcome (case/underscore-tolerant, unknown⇒`Unknown` conservatively, never throws),
+        `isTruncatedOutcome(o)` (token OR context), and `deriveTruncationSignal({rawReason,reasoningTokens,tokenBudget,…})`
+        →`{outcome,truncatedByStopReason,reasoningStarvedBudget,shouldRetryLarger}` — the SHARED derivation generalizing the
+        exact `finish:"length"` OR `reasoningTokens≥90%·budget` check `chat-local-llm-adapter.ts` inlines today, now robust
+        to non-OpenAI dialects AND splitting `TruncatedTokens` (raise `max_tokens`) from `TruncatedContext` (compact — the
+        window is full). Pure; 32 vitest tests (tsc+biome green). **OWED WIRING:** replace the two inline `finishReason ===
+        "length"` branches in [chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts) with `deriveTruncationSignal`,
+        and feed the native `/api/v0` `stats.stop_reason` (already parsed by `lmstudio-request-stats.ts`) through it so a
+        `TruncatedContext` stop routes to compaction rather than a futile budget bump. Left unwired here (touching the chat
+        adapter is out of this card's scope).
   - [ ] Extend [model-thinking-control.ts](src/core/model-thinking-control.ts) with each family's verified switch.
   - [ ] Verify live per family as loaded (DeepSeek-R1, qwq, qwen3.5/3.6, nemotron, gemma-4, phi-4-reasoning).
 - [ ] **RUNTIME online research to get more out of a model, decomposed:**
