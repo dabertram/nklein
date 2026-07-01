@@ -6,6 +6,7 @@ import {
 	addTaskToColumn,
 	deleteTasksFromBoard,
 	moveTaskToColumn,
+	setCardStream,
 	trashTaskAndGetReadyLinkedTaskIds,
 	updateTask,
 } from "../../src/core/task-board-mutations";
@@ -316,5 +317,33 @@ describe("per-task agent/model/provider overrides", () => {
 			modelId: "claude-sonnet-4-20250514",
 			reasoningEffort: "high",
 		});
+	});
+});
+
+describe("setCardStream (§5.AU)", () => {
+	it("sets a card's streamId, clears it with null, and bumps updatedAt — leaving other cards untouched", () => {
+		const withA = addTaskToColumn(
+			createBoard(),
+			"planning",
+			{ taskId: "a", prompt: "A", baseRef: "main" },
+			() => "a",
+		);
+		const withB = addTaskToColumn(withA.board, "planning", { taskId: "b", prompt: "B", baseRef: "main" }, () => "b");
+
+		const set = setCardStream(withB.board, "a", "stream-x", 5000);
+		expect(set.updated).toBe(true);
+		expect(set.card?.streamId).toBe("stream-x");
+		expect(set.card?.updatedAt).toBe(5000);
+		const cards = set.board.columns.flatMap((c) => c.cards);
+		expect(cards.find((c) => c.id === "a")?.streamId).toBe("stream-x");
+		expect(cards.find((c) => c.id === "b")?.streamId).toBeUndefined();
+
+		const cleared = setCardStream(set.board, "a", null, 6000);
+		expect(cleared.card?.streamId).toBeUndefined();
+	});
+
+	it("returns updated:false for a missing card or blank id", () => {
+		expect(setCardStream(createBoard(), "nope", "s").updated).toBe(false);
+		expect(setCardStream(createBoard(), "  ", "s").updated).toBe(false);
 	});
 });

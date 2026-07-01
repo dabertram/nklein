@@ -601,6 +601,38 @@ export function moveTaskToColumn(
 	};
 }
 
+/**
+ * §5.AU — set (or clear, with `null`) a card's manual STREAM membership. A lightweight targeted mutation: it only
+ * touches `streamId` + `updatedAt`, so it doesn't require the full card payload `updateTask` does. This manual override
+ * wins over the decomposition-derived membership (the store applies `manualStreamId ?? derived`).
+ */
+export function setCardStream(
+	board: RuntimeBoardData,
+	taskId: string,
+	streamId: string | null,
+	now: number = Date.now(),
+): { board: RuntimeBoardData; card: RuntimeBoardCard | null; updated: boolean } {
+	const id = taskId.trim();
+	if (!id) {
+		return { board, card: null, updated: false };
+	}
+	let updatedCard: RuntimeBoardCard | null = null;
+	const columns = board.columns.map((column) => ({
+		...column,
+		cards: column.cards.map((card) => {
+			if (card.id !== id) {
+				return card;
+			}
+			const { streamId: _previous, ...rest } = card;
+			updatedCard = { ...rest, ...(streamId ? { streamId } : {}), updatedAt: now };
+			return updatedCard;
+		}),
+	}));
+	return updatedCard
+		? { board: { ...board, columns }, card: updatedCard, updated: true }
+		: { board, card: null, updated: false };
+}
+
 export function updateTask(
 	board: RuntimeBoardData,
 	taskId: string,
