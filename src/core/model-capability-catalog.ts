@@ -181,6 +181,35 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 	},
 	// ── Qwen ──────────────────────────────────────────────────────────────────────────────────────────────
 	{
+		// The qwopus3.6 REASONING lineage (the 27B). MORE SPECIFIC than the generic `qwopus` row below, so it must
+		// precede it (else `/qwopus/` shadows this and misreports the reasoning nuance). arch = qwen3.6-lineage reasoner.
+		family: "qwopus3.6",
+		match: /qwopus-?3[._]6/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		note: "qwopus3.6-27b-v2-mlx (qwen3.6×opus reasoning merge). Completes the full 4-step agentic tool-chain + persists a card — but VIA !Klein's §5.AB force-advance rung (default-on for reasoning on the stuck branch); WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; the only miss is the final reply not echoing a marker = weak SYNTHESIS, not a capability gap). Per §4A: json_schema structured output dead-ends on it (reasoning-channel conflict) — native tool_choice:required is the working lever.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts; commits dec62245+89becd66); todo §5.AA/§5.AB force-advance + §4A structured-output-strategy note",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
+		// The qwopus3.5 lineage (arch qwen3_5, CODER-tuned variants). MORE SPECIFIC than the generic `qwopus` below, so it
+		// must precede it. Notable: the 4B CODER here OUTPERFORMS the bigger qwopus3.6/qwen3.5 REASONING variants on the
+		// agentic chain — coder/instruct tuning beats reasoning-heavy tuning for direct tool use; size is not decisive.
+		family: "qwopus3.5-coder",
+		match: /qwopus-?3[._]5/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "code",
+		note: "qwopus3.5 lineage (arch qwen3_5, coder-tuned). The 4B CODER variant (qwopus3.5-4b-coder-fable5-v1-mlx) live 2026-07-01 FULLY PASSED the 4-step agentic chain (exit 0: read_file+run_command+create_card+update_focus_chain, card PERSISTED, AND the reply echoed the marker = full SYNTHESIS) — notably OUTPERFORMING the bigger qwopus3.6-27b + qwen3.5-9b REASONING variants (only PARTIAL: weak final synthesis). Lesson: for DIRECT agentic tool use, coder/instruct tuning beats reasoning-heavy tuning — size is NOT the deciding factor. Other qwopus3.5 sizes (9b-coder, 27b-v3) unverified — the strong 4B result may not generalize up.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, qwopus3.5-4b-coder-fable5-v1-mlx — FULL PASS, exit 0)",
+		],
+		basis: "empirical",
+		verified: true,
+	},
+	{
 		// `qwopus*` = local qwen×opus MERGE fine-tunes (e.g. qwopus3.6-27b-v2-mlx). Match BEFORE the generic qwen rows.
 		family: "qwopus-merge",
 		match: /qwopus/,
@@ -199,6 +228,20 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		note: "Supports tool calling; historically emitted a non-Hermes <tools>/code-block format that failed SILENTLY unless the parser matched. BUT live 2026-06-29 on `qwen/qwen2.5-coder-14b` via LM Studio's OpenAI `/v1`: a single-tool prompt returned a CLEAN STRUCTURED `tool_calls` (`create_card({title})`, finish=tool_calls) AND `response_format json_schema` produced valid structured output — so LM Studio's parser DOES surface its single-tool calls (not silently failing at that grain). Not a reasoning model (reasoning_len 0). The ◑ at 14B caveat is about multi-tool CHAINING, which the constrained rung helps.",
 		sources: ["https://github.com/QwenLM/Qwen3-Coder/issues/180"],
 		basis: "both",
+		verified: true,
+	},
+	{
+		// qwen3.5 (arch `qwen3_5`) is a distinct REASONING family — MORE SPECIFIC than the generic `qwen3-8b` row
+		// below and MUST precede it (its own regex `/qwen-?3-8b/` doesn't hit `qwen3.5-9b`, but keep specific→general).
+		family: "qwen3.5",
+		match: /qwen-?3[._]5/,
+		toolUse: "TOOL_CAPABLE",
+		kind: "reasoning",
+		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever.",
+		sources: [
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts; commits dec62245+89becd66); todo §5.AA/§5.AB force-advance + §4A structured-output-strategy/thinking-control notes",
+		],
+		basis: "empirical",
 		verified: true,
 	},
 	{

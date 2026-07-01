@@ -32,6 +32,33 @@ describe("model-capability-catalog: lookup", () => {
 		expect(lookupModelCapability("nemotron-nano")?.family).toBe("nemotron-nano");
 	});
 
+	it("resolves the qwen3.5 reasoning family BEFORE the generic qwen3-8b row (specific wins)", () => {
+		// Live 2026-07-01: qwen3.5-9b completes the 4-step agentic chain VIA the force-advance rung → TOOL_CAPABLE.
+		expect(lookupModelCapability("qwen3.5-9b-mlx-m4")?.family).toBe("qwen3.5");
+		expect(lookupModelCapability("qwen3.5-9b-mlx-m4")?.toolUse).toBe("TOOL_CAPABLE");
+		// Ordering guard: the qwen3.5 row must NOT swallow the generic qwen3-8b family.
+		expect(lookupModelCapability("qwen/qwen3-8b")?.family).toBe("qwen3-8b");
+	});
+
+	it("resolves the qwopus3.6 reasoning family BEFORE the generic qwopus-merge row (specific wins)", () => {
+		// Live 2026-07-01: the 27B qwopus3.6 completes the chain VIA the force-advance rung → TOOL_CAPABLE (reasoning).
+		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.family).toBe("qwopus3.6");
+		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.toolUse).toBe("TOOL_CAPABLE");
+		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.kind).toBe("reasoning");
+		// A bare/other qwopus alias still falls through to the generic merge row.
+		expect(lookupModelCapability("qwopus")?.family).toBe("qwopus-merge");
+	});
+
+	it("resolves the qwopus3.5 CODER family (the 4B outperforms the bigger reasoning variants)", () => {
+		// Live 2026-07-01: qwopus3.5-4b-coder-fable5 FULLY passed the agentic chain (exit 0, incl. synthesis) — better than
+		// the PARTIAL qwopus3.6-27b / qwen3.5-9b reasoning variants. Specific qwopus3.5 wins over the generic qwopus-merge.
+		expect(lookupModelCapability("qwopus3.5-4b-coder-fable5-v1-mlx")?.family).toBe("qwopus3.5-coder");
+		expect(lookupModelCapability("qwopus3.5-4b-coder-fable5-v1-mlx")?.toolUse).toBe("TOOL_CAPABLE");
+		expect(lookupModelCapability("qwopus3.5-4b-coder-fable5-v1-mlx")?.kind).toBe("code");
+		// qwopus3.6 (reasoning) still resolves to its own row, not the qwopus3.5 one.
+		expect(lookupModelCapability("qwopus3.6-27b-v2-mlx")?.family).toBe("qwopus3.6");
+	});
+
 	it("returns null for a family not in the catalog", () => {
 		expect(lookupModelCapability("some-obscure/model-v9")).toBeNull();
 	});
@@ -71,6 +98,16 @@ describe("model-capability-catalog: suitability gate", () => {
 		const v = assessModelSuitability("google/gemma-4-e4b");
 		expect(v.toolUse).toBe("TOOL_WEAK");
 		expect(v.reason).not.toMatch(/unverified/i);
+	});
+
+	it("passes the resident reasoning models (qwen3.5 / qwopus3.6) at ok — TOOL_CAPABLE via the force-advance rung", () => {
+		for (const id of ["qwen3.5-9b-mlx-m4", "qwopus3.6-27b-v2-mlx"]) {
+			const v = assessModelSuitability(id);
+			expect(v.toolUse, id).toBe("TOOL_CAPABLE");
+			expect(v.severity, id).toBe("ok");
+			expect(v.allowed, id).toBe(true);
+			expect(v.reason, id).not.toMatch(/unverified/i);
+		}
 	});
 
 	it("defers an UNKNOWN model to policy.onUnknown (default warn) and explains how to investigate", () => {

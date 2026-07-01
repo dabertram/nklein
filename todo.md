@@ -4808,6 +4808,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       → improve the final-answer turn; (b) scale to BIGGER models (needs non-resident loads — user-gated); (c)
       `buildForceAdvanceContext` is 27B-tuned + format-coupled to `appendChatToolExchange` (generalize + per-model de-tune as
       the §5.AL catalog grows). The 9B↓ hardening follow-up is largely SATISFIED (the 9B already passes).
+      **⭐ 4B CODER FULLY PASSES — AND OUTPERFORMS THE BIGGER REASONING MODELS (2026-07-01, user-requested load-test):** loaded
+      `qwopus3.5-4b-coder-fable5-v1-mlx` (2.39 GB, guarded, then unloaded to restore the user's set) and ran the same e2e →
+      **exit 0 FULL PASS** — all 4 tools + card PERSISTED + the reply ECHOED THE MARKER (full synthesis), i.e. it nailed the
+      exact SYNTHESIS step the PARTIAL 9B/27B reasoning variants missed. **KEY INSIGHT for §5.AB model selection + §5.AL: for
+      DIRECT agentic tool use, a small CODER/instruct model beats a bigger REASONING model — size is NOT the deciding factor;
+      the reasoning tuning is what causes the fixation + weak final synthesis.** ⇒ the swarm's default agentic driver should
+      prefer coder/instruct-tuned models; reserve reasoning models for genuinely hard planning. Recorded in the §5.AL catalog
+      (`qwopus3.5-coder` = TOOL_CAPABLE/code, empirical). Follow-up: sweep the qwopus3.5 9b-coder + other coder variants to
+      confirm the coder>reasoning pattern holds across sizes; consider a coder-preference in the auto-selection heuristic.
       **WIRED ON THE CHAT PATH (2026-06-28):**
       `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
       LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the
