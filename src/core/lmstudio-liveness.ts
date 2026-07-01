@@ -117,6 +117,12 @@ export interface ResidencyHeartbeatOptions {
 	intervalMs: number;
 	/** Fired ONCE when death is confirmed — the caller aborts the session (fail-fast). Polling stops itself first. */
 	onModelLost: () => void;
+	/**
+	 * Optional liveness predicate checked at the START of each tick — when it returns false the heartbeat halts itself.
+	 * Pass `() => session.state === "running"` so the heartbeat self-cleans one interval after the session ends,
+	 * regardless of which end path ran (LEAK-PROOF — no need to audit every session-teardown site for a `stop()` call).
+	 */
+	shouldContinue?: () => boolean;
 	/** Injectable timers so the loop is unit-testable without wall-clock waits. */
 	setIntervalFn?: (callback: () => void, ms: number) => ReturnType<typeof setInterval>;
 	clearIntervalFn?: (handle: ReturnType<typeof setInterval>) => void;
@@ -145,6 +151,10 @@ export function startResidencyHeartbeat(options: ResidencyHeartbeatOptions): Res
 	};
 	async function tick(): Promise<void> {
 		if (!active) {
+			return;
+		}
+		if (options.shouldContinue && !options.shouldContinue()) {
+			halt(); // the session ended — self-clean (leak-proof) without waiting for an explicit stop()
 			return;
 		}
 		let result: ModelLiveness;

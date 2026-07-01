@@ -167,4 +167,34 @@ describe("startResidencyHeartbeat", () => {
 		h.handle.stop();
 		expect(h.cleared).toBe(true);
 	});
+
+	it("self-cleans (halts) when shouldContinue turns false — leak-proof session end", async () => {
+		const ref: { tick: (() => void) | null } = { tick: null };
+		let cleared = false;
+		let probed = 0;
+		let running = true;
+		startResidencyHeartbeat({
+			probe: async () => {
+				probed += 1;
+				return "resident";
+			},
+			policy: { absentConfirmations: 2 },
+			intervalMs: 1000,
+			onModelLost: () => {},
+			shouldContinue: () => running,
+			setIntervalFn: (cb: () => void) => {
+				ref.tick = cb;
+				return 0 as unknown as ReturnType<typeof setInterval>;
+			},
+			clearIntervalFn: () => {
+				cleared = true;
+			},
+		});
+		await ref.tick?.(); // running → probes
+		expect(probed).toBe(1);
+		running = false; // session ended
+		await ref.tick?.(); // shouldContinue false → halt BEFORE probing
+		expect(cleared).toBe(true);
+		expect(probed).toBe(1); // did not probe after the session ended
+	});
 });
