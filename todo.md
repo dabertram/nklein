@@ -5733,6 +5733,29 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         tie-breaks older-measurement→modelId→role (stable). Clock- + data-injected (pure). 28 tests; tsc + biome green.
         **Owed:** wire the live store read + the §5.AI idle signal into `selectFitnessCellsToReeval`, and stamp
         `measuredAt`+fingerprint on the store write side (the two `- [ ]` items above).
+  - [x] **COVERAGE-driven eval-suite / probe planner — the "which (model, role, difficulty) cell do I probe NEXT to
+        CHARACTERIZE this model?" brain (PURE CORE DONE 2026-07-01).** The COMPLEMENT to the freshness item above:
+        `selectFitnessCellsToReeval` ranks the cells you ALREADY HAVE by STALENESS, but is silent on the two cases the
+        harness most needs meeting a NEW model — a NEVER-measured (model, role, tier) cell (a coverage GAP: an unknown
+        model has ZERO cells, so the staleness selector returns nothing), and the efficient ORDER to fill the gaps. This
+        is the COVERAGE half of "staleness + coverage → which (model, axis) to (re)evaluate next".
+        [src/core/model-eval-coverage-plan.ts](src/core/model-eval-coverage-plan.ts): `classifyEvalCoverage` maps every
+        target-matrix cell to `unmeasured|stale|reliable|above_ceiling`, and `planEvalCoverage` emits an ordered,
+        budget-bounded `EvalProbe[]` (role, tier, coverage, priority). Two harness-faithful prunes make it efficient
+        rather than a blind cross-product, both keyed on the aggregator's monotone-climb semantics
+        ([model-eval-aggregation.ts](src/core/model-eval-aggregation.ts) `maxDifficultyClearedFrom`): (1) **floor-first
+        climb** — probe the EASIEST unmeasured tier per role first (priority band [0.5,1], easiest→1.0, hardest→0.5), so
+        the model's ceiling is found cheaply; (2) **ceiling prune** — once a role has a currently-RELIABLE tier the model
+        FAILED, unmeasured tiers strictly HARDER than it are `above_ceiling` (never probed — the aggregator credits
+        nothing past a failed evaluated tier); a decayed failure can't anchor a ceiling. Coverage GAPS strictly outrank
+        STALE refreshes (stale priority = the freshness `fitnessRefreshPriority` compressed into [0,0.5) so every gap
+        beats every refresh, even a maximally-drifted one). COMPOSES existing types by import only (no edits): the
+        `EvalDifficultyTier` axis from the aggregator, `SWARM_ROLES` from `role-model-class.ts`, and the freshness
+        `FitnessCell`/`judgeFitnessFreshness`/`isFitnessCellReliable`/`fitnessRefreshPriority` — a `MeasuredEvalCell`
+        wrapper adds the tier the store's per-(model,role) `FitnessCell` lacks. Pure/deterministic + clock- +
+        data-injected. 19 tests; tsc + biome green. **Owed (effectful):** the idle rail (§5.AI
+        [background-eval-runner.ts](src/core/background-eval-runner.ts)) feeds this plan its next probe target + executes
+        the probe (rides the eval-corpus + repeated-run halves above).
 - [~] **Task-difficulty estimate (ties §5.I#4).** Estimate a task's difficulty/size (objective text, expected file/
       context footprint, acceptance shape, bounce history) → the key into the fitness table. **CORE DONE (2026-06-27):**
       `estimateTaskDifficulty(input)` ([src/core/model-fitness.ts](src/core/model-fitness.ts)) → a **0..1** score (matching
@@ -6099,6 +6122,32 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       owed (WIRING):** call `planKnowledgeRefresh` in the retrieval loop before spending an online search (reuse a
       still-trustable cached fact / re-fetch a rotted one), and thread `freshnessThresholdsForVolatility` into the
       freshness judge on each retrieval so the band is topic-appropriate.
+- [x] **Retrieved-source TRUST scorer (the "how trustable is WHERE this came from?" gate) — DONE 2026-07-01.**
+      [src/core/retrieval-source-trust.ts](src/core/retrieval-source-trust.ts): `scoreSourceTrust(urlOrHost, {sourceType?,
+      extraTldRules?, extraHostRules?, extraLabelCues?, weights?})` scores a retrieved source's ORIGIN into a trust TIER
+      (`authoritative` / `reputable` / `community` / `unknown` / `low`) + a numeric trust WEIGHT in [0,1] (a scalar a
+      recency×authority ranker multiplies a freshness/relevance score by) from deterministic domain/type signals: a gated
+      TLD (`.gov`/`.mil`/`.edu`/`.int` + two-label `.gov.uk`/`.ac.uk`/…) ⇒ authoritative; a known host (standards bodies
+      w3/ietf/iso/ieee/acm/who.int ⇒ authoritative, wikipedia/arxiv/doi/nature ⇒ reputable, SO/reddit/medium/… ⇒
+      community); host-label cues (`docs`/`developer`/`api` ⇒ vendor-docs reputable, `blog`/`forum`/`wiki`/`answers` ⇒
+      community). MOST-authoritative signal wins, with ONE fail-safe exception: any USER-CONTENT signal (forum/blog/open
+      wiki) CAPS the tier at `community` even under an authoritative TLD (a `.edu` personal blog is still user content).
+      A registrable-domain SUFFIX match (never a substring — `wikipedia.org.evil.com` does NOT match), so it's spoof-safe;
+      an unplaceable origin (no host / IP literal / non-http scheme like `mailto:`/`data:` / unrecognised domain) is
+      `unknown` (or a declared `doc`/`repo` KIND prior), and a placeable-but-unknown host defaults to `community` — NEVER
+      auto-`trusted`. Adapters: `toEvidenceTrustTier` folds a tier onto `retrievedEvidenceSchema.trustTier`
+      (`authoritative`/`reputable`→`trusted`, `community`→`community`, `unknown`/`low`→`untrusted`) so a caller can DERIVE
+      the §5.AC evidence envelope's tier instead of hard-coding it (closes the gap `retrieved-evidence.ts`'s header names:
+      "the schema does not auto-promote anything"); `isCitableWithoutCorroboration` gates the synthesis/citation path.
+      **Distinct from siblings (grep-verified no dup — ZERO trust-scoring symbols + NO `.gov`/`.edu`/wikipedia/arxiv
+      domain-trust logic existed anywhere in `src/`):** `retrieval-freshness.ts` bands a source's AGE, `retrieval-rerank.ts`
+      orders by query RELEVANCE, `knowledge-volatility-ttl.ts` scores a topic's shelf life — none score the SOURCE's
+      authority; this is the AUTHORITY half a recency×authority ranker needs (freshness already exists). PRIME-DIRECTIVE #1:
+      DECIDES only (no egress/I/O/model — never fetches to "check" a domain's reputation, never reads a clock) — URL +
+      kind + lexicon all INJECTED as plain values. Pure + deterministic (URL-parsed host, defensive IP-literal reject).
+      37 unit tests; tsc + biome green. **Still owed (WIRING):** call `scoreSourceTrust`+`toEvidenceTrustTier` when
+      wrapping fetched content into `RetrievedEvidence` (derive `trustTier` instead of defaulting), and multiply the trust
+      WEIGHT into the rerank/citation ordering so an authoritative source outranks a fresh-but-random one.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
   - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
@@ -7949,6 +7998,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   to `buildLmsLoadArgs`) so a sweep-loaded model self-evicts fast while an interactive session stays warm.
 >
 > **Leverage backlog (try ALL of these to lift a weak/stuck model — wire as §5.AA rungs / §5.AB signals; each behind a §5.Z re-verify):**
+- [x] **Per-request `max_tokens` CLAMP (pre-flight output-budget guard) — PURE CORE DONE (2026-07-01).**
+      [lmstudio-max-tokens-clamp.ts](src/core/lmstudio-max-tokens-clamp.ts) — `clampMaxTokens({promptTokens, contextWindow,
+      desiredMaxTokens, safetyReserveTokens?, minOutputTokens?}) → {maxTokens, reason, availableOutputTokens, shouldCompact}`.
+      Every request dialect shares one hard constraint — `promptTokens + generatedTokens ≤ contextWindow` — but the OpenAI
+      `max_tokens` caps only the OUTPUT half, so an ambitious budget on a full-ish window fails SILENTLY (server-reject or
+      instant `finish:"length"`/`contextLengthReached`). This computes, offline + deterministically, the largest SAFE
+      `max_tokens` for a request whose prompt is already counted: `available = max(0, contextWindow − promptTokens −
+      reserve)`, clamp the desired budget into `[minOutput, available]`; and when the prompt (plus reserve) has exhausted the
+      window it returns `reason:"prompt_exhausts_window"` + `shouldCompact:true` (raising the budget can't help — compact the
+      prompt), mirroring the `TruncatedContext` vs `TruncatedTokens` split `completion-stop-reason.ts` draws. **DISTINCT from
+      the neighbours (grep-checked):** `planLoadContextLength`/`recommendContextLength` size the window a model is LOADED at
+      (the `--context-length` VRAM lever); `completion-stop-reason.ts`+`retry-policy.ts` REACT after a truncation; NO module
+      computed a pre-flight per-request output budget (it's the missing producer for the `reservedOutputTokens` field
+      `task-session-api-contract.ts` carries). INJECT-only (prime directive #1): no tokenizer/model/clock/I·O — pure
+      arithmetic over injected counts; always returns a strictly-positive integer `max_tokens` and honors the ≥32k floor as a
+      sanity input (never fabricates room a sub-floor/misconfigured window doesn't have). Pure/total; 29 vitest tests
+      (tsc+biome green). **OWED WIRING (out of this core's scope):** clamp the `max_tokens` the request-assembly seam
+      (`nklein-local-llm-client.ts` / the chat adapter) sets through this before dispatch, and route a
+      `prompt_exhausts_window` verdict to compaction instead of a doomed budget bump.
 - [~] **Use per-request API metrics for REAL speed/MCSR + reasoning-overhead.** **reasoning_tokens DONE (2026-06-29):**
       `/v1` `usage.completion_tokens_details.reasoning_tokens` is captured on `LocalLlmToolCompletion.reasoningTokens`
       (live-verified to track reasoning overhead) — a §5.AA truncation/over-rumination signal on the endpoint we already use.
