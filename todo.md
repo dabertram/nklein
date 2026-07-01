@@ -4872,11 +4872,17 @@ source repo went private — so if it vanishes the buildable source still lives 
         custom merge like qwopus is tagged `reasoning` even when its card omits the flag. Card side resolves §5.AE
         skills→tags. **Live probe (3 loaded models):** code card→qwen2.5-coder, planning/review→qwopus, legion alias→real
         key `qwen3.5-9b-mtp`. Commits cb28c161 (router+vocab), b560a69c (descriptors+wiring end-to-end).
-        **STILL OWED:** (1) the live task-START path ([start-task-session.ts](src/trpc/runtime-api/start-task-session.ts))
-        builds candidates from CONFIGURED roles, NOT the loaded set — so with the user's "forget my config" it has only
-        the primary (no runtime auto-selection); give it the same loaded-set auto-discovery + affinity (rides the wiring
-        leaf above, behavior-changing on the hot path ⇒ live §5.Z re-verify). (2) chain llmfit's cached score AHEAD of the
-        catalog prior (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
+        **EXECUTION WIRED (2026-07-01, 72f746b9):** the selection now DRIVES execution — `resolveTaskModelSettings` PINS
+        the selected candidate's model (runtime id + provider) onto the generated card's `nkleinSettings`, so a decompose
+        card actually RUNS on its best-fit model (previously the choice was only fit-evidence text + a role, dropped for a
+        role-less loaded candidate). The pinned model then becomes the task-START path's `preferredModelKey`, so the
+        decompose→start carry-through is closed.
+        **STILL OWED:** (1) DIRECTLY-started (non-decompose) cards: the task-START path
+        ([start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)) still builds candidates from CONFIGURED
+        roles, NOT the loaded set — so a hand-started card with "forget my config" has only the primary (no runtime
+        auto-selection). Give it the same loaded-set auto-discovery + affinity (rides the wiring leaf above,
+        behavior-changing on the hot path ⇒ live §5.Z re-verify). (2) chain llmfit's cached score AHEAD of the catalog
+        prior (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
   - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
         **PROFILE DONE (2026-06-29):** `PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS`
         ([runtime-config-api-contract.ts](src/core/runtime-config-api-contract.ts)) — 48 turns / 8h wall-time / 8 no-diff
