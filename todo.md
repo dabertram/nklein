@@ -3169,6 +3169,10 @@ source repo went private — so if it vanishes the buildable source still lives 
       7 tests):** `parseNKleinMcpSettingsSaveRequest` — case-insensitive duplicate-name reject, stdio name/command trim +
       empty-arg filter + empty-command reject, http url trim + empty-value header filter, absent-optional-args omitted.
       Owed (lower-value, same pattern): the repetitive trim/empty task-id parsers (one representative — `parseGitCheckoutRequest` — covered).
+      **`runtime-config-change-detection` (2026-07-01, 7 tests):** the config-save change detector — structural invariants
+      (project change-set ⊇ global; **change-detected keys DISJOINT from derived/excluded keys** — an overlap would diff a
+      never-round-tripped field → false "changed" every save; no dup keys) + the `runtimeConfigStateHasChanges` OR-over-fields
+      contract incl. custom per-field equality. Invariants confirmed clean (no save bug).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
