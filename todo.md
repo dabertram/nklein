@@ -5129,6 +5129,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       correct + unit-proven but gemma's narration format VARIES run-to-run — the e2e didn't flip this run. The durable fix
       for the e2e chain-narration wall is the broader §5.AA retry-engine (constrained-decoding rung forcing a parseable
       call mid-chain), not markerless-JSON recovery.
+- [x] **Narration-DIALECT classifier — which recovery dialect a stuck turn is in (or none-recoverable) (PURE CORE DONE 2026-07-01).**
+      [src/core/narration-dialect.ts](src/core/narration-dialect.ts) — `classifyNarrationDialect(text, offeredToolNames?)`
+      names the narrated-tool-call dialect of a no-structured-call turn: `hermes_qwen` `<tool_call>` | `mistral`
+      `[TOOL_CALLS]` | `phi` `[TOOL_REQUEST]` | `llama_python_tag` | `deepseek` special-token | `functionary_tag`
+      `<function=NAME>` | `gemma_tool_code` Python | `plain_prose` `Tool call: name(args)` | `tool_validated_json` (a
+      bare/```json object naming an OFFERED tool) | `none` (a genuine prose answer or an unrecoverable stall). Closes the
+      gap the recovery PARSERS left: `parseNarratedToolCalls` tries every family monolithically but never says WHICH
+      dialect matched, and can't see the offered-tool set `parseToolValidatedNarration` needs — so nothing today gives a
+      caller (a) which format THIS model narrates in (→ persist as `ModelBehaviorProfile.toolCallFormat` / §5.AG surface /
+      per-model pre-emptive recovery), or (b) one "recoverable narration vs genuine answer vs unrecoverable stall" verdict
+      the evidence-gate / adaptive loop can branch on. grep-confirmed no dialect classifier exists (`completion-stop-reason`
+      classifies the STOP reason — a different axis; `failure-signature` classifies a thrown ERROR value, not a turn's text).
+      EVIDENCE-GROUNDED (mirrors AGENTS.md "observable, not the model's claim"): `recoverable` is true only when a recovery
+      family actually PARSED ≥1 call, so a marker with unparseable garbage ⇒ `{dialect:"none", recoverable:false}` (honest,
+      no phantom call). Most-specific-first signature order (DeepSeek before the loose Hermes `tool_call`; a `<tool_call>`
+      block that incidentally contains `tool_code` labels as the marker family, not Gemma); the specific marker/anchor
+      family wins over the offered-JSON fallback. Composes `parseNarratedToolCalls` + `parseToolValidatedNarration` by
+      import ONLY (no edits to siblings). `isRecoverableNarration` convenience. Pure + defensive (empty ⇒ `none`, never
+      throws). 25 tests; tsc + biome green. **Owed (WIRING, out of pure-core scope):** call it at the narrated-recovery seam
+      to record the winning dialect on the §5.AF ledger / `ModelBehaviorProfile`, and let the §5.AG surface + the ladder
+      branch on `recoverable` (skip the recovery rung when `none`, prefer constrained-decoding when `hasStructuredMarker`).
 - [ ] **Re-verify across all 9 models after each increment**, decomposed:
   - [ ] After tool-set reduction landed: run §5.Z sweep, verify phi-4 flip status
   - [ ] After endpoint iteration lands: re-run §5.Z sweep, confirm no regression on 7 passing
@@ -6148,6 +6169,33 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       37 unit tests; tsc + biome green. **Still owed (WIRING):** call `scoreSourceTrust`+`toEvidenceTrustTier` when
       wrapping fetched content into `RetrievedEvidence` (derive `trustTier` instead of defaulting), and multiply the trust
       WEIGHT into the rerank/citation ordering so an authoritative source outranks a fresh-but-random one.
+- [x] **Recency×authority COMBINER — the fused freshness-authority ranker — DONE 2026-07-01.**
+      [src/core/retrieval-freshness-authority-rank.ts](src/core/retrieval-freshness-authority-rank.ts): the natural next
+      step both halves' headers named — fuse the RECENCY half + the AUTHORITY half into ONE rankable score by COMPOSING
+      the two existing cores BY IMPORT (imports + calls them; re-implements/edits neither). `scoreFreshnessAuthority(source,
+      now, opts)` calls `judgeRetrievedFreshness` (§5.AC `retrieval-freshness.ts`) → a `FreshnessVerdict` mapped to a [0,1]
+      recency scalar via a monotone ladder (`current` 1 … `stale` 0.1, `unknown` on a deliberate 0.2 floor — weak, not
+      zero, mirroring the trust core's `unknown` > `low`), and `scoreSourceTrust` (§5.AC `retrieval-source-trust.ts`) → a
+      tier + [0,1] authority weight, then fuses them with a **weighted GEOMETRIC mean** (not linear) so a source rotten on
+      EITHER axis is dragged to the bottom (a `low`-trust source can't ride freshness to the top; a `stale` source can't
+      ride authority to the top; a 0 factor annihilates). Returns the fused score in [0,1] + the full breakdown (both
+      scalars, verdict, tier, ageDays) for transparency. An OPTIONAL per-source query-`relevance` (e.g. from
+      `rerankByRelevance`) folds in as a third factor → rank on relevance×recency×authority through one call; omit it and
+      it's pure recency×authority as named. `rankByFreshnessAuthority(sources, now, opts)` scores a batch → sorted DESC,
+      STABLE ties (input order survives an equal score), inputs never mutated. `freshnessThresholds` passes straight
+      through to the freshness half, so a caller threads `freshnessThresholdsForVolatility(class)` (§5.AC
+      `knowledge-volatility-ttl.ts`) to make the recency axis topic-appropriate (a realtime topic bands a 5-day source
+      `stale`, an evergreen one `current` — integration-tested; delivers the exact "fresh-but-random loses to a slightly
+      older standards page" ordering neither half can do alone, closing that "still owed" note above). **Distinct from
+      siblings (grep-verified no dup — NO recency×authority/`freshnessScore`/combiner existed anywhere in `src/`; the only
+      `recencyWeight` is `cache-prefix-retention.ts`'s prompt-cache LRU, unrelated):** `retrieval-freshness.ts` bands AGE,
+      `retrieval-source-trust.ts` scores ORIGIN, `retrieval-rerank.ts` orders by RELEVANCE, `retrieval-sufficiency.ts`
+      decides when to STOP — none COMBINE recency+authority into one rankable scalar; this is that join. PRIME-DIRECTIVE #1:
+      DECIDES only (no egress/I/O/model/UI/fs) — every input (each source's date/URL/kind, `now`, optional relevance,
+      weights + thresholds) INJECTED; the `now` clock is passed in (never `Date.now()`), exactly as the two composed cores
+      require. Pure + deterministic. 28 unit tests (fixed Wed-2026-06-24 anchor); tsc + biome green. **Still owed (WIRING):**
+      call `rankByFreshnessAuthority` in the retrieval loop's post-fetch ordering (feed each hit's `publishedAt` + URL +
+      the rerank `score` as `relevance`) so the synthesis/citation step consumes best-grounded-first evidence.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
   - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
@@ -6852,6 +6900,30 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (each signal + cap, remaining-dep/FIFO/jobId tie-breaks, limit carve-out, dedup, purity/no-mutation, determinism);
       tsc+biome+vitest green. **Owed:** wire it at the scheduler's lease step (order the ready set before filling free
       slots) — a thin, behavior-preserving swap of the input-order loop, done at the live-integration pass.
+      **LEASE-RENEWAL/EXPIRY/STEAL DECISION CORE DONE (2026-07-01):** [src/core/durable-lease-renewal.ts](src/core/durable-lease-renewal.ts)
+      `decideLeaseRenewal(request)` fills the gap where the durable scheduler treats a lease as strictly BINARY —
+      `decideDurableSchedulerActions` reclaims iff `lease.expiresAt <= now`, and `renewDurableLease` / the controller's
+      `heartbeat(jobId)` extend the expiry UNCONDITIONALLY (any caller, any time, no liveness/ownership check —
+      grep-confirmed: no `decideLeaseRenewal`/`steal`/`fenceEpoch`/`LeaseDecision` existed anywhere, and `SCHEDULER_EVENT_NAMES`
+      has no `stolen`). Given ONE lease's identity + timing (`acquiredAt` + `expiresAt` + `lastHeartbeatAt` + a monotonic
+      `fenceEpoch`, extending `DurableJobLease` by import) plus an INJECTED `now` + an optional `requesterId`, it returns
+      exactly one verdict: **`hold`** (healthy, comfortably ahead of the deadline) · **`renew`** (holder alive — heartbeat
+      fresh — and within the renew window of expiry, so push the deadline to `now+leaseDurationMs`, keeping a slow-but-live
+      worker off the reclaim tick) · **`expire`** (the DEAD-worker case: fully lapsed OR — the gap the binary check can't
+      see — the HEARTBEAT went stale past `heartbeatIntervalMs+grace` while the lease itself hasn't lapsed yet, i.e. a
+      hung/GC-paused worker still holding its slot) · **`steal`** (a *different*, live worker legitimately takes over a
+      lapsed/silent lease, minting a strictly-higher `fenceEpoch` so a resurrected zombie holder is fenced out). Plus
+      `isLeaseActionFenced(currentEpoch, actionEpoch)` — the zombie guard a steal's epoch exists to enable (refuse any
+      action carrying a stale/lower epoch; absent≡0 so a non-fencing caller is never fenced). Pure/total/deterministic (no
+      I/O/clock/randomness — the clock is the injected `now`, so a replay reproduces the verdict); a steal is reachable ONLY
+      after the holder lapsed/went silent (a fenced hand-off of DEAD work, never preemption of a live worker; an anonymous
+      assessor never steals). COMPOSES `durable-scheduler`'s `DurableJobLease` by import, edits nothing; the caller maps
+      the verdict onto the existing vocabulary (`renew`→`renewDurableLease`; `expire`→the scheduler's `reclaim`/`lease_expired`;
+      `steal`→a fenced re-grant). 37 unit tests (each verdict + the silence/renew-window/lapse boundaries incl. exact-deadline
+      strictness, never-beaten fallback to `acquiredAt`, clock-skew clamp, foreign-vs-same-vs-empty requester, epoch mint +
+      fence guard incl. an end-to-end steal→fence compose, policy validation/defaults, determinism/no-mutation). tsc+biome+vitest
+      green. **Owed:** wire it into the controller's `heartbeat`/reclaim path (gate the blind `renewDurableLease` on a `renew`
+      verdict; surface `steal` as a fenced re-grant + a `stolen` scheduler event) at the live-integration pass.
       **Owed (focused):** the STREAMING chat path (mid-stream retry unsafe — needs replay design); and the live wiring of
       the durable controller itself into the runtime (the C3 turn-key-kit integration, separately tracked).
 - [~] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
