@@ -2279,7 +2279,10 @@ source repo went private — so if it vanishes the buildable source still lives 
         **LIVE-VALIDATED vs a real loaded 9B (2026-07-01, qwen3.5-9b-mlx-m4).** Confirms §4A's truncation lesson (line ~374)
         directly in the picker: the 9B spends ~400 reasoning tokens BEFORE the pick, so a small `max_tokens` yields empty
         `content` + `finish_reason:"length"` — the pick never appears; a ~1024 budget + choice-framing gives a correct
-        `'\n\nread_files'` (the leading `\n\n` is already handled by the parser's trim). So empty+`length` is a FALSE "none"
+        `'\n\nread_files'`. **PAYOFF MEASURED: 6/6 correct picks** at a 1024 budget across read_files·find_files·write_file·
+        editor·read_large_file·none — the authored cards are clear + discriminating enough for a real 9B to route end-to-end
+        (menu → model → `interpretPhaseOnePick`), validating the whole two-phase design. (The leading `\n\n` is handled by the
+        parser's trim.) So empty+`length` is a FALSE "none"
         (the model never answered). Fix shipped: `interpretPhaseOneResponse({content,finishReason}, cards)` escalates a
         truncated empty answer to `plan_needed` (retry) instead of `none`; a normal blank still means `none`. (Separately, this
         probe found qwen3.5 IGNORES `/no_think` — feeds the §4A/`model-thinking-control.ts` matcher fix, see that commit.)
