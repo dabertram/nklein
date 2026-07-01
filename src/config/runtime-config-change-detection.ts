@@ -50,6 +50,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("selectedShortcutLabel"),
 	runtimeConfigChangeField("developerModeEnabled"),
 	runtimeConfigChangeField("replayCardsEnabled"),
+	runtimeConfigChangeField("knowsTodayEnabled"),
 	runtimeConfigChangeField("agentAutonomousModeEnabled"),
 	runtimeConfigChangeField("agentTimeoutMode"),
 	runtimeConfigChangeField("agentTimeoutProfile"),

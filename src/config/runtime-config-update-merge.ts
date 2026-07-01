@@ -17,6 +17,7 @@ import {
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
+	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -50,6 +51,9 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 		),
 		replayCardsEnabled: keepNormalizedValue(updates.replayCardsEnabled, current.replayCardsEnabled, (value) =>
 			normalizeBoolean(value, DEFAULT_REPLAY_CARDS_ENABLED),
+		),
+		knowsTodayEnabled: keepNormalizedValue(updates.knowsTodayEnabled, current.knowsTodayEnabled, (value) =>
+			normalizeBoolean(value, DEFAULT_KNOWS_TODAY_ENABLED),
 		),
 		agentAutonomousModeEnabled: keepUpdatedValue(
 			updates.agentAutonomousModeEnabled,

@@ -58,6 +58,9 @@ export interface ChatServiceOptions {
 	/** §5.AL: the active project's effective model-gate policy (global default ← per-project override) used as the gate's
 	 *  base, so chat honors a per-project policy like task-start does (the env knobs still layer on top). Omit ⇒ env+default. */
 	resolveModelGatePolicyBase?: () => Promise<{ onUnsuitable: string; onUnknown: string } | null>;
+	/** §5.AC: the resolved "knows today" switch for this turn (the runtime-config setting, OFF BY DEFAULT). Read per turn
+	 *  so a live config change takes effect immediately. Omitted ⇒ the turn's env fallback (`NKLEIN_KNOWS_TODAY`) decides. */
+	resolveKnowsTodayEnabled?: () => boolean;
 	/** §5.AF best-effort ledger sink for a tool-using chat turn (the chat-flow writer). Called AFTER the turn with the
 	 *  chat-specific attempt facts; the wiring assembles the envelope (workspace/provider/endpoint) + appends. Fire-and-
 	 *  forget — must never affect the turn (the implementation swallows its own errors). Omit to not write the ledger. */
@@ -203,12 +206,16 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			const modelDeps = await options.resolveModelDeps();
 			const tokenBudget = input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET;
 			const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
+			// §5.AC: resolve the "knows today" switch per turn (config || env, off by default) so a live config change
+			// applies immediately; undefined ⇒ the renderer's env fallback decides. Threaded into the turn deps below.
+			const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
 			const storeDeps = {
 				readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
 				readMemories: () => readChatMemories(memoryOptions),
 				appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
 					appendChatMessage(sessionId, message, transcriptOptions),
 				estimateTokens,
+				...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
 			};
 
 			// Tool-using path (todo §5.M G3a): when the session resolves agent tool deps, drive the tool-using agent
@@ -295,12 +302,15 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			const modelDeps = await options.resolveModelDeps();
 			const tokenBudget = DEFAULT_CHAT_TOKEN_BUDGET;
 			const memoryLimit = DEFAULT_CHAT_MEMORY_LIMIT;
+			// §5.AC: same per-turn "knows today" resolution as the interactive path (config || env, off by default).
+			const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
 			const storeDeps = {
 				readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
 				readMemories: () => readChatMemories(memoryOptions),
 				appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
 					appendChatMessage(sessionId, message, transcriptOptions),
 				estimateTokens,
+				...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
 			};
 			const resolveAgentToolDeps = options.resolveAgentToolDeps;
 			return runAutonomousChatSession(input.goal, {

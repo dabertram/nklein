@@ -71,6 +71,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		workspaceBaseDir: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
+		knowsTodayEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

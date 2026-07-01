@@ -24,6 +24,7 @@ import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
+	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 } from "./runtime-config-defaults";
 import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
@@ -57,6 +58,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	selectedShortcutLabel: string | null;
 	developerModeEnabled: boolean;
 	replayCardsEnabled: boolean;
+	knowsTodayEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -105,6 +107,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		selectedShortcutLabel: normalizeShortcutLabel(input.selectedShortcutLabel),
 		developerModeEnabled: normalizeBoolean(input.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 		replayCardsEnabled: normalizeBoolean(input.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
+		knowsTodayEnabled: normalizeBoolean(input.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			input.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,

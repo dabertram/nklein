@@ -28,6 +28,7 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		selectedShortcutLabel: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
+		knowsTodayEnabled: false,
 		agentAutonomousModeEnabled: false,
 		agentTimeoutMode: DEFAULT_AGENT_TIMEOUT_MODE,
 		agentTimeoutProfile: DEFAULT_AGENT_TIMEOUT_PROFILE,

@@ -350,6 +350,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		workspaceBaseDir: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
+		knowsTodayEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

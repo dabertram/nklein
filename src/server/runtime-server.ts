@@ -725,6 +725,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service = createInMemoryNKleinTaskSessionService({
 				watcherRegistry: nkleinWatcherRegistry,
 				swarmGuardrails: runtimeConfig.swarmGuardrails,
+				knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
@@ -783,6 +784,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		} else {
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
+			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 		}
 		return service;
 	};

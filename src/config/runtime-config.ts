@@ -54,6 +54,7 @@ import {
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
+	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -221,6 +222,7 @@ function toRuntimeConfigState({
 		selectedShortcutLabel: normalizeShortcutLabel(globalConfig?.selectedShortcutLabel),
 		developerModeEnabled: normalizeDeveloperModeEnabled(globalConfig),
 		replayCardsEnabled: normalizeBoolean(globalConfig?.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
+		knowsTodayEnabled: normalizeBoolean(globalConfig?.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			globalConfig?.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -435,6 +437,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		workspaceBaseDir: current.workspaceBaseDir,
 		developerModeEnabled: current.developerModeEnabled,
 		replayCardsEnabled: current.replayCardsEnabled,
+		knowsTodayEnabled: current.knowsTodayEnabled,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
 		agentTimeoutProfile: current.agentTimeoutProfile,
@@ -506,6 +509,7 @@ export async function saveRuntimeConfig(
 		workspaceBaseDir: string | null;
 		developerModeEnabled?: boolean;
 		replayCardsEnabled?: boolean;
+		knowsTodayEnabled?: boolean;
 		agentAutonomousModeEnabled: boolean;
 		agentTimeoutMode: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -554,6 +558,7 @@ export async function saveRuntimeConfig(
 			workspaceBaseDir: config.workspaceBaseDir,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
+			knowsTodayEnabled: normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -622,6 +627,7 @@ export async function saveRuntimeConfig(
 			workspaceBaseDir: config.workspaceBaseDir,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
+			knowsTodayEnabled: normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,

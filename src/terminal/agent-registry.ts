@@ -168,6 +168,7 @@ export function buildRuntimeConfigResponse(
 		concurrencyOverride: runtimeConfig.concurrencyOverride,
 		developerModeEnabled: runtimeConfig.developerModeEnabled,
 		replayCardsEnabled: runtimeConfig.replayCardsEnabled,
+		knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 		effectiveCommand,
 		globalConfigPath: runtimeConfig.globalConfigPath,
 		projectConfigPath: runtimeConfig.projectConfigPath,

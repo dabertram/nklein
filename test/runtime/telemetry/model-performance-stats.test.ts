@@ -24,6 +24,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 		workspaceBaseDir: null,
 		developerModeEnabled: true,
 		replayCardsEnabled: true,
+		knowsTodayEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

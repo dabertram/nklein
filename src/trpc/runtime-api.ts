@@ -39,6 +39,7 @@ import {
 	parseShellSessionStartRequest,
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
+import { isTruthyEnv } from "../core/env-flag";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
@@ -198,6 +199,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// policy like task-start does (env knobs still override on top).
 			resolveModelGatePolicyBase: async () =>
 				deps.getActiveRuntimeConfig?.()?.effectiveModelSuitabilityPolicy ?? null,
+			// §5.AC: resolve the "knows today" switch per turn = the runtime-config setting (off by default) OR the
+			// `NKLEIN_KNOWS_TODAY` env override, so a live config change (or a dev flag) takes effect on the next turn.
+			resolveKnowsTodayEnabled: () =>
+				(deps.getActiveRuntimeConfig?.()?.knowsTodayEnabled ?? false) ||
+				isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
 			// §5.AF: the chat-flow ledger writer — assemble the envelope (workspace/provider/endpoint) from the active
 			// runtime + append one `chat` attempt event. Fully best-effort: any failure is swallowed (observational only).
 			recordChatAttempt: (input) => {

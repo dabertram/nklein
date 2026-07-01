@@ -17,6 +17,8 @@ export const DEFAULT_AGENT_ID: RuntimeAgentId = "nklein";
 export const AUTO_SELECT_AGENT_PRIORITY: readonly RuntimeAgentId[] = [];
 export const DEFAULT_DEVELOPER_MODE_ENABLED = false;
 export const DEFAULT_REPLAY_CARDS_ENABLED = false;
+/** §5.AC "knows today" temporal-context injection — OFF BY DEFAULT (user 2026-07-01: opt-in, zero prompt cost when off). */
+export const DEFAULT_KNOWS_TODAY_ENABLED = false;
 export const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 export const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 export const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";

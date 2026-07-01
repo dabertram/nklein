@@ -6163,9 +6163,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       injected, **ALL 9 loaded models PASS** (gemma-4-e2b 2B / gemma-4-e4b / qwen3-8b / qwen2.5-coder-14b / qwen3.5-9b /
       nemotron-3-nano-4b / phi-4-mini-reasoning / phi-4-reasoning-plus / deepseek-r1), each grounding e.g. *"March 1st,
       2026, is in the past relative to today's date of June 26th, 2026"* — training prior overridden (matrix in §5.Z).
-      **Still owed:** (a) the user-facing `knowsTodayEnabled` runtime-config setting + §5.W UI toggle (trace
-      `secondOpinionReviewEnabled` across config-api-contract → runtime-config-types/-update-merge/-change-detection/
-      -state-factory → global-config-file-payload → runtime-config, then expose in the UI); (b) a board-agent **mid-session
+      **Still owed:** (a) **the user-facing `knowsTodayEnabled` runtime-config setting — BACKEND WIRED (2026-07-01), only
+      the §5.W UI toggle remains.** Added `knowsTodayEnabled` (OFF BY DEFAULT, `DEFAULT_KNOWS_TODAY_ENABLED=false`) through
+      the whole config layer mirroring `replayCardsEnabled` (runtime-config-defaults / -types / config-api-contract
+      response+update schemas / -update-merge / -change-detection / -state-factory / global-config-file-payload /
+      runtime-config load paths / agent-registry response) and threaded it into every injection site so the setting (not
+      just the env var) controls the feature, OR-ed with the `NKLEIN_KNOWS_TODAY` env override: the session service gained
+      an option + live `setKnowsTodayEnabled` setter (same seam as `setSwarmGuardrails`), wired at both `runtime-server`
+      create + config-change spots; chat resolves it per turn via a new `resolveKnowsTodayEnabled` (runtime-api →
+      chat-service → turn deps). tsc + biome + config/chat/trpc/nklein suites green (504 tests). **Only the UI toggle is
+      left** (web-ui `runtime-settings-dialog.tsx` "Agents" group + its hooks/tests). (b) a board-agent **mid-session
       re-anchor** (the system prompt is static per session; a `beforeModel` hook like the §5.N focus-chain re-anchor would
       refresh "now" on a multi-day run — chat already re-anchors per turn, so this is a board-only long-run nicety).
 - [x] **Freshness-judgment helper (DONE 2026-06-27).** [src/core/retrieval-freshness.ts](src/core/retrieval-freshness.ts):

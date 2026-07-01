@@ -25,6 +25,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		workspaceBaseDir: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
+		knowsTodayEnabled: false,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "cloud",

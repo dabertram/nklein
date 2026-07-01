@@ -23,6 +23,8 @@ export interface RuntimeConfigState {
 	selectedShortcutLabel: string | null;
 	developerModeEnabled: boolean;
 	replayCardsEnabled: boolean;
+	/** §5.AC "knows today" temporal-context injection — OFF BY DEFAULT; opt-in date grounding, still relevance-gated. */
+	knowsTodayEnabled: boolean;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -82,6 +84,7 @@ export interface RuntimeConfigUpdateInput {
 	selectedShortcutLabel?: string | null;
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
+	knowsTodayEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -129,6 +132,7 @@ export interface RuntimeGlobalConfigFileShape {
 	selectedShortcutLabel?: string;
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
+	knowsTodayEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;

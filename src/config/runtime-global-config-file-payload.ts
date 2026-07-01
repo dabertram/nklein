@@ -44,6 +44,7 @@ import {
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
+	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_LOST_HEARTBEAT_POLICY,
 	DEFAULT_MAX_CONCURRENT_TASKS,
 	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -97,6 +98,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	selectedShortcutLabel?: string | null;
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
+	knowsTodayEnabled?: boolean;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -141,6 +143,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 		config.selectedShortcutLabel === undefined ? undefined : normalizeShortcutLabel(config.selectedShortcutLabel);
 	const developerModeEnabled = normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
 	const replayCardsEnabled = normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
+	const knowsTodayEnabled = normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED);
 	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
 		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
 		: undefined;
@@ -305,6 +308,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 		payload.developerModeEnabled = developerModeEnabled;
 	}
 	assignChangedConfigField(payload, existing, "replayCardsEnabled", replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
+	assignChangedConfigField(payload, existing, "knowsTodayEnabled", knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED);
 	assignChangedConfigField(
 		payload,
 		existing,

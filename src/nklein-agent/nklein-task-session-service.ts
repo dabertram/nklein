@@ -1,9 +1,11 @@
 import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./nklein-sdk-event-readers";
+
 // Task-oriented facade for native NKlein sessions.
 // runtime-api.ts uses this service to start sessions, send messages, load
 // history, and subscribe to summaries and chat events without knowing SDK
 // host, repository, or event-adapter details.
 
+import { DEFAULT_KNOWS_TODAY_ENABLED } from "../config/runtime-config-defaults";
 import type {
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -275,6 +277,8 @@ export interface NKleinTaskSessionService {
 	setCardPaused(taskId: string, paused: boolean): void;
 	/** Apply the operator-configurable autonomous-run guardrail limits (Settings → "Local swarm guardrails"). */
 	setSwarmGuardrails(guardrails: RuntimeSwarmGuardrails): void;
+	/** Apply the §5.AC "knows today" runtime-config switch (off by default) when config changes. */
+	setKnowsTodayEnabled(enabled: boolean): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
 	verifyTaskAcceptanceInSandbox(input: {
 		taskId: string;
@@ -309,6 +313,12 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	onFocusChainUpdated?: (taskId: string, chain: FocusChain) => void | Promise<void>;
 	/** Operator-configurable autonomous-run guardrail limits; defaults to DEFAULT_RUNTIME_SWARM_GUARDRAILS. */
 	swarmGuardrails?: RuntimeSwarmGuardrails;
+	/**
+	 * The §5.AC "knows today" runtime-config setting — OFF BY DEFAULT. When true (or the `NKLEIN_KNOWS_TODAY` env
+	 * override is set), the relevance-gated date block is appended to each agent's system prompt. Live-updated by the
+	 * runtime when config changes (same seam as `swarmGuardrails`); env override honored independently.
+	 */
+	knowsTodayEnabled?: boolean;
 	/**
 	 * Root dir for the diagnostic stores this service writes (task-run summaries + the Agent Attempt Ledger).
 	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.
@@ -376,6 +386,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly onCardPromoted: NKleinCardPromotedHandler | undefined;
 	private readonly onFocusChainUpdated: ((taskId: string, chain: FocusChain) => void | Promise<void>) | undefined;
 	private swarmGuardrails: RuntimeSwarmGuardrails;
+	/** §5.AC "knows today" runtime-config switch (off by default); live-updated with config, OR-ed with the env override. */
+	private knowsTodayEnabled: boolean;
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
 	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
@@ -408,6 +420,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.onCardPromoted = options.onCardPromoted;
 		this.onFocusChainUpdated = options.onFocusChainUpdated;
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
+		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
@@ -654,7 +667,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		systemPrompt = appendTemporalContext(
 			systemPrompt,
 			decideTemporalContextInjection({
-				enabled: isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
+				enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
 				text: input.prompt,
 				now: new Date(),
 			}),
@@ -1643,7 +1656,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				systemPrompt = appendTemporalContext(
 					systemPrompt,
 					decideTemporalContextInjection({
-						enabled: isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
+						enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
 						text: request.prompt,
 						now: new Date(),
 					}),
@@ -2290,6 +2303,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	setSwarmGuardrails(guardrails: RuntimeSwarmGuardrails): void {
 		this.swarmGuardrails = normalizeRuntimeSwarmGuardrails(guardrails);
+	}
+
+	/** Live-update the §5.AC "knows today" switch when the runtime config changes (same seam as `setSwarmGuardrails`). */
+	setKnowsTodayEnabled(enabled: boolean): void {
+		this.knowsTodayEnabled = enabled;
 	}
 
 	async waitUntilTaskResumed(taskId: string): Promise<void> {
