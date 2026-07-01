@@ -1,4 +1,5 @@
 import { applyThinkingDisable, supportsThinkingControl } from "../core/model-thinking-control";
+import { raisedTokenBudget } from "../core/retry-policy";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
 import type {
@@ -59,6 +60,9 @@ function cleanModelReply(content: string): string {
 }
 
 const DEFAULT_SAMPLING: LocalLlmSamplingOptions = { temperature: 0.3, maxTokens: 1024 };
+// §5.AA: the ceiling for the escalating truncation-retry budget — a generous reasoning headroom that stays well within a
+// typical local context window so the retry can't overshoot it.
+const TRUNCATION_RETRY_BUDGET_CEILING = 8192;
 
 export function createChatModelDeps(
 	client: ChatCompletionClient,
@@ -155,6 +159,27 @@ export function createChatAgentModel(
 					? replaceLastUserText(wire, applyThinkingDisable(lastUserText(messages), options.modelId))
 					: wire;
 			response = await client.completeWithTools({ messages: retryWire, sampling: bumped }, offered);
+			// §5.AA escalating truncation retry: if the single (x3) bump STILL truncated (a big reasoner needs more -- live:
+			// the 27B truncated at 1024 and needed ~4096 across escalations), grow the budget ONCE more via the tested
+			// raisedTokenBudget (ceiling-clamped so it can't overshoot the context window). Only fires on CONTINUED truncation,
+			// so it never affects a turn the first bump already fixed.
+			const stillTruncated =
+				response.toolCalls.length === 0 &&
+				(response.finishReason === "length" ||
+					(typeof response.reasoningTokens === "number" && response.reasoningTokens >= 0.9 * bumped.maxTokens));
+			if (stillTruncated) {
+				const escalated = raisedTokenBudget({
+					current: bumped.maxTokens,
+					attempt: 1,
+					ceiling: TRUNCATION_RETRY_BUDGET_CEILING,
+				});
+				if (escalated > bumped.maxTokens) {
+					response = await client.completeWithTools(
+						{ messages: retryWire, sampling: { ...sampling, maxTokens: escalated } },
+						offered,
+					);
+				}
+			}
 		}
 		// §5.AA task-complexity ladder: a model that returns NO tool call when several were offered AND the instruction
 		// names a tool it didn't call is likely drowning in tool-set complexity (grounded: phi-4 emits a clean call with

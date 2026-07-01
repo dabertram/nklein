@@ -216,6 +216,32 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(budgets[1]).toBe(3072);
 	});
 
+	it("§5.AA truncation rung: ESCALATES the budget once more when the first bump STILL truncated", async () => {
+		const budgets: (number | undefined)[] = [];
+		let callIndex = 0;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request) => {
+				budgets.push(request.sampling?.maxTokens);
+				callIndex += 1;
+				// A big reasoner truncates even at the ×3 bump (calls 1 AND 2); call 3 (escalated) lands the tool call.
+				if (callIndex <= 2) {
+					return { content: "", toolCalls: [], finishReason: "length", raw: {} };
+				}
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, { sampling: { temperature: 0, maxTokens: 1024 } });
+		const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+		expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+		// 1024 → 3072 (×3 bump) → 6144 (raisedTokenBudget escalation from 3072, ×2 under the 8192 ceiling).
+		expect(budgets.slice(0, 3)).toEqual([1024, 3072, 6144]);
+	});
+
 	it("§5.AA truncation rung: DISABLES thinking on the retry for a model with a soft-switch (qwen3 /no_think)", async () => {
 		const prompts: string[] = [];
 		let callIndex = 0;
