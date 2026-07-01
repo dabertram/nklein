@@ -465,4 +465,62 @@ describe("nklein endpoint scheduler", () => {
 			}),
 		).toEqual({ ok: true });
 	});
+
+	// §5.AB LM-Link: several machines share ONE endpoint, so the per-MACHINE gate keys on the model→machine map.
+	const onLink = (taskId: string, modelId: string) => ({
+		taskId,
+		state: "running" as const,
+		providerId: "lmstudio",
+		modelId,
+		endpoint: "http://localhost:1234/v1",
+	});
+	const machineByModelId = new Map([
+		["coder", "local"],
+		["qwopus", "local"],
+		["gen-legion", "legion-hex"],
+	]);
+
+	it("holds a start when the task's MACHINE is at its per-machine cap (LM-Link shared endpoint)", () => {
+		const decision = scheduleNKleinEndpointStart({
+			taskId: "task-3",
+			providerId: "lmstudio",
+			modelId: "coder", // local
+			endpoint: "http://localhost:1234/v1",
+			modelRegistry: createSnapshot(),
+			perMachineCap: 1,
+			machineByModelId,
+			runningSessions: [onLink("task-1", "qwopus")], // qwopus is local ⇒ local pool already at 1
+		});
+		expect(decision).toMatchObject({ ok: false, sharedEndpointId: "machine:local", blockedByTaskId: "task-1" });
+	});
+
+	it("allows when the task's machine is free even though ANOTHER machine is busy (independent pools)", () => {
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "lmstudio",
+				modelId: "coder", // local (free)
+				endpoint: "http://localhost:1234/v1",
+				modelRegistry: createSnapshot(),
+				perMachineCap: 1,
+				machineByModelId,
+				runningSessions: [onLink("task-1", "gen-legion")], // legion busy, local empty
+			}),
+		).toEqual({ ok: true });
+	});
+
+	it("is inert without a per-machine cap + map (default unchanged)", () => {
+		expect(
+			scheduleNKleinEndpointStart({
+				taskId: "task-3",
+				providerId: "lmstudio",
+				modelId: "coder",
+				endpoint: "http://localhost:1234/v1",
+				modelRegistry: createSnapshot(),
+				// qwopus is on the same MACHINE (local) but a different MODEL, so the shared-endpoint gate doesn't fire; with
+				// no per-machine cap, the machine gate is inert ⇒ allowed.
+				runningSessions: [onLink("task-1", "qwopus")],
+			}),
+		).toEqual({ ok: true });
+	});
 });

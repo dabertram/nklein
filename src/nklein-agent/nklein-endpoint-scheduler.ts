@@ -1,4 +1,6 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { LOCAL_MACHINE_ID } from "../core/lms-ps-json";
+import { evaluateMachineConcurrencyGate } from "../core/machine-concurrency-gate";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { isLocalProvider } from "./nklein-local-only-policy";
 import {
@@ -35,6 +37,15 @@ export interface NKleinEndpointSchedulingRequest extends NKleinModelRegistryKeyI
 	 * independent of the provider + per-model gates. `null`/`undefined` = no pool gate (default; behavior unchanged).
 	 */
 	endpointConcurrencyCap?: number | null;
+	/**
+	 * §5.AB per-MACHINE cap for the LM-Link case: several machines share ONE endpoint, so `endpointConcurrencyCap` (keyed
+	 * on the baseUrl) can't tell them apart. When both this cap AND `machineByModelId` (runtime model id → owning machine,
+	 * from `lms ps --json`) are supplied, each MACHINE admits up to this many sessions independently. `null`/absent = no
+	 * per-machine gate (default; behavior unchanged).
+	 */
+	perMachineCap?: number | null;
+	/** Runtime model id → owning machine id (from `lms ps`); enables the per-machine gate above. */
+	machineByModelId?: ReadonlyMap<string, string>;
 }
 
 export type NKleinEndpointSchedulingDecision =
@@ -227,6 +238,42 @@ function evaluateEndpointPoolConcurrencyGate(
 	};
 }
 
+/**
+ * §5.AB per-MACHINE gate for LM-Link setups (several machines behind one endpoint): admit up to `perMachineCap` sessions
+ * per MACHINE, resolved via `machineByModelId` (from `lms ps`). Independent of the endpoint pool. Returns `null` (inert)
+ * unless BOTH the cap and the map are supplied, so the default is unchanged.
+ */
+function evaluateMachinePoolConcurrencyGate(
+	request: NKleinEndpointSchedulingRequest,
+): NKleinEndpointSchedulingDecision | null {
+	const cap = normalizePositiveCap(request.perMachineCap);
+	if (cap === null || !request.machineByModelId) {
+		return null;
+	}
+	const runningOnMachines = request.runningSessions.filter(
+		(session) => session.taskId !== request.taskId && session.state === "running",
+	);
+	const decision = evaluateMachineConcurrencyGate({
+		taskModelId: request.modelId,
+		runningModelIds: runningOnMachines.map((session) => session.modelId),
+		machineByModelId: request.machineByModelId,
+		perMachineCap: cap,
+	});
+	if (decision.allowed) {
+		return null;
+	}
+	const blocker = runningOnMachines.find(
+		(session) => (request.machineByModelId?.get(session.modelId) ?? LOCAL_MACHINE_ID) === decision.machineId,
+	);
+	return {
+		ok: false,
+		blockedByTaskId: blocker?.taskId ?? request.taskId,
+		sharedEndpointId: `machine:${decision.machineId}`,
+		estimatedWaitMs: null,
+		reason: `Machine "${decision.machineId}" is at its ${cap} concurrent-session cap; another !Klein task on this machine must finish first.`,
+	};
+}
+
 export function scheduleNKleinEndpointStart(
 	request: NKleinEndpointSchedulingRequest,
 ): NKleinEndpointSchedulingDecision {
@@ -240,6 +287,11 @@ export function scheduleNKleinEndpointStart(
 	const poolBlock = evaluateEndpointPoolConcurrencyGate(request);
 	if (poolBlock) {
 		return poolBlock;
+	}
+	// §5.AB LM-Link: the per-MACHINE gate (machines sharing one endpoint) is likewise independent.
+	const machineBlock = evaluateMachinePoolConcurrencyGate(request);
+	if (machineBlock) {
+		return machineBlock;
 	}
 	const sharedEndpointId = getSharedEndpointId(request.modelRegistry, request);
 	if (!sharedEndpointId) {
