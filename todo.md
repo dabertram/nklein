@@ -4910,11 +4910,17 @@ source repo went private — so if it vanishes the buildable source still lives 
         (120s) `dev test-project --preset many_small` through the REAL pipeline. Result: **"Seed start: ok"** — the full
         `start-task-session` handler ran (auto-discovery + affinity + the stale-default FALLBACK) and a card STARTED even
         with the user's stale default, proving the fix works in the live runtime (not just the unit probe). Clean teardown:
-        server stopped, NO leftover task containers. Card went "stagnant" within the 120s window (local-model latency /
-        possible prefill stall — a SEPARATE concern from selection; the START + model choice is what this validated).
-        **STILL OWED:** (1) a LONGER multi-card run to completion (distinct best-fit models per card actually finishing, no
-        endpoint
-        deadlock, clean teardown). (2) chain llmfit's cached score ahead of the catalog prior — LOW marginal value for the
+        server stopped, NO leftover task containers. Card went "stagnant" within the window.
+        **STAGNATION ROOT-CAUSED (2026-07-01, via the LM-Studio-dev-logs directive):** ran another `dev test-project`
+        (deep_chain) and polled `lms ps` STATUS throughout — qwopus3.6-27b (Local) held **`PROCESSINGPROMPT` continuously
+        for ~25s+** (never IDLE). So the "stagnant" card is NOT a stall/bug — the 27B is actively PREFILLING a large prompt
+        (slow), emitting no `/v1` stream tokens meanwhile. This is exactly the prefill-silence phenomenon that motivated the
+        ultra-long timeouts, and it VALIDATES the reliability design: the ultra-long timeout correctly keeps a prefilling
+        model alive, and the §5.AN residency heartbeat would read `resident` during `PROCESSINGPROMPT` and correctly NOT
+        abort (it only fails-fast on a genuinely absent/crashed model). No fix needed — expected latency for a 27B on a big
+        prompt. (Takeaway: for FASTER local iteration, route decompose/cards to a smaller model, or accept 27B prefill time.)
+        **STILL OWED:** (1) a LONGER multi-card run to COMPLETION (finishing, not just starting) — bounded by that prefill
+        latency; better on smaller models or with more patience. (2) chain llmfit's cached score ahead of the catalog prior — LOW marginal value for the
         user's CUSTOM loaded models (qwopus/ornith aren't in llmfit's HF DB; the catalog + name heuristics already cover
         them), deprioritized (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
   - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
