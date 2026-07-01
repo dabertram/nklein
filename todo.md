@@ -4790,6 +4790,32 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       otherwise. Composes with `ModelOutcomeKind` by import only (no edits to siblings). `isRemediableFailure` convenience.
       74 tests; tsc + biome green. **Owed (WIRING, out of pure-core scope):** call it at the `runAttempt` catch seam
       (chat + swarm) so a thrown turn feeds the ladder + records a §5.AF ledger `attempt` with its signature.
+- [x] **Tool-argument REPAIR decision — a parsed-but-imperfect arguments object vs the tool schema → repair | reprompt | reject + which fields to re-ask (PURE CORE, 2026-07-01).**
+      [tool-argument-repair.ts](src/core/tool-argument-repair.ts) — `assessToolArgumentRepair(call, tool)` →
+      `{ verdict, repairedArguments?, fieldsToReask, issues, outcome, reason }` closes a real gap the parse/force cores
+      leave OPEN (grep-confirmed): once a call is recovered — via `parseConstrainedToolCall`
+      ([nklein-constrained-tool-call.ts](src/nklein-agent/nklein-constrained-tool-call.ts)) or `parseNarratedToolCalls` —
+      its `arguments` object is handed straight to the tool with NO schema check (`coerceArguments` explicitly punts: "the
+      tool validates its own inputs"), yet a weak model routinely emits a CLOSE object: a required field stringified
+      (`"count":"3"` for a `number`), a boolean as `"true"`, a nested object left as a JSON STRING, a hallucinated EXTRA
+      field, or a required field simply ABSENT. Nothing today distinguishes a trivially-coercible arg from a genuinely
+      missing one — `narration-dialect` stops at "a call was parsed", `retry-policy`'s `malformed` ladder re-forces the
+      WHOLE call all-or-nothing, and none of them computes WHICH fields are wrong or a repaired object. This core does, on
+      OBSERVABLE evidence (the schema + the args, never the model's claim): **usable** (valid as-is) ⊂ **repairable** (a
+      lossless local fix suffices — numeric-string→number, `"true"`→boolean, JSON-string→object/array, drop an
+      unknown-declared field — no model round-trip) ⊂ **reprompt** (a required field is absent or un-coercible → re-ask
+      EXACTLY `fieldsToReask`, carrying any partial repair) ⊂ **reject** (args aren't an object, or the call names no
+      offered tool). EVIDENCE-not-optimism: a value is "repaired" only when LOSSLESSLY coercible (a decimal string never
+      becomes an `integer`; `"abc"`→`number` never guessed → it's a `reprompt`/surfaced issue, never fabricated); a
+      wrong OPTIONAL field is surfaced but left as-is, never re-asked. Understands a conservative JSON-Schema subset
+      (`type` incl. unions + `integer`, `properties`, `required`, `enum`); an unrecognized/absent constraint is
+      permissive (accept, never invent). Routes `usable`/`repairable`→`success` and `reprompt`/`reject`→`malformed` so it
+      composes with `retryLadderForOutcome`; composes `ModelOutcomeKind` + `LocalLlmToolDefinition` by import ONLY (no
+      edits to siblings). `isDispatchableAfterRepair` / `dispatchArgumentsAfterRepair` convenience. Pure + deterministic +
+      defensive (never throws/mutates). 34 tests; tsc + biome green. **Owed (WIRING, out of pure-core scope):** call it at
+      the recovered-call seam (chat client + swarm afterModel) — dispatch a `repairable` call's `repairedArguments`
+      directly, drive a `reprompt` as a targeted single-field re-ask (cheaper than a full constrained re-force), and feed a
+      `reject` into the `malformed` ladder + record the verdict on the §5.AF ledger / `ModelBehaviorProfile`.
 - [ ] **Endpoint-iteration adapter**, decomposed:
   - [ ] Build `LocalModelEndpointStrategy` type + try-order (OpenAI → native `/api/v1/chat` → Anthropic)
   - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing
@@ -7025,7 +7051,28 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Design + implement model load/unload policy (safe headroom, resident budget guards).
   - [ ] Add VRAM/RAM/disk headroom checks before sweep start.
   - [ ] Implement background-vs-interactive priority (interactive tasks preempt idle sweeps).
-  - [ ] Wire endpoint-saturation backpressure into the durable scheduler (already per-endpoint serialize).
+  - [~] Wire endpoint-saturation backpressure into the durable scheduler (already per-endpoint serialize).
+        **ADMISSION / BACKPRESSURE DECISION CORE DONE (2026-07-01):** [src/core/durable-scheduler-backpressure.ts](src/core/durable-scheduler-backpressure.ts)
+        `decideDurableSchedulerBackpressure(input)` fills the gap where the scheduler leases against saturable ENDPOINTS
+        but nothing gives a principled admit/hold/reject decision (grep-confirmed: no `backpressure`/`admit.*defer.*shed`/
+        per-pool `queueDepth` core existed — `machine-concurrency-gate` is ONE machine / ONE cap / binary allow-hold / no
+        queue / no shed; `background-eval-admission` is the §5.AI idle-yield rail, binary; `decideDurableSchedulerActions`
+        leases to ONE global cap and never rejects; `orderReadyJobs` only ORDERS the ready set). Given a snapshot of the
+        resource POOLS (each `{poolId, cap, inflight, queued, maxQueueDepth?}` — an endpoint / machine / sandbox lane), a
+        `globalInflightCap` across all pools, and a batch of PENDING requests (each targeting a pool), it returns one
+        verdict per request in input order: **admit** (a slot is free within BOTH the pool cap AND the global ceiling,
+        counting this tick's earlier admits) · **defer** (saturated but the pool's queue has room — retriable backpressure,
+        `pool_saturated`/`global_saturated`) · **shed** (queue at/over its bound → `queue_full` to bound the backlog, or an
+        `unknown_pool`/`pool_disabled` target — terminal reject). Admits + defers ACCUMULATE across the batch (each admit
+        consumes a pool + global slot; each defer consumes a queue slot) so earlier candidates claim the scarce slots first
+        (feed it the `orderReadyJobs` sequence); ships `projectedInflightByPool`/`projectedGlobalInflight` + a `reason`/
+        `summary` for the §5.AG surface. Pure/total/deterministic (all state INJECTED — no fs/network/model/clock/randomness
+        — so a ledger replay reproduces the verdicts), ORTHOGONAL to `orderReadyJobs` (which orders; this admits/sheds) and
+        edits no §5.AF core. 34 unit tests (each verdict + precedence, per-pool cap, global ceiling spread, queue defer→shed
+        boundary incl. `maxQueueDepth` 0/absent/negative, unknown/disabled/last-write-wins pools, in-tick accumulation,
+        input normalization/floor/clamp, projections/counts, determinism/no-mutation). tsc+biome+vitest green. **Owed:** wire
+        it at the scheduler's lease step (admit-gate the ready-ordered candidates against the live per-endpoint pool snapshot
+        + global cap; map `admit`→lease, `defer`→leave `ready`, `shed`→a `cancelled`/surfaced outcome) at the live-integration pass.
   - [ ] Test multi-model lab scenario to prevent OOM/thrash/deadlock.
 - [ ] **Self-improvement quarantine (M4 safety), decomposed:**
   - [ ] Set up protected-tests gate (#1.5): auto-patches require full suite + new test coverage.
@@ -8439,11 +8486,31 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the bundled-file manifest + the deterministic-scan flags + a clear "UNTRUSTED community content" banner → explicit
       per-skill opt-in **pinned to a content hash** (TOFU; no silent updates) → re-screen + re-confirm on any hash change
       (anti-rug-pull, per Invariant tool-pinning). Record provenance (origin, stars, age) as a non-authoritative signal.
-- [ ] **D. Containment execution (the real protection), decomposed:** an activated skill runs under the SAME §5.L per-role
+- [~] **D. Containment execution (the real protection), decomposed:** an activated skill runs under the SAME §5.L per-role
       capability ruleset (default-deny tools; least-privilege `allowed-tools`), inside the Docker sandbox + egress allowlist.
       **NEVER auto-execute bundled scripts** (`scripts/*` = RCE-by-default; require explicit human review/approval; treat any
       executable in a "productivity" skill as a red flag). Constrain CREDENTIALS/identity, not just destination domains (the
       silent-internal-API-key exfil PoC bypassed a domain allowlist). Enforce the Rule of Two at the session level.
+      **(2026-07-01) LEAST-PRIVILEGE GRANT-RECONCILE LEAF done** (the "least-privilege `allowed-tools`" clause above — a
+      SEPARATE pure core, standalone over INJECTED string lists, NOT coupled to the manifest object, by design):
+      `src/core/skill-capability-grant-reconcile.ts` — `reconcileSkillCapabilityGrant(manifest, allowedSet)` takes a parsed
+      skill's DECLARED `allowed-tools` (imported BY TYPE from `skill-md-parse.ts` — never modified) + the host's §5.L per-role
+      ALLOWED tool set (both INJECTED plain values; no fs/network/model/exec) and computes the EFFECTIVE least-privilege GRANT:
+      a discriminated `{ granted, denied, effectiveTools, posture, reason }`. Rule is INTERSECTION, never union — `granted` =
+      declared ∩ allowed, `denied` = declared − allowed (each with machine-stable `DeniedReason` `not_in_allowed_set` + detail —
+      the over-reach the containment STRIPS), `effectiveTools` = the exact de-duped/sorted allowlist to hand a sandboxed run
+      (== `granted` by construction). Honours `skill-md-parse.ts`'s undeclared-vs-`[]` distinction as two DIFFERENT `GrantPosture`s
+      (`undeclared` = no field → deny-all safe default; `empty_declaration` = explicit `[]` → deny-all with stated intent), plus
+      `fully_granted`/`partially_granted`/`fully_denied`. Normalises defensively (blank/non-string host entries dropped, whitespace
+      trimmed both sides, duplicates collapsed) so a mis-typed config can't widen a grant; a non-array allowed set degrades to
+      deny-everything-declared. Pure + total (no throw; deterministic; never mutates the injected manifest/arrays). This is the
+      artifact D needs to actually RUN a skill under least-privilege — distinct from `skill-injection-prescreen.ts`'s
+      `capability_overreach` (which only FLAGS over-reach as a risk finding) and `capability-escalation.ts` (which compares two
+      full `ToolCapabilityManifest`s, not a declared tool-name list vs an allowed set). A `granted` result is the tools to ALLOW,
+      NOT a trust assertion — the §5.AP.E pre-screen + §5.AP.C opt-in + Docker sandbox still gate everything else. `skillGrantHasOverreach`
+      convenience predicate too. 24 tests; tsc + biome clean. Still OWED (D): the no-auto-exec bundled-script gate over
+      `skill-bundled-file-manifest.ts`'s `scripts/*` entries; credential/identity constraint (not just domains); Rule-of-Two at the
+      session level; and wiring the grant into the effectful §5.L sandbox/egress boundary.
 - [~] **E. Deterministic NON-LLM pre-screen (the only "checking" that adds zero prompt-exposure), decomposed:** static scan
       for injection markers ("ignore previous", role-override, zero-width/homoglyph unicode, hidden HTML/base64 blobs),
       bundled executables/binaries, secret-access + egress patterns, size/complexity limits. Surface as `promptInjectionRiskFlags`
