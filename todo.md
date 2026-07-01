@@ -6508,7 +6508,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         discriminating power, absent≡empty/whitespace/rung normalization, delimiter-collision guard, and an end-to-end
         re-dispatch-dedup). tsc+biome+vitest green. **STILL OWED:** wiring the derivation into the durable-scheduler `lease`
         event write site + the per-TOOL-result durable hashes/refs (a distinct grain — replay reuse of a tool result).
-  - [ ] Implement replay modes: `reuse` (use fixture), `simulate` (mock), `skip`, `reconfirm` (compare fixture vs live).
+  - [~] Implement replay modes: `reuse` (use fixture), `simulate` (mock), `skip`, `reconfirm` (compare fixture vs live).
+        **`reconfirm` DETERMINISM-COMPARATOR CORE DONE (2026-07-01):** [src/core/ledger-replay-determinism.ts](src/core/ledger-replay-determinism.ts)
+        supplies the pure primitive `reconfirm` turns on — given a captured ledger log + a replayed one (two `AgentLedgerEvent[]`,
+        read via a dependency-free structural `ReplayEventView` so real events pass directly), it answers "was the replay
+        deterministic, and if not, where did it first drift?". `compareLedgerReplayDeterminism` returns `{deterministic,
+        firstDivergence{index,kind,capturedSignature,replayedSignature},capturedCount,replayedCount}` where `kind` is
+        `event_mismatch`/`captured_longer`/`replayed_longer`; `ledgerStateFingerprint` is the order-normalized canonical-state key
+        ("same-state" = equal fingerprints) and `replayEventSignature` the per-event causal signature. The comparison is SEMANTIC,
+        not deep-equal: it excludes the two deliberately-non-deterministic envelope fields (`eventId` random-uuid + `recordedAt`
+        clock — the ones §5.AF says to pass explicitly for determinism), so a behaviourally-identical re-run with fresh uuids/clocks
+        stays deterministic, while any causal-field drift (outcome/model/transition-target/scheduler-event) is localized to one
+        event index. Causal order reconstructed by `recordedAt` + a stable signature tiebreak so a different append interleaving of
+        the same facts still compares clean. Pure/total, no I/O/clock/randomness; grep confirmed no prior `divergen*`/determinism
+        comparator existed (`replayDurableJobs`/`latestRunState` fold ONE log; nothing COMPARED two). 26 unit tests
+        (kind-specific signatures, envelope-noise invariance, order-normalization, each divergence kind, first-of-several,
+        symmetry, purity/no-mutation, delimiter-collision, unknown-kind forward-compat). tsc+biome+vitest green. **STILL OWED:**
+        the orchestrator that drives the OTHER three modes (`reuse`/`simulate`/`skip`) + wires this verdict into a live-vs-fixture
+        `reconfirm` run (gated on the replay orchestrator + fixture capture above).
   - [ ] Convert §5.V live-only flows to deterministic replay tests; debug races without GPU.
 - [~] **Durable long-run job scheduler (C3 spine).** A background job runner that **checkpoints to the ledger** and
       **resumes** — the cross-run, restart-survivable layer the fragile foreground `verify-*.mts` scripts lack (proven:
@@ -6692,6 +6709,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       renders nothing for a calm/trash lane. Verified: web typecheck + 3 component tests + full web vitest (736) +
       web:build + a live browser load (no white screen / console errors). **§5.AG board-health is now complete across the
       whole-board header AND per-lane (CLI + UI).**
+      **TIME/BUDGET SIGNAL DERIVER DONE (2026-07-01):** `classifyOperatorTaskState` reacts to `heartbeatLost` /
+      `noProgressOrLoop` / a `risky` gate but took them as **pre-tripped booleans with no clock** — so the signal map
+      (`mapSessionSummaryToOperatorSignals`) could only default them `false`. New pure
+      [run-attention-signals.ts](src/core/run-attention-signals.ts) closes that: it DERIVES the operator signals from
+      **injected activity/heartbeat TIMESTAMPS + iteration/wall-time/token counters + a `nowMs` CLOCK** (mirrors
+      `agent-stuckness` / `background-eval-admission` — all effects injected). `assessRunLiveness` → `active | idle |
+      stalled | silent` (worst-first: heartbeat gone over the lost window = `silent` → the classifier's `heartbeatLost`;
+      no forward activity over a full stall window while still beating = `stalled` → `noProgressOrLoop`; a run not
+      expected to beat is never `silent`; future timestamps clamp to age 0). `assessRunBudgetPressure` → the tightest
+      ceiling's used fraction + an `approachingCeiling` flag at/above the warn fraction (default 0.8; un-capped ceilings
+      ignored, over-cap clamps to 1) — the operator-`risky` precursor. `assessRunAttention` folds both into a
+      `RunAttentionOverrides` (`{heartbeatLost, noProgressOrLoop, approachingCeiling}`) whose first two spread straight
+      into the signal map's overrides, so a stalled/silent run now reads `stuck` FROM TIMESTAMPS, no pre-tripped boolean
+      needed. 24 unit tests (liveness precedence + boundaries + skew + threshold injection; budget tightest/warn-boundary/
+      no-cap/clamp/floor; the composed override mapping); tsc + biome clean.
 - [~] **Escalation / "what was tried" surface (reads the §5.AF ledger).** When a card escalates to the user (§5.AB last
       resort), show the attempt chain — models × approaches × scores tried — so the user sees an actionable report, not a
       silent dead end. Also the §5.AB "why this model for this task" inspectable reason.
@@ -7250,6 +7282,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `package.json` (it's the best merge-safety layer — spawned backend, isolated home, free ports, raw HTTP/WS, mock
       LLM, on-disk seams; was hidden inside the broad `test`). Named in the path→gate manifest above for every tRPC /
       config-schema / persistence / task-lifecycle / settings change. Verified: runs green — 18 files / 272 tests.
+- [x] **Merge / integration-order policy — the fan-IN counterpart to the dispatch planner — PURE CORE DONE (2026-07-01).**
+      [`src/core/work-package-integration-order.ts`](src/core/work-package-integration-order.ts) turns the §5.AK "Lead-coder
+      = sole trunk integrator ⇄ MergeBroker" seam into machine logic: given a batch of *completed* `WorkPackage`s,
+      `planIntegrationOrder` computes the safe SEQUENTIAL apply/merge order (integration is one-at-a-time, not parallel
+      waves): a prerequisite always lands before its dependent (Kahn linearization → one total order, ascending-id stable
+      among free packages), each landing annotated with its `rebaseAgainst` overlaps — the already-landed packages it
+      shares a Yellow/Red write scope with (reusing `classifyPackagePairConflict`), so the integrator rebases/re-verifies
+      before applying. Completed packages whose prerequisite is still in-flight (not in the batch) are `deferred`
+      (transitively, with concrete blockers), and the batch `headline` is `clean`/`rebases_needed`/`partial`. Total + pure
+      (de-dups ids, never throws); `integrationMergeOrder` is the ids-only convenience. This fills the exact GAP left by
+      `work-package-dispatch.ts` (which only plans the fan-OUT — *what can I START in parallel*; nothing computed the
+      fan-IN — *in what order do I MERGE the finished branches*). 24 tests; tsc+biome green. **Owed WIRING:** drive an
+      actual result-branch apply / the trusted-runtime MergeBroker from this order.
 - [~] **`web:e2e:smoke` canary — hermetic mock foundation, decomposed:** **(2026-06-29) STREAMING layer built + PROVEN
       in-browser:** `web-ui/tests/harness/runtime-mock.ts` now exposes `pushFrame` + typed frame builders
       (`taskSessionsUpdatedFrame`/`taskChatMessageFrame`/`taskReadyForReviewFrame`/`chatMessage`/`taskSessionSummary`) so a
