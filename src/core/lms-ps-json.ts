@@ -13,7 +13,31 @@
  * existing injectable {@link LmsRunner} (`lms-model-runner`). Tolerant of shape — any parse failure yields `[]`.
  */
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import type { LmsRunner } from "./lms-model-runner";
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * A default spawn-backed {@link LmsRunner} for READ-ONLY `lms` queries (e.g. `ps --json`). Bounded + never-throws (a spawn
+ * error / non-zero exit becomes `{ stdout, exitCode }`), so a missing `lms` CLI just yields an empty result upstream.
+ * NOTE: read-only by intent — the guarded LOAD path (`lms-model-runner`) owns its own runner; don't route loads here.
+ */
+export function createDefaultLmsRunner(timeoutMs = 5_000): LmsRunner {
+	return async (args) => {
+		try {
+			const { stdout } = await execFileAsync("lms", [...args], { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 });
+			return { stdout, exitCode: 0 };
+		} catch (error) {
+			const e = error as { stdout?: unknown; code?: unknown };
+			return {
+				stdout: typeof e.stdout === "string" ? e.stdout : "",
+				exitCode: typeof e.code === "number" ? e.code : 1,
+			};
+		}
+	};
+}
 
 /** The sentinel machine id for an instance served by the LOCAL host (LM Studio reports `deviceIdentifier: null`). */
 export const LOCAL_MACHINE_ID = "local";

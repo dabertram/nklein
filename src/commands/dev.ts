@@ -20,6 +20,7 @@ import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
+import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
 import {
 	dominantFailureMode,
@@ -57,6 +58,7 @@ import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
+import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
@@ -744,6 +746,18 @@ async function runDevModelVerdictCommand(options: { modelId?: string; json?: boo
 	}
 }
 
+async function runDevSwarmCommand(options: { json?: boolean } = {}): Promise<void> {
+	// §5.AB operator view: read the loaded instances via `lms ps --json` (the only source of the per-MACHINE deviceId,
+	// since LM Link shares machines behind one endpoint) and annotate each with the auto-selector's affinity view.
+	const view = buildSwarmMachineView(await fetchLmsPsModels(createDefaultLmsRunner()));
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("!Klein swarm — loaded models per machine, with the auto-selection view (§5.AB):\n\n");
+	process.stdout.write(formatSwarmMachineView(view));
+}
+
 async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {
 	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
 	if (options.json) {
@@ -992,6 +1006,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevAdviceCommand(options);
+		});
+
+	dev.command("swarm")
+		.description(
+			"Show the loaded models grouped by MACHINE (LM Link), each with the auto-selector's affinity tags + cold-start prior + queue depth (§5.AB).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevSwarmCommand(options);
 		});
 
 	dev.command("escalation")
