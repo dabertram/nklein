@@ -23,6 +23,7 @@ import {
 	ChevronDown,
 	ExternalLink,
 	FolderOpen,
+	Gauge,
 	GitCommit,
 	Palette,
 	Plus,
@@ -165,6 +166,7 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	{ id: "general", label: "General", icon: <SlidersHorizontal size={16} /> },
 	{ id: "agents", label: "Agents", icon: <Boxes size={16} /> },
 	{ id: "tasks", label: "Tasks", icon: <Check size={16} /> },
+	{ id: "guardrails", label: "Guardrails & Limits", icon: <Gauge size={16} /> },
 	{ id: "nklein", label: "!Klein", icon: <Bot size={16} />, nkleinOnly: true },
 	{ id: "code-intelligence", label: "Code Intelligence", icon: <Braces size={16} /> },
 	{ id: "git-prompts", label: "Git", icon: <GitCommit size={16} /> },
@@ -2004,58 +2006,6 @@ export function RuntimeSettingsDialog({
 
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
-								Swarm Parallelism
-							</h6>
-							<div>
-								<label htmlFor={maxConcurrentTasksId} className="block text-[13px] text-text-primary mb-1">
-									Max concurrent tasks
-								</label>
-								<input
-									id={maxConcurrentTasksId}
-									type="number"
-									min={1}
-									value={maxConcurrentTasks}
-									onChange={(event) => setMaxConcurrentTasks(event.target.value)}
-									placeholder="3"
-									disabled={controlsDisabled}
-									className="h-8 w-full max-w-[120px] rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
-								/>
-								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-									How many dependency-unblocked cards the swarm may run in parallel (must be &ge; 1). The
-									sandbox pool may further limit effective parallelism.
-								</p>
-								{(() => {
-									const v = Number.parseInt(maxConcurrentTasks, 10);
-									return !Number.isFinite(v) || v < 1 ? (
-										<p className="text-status-red text-[11px] mt-0.5 mb-0">
-											Must be an integer &ge; 1 (clamped on save).
-										</p>
-									) : null;
-								})()}
-							</div>
-						</div>
-
-						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
-								Per-provider / per-model concurrency
-							</h6>
-							<p className="text-text-tertiary text-[11px] mt-0 mb-2">
-								Cap how many sessions run at once on a provider, or on a specific model (canonical{" "}
-								<code>provider:model:endpoint</code> id). A cap of 1 serializes; remove a row for no extra
-								limit. This is the global default (a per-project override is a follow-up); it AND-s with the
-								per-model registry limit.
-							</p>
-							<ConcurrencyEditor
-								perProvider={concurrencyDefaults.perProvider}
-								perModel={concurrencyDefaults.perModel}
-								perEndpoint={concurrencyDefaults.perEndpoint}
-								disabled={controlsDisabled}
-								onChange={setConcurrencyDefaults}
-							/>
-						</div>
-
-						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
 								Workspace Location
 							</h6>
 							<div>
@@ -2145,6 +2095,66 @@ export function RuntimeSettingsDialog({
 									</p>
 								</div>
 							</div>
+						</div>
+
+						{/* ---- Guardrails & Limits ---- */}
+						<div data-settings-section="guardrails" />
+						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
+							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
+								<Gauge size={16} className="text-text-secondary" />
+								Guardrails &amp; Limits
+							</h2>
+						</div>
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
+								Swarm Parallelism
+							</h6>
+							<div>
+								<label htmlFor={maxConcurrentTasksId} className="block text-[13px] text-text-primary mb-1">
+									Max concurrent tasks
+								</label>
+								<input
+									id={maxConcurrentTasksId}
+									type="number"
+									min={1}
+									value={maxConcurrentTasks}
+									onChange={(event) => setMaxConcurrentTasks(event.target.value)}
+									placeholder="3"
+									disabled={controlsDisabled}
+									className="h-8 w-full max-w-[120px] rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
+								/>
+								<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+									How many dependency-unblocked cards the swarm may run in parallel (must be &ge; 1). The
+									sandbox pool may further limit effective parallelism.
+								</p>
+								{(() => {
+									const v = Number.parseInt(maxConcurrentTasks, 10);
+									return !Number.isFinite(v) || v < 1 ? (
+										<p className="text-status-red text-[11px] mt-0.5 mb-0">
+											Must be an integer &ge; 1 (clamped on save).
+										</p>
+									) : null;
+								})()}
+							</div>
+						</div>
+
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+								Per-provider / per-model concurrency
+							</h6>
+							<p className="text-text-tertiary text-[11px] mt-0 mb-2">
+								Cap how many sessions run at once on a provider, or on a specific model (canonical{" "}
+								<code>provider:model:endpoint</code> id). A cap of 1 serializes; remove a row for no extra
+								limit. This is the global default (a per-project override is a follow-up); it AND-s with the
+								per-model registry limit.
+							</p>
+							<ConcurrencyEditor
+								perProvider={concurrencyDefaults.perProvider}
+								perModel={concurrencyDefaults.perModel}
+								perEndpoint={concurrencyDefaults.perEndpoint}
+								disabled={controlsDisabled}
+								onChange={setConcurrencyDefaults}
+							/>
 						</div>
 
 						{/* ---- NKlein ---- */}

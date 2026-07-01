@@ -3805,8 +3805,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         extracted as a div-balance-verified clean range). General now = Developer Mode + Advanced. Verified: web:typecheck +
         36-test dialog oracle + web:build. *(Live Playwright pass of the new nav still owed.)*
   - [ ] remaining regroup sections per the ~9-section plan, decomposed:
-    - [ ] !Klein Provider & Models section (move provider + model config controls)
-    - [ ] Guardrails vs Agents boundary (clarify boundary, move shared controls)
+    - [ ] !Klein Provider & Models section (move provider + model config controls) — **left as-is (verified entangled,
+          2026-07-01):** the `NKleinSetupSection` / `NKleinModelContextWindowSettingsPanel` / `ModelRolesEditor` /
+          advisor / model-gate / skill-dynamics cluster all live inside a single card wrapped in the
+          `selectedAgentId === "nklein"` fragment (`<>…</>`), so it's not a clean pure lift. Not this increment.
+    - [x] **Guardrails & Limits section carved out of the "Tasks" dumping ground (2026-07-01)** — new always-visible
+          `"guardrails"` `SettingsNavId` (`settings-nav.tsx` union) + nav item ("Guardrails & Limits", `Gauge` icon) +
+          `data-settings-section="guardrails"` body block placed **after Tasks / before !Klein**. Moved the two
+          consecutive, fully self-contained limit cards out of Tasks into it — **"Swarm Parallelism"** (`maxConcurrentTasks`)
+          and **"Per-provider / per-model concurrency"** (`ConcurrencyEditor` / `concurrencyDefaults`) — byte-identical
+          controls, same state bindings/handlers (pure JSX/structure move, no logic change). Tasks now = New Task Defaults +
+          Workspace Location + Agent Capabilities & Autonomy. Div-balance verified (whole file nets 0, same as HEAD). The
+          dialog oracle's `workspaceBaseDir`/concurrency tests locate controls by stable id, so they stay green. web-ui
+          typecheck + tests (832 passed, incl. the dialog oracle) + build green. *(The deeper "Guardrails vs Agents
+          boundary" clarification — the swarm-guardrails panel + rulesets interleaved in the Agents grid — stays open below;
+          it's entangled in one grid and not a clean lift.)*
+    - [ ] Guardrails vs Agents boundary (clarify boundary, move shared controls) — still open: the
+          `SwarmGuardrailsSettingsPanel` + `AgentRulesetsSettingsPanel` are interwoven in the Agents section's single grid
+          (`gridColumn: "1 / span 2"` siblings), not a clean pure move yet.
     - [x] Code Intelligence (keep reachable for non-!Klein users) **(2026-07-01)** — the "Code intelligence embeddings"
           block (default embedding provider select + `EmbeddingEndpointFields`) was buried inside the `selectedAgentId ===
           "nklein"` conditional, so non-!Klein users could never reach it. Extracted it (byte-identical controls, same

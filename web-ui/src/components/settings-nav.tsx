@@ -8,6 +8,7 @@ export type SettingsNavId =
 	| "general"
 	| "agents"
 	| "tasks"
+	| "guardrails"
 	| "nklein"
 	| "code-intelligence"
 	| "git-prompts"
