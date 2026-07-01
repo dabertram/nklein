@@ -1203,6 +1203,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           metrics (stars/tests/SLSA) are unverified. **STILL OWED before wiring:** gate (b)-remainder — run/vet the binary INSIDE
           the strict-local Docker sandbox (egress-sealed) + supply-chain vetting; then wire as an MCP-backed `LocalizationProvider`
           (the `localization-provider.ts` port maps 1:1 to its outputs). See [integrations.md](docs/dev/integrations.md) (now `planned`).
+    - [~] **MCP-backed `LocalizationProvider` adapter — BUILT + fake-tested (2026-07-01).**
+          [src/core/mcp-localization-provider.ts](src/core/mcp-localization-provider.ts) — `createMcpLocalizationProvider(callMcpTool, options?)`
+          returns a `LocalizationProvider` **pure over an INJECTED** `McpToolCaller` (`(toolName, args) => Promise<unknown>`):
+          no client/binary/network in the module (only side effect = the injected call → runtime path stays local, #1).
+          `localize({query, maxHits})` calls **`search_graph`** with `query`→`name_pattern`, `maxHits`→`limit` (+ optional
+          `label`/`file_pattern`/`project` scoping), then maps each result node → `LocalizationHit`: `file`→`file` (required;
+          fileless node skipped, also tolerates `file_path`/`path`), `name`→`symbol` (falls back to last segment of
+          `qualified_name`), `start_line`→`startLine`, `end_line`→`endLine` (only when ≥ startLine), `score`→`score` (finite
+          only), `label`+`name`→a short `reason`. **Defensive by design** — the upstream README does NOT formally specify the
+          `search_graph` result *envelope*, so the adapter tolerates bare-array **and** `{results|nodes|data|hits:[…]}` wrappers,
+          drops non-numeric lines/scores, and swallows a tool/transport throw into `[]` (localization is best-effort by contract,
+          never breaks the kernel's `localize`). Also client-side caps at `maxHits` if the tool over-returns. **13 tests**
+          ([test/runtime/core/mcp-localization-provider.test.ts](test/runtime/core/mcp-localization-provider.test.ts)) with a fake
+          caller: canned `search_graph`→mapped hits (file/symbol/span/score), args wiring (`name_pattern`/`limit`/scoping),
+          `qualified_name`→symbol, malformed/empty/junk→`[]` (no throw), and composition with
+          `localizationProviderAsKernelLocalize` (ranked de-duped refs). tsc + biome + vitest all green.
+          **STILL OWED:** wire a **real** MCP client into `callMcpTool` (via [nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts))
+          AFTER the binary is run/vetted inside the strict-local Docker sandbox (gate (b)-remainder above) — the adapter's
+          **real-schema correctness** (exact `search_graph`/`get_code_snippet` output shapes, which are undocumented) is
+          validated against the live tool THEN; the fake tests lock the mapping + defensiveness now.
     - [ ] *(native fallback — DEPRIORITIZED: the eval did NOT reject codebase-memory-mcp, so this is the only-if-it-regresses path)* implement symbol/definition lookup over the existing code index (read-only).
     - [ ] *(native fallback)* implement import/dependency-edge lookup for a touched file.
     - [ ] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol).
@@ -3820,9 +3840,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           typecheck + tests (832 passed, incl. the dialog oracle) + build green. *(The deeper "Guardrails vs Agents
           boundary" clarification — the swarm-guardrails panel + rulesets interleaved in the Agents grid — stays open below;
           it's entangled in one grid and not a clean lift.)*
-    - [ ] Guardrails vs Agents boundary (clarify boundary, move shared controls) — still open: the
-          `SwarmGuardrailsSettingsPanel` + `AgentRulesetsSettingsPanel` are interwoven in the Agents section's single grid
-          (`gridColumn: "1 / span 2"` siblings), not a clean pure move yet.
+    - [x] Guardrails vs Agents boundary (clarify boundary, move shared controls) **(2026-07-01)** — moved the
+          `SwarmGuardrailsSettingsPanel` block out of the Agents section's shared `1fr 1fr` grid (dropping its now-pointless
+          `gridColumn: "1 / span 2"` grid wrapper) and into the **Guardrails & Limits** section as a "Swarm Safety Guardrails"
+          card (between Swarm Parallelism and Per-provider/per-model concurrency) — byte-identical props/state
+          bindings/handlers, pure structure move. `AgentRulesetsSettingsPanel` stays in the Agents section (its `span 2`
+          wrapper is unchanged; the remaining grid still has multiple 2-col children, so the 2-col grid stays meaningful — no
+          collapse). Div-balance verified (whole file nets 0, same as HEAD). web-ui typecheck + tests (832 passed, incl. the
+          37-test dialog oracle — it locates `Local swarm guardrails` by text + guardrail inputs by stable ids, both
+          position-independent, so it stays green) + build green.
     - [x] Code Intelligence (keep reachable for non-!Klein users) **(2026-07-01)** — the "Code intelligence embeddings"
           block (default embedding provider select + `EmbeddingEndpointFields`) was buried inside the `selectedAgentId ===
           "nklein"` conditional, so non-!Klein users could never reach it. Extracted it (byte-identical controls, same
