@@ -1654,10 +1654,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] define the broker input `{ ruleset, role, provenance, tool trust, taint labels, action, target, is-sink? }`.
     - [ ] implement the decision: `allow | deny | one-time-confirm | require-fresh-trusted-plan`; unit-test the matrix.
     - [ ] wire the broker at the model↔tool seam (every tool call passes through it).
-  - [ ] **Egress broker:**
-    - [ ] DNS/SNI/domain allowlist enforcement.
-    - [ ] deny IP-literals + LAN ranges by default.
-    - [ ] per-action egress approval + a network-attempt audit log.
+  - [~] **Egress broker.** PURE DECISION CORE DONE (2026-07-01): `src/core/egress-policy-decision.ts` —
+        `decideEgressPolicy({ target, networkPolicy, allowlist?, requirePerActionApproval? }) → { decision:
+        allow|deny|confirm, reasonCode, reason, host }`. Composes `SandboxNetworkPolicy` + `sandboxNetworkHasEgress`
+        from `agent-rulesets.ts` by import (network policy gates first; `none` → deny). Fail-closed + prime-directive
+        #1: normalizes the target via `new URL` (canonicalizes obfuscated IPv4 `0x7f.0.0.1`, brackets IPv6, IDN
+        punycode, strips userinfo, handles bare `host` / `host:port`), then denies IP-literals + loopback/private/
+        link-local/CGNAT/LAN hosts (by IP **and** by local NAME — `localhost`/`.local`/`.internal`/`.lan`/`.home.arpa`)
+        before any allowlist check; `allowlist` policy is default-deny with subdomain matching that rejects suffix
+        (`notexample.com`) + domain-append (`example.com.evil.com`) tricks. 39 tests; tsc + biome clean. The DNS/SNI
+        proxy asks this at connect time.
+    - [x] DNS/SNI/domain allowlist enforcement. *(PURE: `allowlist` policy = default-deny + subdomain match; OWED WIRING: the real DNS/SNI egress proxy that CALLS `decideEgressPolicy` before opening a socket.)*
+    - [x] deny IP-literals + LAN ranges by default. *(PURE: `ip_literal` + `private_or_lan_host` reason codes, IPv4/IPv6 + obfuscated forms + local names, denied even under `full`.)*
+    - [~] per-action egress approval + a network-attempt audit log. *(PURE: `requirePerActionApproval` turns a permitted public host into `confirm` (never softens a deny). OWED: the actual per-action approval prompt + the network-attempt audit-log SINK — I/O.)*
   - [ ] **Task-agent action audit** (one leaf each): sandbox bash · file r/w · patch capture/apply · MCP calls ·
         egress attempts · protected-path denials · approvals.
   - [ ] integrate the broker + manifest with §5.AF (tool-capability manifest) and the §5.Y security posture.
@@ -6180,6 +6189,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       0 ⇒ no pruning. 5 unit tests; tsc + biome green. **Still owed (WIRING — behind a live §5.Z re-verify):** source the
       per-model `sensitivity` (a §5.AA learnable signal, once an A/B observation exists) and call it on the retrieval
       results before they feed §5.AD's MIDDLE band in board + chat prompt assembly.
+- [~] **Context-occupancy PRESSURE decider (the runtime three-way triage). PURE CORE DONE (2026-07-01):**
+      [src/core/context-occupancy-pressure.ts](src/core/context-occupancy-pressure.ts)
+      `decideContextOccupancy({usedTokens, windowTokens, zones?, compactAboveFraction?, expandBelowFraction?})` →
+      `{action:"compact"|"proceed"|"expand", usedFraction, headroomTokens, trimZoneOrder, reason}`. Compares current
+      occupancy against the model's quality-effective window (the §5.AD budget-knee fit) and picks the DIRECTION: at/above
+      the compact ceiling (default 0.8) shed tokens before context-rot; at/below the expand floor (default 0.5) there's
+      headroom to ADD more retrieval/reasoning/re-anchor (the §5.AD "too-small hurts" direction — not just "compact yet?");
+      otherwise `proceed`. On a `compact` it names `trimZoneOrder` — `middle` (dead-center, least-attended per the U-shape)
+      before `back` before `front` (durable framing last), independent of zone size, listing only zones with tokens. An
+      unusable window (≤0) yields a cautious `compact`. **Boundary (no dup):** sits ABOVE §5.AD `context-compaction.ts`'s
+      BINARY `shouldCompact` (a `compact` verdict here is what would invoke its `planCompaction`) — this adds the
+      proceed/expand directions + zone triage `shouldCompact` lacks; reads (does not fit) the §5.AD `context-budget-knee.ts`
+      window; names but does not reorder the §5.AD `context-smart-zone.ts` bands; distinct from §5.AE `jit-fragment-budget.ts`
+      (build-time selection-within-budget) and §5.W `run-attention-signals.ts` (RUN-ceiling pressure, not the context
+      window). Pure/deterministic, non-mutating, no tokenizer (counts injected as numbers); 20 unit tests; tsc + biome green.
+      **Still owed (WIRING — behind a live §5.Z re-verify):** feed live `usedTokens` + the per-zone occupancy from the
+      board/chat prompt-assembly seam, route `compact` into `planCompaction`, and act on `expand` (widen retrieval / re-anchor).
 - [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first), decomposed:**
   - [ ] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
   - [ ] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
@@ -6273,6 +6299,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       deterministic, 6 unit tests. **Still owed (WIRING — each behind a live §5.Z re-verify):** thread the §5.AA
       `ModelBehaviorProfile` / live `priorFailures` into the resolver, and wire the composed fragments into the board +
       chat prompt assembly (replacing the hard-coded always-on blocks) so §5.AD arranges + §6.2 caps them.
+- [x] **Skill-set COMPATIBILITY checker — the composer-path quality gate — DONE (2026-07-01).**
+      [src/core/skill-compat.ts](src/core/skill-compat.ts) `checkSkillSetCompat(skills)` → `{ conflicts, redundancies,
+      ok, reason }`: the missing INSPECTION over a proposed active set that `resolveActiveSkills` silently unions.
+      **Conflicts** are every skill PAIR whose declared `apiProfile` pulls in opposite directions — reasoning `off`↔`high`
+      (fast `/no_think` vs. deliberate; the merge silently forces `high`, so the fast intent is lost),
+      structured-output↔forced-tool-call (opposed response shapes the merge OR-s), divergent pinned temperatures (the
+      merge silently takes the lower) — each annotated with how `resolveApiProfileForSkills` resolves it, so the §5.AG
+      "what was assembled / why" surface can show what "strongest need wins" quietly dropped. **Redundancies** are every
+      skill fully SUBSUMED by an earlier one (its fragments AND tools both already covered) — a wasted relevance slot;
+      surfaced this way, the SHIPPED `code_editing`+`review` cross-role union is flagged (review's fragments/tools ⊂
+      code_editing's; its value is the `high` apiProfile on a different axis). PURE + non-mutating (a REPORT, not an edit —
+      the runtime must always emit a usable set); derives conflicts ENTIRELY from data already on `Skill` (no registry
+      edit); dedupes doubled ids; composes with the §5.AE registry types by import. 14 unit tests; tsc + biome green.
+      **Still owed (WIRING, behind a live §5.Z re-verify):** consult it as an optional pre-flight in the resolver/UI +
+      author-time registry check, and surface warnings on the §5.AG "what was assembled" panel.
 - [~] **★ Per-SKILL (and role/task) API-feature PROFILE — match the discovered LLM API levers to the work (2026-06-29, user).**
       - [x] **`Skill.apiProfile` + resolver merge DONE (2026-06-29):** `SkillApiProfile` on `Skill`
             ([skill-registry.ts](src/core/skill-registry.ts)) + per-skill defaults (review/planning→reasoning HIGH,
