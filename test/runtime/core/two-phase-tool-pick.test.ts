@@ -7,6 +7,7 @@ import {
 	PHASE_ONE_NONE_ANSWER,
 	PHASE_ONE_PLAN_ANSWER,
 	type PhaseOneDecision,
+	selectRevealedToolSchema,
 } from "../../../src/core/two-phase-tool-pick";
 
 // Minimal card fixtures — only `name` matters for interpretation.
@@ -113,5 +114,35 @@ describe("buildPhaseOneToolMenu", () => {
 		expect(menu).toContain("(no tools available)");
 		expect(menu).toContain(`"${PHASE_ONE_NONE_ANSWER}"`);
 		expect(menu).toContain(`"${PHASE_ONE_PLAN_ANSWER}"`);
+	});
+});
+
+describe("selectRevealedToolSchema", () => {
+	// Distinct sentinel schema objects; identity checks prove ONLY the picked one is revealed.
+	const readSchema = { tool: "read_file", params: ["path"] };
+	const writeSchema = { tool: "write_file", params: ["path", "content"] };
+	const schemas = new Map<string, typeof readSchema>([
+		["read_file", readSchema],
+		["write_file", writeSchema],
+	]);
+
+	it("reveals ONLY the picked tool's schema for a one_tool decision", () => {
+		expect(selectRevealedToolSchema({ kind: "one_tool", tool: "read_file" }, schemas)).toBe(readSchema);
+		expect(selectRevealedToolSchema({ kind: "one_tool", tool: "write_file" }, schemas)).toBe(writeSchema);
+	});
+
+	it("returns null for a one_tool pick whose schema is absent (escalate, don't invent)", () => {
+		expect(selectRevealedToolSchema({ kind: "one_tool", tool: "delete_all" }, schemas)).toBeNull();
+	});
+
+	it("returns null for none and plan_needed (no single schema to reveal)", () => {
+		expect(selectRevealedToolSchema({ kind: "none" }, schemas)).toBeNull();
+		expect(selectRevealedToolSchema({ kind: "plan_needed" }, schemas)).toBeNull();
+	});
+
+	// End-to-end pure two-phase: parse a raw pick → reveal exactly that tool's schema, nothing else.
+	it("composes with interpretPhaseOnePick end-to-end (pick → reveal)", () => {
+		const decision = interpretPhaseOnePick("write_file", CARDS);
+		expect(selectRevealedToolSchema(decision, schemas)).toBe(writeSchema);
 	});
 });

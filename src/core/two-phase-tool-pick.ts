@@ -130,3 +130,29 @@ export function buildPhaseOneToolMenu(cards: readonly ToolCard[]): string {
 	const menu = renderToolCardList(cards);
 	return menu.length === 0 ? `${header}\n\n(no tools available)` : `${header}\n\nTools:\n${menu}`;
 }
+
+// ---------------------------------------------------------------------------
+// Phase-2 reveal (from a phase-1 decision, reveal ONLY the picked tool's schema)
+// ---------------------------------------------------------------------------
+
+/**
+ * Phase-2 of the two-phase protocol: given the phase-1 {@link PhaseOneDecision} and a map of tool name → full schema,
+ * reveal ONLY the selected tool's schema — the whole point of §5.O two-phase, so the small model sees exactly one verbose
+ * schema instead of all of them at once.
+ *
+ * - `one_tool` → that tool's schema (or `null` if the name isn't in the map — the caller should escalate, not invent).
+ * - `none` / `plan_needed` → `null` (no single schema to reveal; the caller proceeds with no tool, or escalates to a
+ *   full planning step, respectively).
+ *
+ * Generic over the schema representation `T` so it stays pure + decoupled from any specific tool-schema shape (the caller
+ * supplies whatever schema objects it holds). Pairs with {@link isActionableSingleTool}.
+ */
+export function selectRevealedToolSchema<T>(
+	decision: PhaseOneDecision,
+	schemasByName: ReadonlyMap<string, T>,
+): T | null {
+	if (!isActionableSingleTool(decision)) {
+		return null;
+	}
+	return schemasByName.get(decision.tool) ?? null;
+}
