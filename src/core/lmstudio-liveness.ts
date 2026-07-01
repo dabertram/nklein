@@ -73,3 +73,32 @@ export async function isLmStudioHostObservable(
 ): Promise<boolean> {
 	return (await probeModelResidency(baseUrl, modelId, fetchImpl, timeoutMs)) !== "unobservable";
 }
+
+export interface ResidencyAbortPolicy {
+	/** Consecutive TRAILING `absent` probes required to conclude the model is gone — ≥2 rides out a transient blip. */
+	absentConfirmations: number;
+}
+
+/**
+ * PURE decision core for the §5.AN "fail-fast on a dead model" heartbeat: given the ordered residency probes taken during
+ * an ultra-long wait (oldest → newest), decide whether to ABORT because the model crashed / was unloaded. Deliberately
+ * conservative — it aborts ONLY when (a) the model was POSITIVELY observed `resident` at some point (so we're not acting
+ * on a host we simply can't observe), AND (b) the last `absentConfirmations` probes are all `absent`. An `unobservable`
+ * probe (host briefly unreachable / not LM Studio) is NEVER treated as death: it breaks the trailing-absent run, so a
+ * network blip can't trigger a false abort. This never PROLONGS a wait — a hung-but-resident model is the timeout's job.
+ */
+export function shouldAbortForLostResidency(probes: readonly ModelLiveness[], policy: ResidencyAbortPolicy): boolean {
+	const needed = Math.max(1, Math.trunc(policy.absentConfirmations));
+	if (!probes.includes("resident")) {
+		return false; // never confirmed alive ⇒ don't act on this signal (rely on the timeout)
+	}
+	let trailingAbsent = 0;
+	for (let i = probes.length - 1; i >= 0; i -= 1) {
+		if (probes[i] === "absent") {
+			trailingAbsent += 1;
+		} else {
+			break; // a `resident` or `unobservable` probe breaks the run — we can't confirm death
+		}
+	}
+	return trailingAbsent >= needed;
+}

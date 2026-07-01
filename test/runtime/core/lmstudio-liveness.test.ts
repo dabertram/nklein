@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isLmStudioHostObservable, probeModelResidency } from "../../../src/core/lmstudio-liveness";
+import {
+	isLmStudioHostObservable,
+	type ModelLiveness,
+	probeModelResidency,
+	shouldAbortForLostResidency,
+} from "../../../src/core/lmstudio-liveness";
 
 /** A fetch stub: either throws (network error) or returns a Response-like with the given ok + json payload. */
 function stubFetch(opts: { ok?: boolean; payload?: unknown; throws?: boolean }): typeof fetch {
@@ -70,5 +75,39 @@ describe("isLmStudioHostObservable", () => {
 	it("false when the host is not LM Studio / unreachable (unobservable)", async () => {
 		expect(await isLmStudioHostObservable(BASE_URL, "qwopus", stubFetch({ throws: true }))).toBe(false);
 		expect(await isLmStudioHostObservable(BASE_URL, "qwopus", stubFetch({ ok: false }))).toBe(false);
+	});
+});
+
+describe("shouldAbortForLostResidency", () => {
+	const p = (...probes: ModelLiveness[]) => probes;
+
+	it("aborts when a confirmed-resident model goes absent for the required consecutive probes", () => {
+		expect(shouldAbortForLostResidency(p("resident", "absent", "absent"), { absentConfirmations: 2 })).toBe(true);
+		expect(shouldAbortForLostResidency(p("resident", "absent"), { absentConfirmations: 1 })).toBe(true);
+	});
+
+	it("holds (no abort) until enough consecutive absents accumulate", () => {
+		expect(shouldAbortForLostResidency(p("resident", "absent"), { absentConfirmations: 2 })).toBe(false);
+	});
+
+	it("never aborts on a transient blip — an `unobservable` probe breaks the trailing-absent run", () => {
+		// last probe couldn't confirm death ⇒ don't abort even though earlier probes were absent
+		expect(shouldAbortForLostResidency(p("resident", "absent", "unobservable"), { absentConfirmations: 1 })).toBe(
+			false,
+		);
+		// a resident probe in the middle also resets
+		expect(
+			shouldAbortForLostResidency(p("resident", "absent", "resident", "absent"), { absentConfirmations: 2 }),
+		).toBe(false);
+	});
+
+	it("never aborts without POSITIVE prior residency (an unobservable host must fall back to the timeout)", () => {
+		expect(shouldAbortForLostResidency(p("absent", "absent", "absent"), { absentConfirmations: 1 })).toBe(false);
+		expect(shouldAbortForLostResidency(p("unobservable", "unobservable"), { absentConfirmations: 1 })).toBe(false);
+		expect(shouldAbortForLostResidency(p(), { absentConfirmations: 1 })).toBe(false);
+	});
+
+	it("clamps the confirmations floor to 1", () => {
+		expect(shouldAbortForLostResidency(p("resident", "absent"), { absentConfirmations: 0 })).toBe(true);
 	});
 });
