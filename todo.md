@@ -4874,6 +4874,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt)
   - [ ] Record each rung outcome on §5.AF ledger (enables learning)
   - [ ] Decide between 3 collision points: rung order, budget gating, reduction multi-level loop
+  - [~] **Adaptive strategy-effectiveness learning — make the ladder ADAPT, not just fire the static table (PURE CORE
+        DONE 2026-07-01).** [src/core/strategy-effectiveness-ledger.ts](src/core/strategy-effectiveness-ledger.ts) closes
+        the "so the ladder learns" gap the two DONE cores left open: `retry-policy.ts` picks the next rung from a STATIC
+        hand-curated per-outcome table (never learns which rung actually works) and `model-behavior-profile.ts` learns a
+        model's OVERALL success rate/budget (not which strategy pulled it through) — grep-confirmed neither learns
+        per-strategy effectiveness. This new core learns, per `(model × failure-mode × strategy)`, how often a remedy rung
+        RECOVERED the model, then reorders the ladder by it: `recordStrategyOutcome(ledger, {outcome, strategy, recovered})`
+        is the pure online fold (per-cell attempts/successes; `park`/`success` are no-ops); `strategyEffectiveness(...)` is
+        the Beta-posterior / Laplace-smoothed recovery rate (uniform Beta(1,1) prior ⇒ neutral 0.5 with no evidence, a
+        single lucky/unlucky obs can't swing to 0/1, converges to the empirical rate); `orderLadderByEffectiveness(ledger,
+        outcome, {reorderMargin, minObservations})` STABLE-sorts the curated `retryLadderForOutcome` so a rung that
+        repeatedly rescues THIS model climbs to the front while a flop sinks — **never adds/drops a rung** (cold-start =
+        the proven order verbatim; a sub-margin/under-observed edge defers to the hand-order); `bestStrategyForOutcome(...)`
+        is the head-of-ladder convenience. Composes with the existing `RetryStrategy` + `ModelOutcomeKind` types (no edits
+        to those files). Pure + deterministic, 21 unit tests; tsc + biome green. **Still owed (WIRING):** feed
+        `orderLadderByEffectiveness` into `decideNextRetryStrategy`/`runAdaptiveAttemptLoop` so the live loop tries the
+        learned-best rung first; the thin JSON persistence layer in the runtime home (mirrors `ModelBehaviorProfile`); and
+        source the observation stream from the §5.AF terminal `attempt` events (rung tried → whether it recovered).
 - [x] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)` (DONE 2026-06-26)** — gemma-e2b
       leaked exactly that into its final reply (§5.Z). Added a deliberately-specific `PLAIN_PROSE_TOOL_CALL` pattern
       (`tool call:` immediately followed by an identifier + `(` — a function-call shape) checked independently of the
@@ -5382,6 +5400,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Implement storage layer + schema migrations for the global fitness store.
   - [ ] Wire write side: feed evaluation harness + live task outcomes into the store.
   - [ ] Wire read side: expose projections for the swarm scheduler + model-selection logic.
+  - [~] **freshness/decay + re-eval prioritization policy (the "always-fresh grounded metrics" point 3 of the 2026-06-28
+        callout below) — PURE CORE DONE (2026-07-01).** [model-fitness-freshness.ts](src/core/model-fitness-freshness.ts):
+        a `FitnessCell` wraps a `ModelFitnessRecord` with the two things the score type deliberately omits — a
+        `measuredAt` timestamp + the live `ModelFitnessFingerprint` (loaded context window + quant) it was measured at
+        (satisfies the "record carries a last-measured timestamp + fingerprint" requirement WITHOUT editing the score
+        type). `judgeFitnessFreshness` bands each cell `fresh|aging|stale|thin|drifted|unknown`, DECAYING a thin/old/
+        fingerprint-drifted cell toward `unknown` (precedence: full-decay age → drift → thin → age-band; future
+        `measuredAt` clamps to age 0); `fingerprintDrifted` treats a re-load at a different context/quant as a different
+        subject (known-vs-known quant mismatch only); `isFitnessCellReliable` (fresh/aging ⇒ trust); `fitnessRefreshPriority`
+        (bounded [0,1], monotonic in age + confidence-gap, drift floors ≥0.9); `selectFitnessCellsToReeval` is the
+        idle-aware, budgeted picker — skips reliable cells + (by default) unloaded models, ranks by priority desc,
+        tie-breaks older-measurement→modelId→role (stable). Clock- + data-injected (pure). 28 tests; tsc + biome green.
+        **Owed:** wire the live store read + the §5.AI idle signal into `selectFitnessCellsToReeval`, and stamp
+        `measuredAt`+fingerprint on the store write side (the two `- [ ]` items above).
 - [~] **Task-difficulty estimate (ties §5.I#4).** Estimate a task's difficulty/size (objective text, expected file/
       context footprint, acceptance shape, bounce history) → the key into the fitness table. **CORE DONE (2026-06-27):**
       `estimateTaskDifficulty(input)` ([src/core/model-fitness.ts](src/core/model-fitness.ts)) → a **0..1** score (matching
@@ -6158,7 +6190,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Replay / simulation mode (ties §5.V), decomposed:**
   - [ ] Capture + index ledger attempt model outputs as deterministic test fixtures.
   - [ ] Implement replay orchestrator: substitute fixtures for live model calls, run workflow.
-  - [ ] Add per-tool idempotency keys + durable result hashes/refs.
+  - [~] Add per-tool idempotency keys + durable result hashes/refs. **ATTEMPT/DISPATCH IDEMPOTENCY-KEY DERIVATION DONE
+        (2026-07-01):** [src/core/attempt-idempotency-key.ts](src/core/attempt-idempotency-key.ts) fills the gap where the
+        `scheduler` ledger event's `idempotencyKey` field (`AgentSchedulerEvent`/`BuildSchedulerEventInput`) existed but
+        NOTHING computed it (only ever passed through / defaulted to `null` — grep-verified). `deriveAttemptIdempotencyKey`
+        derives a STABLE at-most-once key from a scheduled attempt's intrinsic identity — `workflowId`/`taskId`/
+        `workspacePathHash`/rung/`modelId`/`endpoint`(+optional `variant`) — via a `sha256` over a key-order-independent
+        canonical serialization (the `nklein-tool-call-fingerprint.stableSerialize` + `protected-test-approval-store`
+        composite `<workflowId>:<taskId>:<digest>` idioms), so a **persist-before-dispatch re-dispatch after a crash/restart**
+        (the `durable-run-controller.commit()` invariant) derives the IDENTICAL key while a genuine next rung / switched
+        model / endpoint / variant derives a different one — the opposite of the deliberately-fresh-per-dispatch lease/worker
+        uuid. `dedupeSchedulerEventsByIdempotencyKey` is the replay/read side (collapse duplicate-key scheduler events to the
+        first, null-keyed always kept — via a dependency-free structural view, so real ledger events pass in directly). Pure,
+        deterministic, no I/O/clock/randomness. 20 unit tests (incl. a pinned literal digest, each identity field's
+        discriminating power, absent≡empty/whitespace/rung normalization, delimiter-collision guard, and an end-to-end
+        re-dispatch-dedup). tsc+biome+vitest green. **STILL OWED:** wiring the derivation into the durable-scheduler `lease`
+        event write site + the per-TOOL-result durable hashes/refs (a distinct grain — replay reuse of a tool result).
   - [ ] Implement replay modes: `reuse` (use fixture), `simulate` (mock), `skip`, `reconfirm` (compare fixture vs live).
   - [ ] Convert §5.V live-only flows to deterministic replay tests; debug races without GPU.
 - [~] **Durable long-run job scheduler (C3 spine).** A background job runner that **checkpoints to the ledger** and
