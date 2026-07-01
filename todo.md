@@ -6957,20 +6957,17 @@ source repo went private — so if it vanishes the buildable source still lives 
       back to the timeout. **CONTROLLER DONE (2026-07-01, 69dfd3f6):** `startResidencyHeartbeat` — the poll loop with
       INJECTABLE timers (unit-tested without wall-clock): polls, treats a thrown probe as `unobservable`, fires
       `onModelLost` ONCE on confirmed death (halting first), idempotent `stop()`. So probe + decision + controller are all
-      built + tested. **STILL OWED — ONLY the session-class wiring** in
-      [nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts): start the heartbeat at the
-      running-transition (~L1602, alongside `scheduleStreamTimeout`) using `launchConfigByTaskId`'s baseUrl+modelId;
-      `onModelLost` → `clearTaskTimeouts` + `abortTaskSession` + a `recordObservationWithModel` note (mirror
-      `handleTaskTimeout`). **LEAK-RISK FINDING (2026-07-01):** a naive stop in `clearTaskTimeouts` would LEAK the
-      heartbeat on NORMAL completion — L1684's `clearTaskTimeouts` is the start-ERROR catch, and normal completion clears
-      timeouts elsewhere; auditing all end paths in the 3000-line class is error-prone. **USE A SELF-CLEANING design:**
-      add an optional `shouldContinue?: () => boolean` to `startResidencyHeartbeat` (halt when false at tick-start) and
-      pass `() => entry.summary.state === "running"` — the heartbeat then stops itself one interval after the session
-      leaves `running`, regardless of which end path ran (leak-proof). Additive edit (new field + 2 call sites + helpers,
-      no existing-flow change); still behavior-changing on the session hot path ⇒ do it focused + live §5.Z re-verify.
-      Deliberately NOT rushed into the critical class deep in a long session (an OPTIONAL feature; a bug here breaks task
-      execution) — the reward (fail-fast on a RARE mid-session model crash, already covered slower by the ultra-long timeout)
-      does not justify a hasty critical-path edit.
+      built + tested. **SELF-CLEANING + SESSION WIRING DONE (2026-07-01, cfc39dcc + 74cd182c):** `startResidencyHeartbeat`
+      gained an optional `shouldContinue` (halts one tick after the session leaves `running` → leak-proof, no end-path
+      audit needed). Wired into [nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts):
+      `beginModelResidencyWatch` at the running-transition (baseUrl+modelId from `launchConfigByTaskId`),
+      `handleModelResidencyLost` → clearTimeouts + abort + `model_stalled` observation + `emitTaskFailure` (mirrors
+      `handleTaskTimeout`), backstop stop in `clearTaskTimeouts`. **SAFE:** OPT-IN behind `NKLEIN_RESIDENCY_HEARTBEAT`
+      (default OFF ⇒ byte-identical, no polling, 4091 tests unchanged), self-cleaning (leak-proof), auto-detected
+      (`unobservable` ⇒ never aborts), conservative unit-tested decision. **LIVE-VERIFIED (2026-07-01):** the probe against
+      the running endpoint returns resident (loaded model) / absent (fake id) / unobservable (dead endpoint) — all correct.
+      **ONLY OWED:** exercise the flag-ON `onModelLost` end-to-end by unloading a model mid-run (disruptive to the loaded
+      set → do WITH the user, not autonomously). §5.AN residency = COMPLETE + safe-by-default.
 > - **Anthropic-compat `/v1/messages`** (live-verified — EXISTS, 200; accepts `tools`/`tool_choice`/`system`). **CORRECTION
 >   (re-verified 2026-06-29, don't-conclude-prematurely lesson): `tool_choice` does NOT actually FORCE a call on LM Studio.**
 >   The first "it forces!" probe was confounded — the prompt was "make a card titled Z", which the model calls anyway. On a
