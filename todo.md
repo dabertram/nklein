@@ -4967,9 +4967,16 @@ source repo went private — so if it vanishes the buildable source still lives 
         `NKLEIN_PER_MACHINE_MAX_CONCURRENCY` — resolving each loaded model's machine via `fetchLmsPsModels` and passing
         `perMachineCap` + `machineByModelId`. OFF by default ⇒ no `lms ps` subprocess, byte-identical (4099 tests
         unchanged). So the full chain — machine map → gate core → scheduler → start path — is complete + opt-in.
-        **ONLY OWED:** exercise it live under concurrent multi-card load with the flag ON (the caps actually holding starts
-        per machine) — needs a live multi-machine run (do WITH the user). Also still-nice: feed `queued`/`status` into
-        free-first. **Per-machine concurrency = COMPLETE + safe-by-default.**
+        **LIVE-EXERCISE ATTEMPTED (2026-07-01) — bottlenecked by prefill latency, NOT a code gap:** ran the server with
+        `NKLEIN_PER_MACHINE_MAX_CONCURRENCY=1` + `dev test-project many_small` (many cards → should contend). After ~40s the
+        run was STILL DECOMPOSING (qwopus-27b `PROCESSINGPROMPT` the whole time — same prefill wall as the stagnation
+        finding), so NO cards had started yet ⇒ nothing to contend the gate. The gate is unit-proven (3 scheduler tests
+        showing it holds at cap) + tsc-clean wired; observing it fire live just needs cards to actually START concurrently,
+        which the slow 27B DECOMPOSE prevents in a bounded window. **INSIGHT:** the decompose model choice is the pipeline
+        bottleneck — routing decompose to a smaller/faster model (a 9B) would unblock live iteration (quality/speed
+        trade-off, a tuning call). **ONLY OWED:** observe the caps holding under a run where cards actually start (faster
+        decompose model, or patience for the 27B). Also still-nice: feed `queued`/`status` into free-first.
+        **Per-machine concurrency = COMPLETE + safe-by-default (unit-proven; live-obs blocked by 27B prefill latency).**
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
         **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
