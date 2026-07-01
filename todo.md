@@ -4922,8 +4922,15 @@ source repo went private — so if it vanishes the buildable source still lives 
       not one global). Decomposed:
   - [ ] define the `ModelPool` model — one pool per machine: `{ id/label, baseUrl/endpoint, maxConcurrency, ramBudget,
         residentModels[] }`; the loaded-set fetch + `decideModelLoad` headroom become **per-pool**, not global.
-  - [ ] discover/declare linked machines: read LM Studio's linked-endpoint set (or a user-configured pool list) and tag
-        each loaded model with its owning pool/endpoint.
+  - [~] discover/declare linked machines: read LM Studio's linked-endpoint set (or a user-configured pool list) and tag
+        each loaded model with its owning pool/endpoint. **TAGGING FOUNDATION DONE (2026-07-01, 791a8162):**
+        [lms-ps-json.ts](src/core/lms-ps-json.ts) parses `lms ps --json` → per-instance `{ identifier, modelKey, machineId
+        (deviceIdentifier ?? "local"), isEmbedding, status, queued, … }` + `groupModelsByMachine`. This is the RELIABLE
+        per-machine key the REST `/api/v1/models` lacks — LM Link shares all machines behind one endpoint, but `lms ps`
+        reports each instance's owning device (verified live: null=local m5max, `2d30…`=m4mini, `040891…`=legion, matching
+        `lms link status`). 6 tests. **STILL OWED (wiring):** thread `machineId` onto running sessions + make the §6.5 /
+        §5.AF concurrency gate count per-MACHINE (not per shared endpoint), so each machine admits up to its own cap; feed
+        `queued`/`status` into free-first. Behavior-changing on the hot path ⇒ needs the live multi-machine §5.Z re-verify.
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
         **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
