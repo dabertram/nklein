@@ -6063,7 +6063,15 @@ source repo went private — so if it vanishes the buildable source still lives 
       NKlein tool-approval policy) onto the same manifest (each with its own characterization), add the research-addendum
       fields (`allowedRunStates`/taint/`auditDetail`), then **migrate the 3 call sites to the one gate** (the wiring).
   - [ ] Subsume §5.L delivery rulesets onto the manifest (add characterization test matching current rulesets).
-  - [ ] Subsume NKlein tool-approval policy onto the manifest (characterization test for all approval paths).
+  - [~] Subsume NKlein tool-approval policy onto the manifest (characterization test for all approval paths).
+        **CAPABILITY-TIER HALF DONE (2026-07-01):** `KANBAN_TOOL_MANIFESTS` + `manifestForKanbanTool` in
+        [tool-capability-manifest.ts](src/core/tool-capability-manifest.ts) declare each kanban tool's tier (reads →
+        read/workspace/auto/replayable; writes+editor+apply_patch → sandbox_write/workspace/confirm), the parallel to
+        `manifestForChatAction`. A parity test pins the map to the exact `createKanbanToolPolicies()` set (drift-proof),
+        and a cross-mechanism test runs those manifests through `decideManifestChatAccess` — proving ONE vocabulary spans
+        chat + NKlein tiers (reads always allow; sandbox writes confirm in isolated_readonly, allow in host-capable modes).
+        7 tests. **STILL OWED:** the CONTENT-policy approval paths (path scope · file size · line limit · secrets ·
+        protected tests in `nklein-runtime-setup.ts`) — separate guards not yet on the manifest — plus the gate wiring.
   - [ ] Add research-addendum fields: `allowedRunStates`, source/sink taint labels, semantic error contracts, replay mode.
   - [ ] Implement the unified gate: wire all 3 call sites (chat, delivery, NKlein) to `decideManifestAccess`.
   - [ ] Verify that all 18 (mode × action) test cases still pass + all existing rulesets are preserved.

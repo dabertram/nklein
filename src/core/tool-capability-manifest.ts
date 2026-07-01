@@ -98,6 +98,51 @@ export function manifestForChatAction(action: ChatActionKind): ToolCapabilityMan
 }
 
 /**
+ * The kanban task tools are all WORKSPACE-scoped and never reach the network, so they collapse to two capability tiers:
+ * a read tier (replayable, auto) and a sandbox-write tier (not replayable, confirm by default). The `approval` field is
+ * the tool's INHERENT default tier — the autonomous NKlein runtime context may loosen it (it auto-approves sandbox writes
+ * after its content checks), exactly the mode-vs-tier split the manifest exists to make explicit.
+ */
+const READ_TOOL_MANIFEST: ToolCapabilityManifest = {
+	mutationLevel: "read",
+	networkLevel: "none",
+	fsScope: "workspace",
+	approval: "auto",
+	replayable: true,
+};
+const SANDBOX_WRITE_TOOL_MANIFEST: ToolCapabilityManifest = {
+	mutationLevel: "sandbox_write",
+	networkLevel: "none",
+	fsScope: "workspace",
+	approval: "confirm",
+	replayable: false,
+};
+
+/**
+ * Capability manifests for the NKlein kanban task tools (the parallel to {@link manifestForChatAction}, for the SECOND of
+ * the three drifted gating mechanisms — the NKlein tool set). Keyed on the exact `createKanbanToolPolicies()` tool names;
+ * a parity test pins this map to that set so a new/removed tool must declare/drop its manifest. This declares each tool's
+ * capability tier on the ONE vocabulary — the content guards (path scope, size, secrets) stay separate policies layered
+ * on top; unifying THOSE is a later slice. The tiers are cross-checkable through {@link decideManifestChatAccess}.
+ */
+export const KANBAN_TOOL_MANIFESTS: Readonly<Record<string, ToolCapabilityManifest>> = {
+	find_files: READ_TOOL_MANIFEST,
+	list_files: READ_TOOL_MANIFEST,
+	get_file_size: READ_TOOL_MANIFEST,
+	read_files: READ_TOOL_MANIFEST,
+	read_large_file: READ_TOOL_MANIFEST,
+	write_file: SANDBOX_WRITE_TOOL_MANIFEST,
+	write_files: SANDBOX_WRITE_TOOL_MANIFEST,
+	editor: SANDBOX_WRITE_TOOL_MANIFEST,
+	apply_patch: SANDBOX_WRITE_TOOL_MANIFEST,
+};
+
+/** The capability manifest for a kanban task tool by name, or `null` when the name isn't a declared kanban tool. */
+export function manifestForKanbanTool(toolName: string): ToolCapabilityManifest | null {
+	return KANBAN_TOOL_MANIFESTS[toolName] ?? null;
+}
+
+/**
  * Decide access for a manifested action under a chat execution mode — the unified gate, derived purely from manifest
  * fields. Proven by characterization to reproduce `decideChatActionAccess(mode, action)` for every (mode × action).
  * Conservative by construction: host access is never default; the most-isolated mode denies any host reach.
