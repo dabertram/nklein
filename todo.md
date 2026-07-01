@@ -5146,6 +5146,31 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   measure chaining/synthesis/speed/effective-context deltas) so we can **optimize quantization AGAINST context size** (a
 >   smaller quant frees RAM for a bigger context, but may degrade capability — measure the trade). A future targeted sweep
 >   keyed on the new `quant`/`format` fields + the §5.AD context-budget knee.
+> - **(C) HARDWARE POOL PROFILES (user, 2026-07-01) — feed the per-machine pooling (A).** Record each linked machine's
+>   envelope so the pool router + headroom guard reason per-BOX: **m5max** — the strong box, 128 GB unified, runs the big
+>   models (28 GB 27B + a 69 GB 122B both fit); **legion5pro** — RTX 4070M **8 GB VRAM** + Ryzen 7 + **32 GB RAM**, currently
+>   in LOW POWER MODE (throttled — memory `low-power-mode-harness-timeouts`); un-throttled it can host another (bigger, or
+>   several small) model using its GPU + system RAM; **m4mini** — the vision/embedder box. Concrete input for
+>   `computePoolFreeSlots` + `decideModelLoad` per machine (llmfit's per-pool simulation already models a machine envelope).
+>   Owed: capture these envelopes (VRAM / RAM / GPU / power-state) as pool config the router reads.
+> - **(D) MAX PARALLELISM when swarm work unleashes (user, 2026-07-01 — LATER, evaluate; fine at 1 for now).** (i) The
+>   **m5max can run >1 model in parallel** — worth doing once we drive real swarm work so agents work in parallel (fan cards
+>   across multiple models ON the strong box, not only across machines). (ii) **LM Studio also allows per-MODEL concurrency**
+>   (N concurrent requests to ONE instance — the `PARALLEL` column in `lms ps`, currently 1). Fine to stay at 1 concurrent
+>   request now; LATER evaluate whether raising it (per model / per machine) is net-good (throughput vs latency / quality /
+>   VRAM). Both are §6.5-scheduler + per-machine-pool (A) concerns — gate parallelism on MEASURED headroom + quality, never
+>   blindly.
+> - **(E) ★ MODEL-LANDSCAPE-AWARE DECOMPOSITION GRANULARITY (user, 2026-07-01 — RESEARCH + evaluate carefully, do NOT
+>   rush).** The task-graph layout should ADAPT to the LOADED-MODEL LANDSCAPE, not be fixed: **if a large capable model is
+>   available, run a complex/bigger card DIRECTLY on it instead of decomposing to the max**; if only small models are
+>   loaded, decompose FINER so each sub-card fits a small model's chaining/synthesis ceiling. So decomposition depth becomes
+>   a FUNCTION of (card difficulty × the available models' capability profile from §5.AL) — !Klein "knows the best thing to
+>   do" given what's loaded, and may even CO-DESIGN the graph layout with model assignment (not sequentially). Connects §5.B
+>   (decomposition) × §5.AB (selection) × §5.AL (capability incl. the new synthesis/chaining fields) × §5.AD (a big model's
+>   effective context bounds how big a card it can hold). **Must be researched + carefully reasoned + MEASURED**:
+>   over-decomposing wastes a capable model + adds orchestration/coordination-failure surface; under-decomposing overloads a
+>   weak model → the exact chaining/synthesis failures the sweep measured. A north-star for the auto-selection ⇄
+>   decomposition convergence.
 > **PROGRESS (2026-07-01) — the DEFAULT-auto-selection seam is LIVE:** `buildLoadedModelRoutingCandidates`
 > ([nklein-loaded-model-candidates.ts](src/nklein-agent/nklein-loaded-model-candidates.ts), 4 tests) builds routing
 > candidates from the currently-LOADED set (reusing each model's observed registry entry so the ledger drives ranking,
