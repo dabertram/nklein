@@ -123,3 +123,34 @@ describe("tool-capability-manifest — NKlein kanban tool bridge (§5.AF slice 2
 		}
 	});
 });
+
+describe("tool-capability-manifest — external-action (egress) gate, prime-directive #1", () => {
+	// A web-fetch-shaped tool: a READ that reaches the network. The egress tier must gate it BEFORE the sandbox-read
+	// allow, or a network read would slip through as "always allowed".
+	const egressRead: ToolCapabilityManifest = {
+		mutationLevel: "read",
+		networkLevel: "egress",
+		fsScope: "workspace",
+		approval: "confirm",
+		replayable: false,
+	};
+
+	it("denies egress in the most-isolated mode and confirms it (never auto) in host-capable modes", () => {
+		expect(decideManifestChatAccess(egressRead, "isolated_readonly").decision).toBe("deny");
+		expect(decideManifestChatAccess(egressRead, "sandbox_with_host_escape").decision).toBe("confirm");
+		expect(decideManifestChatAccess(egressRead, "host").decision).toBe("confirm");
+	});
+
+	it("gates an egress READ (it does NOT fall through to the sandbox-read allow)", () => {
+		// Same fields as an always-allowed sandbox read EXCEPT networkLevel — the egress check must win.
+		expect(decideManifestChatAccess(egressRead, "host").decision).not.toBe("allow");
+	});
+
+	it("leaves non-egress manifests byte-identical (network gate only triggers on egress)", () => {
+		// Every authored manifest today is networkLevel:"none" — the egress branch must be inert for all of them.
+		for (const action of ACTIONS) {
+			const withEgress = decideManifestChatAccess(manifestForChatAction(action), "host");
+			expect(withEgress.reason).not.toContain("egress");
+		}
+	});
+});

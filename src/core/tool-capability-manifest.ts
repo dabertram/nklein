@@ -153,6 +153,18 @@ export function decideManifestChatAccess(
 ): ToolActionDecision {
 	const isHost = manifest.fsScope === "host";
 
+	// External-action policy (prime-directive #1, local-only): network egress is NEVER automatic, and the most-isolated
+	// mode forbids it outright. Checked first so it also gates an egress READ (a "read" that reaches the network — e.g. a
+	// web fetch — must not slip through the sandbox-read allow below). Byte-identical for today's manifests (all `none`).
+	if (manifest.networkLevel === "egress") {
+		return mode === "isolated_readonly"
+			? { decision: "deny", reason: "Isolated read-only mode does not permit network egress." }
+			: {
+					decision: "confirm",
+					reason: "Network egress is never automatic — it requires an explicit, logged confirmation.",
+				};
+	}
+
 	// Sandbox reads are always allowed.
 	if (manifest.mutationLevel === "read" && !isHost) {
 		return { decision: "allow", reason: "Reads inside the sandbox are always allowed." };
