@@ -1753,6 +1753,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								maxFileLines: request.maxAgentWritableFileLines ?? null,
 							})
 						: undefined,
+					// §5.AR: a RESTARTED isolated task gets the curated sandbox MCP servers too (consistent with the main
+					// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
+					// exists for the rebuilt task.
+					...((this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && sandboxWorkspace
+						? { sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId) }
+						: {}),
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
 					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
