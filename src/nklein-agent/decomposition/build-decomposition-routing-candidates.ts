@@ -1,69 +1,11 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
-import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../../core/lmstudio-loaded-model-descriptors";
-import { lookupModelCapability, type ToolUseVerdict } from "../../core/model-capability-catalog";
-import { affinityTagsForCapabilities, affinityTagsForModelKind } from "../../core/model-task-affinity";
-import { buildLoadedModelRoutingCandidates, type LoadedModelRoutingProfile } from "../nklein-loaded-model-candidates";
+import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
+import { buildLoadedModelRoutingCandidates } from "../nklein-loaded-model-candidates";
+import { resolveLoadedModelProfile } from "../nklein-loaded-model-profile";
 import { getDefaultNKleinModelRegistry } from "../nklein-model-registry";
 import { createNKleinProviderService } from "../nklein-provider-service";
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
 import { buildNKleinStartGuardCandidate } from "../nklein-task-start-guard";
-
-/**
- * Map the §5.AL catalog's tool-use verdict to a 0–100 cold-start capability prior, so a freshly-LOADED model the ledger
- * has never observed is still ranked by what its model card implies (a tool-native coder/agentic model outranks a
- * tool-weak chat model) instead of the flat registry default. Null when the model isn't catalogued — the builder then
- * leaves the default in place. This is the FAST, pure, always-available prior; llmfit's richer score layers on top.
- */
-const CATALOG_VERDICT_PRIOR: Record<ToolUseVerdict, number | null> = {
-	TOOL_NATIVE: 80,
-	TOOL_CAPABLE: 62,
-	TOOL_WEAK: 28,
-	TOOL_UNSUITABLE: 6,
-	// UNKNOWN carries no signal → no override, fall back to the registry default rather than inventing a number.
-	UNKNOWN: null,
-};
-function catalogCapabilityPrior(modelId: string): number | null {
-	const entry = lookupModelCapability(modelId);
-	return entry ? CATALOG_VERDICT_PRIOR[entry.toolUse] : null;
-}
-
-/** A coder model by name (matched on the REAL model key, e.g. `qwen2.5-coder`, `qwopus…-coder`, `devstral`). */
-const CODER_NAME_PATTERN = /cod(?:e|er|ing)|devstral/i;
-/** An opus-trained custom reasoner by name (user, 2026-07-01: "qwopus" = qwen + opus long-reasoning training). The API
- * card omits a `reasoning` flag for such local merges, so the name is the only runtime signal that they're reasoners. */
-const OPUS_REASONER_NAME_PATTERN = /opus/i;
-
-/**
- * Resolve a LOADED model's routing profile keyed on its REAL name (the descriptor's `modelKey`, NOT the per-machine
- * runtime alias). Combines the two signals that reinforce each other: the runtime card facts from `/api/v1/models`
- * (`trained_for_tool_use`, a declared `reasoning` capability) and the static §5.AL catalog (kind + tool-use verdict).
- * The cold-start prior comes from the catalog; the affinity tags are the UNION of the API-fact tags and the catalog
- * kind tags — so e.g. a coder whose card says `trained_for_tool_use:false` still gets the `agentic` tag from the
- * catalog's `code` kind, and a custom opus merge the catalog mis-labels still gets `reasoning` from its name.
- */
-function resolveLoadedModelProfile(descriptor: LoadedModelDescriptor): LoadedModelRoutingProfile {
-	if (descriptor.isEmbedding) {
-		return { isEmbedding: true };
-	}
-	const realName = descriptor.modelKey;
-	const catalogKind = lookupModelCapability(realName)?.kind ?? null;
-	const coder = CODER_NAME_PATTERN.test(realName);
-	const reasoning =
-		descriptor.reasoning === true ||
-		catalogKind === "reasoning" ||
-		(OPUS_REASONER_NAME_PATTERN.test(realName) && !coder);
-	const affinityTags = [
-		...new Set([
-			...affinityTagsForCapabilities({ reasoning, coder, toolUse: descriptor.toolUse }),
-			...affinityTagsForModelKind(catalogKind),
-		]),
-	];
-	return {
-		isEmbedding: false,
-		capabilityPrior: catalogCapabilityPrior(realName),
-		affinityTags,
-	};
-}
 
 /**
  * Build the runnable model "routing candidates" a decomposition can choose from: the default NKlein provider (when one
