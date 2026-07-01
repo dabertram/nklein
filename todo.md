@@ -245,6 +245,19 @@ source repo went private — so if it vanishes the buildable source still lives 
   **This evaluation must happen BEFORE writing the custom version** (don't build, then discover the off-the-shelf option).
   Precedents: the **Cline SDK** (evaluated → forked the source — special case, it's our engine; see the §4A note above);
   **`codebase-memory-mcp`** (evaluate as the LocalizationProvider backing **before** building that custom — §5.U).
+- **Research is CONTINUOUS, not just a build-vs-buy gate — a standing directive (2026-07-01, user).** The rule above
+  fires *before* hand-crafting; this one is broader: do **extensive, current online research for basically EVERY !Klein
+  component + concept — BEFORE and AFTER implementing, and whenever we touch a topic directly OR adjacently.** The
+  local-LLM / agent / context-engineering landscape moves weekly, so training-cutoff memory is stale by default; treat
+  every non-trivial design point (a model's behavior, a budgeting / retry / context / prompting strategy, an API surface,
+  a protocol, a security posture, an algorithm) as something to **re-ground in current sources** — SOTA papers, the
+  model/tool/framework's OWN docs + release notes, how the ecosystem already solves it — NOT to reason about from memory.
+  **"After implementing" matters too:** re-check that what we built still matches current best practice AND the real
+  runtime behavior (live-probe the models — §4A MODEL LOADING / §5.Z), then revise. Capture findings durably (§4A / the
+  relevant §5 section, `docs/dev/`, the integrations registry) so research COMPOUNDS instead of being re-done. When in
+  doubt, RESEARCH — under-researching + reinventing (or coding against a stale mental model of how a model/tool behaves)
+  is the failure mode this repo most wants to avoid. This applies to agents + subagents too: a task that "touches a
+  topic" should budget for the research, not skip it to save a step.
   **TRACK every integration in [docs/dev/integrations.md](docs/dev/integrations.md)** (the registry — name · what · status ·
   license · #1/egress posture · where wired; user 2026-07-01). Update it whenever we adopt, evaluate, partial-wire, or drop one.
 
@@ -5926,6 +5939,36 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Add eval-sweep probes (§5.AB harness, RULER/NoLiMa-style) for models without prior outcome data.
   - [ ] Surface learned budget + quality-knee in web Settings model-telemetry panel (CLI surface already done).
   - [ ] Test: verify small-model output quality improves when compacting to learned budget instead of overflow threshold.
+- [ ] **Adaptive, model- & task-dependent OUTPUT / generation token budget (`max_tokens`) — the PROACTIVE complement to
+      §5.AA's reactive truncation ladder** *(2026-07-01, user: "token limits can be highly model- AND task-dependent →
+      let !Klein handle this with best-possible approaches, extensive online research included").* Today the chat path uses
+      a FIXED `DEFAULT_SAMPLING.maxTokens = 1024` + a purely REACTIVE recovery (the §5.AA `raise_token_budget` rung →
+      `raisedTokenBudget` doubling to an 8192 ceiling). On the all-reasoning resident tier that first-attempt truncation +
+      recovery round-trip is pure waste — and it's expensive for the slow 27B. **The budget is NOT a constant; it's a
+      function of (model reasoning-profile × task class × output mode), and it belongs proactively SIZED up-front, not just
+      recovered after truncation.** Live-probed 2026-07-01 (`scratchpad/probe-*.py`): reasoning models burn variable
+      reasoning tokens BEFORE any answer — qwen3.5-9b ~257–301 tok on a realistic single-tool agentic turn (fits 1024) but
+      ~546–860 on a trivial JSON-prose task; the 27B ~922–966 on that same realistic turn (a harder/longer one truncates);
+      a FORCED native tool call is cheap (~55–199 tok total). Non-reasoning models burn ~0 reasoning. Decomposed:
+  - [ ] **EXTENSIVE ONLINE RESEARCH FIRST** (per the §4A always-research directive): how the ecosystem sizes `max_tokens`
+        adaptively (agent frameworks; LM Studio / llama.cpp `max_tokens` vs `max_completion_tokens` / `n_predict`, incl. an
+        unbounded `-1` option + its risks); reasoning-model OUTPUT-budget guidance (OpenAI o-series `max_completion_tokens`
+        + `reasoning_effort`; DeepSeek-R1 / Qwen3 thinking-budget recommendations; engine-exposed reasoning-budget params);
+        per-task budgeting literature. Integrate a SUITABLE approach rather than hand-rolling; capture in `docs/dev/` + here.
+  - [ ] **Size UP-FRONT** from (a) the model's learned reasoning-token burn (per-model, from the §5.AA `ModelBehaviorProfile`
+        / §5.AF ledger — reasoning tier needs large headroom, non-reasoning little); (b) the TASK CLASS (trivial reply /
+        single-tool / multi-tool / decomposition / long-generation — each a distinct answer-size prior); (c) the OUTPUT MODE
+        (a forced native tool call needs little; free-gen needs the answer budget; per the §5.AN structured-output finding,
+        budget the reasoning+prose path for reasoning models); (d) clamp `input_context + max_tokens ≤ the model window`
+        (≥32k floor / 40000 ctx — never exceed).
+  - [ ] **Learn + converge** the per-`(model, task-class)` budget from observed completion+reasoning-token consumption
+        (e.g. a p90/p95 + margin, EWMA-updated) — the OUTPUT-budget sibling of §5.AD's input-context `context-budget-knee`.
+        Keep the §5.AA reactive ladder as the SAFETY NET for the tail the proactive size under-shoots.
+  - [ ] **Wire + live-verify (§5.Z, resident tier):** thread the computed budget into the chat/agent + swarm model-call
+        seams (replace the fixed 1024 where a model+task signal exists); prove on the 9B + 27B that first-attempt truncation
+        drops (fewer recovery round-trips) with no quality loss. Opt-in / byte-identical default (prime-directive #1) until
+        the live numbers justify default-on. NOTE the interaction: capturing per-turn `usage` (the §5.M "token count in
+        session label" sub-items above) is the SAME data this learner needs — unify the usage-capture seam.
 - [~] **Distractor-aware retrieval pruning (per-model sensitivity).** Rank + prune repo-map / code-index / online
       results harder for models with high learned distractor sensitivity (similar-but-irrelevant context measurably
       hurts). Ties §6.7 retrieval + §5.AC online retrieval; feeds the arrangement policy's MIDDLE band. **PURE CORE DONE
