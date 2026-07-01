@@ -38,6 +38,39 @@ export type ToolUseVerdict =
 /** What we primarily designed/tested the model for — context for the verdict (reasoning-only is the classic trap). */
 export type ModelKind = "instruct" | "agentic" | "code" | "reasoning" | "chat" | "roleplay" | "unknown";
 
+/**
+ * MULTI-STEP tool-chaining strength — the key AGENTIC axis, distinct from the headline {@link ToolUseVerdict}:
+ * `toolUse` says "can it call a tool at all?"; this says "can it SUSTAIN a read→command→create→… chain?". Small
+ * models routinely pass single-tool yet drop the chain, so this is the perspective that predicts an unattended run.
+ * `native` = holds the chain on its own; `via_force` = only completes it under !Klein's §5.AB force-advance scaffold
+ * (default-on for reasoning on the stuck branch); `single_only` = one tool then stops; `fails` = never chains.
+ */
+export type ChainingStrength = "native" | "via_force" | "single_only" | "fails" | "unknown";
+
+/**
+ * Final-answer SYNTHESIS quality — a SEPARATE perspective from whether the tool CHAIN ran: a model can execute every
+ * tool and persist state yet under-summarize in its reply (live 2026-07-01: the 4B coder echoed the result marker =
+ * `full`; the reasoning models drove the chain but their final reply didn't reflect it = `weak`). Matters for
+ * user-facing answer quality even when the agentic work succeeded.
+ */
+export type SynthesisQuality = "full" | "weak" | "unknown";
+
+/**
+ * How the model does FORCED structured output — a distinct lever from free-form tool calling (§4A): reasoning models
+ * DEAD-END on `response_format: json_schema` (the reasoning channel conflicts with the constrained decode), so for
+ * them the working path is a native `tool_choice: required` call. `json_schema` = the json_schema path works;
+ * `json_schema_deadend` = json_schema stalls/empties (use native tool calls instead); `native_tool_call` = structured
+ * output is obtained via a forced tool call, not json_schema.
+ */
+export type StructuredOutputMode = "json_schema" | "json_schema_deadend" | "native_tool_call" | "unknown";
+
+/**
+ * Inference LATENCY class for agentic MULTI-TURN use — orthogonal to capability: a model can be fully tool-capable yet
+ * too slow to drive a many-step chain interactively (live: the 27B is `slow`, the 4B `fast`). Informs §5.AB model
+ * selection when several candidates all clear the capability bar.
+ */
+export type SpeedClass = "fast" | "medium" | "slow" | "unknown";
+
 /** A curated knowledge record for one model family. `match` is tested (case-insensitively) against the normalized id. */
 export interface ModelCapabilityEntry {
 	/** Stable slug for the family (for telemetry / messages), e.g. `"phi-4-mini-reasoning"`. */
@@ -48,6 +81,33 @@ export interface ModelCapabilityEntry {
 	toolUse: ToolUseVerdict;
 	/** What the model is for — `reasoning`/`chat`/`roleplay` are the tool-use traps. */
 	kind: ModelKind;
+	/**
+	 * OPTIONAL multi-step tool-CHAINING strength ({@link ChainingStrength}). Distinct from {@link toolUse}: that verdict
+	 * answers "can it call a tool?", this answers "can it SUSTAIN a read→command→create→… chain?" — the single axis that
+	 * best predicts an unattended agentic run (many models pass single-tool yet drop the chain). Descriptive metadata for
+	 * §5.AB selection + operator visibility; does NOT gate on its own (see {@link assessModelSuitability}).
+	 */
+	chaining?: ChainingStrength;
+	/**
+	 * OPTIONAL final-answer SYNTHESIS quality ({@link SynthesisQuality}) — a SEPARATE perspective from whether the chain
+	 * ran: does the reply coherently reflect the tool results, or under-summarize? Live 2026-07-01: the 4B coder = `full`,
+	 * the reasoning models = `weak` (chain succeeded, final reply didn't echo it).
+	 */
+	synthesis?: SynthesisQuality;
+	/**
+	 * OPTIONAL forced-structured-output mode ({@link StructuredOutputMode}) — a distinct lever from free-form tool calls:
+	 * per §4A, reasoning models DEAD-END on `response_format: json_schema`, so `native_tool_call` (tool_choice:required)
+	 * is their working path. Records which structured-output path actually holds for the family.
+	 */
+	structuredOutput?: StructuredOutputMode;
+	/**
+	 * OPTIONAL inference LATENCY class ({@link SpeedClass}) for agentic multi-turn use — orthogonal to capability: a
+	 * fully tool-capable model may still be too slow to drive a many-step chain interactively (the 27B is `slow`, the 4B
+	 * `fast`). A §5.AB tie-breaker once several candidates clear the capability bar.
+	 */
+	speed?: SpeedClass;
+	/** OPTIONAL resident FOOTPRINT in GB — the memory cost of keeping this model loaded (a §5.AB selection/packing input). */
+	sizeGb?: number;
 	/** One-line, honest justification (the "why" a future reader / the user sees). */
 	note: string;
 	/** Source URLs (model cards / docs / community reports) backing the verdict. */
@@ -187,7 +247,12 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /qwopus-?3[._]6/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "reasoning",
-		note: "qwopus3.6-27b-v2-mlx (qwen3.6×opus reasoning merge). Completes the full 4-step agentic tool-chain + persists a card — but VIA !Klein's §5.AB force-advance rung (default-on for reasoning on the stuck branch); WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; the only miss is the final reply not echoing a marker = weak SYNTHESIS, not a capability gap). Per §4A: json_schema structured output dead-ends on it (reasoning-channel conflict) — native tool_choice:required is the working lever.",
+		chaining: "via_force",
+		synthesis: "weak",
+		structuredOutput: "native_tool_call",
+		speed: "slow",
+		sizeGb: 28.6,
+		note: "qwopus3.6-27b-v2-mlx (qwen3.6×opus reasoning merge). Completes the full 4-step agentic tool-chain + persists a card — but VIA !Klein's §5.AB force-advance rung (default-on for reasoning on the stuck branch); WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; the only miss is the final reply not echoing a marker = weak SYNTHESIS, not a capability gap). Per §4A: json_schema structured output dead-ends on it (reasoning-channel conflict) — native tool_choice:required is the working lever. Slow (~28.6 GB resident 27B) — a latency cost for its capability.",
 		sources: [
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts; commits dec62245+89becd66); todo §5.AA/§5.AB force-advance + §4A structured-output-strategy note",
 		],
@@ -202,7 +267,12 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /qwopus-?3[._]5/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "code",
-		note: "qwopus3.5 lineage (arch qwen3_5, coder-tuned). The 4B CODER variant (qwopus3.5-4b-coder-fable5-v1-mlx) live 2026-07-01 FULLY PASSED the 4-step agentic chain (exit 0: read_file+run_command+create_card+update_focus_chain, card PERSISTED, AND the reply echoed the marker = full SYNTHESIS) — notably OUTPERFORMING the bigger qwopus3.6-27b + qwen3.5-9b REASONING variants (only PARTIAL: weak final synthesis). Lesson: for DIRECT agentic tool use, coder/instruct tuning beats reasoning-heavy tuning — size is NOT the deciding factor. Other qwopus3.5 sizes (9b-coder, 27b-v3) unverified — the strong 4B result may not generalize up.",
+		chaining: "native",
+		synthesis: "full",
+		structuredOutput: "unknown",
+		speed: "fast",
+		sizeGb: 2.4,
+		note: "qwopus3.5 lineage (arch qwen3_5, coder-tuned). The 4B CODER variant (qwopus3.5-4b-coder-fable5-v1-mlx) live 2026-07-01 FULLY PASSED the 4-step agentic chain (exit 0: read_file+run_command+create_card+update_focus_chain, card PERSISTED, AND the reply echoed the marker = full SYNTHESIS) — natively, no force-advance rung needed — notably OUTPERFORMING the bigger qwopus3.6-27b + qwen3.5-9b REASONING variants (only PARTIAL: weak final synthesis). Fast + tiny (~2.4 GB). Lesson: for DIRECT agentic tool use, coder/instruct tuning beats reasoning-heavy tuning — size is NOT the deciding factor. structuredOutput unknown (json_schema vs native not probed on it — left honest). Other qwopus3.5 sizes (9b-coder, 27b-v3) unverified — the strong 4B result may not generalize up.",
 		sources: [
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, qwopus3.5-4b-coder-fable5-v1-mlx — FULL PASS, exit 0)",
 		],
@@ -237,7 +307,12 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /qwen-?3[._]5/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "reasoning",
-		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever.",
+		chaining: "via_force",
+		synthesis: "weak",
+		structuredOutput: "native_tool_call",
+		speed: "medium",
+		sizeGb: 6,
+		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever. Medium speed (~6 GB resident 9B).",
 		sources: [
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts; commits dec62245+89becd66); todo §5.AA/§5.AB force-advance + §4A structured-output-strategy/thinking-control notes",
 		],

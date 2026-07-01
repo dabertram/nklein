@@ -64,6 +64,46 @@ describe("model-capability-catalog: lookup", () => {
 	});
 });
 
+describe("model-capability-catalog: fine-grained metadata (§5.AL — chaining/synthesis/structuredOutput/speed/sizeGb)", () => {
+	it("populates the 4B coder (qwopus3.5) as the native full-synthesis fast performer", () => {
+		// Live 2026-07-01: qwopus3.5-4b-coder-fable5 chained natively (no force-advance) and echoed the marker (full synthesis).
+		const e = lookupModelCapability("qwopus3.5-4b-coder-fable5-v1-mlx");
+		expect(e?.chaining).toBe("native");
+		expect(e?.synthesis).toBe("full");
+		expect(e?.speed).toBe("fast");
+		expect(e?.sizeGb).toBe(2.4);
+		// Honestly left unprobed on it.
+		expect(e?.structuredOutput).toBe("unknown");
+	});
+
+	it("populates the 27B reasoning (qwopus3.6) as via_force / weak-synthesis / slow with a native-tool-call structured path", () => {
+		const e = lookupModelCapability("qwopus3.6-27b-v2-mlx");
+		expect(e?.chaining).toBe("via_force"); // only completes the chain under the §5.AB force-advance rung
+		expect(e?.synthesis).toBe("weak"); // chain ran but the final reply didn't reflect it
+		expect(e?.speed).toBe("slow");
+		expect(e?.structuredOutput).toBe("native_tool_call"); // json_schema dead-ends → forced tool call is the lever
+		expect(e?.sizeGb).toBe(28.6);
+	});
+
+	it("populates the 9B reasoning (qwen3.5) as via_force / weak-synthesis / medium", () => {
+		const e = lookupModelCapability("qwen3.5-9b-mlx-m4");
+		expect(e?.chaining).toBe("via_force");
+		expect(e?.synthesis).toBe("weak");
+		expect(e?.structuredOutput).toBe("native_tool_call");
+		expect(e?.speed).toBe("medium");
+		expect(e?.sizeGb).toBe(6);
+	});
+
+	it("leaves the fine-grained fields undefined on entries not yet measured on those axes (research-only rows)", () => {
+		// The new axes are OPTIONAL descriptive metadata — research-sourced entries carry none until a live sweep fills them.
+		const e = lookupModelCapability("microsoft/phi-4-mini-reasoning");
+		expect(e?.chaining).toBeUndefined();
+		expect(e?.synthesis).toBeUndefined();
+		expect(e?.speed).toBeUndefined();
+		expect(e?.sizeGb).toBeUndefined();
+	});
+});
+
 describe("model-capability-catalog: suitability gate", () => {
 	it("allows a TOOL_NATIVE model with severity ok", () => {
 		const v = assessModelSuitability("qwen/qwen3-8b");
