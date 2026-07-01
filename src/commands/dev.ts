@@ -60,6 +60,7 @@ import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
+import { buildTwoPhaseToolMenuReport } from "../nklein-agent/nklein-two-phase-tool-menu-report";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
@@ -767,6 +768,19 @@ async function runDevSwarmCommand(options: { json?: boolean } = {}): Promise<voi
 	process.stdout.write(formatSwarmMachineView(view, label));
 }
 
+async function runDevToolMenuCommand(options: { json?: boolean } = {}): Promise<void> {
+	// §5.O inspection: render the phase-1 tool menu a SMALL model is shown (short cards, not verbose schemas) so an
+	// operator can review the card text + its token footprint. Pure/offline — no model, no live agent loop.
+	const report = buildTwoPhaseToolMenuReport();
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("!Klein two-phase tool menu — the phase-1 cards a small model is offered (§5.O):\n\n");
+	process.stdout.write(report.menu);
+	process.stdout.write(`\n\n(${report.toolCount} tools, ~${report.menuTokens} tokens)\n`);
+}
+
 async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {
 	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
 	if (options.json) {
@@ -1024,6 +1038,15 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevSwarmCommand(options);
+		});
+
+	dev.command("tool-menu")
+		.description(
+			"Show the §5.O two-phase phase-1 tool menu (short cards, not verbose schemas) a small model is offered, with its token footprint.",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { json?: boolean }) => {
+			await runDevToolMenuCommand(options);
 		});
 
 	dev.command("escalation")

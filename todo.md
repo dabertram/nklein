@@ -2263,7 +2263,10 @@ source repo went private — so if it vanishes the buildable source still lives 
         write_file·write_files·editor·apply_patch) + `kanbanTaskToolCardByName`. A parity test pins the card set to the exact
         `createKanbanToolPolicies()` key set, so a new/removed tool fails the gate until its card follows — "one card per existing
         tool" holds by construction. 8 tests. (Native SDK tools — run_commands/fetch_web/search — are SDK-owned, intentionally
-        not re-carded.) Owed: wire the card list into the small-model prompt (feeds the §5.O two-phase picker: cards → schema reveal).
+        not re-carded.) **FIRST CONSUMER (2026-07-01):** `nklein dev tool-menu` (`nklein-two-phase-tool-menu-report.ts` →
+        `buildTwoPhaseToolMenuReport`) renders the phase-1 menu + token footprint (live: 9 tools, ~631 tokens) so an operator can
+        review the small-model tool interface offline — no agent-loop touch. Owed (still): wire the card list into the small-model
+        PROMPT at the model seam (feeds the two-phase picker: cards → pick → schema reveal).
   - [~] **Two-phase tool use** (pure core first): phase-1 picker over tool cards → `none | one_tool | plan_needed`;
         phase-2 reveal ONLY the selected tool's full schema; unit-test the selection; then wire at the model seam. **(2026-06-29, batch #3)**
         PURE CORE done: `src/core/two-phase-tool-pick.ts` — `interpretPhaseOnePick(rawPick, cards)` (unknown/hallucinated tool → `plan_needed`,
