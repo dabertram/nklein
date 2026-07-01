@@ -7416,6 +7416,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         test feeding `flakeScoresById` into `prioritizeTestSelection` and excluding `quarantinedIds`); tsc + vitest +
         biome green. Composes by DATA with `test-selection-priority.ts` + `test-regression-verdict.ts` — orthogonal: this
         answers "which tests are too flaky to trust, and what should we do about each?".
+  - [x] **DELIVERY-TREND core: per-scenario delivery direction across the run HISTORY (2026-07-01).** `aggregateRailEvidence`
+        ([rail-evidence.ts](src/core/rail-evidence.ts)) rolls the whole harvest into a worst-first scorecard, but it's
+        TIMELESS — it pools every `rail-*.json` report into one bucket, so it cannot tell a scenario that JUST started
+        failing (a fresh delivery regression — decisive, urgent) from one that has ALWAYS sat at 50% (chronic, long-known);
+        both land at the same delivery rate. Pure [rail-delivery-trend.ts](src/core/rail-delivery-trend.ts) —
+        `classifyRailDeliveryTrend({ reports, minWindowRuns?, regressEpsilon?, improveEpsilon? })` adds the missing TIME
+        dimension the §5.AI vision wants ("proof it STILL works over successive runs" + *sleeping* issues surfaced with
+        priority): it orders each scenario's runs chronologically by the report `at`, splits them into an earlier baseline
+        window and a recent window (last `minWindowRuns`), and classifies the direction `improving | stable | regressing |
+        insufficient_data` from the delivery-rate delta, flagging `newlyBroken` when a scenario delivered before but no
+        recent run delivers (the sharpest "used to work, now doesn't" signal). Returns MOST-CONCERNING-FIRST (newly-broken →
+        regressing by biggest drop → stable → improving → insufficient), with `regressingProjects`/`newlyBrokenProjects` for
+        the analysis pass to lead with. Composes by IMPORT with `rail-evidence.ts` (reuses its `RailEvidenceReport`/
+        `RailLaneEvidence` shapes — same harvest feeds both the snapshot rollup and this trend) and is orthogonal to
+        `test-regression-verdict.ts` (that answers "did THIS change break a test in ONE run?", this answers "is THIS
+        scenario's delivery trending worse across the rail's HISTORY?"). Fully injected (no fs/clock — `Date.parse` on the
+        injected `at` only, never `Date.now()`; undated runs sort last, no throw), deterministic, non-mutating, clamps all
+        bounds. 19 unit tests (regressing/improving/stable/insufficient, newlyBroken needs a positive baseline, chronology
+        vs. arrival order, epsilon gating, multi-scenario sort, unparseable-timestamp degradation, determinism, non-mutation);
+        tsc + vitest + biome green.
 - [x] **"Collect evidence" buttons reference the specific card — VERIFIED (2026-06-27), no fix needed.** Traced the
       per-**card** "Evidence" button end-to-end: [board-card.tsx](web-ui/src/components/board-card.tsx) `onCopyEvidence(card.id)`
       → `collectTaskEvidence({ taskId })` ([runtime-config-query.ts](web-ui/src/runtime/runtime-config-query.ts)) →
@@ -8124,6 +8144,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (tsc+biome green). **OWED WIRING (out of this core's scope):** clamp the `max_tokens` the request-assembly seam
       (`nklein-local-llm-client.ts` / the chat adapter) sets through this before dispatch, and route a
       `prompt_exhausts_window` verdict to compaction instead of a doomed budget bump.
+- [~] **Reasoning-aware OUTPUT-BUDGET sizing (pre-flight answer-starvation guard) — PURE CORE DONE (2026-07-01).**
+      [reasoning-output-budget.ts](src/core/reasoning-output-budget.ts) — `planReasoningOutputBudget({answerBudgetTokens,
+      modelId?, isReasoning?, estimatedReasoningTokens?, reasoningHeadroomMultiplier?}) → {totalMaxTokens,
+      reasoningReserveTokens, answerBudgetTokens, reason, reservedForReasoning}`. `max_tokens` caps the WHOLE generation, but a
+      reasoning model spends a large family-dependent slice on `reasoning_content` BEFORE any ANSWER token — so a budget that
+      is generous for a non-reasoning model STARVES the answer on a reasoning one (the live "burns 500–850 reasoning tok
+      first, then dead-ends at max_tokens 200/800/2000 alike" finding). This SIZES the total so the answer survives the burn:
+      `total = ceil(reasoningReserve × headroom) + answerBudget` for a reasoning model, `total = answerBudget` (no inflation)
+      otherwise. It is the PRE-flight MIRROR of the post-hoc `reasoningStarvedBudget` signal `completion-stop-reason.ts`'s
+      `deriveTruncationSignal` raises AFTER a starved turn — sizing it away instead of reacting to it, cutting the wasted
+      first attempt. **DISTINCT from the neighbours (grep-checked):** `lmstudio-max-tokens-clamp.ts` is reasoning-BLIND
+      (treats `max_tokens` as one pool + bounds it to the window) — this is the UPSTREAM sizer that produces its
+      `desiredMaxTokens`; `completion-stop-reason.ts` REACTS post-hoc; NO module reserved reasoning headroom pre-flight.
+      **COMPOSES** the single-source `isReasoningModel` (`model-thinking-control.ts`) — no duplicated regex; the
+      `isReasoning` override lets a caller suppress the reserve when reasoning is soft-disabled (`/no_think`) or force it for
+      a known reasoner. INJECT-only (prime directive #1): no tokenizer/model/clock/I·O — pure arithmetic over injected counts
+      + the composed string predicate; always returns a strictly-positive integer with `total == reserve + answer`.
+      Pure/total; 24 vitest tests (tsc+biome green). **OWED WIRING (out of this core's scope):** size the answer budget the
+      request-assembly seam (`nklein-local-llm-client.ts` / the chat adapter) wants through this, THEN clamp the result via
+      `clampMaxTokens`, so a reasoning model gets a starvation-proof `max_tokens` bounded to the loaded window.
 - [~] **Use per-request API metrics for REAL speed/MCSR + reasoning-overhead.** **reasoning_tokens DONE (2026-06-29):**
       `/v1` `usage.completion_tokens_details.reasoning_tokens` is captured on `LocalLlmToolCompletion.reasoningTokens`
       (live-verified to track reasoning overhead) — a §5.AA truncation/over-rumination signal on the endpoint we already use.
@@ -8476,7 +8516,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       byte-equality — no PARTIAL overlap) and from `cache-health.ts` (INTERPRETS runtime-reported `cache_n`/`cached_tokens`
       AFTER the fact — this PREDICTS from the planned structure BEFORE sending). Different axis from §5.AD smart-zone
       (attention) + §5.AE jit-fragment-budget (selection). Owed: consume it in an effectful cache-aware layout orderer +
-      log the predicted-vs-realized reuse on the §5.AF ledger.)**
+      log the predicted-vs-realized reuse on the §5.AF ledger.)** **(2026-07-01: THE LAYOUT ORDERER itself — the "effectful
+      cache-aware layout orderer" the reuse-estimator's own owed-list points to, and the "item D's orderer for the prefix"
+      that `cache-prefix-reuse.ts` + `cache-prefix-retention.ts` both explicitly DEFER to but that did not yet exist —
+      `src/core/cache-stable-prefix-order.ts`. Given a turn's fragments each tagged with a cache-STABILITY tier
+      (`PrefixStability` = `static`|`persistent`|`session`|`volatile`, most-stable→volatile), `orderFragmentsForStablePrefix`
+      emits the fragment ORDER that maximizes the byte-identical LEADING prefix a local runtime reuses: a STABLE PARTITION
+      by tier (fixed tier order; input order preserved WITHIN a tier — because reordering two equal-tier fragments between
+      turns would itself churn the prefix). `planCacheStablePrefixOrder` adds the CACHE BOUNDARY (`volatileBoundaryIndex` =
+      first-volatile index) + the stable-prefix vs volatile-tail token split (the concrete cache win). `planCacheStablePrefixWithReuse`
+      composes the sibling `estimatePrefixReuse` (by import, NOT edited) to score the new ordering's predicted reuse vs the
+      previous turn — proving the orderer RESCUES reuse a naive volatile-first input would have destroyed (cliff → stable
+      prefix survives). Unknown stability defaults to `volatile` (safe: late placement can only DEFER caching, never DEFEAT
+      it). 21 tests. This is the REORDER lever the guard (`cache-aware-prompt-layout.ts` lints one prefix, doesn't decide the
+      split from mixed fragments), the predictor (`cache-prefix-reuse.ts` scores but "neither reorders nor trims"), and the
+      pool arbiter (`cache-prefix-retention.ts` ranks whole prefixes, "never reorders a prompt") each left open. Distinct
+      AXIS from §5.AD `context-smart-zone.ts` (orders for ATTENTION/U-shape) — they agree at the extremes but answer
+      different questions; never trims (§6.2 stays safe — that's §5.AE `jit-fragment-budget.ts`). Owed: feed live per-fragment
+      stability tiers from the effectful assembler + hand the ordered fragments to `assembleCacheAwarePrompt` + log the
+      predicted-vs-realized reuse on the §5.AF ledger.)**
 - [ ] **E. Cache-HEALTH probe + adaptation playbook (caching FAILS SILENTLY + is engine/format-specific), decomposed.**
       Prefix caching only works on PURE full-attention models — **SWA / SSM-Mamba / mixed-attention silently fall back to
       full recompute** (MoE alone is fine). Real failures to be aware of: LM Studio #1697 (MLX GPT-OSS-20B broken, GGUF of
