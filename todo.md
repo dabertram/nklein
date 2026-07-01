@@ -4800,9 +4800,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       6→12. **PROVEN: `verify-chat-agent-e2e` on qwopus3.6-27b now completes the full 4-step chain
       (read_file→run_command→create_card→update_focus_chain, card PERSISTED, exit 3 = "chain executed + card persisted"; the
       only miss is the reply marker-echo = weak synthesis, not a capability gap), ~2.5 min — vs the pre-fix infinite step-1
-      spin.** Byte-identical happy path (the force-advance path only triggers on the stuck-branch). FOLLOW-UPS (per §5.0.1
-      "drill both directions"): harden the 9B↓ + scale to bigger models; `buildForceAdvanceContext` is tuned on the 27B +
-      format-coupled to `appendChatToolExchange` (generalize + per-model de-tune as the §5.AL catalog grows).
+      spin.** **ALSO CONFIRMED ON THE 9B (2026-07-01, post-commit re-verify, default config): `qwen3.5-9b-mlx-m4` now
+      completes the SAME full 4-step chain + persists the card (PARTIAL) — so the fix is genuinely MODEL-AGNOSTIC: the agentic
+      core works on BOTH the small 9B AND the mid 27B.** Byte-identical happy path (the force-advance path only triggers on
+      the stuck-branch). FOLLOW-UPS (per §5.0.1 "drill both directions"): (a) the reply SYNTHESIS quality — both models execute
+      the chain + persist, but the final reply doesn't echo the file marker (the tool WORK lands; the answer under-synthesizes)
+      → improve the final-answer turn; (b) scale to BIGGER models (needs non-resident loads — user-gated); (c)
+      `buildForceAdvanceContext` is 27B-tuned + format-coupled to `appendChatToolExchange` (generalize + per-model de-tune as
+      the §5.AL catalog grows). The 9B↓ hardening follow-up is largely SATISFIED (the 9B already passes).
       **WIRED ON THE CHAT PATH (2026-06-28):**
       `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
       LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the
