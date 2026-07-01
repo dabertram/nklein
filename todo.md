@@ -306,6 +306,7 @@ source repo went private — so if it vanishes the buildable source still lives 
 - **Never put a RAW control character in source — use the 6-char backslash-u-0000 escape, not a literal NUL byte.** Composite map keys use U+0000 as a collision-proof delimiter (template literal `a` + NUL + `b` — a NUL can't appear in a modelId/role/path). Writing it as a *raw* NUL byte makes the whole file **binary to `grep`/`rg`** (they print "binary file matches" and skip it), so symbol searches in that file silently return nothing — a real correctness hazard for both humans and agents (it broke a `summarizeModelOutcomes` search mid-session). The escape yields the byte-identical runtime string while keeping the file text/greppable. Found + fixed across `agent-attempt-ledger.ts` / `agent-ledger-projections.ts` / `nklein-embedding-idle-unload.ts` / `model-performance-stats-dialog.tsx` (2026-06-30). (Meta-gotcha: typing the literal escape token into a tool input round-trips to a real NUL in this harness, so describe it in words.) Scan: `find src web-ui/src -name '*.ts*' -exec perl -0777 -ne 'print "$ARGV\n" if /\0/' {} \;`.
 - **Self-referential `replace_all` when extracting a helper: add the helper body AFTER the sweep, or it rewrites ITSELF into infinite recursion (2026-06-30).** Consolidating an inline pair (`providerId: …, modelId: …`) at N call sites into a `resolveTaskModelIdentity()` helper: I added the helper (whose body IS that exact pair) and THEN `replace_all`'d the pair → `...this.resolveTaskModelIdentity(x)`. The sweep matched the helper's OWN body too, making it `return { ...this.resolveTaskModelIdentity(x) }` — infinite self-recursion. **tsc PASSES it (type-valid); only the runtime suite catches it** (here: `RangeError: Maximum call stack size exceeded` across 57 service tests at once). Mitigations: do the `replace_all` FIRST then add the helper, or give the helper's body a shape the pattern can't match, or just re-read the helper after the sweep. General lesson: a green tsc is necessary-not-sufficient for a mechanical multi-site refactor — the full suite is the real gate (this is why every extraction here is suite-gated, not just tsc-gated).
 - **`response_format: json_schema` structured output DEAD-ENDS on qwen3.5 / qwopus3.6 REASONING models → `finish_reason:stop` with EMPTY `content` (2026-07-01, live-probed via 127.0.0.1:1234 on resident qwen3.5-9b AND qwopus3.6-27b).** The grammar constraint conflicts with the reasoning channel: the model emits ~16–20 reasoning tokens (captured in `message.reasoning_content`) then STOPS with no JSON in `content`, at `max_tokens` 200/800/**2000 alike** ⇒ a grammar dead-end, NOT a budget cap. Reproduces on the capable **27B** (so it's the reasoning FAMILY, not size — the "<7B" caveat in the §5.AN structured-output note is wrong), and `/no_think` / a "don't think" nudge does nothing (qwen3.5 ignores it — reasoning even GREW to 845 tok). **⇒ The codebase's "THE forcing lever = constrained decoding" (§5.AN, live-verified 2026-06-29 on qwen2.5-coder-14b + phi-4-mini — both NON-reasoning) is reasoning-model-INCOMPATIBLE: the §5.AA constrained-tool-call rung silently returns EMPTY on the current all-reasoning resident tier.** ROBUST fallback (live-verified same probe): NO grammar + LARGE budget (the model burns 500–850 reasoning tok first) + parse the JSON object from the small post-reasoning `content` (546 reasoning tok → 41-char `content` = valid `{…}`). Structured-output strategy MUST be reasoning-aware: json_schema for non-reasoning, prose-extract for reasoning. `lmstudio-response-format.ts` stays envelope-correct; its applicability is model-gated. (Owed: a positive control on a resident NON-reasoning model to re-confirm json_schema works there — none loaded now; don't disrupt the user's resident set just to get one. Probes: `scratchpad/probe-structured-output*.py`.)
+- **FIX for the above: native TOOL-CALLING WORKS on reasoning models where `json_schema` dead-ends (live-probed 2026-07-01, qwen3.5-9b + qwopus3.6-27b).** `tools` + `tool_choice:"required"` returns `finish_reason:tool_calls` with a VALID tool_call after ~55–171 reasoning tokens (fast 4–12s; guaranteed schema-valid `arguments`) — the model reasons freely, then the call lands in the SEPARATE `tool_calls` channel, so there is no grammar-vs-reasoning conflict (`"auto"` and `"required"` both work). **⇒ To FORCE structured output from a reasoning model, wrap the target schema as ONE tool's `parameters` + `tool_choice:"required"`, NOT `response_format:json_schema`.** CONFIRMED IN-CODE: the §5.AA constrained-tool-call FORCING-FALLBACK rung (`chat-local-llm-adapter.ts` ~242/256 → `buildConstrainedToolCallSchema` → `response_format:json_schema`, then `parseConstrainedToolCall(constrained.content)`) reads from `content` — EMPTY on a reasoning model ⇒ null ⇒ forces nothing (a verified no-op on the all-reasoning resident tier). IMPACT IS BOUNDED: the PRIMARY `completeWithTools` path already uses native tools and works on reasoning models, so ONLY the force-a-RELUCTANT-call recovery is dead; fix = force that fallback via native `tool_choice:"required"`. Decision core shipped: `structured-output-strategy.ts::selectStructuredOutputStrategy` (reasoning→`native_tool_call`, confident-non-reasoning→`json_schema_grammar`, unknown→`native_tool_call`) composing `isReasoningModel` in `model-thinking-control.ts`; the `prose_extract` last-resort reuses `repairJsonValue`. Probes: `scratchpad/probe-tool-call.py`.
 - **MODEL LOADING — !Klein MANAGES IT, GUARDED (user handover 2026-06-29; supersedes the 2026-06-28 no-load rule).**
   **TEMPORARY / REVOCABLE: the user re-confirmed (2026-06-29) "you can load/unload yourself, as you need — just don't
   overload the system … not a forever rule, until further notice."** So treat load control as ON now, but watch for the
@@ -2171,6 +2172,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > compute is for **developing, testing, and maturing !Klein toward a release-able version**. Detailed
 > perf/efficiency/quant/context sweeps are **only reconsidered AFTER the feature set + behavior are stabilized and
 > the user explicitly calls a version release-able** — in *later* rounds, if at all. Until then: don't.
+- [~] **Structured-output robustness is now REASONING-AWARE (2026-07-01; core built under §5.AN).** A key small/local-model
+      output failure mode: `response_format:json_schema` DEAD-ENDS to empty `content` on REASONING models (qwen3.5/qwopus3.6),
+      so any "force a parseable JSON/tool-call via grammar" path silently returns nothing on them. The pure decision core —
+      [structured-output-strategy.ts](src/core/structured-output-strategy.ts) `selectStructuredOutputStrategy` +
+      [model-thinking-control.ts](src/core/model-thinking-control.ts) `isReasoningModel` — routes reasoning models to native
+      `tool_choice:"required"` (works) and confidently-non-reasoning models to the json_schema grammar. Full detail + owed
+      runtime wiring: see §5.AN. (Robustness fix per this section's IN-SCOPE mandate; the wiring lands the shipped behavior.)
 - [x] **Repeated-tool-call guard hardened against false-pauses (structural; 2026-06-24)** — the guard used to
       fingerprint on the *lossy display summary*, so any stateful workflow tool whose summary collapsed across
       advancing calls was falsely paused as "3 repeated … with the same input" (hit twice: `read_large_file`'s
@@ -4725,7 +4733,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `parseConstrainedToolCall(content, tools)` parses the response back into a known call — tolerant of `{tool,…}` /
       `{name,…}` / OpenAI `{function:{…}}` shapes, JSON-string args, and JSON wrapped in prose/```json fences; a
       hallucinated (unoffered) name ⇒ `null` (fall through). Pure, generic over `LocalLlmToolDefinition`, 10 tests; tsc +
-      biome green. **Also = phase (b) substrate of reason-then-act below.** **WIRED ON THE CHAT PATH (2026-06-28):**
+      biome green. **Also = phase (b) substrate of reason-then-act below.**
+      **⚠ REASONING-MODEL CAVEAT (2026-07-01, live-probed — see §5.AN + §4A): this rung's `response_format:json_schema`
+      forcing is BROKEN on REASONING models (qwen3.5-9b, qwopus3.6-27b) — it returns `finish_reason:stop` with EMPTY
+      `content` (grammar vs the reasoning channel), so the "guaranteed parseable call" silently yields NOTHING on the
+      current all-reasoning resident tier. The fix (live-verified same probe): force via NATIVE `tools`+`tool_choice:
+      "required"` (the call lands in the separate `tool_calls` channel → valid args, fast) for reasoning models, keep
+      `response_format:json_schema` for confidently-NON-reasoning models. Route the choice through the new
+      [structured-output-strategy.ts](src/core/structured-output-strategy.ts) `selectStructuredOutputStrategy` (§5.AN);
+      wiring THIS rung onto the strategy (native-tool-call branch for reasoning ids) is the owed hot-path work.**
+      **WIRED ON THE CHAT PATH (2026-06-28):**
       `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
       LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the
       optional `client.complete(..., {format:{jsonSchema}})` with the forced-tool-call schema, then
@@ -7406,6 +7423,41 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   made to actually ENFORCE. Pure + total; 37 vitest tests (tsc + biome green). OWED WIRING (out of this core's scope):
 >   route the ad-hoc `response_format` assembly in `nklein-local-llm-client.ts` (and the §5.AE `preferStructuredOutput`
 >   path in `skill-api-profile-request.ts`) through this validated builder so a malformed strict schema is caught pre-flight.
+>   - **[~] REASONING-AWARE STRATEGY CORE DONE (2026-07-01) — the "which mechanism" decision above the envelope builder.**
+>     NEW live finding folded in: native TOOL-CALLING WORKS on the SAME reasoning models where json_schema dead-ends —
+>     live-probed 127.0.0.1:1234 on qwen3.5-9b AND qwopus3.6-27b, a request with `tools`+`tool_choice:"required"` (also
+>     `"auto"`) returns `finish_reason:tool_calls` with a VALID `{"city":"Paris"}` after only ~55–171 reasoning tokens,
+>     fast (4–12 s), guaranteed args — because the call lands in the SEPARATE `tool_calls` channel, no grammar-vs-reasoning
+>     conflict (unlike json_schema, which constrains the *content* channel and dead-ends). ⇒ **This REFRAMES the §5.AA
+>     constrained-tool-call rung: forcing a call via `buildConstrainedToolCallSchema`→`response_format:json_schema` is
+>     BROKEN on reasoning models (silent empty content); the fix is native `tool_choice:"required"` on the tools channel.**
+>     Built [structured-output-strategy.ts](src/core/structured-output-strategy.ts): `type StructuredOutputStrategy =
+>     "json_schema_grammar" | "native_tool_call" | "prose_extract"` + `selectStructuredOutputStrategy(modelId, opts?) →
+>     {strategy, reason, confident}`. CONSERVATIVE, grounded contract (asymmetric cost: json_schema on a reasoning model
+>     fails SILENTLY-empty): REASONING model → `native_tool_call` (confident; wrap the target schema as one tool's
+>     `parameters` + `tool_choice:"required"`); CONFIDENTLY-NON-reasoning family → `json_schema_grammar` (confident;
+>     strongest guarantee, live-verified coder-14b/phi-4-mini); UNKNOWN/unrecognized → `native_tool_call` (NOT confident —
+>     safe universal default, worked on every model probed); `opts.forceProseExtract` escape hatch → `prose_extract` when a
+>     host has neither tools nor a working grammar. Pure/deterministic; composes `isReasoningModel` (Part A, below) — no
+>     duplicated regex. **PART A DONE (same commit):** ADDITIVE `isReasoningModel(modelId)` + `isRecognizedModelFamily(modelId)`
+>     added to [model-thinking-control.ts](src/core/model-thinking-control.ts) reusing the existing `/qwen-?3/` +
+>     `ALWAYS_REASONING_EXCLUDE` regexes (single source of truth) plus a new `QWEN3X_REASONING_LINE` (`qwen3.5/3.6`,
+>     `qwopus3.5/3.6`) and an `OTHER_REASONING_FAMILIES` name matcher (`-reasoning`/`-thinking`, `qwq`, `magistral`);
+>     TRUE for the resident reasoners (qwen3.5-9b, qwopus3.6-27b, deepseek-r1-…-qwen3-8b, phi-4-mini-reasoning, magistral),
+>     FALSE for the non-reasoners (qwen2.5-coder-14b, phi-4-mini-instruct, gemma-4, mistral-small, llama-3.3-70b). Existing
+>     thinking-control exports are BYTE-IDENTICAL (the 3.x/qwopus line is NOT added to `ALWAYS_REASONING_EXCLUDE`, so
+>     `getThinkingControl` is unchanged). tsc + biome green; the two files carry 64 vitest tests; the full fast suite
+>     (`test/runtime`+`test/utilities`) stays 4780/4780. **PROSE→JSON EXTRACTOR — grep-confirmed reusable, NOT built/wired:**
+>     `nklein-tool-argument-repair.ts`'s exported **`repairJsonValue`** IS the intended `prose_extract` seam (the shared,
+>     documented "single, well-tested recovery": passthrough→parse→unfence→first-balanced-`{…}`→repairs).
+>     `nklein-constrained-tool-call.ts` has a private `extractFirstJsonObject` (tool-call-shaped, unexported) and
+>     `extraction-span.ts` is a TEXT-window extractor (NOT JSON) — so NO new extractor is owed. **OWED WIRING (kept out of
+>     this pure core):** route the runtime structured-output path (the §5.AA constrained-tool-call rung + the §5.AE
+>     `preferStructuredOutput` path) through `selectStructuredOutputStrategy` → for `native_tool_call` emit the single-tool
+>     `tool_choice:"required"` request and read `tool_calls`; for `json_schema_grammar` use `buildJsonSchemaResponseFormat`;
+>     for `prose_extract` use no-grammar + big budget + `repairJsonValue`. Owed positive control unchanged (re-confirm
+>     json_schema on a resident NON-reasoning model — none loaded now; don't disrupt the user's set). Probes:
+>     `scratchpad/probe-structured-output*.py`.
 > - **Tool-call parsing:** native families (Qwen2.5, Llama-3.1/3.2, Ministral — "hammer" badge) emit `<tool_call>{name,arguments}`;
 >   all others get LM Studio's **`[TOOL_REQUEST]…[END_TOOL_REQUEST]`** default-format injection (exactly the §5.AA narrated-recovery case).
 > - **Reasoning control (live-verified):** Qwen3 **`/no_think`** soft switch (message-appended) disables reasoning (965→2 chars,
