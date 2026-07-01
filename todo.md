@@ -7827,6 +7827,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   Captured in [model-thinking-control.ts](src/core/model-thinking-control.ts) (extend the matcher per family as verified).
 > - **`ttl` (auto-evict) + JIT loading:** a request-level `ttl` controls how long a model stays loaded; JIT-load on first request.
 >   (Doc page 404'd on fetch — re-verify the exact field; the `lms load --ttl` flag is the CLI analogue.)
+>   **[~] SUGGESTION-POLICY CORE DONE (2026-07-01):** [lmstudio-keep-alive-ttl.ts](src/core/lmstudio-keep-alive-ttl.ts)
+>   — `suggestModelKeepAliveTtl({usagePattern, memoryPressure?, loadCostSeconds?, unbounded?}) → {ttlSeconds|null, reason}`,
+>   the PURE decision core that turns usage signals into a *suggested* auto-evict TTL (the value the guarded loader would
+>   pass as `LmsLoadOptions.ttlSeconds` → `lms load --ttl S`, or the `/api/v1/models/load` TTL field). **SUGGESTION-ONLY
+>   (prime directive #1):** it returns a number/`null` and NOTHING else — no clock, no I/O, never loads/unloads; a TTL is
+>   a self-eviction hint the server enforces on its own timer, so suggesting one triggers no load and no immediate unload,
+>   and the policy never *extends* a running model's residency nor issues an unload — worst case it advises a shorter
+>   self-eviction window. Balances reload cost (a `sweep_probe` self-evicts fast; `active_session`/`batch_queue` stay warm;
+>   an `idle` model with a large `loadCostSeconds` is lengthened to amortize a costly reload) against memory cost
+>   (`memoryPressure:"high"` CAPS the suggestion downward only — the freeze-avoidance concern behind §5.AB/`model-load-headroom.ts`);
+>   `unbounded:true` → `null` (no `--ttl`, leave resident) but is downgraded to the pressure cap under high pressure (safety
+>   wins). Clamped to [30,3600]s + whole seconds. Pure/deterministic; 17 vitest tests (tsc+biome green). **OWED WIRING (out
+>   of this core's scope):** consult it in the guarded loader (`lms-model-runner.ts`, which already forwards a `ttlSeconds`
+>   to `buildLmsLoadArgs`) so a sweep-loaded model self-evicts fast while an interactive session stays warm.
 >
 > **Leverage backlog (try ALL of these to lift a weak/stuck model — wire as §5.AA rungs / §5.AB signals; each behind a §5.Z re-verify):**
 - [~] **Use per-request API metrics for REAL speed/MCSR + reasoning-overhead.** **reasoning_tokens DONE (2026-06-29):**
@@ -8022,12 +8036,29 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       **NEVER auto-execute bundled scripts** (`scripts/*` = RCE-by-default; require explicit human review/approval; treat any
       executable in a "productivity" skill as a red flag). Constrain CREDENTIALS/identity, not just destination domains (the
       silent-internal-API-key exfil PoC bypassed a domain allowlist). Enforce the Rule of Two at the session level.
-- [ ] **E. Deterministic NON-LLM pre-screen (the only "checking" that adds zero prompt-exposure), decomposed:** static scan
+- [~] **E. Deterministic NON-LLM pre-screen (the only "checking" that adds zero prompt-exposure), decomposed:** static scan
       for injection markers ("ignore previous", role-override, zero-width/homoglyph unicode, hidden HTML/base64 blobs),
       bundled executables/binaries, secret-access + egress patterns, size/complexity limits. Surface as `promptInjectionRiskFlags`
       (§5.AC). Optionally shell out to an existing scanner as an ADVISORY signal only (Snyk `agent-scan` Apache-2.0, NVIDIA
       SkillSpector, Invariant `mcp-scan` for hash-pinning) — never as the gate ("risk reduction, not elimination"; blind to
       post-install updates + conditional/time-delayed activation).
+      **(2026-07-01) BODY-SCAN PURE CORE done** (the leaf explicitly OWED when `skill-md-parse.ts` shipped — a SEPARATE pure
+      core, by design): `src/core/skill-injection-prescreen.ts` — `prescreenSkillInjection(manifest, body, options?)` takes an
+      already-parsed `ParsedSkillManifest` (imported BY TYPE from skill-md-parse — not modified) + its markdown `body` as
+      INJECTED values (no fs/network/model/exec) and returns a discriminated `{ verdict: "safe"|"review"|"reject", findings[],
+      reason }`. Static, table/regex-driven scan across four families → machine-stable `InjectionFindingCode`s: (a) injection /
+      jailbreak phrasing — `ignore_previous_instructions`, `role_override` (incl. DAN/developer-mode), `system_prompt_probe`,
+      `instruction_override` (→ reject); (b) egress / secret access — `data_exfiltration`, `secret_access` (.env/API-key/SSH),
+      `embedded_endpoint` (→ reject/review); (c) hidden content a reviewer's eyes miss — `zero_width_unicode`,
+      `bidi_control_unicode` (Trojan Source), `homoglyph_mixing` (intra-token Latin+Cyrillic/Greek), `hidden_html_comment`,
+      `opaque_blob` (long base64/hex) (→ review); (d) COMPOSES with §5.L capability surface — `capability_overreach` when
+      `allowed-tools` exceeds an INJECTED `allowedToolBaseline`, plus `oversized_body` (→ review). Verdict = worst severity;
+      findings sorted worst-first with bounded evidence excerpts. It DETECTS-FOR-CONTAINMENT: `safe` = *absence of known-bad
+      markers*, NEVER a trust assertion (still route via §5.AP.C opt-in + §5.L); never executes/fetches/reads. Pure + total
+      (defensive on non-string body). 37 tests; tsc + biome clean. OWED leaves: (i) bundled-file scan — executables/binaries
+      in `scripts/`/`assets/` (needs the §5.AP.A bundled-file manifest leaf (b) first); (ii) the effectful ADVISORY shell-out
+      to Snyk `agent-scan` / SkillSpector / `mcp-scan` (a runtime seam, never the gate); (iii) wiring the verdict into a
+      `promptInjectionRiskFlags` / §5.AC quarantine record at the containment boundary.
 - [ ] **F. Sacrificial LLM classifier — ONLY if used at all, decomposed:** if an LLM must read a skill, run it in a
       ZERO-privilege ephemeral context (no tools, no secrets, no egress) emitting a constrained verdict — treat the verdict as
       ADVISORY and NEGATIVE-only (it may flag-dangerous; a "safe" is never trusted, since a hijacked classifier lies, and
@@ -8174,9 +8205,30 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         upgrade engine (mlx-engine ≥v1.8.5 256-tok checkpoints; llama.cpp `--checkpoint-every-n-tokens`); when a model's
         cache is broken AND the task is latency-sensitive, WARN + fall back to a cache-friendly model (reserve broken-cache
         models for short/one-shot calls); add a per-request TTFT/timeout WATCHDOG (the hang/OOM variants can freeze the box).
-  - [ ] **Swarm caveat — parallel slots EVICT each other's cache** (subagents thrash the main agent, openclaw #19892 class):
+  - [~] **Swarm caveat — parallel slots EVICT each other's cache** (subagents thrash the main agent, openclaw #19892 class):
         pin a stable agent session to a fixed `id_slot`, give subagents distinct slots, prefer stateful endpoints
         (`/v1/responses`) over rebuilding stateless history. Ties §5 per-machine pools + the swarm.
+        **(2026-07-01: PURE RETENTION/EVICTION POLICY done — `src/core/cache-prefix-retention.ts`: the pool-level
+        "which of these N warm prefixes do I sacrifice" arbiter this caveat needs when more distinct prefixes are in play
+        (multi-session board / a swarm each warming its own prefix) than the bounded prefix-cache holds. `CachedPrefix` =
+        `{ id, tokenCount, ageSinceUse, hitRate?, pinned? }` (token SIZE, injected RECENCY as a pre-computed age so the
+        module stays clock-free, observed HIT-RATE, PIN). `prefixRetentionValue` scores each prefix cost-aware in the
+        GreedyDual-Size-Frequency family: `((hitRate+1)·0.5^(age/halfLife))/tokenCount` — reward reuse + recency, PER
+        TOKEN so a big cache must earn its footprint (a plain LRU that discards a large hot SHARED prefix to keep a tiny
+        one-shot is exactly this anti-pattern). `decidePrefixRetention(prefixes, budgetTokens)` → `{ keep, evict,
+        keptTokens, overBudget, reason }`: pins retained first + never evicted (item E's "pin a stable agent session to a
+        fixed slot"; may overrun → `overBudget` reported, never hidden), then fill by value desc (ties → smaller
+        footprint → input order), cache-coherent packing (a too-big high-value prefix yields to several small ones).
+        `shouldAdmitPrefix(current, candidate, budget)` = the admission half ("worth warming? what do I sacrifice?" —
+        rejects a one-shot that would evict a hotter incumbent). `rankPrefixesByRetention` surfaces the eviction order for
+        a panel. 30 tests. DISTINCT axis from every §5.AQ cache sibling — those each act on ONE prefix: `cache-prefix-
+        reuse.ts` PREDICTS partial reuse for one next-turn pair, `cache-aware-prompt-layout.ts` LINTS one prefix,
+        `cache-health.ts` INTERPRETS one request's runtime counts, `fast-memory-fit.ts` `kvCacheBudgetBytes` sizes ONE
+        model's KV budget in bytes; none arbitrate a POOL under a shared budget. Works in TOKENS (the unit
+        `kvCacheBudgetBytes`/`context-budget-knee.ts` already speak). Owed wiring: feed live `(id_slot → prefix size +
+        last-use age + ledger hit-rate)` from the effectful cache/slot manager, pin the main session, call
+        `shouldAdmitPrefix` before warming a subagent prefix + `decidePrefixRetention` to pick evictions, and log the
+        retained/evicted set + realized subsequent hit-rate on the §5.AF ledger.)*
   - [ ] **Use LM Studio's STATEFUL `/v1/responses` (`previous_response_id`) where usable (user 2026-06-29 starting-point):**
         the SERVER holds the conversation register, so the CLIENT never re-formats history — which is a common silent
         cache-killer (e.g. reasoning/`<think>` tokens re-templated differently per turn). Reported ~95%+ cached input
