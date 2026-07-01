@@ -159,3 +159,24 @@ export function planNextAttempt(input: {
 		reason: decision.reason,
 	};
 }
+
+/**
+ * The §5.AA truncation-recovery ESCALATION POLICY: how many output tokens to grant on retry after a `finish:"length"`
+ * truncation (a reasoning model that exhausted its budget on `reasoning_content` before the tool call — live-grounded
+ * with qwen3.5/qwopus, 2026-07-01). Doubles the budget per retry attempt (attempt 1 → ×2, attempt 2 → ×4, …), clamped to
+ * a `ceiling` (derive from the model's context window minus the prompt) and never below the current budget. This is the
+ * root-cause fix for the models where thinking-control can't help — every `ALWAYS_REASONING_EXCLUDE` reasoner (qwen3.5,
+ * phi-4-mini, R1 distills) ignores `/no_think`, so a bigger budget is their ONLY recovery.
+ *
+ * Pure. The owed wiring: add a `raise_token_budget` rung to the `aborted` ladder and have the model-call seam apply THIS
+ * to the retry's `maxTokens`.
+ */
+export function raisedTokenBudget(input: { current: number; attempt: number; ceiling?: number }): number {
+	const base = Math.max(1, Math.trunc(input.current));
+	const attempt = Math.max(1, Math.trunc(input.attempt));
+	// 2**attempt can grow fast; cap the exponent so a high attempt count can't overflow to a nonsensical number.
+	const factor = 2 ** Math.min(attempt, 10);
+	const raised = base * factor;
+	const ceiling = input.ceiling === undefined ? Number.POSITIVE_INFINITY : Math.max(base, Math.trunc(input.ceiling));
+	return Math.min(raised, ceiling);
+}

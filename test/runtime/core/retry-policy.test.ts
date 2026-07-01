@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { buildFailureCapsule } from "../../../src/core/failure-capsule";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 import { emptyModelBehaviorProfile } from "../../../src/core/model-behavior-profile";
-import { decideNextRetryStrategy, planNextAttempt, retryLadderForOutcome } from "../../../src/core/retry-policy";
+import {
+	decideNextRetryStrategy,
+	planNextAttempt,
+	raisedTokenBudget,
+	retryLadderForOutcome,
+} from "../../../src/core/retry-policy";
 
 describe("decideNextRetryStrategy", () => {
 	it("parks immediately on a success (nothing to retry)", () => {
@@ -135,5 +140,30 @@ describe("planNextAttempt (unified §5.AA brain)", () => {
 		const plan = planNextAttempt({ lastOutcome: "malformed", attemptsSoFar: 0, profile, capsules: [] });
 		expect(plan.doNotRepeatNote).toBe("");
 		expect(plan.strategy).toBe("constrained_schema"); // first malformed rung
+	});
+});
+
+describe("raisedTokenBudget (§5.AA truncation-recovery escalation)", () => {
+	it("doubles the budget per attempt", () => {
+		expect(raisedTokenBudget({ current: 1024, attempt: 1 })).toBe(2048);
+		expect(raisedTokenBudget({ current: 1024, attempt: 2 })).toBe(4096);
+		expect(raisedTokenBudget({ current: 1024, attempt: 3 })).toBe(8192);
+	});
+
+	it("clamps to the ceiling and never returns below the current budget", () => {
+		expect(raisedTokenBudget({ current: 1024, attempt: 4, ceiling: 3000 })).toBe(3000); // 16384 → clamped
+		// A ceiling below `current` still returns at least `current` (never shrink the budget on a truncation retry).
+		expect(raisedTokenBudget({ current: 2048, attempt: 1, ceiling: 100 })).toBe(2048);
+	});
+
+	it("guards degenerate inputs (attempt<1 floors to 1; non-integer current is truncated)", () => {
+		expect(raisedTokenBudget({ current: 1000, attempt: 0 })).toBe(2000); // attempt floored to 1 → ×2
+		expect(raisedTokenBudget({ current: 1000.9, attempt: 1 })).toBe(2000); // current truncated to 1000
+	});
+
+	it("caps the growth exponent so a huge attempt count can't overflow to nonsense", () => {
+		// attempt 50 would be 2**50×; the exponent is capped at 10 (×1024), then the ceiling applies.
+		expect(raisedTokenBudget({ current: 1024, attempt: 50 })).toBe(1024 * 1024);
+		expect(raisedTokenBudget({ current: 1024, attempt: 50, ceiling: 40000 })).toBe(40000);
 	});
 });
