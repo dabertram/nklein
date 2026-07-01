@@ -6345,7 +6345,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         the model-call seam and, when it enforces, fire the chosen kind via the §5.K reviewer seam (`cross_model_carry`) /
         §5.AA prompt-variation (`self_bounce_varied`) / the `self-consistency.ts` `majorityVote` (`self_consistency`),
         composed with the round-limit + stall/no-progress detection (the next two leaves below).
-  - [ ] Integrate round-limit + stall/identical-loop detection (reuse §5.K + §5.S + §5.AA seams); compose into one explicit loop.
+  - [~] Integrate round-limit + stall/identical-loop detection (reuse §5.K + §5.S + §5.AA seams); compose into one explicit loop.
+        **PURE CORE DONE (2026-07-01):** [src/core/enforced-reasoning-round-stop.ts](src/core/enforced-reasoning-round-stop.ts)
+        `decideReasoningRoundStop(input)` → `{continueLoop, verdict, roundsUsed, roundsRemaining, bestQuality,
+        lastRoundIsBest, reason}`. The per-round CONTINUE|STOP decider that runs AFTER each round produces a result and
+        reads the OBSERVED inter-round quality trajectory — the runtime companion to `enforced-reasoning-gate.ts`, which
+        only decides UP-FRONT (enforce?/kind?/a static round BUDGET). Stops on `exhausted` (budget spent — the hard §5.K
+        terminating bound, checked first), `converged` (last round clears an optional `targetQuality` bar), `regressed`
+        (last round fell below the running best past `regressEpsilon` — Huang-et-al: self-correction now hurting, keep the
+        best), `settled` (self-consistency `agreement` ≥ threshold ⇒ more samples won't move the vote), or `plateaued`
+        (gain over the best < `plateauEpsilon` — diminishing returns); else `continue`. Always terminating (`roundsUsed`
+        strictly increases toward the finite budget); tracks `bestQuality` + `lastRoundIsBest` so the caller keeps the
+        best output even when a later round regresses. **Boundary (no dup):** distinct from the gate's up-front
+        `roundsForDifficulty` budget (this CONSUMES that as `roundBudget` and can stop well short); reads a
+        quality-vs-ROUND trajectory, NOT §5.AD `context-budget-knee.ts`'s quality-vs-TOKENS curve; consumes (does not
+        produce) §5.AD `self-consistency.ts`'s `agreement`. Pure/deterministic, non-mutating, no tokenizer (per-round
+        scores + counters injected as numbers); 30 unit tests; tsc + biome green. **Still owed:** the effectful loop that
+        composes the gate + this stop policy + the §5.AA prompt-variation / §5.K reviewer / `majorityVote` seams into one
+        explicit, running loop at the model-call site (behind a live §5.Z re-verify).
   - [ ] Test: verify weak model on hard task gets cross-model carry; robust model on easy task skips loop.
 - [ ] **Learn "needs enforced reasoning?" + kind (per model), decomposed:**
   - [ ] Track native-reasoning quality in `ModelBehaviorProfile`: measure how often model reasons correctly alone.
@@ -7693,6 +7710,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         split mirrors `task-file-overlap` so a shared manifest/lockfile/barrel never Red-blocks a wide fan-out. 36 tests;
         tsc+biome green. **Owed WIRING:** feed the decompose card schema (write-scope/forbidden from `nklein-write-scope`)
         into these verdicts + gate an actual subagent fan-out on the waves/groups.
+  - [x] **Conflict-RESOLUTION suggester — the "so how do I FIX each conflict" companion to the classifier — PURE CORE DONE
+        (2026-07-01):** [`src/core/work-package-conflict-resolution.ts`](src/core/work-package-conflict-resolution.ts) turns a
+        raw `PackagePairConflict` (a diagnosis) into a prescription — the exact GAP left by `work-package-dispatch.ts`
+        (which only *detects* Green/Yellow/Red) and `work-package-integration-order.ts` (which only *orders* the fan-IN):
+        neither answered *what the lead-coder / a steered small-model worker should DO* the instant a non-green pair appears.
+        `suggestPairConflictResolution(conflict, left?, right?)` maps the overlap SIGNAL to ordered, best-first
+        `ResolutionOption`s each with the §5.AK rationale: a shared *specific* write target → `rescope_over_broad` (narrow an
+        over-broad directory glob that merely *contains* the file — a scoping bug; offered per side only when the packages
+        are injected) → `split_scope` (give the file to one owner, disjoint ⇒ Green) → `serialize` (the §5.AK "RED — one owner
+        at a time" catch-all, always last); a write-into-forbidden → `drop_forbidden_write` (parses the offending target out
+        of the sibling's violation string) → `serialize`; a shared *coarse*/barrel path → `assign_insertion_point` (the §5.AK
+        "YELLOW — lead-pre-assigned insertion points" rule, no serialize needed). `recommended` = the most parallel-preserving
+        applicable fix (options[0]); `suggestConflictResolutions(packages)` runs `detectWorkPackageConflicts` and returns a
+        resolution per non-green pair (threading the packages so rescope stays offer-able); `resolvePackagePairConflict(l,r)`
+        is the diagnose+prescribe convenience. Composes `classifyPackagePairConflict`/`detectWorkPackageConflicts` by import
+        (no dup, existing files untouched); pure + total (null on green, never throws, de-dups ids, degrades gracefully if the
+        violation-string shape changes). 24 tests; tsc+biome green. **Owed WIRING:** surface the recommended fix on the
+        decompose-card conflict view / auto-apply `split_scope`+`rescope_over_broad` to re-run the fan-out as parallel-safe.
   - [ ] Ties §5.B decomposition + §5.N focus chains.
 - [ ] **Path-owned acceptance gates per card, decomposed:**
   - [ ] Define executable checks that prove card delivery (build/test/typecheck/acceptance).
@@ -8197,6 +8232,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (a) the §5.AP.E deterministic injection PRE-SCREEN over the parsed body (separate pure core — NOT this one, by design);
       (b) the bundled-file manifest (`scripts/`/`references/`/`assets/`) parser; (c) wiring the parsed manifest into the
       §5.AE `Skill` shape + reading a real SKILL.md off disk at the effectful seam.
+      **(2026-07-01) BUNDLED-FILE MANIFEST LEAF (b) done** (the OWED leaf (b) above — a SEPARATE pure core, standalone over
+      an INJECTED entry list, NOT coupled to `ParsedSkillManifest`, by design): `src/core/skill-bundled-file-manifest.ts` —
+      `validateBundledFileManifest(entries, options?)` takes the LIST of a skill's declared bundled files (each
+      `{ path, sizeBytes?, mode? }`, as an effectful directory-listing seam would enumerate them — no fs/network/exec here)
+      and returns a discriminated `{ verdict: "safe"|"review"|"reject", entries, findings, reason }`. Validates each entry's
+      SHAPE + containment posture with pure string rules (no `path`/`fs` import, platform-independent) → machine-stable
+      `BundledFileFindingCode`s: PATH TRAVERSAL (`..` climbing out of the root → `path_traversal`, reject); ABSOLUTE paths
+      (`absolute_path` POSIX `/…`, `windows_drive_path` `C:\…`, `unc_path` `\\host\…` → reject); OUT-OF-ROOT prefix
+      (`unexpected_root`, review) with a per-entry `BundleCategory` (`scripts`/`references`/`assets`/`custom`/`out_of_root`/
+      `invalid`) so §5.AP.D/§5.AP.E(i) can branch on it; obfuscation (`backslash_separator`, `control_char_in_path` — NUL/C0/
+      zero-width, review); EXECUTION SURFACE per §5.AP.D (`executable_mode` set-x bit, `executable_script` script/native-binary
+      extension — the "never auto-execute `scripts/*`" surface, review); shape defects (`invalid_entry`/`empty_path`/
+      `duplicate_path`/`oversized_path`/`oversized_file`). Normalises `.`/empty segments WITHOUT resolving `..` (resolving
+      would HIDE a traversal — it DETECTS-for-containment, keeps the climb visible); verdict = worst severity; findings
+      sorted worst-first. Pure + total (non-array → empty; non-finite mode/size ignored). 42 tests; tsc + biome clean. This
+      UNBLOCKS §5.AP.E(i) (the bundled-file executable/binary scan now has a validated, category-tagged list to scan) and
+      feeds §5.AP.D (which entries are `scripts/*`). Still OWED: (c) wiring into the §5.AE `Skill` shape + reading a real
+      SKILL.md + its bundle listing off disk at the effectful seam.
 - [ ] **B. Trusted-source default, untrusted opt-in.** Curated allowlist of ORIGINS: official `anthropics/skills` +
       `agentskills.io`, and the one community registry with real posture, `tech-leads-club/agent-skills` (CI static-analysis +
       Snyk + content-hashing + immutable lockfiles, no binaries). The 2M indexes (SkillsMP via its REST `/api/v1/skills/search`
@@ -8230,7 +8283,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       findings sorted worst-first with bounded evidence excerpts. It DETECTS-FOR-CONTAINMENT: `safe` = *absence of known-bad
       markers*, NEVER a trust assertion (still route via §5.AP.C opt-in + §5.L); never executes/fetches/reads. Pure + total
       (defensive on non-string body). 37 tests; tsc + biome clean. OWED leaves: (i) bundled-file scan — executables/binaries
-      in `scripts/`/`assets/` (needs the §5.AP.A bundled-file manifest leaf (b) first); (ii) the effectful ADVISORY shell-out
+      in `scripts/`/`assets/` (the §5.AP.A bundled-file manifest leaf (b) it needed now EXISTS — `skill-bundled-file-manifest.ts`
+      already flags `executable_mode`/`executable_script` + category-tags each entry, so (i) narrows to CONTENT/magic-byte
+      inspection over that validated list); (ii) the effectful ADVISORY shell-out
       to Snyk `agent-scan` / SkillSpector / `mcp-scan` (a runtime seam, never the gate); (iii) wiring the verdict into a
       `promptInjectionRiskFlags` / §5.AC quarantine record at the containment boundary.
 - [ ] **F. Sacrificial LLM classifier — ONLY if used at all, decomposed:** if an LLM must read a skill, run it in a
