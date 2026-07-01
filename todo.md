@@ -2297,8 +2297,14 @@ source repo went private — so if it vanishes the buildable source still lives 
         live model (4 tests); `nklein dev tool-pick --task … [--model --budget]` supplies a real OpenAI-compat caller
         (auto-discovers a resident LLM, no loading, default budget 1024) and prints the decision. **Live caveat:** the pick is
         WORDING-sensitive — near-identical single-step tasks flipped one_tool↔plan_needed (menu-prompt framing matters), but
-        safely (ambiguity escalates to `plan_needed`, never a mis-pick); prompt-tuning the menu is separate owed §5.O work. Owed:
-        ONLY the model-seam wiring — run the orchestrator per step behind an opt-in flag (the injected caller = the SDK model seam).
+        safely (ambiguity escalates to `plan_needed`, never a mis-pick); prompt-tuning the menu is separate owed §5.O work.
+        **CROSS-MODEL VALIDATION (2026-07-01, all 3 machines):** the phase-1 pick nails **6/6 concrete cases on EVERY loaded
+        model** — qwen3.5-9b-mlx (m4), qwen3.5-9b-mtp GGUF (legion), qwopus3.6-27b (m5) — across 2 families × 2 quant/runtime
+        backends. The design is model-robust for the core routing. Compound tasks differ (first-tool-per-step vs plan) but always
+        safely. NEW budget lesson: the 27B reasoner TRUNCATED one case at 1024 tokens (empty → would be a false none without
+        `interpretPhaseOneResponse`) — **bigger reasoners need a BIGGER budget, not smaller**; the wiring's budget should scale
+        with model reasoning-ness. Owed: ONLY the model-seam wiring — run the orchestrator per step behind an opt-in flag (the
+        injected caller = the SDK model seam), budget sized generously for reasoning.
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)
