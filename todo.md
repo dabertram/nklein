@@ -2580,7 +2580,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Manual-mode UI**, decomposed:
   - [ ] board-header badge showing the unresolved-clarification count.
   - [ ] per-card clarifying-question indicators.
-  - [ ] clarifying dialog: ≥4 options + free-text, multi-choice/radio per question, tooltips per §5.I #5.
+  - [~] clarifying dialog: ≥4 options + free-text, multi-choice/radio per question, tooltips per §5.I #5.
+    *(pure data layer DONE 2026-07-01)* — [src/core/clarification-option-set.ts](src/core/clarification-option-set.ts):
+    `prepareClarificationOptionSet(question, config)` shapes a raw `NKleinPlanQuestion`'s `options` into what the dialog
+    renders — dedupes by normalised label (keeps first, promotes `recommended`), orders recommended-first then stable
+    input order, pads with generic synthesised fall-backs up to the §5.S `minOptions=4` floor (synthesised options sort
+    last, never `recommended`, never duplicate a supplied label), drops unrenderable (empty id/label) options, and carries
+    the free-text affordance + `single`/`multiple` selection mode from config. `meetsClarificationOptionFloor` reports
+    whether the finite synthesised pool actually reached the floor. Pure/deterministic/NO I/O (question INJECTED); reuses
+    the plan-artifact schema by import; composes upward for the manual dialog. 23 unit tests; tsc + biome clean. **Owed
+    (non-pure):** the React dialog itself (render the prepared options as radios/checkboxes + the free-text box + §5.I #5
+    tooltips) and wiring the user's pick back through the question state.
   - [ ] persist the user's answers back through the question state (onto the card/plan).
 
 ### 5.T — Settings/UI polish ✅ COMPLETE → moved to [done.md](done.md#5t--settingsui-polish-raised-2026-06-23-from-a-swarmsettings-review)
@@ -6305,6 +6315,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       and wire into the board-agent prompt assembly (`buildNKleinStartPromptParts` / §6.3 budget breakdown) +
       `renderChatTurnPrompt` (§5.M) to **end-anchor the task** (today only the new user message is last; extend to the
       board card's task/acceptance block) + aggressive distractor pruning — each behind a live §5.Z re-verify (no regression).
+- [x] **Lost-in-the-middle POSITION-salience-risk scorer (the quantitative U-curve the arrangement acts on). PURE CORE
+      DONE (2026-07-01):** [src/core/context-position-salience-risk.ts](src/core/context-position-salience-risk.ts)
+      `scorePositionSalienceRisk({index, total}, options?)` → `{risk, normalizedPosition, zone, onEdge}` +
+      `findPlacementMismatches(fragments, options?)` → the worst `{id, index, risk, importance, mismatch}[]`. Maps a
+      fragment's PLACEMENT in the assembled window to a [0,1] salience-loss RISK from position alone: the U-shape (Liu et
+      al. 2023) — the leading/trailing edge PLATEAUs (`edgePlateauFraction`, on-edge ⇒ risk 0, `front`/`back` zone) are
+      well-attended, risk climbs (shoulder `sharpness`) toward a peak in the dead-center `middle`; an `endZoneAdvantage`
+      makes the trailing edge stronger than the leading one and shifts the peak frontward (the causal "full picture near
+      the end" asymmetry the section flags). `findPlacementMismatches` then flags the re-anchor/promote CANDIDATES:
+      fragments whose `importance` (§5.AE `skillRelevance`-scale) is high but whose slot is risky, ranked by
+      `mismatch = importance × risk` worst-first (threshold + limit). **Boundary (no dup):** §5.AD `context-smart-zone.ts`
+      CHOOSES an ordering to minimize this risk but returns no score — this SCORES an already-decided ordering so a caller
+      can decide whether to re-anchor (§5.AD `context-reanchor.ts`, which gates on turn CADENCE, never position) or
+      re-order; distinct from `context-occupancy-pressure.ts` (window-OCCUPANCY fraction + band triage, not a per-fragment
+      slot) and `distractor-pruning.ts` (RELEVANCE prune, orthogonal to position). Composes with the `SmartZoneBand` type
+      by import; edits none of them. Pure/deterministic, non-mutating, no tokenizer (placement injected as index/total,
+      importance as numbers); 27 unit tests; tsc + biome green. **Still owed (WIRING — behind a live §5.Z re-verify):**
+      score the FINAL assembled order at the board/chat prompt-assembly seam and route high-`mismatch` fragments into the
+      §5.AD `context-reanchor.ts` end-anchor / a `context-smart-zone.ts` edge-promotion.
 - [ ] **End-of-context task re-anchor on long runs, decomposed:**
   - [x] Implement generic re-anchor helper: takes goal + current step + board-card context; formats for end-of-context placement. **(2026-06-29, parallel batch)** `src/core/context-reanchor.ts` — `buildContextReanchor` (`<reanchor>` block: GOAL→CARD→STEP→RECENT TOOLS, drops blanks) + `shouldReanchor` (cadence gate, never turn 0). 10 tests. Next leaf = the `beforeModel` integration.
   - [ ] Integrate into `beforeModel` hook (reuse §5.N focus-chain seam) to inject re-anchor after large tool outputs.
