@@ -6954,10 +6954,23 @@ source repo went private — so if it vanishes the buildable source still lives 
       `probeModelResidency` → `resident`/`absent`/`unobservable` (32521a44) AND now `shouldAbortForLostResidency(probes,
       {absentConfirmations})` (96aedd3d) — the pure fail-fast decision: abort only when POSITIVELY-observed-resident then
       N consecutive trailing `absent`; an `unobservable` blip breaks the run (no false abort); never-confirmed host falls
-      back to the timeout. **STILL OWED (wiring):** the poll LOOP in the session's ultra-long wait
-      ([nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts)) — sample `probeModelResidency`
-      on an interval during a prefill-silence gap, feed the sequence to `shouldAbortForLostResidency`, abort on true.
-      Behavior-changing on the session hot path ⇒ live §5.Z re-verify (auto-detected + transparent when unobservable).
+      back to the timeout. **CONTROLLER DONE (2026-07-01, 69dfd3f6):** `startResidencyHeartbeat` — the poll loop with
+      INJECTABLE timers (unit-tested without wall-clock): polls, treats a thrown probe as `unobservable`, fires
+      `onModelLost` ONCE on confirmed death (halting first), idempotent `stop()`. So probe + decision + controller are all
+      built + tested. **STILL OWED — ONLY the session-class wiring** in
+      [nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts): start the heartbeat at the
+      running-transition (~L1602, alongside `scheduleStreamTimeout`) using `launchConfigByTaskId`'s baseUrl+modelId;
+      `onModelLost` → `clearTaskTimeouts` + `abortTaskSession` + a `recordObservationWithModel` note (mirror
+      `handleTaskTimeout`). **LEAK-RISK FINDING (2026-07-01):** a naive stop in `clearTaskTimeouts` would LEAK the
+      heartbeat on NORMAL completion — L1684's `clearTaskTimeouts` is the start-ERROR catch, and normal completion clears
+      timeouts elsewhere; auditing all end paths in the 3000-line class is error-prone. **USE A SELF-CLEANING design:**
+      add an optional `shouldContinue?: () => boolean` to `startResidencyHeartbeat` (halt when false at tick-start) and
+      pass `() => entry.summary.state === "running"` — the heartbeat then stops itself one interval after the session
+      leaves `running`, regardless of which end path ran (leak-proof). Additive edit (new field + 2 call sites + helpers,
+      no existing-flow change); still behavior-changing on the session hot path ⇒ do it focused + live §5.Z re-verify.
+      Deliberately NOT rushed into the critical class deep in a long session (an OPTIONAL feature; a bug here breaks task
+      execution) — the reward (fail-fast on a RARE mid-session model crash, already covered slower by the ultra-long timeout)
+      does not justify a hasty critical-path edit.
 > - **Anthropic-compat `/v1/messages`** (live-verified — EXISTS, 200; accepts `tools`/`tool_choice`/`system`). **CORRECTION
 >   (re-verified 2026-06-29, don't-conclude-prematurely lesson): `tool_choice` does NOT actually FORCE a call on LM Studio.**
 >   The first "it forces!" probe was confounded — the prompt was "make a card titled Z", which the model calls anyway. On a
