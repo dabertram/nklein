@@ -642,3 +642,43 @@ After creating a dev-test project (→ current project + active workspace) and p
 - **PLAN-MODE re-runs (2026-06-29, nudger ARMED via `NKLEIN_VERIFY_PLAN_MODE=1`) — 3 more, ALL different shapes, NONE reached `decompose_project`:** (run A, ~6min) read files then narrated "Let me decompose this into cards" to the deadline — its phrasing did NOT match the chat-nudge pattern (deterministically verified), so the nudge never fired → **fixed the pattern** (broadened `DECOMPOSITION_CHAT_REPORT_PATTERN`, +2 tests). (run B) only got through *reading* before the deadline (plan-mode adds a 2nd spec copy; slow under Low Power). (run C, 20-min window) read + redundant re-read + a malformed `run_commands` + retry, then died on **`Agent error: Body Timeout Error`** (an undici transient — the §5.AF scout-signal-3 case) with no file changes.
   - **HONEST CONCLUSION (don’t over-claim either way):** `verify-decompose-isolation` is **not a reliable decompose-COMPLETION oracle** for this driver under Low Power — the 4 runs failed for *varied incidental reasons* (read loop · narration the nudge missed · slow reads hitting the deadline · a network transient), NOT a clean capability ceiling. The nudge-pattern fix is **landed + unit-correct but NOT validated end-to-end** (no run reached the nudge-fire→cancel→reprompt→emit cycle cleanly). **To measure decompose reliably:** a dedicated **decompose-COMPLETION harness** that (a) waits on `decompose_project` not an isolation deadline, (b) **retries transient body/headers timeouts** (ties §5.AF durable scheduler), (c) gives the full nudge cycle time under Low Power. Scouting stopped here — diminishing returns + noisy infra transients.
   - matrix row: qwopus3.6-27b-v2-mlx C1 decompose-COMPLETION = **unmeasured** (isolation ✅; completion needs the dedicated harness above).
+
+### 2026-07-01 14:57:37 · verify-chat-agent-e2e
+- ❌ **FAIL** · `gpt-oss-20b-mlx` · 46s · INCOMPLETE — see above.
+  - matrix row: gpt-oss-20b-mlx=❌
+
+### 2026-07-01 14:58:08 · verify-chat-agent-e2e
+- ✅ **PASS** · `qwen/qwen3-coder-next` · 25s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+  - matrix row: qwen3-coder-next=✅
+
+### 2026-07-01 14:58:48 · verify-chat-agent-e2e
+- ✅ **PASS** · `openai/gpt-oss-120b` · 22s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+  - matrix row: gpt-oss-120b=✅
+
+### 2026-07-01 15:29:44 · verify-chat-agent-e2e
+- ✅ **PASS** · `qwen3.5-9b-mlx` · 172s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+  - matrix row: qwen3.5-9b-mlx=✅
+
+### 2026-07-01 15:31:39 · verify-chat-agent-e2e
+- ✅ **PASS** · `qwen2.5-coder-7b-instruct` · 18s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+  - matrix row: qwen2.5-coder-7b-instruct=✅
+
+### 2026-07-01 15:32:06 · verify-chat-agent-e2e
+- ✅ **PASS** · `gemma-4-12b-it-qat` · 21s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+  - matrix row: gemma-4-12b-it-qat=✅
+
+### 2026-07-01 15:34:18 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen3-14b` · 122s · INCOMPLETE — see above.
+  - matrix row: qwen3-14b=❌
+
+### 2026-07-01 15:48:56 · verify-chat-agent-e2e
+- ❌ **FAIL** · `qwen3.6-27b` · 840s · INCOMPLETE — see above.
+  - matrix row: qwen3.6-27b=❌
+
+### 2026-07-01 15:51:25 · verify-chat-agent-e2e
+- ❌ **FAIL** · `gpt-oss-20b-mlx` · 59s · INCOMPLETE — see above.
+  - matrix row: gpt-oss-20b-mlx=❌
+
+### 2026-07-01 15:52:04 · verify-chat-agent-e2e
+- ❌ **FAIL** · `gpt-oss-20b-mlx` · 39s · INCOMPLETE — see above.
+  - matrix row: gpt-oss-20b-mlx=❌
