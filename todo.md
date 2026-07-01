@@ -6141,24 +6141,33 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       rail: "this is the authoritative current date/time; your training data has a cutoff in the PAST; do NOT assume
       events dated on/before this are still in the future or haven't happened; judge online info's freshness against this
       now." Pure + clock-injected → unit-tested.
-- [~] **Inject the temporal block into EVERY agent + chat turn — WIRED across all four surfaces (2026-06-26).** The
-      `<current_datetime>` block now leads every model context: (1) **board/swarm + decompose + review agents** — appended
-      to the SDK system prompt at BOTH `InMemoryNKleinTaskSessionService` start sites (main start + restart-rebuild), right
-      after the `<env>` seam, so every sandboxed task / planning-decompose / `::review` session gets the real now (the
-      trusted host clock — the sandbox never provides "now", per invariant #2); (2) **chat agent turn** — `renderChatTurnPrompt`
-      gained an injected `now` clock and prepends the block as the FIRST system note (before goal/summary/memory), threaded
-      through `runChatTurn` + `runChatAgentTurn` (each via an injectable `deps.now`, default `new Date()`), so the chat +
-      autonomous-chat loops re-anchor it **every turn**. Unit-tested (block-leads + back-compat) + the existing chat-runtime
-      / session-service / chat-agent-turn suites stay green. **LIVE-PROVEN cross-model (2026-06-26,
-      [scripts/verify-temporal-awareness-live.mts](scripts/verify-temporal-awareness-live.mts)):** a real chat turn with the
-      host clock injected asks a model whether a current-year past month is past or future — the grounded answer needs the
-      injected "now", and a model on its ~2024 training prior would call it "the future". **ALL 9 loaded models PASS**
-      (gemma-4-e2b 2B / gemma-4-e4b / qwen3-8b / qwen2.5-coder-14b / qwen3.5-9b / nemotron-3-nano-4b / phi-4-mini-reasoning
-      / phi-4-reasoning-plus / deepseek-r1), each replying e.g. *"The current year is 2026, and March 1st, 2026, is in the
-      past relative to today's date of June 26th, 2026"* — the training prior is overridden (full matrix in §5.Z). **Still
-      owed:** a board-agent **mid-session re-anchor** (the system prompt is static per session; a `beforeModel` hook like
-      the §5.N focus-chain re-anchor would refresh "now" on a multi-day run — chat already re-anchors per turn, so this is a
-      board-only long-run nicety).
+- [x] **Inject the temporal block into agent + chat turns — RE-WIRED through the off-default decision core across all four
+      surfaces (2026-07-01, user exposure policy).** The always-on injection (2026-06-26) became the user's 2026-07-01
+      policy: **OFF BY DEFAULT · relevance-gated · appended at the END.** All four live sites now route through the
+      [temporal-context-injection.ts](src/core/temporal-context-injection.ts) decision core
+      (`decideTemporalContextInjection` → `appendTemporalContext` / a rendered block) instead of a bespoke `if
+      (isTemporalContextRelevant) prepend` at each: (1)(2) **board/swarm + decompose + review agents** — BOTH
+      `InMemoryNKleinTaskSessionService` start sites (main start + restart-rebuild) call the decision core with
+      `enabled: isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY)` + the trusted host `new Date()`, and `appendTemporalContext`
+      appends the block to the tail of the SDK system prompt (before the efficiency-rules block) — or returns it
+      byte-unchanged when off/irrelevant (zero prompt-processing cost, §5.AQ cache-prefix stability); (3) **chat turn** +
+      (4) **chat agent turn** — `renderChatTurnPrompt` now takes `{ now, enabled }`, runs the decision core, and places the
+      block as the **LAST system note** (after goal/summary/memory, right before the conversation), threaded through
+      `runChatTurn` + `runChatAgentTurn` via a `deps.knowsTodayEnabled` (default = `NKLEIN_KNOWS_TODAY`, off). **The setting
+      is the env flag `NKLEIN_KNOWS_TODAY` (off by default)** — the quick, completable switch; the proper user-facing
+      `runtimeConfig.knowsTodayEnabled` (off by default) + its §5.W UI toggle is the ~8-file config chore still owed below.
+      Tests re-pointed to the new policy (off-default absence + present-when-enabled at the END + relevance gate + no-clock
+      back-compat) across chat-turn-context / chat-runtime; tsc + biome + the temporal/chat suites green (62 tests). **The
+      block CONTENT is unchanged**, so the 2026-06-26 **LIVE-PROVEN cross-model** result still holds for the enabled path
+      ([scripts/verify-temporal-awareness-live.mts](scripts/verify-temporal-awareness-live.mts)): with the host clock
+      injected, **ALL 9 loaded models PASS** (gemma-4-e2b 2B / gemma-4-e4b / qwen3-8b / qwen2.5-coder-14b / qwen3.5-9b /
+      nemotron-3-nano-4b / phi-4-mini-reasoning / phi-4-reasoning-plus / deepseek-r1), each grounding e.g. *"March 1st,
+      2026, is in the past relative to today's date of June 26th, 2026"* — training prior overridden (matrix in §5.Z).
+      **Still owed:** (a) the user-facing `knowsTodayEnabled` runtime-config setting + §5.W UI toggle (trace
+      `secondOpinionReviewEnabled` across config-api-contract → runtime-config-types/-update-merge/-change-detection/
+      -state-factory → global-config-file-payload → runtime-config, then expose in the UI); (b) a board-agent **mid-session
+      re-anchor** (the system prompt is static per session; a `beforeModel` hook like the §5.N focus-chain re-anchor would
+      refresh "now" on a multi-day run — chat already re-anchors per turn, so this is a board-only long-run nicety).
 - [x] **Freshness-judgment helper (DONE 2026-06-27).** [src/core/retrieval-freshness.ts](src/core/retrieval-freshness.ts):
       `judgeRetrievedFreshness({publishedAt}, now, {thresholds?})` bands a dated source by whole-day age vs the
       authoritative now → `current`/`recent`/`possibly_stale`/`stale`/`unknown` + an agent-facing `guidance` rail (rely on

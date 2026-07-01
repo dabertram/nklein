@@ -1,5 +1,5 @@
+import { isTruthyEnv } from "../core/env-flag";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
-import { isTemporalContextRelevant } from "../core/temporal-awareness";
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import {
@@ -52,6 +52,11 @@ export interface ChatAgentTurnDeps {
 	) => ChatPromptMessage[];
 	/** The clock for the temporal-awareness lighthouse (§5.AC); injected for determinism, defaults to `new Date()`. */
 	now?: () => Date;
+	/**
+	 * The §5.AC "knows today" feature switch — OFF BY DEFAULT. When omitted, the env flag `NKLEIN_KNOWS_TODAY` decides
+	 * (off unless truthy); tests set it explicitly. Even when enabled, the block is still relevance-gated + end-placed.
+	 */
+	knowsTodayEnabled?: boolean;
 	/** Names of the tools offered this turn — feeds the §5.AA controller evidence-gate (don't accept a premature "done"
 	 *  while a tool the instruction explicitly named is still uncalled). Omit to disable the gate (today's behavior). */
 	offeredToolNames?: readonly string[];
@@ -93,9 +98,11 @@ export async function runChatAgentTurn(
 		},
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);
-	// The §5.AC date is relevance-gated (§5.AE JIT composition): inject only when the turn is temporal/freshness-relevant.
-	const now = isTemporalContextRelevant({ text: input.userMessage }) ? (deps.now ?? (() => new Date()))() : undefined;
-	const prompt = renderChatTurnPrompt(context, input.userMessage, now ? { now } : {});
+	// The §5.AC "knows today" block is OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY; deps override for tests), relevance-gated
+	// + end-placed by the renderer's decision core (§5.AE / §5.AQ). We always hand it the clock and let the core decide.
+	const knowsTodayEnabled = deps.knowsTodayEnabled ?? isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY);
+	const now = (deps.now ?? (() => new Date()))();
+	const prompt = renderChatTurnPrompt(context, input.userMessage, { now, enabled: knowsTodayEnabled });
 	// Re-anchor the agent's focus chain (todo §5.M G4): lead the turn with its current checklist so a small model
 	// stays on-plan, and offer `update_focus_chain` (wired into the tool set) to keep it current.
 	const focusChain = deps.readFocusChain ? await deps.readFocusChain(input.session.id) : null;

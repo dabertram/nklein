@@ -24,7 +24,7 @@ import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from 
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
-import { buildTemporalAwarenessPrompt, isTemporalContextRelevant } from "../core/temporal-awareness";
+import { appendTemporalContext, decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import {
@@ -647,12 +647,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (appendedSystemPrompt) {
 			systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
 		}
-		// The "knows today" lighthouse (§5.AC), relevance-gated (§5.AE): inject the authoritative current date/time (the
-		// trusted host clock — the sandbox never provides "now") so the model never reasons from a stale training-cutoff
-		// date prior — but only when the task is temporal/freshness-relevant, so a plain coding task doesn't pay for it.
-		if (isTemporalContextRelevant({ text: input.prompt })) {
-			systemPrompt = `${systemPrompt}\n\n${buildTemporalAwarenessPrompt(new Date())}`;
-		}
+		// The "knows today" lighthouse (§5.AC): OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY), relevance-gated (§5.AE), and
+		// APPENDED AT THE END (§5.AQ cache-prefix stability). The decision core composes those three policies; when the
+		// flag is unset or the turn isn't temporal, `appendTemporalContext` returns the prompt byte-unchanged (zero cost).
+		// The clock is the trusted host `new Date()` — the sandbox never provides an authoritative "now".
+		systemPrompt = appendTemporalContext(
+			systemPrompt,
+			decideTemporalContextInjection({
+				enabled: isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
+				text: input.prompt,
+				now: new Date(),
+			}),
+		);
 		systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
 			contextScope: input.contextScope ?? "smart",
 			contextWindow: requestContextWindow,
@@ -1630,13 +1636,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
 				}
 				systemPrompt = appendSystemPrompt(systemPrompt, planningSystemPrompt);
-				// The "knows today" lighthouse (§5.AC), relevance-gated (§5.AE): inject the authoritative current
-				// date/time (the trusted host clock — the sandbox never provides "now") so the model never reasons from
-				// a stale training-cutoff date prior, and can judge the freshness of what it recalls/retrieves — but only
-				// when the task is temporal/freshness-relevant, so a plain coding task doesn't pay the token cost.
-				if (isTemporalContextRelevant({ text: request.prompt })) {
-					systemPrompt = `${systemPrompt}\n\n${buildTemporalAwarenessPrompt(new Date())}`;
-				}
+				// The "knows today" lighthouse (§5.AC): OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY), relevance-gated (§5.AE),
+				// and APPENDED AT THE END (§5.AQ cache-prefix stability), composed by the decision core. When the flag is
+				// unset or the turn isn't temporal, the prompt is returned byte-unchanged (zero token cost). The clock is
+				// the trusted host `new Date()` — the sandbox never provides an authoritative "now".
+				systemPrompt = appendTemporalContext(
+					systemPrompt,
+					decideTemporalContextInjection({
+						enabled: isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
+						text: request.prompt,
+						now: new Date(),
+					}),
+				);
 				systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
 					contextScope: request.contextScope ?? "smart",
 					contextWindow: requestContextWindow,

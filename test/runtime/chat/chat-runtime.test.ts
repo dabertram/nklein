@@ -58,20 +58,51 @@ describe("runChatTurn", () => {
 				summarize: async () => "summary",
 				estimateTokens: (text) => text.length,
 				now: () => new Date("2026-06-26T12:00:00Z"),
+				// §5.AC is off by default; opt in for this turn to exercise the injection path.
+				knowsTodayEnabled: true,
 			},
 		);
 
 		expect(result.userMessage.content).toBe(userMessage);
 		expect(result.assistantMessage.content).toBe("do step two");
 		expect(appended.map((m) => m.role)).toEqual(["user", "assistant"]);
-		// The temporal-awareness block leads (§5.AC), the goal follows, and the new message is last.
-		// Default granularity is now date-only (§5.AQ-D cache-aware: no per-minute prefix churn).
-		expect(receivedPrompt[0]?.content).toContain("<current_date>");
-		expect(receivedPrompt[1]?.content).toContain("Ship the feature");
+		// The goal (cacheable prefix) leads; the volatile §5.AC date block trails the system prefix, just before the
+		// conversation (§5.AQ end-placement). Default granularity is date-only (§5.AQ-D — no per-minute prefix churn).
+		expect(receivedPrompt[0]?.content).toContain("Ship the feature");
+		const dateIdx = receivedPrompt.findIndex((m) => m.content.includes("<current_date>"));
+		expect(dateIdx).toBeGreaterThan(0);
+		// The block is the last `system` note: everything after it is the conversation (recent transcript + new line).
+		expect(receivedPrompt.slice(dateIdx + 1).every((m) => m.role !== "system")).toBe(true);
 		expect(receivedPrompt.at(-1)).toEqual({ role: "user", content: userMessage });
 	});
 
-	it("skips the date block for a non-temporal turn (§5.AE relevance gate — no token waste)", async () => {
+	it("omits the date block by default even on a temporal turn (§5.AC off by default)", async () => {
+		let receivedPrompt: ChatPromptMessage[] = [];
+		await runChatTurn(
+			{
+				session: session({ goal: "Ship the feature" }),
+				userMessage: "what is the latest version?",
+				tokenBudget: 1000,
+			},
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: appendMessageStub,
+				complete: async (prompt) => {
+					receivedPrompt = prompt;
+					return "ok";
+				},
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				now: () => new Date("2026-06-26T12:00:00Z"),
+				// knowsTodayEnabled omitted → off by default (and no NKLEIN_KNOWS_TODAY in the test env).
+			},
+		);
+		expect(receivedPrompt.some((m) => m.content.includes("<current_date>"))).toBe(false);
+		expect(receivedPrompt[0]?.content).toContain("Ship the feature");
+	});
+
+	it("skips the date block for a non-temporal turn even when enabled (§5.AE relevance gate — no token waste)", async () => {
 		let receivedPrompt: ChatPromptMessage[] = [];
 		await runChatTurn(
 			{
@@ -90,9 +121,10 @@ describe("runChatTurn", () => {
 				summarize: async () => "",
 				estimateTokens: (text) => text.length,
 				now: () => new Date("2026-06-26T12:00:00Z"),
+				knowsTodayEnabled: true,
 			},
 		);
-		// No temporal/freshness signal → the date block is not injected even though a clock is available.
+		// Feature enabled but no temporal/freshness signal → the relevance gate still skips the block.
 		expect(receivedPrompt.some((m) => m.content.includes("<current_date>"))).toBe(false);
 		// The goal still leads.
 		expect(receivedPrompt[0]?.content).toContain("Ship the feature");

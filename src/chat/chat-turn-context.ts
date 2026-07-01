@@ -1,4 +1,4 @@
-import { buildTemporalAwarenessPrompt } from "../core/temporal-awareness";
+import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { consolidateChatContextWindow, splitChatContextWindow } from "./chat-context-window";
 import { type ChatMemory, type ChatMemoryRecall, recallChatMemories } from "./chat-memory-store";
 import type { ChatMessage, ChatMessageRole } from "./chat-transcript-store";
@@ -74,19 +74,18 @@ export interface ChatPromptMessage {
  * transcript and finally the new user message. Pure + testable; the runtime maps these to its provider's message
  * format and streams the reply.
  *
- * The clock is injected (`options.now`) so this stays deterministic: when supplied, the temporal-awareness block is
- * prepended as the FIRST system note so every model knows the real now and never reasons from its stale
- * training-cutoff date prior; omitted (e.g. in unit tests that don't assert it) leaves the prompt unchanged.
+ * The §5.AC "knows today" date block is OFF BY DEFAULT (`options.enabled`), relevance-gated on the new user message,
+ * and placed as the LAST system note — right before the conversation — so the volatile date stays OUT of the cacheable
+ * prompt PREFIX (§5.AQ): an off / non-temporal turn keeps a byte-stable prefix, and even when injected the date never
+ * churns the goal/summary/memory prefix the provider caches. The clock is injected (`options.now`) for determinism;
+ * omit it (or leave the feature disabled) and the prompt is unchanged. The decision core composes enabled + relevance.
  */
 export function renderChatTurnPrompt(
 	context: ChatTurnContext,
 	newUserMessage: string,
-	options: { now?: Date } = {},
+	options: { now?: Date; enabled?: boolean } = {},
 ): ChatPromptMessage[] {
 	const messages: ChatPromptMessage[] = [];
-	if (options.now) {
-		messages.push({ role: "system", content: buildTemporalAwarenessPrompt(options.now) });
-	}
 	if (context.goal) {
 		messages.push({
 			role: "system",
@@ -99,6 +98,13 @@ export function renderChatTurnPrompt(
 	if (context.recalledMemories.length > 0) {
 		const recalled = context.recalledMemories.map((memory) => `- ${memory.text}`).join("\n");
 		messages.push({ role: "system", content: `Relevant remembered context:\n${recalled}` });
+	}
+	// The knows-today block trails the cacheable system prefix (goal/summary/memory) and leads the conversation.
+	const temporal = options.now
+		? decideTemporalContextInjection({ enabled: options.enabled, text: newUserMessage, now: options.now })
+		: null;
+	if (temporal?.inject) {
+		messages.push({ role: "system", content: temporal.block });
 	}
 	for (const message of context.recentMessages) {
 		messages.push({ role: message.role, content: message.content });

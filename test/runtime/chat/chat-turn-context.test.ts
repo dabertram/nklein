@@ -119,25 +119,52 @@ describe("composeChatTurnContext", () => {
 		expect(prompt).toEqual([{ role: "user", content: "hi" }]);
 	});
 
-	it("leads with the temporal-awareness block when a clock is injected (§5.AC lighthouse)", () => {
+	it("omits the temporal block by default even on a temporal turn (§5.AC off by default)", () => {
+		// A clock is injected and the message is temporally relevant ("latest") — but the feature is off by default,
+		// so the date block must NOT appear and the prompt keeps its fully cacheable prefix.
 		const prompt = renderChatTurnPrompt(
 			{ goal: "Ship it", summary: null, recalledMemories: [], recentMessages: [] },
-			"hi",
+			"what is the latest version?",
 			{ now: new Date("2026-06-26T21:05:00Z") },
 		);
-		// The temporal block is the FIRST system note — before even the goal — so every model knows the real now.
-		expect(prompt[0]?.role).toBe("system");
+		expect(prompt.some((m) => m.content.includes("<current_date>"))).toBe(false);
+		expect(prompt[0]?.content).toContain("Ship it");
+		expect(prompt.at(-1)).toEqual({ role: "user", content: "what is the latest version?" });
+	});
+
+	it("appends the temporal block as the LAST system note when enabled + relevant (§5.AC end-placement)", () => {
+		const prompt = renderChatTurnPrompt(
+			{ goal: "Ship it", summary: null, recalledMemories: [], recentMessages: [message("1", "prior line")] },
+			"what is the latest version?",
+			{ now: new Date("2026-06-26T21:05:00Z"), enabled: true },
+		);
+		// The goal (cacheable prefix) still LEADS; the volatile date trails the system prefix (§5.AQ), just before the
+		// conversation — so the block is the last `system` message and the recent transcript + new user line follow it.
+		expect(prompt[0]?.content).toContain("Ship it");
+		const dateIdx = prompt.findIndex((m) => m.content.includes("<current_date>"));
+		expect(dateIdx).toBe(1);
+		expect(prompt[dateIdx]?.role).toBe("system");
 		// Default granularity is date-only (§5.AQ-D cache-aware: no per-minute prefix churn).
-		expect(prompt[0]?.content).toContain("<current_date>");
-		expect(prompt[0]?.content).toContain("2026-06-26");
-		expect(prompt[1]?.content).toContain("Ship it");
-		expect(prompt.at(-1)).toEqual({ role: "user", content: "hi" });
+		expect(prompt[dateIdx]?.content).toContain("2026-06-26");
+		// Everything after the block is the conversation: the recent transcript then the new user message.
+		expect(prompt[dateIdx + 1]).toEqual({ role: "user", content: "prior line" });
+		expect(prompt.at(-1)).toEqual({ role: "user", content: "what is the latest version?" });
+	});
+
+	it("omits the temporal block on a non-temporal turn even when enabled (§5.AE relevance gate)", () => {
+		const prompt = renderChatTurnPrompt(
+			{ goal: "Ship it", summary: null, recalledMemories: [], recentMessages: [] },
+			"implement a binary search",
+			{ now: new Date("2026-06-26T21:05:00Z"), enabled: true },
+		);
+		expect(prompt.some((m) => m.content.includes("<current_date>"))).toBe(false);
 	});
 
 	it("leaves the prompt unchanged when no clock is injected (back-compat)", () => {
 		const prompt = renderChatTurnPrompt(
 			{ goal: null, summary: null, recalledMemories: [], recentMessages: [] },
 			"hi",
+			{ enabled: true },
 		);
 		expect(prompt).toEqual([{ role: "user", content: "hi" }]);
 	});
