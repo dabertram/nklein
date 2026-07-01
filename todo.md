@@ -7806,6 +7806,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `work-package-dispatch.ts` (which only plans the fan-OUT — *what can I START in parallel*; nothing computed the
       fan-IN — *in what order do I MERGE the finished branches*). 24 tests; tsc+biome green. **Owed WIRING:** drive an
       actual result-branch apply / the trusted-runtime MergeBroker from this order.
+- [x] **Merge-Readiness ADMISSION gate — the fan-IN *admission* check that must pass before the fan-IN *order* — PURE
+      CORE DONE (2026-07-01).** [`src/core/work-package-merge-readiness.ts`](src/core/work-package-merge-readiness.ts) turns
+      the §5.AK seam **"Merge-Readiness Pack (what a subagent returns) ⇄ the result-branch + evidence bundle an !Klein
+      agent returns"** into machine logic — the exact GAP between the three existing §5.AK cores:
+      `work-package-dispatch.ts` gates the fan-OUT, `work-package-integration-order.ts` orders the fan-IN **but assumes its
+      inputs are already landable**, and `work-package-conflict-resolution.ts` fixes scope *contests between* packages —
+      **nothing validated that a single returned branch had EARNED the right to land.** `assessMergeReadiness(pkg, pack)`
+      judges a returned `MergeReadinessPack` ({`changedFiles`, `gateResults`, `assertedInvariants`,
+      `protectedTestApprovalGranted?`}) against the package's own contract bounds and emits a `block` /
+      `admit_with_warnings` / `admit` verdict with ALL findings collected (never short-circuits): BLOCKS on a
+      package-id mismatch, any changed file outside `writeScope`, any inside `forbiddenScope` (forbidden takes precedence),
+      an UNapproved protected-test change (`test/protected/**` · `vitest.protected.config.ts` · `protected-tests.json` —
+      prime directive #5), any non-green gate (`fail`/`error`), zero gate results, or a missing required invariant
+      (`local_only`/`docker_isolation`/`no_host_path_leak`/`min_context_floor`/`protected_untouched`); WARNS (still
+      admits) on an *approved* protected change, a `skipped` gate (coverage gap), or an empty diff. `admitReadyPackages`
+      is the batch gate the trusted-runtime MergeBroker runs to split `admissible` from `blocked`/`unmatched` BEFORE
+      handing the survivors to `planIntegrationOrder`. Reuses the §5.AK `WorkPackage` contract + `normalizeScopeGlob` from
+      `work-package-dispatch.ts` (scope-containment agrees with the fan-OUT classifier by construction; existing files
+      untouched). Pure + total (never throws; malformed pack → findings, not an exception). 33 tests; tsc+biome green.
+      **Owed WIRING:** feed the trusted-runtime's actual `git diff --name-only` + gate-command results into a pack and gate
+      the MergeBroker on the verdict; surface a `block` back to the worker/§5.AB escalation instead of a silent bad merge.
 - [~] **`web:e2e:smoke` canary — hermetic mock foundation, decomposed:** **(2026-06-29) STREAMING layer built + PROVEN
       in-browser:** `web-ui/tests/harness/runtime-mock.ts` now exposes `pushFrame` + typed frame builders
       (`taskSessionsUpdatedFrame`/`taskChatMessageFrame`/`taskReadyForReviewFrame`/`chatMessage`/`taskSessionSummary`) so a
@@ -8261,6 +8282,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   tool call still emitted) ↔ `/think`; **`chat_template_kwargs.enable_thinking` is IGNORED** by the OpenAI endpoint. Reasoning is
 >   split into **`reasoning_content`** vs `content` (llama.cpp `--reasoning-format deepseek` default). DeepSeek-R1 uses `<think>…</think>`.
 >   Captured in [model-thinking-control.ts](src/core/model-thinking-control.ts) (extend the matcher per family as verified).
+>   **[~] CHANNEL-SPLIT CORE DONE (2026-07-01):** [reasoning-channel-split.ts](src/core/reasoning-channel-split.ts) —
+>   `splitReasoningChannel(message|content) → {answer, reasoning, hadInlineReasoning, truncatedReasoning}` (+ the
+>   `stripReasoningChannel` / `reasoningAndAnswerText` conveniences) is the ONE pure separator for the two documented
+>   conventions above: the SEPARATE `reasoning_content` field AND inline `<think>…</think>` / `[THINK]…[/THINK]` blocks in
+>   `content`. It replaces two DIVERGENT ad-hoc slices — `chat-local-llm-adapter.ts`'s `content.replace(/<think>[\s\S]*?<\/think>/g,"")`
+>   strip (which SILENTLY FAILS on a **truncated** open-but-unclosed `<think>`, the §5.AA mid-thought truncation: the lazy
+>   `…*?</think>` needs the close, so the whole reasoning dump leaks into the user-visible answer) and
+>   `nklein-local-llm-client.ts`'s `content + "\n" + reasoning_content` narration-scan concat (split-field only, no inline
+>   `<think>`, no truncation awareness). The core is truncation-SAFE (an unterminated open marker ⇒ everything after it is
+>   reasoning, answer is what preceded it, `truncatedReasoning:true` = a strong over-rumination signal complementing
+>   `completion-stop-reason.ts`) and EXTRACTS the reasoning text (not just strips), so narrated-tool-call recovery can scan
+>   BOTH channels including an inline-reasoning model's. Pure/total (INJECTED message value; no I/O/model/clock; never
+>   throws; case-insensitive; conservative — `< think >` with internal whitespace and prose "I think" are NOT markers);
+>   23 vitest tests (tsc + biome green). **OWED WIRING (out of this pure core's scope):** replace `chat-local-llm-adapter.ts`'s
+>   `stripReasoning` with `stripReasoningChannel` (fixes the truncated-`<think>` leak) and `nklein-local-llm-client.ts`'s
+>   narration concat with `reasoningAndAnswerText`.
 > - **`ttl` (auto-evict) + JIT loading:** a request-level `ttl` controls how long a model stays loaded; JIT-load on first request.
 >   (Doc page 404'd on fetch — re-verify the exact field; the `lms load --ttl` flag is the CLI analogue.)
 >   **[~] SUGGESTION-POLICY CORE DONE (2026-07-01):** [lmstudio-keep-alive-ttl.ts](src/core/lmstudio-keep-alive-ttl.ts)
@@ -8791,7 +8828,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] **Disk — rotate+cap logs (Pino/logrotate) + SNAPSHOT-COMPACT the §5.AF durable ledger/jsonl** (snapshot then keep only post-snapshot events; size/TTL retention on discovery caches).
   - [ ] **Observability — surface a resource panel** (RAM/CPU/VRAM/disk + cache-hit-rate) so the frugality is measured, not assumed (ties §6.4/§5.AG).
 - [~] **H. Per-REQUEST inference speed+quality (compute is the bottleneck on small HW — every request must be fast AND correct AND complete AND high-quality), decomposed — ranked by no-regret impact:** **(2026-06-29: pure decision cores done — `src/core/inference-levers.ts`: `shouldUseSpeculativeDecoding` (opt-in+measured) + `recommendKvCacheQuant` (q8 only w/ flash-attn) + `recommendSampler`; 13 tests. Owed: wire into §5.AB selection + the load knobs.)**
-  - [ ] **Tier 0: healthy prefix caching** (item D+E) — biggest lever of all (~5s vs ~200s at 40k context; nothing below matters if the cache is cold).
+  - [~] **Tier 0: healthy prefix caching** (item D+E) — biggest lever of all (~5s vs ~200s at 40k context; nothing below matters if the cache is cold). *(2026-07-01: PURE AMORTIZATION CORE done — `src/core/cache-warmup-amortization.ts`: the cost/benefit arithmetic for whether warming a stable prefix is worth it, the "is the cache worth making warm?" lever this Tier-0 line names and item E's "reserve broken-cache models for one-shot calls" both imply but no sibling computed. A `PrefixCostProfile` = `{ coldPrefillCost, warmPrefillCost }` (any consistent cost unit — ms/s — INJECTED, measured via the `cache-health.ts` TTFT probe / the §5.AF ledger). `warmupSavingPerReuse(profile, cacheHealthy=true)` → `{ savingPerReuse = max(0, cold−warm), canSave }`; an UNHEALTHY cache forces the saving to 0 (re-prefills every turn ⇒ no warm regime — item E falls straight out). `warmupBreakevenReuses(profile, alternativePerSendCost=cold, cacheHealthy)` = `ceil((cold−alt)/(alt−warm))` clamped ≥0, or `+Infinity` when the warm regime isn't cheaper / the cache is unhealthy (against the default pay-cold-every-send alternative any ≥1 reuse on a healthy positive-saving cache pays from the first reuse — breakeven 0). `decideWarmupAmortization({ profile, expectedReuses, alternativePerSendCost?, cacheHealthy? })` → `{ worthWarming, savingPerReuse, breakevenReuses, netSaving, reason }`: worth warming iff `canSave` AND `expectedReuses ≥ breakeven`; `netSaving = expectedReuses·(alt−warm) − max(0, cold−alt)` (the horizon P&L, can be negative) RANKS which prefixes most deserve a scarce warm slot. A strict one-shot = 0 reuses ⇒ never amortizes vs a cheaper alternative. 22 tests. DISTINCT unit/axis from every §5.AQ cache sibling — those reason about TOKENS (`cache-prefix-reuse.ts` one-turn reuse), SPACE under a budget (`cache-prefix-retention.ts` which to evict — this decides the TIME value of the slot that arbitrates), byte STRUCTURE (`cache-aware-prompt-layout.ts` / `cache-stable-prefix-order.ts`), or WHETHER caching works (`cache-health.ts` — consumed here as the `cacheHealthy` gate); none compute the cold-establish-vs-reuse-horizon payback. Composes nothing it edits. Owed: feed live measured cold/warm prefill costs + a reuse-horizon estimate (from the task/session shape) + the `cache-health.ts` verdict, gate prefix warming + broken-cache one-shot routing on `decideWarmupAmortization`, and rank warm-slot candidates by `netSaving` alongside `cache-prefix-retention.ts`.)*
   - [ ] **#1 right-size context** (item G) — O(n) prefill + per-token decode cost; zero-cost, zero-quality-loss, also avoids the overflow→full-reprocess landmine.
   - [ ] **#2 Flash Attention (`-fa`)** — faster long-context prefill, no quality loss, and a PREREQUISITE for KV-quant (without it quantized KV is *slower*). Apple Silicon has a Metal FA kernel. Default ON.
   - [ ] **#3 KV-cache quant (Q8 K + Q8 V, with `-fa`)** — frees memory → longer context / bigger model, perplexity Δ<0.1; Keys tolerate quant better than Values (quantize K harder than V if pushed). The no-regret stack = caching → right-size → `-fa` → Q8 KV.
