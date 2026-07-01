@@ -4,19 +4,24 @@ import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } 
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
+import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
 import { computePoolFreeSlots } from "../../core/model-pool-routing";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
+import { affinityTagsForSkills } from "../../core/model-task-affinity";
 import { selectRoleModel } from "../../core/role-model-selection";
+import { resolveActiveSkills } from "../../core/skill-resolver";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
 import { scheduleNKleinEndpointStart } from "../../nklein-agent/nklein-endpoint-scheduler";
+import type { LoadedModelRoutingProfile } from "../../nklein-agent/nklein-loaded-model-candidates";
+import { resolveLoadedModelProfile } from "../../nklein-agent/nklein-loaded-model-profile";
 import {
 	assertLocalProviderAllowed,
 	isCloudProviderDisabledError,
@@ -265,6 +270,54 @@ export async function handleStartTaskSession(
 				}
 			}
 		}
+		// §5.AB auto-selection (DEFAULT, no manual config): also offer every LOADED model as a role-less candidate, so a
+		// directly-started card auto-picks a best-fit model even with no configured roles (user "forget my config"). Each is
+		// keyed on its REAL model name (the descriptor's key, NOT the per-machine alias) for the affinity tags + prior.
+		// Best-effort + local-only + no-load (descriptors ARE the already-loaded set); any failure degrades to the configured
+		// candidates. Skipped under the test runner (residency disabled ⇒ no live endpoint ⇒ empty), so tests are unchanged.
+		const loadedModelProfilesByRuntimeId = new Map<string, LoadedModelRoutingProfile>();
+		if (residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)) {
+			try {
+				for (const descriptor of await fetchLoadedModelDescriptors(residencyBaseUrl)) {
+					const profile = resolveLoadedModelProfile(descriptor);
+					loadedModelProfilesByRuntimeId.set(descriptor.runtimeId, profile);
+					if (profile.isEmbedding) {
+						continue; // an embedding model is not an agentic candidate
+					}
+					try {
+						const loadedLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig({
+							modelIdOverride: descriptor.runtimeId,
+						});
+						const loadedCandidate = buildNKleinStartGuardCandidate({
+							launchConfig: loadedLaunchConfig,
+							role: null,
+							modelRegistry: modelRegistrySnapshot,
+						});
+						if (!guardCandidates.has(loadedCandidate.entry.key)) {
+							guardCandidates.set(loadedCandidate.entry.key, loadedCandidate);
+						}
+					} catch {
+						// A loaded model that can't resolve into a runnable launch config (context policy, etc.) is skipped.
+					}
+				}
+			} catch {
+				// Best-effort discovery — a missing/unreadable endpoint just leaves the configured candidates in place.
+			}
+		}
+		// Best-fit affinity tags for a candidate, matched by its runtime model id against the loaded descriptors (undefined
+		// when the model isn't in the loaded set — e.g. a configured cloud role — so it simply carries no affinity).
+		const affinityTagsForCandidateModel = (modelId: string): readonly string[] | undefined => {
+			const tags = loadedModelProfilesByRuntimeId.get(modelId)?.affinityTags;
+			return tags && tags.length > 0 ? tags : undefined;
+		};
+		// §5.AE→§5.AB: the card's resolved skills → the affinity tags a fitting model should carry (code card → `code`,
+		// planning/architect card → `reasoning`), so the router prefers a best-fit model BEFORE smallest-sufficient.
+		const taskAffinityTags = affinityTagsForSkills(
+			resolveActiveSkills({
+				role: body.startInPlanMode ? "architect" : "worker",
+				taskText: `${body.taskTitle ?? ""}\n${body.prompt}`,
+			}).skills.map((skill) => skill.id),
+		);
 		const preferredCandidate = body.startInPlanMode
 			? ([...guardCandidates.values()].find((candidate) => candidate.role === "architect") ?? selectedCandidate)
 			: selectedCandidate;
@@ -386,11 +439,19 @@ export async function handleStartTaskSession(
 			promptTokens,
 			outputTokens: 1_000,
 			preferredModelKey: poolRoutedModelKey ?? freeFirstModelKey ?? preferredCandidate.entry.key,
-			candidates: [...guardCandidates.values()].map((candidate) => ({
-				entry: candidate.entry,
-				role: candidate.role,
-				observedCapability: blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore),
-			})),
+			candidates: [...guardCandidates.values()].map((candidate) => {
+				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
+				return {
+					entry: candidate.entry,
+					role: candidate.role,
+					observedCapability: blendedCapabilityForKey(
+						candidate.entry.key,
+						candidate.entry.capability.effectiveScore,
+					),
+					...(affinityTags ? { affinityTags } : {}),
+				};
+			}),
+			taskAffinityTags,
 		});
 		// §5.AB "why this model" — explain the routing decision so the operator (and §5.AG surfaces) can see the basis.
 		const selectionReason = renderModelSelectionReason(
