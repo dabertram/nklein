@@ -390,3 +390,38 @@
 > **headroom-safe** (111.9 GiB free throughout) and the **driver was restored** at the end. Catalog folded (§5.AL): new rows
 > qwen3.5-122b + gemma-4-26b + ornith-1.0-35b; fine-grained fields added to phi-4-mini/qwen2.5-coder/mistral-small/devstral/
 > nemotron-nano; the qwopus3.5-coder row widened with the 9B/27B = weak-synth size nuance.
+
+### 2026-07-01 · **FLEET sweep — m5max + m4mini + legion5pro, per-machine guarded loads** · `model-lab sweep verify-chat-agent-e2e` · _(HIGH power)_
+> The first sweep across ALL THREE linked machines (user greenlit loading/unloading/sweeping everywhere, within safe limits).
+> Enabled by the device-aware guard (commit 4d321820): `loadModelExclusive` now DEVICE-SCOPES the unload (an m5 load never
+> evicts a legion/m4mini model) + takes a `--gpu` offload ratio. Device targeting is deterministic: device-unique keys
+> auto-resolve to their machine; shared keys via `lms link set-preferred-device <id>` (m5max `579028ee…`, legion `040891f3…`,
+> m4mini `2d30f46d…`). Baseline (driver `qwopus3.6-27b-v2-mlx` on m5 + nomic embedder on m4mini) restored at the end.
+> GPU-offload + MoE-expert-CPU-offload research folded into [gpu-offload-and-moe.md](gpu-offload-and-moe.md).
+
+| machine | model | size | e2e | wall | note |
+|---|---|---|:-:|---:|---|
+| **m5max** (128 GB UMA) | qwen/qwen3-coder-next | 80B MoE | ✅ PASS | 25s | full chain + persist + synth — top-tier driver candidate |
+| m5max | openai/gpt-oss-120b | 120B MoE (5.1B act) | ✅ PASS | 22s | full synth, FAST — high-tier winner |
+| m5max | gpt-oss-20b-mlx | 20B MoE (3.6B act) | ❌ 0/3 | 39–59s | chain-drop (read+cmd, no persist) — active-param floor |
+| **m4mini** (24 GB) | qwen3.5-9b-mlx | 9B | ✅ PASS | 172s | @40k, device-targeted → m4mini; 24 GB hosts a 9B fine |
+| m4mini | qwopus3.5-9b-coder-oq4-mtp | 9B | ⚠️ load-fail | — | MLX runtime rejects 29 `mtp.*` tensors (checkpoint/runtime incompat, NOT capacity) |
+| **legion5pro** (8 GB VRAM + 32 GB RAM) | qwen2.5-coder-7b-instruct | 7B | ✅ PASS | 18s | fits 8 GB VRAM, fast |
+| legion5pro | gemma-4-12b-it-qat | 12B | ✅ PASS | 21s | full synth, fast even on the 8 GB GPU |
+| legion5pro | qwen3-14b | 14B | ❌ | 122s | chain-drop (n=1, provisional) |
+| legion5pro | qwen3.6-27b | 27B | ❌ | 840s | SPEED-confounded (14 min, RAM-bound) — timeout artifact, not a ceiling |
+
+> **Headline findings:**
+> - **gpt-oss chaining tracks ACTIVE params, not total size:** the 120b (~5.1B active) drives the full 4-tool chain + full
+>   synth; the 20b (~3.6B active) drops the chain 0/3 — the same ≤~4B-active floor seen in the small-model tier.
+> - **≤12B runs GREAT on the Legion's 8 GB GPU** (coder-7b 18s, gemma-12b 21s, both full PASS); **14B/27B fail** — the 27B
+>   purely SPEED-confounded (840s mostly-RAM-bound → INCOMPLETE, the known "too slow for a multi-turn chain in-window"
+>   pattern), qwen3-14b a provisional n=1 chain-drop (verified:false, ×3 owed).
+> - **m4mini (24 GB) hosts a 9B@40k cleanly** (qwen3.5-9b-mlx ✅ FULL PASS 172s incl. marker echo ⇒ qwen3.5 synthesis is
+>   STOCHASTIC, full IS achievable). CORRECTED an earlier wrong "RAM-limited / embedder-only" read — the `-mtp` variant's
+>   fail was an MLX-runtime tensor mismatch, NOT capacity (the ornith "load-fail ≠ incapable" lesson, again).
+> - **Per-machine mechanics validated:** device-unique keys auto-resolve; the device-scoped unload keeps concurrency correct
+>   across boxes; `--estimate-only` estimates against LOCAL m5 (not the target) ⇒ unreliable remote gate — LM Studio's
+>   on-device guardrail is the real one (refused the m4mini mtp load safely, never froze).
+> - **Apple Silicon = always `--gpu max`** (unified memory); the Legion is where `--gpu <ratio>` / MoE expert-offload matter.
+>   Catalog folded (§5.AL): 6 new rows + qwen2.5-coder/qwen3.5 note updates (commit d8803b56).
