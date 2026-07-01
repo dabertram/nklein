@@ -1,3 +1,4 @@
+import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { isTruthyEnv } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
@@ -158,12 +159,17 @@ export function createChatAgentModel(
 		// `finish:"length"` OR whose `reasoningTokens` (§5.AN signal) consumed ≥90% of the budget (robust to endpoints
 		// that report the finish reason differently — reasoning still ate the budget before any call could land).
 		const baseBudget = sampling.maxTokens ?? 1024;
-		const reasoningStarvedBudget =
-			typeof response.reasoningTokens === "number" && response.reasoningTokens >= 0.9 * baseBudget;
+		// §5.AN: dialect-robust truncation detection via the shared completion-stop-reason core (was the inline
+		// `finishReason === "length" || reasoningTokens ≥ 90%·budget`). Byte-identical on /v1 ("length" ⇒ TruncatedTokens),
+		// and now also catches a non-/v1 truncation stop reason; `shouldRetryLarger` = truncated-stop OR reasoning-starved.
 		if (
 			allowTools &&
 			response.toolCalls.length === 0 &&
-			(response.finishReason === "length" || reasoningStarvedBudget)
+			deriveTruncationSignal({
+				rawReason: response.finishReason,
+				reasoningTokens: response.reasoningTokens,
+				tokenBudget: baseBudget,
+			}).shouldRetryLarger
 		) {
 			const bumped = { ...sampling, maxTokens: Math.max(baseBudget * 3, 3072) };
 			// If the model has a thinking soft-switch (e.g. Qwen3 `/no_think`), DISABLE thinking on the retry — that removes
@@ -180,8 +186,11 @@ export function createChatAgentModel(
 			// so it never affects a turn the first bump already fixed.
 			const stillTruncated =
 				response.toolCalls.length === 0 &&
-				(response.finishReason === "length" ||
-					(typeof response.reasoningTokens === "number" && response.reasoningTokens >= 0.9 * bumped.maxTokens));
+				deriveTruncationSignal({
+					rawReason: response.finishReason,
+					reasoningTokens: response.reasoningTokens,
+					tokenBudget: bumped.maxTokens,
+				}).shouldRetryLarger;
 			if (stillTruncated) {
 				const escalated = raisedTokenBudget({
 					current: bumped.maxTokens,

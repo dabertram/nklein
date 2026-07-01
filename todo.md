@@ -8402,11 +8402,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         →`{outcome,truncatedByStopReason,reasoningStarvedBudget,shouldRetryLarger}` — the SHARED derivation generalizing the
         exact `finish:"length"` OR `reasoningTokens≥90%·budget` check `chat-local-llm-adapter.ts` inlines today, now robust
         to non-OpenAI dialects AND splitting `TruncatedTokens` (raise `max_tokens`) from `TruncatedContext` (compact — the
-        window is full). Pure; 32 vitest tests (tsc+biome green). **OWED WIRING:** replace the two inline `finishReason ===
-        "length"` branches in [chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts) with `deriveTruncationSignal`,
-        and feed the native `/api/v0` `stats.stop_reason` (already parsed by `lmstudio-request-stats.ts`) through it so a
-        `TruncatedContext` stop routes to compaction rather than a futile budget bump. Left unwired here (touching the chat
-        adapter is out of this card's scope).
+        window is full). Pure; 32 vitest tests (tsc+biome green). **WIRED (2026-07-01):** both inline `finishReason ===
+        "length"` truncation branches in [chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts) now use
+        `deriveTruncationSignal(...).shouldRetryLarger` (byte-identical on /v1 — adapter regression suite green — and
+        dialect-robust beyond it). **STILL OWED (WIRING):** feed the native `/api/v0` `stats.stop_reason` (parsed by
+        `lmstudio-request-stats.ts`) through it so a `TruncatedContext` stop routes to compaction rather than a futile budget bump.
   - [ ] Extend [model-thinking-control.ts](src/core/model-thinking-control.ts) with each family's verified switch.
   - [ ] Verify live per family as loaded (DeepSeek-R1, qwq, qwen3.5/3.6, nemotron, gemma-4, phi-4-reasoning).
 - [ ] **RUNTIME online research to get more out of a model, decomposed:**
