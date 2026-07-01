@@ -108,6 +108,13 @@ export interface ModelCapabilityEntry {
 	speed?: SpeedClass;
 	/** OPTIONAL resident FOOTPRINT in GB — the memory cost of keeping this model loaded (a §5.AB selection/packing input). */
 	sizeGb?: number;
+	/**
+	 * OPTIONAL — the model BRINGS ITS OWN orchestration (§5.AB-F, 2026-07-01): it is RL-trained to AUTHOR its own scaffold
+	 * (task plan / tool calls / error recovery) at inference — e.g. Ornith-1.0 (a self-scaffolding agentic coder). When
+	 * `true`, !Klein should SOFTEN the §5.AB force-advance + decompose LESS (let it self-orchestrate; allow a warm-up turn +
+	 * a larger budget to author its scaffold first). Descriptive handling metadata; does NOT gate on its own.
+	 */
+	selfScaffolding?: boolean;
 	/** One-line, honest justification (the "why" a future reader / the user sees). */
 	note: string;
 	/** Source URLs (model cards / docs / community reports) backing the verdict. */
@@ -284,6 +291,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		match: /ornith-?1(\.0)?-35b/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "code",
+		selfScaffolding: true,
 		note: "Ornith-1.0-35B MoE (DeepReinforce, 2026-06, MIT) — a SELF-SCAFFOLDING agentic CODING model: it RL-learns to jointly produce the solution AND its OWN scaffold (task plan / tool calls / error recovery); at inference it PROPOSES a refined scaffold, then solves. Research-STRONG: the 35B MoE (~3B active/token) beats Qwen-3.5-397B on Terminal-Bench 2.1 (64.2 vs 53.5) — top-tier agentic coder on paper. ⚠ NOT verified by us — our LOCAL MLX checkpoints (`@4bit` AND `@8bit`) LOAD-FAIL (`lms load` exits 1 at ~2%, 3/3, 2026-07-01: a broken/incompatible QUANT CONVERSION, NOT headroom/guard). LOAD FIX: use the official `leonsarmiento/Ornith-1.0-35B-5bit-mlx` (mixed 5/8-bit) OR the GGUF/FP8/bf16 weights (`deepreinforce-ai/Ornith-1.0-35B`) — not the @4bit/@8bit MLX. ⚠ HANDLING (§5.AB-E): it SELF-SCAFFOLDS, so !Klein's force-advance + aggressive decomposition may CONFLICT with its own orchestration — let it author its own workflow (decompose LESS; give it room/budget to plan first; may need a warm-up turn to author the scaffold). Corrected from a WRONG TOOL_UNSUITABLE+reject (that conflated a load-fail with incapability — user caught it 2026-07-01; the 9B sibling loads + passed C0/C1/C2).",
 		sources: [
 			"deep-reinforce.com/ornith_1_0.html; marktechpost.com/2026/06/25 Ornith-1.0 release; huggingface.co/deepreinforce-ai/Ornith-1.0-35B; huggingface.co/leonsarmiento/Ornith-1.0-35B-5bit-mlx (official MLX)",

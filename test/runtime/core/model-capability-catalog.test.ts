@@ -115,6 +115,9 @@ describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdi
 		expect(e?.toolUse).toBe("TOOL_CAPABLE");
 		expect(e?.kind).toBe("code");
 		expect(e?.verified).toBe(false); // research-based; not verified by us (our MLX checkpoints load-fail)
+		expect(e?.selfScaffolding).toBe(true); // §5.AB-F: Ornith authors its own scaffold ⇒ !Klein should soften force-advance
+		// A model that does NOT bring its own orchestration leaves the field undefined (opt-in metadata).
+		expect(lookupModelCapability("qwopus3.5-4b-coder-fable5-v1-mlx")?.selfScaffolding).toBeUndefined();
 		const v = assessModelSuitability("ornith-1.0-35b-mlx@4bit");
 		expect(v.severity).not.toBe("reject"); // NOT rejected on a load-fail
 		// The size-anchored regex must NOT match the 9B sibling.
