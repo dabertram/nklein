@@ -23,6 +23,7 @@ Run e.g.: `HOME=/tmp/nklein-verify NKLEIN_VERIFY_MODEL="qwen/qwen3-8b-m5max" tsx
 | `verify-decompose-isolation.mts` | A real decompose: reads the spec → calls `decompose_project` (recovers a missing `title`); **no host path leaks** into agent output. In-memory service. |
 | `verify-task-completion.mts` | A single implementation card runs to `awaiting_review` with a **correct, ready-to-merge result branch** (delivery verified). In-memory service. |
 | `verify-multi-card-pipeline.mts` | **FULL runtime** (`startTsBackend` → `createDevTestProject` → `startTaskSession`): decompose → the runtime's auto-start **cascade** runs the generated cards. NB the seed-card start needs the same fields the UI sends (esp. `agentId` + `nkleinSettings`). |
+| `verify-sandbox-mcp.mts` | §5.AR: a curated MCP server baked into the sandbox image is reachable over the real `docker exec -i <container> <cmd>` MCP transport **offline** (`--network none`), and the §5.AL fit gate offers it to a fitting model (qwen3-8b) but withholds it from a native reasoner. No model/task needed — needs Docker + the built `nklein/agent-sandbox` image. |
 
 ## Strict isolation (host details never reach the agent; no host worktrees)
 
