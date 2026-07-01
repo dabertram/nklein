@@ -114,6 +114,33 @@ than dense models of the same nominal size. Avoid dense >70B (heavy swap).
 
 **Caveats (honest, from our own sweeps):** ≤7B models have real tool-call-chaining weaknesses (§5.O/§5.Z) — Roster M is only viable BECAUSE the §5.AA recovery ladder + the finite-state controller carry them; expect more retries/escalations and treat ceilings as provisional (§5.0.3). `Qwen2.5-Coder-3B` for non-trivial cards is the first thing to escalate off. The 8B architect must be paired with the force-decompose rung. Keep all loaded contexts ≥32k (floor) but lean (speed) on the small machines.
 
+## Sweep-driven recommendations (2026-07-01 — from the 11-model guarded e2e sweep + Ornith research)
+> The 4-step agentic chain now passes BROADLY (the §5.AB force-advance fix); the differentiator is SYNTHESIS (full vs weak
+> final reply). Full-synthesis models are the best unattended agentic DRIVERS. See `model-sweep-log.md` + the §5.AL catalog
+> fine-grained fields (`chaining`/`synthesis`/`speed`/`selfScaffolding`).
+
+**DOWNLOAD (high-value, worth getting):**
+- **Ornith-1.0 (DeepReinforce, MIT) — a SELF-SCAFFOLDING agentic CODER** (RL-learns to author its own scaffold; the 35B MoE
+  beats Qwen-3.5-397B on Terminal-Bench 2.1). ⚠ Your current `ornith-1.0-35b-mlx@4bit`/`@8bit` LOAD-FAIL (broken quant
+  conversion, 3/3). GET a loadable build instead: **`leonsarmiento/Ornith-1.0-35B-5bit-mlx`** (mixed 5/8-bit, Apple-Silicon)
+  OR the **GGUF / FP8 / bf16** (`deepreinforce-ai/Ornith-1.0-35B`); also the smaller `Ornith-1.0-9B` / `31B` dense. HANDLE as
+  self-scaffolding (§5.AB-F): decompose LESS, let it author its own workflow, allow a warm-up turn + larger budget.
+
+**KEEP (proven strong in the sweep):**
+- **`qwen3.5-122b-a10b`** (MoE, ~69 GB — fits the 128 GB m5) — the STRONGEST all-round: full 4-tool chain + FULL synthesis @
+  ~77s. The best big-brain agentic driver.
+- **`magistral-small-2509`** (24B reasoning) + **`devstral-small-2-2512`** (24B coder) — the clean FULL-SYNTHESIS 24Bs (fast);
+  devstral is a strong coder driver. NOTE both tested BETTER than their prior TOOL_WEAK catalog verdicts — a ×3 re-run to
+  lift the verdict is owed.
+- **`qwopus3.5-4b-coder`** — full synthesis at 4B (fast); punches above its size for agentic tool use.
+
+**DROP / AVOID (reclaim disk):**
+- The `ornith-1.0-35b-mlx@4bit` / `@8bit` MLX artifacts (broken load) — use the 5-bit-MLX / GGUF instead.
+
+**FUTURE DRILL-DOWN (user, not now):** download **q4 + q8 pairs** of a key model (e.g. a coder) to measure the capability
+delta (chaining/synthesis/speed) vs the RAM freed for a bigger context — optimize quant AGAINST context size (the §5.AB-B
+`parseModelAttributes` parser now exists; ties the §5.AD context-budget knee).
+
 ## Notes
 - The existing catalog is already large (40+ models across all tiers) — most "recommendations" above are already
   downloaded; the real near-term gap is **GGUF variants of the small models** for the format A/B.
