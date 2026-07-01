@@ -1590,11 +1590,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       r/w, patch capture/apply, MCP calls, egress attempts, protected-path denials, approvals — not just chat host
       actions). Folds into the §5.AF tool-capability manifest + the resolved §5.Y posture; harden tier (rootless Docker /
       seccomp / pinned digest) is a later option.
-  - [ ] **Taint-label model (pure core first):**
-    - [ ] define the `TaintLabel` union (`repo_instruction/web/mcp/private_repo/secret_like/user_trusted/runtime_policy`).
-    - [ ] define how labels attach to a content source + how they propagate into the model context.
-    - [ ] encode the core rule (untrusted content guides STYLE only; never mutates capabilities/approvals/network/
-          secrets/git-delivery/host without a trusted plan + confirmation) as a pure predicate; unit-test it.
+  - [~] **Taint-label model (pure core first).** PURE CORE DONE (2026-07-01): `src/core/taint-labels.ts` — the
+        `TaintLabel` union + `labelsForSource`/`propagateTaint` (attach + accumulate-only propagation) +
+        `taintedContentMayInfluence` (the core STYLE-only rule as a pure predicate). 24 tests; tsc + biome clean.
+        The capability broker (next leaf) consumes these labels + calls the predicate at the model↔tool seam.
+    - [x] define the `TaintLabel` union (`repo_instruction/web/mcp/private_repo/secret_like/user_trusted/runtime_policy`).
+    - [x] define how labels attach to a content source + how they propagate into the model context. *(PURE: `labelsForSource` maps source-kind→labels (+`secret_like` hint); `propagateTaint` unions/de-dups into canonical order — taint only accumulates. OWED WIRING: attach at real retrieval/MCP admit points + thread the merged labels through the actual context builder.)*
+    - [x] encode the core rule (untrusted content guides STYLE only; never mutates capabilities/approvals/network/
+          secrets/git-delivery/host without a trusted plan + confirmation) as a pure predicate; unit-test it. *(`taintedContentMayInfluence`: `style` always allowed; a protected sink from tainted content needs `backedByTrustedPlanAndConfirmation === true` (fail-closed).)*
   - [ ] **Capability broker (pure decision core):**
     - [ ] define the broker input `{ ruleset, role, provenance, tool trust, taint labels, action, target, is-sink? }`.
     - [ ] implement the decision: `allow | deny | one-time-confirm | require-fresh-trusted-plan`; unit-test the matrix.
@@ -2422,6 +2425,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > limit (global/project). **Manual mode:** board-header "N pending" badge + per-card indicators → a clarifying
 > dialog; each question shows ≥4 fitting options + free-text, multi-choice/radio (the asking agent picks). **Reuse:**
 > the plan-artifact question schema (`nklein-plan-artifacts.ts`) + `questions.md`; §5.K reviewer infra; the embedder.
+- [x] **Clarification-need gate (pure + tested)** *(DONE 2026-07-01)* — [src/core/clarification-need.ts](src/core/clarification-need.ts):
+      the ENTRY GATE that runs *before* `auto-clarify.ts` — "does this request even need a clarifying question?".
+      `detectClarificationSignals(request)` extracts cheap deterministic under-specification signals (empty/trivial ask,
+      unresolved pronoun with no antecedent, missing target after a bare action verb, conflicting constraints,
+      multiple offered interpretations, explicit requester uncertainty), `scoreClarificationSignals` aggregates their
+      fixed weights into a clamped [0,1] score, and `assessClarificationNeed(request, mode)` returns the mode-relative
+      verdict (`cautious`/`balanced`/`autonomous` thresholds — more autonomy ⇒ asks less). NO model call (heuristic
+      over extracted signals); composes upward (the score can feed `task-complexity.ts`'s `ambiguous` input, and the
+      wiring consults `assessClarificationNeed` after decomposition to decide whether to open a question at all). 24
+      unit tests. **Owed wiring (non-pure, deferred):** call `assessClarificationNeed` post-decompose to seed the
+      §5.S loop, and thread the mode from the auto-vs-manual setting.
 - [x] **Auto-clarify core (pure + tested)** *(DONE 2026-06-24)* — [src/core/auto-clarify.ts](src/core/auto-clarify.ts):
       `decideAutoClarifyStep(rounds, config, similarity)` is the pure architect→reviewer→architect decision over a
       card's open questions — confident answer wins immediately; otherwise the round budget (safety cap tightened by
@@ -7007,7 +7021,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Decompose emits work-package-shaped cards, decomposed:**
   - [ ] Define the richer card schema: write-scope, forbidden paths, interfaces, acceptance shape.
   - [ ] Update decompose logic to produce cards carrying these contract bounds.
-  - [ ] Verify small workers stay in-bounds by construction (overlap classification Green/Yellow/Red).
+  - [~] Verify small workers stay in-bounds by construction (overlap classification Green/Yellow/Red). **PURE CORE DONE
+        (2026-07-01):** [`src/core/work-package-dispatch.ts`](src/core/work-package-dispatch.ts) — the §5.AK module-ownership
+        map as machine logic over `WorkPackage {id, writeScope, forbiddenScope?, dependsOn?}`: `classifyPackagePairConflict`
+        (GREEN disjoint / YELLOW shared coarse-or-barrel path / RED shared *specific* write target OR write-into-forbidden,
+        both directions, prefix-safe containment), `detectWorkPackageConflicts` (all non-green pairs, once each),
+        `worstConflictClass`, `validateWorkPackages` (dup ids · unknown deps · DFS cycle · `..`-escaping scope · empty scope,
+        all collected), `resolveDispatchWaves` (Kahn topo-batching into ordered waves, null on cycle/unknown-dep), and
+        `planParallelDispatch` (validate → dependency waves → first-fit parallel-safe sub-groups per wave). Coarse-vs-specific
+        split mirrors `task-file-overlap` so a shared manifest/lockfile/barrel never Red-blocks a wide fan-out. 36 tests;
+        tsc+biome green. **Owed WIRING:** feed the decompose card schema (write-scope/forbidden from `nklein-write-scope`)
+        into these verdicts + gate an actual subagent fan-out on the waves/groups.
   - [ ] Ties §5.B decomposition + §5.N focus chains.
 - [ ] **Path-owned acceptance gates per card, decomposed:**
   - [ ] Define executable checks that prove card delivery (build/test/typecheck/acceptance).
