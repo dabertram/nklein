@@ -1891,18 +1891,6 @@ export function RuntimeSettingsDialog({
 										</span>
 									</div>
 								</div>
-								<div style={{ gridColumn: "1 / span 2" }}>
-									<SwarmGuardrailsSettingsPanel
-										value={swarmGuardrailInputs}
-										onChange={setSwarmGuardrailInputs}
-										disabled={controlsDisabled}
-										maxConcurrentTasks={maxConcurrentTasks}
-										sandboxMaxContainers={sandboxMaxContainers}
-										sandboxPool={sandboxPoolSummary}
-										lostHeartbeatPolicy={lostHeartbeatPolicy}
-										decompositionAutoApplyEnabled={decompositionAutoApplyEnabled}
-									/>
-								</div>
 								<div
 									style={{ gridColumn: "1 / span 2" }}
 									className="rounded-md border border-border bg-surface-1 p-3"
@@ -2136,6 +2124,22 @@ export function RuntimeSettingsDialog({
 									) : null;
 								})()}
 							</div>
+						</div>
+
+						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
+								Swarm Safety Guardrails
+							</h6>
+							<SwarmGuardrailsSettingsPanel
+								value={swarmGuardrailInputs}
+								onChange={setSwarmGuardrailInputs}
+								disabled={controlsDisabled}
+								maxConcurrentTasks={maxConcurrentTasks}
+								sandboxMaxContainers={sandboxMaxContainers}
+								sandboxPool={sandboxPoolSummary}
+								lostHeartbeatPolicy={lostHeartbeatPolicy}
+								decompositionAutoApplyEnabled={decompositionAutoApplyEnabled}
+							/>
 						</div>
 
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
