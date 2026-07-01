@@ -4858,8 +4858,25 @@ source repo went private — so if it vanishes the buildable source still lives 
         `effectiveModelRoles`, filtered to LOADED + context-policy + the §5.AE class cap, then `selectRoleModel`). Map
         those `guardCandidates` into `SwarmRoleModelCandidate`s and call `selectSwarmRoleModel` instead — behavior-changing
         on the task-start path ⇒ needs a live §5.Z re-verify before landing; do as a focused slice.
-  - [ ] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
+  - [~] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
         (ties §5.AE skills-on-workers); easy cards to fast/small, hard cards reserve the strong model.
+        **DECOMPOSE PATH DONE + LIVE-VERIFIED (2026-07-01):** best-fit task↔model affinity in `routeNKleinTask` — opaque
+        `affinityTags` (candidate) vs `taskAffinityTags` (request), higher overlap preferred BEFORE smallest-sufficient,
+        and ONLY among already-feasible candidates (never overrides difficulty/context). Tag vocabulary in one pure place
+        [model-task-affinity.ts](src/core/model-task-affinity.ts) (ModelKind→tags, SkillId→tags, runtime-caps→tags), so
+        the router stays enum-decoupled. Candidates are AUTO-DISCOVERED from the LOADED set via the native `/api/v1/models`
+        descriptors ([lmstudio-loaded-model-descriptors.ts](src/core/lmstudio-loaded-model-descriptors.ts)): the runtime
+        ALIAS (`loaded_instances[].id`, e.g. `…-legion5pro`) is separated from the real publisher `key` (`qwen3.5-9b-mtp`)
+        so catalog/affinity key on the REAL name (user ask 2026-07-01); cold-start prior from the §5.AL catalog; affinity
+        = runtime card facts (`trained_for_tool_use`, declared `reasoning`) ∪ catalog kind, + an opus-name heuristic so a
+        custom merge like qwopus is tagged `reasoning` even when its card omits the flag. Card side resolves §5.AE
+        skills→tags. **Live probe (3 loaded models):** code card→qwen2.5-coder, planning/review→qwopus, legion alias→real
+        key `qwen3.5-9b-mtp`. Commits cb28c161 (router+vocab), b560a69c (descriptors+wiring end-to-end).
+        **STILL OWED:** (1) the live task-START path ([start-task-session.ts](src/trpc/runtime-api/start-task-session.ts))
+        builds candidates from CONFIGURED roles, NOT the loaded set — so with the user's "forget my config" it has only
+        the primary (no runtime auto-selection); give it the same loaded-set auto-discovery + affinity (rides the wiring
+        leaf above, behavior-changing on the hot path ⇒ live §5.Z re-verify). (2) chain llmfit's cached score AHEAD of the
+        catalog prior (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
   - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
         **PROFILE DONE (2026-06-29):** `PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS`
         ([runtime-config-api-contract.ts](src/core/runtime-config-api-contract.ts)) — 48 turns / 8h wall-time / 8 no-diff

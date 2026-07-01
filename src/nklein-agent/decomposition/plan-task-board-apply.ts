@@ -16,7 +16,7 @@ import { buildTaskPrompt } from "./plan-task-prompt";
 import {
 	formatTaskModelFitEvidence,
 	previewNKleinPlanTaskGraph,
-	resolveTaskRoleSettings,
+	resolveTaskModelSettings,
 	selectTaskRoutingCandidate,
 } from "./plan-task-routing";
 import { validateNKleinPlanTaskGraph } from "./plan-task-validation";
@@ -139,7 +139,7 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 				agentId: "nklein",
 				baseRef: input.baseRef,
 				nkleinSettings: withAutonomousNKleinTimeoutSettings(
-					resolveTaskRoleSettings(task, input.modelRoleSettings, selectedRole),
+					resolveTaskModelSettings(selectedRoutingCandidate, task, input.modelRoleSettings, selectedRole),
 					{ powerMultiplier: input.powerMultiplier },
 				),
 				filesLikelyTouched: task.filesLikelyTouched,

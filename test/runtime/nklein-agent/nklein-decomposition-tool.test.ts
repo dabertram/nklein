@@ -512,7 +512,11 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		);
 		expect(result.createdTasks[1]?.nkleinSettings).toEqual({
 			...AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS,
-			providerId: "lmstudio",
+			// The SELECTED candidate's model is pinned so the card RUNS on it (§5.AB), with the role's non-model settings
+			// (reasoningEffort) layered on. The candidate's provider is `ollama` (what the router evaluated — see the fit
+			// evidence below); in production a role candidate is built FROM the role's launch config so the two agree — this
+			// fixture decouples them (role config says lmstudio) to prove the SELECTED model wins, not the config lookup.
+			providerId: "ollama",
 			modelId: "deepseek-coder-33b",
 			reasoningEffort: "high",
 		});
@@ -527,7 +531,7 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		});
 	});
 
-	it("does not keep suggested role settings when routing selects the default model", () => {
+	it("pins the SELECTED default model, not the suggested role's settings, when routing selects the default", () => {
 		const result = applyNKleinPlanTaskGraphToBoard({
 			board: createBoard(),
 			taskGraph: createTaskGraph(),
@@ -549,8 +553,11 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 			],
 		});
 
-		expect(result.createdTasks[0]?.nkleinSettings).toEqual(AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS);
-		expect(result.createdTasks[1]?.nkleinSettings).toEqual(AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS);
+		// Routing selected the role-less default candidate → the card is pinned to THAT model (so it runs on the selected
+		// model, §5.AB), NOT the suggested worker role's qwen3.5-9b (the anti-leak intent this test guards).
+		const expected = { ...AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS, providerId: "ollama", modelId: "default-local" };
+		expect(result.createdTasks[0]?.nkleinSettings).toEqual(expected);
+		expect(result.createdTasks[1]?.nkleinSettings).toEqual(expected);
 	});
 
 	it("rejects unknown dependency references", () => {

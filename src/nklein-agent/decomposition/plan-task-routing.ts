@@ -86,6 +86,39 @@ export function resolveTaskRoleSettings(
 	};
 }
 
+/**
+ * The model settings to PIN on a generated card. When the §5.AB router selected a CONCRETE best-fit candidate — e.g. an
+ * auto-discovered LOADED model that has NO configured role — pin THAT model (its runtime id + provider) so the card
+ * actually RUNS on the selected model instead of only annotating the fit evidence and falling back to the default. The
+ * role's NON-model settings (reasoning effort, context scope, timeouts) are layered on top. With no concrete candidate
+ * (`undefined` = unvalidated, `null` = the default local model) it falls back to the role-only settings — prior behavior.
+ */
+export function resolveTaskModelSettings(
+	selectedRoutingCandidate: NKleinTaskRoutingCandidate | null | undefined,
+	task: NKleinPlanTask,
+	modelRoleSettings: Record<string, RuntimeTaskNKleinSettings> | undefined,
+	selectedRole: string | null | undefined,
+): RuntimeTaskNKleinSettings | undefined {
+	const roleSettings = resolveTaskRoleSettings(task, modelRoleSettings, selectedRole);
+	if (!selectedRoutingCandidate) {
+		return roleSettings; // no concrete model chosen ⇒ keep role-only behavior
+	}
+	return {
+		providerId: selectedRoutingCandidate.entry.providerId,
+		modelId: selectedRoutingCandidate.entry.modelId,
+		...(roleSettings?.reasoningEffort ? { reasoningEffort: roleSettings.reasoningEffort } : {}),
+		...(roleSettings?.contextScope ? { contextScope: roleSettings.contextScope } : {}),
+		...(roleSettings?.timeoutMode ? { timeoutMode: roleSettings.timeoutMode } : {}),
+		...(roleSettings?.requestTimeoutMs !== undefined ? { requestTimeoutMs: roleSettings.requestTimeoutMs } : {}),
+		...(roleSettings?.streamTimeoutMs !== undefined ? { streamTimeoutMs: roleSettings.streamTimeoutMs } : {}),
+		...(roleSettings?.toolTimeoutMs !== undefined ? { toolTimeoutMs: roleSettings.toolTimeoutMs } : {}),
+		...(roleSettings?.agentTimeoutMs !== undefined ? { agentTimeoutMs: roleSettings.agentTimeoutMs } : {}),
+		...(roleSettings?.conversationTimeoutMs !== undefined
+			? { conversationTimeoutMs: roleSettings.conversationTimeoutMs }
+			: {}),
+	};
+}
+
 export function formatTaskModelFitEvidence(candidate: NKleinTaskRoutingCandidate | null | undefined): string {
 	if (candidate === undefined) {
 		return "not validated before card creation; connected-local-model fit is checked when the card starts";
