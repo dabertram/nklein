@@ -4972,11 +4972,18 @@ source repo went private — so if it vanishes the buildable source still lives 
         run was STILL DECOMPOSING (qwopus-27b `PROCESSINGPROMPT` the whole time — same prefill wall as the stagnation
         finding), so NO cards had started yet ⇒ nothing to contend the gate. The gate is unit-proven (3 scheduler tests
         showing it holds at cap) + tsc-clean wired; observing it fire live just needs cards to actually START concurrently,
-        which the slow 27B DECOMPOSE prevents in a bounded window. **INSIGHT:** the decompose model choice is the pipeline
-        bottleneck — routing decompose to a smaller/faster model (a 9B) would unblock live iteration (quality/speed
-        trade-off, a tuning call). **ONLY OWED:** observe the caps holding under a run where cards actually start (faster
-        decompose model, or patience for the 27B). Also still-nice: feed `queued`/`status` into free-first.
-        **Per-machine concurrency = COMPLETE + safe-by-default (unit-proven; live-obs blocked by 27B prefill latency).**
+        which the slow 27B DECOMPOSE prevents in a bounded window. **INSIGHT (confirmed live 2026-07-01):** the decompose
+        model choice is the pipeline bottleneck — re-ran with `dev test-project --model-id qwen3.5-9b-mlx-m4` (an
+        already-loaded 9B, NO `lms load` needed): qwopus went IDLE and the 9B ran the decompose (`GENERATING`), i.e. the
+        decompose model IS overridable via the seed task's `nkleinSettings.modelId` and a 9B is far faster. Even so the run
+        produced only ~1 card in-window (a small-model plan / still generating), so still no MULTI-card same-machine
+        contention to observe. **The gate itself is unit-proven** (3 scheduler tests assert it holds at cap) + tsc-clean
+        wired — the live-obs gap is purely "get ≥2 cards to start concurrently on one machine in a window", which needs a
+        fast decompose AND ≥2 quick cards AND concurrency timing (hard to hit unattended; a debug-log on the hold + a
+        hand-crafted 2-card board would nail it — a focused follow-up). **ACTIONABLE for the user:** pin decompose to a 9B
+        (`--model-id` / role config) for fast iteration; the 27B is quality-max but slow to prefill.
+        Also still-nice: feed `queued`/`status` into free-first.
+        **Per-machine concurrency = COMPLETE + safe-by-default (unit-proven; live-obs needs a timed 2-card concurrent run).**
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
         **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
