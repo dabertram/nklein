@@ -5130,12 +5130,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   several linked machines share ONE `localhost:1234` endpoint so per-ENDPOINT concurrency can't tell them apart: `null`
 >   ⇒ local, hex ⇒ a linked remote); [model-pool-routing.ts](src/core/model-pool-routing.ts) does per-machine pool routing
 >   (capability-tier + free-slots + fan-out); [concurrency-config.ts](src/core/concurrency-config.ts) resolves the caps.
->   **OWED: confirm the LIVE WIRING** — that the scheduler feeds REAL per-machine `lms ps --json` running counts (keyed by
->   `machineId`, NOT endpoint) into `computePoolFreeSlots`/`selectPoolForTask`, so two tasks on DIFFERENT linked boxes run
->   concurrently while two on the SAME box queue. Today's swarm risks mixing up concurrency across separate hardware if it
->   counts per-endpoint. (Context: the 2026-07-01 sweep's `model-lab` exclusive loads cycled the LAN machines' models too —
->   expected/acceptable.) **FALLBACK (user-approved): if reliable auto per-machine pooling isn't feasible, the user
->   PREDEFINES the model pools** (a manual per-machine pool config) — fine as a fallback.
+>   **✅ WIRED (opt-in) — confirmed 2026-07-01:** the per-MACHINE concurrency GATE is LIVE at
+>   [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts) (~L593-619) behind `NKLEIN_PER_MACHINE_MAX_CONCURRENCY`
+>   — when set it fetches `lms ps --json` (`fetchLmsPsModels`→`machineId`) and admits per MACHINE via
+>   [machine-concurrency-gate.ts](src/core/machine-concurrency-gate.ts) + `scheduleNKleinEndpointStart({perMachineCap})`, so
+>   linked machines sharing ONE `localhost:1234` endpoint ARE distinguished. OFF by default ⇒ byte-identical (no `lms ps`
+>   subprocess). So !Klein CAN auto-handle per-machine concurrency — the predefined-pools FALLBACK is NOT needed. **REMAINING
+>   (finer): (1)** it's OFF by default ⇒ the swarm counts per-ENDPOINT until the user sets `NKLEIN_PER_MACHINE_MAX_CONCURRENCY`
+>   ⇒ the mix-up risk exists by default — decide whether to DEFAULT it on (or auto-enable when `lms ps` shows >1 machine) so
+>   it's correct-by-default; **(2)** the separate POOL-ROUTING free-slot count (`computePoolFreeSlots`, per-endpoint, used at
+>   ~L494) is a DIFFERENT layer (which pool to PICK vs how many to admit) — check whether IT also needs per-`machineId` keying
+>   for the shared-endpoint case, or whether the admission gate already suffices. (Context: the 2026-07-01 sweep's `model-lab`
+>   exclusive loads cycled the LAN machines' models too — expected/acceptable. Predefined pools remain an available fallback.)
 > - **(B) Detect ALL relevant model ATTRIBUTES (format / quant / …) for the catalog + PLAN a quant drill-down.** Today
 >   detection is PARTIAL: `quant` is a concept ([model-fitness-freshness.ts](src/core/model-fitness-freshness.ts) `quant?`
 >   fingerprint; llmfit `bestQuant`) but is NOT systematically PARSED from the model id / API card, and **FORMAT (mlx vs
