@@ -107,12 +107,17 @@ describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdi
 		expect(e?.chaining).toBe("single_only");
 	});
 
-	it("ornith-1.0-35b (broken MLX checkpoint) is a hard reject and does NOT catch the healthy 9B sibling", () => {
+	it("ornith-1.0-35b resolves to the research-backed CODER verdict (a load-fail ≠ incapable, NOT a reject) and does NOT catch the 9B", () => {
+		// Corrected 2026-07-01 (user caught the conflation): the @4bit/@8bit MLX LOAD-FAIL is a CHECKPOINT issue, not a
+		// capability verdict. Research: Ornith-1.0 is a top-tier SELF-SCAFFOLDING agentic CODER → TOOL_CAPABLE/code, no reject.
+		const e = lookupModelCapability("ornith-1.0-35b-mlx@4bit");
+		expect(e?.family).toBe("ornith-1.0-35b");
+		expect(e?.toolUse).toBe("TOOL_CAPABLE");
+		expect(e?.kind).toBe("code");
+		expect(e?.verified).toBe(false); // research-based; not verified by us (our MLX checkpoints load-fail)
 		const v = assessModelSuitability("ornith-1.0-35b-mlx@4bit");
-		expect(v.entry?.family).toBe("ornith-1.0-35b");
-		expect(v.severity).toBe("reject"); // severityOverride — a load-failing artifact shouldn't be retried blindly
-		expect(v.reason).toMatch(/load-fail/i);
-		// The size-anchored regex must NOT match the 9B (which loads fine and passed C0/C1/C2).
+		expect(v.severity).not.toBe("reject"); // NOT rejected on a load-fail
+		// The size-anchored regex must NOT match the 9B sibling.
 		expect(lookupModelCapability("ornith-1.0-9b-mlx")).toBeNull();
 	});
 });

@@ -276,22 +276,21 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 	},
 	// ── Ornith (local MLX) ────────────────────────────────────────────────────────────────────────────────
 	{
-		// ornith-1.0-35b MLX checkpoint — a BROKEN artifact, not a capability verdict. Regex is size-anchored (`35b`) so it
-		// does NOT catch the healthy ornith-1.0-9b-mlx (which passed C0/C1/C2). Recorded so a future sweep won't retry it blind.
+		// Ornith-1.0 = DeepReinforce's SELF-SCAFFOLDING agentic CODING family (2026-06, MIT): RL-learns to jointly produce the
+		// solution AND its OWN scaffold (plan/tool-calls/error-recovery). The 35B MoE (~3B active) BEATS Qwen-3.5-397B on
+		// Terminal-Bench 2.1 → top-tier agentic coder ON PAPER. Our LOCAL @4bit/@8bit MLX checkpoints load-fail (see note) so
+		// this verdict is RESEARCH-based, not yet verified by us. Size-anchored to 35b (won't touch the healthy 9B sibling).
 		family: "ornith-1.0-35b",
 		match: /ornith-?1(\.0)?-35b/,
-		toolUse: "TOOL_UNSUITABLE",
-		kind: "unknown",
-		note: "ornith-1.0-35b (MLX). The @4bit AND @8bit checkpoints LOAD-FAIL on the m5: `lms load` exits 1, crashing at ~2% with no diagnostic — tested 3/3 via the model-lab guard 2026-07-01. NOT a headroom refusal (111.9 GiB free) and NOT a guard/classifier block — a broken/incompatible MLX checkpoint (the guard behaved correctly; the load was never forced). Marked UNSUITABLE + reject so a future run does not retry this broken artifact blindly; capability is simply UNTESTABLE until a loadable checkpoint appears. (Contrast: the ornith-1.0-9b-mlx sibling loads and passed C0/C1/C2 — this row is size-anchored to 35b so it won't touch the 9B.)",
+		toolUse: "TOOL_CAPABLE",
+		kind: "code",
+		note: "Ornith-1.0-35B MoE (DeepReinforce, 2026-06, MIT) — a SELF-SCAFFOLDING agentic CODING model: it RL-learns to jointly produce the solution AND its OWN scaffold (task plan / tool calls / error recovery); at inference it PROPOSES a refined scaffold, then solves. Research-STRONG: the 35B MoE (~3B active/token) beats Qwen-3.5-397B on Terminal-Bench 2.1 (64.2 vs 53.5) — top-tier agentic coder on paper. ⚠ NOT verified by us — our LOCAL MLX checkpoints (`@4bit` AND `@8bit`) LOAD-FAIL (`lms load` exits 1 at ~2%, 3/3, 2026-07-01: a broken/incompatible QUANT CONVERSION, NOT headroom/guard). LOAD FIX: use the official `leonsarmiento/Ornith-1.0-35B-5bit-mlx` (mixed 5/8-bit) OR the GGUF/FP8/bf16 weights (`deepreinforce-ai/Ornith-1.0-35B`) — not the @4bit/@8bit MLX. ⚠ HANDLING (§5.AB-E): it SELF-SCAFFOLDS, so !Klein's force-advance + aggressive decomposition may CONFLICT with its own orchestration — let it author its own workflow (decompose LESS; give it room/budget to plan first; may need a warm-up turn to author the scaffold). Corrected from a WRONG TOOL_UNSUITABLE+reject (that conflated a load-fail with incapability — user caught it 2026-07-01; the 9B sibling loads + passed C0/C1/C2).",
 		sources: [
-			"live model-lab guarded sweep 2026-07-01 (scripts/verify-chat-agent-e2e.mts): ornith-1.0-35b-mlx@4bit load-failed 3/3 (lms load exit 1 at ~2%); @8bit historically won't load; see docs/dev/model-sweep-log.md",
+			"deep-reinforce.com/ornith_1_0.html; marktechpost.com/2026/06/25 Ornith-1.0 release; huggingface.co/deepreinforce-ai/Ornith-1.0-35B; huggingface.co/leonsarmiento/Ornith-1.0-35B-5bit-mlx (official MLX)",
+			"live model-lab sweep 2026-07-01: the @4bit/@8bit MLX checkpoints load-fail 3/3 (docs/dev/model-sweep-log.md) — a CHECKPOINT issue, not a capability verdict",
 		],
-		severityOverride: "reject",
-		disqualifiers: [
-			"MLX checkpoint load-fails (lms load exits 1 at ~2%, @4bit + @8bit) — broken/incompatible artifact",
-		],
-		basis: "empirical",
-		verified: true,
+		basis: "both",
+		verified: false,
 	},
 	// ── Qwen ──────────────────────────────────────────────────────────────────────────────────────────────
 	{

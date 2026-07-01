@@ -5177,6 +5177,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   over-decomposing wastes a capable model + adds orchestration/coordination-failure surface; under-decomposing overloads a
 >   weak model → the exact chaining/synthesis failures the sweep measured. A north-star for the auto-selection ⇄
 >   decomposition convergence.
+> - **(F) SELF-SCAFFOLDING models bring their OWN orchestration — a NEW handling class (2026-07-01, Ornith research + user).**
+>   Some models are RL-trained to AUTHOR their own scaffold/workflow (task plan, tool calls, error recovery) at inference —
+>   e.g. **Ornith-1.0** (DeepReinforce, MIT; a self-scaffolding agentic CODER — the 35B MoE beats Qwen-3.5-397B on
+>   Terminal-Bench 2.1). For these, !Klein's force-advance + aggressive decomposition can CONFLICT with the model's OWN
+>   orchestration ⇒ LET IT self-scaffold: decompose LESS, give it room + a LARGER budget (a "warm-up" turn to author its
+>   scaffold first), and don't force the next tool while it's mid-planning. Add a per-model `selfScaffolding` handling
+>   attribute (§5.AL) the runtime reads to SOFTEN the force-advance for such models. The extreme case of (E) "big/capable
+>   model → decompose less." Research + measure before wiring. **Lesson that surfaced it:** the catalog wrongly marked
+>   `ornith-1.0-35b` TOOL_UNSUITABLE+reject on a LOAD-fail without researching the family — a load-fail ≠ incapable; the §4A
+>   always-research rule applies to CATALOG VERDICTS too. Corrected → TOOL_CAPABLE/code (research: top-tier self-scaffolding
+>   coder); the @4bit/@8bit MLX is a broken quant conversion — use the official 5-bit MLX (`leonsarmiento/…-5bit-mlx`) or GGUF.
 > **PROGRESS (2026-07-01) — the DEFAULT-auto-selection seam is LIVE:** `buildLoadedModelRoutingCandidates`
 > ([nklein-loaded-model-candidates.ts](src/nklein-agent/nklein-loaded-model-candidates.ts), 4 tests) builds routing
 > candidates from the currently-LOADED set (reusing each model's observed registry entry so the ledger drives ranking,
