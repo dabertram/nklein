@@ -4877,12 +4877,19 @@ source repo went private — so if it vanishes the buildable source still lives 
         card actually RUNS on its best-fit model (previously the choice was only fit-evidence text + a role, dropped for a
         role-less loaded candidate). The pinned model then becomes the task-START path's `preferredModelKey`, so the
         decompose→start carry-through is closed.
-        **STILL OWED:** (1) DIRECTLY-started (non-decompose) cards: the task-START path
-        ([start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)) still builds candidates from CONFIGURED
-        roles, NOT the loaded set — so a hand-started card with "forget my config" has only the primary (no runtime
-        auto-selection). Give it the same loaded-set auto-discovery + affinity (rides the wiring leaf above,
-        behavior-changing on the hot path ⇒ live §5.Z re-verify). (2) chain llmfit's cached score AHEAD of the catalog
-        prior (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
+        **START PATH WIRED (2026-07-01, 3bbdac77):** the live task-START path
+        ([start-task-session.ts](src/trpc/runtime-api/start-task-session.ts)) now ALSO auto-discovers every loaded model
+        (native `/api/v1/models` descriptors) as a role-less candidate + attaches affinity tags + passes the card's
+        §5.AE skills → `taskAffinityTags` to `routeNKleinTask` — so a hand-started card auto-selects best-fit even with no
+        configured roles. Best-effort/local-only/no-load; test-skipped (residency off ⇒ empty), so the pure pieces
+        (`resolveLoadedModelProfile`, router affinity, builder — extracted to
+        [nklein-loaded-model-profile.ts](src/nklein-agent/nklein-loaded-model-profile.ts), commit b… ) are unit-tested but
+        the live glue is integration-only.
+        **STILL OWED:** (1) live §5.Z re-verify across the 3 machines (multi-card run: distinct best-fit models per card,
+        no endpoint deadlock, clean teardown) — the glue (descriptor fetch → resolveLaunchConfig per model → candidate) is
+        not exercised by CI. (2) chain llmfit's cached score AHEAD of the catalog prior (see
+        [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision). (4) record the
+        per-task model choice + outcome on the §5.AF ledger so selection LEARNS (feeds the fitness store).
   - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
         **PROFILE DONE (2026-06-29):** `PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS`
         ([runtime-config-api-contract.ts](src/core/runtime-config-api-contract.ts)) — 48 turns / 8h wall-time / 8 no-diff
