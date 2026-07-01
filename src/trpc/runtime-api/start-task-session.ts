@@ -3,6 +3,7 @@ import { blendCapabilityWithLedgerEvidence } from "../../core/agent-ledger-proje
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
+import { isTruthyEnv } from "../../core/env-flag";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { createDefaultLmsRunner, fetchLmsPsModels } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
@@ -420,13 +421,21 @@ export async function handleStartTaskSession(
 		);
 		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens);
 		const requiredContextTokens = estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow);
+		// §5.AB queue-aware free-first (opt-in via NKLEIN_QUEUE_AWARE_FREE_FIRST): a model the LM Studio SERVER already has
+		// requests queued on isn't truly "free" for fan-out even if !Klein isn't running it (e.g. another client, or an
+		// in-flight prefill). OFF by default ⇒ no `lms ps` subprocess, `isModelFree` = own-sessions only (byte-identical).
+		const queueDepthByModel = isTruthyEnv(process.env.NKLEIN_QUEUE_AWARE_FREE_FIRST)
+			? new Map((await fetchLmsPsModels(createDefaultLmsRunner())).map((model) => [model.identifier, model.queued]))
+			: null;
+		const isModelFree = (modelKey: string, modelId: string): boolean =>
+			!runningModelKeys.has(modelKey) && (queueDepthByModel?.get(modelId) ?? 0) === 0;
 		const freeFirstSelection = selectRoleModel({
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				modelKey: candidate.entry.key,
 				capability: blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore),
 				contextWindow: candidate.entry.contextWindow.effective ?? 0,
 				predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
-				isFree: !runningModelKeys.has(candidate.entry.key),
+				isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
 			})),
 			difficulty: taskDifficulty,
 			requiredContextTokens,
@@ -470,7 +479,7 @@ export async function handleStartTaskSession(
 									),
 									contextWindow: candidate.entry.contextWindow.effective ?? 0,
 									predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
-									isFree: !runningModelKeys.has(candidate.entry.key),
+									isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
 								},
 							]
 						: [],
@@ -528,7 +537,7 @@ export async function handleStartTaskSession(
 								: null,
 						ledgerSamples,
 						contextWindow: candidate.entry.contextWindow.effective ?? 0,
-						isFree: !runningModelKeys.has(candidate.entry.key),
+						isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
 						predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
 						...(affinityTags ? { affinityTags } : {}),
 					};
