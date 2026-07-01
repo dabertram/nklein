@@ -4952,9 +4952,14 @@ source repo went private — so if it vanishes the buildable source still lives 
         ([nklein-swarm-view.ts](src/nklein-agent/nklein-swarm-view.ts) + [lms-link-status.ts](src/core/lms-link-status.ts))
         prints the loaded models grouped by MACHINE NAME (hex deviceId → `lms link status` deviceName: m5max/m4mini/
         legion) with each model's auto-selection affinity + prior + queue depth — verified live across the 3 machines.
-        **STILL OWED (wiring):** thread `machineId` onto running sessions + make the §6.5 / §5.AF concurrency gate count
-        per-MACHINE (not per shared endpoint), so each machine admits up to its own cap; feed `queued`/`status` into
-        free-first. Behavior-changing on the hot path ⇒ needs the live multi-machine §5.Z re-verify.
+        **GATE CORE DONE (2026-07-01, c9ac01ea):** `evaluateMachineConcurrencyGate`
+        ([machine-concurrency-gate.ts](src/core/machine-concurrency-gate.ts)) — pure admission decision keyed on the
+        model→machine map: counts only running sessions on the TASK's machine, allows below the per-machine cap, inert at
+        cap ≤0 (opt-in), unmapped ⇒ LOCAL. 5 tests. Machine map + gate decision are both built + tested. **STILL OWED
+        (wiring):** call it from the endpoint scheduler behind an opt-in cap (env/config), fed by a cached
+        `fetchLmsPsModels` map + the running-session model ids — same inert-by-default pattern as the §5.AN heartbeat;
+        `machineId` is the true pool key vs the shared LM-Link baseUrl. Also feed `queued`/`status` into free-first.
+        Behavior-changing hot path ⇒ live multi-machine §5.Z re-verify.
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
         **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
