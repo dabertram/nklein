@@ -10,6 +10,7 @@ import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-de
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
+import { derivePoolCaps, derivePoolKeyForCandidate } from "../../core/model-pool-key";
 import { computePoolFreeSlots } from "../../core/model-pool-routing";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
@@ -452,6 +453,27 @@ export async function handleStartTaskSession(
 			!freeFirstSelection.busyFallback
 				? freeFirstSelection.modelKey
 				: null;
+		// §5.AB LM-Link per-MACHINE handling (opt-in via NKLEIN_PER_MACHINE_MAX_CONCURRENCY): resolved ONCE here and
+		// reused for BOTH the routing pool keys (below) and the admission gate (further down) — a SINGLE `lms ps`
+		// subprocess. When set, fetch each loaded model's owning machine so LM-Link machines sharing one endpoint are
+		// told apart. OFF by default ⇒ no subprocess, `machineByModelIdRaw` stays undefined ⇒ routing keeps ENDPOINT
+		// keys and the admission gate stays inert (byte-identical). Best-effort: an empty/failed map ⇒ endpoint keying.
+		const rawPerMachineCap = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
+		const perMachineCap =
+			Number.isInteger(rawPerMachineCap) && rawPerMachineCap > 0 && residencyCheckEnabled ? rawPerMachineCap : null;
+		const machineByModelIdRaw =
+			perMachineCap !== null
+				? new Map(
+						(await fetchLmsPsModels(createDefaultLmsRunner())).map((model) => [
+							model.identifier,
+							model.machineId,
+						]),
+					)
+				: undefined;
+		// Only key ROUTING pools by machine when the map resolved NON-EMPTY; an empty map (flag on but `lms ps`
+		// unavailable) falls back to endpoint keying so routing never collapses into one synthetic pool. The admission
+		// gate keeps using the RAW map below, unchanged, so its shipped behavior is untouched.
+		const machineByModelId = machineByModelIdRaw && machineByModelIdRaw.size > 0 ? machineByModelIdRaw : undefined;
 		// §5.AB per-machine pools: ONLY when per-endpoint/pool caps are configured, route the task to a free machine
 		// pool (easy cards → secondary machines, hard → strong) and prefer the in-pool model. Inert by default (no
 		// perEndpoint caps ⇒ poolRoutedModelKey stays null ⇒ selection unchanged). Behavior-changing only once an
@@ -463,13 +485,28 @@ export async function handleStartTaskSession(
 		let poolRoutedModelKey: string | null = null;
 		if (Object.keys(perEndpointPoolCaps).length > 0) {
 			const candidateList = [...guardCandidates.values()];
+			// §5.AB LM-Link: the ROUTING pool key. With no machine map (flag off) it is the endpoint (byte-identical);
+			// with a map it is the model's owning machine (endpoint fallback for an unmapped candidate), so LM-Link
+			// machines sharing one endpoint are FANNED across distinct pools instead of collapsing into one.
+			const poolKeyForCandidate = (candidate: (typeof candidateList)[number]): string =>
+				derivePoolKeyForCandidate(candidate.entry.endpoint ?? "", candidate.entry.modelId, machineByModelId);
 			const poolEndpoints = [
-				...new Set(candidateList.map((candidate) => candidate.entry.endpoint).filter((ep): ep is string => !!ep)),
+				...new Set(
+					candidateList
+						.filter((candidate) => !!candidate.entry.endpoint)
+						.map((candidate) => poolKeyForCandidate(candidate)),
+				),
 			];
 			const runningEndpoints = nkleinTaskSessionService
 				.listModelEndpointSessions()
 				.filter((session) => session.state === "running")
-				.map((session) => session.endpoint);
+				// Map each running session's endpoint to its pool key the SAME way, so per-pool running counts line up
+				// with the candidate pool keys above (endpoint unchanged when no map / model unmapped).
+				.map((session) =>
+					session.endpoint
+						? derivePoolKeyForCandidate(session.endpoint, session.modelId, machineByModelId)
+						: session.endpoint,
+				);
 			const route = selectSwarmRouteForTask({
 				role: body.startInPlanMode ? "architect" : "worker",
 				candidates: candidateList.flatMap((candidate) =>
@@ -477,7 +514,7 @@ export async function handleStartTaskSession(
 						? [
 								{
 									modelKey: candidate.entry.key,
-									poolId: candidate.entry.endpoint,
+									poolId: poolKeyForCandidate(candidate),
 									capability: blendedCapabilityForKey(
 										candidate.entry.key,
 										candidate.entry.capability.effectiveScore,
@@ -491,7 +528,22 @@ export async function handleStartTaskSession(
 				),
 				difficulty: taskDifficulty,
 				requiredContextTokens,
-				poolFreeSlots: computePoolFreeSlots(poolEndpoints, runningEndpoints, perEndpointPoolCaps),
+				// Caps re-keyed onto the pool keys (endpoint caps unchanged when no map). Each machine pool inherits its
+				// endpoint's configured cap under LM-Link; an uncapped endpoint stays uncapped.
+				poolFreeSlots: computePoolFreeSlots(
+					poolEndpoints,
+					runningEndpoints,
+					derivePoolCaps(
+						candidateList
+							.filter((candidate) => !!candidate.entry.endpoint)
+							.map((candidate) => ({
+								endpoint: candidate.entry.endpoint ?? "",
+								modelId: candidate.entry.modelId,
+							})),
+						perEndpointPoolCaps,
+						machineByModelId,
+					),
+				),
 			});
 			if (route.model?.selection.type === "assign") {
 				poolRoutedModelKey = route.model.selection.modelKey;
@@ -590,21 +642,9 @@ export async function handleStartTaskSession(
 			global: scopedRuntimeConfig.concurrencyDefaults,
 			override: scopedRuntimeConfig.concurrencyOverride,
 		});
-		// §5.AB LM-Link per-MACHINE gate (opt-in via NKLEIN_PER_MACHINE_MAX_CONCURRENCY): when set, resolve each loaded
-		// model's owning machine from `lms ps` so the scheduler admits per MACHINE (the linked machines share one
-		// endpoint). OFF by default ⇒ no subprocess, no gate — byte-identical. Best-effort: an empty map leaves it inert.
-		const rawPerMachineCap = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
-		const perMachineCap =
-			Number.isInteger(rawPerMachineCap) && rawPerMachineCap > 0 && residencyCheckEnabled ? rawPerMachineCap : null;
-		const machineByModelId =
-			perMachineCap !== null
-				? new Map(
-						(await fetchLmsPsModels(createDefaultLmsRunner())).map((model) => [
-							model.identifier,
-							model.machineId,
-						]),
-					)
-				: undefined;
+		// §5.AB LM-Link per-MACHINE gate (opt-in via NKLEIN_PER_MACHINE_MAX_CONCURRENCY): admit per MACHINE using the
+		// model→machine map resolved ONCE above (the linked machines share one endpoint). OFF by default ⇒ the raw map
+		// is undefined ⇒ no gate (byte-identical). Best-effort: an empty raw map leaves the gate inert, as before.
 		const endpointDecision = scheduleNKleinEndpointStart({
 			taskId: body.taskId,
 			providerId: nkleinLaunchConfig.providerId,
@@ -617,7 +657,7 @@ export async function handleStartTaskSession(
 			modelConcurrencyCap: concurrencyCaps.modelCap,
 			endpointConcurrencyCap: concurrencyCaps.endpointCap,
 			...(perMachineCap !== null ? { perMachineCap } : {}),
-			...(machineByModelId ? { machineByModelId } : {}),
+			...(machineByModelIdRaw ? { machineByModelId: machineByModelIdRaw } : {}),
 		});
 		if (!endpointDecision.ok) {
 			if (body.queueOnEndpointBusy) {

@@ -5144,8 +5144,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   COLLAPSE into ONE routing pool. The opt-in admission gate (1) prevents per-machine OVER-admission, but the ROUTING can't
 >   FAN cards ACROSS the linked machines (can't tell them apart at endpoint granularity) ⇒ the linked boxes get under-utilized.
 >   FIX: key the routing pool by `machineId` (from `lms-ps-json`), NOT endpoint, when >1 machine shares an endpoint — thread the
->   per-model→machine map (already fetched for the admission gate) into the candidate `poolId` + `computePoolFreeSlots`. A
->   bounded, high-value change (needs the machine map on the routing path + a live §5.Z re-verify). (Context: the 2026-07-01
+>   per-model→machine map (already fetched for the admission gate) into the candidate `poolId` + `computePoolFreeSlots`. ✅ IMPLEMENTED (2026-07-01, behind the existing flag, byte-identical default): `src/core/model-pool-key.ts` (`derivePoolKeyForCandidate`/`derivePoolCaps`) keys the routing pool by `machineId` when the flag is on; hoisted the `lms ps` fetch to ONE subprocess reused by routing + gate; composition test proves flag-OFF collapses (no_capacity) while flag-ON fans to a free machine. LIVE multi-machine §5.Z verify still OWED. (Context: the 2026-07-01
 >   sweep's `model-lab` exclusive loads cycled the LAN machines' models too — expected. Predefined pools remain a fallback.)
 > - **(B) Detect ALL relevant model ATTRIBUTES (format / quant / …) for the catalog + PLAN a quant drill-down.** Today
 >   detection is PARTIAL: `quant` is a concept ([model-fitness-freshness.ts](src/core/model-fitness-freshness.ts) `quant?`
