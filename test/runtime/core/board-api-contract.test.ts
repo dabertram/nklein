@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runtimeBoardCardSchema } from "../../../src/core/board-api-contract";
+import { runtimeBoardCardSchema, runtimeBoardDataSchema } from "../../../src/core/board-api-contract";
 
 // The minimal required fields of a board card; each test spreads its case on top.
 const baseCard = {
@@ -66,5 +66,29 @@ describe("runtimeBoardCardSchema transform — title resolution", () => {
 		const card = runtimeBoardCardSchema.parse({ ...baseCard, title: undefined, prompt: "Fix the login bug" });
 		expect(typeof card.title).toBe("string");
 		expect((card.title ?? "").length).toBeGreaterThan(0);
+	});
+});
+
+describe("§5.AU stream schema — additive + back-compat", () => {
+	it("accepts a card with a streamId (and a card without one)", () => {
+		expect(runtimeBoardCardSchema.parse({ ...baseCard, streamId: "stream-auth" }).streamId).toBe("stream-auth");
+		expect(runtimeBoardCardSchema.parse(baseCard).streamId).toBeUndefined();
+	});
+
+	it("parses an OLD board with no `streams` field (streams stays undefined — additive/back-compat)", () => {
+		const board = runtimeBoardDataSchema.parse({ columns: [], dependencies: [] });
+		expect(board.streams).toBeUndefined();
+	});
+
+	it("round-trips board.streams + card.streamId", () => {
+		const board = runtimeBoardDataSchema.parse({
+			columns: [{ id: "backlog", title: "Backlog", cards: [{ ...baseCard, streamId: "stream-x" }] }],
+			dependencies: [],
+			streams: [{ id: "stream-x", title: "X", source: "decomposition", planSlug: "x", createdAt: 1, updatedAt: 2 }],
+		});
+		expect(board.streams).toEqual([
+			{ id: "stream-x", title: "X", source: "decomposition", planSlug: "x", createdAt: 1, updatedAt: 2 },
+		]);
+		expect(board.columns[0]?.cards[0]?.streamId).toBe("stream-x");
 	});
 });

@@ -125,6 +125,9 @@ export const runtimeBoardCardSchema = z
 		nkleinSettings: runtimeTaskNKleinSettingsSchema.optional(),
 		filesLikelyTouched: z.array(z.string()).optional(),
 		generatedFromPlan: runtimeGeneratedFromPlanSchema.optional(),
+		// §5.AU: the stream/epic this card belongs to (single-parent). Additive optional (CRDT whole-object LWW) so older
+		// boards load as-is; a manual `set_card_stream` override wins over the derived membership (see `deriveStreams`).
+		streamId: z.string().optional(),
 		blockedKind: z.enum(["needs_decomposition", "local_model_required", "agent_sandbox_unavailable"]).optional(),
 		blockedReason: z.string().optional(),
 		nkleinProviderId: z.string().optional(),
@@ -171,8 +174,28 @@ export const runtimeBoardDependencySchema = z.object({
 });
 export type RuntimeBoardDependency = z.infer<typeof runtimeBoardDependencySchema>;
 
+/**
+ * §5.AU — a STREAM/epic: a named grouping above cards (seeded from a decomposition `planSlug` or a `dependsOn` component
+ * by `deriveStreams`, or created manually). Additive; `board.streams` defaults to `[]` so older boards load unchanged.
+ * Status/health/progress are NOT stored — they are always derived (`deriveStreamRollup`) from the member cards.
+ */
+export const runtimeStreamSchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	source: z.enum(["decomposition", "manual", "dependency"]),
+	/** Back-link to the seeding decomposition slug (only for `decomposition` streams). */
+	planSlug: z.string().optional(),
+	archived: z.boolean().optional(),
+	createdAt: z.number(),
+	updatedAt: z.number(),
+});
+export type RuntimeStream = z.infer<typeof runtimeStreamSchema>;
+
 export const runtimeBoardDataSchema = z.object({
 	columns: z.array(runtimeBoardColumnSchema),
 	dependencies: z.array(runtimeBoardDependencySchema).default([]),
+	// §5.AU: the board's streams/epics. Additive + OPTIONAL (not `.default([])`) so older persisted boards AND every
+	// existing `RuntimeBoardData` constructor load unchanged; readers coalesce `board.streams ?? []`.
+	streams: z.array(runtimeStreamSchema).optional(),
 });
 export type RuntimeBoardData = z.infer<typeof runtimeBoardDataSchema>;
