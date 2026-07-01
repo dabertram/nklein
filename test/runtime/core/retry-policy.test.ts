@@ -82,26 +82,38 @@ describe("decideNextRetryStrategy", () => {
 		expect(first("malformed")).toBe("constrained_schema");
 		expect(first("narrated")).toBe("constrained_schema");
 		expect(first("other_failure")).toBe("same_model_retry");
-		// A no-output `aborted` transient re-runs first (the same ask often completes given another go, §5.AA).
-		expect(first("aborted")).toBe("same_model_retry");
+		// A no-output `aborted` turn raises the token budget FIRST — the root-cause fix for a reasoning-model truncation
+		// (a plain re-run RE-truncates at temp 0); a plain re-run is the SECOND rung (for a transient stall).
+		expect(first("aborted")).toBe("raise_token_budget");
 	});
 
-	it("re-runs an aborted transient rather than parking it (§5.AA root-cause 2026-06-28)", () => {
+	it("retries an aborted transient (budget-raise first) rather than parking it (§5.AA)", () => {
 		const d = decideNextRetryStrategy({
 			lastOutcome: "aborted",
 			attemptsSoFar: 0,
 			retryBudget: 3,
 			triedStrategies: [],
 		});
-		expect(d.strategy).toBe("same_model_retry");
+		expect(d.strategy).toBe("raise_token_budget");
 		expect(d.strategy).not.toBe("park");
+	});
+
+	it("falls back to a plain re-run for an aborted turn once the budget-raise was tried", () => {
+		const d = decideNextRetryStrategy({
+			lastOutcome: "aborted",
+			attemptsSoFar: 1,
+			retryBudget: 3,
+			triedStrategies: ["raise_token_budget"],
+		});
+		expect(d.strategy).toBe("same_model_retry");
 	});
 });
 
 describe("retryLadderForOutcome", () => {
-	it("treats aborted as a retryable transient (re-run first, never empty)", () => {
+	it("raises the budget first for aborted, then keeps the transient re-run rungs", () => {
 		const ladder = retryLadderForOutcome("aborted");
-		expect(ladder[0]).toBe("same_model_retry");
+		expect(ladder[0]).toBe("raise_token_budget");
+		expect(ladder).toContain("same_model_retry");
 		expect(ladder.length).toBeGreaterThan(0);
 	});
 });
