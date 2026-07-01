@@ -5080,6 +5080,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `orderLadderByEffectiveness` into `decideNextRetryStrategy`/`runAdaptiveAttemptLoop` so the live loop tries the
         learned-best rung first; the thin JSON persistence layer in the runtime home (mirrors `ModelBehaviorProfile`); and
         source the observation stream from the §5.AF terminal `attempt` events (rung tried → whether it recovered).
+  - [x] **Cross-attempt PROGRESS tracker — "did the last remedy improve anything MEASURABLE?" (PURE CORE DONE 2026-07-01).**
+        [src/core/attempt-progress-tracker.ts](src/core/attempt-progress-tracker.ts) closes the gap all the DONE §5.AA cores
+        left open: the ladder can PICK + FIRE remedies (`retry-policy`, `adaptive-attempt-loop`) and PARK on rung/budget
+        exhaustion, but its park is BLIND to whether the attempts are getting anywhere — two failing attempts look identical
+        to `decideNextRetryStrategy` whether the second crept closer (0 tool calls → a malformed call; 1/4 chain steps → 2/4)
+        or flat-lined; and `agent-stuckness.ts` (§5.AB) CONSUMES a `hadProgressSinceStuck` boolean but nothing COMPUTES it
+        (`buildStucknessSignalsFromReport` hard-codes it `false` — grep-confirmed). `assessAttemptProgress(previous, current)`
+        is that missing primitive: it compares two consecutive attempts' OBSERVABLE snapshots (never the model's claim, per
+        AGENTS.md) across model-agnostic axes — outcome severity toward `success` (an `OUTCOME_PROGRESS_RANK` so
+        `no_tool_call → malformed` reads as forward: a recoverable call is one rung away), tool calls landed, DISTINCT tools
+        exercised (catches the repeated-same-call thrash: `toolCallsEmitted` up but `distinctToolsExercised` flat = NOT clean
+        progress), acceptance checks passing, and salvageable output bytes — returning `{progressed, regressed, plateaued,
+        improvedDimensions, regressedDimensions, strategy, reason}` (progressed = something up AND nothing down; a mixed step
+        is surfaced honestly, not as progress; missing metrics never phantom-move). Plus two chain helpers the exhaustion /
+        stuckness deciders read: `hadProgressAcrossAttempts` (the COMPUTED §5.AB signal) and `consecutiveNoProgressAttempts`
+        (the trailing plateau streak an exhaustion decider keys on — distinct from the ladder's rung-exhaustion park: a model
+        can have untried rungs yet plateau on every one). Composes `ModelOutcomeKind` + `RetryStrategy` by import only (no
+        edits to siblings); mirrors `focus-chain-diff`'s progressed/regressed shape. Pure + deterministic, 22 unit tests; tsc
+        + biome green. **Still owed (WIRING):** feed `consecutiveNoProgressAttempts` into the loop's park decision (stop early
+        on a plateau even with budget left) + `hadProgressAcrossAttempts` into `agent-stuckness`'s signal mapper; source the
+        snapshot stream from the §5.AF per-attempt ledger events.
 - [x] **Extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)` (DONE 2026-06-26)** — gemma-e2b
       leaked exactly that into its final reply (§5.Z). Added a deliberately-specific `PLAIN_PROSE_TOOL_CALL` pattern
       (`tool call:` immediately followed by an identifier + `(` — a function-call shape) checked independently of the
@@ -6747,6 +6768,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       bounded by `maxAttempts`. Threaded through `markDurableJob` + `replayDurableJobs` (maxAttempts) + the ledger
       adapter (write+read), with replay-determinism + ledger round-trip tests (caught+fixed a read-side bug that dropped
       `transient_retry`). +6 tests. This is the SWARM/agent survivability (its SDK model call can't be wrapped, #4).
+      **READY-JOB PRIORITY / ORDERING POLICY DONE (2026-07-01):** [src/core/durable-scheduler-ready-order.ts](src/core/durable-scheduler-ready-order.ts)
+      `orderReadyJobs(input)` fills the gap where `decideDurableSchedulerActions` leases ready+eligible jobs in RAW INPUT
+      ORDER up to the free slots (correct + replay-stable, but arbitrary under contention — grep-confirmed no
+      priority/tie-break/rank existed on `DurableJob` or in the scheduler). When the concurrency cap is smaller than the
+      ready set (exactly the SCOUT FINDING signal (1): a wide DAG must lease the *right* independent cards first), this
+      pure policy orders the ready jobs by a transparent weighted sum of purely-derivable signals — **fan-out**
+      (not-yet-`succeeded` downstream dependents, from the graph's `dependsOn` edges → running a high-unblock prerequisite
+      first keeps workers saturated instead of starving dependents behind cheap leaves), an optional caller **priority**
+      (operator-flagged merge/review or §5.AB hint), and a BOUNDED **anti-starvation** boost (prior `attempts` + a single
+      flat aged-past-threshold step, so a repeatedly-reclaimed or long-waiting job isn't perpetually shed) — with fully
+      deterministic tie-breaks (higher score → FEWER remaining deps → EARLIER `readySince` FIFO → `jobId`), so a ledger
+      replay reproduces the same lease sequence (§5.AF). Clock INJECTED (`now`), everything else pure; a `limit` (the free
+      slots) carves the lease-this-tick prefix; ships a `reason`/`summary` for the §5.AG "what will lease next + why"
+      surface. Orthogonal to `test-selection-priority` (tests, §5.AI) and to the scheduler's eligibility/reclaim/fail
+      decisions (unchanged — this only ORDERS the ready candidates a caller feeds into leasing). 32 unit tests
+      (each signal + cap, remaining-dep/FIFO/jobId tie-breaks, limit carve-out, dedup, purity/no-mutation, determinism);
+      tsc+biome+vitest green. **Owed:** wire it at the scheduler's lease step (order the ready set before filling free
+      slots) — a thin, behavior-preserving swap of the input-order loop, done at the live-integration pass.
       **Owed (focused):** the STREAMING chat path (mid-stream retry unsafe — needs replay design); and the live wiring of
       the durable controller itself into the runtime (the C3 turn-key-kit integration, separately tracked).
 - [~] **Tool-capability manifest (unify the 3 gating mechanisms).** Each tool (chat + NKlein + future) declares one
@@ -7222,6 +7261,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         non-finite/negative counts+durations+bounds. 29 unit tests; tsc + vitest + biome green. Composes with
         `test-regression-verdict.ts` (prioritize → run the selected subset → classify) — orthogonal: this answers "which
         tests should the rail run FIRST for this change?".
+  - [x] **FLAKE-PRODUCER core: per-test flake-quarantine policy (2026-07-01).** The missing PRODUCER for the two cores
+        above — both `test-selection-priority.ts` (consumes a `flakeScore` in [0,1] "e.g. the pass/fail-flip rate over
+        recent history") and `test-regression-verdict.ts` (judges a single run's flake from `recentHistory`) *take* a
+        flake signal but nothing DERIVES it from raw history, nor decides what to DO about a chronically-flaky test. Pure
+        [flake-quarantine.ts](src/core/flake-quarantine.ts) — `classifyFlakeQuarantine({ tests, policy?, historyOrder? })`
+        turns each test's INJECTED recent pass/fail history into a durable `quarantine | watch | trust` action + the
+        `flakeScore` the prioritizer expects. The score is a genuine INTERMITTENCY (flip-rate = adjacent-outcome changes /
+        (samples − 1)), NOT a fail-rate — an always-fail test is deterministic (score 0, `trust`: its red is decisive, not
+        noise), an alternating test scores 1.0 (`quarantine`: keep running for data but never let it BLOCK a delivery
+        decision). `minSamples` guards insufficient evidence → `watch` (or `trust` when optimistic), `windowSize` ages out
+        a settled streak (order-aware truncation), thresholds `quarantineFlipRate`/`watchFlipRate` are tunable (watch
+        clamped ≤ quarantine). Returns worst-first (`quarantine`→`watch`→`trust`, then descending score, then id) with
+        `quarantinedIds`/`watchIds`/`flakeScoresById` ready to hand straight to the prioritizer. Fully injected (no
+        test-runner/clock/fs), deterministic, dedup last-write-wins, clamps all bounds. 28 unit tests (incl. a composition
+        test feeding `flakeScoresById` into `prioritizeTestSelection` and excluding `quarantinedIds`); tsc + vitest +
+        biome green. Composes by DATA with `test-selection-priority.ts` + `test-regression-verdict.ts` — orthogonal: this
+        answers "which tests are too flaky to trust, and what should we do about each?".
 - [x] **"Collect evidence" buttons reference the specific card — VERIFIED (2026-06-27), no fix needed.** Traced the
       per-**card** "Evidence" button end-to-end: [board-card.tsx](web-ui/src/components/board-card.tsx) `onCopyEvidence(card.id)`
       → `collectTaskEvidence({ taskId })` ([runtime-config-query.ts](web-ui/src/runtime/runtime-config-query.ts)) →
