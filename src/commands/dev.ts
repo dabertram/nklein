@@ -61,6 +61,7 @@ import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-po
 import { buildNKleinModelFreshnessAdvisorRequest } from "../nklein-agent/nklein-model-research";
 import { buildSwarmMachineView, formatSwarmMachineView } from "../nklein-agent/nklein-swarm-view";
 import { buildTwoPhaseToolMenuReport } from "../nklein-agent/nklein-two-phase-tool-menu-report";
+import { runTwoPhaseToolPick } from "../nklein-agent/two-phase-tool-runner";
 import { resolveProjectInputPath } from "../projects/project-path";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readRailEvidenceReports } from "../state/rail-evidence-store";
@@ -781,6 +782,68 @@ async function runDevToolMenuCommand(options: { json?: boolean } = {}): Promise<
 	process.stdout.write(`\n\n(${report.toolCount} tools, ~${report.menuTokens} tokens)\n`);
 }
 
+async function runDevToolPickCommand(options: {
+	task: string;
+	model?: string;
+	budget?: string;
+	json?: boolean;
+}): Promise<void> {
+	// §5.O live: run the phase-1 two-phase pick for a task against a LOADED model (no loading — auto-discovers a resident
+	// LLM when --model is omitted). Reasoning-sized budget by default: a small reasoning model spends ~400 tokens reasoning
+	// BEFORE the pick, so too small a budget yields empty content + finish:length (handled truncation-aware). Read-only.
+	const base = "http://localhost:1234";
+	let modelId = options.model?.trim();
+	if (!modelId) {
+		const modelsResponse = await fetch(`${base}/api/v0/models`).catch(() => null);
+		const modelsJson = (await modelsResponse?.json().catch(() => null)) as {
+			data?: Array<{ id?: string; type?: string; state?: string }>;
+		} | null;
+		modelId = modelsJson?.data?.find((m) => m.state === "loaded" && m.type === "llm")?.id;
+		if (!modelId) {
+			throw new Error(`No loaded LLM found at ${base}/api/v0/models — load a model or pass --model.`);
+		}
+	}
+	const budget = Math.max(64, Number.parseInt(options.budget ?? "1024", 10) || 1024);
+	const result = await runTwoPhaseToolPick({
+		task: options.task,
+		callModel: async ({ menu, task }) => {
+			const response = await fetch(`${base}/v1/chat/completions`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					model: modelId,
+					temperature: 0,
+					max_tokens: budget,
+					messages: [
+						{ role: "system", content: menu },
+						{ role: "user", content: `Step: ${task}\nYour single-line answer:` },
+					],
+				}),
+			});
+			if (!response.ok) {
+				throw new Error(`tool-pick completion failed (${response.status}) at ${base}/v1/chat/completions.`);
+			}
+			const json = (await response.json()) as {
+				choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+			};
+			const choice = json.choices?.[0];
+			return { content: choice?.message?.content ?? "", finishReason: choice?.finish_reason ?? null };
+		},
+	});
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ modelId, budget, task: options.task, ...result }, null, 2)}\n`);
+		return;
+	}
+	const decision = result.decision;
+	const shown = decision.kind === "one_tool" ? `one_tool → ${decision.tool}` : decision.kind;
+	process.stdout.write(
+		`!Klein two-phase pick (§5.O) — model ${modelId}, budget ${budget}\n` +
+			`  Task: ${options.task}\n` +
+			`  Decision: ${shown}\n` +
+			`  Raw: ${JSON.stringify(result.raw.content)} (finish: ${result.raw.finishReason})\n`,
+	);
+}
+
 async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {
 	const advice = buildModelCapabilityAdvice(await readAllAgentLedger());
 	if (options.json) {
@@ -1047,6 +1110,18 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevToolMenuCommand(options);
+		});
+
+	dev.command("tool-pick")
+		.description(
+			"Run the §5.O two-phase phase-1 pick for a task against a LOADED model (auto-discovers a resident LLM; read-only, no loading).",
+		)
+		.requiredOption("--task <text>", "The step/task description to pick a tool for.")
+		.option("--model <id>", "Model id to query (default: the first loaded LLM).")
+		.option("--budget <n>", "max_tokens budget (default 1024 — reasoning models need room before the pick lands).")
+		.option("--json", "Print machine-readable JSON.")
+		.action(async (options: { task: string; model?: string; budget?: string; json?: boolean }) => {
+			await runDevToolPickCommand(options);
 		});
 
 	dev.command("escalation")
