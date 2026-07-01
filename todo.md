@@ -5138,10 +5138,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   subprocess). So !Klein CAN auto-handle per-machine concurrency — the predefined-pools FALLBACK is NOT needed. **REMAINING
 >   (finer): (1)** it's OFF by default ⇒ the swarm counts per-ENDPOINT until the user sets `NKLEIN_PER_MACHINE_MAX_CONCURRENCY`
 >   ⇒ the mix-up risk exists by default — decide whether to DEFAULT it on (or auto-enable when `lms ps` shows >1 machine) so
->   it's correct-by-default; **(2)** the separate POOL-ROUTING free-slot count (`computePoolFreeSlots`, per-endpoint, used at
->   ~L494) is a DIFFERENT layer (which pool to PICK vs how many to admit) — check whether IT also needs per-`machineId` keying
->   for the shared-endpoint case, or whether the admission gate already suffices. (Context: the 2026-07-01 sweep's `model-lab`
->   exclusive loads cycled the LAN machines' models too — expected/acceptable. Predefined pools remain an available fallback.)
+>   it's correct-by-default; **(2) CONFIRMED (2026-07-01) — the pool-ROUTING layer DOES need per-`machineId` keying for
+>   fan-out.** `selectSwarmRouteForTask` keys each candidate's pool by `poolId: candidate.entry.endpoint` (start-task-session
+>   ~L480) and `computePoolFreeSlots` counts per-ENDPOINT (~L494) — so LM-linked machines sharing one `localhost:1234` endpoint
+>   COLLAPSE into ONE routing pool. The opt-in admission gate (1) prevents per-machine OVER-admission, but the ROUTING can't
+>   FAN cards ACROSS the linked machines (can't tell them apart at endpoint granularity) ⇒ the linked boxes get under-utilized.
+>   FIX: key the routing pool by `machineId` (from `lms-ps-json`), NOT endpoint, when >1 machine shares an endpoint — thread the
+>   per-model→machine map (already fetched for the admission gate) into the candidate `poolId` + `computePoolFreeSlots`. A
+>   bounded, high-value change (needs the machine map on the routing path + a live §5.Z re-verify). (Context: the 2026-07-01
+>   sweep's `model-lab` exclusive loads cycled the LAN machines' models too — expected. Predefined pools remain a fallback.)
 > - **(B) Detect ALL relevant model ATTRIBUTES (format / quant / …) for the catalog + PLAN a quant drill-down.** Today
 >   detection is PARTIAL: `quant` is a concept ([model-fitness-freshness.ts](src/core/model-fitness-freshness.ts) `quant?`
 >   fingerprint; llmfit `bestQuant`) but is NOT systematically PARSED from the model id / API card, and **FORMAT (mlx vs
