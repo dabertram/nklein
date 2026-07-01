@@ -55,6 +55,19 @@ describe("resolveLoadedModelProfile", () => {
 		expect(profile.affinityTags).toContain("agentic");
 		expect(typeof profile.capabilityPrior).toBe("number");
 	});
+
+	it("prefers the injected llmfit prior over the §5.AL catalog, falling back when llmfit yields null", () => {
+		const desc = descriptor({ modelKey: "qwen/qwen2.5-coder-14b" }); // catalogued (numeric catalog prior)
+		// llmfit scores it 91 ⇒ that wins over the catalog verdict.
+		expect(resolveLoadedModelProfile(desc, { llmfitPrior: () => 91 }).capabilityPrior).toBe(91);
+		// llmfit doesn't know it (null) ⇒ fall back to the catalog number.
+		expect(typeof resolveLoadedModelProfile(desc, { llmfitPrior: () => null }).capabilityPrior).toBe("number");
+		// llmfit prior applies to an OTHERWISE-uncatalogued model too (catalog would be null).
+		expect(
+			resolveLoadedModelProfile(descriptor({ modelKey: "zzz-uncatalogued" }), { llmfitPrior: () => 44 })
+				.capabilityPrior,
+		).toBe(44);
+	});
 });
 
 describe("catalogCapabilityPrior", () => {

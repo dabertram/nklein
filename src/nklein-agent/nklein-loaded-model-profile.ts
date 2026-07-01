@@ -50,7 +50,17 @@ const OPUS_REASONER_NAME_PATTERN = /opus/i;
  * agentic routing candidates). For an LLM: prior from the catalog (real name), affinity = runtime caps ∪ catalog kind,
  * with an opus-name heuristic so a custom reasoner is tagged `reasoning` even when its card omits the flag.
  */
-export function resolveLoadedModelProfile(descriptor: LoadedModelDescriptor): LoadedModelRoutingProfile {
+export function resolveLoadedModelProfile(
+	descriptor: LoadedModelDescriptor,
+	opts?: {
+		/**
+		 * §5.AB llmfit prior (opt-in, injected): llmfit's 0–100 fit score for the model's REAL name, or null. When it
+		 * yields a number it takes precedence over the §5.AL catalog verdict as the cold-start prior (a richer, measured
+		 * quality×speed×fit signal). Absent/null ⇒ the catalog verdict is used — today's behavior.
+		 */
+		llmfitPrior?: (realName: string) => number | null;
+	},
+): LoadedModelRoutingProfile {
 	if (descriptor.isEmbedding) {
 		return { isEmbedding: true };
 	}
@@ -69,7 +79,8 @@ export function resolveLoadedModelProfile(descriptor: LoadedModelDescriptor): Lo
 	];
 	return {
 		isEmbedding: false,
-		capabilityPrior: catalogCapabilityPrior(realName),
+		// Prior resolver chain: llmfit fit score (opt-in) > §5.AL catalog verdict > (null ⇒ registry default downstream).
+		capabilityPrior: opts?.llmfitPrior?.(realName) ?? catalogCapabilityPrior(realName),
 		affinityTags,
 	};
 }
