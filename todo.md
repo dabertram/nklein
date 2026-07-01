@@ -1144,6 +1144,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       flags whether retrieval/code-index/architecture tools ran *before* a decomposition (anchored on
       `decomposition_applied`), rolled up per scope × role × model + surfaced in the "Decomposition Knowledge" stats
       section. Unit + read-path tested.
+- [x] **Subtask-DAG structural validator (cycle / self-dep / dangling-dep / disconnected-island detection) (2026-07-01)** —
+      [src/core/decomposition-subtask-dag.ts](src/core/decomposition-subtask-dag.ts) — pure `validateSubtaskDag(subtasks)`
+      over INJECTED plain-value `DecomposedSubtask` (`{id, dependsOn?, title?}`; an `NKleinPlanTask`/work-package/any
+      subtask record projects 1:1, so it stays in `core` with NO `nklein-agent` import). Fills the exact hole between the
+      two existing decomposition gates: `validateTaskGraphReferences` **throws on the FIRST** duplicate/unknown-dep and has
+      **no cycle detection** (an A→B→A cycle passed silently), and `assessNKleinPlanTaskGraphQuality` is *semantic*
+      coherence (test/docs edges, reversed edges, sparsity) — **neither checks acyclicity or connectivity**. This is the
+      §5.B "subtask-DAG validator". Never throws + collects ALL defects in one pass (`duplicate_id` · `unknown_dependency`
+      · `self_dependency` (distinct from a multi-node cycle) · `dependency_cycle` with the **actual node path** via DFS
+      colouring + rotation-dedup · `disconnected_subtask`), plus a re-decompose-trigger shape summary (roots/sources,
+      weakly-connected `componentCount` via union-find, `disconnectedIds`, acyclic `maxDepth`). **22 unit tests**
+      ([test/runtime/core/decomposition-subtask-dag.test.ts](test/runtime/core/decomposition-subtask-dag.test.ts)); tsc +
+      vitest + biome green. Owed (wiring, separate): consult it in the `decompose_project` gate alongside the existing
+      reference + coherence checks, and feed the shape summary to a re-decompose trigger.
 - **Audio dev-test rubric** — score the audio-VST fixture against a domain rubric (preset + harness shipped; this is the
       *scoring*; umbrella — the 4 scoring axes below are the counted work):
   - [ ] DSP correctness + measured phase alignment
@@ -5826,6 +5840,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Test on a multi-turn task: verify goal + step are restated near context tail on 2nd+ model calls.
   - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models).
 - [ ] **Learned per-model "quality-effective" context budget — runtime consumption + UI wiring, decomposed:**
+  - [~] **Quality-knee ESTIMATOR (the pure fit) — PURE CORE DONE (2026-07-01):**
+        [src/core/context-budget-knee.ts](src/core/context-budget-knee.ts) `estimateQualityEffectiveBudget(observations,
+        options?)` → `{budgetTokens, peakTokens, peakQuality, basis, confident, levelCount}`. Fits the learned budget from
+        a scatter of raw `{contextTokens, qualityScore}` observations: bins near-identical sizes + averages repeated
+        probes into distinct context LEVELS, then walks the quality-vs-tokens curve low→high for the KNEE — the smallest
+        context past which mean quality plateaus (`basis:"plateau"`, gain < `plateauEpsilon`) or begins to fall
+        (`basis:"decline"`, the context-rot onset ⇒ target the PEAK, never a larger worse-scoring size); if quality keeps
+        rising it's `monotonic` (knee = largest level). Never below the ≥32k FLOOR (invariant #3); flags low `confident`
+        under `minLevels` distinct levels (cold-start caution). **Boundary (no dup):** complements — does NOT touch — §5.AA
+        `learnedQualityEffectiveBudget`, which reads two ratcheted SCALARS folded from a per-attempt boolean `qualityOk`
+        and so can't see a plateau/decline in the curve SHAPE; this is the curve FIT over the RAW points (a caller can seed
+        the scalar path from it). Pure/deterministic, non-mutating, no tokenizer (counts + scores injected as numbers); 15
+        unit tests; tsc + biome green. **Still owed (WIRING — behind a live §5.Z re-verify):** collect the raw
+        `{contextTokens, qualityScore}` observations per model/task (from the §5.AF ledger / §5.AB eval-sweep probes below)
+        and feed the fitted `budgetTokens` into prompt-assembly compaction (the next leaf) + the model-telemetry panel.
   - [ ] Wire learned budget into prompt-assembly: compact/summarize down to `learnedQualityEffectiveBudget(profile)` instead of filling the window (behind §5.Z re-verify).
   - [ ] Add eval-sweep probes (§5.AB harness, RULER/NoLiMa-style) for models without prior outcome data.
   - [ ] Surface learned budget + quality-knee in web Settings model-telemetry panel (CLI surface already done).
@@ -7326,7 +7355,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > **Cross-cutting features (doc-sourced + live where noted):**
 > - **Structured output** = `response_format:{type:"json_schema",json_schema:{schema:…}}` on `/v1/chat/completions`
 >   (constraint-based generation engine → guaranteed schema-valid JSON; the §5.AA constrained-tool-call rung already uses it).
->   Caveat: not all models <7B handle it well.
+>   Caveat: not all models <7B handle it well. **[~] GENERIC BUILDER CORE DONE (2026-07-01):**
+>   [lmstudio-response-format.ts](src/core/lmstudio-response-format.ts) — `buildJsonSchemaResponseFormat({name,schema,options})`
+>   takes an INJECTED target JSON Schema (any schema, not tool-call-specific like `nklein-constrained-tool-call.ts`) and
+>   returns the exact `{type:"json_schema",json_schema:{name,schema,strict}}` envelope the `/v1` seam expects — after
+>   catching, deterministically + OFFLINE, the structured-output footguns that otherwise fail SILENTLY at request time:
+>   illegal schema `name` (OpenAI/LM Studio require `^[A-Za-z0-9_-]{1,64}$`), a non-object schema, and — under `strict`
+>   (default on) — every object with `properties` MUST set `additionalProperties:false` and list every declared key in
+>   `required` (recurses `properties`/`items`/`anyOf`/`allOf`/`oneOf`; reports machine-stable codes + a JSON-pointer path
+>   per violation; collects ALL problems, never throws). Also `wrapSchemaForStrict(schema)` → a strict-compliant DEEP COPY
+>   (non-mutating; recursively adds `additionalProperties:false` + fills `required`) so a lax author-friendly schema can be
+>   made to actually ENFORCE. Pure + total; 37 vitest tests (tsc + biome green). OWED WIRING (out of this core's scope):
+>   route the ad-hoc `response_format` assembly in `nklein-local-llm-client.ts` (and the §5.AE `preferStructuredOutput`
+>   path in `skill-api-profile-request.ts`) through this validated builder so a malformed strict schema is caught pre-flight.
 > - **Tool-call parsing:** native families (Qwen2.5, Llama-3.1/3.2, Ministral — "hammer" badge) emit `<tool_call>{name,arguments}`;
 >   all others get LM Studio's **`[TOOL_REQUEST]…[END_TOOL_REQUEST]`** default-format injection (exactly the §5.AA narrated-recovery case).
 > - **Reasoning control (live-verified):** Qwen3 **`/no_think`** soft switch (message-appended) disables reasoning (965→2 chars,
