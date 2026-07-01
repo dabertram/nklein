@@ -409,6 +409,15 @@ export class LocalLlmClient {
 			// its content OR its reasoning channel (Hermes/Qwen/Llama/Mistral/DeepSeek/Phi-`[TOOL_REQUEST]`/… formats) —
 			// reasoning models (phi-4-reasoning, deepseek-r1) put it in `reasoning_content`. Mirror the swarm path's
 			// recoverNarratedToolCalls so those models drive chat tools too (todo §5.O: recover, don't re-prompt the model).
+			// §5.AB: `tool_choice:"required"` is meant to force a call FROM THE OFFERED SET, but the LM Studio/MLX endpoint
+			// does NOT constrain to `tools` — a fixated reasoning model returns a STRUCTURED call for an un-offered tool
+			// (live 2026-07-01: offered ONLY run_command, qwopus3.6-27b returned a structured read_file). On the force path
+			// we offer exactly the next undone tool, so a call naming anything else is off-menu — drop it, else it would
+			// dedupe to "no progress" and stall the chain. Scoped to the forced path so the normal `auto` turn is untouched.
+			if (opts?.toolChoice === "required" && toolCalls.length > 0) {
+				const offeredNames = new Set(tools.map((tool) => tool.name));
+				toolCalls = toolCalls.filter((call) => offeredNames.has(call.name));
+			}
 			if (toolCalls.length === 0 && tools.length > 0) {
 				const narratable = `${choice?.message?.content ?? ""}\n${choice?.message?.reasoning_content ?? ""}`;
 				let recovered = parseNarratedToolCalls(narratable);
@@ -420,11 +429,21 @@ export class LocalLlmClient {
 						tools.map((tool) => tool.name),
 					);
 				}
-				toolCalls = recovered.map((call, index) => ({
-					id: `narrated_${index}`,
-					name: call.toolName,
-					arguments: parseToolCallArguments(call.input),
-				}));
+				// §5.AB: a recovered call must name a tool we actually OFFERED this turn. Marker-based recovery
+				// (parseNarratedToolCalls) doesn't validate against the offered set, so a model that narrates a call to a
+				// tool we deliberately did NOT offer would otherwise land it. That defeats the force-advance steer: when we
+				// FORCE the next step with a REDUCED tool set (already-done tools excluded, tool_choice:"required"), a
+				// reasoning model that keeps narrating the done tool (live: qwopus3.6-27b re-narrated `read_file(...)` after
+				// run_command) must be rejected so the loop dedupe doesn't collapse it to "no progress". On a normal turn all
+				// real tools are offered, so nothing legitimate is dropped — this only bites the excluded-tool case.
+				const offeredNames = new Set(tools.map((tool) => tool.name));
+				toolCalls = recovered
+					.filter((call) => offeredNames.has(call.toolName))
+					.map((call, index) => ({
+						id: `narrated_${index}`,
+						name: call.toolName,
+						arguments: parseToolCallArguments(call.input),
+					}));
 			}
 			return {
 				content: choice?.message?.content ?? "",

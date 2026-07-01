@@ -401,6 +401,193 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(result.toolCalls).toEqual([expect.objectContaining({ name: "create_card" })]);
 	});
 
+	it("§5.AB force-advance: with forceToolCall + a REPEATED real call, forces the next OFFERED-unused tool (json_schema)", async () => {
+		// The §5.AB stuck-branch path: the model returns a real call (not empty), but the loop asks the adapter to FORCE
+		// because that call was an already-done repeat. The instruction only named read_file (already used), so the anchor
+		// is exhausted — the fallback must steer to an offered-but-unused tool. On a NON-reasoning model the json_schema
+		// rung does the forcing.
+		let forcedEnum: string[] | undefined;
+		const client: ChatAgentCompletionClient = {
+			// The "primary" turn returns a repeated read_file (a real call) — the loop, not the adapter, detects the repeat
+			// and re-invokes with forceToolCall=true; here we just model that forced invocation directly.
+			completeWithTools: async () => ({
+				content: "",
+				toolCalls: [{ id: "again", name: "read_file", arguments: { path: "FACT.txt" } }],
+				finishReason: "tool_calls",
+				raw: {},
+			}),
+			complete: async (request) => {
+				forcedEnum = (
+					request.format?.jsonSchema?.schema as { properties?: { tool?: { enum?: string[] } } } | undefined
+				)?.properties?.tool?.enum;
+				return { content: '{"tool":"run_command","arguments":{"command":"cat FACT.txt"}}' };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen2.5-coder-14b" });
+		// Instruction names only read_file; read_file is already used → anchor exhausted → steer to an offered-unused tool.
+		const result = await model(
+			[{ role: "user", content: "Use read_file to read FACT.txt." }],
+			true,
+			undefined,
+			["read_file"],
+			/* forceToolCall */ true,
+		);
+		// The forced schema excluded read_file and offered the remaining un-used tools (steering to the next step).
+		expect(forcedEnum).toBeDefined();
+		expect(forcedEnum).not.toContain("read_file");
+		expect(forcedEnum).toContain("run_command");
+		expect(result.toolCalls).toEqual([expect.objectContaining({ name: "run_command" })]);
+	});
+
+	it("§5.AB force-advance: on a REASONING model the native tool_choice:'required' channel forces BY DEFAULT (no flag)", async () => {
+		// The correctness fix: reasoning models dead-end on json_schema, so the force-advance path must use the native
+		// channel by DEFAULT (no NKLEIN_NATIVE_FORCE_TOOL_CALL). The flag is NOT set here.
+		const savedFlag = process.env.NKLEIN_NATIVE_FORCE_TOOL_CALL;
+		delete process.env.NKLEIN_NATIVE_FORCE_TOOL_CALL;
+		try {
+			const toolChoices: (string | undefined)[] = [];
+			const requiredToolNames: string[][] = [];
+			let jsonSchemaCalled = false;
+			const client: ChatAgentCompletionClient = {
+				completeWithTools: async (_request, toolsArg, opts) => {
+					toolChoices.push(opts?.toolChoice);
+					if (opts?.toolChoice === "required") {
+						requiredToolNames.push(toolsArg.map((t) => t.name));
+						return {
+							content: "",
+							toolCalls: [{ id: "native", name: "run_command", arguments: { command: "cat FACT.txt" } }],
+							finishReason: "tool_calls",
+							raw: {},
+						};
+					}
+					// The (modeled) primary turn: a repeated real call the loop would dedupe.
+					return {
+						content: "",
+						toolCalls: [{ id: "again", name: "read_file", arguments: { path: "FACT.txt" } }],
+						finishReason: "tool_calls",
+						raw: {},
+					};
+				},
+				complete: async () => {
+					jsonSchemaCalled = true;
+					return { content: '{"tool":"run_command","arguments":{}}' };
+				},
+			};
+			const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen3.5-9b-mlx" });
+			const result = await model(
+				[{ role: "user", content: "Use read_file to read FACT.txt." }],
+				true,
+				undefined,
+				["read_file"],
+				/* forceToolCall */ true,
+			);
+			// Native channel forced the next step; json_schema (which dead-ends on reasoning models) was never reached.
+			expect(toolChoices).toContain("required");
+			expect(jsonSchemaCalled).toBe(false);
+			expect(result.toolCalls).toEqual([
+				{ id: "native", name: "run_command", arguments: { command: "cat FACT.txt" } },
+			]);
+			// §5.AB Fix 5: the forced native call was offered exactly ONE tool (the next undone step) — probe-proven
+			// deterministic on qwopus3.6-27b (a multi-tool required call let it narrate the wrong, already-done tool).
+			expect(requiredToolNames).toHaveLength(1);
+			expect(requiredToolNames[0]).toHaveLength(1);
+		} finally {
+			if (savedFlag === undefined) {
+				delete process.env.NKLEIN_NATIVE_FORCE_TOOL_CALL;
+			} else {
+				process.env.NKLEIN_NATIVE_FORCE_TOOL_CALL = savedFlag;
+			}
+		}
+	});
+
+	it("§5.AB force-advance: drives the native call from a TRIMMED context (drops narration + nudge chatter, keeps facts)", async () => {
+		// Root cause on qwopus3.6-27b: the running transcript's repeated first-tool turns + stacked nudges fixate the model
+		// so hard that even required-forcing returns the done tool. The force must use a CLEAN context. This asserts the
+		// messages sent to the forced (required) call: leading system framing + the original user instruction + the
+		// tool-RESULT facts + a next-step directive — with the model's narration turns and the loop's `incomplete-` nudge
+		// notes DROPPED.
+		let forcedMessages: LocalLlmChatMessage[] = [];
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request, _tools, opts) => {
+				if (opts?.toolChoice === "required") {
+					forcedMessages = [...request.messages];
+					return {
+						content: "",
+						toolCalls: [{ id: "n", name: "run_command", arguments: { command: "cat FACT.txt" } }],
+						finishReason: "tool_calls",
+						raw: {},
+					};
+				}
+				// Primary turn: a repeated read_file the loop would dedupe (drives the force path).
+				return {
+					content: "",
+					toolCalls: [{ id: "again", name: "read_file", arguments: { path: "FACT.txt" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+			complete: async () => ({ content: "{}" }),
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwopus3.6-27b-v2-mlx" });
+		// A realistic poisoned wire: system framing, the user instruction, a real tool-result fact, a REPEATED-call nudge,
+		// an assistant narration turn, and an `incomplete-` nudge note.
+		const poisonedWire: ChatPromptMessage[] = [
+			{ role: "system", content: "You are a workspace agent. Tools: read_file, run_command, create_card." },
+			{ role: "user", content: "First read_file FACT.txt, then run_command cat FACT.txt, then create_card." },
+			{ role: "system", content: "Tool result (call_1):\nECHO-MARKER-7777-XYZ" },
+			{ role: "assistant", content: "<tool_code>read_file(FACT.txt)</tool_code>" },
+			{ role: "system", content: "Tool result (incomplete-1):\nYou have NOT yet completed all the required steps." },
+		];
+		const result = await model(poisonedWire, true, undefined, ["read_file"], /* forceToolCall */ true);
+		expect(result.toolCalls).toEqual([{ id: "n", name: "run_command", arguments: { command: "cat FACT.txt" } }]);
+		// The forced call's context was reshaped for the fixation-prone model:
+		const roles = forcedMessages.map((m) => m.role);
+		const contents = forcedMessages.map((m) => m.content);
+		expect(roles).not.toContain("assistant"); // the narration turn was dropped
+		expect(contents).toContain("You are a workspace agent. Tools: read_file, run_command, create_card."); // framing kept
+		expect(contents.some((c) => c.includes("ECHO-MARKER-7777-XYZ"))).toBe(true); // the FACT (tool result) kept
+		expect(contents.some((c) => c.includes("incomplete-1"))).toBe(false); // the nudge note DROPPED
+		// CRITICAL (probe-verified on qwopus3.6-27b): the original instruction is NOT left as the USER turn — as an active
+		// numbered task the model re-reads it and restarts at step 1 (read_file) even under required-forcing. It is instead
+		// demoted to a SYSTEM reference note (so the next step's exact args are still available), and the USER turn is a
+		// fresh single-step ask for just the next tool.
+		const userTurns = forcedMessages.filter((m) => m.role === "user");
+		expect(userTurns).toHaveLength(1);
+		expect(userTurns[0]?.content).not.toContain("First read_file FACT.txt"); // the instruction is not the user turn
+		expect(userTurns[0]?.content).toContain("run_command"); // the single-step ask names the next tool
+		expect(userTurns[0]?.content.toLowerCase()).toContain("do not repeat");
+		// The original instruction survives as a system REFERENCE (carries the next step's args).
+		expect(contents.some((c) => c.includes("For reference") && c.includes("First read_file FACT.txt"))).toBe(true);
+	});
+
+	it("§5.AB force-advance: does NOT engage without forceToolCall — a lone repeated real call is left as-is (happy path)", async () => {
+		// Without the loop's forceToolCall signal, a turn that returns a real (even repeated) call is NOT diverted into the
+		// forcing rung — the adapter returns the call untouched, exactly as before §5.AB. (The loop handles the dedupe.)
+		let constrainedCalled = false;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({
+				content: "",
+				toolCalls: [{ id: "again", name: "read_file", arguments: { path: "FACT.txt" } }],
+				finishReason: "tool_calls",
+				raw: {},
+			}),
+			complete: async () => {
+				constrainedCalled = true;
+				return { content: "{}" };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, { modelId: "qwen2.5-coder-14b" });
+		const result = await model(
+			[{ role: "user", content: "Use read_file to read FACT.txt." }],
+			true,
+			undefined,
+			["read_file"],
+			// forceToolCall omitted (undefined)
+		);
+		expect(constrainedCalled).toBe(false);
+		expect(result.toolCalls).toEqual([{ id: "again", name: "read_file", arguments: { path: "FACT.txt" } }]);
+	});
+
 	it("§5.AA constrained rung: does NOT fire when no tool is named (no fabricated call on a prose answer)", async () => {
 		let constrainedCalled = false;
 		const client: ChatAgentCompletionClient = {

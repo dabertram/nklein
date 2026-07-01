@@ -59,7 +59,11 @@ interface ChatSendOptions {
 	write?: (text: string) => void;
 }
 
-const DEFAULT_CHAT_AGENT_MAX_ITERATIONS = 6;
+// §5.AB: a multi-step chain on a stuck-prone reasoning model advances ~one tool per iteration via the force-advance
+// rung, and each such iteration spends ~2 model calls (the repeated discovery call + the forced next-step call), plus an
+// occasional stochastic force-miss that self-heals on the next iteration. 6 was too tight for the 4-tool e2e capstone on
+// qwopus3.6-27b (it ran out mid-chain); 12 gives every step room to land with retries while staying bounded.
+const DEFAULT_CHAT_AGENT_MAX_ITERATIONS = 12;
 
 /** A line reader over stdin for the interactive REPL, with a `close` to release the readline interface. */
 function createStdinLineReader(): { readLine: () => Promise<string | null>; close: () => void } {

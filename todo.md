@@ -503,6 +503,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > (HIGH bar — not minor reworkable choices: take the sensible default + **log it in
 > [docs/dev/autonomous-decisions.md](docs/dev/autonomous-decisions.md)** for end-of-run review). **Ship mode: local
 > commits only — no push / no PRs.** Runtime restart to live-verify backend fixes is OK. Decisions:
+> - **⭐ CURRENT TOP PRIORITY — get an initial PROVEN end-to-end agentic CORE working (2026-07-01, user):** an initial
+>   proven "capability" — a real multi-step tool-chain completing end-to-end + persisting — matters more than breadth right
+>   now. **Mid-size model space is FINE: if the core needs the 27B (`qwopus3.6-27b-v2-mlx`) to get through, use it** — land
+>   the core there FIRST, THEN "drill in both directions" (harden smaller models 9B↓ AND scale up to bigger models) as
+>   FOLLOW-UPS. Do NOT over-invest polishing the weak 9B before the core is proven. (Live 2026-07-01: the 4-step agentic
+>   chain stalled on BOTH the 9B AND the 27B — a model-AGNOSTIC loop-steering bug: `chat-agent-loop.ts` spins re-calling the
+>   FIRST tool [deduped to no-progress], never steering to the next UNDONE step, then hits maxIterations. The fix [force the
+>   next undone tool on the stuck-branch + steer `forceTools` to an unused tool] IS the core-enabler; in progress.)
 > - **Run order:** (1) quick wins — chat sidebar inner-resize fix + chat-session relabel + flip the two defaults;
 >   (2) **§5.B planning/refinement lane** (full design); (3) **comprehensive test coverage** (two layers); (4)
 >   **systems-analysis safe simplifications** (state/data/activity flows + ownership/SoC). §5.U file-decomposition +
@@ -4776,12 +4784,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       to the flag-OFF baseline (reproduced ×2). So the native-force rung is correct + available but does NOT resolve the §5.AA
       tool-CHAINING wall on this model — the failure is UPSTREAM of the forcing rung: the model emits a no-tool-call turn WITH
       prose CONTENT, so either the loop treats a with-content no-call turn as a TERMINAL answer (never reaching the force
-      rung), or the anchor/steer doesn't advance to the NEXT step. ⇒ **do NOT promote to default-on yet; keep it opt-in.** The
-      real chaining fix is separate §5.AA work: instrument WHY the loop stops after a prose turn (does the force rung even
-      fire? if so, does it force the NEXT tool or re-force step 1?), likely (a) treat a with-content no-call turn on a
-      reasoning model as a CONTINUE-and-force signal (prose is often a narrated-but-undispatched call), and (b) steer to the
-      next undone step. Next: a `NKLEIN_NATIVE_FORCE_TOOL_CALL`-on run with rung-level logging to see if the rung fires + what
-      it forces.
+      rung), or the anchor/steer doesn't advance to the NEXT step. ✅ **ROOT-CAUSED + FIXED — CORE PROVEN ON THE 27B (2026-07-01).** The flag alone didn't help because the forcing rung was
+      UNREACHABLE: the stall is NOT "no tool call / prose" — the model returns a REAL REPEATED `read_file` STRUCTURED call
+      every turn, which the loop dedupes (`chatToolCallFingerprint` → no progress) but which is `toolCalls.length>0`, so the
+      `===0`-gated rung never fired; the loop only nudged + spun to `maxIterations`. Model-AGNOSTIC (9B AND 27B). FIX (loop +
+      adapter + client, +13 tests, suite 4787→4797): (1) the loop's stuck-branch (`executedNew===0`) now FORCE-advances via a
+      new `forceToolCall` signal threaded through `deps.complete`, guardrailed by the evidence-gate (only while REQUIRED tools
+      remain uncalled + a turn remains); (2) the forcing rung fires on `(no-call || forceToolCall)`; (3) `forceTools` steers to
+      an offered-but-UNUSED tool (anchoredRemaining→offeredRemaining); (4) native `tool_choice:"required"` runs BY DEFAULT for
+      reasoning models on the force path (json_schema dead-ends on them) offering a SINGLE next tool; (5) a TRIMMED force
+      context (`buildForceAdvanceContext`) DROPS the original numbered instruction (the endpoint re-reads it top-down +
+      restarts at step 1 — live root cause), demotes it to a system reference (preserving the next step's args), keeps the
+      tool-RESULT facts, and poses a single-step ask; (6) the client drops OFF-MENU structured/narrated calls under `required`
+      (the endpoint does NOT constrain `required` to the offered set — live 2026-07-01); (7) `DEFAULT_CHAT_AGENT_MAX_ITERATIONS`
+      6→12. **PROVEN: `verify-chat-agent-e2e` on qwopus3.6-27b now completes the full 4-step chain
+      (read_file→run_command→create_card→update_focus_chain, card PERSISTED, exit 3 = "chain executed + card persisted"; the
+      only miss is the reply marker-echo = weak synthesis, not a capability gap), ~2.5 min — vs the pre-fix infinite step-1
+      spin.** Byte-identical happy path (the force-advance path only triggers on the stuck-branch). FOLLOW-UPS (per §5.0.1
+      "drill both directions"): harden the 9B↓ + scale to bigger models; `buildForceAdvanceContext` is tuned on the 27B +
+      format-coupled to `appendChatToolExchange` (generalize + per-model de-tune as the §5.AL catalog grows).
       **WIRED ON THE CHAT PATH (2026-06-28):**
       `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
       LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the

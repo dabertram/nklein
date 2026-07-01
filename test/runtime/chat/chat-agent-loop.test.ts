@@ -275,4 +275,102 @@ describe("runChatAgentLoop", () => {
 		expect(result.steps.map((s) => s.toolCall.name)).toEqual(["read_file", "create_card"]);
 		expect(result.finalText).toBe("All set.");
 	});
+
+	it("§5.AB force-advance: a model STUCK re-emitting a done tool is forced to the NEXT undone step", async () => {
+		// The §5.AB loop-spin bug: the model returns a REAL structured call every turn but it's always the same,
+		// already-executed read_file (deduped → executedNew=0). Before the fix the loop only nudged and spun to the cap;
+		// now the stuck-branch calls complete() with forceToolCall=true, and the fake honors it by emitting the next
+		// undone tool — proving the loop reaches the adapter's forcing rung on the repeated-call path.
+		const forceFlags: (boolean | undefined)[] = [];
+		const result = await runChatAgentLoop(
+			{ messages: start, maxIterations: 8 },
+			{
+				complete: async (_messages, allow, _onToken, _used, forceToolCall) => {
+					forceFlags.push(forceToolCall);
+					if (!allow) {
+						return { text: "All four steps done.", toolCalls: [] };
+					}
+					// A forced discovery turn advances to run_command; every UN-forced discovery turn re-emits read_file.
+					return forceToolCall
+						? { text: "", toolCalls: [{ id: "rc", name: "run_command", arguments: { command: "cat FACT.txt" } }] }
+						: { text: "", toolCalls: [{ id: "rf", name: "read_file", arguments: { path: "FACT.txt" } }] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: `ran ${call.name}` }),
+				appendToolExchange,
+				// Complete once BOTH read_file and run_command have executed (a 2-tool required chain).
+				assessCompletion: (steps) => {
+					const used = new Set(steps.map((s) => s.toolCall.name));
+					return used.has("read_file") && used.has("run_command");
+				},
+			},
+		);
+		// The chain ADVANCED past read_file — run_command fired via the force path — and the run completed.
+		expect(result.steps.map((s) => s.toolCall.name)).toEqual(["read_file", "run_command"]);
+		expect(result.finalText).toBe("All four steps done.");
+		expect(result.hitIterationLimit).toBe(false);
+		// The force signal was actually raised (a forceToolCall:true call happened) — this is the mechanism under test.
+		expect(forceFlags).toContain(true);
+	});
+
+	it("§5.AB guardrail: forcing STOPS once the run is complete — a finished task ends in a normal prose answer", async () => {
+		// After the one required tool runs, the model re-emits it (repeat). The run is now COMPLETE by evidence, so the
+		// stuck-branch must NOT force another tool (no infinite forcing) — it falls through to the final answer.
+		const forceFlags: (boolean | undefined)[] = [];
+		let turn = 0;
+		const result = await runChatAgentLoop(
+			{ messages: start, maxIterations: 8 },
+			{
+				complete: async (_messages, allow, _onToken, _used, forceToolCall) => {
+					forceFlags.push(forceToolCall);
+					turn += 1;
+					if (!allow) {
+						return { text: "Card created — all done.", toolCalls: [] };
+					}
+					// Turn 1: create_card (real). Every later discovery turn: re-emit create_card (repeat → deduped).
+					return { text: "", toolCalls: [{ id: `cc${turn}`, name: "create_card", arguments: { title: "X" } }] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "created" }),
+				appendToolExchange,
+				assessCompletion: (steps) => steps.some((s) => s.toolCall.name === "create_card"),
+			},
+		);
+		// create_card ran exactly once; once complete, the loop forced a normal final answer (no force-advance).
+		expect(result.steps.map((s) => s.toolCall.name)).toEqual(["create_card"]);
+		expect(result.finalText).toBe("Card created — all done.");
+		expect(result.hitIterationLimit).toBe(false);
+		// The force signal was NEVER raised — the guardrail (complete ⇒ don't force) held.
+		expect(forceFlags).not.toContain(true);
+	});
+
+	it("§5.AB force-advance: happy path is UNCHANGED — a chain that advances naturally never triggers forcing", async () => {
+		// Each turn emits a DISTINCT next tool (natural progress, executedNew>0 every turn), so the stuck-branch is never
+		// entered and forceToolCall is never set — the fix is inert on a healthy multi-step run.
+		const forceFlags: (boolean | undefined)[] = [];
+		const turns: ChatAgentModelResponse[] = [
+			{ text: "", toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "FACT.txt" } }] },
+			{ text: "", toolCalls: [{ id: "c2", name: "run_command", arguments: { command: "cat FACT.txt" } }] },
+			{ text: "", toolCalls: [{ id: "c3", name: "create_card", arguments: { title: "X" } }] },
+			{ text: "Done.", toolCalls: [] },
+		];
+		let turn = 0;
+		const result = await runChatAgentLoop(
+			{ messages: start, maxIterations: 8 },
+			{
+				complete: async (_messages, _allow, _onToken, _used, forceToolCall) => {
+					forceFlags.push(forceToolCall);
+					return turns[turn++] ?? { text: "", toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "ok" }),
+				appendToolExchange,
+				assessCompletion: (steps) => {
+					const used = new Set(steps.map((s) => s.toolCall.name));
+					return used.has("read_file") && used.has("run_command") && used.has("create_card");
+				},
+			},
+		);
+		expect(result.steps.map((s) => s.toolCall.name)).toEqual(["read_file", "run_command", "create_card"]);
+		expect(result.finalText).toBe("Done.");
+		// forceToolCall was never true (the stuck-branch was never reached on a naturally-advancing chain).
+		expect(forceFlags.every((flag) => !flag)).toBe(true);
+	});
 });

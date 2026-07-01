@@ -272,6 +272,77 @@ describe("LocalLlmClient.completeWithTools", () => {
 		expect(body.tool_choice).toBe("required");
 	});
 
+	it("§5.AB: under toolChoice:required, DROPS a structured tool_call for a tool that was NOT offered (endpoint violation)", async () => {
+		// Live 2026-07-01: LM Studio/MLX does NOT constrain tool_choice:required to the offered `tools` — qwopus3.6-27b,
+		// fixated on read_file, returned a STRUCTURED read_file even when ONLY run_command was offered on the force call.
+		// That off-menu call would dedupe to "no progress" and stall the chain, so the client must drop it.
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									content: "",
+									// Endpoint returns read_file structurally, but only run_command is offered below.
+									tool_calls: [{ id: "x", function: { name: "read_file", arguments: '{"path":"FACT.txt"}' } }],
+								},
+								finish_reason: "tool_calls",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwopus3.6-27b-v2-mlx",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools(
+			{ messages: [{ role: "user", content: "next step" }] },
+			[{ name: "run_command", description: "Run a command", parameters: { type: "object" } }],
+			{ toolChoice: "required" },
+		);
+		// read_file was off-menu → dropped; no fabricated done-tool call survives to dedupe on.
+		expect(result.toolCalls).toEqual([]);
+	});
+
+	it("§5.AB: under toolChoice:required, KEEPS a structured tool_call that IS offered (normal forced advance)", async () => {
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									content: "",
+									tool_calls: [
+										{ id: "ok", function: { name: "run_command", arguments: '{"command":"cat FACT.txt"}' } },
+									],
+								},
+								finish_reason: "tool_calls",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwopus3.6-27b-v2-mlx",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		const result = await client.completeWithTools(
+			{ messages: [{ role: "user", content: "next step" }] },
+			[{ name: "run_command", description: "Run a command", parameters: { type: "object" } }],
+			{ toolChoice: "required" },
+		);
+		expect(result.toolCalls).toEqual([{ id: "ok", name: "run_command", arguments: { command: "cat FACT.txt" } }]);
+	});
+
 	it("defaults tool_choice to auto when opts is omitted (byte-identical to prior behavior)", async () => {
 		const fetchImpl = vi.fn(async () => toolCallResponse());
 		const client = new LocalLlmClient({
@@ -357,6 +428,44 @@ describe("LocalLlmClient.completeWithTools", () => {
 		]);
 		// The model narrated the call as text instead of a structured tool_call — recovered so the chat loop dispatches it.
 		expect(result.toolCalls).toEqual([{ id: "narrated_0", name: "create_card", arguments: { title: "X" } }]);
+	});
+
+	it("§5.AB: REJECTS a narrated call whose tool was NOT offered this turn (force-advance steer must bind)", async () => {
+		// The §5.AB loop-spin failure on qwopus3.6-27b: when we FORCE the next undone step with a REDUCED tool set
+		// (already-done read_file EXCLUDED, tool_choice:"required"), the model kept narrating `read_file(...)` in a
+		// tool_code block. Marker-based recovery used to land that read_file regardless of the offered set → the loop
+		// deduped it → no progress. The recovery must reject a call to a tool we didn't offer this turn.
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									// Narrates read_file — but read_file is NOT in the offered set below (we're forcing the next step).
+									content:
+										'<tool_call>\n{"name": "read_file", "arguments": {"path": "FACT.txt"}}\n</tool_call>',
+									tool_calls: [],
+								},
+								finish_reason: "stop",
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				),
+		);
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwopus3.6-27b-v2-mlx",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		// Offer ONLY create_card (read_file already done, excluded from the forced set).
+		const result = await client.completeWithTools({ messages: [{ role: "user", content: "next step" }] }, [
+			{ name: "create_card", description: "Create a card", parameters: { type: "object" } },
+		]);
+		// read_file was narrated but not offered → rejected (no fabricated done-tool call to dedupe on).
+		expect(result.toolCalls).toEqual([]);
 	});
 
 	it("recovers Gemma `tool_code` Python-call narration through the client seam (§5.Z e2e capstone dialect)", async () => {

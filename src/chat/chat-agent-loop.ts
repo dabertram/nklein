@@ -60,6 +60,10 @@ export interface ChatAgentLoopDeps {
 		/** Names of tools already executed this run — the §5.AA constrained rung excludes them when forcing a call, so a
 		 *  weak model that stalls mid-chain is pushed to the NEXT step instead of re-forcing an already-done tool. */
 		usedToolNames?: readonly string[],
+		/** §5.AB loop-spin fix: when true, FORCE a tool call even if the model returned one — the model is stuck RE-emitting
+		 *  an already-done tool (deduped → no progress), so the adapter's forcing rung must engage to steer to the next
+		 *  undone step. Set only by the stuck-branch below, and only while the run is incomplete by evidence. */
+		forceToolCall?: boolean,
 	) => Promise<ChatAgentModelResponse>;
 	/** Execute one tool call (after the policy gate + audit, in the live wiring); returns the result content. */
 	executeTool: (call: ChatToolCall) => Promise<ChatToolResult>;
@@ -106,29 +110,11 @@ export async function runChatAgentLoop(
 	const executedFingerprints = new Set<string>();
 	const usedToolNames = new Set<string>();
 
-	for (let iteration = 0; iteration < maxIterations; iteration++) {
-		// Tool-discovery turn: never stream (the model must be free to request a tool instead of answering). Pass the
-		// already-executed tool names so the §5.AA constrained rung, if it has to FORCE a call, steers to an un-done step.
-		const response = await deps.complete(messages, true, undefined, [...usedToolNames]);
-		if (response.toolCalls.length === 0) {
-			// §5.AA controller evidence-gate: if a completion assessor is supplied and the run is NOT yet complete by
-			// EVIDENCE, don't accept this premature "done" — nudge to keep going and continue (still bounded by
-			// maxIterations). Skipped on the final iteration (no turn left to use the nudge). Absent assessor ⇒ unchanged.
-			if (deps.assessCompletion && !deps.assessCompletion(steps) && iteration < maxIterations - 1) {
-				messages = deps.appendToolExchange(messages, response, [
-					{ callId: `incomplete-${iteration}`, content: INCOMPLETE_NUDGE },
-				]);
-				continue;
-			}
-			// The model chose to answer rather than call a tool — this is the final reply. With an `onToken` we re-issue
-			// it as a streaming, tools-disabled call so the answer streams token-by-token (the discovery call can't both
-			// offer tools and stream); without one we return the text we already have (no extra model call).
-			if (onToken) {
-				const streamed = await deps.complete(messages, false, onToken);
-				return { finalText: streamed.text, steps, hitIterationLimit: false };
-			}
-			return { finalText: response.text, steps, hitIterationLimit: false };
-		}
+	// Execute a model response's tool calls with the same-turn de-dup: run each genuinely-new call, replace an
+	// already-made identical call with the §5.O nudge (don't re-run it). Mutates `steps`/`executedFingerprints`/
+	// `usedToolNames`, folds the results into `messages`, and reports how many NEW calls actually ran. Shared by the
+	// normal discovery turn and the §5.AB force-advance turn so both dedup + record identically.
+	const applyResponse = async (response: ChatAgentModelResponse): Promise<number> => {
 		const results: ChatToolResult[] = [];
 		let executedNew = 0;
 		for (const toolCall of response.toolCalls) {
@@ -146,17 +132,57 @@ export async function runChatAgentLoop(
 			executedNew += 1;
 		}
 		messages = deps.appendToolExchange(messages, response, results);
-		if (executedNew === 0) {
-			// The whole response was repeats — the model is stuck. But honor the §5.AA evidence-gate here too: if the run
-			// isn't actually complete and iterations remain, nudge to finish the un-done steps rather than force a final
-			// (so a model that re-calls a done tool while the task is incomplete still gets a chance to continue).
-			if (deps.assessCompletion && !deps.assessCompletion(steps) && iteration < maxIterations - 1) {
-				messages = deps.appendToolExchange(messages, { text: "", toolCalls: [] }, [
+		return executedNew;
+	};
+	// The run is NOT complete by evidence and there's still an iteration left to make progress — the precondition for
+	// both the §5.AA "keep going" nudge and the §5.AB force-advance. Absent an assessor this is always false (a turn
+	// with no assessor accepts the model's own stop / final answer, exactly as before).
+	const canStillMakeProgress = (iteration: number): boolean =>
+		Boolean(deps.assessCompletion) && !deps.assessCompletion?.(steps) && iteration < maxIterations - 1;
+
+	for (let iteration = 0; iteration < maxIterations; iteration++) {
+		// Tool-discovery turn: never stream (the model must be free to request a tool instead of answering). Pass the
+		// already-executed tool names so the §5.AA constrained rung, if it has to FORCE a call, steers to an un-done step.
+		const response = await deps.complete(messages, true, undefined, [...usedToolNames]);
+		if (response.toolCalls.length === 0) {
+			// §5.AA controller evidence-gate: if a completion assessor is supplied and the run is NOT yet complete by
+			// EVIDENCE, don't accept this premature "done" — nudge to keep going and continue (still bounded by
+			// maxIterations). Skipped on the final iteration (no turn left to use the nudge). Absent assessor ⇒ unchanged.
+			if (canStillMakeProgress(iteration)) {
+				messages = deps.appendToolExchange(messages, response, [
 					{ callId: `incomplete-${iteration}`, content: INCOMPLETE_NUDGE },
 				]);
 				continue;
 			}
-			// The model is stuck (all repeats) — force a final (streamed) answer now (not a cap hit).
+			// The model chose to answer rather than call a tool — this is the final reply. With an `onToken` we re-issue
+			// it as a streaming, tools-disabled call so the answer streams token-by-token (the discovery call can't both
+			// offer tools and stream); without one we return the text we already have (no extra model call).
+			if (onToken) {
+				const streamed = await deps.complete(messages, false, onToken);
+				return { finalText: streamed.text, steps, hitIterationLimit: false };
+			}
+			return { finalText: response.text, steps, hitIterationLimit: false };
+		}
+		const executedNew = await applyResponse(response);
+		if (executedNew === 0) {
+			// The whole response was repeats — the model is stuck RE-emitting an already-done tool. §5.AB: rather than only
+			// nudge (which a stuck model ignores → it spins to the cap), FORCE the next UNDONE tool this same iteration.
+			// Only while the run is incomplete by evidence and an iteration remains (the guardrail — a genuinely-finished
+			// task falls through to the normal final answer, no infinite forcing). The adapter's forcing rung (native
+			// tool_choice:"required" for reasoning models, else constrained json_schema) steers to an unused tool because
+			// we pass the executed names; if it lands a NEW call we've advanced, else we nudge and continue as before.
+			if (canStillMakeProgress(iteration)) {
+				const forced = await deps.complete(messages, true, undefined, [...usedToolNames], true);
+				const forcedNew = forced.toolCalls.length > 0 ? await applyResponse(forced) : 0;
+				if (forcedNew === 0) {
+					// The force couldn't produce a new call either — fall back to the §5.AA nudge and keep going.
+					messages = deps.appendToolExchange(messages, { text: "", toolCalls: [] }, [
+						{ callId: `incomplete-${iteration}`, content: INCOMPLETE_NUDGE },
+					]);
+				}
+				continue;
+			}
+			// The model is stuck (all repeats) and the run is complete / out of runway — force a final (streamed) answer.
 			const finalResponse = await deps.complete(messages, false, onToken);
 			return { finalText: finalResponse.text, steps, hitIterationLimit: false };
 		}
