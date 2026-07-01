@@ -2258,7 +2258,12 @@ source repo went private — so if it vanishes the buildable source still lives 
   - [~] **Tool cards** (the short per-tool descriptor): define the `ToolCard` shape (name · one-line purpose · use-when ·
         do-not-use-when · example · common-recovery) and author one per existing tool. **(2026-06-29, parallel batch #2)**
         SHAPE done: `src/core/tool-card.ts` — `ToolCard {name,purpose,useWhen,args?,avoidWhen?}` + `renderToolCard`/`renderToolCardList`
-        (token-frugal, omits absent fields). 6 tests. Owed: author one card per existing tool + wire into the small-model prompt.
+        (token-frugal, omits absent fields). 6 tests. **CARDS AUTHORED (2026-07-01):** `src/core/task-tool-cards.ts` —
+        `KANBAN_TASK_TOOL_CARDS` (one card per kanban task tool: find_files·list_files·get_file_size·read_files·read_large_file·
+        write_file·write_files·editor·apply_patch) + `kanbanTaskToolCardByName`. A parity test pins the card set to the exact
+        `createKanbanToolPolicies()` key set, so a new/removed tool fails the gate until its card follows — "one card per existing
+        tool" holds by construction. 8 tests. (Native SDK tools — run_commands/fetch_web/search — are SDK-owned, intentionally
+        not re-carded.) Owed: wire the card list into the small-model prompt (feeds the §5.O two-phase picker: cards → schema reveal).
   - [~] **Two-phase tool use** (pure core first): phase-1 picker over tool cards → `none | one_tool | plan_needed`;
         phase-2 reveal ONLY the selected tool's full schema; unit-test the selection; then wire at the model seam. **(2026-06-29, batch #3)**
         PURE CORE done: `src/core/two-phase-tool-pick.ts` — `interpretPhaseOnePick(rawPick, cards)` (unknown/hallucinated tool → `plan_needed`,
