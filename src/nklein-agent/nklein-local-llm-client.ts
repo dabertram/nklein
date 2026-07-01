@@ -1,3 +1,4 @@
+import { reasoningAndAnswerText } from "../core/reasoning-channel-split";
 import { withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import { parseNarratedToolCalls, parseToolValidatedNarration } from "./nklein-narrated-tool-call";
@@ -419,7 +420,12 @@ export class LocalLlmClient {
 				toolCalls = toolCalls.filter((call) => offeredNames.has(call.name));
 			}
 			if (toolCalls.length === 0 && tools.length > 0) {
-				const narratable = `${choice?.message?.content ?? ""}\n${choice?.message?.reasoning_content ?? ""}`;
+				// §5.AN: scan BOTH channels for a narrated call via the shared reasoning-channel-split core — this now also
+				// surfaces an inline-`<think>` model's reasoning (the old concat only saw the SEPARATE reasoning_content field).
+				const narratable = reasoningAndAnswerText({
+					content: choice?.message?.content,
+					reasoning_content: choice?.message?.reasoning_content,
+				});
 				let recovered = parseNarratedToolCalls(narratable);
 				// §5.AA last tier (2026-06-29): small models (≤4B: nemotron-4b, gemma) narrate a `{"tool":…,"parameters":…}`
 				// object with NO recognized marker. Recover it SAFELY by validating the tool name against the offered set.
