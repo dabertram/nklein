@@ -22,6 +22,7 @@ import {
 import { isTruthyEnv } from "../core/env-flag";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { buildTemporalAwarenessPrompt, isTemporalContextRelevant } from "../core/temporal-awareness";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -350,6 +351,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly contextWindowStore = new TaskContextWindowStore();
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
+	/** §5.AN opt-in residency heartbeats, one per running task (auto-cleaned on session end). */
+	private readonly residencyHeartbeatByTaskId = new Map<string, ResidencyHeartbeatHandle>();
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
@@ -865,6 +868,68 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private clearTaskTimeouts(taskId: string): void {
 		this.timeoutScheduler.clearAll(taskId);
 		this.activeToolTaskIds.delete(taskId);
+		this.stopModelResidencyWatch(taskId);
+	}
+
+	/**
+	 * §5.AN residency heartbeat (OPT-IN via `NKLEIN_RESIDENCY_HEARTBEAT`): while a task runs, poll the model's residency
+	 * and — if it crashes / is unloaded (memory pressure) — fail FAST instead of waiting out the ultra-long timeout. Inert
+	 * by default (flag off) and auto-detected (a non-LM-Studio host reports `unobservable`, so it never aborts). The
+	 * heartbeat self-cleans when the task leaves `running`; `stopModelResidencyWatch` in `clearTaskTimeouts` is a backstop.
+	 */
+	private beginModelResidencyWatch(taskId: string): void {
+		if (!isTruthyEnv(process.env.NKLEIN_RESIDENCY_HEARTBEAT) || this.residencyHeartbeatByTaskId.has(taskId)) {
+			return;
+		}
+		const launchConfig = this.launchConfigByTaskId.get(taskId);
+		const baseUrl = launchConfig?.baseUrl?.trim();
+		const modelId = launchConfig?.modelId?.trim();
+		if (!baseUrl || !modelId) {
+			return; // nothing to observe
+		}
+		const handle = startResidencyHeartbeat({
+			probe: () => probeModelResidency(baseUrl, modelId),
+			policy: { absentConfirmations: 3 },
+			intervalMs: 15_000,
+			shouldContinue: () => this.messageRepository.getTaskEntry(taskId)?.summary.state === "running",
+			onModelLost: () => {
+				void this.handleModelResidencyLost(taskId);
+			},
+		});
+		this.residencyHeartbeatByTaskId.set(taskId, handle);
+	}
+
+	private stopModelResidencyWatch(taskId: string): void {
+		const handle = this.residencyHeartbeatByTaskId.get(taskId);
+		if (handle) {
+			handle.stop();
+			this.residencyHeartbeatByTaskId.delete(taskId);
+		}
+	}
+
+	/** The model crashed/unloaded mid-run — abort + surface a diagnosable failure (mirrors the timeout path). */
+	private async handleModelResidencyLost(taskId: string): Promise<void> {
+		this.stopModelResidencyWatch(taskId);
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (entry?.summary.state !== "running") {
+			return;
+		}
+		this.clearTaskTimeouts(taskId);
+		await this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
+		this.recordObservationWithModel({
+			signal: "model_stalled",
+			severity: "warning",
+			message: "Model is no longer resident in LM Studio (crashed or unloaded) — aborted to fail fast.",
+			taskId,
+			workspacePath: entry.summary.workspacePath ?? null,
+			metadata: { category: "model_lost_residency" },
+		});
+		this.emitTaskFailure(
+			taskId,
+			entry,
+			"send",
+			new Error("Model is no longer resident in LM Studio (crashed or unloaded)."),
+		);
 	}
 
 	private clearDecompositionChatNudge(taskId: string): void {
@@ -1603,6 +1668,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				if (entry.summary.state === "running") {
 					this.scheduleStreamTimeout(request.taskId);
 					this.scheduleConversationTimeout(request.taskId);
+					this.beginModelResidencyWatch(request.taskId);
 				}
 				await this.waitUntilTaskResumed(request.taskId);
 				this.requestTimer.markStarted(request.taskId);
