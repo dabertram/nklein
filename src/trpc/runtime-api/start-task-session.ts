@@ -4,6 +4,7 @@ import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } 
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
+import { createDefaultLmsRunner, fetchLmsPsModels } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
@@ -575,6 +576,21 @@ export async function handleStartTaskSession(
 			global: scopedRuntimeConfig.concurrencyDefaults,
 			override: scopedRuntimeConfig.concurrencyOverride,
 		});
+		// §5.AB LM-Link per-MACHINE gate (opt-in via NKLEIN_PER_MACHINE_MAX_CONCURRENCY): when set, resolve each loaded
+		// model's owning machine from `lms ps` so the scheduler admits per MACHINE (the linked machines share one
+		// endpoint). OFF by default ⇒ no subprocess, no gate — byte-identical. Best-effort: an empty map leaves it inert.
+		const rawPerMachineCap = Number(process.env.NKLEIN_PER_MACHINE_MAX_CONCURRENCY);
+		const perMachineCap =
+			Number.isInteger(rawPerMachineCap) && rawPerMachineCap > 0 && residencyCheckEnabled ? rawPerMachineCap : null;
+		const machineByModelId =
+			perMachineCap !== null
+				? new Map(
+						(await fetchLmsPsModels(createDefaultLmsRunner())).map((model) => [
+							model.identifier,
+							model.machineId,
+						]),
+					)
+				: undefined;
 		const endpointDecision = scheduleNKleinEndpointStart({
 			taskId: body.taskId,
 			providerId: nkleinLaunchConfig.providerId,
@@ -586,6 +602,8 @@ export async function handleStartTaskSession(
 			providerConcurrencyCap: concurrencyCaps.providerCap,
 			modelConcurrencyCap: concurrencyCaps.modelCap,
 			endpointConcurrencyCap: concurrencyCaps.endpointCap,
+			...(perMachineCap !== null ? { perMachineCap } : {}),
+			...(machineByModelId ? { machineByModelId } : {}),
 		});
 		if (!endpointDecision.ok) {
 			if (body.queueOnEndpointBusy) {
