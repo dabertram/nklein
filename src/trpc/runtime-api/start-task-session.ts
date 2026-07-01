@@ -197,7 +197,10 @@ export async function handleStartTaskSession(
 				? null
 				: await resolveLoadedFallbackLaunchConfig({
 						resolveLaunchConfig: (overrides) => deps.nkleinProviderService.resolveLaunchConfig(overrides),
-						baseUrl: "http://127.0.0.1:1234/v1",
+						// Use the configured provider endpoint (not a hardcoded localhost) so the fallback also works for a
+						// LAN/remote LM Studio; default to the local endpoint when the provider carries no explicit baseUrl.
+						baseUrl:
+							deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? "http://127.0.0.1:1234/v1",
 					});
 			if (!fallback) {
 				throw primaryError;
