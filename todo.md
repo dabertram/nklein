@@ -4714,6 +4714,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       tests + 2 adapter retry tests. **Still owed (next rungs, for phi-4-reasoning-plus which over-reasons even with 1
       tool):** single-step prompt + stripped-preamble rung; learn each model's complexity ceiling into the profile so a
       known-weak model starts simplified on attempt 0.
+- [x] **Failure-SIGNATURE classifier — raw thrown-error/output text → the remedy-routing `ModelOutcomeKind` (PURE CORE, 2026-07-01).**
+      [failure-signature.ts](src/core/failure-signature.ts) — `classifyFailureSignature(unknown)` maps an arbitrary raw
+      error value (an `Error`, a bare string, an endpoint `{error}`/`{error:{message}}` envelope, a nested `cause`) into a
+      stable `{ signature, outcome, remediable, reason }` verdict, so a thrown attempt (undici body/headers timeout,
+      context-window overflow, `max_tokens` truncation, a `SyntaxError`/Zod parse failure, a 429/overload, a
+      model-not-loaded/404/ECONNREFUSED, a safety refusal, a repetition loop) drives the SAME `retryLadderForOutcome` /
+      `planNextAttempt` ladder a *parsed* turn does. Closes the one gap the existing classifiers left: `classifyTurnOutcome`
+      needs pre-parsed booleans, `classifyCompletionOutcome` reads only a stop-reason string (→ the separate
+      `CompletionOutcome` enum), `isTransientNetworkError` is a boolean for one bucket — none takes free error text →
+      `ModelOutcomeKind`. Ordered most-specific-first (load-bearing: context-overflow before token-budget; model-unavailable
+      before the transient blip), defensive (empty/unknown ⇒ `unknown_error`→`other_failure`, NEVER `success`, never
+      throws). `remediable:false` for a gone endpoint / safety refusal (surface, don't burn same-model retries); `true`
+      otherwise. Composes with `ModelOutcomeKind` by import only (no edits to siblings). `isRemediableFailure` convenience.
+      74 tests; tsc + biome green. **Owed (WIRING, out of pure-core scope):** call it at the `runAttempt` catch seam
+      (chat + swarm) so a thrown turn feeds the ladder + records a §5.AF ledger `attempt` with its signature.
 - [ ] **Endpoint-iteration adapter**, decomposed:
   - [ ] Build `LocalModelEndpointStrategy` type + try-order (OpenAI → native `/api/v1/chat` → Anthropic)
   - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing
@@ -5981,6 +5996,29 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       reads `Date.now()`), tolerant of Date/ISO-string/epoch/absent dates. 23 unit tests (fixed 2026-06-27 anchor); tsc +
       biome green. **Still owed (WIRING):** call `isClaimAssertable` / the anachronistic+stale buckets in the §5.AC
       cited-synthesis path to drop/flag temporally-inconsistent claims before they reach the user.
+- [x] **Knowledge-TTL / topic-volatility policy (the "how long does a fact stay trustable?" gate) — DONE 2026-07-01.**
+      [src/core/knowledge-volatility-ttl.ts](src/core/knowledge-volatility-ttl.ts): a topic's VOLATILITY CLASS drives its
+      knowledge shelf life. `classifyTopicVolatility(topic, {class?, extraCues?, ttlDays?})` scans an INJECTED topic
+      string against a deterministic cue lexicon → `realtime` (live price/score) / `fast` (latest-version/breaking-news/
+      incident/today) / `moderate` (default, weeks) / `slow` (standards/best-practice) / `stable` (history/definitions/
+      math) + `matchedSignals` + `basis` (explicit|cue|default); the MOST volatile matched cue wins (fails SAFE toward
+      fresher), no cue ⇒ `moderate` (never assume evergreen). `knowledgeTtlDays(class)` = whole-day TTL before re-fetch
+      (realtime 0 … stable 3650 evergreen sentinel); `freshnessThresholdsForVolatility(class)` derives a
+      volatility-tuned `FreshnessThresholdsDays` that DROPS STRAIGHT into `judgeRetrievedFreshness(src, now, {thresholds})`
+      — closing the gap that module's own header scoped out ("different topics" → out of scope): a 5-day source reads
+      `current` for a moderate topic but `stale` for a realtime one (integration-tested). `isKnowledgeStale({volatility,
+      ageDays, ttlDays?})` is the re-fetch decider (age > TTL ⇒ re-fetch; age==TTL NOT stale; realtime stale at any
+      non-zero age; negative/NaN age clamps to 0) + `planKnowledgeRefresh({topic, ageDays?})` classifies+decides in one
+      call (absent age ⇒ fails safe to `refetch:true`). **Distinct from siblings (grep-verified no dup — NO
+      `volatility`/`knowledge-ttl`/`re-fetch-fact` policy existed anywhere in `src/`):** `retrieval-freshness.ts` bands a
+      SOURCE's age with FIXED thresholds and CONSUMES the ones this produces; `temporal-claim-consistency.ts` judges a
+      dated claim's own validity horizon; `stale-while-revalidate-cache.ts` is an EFFECTFUL runtime cache (§5.AI) — this
+      is the pure policy that would tell it what TTL a knowledge topic deserves. PRIME-DIRECTIVE #1: DECIDES only (no
+      egress/I/O/model) — topic + explicit class + cached-fact `ageDays` all INJECTED; never reads `Date.now()` (callers
+      derive `ageDays` from the §5.AC authoritative now). Pure + deterministic. 35 unit tests; tsc + biome green. **Still
+      owed (WIRING):** call `planKnowledgeRefresh` in the retrieval loop before spending an online search (reuse a
+      still-trustable cached fact / re-fetch a rotted one), and thread `freshnessThresholdsForVolatility` into the
+      freshness judge on each retrieval so the band is topic-appropriate.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
   - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
@@ -7079,6 +7117,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         Fully injected inputs (no fs/exec), deterministic sort (new→pre→flake, then id), dedup last-write-wins. 20 unit
         tests; tsc + vitest + biome green. Composes with `dev-test-outcome.ts` (run-terminal-state) — orthogonal: this
         answers "did THIS change break any test that ran?".
+  - [x] **RUN-FIRST core: changed-file test-selection prioritizer (2026-07-01).** The complement to the decisive-verdict
+        core: before the rail commits the loaded models to a full, slow suite pass on a small local model, it should run
+        the tests most likely to catch a regression from EXACTLY this change, cheapest-feedback-first. Pure
+        [test-selection-priority.ts](src/core/test-selection-priority.ts) — `prioritizeTestSelection({ changedFiles,
+        tests, weights?, topN?, timeBudgetMs? })` scores each candidate test by a transparent weighted sum of independent
+        INJECTED signals — `directly-impacted` (a test exercises a changed file, dominant), `recently-failed` (capped),
+        `new/never-run`, minus a small `flaky` penalty (an intermittent test is a poor early gate) — orders them
+        highest-score-first with ties broken toward SHORTER `lastDurationMs` (fast feedback) then id, and carves out the
+        run-first `selected` prefix under `topN` and/or a wall-time `timeBudgetMs` (`selected ++ deferred === ordered`;
+        `selected` all when neither bound is set). Fully injected (no fs/glob/coverage-tool/test-runner), deterministic
+        (order is a property of the inputs alone), dedup last-write-wins, clamps flakeScore→[0,1] and drops
+        non-finite/negative counts+durations+bounds. 29 unit tests; tsc + vitest + biome green. Composes with
+        `test-regression-verdict.ts` (prioritize → run the selected subset → classify) — orthogonal: this answers "which
+        tests should the rail run FIRST for this change?".
 - [x] **"Collect evidence" buttons reference the specific card — VERIFIED (2026-06-27), no fix needed.** Traced the
       per-**card** "Evidence" button end-to-end: [board-card.tsx](web-ui/src/components/board-card.tsx) `onCopyEvidence(card.id)`
       → `collectTaskEvidence({ taskId })` ([runtime-config-query.ts](web-ui/src/runtime/runtime-config-query.ts)) →
