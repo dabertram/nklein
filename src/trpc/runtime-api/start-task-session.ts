@@ -91,6 +91,36 @@ export function applyCandidateEffectiveContextWindow<TLaunchConfig extends Resol
 	};
 }
 
+/** Embedding ids aren't agentic fallbacks (mirror of the candidate builder's filter). */
+const FALLBACK_EMBEDDING_ID_PATTERN = /(?:^|[-/@])(?:text-)?embed/i;
+
+/**
+ * §5.AB "use whatever's loaded": when the configured/DEFAULT model can't resolve (e.g. a stale default pointing to an
+ * UNLOADED variant — live-found 2026-07-01), fall back to an already-LOADED model so the card still starts instead of
+ * hard-failing before auto-discovery can rescue it. Best-effort: tries each loaded non-embedding id and returns the
+ * first that resolves; null when none do (the caller then re-throws the ORIGINAL error, so an empty/unreachable endpoint
+ * behaves exactly as before). Only for the DEFAULT case — an EXPLICIT model choice keeps its clear "not loaded" error.
+ * Pure of the concrete provider service (takes a narrow resolver + injectable fetch) so it is unit-testable.
+ */
+export async function resolveLoadedFallbackLaunchConfig(input: {
+	resolveLaunchConfig: (overrides: { modelIdOverride: string }) => Promise<ResolvedNKleinLaunchConfig>;
+	baseUrl: string;
+	fetchImpl?: typeof fetch;
+}): Promise<ResolvedNKleinLaunchConfig | null> {
+	const loadedIds = await fetchLoadedModelIdsCached(input.baseUrl, input.fetchImpl).catch(() => [] as string[]);
+	for (const modelId of loadedIds) {
+		if (!modelId || FALLBACK_EMBEDDING_ID_PATTERN.test(modelId)) {
+			continue;
+		}
+		try {
+			return await input.resolveLaunchConfig({ modelIdOverride: modelId });
+		} catch {
+			// This loaded model isn't runnable either (context policy, etc.) — try the next.
+		}
+	}
+	return null;
+}
+
 export async function handleStartTaskSession(
 	workspaceScope: RuntimeTrpcWorkspaceScope,
 	input: RuntimeTaskSessionStartRequest,
@@ -149,15 +179,31 @@ export async function handleStartTaskSession(
 			};
 		}
 		const hasTaskLevelNKleinSettingsOverride = body.nkleinSettings !== undefined;
-		let nkleinLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig({
-			providerIdOverride: body.nkleinSettings?.providerId ?? undefined,
-			modelIdOverride: body.nkleinSettings?.modelId ?? undefined,
-			...(hasTaskLevelNKleinSettingsOverride
-				? {
-						reasoningEffortOverride: body.nkleinSettings?.reasoningEffort ?? null,
-					}
-				: {}),
-		});
+		let nkleinLaunchConfig: ResolvedNKleinLaunchConfig;
+		try {
+			nkleinLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig({
+				providerIdOverride: body.nkleinSettings?.providerId ?? undefined,
+				modelIdOverride: body.nkleinSettings?.modelId ?? undefined,
+				...(hasTaskLevelNKleinSettingsOverride
+					? {
+							reasoningEffortOverride: body.nkleinSettings?.reasoningEffort ?? null,
+						}
+					: {}),
+			});
+		} catch (primaryError) {
+			// §5.AB: the DEFAULT model didn't resolve (e.g. a stale default → an unloaded variant). Fall back to an
+			// already-loaded model so the card still starts. Only for the default case — an EXPLICIT model keeps its error.
+			const fallback = body.nkleinSettings?.modelId
+				? null
+				: await resolveLoadedFallbackLaunchConfig({
+						resolveLaunchConfig: (overrides) => deps.nkleinProviderService.resolveLaunchConfig(overrides),
+						baseUrl: "http://127.0.0.1:1234/v1",
+					});
+			if (!fallback) {
+				throw primaryError;
+			}
+			nkleinLaunchConfig = fallback;
+		}
 		const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
 		const modelRegistrySnapshot = await Promise.resolve(getDefaultNKleinModelRegistry().getSnapshot()).catch(() => ({
 			schemaVersion: 1,
