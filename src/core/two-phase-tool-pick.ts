@@ -90,6 +90,29 @@ export function interpretPhaseOnePick(rawPick: string, cards: readonly ToolCard[
 	return { kind: "plan_needed" };
 }
 
+/** A model's raw phase-1 response, with the OpenAI-compat `finish_reason` so truncation can be told from a real answer. */
+export interface PhaseOneRawResponse {
+	/** The message `content` (may be empty — e.g. a reasoning model that never reached its answer). */
+	content: string;
+	/** OpenAI-compat finish reason; `"length"` means the output was cut off (ran out of the token budget). */
+	finishReason?: string | null;
+}
+
+/**
+ * Interpret a phase-1 response that carries its `finishReason`, guarding the one case bare {@link interpretPhaseOnePick}
+ * can't see: a TRUNCATED empty answer is NOT a clean "none". Empirically (qwen3.5-9b, 2026-07-01) a small reasoning model
+ * spends ~400 tokens reasoning *before* emitting the pick, so a too-small budget yields empty `content` + `finish_reason:
+ * "length"` — the model never actually answered. Treating that as "none" would silently proceed with no tool; instead we
+ * escalate (`plan_needed`) so the caller retries with a larger budget rather than acting on a false decline. A genuinely
+ * blank answer that finished normally still means "none".
+ */
+export function interpretPhaseOneResponse(response: PhaseOneRawResponse, cards: readonly ToolCard[]): PhaseOneDecision {
+	if (response.content.trim() === "" && response.finishReason === "length") {
+		return { kind: "plan_needed" };
+	}
+	return interpretPhaseOnePick(response.content, cards);
+}
+
 // ---------------------------------------------------------------------------
 // Predicate
 // ---------------------------------------------------------------------------

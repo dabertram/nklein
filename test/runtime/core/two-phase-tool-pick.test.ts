@@ -3,6 +3,7 @@ import type { ToolCard } from "../../../src/core/tool-card";
 import {
 	buildPhaseOneToolMenu,
 	interpretPhaseOnePick,
+	interpretPhaseOneResponse,
 	isActionableSingleTool,
 	PHASE_ONE_NONE_ANSWER,
 	PHASE_ONE_PLAN_ANSWER,
@@ -144,5 +145,36 @@ describe("selectRevealedToolSchema", () => {
 	it("composes with interpretPhaseOnePick end-to-end (pick → reveal)", () => {
 		const decision = interpretPhaseOnePick("write_file", CARDS);
 		expect(selectRevealedToolSchema(decision, schemas)).toBe(writeSchema);
+	});
+});
+
+describe("interpretPhaseOneResponse (truncation-aware)", () => {
+	// The finding that motivated this: qwen3.5-9b spends ~400 tokens reasoning before the pick, so a small budget
+	// yields empty content + finish_reason "length" — a truncated NON-answer, not a decision to use no tool.
+	it("treats a truncated empty answer (finish_reason 'length') as plan_needed, not none", () => {
+		expect(interpretPhaseOneResponse({ content: "", finishReason: "length" }, CARDS)).toEqual({
+			kind: "plan_needed",
+		});
+		expect(interpretPhaseOneResponse({ content: "   ", finishReason: "length" }, CARDS)).toEqual({
+			kind: "plan_needed",
+		});
+	});
+
+	it("treats a genuinely blank answer that finished normally as none", () => {
+		expect(interpretPhaseOneResponse({ content: "", finishReason: "stop" }, CARDS)).toEqual({ kind: "none" });
+		expect(interpretPhaseOneResponse({ content: "none" }, CARDS)).toEqual({ kind: "none" });
+	});
+
+	it("delegates a non-empty answer to interpretPhaseOnePick (trimming leading reasoning-model whitespace)", () => {
+		// Real observed shape: the model emitted '\n\nread_files'.
+		expect(interpretPhaseOneResponse({ content: "\n\nread_file", finishReason: "stop" }, CARDS)).toEqual({
+			kind: "one_tool",
+			tool: "read_file",
+		});
+		// A truncated-but-named pick is still a usable exact name (only EMPTY truncation escalates).
+		expect(interpretPhaseOneResponse({ content: "write_file", finishReason: "length" }, CARDS)).toEqual({
+			kind: "one_tool",
+			tool: "write_file",
+		});
 	});
 });

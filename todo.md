@@ -2276,7 +2276,15 @@ source repo went private — so if it vanishes the buildable source still lives 
         no silent drift). **PHASE-2 REVEAL done (2026-07-01):** `selectRevealedToolSchema(decision, schemasByName)` — `one_tool` → only that
         tool's schema (null if absent → escalate, never invent); `none`/`plan_needed` → null. Generic over the schema type (no coupling to a
         schema shape); composes with `interpretPhaseOnePick` end-to-end. The PURE two-phase core is now complete (cards → menu → parse → reveal).
-        22 tests. Owed: ONLY the model-seam wiring — offer the menu, run the pick, reveal the selected schema, loop — behind an opt-in flag.
+        **LIVE-VALIDATED vs a real loaded 9B (2026-07-01, qwen3.5-9b-mlx-m4).** Confirms §4A's truncation lesson (line ~374)
+        directly in the picker: the 9B spends ~400 reasoning tokens BEFORE the pick, so a small `max_tokens` yields empty
+        `content` + `finish_reason:"length"` — the pick never appears; a ~1024 budget + choice-framing gives a correct
+        `'\n\nread_files'` (the leading `\n\n` is already handled by the parser's trim). So empty+`length` is a FALSE "none"
+        (the model never answered). Fix shipped: `interpretPhaseOneResponse({content,finishReason}, cards)` escalates a
+        truncated empty answer to `plan_needed` (retry) instead of `none`; a normal blank still means `none`. (Separately, this
+        probe found qwen3.5 IGNORES `/no_think` — feeds the §4A/`model-thinking-control.ts` matcher fix, see that commit.)
+        25 tests. Owed: ONLY the model-seam wiring — offer the menu, run the pick (with a reasoning-sized budget), reveal the
+        selected schema, loop — behind an opt-in flag.
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)
