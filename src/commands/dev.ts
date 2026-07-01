@@ -31,6 +31,7 @@ import {
 } from "../core/model-behavior-profile";
 import { lookupModelCapability } from "../core/model-capability-catalog";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
+import { raisedTokenBudget } from "../core/retry-policy";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
 import {
 	assessRuntimeModelVerdict,
@@ -786,11 +787,13 @@ async function runDevToolPickCommand(options: {
 	task: string;
 	model?: string;
 	budget?: string;
+	maxRetries?: string;
 	json?: boolean;
 }): Promise<void> {
 	// §5.O live: run the phase-1 two-phase pick for a task against a LOADED model (no loading — auto-discovers a resident
 	// LLM when --model is omitted). Reasoning-sized budget by default: a small reasoning model spends ~400 tokens reasoning
-	// BEFORE the pick, so too small a budget yields empty content + finish:length (handled truncation-aware). Read-only.
+	// BEFORE the pick, so too small a budget yields empty content + finish:length. On such a TRUNCATION we escalate the
+	// budget via `raisedTokenBudget` (§5.AA) and retry — a live demo of the truncation-recovery rung. Read-only.
 	const base = "http://localhost:1234";
 	let modelId = options.model?.trim();
 	if (!modelId) {
@@ -803,41 +806,61 @@ async function runDevToolPickCommand(options: {
 			throw new Error(`No loaded LLM found at ${base}/api/v0/models — load a model or pass --model.`);
 		}
 	}
-	const budget = Math.max(64, Number.parseInt(options.budget ?? "1024", 10) || 1024);
+	const startBudget = Math.max(64, Number.parseInt(options.budget ?? "1024", 10) || 1024);
+	const maxRetries = Math.max(0, Number.parseInt(options.maxRetries ?? "3", 10) || 0);
+	const escalation = { budgetUsed: startBudget, retries: 0 };
+
+	const callOnce = async (menu: string, task: string, tokenBudget: number) => {
+		const response = await fetch(`${base}/v1/chat/completions`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				model: modelId,
+				temperature: 0,
+				max_tokens: tokenBudget,
+				messages: [
+					{ role: "system", content: menu },
+					{ role: "user", content: `Step: ${task}\nYour single-line answer:` },
+				],
+			}),
+		});
+		if (!response.ok) {
+			throw new Error(`tool-pick completion failed (${response.status}) at ${base}/v1/chat/completions.`);
+		}
+		const json = (await response.json()) as {
+			choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+		};
+		const choice = json.choices?.[0];
+		return { content: choice?.message?.content ?? "", finishReason: choice?.finish_reason ?? null };
+	};
+
 	const result = await runTwoPhaseToolPick({
 		task: options.task,
 		callModel: async ({ menu, task }) => {
-			const response = await fetch(`${base}/v1/chat/completions`, {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					model: modelId,
-					temperature: 0,
-					max_tokens: budget,
-					messages: [
-						{ role: "system", content: menu },
-						{ role: "user", content: `Step: ${task}\nYour single-line answer:` },
-					],
-				}),
-			});
-			if (!response.ok) {
-				throw new Error(`tool-pick completion failed (${response.status}) at ${base}/v1/chat/completions.`);
+			let budget = startBudget;
+			let raw = await callOnce(menu, task, budget);
+			// Truncation-recovery: an empty answer with finish:length means the model ran out of budget mid-reasoning →
+			// escalate the budget (§5.AA `raisedTokenBudget`) and retry, up to --max-retries.
+			while (raw.content.trim() === "" && raw.finishReason === "length" && escalation.retries < maxRetries) {
+				escalation.retries += 1;
+				budget = raisedTokenBudget({ current: budget, attempt: escalation.retries });
+				escalation.budgetUsed = budget;
+				raw = await callOnce(menu, task, budget);
 			}
-			const json = (await response.json()) as {
-				choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
-			};
-			const choice = json.choices?.[0];
-			return { content: choice?.message?.content ?? "", finishReason: choice?.finish_reason ?? null };
+			return raw;
 		},
 	});
 	if (options.json) {
-		process.stdout.write(`${JSON.stringify({ modelId, budget, task: options.task, ...result }, null, 2)}\n`);
+		process.stdout.write(
+			`${JSON.stringify({ modelId, startBudget, ...escalation, task: options.task, ...result }, null, 2)}\n`,
+		);
 		return;
 	}
 	const decision = result.decision;
 	const shown = decision.kind === "one_tool" ? `one_tool → ${decision.tool}` : decision.kind;
+	const escalated = escalation.retries > 0 ? ` (escalated ${escalation.retries}× → ${escalation.budgetUsed})` : "";
 	process.stdout.write(
-		`!Klein two-phase pick (§5.O) — model ${modelId}, budget ${budget}\n` +
+		`!Klein two-phase pick (§5.O) — model ${modelId}, budget ${startBudget}${escalated}\n` +
 			`  Task: ${options.task}\n` +
 			`  Decision: ${shown}\n` +
 			`  Raw: ${JSON.stringify(result.raw.content)} (finish: ${result.raw.finishReason})\n`,
@@ -1118,11 +1141,20 @@ export function registerDevCommand(program: Command): void {
 		)
 		.requiredOption("--task <text>", "The step/task description to pick a tool for.")
 		.option("--model <id>", "Model id to query (default: the first loaded LLM).")
-		.option("--budget <n>", "max_tokens budget (default 1024 — reasoning models need room before the pick lands).")
+		.option(
+			"--budget <n>",
+			"starting max_tokens budget (default 1024 — reasoning models need room before the pick lands).",
+		)
+		.option(
+			"--max-retries <n>",
+			"on a finish:length truncation, escalate the budget (§5.AA) and retry up to N times (default 3).",
+		)
 		.option("--json", "Print machine-readable JSON.")
-		.action(async (options: { task: string; model?: string; budget?: string; json?: boolean }) => {
-			await runDevToolPickCommand(options);
-		});
+		.action(
+			async (options: { task: string; model?: string; budget?: string; maxRetries?: string; json?: boolean }) => {
+				await runDevToolPickCommand(options);
+			},
+		);
 
 	dev.command("escalation")
 		.description(
