@@ -1671,9 +1671,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] define how labels attach to a content source + how they propagate into the model context. *(PURE: `labelsForSource` maps source-kind→labels (+`secret_like` hint); `propagateTaint` unions/de-dups into canonical order — taint only accumulates. OWED WIRING: attach at real retrieval/MCP admit points + thread the merged labels through the actual context builder.)*
     - [x] encode the core rule (untrusted content guides STYLE only; never mutates capabilities/approvals/network/
           secrets/git-delivery/host without a trusted plan + confirmation) as a pure predicate; unit-test it. *(`taintedContentMayInfluence`: `style` always allowed; a protected sink from tainted content needs `backedByTrustedPlanAndConfirmation === true` (fail-closed).)*
-  - [ ] **Capability broker (pure decision core):**
+  - [~] **Capability broker (pure decision core).** FAIL-CLOSED PRE-CHECK DONE (2026-07-01): `src/core/capability-escalation.ts`
+        — `detectCapabilityEscalation(baseline, requested) → { decision: allow|deny, escalations[], deEscalations[], reason }`
+        (+ `isCapabilityEscalation` predicate, `capabilityAxisLabel`). The broker's FIRST gate: a tool's REQUESTED
+        per-call manifest vs its DECLARED `ToolCapabilityManifest` baseline — DENY if the request escalates on ANY axis,
+        naming every over-reached axis. Composes `tool-capability-manifest.ts` by import (does not edit it). Axes: mutation
+        (`read<sandbox_write<control_plane<host_write`), network (`none<egress`), fsScope (`workspace<host`) — higher = more
+        power; **approval is a required GATE, inverted** (`auto<confirm<risk_ack<typed_host` — a request asking for a LOWER
+        tier escalates by skipping the confirmation the tool was admitted behind, so even a "smaller" call cannot drop below
+        its confirmation floor). `replayable` is deliberately not an axis. 20 tests; tsc + biome clean. The broker's full
+        context-aware matrix (below) consumes this before any taint/provenance/mode reasoning.
     - [ ] define the broker input `{ ruleset, role, provenance, tool trust, taint labels, action, target, is-sink? }`.
     - [ ] implement the decision: `allow | deny | one-time-confirm | require-fresh-trusted-plan`; unit-test the matrix.
+    - [x] a tool requesting caps BEYOND its declared manifest → deny + the exact escalated axes. *(PURE: `detectCapabilityEscalation` — the least-privilege "a call may use LESS power than baseline, never MORE" rule; approval-gate downgrades count as escalations. OWED WIRING: the broker calls this at the model↔tool seam before the context-aware matrix.)*
     - [ ] wire the broker at the model↔tool seam (every tool call passes through it).
   - [~] **Egress broker.** PURE DECISION CORE DONE (2026-07-01): `src/core/egress-policy-decision.ts` —
         `decideEgressPolicy({ target, networkPolicy, allowlist?, requirePerActionApproval? }) → { decision:
@@ -5713,7 +5723,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Integrate size/context footprint variants (per the research findings on effective context budgets).
 - [ ] **Evaluation harness (run a model through the matrix → fitness), decomposed:**
   - [ ] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
-  - [ ] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
+  - [~] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
+        **PURE STABILITY-JUDGMENT CORE DONE (2026-07-01):** [src/core/model-eval-stability.ts](src/core/model-eval-stability.ts)
+        — the missing "are the N repeats SETTLED or still FLAKY?" judgment on top of the aggregator. The repeated-run LOOP
+        is effectful (runs the model N× — owed below); this pure core decides what those repeats MEAN. `scoreModelEvalStability`
+        (per (model, role, tier) cell) → `EvalCellStability` {verdict `settled_pass|settled_fail|flaky|thin`, confidence 0..1,
+        `qualitySpread`, `runsOwed`, reason}: `thin` when runs < `minSettledRuns` (a coin-flip pass-rate is not evidence);
+        `flaky` when the pass-rate sits inside a ±margin BAND around the aggregator's own `reliabilityBar` (decisively neither
+        cleared nor failed) OR the graded-quality SPREAD (max−min) across the repeats exceeds a threshold — the KEY case the
+        aggregator's pass-rate HIDES: a cell can pass every run (rate 1.0) yet swing 0.95↔0.35 in quality run-to-run, clearly
+        unstable; `settled_*` only when well-sampled AND decisively past the bar AND low-spread. `runsOwed` = how many more
+        runs to reach `targetSettledRuns` — the actionable ask an idle re-eval rail spends its budget on (re-run the SHAKY
+        known cells, distinct from the coverage planner which fills MISSING cells). Plus `summarizeModelRoleStability`
+        (per-(model,role) rollup: settled/flaky/thin counts, `settledFraction`, `totalRunsOwed`, meanConfidence — the headline
+        the selector reads before RESTING on a fitness record). COMPOSES existing §5.AB cores by import only (no edits):
+        `summarizeModelEvalCells`/`ModelEvalCellSummary`/`ModelEvalRun`/`EvalDifficultyTier` + the `AggregateModelEvalPolicy`
+        bar (so `cleared` and the stability band agree on the threshold). Distinct from the aggregator (point-estimate
+        `reliability`, no decisiveness/owed-runs), the coverage planner (fills GAPS, this settles the KNOWN-but-shaky), and
+        §5.AI `flake-quarantine.ts` (a TEST's flakiness, not a MODEL's eval verdict). Pure/deterministic (no clock/IO/store).
+        18 tests; tsc + biome green. **Still owed (effectful):** the repeated-run loop that actually runs the model N× to
+        FEED these `ModelEvalRun`s, and wire `runsOwed` into the §5.AI idle rail's re-eval budget.
   - [~] Capture + compute quality score, speed (tok/s, TTFT), and retry-count metrics per model/role/difficulty.
         **PURE AGGREGATOR CORE DONE (2026-07-01):** [src/core/model-eval-aggregation.ts](src/core/model-eval-aggregation.ts)
         `aggregateModelEvalRuns` — folds the harness's graded, difficulty-tagged, REPEATED per-run results
@@ -7108,8 +7137,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       scope machinery (a new `klein_self` scope, or registering the !Klein repo as a read-only project) + the existing
       execution-mode gate forced to `isolated_readonly` (no `write_file`/`run_command`/board-mutation — discussion only).
   - [ ] scope/mode: a read-only `klein_self` chat scope → tools = read + `get_board` only; gate pinned read-only
-  - [ ] grounding: index !Klein's own source (§6.7) + load the planning corpus (done.md/todo.md/AGENTS.md/CHANGELOG/.plan)
-        as retrievable context; prefer done.md for "existing features" + todo.md for "planned/known"
+  - [~] grounding: index !Klein's own source (§6.7) + load the planning corpus (done.md/todo.md/AGENTS.md/CHANGELOG/.plan)
+        as retrievable context; prefer done.md for "existing features" + todo.md for "planned/known".
+        **ROUTING CORE DONE (2026-07-01): [klein-self-corpus-routing.ts](src/core/klein-self-corpus-routing.ts)** — pure
+        `routeKleinSelfCorpus(question, opts)` is exactly the "prefer done.md for 'existing features' + todo.md for
+        'planned/known'" policy, made deterministic + testable: it classifies a self-question's INTENT from a cue lexicon
+        (`existing_feature`→done, `known_issue`/`future_fit`→todo, `how_we_work`→AGENTS, `release_history`→CHANGELOG,
+        `architecture`→docs), most-specific intent wins by fixed priority (so "is feature X broken" routes to todo, not
+        done), and RANKS the corpus docs (lead-first, then the spec default done→todo→…), filtered to an injected
+        `availableDocs` set; explicit-intent override + extra-cue injection + auditable `matchedSignals`. PURE (no
+        index/read/fs/model/UI — all inputs injected; returns a routing PLAN only), 33 unit tests (per-intent routing,
+        priority resolution, unknown/empty/nullish fallback, availableDocs filter, override, determinism/non-mutation),
+        tsc + biome clean. **Still owed (effectful):** the actual §6.7 code-index of !Klein's `src/`+`web-ui/`+`core-py/`
+        and the §5.AC retrieval that LOADS the corpus docs this router points at.
   - [ ] cross-link to §5.AE (a `klein_self` skill bundle: the self-knowledge fragments) + §5.AC (a "search the docs" retrieval over the planning corpus)
   - [ ] live-verify (§5.Z): ask a small local model real questions about !Klein's features/bugs/ideas and check the answers cite real code/docs
 - [-] **B — LATER (collected, NOT needed now): the agent loads its own implementation as a project and works on it
