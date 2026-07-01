@@ -16,6 +16,12 @@ export interface ResidentModel {
 	identifier: string;
 	sizeBytes: number | null;
 	contextLength: number | null;
+	/**
+	 * The LM Link device the model is resident on (the `lms ps` DEVICE column: "Local" | a linked device name like
+	 * "m4mini"/"davidlegion5pro"); null when the column is absent (older `lms`). Lets the guard scope "unload others" to
+	 * the SAME machine (todo §5.AB per-machine concurrency — an m5 load must never evict a model on another linked box).
+	 */
+	device: string | null;
 }
 
 /**
@@ -37,10 +43,14 @@ export function parseLmsPs(text: string): ResidentModel[] {
 		}
 		const [identifier, , , size, context] = cols;
 		const contextLength = Number.parseInt(context, 10);
+		// DEVICE is the 7th column (IDENTIFIER, MODEL, STATUS, SIZE, CONTEXT, PARALLEL, DEVICE[, TTL]); null on older
+		// `lms` output that lacks it. Used to scope the one-at-a-time unload to a single machine.
+		const device = cols.length >= 7 ? cols[6] : null;
 		models.push({
 			identifier,
 			sizeBytes: parseModelSizeBytes(size),
 			contextLength: Number.isFinite(contextLength) ? contextLength : null,
+			device,
 		});
 	}
 	return models;
@@ -54,10 +64,19 @@ export interface LmsLoadOptions {
 	contextLength?: number;
 	/** The model's max context capability (from `/api/v0/models` `max_context_length`); caps `contextLength`. */
 	maxContextLength?: number;
-	/** GPU offload policy; default "max" (use the GPU fully on the unified-memory Mac). */
-	gpu?: "max" | "off" | "auto";
+	/**
+	 * GPU offload policy; default "max" (use the GPU fully on the unified-memory Mac). A NUMBER in [0,1] is a
+	 * partial-offload ratio (clamped) — the key lever for a small-VRAM linked box (e.g. the Legion's 8 GB dGPU, where a
+	 * 12–14B can't fully offload and must spill to system RAM). "auto" omits the flag so LM Studio auto-determines it.
+	 */
+	gpu?: "max" | "off" | "auto" | number;
 	/** Auto-unload TTL in seconds (so a sweep-loaded model self-evicts if a step is abandoned). */
 	ttlSeconds?: number;
+	/**
+	 * When true, append `--estimate-only`: LM Studio computes the (device-aware) resource estimate WITHOUT loading — the
+	 * safe cross-machine fit pre-check for a linked box whose real RAM the host-side headroom math doesn't know.
+	 */
+	estimateOnly?: boolean;
 }
 
 /** Build the `lms load` argv for a model. Context is floored to the ≥32k invariant and capped to capability. */
@@ -69,9 +88,19 @@ export function buildLmsLoadArgs(modelId: string, options: LmsLoadOptions = {}):
 		const capped = options.maxContextLength !== undefined ? Math.min(floored, options.maxContextLength) : floored;
 		args.push("--context-length", String(capped));
 	}
-	args.push("--gpu", options.gpu ?? "max");
+	// GPU offload: a number is a partial-offload ratio (clamped to [0,1]); "auto" omits the flag (LM Studio decides);
+	// otherwise pass the "max"/"off" keyword (default "max" — full offload on the unified-memory Mac).
+	const gpu = options.gpu ?? "max";
+	if (typeof gpu === "number") {
+		args.push("--gpu", String(Math.max(0, Math.min(1, gpu))));
+	} else if (gpu !== "auto") {
+		args.push("--gpu", gpu);
+	}
 	if (options.ttlSeconds !== undefined && options.ttlSeconds > 0) {
 		args.push("--ttl", String(Math.trunc(options.ttlSeconds)));
+	}
+	if (options.estimateOnly === true) {
+		args.push("--estimate-only");
 	}
 	return args;
 }

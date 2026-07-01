@@ -12,7 +12,9 @@
  *   model-lab unload <id>        — unload one model.
  *
  * Usage: tsx scripts/model-lab.mts <subcommand> …
- * Env:   NKLEIN_LMS_BIN (default ~/.lmstudio/bin/lms), NKLEIN_LOAD_RESERVE_FRACTION (default 0.25).
+ * Env:   NKLEIN_LMS_BIN (default ~/.lmstudio/bin/lms), NKLEIN_LOAD_RESERVE_FRACTION (default 0.25),
+ *        NKLEIN_LOAD_GPU (max|off|auto|0..1 offload ratio — the small-VRAM linked-box lever), NKLEIN_LOAD_DEVICE
+ *        (scope the one-at-a-time unload to a single LM Link device, e.g. davidlegion5pro/m4mini).
  */
 
 import { spawn } from "node:child_process";
@@ -43,6 +45,19 @@ function createLmsRunner(): LmsRunner {
 		});
 }
 
+/** Parse the optional NKLEIN_LOAD_GPU env into a gpu-offload policy ("max"/"off"/"auto"/a 0..1 ratio); undefined when unset. */
+function parseGpuEnv(): "max" | "off" | "auto" | number | undefined {
+	const v = process.env.NKLEIN_LOAD_GPU?.trim();
+	if (!v) {
+		return undefined;
+	}
+	if (v === "max" || v === "off" || v === "auto") {
+		return v;
+	}
+	const n = Number.parseFloat(v);
+	return Number.isFinite(n) ? n : undefined;
+}
+
 async function main(): Promise<void> {
 	const [, , subcommand, arg, ctxArg] = process.argv;
 	const run = createLmsRunner();
@@ -68,6 +83,8 @@ async function main(): Promise<void> {
 			contextLength: ctxArg ? Number.parseInt(ctxArg, 10) : 40_000,
 			reserveFraction,
 			suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
+			gpu: parseGpuEnv(),
+			targetDevice: process.env.NKLEIN_LOAD_DEVICE?.trim() || undefined,
 		});
 		console.log(JSON.stringify(result, null, 2));
 		process.exit(result.loaded ? 0 : 1);
@@ -150,6 +167,8 @@ async function main(): Promise<void> {
 				totalRamBytes: totalmem(),
 				reserveFraction,
 				suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
+				gpu: parseGpuEnv(),
+				targetDevice: process.env.NKLEIN_LOAD_DEVICE?.trim() || undefined,
 			});
 			console.log(`  load: ${load.reason}${load.unloaded.length ? ` (unloaded ${load.unloaded.join(", ")})` : ""}`);
 			if (!load.loaded) {

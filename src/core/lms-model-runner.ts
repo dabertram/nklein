@@ -11,6 +11,7 @@
 import {
 	buildLmsLoadArgs,
 	buildLmsUnloadArgs,
+	type LmsLoadOptions,
 	MIN_CONTEXT_WINDOW_TOKENS,
 	parseLmsPs,
 	type ResidentModel,
@@ -72,6 +73,18 @@ export interface LoadExclusiveInput {
 	 * policy. Pass `{ onUnsuitable: "warn", onUnknown: "warn" }` (or "allow") to relax it.
 	 */
 	suitabilityPolicy?: ModelSuitabilityPolicy;
+	/**
+	 * The LM Link device the target loads on (its `lms ps`/`lms ls` DEVICE — "Local"/"m4mini"/"davidlegion5pro"). When
+	 * set, the one-at-a-time unload is SCOPED to this device: residents on OTHER linked machines are left untouched
+	 * (todo §5.AB per-machine concurrency — an m5 load must never evict a model the user is running on the Legion). When
+	 * omitted, the legacy machine-union behavior is kept (unload every non-pinned, non-embedding resident).
+	 */
+	targetDevice?: string;
+	/**
+	 * GPU offload for the load (see {@link LmsLoadOptions.gpu}); default "max". A 0..1 ratio partially offloads — the
+	 * lever for a small-VRAM linked box (e.g. the Legion's 8 GB dGPU) where a bigger model must spill to system RAM.
+	 */
+	gpu?: LmsLoadOptions["gpu"];
 }
 
 export interface LoadExclusiveResult {
@@ -116,6 +129,11 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 		if (model.identifier === input.modelId || pinned.has(model.identifier) || isEmbeddingModel(model.identifier)) {
 			continue;
 		}
+		// Per-machine scoping: with a known target device, only clear residents on the SAME device — never evict a model
+		// running on another linked box (a resident whose device is unknown is left alone under scoping, to be safe).
+		if (input.targetDevice !== undefined && model.device !== input.targetDevice) {
+			continue;
+		}
 		await run(buildLmsUnloadArgs(model.identifier));
 		unloaded.push(model.identifier);
 	}
@@ -133,6 +151,7 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 	// After unload, the only resident bytes left are the kept (pinned + embedding) models.
 	const keptResidentBytes = resident
 		.filter((model) => pinned.has(model.identifier) || isEmbeddingModel(model.identifier))
+		.filter((model) => input.targetDevice === undefined || model.device === input.targetDevice)
 		.reduce((total, model) => total + (model.sizeBytes ?? 0), 0);
 
 	const decision = decideModelLoad({
@@ -158,7 +177,7 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 	const argv = buildLmsLoadArgs(input.modelId, {
 		contextLength: loadContextLength,
 		maxContextLength: input.maxContextLength,
-		gpu: "max",
+		gpu: input.gpu ?? "max",
 	});
 	const { stdout, exitCode } = await run(argv);
 	// On a successful load, fold any warn/unknown caveat into the reason so the caller sees it without re-querying.

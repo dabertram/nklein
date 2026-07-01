@@ -143,4 +143,38 @@ describe("loadModelExclusive", () => {
 		expect(result.loaded).toBe(false);
 		expect(result.reason).toMatch(/lms load failed/i);
 	});
+
+	it("per-machine scoping: with targetDevice set, only clears residents on the SAME device (never a linked box)", async () => {
+		const { run, calls } = fakeRunner([
+			"m5-model          m          IDLE      4 GB       40000      1    Local",
+			"legion-model      m          IDLE      4 GB       40000      1    davidlegion5pro",
+			"text-embedding-nomic@q8      nomic             IDLE      146.15 MB  2048       -    m4mini",
+		]);
+		const result = await loadModelExclusive(run, {
+			modelId: "legion-target",
+			totalRamBytes,
+			targetDevice: "davidlegion5pro",
+		});
+		expect(result.loaded).toBe(true);
+		// only the same-device (legion) model was cleared; the m5 model + m4mini embedder are untouched
+		expect(result.unloaded).toEqual(["legion-model"]);
+		expect(calls).toContainEqual(["unload", "legion-model"]);
+		expect(calls).not.toContainEqual(["unload", "m5-model"]);
+	});
+
+	it("passes a numeric gpu offload ratio through to the load argv (small-VRAM linked box)", async () => {
+		const { run, calls } = fakeRunner([]);
+		await loadModelExclusive(run, { modelId: "legion-target", totalRamBytes, gpu: 0.3 });
+		const load = calls.find((c) => c[0] === "load");
+		expect(load).toContain("--gpu");
+		expect(load).toContain("0.3");
+	});
+
+	it("defaults gpu to max (full offload) when unspecified — unchanged for existing callers", async () => {
+		const { run, calls } = fakeRunner([]);
+		await loadModelExclusive(run, { modelId: "legion-target", totalRamBytes });
+		const load = calls.find((c) => c[0] === "load");
+		expect(load).toContain("--gpu");
+		expect(load).toContain("max");
+	});
 });
