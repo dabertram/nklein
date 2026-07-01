@@ -5,6 +5,7 @@ import {
 	interpretPhaseOnePick,
 	interpretPhaseOneResponse,
 	isActionableSingleTool,
+	narrowToolsToPick,
 	PHASE_ONE_NONE_ANSWER,
 	PHASE_ONE_PLAN_ANSWER,
 	type PhaseOneDecision,
@@ -176,5 +177,27 @@ describe("interpretPhaseOneResponse (truncation-aware)", () => {
 			kind: "one_tool",
 			tool: "write_file",
 		});
+	});
+});
+
+describe("narrowToolsToPick (beforeModel tool-narrowing)", () => {
+	const tools = [{ name: "read_file" }, { name: "write_file" }, { name: "list_models" }];
+
+	it("keeps only the picked tool for a one_tool decision", () => {
+		expect(narrowToolsToPick(tools, { kind: "one_tool", tool: "write_file" })).toEqual([{ name: "write_file" }]);
+	});
+
+	it("returns an empty set when the picked tool isn't offered (escalate, don't invent)", () => {
+		expect(narrowToolsToPick(tools, { kind: "one_tool", tool: "delete_all" })).toEqual([]);
+	});
+
+	it("leaves the full tool set unchanged for none / plan_needed", () => {
+		expect(narrowToolsToPick(tools, { kind: "none" })).toBe(tools);
+		expect(narrowToolsToPick(tools, { kind: "plan_needed" })).toBe(tools);
+	});
+
+	it("composes with the parser end-to-end (pick a name → narrow to it)", () => {
+		const decision = interpretPhaseOnePick("read_file", CARDS);
+		expect(narrowToolsToPick(tools, decision)).toEqual([{ name: "read_file" }]);
 	});
 });

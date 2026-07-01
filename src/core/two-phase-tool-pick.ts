@@ -179,3 +179,20 @@ export function selectRevealedToolSchema<T>(
 	}
 	return schemasByName.get(decision.tool) ?? null;
 }
+
+/**
+ * Narrow a turn's OFFERED tools to the phase-1 pick — the value the SDK `beforeModel` hook returns as `{ tools }` to
+ * reveal only the selected tool to the model that turn (the SDK merges a hook's `tools` into the request; verified in the
+ * vendored core). `one_tool` keeps only the named tool (empty when it isn't in the offered set — the caller should
+ * escalate, never invent); `none`/`plan_needed` leave the FULL set unchanged (no confident single tool to narrow to).
+ * Generic over the tool shape — only `name` is read — so it couples to no specific SDK tool type.
+ */
+export function narrowToolsToPick<T extends { name: string }>(
+	tools: readonly T[],
+	decision: PhaseOneDecision,
+): readonly T[] {
+	if (!isActionableSingleTool(decision)) {
+		return tools;
+	}
+	return tools.filter((tool) => tool.name === decision.tool);
+}

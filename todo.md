@@ -2320,8 +2320,15 @@ source repo went private — so if it vanishes the buildable source still lives 
         backends. The design is model-robust for the core routing. Compound tasks differ (first-tool-per-step vs plan) but always
         safely. NEW budget lesson: the 27B reasoner TRUNCATED one case at 1024 tokens (empty → would be a false none without
         `interpretPhaseOneResponse`) — **bigger reasoners need a BIGGER budget, not smaller**; the wiring's budget should scale
-        with model reasoning-ness. Owed: ONLY the model-seam wiring — run the orchestrator per step behind an opt-in flag (the
-        injected caller = the SDK model seam), budget sized generously for reasoning.
+        with model reasoning-ness. **SEAM LOCATED + VERIFIED (2026-07-01):** the wire is the SDK `beforeModel` hook — the vendored
+        core MERGES a hook's returned `{ tools }` into the request (`…i.tools?{tools:i.tools}:{}`, confirmed in
+        `vendor/cline-sdk/packages/core/dist`), and `nklein-session-runtime.ts` already registers `beforeModel` (for repo-map +
+        focus-chain re-anchoring). So the two-phase narrows tools PER TURN there — my earlier "SDK-internal-impossible" was wrong.
+        Last pure piece shipped: `narrowToolsToPick(tools, decision)` (one_tool → keep only that tool; none/plan → unchanged;
+        generic over the tool shape). Owed (opt-in, byte-identical default): in `beforeModel`, when `NKLEIN_TWO_PHASE_TOOL_PICK`
+        is on, run the orchestrator (phase-1 pick via an injected completion caller — thread one into the session runtime) →
+        `narrowToolsToPick` → return `{ tools }`; budget sized generously for reasoning. The wiring LOGIC is unit-testable with a
+        fake caller; whether the narrowing IMPROVES task success on real models is the part that needs real-swarm measurement.
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)
