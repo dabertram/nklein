@@ -64,6 +64,59 @@ describe("model-capability-catalog: lookup", () => {
 	});
 });
 
+describe("model-capability-catalog: 2026-07-01 sweep additions (ordering + verdicts)", () => {
+	it("resolves qwen3.5-122b to its OWN high-tier row, NOT the 9B-calibrated qwen3.5 row", () => {
+		// The 122B is a distinct MoE that passed CLEAN (native chain + full synth); it must not inherit the 9B via_force/weak verdict.
+		const e = lookupModelCapability("qwen3.5-122b-a10b@4bit");
+		expect(e?.family).toBe("qwen3.5-122b");
+		expect(e?.toolUse).toBe("TOOL_CAPABLE");
+		expect(e?.kind).toBe("reasoning");
+		expect(e?.chaining).toBe("native"); // NOT via_force (the 9B row is via_force)
+		expect(e?.synthesis).toBe("full"); // NOT weak (the 9B row is weak)
+		expect(e?.speed).toBe("medium");
+		expect(e?.sizeGb).toBe(69);
+		// Ordering guard: the plain 9B still resolves to the 9B row (via_force / weak).
+		const nine = lookupModelCapability("qwen3.5-9b-mlx-m4");
+		expect(nine?.family).toBe("qwen3.5");
+		expect(nine?.chaining).toBe("via_force");
+	});
+
+	it("resolves the NEW gemma-4-26b MoE as TOOL_CAPABLE (native chain, weak synth) — distinct from the ≤4B edge rows", () => {
+		const e = lookupModelCapability("google/gemma-4-26b-a4b-qat");
+		expect(e?.family).toBe("gemma-4-26b");
+		expect(e?.toolUse).toBe("TOOL_CAPABLE");
+		expect(e?.chaining).toBe("native");
+		expect(e?.synthesis).toBe("weak");
+		// The edge variants are unaffected (still their own TOOL_WEAK rows).
+		expect(lookupModelCapability("google/gemma-4-e4b")?.family).toBe("gemma-4-e4b");
+		expect(lookupModelCapability("google/gemma-4-e2b")?.family).toBe("gemma-4-e2b");
+	});
+
+	it("devstral + magistral (24B) resolve to their own rows; devstral is the full-synth agentic winner", () => {
+		expect(lookupModelCapability("mistralai/devstral-small-2-2512")?.family).toBe("devstral-small");
+		expect(lookupModelCapability("mistralai/devstral-small-2-2512")?.synthesis).toBe("full");
+		// magistral's TOOL_WEAK verdict is NOT flipped by the single contradicting run (held pending a ×3 re-run).
+		expect(lookupModelCapability("mistralai/magistral-small-2509")?.family).toBe("magistral-small");
+		expect(lookupModelCapability("mistralai/magistral-small-2509")?.toolUse).toBe("TOOL_WEAK");
+	});
+
+	it("nemotron-3-nano stays TOOL_WEAK with chaining single_only (reconfirmed 2026-07-01)", () => {
+		const e = lookupModelCapability("nvidia/nemotron-3-nano-4b");
+		expect(e?.family).toBe("nemotron-nano");
+		expect(e?.toolUse).toBe("TOOL_WEAK");
+		expect(e?.chaining).toBe("single_only");
+	});
+
+	it("ornith-1.0-35b (broken MLX checkpoint) is a hard reject and does NOT catch the healthy 9B sibling", () => {
+		const v = assessModelSuitability("ornith-1.0-35b-mlx@4bit");
+		expect(v.entry?.family).toBe("ornith-1.0-35b");
+		expect(v.severity).toBe("reject"); // severityOverride — a load-failing artifact shouldn't be retried blindly
+		expect(v.reason).toMatch(/load-fail/i);
+		// The size-anchored regex must NOT match the 9B (which loads fine and passed C0/C1/C2).
+		expect(lookupModelCapability("ornith-1.0-9b-mlx")).toBeNull();
+	});
+});
+
 describe("model-capability-catalog: fine-grained metadata (§5.AL — chaining/synthesis/structuredOutput/speed/sizeGb)", () => {
 	it("populates the 4B coder (qwopus3.5) as the native full-synthesis fast performer", () => {
 		// Live 2026-07-01: qwopus3.5-4b-coder-fable5 chained natively (no force-advance) and echoed the marker (full synthesis).

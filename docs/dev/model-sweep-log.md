@@ -353,3 +353,40 @@
   while punching the backlog, not a driver limitation.
 > Cross-check plan (user 2026-06-29): free to pull OTHER catalog models for second opinions on issues/solutions — curious
 > about the **35B MoE ornith** evals (`ornith-1.0-35b-mlx@8bit` / `qwen3.6-35b-a3b`) when a slot fits; focus stays on backlog.
+
+### 2026-07-01 · **big-tier e2e sweep — 11 models, guarded loads on the m5** · `model-lab` + `verify-chat-agent-e2e` · _(HIGH power)_
+> User-authorized full-ish sweep across the mid/large tier (4B → 122B), each **freshly loaded + sole-resident** via the
+> `model-lab` guard (`load <key> 40000`: exclusive, unload-before-load, ctx 40000, ≥25% RAM reserve — every load reported
+> **111.9 GiB free after load**, the guard never neared the floor). Same e2e capstone (read_file → run_command → create_card →
+> update_focus_chain in one session). Driver at rest `qwopus3.6-27b-v2-mlx` restored at the end; the m4mini/legion pair untouched.
+> **Headline: with the §5.AB force-advance wiring live, MOST models now drive the FULL 4-tool chain + PERSIST the card — SYNTHESIS
+> (marker echo) is the differentiator.** ✅ = full synth (exit 0) · ◑ = chain+persist but weak synth (exit 3) · ❌/skip as noted.
+
+| model | size | e2e | tools+persist | synth | wall | note |
+|---|---|:-:|:-:|:-:|---:|---|
+| nvidia/nemotron-3-nano-4b | 4B | ◑→⚠️ | **read only** | full-ish* | 54s | 🧱 the ONLY chain-dropper — single-tool, then FALSELY claims all 4 done. TOOL_WEAK/single_only reconfirmed |
+| phi-4-mini-instruct@4bit | ~2B | ◑ | 4/4 ✅ | 🧩 weak | 5s | 🚀 fastest; a ~2B clearing the full chain (native, ⚠️ known-fragile — re-run to confirm) |
+| google/gemma-4-e4b | 4B | ◑ | 4/4 ✅ | 🧩 weak | 37s | ⚠️ **CONTRADICTS** its TOOL_WEAK "fails chaining 3/3" — chained fully here (owed ×3 re-run) |
+| qwopus3.5-9b-coder-mlx@8bit | 9B | ◑ | 4/4 ✅ | 🧩 weak | 67s | 9B-coder = weak synth (the 4B-coder got FULL) — size/variant nuance folded into the qwopus3.5-coder row |
+| qwen/qwen2.5-coder-14b | 14B | ◑ | 4/4 ✅ | 🧩 weak | 45s | ✅ multi-tool chain confirmed (chaining caveat lifted); synth weak |
+| mistralai/mistral-small-3.2 | 24B | ◑ | 4/4 ✅ | 🧩 weak | 21s | fastest 24B; native chain, weak synth |
+| **mistralai/magistral-small-2509** | 24B | ✅ | 4/4 ✅ | 🚀 **full** | 54s | ⚠️ **CONTRADICTS** its TOOL_WEAK "empty tool_calls" — CLEAN PASS here (owed ×3 re-run) |
+| **mistralai/devstral-small-2-2512** | 24B | ✅ | 4/4 ✅ | 🚀 **full** | 42s | ✅ confirms TOOL_NATIVE agentic-coder; clean pass + full synth |
+| google/gemma-4-26b-a4b-qat | 26B MoE | ◑ | 4/4 ✅ | 🧩 weak | 34s | **NEW catalog entry** (TOOL_CAPABLE) — far stronger chaining than its e4b sibling |
+| mlx-qwopus3.5-27b-v3 | 27B | ◑ | 4/4 ✅ | 🧩 weak | 301s | 🐢 MLX 27B latency outlier (vs the 26B-qat at 34s); chain ✓, synth weak |
+| **qwen3.5-122b-a10b@4bit** | 122B MoE | ✅ | 4/4 ✅ | 🚀 **full** | 77s | 🚀 **strongest all-round** — native chain + full synth, healthy 77s (A10B active). **NEW high-tier entry** (was 9B-calibrated) |
+| qwen3-14b | 14B | · | · | · | — | skip — resident on `davidlegion5pro` only, not Local (m5 can't load it) |
+| ornith-1.0-35b-mlx@4bit | 35B | ❌ | — | — | — | 🐞 **LOAD-FAILED 3/3** (`lms load` exit 1 at ~2%, no diagnostic). NOT headroom (111.9 GiB free) — a broken/incompatible MLX checkpoint (@8bit sibling too). Guard behaved correctly; not forced |
+> `*` nemotron echoed the marker but never ran steps 2-4 — narration, not execution (so not a real synthesis win).
+>
+> **Result: 11/11 loaded models fired the full 4-tool chain + persisted — EXCEPT nemotron-4B (single-tool).** That is a far
+> stronger chaining picture than the older sweeps' "single-tool only" pattern: the **§5.AB force-advance controller carries most
+> models through the chain in this harness**, so PASS-vs-◑ is decided almost entirely by the **final-synthesis (marker-echo)**
+> criterion. **3 CLEAN PASSES (full synth): magistral-small-2509, devstral-small-2-2512, qwen3.5-122b-a10b** (a 24B reasoner,
+> a 24B agentic-coder, and a 122B MoE reasoner — synthesis does NOT track size or reasoning-vs-code cleanly). **2 CONTRADICTIONS
+> vs the catalog:** magistral (TOOL_WEAK→clean PASS) and gemma-4-e4b (TOOL_WEAK "fails chaining"→chained fully) — recorded as
+> dated contradiction notes on their entries, **verdict held pending a ×3 re-run** (one run under a changed harness ≠ a lift).
+> **1 load-fail:** ornith-1.0-35b MLX (broken artifact — now a reject-with-note so a future run won't retry blind). All loads
+> **headroom-safe** (111.9 GiB free throughout) and the **driver was restored** at the end. Catalog folded (§5.AL): new rows
+> qwen3.5-122b + gemma-4-26b + ornith-1.0-35b; fine-grained fields added to phi-4-mini/qwen2.5-coder/mistral-small/devstral/
+> nemotron-nano; the qwopus3.5-coder row widened with the 9B/27B = weak-synth size nuance.
