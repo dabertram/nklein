@@ -4891,12 +4891,24 @@ source repo went private — so if it vanishes the buildable source still lives 
         back as the candidate's `observedCapability` at selection. So the affinity-selected model's real outcome improves
         the NEXT selection — select → run → record → blend is complete (per-MODEL success rate; a finer per-(skill×model)
         fitness store is the future enhancement, item above).
-        **STILL OWED:** (1) live §5.Z re-verify across the 3 machines (multi-card run: distinct best-fit models per card,
-        no endpoint deadlock, clean teardown) — the start-path glue (descriptor fetch → resolveLaunchConfig per model →
-        candidate) is not exercised by CI. (2) chain llmfit's cached score ahead of the catalog prior — LOW marginal value
-        for the user's CUSTOM loaded models (qwopus/ornith aren't in llmfit's HF DB; the catalog + name heuristics already
-        cover them), so deprioritized vs public-model setups (see [integrations.md](docs/dev/integrations.md)). (3) opt-in
-        load orchestration (the (b) decision).
+        **START-PATH GLUE LIVE-VERIFIED (2026-07-01):** a focused probe replicating the exact start-path loop
+        (`createNKleinProviderService` → `resolveLaunchConfig({modelIdOverride})` per loaded model →
+        `buildNKleinStartGuardCandidate` → `routeNKleinTask`) ran clean against the 3 machines: all 4 loaded models
+        produced valid candidates (ctx 40000/32768) and routed best-fit (CODE→qwen2.5-coder, PLANNING→qwopus). So the glue
+        CI doesn't cover is proven.
+        **STILL OWED:** (0) **★ HIGH — start-path resilience to a STALE DEFAULT (live-found 2026-07-01).** `resolveLaunchConfig`
+        HARD-THROWS when the configured provider model isn't loaded (found live: the user's default = `…-legion5pro-ctx80k`,
+        a variant that isn't loaded — only `…-legion5pro` is). In `start-task-session.ts` the PRIMARY resolve (line ~152)
+        runs BEFORE the §5.AB auto-discovery, so a stale default hard-fails the card before the loaded set can rescue it —
+        directly defeating "use whatever's loaded". Fix: on a not-loaded primary, FALL BACK to an auto-discovered loaded
+        model instead of failing (guard: try loaded models, use the first that resolves, else re-throw the original). Gotcha:
+        the fallback needs the endpoint baseUrl without a resolved primary (chicken-egg — the provider service must expose
+        the default endpoint, or reuse `residencyBaseUrl`). Behavior-changing hot-path ⇒ test the fallback helper + §5.Z.
+        Immediate user workaround: point the default provider model at a LOADED id (or load the `-ctx80k` variant).
+        (1) live §5.Z re-verify across the 3 machines (multi-card run: distinct best-fit models per card, no endpoint
+        deadlock, clean teardown). (2) chain llmfit's cached score ahead of the catalog prior — LOW marginal value for the
+        user's CUSTOM loaded models (qwopus/ornith aren't in llmfit's HF DB; the catalog + name heuristics already cover
+        them), deprioritized (see [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision).
   - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
         **PROFILE DONE (2026-06-29):** `PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS`
         ([runtime-config-api-contract.ts](src/core/runtime-config-api-contract.ts)) — 48 turns / 8h wall-time / 8 no-diff
