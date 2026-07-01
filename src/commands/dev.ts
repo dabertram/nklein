@@ -20,7 +20,8 @@ import { runtimeAgentIdSchema } from "../core/api-contract";
 import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
-import { createDefaultLmsRunner, fetchLmsPsModels } from "../core/lms-ps-json";
+import { fetchLmsLinkDevices } from "../core/lms-link-status";
+import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
 import {
 	dominantFailureMode,
@@ -749,13 +750,21 @@ async function runDevModelVerdictCommand(options: { modelId?: string; json?: boo
 async function runDevSwarmCommand(options: { json?: boolean } = {}): Promise<void> {
 	// §5.AB operator view: read the loaded instances via `lms ps --json` (the only source of the per-MACHINE deviceId,
 	// since LM Link shares machines behind one endpoint) and annotate each with the auto-selector's affinity view.
-	const view = buildSwarmMachineView(await fetchLmsPsModels(createDefaultLmsRunner()));
+	const run = createDefaultLmsRunner();
+	const [view, devices] = await Promise.all([
+		fetchLmsPsModels(run).then(buildSwarmMachineView),
+		fetchLmsLinkDevices(run), // hex deviceId → friendly machine name
+	]);
 	if (options.json) {
 		process.stdout.write(`${JSON.stringify(view, null, 2)}\n`);
 		return;
 	}
+	const label = (machineId: string): string =>
+		machineId === LOCAL_MACHINE_ID
+			? `${devices.localMachineName ?? "local"} (this host)`
+			: (devices.namesByDeviceId.get(machineId) ?? machineId);
 	process.stdout.write("!Klein swarm — loaded models per machine, with the auto-selection view (§5.AB):\n\n");
-	process.stdout.write(formatSwarmMachineView(view));
+	process.stdout.write(formatSwarmMachineView(view, label));
 }
 
 async function runDevAdviceCommand(options: { json?: boolean }): Promise<void> {

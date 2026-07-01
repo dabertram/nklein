@@ -69,14 +69,19 @@ export function buildSwarmMachineView(psModels: readonly LmsPsModel[]): SwarmMac
 	return [...byMachine.entries()].map(([machineId, models]) => ({ machineId, models }));
 }
 
-/** Render the swarm view as an operator-readable text block. */
-export function formatSwarmMachineView(machines: readonly SwarmMachineView[]): string {
+/** Render the swarm view as an operator-readable text block. `resolveLabel` maps a machine id → a friendly name (e.g.
+ * from `lms link status`); the default names the local host and passes a remote's id through unchanged. */
+export function formatSwarmMachineView(
+	machines: readonly SwarmMachineView[],
+	resolveLabel: (machineId: string) => string = (machineId) =>
+		machineId === LOCAL_MACHINE_ID ? "local (this host)" : machineId,
+): string {
 	if (machines.length === 0) {
 		return "(no models loaded — nothing in the swarm)\n";
 	}
 	const lines: string[] = [];
 	for (const machine of machines) {
-		const label = machine.machineId === LOCAL_MACHINE_ID ? "local (this host)" : machine.machineId;
+		const label = resolveLabel(machine.machineId);
 		lines.push(`Machine ${label} — ${machine.models.length} model(s):`);
 		for (const model of machine.models) {
 			const kind = model.isEmbedding ? "embedding" : model.affinityTags.join(",") || "—";
