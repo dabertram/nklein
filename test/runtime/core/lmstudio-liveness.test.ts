@@ -4,6 +4,7 @@ import {
 	type ModelLiveness,
 	probeModelResidency,
 	shouldAbortForLostResidency,
+	startResidencyHeartbeat,
 } from "../../../src/core/lmstudio-liveness";
 
 /** A fetch stub: either throws (network error) or returns a Response-like with the given ok + json payload. */
@@ -109,5 +110,61 @@ describe("shouldAbortForLostResidency", () => {
 
 	it("clamps the confirmations floor to 1", () => {
 		expect(shouldAbortForLostResidency(p("resident", "absent"), { absentConfirmations: 0 })).toBe(true);
+	});
+});
+
+describe("startResidencyHeartbeat", () => {
+	// Drive the loop by hand: capture the interval callback, invoke it per scripted probe, and track clear().
+	function harness(probeSequence: ModelLiveness[]) {
+		let tick: (() => void) | null = null;
+		let cleared = false;
+		let lost = 0;
+		let i = 0;
+		const handle = startResidencyHeartbeat({
+			probe: async () => probeSequence[Math.min(i++, probeSequence.length - 1)] ?? "unobservable",
+			policy: { absentConfirmations: 2 },
+			intervalMs: 1000,
+			onModelLost: () => {
+				lost += 1;
+			},
+			setIntervalFn: (cb: () => void) => {
+				tick = cb;
+				return 0 as unknown as ReturnType<typeof setInterval>;
+			},
+			clearIntervalFn: () => {
+				cleared = true;
+			},
+		});
+		return {
+			pump: async () => tick?.(),
+			handle,
+			get cleared() {
+				return cleared;
+			},
+			get lost() {
+				return lost;
+			},
+		};
+	}
+
+	it("fires onModelLost ONCE + stops polling after the confirming absent run", async () => {
+		const h = harness(["resident", "absent", "absent", "absent"]);
+		await h.pump(); // resident
+		await h.pump(); // absent (1)
+		expect(h.lost).toBe(0);
+		await h.pump(); // absent (2) → confirmed
+		expect(h.lost).toBe(1);
+		expect(h.cleared).toBe(true);
+		await h.pump(); // no-op after halt
+		expect(h.lost).toBe(1);
+	});
+
+	it("never fires while the model stays resident, and stop() halts + clears", async () => {
+		const h = harness(["resident", "resident", "resident"]);
+		await h.pump();
+		await h.pump();
+		expect(h.lost).toBe(0);
+		h.handle.stop();
+		expect(h.cleared).toBe(true);
 	});
 });

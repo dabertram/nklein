@@ -102,3 +102,65 @@ export function shouldAbortForLostResidency(probes: readonly ModelLiveness[], po
 	}
 	return trailingAbsent >= needed;
 }
+
+export interface ResidencyHeartbeatHandle {
+	/** Stop polling (idempotent) — call on session end / stream resume so the heartbeat never outlives its session. */
+	stop: () => void;
+}
+
+export interface ResidencyHeartbeatOptions {
+	/** Probe the model's residency (typically `() => probeModelResidency(baseUrl, modelId)`). */
+	probe: () => Promise<ModelLiveness>;
+	/** How many consecutive trailing `absent` probes confirm death (see {@link shouldAbortForLostResidency}). */
+	policy: ResidencyAbortPolicy;
+	/** Poll interval (ms). */
+	intervalMs: number;
+	/** Fired ONCE when death is confirmed — the caller aborts the session (fail-fast). Polling stops itself first. */
+	onModelLost: () => void;
+	/** Injectable timers so the loop is unit-testable without wall-clock waits. */
+	setIntervalFn?: (callback: () => void, ms: number) => ReturnType<typeof setInterval>;
+	clearIntervalFn?: (handle: ReturnType<typeof setInterval>) => void;
+}
+
+/**
+ * The §5.AN residency HEARTBEAT: poll {@link ResidencyHeartbeatOptions.probe} on an interval and, once
+ * {@link shouldAbortForLostResidency} confirms the model crashed/unloaded, fire `onModelLost` ONCE (the caller aborts the
+ * session — fail-fast instead of waiting out the ultra-long timeout). Effectful (timers), but the timers are injectable
+ * so it is fully unit-testable. A probe that throws is treated as `unobservable` (never a false death — see the decision
+ * core). `stop()` is idempotent; the loop halts itself before firing `onModelLost`.
+ */
+export function startResidencyHeartbeat(options: ResidencyHeartbeatOptions): ResidencyHeartbeatHandle {
+	const probes: ModelLiveness[] = [];
+	const setIntervalFn = options.setIntervalFn ?? setInterval;
+	const clearIntervalFn = options.clearIntervalFn ?? clearInterval;
+	let active = true;
+	const timer = setIntervalFn(() => {
+		void tick();
+	}, options.intervalMs);
+	const halt = (): void => {
+		if (active) {
+			active = false;
+			clearIntervalFn(timer);
+		}
+	};
+	async function tick(): Promise<void> {
+		if (!active) {
+			return;
+		}
+		let result: ModelLiveness;
+		try {
+			result = await options.probe();
+		} catch {
+			result = "unobservable"; // a failed probe never counts as death
+		}
+		if (!active) {
+			return; // stopped while awaiting the probe
+		}
+		probes.push(result);
+		if (shouldAbortForLostResidency(probes, options.policy)) {
+			halt();
+			options.onModelLost();
+		}
+	}
+	return { stop: halt };
+}
