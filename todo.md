@@ -5171,7 +5171,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   VRAM). Both are §6.5-scheduler + per-machine-pool (A) concerns — gate parallelism on MEASURED headroom + quality, never
 >   blindly.
 > - **(E) ★ MODEL-LANDSCAPE-AWARE DECOMPOSITION GRANULARITY (user, 2026-07-01 — RESEARCH + evaluate carefully, do NOT
->   rush).** The task-graph layout should ADAPT to the LOADED-MODEL LANDSCAPE, not be fixed: **if a large capable model is
+>   rush).** **PURE DECISION CORE DONE (2026-07-01):** `decideCardDecomposition`
+>   ([src/core/adaptive-decomposition-decision.ts](src/core/adaptive-decomposition-decision.ts), 25 tests) — the
+>   ADaPT-faithful "decompose vs run DIRECTLY" primitive: reactive can't-handle override → chaining floor → below-difficulty
+>   → capable-clears-margin run-direct → marginal-un-confident (try direct, decompose on the next signal), with a tunable
+>   `directCapabilityMargin`. **UNWIRED (owed):** wire into the decompose path keyed on the REAL §5.AB can't-handle signal +
+>   the §5.AL `chaining`/`synthesis` fields, and TUNE the thresholds via measurement — do NOT wire/tune blindly.
+>   The task-graph layout should ADAPT to the LOADED-MODEL LANDSCAPE, not be fixed: **if a large capable model is
 >   available, run a complex/bigger card DIRECTLY on it instead of decomposing to the max**; if only small models are
 >   loaded, decompose FINER so each sub-card fits a small model's chaining/synthesis ceiling. So decomposition depth becomes
 >   a FUNCTION of (card difficulty × the available models' capability profile from §5.AL) — !Klein "knows the best thing to
