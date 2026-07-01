@@ -11,6 +11,7 @@ import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../../chat/chat-focus-chain";
 import { recordChatHostAction } from "../../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../../chat/chat-local-llm-adapter";
+import { chatScopeCanAct, chatScopeToExecutionMode } from "../../chat/chat-scope-capability";
 import type { ChatAgentToolDeps } from "../../chat/chat-service";
 import type { ChatSession } from "../../chat/chat-session-store";
 import { createGatedChatToolExecutor } from "../../chat/chat-tool-executor";
@@ -48,13 +49,8 @@ export function buildChatAgentToolDepsResolver(input: {
 		// create_card (control_plane) + run_command (host_command) are offered only to can-act scopes. run_command is
 		// confirm-gated: the `confirm` callback below auto-approves commands the allowlist classifier deems SAFE and
 		// denies UNSAFE ones (until the general risk-acknowledgement toggle lands — todo §5.M G3b).
-		const mode: ChatExecutionMode =
-			session.scope === "chat_only"
-				? "isolated_readonly"
-				: session.scope === "host_access"
-					? "host"
-					: "sandbox_with_host_escape";
-		const canAct = session.scope !== "chat_only";
+		const mode: ChatExecutionMode = chatScopeToExecutionMode(session.scope);
+		const canAct = chatScopeCanAct(session.scope);
 		const read = createWorkspaceReadTools(workspacePath);
 		const board = createBoardReadTools(workspacePath);
 		const focus = createFocusChainTools(session.id);
