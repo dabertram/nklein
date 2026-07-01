@@ -4755,7 +4755,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `response_format:json_schema` for confidently-NON-reasoning models. Route the choice through the new
       [structured-output-strategy.ts](src/core/structured-output-strategy.ts) `selectStructuredOutputStrategy` (§5.AN);
       wiring THIS rung onto the strategy (native-tool-call branch for reasoning ids) is the owed hot-path work.**
-      **✅ CHAT-PATH NATIVE-FORCE WIRED behind a flag (2026-07-01, uncommitted): `NKLEIN_NATIVE_FORCE_TOOL_CALL` (OFF by
+      **✅ CHAT-PATH NATIVE-FORCE WIRED behind a flag (2026-07-01, committed 0c6356aa): `NKLEIN_NATIVE_FORCE_TOOL_CALL` (OFF by
       default ⇒ byte-identical to today; when the branch is skipped the code path is unchanged).** When ON **and**
       `isReasoningModel(options.modelId)` (from [model-thinking-control.ts](src/core/model-thinking-control.ts)) is true, the
       constrained rung tries the NATIVE channel FIRST — `client.completeWithTools({messages, sampling}, forceTools,
@@ -4769,9 +4769,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `tool_call` on the resident reasoning tier — `scratchpad/probe-tool-call.py`); the WIRING is proven by fake-client
       unit tests (flag OFF ⇒ json_schema rung unchanged, native never forced · flag ON + reasoning ⇒ native `required` used ·
       flag ON + reasoning but native empty ⇒ falls through to json_schema · flag ON + NON-reasoning ⇒ json_schema). +7 tests
-      (4 adapter, 3 client); tsc + biome + full fast suite (4787/4787) green. **Owed: promote to DEFAULT-ON after broader
-      live validation** (a live multi-model reasoning-tier run confirming the native force reliably advances chains) — then
-      the flag gate can drop and this becomes the reasoning-model path unconditionally.
+      (4 adapter, 3 client); tsc + biome + full fast suite (4787/4787) green. **⚠ LIVE VALIDATION (2026-07-01) — the flag does NOT unstick the multi-turn tool-CHAINING wall by
+      itself:** ran `verify-chat-agent-e2e` (the real CLI chat path, modelId threaded) on the resident qwen3.5-9b with
+      `NKLEIN_NATIVE_FORCE_TOOL_CALL=1` — the 4-step chain STILL stalled after step 1 (the model narrated a REPEAT of
+      `read_file` as a markerless prose code block; `run_command`/`create_card`/`update_focus_chain` never fired), IDENTICAL
+      to the flag-OFF baseline (reproduced ×2). So the native-force rung is correct + available but does NOT resolve the §5.AA
+      tool-CHAINING wall on this model — the failure is UPSTREAM of the forcing rung: the model emits a no-tool-call turn WITH
+      prose CONTENT, so either the loop treats a with-content no-call turn as a TERMINAL answer (never reaching the force
+      rung), or the anchor/steer doesn't advance to the NEXT step. ⇒ **do NOT promote to default-on yet; keep it opt-in.** The
+      real chaining fix is separate §5.AA work: instrument WHY the loop stops after a prose turn (does the force rung even
+      fire? if so, does it force the NEXT tool or re-force step 1?), likely (a) treat a with-content no-call turn on a
+      reasoning model as a CONTINUE-and-force signal (prose is often a narrated-but-undispatched call), and (b) steer to the
+      next undone step. Next: a `NKLEIN_NATIVE_FORCE_TOOL_CALL`-on run with rung-level logging to see if the rung fires + what
+      it forces.
       **WIRED ON THE CHAT PATH (2026-06-28):**
       `createChatAgentModel` ([chat-local-llm-adapter.ts](src/chat/chat-local-llm-adapter.ts)) now fires this rung as the
       LAST resort — after tool-set reduction AND the client's narrated-recovery both come up empty: it re-asks via the
