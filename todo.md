@@ -3808,7 +3808,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] !Klein Provider & Models section (move provider + model config controls)
     - [ ] Guardrails vs Agents boundary (clarify boundary, move shared controls)
     - [ ] Code Intelligence (keep reachable for non-!Klein users)
-    - [ ] relabel "Git Prompts" → "Git"
+    - [x] relabel "Git Prompts" → "Git" **(2026-07-01)** — `runtime-settings-dialog.tsx`: tab label + section header now
+          "Git" (the stable `git-prompts` id / `data-settings-section` anchor kept, so navigation is unaffected). web-ui tsc clean.
     - [ ] Workspace/Project settings polish
   - [x] **live-verified (2026-06-26, Playwright)** — booted `dev:full`, opened Settings (⌘⇧S), confirmed the **Agents**
         nav entry renders (Boxes icon) alongside a retained **General**, clicking Agents scrolls the moved content (Docker

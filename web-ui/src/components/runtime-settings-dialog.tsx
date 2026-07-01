@@ -165,7 +165,7 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
 	{ id: "agents", label: "Agents", icon: <Boxes size={16} /> },
 	{ id: "tasks", label: "Tasks", icon: <Check size={16} /> },
 	{ id: "nklein", label: "!Klein", icon: <Bot size={16} />, nkleinOnly: true },
-	{ id: "git-prompts", label: "Git Prompts", icon: <GitCommit size={16} /> },
+	{ id: "git-prompts", label: "Git", icon: <GitCommit size={16} /> },
 	{ id: "notifications", label: "Notifications", icon: <Bell size={16} /> },
 	{ id: "appearance", label: "Appearance", icon: <Palette size={16} /> },
 	{ id: "project", label: "Project", icon: <FolderOpen size={16} /> },
@@ -2359,12 +2359,12 @@ export function RuntimeSettingsDialog({
 							</>
 						) : null}
 
-						{/* ---- Git Prompts ---- */}
+						{/* ---- Git ---- */}
 						<div data-settings-section="git-prompts" />
 						<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
 							<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
 								<GitCommit size={16} className="text-text-secondary" />
-								Git Prompts
+								Git
 							</h2>
 						</div>
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
