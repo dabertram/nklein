@@ -1288,6 +1288,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [x] **Committed-state schema migration** — `readPortableBoardCrdt` → `migratePortableBoardCrdt` (forward-migration
       registry; refuses newer-than-known; a future bump = one registry entry).
       ([src/state/portable-board-crdt.ts](src/state/portable-board-crdt.ts))
+- [x] **Continuation-point selector (pure core; DONE 2026-07-01)** — the "persisted state → where to safely resume +
+      why" decision that the reconcile UX rests on. `selectContinuationPoints(importedBoard)`
+      ([src/core/portable-continuation-selector.ts](src/core/portable-continuation-selector.ts)) reads ONLY the
+      imported portable board's own committed shape (lane, review state, `blockedKind`, the dependency DAG — all
+      injected plain values; no sessions/sandboxes/heartbeats, which are machine-local and gone on the fresh machine)
+      and classifies every card into a deterministic disposition + machine-stable reason code:
+      `done` (completed/trash) → `awaiting_review` (review lane) → `blocked` (start-blocker or an unsatisfied
+      predecessor; a tombstoned-away upstream does NOT block forever) → `replan` (mid-work but unsafe to blind-resume:
+      review parked/changes-requested, or stranded outside a working lane) → `resume` (clean in-flight working card,
+      all predecessors done). Returns the id-sorted `perCard`, the `resumeFrontier` (resume-only, the safe pick-up
+      point), and `counts`. Grep confirmed no prior cross-machine resume-point selector (the existing `resume` hits are
+      live task-pause/durable-run; `operator-task-state.ts` §5.AG is live on-machine health, not import-time
+      continuation). Also exports `classifyCardContinuation` (the per-card rule). Pure/deterministic/non-mutating;
+      20 unit tests. tsc + biome + vitest green. *(Feeds the Playwright reconcile-UX items below — machine B now has a
+      tested rule for "continue where A left off".)*
 - [x] **Decided scope (policy, keep):** repo-committed = board/CRDT, DAG, card progress, `knowledgeDebt`,
       decomposition (pretty-printed JSON); machine-local (never committed) = model registry/speeds, endpoints,
       sandbox/container state, telemetry, secrets, absolute paths, worktree/result-branch artifacts. No
@@ -5754,6 +5769,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       green. **Still owed (WIRING):** call it in the retrieval extract/synthesis path to resolve relative dates in fetched
       snippets into absolute `publishedAt`s before the freshness judge, and on user query text so the temporal context can
       surface what "last Tuesday" means.
+- [x] **Temporal-consistency checker for dated claims (the anachronism guard) — DONE 2026-07-01.**
+      [src/core/temporal-claim-consistency.ts](src/core/temporal-claim-consistency.ts):
+      `checkClaimTemporalConsistency(claim, now, {graceDays?})` judges a CLAIM carrying an `asOf` date (when it was true /
+      measured) + optional `validUntil` horizon against the authoritative now → `current` (safe to assert) / `stale`
+      (validity horizon behind now ⇒ EXPIRED, re-verify) / `anachronistic` (as-of dated in the FUTURE ⇒ asserts a not-yet
+      state — the exact "believes today is in the future / event hasn't happened" hallucination the lighthouse names;
+      anachronism WINS over expiry) / `undated` (no usable date ⇒ freshness unknown, don't fabricate), each with a
+      plain-language `reason` rail + resolved ISO dates + signed whole-day deltas (negative as-of age = future).
+      `checkClaimsTemporalConsistency(claims, now)` sweeps a batch order-preserving into per-status index buckets +
+      `hasTemporalProblem`, and `isClaimAssertable(status)` is the synthesis gate (blocks anachronistic/stale). **Distinct
+      from siblings (grep-verified no dup):** `retrieval-freshness.ts` bands a SOURCE's publication AGE; this judges a
+      CLAIM's asserted validity + catches future-dating (no `anachron*`/`asOf`/`validUntil` claim-logic existed anywhere in
+      `src/`); `relative-date-resolver.ts` can FEED the `asOf`/`validUntil` here. PRIME-DIRECTIVE #1: decides ONLY (no
+      egress/I/O/model) — claim + now + grace INJECTED as plain values. Pure + clock-injected (UTC calendar days, never
+      reads `Date.now()`), tolerant of Date/ISO-string/epoch/absent dates. 23 unit tests (fixed 2026-06-27 anchor); tsc +
+      biome green. **Still owed (WIRING):** call `isClaimAssertable` / the anachronistic+stale buckets in the §5.AC
+      cited-synthesis path to drop/flag temporally-inconsistent claims before they reach the user.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
   - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
@@ -7681,7 +7713,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       everything below it) into the volatile SUFFIX. (Lint-guard now wired onto a real surface: a test asserts
       `detectVolatilePrefixContent(BASE_SYSTEM_PROMPT)` is empty — fails loudly if volatile content re-enters the stable
       prefix; extend the guard to the other static prompts.) Suffix reordering is LOW priority — date-only captured the
-      intra-day win and reordering fights the deliberate temporal-first prominence.
+      intra-day win and reordering fights the deliberate temporal-first prominence. **(2026-07-01: PREFIX-REUSE ESTIMATOR
+      added — `src/core/cache-prefix-reuse.ts`: the pure PREDICTOR that scores a proposed fragment ORDERING before the
+      request, the layout lever the item-D guard was missing. `sharedPrefixTokens(previous, next)` walks both fragment
+      sequences (`{id, tokenCount}`, token counts INJECTED) from position 0 and returns the longest leading run that
+      matches by id AND token count → `{sharedFragments, sharedTokens}` (the tokens a byte-stable runtime reuses).
+      `estimatePrefixReuse(previous, next)` wraps it into `{sharedFragments, sharedTokens, nextTotalTokens,
+      recomputeTokens, reuseRatio∈[0,1], requiresRecompute, firstFragmentChanged}` — quantifying the cliff (volatile
+      fragment FIRST ⇒ 0 reuse) vs the stable-prefix+volatile-suffix win (reuse most, re-prefill only the tail) that D
+      prescribes. 18 tests. Distinct from `cache-aware-prompt-layout.ts` (single-prefix volatile LINT + whole-string
+      byte-equality — no PARTIAL overlap) and from `cache-health.ts` (INTERPRETS runtime-reported `cache_n`/`cached_tokens`
+      AFTER the fact — this PREDICTS from the planned structure BEFORE sending). Different axis from §5.AD smart-zone
+      (attention) + §5.AE jit-fragment-budget (selection). Owed: consume it in an effectful cache-aware layout orderer +
+      log the predicted-vs-realized reuse on the §5.AF ledger.)**
 - [ ] **E. Cache-HEALTH probe + adaptation playbook (caching FAILS SILENTLY + is engine/format-specific), decomposed.**
       Prefix caching only works on PURE full-attention models — **SWA / SSM-Mamba / mixed-attention silently fall back to
       full recompute** (MoE alone is fine). Real failures to be aware of: LM Studio #1697 (MLX GPT-OSS-20B broken, GGUF of
