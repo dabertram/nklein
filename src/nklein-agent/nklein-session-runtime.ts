@@ -12,6 +12,7 @@ import {
 } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
+import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
 import { resolveNKleinAgentPerceivedCwd } from "./nklein-agent-sandbox";
@@ -458,6 +459,12 @@ export interface StartNKleinSessionRuntimeRequest {
 	requestToolApproval?: (request: NKleinSdkToolApprovalRequest) => Promise<NKleinSdkToolApprovalResult>;
 	toolExecutors?: Partial<ToolExecutors>;
 	extraTools?: AgentTool[];
+	/**
+	 * §5.AR — the task's sandbox `docker exec` target, when curated sandbox-hosted MCP servers should be offered. Passed
+	 * to {@link NKleinMcpRuntimeService.createToolBundle} (gated per-model by the §5.AL fit); `null`/absent ⇒ none. The
+	 * opt-out gate lives in the caller (the task-session-service), so this is only set when the feature is enabled.
+	 */
+	sandboxMcpExecTarget?: SandboxExecTarget | null;
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
 	/**
 	 * When provided, the `begin_implementation` promotion tool (todo §5.B) is attached so a work card can move
@@ -624,7 +631,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		let mcpToolBundle: NKleinMcpToolBundle | null = null;
 		let startWarnings: string[] = [];
 		try {
-			mcpToolBundle = await this.nkleinMcpRuntimeService.createToolBundle();
+			mcpToolBundle = await this.nkleinMcpRuntimeService.createToolBundle({
+				modelId: request.modelId,
+				sandboxExecTarget: request.sandboxMcpExecTarget ?? null,
+			});
 			startWarnings = mcpToolBundle.warnings;
 		} catch (error) {
 			mcpToolBundle = null;

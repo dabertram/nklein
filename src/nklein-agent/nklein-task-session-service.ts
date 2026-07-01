@@ -720,6 +720,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				systemPrompt,
 				...(sandboxToolExecutors ? { toolExecutors: sandboxToolExecutors } : {}),
 				...(sandboxExtraTools ? { extraTools: sandboxExtraTools } : {}),
+				// §5.AR: offer the curated sandbox-hosted MCP servers (fit-gated per model) when enabled. Staged opt-IN via
+				// `NKLEIN_SANDBOX_MCP` for now (safe to E2E-verify); the default-on + per-project opt-out setting is next.
+				...(isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP) && sandboxWorkspace
+					? { sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(input.taskId) }
+					: {}),
 				userInstructionService: runtimeSetup.userInstructionService,
 				requestToolApproval: runtimeSetup.createToolApproval({
 					taskId: input.taskId,
