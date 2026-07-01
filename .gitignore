@@ -8,6 +8,8 @@ playwright-report
 # !Klein runtime workspace state for this repo-as-a-project (board/config/sessions/CRDT +
 # generated plan artifacts) — per-machine generated data, never commit.
 .nklein/
+# Isolated data + home dir for `./start.sh --test` (its own ~/.nklein board/config + any npm cache — throwaway).
+.nklein-test-home/
 # Claude Code agent worktrees (.claude/worktrees/<id>/ are full repo checkouts — embedded git
 # repos that must never be committed). Scoped to worktrees so tracked config like
 # .claude/commands/ stays under version control.

@@ -41,6 +41,15 @@ const requestedDevFullArgs = process.argv.slice(2);
 const withShutdownCleanupFlag = "--with-shutdown-cleanup";
 const requestedRuntimeArgs = requestedDevFullArgs.filter((arg) => arg !== withShutdownCleanupFlag);
 
+// Dev-instance knobs (default = the shared 3484/4173 stack; behavior is byte-identical when all unset). A TEST instance
+// (spawned by `start.sh --test`) sets these to run ISOLATED, ALONGSIDE the main instance: `NKLEIN_DEV_ISOLATED` skips the
+// reach-existing / kill-stale / wait-for-preferred-ports logic (a test instance must NEVER touch the main one), and
+// `NKLEIN_DEV_RUNTIME_PORT` / `NKLEIN_DEV_WEB_UI_PORT` move the base ports it searches from. Data isolation is separate
+// (start.sh points HOME at a throwaway dir, so the runtime's `~/.nklein` lands there).
+const devInstanceIsolated = /^(1|true|yes|on)$/i.test(process.env.NKLEIN_DEV_ISOLATED ?? "");
+const baseRuntimePort = Number.parseInt(process.env.NKLEIN_DEV_RUNTIME_PORT ?? "", 10) || 3484;
+const baseWebUiPort = Number.parseInt(process.env.NKLEIN_DEV_WEB_UI_PORT ?? "", 10) || 4173;
+
 function parseProcessList(output) {
 	return output
 		.split("\n")
@@ -175,9 +184,9 @@ function waitForPort(port, timeout = 15000) {
 async function waitForPreferredDevPortsToSettle(timeoutMs = 5000) {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		const runtimePortAvailable = await findPort(3484);
-		const webUiPortAvailable = await findPort(4173);
-		if (runtimePortAvailable === 3484 && webUiPortAvailable === 4173) {
+		const runtimePortAvailable = await findPort(baseRuntimePort);
+		const webUiPortAvailable = await findPort(baseWebUiPort);
+		if (runtimePortAvailable === baseRuntimePort && webUiPortAvailable === baseWebUiPort) {
 			return;
 		}
 		await new Promise((resolve) => setTimeout(resolve, 100));
@@ -186,7 +195,7 @@ async function waitForPreferredDevPortsToSettle(timeoutMs = 5000) {
 
 async function canReachExistingDevServer(timeoutMs = 3000) {
 	try {
-		const response = await fetch("http://127.0.0.1:4173/api/trpc/projects.list", {
+		const response = await fetch(`http://127.0.0.1:${baseWebUiPort}/api/trpc/projects.list`, {
 			signal: AbortSignal.timeout(timeoutMs),
 		});
 		if (!response.ok) {
@@ -199,7 +208,7 @@ async function canReachExistingDevServer(timeoutMs = 3000) {
 
 	return await new Promise((resolve) => {
 		let settled = false;
-		const socket = new WebSocket("ws://127.0.0.1:4173/api/runtime/ws");
+		const socket = new WebSocket(`ws://127.0.0.1:${baseWebUiPort}/api/runtime/ws`);
 		const timeout = setTimeout(() => {
 			if (settled) {
 				return;
@@ -223,18 +232,21 @@ async function canReachExistingDevServer(timeoutMs = 3000) {
 	});
 }
 
-if (await canReachExistingDevServer()) {
-	const url = "http://127.0.0.1:4173";
+// An ISOLATED test instance must never reach/adopt or kill the main instance — skip all three shared-stack guards.
+if (!devInstanceIsolated && (await canReachExistingDevServer())) {
+	const url = `http://127.0.0.1:${baseWebUiPort}`;
 	console.log(`nKlein dev server already running at ${url}`);
 	await open(url);
 	process.exit(0);
 }
 
-await stopStaleDevProcesses();
-await waitForPreferredDevPortsToSettle();
+if (!devInstanceIsolated) {
+	await stopStaleDevProcesses();
+	await waitForPreferredDevPortsToSettle();
+}
 
-const runtimePort = await findPort(3484);
-const webUiPort = await findPort(4173, new Set([runtimePort]));
+const runtimePort = await findPort(baseRuntimePort);
+const webUiPort = await findPort(baseWebUiPort, new Set([runtimePort]));
 const hasExplicitSkipCleanupArg = requestedRuntimeArgs.some((arg) => arg === "--skip-shutdown-cleanup");
 const shouldDefaultSkipShutdownCleanup = !requestedDevFullArgs.includes(withShutdownCleanupFlag);
 const runtimeCliArgs = [
@@ -245,6 +257,9 @@ const runtimeCliArgs = [
 	...requestedRuntimeArgs,
 ];
 
+if (devInstanceIsolated) {
+	console.log(`\n  🧪 ISOLATED TEST instance — data dir: ${process.env.HOME}/.nklein (separate from your main board)`);
+}
 console.log(`\n  Runtime port: ${runtimePort}`);
 console.log(`  Web UI:       http://127.0.0.1:${webUiPort}\n`);
 
