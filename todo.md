@@ -5950,11 +5950,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       reasoning tokens BEFORE any answer — qwen3.5-9b ~257–301 tok on a realistic single-tool agentic turn (fits 1024) but
       ~546–860 on a trivial JSON-prose task; the 27B ~922–966 on that same realistic turn (a harder/longer one truncates);
       a FORCED native tool call is cheap (~55–199 tok total). Non-reasoning models burn ~0 reasoning. Decomposed:
-  - [ ] **EXTENSIVE ONLINE RESEARCH FIRST** (per the §4A always-research directive): how the ecosystem sizes `max_tokens`
-        adaptively (agent frameworks; LM Studio / llama.cpp `max_tokens` vs `max_completion_tokens` / `n_predict`, incl. an
-        unbounded `-1` option + its risks); reasoning-model OUTPUT-budget guidance (OpenAI o-series `max_completion_tokens`
-        + `reasoning_effort`; DeepSeek-R1 / Qwen3 thinking-budget recommendations; engine-exposed reasoning-budget params);
-        per-task budgeting literature. Integrate a SUITABLE approach rather than hand-rolling; capture in `docs/dev/` + here.
+  - [~] **ONLINE RESEARCH — initial pass DONE (2026-07-01); key findings (VERIFY against our runtime + extend when implementing):**
+    - **SOTA knob = `reasoning_effort`** (OpenAI o-series/GPT-5: none/minimal/low/medium/high/xhigh → controls the internal
+      thinking budget; `max_completion_tokens`/`max_output_tokens` caps total). BUT **qwen3.5 / DeepSeek expose NO clean API
+      param to cap reasoning tokens** (matches our probe: qwen3.5 ignores `/no_think`) ⇒ for the resident tier we must budget
+      the TOTAL `max_tokens` generously, not try to cap reasoning.
+    - **llama.cpp DOES expose a thinking-token budget** (chat `reasoning` on/off/auto + a thinking budget `-1` unrestricted /
+      `0` immediate-end / `N`) — a real lever for GGUF-served models (the legion qwen3.5 GGUF), NOT MLX. `n_predict` default
+      `-1`=infinity, `-2`=until-context-full, `0`=prompt-eval-only. Worth exploiting where the model is GGUF.
+    - **⚠ LM Studio's OpenAI-compat endpoint reportedly SILENTLY CAPS output at ~9.5–16K tokens regardless of `max_tokens`
+      (even `-1`)** (lmstudio bug-tracker #1829); the same model is uncapped via raw `llama-server --n-predict -1`. **MUST
+      VERIFY on our LM Studio version** (a long-generation probe) — if true: never request unbounded, know >16K tasks truncate
+      on our endpoint, and prefer the native `/api/v0` or per-machine `llama-server` for long gens. Our
+      `TRUNCATION_RETRY_BUDGET_CEILING = 8192` sits safely under this cap.
+    - **DeepSeek-R1: cap `max_tokens` ≤ 8192 for quality** (degrades 8192→32768); hard reasoning burns **12–23K reasoning
+      tokens internally** per AIME-class question ⇒ genuinely hard tasks need HUGE budgets (and would hit the LM Studio cap).
+      Our 8192 ceiling aligns with the DeepSeek guidance.
+    - **Adaptive-budgeting SOTA:** **SelfBudgeter** (arXiv 2505.11274 — the model self-PREDICTS its required budget),
+      **Anytime-Verified-Agents** (uncertainty-driven per-step compute allocation under a user budget), **BAMAS** (per-task
+      `max_tokens` matched to complexity); consensus = match budget to task DIFFICULTY per-STEP, not a static per-session cap
+      ("simple problems shouldn't consume as much compute as complex"). Practitioner ref: the aisecuritygateway "5-layer
+      token-budget strategies for agents" guide. (Citations in the commit; a fuller writeup → `docs/dev/` when implementing.)
   - [ ] **Size UP-FRONT** from (a) the model's learned reasoning-token burn (per-model, from the §5.AA `ModelBehaviorProfile`
         / §5.AF ledger — reasoning tier needs large headroom, non-reasoning little); (b) the TASK CLASS (trivial reply /
         single-tool / multi-tool / decomposition / long-generation — each a distinct answer-size prior); (c) the OUTPUT MODE
