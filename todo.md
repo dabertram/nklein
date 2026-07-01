@@ -6926,6 +6926,14 @@ source repo went private — so if it vanishes the buildable source still lives 
       model `baseUrl`; `lmStudioApiV0ModelsUrl` already derives it). Enable the "is-it-actually-alive" observation when
       reachable; surface that it's unavailable when the host isn't LM Studio (llama.cpp/vLLM). LIGHTER first cut (no new dep):
       poll `/api/v0/models` residency during the ultra-long wait → fail-fast if the model crashed/unloaded (memory pressure).
+      **PROBE + DECISION CORE DONE (2026-07-01):** [lmstudio-liveness.ts](src/core/lmstudio-liveness.ts) has
+      `probeModelResidency` → `resident`/`absent`/`unobservable` (32521a44) AND now `shouldAbortForLostResidency(probes,
+      {absentConfirmations})` (96aedd3d) — the pure fail-fast decision: abort only when POSITIVELY-observed-resident then
+      N consecutive trailing `absent`; an `unobservable` blip breaks the run (no false abort); never-confirmed host falls
+      back to the timeout. **STILL OWED (wiring):** the poll LOOP in the session's ultra-long wait
+      ([nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts)) — sample `probeModelResidency`
+      on an interval during a prefill-silence gap, feed the sequence to `shouldAbortForLostResidency`, abort on true.
+      Behavior-changing on the session hot path ⇒ live §5.Z re-verify (auto-detected + transparent when unobservable).
 > - **Anthropic-compat `/v1/messages`** (live-verified — EXISTS, 200; accepts `tools`/`tool_choice`/`system`). **CORRECTION
 >   (re-verified 2026-06-29, don't-conclude-prematurely lesson): `tool_choice` does NOT actually FORCE a call on LM Studio.**
 >   The first "it forces!" probe was confounded — the prompt was "make a card titled Z", which the model calls anyway. On a
