@@ -5,6 +5,7 @@ import {
 	decideChatActionAccess,
 } from "../../../src/chat/chat-execution-mode";
 import {
+	auditDetailForManifest,
 	decideManifestChatAccess,
 	KANBAN_TOOL_MANIFESTS,
 	manifestForChatAction,
@@ -146,11 +147,38 @@ describe("tool-capability-manifest — external-action (egress) gate, prime-dire
 		expect(decideManifestChatAccess(egressRead, "host").decision).not.toBe("allow");
 	});
 
+	it("audits egress at the FULL tier (external-action policy)", () => {
+		expect(auditDetailForManifest(egressRead)).toBe("full");
+	});
+
 	it("leaves non-egress manifests byte-identical (network gate only triggers on egress)", () => {
 		// Every authored manifest today is networkLevel:"none" — the egress branch must be inert for all of them.
 		for (const action of ACTIONS) {
 			const withEgress = decideManifestChatAccess(manifestForChatAction(action), "host");
 			expect(withEgress.reason).not.toContain("egress");
+		}
+	});
+});
+
+describe("auditDetailForManifest (§5.AF research addendum)", () => {
+	it("audits host actions + egress at FULL, workspace mutations at SUMMARY, sandbox reads at NONE", () => {
+		expect(auditDetailForManifest(manifestForChatAction("sandbox_read"))).toBe("none");
+		expect(auditDetailForManifest(manifestForChatAction("sandbox_write"))).toBe("summary");
+		expect(auditDetailForManifest(manifestForChatAction("control_plane"))).toBe("summary");
+		expect(auditDetailForManifest(manifestForChatAction("host_read"))).toBe("full"); // host scope
+		expect(auditDetailForManifest(manifestForChatAction("host_write"))).toBe("full");
+		expect(auditDetailForManifest(manifestForChatAction("host_command"))).toBe("full");
+	});
+
+	it("mirrors the tiers for the NKlein kanban tools (reads none, writes summary)", () => {
+		expect(auditDetailForManifest(manifestForKanbanTool("read_files") as ToolCapabilityManifest)).toBe("none");
+		expect(auditDetailForManifest(manifestForKanbanTool("write_file") as ToolCapabilityManifest)).toBe("summary");
+		expect(auditDetailForManifest(manifestForKanbanTool("apply_patch") as ToolCapabilityManifest)).toBe("summary");
+	});
+
+	it("never returns none for anything mutating or off-workspace (audit floor)", () => {
+		for (const action of ["sandbox_write", "control_plane", "host_read", "host_write", "host_command"] as const) {
+			expect(auditDetailForManifest(manifestForChatAction(action))).not.toBe("none");
 		}
 	});
 });

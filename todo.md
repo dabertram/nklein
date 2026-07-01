@@ -6099,7 +6099,12 @@ source repo went private — so if it vanishes the buildable source still lives 
         chat + NKlein tiers (reads always allow; sandbox writes confirm in isolated_readonly, allow in host-capable modes).
         7 tests. **STILL OWED:** the CONTENT-policy approval paths (path scope · file size · line limit · secrets ·
         protected tests in `nklein-runtime-setup.ts`) — separate guards not yet on the manifest — plus the gate wiring.
-  - [ ] Add research-addendum fields: `allowedRunStates`, source/sink taint labels, semantic error contracts, replay mode.
+  - [~] Add research-addendum fields: `allowedRunStates`, source/sink taint labels, semantic error contracts, replay mode.
+        **`auditDetail` DONE (2026-07-01):** `auditDetailForManifest(manifest)` in [tool-capability-manifest.ts](src/core/tool-capability-manifest.ts)
+        DERIVES the tier from blast radius (host/egress → `full`; sandbox/control-plane mutation → `summary`; sandbox read →
+        `none`) rather than storing a field — so it can't drift from the capability fields, and gives the audit trail one policy
+        to consume off the same manifest the gate uses. 14 tests (incl. an audit-floor invariant: nothing mutating/off-workspace
+        is ever `none`). Owed: `allowedRunStates` (state gating) · source/sink taint labels · replay mode.
   - [ ] Implement the unified gate: wire all 3 call sites (chat, delivery, NKlein) to `decideManifestAccess`.
   - [ ] Verify that all 18 (mode × action) test cases still pass + all existing rulesets are preserved.
 - [ ] **Resource governance (operational, NOT perf-benchmarking), decomposed:**

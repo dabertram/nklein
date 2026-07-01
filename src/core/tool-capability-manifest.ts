@@ -216,3 +216,27 @@ export interface ToolActionDecision {
 	decision: ChatActionDecision;
 	reason: string;
 }
+
+/**
+ * How much of an action to record in the audit trail (§5.AF research addendum: `auditDetail` on the manifest). Derived
+ * from blast radius rather than stored, so it can't drift from the capability fields:
+ *  - `none`    — a sandbox read (no side effect; nothing to audit beyond the fact it ran).
+ *  - `summary` — a sandbox/control-plane mutation (record what changed; stays inside the workspace/board).
+ *  - `full`    — a HOST action or any NETWORK egress (the audit's external-action policy: capture the full request).
+ */
+export type ToolAuditDetail = "none" | "summary" | "full";
+
+/**
+ * The audit-detail tier for a manifested action, derived purely from its capability fields. Egress + host actions are the
+ * high-consequence, potentially-external ones → `full`; workspace mutations → `summary`; sandbox reads → `none`. Gives the
+ * audit trail a single policy to consume, keyed off the same manifest the gate uses.
+ */
+export function auditDetailForManifest(manifest: ToolCapabilityManifest): ToolAuditDetail {
+	if (manifest.networkLevel === "egress" || manifest.fsScope === "host" || manifest.mutationLevel === "host_write") {
+		return "full";
+	}
+	if (manifest.mutationLevel === "sandbox_write" || manifest.mutationLevel === "control_plane") {
+		return "summary";
+	}
+	return "none";
+}
