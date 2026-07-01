@@ -375,7 +375,7 @@
 | google/gemma-4-26b-a4b-qat | 26B MoE | ◑ | 4/4 ✅ | 🧩 weak | 34s | **NEW catalog entry** (TOOL_CAPABLE) — far stronger chaining than its e4b sibling |
 | mlx-qwopus3.5-27b-v3 | 27B | ◑ | 4/4 ✅ | 🧩 weak | 301s | 🐢 MLX 27B latency outlier (vs the 26B-qat at 34s); chain ✓, synth weak |
 | **qwen3.5-122b-a10b@4bit** | 122B MoE | ✅ | 4/4 ✅ | 🚀 **full** | 77s | 🚀 **strongest all-round** — native chain + full synth, healthy 77s (A10B active). **NEW high-tier entry** (was 9B-calibrated) |
-| qwen3-14b | 14B | · | · | · | — | skip — resident on `davidlegion5pro` only, not Local (m5 can't load it) |
+| qwen3-14b | 14B | ⏳ | — | — | — | **queued** — resident on `davidlegion5pro`; loadable *there* via a device-targeted load (2026-07-01 correction: not "can't load", just not onto m5). Swept in the legion run below |
 | ornith-1.0-35b-mlx@4bit | 35B | ❌ | — | — | — | 🐞 **LOAD-FAILED 3/3** (`lms load` exit 1 at ~2%, no diagnostic). NOT headroom (111.9 GiB free) — a broken/incompatible MLX checkpoint (@8bit sibling too). Guard behaved correctly; not forced |
 > `*` nemotron echoed the marker but never ran steps 2-4 — narration, not execution (so not a real synthesis win).
 >
