@@ -4885,11 +4885,18 @@ source repo went private — so if it vanishes the buildable source still lives 
         (`resolveLoadedModelProfile`, router affinity, builder — extracted to
         [nklein-loaded-model-profile.ts](src/nklein-agent/nklein-loaded-model-profile.ts), commit b… ) are unit-tested but
         the live glue is integration-only.
+        **LEARNING LOOP ALREADY CLOSED (verified 2026-07-01):** `buildTerminalAttemptEvent`
+        ([nklein-ledger-attempt.ts](src/nklein-agent/nklein-ledger-attempt.ts)) writes every terminal run's model +
+        outcome + difficulty to the §5.AF ledger; `summarizeModelOutcomes` → `blendCapabilityWithLedgerEvidence` feeds it
+        back as the candidate's `observedCapability` at selection. So the affinity-selected model's real outcome improves
+        the NEXT selection — select → run → record → blend is complete (per-MODEL success rate; a finer per-(skill×model)
+        fitness store is the future enhancement, item above).
         **STILL OWED:** (1) live §5.Z re-verify across the 3 machines (multi-card run: distinct best-fit models per card,
-        no endpoint deadlock, clean teardown) — the glue (descriptor fetch → resolveLaunchConfig per model → candidate) is
-        not exercised by CI. (2) chain llmfit's cached score AHEAD of the catalog prior (see
-        [integrations.md](docs/dev/integrations.md)). (3) opt-in load orchestration (the (b) decision). (4) record the
-        per-task model choice + outcome on the §5.AF ledger so selection LEARNS (feeds the fitness store).
+        no endpoint deadlock, clean teardown) — the start-path glue (descriptor fetch → resolveLaunchConfig per model →
+        candidate) is not exercised by CI. (2) chain llmfit's cached score ahead of the catalog prior — LOW marginal value
+        for the user's CUSTOM loaded models (qwopus/ornith aren't in llmfit's HF DB; the catalog + name heuristics already
+        cover them), so deprioritized vs public-model setups (see [integrations.md](docs/dev/integrations.md)). (3) opt-in
+        load orchestration (the (b) decision).
   - [~] raise the autonomous wall-time / turn guardrails to tolerate slow parallel multi-model runs.
         **PROFILE DONE (2026-06-29):** `PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS`
         ([runtime-config-api-contract.ts](src/core/runtime-config-api-contract.ts)) — 48 turns / 8h wall-time / 8 no-diff
