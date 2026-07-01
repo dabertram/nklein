@@ -4928,9 +4928,13 @@ source repo went private — so if it vanishes the buildable source still lives 
         (deviceIdentifier ?? "local"), isEmbedding, status, queued, … }` + `groupModelsByMachine`. This is the RELIABLE
         per-machine key the REST `/api/v1/models` lacks — LM Link shares all machines behind one endpoint, but `lms ps`
         reports each instance's owning device (verified live: null=local m5max, `2d30…`=m4mini, `040891…`=legion, matching
-        `lms link status`). 6 tests. **STILL OWED (wiring):** thread `machineId` onto running sessions + make the §6.5 /
-        §5.AF concurrency gate count per-MACHINE (not per shared endpoint), so each machine admits up to its own cap; feed
-        `queued`/`status` into free-first. Behavior-changing on the hot path ⇒ needs the live multi-machine §5.Z re-verify.
+        `lms link status`). 6 tests. **FIRST CONSUMER — LIVE (2026-07-01, ae8935a4/fbc49bd1):** `nklein dev swarm`
+        ([nklein-swarm-view.ts](src/nklein-agent/nklein-swarm-view.ts) + [lms-link-status.ts](src/core/lms-link-status.ts))
+        prints the loaded models grouped by MACHINE NAME (hex deviceId → `lms link status` deviceName: m5max/m4mini/
+        legion) with each model's auto-selection affinity + prior + queue depth — verified live across the 3 machines.
+        **STILL OWED (wiring):** thread `machineId` onto running sessions + make the §6.5 / §5.AF concurrency gate count
+        per-MACHINE (not per shared endpoint), so each machine admits up to its own cap; feed `queued`/`status` into
+        free-first. Behavior-changing on the hot path ⇒ needs the live multi-machine §5.Z re-verify.
   - [~] per-pool concurrency accounting — extend the §6.5 per-endpoint serialize + the §5.AF durable scheduler's
         lease/admission so each pool admits up to its `maxConcurrency` independently (no global single-lane).
         **CONFIG-RESOLUTION CORE DONE (2026-06-29):** added a third **per-ENDPOINT** grain to
