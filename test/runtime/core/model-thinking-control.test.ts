@@ -21,6 +21,16 @@ describe("getThinkingControl / supportsThinkingControl", () => {
 		// a plain qwen3 (no r1/deepseek marker) still gets the switch.
 		expect(supportsThinkingControl("qwen/qwen3-8b")).toBe(true);
 	});
+
+	it("EXCLUDES qwen3.5 — matches /qwen3/ by name but IGNORES /no_think (live-verified 2026-07-01)", () => {
+		// qwen3.5 (arch qwen3_5) is NOT the qwen3 that honors the soft switch — it always reasons; no switch.
+		expect(getThinkingControl("qwen3.5-9b-mlx-m4")).toBeNull();
+		expect(getThinkingControl("qwen3.5-9b-mtp-q4-k-xl-legion5pro")).toBeNull();
+		expect(supportsThinkingControl("qwen3.5-9b")).toBe(false);
+		expect(applyThinkingDisable("Do it.", "qwen3.5-9b-mlx-m4")).toBe("Do it."); // no-op, not a false /no_think
+		// the real qwen3 is unaffected by the exclusion.
+		expect(supportsThinkingControl("qwen3-8b")).toBe(true);
+	});
 });
 
 describe("applyThinkingDisable", () => {
