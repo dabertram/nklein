@@ -2331,9 +2331,13 @@ source repo went private — so if it vanishes the buildable source still lives 
         `createKanbanContextFocusExtension(contextWindow,…)`, which does NOT receive the endpoint/model — so wiring needs (a)
         thread `baseUrl`+`modelId` into that extension (multi-layer), (b) read `context.request.tools` + the latest step message,
         (c) construct a fetch phase-1 caller (budget generous for reasoning), (d) `narrowToolsForStep` → return `{ tools }`, all
-        behind `NKLEIN_TWO_PHASE_TOOL_PICK` + catch-guarded (default byte-identical). The glue is I/O in the CRITICAL session loop
-        and its VALUE (does narrowing improve task success, at what latency?) needs real-swarm measurement — do it as a focused,
-        measured pass, not blind.
+        behind `NKLEIN_TWO_PHASE_TOOL_PICK` + catch-guarded (default byte-identical). **WIRED END-TO-END (2026-07-01):**
+        `createKanbanContextFocusExtension` takes an optional `twoPhasePickCaller`; `beforeModel` narrows `context.request.tools`
+        via `narrowToolsForStep` (catch-guarded ⇒ any failure leaves the turn unchanged); the call site builds a real
+        `createOpenAiCompatPhaseOnePickCaller(request.baseUrl, request.modelId)` ONLY when the flag is set. Full suite (4239) green
+        with the flag OFF ⇒ default path byte-identical. `latestStepText` + the caller URL normalization unit-tested; the narrowing
+        core fake-tested. **The ONLY residual is now MEASUREMENT:** enable the flag under a real multi-card swarm and measure
+        whether per-turn narrowing improves task success vs. its extra-call latency — keep it opt-in until the evidence says default-on.
   - [~] **Typed semantic error contract** — define `{ code, field, expected, received, retryable, minimalValidExample,
         suggestedNextAction }` and emit it (not prose) on every tool-arg rejection; unit-test the builder. **(2026-06-29, batch #2)**
         CONTRACT done: `src/core/tool-error-contract.ts` — `toolErrorContractSchema` (zod) + `formatToolError` (compact, model-friendly)

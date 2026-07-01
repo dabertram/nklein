@@ -10,6 +10,7 @@ import {
 	type RuntimeTaskImage,
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
+import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
@@ -77,6 +78,8 @@ import {
 	type NKleinSdkToolApprovalResult,
 	type NKleinSdkUserInstructionService,
 } from "./sdk-runtime-boundary";
+import { createOpenAiCompatPhaseOnePickCaller, latestStepText, narrowToolsForStep } from "./two-phase-before-model";
+import type { TwoPhasePickModelCaller } from "./two-phase-tool-runner";
 
 export { NKLEIN_MODEL_CATALOG_DEFAULTS } from "./sdk-provider-boundary";
 
@@ -219,6 +222,9 @@ function createKanbanContextFocusExtension(
 	// acceptable for codebase orientation.
 	orientationWorkspacePath: string,
 	contextWindow?: number | null,
+	// §5.O opt-in two-phase tool narrowing: when supplied (only when NKLEIN_TWO_PHASE_TOOL_PICK is set), beforeModel runs a
+	// phase-1 pick over the offered tools and narrows the request's tools to it. Undefined ⇒ inert (byte-identical default).
+	twoPhasePickCaller?: TwoPhasePickModelCaller,
 ): NKleinSdkRuntimeExtension {
 	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, agentPerceivedCwd);
 	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
@@ -268,7 +274,27 @@ function createKanbanContextFocusExtension(
 				// plan across turns and after compaction. No-op when there is no chain (and no stale rail to strip).
 				const baseMessages = result?.messages ?? context.request.messages;
 				const messages = reanchorFocusChainMessages(baseMessages, focusChainBySessionId.get(sessionId) ?? null);
-				return messages === baseMessages ? result : { ...result, messages };
+				let finalResult = messages === baseMessages ? result : { ...result, messages };
+				// §5.O opt-in two-phase tool narrowing (inert without a caller ⇒ byte-identical default): run a phase-1 pick
+				// over the offered tools and narrow the request's tools to it. Catch-guarded — any failure leaves the turn
+				// unchanged, so the ON path can only help (a narrowed set) or no-op, never break the turn.
+				if (twoPhasePickCaller) {
+					const offeredTools = (context.request as unknown as { tools?: { name: string }[] }).tools ?? [];
+					const step = latestStepText(
+						context.request.messages as unknown as { role?: string; content?: unknown }[],
+					);
+					if (offeredTools.length >= 2 && step) {
+						const narrowed = await narrowToolsForStep({
+							tools: offeredTools,
+							step,
+							callModel: twoPhasePickCaller,
+						}).catch(() => offeredTools);
+						if (narrowed.length !== offeredTools.length) {
+							finalResult = { ...(finalResult ?? {}), tools: narrowed } as typeof finalResult;
+						}
+					}
+				}
+				return finalResult;
 			},
 			async afterModel(context) {
 				// Robustness over teaching: if a weak model narrated its tool call as `<tool_call>` text instead of a
@@ -923,6 +949,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							// doesn't exist on the host, which previously left the repo map silently empty.
 							hostWorkspaceRoot,
 							request.contextWindow,
+							// §5.O opt-in two-phase tool narrowing: construct a phase-1 pick caller ONLY when the flag is set and
+							// we have a local endpoint+model — otherwise undefined ⇒ the extension's narrowing is inert.
+							isTruthyEnv(process.env.NKLEIN_TWO_PHASE_TOOL_PICK) && request.baseUrl && request.modelId
+								? createOpenAiCompatPhaseOnePickCaller({ baseUrl: request.baseUrl, modelId: request.modelId })
+								: undefined,
 						),
 					],
 					...(request.userInstructionService ? { userInstructionService: request.userInstructionService } : {}),
