@@ -1164,7 +1164,14 @@ source repo went private — so if it vanishes the buildable source still lives 
       semantics (retry-node / refine-spec / split-node / add-dependency / invalidate-downstream / re-review /
       global-re-decompose-only-as-last-resort).
   - [ ] **Localization provider (read-only, cannot edit):**
-    - [ ] define a `LocalizationProvider` port + result type (file/symbol/line spans), wired as the kernel's `localize` dep.
+    - [x] define a `LocalizationProvider` port + result type (file/symbol/line spans), wired as the kernel's `localize` dep.
+          **DONE (2026-07-01):** [src/core/localization-provider.ts](src/core/localization-provider.ts) — `LocalizationHit`
+          (file · optional symbol · 1-based line span · score · reason), `LocalizationQuery`, the read-only `LocalizationProvider`
+          port (returns locations only — CANNOT edit, the phase-gating invariant), `localizationHitToRef` (compact
+          `file[:symbol|:span]`), `rankLocalizationHits` (score desc, unscored last, stable), and
+          `localizationProviderAsKernelLocalize(provider, query)` — adapts a rich provider to the kernel's existing
+          `localize: () => Promise<readonly string[]>` (rank → flatten → de-dupe), so a backing drops in with NO kernel change.
+          7 tests. Owed: the BACKING impl (evaluate `codebase-memory-mcp` FIRST, then MCP-backed or native-index provider).
     - [ ] **FIRST — before building ANY custom lookup below — evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)
           as the `localize` backing (and/or a token-frugal agent retrieval tool), per the §4A "prefer existing solutions"
           directive.** (DeusData, MIT, single static local binary, 100% local + no telemetry, 158 languages, persistent
