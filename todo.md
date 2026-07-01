@@ -3165,8 +3165,10 @@ source repo went private — so if it vanishes the buildable source still lives 
       logic-dense, security/correctness-critical parsers: `parseProjectAddRequest` (path/gitUrl cross-field + the trim-check
       stricter than the schema refine), `parseNKleinAddProviderRequest` (providerId slugification, model trim/filter/dedup,
       model-or-source rule, empty-name reject), `parseGitCheckoutRequest` (trim+non-empty), `parseWorkspaceFileSearchRequest`
-      (blank-query short-circuit, positive-int limit parse, invalid-limit reject). Owed (lower-value, same pattern): the MCP
-      server-normalization + dup-detection parser + the repetitive trim/empty task-id parsers (one representative now covered).
+      (blank-query short-circuit, positive-int limit parse, invalid-limit reject). **MCP parser also covered (2026-07-01,
+      7 tests):** `parseNKleinMcpSettingsSaveRequest` — case-insensitive duplicate-name reject, stdio name/command trim +
+      empty-arg filter + empty-command reject, http url trim + empty-value header filter, absent-optional-args omitted.
+      Owed (lower-value, same pattern): the repetitive trim/empty task-id parsers (one representative — `parseGitCheckoutRequest` — covered).
 - [~] **Pipeline e2e** — decompose → plan-graph → planning/refinement lane → parallel run → review → merge, on new
       dev-test fixtures (small + large/complex), live model + Docker. Assert the tiny-piece decomposition + iteration path.
       **Live-verified the INFRA (2026-06-26, qwen3-8b + Docker 29.4.3 + `nklein/agent-sandbox:0.0.1`):**
