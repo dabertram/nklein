@@ -8768,6 +8768,45 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       available substitute.)
 
 ### 5.AQ — Context economy: tiered sysprompt + cache-aware layout + resource frugality *(2026-06-29, user — research done, NOT started)*
+> **SWARM-SCALE PROMPT-CACHING (user 2026-07-02 — "keep in mind, find suitable approaches, do proper online research"):**
+> *"we need to keep in mind (and find suitable approaches and solutions) about making proper use of prompt caching —
+> especially with all these 'extra tasks' and 'task → dynamic skill-set → model mapping' and such. Keeping prompt
+> processing efficient might become a real challenge. Not yet sure how big the issue could be and how we can nicely
+> solve it — let's find out."*
+>
+> **Why this is now acute:** the swarm multiplies PROMPT VARIETY per endpoint — every card start, `::review`,
+> `::plan-critique`, `::merge`, `::acceptance` re-drive, escalation takeover, and (soon) dynamic skill-set injection
+> and per-card model rotation builds a DIFFERENT large prompt, and local prefill is the dominant latency on small
+> machines. **We already measure it** (W2.3b's `prompt_prefix_reuse` observation): live runs show ~**8% byte-share**
+> between consecutive session starts on the same model — i.e. today virtually every start is a full re-prefill.
+> Interleaving different sessions on one endpoint likely also EVICTS the server-side KV cache between turns of the
+> same session (llama.cpp caches per slot/context; a different prompt in between = cache gone).
+> - [ ] **Measure first (the tooling exists):** aggregate `prompt_prefix_reuse` + LM Studio `lms log stream --stats`
+>       prefill times across a fleet run → quantify tokens re-prefilled per run, per model, per session KIND; add a
+>       per-run "prefill waste" line to the `dev ledger` efficiency scoreboard so the size of the problem is a number,
+>       not a feeling.
+> - [ ] **ONLINE RESEARCH (explicitly requested):** llama.cpp prompt-caching mechanics (slot cache, `cache_reuse`/
+>       chunked prefix reuse, how many cached contexts per model, eviction on prompt divergence), what LM Studio
+>       exposes/keeps per request (parallel slots? per-conversation cache keyed how?), MLX prompt-cache behavior on
+>       Apple Silicon, vLLM-style paged/prefix caching options viable for LOCAL serving, and community/practitioner
+>       findings on multi-agent prompt-cache thrash + mitigations. Deliver: a docs/dev note + concrete !Klein rules.
+> - [ ] **Candidate approaches to evaluate (design sketch, refine with research):**
+>       (a) **Stable per-model prompt SHELL:** one byte-identical prefix per model (base rules + tool schemas in a
+>       FIXED order) shared by ALL session kinds; everything task-specific (card prompt, skill pack, scope, date)
+>       strictly appended by volatility (the W2.3b assembler already orders — extend it to cover the SDK base prompt
+>       + tool-schema portion, which is where the per-task cwd currently breaks sharing at byte ~0).
+>       (b) **Skill-set injection as late suffix:** the task→skill-set→model mapping must inject skill packs AFTER the
+>       shared shell, never interleaved into it; skill packs themselves byte-stable (versioned, not templated per task).
+>       (c) **Cache-affinity scheduling:** the endpoint scheduler prefers routing consecutive turns of the SAME session
+>       (and same-shell sessions) to the same endpoint/slot, and avoids ping-ponging two long-prompt sessions across
+>       one slot (ties into §5.AB per-machine pools + the eager scheduler; a "cache-warmth" score per endpoint).
+>       (d) **Synthetic-session diet:** ::review/::critique/::merge seeds are already `contextScope: minimal` — verify
+>       their shells share the per-model prefix too (the 8% number came from exactly these).
+>       (e) **Prefill budgeting in routing:** the model-selection cost function should count EXPECTED PREFILL (prompt
+>       size × cache-miss likelihood ÷ prefill speed) not just decode speed — a slightly weaker model with a warm
+>       cache can beat a stronger cold one for short tasks.
+> - [ ] **Success bar:** measured reuseRatio for same-model consecutive starts ≥70% after the shell work (from ~8%),
+>       and a visible prefill-seconds-per-run drop in the sweep log at equal quality.
 > **Vision (user, 2026-06-29):** a user-facing **"sysprompt size" setting** with **4–5+ levels**, PLUS an **auto** mode that
 > adjusts sys-prompt depth to (a) the actually-available context window and (b) the context the TASK needs, PLUS intent
 > modes: **"minimize"** vs **"balance prompt + task info"** vs **"max actual task information"**. !Klein must **NEVER waste
