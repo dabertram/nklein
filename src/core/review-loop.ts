@@ -34,7 +34,13 @@ export type ReviewLoopAction =
 	| { action: "deliver"; reason: string }
 	/** Changes requested and progress is still possible — send back to the worker with the feedback. */
 	| { action: "bounce_to_worker"; reason: string }
-	/** Stop the loop and park for the human (round limit, stall, or identical loop). */
+	/**
+	 * W4.2 (DECIDED 2026-07-02: escalate-then-park): the loop is stuck (stall / identical loop / recurring
+	 * feedback / round limit) but an untried STRONGER or DIFFERENT-LINEAGE worker exists — retry the card there
+	 * before giving up. The caller picks the model (reuse buildEscalationOverrides / applyDiversityPreference).
+	 */
+	| { action: "escalate_worker"; reason: string }
+	/** Stop the loop and park for the human (stuck AND escalation exhausted/unavailable). */
 	| { action: "park"; reason: string };
 
 export interface DecideReviewLoopInput {
@@ -49,6 +55,13 @@ export interface DecideReviewLoopInput {
 	workFingerprint: string | null;
 	/** Prior review rounds for this card, oldest first. */
 	history: readonly ReviewRoundRecord[];
+	/**
+	 * W4.2: an untried stronger/different-lineage worker is available for escalation. Absent/false ⇒ the
+	 * historical park-only behavior (byte-identical).
+	 */
+	escalationAvailable?: boolean;
+	/** W4.2: this card already used its one escalation — a second stuck round parks for the human. */
+	alreadyEscalated?: boolean;
 }
 
 export function decideReviewLoopAction(input: DecideReviewLoopInput): ReviewLoopAction {
@@ -56,6 +69,14 @@ export function decideReviewLoopAction(input: DecideReviewLoopInput): ReviewLoop
 		return { action: "deliver", reason: "Reviewer approved the work." };
 	}
 	const maxRounds = input.maxRounds ?? DEFAULT_MAX_REVIEW_ROUNDS;
+	// W4.2 escalate-then-park: a STUCK loop retries on a stronger/diverse worker once before parking.
+	const stuck = (reason: string): ReviewLoopAction =>
+		input.escalationAvailable && !input.alreadyEscalated
+			? {
+					action: "escalate_worker",
+					reason: `${reason} Escalating to a stronger/different-lineage worker before parking.`,
+				}
+			: { action: "park", reason: `${reason} Parking for a human.` };
 
 	// Identical loop: the same change request on the same unchanged work as an earlier round.
 	if (input.workFingerprint !== null && input.feedbackFingerprint !== null) {
@@ -66,28 +87,28 @@ export function decideReviewLoopAction(input: DecideReviewLoopInput): ReviewLoop
 				record.workFingerprint === input.workFingerprint,
 		);
 		if (identical) {
-			return {
-				action: "park",
-				reason: "Review is looping: the same change request on unchanged work. Parking for a human.",
-			};
+			return stuck("Review is looping: the same change request on unchanged work.");
+		}
+		// Recurring-feedback guard (audit W4.2): the SAME change request keeps coming back even though the diff
+		// churns — semantic non-progress the raw work-fingerprint equality misses (the worker changes code without
+		// addressing the feedback).
+		const recurringFeedback = input.history.filter(
+			(record) => record.verdict === "request_changes" && record.feedbackFingerprint === input.feedbackFingerprint,
+		).length;
+		if (recurringFeedback >= 2) {
+			return stuck("Review is not progressing: the same change request has recurred across churning diffs.");
 		}
 	}
 
 	// Stall: the worker produced no change since the previous review round.
 	const previous = input.history.at(-1);
 	if (previous && input.workFingerprint !== null && previous.workFingerprint === input.workFingerprint) {
-		return {
-			action: "park",
-			reason: "Review stalled: the worker made no changes after the last review. Parking for a human.",
-		};
+		return stuck("Review stalled: the worker made no changes after the last review.");
 	}
 
 	// Round limit.
 	if (input.round >= maxRounds) {
-		return {
-			action: "park",
-			reason: `Reached the review round limit (${maxRounds}) without approval. Parking for a human.`,
-		};
+		return stuck(`Reached the review round limit (${maxRounds}) without approval.`);
 	}
 
 	return {

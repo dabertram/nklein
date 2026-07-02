@@ -123,3 +123,57 @@ describe("decideReviewLoopAction", () => {
 		expect(result.action).toBe("park");
 	});
 });
+
+describe("decideReviewLoopAction escalation rungs (W4.2 — escalate-then-park)", () => {
+	it("a stalled loop ESCALATES when an untried stronger/diverse worker exists", () => {
+		const action = decideReviewLoopAction({
+			verdict: "request_changes",
+			round: 2,
+			feedbackFingerprint: "fb2",
+			workFingerprint: "same-work",
+			history: [{ round: 1, verdict: "request_changes", feedbackFingerprint: "fb1", workFingerprint: "same-work" }],
+			escalationAvailable: true,
+		});
+		expect(action.action).toBe("escalate_worker");
+	});
+
+	it("parks when the one escalation was already used", () => {
+		const action = decideReviewLoopAction({
+			verdict: "request_changes",
+			round: 2,
+			feedbackFingerprint: "fb2",
+			workFingerprint: "same-work",
+			history: [{ round: 1, verdict: "request_changes", feedbackFingerprint: "fb1", workFingerprint: "same-work" }],
+			escalationAvailable: true,
+			alreadyEscalated: true,
+		});
+		expect(action.action).toBe("park");
+	});
+
+	it("recurring feedback across CHURNING diffs is stuck (semantic non-progress)", () => {
+		const action = decideReviewLoopAction({
+			verdict: "request_changes",
+			round: 3,
+			feedbackFingerprint: "same-feedback",
+			workFingerprint: "work-v3",
+			history: [
+				{ round: 1, verdict: "request_changes", feedbackFingerprint: "same-feedback", workFingerprint: "work-v1" },
+				{ round: 2, verdict: "request_changes", feedbackFingerprint: "same-feedback", workFingerprint: "work-v2" },
+			],
+			escalationAvailable: false,
+		});
+		expect(action.action).toBe("park");
+		expect(action.reason).toContain("recurred");
+	});
+
+	it("defaults (no escalation flags) keep the historical park behavior", () => {
+		const action = decideReviewLoopAction({
+			verdict: "request_changes",
+			round: 25,
+			feedbackFingerprint: "fb",
+			workFingerprint: "w",
+			history: [],
+		});
+		expect(action.action).toBe("park");
+	});
+});
