@@ -9315,6 +9315,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **Ordering:** UI wizards land with/after the §5.AX overhaul (they are prime §5.AX surfaces — dark-first,
 >       cool-technical); the completion-stamp config fields + detection probes can land earlier as pure runtime work.
 >
+### 5.BC — Board dependency-edge visualization *(2026-07-02 late, user — "rather one of the next steps")*
+> **User directive:** "check about visualizing the task/card graph edges .. maybe only as activate-able if it
+> would just draw disturbing lines everywhere .. visualization shall be decent, lean, non-disturbing as possible,
+> but comprehensive and intuitive." Converges with W3.4 §5.AU (clickable status-colored DAG, pan/zoom, cycle
+> edges marked) — but this asks specifically about edges ON/AROUND the kanban board itself.
+> - [ ] **Evaluate on-board edges first:** cards live in columns, so raw dependency lines cross the whole board —
+>       likely "disturbing lines everywhere". Candidate lean forms to prototype against real 12+-card DAGs:
+>       (a) HOVER/SELECT-scoped edges — select a card → only ITS dependency chain draws (upstream one color,
+>       downstream another; klein cyan/violet semantics), nothing drawn at rest; (b) a persistent TOGGLE
+>       ("show dependencies") for the all-edges view with heavy de-emphasis (thin, low-alpha, rounded orthogonal
+>       routing); (c) edge BADGES instead of lines at rest (a card shows "⇠2 ⇢3" counts; hover expands).
+> - [ ] **Dedicated DAG view stays the comprehensive surface** (W3.4): status-colored nodes, pan/zoom, cycle
+>       marking; the board gets the LEAN treatment, the DAG view gets the COMPLETE one.
+> - [ ] Bar: decent · lean · non-disturbing at rest · comprehensive on demand · intuitive without a legend.
+> - [ ] Start with mockups on the real run33-class board (13-20 cards, redecompose sub-plans) for user sign-off
+>       before wiring (same flow as the §5.AX mockup rounds).
+
 ### 5.BB — UI complexity modes: chat-only / lean / expert / professional *(2026-07-02 late, user)*
 > **User feedback on the §5.AX overhaul: "looks amazing .. a bit bloated for beginners .. lets stick with the content
 > for now."** So this is recorded, NOT next-up: after the content/features settle, offer selectable UI COMPLEXITY
