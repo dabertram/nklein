@@ -42,7 +42,6 @@ import {
 	FetchWebContentInputSchema,
 	type ReadFileRequest,
 	type ReadFilesInput,
-	ReadFilesInputSchema,
 	ReadFilesInputUnionSchema,
 	type SearchCodebaseInput,
 	SearchCodebaseInputSchema,
@@ -250,12 +249,52 @@ export function createReadFilesTool(
 			`Each read returns at most ${MAX_READ_LINES} lines / ~${Math.round(MAX_READ_OUTPUT_CHARS / 1024)}k characters; longer files report their total line count, page through them with start_line/end_line. ` +
 			"Binary files that are not image and large files are not supported. " +
 			"Returns file contents or error messages for each path. ",
-		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
+		// LENIENT boundary (!Klein 2026-07-03, live-found): the strict schema pre-rejected shapes the
+		// executor's own union accepts — plus the double-encoded variant (`files` sent as a JSON STRING),
+		// which a reviewer emitted live and died on. Boundary tolerates; execute decodes + validates.
+		inputSchema: {
+			type: "object",
+			properties: {
+				files: {
+					type: ["array", "string"],
+					items: {
+						anyOf: [
+							{ type: "string" },
+							{
+								type: "object",
+								properties: {
+									path: { type: "string" },
+									start_line: { type: ["number", "null"] },
+									end_line: { type: ["number", "null"] },
+								},
+								additionalProperties: true,
+							},
+						],
+					},
+					description:
+						"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				},
+			},
+			required: [],
+			additionalProperties: true,
+		},
 		timeoutMs: timeoutMs * 2, // Account for multiple files
 		retryable: true,
 		maxRetries: 1,
 		execute: async (input, context) => {
-			const validate = validateWithZod(ReadFilesInputUnionSchema, input);
+			// Un-encode the double-encoded variant before validation: {"files": "[{\"path\": ...}]"}.
+			let normalizedInput: unknown = input;
+			if (normalizedInput && typeof normalizedInput === "object" && !Array.isArray(normalizedInput)) {
+				const record = normalizedInput as Record<string, unknown>;
+				if (typeof record.files === "string") {
+					try {
+						normalizedInput = { ...record, files: JSON.parse(record.files) };
+					} catch {
+						// Leave as-is; the union validation below produces the actionable error.
+					}
+				}
+			}
+			const validate = validateWithZod(ReadFilesInputUnionSchema, normalizedInput);
 			let requests: ReadFileRequest[];
 			if (typeof validate === "string") {
 				requests = [{ path: validate }];

@@ -398,6 +398,12 @@ async function main(): Promise<void> {
 					lastSeenSessionStamp = freshestStamp;
 					lastProgressAt = Date.now();
 				}
+				// A LIVE synthetic session (::review/::merge/::spec) is progress by definition — reviews are
+				// bounded to 10 min and mirrors to 15 min by the runtime, so trusting liveness cannot hang the
+				// harness (run39: a slow reviewer's 3-4 min tool gaps outran the stamp heuristic mid-grind).
+				if (polledSessions.some(([taskId, s]) => taskId.includes("::") && ALIVE_SESSION_STATES.has(s.state ?? ""))) {
+					lastProgressAt = Date.now();
+				}
 				const anySessionAlive =
 					anyPolledSessionAlive ||
 					[...latestActivityByTask.values()].some((info) => ALIVE_SESSION_STATES.has(info.state));
