@@ -9315,6 +9315,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **Ordering:** UI wizards land with/after the §5.AX overhaul (they are prime §5.AX surfaces — dark-first,
 >       cool-technical); the completion-stamp config fields + detection probes can land earlier as pure runtime work.
 >
+### 5.BE — Small-model max-difficulty excursion: qwopus-4B fleet with per-alias cache rails *(2026-07-03, user — NEXT after run39)*
+> **User directive:** "increase the difficulty for !Klein to the current max .. i like the qwopus 4b model(s) ..
+> load as many as seem reasonable onto the m5max and the legion5pro + 1 or 2 more capable models to do the brain
+> work on m5max. if you assign different model names you can load them multiple times .. lets see if that allows
+> separate prompt caching for each of them. after challenging !Klein for a few iterations (+ fixing/improving
+> what comes to daylight) switch back to the best next steps until everything is done."
+> - [ ] Load plan (headroom-guard governed; m4mini stays OFF-LIMITS): m5max = 1–2 brains (qwopus3.6-27b-v2-mlx;
+>       decide whether gptoss120 stays within headroom) + N qwopus-4B instances under DISTINCT aliases
+>       (`qwop4b-a`, `qwop4b-b`, …); legion5pro = the GPU 4B + additional 4B instances as reasonable (the CPU
+>       co-model 4× slowdown lesson applies — measure, don't assume).
+> - [ ] Per-alias instances ⇒ per-instance KV/prompt caches ⇒ each alias is its own WARM RAIL: wire the warmth
+>       ledger/catalog so aliases are first-class (suitability inherits from the underlying model key).
+> - [ ] Difficulty: hardest available dev-test preset (check the registry beyond complex_dag) + maxConcurrent
+>       sized to the alias count (rails per worker).
+> - [ ] A few convergence iterations at this ceiling (fix what surfaces), then back to the backlog.
+
 ### 5.BD — Schema-tolerance sweep across ALL SDK tool boundaries *(2026-07-03, from fixes #15/#27/#32/#34 + focus-chain)*
 > **Five separate live board-freezes were caused by the same disease:** a STRICT pre-execution schema rejecting a
 > semantically-obvious tool call (feedback:null #15 · tool-name echo #27 · focus-chain `name`→`text` · my
