@@ -835,6 +835,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > 4070m-8gb) so the m5max-128gb stays free for hard/large cards — a big throughput win. Implement early; ties §6.5
 > (endpoint scheduler), §5.AF (durable lease/admission), §5.AB (pool-aware routing). See the ★ per-machine-pools item in §5.AB.
 
+### 5.0.4 — Convergence: the "finalize !Klein" priority stack *(2026-07-02, derived from the live fleet swarm run)*
+> Grounded in today's live fleet run (gpt-oss-120b architect on m5max + coder-gpu/v3-cpu on legion + a worker on m4mini) which drove a real decompose→cascade and surfaced concrete gaps. Priority = **make the swarm reliably PRODUCE WORKING OUTPUT first**, then the chat/board vision, then knowledge, then durability. Feeds the MCF (§5.0.3); does not replace it.
+>
+> **P0 — SWARM RELIABILITY (make it WORK; nothing else matters if the engine mis-produces):**
+> - **P0.1 Decompose validity — the spine.** SHIPPED: `breakDependencyCycles` repair net (a cyclic/no-root architect graph → a startable root; commit 43f32d31). NEXT: **[§5.AV](#5av) valid-by-construction** (the HIGH-effort research bet the user flagged) — make an invalid graph impossible to *emit*, not just repaired.
+> - **P0.2 Delivery reliability.** LIVE-FOUND (single-card PARTIAL): a worker can reach `awaiting_review` and declare done WITHOUT producing a result branch. **"completed" must mean "delivered."** Tie the §5.AA evidence-gate to the delivery gate — reject a "done" with no result-branch/patch evidence; retry/escalate. Highest-value bug after decompose.
+> - **P0.3 Routing robustness.** LIVE-FOUND: a sub-floor (<32k, PRIME DIRECTIVE #3) model configured as ANY role's PRIMARY hard-fails EVERY card start with `routing_escalation` — even cards that don't use that role (a reviewer misconfig killed a decompose card; cost 2 dead runs). Skip an unrunnable role candidate when OTHER valid candidates exist; only hard-fail when NO feasible candidate remains for THIS card. `src/trpc/runtime-api/start-task-session.ts` ~L310.
+>
+> **P1 — AUTO MODEL SELECTION (the vision's "auto-pick best-fit per card"):** §5.AB + §5.AL catalog + the ledger. Today's measured throughput sweet-spots are real routing inputs — **m5max = a multi-model THROUGHPUT FARM (120B@85tok/s; 3 models ≈ 120 tok/s agg, 65GB headroom); legion = run the GPU model ALONE (a co-active CPU model is net-negative); m4mini ≤14B, never a 27B (swaps).** Feed machine/throughput awareness into pool routing. North star: NO manual role→model config ([[auto-model-selection-vision]], [[fleet-throughput-sweet-spots]]).
+>
+> **P2 — CHAT ↔ BOARD BRAIN (main chat as the interface):** §5.AT (board→chat feedback) + §5.AU (streams/addressing) — pure cores DONE, WIRING remains (relay tool, feedback bridge, chat front door, live UI read). "Main chat + the board as the long-term planning brain."
+>
+> **P3 — KNOWLEDGE (index · retrieve · learn):** codebase-memory-mcp (§5.AR — adopt, finish baking the binary into the sandbox image) · online retrieval loop (§5.AC — gated on a web_search backend + an egress greenlight) · Basic Memory MCP "learning" (§5.AR candidate — evaluate).
+>
+> **P4 — DURABILITY + UX:** durable scheduler (§5.AF — unattended/restart-survivable runs) · operator UX (§5.AG).
+>
+> **Sequencing:** P0 is the gate — a swarm that mis-decomposes or falsely-completes makes P1–P4 moot. Drive **P0.2 + P0.3 next** (both live-found, bounded, testable), then **§5.AV** (the big bet), interleaved with the P1 routing improvements today's data directly informs.
+
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
 > clarification; the per-section items below are annotated to match.
