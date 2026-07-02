@@ -288,6 +288,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
 	// missing piece was recovery). Keyed workspace:task; bounded to a single attempt, then the operator owns it.
 	const emptyPatchRedriveAttemptsByTaskKey = new Map<string, number>();
+	// run16 live finding: recovery (deferred-retry + ready-sweep) only fired on COMPLETION — a card that dies
+	// (interrupted/failed, e.g. mid-write on a slow model) produces NO completion, so the board froze with
+	// retryable cards waiting. Debounced per workspace so a burst of summary updates costs one sweep.
+	const lastTerminalRetrySweepAtByWorkspaceId = new Map<string, number>();
+	const TERMINAL_RETRY_SWEEP_DEBOUNCE_MS = 5_000;
 	const queuedStartDrainTimersByWorkspaceId = new Map<
 		string,
 		{
@@ -396,6 +401,43 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				deps.warn(`Could not auto-start linked task ${taskId} for ${scope.workspacePath}: ${message}`);
 			}
 		}
+	};
+	/** run16: retry waiting cards when a card DIES (no completion will fire) — deferred set ∪ ready-sweep. */
+	const retryWaitingCardsAfterTerminal = (
+		scope: RuntimeTrpcWorkspaceScope,
+		service: NKleinTaskSessionService,
+	): void => {
+		const now = Date.now();
+		const last = lastTerminalRetrySweepAtByWorkspaceId.get(scope.workspaceId) ?? 0;
+		if (now - last < TERMINAL_RETRY_SWEEP_DEBOUNCE_MS) {
+			return;
+		}
+		lastTerminalRetrySweepAtByWorkspaceId.set(scope.workspaceId, now);
+		void (async () => {
+			try {
+				const state = await loadWorkspaceState(scope.workspacePath);
+				const activeSessionTaskIds = new Set(
+					service
+						.listSummaries()
+						.filter(
+							(summary) =>
+								summary.state === "running" ||
+								summary.state === "queued" ||
+								summary.state === "awaiting_review",
+						)
+						.map((summary) => summary.taskId),
+				);
+				const sweepTaskIds = listStartableUnstartedTaskIds(state.board, activeSessionTaskIds);
+				const deferredTaskIds = [...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? [])];
+				const candidates = [...new Set([...deferredTaskIds, ...sweepTaskIds])];
+				if (candidates.length > 0) {
+					await autoStartTaskIds(scope, candidates);
+				}
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				deps.warn(`Terminal retry sweep failed for ${scope.workspacePath}: ${message}`);
+			}
+		})();
 	};
 	const autoStartDecompositionRootTasks = async (
 		scope: RuntimeTrpcWorkspaceScope,
@@ -884,6 +926,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}
 				if (summary.state !== "queued" && summary.state !== "running") {
 					drainQueuedTaskStarts(scope, { force: true });
+				}
+				if (summary.state === "interrupted" || summary.state === "failed") {
+					// A dying card fires no completion — retry the waiting cards it can no longer unblock (run16).
+					retryWaitingCardsAfterTerminal(scope, trackedService);
 				}
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
