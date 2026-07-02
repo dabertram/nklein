@@ -149,7 +149,13 @@ export async function startMockLlm(options: { modelId?: string } = {}): Promise<
 		// LOADED model (the mock model is "loaded" so discovery + the no-load guard treat it as resident).
 		if (req.method === "GET" && path === "/api/v0/models") {
 			res.writeHead(200, { "content-type": "application/json" });
-			res.end(JSON.stringify({ object: "list", data: [{ id: modelId, object: "model", state: "loaded" }] }));
+			res.end(
+				JSON.stringify({
+					object: "list",
+					// max_context_length clears the ≥32k floor so the swarm path accepts the mock as a real model.
+					data: [{ id: modelId, object: "model", state: "loaded", max_context_length: 131072 }],
+				}),
+			);
 			return;
 		}
 		if (req.method === "POST" && (path === "/chat/completions" || path === "/v1/chat/completions")) {
