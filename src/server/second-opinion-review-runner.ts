@@ -65,7 +65,12 @@ export interface RunSecondOpinionReviewForTaskInput {
 	workspacePath: string;
 	taskId: string;
 	service: Pick<NKleinTaskSessionService, "runSecondOpinionReviewSession" | "sendTaskSessionInput" | "getSummary"> &
-		Partial<Pick<NKleinTaskSessionService, "verifyTaskAcceptanceInSandbox" | "pickDiverseEscalationModel">>;
+		Partial<
+			Pick<
+				NKleinTaskSessionService,
+				"verifyTaskAcceptanceInSandbox" | "pickDiverseEscalationModel" | "cancelTaskTurn"
+			>
+		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	mutateWorkspaceState?: typeof mutateWorkspaceState;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
@@ -284,6 +289,12 @@ export async function runSecondOpinionReviewForTask(
 			},
 			onPark: async ({ review }) => {
 				await persistReview(review);
+				// Run20 live finding: a parked card's worker session kept CHURNING turns — burning tokens on a card
+				// waiting for a human AND holding its endpoint slot (the scheduler counts `running` sessions), which
+				// starved every queued card routed to the same model for the rest of the run. Parking now QUIESCES
+				// the session: the turn is aborted and the state goes idle (slot freed), while the session stays
+				// resumable — sendTaskSessionInput accepts an idle session, so the human's follow-up just works.
+				await input.service.cancelTaskTurn?.(input.taskId).catch(() => null);
 			},
 		},
 	});

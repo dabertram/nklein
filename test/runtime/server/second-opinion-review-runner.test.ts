@@ -33,11 +33,16 @@ function boardWithCardInReview(): RuntimeBoardData {
 	};
 }
 
-function makeDeps(overrides: { enabled?: boolean; submission?: ReviewSubmissionInput | null; diff?: string | null }) {
+function makeDeps(overrides: {
+	enabled?: boolean;
+	submission?: ReviewSubmissionInput | null;
+	diff?: string | null;
+	maxRounds?: number;
+}) {
 	const board = boardWithCardInReview();
 	const loadRuntimeConfig = vi.fn(async () => ({
 		secondOpinionReviewEnabled: overrides.enabled ?? true,
-		reviewMaxRounds: 20,
+		reviewMaxRounds: overrides.maxRounds ?? 20,
 		modelRoles: { reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } },
 		effectiveModelRoles: { reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } },
 	})) as unknown as never;
@@ -55,6 +60,7 @@ function makeDeps(overrides: { enabled?: boolean; submission?: ReviewSubmissionI
 			: overrides.submission,
 	);
 	const sendTaskSessionInput = vi.fn(async (_taskId: string, _prompt: string, _mode?: string) => null);
+	const cancelTaskTurn = vi.fn(async (_taskId: string) => null);
 	return {
 		loadRuntimeConfig,
 		loadWorkspaceState,
@@ -62,6 +68,7 @@ function makeDeps(overrides: { enabled?: boolean; submission?: ReviewSubmissionI
 		getTaskResultBranchDiff,
 		runSecondOpinionReviewSession,
 		sendTaskSessionInput,
+		cancelTaskTurn,
 	};
 }
 
@@ -166,6 +173,7 @@ describe("runSecondOpinionReviewForTask", () => {
 			runSecondOpinionReviewSession: deps.runSecondOpinionReviewSession,
 			sendTaskSessionInput: deps.sendTaskSessionInput,
 			getSummary: () => null,
+			cancelTaskTurn: deps.cancelTaskTurn,
 		}) as unknown as never;
 
 	it("skips and never starts a session when review is disabled", async () => {
@@ -222,6 +230,39 @@ describe("runSecondOpinionReviewForTask", () => {
 		expect(call?.[0]).toBe("task-1");
 		expect(call?.[1]).toContain("Add a guard");
 		expect(call?.[2]).toBe("act");
+	});
+
+	it("parking QUIESCES the worker session (run20: a parked card churned turns and starved its endpoint)", async () => {
+		// maxRounds 0 forces the loop past its cap on the first request_changes ⇒ park.
+		const deps = makeDeps({
+			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
+			maxRounds: 0,
+		});
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(outcome.type).toBe("parked");
+		expect(deps.cancelTaskTurn).toHaveBeenCalledWith("task-1");
+	});
+
+	it("delivered and bounced outcomes never cancel the worker's turn", async () => {
+		const approve = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+		await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(approve),
+			loadRuntimeConfig: approve.loadRuntimeConfig,
+			loadWorkspaceState: approve.loadWorkspaceState,
+			mutateWorkspaceState: approve.mutateWorkspaceState,
+			getTaskResultBranchDiff: approve.getTaskResultBranchDiff,
+		});
+		expect(approve.cancelTaskTurn).not.toHaveBeenCalled();
 	});
 
 	it("still reviews a no-change result (a no-op result is reviewed, not silently delivered)", async () => {
