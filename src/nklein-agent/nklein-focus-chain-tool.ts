@@ -12,10 +12,55 @@ import type { AgentTool } from "./sdk-agent-types";
  * and the runtime can re-anchor the model on its plan.
  */
 
-export const nkleinFocusChainStepSchema = z.object({
-	text: z.string().min(1),
-	status: z.enum(["pending", "in_progress", "done", "skipped"]).default("pending"),
-});
+/**
+ * Common step-status spellings models emit that map cleanly onto the canonical enum. Same tolerance family as
+ * the verdict tools' #15/#27 hardening: a semantically-obvious call must never die on schema strictness.
+ */
+const FOCUS_CHAIN_STATUS_SYNONYMS: Record<string, "pending" | "in_progress" | "done" | "skipped"> = {
+	"in-progress": "in_progress",
+	"in progress": "in_progress",
+	inprogress: "in_progress",
+	active: "in_progress",
+	wip: "in_progress",
+	complete: "done",
+	completed: "done",
+	finished: "done",
+	todo: "pending",
+	open: "pending",
+	skip: "skipped",
+};
+
+/** Step-label keys models substitute for `text` in the wild (run31 live: gpt-oss-120b sent `name`). */
+const FOCUS_CHAIN_TEXT_ALIAS_KEYS = ["name", "title", "step", "label"] as const;
+
+export const nkleinFocusChainStepSchema = z.preprocess(
+	(value) => {
+		if (value === null || typeof value !== "object" || Array.isArray(value)) {
+			return value;
+		}
+		const record = { ...(value as Record<string, unknown>) };
+		if (typeof record.text !== "string" || record.text.trim().length === 0) {
+			for (const aliasKey of FOCUS_CHAIN_TEXT_ALIAS_KEYS) {
+				const alias = record[aliasKey];
+				if (typeof alias === "string" && alias.trim().length > 0) {
+					record.text = alias;
+					break;
+				}
+			}
+		}
+		if (typeof record.status === "string") {
+			const canonical = FOCUS_CHAIN_STATUS_SYNONYMS[record.status.trim().toLowerCase()];
+			if (canonical) {
+				record.status = canonical;
+			}
+		}
+		return record;
+	},
+	z.object({
+		text: z.string().min(1),
+		status: z.enum(["pending", "in_progress", "done", "skipped"]).default("pending"),
+	}),
+);
 
 export const nkleinFocusChainSubmissionSchema = z.object({
 	steps: z.array(nkleinFocusChainStepSchema),
@@ -28,6 +73,10 @@ export function createNKleinFocusChainTool(options: { onUpdated?: NKleinFocusCha
 		name: "update_focus_chain",
 		description:
 			"Maintain your focus chain — your own ordered checklist of the steps to complete this task. Call this FIRST to draft your plan (a handful of concrete steps), then again as you progress, each time re-sending the FULL list with each step's status (`pending`, `in_progress`, `done`, or `skipped`). Keep exactly one step `in_progress`. This is for staying on-task and showing progress; it does not do the work.",
+		// Deliberately LENIENT at the SDK pre-validation layer (the #15/#27 lesson, re-learned live in run31:
+		// gpt-oss-120b sent `steps[].name` instead of `steps[].text`, the strict schema pre-rejected the call,
+		// and the turn derailed into a text-only stop). The Zod layer normalizes aliases/synonyms; anything it
+		// still can't read gets a corrective `ok:false` instruction the model can act on — never a hard reject.
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -40,20 +89,28 @@ export function createNKleinFocusChainTool(options: { onUpdated?: NKleinFocusCha
 							text: { type: "string", description: "A short, concrete step." },
 							status: {
 								type: "string",
-								enum: ["pending", "in_progress", "done", "skipped"],
-								description: "This step's current status.",
+								description: "This step's status: pending, in_progress, done, or skipped.",
 							},
 						},
-						required: ["text", "status"],
-						additionalProperties: false,
+						required: [],
+						additionalProperties: true,
 					},
 				},
+				name: { type: "string", description: "Ignored. Do not include." },
 			},
 			required: ["steps"],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const parsed = nkleinFocusChainSubmissionSchema.parse(input);
+			const validation = nkleinFocusChainSubmissionSchema.safeParse(input);
+			if (!validation.success) {
+				return {
+					ok: false,
+					instruction:
+						'Could not read `steps`. Send `steps` as an array of objects, each shaped { "text": "<short step>", "status": "pending" | "in_progress" | "done" | "skipped" }, re-sending the FULL list each call.',
+				};
+			}
+			const parsed = validation.data;
 			const chain = normalizeFocusChain(parsed.steps);
 			if (!chain) {
 				return {

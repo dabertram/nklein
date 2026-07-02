@@ -90,12 +90,18 @@ export function decideDecompositionStallRecovery(input: DecompositionStallInputs
 			reason: "Stalled mid read_large_file workflow (likely a tool call narrated as text); continue the read.",
 		};
 	}
-	// Any other tool ran this turn → genuine progress; let the model continue on its own, do not force a decompose.
-	if ((input.lastToolName ?? "").trim().length > 0) {
-		return { action: "none", reason: "A non-read tool ran this turn; not a stall." };
-	}
+	// #30 (run31 live stall): there is NO "a tool ran this turn" exemption at turn-end. An ended turn never
+	// continues on its own — nothing re-invokes the model — so a clean stop without decompose_project strands
+	// the planning card in Review regardless of what bookkeeping ran mid-turn. The live failure: the architect's
+	// update_focus_chain call was REJECTED on validation (a rejected call still records the tool name), it then
+	// emitted the complete decomposition as final TEXT and stopped; the old "a non-read tool ran → genuine
+	// progress" exemption swallowed the re-prompt and froze the whole board.
+	const lastTool = (input.lastToolName ?? "").trim();
 	return {
 		action: "decompose",
-		reason: "Turn ended with no tool call; re-prompt to emit decompose_project.",
+		reason:
+			lastTool.length > 0
+				? `Turn ended without decompose_project (last tool this turn: ${lastTool}); re-prompt to emit it.`
+				: "Turn ended with no tool call; re-prompt to emit decompose_project.",
 	};
 }

@@ -251,6 +251,10 @@ export class DecompositionStallNudger {
 			return;
 		}
 		// action === "decompose"
+		// #30 (run31): the highest-value variant — the model already WROTE the full decomposition, but as final
+		// text instead of a tool call. Tell it to re-emit exactly that content as the call; anything vaguer and a
+		// model may restart its analysis from scratch (or answer in prose again).
+		const finalLooksLikeDecompositionJson = finalText.startsWith("{") && /"tasks"\s*:/.test(finalText);
 		this.callbacks.recordObservation({
 			taskId,
 			workspacePath,
@@ -261,17 +265,24 @@ export class DecompositionStallNudger {
 				category: "decomposition_no_tool_call_stall",
 				lastActivity: activity?.activityText ?? null,
 				hookEventName: activity?.hookEventName ?? null,
+				finalLooksLikeDecompositionJson: finalLooksLikeDecompositionJson ? "true" : "false",
 			},
 		});
 		void this.callbacks
 			.sendTaskSessionInput(
 				taskId,
-				[
-					"Your previous turn ended without calling a tool. Reasoning or thinking alone is not an answer and does not make progress.",
-					"Your next assistant output must be the `decompose_project` tool call itself — not prose, not a plan written as text, not more reasoning.",
-					"Put the slug, title, spec, plan, summary, task graph (with dependsOn, complexity, filesLikelyTouched, acceptanceCommand, knowledgeDebt), and minimumTaskCount in the tool arguments.",
-					"specification.md is the authoritative spec; read only what you still need, then call the tool now.",
-				].join(" "),
+				finalLooksLikeDecompositionJson
+					? [
+							"Your previous message wrote the decomposition as plain JSON text. Text output is never executed — only tool calls are.",
+							"Call `decompose_project` now, passing exactly that JSON as the tool arguments.",
+							"Do not rewrite, shorten, or re-derive the plan; emit the tool call with the same content.",
+						].join(" ")
+					: [
+							"Your previous turn ended without calling a tool. Reasoning or thinking alone is not an answer and does not make progress.",
+							"Your next assistant output must be the `decompose_project` tool call itself — not prose, not a plan written as text, not more reasoning.",
+							"Put the slug, title, spec, plan, summary, task graph (with dependsOn, complexity, filesLikelyTouched, acceptanceCommand, knowledgeDebt), and minimumTaskCount in the tool arguments.",
+							"specification.md is the authoritative spec; read only what you still need, then call the tool now.",
+						].join(" "),
 				"act",
 			)
 			.catch(() => undefined);

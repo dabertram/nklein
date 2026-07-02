@@ -41,6 +41,41 @@ describe("update_focus_chain tool", () => {
 		expect(output).toMatchObject({ ok: false });
 	});
 
+	it("run31 regression: accepts `name` as an alias for `text` instead of pre-rejecting the call", async () => {
+		// gpt-oss-120b sent {"steps":[{"name":"Create task list","status":"in_progress"}]} live; the strict
+		// schema rejected it before execution and the architect turn derailed into a text-only stop.
+		const { chain, output } = await run({ steps: [{ name: "Create task list", status: "in_progress" }] });
+		expect(chain?.steps).toEqual([{ text: "Create task list", status: "in_progress" }]);
+		expect(output).toMatchObject({ ok: true, total: 1 });
+	});
+
+	it("normalizes common status synonyms (completed/in-progress/todo)", async () => {
+		const { chain } = await run({
+			steps: [
+				{ text: "a", status: "completed" },
+				{ title: "b", status: "in-progress" },
+				{ text: "c", status: "todo" },
+			],
+		});
+		expect(chain?.steps).toEqual([
+			{ text: "a", status: "done" },
+			{ text: "b", status: "in_progress" },
+			{ text: "c", status: "pending" },
+		]);
+	});
+
+	it("returns a corrective instruction (not a throw) when steps are unreadable", async () => {
+		const { chain, output } = await run({ steps: [{ status: "pending" }] });
+		expect(chain).toBeNull();
+		expect(output).toMatchObject({ ok: false });
+		expect((output as { instruction: string }).instruction).toContain('"text"');
+	});
+
+	it("#27-style: tolerates a model echoing the tool name at the top level", async () => {
+		const { output } = await run({ name: "update_focus_chain", steps: [{ text: "a", status: "pending" }] });
+		expect(output).toMatchObject({ ok: true, total: 1 });
+	});
+
 	it("reports completion when every step is done or skipped", async () => {
 		const { output } = await run({
 			steps: [

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeTaskHookActivity, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
-import { isChatOnlyDecompositionActivity } from "../../../src/nklein-agent/decomposition-stall-nudger";
+import {
+	DecompositionStallNudger,
+	isChatOnlyDecompositionActivity,
+} from "../../../src/nklein-agent/decomposition-stall-nudger";
 
 function activity(over: Partial<RuntimeTaskHookActivity> = {}): RuntimeTaskHookActivity {
 	return {
@@ -85,5 +88,61 @@ describe("isChatOnlyDecompositionActivity", () => {
 
 	it("is false when there is no activity", () => {
 		expect(isChatOnlyDecompositionActivity(summary(null))).toBe(false);
+	});
+});
+
+describe("DecompositionStallNudger.maybeContinueStalledDecomposition (#30 turn-end path)", () => {
+	function makeNudger(over: { finalMessage: string; toolName: string | null }) {
+		const sent: string[] = [];
+		const observed: Array<Record<string, string | null>> = [];
+		const stalledSummary: RuntimeTaskSessionSummary = {
+			...summary(
+				activity({
+					hookEventName: "agent_end",
+					toolName: over.toolName,
+					finalMessage: over.finalMessage,
+				}),
+			),
+			state: "awaiting_review",
+			reviewReason: "hook",
+		};
+		const nudger = new DecompositionStallNudger({
+			isExplicitDecompositionTask: () => true,
+			getTaskSummary: () => stalledSummary,
+			resolveProviderId: () => "lmstudio",
+			resolveModelId: () => "gptoss120-m5",
+			resolveWorkspacePath: () => null,
+			recordObservation: (params) => {
+				observed.push(params.metadata);
+			},
+			cancelTaskTurn: async () => null,
+			sendTaskSessionInput: async (_taskId, text) => {
+				sent.push(text);
+				return null;
+			},
+		});
+		return { nudger, sent, observed };
+	}
+
+	it("run31 regression: re-prompts a text-only decomposition final even though update_focus_chain ran (rejected)", async () => {
+		const decompositionAsText = '{ "slug": "x", "tasks": [{"id":"t1"}], "minimumTaskCount": 10 }';
+		const { nudger, sent, observed } = makeNudger({
+			finalMessage: decompositionAsText,
+			toolName: "update_focus_chain",
+		});
+		nudger.maybeContinueStalledDecomposition("t1");
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toContain("exactly that JSON");
+		expect(observed[0]?.finalLooksLikeDecompositionJson).toBe("true");
+	});
+
+	it("keeps the generic decompose re-prompt when the final text is not decomposition JSON", async () => {
+		const { nudger, sent } = makeNudger({ finalMessage: "I believe the plan is solid.", toolName: null });
+		nudger.maybeContinueStalledDecomposition("t1");
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(sent).toHaveLength(1);
+		expect(sent[0]).toContain("decompose_project");
+		expect(sent[0]).not.toContain("exactly that JSON");
 	});
 });

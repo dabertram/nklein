@@ -50,8 +50,18 @@ describe("decideDecompositionStallRecovery", () => {
 		expect(decision.action).toBe("continue_read");
 	});
 
-	it("does not nudge when a non-read tool ran this turn (genuine progress)", () => {
-		expect(decideDecompositionStallRecovery({ ...CLEAN_STALL, lastToolName: "write_files" }).action).toBe("none");
+	it("#30: re-prompts even when a non-read tool ran this turn — an ended turn never continues on its own", () => {
+		const decision = decideDecompositionStallRecovery({ ...CLEAN_STALL, lastToolName: "write_files" });
+		expect(decision.action).toBe("decompose");
+		expect(decision.reason).toContain("write_files");
+	});
+
+	it("#30 regression (run31): a rejected update_focus_chain call must not exempt the text-only final", () => {
+		// Live stall: the architect's update_focus_chain was rejected on validation (the tool name is still
+		// recorded), it then emitted the complete decomposition as final TEXT and stopped. The old "a non-read
+		// tool ran → genuine progress" exemption returned none and froze the board at planning:1.
+		const decision = decideDecompositionStallRecovery({ ...CLEAN_STALL, lastToolName: "update_focus_chain" });
+		expect(decision.action).toBe("decompose");
 	});
 
 	it("does nothing for a non-decomposition task", () => {
