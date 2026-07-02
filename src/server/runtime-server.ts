@@ -590,6 +590,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				};
 			});
 			drainQueuedTaskStarts(scope, { force: true });
+			// #25 (run27, maxConcurrent=1): a root card deferred on the CONCURRENCY limit at decompose time (the
+			// seed session held the only slot) was only retried "on the next completion" — but with one slot no
+			// other card ever completes, so the whole cascade stranded 90s after decompose. The seed's completion
+			// IS the slot release: sweep the deferred set + startable cards now, not just the queued-start queue.
+			if (service) {
+				retryWaitingCardsAfterTerminal(scope, service, sourceTaskId);
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			deps.warn(
