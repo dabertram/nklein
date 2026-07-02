@@ -11,6 +11,7 @@
 
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
+import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
 import {
 	type NKleinSecondOpinionReviewOutcome,
@@ -65,6 +66,8 @@ export interface RunSecondOpinionReviewForTaskInput {
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
 	getTaskResultBranchDiff?: typeof getTaskResultBranchDiff;
 	now?: () => number;
+	/** Sink for surfaced-but-non-blocking signals (e.g. the reviewer-monoculture waiver, §5.AB W0.4). */
+	warn?: (message: string) => void;
 }
 
 const REVIEW_PLAN_OBJECTIVE_BUDGET = 2_000;
@@ -142,6 +145,17 @@ export async function runSecondOpinionReviewForTask(
 		reviewerRole?.providerId && reviewerRole.modelId
 			? { providerId: reviewerRole.providerId, modelId: reviewerRole.modelId }
 			: null;
+	// §5.AB reasoning-diversity observability (audit W0.4): a reviewer sharing the WORKER's lineage is a
+	// CORRELATED second opinion (same-family models agree on wrong answers ~60% — research 2026-07-02). Surfaced,
+	// not blocked — the auto-selection wiring (W2.5) will prefer a diverse reviewer via applyDiversityPreference;
+	// until then the waiver must at least be visible instead of silently monocultural.
+	const workerModelId = input.service.getSummary(input.taskId)?.modelId ?? null;
+	if (reviewer && workerModelId && modelsShareLineage(workerModelId, reviewer.modelId)) {
+		input.warn?.(
+			`Reviewer ${reviewer.modelId} shares the ${resolveLineage(reviewer.modelId)} lineage with worker ` +
+				`${workerModelId} on ${input.taskId} — correlated second opinion (diversity waived).`,
+		);
+	}
 
 	const persistReview = async (review: RuntimeCardReview, targetColumnId?: string): Promise<void> => {
 		await mutate(input.workspacePath, (current) => ({

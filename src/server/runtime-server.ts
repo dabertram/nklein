@@ -528,6 +528,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						workspacePath: scope.workspacePath,
 						taskId,
 						service,
+						warn: deps.warn,
 					}).catch((error) => {
 						const message = error instanceof Error ? error.message : String(error);
 						deps.warn(`Second-opinion review errored for ${taskId}; proceeding to delivery: ${message}`);
