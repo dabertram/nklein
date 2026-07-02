@@ -1003,6 +1003,91 @@ describe("RuntimeSettingsDialog", () => {
 		);
 	});
 
+	it("renders the speculative best-of-N block from config and disables its inputs when off (§5.AW)", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedNKleinOauthConfig,
+							speculativeBestOfNEnabled: false,
+							speculativeMaxConcurrentSpecs: 2,
+							speculativeMaxSpecsPerRun: 5,
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const speculativeSwitch = document.body.querySelector<HTMLElement>(
+			'[aria-labelledby="runtime-settings-speculative-best-of-n-label"]',
+		);
+		expect(speculativeSwitch).toBeInstanceOf(HTMLElement);
+		expect(speculativeSwitch?.getAttribute("aria-checked")).toBe("false");
+		const concurrentSpecsInput = document.getElementById(
+			"runtime-settings-speculative-max-concurrent-specs",
+		) as HTMLInputElement | null;
+		const specsPerRunInput = document.getElementById(
+			"runtime-settings-speculative-max-specs-per-run",
+		) as HTMLInputElement | null;
+		expect(concurrentSpecsInput).toBeInstanceOf(HTMLInputElement);
+		expect(specsPerRunInput).toBeInstanceOf(HTMLInputElement);
+		expect(concurrentSpecsInput?.value).toBe("2");
+		expect(specsPerRunInput?.value).toBe("5");
+		expect(concurrentSpecsInput?.disabled).toBe(true);
+		expect(specsPerRunInput?.disabled).toBe(true);
+	});
+
+	it("saves speculative best-of-N settings after edits (§5.AW)", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedNKleinOauthConfig}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+
+		const concurrentSpecsInput = document.getElementById(
+			"runtime-settings-speculative-max-concurrent-specs",
+		) as HTMLInputElement | null;
+		const specsPerRunInput = document.getElementById(
+			"runtime-settings-speculative-max-specs-per-run",
+		) as HTMLInputElement | null;
+		if (!(concurrentSpecsInput instanceof HTMLInputElement) || !(specsPerRunInput instanceof HTMLInputElement)) {
+			throw new Error("Expected speculative best-of-N number inputs to render.");
+		}
+		expect(concurrentSpecsInput.disabled).toBe(false);
+		expect(specsPerRunInput.disabled).toBe(false);
+
+		await act(async () => {
+			setInputValue(concurrentSpecsInput, "2");
+			setInputValue(specsPerRunInput, "5");
+		});
+		const speculativeSwitch = document.body.querySelector<HTMLElement>(
+			'[aria-labelledby="runtime-settings-speculative-best-of-n-label"]',
+		);
+		await act(async () => {
+			speculativeSwitch?.click();
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				speculativeBestOfNEnabled: false,
+				speculativeMaxConcurrentSpecs: 2,
+				speculativeMaxSpecsPerRun: 5,
+			}),
+		);
+	});
+
 	it("saves the lost heartbeat policy from advanced settings", async () => {
 		const handleOpenChange = vi.fn();
 		await act(async () => {

@@ -238,6 +238,9 @@ export function RuntimeSettingsDialog({
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
 	const [secondOpinionReviewEnabled, setSecondOpinionReviewEnabled] = useState(true);
 	const [reviewMaxRounds, setReviewMaxRounds] = useState(20);
+	const [speculativeBestOfNEnabled, setSpeculativeBestOfNEnabled] = useState(true);
+	const [speculativeMaxConcurrentSpecs, setSpeculativeMaxConcurrentSpecs] = useState(1);
+	const [speculativeMaxSpecsPerRun, setSpeculativeMaxSpecsPerRun] = useState(3);
 	const [swarmGuardrailInputs, setSwarmGuardrailInputs] = useState<SwarmGuardrailInputs>(() =>
 		swarmGuardrailsToInputs(DEFAULT_RUNTIME_SWARM_GUARDRAILS),
 	);
@@ -337,6 +340,9 @@ export function RuntimeSettingsDialog({
 	const decompositionAutoApplyLabelId = "runtime-settings-decomposition-auto-apply-label";
 	const secondOpinionReviewLabelId = "runtime-settings-second-opinion-review-label";
 	const reviewMaxRoundsId = "runtime-settings-review-max-rounds";
+	const speculativeBestOfNLabelId = "runtime-settings-speculative-best-of-n-label";
+	const speculativeMaxConcurrentSpecsId = "runtime-settings-speculative-max-concurrent-specs";
+	const speculativeMaxSpecsPerRunId = "runtime-settings-speculative-max-specs-per-run";
 	const refreshNotificationPermission = useCallback(() => {
 		setNotificationPermission(getBrowserNotificationPermission());
 	}, []);
@@ -419,6 +425,9 @@ export function RuntimeSettingsDialog({
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
 	const initialSecondOpinionReviewEnabled = config?.secondOpinionReviewEnabled ?? true;
 	const initialReviewMaxRounds = config?.reviewMaxRounds ?? 20;
+	const initialSpeculativeBestOfNEnabled = config?.speculativeBestOfNEnabled ?? true;
+	const initialSpeculativeMaxConcurrentSpecs = config?.speculativeMaxConcurrentSpecs ?? 1;
+	const initialSpeculativeMaxSpecsPerRun = config?.speculativeMaxSpecsPerRun ?? 3;
 	const initialSwarmGuardrails = config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
 	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
@@ -517,6 +526,7 @@ export function RuntimeSettingsDialog({
 				`lostHeartbeatPolicy=${lostHeartbeatPolicy}`,
 				`decompositionAutoApply=${decompositionAutoApplyEnabled}`,
 				`secondOpinionReview=${secondOpinionReviewEnabled}`,
+				`speculativeBestOfN=${speculativeBestOfNEnabled}`,
 				`readyForReviewNotifications=${readyForReviewNotificationsEnabled}`,
 				`nkleinProvider=${nkleinSettings.providerId || "default"}`,
 				`nkleinModel=${nkleinSettings.modelId || "default"}`,
@@ -532,6 +542,9 @@ export function RuntimeSettingsDialog({
 			decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled,
 			reviewMaxRounds,
+			speculativeBestOfNEnabled,
+			speculativeMaxConcurrentSpecs,
+			speculativeMaxSpecsPerRun,
 			lostHeartbeatPolicy,
 			maxConcurrentTasks,
 			sandboxAgentsPerContainer,
@@ -658,6 +671,15 @@ export function RuntimeSettingsDialog({
 		if (reviewMaxRounds !== initialReviewMaxRounds) {
 			return true;
 		}
+		if (speculativeBestOfNEnabled !== initialSpeculativeBestOfNEnabled) {
+			return true;
+		}
+		if (speculativeMaxConcurrentSpecs !== initialSpeculativeMaxConcurrentSpecs) {
+			return true;
+		}
+		if (speculativeMaxSpecsPerRun !== initialSpeculativeMaxSpecsPerRun) {
+			return true;
+		}
 		if (!areRuntimeSwarmGuardrailsEqual(inputsToSwarmGuardrails(swarmGuardrailInputs), initialSwarmGuardrails)) {
 			return true;
 		}
@@ -748,6 +770,10 @@ export function RuntimeSettingsDialog({
 		config,
 		decompositionAutoApplyEnabled,
 		secondOpinionReviewEnabled,
+		reviewMaxRounds,
+		speculativeBestOfNEnabled,
+		speculativeMaxConcurrentSpecs,
+		speculativeMaxSpecsPerRun,
 		developerModeEnabled,
 		draftCodeEmbeddingDefaults,
 		draftThemeId,
@@ -760,6 +786,10 @@ export function RuntimeSettingsDialog({
 		initialConversationTimeoutMs,
 		initialDecompositionAutoApplyEnabled,
 		initialSecondOpinionReviewEnabled,
+		initialReviewMaxRounds,
+		initialSpeculativeBestOfNEnabled,
+		initialSpeculativeMaxConcurrentSpecs,
+		initialSpeculativeMaxSpecsPerRun,
 		initialDeveloperModeEnabled,
 		initialMaxAgentWritableFileLines,
 		initialMaxConcurrentTasks,
@@ -851,6 +881,9 @@ export function RuntimeSettingsDialog({
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
 		setSecondOpinionReviewEnabled(config?.secondOpinionReviewEnabled ?? true);
 		setReviewMaxRounds(config?.reviewMaxRounds ?? 20);
+		setSpeculativeBestOfNEnabled(config?.speculativeBestOfNEnabled ?? true);
+		setSpeculativeMaxConcurrentSpecs(config?.speculativeMaxConcurrentSpecs ?? 1);
+		setSpeculativeMaxSpecsPerRun(config?.speculativeMaxSpecsPerRun ?? 3);
 		setSwarmGuardrailInputs(swarmGuardrailsToInputs(config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS));
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
 		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
@@ -915,6 +948,9 @@ export function RuntimeSettingsDialog({
 		config?.decompositionAutoApplyEnabled,
 		config?.secondOpinionReviewEnabled,
 		config?.reviewMaxRounds,
+		config?.speculativeBestOfNEnabled,
+		config?.speculativeMaxConcurrentSpecs,
+		config?.speculativeMaxSpecsPerRun,
 		config?.swarmGuardrails,
 		config?.developerModeEnabled,
 		config?.replayCardsEnabled,
@@ -1366,6 +1402,9 @@ export function RuntimeSettingsDialog({
 			decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled,
 			reviewMaxRounds,
+			speculativeBestOfNEnabled,
+			speculativeMaxConcurrentSpecs,
+			speculativeMaxSpecsPerRun,
 			swarmGuardrails: inputsToSwarmGuardrails(swarmGuardrailInputs),
 			developerModeEnabled,
 			replayCardsEnabled,
@@ -1888,6 +1927,71 @@ export function RuntimeSettingsDialog({
 										/>
 										<span className="text-text-tertiary text-[11px]">
 											Rounds before a bouncing card parks for attention (default 20).
+										</span>
+									</div>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<div className="flex items-center gap-2 text-[13px] text-text-primary">
+										<RadixSwitch.Root
+											checked={speculativeBestOfNEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setSpeculativeBestOfNEnabled}
+											aria-labelledby={speculativeBestOfNLabelId}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span id={speculativeBestOfNLabelId}>
+											Speculative best-of-N (idle models mirror the hardest running card)
+										</span>
+									</div>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										When on, an idle lineage-diverse model speculatively implements the same card in parallel;
+										the reviewer compares both candidates (A/B) and the better one is delivered. Real work
+										always outranks speculation.
+									</p>
+									<div className="mt-2 flex items-center gap-2 text-[12px] text-text-secondary">
+										<label htmlFor={speculativeMaxConcurrentSpecsId}>
+											Max concurrent speculative sessions
+										</label>
+										<input
+											id={speculativeMaxConcurrentSpecsId}
+											type="number"
+											min={1}
+											max={4}
+											value={speculativeMaxConcurrentSpecs}
+											disabled={controlsDisabled || !speculativeBestOfNEnabled}
+											onChange={(event) => {
+												const parsed = Number.parseInt(event.target.value, 10);
+												setSpeculativeMaxConcurrentSpecs(
+													Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 4) : 1,
+												);
+											}}
+											className="w-16 rounded-md border border-border bg-surface-2 px-2 py-1 text-text-primary disabled:opacity-40"
+										/>
+										<span className="text-text-tertiary text-[11px]">
+											Speculative sessions running at once (default 1, max 4).
+										</span>
+									</div>
+									<div className="mt-2 flex items-center gap-2 text-[12px] text-text-secondary">
+										<label htmlFor={speculativeMaxSpecsPerRunId}>Max speculative sessions per run</label>
+										<input
+											id={speculativeMaxSpecsPerRunId}
+											type="number"
+											min={1}
+											max={20}
+											value={speculativeMaxSpecsPerRun}
+											disabled={controlsDisabled || !speculativeBestOfNEnabled}
+											onChange={(event) => {
+												const parsed = Number.parseInt(event.target.value, 10);
+												setSpeculativeMaxSpecsPerRun(
+													Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 20) : 1,
+												);
+											}}
+											className="w-16 rounded-md border border-border bg-surface-2 px-2 py-1 text-text-primary disabled:opacity-40"
+										/>
+										<span className="text-text-tertiary text-[11px]">
+											Ceiling on speculative sessions across a run (default 3, max 20).
 										</span>
 									</div>
 								</div>
