@@ -760,6 +760,77 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 	});
 
+	// §5.AC step 3 — the egress-gated web_search tool binding at the session seams (fail-closed by default).
+	async function startAndReadExtraToolNames(input: {
+		taskId: string;
+		retrievalEgressEnabled?: boolean;
+		retrievalSearchBackendUrl?: string | null;
+	}): Promise<string[]> {
+		const runtime = createFakeNKleinSessionRuntime();
+		const runtimeSetup = createFakeRuntimeSetup();
+		const sandboxManager = createFakeAgentSandboxManager();
+		const service = createDiagnosticIsolatedService({
+			createSessionRuntime: (options) => runtime.createRuntime(options),
+			createRuntimeSetup: vi.fn(async (_workspacePath: string) => runtimeSetup.setup),
+			agentSandboxManager: sandboxManager.manager,
+			...(input.retrievalEgressEnabled !== undefined
+				? { retrievalEgressEnabled: input.retrievalEgressEnabled }
+				: {}),
+			...(input.retrievalSearchBackendUrl !== undefined
+				? { retrievalSearchBackendUrl: input.retrievalSearchBackendUrl }
+				: {}),
+		});
+		services.push(service);
+
+		await service.startTaskSession({
+			taskId: input.taskId,
+			cwd: "/tmp/worktree",
+			workspaceRoot: "/tmp/project",
+			prompt: "Check whether a newer library release exists",
+		});
+
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
+		return (startRequest?.extraTools ?? []).map((tool) => tool.name);
+	}
+
+	it("fails closed by default: sessions get no web_search tool (§5.AC)", async () => {
+		const toolNames = await startAndReadExtraToolNames({ taskId: "task-1" });
+		expect(toolNames).toContain("repo_map");
+		expect(toolNames).not.toContain("web_search");
+	});
+
+	it("does not attach web_search when egress is enabled but no backend is configured (§5.AC)", async () => {
+		const toolNames = await startAndReadExtraToolNames({
+			taskId: "task-1",
+			retrievalEgressEnabled: true,
+			retrievalSearchBackendUrl: null,
+		});
+		expect(toolNames).not.toContain("web_search");
+	});
+
+	it("attaches web_search alongside the sandbox tools when retrieval is enabled with a backend (§5.AC)", async () => {
+		const toolNames = await startAndReadExtraToolNames({
+			taskId: "task-1",
+			retrievalEgressEnabled: true,
+			retrievalSearchBackendUrl: "http://searx.lan:8080",
+		});
+		expect(toolNames).toContain("repo_map");
+		expect(toolNames).toContain("web_search");
+	});
+
+	it("never attaches web_search to synthetic sessions even when retrieval is enabled (§5.AC)", async () => {
+		const toolNames = await startAndReadExtraToolNames({
+			taskId: "task-1::review",
+			retrievalEgressEnabled: true,
+			retrievalSearchBackendUrl: "http://searx.lan:8080",
+		});
+		expect(toolNames).toContain("repo_map");
+		expect(toolNames).not.toContain("web_search");
+	});
+
 	it("emits a queued summary while waiting for sandbox capacity", async () => {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();

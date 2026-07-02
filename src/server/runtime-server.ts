@@ -911,6 +911,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				swarmGuardrails: runtimeConfig.swarmGuardrails,
 				knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 				sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
+				retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
+				retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
@@ -975,6 +977,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
+			service.setRetrievalConfig(runtimeConfig.retrievalEgressEnabled, runtimeConfig.retrievalSearchBackendUrl);
 		}
 		return service;
 	};

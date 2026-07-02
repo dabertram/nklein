@@ -6,6 +6,10 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // host, repository, or event-adapter details.
 
 import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
+import {
+	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
+} from "../config/runtime-config-retrieval-resolver";
 import { buildModelBehaviorProfilesFromLedger } from "../core/agent-ledger-projections";
 import type {
 	RuntimeNKleinReasoningEffort,
@@ -36,6 +40,7 @@ import { raisedTokenBudget } from "../core/retry-policy";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
+import { createSearxngWebSearchClient } from "../server/web-search-searxng";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import {
 	recordTaskRunSummary,
@@ -156,8 +161,10 @@ import {
 	type NKleinRuntimeSetupLease,
 	type NKleinWatcherRegistry,
 } from "./nklein-watcher-registry";
+import { createNKleinWebSearchTool } from "./nklein-web-search-tool";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
 import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
+import type { AgentTool } from "./sdk-agent-types";
 import {
 	listNKleinSdkWorkflowSlashCommands,
 	type NKleinSdkPersistedMessage,
@@ -304,6 +311,8 @@ export interface NKleinTaskSessionService {
 	setKnowsTodayEnabled(enabled: boolean): void;
 	/** Apply the §5.AR curated sandbox-MCP-servers switch (on by default) when config changes. */
 	setSandboxMcpServersEnabled(enabled: boolean): void;
+	/** Apply the §5.AC egress-gated retrieval config (OFF by default, fail closed) when config changes. */
+	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
 	verifyTaskAcceptanceInSandbox(input: {
 		taskId: string;
@@ -363,6 +372,14 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * independently. Live-updated when config changes (same seam as `swarmGuardrails`).
 	 */
 	sandboxMcpServersEnabled?: boolean;
+	/**
+	 * The §5.AC online-retrieval egress switch — OFF BY DEFAULT (fail closed). When true AND a search backend URL is
+	 * configured, worker sessions get the egress-gated `web_search` extra tool; synthetic sessions (`::review` /
+	 * `::plan-critique` / `::acceptance`) never do. Live-updated when config changes (same seam as `swarmGuardrails`).
+	 */
+	retrievalEgressEnabled?: boolean;
+	/** The §5.AC SearXNG-compatible search endpoint base URL; null (default) keeps `web_search` detached. */
+	retrievalSearchBackendUrl?: string | null;
 	/**
 	 * Root dir for the diagnostic stores this service writes (task-run summaries + the Agent Attempt Ledger).
 	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.
@@ -434,6 +451,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-MCP switch (on by default); live-updated with config, OR-ed with the env override. */
 	private sandboxMcpServersEnabled: boolean;
+	/** §5.AC retrieval egress switch (OFF by default, fail closed); live-updated with config. */
+	private retrievalEgressEnabled: boolean;
+	/** §5.AC search backend base URL (null ⇒ `web_search` never attaches); live-updated with config. */
+	private retrievalSearchBackendUrl: string | null;
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
 	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
@@ -468,6 +489,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.swarmGuardrails = options.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
 		this.sandboxMcpServersEnabled = options.sandboxMcpServersEnabled ?? DEFAULT_SANDBOX_MCP_SERVERS_ENABLED;
+		this.retrievalEgressEnabled = options.retrievalEgressEnabled ?? DEFAULT_RETRIEVAL_EGRESS_ENABLED;
+		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
@@ -692,6 +715,43 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return assembled.text;
 	}
 
+	/**
+	 * §5.AC step 3 — the egress-gated `web_search` extra tool for one session, or `[]` when it must not attach.
+	 * Fail closed, in gate order: (1) synthetic sessions (`::review` / `::plan-critique` / `::acceptance`) NEVER
+	 * get egress — reviewers/critics/acceptance judge local work only; (2) the runtime-config switch must be
+	 * literally `true`; (3) a non-blank backend URL must be configured. The SearXNG client is constructed per
+	 * search from the LIVE service fields (cheap factory), so a config-off while a session is running makes the
+	 * very next call fail closed (`blocked_by_egress`) instead of honoring values captured at session start.
+	 */
+	private buildRetrievalExtraTools(taskId: string): AgentTool[] {
+		if (taskId.includes("::")) {
+			return [];
+		}
+		if (this.retrievalEgressEnabled !== true || !this.retrievalSearchBackendUrl?.trim()) {
+			return [];
+		}
+		return [
+			createNKleinWebSearchTool({
+				search: (query) =>
+					createSearxngWebSearchClient({
+						backendBaseUrl: this.retrievalSearchBackendUrl,
+						egressEnabled: this.retrievalEgressEnabled,
+					}).search(query),
+			}),
+		];
+	}
+
+	/** Sandbox-proxied extra tools ⊕ the §5.AC retrieval tools, or undefined when there is nothing to attach. */
+	private static combineExtraTools(
+		sandboxExtraTools: AgentTool[] | undefined,
+		retrievalExtraTools: AgentTool[],
+	): AgentTool[] | undefined {
+		if (!sandboxExtraTools && retrievalExtraTools.length === 0) {
+			return undefined;
+		}
+		return [...(sandboxExtraTools ?? []), ...retrievalExtraTools];
+	}
+
 	private async startRuntimeTaskSessionFromLaunchConfig(input: {
 		taskId: string;
 		cwd: string;
@@ -805,6 +865,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 					})
 				: undefined);
+		// §5.AC step 3: append the egress-gated web_search tool AFTER the sandbox tools (never mutate what
+		// createAgentSandboxExtraTools returns). buildRetrievalExtraTools fails closed (default-off config, blank
+		// backend) and returns [] for synthetic `::` sessions, so reviewers/critics rebuilt here get no egress.
+		const combinedExtraTools = InMemoryNKleinTaskSessionService.combineExtraTools(
+			sandboxExtraTools,
+			this.buildRetrievalExtraTools(input.taskId),
+		);
 		const startResult = await this.sessionRuntime
 			.startTaskSession({
 				taskId: input.taskId,
@@ -835,7 +902,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				turnTimeoutMs: launchConfig.turnTimeoutMs,
 				systemPrompt,
 				...(sandboxToolExecutors ? { toolExecutors: sandboxToolExecutors } : {}),
-				...(sandboxExtraTools ? { extraTools: sandboxExtraTools } : {}),
+				...(combinedExtraTools ? { extraTools: combinedExtraTools } : {}),
 				// §5.AR: offer the curated sandbox-hosted MCP servers (fit-gated per model) when enabled — the runtime-config
 				// `sandboxMcpServersEnabled` (ON by default; global/per-project opt-out) OR the `NKLEIN_SANDBOX_MCP` env override.
 				...((this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && sandboxWorkspace
@@ -1869,13 +1936,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								pauseController: this.pauseController,
 							})
 						: undefined,
-					extraTools: sandboxWorkspace
-						? createAgentSandboxExtraTools(sandboxWorkspace.manager, request.taskId, {
-								sessionId: createSessionId(request.taskId),
-								contextWindow: requestContextWindow,
-								maxFileLines: request.maxAgentWritableFileLines ?? null,
-							})
-						: undefined,
+					// §5.AC step 3: sandbox tools ⊕ the egress-gated web_search tool (config-gated, fail closed; [] for
+					// synthetic `::` sessions). Concatenated here — createAgentSandboxExtraTools stays untouched.
+					extraTools: InMemoryNKleinTaskSessionService.combineExtraTools(
+						sandboxWorkspace
+							? createAgentSandboxExtraTools(sandboxWorkspace.manager, request.taskId, {
+									sessionId: createSessionId(request.taskId),
+									contextWindow: requestContextWindow,
+									maxFileLines: request.maxAgentWritableFileLines ?? null,
+								})
+							: undefined,
+						this.buildRetrievalExtraTools(request.taskId),
+					),
 					// §5.AR: a RESTARTED isolated task gets the curated sandbox MCP servers too (consistent with the main
 					// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
 					// exists for the rebuilt task.
@@ -2512,6 +2584,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	setSandboxMcpServersEnabled(enabled: boolean): void {
 		this.sandboxMcpServersEnabled = enabled;
+	}
+
+	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void {
+		this.retrievalEgressEnabled = egressEnabled;
+		this.retrievalSearchBackendUrl = searchBackendUrl;
 	}
 
 	async waitUntilTaskResumed(taskId: string): Promise<void> {
