@@ -11,8 +11,10 @@
 
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
+import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
+import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
 import {
@@ -79,6 +81,13 @@ export interface RunSecondOpinionReviewForTaskInput {
 	now?: () => number;
 	/** Sink for surfaced-but-non-blocking signals (e.g. the reviewer-monoculture waiver, §5.AB W0.4). */
 	warn?: (message: string) => void;
+	/**
+	 * W2.5 pin residency probe: the loaded model ids the configured reviewer PIN is checked against (injectable for
+	 * tests). Default probes the local LM Studio endpoint outside the test runner; failures resolve to an empty
+	 * list, which — lenient, exactly like `shouldBlockUnloadedModel` — HONORS the pin (an unreachable probe must
+	 * never wedge a review).
+	 */
+	fetchLoadedModelIds?: () => Promise<readonly string[]>;
 }
 
 const REVIEW_PLAN_OBJECTIVE_BUDGET = 2_000;
@@ -188,14 +197,46 @@ export async function runSecondOpinionReviewForTask(
 			? `\n\nIMPORTANT — this card's declared file scope (writes OUTSIDE these paths are blocked): ${card.filesLikelyTouched.join(", ")}. Work within it; if the task genuinely needs another file, say so instead of retrying blocked writes.`
 			: "";
 	const reviewerRole = config.effectiveModelRoles?.reviewer ?? null;
-	const reviewer =
+	const pinnedReviewer =
 		reviewerRole?.providerId && reviewerRole.modelId
 			? { providerId: reviewerRole.providerId, modelId: reviewerRole.modelId }
 			: null;
+	// W2.5 role auto-assignment: the configured reviewer is an optional PIN, not a requirement. Honored when it is
+	// loaded (byte-equivalent with the old always-honor behavior) — but a pin that is positively NOT in the loaded
+	// set is WAIVED to the service's lineage-diverse auto-pick (`pickDiverseReviewerModel` runs when reviewer is
+	// null) instead of launching an unloaded model (which would either fail the review turn or trigger a model
+	// load, violating the §5.AB no-load directive). Lenient exactly like `shouldBlockUnloadedModel`: an unknown/
+	// empty loaded set honors the pin, so an unreachable probe never wedges a review. The probe is skipped under
+	// the test runner unless injected (no live endpoint there), mirroring the task-start residency gate.
+	let reviewer = pinnedReviewer;
+	if (pinnedReviewer) {
+		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
+		const probeLoadedModelIds =
+			input.fetchLoadedModelIds ??
+			(residencyCheckEnabled
+				? // Default local LM Studio endpoint — the same fallback the service's diverse-pick uses.
+					() => fetchLoadedModelIdsCached("http://127.0.0.1:1234/v1")
+				: null);
+		const loadedIds = probeLoadedModelIds ? await probeLoadedModelIds().catch(() => [] as string[]) : [];
+		if (loadedIds.length > 0) {
+			const pinDecision = resolveSwarmRoleModel({
+				role: "reviewer",
+				pinned: pinnedReviewer,
+				candidates: loadedIds.map((id) => ({ modelKey: id, modelId: id, score: 0 })),
+			});
+			if (pinDecision.source === "auto") {
+				reviewer = null;
+				input.warn?.(
+					`Configured reviewer ${pinnedReviewer.providerId}/${pinnedReviewer.modelId} for ${input.taskId} ` +
+						`is waived — a lineage-diverse loaded reviewer will be auto-picked instead. ${pinDecision.reasons.join(" ")}`,
+				);
+			}
+		}
+	}
 	// §5.AB reasoning-diversity observability (audit W0.4): a reviewer sharing the WORKER's lineage is a
 	// CORRELATED second opinion (same-family models agree on wrong answers ~60% — research 2026-07-02). Surfaced,
-	// not blocked — the auto-selection wiring (W2.5) will prefer a diverse reviewer via applyDiversityPreference;
-	// until then the waiver must at least be visible instead of silently monocultural.
+	// not blocked — an explicit pin is the user's call (the W2.5 auto path prefers a diverse reviewer via
+	// applyDiversityPreference), so the waiver must at least be visible instead of silently monocultural.
 	const workerModelId = input.service.getSummary(input.taskId)?.modelId ?? null;
 	if (reviewer && workerModelId && modelsShareLineage(workerModelId, reviewer.modelId)) {
 		input.warn?.(

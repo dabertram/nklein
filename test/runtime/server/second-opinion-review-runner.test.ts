@@ -213,6 +213,66 @@ describe("runSecondOpinionReviewForTask", () => {
 		);
 	});
 
+	it("waives a configured reviewer that is NOT loaded to the service's diverse auto-pick (W2.5 pin-miss)", async () => {
+		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+		const warn = vi.fn();
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			// The loaded set positively LACKS the configured "reviewer-model" ⇒ the pin is waived (never launch an
+			// unloaded model) and the service auto-picks (reviewer: null triggers pickDiverseReviewerModel).
+			fetchLoadedModelIds: async () => ["some-other-loaded-model"],
+			warn,
+		});
+		expect(outcome.type).toBe("delivered");
+		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(expect.objectContaining({ reviewer: null }));
+		expect(warn).toHaveBeenCalledWith(expect.stringContaining("waived"));
+	});
+
+	it("honors a configured reviewer that IS loaded (valid-pin behavior unchanged)", async () => {
+		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+		const warn = vi.fn();
+		await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			fetchLoadedModelIds: async () => ["reviewer-model", "some-other-loaded-model"],
+			warn,
+		});
+		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(
+			expect.objectContaining({ reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } }),
+		);
+		expect(warn).not.toHaveBeenCalled();
+	});
+
+	it("honors the pin leniently when the loaded set is unknown (empty probe never wedges a review)", async () => {
+		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
+		await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			fetchLoadedModelIds: async () => {
+				throw new Error("endpoint unreachable");
+			},
+		});
+		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(
+			expect.objectContaining({ reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } }),
+		);
+	});
+
 	it("bounces on request_changes: persists, moves to In Progress, re-drives the worker", async () => {
 		const deps = makeDeps({
 			submission: { verdict: "request_changes", summary: "Almost", feedback: "Add a guard", insight: null },

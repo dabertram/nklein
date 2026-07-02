@@ -20,6 +20,7 @@ import { selectRoleModel } from "../../core/role-model-selection";
 import { assessRuntimeModelVerdict } from "../../core/runtime-model-verdict";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
+import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
 import { resolveTaskTitle } from "../../core/task-title";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
@@ -389,9 +390,6 @@ export async function handleStartTaskSession(
 			taskText: startTaskText,
 		}).skills.map((skill) => skill.id);
 		const taskAffinityTags = affinityTagsForSkills(resolvedSkillIds);
-		const preferredCandidate = body.startInPlanMode
-			? ([...guardCandidates.values()].find((candidate) => candidate.role === "architect") ?? selectedCandidate)
-			: selectedCandidate;
 		const promptTokens = estimateNKleinStartPromptTokens({
 			prompt: body.prompt,
 			taskTitle: body.taskTitle,
@@ -505,6 +503,51 @@ export async function handleStartTaskSession(
 			: null;
 		const isModelFree = (modelKey: string, modelId: string): boolean =>
 			!runningModelKeys.has(modelKey) && !busyModelIds?.has(modelId);
+		// W2.5 role auto-assignment (auto is the DEFAULT): the card's role never REQUIRES a configured model — a
+		// configured effectiveModelRoles entry is an optional PIN layered on top of automatic selection, resolved
+		// through the pure core so pin-vs-auto semantics + reasons are uniform across seams. A loaded pin wins
+		// (byte-equivalent with the previous ad-hoc architect-role preference, including its primary-then-pool
+		// insertion order via the role-tagged candidates); a configured-but-unavailable pin FALLS THROUGH to the
+		// auto chain below with the waiver surfaced on selectionReason (previously a silent fallback) — never a
+		// hard start failure. Act-mode cards layer the worker pin only when the card carries no explicit model
+		// choice (a decompose-pinned nkleinSettings model outranks the role config — the §5.AB carry-through);
+		// plan mode keeps its shipped architect-over-card-settings precedence. The downstream free-first/pool/
+		// warmth/router chain stays authoritative for feasibility and availability (a pin is a preference here,
+		// not a bypass), and the task-start residency gate above is untouched (an explicitly chosen unloaded
+		// model still hard-fails with the clear "load it first" error — deliberate §5.AB no-load safety).
+		const cardRole = body.startInPlanMode ? ("architect" as const) : ("worker" as const);
+		const cardRoleSettings = scopedRuntimeConfig.effectiveModelRoles[cardRole];
+		const cardRoleHasConfiguredModel = Boolean(
+			cardRoleSettings &&
+				[cardRoleSettings, ...(cardRoleSettings.additionalModels ?? [])].some(
+					(model) => model.providerId || model.modelId,
+				),
+		);
+		const rolePinApplies = body.startInPlanMode || !(body.nkleinSettings?.providerId || body.nkleinSettings?.modelId);
+		const cardRolePin =
+			rolePinApplies && cardRoleHasConfiguredModel
+				? { providerId: cardRoleSettings?.providerId ?? null, modelId: cardRoleSettings?.modelId ?? null }
+				: null;
+		const roleAssignment = resolveSwarmRoleModel({
+			role: cardRole,
+			pinned: cardRolePin,
+			candidates: [...guardCandidates.values()].map((candidate) => ({
+				modelKey: candidate.entry.key,
+				modelId: candidate.entry.modelId,
+				score: blendedCapabilityForKey(
+					candidate.entry.key,
+					candidate.entry.capability.effectiveScore,
+					candidate.role,
+					candidate.entry.modelId,
+				),
+				// Pin membership = the candidate came from the card role's configured pool (primary or member).
+				isPinned: candidate.role === cardRole,
+			})),
+		});
+		const preferredCandidate =
+			roleAssignment.source === "pinned" && roleAssignment.pick
+				? (guardCandidates.get(roleAssignment.pick.modelKey) ?? selectedCandidate)
+				: selectedCandidate;
 		const freeFirstSelection = selectRoleModel({
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				modelKey: candidate.entry.key,
@@ -696,6 +739,9 @@ export async function handleStartTaskSession(
 			warmthPreference.warmthReason
 				? ` Cache-warmth preference: ${warmthPreference.warmthReason}.`
 				: "";
+		// W2.5 observability: pin honored / pin waived is part of "why this model" — append the role-assignment
+		// reasons (empty for the plain unconfigured auto path, so the common selectionReason stays byte-identical).
+		const rolePinReasonSuffix = roleAssignment.reasons.length > 0 ? ` ${roleAssignment.reasons.join(" ")}` : "";
 		// §5.AB "why this model" — explain the routing decision so the operator (and §5.AG surfaces) can see the basis.
 		const selectionReason =
 			renderModelSelectionReason(
@@ -728,7 +774,9 @@ export async function handleStartTaskSession(
 						};
 					}),
 				}),
-			) + warmthReasonSuffix;
+			) +
+			warmthReasonSuffix +
+			rolePinReasonSuffix;
 		if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
 			return {
 				ok: false,
