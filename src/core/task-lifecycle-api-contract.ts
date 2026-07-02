@@ -115,6 +115,7 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 			"endpoint_busy",
 			"swarm_stopped",
 			"agent_sandbox_unavailable",
+			"concurrency_limit",
 		])
 		.optional(),
 	retryAfterMs: z.number().int().nonnegative().nullable().optional(),

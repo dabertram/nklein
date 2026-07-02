@@ -348,6 +348,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					queueOnEndpointBusy: true,
 				});
 				if (!started.ok && !started.queued) {
+					// Live-found 2026-07-02 (runs 9/10 cascade deadlock): a CONCURRENCY-limit block is transient — a
+					// just-finished session (e.g. the decompose seed at root-start time) can hold a slot for a moment —
+					// but it was never retried (only overlap deferrals were), so one blocked root froze the whole
+					// cascade. Defer it like an overlap conflict: the next completion re-attempts it.
+					if (started.errorCode === "concurrency_limit") {
+						const deferred = deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+						deferred.add(task.id);
+						deferredOverlapTaskIdsByWorkspaceId.set(scope.workspaceId, deferred);
+						deps.warn(
+							`Auto-start of ${task.id} hit the concurrency limit; deferred for retry on the next completion.`,
+						);
+						continue;
+					}
 					deps.warn(
 						`Could not auto-start linked task ${task.id} for ${scope.workspacePath}: ${
 							started.error ?? "unknown error"

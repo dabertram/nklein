@@ -164,6 +164,10 @@ export async function handleStartTaskSession(
 					ok: false,
 					summary: null,
 					error: createConcurrencyLimitStartError(scopedRuntimeConfig.effectiveMaxConcurrentTasks),
+					// Live-found 2026-07-02 (runs 9/10): the auto-start cascade needs to RECOGNIZE this failure so it can
+					// defer + retry the card instead of orphaning it (a lingering just-finished session can transiently
+					// hold a slot — e.g. the decompose seed at root-start time).
+					errorCode: "concurrency_limit" as const,
 				};
 			}
 		}
