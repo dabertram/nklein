@@ -1033,8 +1033,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						deps.warn(
 							`Empty-patch card ${taskId} held in Review (fail-closed): no reviewer sign-off after a re-drive, so a no-op result cannot auto-complete.`,
 						);
-						// #33: final hold — quiesce so the held card frees its slot (see the delivery-hold comment).
-						await service.cancelTaskTurn(taskId).catch(() => null);
+						// #33 v2: final hold — stop the session so the held card frees its slot (see delivery-hold).
+						await service.stopTaskSession(taskId).catch(() => null);
 						return;
 					}
 
@@ -1100,12 +1100,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Delivery held for ${taskId} (delivery tier → ${deliveryDecision.action}): ${deliveryDecision.reason} Left in Review.`,
 							);
-							// #33 (run34 live): a HELD card must not keep owning a concurrency slot — an abandoned
-							// reviewer (no-verdict hold) on a 1-wide rail starved every deferred card forever while
-							// the held session sat awaiting_review. Quiesce exactly like park does: abort the turn
-							// (state → idle, slot freed, session stays resumable for the operator/re-drives); the
-							// card itself stays in Review as the operator surface.
-							await service.cancelTaskTurn(taskId).catch(() => null);
+							// #33 (run34 live, v2 after run35): a HELD card must not keep owning a concurrency slot —
+							// an abandoned reviewer (no-verdict hold) on a 1-wide rail starved every deferred card
+							// forever. v1 used cancelTaskTurn, which no-ops unless the session is RUNNING — but a
+							// held session sits in awaiting_review (which the concurrency gate counts as active).
+							// stopTaskSession is the proven slot-freeing call (delivery uses it after every merge);
+							// the card stays in Review as the operator surface and a re-drive restarts cleanly.
+							await service.stopTaskSession(taskId).catch(() => null);
 							return;
 						}
 						// Serialized per workspace (see runWorkspaceMergeSerialized): concurrent finalizations must

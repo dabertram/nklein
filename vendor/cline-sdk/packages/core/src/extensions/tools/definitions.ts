@@ -44,7 +44,6 @@ import {
 	type ReadFilesInput,
 	ReadFilesInputSchema,
 	ReadFilesInputUnionSchema,
-	RunCommandsInputSchema,
 	type SearchCodebaseInput,
 	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
@@ -421,7 +420,36 @@ export function createShellTool(
 				"Commands should be properly shell-escaped and targeted to avoid error or timeout. Include multiple commands in the same call when they are independent complete shell commands and safe to run concurrently; multiline scripts and heredocs must be a single command string. When independent reads, searches, or edits are also needed, call those tools in the same response. " +
 				`Output beyond ~${Math.round(MAX_COMMAND_OUTPUT_CHARS / 1000)}k characters is middle-truncated (start and end preserved); pipe through grep/head/tail when you need specific sections of large output. ` +
 				"For long-running commands, run them in background and redirect output to a tmp file that you can read from later.",
-		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
+		// LENIENT boundary schema (!Klein 2026-07-02, live-found): the strict zodToJsonSchema(RunCommandsInputSchema)
+		// pre-rejected shapes the executor's own normalizeRunCommandsInput UNION happily accepts (a reviewer model
+		// sent commands as a bare string → 3 consecutive pre-rejections → session abandoned). The advertised shape
+		// stays "commands: array" via the description, but validation now tolerates a bare-string commands value,
+		// structured entries, and extra keys — normalizeRunCommandsInput inside execute() remains the real parser.
+		inputSchema: {
+			type: "object",
+			properties: {
+				commands: {
+					type: ["array", "string"],
+					items: {
+						anyOf: [
+							{ type: "string" },
+							{
+								type: "object",
+								properties: {
+									command: { type: "string" },
+									args: { type: "array", items: { type: "string" } },
+								},
+								additionalProperties: true,
+							},
+						],
+					},
+					description:
+						"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
+				},
+			},
+			required: [],
+			additionalProperties: true,
+		},
 		timeoutMs: timeoutMs * 2,
 		retryable: false,
 		maxRetries: 0,
