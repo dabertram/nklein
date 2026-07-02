@@ -39,6 +39,7 @@ import {
 	moveTaskToColumn,
 	STARTED_CARD_ENTRY_LANE,
 } from "../core/task-board-mutations";
+import { listStartableUnstartedTaskIds } from "../core/task-board-ready-sweep";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
@@ -695,7 +696,28 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					const deferredOverlapTaskIds = [
 						...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? []),
 					].filter((deferredTaskId) => deferredTaskId !== taskId);
-					await autoStartTaskIds(scope, [...new Set([...readyTaskIds, ...deferredOverlapTaskIds])]);
+					// READY-SWEEP (runs 12/14/15): also attempt EVERY dependency-free waiting card, not just the ones
+					// this completion released — a card can become startable outside the release/defer paths (edge
+					// reorientation, missed plan roots) and previously fell through every crack. autoStartTaskIds
+					// re-checks lane/overlap/concurrency per card, so the superset is safe.
+					const sweepState = await loadWorkspaceState(scope.workspacePath).catch(() => null);
+					const activeSessionTaskIds = new Set(
+						service
+							.listSummaries()
+							.filter(
+								(summary) =>
+									summary.state === "running" ||
+									summary.state === "queued" ||
+									summary.state === "awaiting_review",
+							)
+							.map((summary) => summary.taskId),
+					);
+					const sweepTaskIds = sweepState
+						? listStartableUnstartedTaskIds(sweepState.board, activeSessionTaskIds)
+						: [];
+					await autoStartTaskIds(scope, [
+						...new Set([...readyTaskIds, ...deferredOverlapTaskIds, ...sweepTaskIds]),
+					]);
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
