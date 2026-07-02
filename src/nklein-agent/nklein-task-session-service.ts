@@ -367,6 +367,8 @@ export interface NKleinTaskSessionService {
 		timeoutMs?: number;
 		/** §5.AW arbitration: run acceptance against ANOTHER taskId's result branch (the `::spec` candidate). */
 		resultBranchTaskId?: string;
+		/** #39: run against the BASE tree (no result branch) — the baseline sample for the was-it-already-broken waiver. */
+		useBaseTree?: boolean;
 	}): Promise<RuntimeTaskAcceptanceResult>;
 	/**
 	 * W4.2 (layer 3): a lineage-diverse loaded model to ESCALATE a stuck card's worker to (null when none exists
@@ -2761,6 +2763,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		taskPrompt: string;
 		timeoutMs?: number;
 		resultBranchTaskId?: string;
+		useBaseTree?: boolean;
 	}): Promise<RuntimeTaskAcceptanceResult> {
 		if (!this.agentSandboxManager) {
 			throw new Error("!Klein acceptance verification requires the configured agent sandbox manager.");
@@ -2771,10 +2774,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// (e.g. empty patch) falls back to the base ref, where the empty-patch hold already governs.
 		// §5.AW: when the reviewer preferred the speculative candidate, the DELIVERED tree is the ::spec
 		// branch — acceptance evidence must run against what actually ships.
-		const resultCommit = await resolveTaskResultBranchCommit({
-			repoPath: input.projectRepoPath,
-			taskId: input.resultBranchTaskId ?? input.taskId,
-		}).catch(() => null);
+		const resultCommit = input.useBaseTree
+			? null
+			: await resolveTaskResultBranchCommit({
+					repoPath: input.projectRepoPath,
+					taskId: input.resultBranchTaskId ?? input.taskId,
+				}).catch(() => null);
 		return await runNKleinAcceptanceGateInSandbox({
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,

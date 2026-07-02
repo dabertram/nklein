@@ -9330,6 +9330,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       boundaries, add execute-side normalizers with tests (the #32/#34 pattern).
 > - [ ] Add a telemetry COUNTER for pre-execution rejections per tool per model — the scoreboard that proves the
 >       sweep worked and catches the next variant early (a rejected call should be RARE, not a stall mode).
+> - [ ] **run38 evidence — `read_files` double-encoded array:** a worker sent `{"files": "[{\"path\": ..."}` (the
+>       array JSON-ENCODED as a string) and was pre-rejected. edit_file's `repairJsonStringValue` already handles
+>       exactly this — apply it at read_files' boundary/parser too (and sweep the other array-taking tools).
+> - [ ] **run36/38 evidence — the interrupted-salvage capture paths don't all reach the rebound:** an abandoned
+>       card whose stop-path capture errors (docker 409 exec race) is left `interrupted` with a PRIOR result
+>       branch — the recordPatchCaptureStatus rebound never runs for that path. Rather than chase each capture
+>       variant: teach the #29 WATCHDOG to rescue `interrupted` cards in non-terminal lanes that have a result
+>       branch (rebind into review — the same salvage→judge move), making it the universal net for this class.
 > - [ ] **run37 evidence — `edit_file` insert-shape (6 rejections, 3 workers abandoned):** models emit
 >       `{path, insert_line, new_text}` (an insert-at-line idiom from other ecosystems) where the SDK expects the
 >       edits-array shape ("expected array"). Fix candidates: vendor-side normalizer mapping insert_line/new_text

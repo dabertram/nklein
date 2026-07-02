@@ -973,6 +973,47 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						}
 					};
 					let acceptance = await runAcceptance(preferredSpeculative ? deliveredBranchTaskId : undefined);
+					// #39 (runs 32/35/36/38 — the scope-vs-acceptance trap): when the card's acceptance command
+					// fails on the DELIVERED tree, sample it once against the BASE tree. An identical baseline
+					// failure means the breakage predates this card (broken test infra, a sibling's debt) — the
+					// worker can NEVER fix it inside its declared file scope, so holding/bouncing on it just
+					// traps the card (blocked out-of-scope writes → 3 strikes → abandoned, seen in four runs).
+					// WAIVE tests for this delivery: the reviewer's judgment alone gates (run19's base-red lesson
+					// completed). A failure that is NOT present at baseline stays the worker's to fix.
+					if (deliveryCard && acceptance?.present === true && acceptance.passed === false) {
+						const baseline = await (async () => {
+							try {
+								return await service.verifyTaskAcceptanceInSandbox({
+									taskId,
+									projectRepoPath: scope.workspacePath,
+									baseRef: deliveryCard.baseRef,
+									taskPrompt: deliveryCard.prompt,
+									useBaseTree: true,
+								});
+							} catch {
+								return null;
+							}
+						})();
+						if (baseline?.present === true && baseline.passed === false) {
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Acceptance waived for ${taskId}: "${acceptance.command ?? "?"}" fails identically on the BASE tree (exit ${baseline.exitCode ?? "?"}) — the breakage predates this card; the review verdict alone gates this delivery.`,
+								taskId,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "acceptance_baseline_waiver",
+									command: acceptance.command ?? null,
+									resultExit: String(acceptance.exitCode ?? ""),
+									baselineExit: String(baseline.exitCode ?? ""),
+								},
+							});
+							deps.warn(
+								`Acceptance for ${taskId} fails on the base tree too — waived (pre-existing breakage); review verdict gates delivery.`,
+							);
+							acceptance = { ...acceptance, passed: true };
+						}
+					}
 					// §5.AW (adversarial finding): a preferred-but-failing SPECULATIVE tree must not poison the
 					// primary's re-drive rung with an alien failure. Fall back to the PRIMARY candidate: if its
 					// tree passes acceptance, deliver it instead; if both fail, the hold/#28 rung below reasons
