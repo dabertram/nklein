@@ -173,7 +173,7 @@ async function main(): Promise<void> {
 	initGitRepository(cwd);
 
 	// Refuse any non-resident fleet model up front (never load — user directive).
-	for (const model of [ARCHITECT, WORKER, ...WORKER_POOL, REVIEWER]) {
+	for (const model of [ARCHITECT, WORKER, ...WORKER_POOL, ...(REVIEWER === "none" ? [] : [REVIEWER])]) {
 		await assertModelLoaded(BASE_URL, model);
 	}
 
@@ -235,7 +235,9 @@ async function main(): Promise<void> {
 						modelId: WORKER,
 						additionalModels: WORKER_POOL.map((modelId) => ({ providerId: PROVIDER_ID, modelId })),
 					},
-					reviewer: { providerId: PROVIDER_ID, modelId: REVIEWER },
+					// REVIEWER="none" leaves the reviewer role UNCONFIGURED — exercising the W2.5a lineage-diverse
+					// reviewer AUTO-PICK (previously the silent worker-reviews-itself fallback).
+					...(REVIEWER === "none" ? {} : { reviewer: { providerId: PROVIDER_ID, modelId: REVIEWER } }),
 				},
 			},
 		});
@@ -270,7 +272,7 @@ async function main(): Promise<void> {
 		const task = createRes.payload.task;
 		log(`Project workspace: ${workspaceId}\n  path: ${workspacePath}\n  seed (decompose) card: ${task.id}`);
 
-		const startRes = await requestJson({
+		const startRes = await requestJson<{ ok?: boolean; error?: string; errorCode?: string; selectionReason?: string }>({
 			baseUrl: server.baseUrl,
 			procedure: "runtime.startTaskSession",
 			type: "mutation",
@@ -286,7 +288,11 @@ async function main(): Promise<void> {
 				nkleinSettings: task.nkleinSettings,
 			},
 		});
-		log(`startTaskSession(seed): HTTP ${startRes.status}`);
+		log(
+			`startTaskSession(seed): HTTP ${startRes.status} ok=${startRes.payload?.ok ?? "?"}` +
+				`${startRes.payload?.error ? ` ERROR[${startRes.payload.errorCode ?? "?"}]=${startRes.payload.error}` : ""}` +
+				`${startRes.payload?.selectionReason ? ` | ${startRes.payload.selectionReason}` : ""}`,
+		);
 
 		stream = await connectRuntimeStream(
 			`ws://${new URL(server.baseUrl).host}/api/runtime/ws?workspaceId=${encodeURIComponent(workspaceId)}`,
