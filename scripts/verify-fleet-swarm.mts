@@ -335,7 +335,10 @@ async function main(): Promise<void> {
 		// swarm in ~1.5min instead of 7min. Sessions that are RUNNING but silent (long prefill/generation) never
 		// trip this — that's what the long window is for (prefill silence ≠ death).
 		const deadStallMs = Math.round(Number(process.env.NKLEIN_VERIFY_DEAD_STALL_MS ?? "90000") * power.multiplier);
-		const ALIVE_SESSION_STATES = new Set(["running", "queued", "starting"]);
+		// awaiting_review counts ALIVE (run23 false-positive: both escalated cards were mid host-side
+		// finalize/capture/review — work that runs with no session activity by design, for minutes — when the
+		// dead-stall killed the run and its teardown broke the in-flight captures mid-exec).
+		const ALIVE_SESSION_STATES = new Set(["running", "queued", "starting", "awaiting_review"]);
 		let stalled = false;
 		let lastSummary = "";
 		let decomposed = false;
