@@ -340,6 +340,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// retryable cards waiting. Debounced per workspace so a burst of summary updates costs one sweep.
 	const lastTerminalRetrySweepAtByWorkspaceId = new Map<string, number>();
 	const TERMINAL_RETRY_SWEEP_DEBOUNCE_MS = 5_000;
+	// #26 (run28): event-only deferral rescue has a terminal gap — the retry fired on every completion but each
+	// raced the completing session's still-held slot, and after the LAST completion no event ever fires again.
+	// A concurrency-limit deferral therefore also arms a one-shot TIMER sweep (clears the debounce window).
+	const deferredRetryTimerByWorkspaceId = new Map<string, ReturnType<typeof setTimeout>>();
+	const DEFERRED_RETRY_TIMER_MS = 7_000;
 	const queuedStartDrainTimersByWorkspaceId = new Map<
 		string,
 		{
@@ -440,6 +445,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						deferredOverlapTaskIdsByWorkspaceId.set(scope.workspaceId, deferred);
 						deps.warn(
 							`Auto-start of ${task.id} hit the concurrency limit; deferred for retry on the next completion.`,
+						);
+						// #26: also retry on a TIMER — the completion-event retry can race the releasing slot, and
+						// after the last completion no event ever fires again (run28 stranded its final card this way).
+						const existingTimer = deferredRetryTimerByWorkspaceId.get(scope.workspaceId);
+						if (existingTimer) {
+							clearTimeout(existingTimer);
+						}
+						deferredRetryTimerByWorkspaceId.set(
+							scope.workspaceId,
+							setTimeout(() => {
+								deferredRetryTimerByWorkspaceId.delete(scope.workspaceId);
+								const timerService = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
+								if (timerService) {
+									retryWaitingCardsAfterTerminal(scope, timerService);
+								}
+							}, DEFERRED_RETRY_TIMER_MS),
 						);
 						continue;
 					}
