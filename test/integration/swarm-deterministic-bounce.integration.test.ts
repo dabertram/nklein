@@ -1,12 +1,15 @@
 /**
- * W2.1 v2 (audit 2026-07-02) — the deterministic PASS path: scripted workers that actually DELIVER. Complements the
- * v1 hold-path suite (swarm-deterministic.integration.test.ts) so both sides of the fail-closed gate are pinned:
- * v1 = a no-op worker is re-driven then HELD; v2 = a delivering worker flows decompose → write → capture → review
- * approval → fresh acceptance pass → MERGE → completed, i.e. run17's live PASS reproduced deterministically.
+ * W2.1 v3 (run20 live findings, 2026-07-02) — the BOUNCE → RE-WORK → APPROVE round-trip, deterministically.
  *
- * Uses the mock's CONTENT-AWARE router (not FIFO): concurrent sessions (workers, reviewers, knowledge turns)
- * interleave nondeterministically, so replies are routed by what each request carries — the decompose tool, the
- * submit_review tool, or a worker prompt that hasn't written yet.
+ * Pins the re-drive seam the fleet exposed live: `finalizeSandboxReview` disposes the worker's sandbox workspace
+ * after capturing the result branch, and a review bounce re-drives the SAME session — before the fix, its tools
+ * operated on a DELETED cwd (every read/write ENOENT'd), the worker flailed and the card parked. This scenario only
+ * reaches `completed` if the re-driven worker can actually WRITE in a restored workspace:
+ *
+ *   1. decompose → one card (gamma),
+ *   2. worker writes file #1 → capture → review REQUESTS CHANGES ("add gamma2"),
+ *   3. the bounce re-drives the worker — the restored workspace must accept write #2,
+ *   4. second capture → review APPROVES → fresh acceptance passes → merge → completed.
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,19 +37,18 @@ function lanesById(state: BoardStateResponse): Map<string, string> {
 	return lanes;
 }
 
-describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", () => {
+describe.sequential("deterministic swarm harness — bounce → re-work → approve (W2.1 v3)", () => {
 	let mock: MockLlmServer;
 	let server: BackendUnderTest | null = null;
 	let cwd = "";
 	let homeDir = "";
-
 	let passed = false;
 	const serverLogLines: string[] = [];
 
 	beforeAll(async () => {
-		mock = await startMockLlm({ modelId: "mock-pass-model" });
-		cwd = mkdtempSync(join(tmpdir(), "nklein-detpass-cwd-"));
-		homeDir = mkdtempSync(join(tmpdir(), "nklein-detpass-home-"));
+		mock = await startMockLlm({ modelId: "mock-bounce-model" });
+		cwd = mkdtempSync(join(tmpdir(), "nklein-detbounce-cwd-"));
+		homeDir = mkdtempSync(join(tmpdir(), "nklein-detbounce-home-"));
 		initGitRepository(cwd);
 		server = await startTsBackend({
 			cwd,
@@ -55,7 +57,7 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 			onLog: (chunk) => {
 				for (const line of chunk.split("\n")) {
 					if (
-						/decompos|error|warn|fail|sandbox|session|start|queue|review|delivery|acceptance|suitab|cascade|defer/i.test(
+						/decompos|error|warn|fail|sandbox|session|start|queue|review|delivery|acceptance|restore|redrive/i.test(
 							line,
 						) &&
 						line.trim()
@@ -74,14 +76,13 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 			rmSync(cwd, { recursive: true, force: true });
 			rmSync(homeDir, { recursive: true, force: true });
 		} else {
-			// Preserve the evidence on failure — the server log tail names the seam that stalled.
-			console.error(`[detpass] FAILURE — home preserved at ${homeDir}, cwd at ${cwd}`);
-			console.error(`[detpass] server log tail:\n${serverLogLines.slice(-60).join("\n")}`);
+			console.error(`[detbounce] FAILURE — home preserved at ${homeDir}, cwd at ${cwd}`);
+			console.error(`[detbounce] server log tail:\n${serverLogLines.slice(-60).join("\n")}`);
 		}
 	});
 
 	it(
-		"a delivering worker flows write → capture → review approval → acceptance → completed (run17's PASS, deterministically)",
+		"a bounced worker re-works in a RESTORED workspace and the second round approves to completed",
 		async () => {
 			if (!server) {
 				throw new Error("backend missing");
@@ -92,16 +93,14 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 				type: "mutation",
 				payload: { providerId: "lmstudio", modelId: mock.modelId, baseUrl: `${mock.baseUrl}/v1` },
 			});
-			// ONE worker card keeps the scenario tight; `npm test` passes on the untouched fixture, so a harmless
-			// new file keeps acceptance green at the delivery seam.
-			const wroteForTask = new Set<string>();
+
 			let decomposed = false;
+			let reviewCalls = 0;
+			let wroteFirst = false;
+			let wroteSecond = false;
 			mock.setRouter((request) => {
 				const tools = JSON.stringify(request.tools ?? "");
 				const messages = JSON.stringify(request.messages ?? "");
-				// Serve the decomposition exactly ONCE: worker sessions also carry the decompose tool, so an
-				// unconditional match turned the WORKER into a decomposer looping idempotent re-applies forever
-				// (holding the endpoint slot — the exact interleave that exposed the drain's lost-wakeup bug).
 				if (!decomposed && tools.includes("decompose_project")) {
 					decomposed = true;
 					return {
@@ -109,14 +108,12 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 							{
 								name: "decompose_project",
 								arguments: {
-									slug: "det-pass",
-									title: "Deterministic PASS scenario",
-									spec: "One tiny additive change.",
-									plan: "One card.",
+									slug: "det-bounce",
+									title: "Deterministic bounce scenario",
+									spec: "Two tiny additive changes, delivered across a review bounce.",
+									plan: "One card, two rounds.",
 									summary: "One card.",
-									// Dependency-free on purpose: the fresh ::acceptance sandbox clone has no
-									// node_modules, so `npm test` can never pass there — the gate itself is what
-									// this scenario pins, not the fixture's test suite.
+									// Dependency-free: the ::acceptance clone has no node_modules; the GATE is the pin.
 									defaultAcceptanceCommand: 'node -e "process.exit(0)"',
 									tasks: [{ id: "gamma", title: "Card gamma", prompt: "Do gamma." }],
 								},
@@ -124,28 +121,57 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 						],
 					};
 				}
-				// One verdict per review session (see the bounce scenario): a repeated approve call would ride the
-				// identical-call guard instead of ending the turn cleanly.
+				// One verdict per review session: after a successful submission the session transcript carries the
+				// tool result ("Review submitted…") — serving another call would trip the identical-call guard and
+				// let a later flip-flopped verdict win (the first version of this test approved without a bounce).
 				if (tools.includes("submit_review") && !messages.includes("Review submitted")) {
+					reviewCalls += 1;
+					if (reviewCalls === 1) {
+						return {
+							toolCalls: [
+								{
+									name: "submit_review",
+									arguments: {
+										verdict: "request_changes",
+										summary: "First pass is close but incomplete.",
+										feedback: "Also add notes/gamma2.md with a short summary.",
+									},
+								},
+							],
+						};
+					}
 					return {
 						toolCalls: [
 							{
 								name: "submit_review",
 								arguments: {
 									verdict: "approve",
-									summary: "The additive change is correct and matches the task.",
+									summary: "Both notes are present; the change matches the task.",
 								},
 							},
 						],
 					};
 				}
-				if (messages.includes("Do gamma") && !wroteForTask.has("gamma") && tools.includes("write_file")) {
-					wroteForTask.add("gamma");
+				// The RE-DRIVE turn carries the reviewer feedback — this write only works if the disposed
+				// workspace was restored before the turn (the run20 fix this scenario exists to pin).
+				if (!wroteSecond && tools.includes("write_file") && messages.includes("gamma2")) {
+					wroteSecond = true;
 					return {
 						toolCalls: [
 							{
 								name: "write_file",
-								arguments: { path: "notes/gamma.md", content: "# gamma\n\nDelivered by the mock worker.\n" },
+								arguments: { path: "notes/gamma2.md", content: "# gamma2\n\nRe-work after the bounce.\n" },
+							},
+						],
+					};
+				}
+				if (!wroteFirst && tools.includes("write_file") && messages.includes("Do gamma")) {
+					wroteFirst = true;
+					return {
+						toolCalls: [
+							{
+								name: "write_file",
+								arguments: { path: "notes/gamma.md", content: "# gamma\n\nFirst delivery.\n" },
 							},
 						],
 					};
@@ -214,14 +240,15 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 				await new Promise((resolve) => setTimeout(resolve, 3_000));
 			}
 
-			// THE PASS INVARIANT: the delivering card auto-completed through the FULL evidence chain — real review
-			// sign-off + fresh acceptance pass + merge (run17's live PASS, now deterministic).
-			expect(
-				gammaId,
-				`lanes: ${JSON.stringify([...lanes.entries()])} (mock requests: ${mock.requests.length})`,
-			).not.toBe("");
-			expect(lanes.get(seed.id), `lanes: ${JSON.stringify([...lanes.entries()])}`).toBe("completed");
-			expect(lanes.get(gammaId), `lanes: ${JSON.stringify([...lanes.entries()])}`).toBe("completed");
+			// THE ROUND-TRIP INVARIANT: the bounced card came back through a second review and completed —
+			// which requires the re-driven worker to have WRITTEN in a restored workspace (round 2's approval
+			// is only reachable after write #2 landed and was re-captured).
+			const detail = `lanes: ${JSON.stringify([...lanes.entries()])} | reviews=${reviewCalls} wrote1=${wroteFirst} wrote2=${wroteSecond}`;
+			expect(gammaId, detail).not.toBe("");
+			expect(lanes.get(seed.id), detail).toBe("completed");
+			expect(lanes.get(gammaId), detail).toBe("completed");
+			expect(reviewCalls, detail).toBeGreaterThanOrEqual(2);
+			expect(wroteSecond, detail).toBe(true);
 			passed = true;
 		},
 		TEST_TIMEOUT_MS,

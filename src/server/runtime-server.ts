@@ -290,6 +290,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Requests that arrive mid-drain are remembered here and re-run when the in-flight drain finishes.
 	const queuedStartDrainRerunRequestByWorkspaceId = new Map<string, { force: boolean }>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
+	// LOST-WAKEUP fix #2 (harness v3, same pattern as the queued-start drain): a finalization request arriving
+	// while one is IN FLIGHT was silently dropped — a fast bounce→re-work round-trip finalizes AGAIN while the
+	// bounce round is still persisting, so round 2's review never ran (and a later stray trigger raced the
+	// bounce persist into "not_reviewable"). Requests that arrive mid-finalization are remembered and re-run.
+	const autoReviewFinalizationRerunRequestedKeys = new Set<string>();
 	// W4.2a (run12 live finding): ONE automatic re-drive of an empty-patch worker before the fail-closed hold —
 	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
 	// missing piece was recovery). Keyed workspace:task; bounded to a single attempt, then the operator owns it.
@@ -549,6 +554,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	): void => {
 		const inFlightKey = `${scope.workspaceId}:${taskId}`;
 		if (autoReviewFinalizationInFlightTaskIds.has(inFlightKey)) {
+			// Remember the request instead of dropping it — the in-flight finalization re-runs it on completion
+			// (a fast re-drive round can finalize again while the previous round is still persisting its bounce).
+			autoReviewFinalizationRerunRequestedKeys.add(inFlightKey);
 			return;
 		}
 		autoReviewFinalizationInFlightTaskIds.add(inFlightKey);
@@ -776,6 +784,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				deps.warn(`Could not finalize auto-review task ${taskId} for ${scope.workspacePath}: ${message}`);
 			} finally {
 				autoReviewFinalizationInFlightTaskIds.delete(inFlightKey);
+				if (autoReviewFinalizationRerunRequestedKeys.delete(inFlightKey)) {
+					finalizeHeadlessAutoReviewTask(scope, service, taskId);
+				}
 			}
 		})();
 	};

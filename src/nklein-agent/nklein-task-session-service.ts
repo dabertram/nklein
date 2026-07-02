@@ -3337,7 +3337,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					this.recordPatchCaptureStatus(taskId, "empty");
 				}
 				await manager.disposeWorkspace(taskId);
-				this.forgetSandboxTask(taskId);
+				// Keep the sandbox STATE (repoPath/baseRef): the card is only AWAITING REVIEW — a bounce or
+				// escalation re-drive needs it to RESTORE the disposed workspace (run20 #17 / harness v3: with the
+				// state forgotten here, the restore helper no-op'd, the re-driven worker's tools had no placement,
+				// and the session could never finalize a second round). True terminal cleanup forgets it.
+				this.sandboxState.unmarkFinalizing(taskId);
 			} catch (error) {
 				this.sandboxState.unmarkFinalizing(taskId);
 				const errorMessage = toErrorMessage(error);
@@ -3364,7 +3368,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					if (hasWorkspace) {
 						await manager.disposeWorkspace(taskId).catch(() => null);
 					}
-					this.forgetSandboxTask(taskId);
+					// Same as the capture path above: keep the sandbox state for a possible re-drive round.
+					this.sandboxState.unmarkFinalizing(taskId);
 					return;
 				}
 				this.recordPatchCaptureStatus(taskId, "error");
