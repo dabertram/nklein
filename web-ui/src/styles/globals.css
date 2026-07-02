@@ -413,8 +413,11 @@ body,
 
 .kb-dependency-path {
 	fill: none;
+	/* §5.BC treatment C (user pick): the all-edges view is opt-in AND de-emphasized — thin, translucent
+	   accent lines that read as structure, not noise; hover keeps the full-strength delete affordance. */
 	stroke: var(--color-accent);
-	stroke-width: 2;
+	stroke-width: 1.25;
+	opacity: 0.45;
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
@@ -422,6 +425,7 @@ body,
 .kb-dependency-path-hover {
 	stroke: var(--color-status-red);
 	stroke-width: 2;
+	opacity: 1;
 }
 
 .kb-dependency-hit-path {

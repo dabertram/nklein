@@ -8,7 +8,16 @@ import {
 	type SensorAPI,
 	type SnapDragActions,
 } from "@hello-pangea/dnd";
-import { Database, PauseCircle, PlayCircle, Plus, ShieldAlert, SlidersHorizontal, Sparkles } from "lucide-react";
+import {
+	Database,
+	PauseCircle,
+	PlayCircle,
+	Plus,
+	ShieldAlert,
+	SlidersHorizontal,
+	Sparkles,
+	Waypoints,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -39,6 +48,7 @@ import type {
 } from "@/runtime/types";
 import { canCreateTaskDependency } from "@/state/board-state";
 import { findCardColumnId, type ProgrammaticCardMoveInFlight } from "@/state/drag-rules";
+import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import type { BoardCard, BoardColumnId, BoardData, BoardDependency } from "@/types";
 
 const BOARD_COLUMN_ORDER: BoardColumnId[] = ["backlog", "planning", "in_progress", "review", "completed", "trash"];
@@ -208,6 +218,17 @@ export function KanbanBoard({
 	const [copyEvidenceTaskId, setCopyEvidenceTaskId] = useState<string | null>(null);
 	const configuredConcurrencyCap = Math.max(1, Math.trunc(runtimeConfig?.maxConcurrentTasks ?? 3));
 	const [concurrencyCapDraft, setConcurrencyCapDraft] = useState(configuredConcurrencyCap);
+	// §5.BC (user pick: treatment C — all edges behind a toggle): persisted, OFF by default so the board
+	// stays clean at rest; the linking draft always draws regardless.
+	const [dependencyEdgesVisible, setDependencyEdgesVisible] = useState(
+		() => readLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible) === "1",
+	);
+	const handleToggleDependencyEdges = useCallback(() => {
+		setDependencyEdgesVisible((current) => {
+			writeLocalStorageItem(LocalStorageKey.BoardDependencyEdgesVisible, current ? "0" : "1");
+			return !current;
+		});
+	}, []);
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
 	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
 		useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
@@ -950,6 +971,16 @@ export function KanbanBoard({
 							{isConcurrencyCapSaving ? <Spinner size={12} /> : null}
 						</label>
 					</ElementTooltip>
+					<ElementTooltip id="board.dependency-edges" side="bottom">
+						<Button
+							variant={dependencyEdgesVisible ? "default" : "ghost"}
+							size="sm"
+							icon={<Waypoints size={14} />}
+							onClick={handleToggleDependencyEdges}
+						>
+							Deps
+						</Button>
+					</ElementTooltip>
 					<ElementTooltip id="board.swarm-pause" side="bottom">
 						<Button
 							variant={swarmStopSignal ? "default" : "danger"}
@@ -1026,7 +1057,7 @@ export function KanbanBoard({
 					) : null}
 					<DependencyOverlay
 						containerRef={boardRef}
-						dependencies={dependencies}
+						dependencies={dependencyEdgesVisible || dependencyLinking.draft ? dependencies : []}
 						draft={dependencyLinking.draft}
 						activeTaskId={activeDragTaskId ?? programmaticCardMoveInFlight?.taskId ?? null}
 						activeTaskEffectiveColumnId={activeTaskEffectiveColumnId}

@@ -81,6 +81,11 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Pause / resume the swarm",
 		description: "Stop every agent at the next safe checkpoint, or resume paused work.",
 	},
+	"board.dependency-edges": {
+		name: "Show dependency edges",
+		description:
+			"Draw every card-dependency edge on the board (de-emphasized). Off by default so the board stays clean; linking a new dependency always shows its line.",
+	},
 	"board.code-intel": {
 		name: "Code intelligence",
 		description: "The project's code-index status and the embedding provider used for retrieval.",

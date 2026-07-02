@@ -441,6 +441,76 @@ describe("KanbanBoard", () => {
 		expect(pauseButton?.hasAttribute("disabled")).toBe(true);
 	});
 
+	it("§5.BC: the Deps toggle is off by default, persists, and gates the dependency overlay", async () => {
+		const board: BoardData = {
+			columns: [
+				{
+					id: "backlog",
+					title: "Backlog",
+					cards: [
+						{
+							id: "task-a",
+							title: "A",
+							prompt: "a",
+							startInPlanMode: false,
+							agentId: "nklein",
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 1,
+						},
+						{
+							id: "task-b",
+							title: "B",
+							prompt: "b",
+							startInPlanMode: false,
+							agentId: "nklein",
+							baseRef: "main",
+							createdAt: 2,
+							updatedAt: 2,
+						},
+					],
+				},
+				{ id: "planning", title: "Planning", cards: [] },
+				{ id: "in_progress", title: "In Progress", cards: [] },
+				{ id: "review", title: "Review", cards: [] },
+				{ id: "completed", title: "Completed", cards: [] },
+				{ id: "trash", title: "Done", cards: [] },
+			],
+			dependencies: [],
+		};
+		const deps = [{ id: "d1", fromTaskId: "task-b", toTaskId: "task-a", createdAt: 3 }];
+
+		await act(async () => {
+			root.render(
+				<KanbanBoard
+					data={{ ...board, dependencies: deps }}
+					taskSessions={{}}
+					onCardSelect={() => {}}
+					onCreateTask={() => {}}
+					dependencies={deps}
+					onDragEnd={() => {}}
+				/>,
+			);
+		});
+
+		const depsButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Deps"),
+		);
+		expect(depsButton).toBeTruthy();
+		// OFF by default: no persisted-edge paths drawn (the overlay got an empty list).
+		expect(container.querySelectorAll(".kb-dependency-path").length).toBe(0);
+
+		await act(async () => {
+			depsButton?.click();
+		});
+		expect(window.localStorage.getItem("nklein.board-dependency-edges-visible")).toBe("1");
+
+		await act(async () => {
+			depsButton?.click();
+		});
+		expect(window.localStorage.getItem("nklein.board-dependency-edges-visible")).toBe("0");
+	});
+
 	it("surfaces an explicit sandbox queue count in the swarm header (§5.G)", async () => {
 		const board: BoardData = {
 			columns: [

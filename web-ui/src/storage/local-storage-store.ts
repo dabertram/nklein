@@ -29,6 +29,8 @@ export enum LocalStorageKey {
 	ChatSidebarWidth = "nklein.chat-sidebar-width",
 	ChatSidebarCollapsed = "nklein.chat-sidebar-collapsed",
 	Theme = "nklein.theme",
+	/** §5.BC (user pick: treatment C): the board dependency-edge overlay toggle. */
+	BoardDependencyEdgesVisible = "nklein.board-dependency-edges-visible",
 }
 
 export const LAYOUT_CUSTOMIZATION_LOCAL_STORAGE_KEYS = [
@@ -106,6 +108,12 @@ const LEGACY_LOCAL_STORAGE_KEY_BY_CURRENT_KEY: Partial<Record<LocalStorageKey, s
 	[LocalStorageKey.ChatSidebarWidth]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "chat-sidebar-width"),
 	[LocalStorageKey.ChatSidebarCollapsed]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "chat-sidebar-collapsed"),
 	[LocalStorageKey.Theme]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "theme"),
+	// Born after the kanban.*→nklein.* rename — the legacy twin never shipped, but the migration test seeds
+	// every enum key's synthetic twin, and mapping it keeps the sweep exhaustive-by-construction.
+	[LocalStorageKey.BoardDependencyEdgesVisible]: buildPrefixedKey(
+		LEGACY_LOCAL_STORAGE_PREFIX,
+		"board-dependency-edges-visible",
+	),
 };
 
 function getLocalStorage(): Storage | null {
