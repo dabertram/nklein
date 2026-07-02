@@ -1,4 +1,5 @@
 import { RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS } from "../core/api-contract";
+import { supportsThinkingControl } from "../core/model-thinking-control";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import {
@@ -103,6 +104,31 @@ export function estimateNKleinStartDifficulty(promptTokens: number, signals?: NK
 		difficulty += PLAN_CARD_DIFFICULTY_BONUS;
 	}
 	return Math.max(5, Math.min(100, difficulty));
+}
+
+/** Cards at or below this difficulty get thinking disabled on switchable models (W1.3 — the reasoning-token tax). */
+const SWARM_THINKING_DISABLE_MAX_DIFFICULTY = 30;
+
+/**
+ * Should the swarm DISABLE thinking (`/no_think`) for this task on this model? (audit 2026-07-02 W1.3.) Switchable
+ * reasoning models burn 500–965 reasoning tokens on trivial cards every turn — wall-time waste that also converts
+ * borderline cards into truncation failures. True only when BOTH hold: the model has a live-verified thinking
+ * soft-switch (`supportsThinkingControl` — non-switchable families like qwen3.5/r1 rely on the W1.1 budget-raise
+ * instead) AND the card's blended difficulty (W1.2) is LOW — hard cards keep their reasoning (it helps there).
+ */
+export function shouldDisableSwarmThinking(input: {
+	modelId: string | null | undefined;
+	prompt: string;
+	taskTitle?: string | null;
+}): boolean {
+	if (!input.modelId || !supportsThinkingControl(input.modelId)) {
+		return false;
+	}
+	const promptTokens = estimateNKleinStartPromptTokens({ prompt: input.prompt, taskTitle: input.taskTitle });
+	const difficulty = estimateNKleinStartDifficulty(promptTokens, {
+		taskText: `${input.taskTitle ?? ""}\n${input.prompt}`,
+	});
+	return difficulty <= SWARM_THINKING_DISABLE_MAX_DIFFICULTY;
 }
 
 export function estimateNKleinStartFitBudgetTokens(promptTokens: number, largestContextWindow: number | null): number {

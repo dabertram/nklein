@@ -25,6 +25,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
+import { applyThinkingDisable } from "../core/model-thinking-control";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { appendTemporalContext, decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -123,6 +124,7 @@ import {
 	resolveNKleinTaskRole,
 	toErrorMessage,
 } from "./nklein-task-session-helpers";
+import { shouldDisableSwarmThinking } from "./nklein-task-start-guard";
 import {
 	formatTaskTimeoutFailureMessage,
 	formatTaskTimeoutLabel,
@@ -714,7 +716,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				taskId: input.taskId,
 				cwd: agentPerceivedCwd,
 				workspaceRoot: input.workspaceRoot ?? launchConfig.workspaceRoot,
-				prompt: input.prompt,
+				// W1.3 (audit 2026-07-02): disable thinking on LOW-difficulty cards for switchable models — removes the
+				// 500–965-token reasoning tax + its truncation risk at no correctness cost; hard cards keep reasoning.
+				prompt: shouldDisableSwarmThinking({
+					modelId: launchConfig.modelId,
+					prompt: input.prompt,
+					taskTitle: null,
+				})
+					? applyThinkingDisable(input.prompt, launchConfig.modelId ?? "")
+					: input.prompt,
 				initialMessages: input.initialMessages,
 				images: input.images,
 				providerId: launchConfig.providerId,
@@ -1719,7 +1729,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// tools resolve plan artifacts + board mutations to the host owning workspace, never to the
 					// container workdir (agentPerceivedCwd points inside the sandbox volume when isolation is active).
 					workspaceRoot: request.workspaceRoot ?? request.cwd,
-					prompt: runtimePrompt,
+					// W1.3 (audit 2026-07-02): disable thinking on LOW-difficulty cards for switchable models — removes
+					// the 500–965-token reasoning tax + its truncation risk; hard cards keep their reasoning.
+					prompt: shouldDisableSwarmThinking({
+						modelId,
+						prompt: runtimePrompt,
+						taskTitle: request.taskTitle ?? null,
+					})
+						? applyThinkingDisable(runtimePrompt, modelId ?? "")
+						: runtimePrompt,
 					taskTitle: request.taskTitle,
 					initialMessages,
 					images: request.images,
