@@ -96,7 +96,7 @@ export function createNKleinFocusChainTool(options: { onUpdated?: NKleinFocusCha
 						additionalProperties: true,
 					},
 				},
-				name: { type: "string", description: "Ignored. Do not include." },
+				name: { type: ["string", "null"], description: "Ignored. Do not include." },
 			},
 			required: ["steps"],
 			additionalProperties: false,

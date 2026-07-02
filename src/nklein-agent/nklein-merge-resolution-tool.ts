@@ -51,7 +51,7 @@ export function createNKleinMergeResolutionTool(options: {
 				// #27 (run29 live): models sometimes ECHO the tool name inside the arguments — with
 				// additionalProperties:false that rejected an otherwise perfect verdict pre-execution and looped
 				// the session to abandonment. Tolerated and ignored (the Zod layer strips unknown keys).
-				name: { type: "string", description: "Ignored. Do not include." },
+				name: { type: ["string", "null"], description: "Ignored. Do not include." },
 				outcome: {
 					type: "string",
 					enum: ["resolved", "cannot_resolve"],

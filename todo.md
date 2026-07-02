@@ -9330,6 +9330,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       boundaries, add execute-side normalizers with tests (the #32/#34 pattern).
 > - [ ] Add a telemetry COUNTER for pre-execution rejections per tool per model — the scoreboard that proves the
 >       sweep worked and catches the next variant early (a rejected call should be RARE, not a stall mode).
+> - [ ] **run37 evidence — `edit_file` insert-shape (6 rejections, 3 workers abandoned):** models emit
+>       `{path, insert_line, new_text}` (an insert-at-line idiom from other ecosystems) where the SDK expects the
+>       edits-array shape ("expected array"). Fix candidates: vendor-side normalizer mapping insert_line/new_text
+>       → a real edit (execute can read the file for context), or at minimum an actionable rejection instruction
+>       (the raw Zod dump made the model retry the same wrong shape 3×). Same family: run37's submit_review kill
+>       was `"name": null` — the #27 echo-tolerance field itself wasn't null-tolerant (fixed as #37).
 
 ### 5.BC — Board dependency-edge visualization *(2026-07-02 late, user — "rather one of the next steps")*
 > **User directive:** "check about visualizing the task/card graph edges .. maybe only as activate-able if it
