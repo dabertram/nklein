@@ -75,6 +75,7 @@ import {
 } from "../state/workspace-state";
 import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router";
@@ -313,6 +314,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	>();
 	let runtimeApi: RuntimeTrpcContext["runtimeApi"];
 	const autoStartTaskIds = async (scope: RuntimeTrpcWorkspaceScope, taskIds: readonly string[]): Promise<void> => {
+		if (taskIds.length === 0) {
+			return;
+		}
+		// §5.AK Phase A: resolve the effective file-overlap policy ONCE per auto-start batch (project override ??
+		// global). A failed config load fails safe to "serialize" — today's defer-on-overlap behavior.
+		const overlapRuntimeConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
+		const fileOverlapParallelism = overlapRuntimeConfig?.effectiveFileOverlapParallelism ?? "serialize";
 		for (const taskId of taskIds) {
 			try {
 				const state = await loadWorkspaceState(scope.workspacePath);
@@ -340,7 +348,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					sessions,
 					task,
 				});
-				if (overlappingTask) {
+				if (overlappingTask && fileOverlapParallelism === "serialize") {
 					const sharedPaths = getSharedLikelyTouchedPaths(task, overlappingTask);
 					// Remember it so the completion handler retries it once the overlapping task releases its file lock —
 					// otherwise this card orphans (no dependency edge re-triggers it). Re-checked on each retry.
@@ -351,6 +359,24 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						`Skipped auto-start for linked task ${task.id} because it likely touches the same files as active task ${overlappingTask.id} (shared: ${sharedPaths.join(", ") || "?"}); deferred for retry on next completion.`,
 					);
 					continue;
+				}
+				if (overlappingTask) {
+					// §5.AK Phase A "allow": an overlap no longer defers — record the parallel start (both task ids +
+					// the shared paths) as a self-observation and fall through to the normal start logic. Phase B's
+					// merge agent owns resolving any resulting conflicts at delivery time.
+					const sharedPaths = getSharedLikelyTouchedPaths(task, overlappingTask);
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `File-overlap parallel start: task ${task.id} starts alongside active task ${overlappingTask.id} (shared: ${sharedPaths.join(", ") || "?"}).`,
+						taskId: task.id,
+						workspacePath: scope.workspacePath,
+						metadata: {
+							category: "file_overlap_parallel_start",
+							overlappingTaskId: overlappingTask.id,
+							sharedPaths,
+						},
+					});
 				}
 				// About to start it — it is no longer deferred-for-overlap.
 				deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.delete(task.id);

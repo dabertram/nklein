@@ -32,6 +32,8 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		sandboxMcpServersEnabled: true,
 		retrievalEgressEnabled: false,
 		retrievalSearchBackendUrl: null,
+		fileOverlapParallelism: "serialize",
+		fileOverlapParallelismOverride: null,
 		agentAutonomousModeEnabled: false,
 		agentTimeoutMode: DEFAULT_AGENT_TIMEOUT_MODE,
 		agentTimeoutProfile: DEFAULT_AGENT_TIMEOUT_PROFILE,

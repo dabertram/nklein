@@ -10,6 +10,7 @@ import type {
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
+	RuntimeFileOverlapParallelism,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -36,6 +37,7 @@ import {
 	normalizePromptTemplateWithLegacyDefault,
 	normalizeShortcuts,
 } from "./runtime-config-normalizers";
+import { deriveFileOverlapFields } from "./runtime-config-overlap-resolver";
 import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
 	DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
@@ -92,6 +94,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	modelSuitabilityPolicyOverride: RuntimeModelSuitabilityPolicy | null;
 	skillDynamicsLevelDefault: RuntimeSkillDynamicsLevel;
 	skillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null;
+	fileOverlapParallelism: RuntimeFileOverlapParallelism;
+	fileOverlapParallelismOverride: RuntimeFileOverlapParallelism | null;
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
 	modelRoles: RuntimeModelRoles;
@@ -156,6 +160,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		...deriveEmbeddingFields(input.codeEmbeddingDefaults, input.codeEmbeddingOverride),
 		...deriveSuitabilityFields(input.modelSuitabilityPolicyDefaults, input.modelSuitabilityPolicyOverride),
 		...deriveSkillDynamicsFields(input.skillDynamicsLevelDefault, input.skillDynamicsLevelOverride),
+		...deriveFileOverlapFields(input.fileOverlapParallelism, input.fileOverlapParallelismOverride),
 		...deriveModelRolesFields(input.modelRoles, input.modelRolesOverride),
 		...deriveRulesetsFields(input.agentRulesets, input.agentRulesetsOverride),
 		swarmGuardrails: normalizeRuntimeSwarmGuardrails(input.swarmGuardrails),

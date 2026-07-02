@@ -191,6 +191,11 @@ export const runtimeSkillDynamicsLevelSchema = z.enum([
 ]);
 export type RuntimeSkillDynamicsLevel = z.infer<typeof runtimeSkillDynamicsLevelSchema>;
 export const DEFAULT_RUNTIME_SKILL_DYNAMICS_LEVEL: RuntimeSkillDynamicsLevel = "fully_dynamic";
+// §5.AK file-overlap parallelization: may the auto-start loop start a task whose likely-touched files overlap an
+// active task? "serialize" = defer until the active task completes (today's behavior); "allow" = start it in
+// parallel (backed by the Phase B merge agent). Global default + per-project override (the §5.W pattern).
+export const runtimeFileOverlapParallelismSchema = z.enum(["serialize", "allow"]);
+export type RuntimeFileOverlapParallelism = z.infer<typeof runtimeFileOverlapParallelismSchema>;
 export const runtimeTaskNKleinContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
 export type RuntimeTaskNKleinContextScope = z.infer<typeof runtimeTaskNKleinContextScopeSchema>;
 export const runtimeTaskNKleinTimeoutModeSchema = z.preprocess(

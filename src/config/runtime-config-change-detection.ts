@@ -22,6 +22,7 @@ export type RuntimeConfigChangeComparable = Omit<
 	| "effectiveCodeEmbeddingSettings"
 	| "effectiveModelSuitabilityPolicy"
 	| "effectiveSkillDynamicsLevel"
+	| "effectiveFileOverlapParallelism"
 	| "effectiveMaxConcurrentTasks"
 	| "effectiveSelectedAgentId"
 	| "effectiveModelRoles"
@@ -77,6 +78,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("codeEmbeddingDefaults", areCodeEmbeddingSettingsEqual),
 	runtimeConfigChangeField("modelSuitabilityPolicyDefaults", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("skillDynamicsLevelDefault", areSkillDynamicsLevelsEqual),
+	runtimeConfigChangeField("fileOverlapParallelism"),
 	runtimeConfigChangeField("concurrencyDefaults", areConcurrencyConfigsEqual),
 	runtimeConfigChangeField("modelRoles", areModelRolesEqual),
 	runtimeConfigChangeField("agentRulesets", areAgentRulesetsEqual),
@@ -92,6 +94,7 @@ export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeF
 	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
 	runtimeConfigChangeField("modelSuitabilityPolicyOverride", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("skillDynamicsLevelOverride", areSkillDynamicsLevelsEqual),
+	runtimeConfigChangeField("fileOverlapParallelismOverride"),
 	runtimeConfigChangeField("concurrencyOverride", areConcurrencyOverridesEqual),
 	runtimeConfigChangeField("maxConcurrentTasksOverride"),
 	runtimeConfigChangeField("selectedAgentIdOverride"),
@@ -107,6 +110,7 @@ export const RUNTIME_CONFIG_DERIVED_FIELD_KEYS = [
 	"effectiveCodeEmbeddingSettings",
 	"effectiveModelSuitabilityPolicy",
 	"effectiveSkillDynamicsLevel",
+	"effectiveFileOverlapParallelism",
 	"effectiveMaxConcurrentTasks",
 	"effectiveSelectedAgentId",
 	"effectiveAgentRulesets",

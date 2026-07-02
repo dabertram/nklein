@@ -7,6 +7,7 @@ import type {
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
+	RuntimeFileOverlapParallelism,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -66,6 +67,10 @@ export interface RuntimeConfigState {
 	skillDynamicsLevelDefault: RuntimeSkillDynamicsLevel;
 	skillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null;
 	effectiveSkillDynamicsLevel: RuntimeSkillDynamicsLevel;
+	/** §5.AK: file-overlap parallelism — global value + per-project override + resolved effective ("serialize" by default). */
+	fileOverlapParallelism: RuntimeFileOverlapParallelism;
+	fileOverlapParallelismOverride: RuntimeFileOverlapParallelism | null;
+	effectiveFileOverlapParallelism: RuntimeFileOverlapParallelism;
 	/** §5.W: global per-provider/per-model concurrency caps + the per-project override (effective resolved per session). */
 	concurrencyDefaults: ConcurrencyConfig;
 	concurrencyOverride: ConcurrencyOverride | null;
@@ -120,6 +125,8 @@ export interface RuntimeConfigUpdateInput {
 	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 	skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
 	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
+	fileOverlapParallelism?: RuntimeFileOverlapParallelism;
+	fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
 	concurrencyDefaults?: ConcurrencyConfig;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
@@ -168,6 +175,7 @@ export interface RuntimeGlobalConfigFileShape {
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 	skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
+	fileOverlapParallelism?: RuntimeFileOverlapParallelism;
 	concurrencyDefaults?: ConcurrencyConfig;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
@@ -183,6 +191,7 @@ export interface RuntimeProjectConfigFileShape {
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
+	fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
 	concurrencyOverride?: ConcurrencyOverride | null;
 	maxConcurrentTasksOverride?: number | null;
 	selectedAgentIdOverride?: RuntimeAgentId | null;

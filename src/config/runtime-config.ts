@@ -12,6 +12,7 @@ import type {
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
+	RuntimeFileOverlapParallelism,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -84,6 +85,11 @@ import {
 	normalizeShortcuts,
 	normalizeSkillDynamicsLevelOverride,
 } from "./runtime-config-normalizers";
+import {
+	normalizeFileOverlapParallelism,
+	normalizeFileOverlapParallelismOverride,
+	resolveRuntimeFileOverlapConfig,
+} from "./runtime-config-overlap-resolver";
 import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
 	DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
@@ -242,6 +248,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeConcurrencyConfig(globalConfig, projectConfig),
 		...resolveRuntimeSandboxConfig(globalConfig),
 		...resolveRuntimeRetrievalConfig(globalConfig),
+		...resolveRuntimeFileOverlapConfig(globalConfig, projectConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig(globalConfig),
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
@@ -321,6 +328,7 @@ async function writeRuntimeProjectConfigFile(
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 		skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
+		fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
 		concurrencyOverride?: ConcurrencyOverride | null;
 		maxConcurrentTasksOverride?: number | null;
 		selectedAgentIdOverride?: RuntimeAgentId | null;
@@ -334,6 +342,9 @@ async function writeRuntimeProjectConfigFile(
 		config.modelSuitabilityPolicyOverride,
 	);
 	const skillDynamicsLevelOverride = normalizeSkillDynamicsLevelOverride(config.skillDynamicsLevelOverride);
+	const fileOverlapParallelismOverride = normalizeFileOverlapParallelismOverride(
+		config.fileOverlapParallelismOverride,
+	);
 	const concurrencyOverride = normalizeConcurrencyOverride(config.concurrencyOverride);
 	const maxConcurrentTasksOverride = normalizeMaxConcurrentTasksOverride(config.maxConcurrentTasksOverride);
 	const selectedAgentIdOverride = normalizeSelectedAgentIdOverride(config.selectedAgentIdOverride);
@@ -351,6 +362,9 @@ async function writeRuntimeProjectConfigFile(
 		}
 		if (skillDynamicsLevelOverride) {
 			throw new Error("Cannot save project skill-dynamics override without a selected project.");
+		}
+		if (fileOverlapParallelismOverride) {
+			throw new Error("Cannot save project file-overlap parallelism override without a selected project.");
 		}
 		if (maxConcurrentTasksOverride !== null) {
 			throw new Error("Cannot save project concurrent task override without a selected project.");
@@ -371,6 +385,7 @@ async function writeRuntimeProjectConfigFile(
 		codeEmbeddingOverride === null &&
 		modelSuitabilityPolicyOverride === null &&
 		skillDynamicsLevelOverride === null &&
+		fileOverlapParallelismOverride === null &&
 		concurrencyOverride === null &&
 		maxConcurrentTasksOverride === null &&
 		selectedAgentIdOverride === null &&
@@ -392,6 +407,7 @@ async function writeRuntimeProjectConfigFile(
 			...(codeEmbeddingOverride ? { codeEmbeddingOverride } : {}),
 			...(modelSuitabilityPolicyOverride ? { modelSuitabilityPolicyOverride } : {}),
 			...(skillDynamicsLevelOverride ? { skillDynamicsLevelOverride } : {}),
+			...(fileOverlapParallelismOverride ? { fileOverlapParallelismOverride } : {}),
 			...(concurrencyOverride ? { concurrencyOverride } : {}),
 			...(maxConcurrentTasksOverride !== null ? { maxConcurrentTasksOverride } : {}),
 			...(selectedAgentIdOverride !== null ? { selectedAgentIdOverride } : {}),
@@ -452,6 +468,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
 		retrievalSearchBackendUrl: current.retrievalSearchBackendUrl,
+		fileOverlapParallelism: current.fileOverlapParallelism,
+		fileOverlapParallelismOverride: null,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
 		agentTimeoutProfile: current.agentTimeoutProfile,
@@ -553,6 +571,8 @@ export async function saveRuntimeConfig(
 		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 		skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
 		skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
+		fileOverlapParallelism?: RuntimeFileOverlapParallelism;
+		fileOverlapParallelismOverride?: RuntimeFileOverlapParallelism | null;
 		concurrencyDefaults?: ConcurrencyConfig;
 		concurrencyOverride?: ConcurrencyOverride | null;
 		maxConcurrentTasksOverride?: number | null;
@@ -582,6 +602,7 @@ export async function saveRuntimeConfig(
 			),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
+			fileOverlapParallelism: normalizeFileOverlapParallelism(config.fileOverlapParallelism),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -637,6 +658,7 @@ export async function saveRuntimeConfig(
 			codeEmbeddingOverride: config.codeEmbeddingOverride,
 			modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride,
 			skillDynamicsLevelOverride: config.skillDynamicsLevelOverride,
+			fileOverlapParallelismOverride: config.fileOverlapParallelismOverride,
 			maxConcurrentTasksOverride: config.maxConcurrentTasksOverride,
 			selectedAgentIdOverride: config.selectedAgentIdOverride,
 			agentRulesetsOverride: config.agentRulesetsOverride,
@@ -657,6 +679,8 @@ export async function saveRuntimeConfig(
 			),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
+			fileOverlapParallelism: normalizeFileOverlapParallelism(config.fileOverlapParallelism),
+			fileOverlapParallelismOverride: config.fileOverlapParallelismOverride ?? null,
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -745,6 +769,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 				current.skillDynamicsLevelOverride,
 				normalizeSkillDynamicsLevelOverride,
 			),
+			fileOverlapParallelismOverride: keepNormalizedValue(
+				updates.fileOverlapParallelismOverride,
+				current.fileOverlapParallelismOverride,
+				normalizeFileOverlapParallelismOverride,
+			),
 			concurrencyOverride: keepNormalizedValue(
 				updates.concurrencyOverride,
 				current.concurrencyOverride,
@@ -803,6 +832,7 @@ export async function updateGlobalRuntimeConfig(
 				codeEmbeddingOverride: null,
 				modelSuitabilityPolicyOverride: null,
 				skillDynamicsLevelOverride: null,
+				fileOverlapParallelismOverride: null,
 				concurrencyOverride: null,
 				maxConcurrentTasksOverride: null,
 				selectedAgentIdOverride: null,

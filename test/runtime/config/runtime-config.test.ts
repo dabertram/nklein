@@ -165,6 +165,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 			{ key: "sandboxIdleTimeoutMinutes", value: 20 },
 			{ key: "retrievalEgressEnabled", value: true },
 			{ key: "retrievalSearchBackendUrl", value: "http://localhost:8888" },
+			{ key: "fileOverlapParallelism", value: "allow" },
 			{ key: "lostHeartbeatPolicy", value: "keep_running" },
 			{ key: "decompositionAutoApplyEnabled", value: false },
 			{ key: "secondOpinionReviewEnabled", value: false },

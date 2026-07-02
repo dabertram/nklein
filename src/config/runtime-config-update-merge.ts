@@ -38,6 +38,7 @@ import {
 	normalizePositiveNumber,
 	normalizeSkillDynamicsLevel,
 } from "./runtime-config-normalizers";
+import { normalizeFileOverlapParallelism } from "./runtime-config-overlap-resolver";
 import {
 	normalizeRetrievalEgressEnabled,
 	normalizeRetrievalSearchBackendUrl,
@@ -155,6 +156,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.skillDynamicsLevelDefault,
 			current.skillDynamicsLevelDefault,
 			(value) => normalizeSkillDynamicsLevel(value, DEFAULT_SKILL_DYNAMICS_LEVEL_CONFIG),
+		),
+		fileOverlapParallelism: keepNormalizedValue(
+			updates.fileOverlapParallelism,
+			current.fileOverlapParallelism,
+			normalizeFileOverlapParallelism,
 		),
 		concurrencyDefaults: keepNormalizedValue(
 			updates.concurrencyDefaults,

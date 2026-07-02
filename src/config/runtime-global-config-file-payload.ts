@@ -12,6 +12,7 @@ import type {
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
+	RuntimeFileOverlapParallelism,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -79,6 +80,7 @@ import {
 	readLegacyDeveloperModeEnabled,
 	resolveProfileTimeoutDefaults,
 } from "./runtime-config-normalizers";
+import { DEFAULT_FILE_OVERLAP_PARALLELISM, normalizeFileOverlapParallelism } from "./runtime-config-overlap-resolver";
 import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
 	DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
@@ -131,6 +133,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	codeEmbeddingDefaults?: RuntimeCodeEmbeddingSettings;
 	modelSuitabilityPolicyDefaults?: RuntimeModelSuitabilityPolicy;
 	skillDynamicsLevelDefault?: RuntimeSkillDynamicsLevel;
+	fileOverlapParallelism?: RuntimeFileOverlapParallelism;
 	concurrencyDefaults?: ConcurrencyConfig;
 	modelRoles?: RuntimeModelRoles;
 	agentRulesets?: AgentRulesetsConfigPayload;
@@ -158,6 +161,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
 	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
+	const fileOverlapParallelism = normalizeFileOverlapParallelism(config.fileOverlapParallelism);
 	const retrievalSearchBackendUrl =
 		config.retrievalSearchBackendUrl === undefined
 			? undefined
@@ -474,6 +478,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 	) {
 		payload.skillDynamicsLevelDefault = skillDynamicsLevelDefault;
 	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"fileOverlapParallelism",
+		fileOverlapParallelism,
+		DEFAULT_FILE_OVERLAP_PARALLELISM,
+	);
 	if (
 		hasOwnKey(existing, "concurrencyDefaults") ||
 		!areConcurrencyConfigsEqual(concurrencyDefaults, DEFAULT_CONCURRENCY_CONFIG)
