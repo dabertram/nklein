@@ -3079,9 +3079,34 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * empty-capture runs therefore stop looking identical to delivered ones in the evidence stream.
 	 */
 	private recordPatchCaptureStatus(taskId: string, status: "captured" | "empty" | "error"): void {
-		const summary = this.messageRepository.getTaskEntry(taskId)?.summary ?? null;
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		const summary = entry?.summary ?? null;
 		if (!summary) {
 			return;
+		}
+		// RESURRECTION (run18 live finding — the last stall class): an INTERRUPTED card whose dying-terminal
+		// salvage (W0.2) just CAPTURED real work has no path back into the flow — isReviewableNKleinSummary
+		// excludes `interrupted`, so the captured work sat unjudged and the run stalled. Rebind it into the
+		// reviewable flow: the review + fail-closed gate machinery decides its fate exactly like any handoff.
+		if (status === "captured" && summary.state === "interrupted" && entry) {
+			this.emitSummary(
+				updateSummary(entry, {
+					state: "awaiting_review",
+					reviewReason: "exit",
+					lastOutputAt: now(),
+					lastHookAt: now(),
+					latestHookActivity: {
+						activityText:
+							"Interrupted session's captured work rebound into review (salvage → judge, never lost).",
+						toolName: null,
+						toolInputSummary: null,
+						finalMessage: null,
+						hookEventName: "interrupted_salvage_rebound",
+						notificationType: null,
+						source: "nklein",
+					},
+				}),
+			);
 		}
 		// The store records TERMINAL states only; capture always completes around the awaiting_review/failed/
 		// interrupted transition, so a non-terminal snapshot (a benign race) maps to awaiting_review.
