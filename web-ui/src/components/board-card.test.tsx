@@ -115,6 +115,24 @@ function createSummary(
 	};
 }
 
+function createReview(
+	overrides?: Partial<NonNullable<Parameters<typeof BoardCard>[0]["card"]["review"]>>,
+): NonNullable<Parameters<typeof BoardCard>[0]["card"]["review"]> {
+	return {
+		status: "changes_requested",
+		round: 1,
+		history: [{ round: 1, verdict: "request_changes", feedbackFingerprint: "fb-1", workFingerprint: "work-1" }],
+		lastVerdict: "request_changes",
+		lastSummary: "Needs fixes",
+		lastFeedback: "Fix the failing acceptance check",
+		lastInsight: null,
+		signOff: null,
+		parkedReason: null,
+		updatedAt: 1,
+		...overrides,
+	};
+}
+
 function Harness(): React.ReactElement {
 	const [card, setCard] = useState(
 		createCard({
@@ -1079,5 +1097,183 @@ describe("BoardCard", () => {
 		});
 
 		expect(container.querySelector('button[aria-label="Manage dependencies"]')).toBeNull();
+	});
+
+	it("shows a compact session model badge with the provider prefix stripped", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running", { modelId: "openai/gpt-5.5" })}
+				/>,
+			);
+		});
+
+		const badge = container.querySelector<HTMLSpanElement>("[data-model-badge]");
+		expect(badge).toBeInstanceOf(HTMLSpanElement);
+		expect(badge?.textContent).toContain("◈");
+		expect(badge?.textContent).toContain("gpt-5.5");
+		expect(badge?.textContent).not.toContain("openai/gpt-5.5");
+		expect(badge?.getAttribute("title")).toContain("openai/gpt-5.5");
+	});
+
+	it("middle-truncates long session model ids and keeps the full id in the tooltip", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running", {
+						modelId: "lmstudio-community/qwen3-coder-30b-a3b-instruct",
+					})}
+				/>,
+			);
+		});
+
+		const badge = container.querySelector<HTMLSpanElement>("[data-model-badge]");
+		expect(badge?.textContent).toContain("qwen3-c…struct");
+		expect(badge?.textContent).not.toContain("qwen3-coder-30b-a3b-instruct");
+		expect(badge?.getAttribute("title")).toContain("lmstudio-community/qwen3-coder-30b-a3b-instruct");
+	});
+
+	it("does not render the model badge without a session model id", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running")}
+				/>,
+			);
+		});
+
+		expect(container.querySelector("[data-model-badge]")).toBeNull();
+	});
+
+	it("shows the bounce rung as current for a bounced review", async () => {
+		await act(async () => {
+			root.render(<BoardCard card={createCard({ review: createReview() })} index={0} columnId="in_progress" />);
+		});
+
+		const ladder = container.querySelector<HTMLDivElement>("[data-review-ladder]");
+		expect(ladder).toBeInstanceOf(HTMLDivElement);
+		expect(ladder?.textContent).toContain("bounce");
+		expect(ladder?.textContent).toContain("escalate");
+		expect(ladder?.textContent).toContain("park");
+		expect(ladder?.querySelector('[data-rung="bounce"]')?.getAttribute("data-rung-state")).toBe("now");
+		expect(ladder?.querySelector('[data-rung="escalate"]')?.getAttribute("data-rung-state")).toBe("pending");
+		expect(ladder?.querySelector('[data-rung="park"]')?.getAttribute("data-rung-state")).toBe("pending");
+	});
+
+	it("shows the escalate rung as current when the persisted history carries a stuck-loop signature", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({
+						review: createReview({
+							round: 2,
+							// Stall signature: two consecutive rounds reviewed the same unchanged work.
+							history: [
+								{
+									round: 1,
+									verdict: "request_changes",
+									feedbackFingerprint: "fb-1",
+									workFingerprint: "work-1",
+								},
+								{
+									round: 2,
+									verdict: "request_changes",
+									feedbackFingerprint: "fb-2",
+									workFingerprint: "work-1",
+								},
+							],
+						}),
+					})}
+					index={0}
+					columnId="in_progress"
+				/>,
+			);
+		});
+
+		const ladder = container.querySelector<HTMLDivElement>("[data-review-ladder]");
+		expect(ladder?.querySelector('[data-rung="bounce"]')?.getAttribute("data-rung-state")).toBe("done");
+		expect(ladder?.querySelector('[data-rung="escalate"]')?.getAttribute("data-rung-state")).toBe("now");
+		expect(ladder?.querySelector('[data-rung="park"]')?.getAttribute("data-rung-state")).toBe("pending");
+	});
+
+	it("shows the park rung in the bad state for parked reviews", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({
+						review: createReview({
+							status: "parked",
+							round: 3,
+							parkedReason: "Review is looping: the same change request on unchanged work. Parking for a human.",
+							history: [
+								{
+									round: 1,
+									verdict: "request_changes",
+									feedbackFingerprint: "fb-1",
+									workFingerprint: "work-1",
+								},
+								{
+									round: 2,
+									verdict: "request_changes",
+									feedbackFingerprint: "fb-2",
+									workFingerprint: "work-1",
+								},
+								{
+									round: 3,
+									verdict: "request_changes",
+									feedbackFingerprint: "fb-2",
+									workFingerprint: "work-1",
+								},
+							],
+						}),
+					})}
+					index={0}
+					columnId="review"
+				/>,
+			);
+		});
+
+		const ladder = container.querySelector<HTMLDivElement>("[data-review-ladder]");
+		const parkRung = ladder?.querySelector('[data-rung="park"]');
+		expect(parkRung?.getAttribute("data-rung-state")).toBe("now");
+		expect(parkRung?.className).toContain("text-status-red");
+		expect(ladder?.querySelector('[data-rung="bounce"]')?.getAttribute("data-rung-state")).toBe("done");
+		expect(ladder?.getAttribute("title")).toContain("Review is looping");
+	});
+
+	it("skips the review ladder for approved reviews and cards without review state", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({
+						review: createReview({
+							status: "approved",
+							lastVerdict: "approve",
+							signOff: "Looks good.",
+							history: [{ round: 1, verdict: "approve", feedbackFingerprint: null, workFingerprint: "work-1" }],
+						}),
+					})}
+					index={0}
+					columnId="completed"
+				/>,
+			);
+		});
+
+		expect(container.querySelector("[data-review-ladder]")).toBeNull();
+
+		await act(async () => {
+			root.render(<BoardCard card={createCard()} index={0} columnId="in_progress" />);
+		});
+
+		expect(container.querySelector("[data-review-ladder]")).toBeNull();
 	});
 });

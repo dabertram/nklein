@@ -27,7 +27,7 @@ import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip } from "@/components/ui/tooltip";
-import type { RuntimeTaskSessionSummary } from "@/runtime/types";
+import type { RuntimeCardReview, RuntimeReviewRoundRecord, RuntimeTaskSessionSummary } from "@/runtime/types";
 import { useTaskWorkspaceSnapshotValue } from "@/stores/workspace-metadata-store";
 import type { BoardCard as BoardCardModel, BoardColumnId } from "@/types";
 import { getTaskAutoReviewCancelButtonLabel } from "@/types";
@@ -186,6 +186,97 @@ function buildCardRoleBadge(card: BoardCardModel, summary: RuntimeTaskSessionSum
 			? `Architect role handles planning and decomposition starts.${explicitModelOverride}`
 			: `Worker role handles implementation and execution starts.${explicitModelOverride}`,
 		isActive: summary?.state === "running" || summary?.state === "queued" || summary?.state === "paused",
+	};
+}
+
+/** §5.AX signature chrome: compact model badge target width (including the middle ellipsis). */
+const MODEL_BADGE_MAX_CHARS = 14;
+
+/** Strip the provider prefix (`openai/gpt-5.5` → `gpt-5.5`) and middle-truncate for the compact badge. */
+function shortenModelIdForBadge(modelId: string): string {
+	const shortId = modelId.split("/").pop()?.trim() || modelId.trim();
+	if (shortId.length <= MODEL_BADGE_MAX_CHARS) {
+		return shortId;
+	}
+	const headLength = Math.ceil((MODEL_BADGE_MAX_CHARS - 1) / 2);
+	const tailLength = MODEL_BADGE_MAX_CHARS - 1 - headLength;
+	return `${shortId.slice(0, headLength)}…${shortId.slice(-tailLength)}`;
+}
+
+type ReviewLadderRungId = "bounce" | "escalate" | "park";
+type ReviewLadderRungState = "done" | "now" | "pending";
+
+interface ReviewLadderStatus {
+	rungs: { id: ReviewLadderRungId; state: ReviewLadderRungState }[];
+	title: string;
+}
+
+/**
+ * §5.AX review-ladder chrome: escalation detection. The runner persists NO explicit "escalated" flag on the
+ * card — the one-escalation-per-card guard is a server-memory Set, and an escalated round lands on
+ * `card.review` as plain `status: "changes_requested"` with the triggering round APPENDED to `history`
+ * (see runNKleinSecondOpinionReview / onEscalate). So the UI re-reads the stuck signatures that
+ * decideReviewLoopAction escalates on, straight from the persisted round fingerprints:
+ *  - identical loop — two rounds with the same non-null (feedbackFingerprint, workFingerprint) pair;
+ *  - recurring feedback — the same non-null feedbackFingerprint on ≥3 change-request rounds;
+ *  - stall — two consecutive rounds reviewing the same non-null workFingerprint.
+ * (The round-limit stuck cause is not derivable client-side — maxRounds never reaches the card.)
+ */
+function hasReviewEscalationSignature(history: readonly RuntimeReviewRoundRecord[]): boolean {
+	const changeRequests = history.filter((record) => record.verdict === "request_changes");
+	const seenFingerprintPairs = new Set<string>();
+	const feedbackFingerprintCounts = new Map<string, number>();
+	for (const record of changeRequests) {
+		if (record.feedbackFingerprint !== null && record.workFingerprint !== null) {
+			const pair = `${record.feedbackFingerprint}\u0000${record.workFingerprint}`;
+			if (seenFingerprintPairs.has(pair)) {
+				return true;
+			}
+			seenFingerprintPairs.add(pair);
+		}
+		if (record.feedbackFingerprint !== null) {
+			const count = (feedbackFingerprintCounts.get(record.feedbackFingerprint) ?? 0) + 1;
+			if (count >= 3) {
+				return true;
+			}
+			feedbackFingerprintCounts.set(record.feedbackFingerprint, count);
+		}
+	}
+	for (let index = 1; index < history.length; index += 1) {
+		const previous = history[index - 1];
+		const current = history[index];
+		if (previous?.workFingerprint != null && previous.workFingerprint === current?.workFingerprint) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/** Derive the `bounce → escalate → park` ladder position from the persisted review. Null ⇒ no strip (happy path). */
+function deriveReviewLadderStatus(review: RuntimeCardReview | undefined): ReviewLadderStatus | null {
+	if (!review || review.status === "approved") {
+		return null;
+	}
+	const isParked = review.status === "parked";
+	const isEscalated = hasReviewEscalationSignature(review.history);
+	const isBounced = review.round >= 1;
+	const bounceState: ReviewLadderRungState = isBounced ? (isEscalated || isParked ? "done" : "now") : "pending";
+	const escalateState: ReviewLadderRungState = isEscalated ? (isParked ? "done" : "now") : "pending";
+	const parkState: ReviewLadderRungState = isParked ? "now" : "pending";
+	const title = isParked
+		? `Review ladder: parked for a human (round ${review.round})${review.parkedReason ? ` — ${review.parkedReason}` : ""}`
+		: isEscalated
+			? `Review ladder: stuck loop escalated to a stronger/different-lineage worker (round ${review.round})`
+			: isBounced
+				? `Review ladder: changes requested — bounced back to the worker (round ${review.round})`
+				: `Review ladder: in review (round ${review.round})`;
+	return {
+		rungs: [
+			{ id: "bounce", state: bounceState },
+			{ id: "escalate", state: escalateState },
+			{ id: "park", state: parkState },
+		],
+		title,
 	};
 }
 
@@ -701,6 +792,10 @@ export function BoardCard({
 		return parts.length > 0 ? parts.join(" · ") : null;
 	}, [agentOverrideLabel, modelOverrideLabel]);
 	const roleBadge = useMemo(() => buildCardRoleBadge(card, sessionSummary), [card, sessionSummary]);
+	// §5.AX signature chrome: the live/last session model (violet accent-2 = the AI's identity) and the
+	// review-ladder position. The session-activity dot above already carries the card's health signal.
+	const sessionModelId = sessionSummary?.modelId ?? null;
+	const reviewLadder = useMemo(() => deriveReviewLadderStatus(card.review), [card.review]);
 	const blockedReason =
 		card.blockedKind === "needs_decomposition"
 			? (card.blockedReason ?? "This task needs to be decomposed before it can start.")
@@ -1032,7 +1127,52 @@ export function BoardCard({
 										<span className="truncate">{taskAgentSettingsLabel}</span>
 									</span>
 								) : null}
+								{sessionModelId ? (
+									<span
+										title={`Session model: ${sessionModelId}`}
+										data-model-badge
+										className={cn(
+											"inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] leading-4",
+											isTrashCard
+												? "border-border bg-surface-1 text-text-tertiary"
+												: "border-accent-2/30 bg-accent-2/10 text-accent-2",
+										)}
+									>
+										<span aria-hidden="true" className="shrink-0">
+											◈
+										</span>
+										<span className="truncate">{shortenModelIdForBadge(sessionModelId)}</span>
+									</span>
+								) : null}
 							</div>
+							{reviewLadder ? (
+								<div
+									title={reviewLadder.title}
+									data-review-ladder
+									className="mt-1 flex flex-wrap items-center gap-1 font-mono text-[10px] leading-4 text-text-tertiary"
+								>
+									<span className="tracking-wide uppercase">ladder</span>
+									{reviewLadder.rungs.map((rung) => (
+										<span
+											key={rung.id}
+											data-rung={rung.id}
+											data-rung-state={rung.state}
+											className={cn(
+												"rounded-sm border px-1 leading-4",
+												rung.state === "now"
+													? rung.id === "park"
+														? "border-status-red/60 bg-status-red/10 text-status-red"
+														: "border-accent/60 bg-accent/10 text-accent"
+													: rung.state === "done"
+														? "border-status-green/30 text-status-green/80"
+														: "border-border text-text-tertiary",
+											)}
+										>
+											{rung.id}
+										</span>
+									))}
+								</div>
+							) : null}
 							{blockedReason ? (
 								<div className="mt-2 flex items-start gap-1.5 rounded-md border border-status-orange/40 bg-status-orange/10 px-2 py-1.5 text-[11px] leading-snug text-status-orange">
 									<AlertTriangle size={12} className="mt-0.5 shrink-0" />
