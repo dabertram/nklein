@@ -2834,6 +2834,50 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return previousSummary.state !== "awaiting_review" && nextSummary.state === "awaiting_review";
 	}
 
+	/**
+	 * W2.6c (audit 2026-07-02): append a FOLLOW-UP run-summary record carrying the REAL patch-capture status.
+	 * The terminal record is written ON the terminal transition while the capture is still ASYNC, so its
+	 * `patchCaptureStatus` cannot be known there (it stays null); this follow-up record (same taskId, appended by
+	 * the capture completion) is the delivery-evidence signal — readers take the LAST record per task. Errored /
+	 * empty-capture runs therefore stop looking identical to delivered ones in the evidence stream.
+	 */
+	private recordPatchCaptureStatus(taskId: string, status: "captured" | "empty" | "error"): void {
+		const summary = this.messageRepository.getTaskEntry(taskId)?.summary ?? null;
+		if (!summary) {
+			return;
+		}
+		// The store records TERMINAL states only; capture always completes around the awaiting_review/failed/
+		// interrupted transition, so a non-terminal snapshot (a benign race) maps to awaiting_review.
+		const terminalState =
+			summary.state === "failed" || summary.state === "interrupted" ? summary.state : ("awaiting_review" as const);
+		void recordTaskRunSummary(
+			{
+				taskId,
+				workspacePath: summary.workspacePath ?? null,
+				state: terminalState,
+				reviewReason: summary.reviewReason ?? null,
+				providerId: summary.providerId ?? null,
+				modelId: summary.modelId ?? null,
+				endpoint: summary.endpoint ?? null,
+				lastActivity: `patch capture: ${status}`,
+				warningMessage: null,
+				exitCode: summary.exitCode ?? null,
+				startedAt: summary.startedAt ?? null,
+				endedAt: summary.updatedAt,
+				promptTokens: null,
+				completionTokens: null,
+				totalTokens: null,
+				timeoutReason: null,
+				timeoutSource: null,
+				role: resolveNKleinTaskRole(taskId, this.explicitDecompositionTaskIds.has(taskId)),
+				scenario: null,
+				focusChain: null,
+				patchCaptureStatus: status,
+			},
+			{ rootDir: this.diagnosticStoreRoot },
+		);
+	}
+
 	private shouldFinalizeSandboxReview(
 		previousSummary: RuntimeTaskSessionSummary,
 		nextSummary: RuntimeTaskSessionSummary | null,
@@ -2906,6 +2950,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							},
 						}),
 					);
+					this.recordPatchCaptureStatus(taskId, "captured");
 				} else {
 					this.emitSummary(
 						updateSummary(entry, {
@@ -2923,6 +2968,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							},
 						}),
 					);
+					this.recordPatchCaptureStatus(taskId, "empty");
 				}
 				await manager.disposeWorkspace(taskId);
 				this.forgetSandboxTask(taskId);
@@ -2955,6 +3001,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					this.forgetSandboxTask(taskId);
 					return;
 				}
+				this.recordPatchCaptureStatus(taskId, "error");
 				const captureError: TaskPatchCaptureError | null = isTaskPatchCaptureError(error) ? error : null;
 				// follow-up-6 §3.5: distinguish a corrupt/garbled captured diff (an infrastructure capture
 				// problem) from an agent failure, and keep the failing file/hunk + preserved artifact on the card.
