@@ -13,6 +13,7 @@ import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
+import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
 import {
 	type NKleinSecondOpinionReviewOutcome,
 	runNKleinSecondOpinionReview,
@@ -60,7 +61,8 @@ export function applyCardReviewToBoard(
 export interface RunSecondOpinionReviewForTaskInput {
 	workspacePath: string;
 	taskId: string;
-	service: Pick<NKleinTaskSessionService, "runSecondOpinionReviewSession" | "sendTaskSessionInput" | "getSummary">;
+	service: Pick<NKleinTaskSessionService, "runSecondOpinionReviewSession" | "sendTaskSessionInput" | "getSummary"> &
+		Partial<Pick<NKleinTaskSessionService, "verifyTaskAcceptanceInSandbox">>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	mutateWorkspaceState?: typeof mutateWorkspaceState;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
@@ -122,6 +124,36 @@ export function buildReviewBoardContext(board: RuntimeBoardData, card: RuntimeBo
 	};
 }
 
+/** Bound tail of acceptance output shown to the reviewer (enough to judge a failure, small enough for tiny windows). */
+const ACCEPTANCE_OUTPUT_TAIL_BUDGET = 800;
+
+/**
+ * Format an acceptance result into the reviewer-facing "## Acceptance check" summary (W1.5). Pure. Null when there
+ * is nothing meaningful to tell the reviewer (no check ran and none exists — the core omits the section entirely).
+ * A failing or MISSING acceptance is framed as strong request-changes grounds (fail-closed posture, W0.1).
+ */
+export function formatAcceptanceSummaryForReview(
+	acceptance: Pick<RuntimeTaskAcceptanceResult, "present" | "command" | "passed" | "exitCode" | "output"> | null,
+): string | null {
+	if (acceptance === null) {
+		return "Acceptance evidence UNAVAILABLE (the check could not run). Treat completion claims skeptically — the delivery gate will fail closed without a passing acceptance run.";
+	}
+	if (acceptance.present !== true) {
+		return "NO acceptance command exists on this card. Treat this as strong grounds to request changes (every card should carry a machine-runnable acceptance check); auto-delivery is held without one.";
+	}
+	const verdict = acceptance.passed === true ? "PASSED" : `FAILED (exit ${acceptance.exitCode ?? "?"})`;
+	const outputTail = acceptance.output.trim().slice(-ACCEPTANCE_OUTPUT_TAIL_BUDGET);
+	return [
+		`Command: \`${acceptance.command ?? "?"}\` — ${verdict}.`,
+		...(acceptance.passed === true
+			? []
+			: [
+					"A failing acceptance check is strong grounds to request changes — reconcile the worker's claims against this result.",
+				]),
+		...(outputTail && acceptance.passed !== true ? ["", "Output tail:", "```", outputTail, "```"] : []),
+	].join("\n");
+}
+
 export async function runSecondOpinionReviewForTask(
 	input: RunSecondOpinionReviewForTaskInput,
 ): Promise<NKleinSecondOpinionReviewOutcome> {
@@ -164,12 +196,34 @@ export async function runSecondOpinionReviewForTask(
 		}));
 	};
 
+	// W1.5 (audit 2026-07-02): run the ACCEPTANCE check BEFORE the review, deterministically, and hand the reviewer
+	// its result — previously acceptanceSummary was never populated, so the reviewer judged the diff with zero
+	// knowledge of whether acceptance passed/failed/exists (an opinion, not an evidence-backed gate). Best-effort:
+	// an unavailable check (no sandbox / method absent on a fake) yields null and the reviewer is told so.
+	const acceptance = config.secondOpinionReviewEnabled
+		? await (async () => {
+				try {
+					return (
+						(await input.service.verifyTaskAcceptanceInSandbox?.({
+							taskId: input.taskId,
+							projectRepoPath: input.workspacePath,
+							baseRef: card.baseRef,
+							taskPrompt: card.prompt,
+						})) ?? null
+					);
+				} catch {
+					return null;
+				}
+			})()
+		: null;
+
 	return runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
 		enabled: config.secondOpinionReviewEnabled,
 		maxRounds: config.reviewMaxRounds,
 		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
+		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance),
 		now,
 		deps: {
 			getCard: async () => ({
