@@ -283,6 +283,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	});
 	const queuedStartDrainInFlightByWorkspaceId = new Set<string>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
+	// W4.2a (run12 live finding): ONE automatic re-drive of an empty-patch worker before the fail-closed hold —
+	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
+	// missing piece was recovery). Keyed workspace:task; bounded to a single attempt, then the operator owns it.
+	const emptyPatchRedriveAttemptsByTaskKey = new Map<string, number>();
 	const queuedStartDrainTimersByWorkspaceId = new Map<
 		string,
 		{
@@ -584,10 +588,33 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 
 					if (shouldHoldEmptyPatchResult({ sandboxResult, reviewApproved: evidence.reviewApproved })) {
 						// A no-op result may only complete (and release its dependents) on an explicit reviewer
-						// sign-off — an unreviewed empty patch is a red flag (dead/errored session, bad planning),
-						// not a completion. Fail closed: leave it in Review for the operator.
+						// sign-off. Before the fail-closed hold, RE-DRIVE the worker once (W4.2a): an empty patch
+						// usually means the worker burned its turn (guard churn / truncation) and simply needs to be
+						// told the task is not done — parking straight to the operator stalls an unattended swarm.
+						const redriveAttempts = emptyPatchRedriveAttemptsByTaskKey.get(inFlightKey) ?? 0;
+						if (redriveAttempts < 1) {
+							emptyPatchRedriveAttemptsByTaskKey.set(inFlightKey, redriveAttempts + 1);
+							deps.warn(
+								`Empty-patch card ${taskId}: re-driving the worker once before holding (no file changes were captured).`,
+							);
+							await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+								const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
+								return { board: movement.board, save: movement.moved, value: null };
+							});
+							await service
+								.sendTaskSessionInput(
+									taskId,
+									"Your previous run ended with NO file changes captured — the task is NOT done. Complete the task now: make the required code changes, keep tool use focused (avoid re-reading files you have already seen), and finish with the acceptance check passing.",
+									"act",
+								)
+								.catch((error) => {
+									const message = error instanceof Error ? error.message : String(error);
+									deps.warn(`Empty-patch re-drive of ${taskId} failed (${message}); holding in Review.`);
+								});
+							return;
+						}
 						deps.warn(
-							`Empty-patch card ${taskId} held in Review (fail-closed): no reviewer sign-off, so a no-op result cannot auto-complete.`,
+							`Empty-patch card ${taskId} held in Review (fail-closed): no reviewer sign-off after a re-drive, so a no-op result cannot auto-complete.`,
 						);
 						return;
 					}
