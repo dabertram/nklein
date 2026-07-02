@@ -18,6 +18,7 @@
  *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1).
  */
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -185,6 +186,10 @@ async function main(): Promise<void> {
 	const latestActivityByTask = new Map<string, { state: string; activity: string }>();
 	let lastProgressAt = Date.now();
 	let workspacePath: string | null = null;
+	// WATCH MODE (user directive 2026-07-02): the live-board link is READ-ONLY for browsers. The harness holds a
+	// per-run mutation token — its own orchestration calls attach it (requestJson reads this env), while UI
+	// mutations without it are rejected 403, so an observer can't disturb the sweep (e.g. change a model role).
+	process.env.NKLEIN_WATCH_MODE_MUTATION_TOKEN = randomUUID();
 	try {
 		server = await startTsBackend({
 			cwd,
@@ -195,6 +200,7 @@ async function main(): Promise<void> {
 				NODE_ENV: "development",
 				NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "2",
 				NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
+				NKLEIN_WATCH_MODE_MUTATION_TOKEN: process.env.NKLEIN_WATCH_MODE_MUTATION_TOKEN,
 			},
 			onLog: (chunk, source) => {
 				if (/auto-start|could not|skipped|rootTask|queued|decompos|begin_implementation|routing|selection|model=|→|review|delivery|acceptance|diverse|lineage|re-driving|deferred|held/i.test(chunk)) {
@@ -274,7 +280,7 @@ async function main(): Promise<void> {
 		// The spawned backend serves the built web UI (src/server/assets.ts), so the LIVE project board is
 		// browsable for the whole run — the link is re-printed on every board change so it is always at hand.
 		const boardUrl = `${server.baseUrl}/${encodeURIComponent(workspaceId)}`;
-		log(`\n  ┌─ LIVE BOARD ──────────────────────────────────────────────\n  │  ${boardUrl}\n  └─ (open in a browser any time; dies when this harness exits)\n`);
+		log(`\n  ┌─ LIVE BOARD (read-only watch mode) ───────────────────────\n  │  ${boardUrl}\n  └─ (open in a browser any time; mutations are disabled; dies when this harness exits)\n`);
 
 		const startRes = await requestJson<{ ok?: boolean; error?: string; errorCode?: string; selectionReason?: string }>({
 			baseUrl: server.baseUrl,

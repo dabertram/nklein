@@ -27,6 +27,13 @@ export async function requestJson<T>(input: {
 	if (input.workspaceId) {
 		headers.set("x-kanban-workspace-id", input.workspaceId);
 	}
+	// WATCH MODE: a harness that spawned its backend with NKLEIN_WATCH_MODE_MUTATION_TOKEN holds the same
+	// token in its own env — attach it so the harness's orchestration mutations pass the read-only gate
+	// (browsers on the live-board link don't have it).
+	const watchModeToken = process.env.NKLEIN_WATCH_MODE_MUTATION_TOKEN?.trim();
+	if (watchModeToken) {
+		headers.set("x-nklein-mutation-token", watchModeToken);
+	}
 	let url = `${input.baseUrl}/api/trpc/${input.procedure}`;
 	let method: "GET" | "POST";
 	let body: string | undefined;

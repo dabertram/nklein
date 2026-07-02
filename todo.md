@@ -9315,6 +9315,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **Ordering:** UI wizards land with/after the §5.AX overhaul (they are prime §5.AX surfaces — dark-first,
 >       cool-technical); the completion-stamp config fields + detection probes can land earlier as pure runtime work.
 >
+### 5.BB — UI complexity modes: chat-only / lean / expert / professional *(2026-07-02 late, user)*
+> **User feedback on the §5.AX overhaul: "looks amazing .. a bit bloated for beginners .. lets stick with the content
+> for now."** So this is recorded, NOT next-up: after the content/features settle, offer selectable UI COMPLEXITY
+> MODES so a beginner isn't confronted with the full operator cockpit. The user's four starting-point modes
+> (explicitly a sketch — "might evolve differently depending on what actually works and makes sense"):
+> - [ ] **Chat-only mode** — just the conversation surface: talk to !Klein, see answers/results; the board, fleet,
+>       telemetry, settings depth all hidden (the board still runs underneath — this is a VIEW, not a feature cut).
+> - [ ] **Lean mode** — board + chat + the essentials (start/stop, card detail, review states); no fleet strip,
+>       no telemetry panels, no advanced settings blocks.
+> - [ ] **Expert mode** — today's full surface.
+> - [ ] **Professional mode** — expert + the deepest operator surfaces (ledgers, warmth/cache dashboards,
+>       self-observations, efficiency scoreboards) — the "run a fleet for a living" cockpit.
+> - [ ] Design notes when picked up: mode = a UI-level filter (per-user setting, instant switch, no restart);
+>       default for NEW users = a simpler mode with an obvious "show me more" ramp; the §5.BA wizards should ask
+>       ("How much do you want to see?"); mode gates COMPONENT VISIBILITY only — never capabilities (everything
+>       stays reachable via mode switch); revisit the exact mode set against real usage instead of shipping four
+>       dogmatically.
+
 ### 5.AZ — Public-release repo preparation: cleanup, history, and presentation *(2026-07-02, user — POST-MATURITY, gates the early release)*
 > **User framing (2026-07-02):** *"talking about releasing an early version, there is then also still a lot of things
 > to do to cleanup the branch, to make sure we have a repo that is nicely prepared to show to the public."* **Schedule:

@@ -1935,6 +1935,33 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 			// ── End desktop nonce handshake ────────────────────────────────────
 			if (pathname.startsWith("/api/trpc")) {
+				// WATCH MODE (user directive 2026-07-02: "user shall not be able to disturb ongoing sweeps/tests"):
+				// when the spawning harness sets NKLEIN_WATCH_MODE_MUTATION_TOKEN, every tRPC MUTATION (per the
+				// tRPC HTTP spec, mutations are always POST; queries/subscriptions are GET) must carry the token —
+				// the harness attaches it to its own orchestration calls, while a browser on the live-board link
+				// gets a read-only view: watching is free, mutating without the token is rejected loudly. The
+				// motivating incident: an operator accidentally changed a model role mid-run from the served UI.
+				const watchModeToken = process.env.NKLEIN_WATCH_MODE_MUTATION_TOKEN?.trim() || null;
+				if (watchModeToken && req.method === "POST") {
+					const presented = req.headers["x-nklein-mutation-token"];
+					if (presented !== watchModeToken) {
+						res.writeHead(403, {
+							"Content-Type": "application/json; charset=utf-8",
+							"Cache-Control": "no-store",
+						});
+						res.end(
+							JSON.stringify({
+								error: {
+									message:
+										"Read-only WATCH MODE: this board is being driven by a test harness — mutations from the browser are disabled so ongoing sweeps aren't disturbed.",
+									code: -32603,
+									data: { code: "FORBIDDEN", httpStatus: 403 },
+								},
+							}),
+						);
+						return;
+					}
+				}
 				await trpcHttpHandler(req, res);
 				return;
 			}
