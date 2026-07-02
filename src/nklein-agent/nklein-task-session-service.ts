@@ -25,6 +25,9 @@ import { isTruthyEnv } from "../core/env-flag";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { applyDiversityPreference } from "../core/model-diversity";
+import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
@@ -2399,6 +2402,69 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * the reviewer's structured verdict, or null if the turn ends without one (or the sandbox is unavailable).
 	 * Bounded by a timeout and always tears its synthetic session + workspace down.
 	 */
+	/**
+	 * W2.5a: pick a lineage-diverse LOADED model as the reviewer when no reviewer role is configured. The worker's
+	 * REAL model key (descriptor.modelKey, not the per-machine alias) resolves its lineage; candidates are the other
+	 * loaded non-embedding models, preferred diverse-first via applyDiversityPreference. Null ⇒ caller falls back to
+	 * the worker model (today's behavior), with the waiver surfaced as a self-observation.
+	 */
+	private async pickDiverseReviewerModel(
+		workerLaunch: NKleinTaskRestartLaunchConfig,
+		taskId: string,
+	): Promise<{ providerId: string; modelId: string } | null> {
+		const baseUrl = workerLaunch.baseUrl?.trim() || "http://127.0.0.1:1234/v1";
+		const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
+			() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+		);
+		if (descriptors.length === 0) {
+			return null;
+		}
+		// The worker's launch modelId is usually the SERVED alias — resolve its REAL key for lineage when loaded.
+		const workerDescriptor = descriptors.find(
+			(descriptor) => descriptor.runtimeId === workerLaunch.modelId || descriptor.modelKey === workerLaunch.modelId,
+		);
+		const workerRealId = workerDescriptor?.modelKey ?? workerLaunch.modelId ?? "";
+		const candidates = descriptors
+			.filter(
+				(descriptor) =>
+					!descriptor.isEmbedding &&
+					descriptor.runtimeId !== workerLaunch.modelId &&
+					descriptor.modelKey !== workerRealId,
+			)
+			.map((descriptor) => ({
+				// modelKey = the SERVABLE id (what the launch config needs); modelId = the REAL key (lineage).
+				modelKey: descriptor.runtimeId,
+				modelId: descriptor.modelKey,
+				score: 50,
+			}));
+		if (candidates.length === 0) {
+			return null;
+		}
+		const preferred = applyDiversityPreference({
+			ranked: candidates,
+			avoidLineages: [resolveLineage(workerRealId)],
+		});
+		if (!preferred.diversityAchieved || !preferred.ranked[0]) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Reviewer diversity waived for ${taskId}: ${preferred.diversityWaivedReason ?? "no diverse loaded model"} — the worker model reviews its own work.`,
+				taskId,
+				metadata: { category: "reviewer_diversity_waived", reason: preferred.diversityWaivedReason ?? null },
+			});
+			return null;
+		}
+		const pick = preferred.ranked[0];
+		recordSelfObservation({
+			signal: "custom",
+			severity: "info",
+			message: `Auto-picked lineage-diverse reviewer ${pick.modelKey} (${resolveLineage(pick.modelId)}) for ${taskId} — worker is ${workerRealId} (${resolveLineage(workerRealId)}).`,
+			taskId,
+			metadata: { category: "reviewer_auto_diverse", reviewer: pick.modelKey, worker: workerRealId },
+		});
+		return { providerId: workerLaunch.providerId, modelId: pick.modelKey };
+	}
+
 	async runSecondOpinionReviewSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -2411,8 +2477,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
-		const providerId = (input.reviewer?.providerId ?? workerLaunch?.providerId ?? "").trim();
-		const modelId = (input.reviewer?.modelId ?? workerLaunch?.modelId ?? "").trim();
+		// W2.5a (audit 2026-07-02, §5.AB): with NO configured reviewer this previously fell back to the WORKER's
+		// own model — the model reviewing its own work, the worst monoculture form. Auto-pick a lineage-DIVERSE
+		// loaded model instead (best-effort; when nothing diverse is loaded the waiver is recorded and the old
+		// fallback stands, so behavior only ever improves).
+		const autoReviewer =
+			!input.reviewer && workerLaunch?.providerId && workerLaunch.modelId
+				? await this.pickDiverseReviewerModel(workerLaunch, input.taskId).catch(() => null)
+				: null;
+		const providerId = (
+			input.reviewer?.providerId ??
+			autoReviewer?.providerId ??
+			workerLaunch?.providerId ??
+			""
+		).trim();
+		const modelId = (input.reviewer?.modelId ?? autoReviewer?.modelId ?? workerLaunch?.modelId ?? "").trim();
 		if (!providerId || !modelId) {
 			return null;
 		}
