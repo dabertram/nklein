@@ -40,6 +40,11 @@ import {
 import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
 import {
+	createNKleinPlanCritiqueTool,
+	type NKleinPlanCritiqueRequestHandler,
+	type NKleinPlanCritiqueSubmittedHandler,
+} from "./nklein-plan-critique-tool";
+import {
 	createNKleinPromotionTool,
 	type NKleinCardPromotedHandler,
 	promoteCardToImplementation,
@@ -472,6 +477,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	 */
 	sandboxMcpExecTarget?: SandboxExecTarget | null;
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
+	/** W4.3: executes one diverse-critic round for a high-stakes decomposition (see createNKleinDecompositionTools). */
+	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;
 	/**
 	 * When provided, the `begin_implementation` promotion tool (todo §5.B) is attached so a work card can move
 	 * itself from the Planning/Refinement lane to In Progress after its refinement pass. The service supplies this
@@ -481,6 +488,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	onCardPromoted?: NKleinCardPromotedHandler;
 	/** When provided, this is a second-opinion review turn: the `submit_review` tool is attached and its verdict is reported here. */
 	onReviewSubmitted?: NKleinReviewSubmittedHandler;
+	/** When provided, this is a W4.3 plan-critique turn: the `submit_plan_critique` tool is attached and its verdict is reported here. */
+	onPlanCritiqueSubmitted?: NKleinPlanCritiqueSubmittedHandler;
 	/** Receives the agent's focus chain (todo §5.N) when it calls `update_focus_chain`; null disables the tool. */
 	onFocusChainUpdated?: NKleinFocusChainSubmittedHandler;
 	onTeamEvent?: (event: NKleinSdkTeamEvent, teamName: string | null) => void;
@@ -829,6 +838,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				workspacePath: hostWorkspaceRoot,
 				sourceTaskId: request.taskId,
 				onApplied: request.onDecompositionApplied,
+				requestPlanCritique: request.requestPlanCritique,
 			}),
 			// Planning/Refinement → In Progress promotion (todo §5.B). Trusted control-plane board mutation, so it
 			// resolves against the host workspace root like the decomposition tools. Attached only when the service
@@ -849,6 +859,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// Second-opinion review turns get the structured `submit_review` verdict tool (todo §5.K). Only attached
 			// when a verdict handler is provided, so ordinary worker/planning turns never see it.
 			...(request.onReviewSubmitted ? [createNKleinReviewTool({ onSubmitted: request.onReviewSubmitted })] : []),
+			// W4.3 plan-critique turns get the structured `submit_plan_critique` verdict tool — same gating pattern.
+			...(request.onPlanCritiqueSubmitted
+				? [createNKleinPlanCritiqueTool({ onSubmitted: request.onPlanCritiqueSubmitted })]
+				: []),
 			// Focus-chain checklist tool (todo §5.N): attached whenever the runtime wires a persistence handler.
 			...(request.onFocusChainUpdated
 				? [

@@ -794,6 +794,96 @@ describe("nklein decomposition tools", () => {
 		return tool;
 	}
 
+	it("W4.3: a high-stakes warning-bearing plan gets ONE diverse-critic round; revise bounces, the revision applies without re-critique", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-"));
+		const requestPlanCritique = vi.fn().mockResolvedValueOnce({
+			verdict: "revise",
+			summary: "Coupling is missing.",
+			feedback: "Wire storage before the UI card.",
+		});
+		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
+			(candidate) => candidate.name === "decompose_project",
+		);
+		if (!tool) {
+			throw new Error("missing decompose_project");
+		}
+		// 5 tasks, one edge ⇒ high stakes (≥4 tasks) + sparse-graph quality warnings (not clean ⇒ medium confidence).
+		const input = {
+			slug: "critique-plan",
+			title: "Critique plan",
+			spec: "Five loosely-coupled slices.",
+			plan: "Slices.",
+			summary: "Five cards.",
+			defaultAcceptanceCommand: "npm test",
+			tasks: [
+				{ id: "a", title: "Card a", prompt: "Do a." },
+				{ id: "b", title: "Card b", prompt: "Do b.", dependsOn: ["a"] },
+				{ id: "c", title: "Card c", prompt: "Do c." },
+				{ id: "d", title: "Card d", prompt: "Do d." },
+				{ id: "e", title: "Card e", prompt: "Do e." },
+			],
+		};
+		await expect(tool.execute(input, undefined as never)).rejects.toThrow(/Wire storage before the UI card/);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
+		expect(requestPlanCritique.mock.calls[0]?.[0]).toMatchObject({
+			slug: "critique-plan",
+			qualityWarnings: expect.arrayContaining([expect.stringContaining("sparse")]),
+		});
+
+		// The REVISED call (same slug) must NOT re-critique — one round per plan, then it applies.
+		const revised = (await tool.execute(input, undefined as never)) as { ok: boolean };
+		expect(revised.ok).toBe(true);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
+	});
+
+	it("W4.3: a proceed verdict (or a null/absent critic) never blocks the decomposition", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-critique-ok-"));
+		const requestPlanCritique = vi.fn().mockResolvedValue({ verdict: "proceed", summary: "Sound.", feedback: null });
+		const tool = createNKleinDecompositionTools({ workspacePath, requestPlanCritique }).find(
+			(candidate) => candidate.name === "decompose_project",
+		);
+		if (!tool) {
+			throw new Error("missing decompose_project");
+		}
+		const input = {
+			slug: "proceed-plan",
+			title: "Proceed plan",
+			spec: "Five slices.",
+			plan: "Slices.",
+			summary: "Five cards.",
+			defaultAcceptanceCommand: "npm test",
+			tasks: [
+				{ id: "a", title: "Card a", prompt: "Do a." },
+				{ id: "b", title: "Card b", prompt: "Do b.", dependsOn: ["a"] },
+				{ id: "c", title: "Card c", prompt: "Do c." },
+				{ id: "d", title: "Card d", prompt: "Do d." },
+				{ id: "e", title: "Card e", prompt: "Do e." },
+			],
+		};
+		const result = (await tool.execute(input, undefined as never)) as { ok: boolean };
+		expect(result.ok).toBe(true);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
+
+		// A small flat plan never deliberates at all (low stakes).
+		const small = (await tool.execute(
+			{
+				slug: "small-plan",
+				title: "Small plan",
+				spec: "Two slices.",
+				plan: "Slices.",
+				summary: "Two cards.",
+				defaultAcceptanceCommand: "npm test",
+				tasks: [
+					{ id: "x", title: "Card x", prompt: "Do x." },
+					{ id: "y", title: "Card y", prompt: "Do y.", dependsOn: ["x"] },
+				],
+			},
+			undefined as never,
+		)) as { ok: boolean };
+		expect(small.ok).toBe(true);
+		expect(requestPlanCritique).toHaveBeenCalledTimes(1);
+	});
+
 	it("writes validated plan artifacts from decompose_project", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-tools-"));
 		const tool = getTool("decompose_project", workspacePath);

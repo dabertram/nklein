@@ -93,6 +93,12 @@ import {
 	getDefaultNKleinModelRegistry,
 } from "./nklein-model-registry";
 import { NKleinPauseController } from "./nklein-pause-controller";
+import {
+	buildPlanCritiqueSeedPrompt,
+	type NKleinPlanCritiqueRequestHandler,
+	type NKleinPlanCritiqueResult,
+	type NKleinPlanCritiqueSubmittedHandler,
+} from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
@@ -319,6 +325,14 @@ export interface NKleinTaskSessionService {
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
 	}): Promise<NKleinReviewResult | null>;
+	runPlanCritiqueSession(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		seedPrompt: string;
+		timeoutMs?: number;
+		critic?: { providerId: string; modelId: string } | null;
+	}): Promise<NKleinPlanCritiqueResult | null>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
@@ -694,6 +708,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
 		codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
 		onReviewSubmitted?: NKleinReviewSubmittedHandler;
+		onPlanCritiqueSubmitted?: NKleinPlanCritiqueSubmittedHandler;
 		toolExecutors?: ReturnType<typeof createAgentSandboxToolExecutors>;
 		extraTools?: ReturnType<typeof createAgentSandboxExtraTools>;
 	}): Promise<{ result: unknown; warnings?: string[] }> {
@@ -835,8 +850,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				}),
 				toolPolicies: runtimeSetup.toolPolicies,
 				onDecompositionApplied: this.onDecompositionApplied,
+				requestPlanCritique: this.buildPlanCritiqueRequestHandler(input.taskId, hostWorkspaceRoot),
 				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.onCardPromoted,
 				onReviewSubmitted: input.onReviewSubmitted,
+				onPlanCritiqueSubmitted: input.onPlanCritiqueSubmitted,
 				onFocusChainUpdated: (chain) => {
 					const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(input.taskId), chain, now());
 					this.focusChainByTaskId.set(input.taskId, timed);
@@ -1867,6 +1884,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						: {}),
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
+					requestPlanCritique: this.buildPlanCritiqueRequestHandler(request.taskId, request.cwd),
 					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
 					onFocusChainUpdated: (chain) => {
 						const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(request.taskId), chain, now());
@@ -2729,6 +2747,179 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.modelEndpoint.forget(reviewTaskId);
 			this.contextBudgetInputs.forget(reviewTaskId);
 			this.sandboxState.deleteSandbox(reviewTaskId);
+		}
+	}
+
+	/** W4.3 per-run critique budget: deliberation is rare by design (high-stakes × unclean quality only). */
+	private planCritiqueRunsUsed = 0;
+	private static readonly PLAN_CRITIQUE_RUN_BUDGET = 2;
+
+	/**
+	 * W4.3: build the `requestPlanCritique` executor for a session's decompose tool — or undefined for synthetic
+	 * sessions (`::review`/`::plan-critique`/`::acceptance` must never recurse into a critique). Enforces the
+	 * per-run count budget; failures and empty verdicts degrade to null (proceed) so a critique never blocks.
+	 */
+	private buildPlanCritiqueRequestHandler(
+		taskId: string,
+		projectRepoPath: string,
+	): NKleinPlanCritiqueRequestHandler | undefined {
+		if (taskId.includes("::") || isHomeAgentSessionId(taskId)) {
+			return undefined;
+		}
+		return async (request) => {
+			if (this.planCritiqueRunsUsed >= InMemoryNKleinTaskSessionService.PLAN_CRITIQUE_RUN_BUDGET) {
+				return null;
+			}
+			if (!this.agentSandboxManager) {
+				return null;
+			}
+			// Adversarial-review fix (2026-07-02): probe for the diverse critic BEFORE spending budget — degraded
+			// no-op attempts (single-model fleets) were burning the whole budget without ever running a session,
+			// permanently self-disabling deliberation for the service lifetime. And the waiver is SURFACED here
+			// (the shared trigger's waiver path is unreachable from the tool seam, which only knows an executor
+			// exists — see the decompose tool's gate comment).
+			const critic = await this.pickDiverseEscalationModel(taskId).catch(() => null);
+			if (!critic) {
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Plan-critique diversity waived for ${request.slug}: no lineage-diverse capable critic is loaded — proceeding without deliberation (a same-family debate is correlated noise).`,
+					taskId,
+					metadata: { category: "plan_critique_diversity_waived", planSlug: request.slug },
+				});
+				return null;
+			}
+			this.planCritiqueRunsUsed += 1;
+			return await this.runPlanCritiqueSession({
+				taskId,
+				projectRepoPath,
+				baseRef: this.sandboxState.getBaseRef(taskId) ?? "HEAD",
+				seedPrompt: buildPlanCritiqueSeedPrompt(request),
+				critic,
+			}).catch(() => null);
+		};
+	}
+
+	/**
+	 * W4.3: one bounded DIVERSE-CRITIC turn over a validated decomposition plan, BEFORE the cascade starts —
+	 * mirrors {@link runSecondOpinionReviewSession} 1:1 (synthetic `<taskId>::plan-critique` session, lineage-
+	 * diverse auto-pick, sandbox workspace at the source card's base so the critic can verify file claims,
+	 * bounded turn + nudges, full teardown). Resolves to the critic's structured verdict, or null when the turn
+	 * ends without one / no diverse critic exists / the sandbox is unavailable — callers treat null as "proceed"
+	 * (a critique must NEVER block a decomposition; it only ever adds one revision round).
+	 */
+	async runPlanCritiqueSession(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		seedPrompt: string;
+		timeoutMs?: number;
+		/** Pre-picked diverse critic (the budget-owning handler probes first); absent ⇒ probe here. */
+		critic?: { providerId: string; modelId: string } | null;
+	}): Promise<NKleinPlanCritiqueResult | null> {
+		if (!this.agentSandboxManager) {
+			return null;
+		}
+		const architectLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
+		if (!architectLaunch?.providerId || !architectLaunch.modelId) {
+			return null;
+		}
+		// The whole point is a DIVERSE second perspective — degrade to null (proceed) without one.
+		const critic =
+			input.critic ?? (await this.pickDiverseReviewerModel(architectLaunch, input.taskId).catch(() => null));
+		if (!critic) {
+			return null;
+		}
+		const launchConfig: NKleinTaskRestartLaunchConfig = {
+			...architectLaunch,
+			providerId: critic.providerId,
+			modelId: critic.modelId,
+			workspaceRoot: input.projectRepoPath,
+		};
+		const critiqueTaskId = `${input.taskId}::plan-critique`;
+		await this.agentSandboxManager.assertAvailable();
+		const workspace = await this.agentSandboxManager.prepareWorkspace({
+			taskId: critiqueTaskId,
+			projectRepoPath: input.projectRepoPath,
+			baseRef: input.baseRef ?? null,
+			// Auxiliary seam — bounded like ::review/::acceptance; a rejection degrades to null (proceed).
+			maxQueueWaitMs: 180_000,
+		});
+		this.sandboxState.setSandbox(critiqueTaskId, input.projectRepoPath, input.baseRef?.trim() || "HEAD");
+		let verdict: NKleinPlanCritiqueResult | null = null;
+		const deadlineMs = Date.now() + (input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS);
+		const runBoundedTurn = async (turn: Promise<unknown>): Promise<void> => {
+			const remainingMs = deadlineMs - Date.now();
+			if (remainingMs <= 0) {
+				return;
+			}
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const timeout = new Promise<void>((resolve) => {
+				timer = setTimeout(resolve, remainingMs);
+			});
+			await Promise.race([
+				turn.then(
+					() => undefined,
+					(error) => {
+						recordSelfObservation({
+							signal: "runtime_error",
+							severity: "warning",
+							message: `Plan-critique session failed: ${error instanceof Error ? error.message : String(error)}`,
+							taskId: critiqueTaskId,
+							workspacePath: input.projectRepoPath,
+							createdAt: Date.now(),
+						});
+					},
+				),
+				timeout,
+			]);
+			if (timer) {
+				clearTimeout(timer);
+			}
+		};
+		try {
+			await runBoundedTurn(
+				this.startRuntimeTaskSessionFromLaunchConfig({
+					taskId: critiqueTaskId,
+					cwd: workspace.workdir,
+					workspaceRoot: input.projectRepoPath,
+					prompt: input.seedPrompt,
+					launchConfig,
+					contextScope: "minimal",
+					onPlanCritiqueSubmitted: (result) => {
+						verdict = result;
+					},
+					toolExecutors: createAgentSandboxToolExecutors(this.agentSandboxManager, critiqueTaskId, {
+						pauseController: this.pauseController,
+					}),
+					extraTools: createAgentSandboxExtraTools(this.agentSandboxManager, critiqueTaskId, {
+						sessionId: createSessionId(critiqueTaskId),
+						contextWindow: launchConfig.contextWindow ?? undefined,
+						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+					}),
+				}),
+			);
+			for (
+				let nudge = 0;
+				verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
+				nudge += 1
+			) {
+				await runBoundedTurn(
+					this.sessionRuntime.sendTaskSessionInput(
+						critiqueTaskId,
+						"Submit your critique now by calling the submit_plan_critique tool with a `proceed` or `revise` verdict. Do not reply in prose.",
+					),
+				);
+			}
+			return verdict;
+		} finally {
+			await this.sessionRuntime.clearTaskSessions(critiqueTaskId).catch(() => undefined);
+			await this.agentSandboxManager.disposeWorkspace(critiqueTaskId).catch(() => undefined);
+			this.launchConfigByTaskId.delete(critiqueTaskId);
+			this.providerIdStore.forget(critiqueTaskId);
+			this.modelEndpoint.forget(critiqueTaskId);
+			this.contextBudgetInputs.forget(critiqueTaskId);
+			this.sandboxState.deleteSandbox(critiqueTaskId);
 		}
 	}
 

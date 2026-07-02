@@ -82,3 +82,41 @@ export function createNKleinPlanCritiqueTool(options: { onSubmitted?: NKleinPlan
 		},
 	};
 }
+
+/** What the decompose tool hands the critique executor — minimal, serializable plan facts. */
+export interface NKleinPlanCritiqueRequest {
+	slug: string;
+	spec: string;
+	tasks: ReadonlyArray<{ id: string; title: string; dependsOn: readonly string[] }>;
+	qualityWarnings: readonly string[];
+}
+
+/**
+ * Executes ONE diverse-critic round for a high-stakes plan (the service backs this with a real model session).
+ * Null ⇒ proceed (no diverse critic / budget spent / session yielded no verdict) — a critique NEVER blocks.
+ */
+export type NKleinPlanCritiqueRequestHandler = (
+	request: NKleinPlanCritiqueRequest,
+) => Promise<NKleinPlanCritiqueResult | null>;
+
+/** The critic session's seed prompt: the plan's facts + the one-tool-call contract. */
+export function buildPlanCritiqueSeedPrompt(request: NKleinPlanCritiqueRequest): string {
+	const taskLines = request.tasks
+		.map(
+			(task) =>
+				`- ${task.id}: ${task.title}${task.dependsOn.length > 0 ? ` (depends on: ${task.dependsOn.join(", ")})` : ""}`,
+		)
+		.join("\n");
+	const warningLines =
+		request.qualityWarnings.length > 0
+			? `\n\nStructural quality warnings already flagged:\n${request.qualityWarnings.map((warning) => `- ${warning}`).join("\n")}`
+			: "";
+	return [
+		`You are a plan critic giving a second opinion on a project decomposition BEFORE work starts. You come from a different model family than the architect on purpose — challenge assumptions rather than agree.`,
+		`Plan slug: ${request.slug}`,
+		`Specification:\n${request.spec}`,
+		`Task graph:\n${taskLines}${warningLines}`,
+		`Judge: Does the task breakdown cover the specification? Are dependencies correct and minimal (no false coupling, no missing prerequisite)? Is any task too big for one focused work session? Is anything missing that the spec requires? You may inspect the repository with your tools to verify claims.`,
+		`Then call submit_plan_critique EXACTLY ONCE: verdict "proceed" if the plan is sound (a valued sign-off), or "revise" with concrete, actionable feedback the architect can apply in one revision. Do not answer in prose.`,
+	].join("\n\n");
+}

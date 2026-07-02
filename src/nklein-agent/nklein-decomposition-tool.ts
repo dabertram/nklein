@@ -178,6 +178,7 @@ export interface NKleinPlanTaskGraphPreview {
 // Tool factories — these stay in the barrel (the 3 functions named in the spec).
 // ---------------------------------------------------------------------------
 
+import { decidePlanCritique } from "../core/plan-critique-decision";
 import {
 	applyDecomposeProjectArtifactsToWorkspace,
 	redactWorkspacePathForAgent,
@@ -194,12 +195,17 @@ import {
 } from "./decomposition/plan-task-schemas";
 import { validateNKleinPlanTaskGraph } from "./decomposition/plan-task-validation";
 import { selectBestNKleinPlanTaskGraph } from "./nklein-decomposition-selection";
+import type { NKleinPlanCritiqueRequestHandler } from "./nklein-plan-critique-tool";
 
 function createDecomposeProjectTool(
 	workspacePath: string,
 	sourceTaskId?: string | null,
 	onApplied?: NKleinDecompositionAppliedHandler,
+	requestPlanCritique?: NKleinPlanCritiqueRequestHandler,
 ): AgentTool {
+	// W4.3: each plan slug gets AT MOST one diverse-critic round (revisions apply the feedback, never re-debate);
+	// the per-run count budget lives in the service handler (it spans sessions).
+	const critiquedSlugs = new Set<string>();
 	// W2.7a (audit 2026-07-02): rejected-but-PARSEABLE graphs are stashed per plan slug; after the bounce budget
 	// the BEST stashed candidate is applied instead of bouncing again — a weak model that keeps emitting
 	// quality-violating graphs converges on its best attempt rather than spiraling into the repeated-call guard
@@ -283,6 +289,7 @@ function createDecomposeProjectTool(
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(input);
 			let validation: ReturnType<typeof validateNKleinPlanTaskGraph>;
+			let appliedBestOfRejected = false;
 			try {
 				validation = validateNKleinPlanTaskGraph({ taskGraph, enforceGraphQuality: true });
 				rejectedGraphCandidatesBySlug.delete(slug);
@@ -301,6 +308,7 @@ function createDecomposeProjectTool(
 				// Structural validation only (no quality enforcement) — the graph parses/sizes; its coherence
 				// warnings ride along and the §5.AV repair net (cycle-break) still applies downstream.
 				validation = validateNKleinPlanTaskGraph({ taskGraph: best.best });
+				appliedBestOfRejected = true;
 				rejectedGraphCandidatesBySlug.delete(slug);
 				await recordSelfObservation({
 					signal: "custom",
@@ -332,6 +340,60 @@ function createDecomposeProjectTool(
 						warnings: validation.quality.warnings,
 					},
 				});
+			}
+			// W4.3 decompose-critique (§5.AW): a HIGH-STAKES plan (big or coupled) whose structural quality is not
+			// clean gets ONE lineage-diverse critic round BEFORE the cascade builds on it. "revise" rides the same
+			// recoverable-bounce muscle as a quality violation — the architect's session applies the feedback and
+			// calls decompose_project again (same slug ⇒ never re-critiqued ⇒ no loop). A critique can only ever
+			// ADD one revision round; it never blocks (handler errors/null degrade to proceed).
+			// Adversarial-review fixes (2026-07-02): NEVER critique the W2.7a best-of-rejected path — it is a
+			// LAST-RESORT recovery for an architect that already proved it can't do better, and bouncing it again
+			// feeds the repeated-decomposition-failure guard toward parking a decomposition that would otherwise
+			// complete (the exact spiral the stash exists to prevent). Violations are summed with warnings for the
+			// not-clean signal (violations can only reach this point via non-enforced validation).
+			const critiqueDecision = decidePlanCritique({
+				taskCount: validation.quality.taskCount,
+				dependencyCount: validation.quality.dependencyCount,
+				qualityWarningCount: validation.quality.warnings.length + validation.quality.violations.length,
+				// The tool only knows whether an executor is wired; the REAL diverse-critic probe, budget, and
+				// waiver surfacing live in the service handler (which returns null + records the waiver when no
+				// diverse critic is loaded — a null never blocks).
+				diverseCriticAvailable: Boolean(requestPlanCritique),
+				critiqueBudgetRemaining: requestPlanCritique ? 1 : 0,
+				alreadyCritiqued: critiquedSlugs.has(slug),
+			});
+			if (critiqueDecision.deliberate && requestPlanCritique && !appliedBestOfRejected) {
+				critiquedSlugs.add(slug);
+				const critique = await requestPlanCritique({
+					slug,
+					spec,
+					tasks: validation.taskGraph.tasks.map((task) => ({
+						id: task.id,
+						title: task.title,
+						dependsOn: task.dependsOn,
+					})),
+					qualityWarnings: validation.quality.warnings,
+				}).catch(() => null);
+				await recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: critique
+						? `Plan-critique round for ${slug}: the diverse critic said ${critique.verdict}${critique.verdict === "revise" ? " — bouncing the plan back to the architect with the feedback" : ""}.`
+						: `Plan-critique round for ${slug} yielded no verdict (no diverse critic / budget spent / turn ended empty) — proceeding.`,
+					taskId: sourceTaskId ?? null,
+					workspacePath,
+					metadata: {
+						operation: "decompose_plan_critique",
+						planSlug: slug,
+						verdict: critique?.verdict ?? null,
+						summary: critique?.summary ?? null,
+					},
+				});
+				if (critique?.verdict === "revise" && critique.feedback) {
+					throw new Error(
+						`A second-opinion plan critic (a different model family) reviewed this decomposition and requested ONE revision before work starts. Apply this feedback and call decompose_project again with the REVISED plan (keep the same slug "${slug}"):\n${critique.feedback}`,
+					);
+				}
 			}
 			const artifacts = await writeNKleinPlanArtifacts({
 				workspacePath,
@@ -433,12 +495,15 @@ export function createNKleinDecompositionTools(options: {
 	artifactWorkspacePath?: string | null;
 	sourceTaskId?: string | null;
 	onApplied?: NKleinDecompositionAppliedHandler;
+	/** W4.3: executes one diverse-critic round for a high-stakes plan; absent ⇒ the critique gate never fires. */
+	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;
 }): AgentTool[] {
 	return [
 		createDecomposeProjectTool(
 			options.artifactWorkspacePath?.trim() || options.workspacePath,
 			options.sourceTaskId,
 			options.onApplied,
+			options.requestPlanCritique,
 		),
 		createExpandTaskTool(),
 	];
