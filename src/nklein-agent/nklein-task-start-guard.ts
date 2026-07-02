@@ -62,9 +62,47 @@ export function estimateNKleinStartPromptTokens(input: {
 	return titleTokens + promptTokens + imageTokens;
 }
 
-export function estimateNKleinStartDifficulty(promptTokens: number): number {
+/**
+ * Cheap CONTENT signals blended into the start-difficulty estimate (audit 2026-07-02 W1.2). The token-count-only
+ * estimator mis-routes in both directions — a verbose trivial card over-provisions the scarce strong machine, and a
+ * terse hard card ("fix the race in the scheduler") routes to a 4B that fails and burns a route-up cycle. It is also
+ * the gate the /no_think decision (W1.3) feeds on, so its weakness compounds. All signals are optional — omitting
+ * them reproduces the historical token-only behavior byte-for-byte.
+ */
+export interface NKleinStartDifficultySignals {
+	/** Resolved skill ids for the card (see `resolveActiveSkills`); `planning` raises the floor — plan cards are hard. */
+	skillIds?: readonly string[];
+	/** The card starts in plan mode (decompose/architect stage) — hard regardless of prompt length. */
+	isPlanCard?: boolean;
+	/** Title + prompt text for keyword signals (refactor/migration/concurrency = hard; typo/rename/docs = easy). */
+	taskText?: string;
+}
+
+const HARD_TASK_TEXT =
+	/refactor|architect|migrat|concurren|\brace\b|deadlock|protocol|crypto|security|performance|optimi[sz]/i;
+const EASY_TASK_TEXT = /typo|rename|\bcomment\b|readme|documentation|\blabel\b|copy change/i;
+// A BUMP, deliberately not a hard floor: the router treats difficulty as HARD feasibility (`capability >=
+// difficulty`) and auto-offered loaded models carry a conservative prior of 40 — a floor of e.g. 60 would make
+// every plan card ESCALATE on a fleet with no configured architect role. The "plan cards demand a capable model"
+// hard semantics lands with W2.5 auto-selection, where capability estimates are real instead of priors.
+const PLAN_CARD_DIFFICULTY_BONUS = 10;
+const HARD_TEXT_DIFFICULTY_BONUS = 12;
+const EASY_TEXT_DIFFICULTY_DAMPENER = 10;
+
+export function estimateNKleinStartDifficulty(promptTokens: number, signals?: NKleinStartDifficultySignals): number {
 	const promptDifficultyBonus = Math.min(START_GUARD_MAX_PROMPT_DIFFICULTY_BONUS, Math.round(promptTokens / 800));
-	return Math.min(100, START_GUARD_BASE_DIFFICULTY + promptDifficultyBonus);
+	let difficulty = START_GUARD_BASE_DIFFICULTY + promptDifficultyBonus;
+	const taskText = signals?.taskText ?? "";
+	const isHardText = taskText.length > 0 && HARD_TASK_TEXT.test(taskText);
+	if (isHardText) {
+		difficulty += HARD_TEXT_DIFFICULTY_BONUS;
+	} else if (taskText.length > 0 && EASY_TASK_TEXT.test(taskText)) {
+		difficulty -= EASY_TEXT_DIFFICULTY_DAMPENER;
+	}
+	if (signals?.isPlanCard || signals?.skillIds?.includes("planning")) {
+		difficulty += PLAN_CARD_DIFFICULTY_BONUS;
+	}
+	return Math.max(5, Math.min(100, difficulty));
 }
 
 export function estimateNKleinStartFitBudgetTokens(promptTokens: number, largestContextWindow: number | null): number {

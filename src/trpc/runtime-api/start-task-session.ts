@@ -364,12 +364,12 @@ export async function handleStartTaskSession(
 		};
 		// §5.AE→§5.AB: the card's resolved skills → the affinity tags a fitting model should carry (code card → `code`,
 		// planning/architect card → `reasoning`), so the router prefers a best-fit model BEFORE smallest-sufficient.
-		const taskAffinityTags = affinityTagsForSkills(
-			resolveActiveSkills({
-				role: body.startInPlanMode ? "architect" : "worker",
-				taskText: `${body.taskTitle ?? ""}\n${body.prompt}`,
-			}).skills.map((skill) => skill.id),
-		);
+		const startTaskText = `${body.taskTitle ?? ""}\n${body.prompt}`;
+		const resolvedSkillIds = resolveActiveSkills({
+			role: body.startInPlanMode ? "architect" : "worker",
+			taskText: startTaskText,
+		}).skills.map((skill) => skill.id);
+		const taskAffinityTags = affinityTagsForSkills(resolvedSkillIds);
 		const preferredCandidate = body.startInPlanMode
 			? ([...guardCandidates.values()].find((candidate) => candidate.role === "architect") ?? selectedCandidate)
 			: selectedCandidate;
@@ -420,7 +420,14 @@ export async function handleStartTaskSession(
 					}),
 				),
 		);
-		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens);
+		// W1.2 (audit 2026-07-02): blend content signals into difficulty — plan cards + planning skill raise the
+		// floor, hard/easy task text nudges — so trivial-verbose stops over-provisioning and terse-hard stops
+		// under-routing (this score also gates the W1.3 /no_think decision).
+		const taskDifficulty = estimateNKleinStartDifficulty(promptTokens, {
+			skillIds: resolvedSkillIds,
+			isPlanCard: body.startInPlanMode === true,
+			taskText: startTaskText,
+		});
 		const requiredContextTokens = estimateNKleinStartFitBudgetTokens(promptTokens, largestContextWindow);
 		// §5.AB queue-aware free-first (opt-in via NKLEIN_QUEUE_AWARE_FREE_FIRST): a model the LM Studio SERVER is BUSY on
 		// isn't truly "free" for fan-out even if !Klein isn't running it — busy = a non-empty `queued` (another client /
