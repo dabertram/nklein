@@ -197,6 +197,8 @@ export interface StartNKleinTaskSessionRequest {
 	taskTitle?: string;
 	initialMessages?: NKleinSdkPersistedMessage[];
 	images?: RuntimeTaskImage[];
+	/** W1.1a: optional per-turn output-token budget → the SDK's maxTokensPerTurn (absent ⇒ provider default). */
+	maxTokensPerTurn?: number | null;
 	filesLikelyTouched?: readonly string[] | null;
 	resumeFromTrash?: boolean;
 	resumeFromPersistence?: boolean;
@@ -619,6 +621,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		workspaceRoot?: string | null;
 		prompt: string;
 		initialMessages?: NKleinSdkPersistedMessage[];
+		/** W1.1a: optional per-turn output budget (see StartNKleinTaskSessionInput.maxTokensPerTurn). */
+		maxTokensPerTurn?: number | null;
 		images?: RuntimeTaskImage[];
 		mode?: RuntimeTaskSessionMode;
 		launchConfig: NKleinTaskRestartLaunchConfig;
@@ -726,6 +730,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					? applyThinkingDisable(input.prompt, launchConfig.modelId ?? "")
 					: input.prompt,
 				initialMessages: input.initialMessages,
+				maxTokensPerTurn: input.maxTokensPerTurn ?? null,
 				images: input.images,
 				providerId: launchConfig.providerId,
 				modelId: launchConfig.modelId,
@@ -1739,6 +1744,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						? applyThinkingDisable(runtimePrompt, modelId ?? "")
 						: runtimePrompt,
 					taskTitle: request.taskTitle,
+					maxTokensPerTurn: request.maxTokensPerTurn ?? null,
 					initialMessages,
 					images: request.images,
 					providerId,

@@ -449,6 +449,12 @@ export interface StartNKleinSessionRuntimeRequest {
 	baseUrl?: string | null;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
 	contextWindow?: number | null;
+	/**
+	 * W1.1a (audit 2026-07-02): optional per-TURN output-token budget, threaded to the SDK's
+	 * `config.maxTokensPerTurn` (→ the gateway request's max_tokens). Unset ⇒ the SDK/provider default,
+	 * byte-identical to before. The §5.AA truncation-recovery retry raises this via `raisedTokenBudget`.
+	 */
+	maxTokensPerTurn?: number | null;
 	maxAgentWritableFileLines?: number | null;
 	codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
 	apiTimeoutMs?: number | null;
@@ -617,6 +623,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			baseUrl: request.baseUrl,
 			reasoningEffort: request.reasoningEffort,
 			contextWindow: request.contextWindow,
+			maxTokensPerTurn: request.maxTokensPerTurn,
 			maxAgentWritableFileLines: request.maxAgentWritableFileLines,
 			apiTimeoutMs: request.apiTimeoutMs,
 			turnTimeoutMs: request.turnTimeoutMs,
@@ -895,6 +902,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// line via resolveNKleinAgentPerceivedCwd so the two never diverge.
 			cwd: resolveNKleinAgentPerceivedCwd(request.taskId, agentPerceivedCwd),
 			mode: resolvedMode,
+			// W1.1a: per-turn output budget → the SDK gateway's max_tokens; absent ⇒ provider default (unchanged).
+			...(typeof request.maxTokensPerTurn === "number" && request.maxTokensPerTurn > 0
+				? { maxTokensPerTurn: Math.floor(request.maxTokensPerTurn) }
+				: {}),
 			enableTools: true,
 			enableSpawnAgent: teamDelegation.enabled,
 			enableAgentTeams: teamDelegation.enabled,
