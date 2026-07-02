@@ -180,6 +180,12 @@ export async function runSecondOpinionReviewForTask(
 		return { type: "skipped", reason: "card_not_found" };
 	}
 	const { card, columnId } = located;
+	// run21 finding: a re-driven/escalated worker is BLIND to the card's declared file scope and burns its
+	// turns on blocked writes (3 strikes → abandoned). Name the fence UP FRONT in every re-drive prompt.
+	const fileScopeNote =
+		Array.isArray(card.filesLikelyTouched) && card.filesLikelyTouched.length > 0
+			? `\n\nIMPORTANT — this card's declared file scope (writes OUTSIDE these paths are blocked): ${card.filesLikelyTouched.join(", ")}. Work within it; if the task genuinely needs another file, say so instead of retrying blocked writes.`
+			: "";
 	const reviewerRole = config.effectiveModelRoles?.reviewer ?? null;
 	const reviewer =
 		reviewerRole?.providerId && reviewerRole.modelId
@@ -267,7 +273,7 @@ export async function runSecondOpinionReviewForTask(
 			},
 			onBounce: async ({ review, workerPrompt }) => {
 				await persistReview(review, "in_progress");
-				await input.service.sendTaskSessionInput(input.taskId, workerPrompt, "act");
+				await input.service.sendTaskSessionInput(input.taskId, `${workerPrompt}${fileScopeNote}`, "act");
 			},
 			onEscalate: async ({ review, workerPrompt }) => {
 				// W4.2: the stuck card retries ONCE on the diverse/stronger worker (the W1.1b override machinery).
@@ -278,7 +284,7 @@ export async function runSecondOpinionReviewForTask(
 					: "";
 				await input.service.sendTaskSessionInput(
 					input.taskId,
-					`${escalationPreamble}${workerPrompt}`,
+					`${escalationPreamble}${workerPrompt}${fileScopeNote}`,
 					"act",
 					undefined,
 					escalationCandidate ?? undefined,

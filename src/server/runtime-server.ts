@@ -669,10 +669,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
 								return { board: movement.board, save: movement.moved, value: null };
 							});
+							const scopeNote =
+								Array.isArray(deliveryCard?.filesLikelyTouched) && deliveryCard.filesLikelyTouched.length > 0
+									? ` This card's declared file scope (writes outside it are blocked): ${deliveryCard.filesLikelyTouched.join(", ")}.`
+									: "";
 							await service
 								.sendTaskSessionInput(
 									taskId,
-									"Your previous run ended with NO file changes captured — the task is NOT done. Complete the task now: make the required code changes, keep tool use focused (avoid re-reading files you have already seen), and finish with the acceptance check passing.",
+									`Your previous run ended with NO file changes captured — the task is NOT done. Complete the task now: make the required code changes, keep tool use focused (avoid re-reading files you have already seen), and finish with the acceptance check passing.${scopeNote}`,
 									"act",
 								)
 								.catch((error) => {
