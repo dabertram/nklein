@@ -9171,6 +9171,48 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       adopt for legion" or "everything boils down to a small dense model in VRAM — CONFIRMED, close the question".
 >       Record either way in docs/dev/gpu-offload-and-moe.md + the model-capability catalog + fleet sweet-spots memory.
 >
+### 5.BA — Guided configuration workflows: first-run global setup + first-load project setup *(2026-07-02, user)*
+> **User framing (2026-07-02):** *"have a configuration workflow that guides through the relevant global settings when
+> starting !Klein the first time or when triggered (put trigger button in global settings). A similar guided
+> configuration workflow shall be offered when creating or loading a project the first time so that the user can
+> decide about the project-level overrides. The project configuration workflow shall also be possible to trigger by
+> the user — not from the global settings modal, but in project settings."*
+>
+> Serves the product vision directly ("a five-year-old can generate great software"): the settings surface is large
+> (providers, sandbox, concurrency, review, guardrails, egress…) and a first-time user should be WALKED through the
+> decisions that matter, with detection + recommendations, instead of facing a wall of toggles.
+>
+> - [ ] **Global setup wizard (first start + re-triggerable):**
+>       - **Trigger:** fires automatically when no global config exists / no `setupWizardCompletedAt` stamp; PLUS a
+>         "Run setup guide" button in the GLOBAL settings modal (re-run any time; pre-filled with current values —
+>         re-running edits, never resets).
+>       - **Steps (detect → recommend → confirm, one concern per step):** (1) provider/endpoint: probe LM Studio
+>         (default localhost:1234), show discovered loaded models, per-machine LM-Link endpoints if present; (2)
+>         Docker sandbox: availability check + image pull/build status, pool sizing recommendation from detected
+>         RAM/CPU; (3) concurrency: maxConcurrentTasks + per-provider/per-model caps with sane defaults from the
+>         detected fleet; (4) review posture: second-opinion review on/off (explain: off = manual-merge mode under
+>         the fail-closed gate), reviewer diversity note; (5) swarm guardrails (turn/wall-time budgets); (6)
+>         OPTIONAL features with their trade-offs stated plainly: knows-today, sandbox-hosted MCP servers,
+>         **retrieval egress (the §5.AC opt-in — the wizard is exactly where the "this sends queries off this
+>         machine" decision belongs)**, file-overlap parallelism default; (7) summary screen → save once.
+>       - Every step skippable ("keep default"); the wizard NEVER blocks using the app (dismiss = defaults).
+> - [ ] **Project setup wizard (first create/load + re-triggerable from PROJECT settings):**
+>       - **Trigger:** fires on project CREATE and on first LOAD of a project that has no per-project
+>         `projectSetupWizardCompletedAt` stamp; PLUS a "Run project setup guide" button in PROJECT settings (per
+>         the user: NOT in the global settings modal).
+>       - **Steps:** walk the PER-PROJECT OVERRIDES as decisions relative to the global defaults (show the
+>         inherited value, offer override): model-role overrides for this project, per-project concurrency caps,
+>         file-overlap parallelism override, retrieval egress opt-in for THIS project, rulesets/agent rules,
+>         acceptance-command conventions (detect from package.json scripts and suggest), base branch. Ends with a
+>         summary → writes only the overrides the user actually chose (inherits everything else).
+>       - **Detection-first:** read the repo (package.json, test runner, monorepo layout) and pre-fill suggestions;
+>         a wrong suggestion is one click to change, an empty form is friction.
+> - [ ] **Shared machinery:** one wizard framework (step list, detect/recommend/confirm shape, skippable steps,
+>       completion stamps in config) reused by both; headless parity later via `nklein setup` / `nklein project setup`
+>       CLI flows (same steps, terminal prompts) so the guided path exists outside the UI too.
+> - [ ] **Ordering:** UI wizards land with/after the §5.AX overhaul (they are prime §5.AX surfaces — dark-first,
+>       cool-technical); the completion-stamp config fields + detection probes can land earlier as pure runtime work.
+>
 ### 5.AZ — Public-release repo preparation: cleanup, history, and presentation *(2026-07-02, user — POST-MATURITY, gates the early release)*
 > **User framing (2026-07-02):** *"talking about releasing an early version, there is then also still a lot of things
 > to do to cleanup the branch, to make sure we have a repo that is nicely prepared to show to the public."* **Schedule:
