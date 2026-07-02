@@ -9,6 +9,7 @@ import {
 	type RuntimeTaskSessionMode,
 	type RuntimeTaskSessionSummary,
 } from "../../../src/core/api-contract";
+import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { AgentSandboxExecutionError, type AgentSandboxManager } from "../../../src/nklein-agent/nklein-agent-sandbox";
 import { buildKanbanEfficiencyRules } from "../../../src/nklein-agent/nklein-kanban-efficiency-rules";
 import type { NKleinRuntimeSetup } from "../../../src/nklein-agent/nklein-runtime-setup";
@@ -620,6 +621,46 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			prompt: "Review the change",
 		});
 		expect(reviewerSummary.role).toBe("reviewer");
+	});
+
+	it("records the assembled prompt-SHELL key per model in the warmth ledger (§5.AQ cache-warmth routing)", async () => {
+		const { service, runtime } = createTrackedService();
+
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Implement the feature",
+			providerId: "lmstudio",
+			modelId: "warm-model",
+			baseUrl: "http://localhost:1234/v1",
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1);
+		});
+
+		// Worker card start ⇒ a "worker" shell for this workspace, keyed by the LAUNCH model id.
+		const workerEntry = service.getPromptWarmthLedger().get("warm-model");
+		expect(workerEntry?.shellKey).toBe(
+			buildPromptShellKey({ sessionKind: "worker", workspacePath: "/tmp/worktree", modelId: "warm-model" }),
+		);
+		expect(workerEntry?.at).toBeGreaterThan(0);
+
+		// A synthetic `::review` session on the same model overwrites the entry with the review shell — the ledger
+		// tracks the LAST shell each model prefilled (that is what the next start's warmth lookup compares against).
+		await service.startTaskSession({
+			taskId: "task-1::review",
+			cwd: "/tmp/worktree",
+			prompt: "Review the change",
+			providerId: "lmstudio",
+			modelId: "warm-model",
+			baseUrl: "http://localhost:1234/v1",
+		});
+		await vi.waitFor(() => {
+			expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(2);
+		});
+		expect(service.getPromptWarmthLedger().get("warm-model")?.shellKey).toBe(
+			buildPromptShellKey({ sessionKind: "review", workspacePath: "/tmp/worktree", modelId: "warm-model" }),
+		);
 	});
 
 	it("records model-specific shared endpoint ids for local task sessions", async () => {

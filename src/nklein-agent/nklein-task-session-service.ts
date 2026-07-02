@@ -26,6 +26,13 @@ import {
 	normalizeRuntimeSwarmGuardrails,
 	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
 } from "../core/api-contract";
+import {
+	applyWarmthPreference,
+	buildPromptShellKey,
+	derivePromptSessionKind,
+	type PromptSessionKind,
+	type PromptWarmthLedgerEntry,
+} from "../core/cache-warmth";
 import { isTruthyEnv } from "../core/env-flag";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
@@ -326,6 +333,12 @@ export interface NKleinTaskSessionService {
 		modelId: string;
 		endpoint: string | null;
 	}>;
+	/**
+	 * §5.AQ (a)+(d) cache-warmth ledger: the last assembled prompt-SHELL key per model id (+ when), tracked by
+	 * `assembleSessionSystemPrompt`. Read-only view for warmth-aware routing (`applyWarmthPreference`) — exposed
+	 * the same way `listModelEndpointSessions` is, so the start-selection seam can consult live session state.
+	 */
+	getPromptWarmthLedger(): ReadonlyMap<string, PromptWarmthLedgerEntry>;
 	listMessages(taskId: string): NKleinTaskMessage[];
 	listSlashCommands(workspacePath: string): Promise<NKleinSdkSlashCommand[]>;
 	loadTaskSessionMessages(taskId: string): Promise<NKleinTaskMessage[]>;
@@ -709,6 +722,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private lastAssembledSystemPromptByModelId = new Map<string, string>();
 
 	/**
+	 * §5.AQ (a)+(d): last prompt-SHELL key per model id (+ when) — the cache-warmth ledger. Where the map above
+	 * holds the full prompt BYTES (reuse telemetry), this holds the shell IDENTITY (kind + workspace + model) the
+	 * model last prefilled, which is what warmth-aware routing compares prospective starts against. Deterministic —
+	 * we know every prompt we send, so no server probing is needed (see `src/core/cache-warmth.ts`).
+	 */
+	private readonly lastShellKeyByModelId = new Map<string, PromptWarmthLedgerEntry>();
+
+	/**
 	 * W2.3b (§5.AQ): assemble the session system prompt from VOLATILITY-ORDERED fragments instead of raw concat —
 	 * static/config content first, the daily date next, per-task content last — so the byte-prefix shared across
 	 * session starts is maximal by construction (local endpoints cache by longest byte-stable prefix). The SDK base
@@ -721,6 +742,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private assembleSessionSystemPrompt(input: {
 		taskId: string;
 		modelId: string | null | undefined;
+		/**
+		 * §5.AQ warmth ledger: which prompt SHELL this assembly builds. Derived at the call sites (they know the
+		 * task-id shape + the explicit-decomposition set) via `derivePromptSessionKind`; recorded per model so
+		 * warmth-aware routing can match prospective starts against the shell each model last prefilled.
+		 */
+		sessionKind: PromptSessionKind;
+		/** The HOST workspace root of the session — the workspace part of the recorded shell key. */
+		workspacePath: string | null;
 		basePrompt: string;
 		/**
 		 * True when `basePrompt` is the restructured SDK shell (cwd/date extracted into `sessionEnv`) — byte-stable
@@ -756,6 +785,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const modelKey = input.modelId?.trim() || "(unconfigured)";
 		const previous = this.lastAssembledSystemPromptByModelId.get(modelKey);
 		this.lastAssembledSystemPromptByModelId.set(modelKey, assembled.text);
+		// §5.AQ warmth ledger: record the shell identity this model is about to prefill (same modelKey normalization
+		// as the byte map above, so the routing lookup and this record can never drift apart).
+		this.lastShellKeyByModelId.set(modelKey, {
+			shellKey: buildPromptShellKey({
+				sessionKind: input.sessionKind,
+				workspacePath: input.workspacePath?.trim() ?? "",
+				modelId: modelKey,
+			}),
+			at: now(),
+		});
 		if (previous !== undefined && previous !== assembled.text) {
 			const reuseRatio = computeSharedPrefixRatio(previous, assembled.text);
 			recordSelfObservation({
@@ -878,6 +917,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const systemPrompt = this.assembleSessionSystemPrompt({
 			taskId: input.taskId,
 			modelId: launchConfig.modelId,
+			// §5.AQ warmth ledger: this seam builds the SYNTHETIC sessions too (`::review`/`::plan-critique`/
+			// `::merge` launch configs carry their kind in the task-id suffix) — derive the shell kind from the id.
+			sessionKind: derivePromptSessionKind(input.taskId, {
+				isExplicitDecomposition: this.explicitDecompositionTaskIds.has(input.taskId),
+			}),
+			workspacePath: hostWorkspaceRoot,
 			basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
 			baseIsStaticShell: !customSystemPrompt,
 			homeAgentAppend: resolveHomeAgentAppendSystemPrompt(input.taskId),
@@ -1907,6 +1952,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const systemPrompt = this.assembleSessionSystemPrompt({
 					taskId: request.taskId,
 					modelId,
+					// §5.AQ warmth ledger: the primary seam is worker/architect (same signal as the summary's role
+					// stamp above) or the home-agent "chat" — synthetic `::` kinds never start here.
+					sessionKind: derivePromptSessionKind(request.taskId, {
+						isExplicitDecomposition: this.explicitDecompositionTaskIds.has(request.taskId),
+					}),
+					workspacePath: request.workspaceRoot?.trim() || request.cwd,
 					basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
 					baseIsStaticShell: !customSystemPrompt,
 					homeAgentAppend: resolveHomeAgentAppendSystemPrompt(request.taskId),
@@ -2615,6 +2666,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}));
 	}
 
+	getPromptWarmthLedger(): ReadonlyMap<string, PromptWarmthLedgerEntry> {
+		return this.lastShellKeyByModelId;
+	}
+
 	listMessages(taskId: string): NKleinTaskMessage[] {
 		return this.messageRepository.listMessages(taskId);
 	}
@@ -2700,6 +2755,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private async pickDiverseReviewerModel(
 		workerLaunch: NKleinTaskRestartLaunchConfig,
 		taskId: string,
+		/** §5.AQ (d): the shell KIND the picked model will assemble — the same-kind warmth batching signal. */
+		sessionKind: PromptSessionKind = "review",
 	): Promise<{ providerId: string; modelId: string } | null> {
 		const baseUrl = workerLaunch.baseUrl?.trim() || "http://127.0.0.1:1234/v1";
 		const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
@@ -2743,7 +2800,39 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			});
 			return null;
 		}
-		const pick = preferred.ranked[0];
+		// §5.AQ (d) session-KIND batching: among the candidates DIVERSITY allows (its result above is authoritative
+		// — never weakened here), prefer the one whose last prompt shell is the SAME KIND (review→review etc.), so
+		// back-to-back decision turns land on an already-warm shell instead of interleaving kinds across models.
+		// The warmth ledger is keyed by the SERVED id (what the launch config gets) — candidate.modelKey here.
+		const workerLineage = resolveLineage(workerRealId);
+		const diverseCandidates = preferred.ranked.filter((candidate) => {
+			const lineage = resolveLineage(candidate.modelId);
+			return lineage !== "unknown" && lineage !== workerLineage;
+		});
+		const warmth = applyWarmthPreference({
+			ranked: diverseCandidates.map((candidate) => ({
+				modelKey: candidate.modelKey,
+				modelId: candidate.modelKey,
+				score: candidate.score,
+			})),
+			sessionKind,
+			workspacePath: workerLaunch.workspaceRoot?.trim() ?? "",
+			lastShellKeyByModel: this.lastShellKeyByModelId,
+			now: now(),
+		});
+		const warmthPick = warmth.warmthApplied
+			? (diverseCandidates.find((candidate) => candidate.modelKey === warmth.ranked[0]?.modelKey) ?? null)
+			: null;
+		if (warmthPick && warmth.warmthReason) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Cache-warmth kind-batching for ${taskId}: ${warmth.warmthReason} (within the lineage-diverse set).`,
+				taskId,
+				metadata: { category: "reviewer_warmth_batched", reason: warmth.warmthReason },
+			});
+		}
+		const pick = warmthPick ?? preferred.ranked[0];
 		recordSelfObservation({
 			signal: "custom",
 			severity: "info",
@@ -2759,7 +2848,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!launch?.providerId || !launch.modelId) {
 			return null;
 		}
-		return await this.pickDiverseReviewerModel(launch, taskId).catch(() => null);
+		// The escalated session is the card's WORKER session on a stronger model — batch toward worker shells.
+		return await this.pickDiverseReviewerModel(launch, taskId, "worker").catch(() => null);
 	}
 
 	async runSecondOpinionReviewSession(input: {
@@ -2780,7 +2870,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// fallback stands, so behavior only ever improves).
 		const autoReviewer =
 			!input.reviewer && workerLaunch?.providerId && workerLaunch.modelId
-				? await this.pickDiverseReviewerModel(workerLaunch, input.taskId).catch(() => null)
+				? await this.pickDiverseReviewerModel(workerLaunch, input.taskId, "review").catch(() => null)
 				: null;
 		const providerId = (
 			input.reviewer?.providerId ??
@@ -2971,7 +3061,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		// The whole point is a DIVERSE second perspective — degrade to null (proceed) without one.
 		const critic =
-			input.critic ?? (await this.pickDiverseReviewerModel(architectLaunch, input.taskId).catch(() => null));
+			input.critic ??
+			(await this.pickDiverseReviewerModel(architectLaunch, input.taskId, "plan-critique").catch(() => null));
 		if (!critic) {
 			return null;
 		}

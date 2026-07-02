@@ -2,6 +2,7 @@ import { summarizeModelOutcomes } from "../../core/agent-attempt-ledger";
 import { blendCapabilityWithLedgerEvidence, summarizeModelOutcomesByRole } from "../../core/agent-ledger-projections";
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
+import { applyWarmthPreference } from "../../core/cache-warmth";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isTruthyEnv } from "../../core/env-flag";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
@@ -36,6 +37,7 @@ import type {
 	createNKleinProviderService,
 	ResolvedNKleinLaunchConfig,
 } from "../../nklein-agent/nklein-provider-service";
+import { isExplicitDecompositionPrompt } from "../../nklein-agent/nklein-task-prompt-parsing";
 import { routeNKleinTask } from "../../nklein-agent/nklein-task-router";
 import {
 	buildNKleinSandboxStartBlock,
@@ -623,12 +625,52 @@ export async function handleStartTaskSession(
 				poolRoutedModelKey = route.model.selection.modelKey;
 			}
 		}
+		// §5.AQ (a)+(b) CACHE-WARMTH-AWARE routing: after the blend + verdict multiplier (inside
+		// `blendedCapabilityForKey`) and the free-first/pool preference chain, prefer — margin-bounded — the
+		// candidate whose last assembled prompt SHELL (session kind + workspace) matches this start, so a new card
+		// lands on a model whose KV cache already holds most of its prefix (context RAILS fall out: re-drives
+		// already stay on their session's model; new cards now prefer their workspace's warm models). STRICTLY a
+		// tiebreaker: the warmth pick is expressed as the router's `preferredModelKey`, and `routeNKleinTask`'s
+		// feasibility guards (difficulty floor + per-candidate context fit) remain authoritative — an infeasible
+		// warm candidate is simply routed past (fail-open, never a correctness override). Card starts are
+		// GENERATION picks with no §5.AB diversity constraint; DECISION-role picks apply diversity FIRST and
+		// warmth only within the diverse set (see `pickDiverseReviewerModel`).
+		const baselinePreferredKey = poolRoutedModelKey ?? freeFirstModelKey ?? preferredCandidate.entry.key;
+		const warmthCandidatesByScore = [...guardCandidates.values()]
+			.map((candidate) => ({
+				modelKey: candidate.entry.key,
+				// The warmth ledger is keyed by the LAUNCH model id (what the prompt assembler records under).
+				modelId: candidate.entry.modelId,
+				score: blendedCapabilityForKey(
+					candidate.entry.key,
+					candidate.entry.capability.effectiveScore,
+					candidate.role,
+					candidate.entry.modelId,
+				),
+			}))
+			.sort((left, right) => right.score - left.score);
+		const warmthRanked = [
+			// Anchor the baseline pick at rank 0 so the warmth margin is measured against what would ship WITHOUT
+			// warmth (mirrors applyDiversityPreference's "within margin of the top" contract).
+			...warmthCandidatesByScore.filter((candidate) => candidate.modelKey === baselinePreferredKey),
+			...warmthCandidatesByScore.filter((candidate) => candidate.modelKey !== baselinePreferredKey),
+		];
+		const warmthPreference = applyWarmthPreference({
+			ranked: warmthRanked,
+			// Matches what the service will RECORD for this start (`derivePromptSessionKind` at the assemble seam):
+			// an explicit-decomposition plan start assembles the architect shell; every other card start is a worker.
+			sessionKind: body.startInPlanMode && isExplicitDecompositionPrompt(body.prompt) ? "architect" : "worker",
+			workspacePath: workspaceScope.workspacePath,
+			lastShellKeyByModel: nkleinTaskSessionService.getPromptWarmthLedger(),
+			now: Date.now(),
+		});
+		const warmthPreferredKey = warmthPreference.warmthApplied ? (warmthPreference.ranked[0]?.modelKey ?? null) : null;
 		const routingDecision = routeNKleinTask({
 			difficulty: taskDifficulty,
 			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
 			outputTokens: 1_000,
-			preferredModelKey: poolRoutedModelKey ?? freeFirstModelKey ?? preferredCandidate.entry.key,
+			preferredModelKey: warmthPreferredKey ?? baselinePreferredKey,
 			candidates: [...guardCandidates.values()].map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 				return {
@@ -645,38 +687,48 @@ export async function handleStartTaskSession(
 			}),
 			taskAffinityTags,
 		});
+		// §5.AQ observability: when the warmth preference is what steered the routed pick, say so on the selection
+		// reason the start log prints — the promotion is a surfaced signal (mirrors the diversity-waiver contract).
+		const warmthReasonSuffix =
+			warmthPreferredKey !== null &&
+			(routingDecision.type === "assign" || routingDecision.type === "route_up") &&
+			routingDecision.modelKey === warmthPreferredKey &&
+			warmthPreference.warmthReason
+				? ` Cache-warmth preference: ${warmthPreference.warmthReason}.`
+				: "";
 		// §5.AB "why this model" — explain the routing decision so the operator (and §5.AG surfaces) can see the basis.
-		const selectionReason = renderModelSelectionReason(
-			explainModelSelection({
-				difficulty: taskDifficulty,
-				requiredContextTokens,
-				decisionKind: routingDecision.type,
-				selectedModelKey:
-					routingDecision.type === "assign" || routingDecision.type === "route_up"
-						? routingDecision.modelKey
-						: null,
-				decisionReason: routingDecision.reason,
-				taskAffinityTags,
-				candidates: [...guardCandidates.values()].map((candidate) => {
-					const ledgerSamples = ledgerSuccessByKey.get(candidate.entry.key)?.samples ?? 0;
-					const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
-					return {
-						modelKey: candidate.entry.key,
-						role: candidate.role,
-						registryCapability: candidate.entry.capability.effectiveScore,
-						observedCapability:
-							ledgerSamples > 0
-								? blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore)
-								: null,
-						ledgerSamples,
-						contextWindow: candidate.entry.contextWindow.effective ?? 0,
-						isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
-						predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
-						...(affinityTags ? { affinityTags } : {}),
-					};
+		const selectionReason =
+			renderModelSelectionReason(
+				explainModelSelection({
+					difficulty: taskDifficulty,
+					requiredContextTokens,
+					decisionKind: routingDecision.type,
+					selectedModelKey:
+						routingDecision.type === "assign" || routingDecision.type === "route_up"
+							? routingDecision.modelKey
+							: null,
+					decisionReason: routingDecision.reason,
+					taskAffinityTags,
+					candidates: [...guardCandidates.values()].map((candidate) => {
+						const ledgerSamples = ledgerSuccessByKey.get(candidate.entry.key)?.samples ?? 0;
+						const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
+						return {
+							modelKey: candidate.entry.key,
+							role: candidate.role,
+							registryCapability: candidate.entry.capability.effectiveScore,
+							observedCapability:
+								ledgerSamples > 0
+									? blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore)
+									: null,
+							ledgerSamples,
+							contextWindow: candidate.entry.contextWindow.effective ?? 0,
+							isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
+							predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+							...(affinityTags ? { affinityTags } : {}),
+						};
+					}),
 				}),
-			}),
-		);
+			) + warmthReasonSuffix;
 		if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
 			return {
 				ok: false,

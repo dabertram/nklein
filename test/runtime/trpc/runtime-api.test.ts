@@ -601,6 +601,10 @@ function createNKleinTaskSessionServiceMock() {
 		getSummary: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary | null>(() => null),
 		listSummaries: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary[]>(() => []),
 		listModelEndpointSessions: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
+		// §5.AQ cache-warmth ledger — empty map ⇒ every candidate cold ⇒ warmth never re-orders (byte-identical routing).
+		getPromptWarmthLedger: vi.fn<(...args: unknown[]) => ReadonlyMap<string, { shellKey: string; at: number }>>(
+			() => new Map(),
+		),
 		listMessages: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
 		loadTaskSessionMessages: vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []),
 		applyTurnCheckpoint: vi.fn<(...args: unknown[]) => RuntimeTaskSessionSummary | null>(() => null),
