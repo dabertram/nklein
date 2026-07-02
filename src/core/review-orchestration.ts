@@ -237,6 +237,8 @@ export function buildReviewSignOff(input: { summary: string; insight: string | n
 export type ReviewTransition =
 	| { action: "deliver"; reason: string; signOff: string; record: ReviewRoundRecord }
 	| { action: "bounce_to_worker"; reason: string; workerPrompt: string; record: ReviewRoundRecord }
+	/** W4.2 escalate-then-park: re-drive the card on a stronger/different-lineage worker before giving up. */
+	| { action: "escalate_worker"; reason: string; workerPrompt: string; record: ReviewRoundRecord }
 	| { action: "park"; reason: string; record: ReviewRoundRecord };
 
 export interface ResolveReviewTransitionInput {
@@ -248,6 +250,10 @@ export interface ResolveReviewTransitionInput {
 	/** Prior review rounds for this card, oldest first. */
 	history: readonly ReviewRoundRecord[];
 	maxRounds?: number;
+	/** W4.2: an untried stronger/different-lineage worker exists (absent/false ⇒ historical park behavior). */
+	escalationAvailable?: boolean;
+	/** W4.2: this card already used its one escalation. */
+	alreadyEscalated?: boolean;
 }
 
 /**
@@ -271,6 +277,8 @@ export function resolveReviewTransition(input: ResolveReviewTransitionInput): Re
 		feedbackFingerprint,
 		workFingerprint: input.workFingerprint,
 		history: input.history,
+		...(input.escalationAvailable !== undefined ? { escalationAvailable: input.escalationAvailable } : {}),
+		...(input.alreadyEscalated !== undefined ? { alreadyEscalated: input.alreadyEscalated } : {}),
 	});
 	if (decision.action === "deliver") {
 		return {
@@ -280,9 +288,9 @@ export function resolveReviewTransition(input: ResolveReviewTransitionInput): Re
 			record,
 		};
 	}
-	if (decision.action === "bounce_to_worker") {
+	if (decision.action === "bounce_to_worker" || decision.action === "escalate_worker") {
 		return {
-			action: "bounce_to_worker",
+			action: decision.action,
 			reason: decision.reason,
 			workerPrompt: buildReviewBouncePrompt({
 				round: input.round,

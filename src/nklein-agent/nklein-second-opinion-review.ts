@@ -41,6 +41,8 @@ export type NKleinSecondOpinionReviewOutcome =
 	| { type: "skipped"; reason: "disabled" | "not_reviewable" | "card_not_found" | "no_verdict" }
 	| { type: "delivered"; round: number; signOff: string }
 	| { type: "bounced"; round: number }
+	/** W4.2: the stuck card was re-driven on a stronger/different-lineage worker (one escalation per card). */
+	| { type: "escalated"; round: number }
 	| { type: "parked"; round: number; reason: string };
 
 export interface RunNKleinSecondOpinionReviewInput {
@@ -51,6 +53,10 @@ export interface RunNKleinSecondOpinionReviewInput {
 	enabled: boolean;
 	/** Round cap before parking. */
 	maxRounds: number;
+	/** W4.2: an untried stronger/different-lineage worker exists AND deps.onEscalate is wired. */
+	escalationAvailable?: boolean;
+	/** W4.2: this card already used its one escalation. */
+	alreadyEscalated?: boolean;
 	/** True when this card is itself a reviewer card (recursion guard). */
 	isReviewerCard?: boolean;
 	/** True for planning/decomposition cards (skipped). */
@@ -75,6 +81,8 @@ export interface RunNKleinSecondOpinionReviewInput {
 		onDeliver(input: { taskId: string; review: RuntimeCardReview }): Promise<void>;
 		/** Changes requested: persist the review state, send the worker the feedback, move the card back. */
 		onBounce(input: { taskId: string; review: RuntimeCardReview; workerPrompt: string }): Promise<void>;
+		/** W4.2 (optional): re-drive the stuck card on a stronger/different-lineage worker. Absent ⇒ park instead. */
+		onEscalate?(input: { taskId: string; review: RuntimeCardReview; workerPrompt: string }): Promise<void>;
 		/** Parked: persist the review state and flag the card for a human. */
 		onPark(input: { taskId: string; review: RuntimeCardReview; reason: string }): Promise<void>;
 	};
@@ -153,6 +161,9 @@ export async function runNKleinSecondOpinionReview(
 		workFingerprint,
 		history,
 		maxRounds: input.maxRounds,
+		// Escalation only counts as available when the executor is actually wired.
+		escalationAvailable: Boolean(input.escalationAvailable && input.deps.onEscalate),
+		...(input.alreadyEscalated !== undefined ? { alreadyEscalated: input.alreadyEscalated } : {}),
 	});
 	const previousSignOff = card.review?.signOff ?? null;
 
@@ -185,6 +196,21 @@ export async function runNKleinSecondOpinionReview(
 		});
 		await input.deps.onBounce({ taskId: input.taskId, review, workerPrompt: transition.workerPrompt });
 		return { type: "bounced", round };
+	}
+	if (transition.action === "escalate_worker" && input.deps.onEscalate) {
+		const review = buildNextReview({
+			round,
+			history,
+			record: transition.record,
+			submission,
+			status: "changes_requested",
+			signOff: null,
+			parkedReason: null,
+			previousSignOff,
+			now,
+		});
+		await input.deps.onEscalate({ taskId: input.taskId, review, workerPrompt: transition.workerPrompt });
+		return { type: "escalated", round };
 	}
 	const review = buildNextReview({
 		round,

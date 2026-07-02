@@ -14,7 +14,7 @@ import type { RuntimeTaskAcceptanceResult } from "./task-lifecycle-api-contract"
  */
 
 /** The subset of the second-opinion review outcome the gate cares about. */
-export type DeliveryReviewOutcomeType = "delivered" | "skipped" | "bounced" | "parked";
+export type DeliveryReviewOutcomeType = "delivered" | "skipped" | "bounced" | "parked" | "escalated";
 
 export interface DeliveryGateEvidence {
 	/** True only when the reviewer delivered an explicit sign-off. */

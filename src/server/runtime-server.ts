@@ -603,7 +603,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
 					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
-					if (reviewOutcome.type === "bounced" || reviewOutcome.type === "parked") {
+					if (
+						reviewOutcome.type === "bounced" ||
+						reviewOutcome.type === "parked" ||
+						reviewOutcome.type === "escalated"
+					) {
 						return;
 					}
 					// FAIL-CLOSED delivery evidence (audit 2026-07-02 W0.1 — supersedes the prior fail-open hardcode).
