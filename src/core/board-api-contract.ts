@@ -83,6 +83,8 @@ export const runtimeCardReviewSchema = z.object({
 	signOff: z.string().nullable().default(null),
 	/** Reason the loop parked, when status is `parked`. */
 	parkedReason: z.string().nullable().default(null),
+	/** True once this card's ONE diverse-worker escalation has fired (§5.AW W4.2 — server-side truth; optional for older boards). */
+	escalated: z.boolean().optional(),
 	updatedAt: z.number(),
 });
 export type RuntimeCardReview = z.infer<typeof runtimeCardReviewSchema>;

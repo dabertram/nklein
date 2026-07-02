@@ -286,7 +286,8 @@ export async function runSecondOpinionReviewForTask(
 		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
 		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance),
 		escalationAvailable: Boolean(escalationCandidate),
-		alreadyEscalated: escalatedWorkerTaskIds.has(input.taskId),
+		// In-memory set ∪ the persisted flag — the one-escalation guard survives a runtime restart (#W4.2).
+		alreadyEscalated: escalatedWorkerTaskIds.has(input.taskId) || card.review?.escalated === true,
 		now,
 		deps: {
 			getCard: async () => ({
@@ -320,7 +321,9 @@ export async function runSecondOpinionReviewForTask(
 			onEscalate: async ({ review, workerPrompt }) => {
 				// W4.2: the stuck card retries ONCE on the diverse/stronger worker (the W1.1b override machinery).
 				escalatedWorkerTaskIds.add(input.taskId);
-				await persistReview(review, "in_progress");
+				// Persist the escalation as SERVER-SIDE TRUTH (the in-memory set dies with the process; the card
+				// chrome and future arbitration read this flag instead of re-deriving stuck signatures client-side).
+				await persistReview({ ...review, escalated: true }, "in_progress");
 				const escalationPreamble = escalationCandidate
 					? `You are taking over this task from another model that got stuck in review. Read the feedback below carefully and address it directly.\n\n`
 					: "";
