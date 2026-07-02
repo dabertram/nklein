@@ -121,11 +121,41 @@ function writeStreaming(res: ServerResponse, modelId: string, reply: MockLlmResp
 			choices: [{ index: 0, delta: { content: delta }, finish_reason: null }],
 		});
 	}
+	// Scripted TOOL CALLS must survive the streaming path too (W2.1: the agent SDK requests stream:true, and a
+	// dropped tool call silently turns a scripted decompose into an empty reply). One delta carries each call.
+	const toolCalls = reply.toolCalls ?? [];
+	if (toolCalls.length > 0) {
+		send({
+			id: "chatcmpl-mock",
+			object: "chat.completion.chunk",
+			model: modelId,
+			choices: [
+				{
+					index: 0,
+					delta: {
+						tool_calls: toolCalls.map((call, index) => ({
+							index,
+							id: `call_${index}`,
+							type: "function" as const,
+							function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+						})),
+					},
+					finish_reason: null,
+				},
+			],
+		});
+	}
 	send({
 		id: "chatcmpl-mock",
 		object: "chat.completion.chunk",
 		model: modelId,
-		choices: [{ index: 0, delta: {}, finish_reason: reply.finishReason ?? "stop" }],
+		choices: [
+			{
+				index: 0,
+				delta: {},
+				finish_reason: reply.finishReason ?? (toolCalls.length > 0 ? "tool_calls" : "stop"),
+			},
+		],
 	});
 	res.write("data: [DONE]\n\n");
 	res.end();

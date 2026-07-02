@@ -49,7 +49,20 @@ describe.sequential("deterministic swarm harness (W2.1)", () => {
 		cwd = mkdtempSync(join(tmpdir(), "nklein-detswarm-cwd-"));
 		homeDir = mkdtempSync(join(tmpdir(), "nklein-detswarm-home-"));
 		initGitRepository(cwd);
-		server = await startTsBackend({ cwd, homeDir, extraEnv: { NODE_ENV: "development" } });
+		const serverLogLines: string[] = [];
+		server = await startTsBackend({
+			cwd,
+			homeDir,
+			extraEnv: { NODE_ENV: "development" },
+			onLog: (chunk) => {
+				for (const line of chunk.split("\n")) {
+					if (/decompos|error|warn|fail|sandbox|session/i.test(line) && line.trim()) {
+						serverLogLines.push(line.trim().slice(0, 220));
+					}
+				}
+			},
+		});
+		(globalThis as { __detSwarmLog?: string[] }).__detSwarmLog = serverLogLines;
 	}, TEST_TIMEOUT_MS);
 
 	afterAll(async () => {
@@ -167,7 +180,11 @@ describe.sequential("deterministic swarm harness (W2.1)", () => {
 			}
 
 			// The decomposition applied: both generated cards exist.
-			expect(alphaId, `lanes: ${JSON.stringify([...lanes.entries()])}`).not.toBe("");
+			const debugLog = ((globalThis as { __detSwarmLog?: string[] }).__detSwarmLog ?? []).slice(-25).join("\n");
+			expect(
+				alphaId,
+				`lanes: ${JSON.stringify([...lanes.entries()])}\nmock requests: ${mock.requests.length}\nserver log tail:\n${debugLog}`,
+			).not.toBe("");
 			expect(betaId).not.toBe("");
 			// The seed completed via the decomposition-apply path.
 			expect(lanes.get(seed.id)).toBe("completed");
