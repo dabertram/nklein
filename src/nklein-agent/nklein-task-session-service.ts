@@ -701,6 +701,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			contextWindow: requestContextWindow,
 			timeoutMode: input.timeoutMode ?? "normal",
 			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+			// W2.4a: small (quality-effective) windows get the LEAN rules — the optional packs + deep large-file
+			// protocol cost ~40 lines a ≤40k model can't spare; the full selectSysPromptLevel composition is W2.4b.
+			level: requestContextWindow && requestContextWindow <= 40_000 ? "lean" : "full",
 		})}`;
 		systemPrompt = appendTemporalContext(
 			systemPrompt,
