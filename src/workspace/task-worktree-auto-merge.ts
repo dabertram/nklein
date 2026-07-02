@@ -1,6 +1,8 @@
 import { lstat, writeFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contract";
+import type { WorkPackage } from "../core/work-package-dispatch";
+import { integrationMergeOrder } from "../core/work-package-integration-order";
 import { runGit as defaultRunGit, type RunGitOptions } from "./git-utils";
 import { resolveTaskResultBranchCommit as defaultResolveTaskResultBranchCommit } from "./task-result-branches";
 
@@ -241,8 +243,30 @@ export function orderTaskWorktreeAutoMergeCandidates(
 		dependentsByPrerequisiteTaskId.set(dependency.toTaskId, dependents);
 	}
 
-	const byBoardOrder = (left: string, right: string) =>
-		(candidateByTaskId.get(left)?.boardIndex ?? 0) - (candidateByTaskId.get(right)?.boardIndex ?? 0);
+	// §5.AK Phase C: among cards that become mergeable at the SAME time (no dependency edge between them —
+	// newly common now that file-overlap parallelism defaults to "allow", so independent cards can complete with
+	// SHARED write scopes), prefer the conflict-minimizing merge order the integration-order core computes from
+	// their declared write scopes (filesLikelyTouched). This only REORDERS simultaneously-ready cards; the
+	// dependency topo-sort structure and every git operation below are untouched. When no scopes overlap the
+	// integration order equals input order, so board order is the deterministic fallback (byBoardOrder second key).
+	const integrationRank = (() => {
+		const packages: WorkPackage[] = candidates.map((candidate) => ({
+			id: candidate.task.id,
+			writeScope: candidate.task.filesLikelyTouched ?? [],
+			dependsOn: board.dependencies
+				.filter((dependency) => dependency.fromTaskId === candidate.task.id)
+				.map((dependency) => dependency.toTaskId),
+		}));
+		const order = integrationMergeOrder(packages);
+		return new Map(order.map((id, index) => [id, index]));
+	})();
+	const byBoardOrder = (left: string, right: string) => {
+		const rankDelta = (integrationRank.get(left) ?? 0) - (integrationRank.get(right) ?? 0);
+		if (rankDelta !== 0) {
+			return rankDelta;
+		}
+		return (candidateByTaskId.get(left)?.boardIndex ?? 0) - (candidateByTaskId.get(right)?.boardIndex ?? 0);
+	};
 	const readyTaskIds = [...inboundCounts.entries()]
 		.filter(([, count]) => count === 0)
 		.map(([taskId]) => taskId)

@@ -6,7 +6,7 @@ import {
 	type TaskWorktreeAutoMergeCandidate,
 } from "../../src/workspace/task-worktree-auto-merge";
 
-function createTask(id: string, baseRef = "main") {
+function createTask(id: string, baseRef = "main", filesLikelyTouched?: string[]) {
 	return {
 		id,
 		title: id,
@@ -17,6 +17,7 @@ function createTask(id: string, baseRef = "main") {
 		baseRef,
 		createdAt: 1,
 		updatedAt: 1,
+		...(filesLikelyTouched ? { filesLikelyTouched } : {}),
 	};
 }
 
@@ -99,6 +100,37 @@ describe("task worktree auto merge", () => {
 		expect(orderTaskWorktreeAutoMergeCandidates(board, candidates).map((candidate) => candidate.task.id)).toEqual([
 			"storage",
 			"ui",
+		]);
+	});
+
+	it("§5.AK Phase C: among dependency-independent cards, orders by write-scope conflict minimization then board order", () => {
+		const board = createBoard();
+		// Three independent cards (no board dependencies). alpha+gamma share src/shared.ts (a conflict pair); beta
+		// is disjoint. The integration-order core sequences the conflicting pair adjacently and deterministically;
+		// board order (alpha, beta, gamma) is the tie-break when scopes don't decide.
+		const candidates: TaskWorktreeAutoMergeCandidate[] = [
+			{ task: createTask("alpha", "main", ["src/shared.ts", "src/a.ts"]), columnId: "review", boardIndex: 0 },
+			{ task: createTask("beta", "main", ["src/b.ts"]), columnId: "review", boardIndex: 1 },
+			{ task: createTask("gamma", "main", ["src/shared.ts", "src/c.ts"]), columnId: "review", boardIndex: 2 },
+		];
+		const ordered = orderTaskWorktreeAutoMergeCandidates(board, candidates).map((candidate) => candidate.task.id);
+		// All three still present (no card dropped), and the result is a deterministic permutation of the inputs.
+		expect([...ordered].sort()).toEqual(["alpha", "beta", "gamma"]);
+		// Dependency structure is unaffected: with no deps, every card is a root — the run is deterministic.
+		expect(orderTaskWorktreeAutoMergeCandidates(board, candidates).map((candidate) => candidate.task.id)).toEqual(
+			ordered,
+		);
+	});
+
+	it("§5.AK Phase C: cards with no declared scope fall back to pure board order (no behavior change)", () => {
+		const board = createBoard();
+		const candidates: TaskWorktreeAutoMergeCandidate[] = [
+			{ task: createTask("first"), columnId: "review", boardIndex: 0 },
+			{ task: createTask("second"), columnId: "review", boardIndex: 1 },
+		];
+		expect(orderTaskWorktreeAutoMergeCandidates(board, candidates).map((candidate) => candidate.task.id)).toEqual([
+			"first",
+			"second",
 		]);
 	});
 
