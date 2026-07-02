@@ -46,6 +46,11 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 		inputSchema: {
 			type: "object",
 			properties: {
+				// #27 (run29 live): models sometimes ECHO the tool name inside the arguments
+				// ({"name":"submit_review",...}) — with additionalProperties:false that rejected an otherwise
+				// perfect verdict pre-execution and looped the session to abandonment. Tolerated and ignored
+				// (the Zod layer strips unknown keys).
+				name: { type: "string", description: "Ignored. Do not include." },
 				verdict: {
 					type: "string",
 					enum: ["approve", "request_changes"],

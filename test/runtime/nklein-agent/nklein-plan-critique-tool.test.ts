@@ -45,6 +45,17 @@ describe("submit_plan_critique (W4.3 decompose-critique)", () => {
 		expect(parsed.feedback).toBeNull();
 	});
 
+	it("#27: tolerates a model echoing the tool name inside the arguments (stripped, not rejected)", async () => {
+		const onSubmitted = vi.fn();
+		const tool = createNKleinPlanCritiqueTool({ onSubmitted });
+		// The JSON schema now permits the echo (additionalProperties:false would have pre-rejected it);
+		// the Zod layer strips unknown keys, so the verdict lands untouched.
+		const schema = tool.inputSchema as { properties: Record<string, unknown> };
+		expect(schema.properties.name).toBeDefined();
+		await tool.execute?.({ name: "submit_plan_critique", verdict: "proceed", summary: "Fine." }, {} as never);
+		expect(onSubmitted).toHaveBeenCalledWith({ verdict: "proceed", summary: "Fine.", feedback: null });
+	});
+
 	it("trims and null-coalesces whitespace-only feedback", async () => {
 		const onSubmitted = vi.fn();
 		const tool = createNKleinPlanCritiqueTool({ onSubmitted });
