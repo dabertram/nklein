@@ -8,6 +8,7 @@ import type { Command } from "commander";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { buildTaskEscalationReport, selectAttempts } from "../core/agent-attempt-ledger";
+import { renderSwarmEfficiencyReport, summarizeSwarmEfficiency } from "../core/agent-ledger-efficiency";
 import {
 	buildModelCapabilityAdvice,
 	buildStucknessSignalsFromLedger,
@@ -638,6 +639,9 @@ async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 				`${String(Math.round(row.successRate * 100)).padStart(3)}% success\n`,
 		);
 	}
+	// W1.4 (audit 2026-07-02): the efficiency/waste scoreboard — tokens/wall per delivered task, wasted-attempt
+	// share, re-truncation pairs, retry burden. The tuner for the fail-closed gate + retry-ladder + /no_think fixes.
+	process.stdout.write(`\n${renderSwarmEfficiencyReport(summarizeSwarmEfficiency(events))}\n`);
 	if (summary.byFlow.length > 0) {
 		process.stdout.write("\nPer-model × flow (the §5.Z matrix by board/chat/autonomous):\n");
 		for (const row of summary.byFlow) {
