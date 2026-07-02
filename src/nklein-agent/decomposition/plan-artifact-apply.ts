@@ -121,11 +121,17 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 				applied = applyNKleinPlanTaskGraphToBoard(applyInput);
 			}
 			const brokenEdges = applied.brokenDependencyEdges ?? [];
+			const condensedGroups = applied.condensedCycleGroups ?? [];
 			const brokenEdgeList = brokenEdges.map((edge) => `${edge.taskId}⇸${edge.dependsOnTaskId}`).join(", ");
+			const condensedList = condensedGroups.map((group) => group.join(" → ")).join("; ");
+			// SCC-condense (§5.AV): a multi-task cycle is sequenced into a chain (the coupling the cycle expressed,
+			// in emission order); anything else dropped is reported edge-by-edge so a cycle-emitting model is visible.
 			const brokenEdgeNote =
-				brokenEdges.length > 0
-					? ` Broke ${pluralizeCount(brokenEdges.length, "dependency cycle edge")} so the board has a startable root (${brokenEdgeList}).`
-					: "";
+				condensedGroups.length > 0
+					? ` Sequenced ${pluralizeCount(condensedGroups.length, "dependency cycle")} into a chain so the board has a startable root (${condensedList}${brokenEdges.length > 0 ? `; dropped ${brokenEdgeList}` : ""}).`
+					: brokenEdges.length > 0
+						? ` Broke ${pluralizeCount(brokenEdges.length, "dependency cycle edge")} so the board has a startable root (${brokenEdgeList}).`
+						: "";
 			return {
 				board: applied.board,
 				value: {

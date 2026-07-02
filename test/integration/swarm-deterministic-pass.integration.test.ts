@@ -40,19 +40,44 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 	let cwd = "";
 	let homeDir = "";
 
+	let passed = false;
+	const serverLogLines: string[] = [];
+
 	beforeAll(async () => {
 		mock = await startMockLlm({ modelId: "mock-pass-model" });
 		cwd = mkdtempSync(join(tmpdir(), "nklein-detpass-cwd-"));
 		homeDir = mkdtempSync(join(tmpdir(), "nklein-detpass-home-"));
 		initGitRepository(cwd);
-		server = await startTsBackend({ cwd, homeDir, extraEnv: { NODE_ENV: "development" } });
+		server = await startTsBackend({
+			cwd,
+			homeDir,
+			extraEnv: { NODE_ENV: "development" },
+			onLog: (chunk) => {
+				for (const line of chunk.split("\n")) {
+					if (
+						/decompos|error|warn|fail|sandbox|session|start|queue|review|delivery|acceptance|suitab|cascade|defer/i.test(
+							line,
+						) &&
+						line.trim()
+					) {
+						serverLogLines.push(line.trim().slice(0, 240));
+					}
+				}
+			},
+		});
 	}, TEST_TIMEOUT_MS);
 
 	afterAll(async () => {
 		await server?.stop().catch(() => null);
 		await mock?.close().catch(() => null);
-		rmSync(cwd, { recursive: true, force: true });
-		rmSync(homeDir, { recursive: true, force: true });
+		if (passed) {
+			rmSync(cwd, { recursive: true, force: true });
+			rmSync(homeDir, { recursive: true, force: true });
+		} else {
+			// Preserve the evidence on failure — the server log tail names the seam that stalled.
+			console.error(`[detpass] FAILURE — home preserved at ${homeDir}, cwd at ${cwd}`);
+			console.error(`[detpass] server log tail:\n${serverLogLines.slice(-60).join("\n")}`);
+		}
 	});
 
 	it(
@@ -187,8 +212,9 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 				gammaId,
 				`lanes: ${JSON.stringify([...lanes.entries()])} (mock requests: ${mock.requests.length})`,
 			).not.toBe("");
-			expect(lanes.get(seed.id)).toBe("completed");
-			expect(lanes.get(gammaId)).toBe("completed");
+			expect(lanes.get(seed.id), `lanes: ${JSON.stringify([...lanes.entries()])}`).toBe("completed");
+			expect(lanes.get(gammaId), `lanes: ${JSON.stringify([...lanes.entries()])}`).toBe("completed");
+			passed = true;
 		},
 		TEST_TIMEOUT_MS,
 	);

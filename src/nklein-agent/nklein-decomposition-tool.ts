@@ -112,6 +112,12 @@ export interface ApplyNKleinPlanTaskGraphResult {
 	 * cyclic/over-constrained decomposition. See {@link breakDependencyCycles}.
 	 */
 	brokenDependencyEdges?: { taskId: string; dependsOnTaskId: string }[];
+	/**
+	 * Cycle clusters (SCCs of ≥2 tasks) that were condensed into sequential chains in emission order (§5.AV
+	 * research correction: preserve the coupling the cycle expressed instead of tearing one edge and leaving the
+	 * members spuriously unordered). Absent when no multi-task cycle existed.
+	 */
+	condensedCycleGroups?: string[][];
 }
 
 export interface ValidateNKleinPlanTaskGraphResult {

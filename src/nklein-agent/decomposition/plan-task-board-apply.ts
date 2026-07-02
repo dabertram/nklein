@@ -243,5 +243,6 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 		rootTaskIds,
 		preview,
 		...(cycleBreak.brokenEdges.length > 0 ? { brokenDependencyEdges: cycleBreak.brokenEdges } : {}),
+		...(cycleBreak.condensedGroups.length > 0 ? { condensedCycleGroups: cycleBreak.condensedGroups } : {}),
 	};
 }

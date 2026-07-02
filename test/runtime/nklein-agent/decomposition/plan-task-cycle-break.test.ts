@@ -76,6 +76,49 @@ describe("breakDependencyCycles", () => {
 		expect(first.brokenEdges).toEqual(second.brokenEdges);
 	});
 
+	it("condenses a DENSE cycle cluster into a sequential chain in emission order (SCC-condense, §5.AV)", () => {
+		// a→b→c→a plus the extra chord a→c: tearing one back-edge would leave a partial order with arbitrary
+		// inversions; condensation yields the clean pipeline a → b → c (emission order = intended order).
+		const tasks = [task("a", ["b", "c"]), task("b", ["c"]), task("c", ["a"])];
+		const result = breakDependencyCycles(tasks);
+		const byId = new Map(result.tasks.map((t) => [t.id, t]));
+		expect(byId.get("a")?.dependsOn).toEqual([]);
+		expect(byId.get("b")?.dependsOn).toEqual(["a"]);
+		expect(byId.get("c")?.dependsOn).toEqual(["b"]);
+		expect(result.condensedGroups).toEqual([["a", "b", "c"]]);
+		// b originally depended on c (a later member) — dropped; the chain edges b→a and c→b were ADDED.
+		expect(result.chainedEdges).toEqual([
+			{ taskId: "b", dependsOnTaskId: "a" },
+			{ taskId: "c", dependsOnTaskId: "b" },
+		]);
+		expect(hasZeroDependencyRoot(result.tasks)).toBe(true);
+	});
+
+	it("keeps a cluster member's EXTERNAL dependencies while chaining (only intra-cluster edges are rewired)", () => {
+		const tasks = [task("setup"), task("x", ["y", "setup"]), task("y", ["x"])];
+		const result = breakDependencyCycles(tasks);
+		const byId = new Map(result.tasks.map((t) => [t.id, t]));
+		// x keeps its external dep on setup; loses its intra-cluster dep on y (x is the chain head).
+		expect(byId.get("x")?.dependsOn).toEqual(["setup"]);
+		expect(byId.get("y")?.dependsOn).toEqual(["x"]);
+		expect(result.brokenEdges).toEqual([{ taskId: "x", dependsOnTaskId: "y" }]);
+	});
+
+	it("repairs two DISJOINT cycles independently", () => {
+		const tasks = [task("a", ["b"]), task("b", ["a"]), task("p", ["q"]), task("q", ["p"])];
+		const result = breakDependencyCycles(tasks);
+		expect(hasZeroDependencyRoot(result.tasks)).toBe(true);
+		expect(result.condensedGroups).toEqual([
+			["a", "b"],
+			["p", "q"],
+		]);
+		const byId = new Map(result.tasks.map((t) => [t.id, t]));
+		expect(byId.get("a")?.dependsOn).toEqual([]);
+		expect(byId.get("b")?.dependsOn).toEqual(["a"]);
+		expect(byId.get("p")?.dependsOn).toEqual([]);
+		expect(byId.get("q")?.dependsOn).toEqual(["p"]);
+	});
+
 	it("ignores dangling dependsOn ids (validation handles unknown refs) and stays acyclic", () => {
 		const tasks = [task("a", ["ghost"]), task("b", ["a"])];
 		const result = breakDependencyCycles(tasks);
