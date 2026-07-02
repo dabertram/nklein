@@ -9137,6 +9137,49 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >
 > **Approach:** (1) inventory the current webview components + styling (find the CSS/theme system); (2) define the token system + a couple of high-fidelity mockups (get user buy-in on direction BEFORE mass restyle); (3) restyle component-by-component behind the tokens (no behavior change first, then UX improvements from the functional audit). **USER QUESTIONS:** brand direction — any color/mood preference (e.g. cool/technical vs warm/friendly), a name/vibe for the theme, and a logo/mark idea for "!Klein"? Dark-first or light-first? Converges with the ui-ux functional audit (§5.0.4 P2) · §5.AU (streams/addressing UI) · §5.AW (fleet-activity view) · §5.AG (operator UX).
 
+### 5.AY — Legion5pro MoE evaluation: can expert-offload beat "small model fully in VRAM"? *(2026-07-02, user — POST-MATURITY, before an early release)*
+> **User framing (2026-07-02):** *"we basically identified that running a second cpu-only model on legion5pro is not a
+> good idea since it slows down the gpu model by a factor of 4 .. evaluate (if necessary test and measure) if and how
+> we could run a MoE model on that machine to get the most out of the fast gpu and potentially get a bit around the
+> limited 8GB VRAM by having some less relevant part on sysram .. the task is to clarify if there is any interesting
+> option or if everything boils down to only have a small model sitting in the fast vram and gpu .. if that is the
+> result, then it's okay."* **Schedule: only after the main !Klein implementation reaches maturity** (approaching an
+> early-release state) — this is a hardware-utilization optimization, not a feature blocker.
+>
+> **Context (measured, 2026-07-02):** legion5pro = fast 8GB-VRAM GPU + CPU/sysram. A fully-GPU 4B coder runs ~68 tok/s;
+> adding a CPU-only co-model was NET-NEGATIVE (the GPU model slowed ~4× — memory-bandwidth/scheduler contention), so
+> the current doctrine is "run the GPU model ALONE" (docs/dev/gpu-offload-and-moe.md + the fleet-throughput notes).
+> - [ ] **Candidate survey:** which current MoE models fit the shape "active experts small enough for 8GB VRAM, total
+>       weights fine in 32-64GB sysram"? (e.g. small MoE coders; check llama.cpp/LM Studio `--n-cpu-moe` / expert-offload
+>       support on Windows/Linux for that box; llmfit can pre-screen fit.) Note per-token expert routing means the "less
+>       relevant part" is NOT statically separable — measure real decode speed, don't trust the shape argument.
+> - [ ] **Measure (only if a candidate looks plausible):** decode tok/s + prefill + first-token latency for (a) dense
+>       small model fully in VRAM (baseline, today's coder-gpu), (b) MoE with experts on sysram / attention+router on
+>       GPU, (c) MoE fully on CPU for reference. Same prompt set; measure under a REAL !Klein worker load, not just a
+>       bench prompt. Use the on-device guardrail; don't churn the user's machine unattended (memory: user-managed).
+> - [ ] **Verdict + doctrine update:** either "MoE X at N tok/s beats the dense 4B at quality-per-second for role Y —
+>       adopt for legion" or "everything boils down to a small dense model in VRAM — CONFIRMED, close the question".
+>       Record either way in docs/dev/gpu-offload-and-moe.md + the model-capability catalog + fleet sweet-spots memory.
+>
+### 5.AZ — Public-release repo preparation: cleanup, history, and presentation *(2026-07-02, user — POST-MATURITY, gates the early release)*
+> **User framing (2026-07-02):** *"talking about releasing an early version, there is then also still a lot of things
+> to do to cleanup the branch, to make sure we have a repo that is nicely prepared to show to the public."* **Schedule:
+> only after implementations reach maturity** — the last mile before an early public version.
+> - [ ] **Branch/history cleanup:** decide the public history shape (squash the ~120-commit working branch vs curated
+>       history vs fresh-root release branch); merge or retire `feat/kanban-reliability-context-upgrade`; prune stale
+>       branches; verify no secrets/tokens/local paths/personal data anywhere in history (use a scanner, not eyeballs —
+>       e.g. gitleaks/trufflehog run over FULL history; the fleet logs + sweep rows quote local paths → scrub or exclude).
+> - [ ] **Repo hygiene:** LICENSE decision (vendored Cline SDK license compatibility + attribution!), NOTICE/credits,
+>       README (what !Klein is, the local-only/Docker-isolation posture, hardware expectations, quickstart), CONTRIBUTING,
+>       SECURITY.md (local-only threat model), issue templates. Screenshots/gif of the board+chat once §5.AX lands.
+> - [ ] **Content audit:** todo.md/done.md/docs/dev/* are full of internal working notes, machine names, and user
+>       context — decide what ships (curated docs/) vs what stays private (working notes); CHANGELOG grooming to a
+>       public voice; strip dev-test fixtures that reference private infra; make sure the model-capability catalog and
+>       integrations registry read as neutral docs.
+> - [ ] **Release engineering:** version scheme, `npm run build` + sandbox image build reproducible on a clean machine,
+>       install/run docs verified on a fresh user profile, smoke-test checklist (the deterministic harness suite is the
+>       release gate: v1 HOLD + v2 PASS + v3 bounce must be green).
+>
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
 > **SUPERSEDED / deferred indefinitely (owner decision 2026-06-26, via §5.X Phase 2): NO Python port — !Klein stays
 > all-TS.** This section is kept for history (the original rationale + open questions below mirror §5.X Phase 2's
