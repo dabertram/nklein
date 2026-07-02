@@ -16,6 +16,7 @@ import { explainModelSelection, renderModelSelectionReason } from "../../core/mo
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
 import { selectRoleModel } from "../../core/role-model-selection";
+import { assessRuntimeModelVerdict } from "../../core/runtime-model-verdict";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -47,6 +48,7 @@ import {
 } from "../../nklein-agent/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-agent/nklein-timeout-scaling";
 import { readAllAgentLedger } from "../../state/agent-attempt-ledger-store";
+import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
 import type { CreateRuntimeApiDependencies } from "../runtime-api.js";
@@ -410,20 +412,47 @@ export async function handleStartTaskSession(
 		} catch {
 			// best-effort: any ledger read failure leaves the map empty ⇒ registry capability used unchanged.
 		}
+		// W2.6b (audit 2026-07-02): runtime-VERDICT penalty — penalizeFitnessByRuntimeVerdict was display-only, so
+		// the strongest unsuitability signal (chronic stalls observed in real runs) never steered selection. Read the
+		// self-observation evidence once per start (best-effort; empty ⇒ UNKNOWN ⇒ multiplier 1 ⇒ unchanged) and scale
+		// each candidate's blended capability: TOOL_UNSUITABLE ×0.1, TOOL_WEAK ×0.5 (the §5.AB default penalties).
+		const selfObservationEvents = await readSelfObservationEvents({ limit: 500 }).catch(
+			() => [] as Awaited<ReturnType<typeof readSelfObservationEvents>>,
+		);
+		const verdictMultiplierByModelId = new Map<string, number>();
+		const runtimeVerdictMultiplier = (modelId: string): number => {
+			const cached = verdictMultiplierByModelId.get(modelId);
+			if (cached !== undefined) {
+				return cached;
+			}
+			const verdict =
+				selfObservationEvents.length > 0
+					? assessRuntimeModelVerdict({ modelId, events: selfObservationEvents }).verdict
+					: "UNKNOWN";
+			const multiplier = verdict === "TOOL_UNSUITABLE" ? 0.1 : verdict === "TOOL_WEAK" ? 0.5 : 1;
+			verdictMultiplierByModelId.set(modelId, multiplier);
+			return multiplier;
+		};
 		// Minimum per-(model,role) samples before role evidence outranks the global rollup (thin role evidence is
 		// noisier than a well-sampled global rate).
 		const MIN_ROLE_EVIDENCE_SAMPLES = 3;
-		const blendedCapabilityForKey = (modelKey: string, baseCapability: number, role?: string | null): number => {
+		const blendedCapabilityForKey = (
+			modelKey: string,
+			baseCapability: number,
+			role?: string | null,
+			modelId?: string,
+		): number => {
 			const roleObserved = role ? ledgerRoleSuccessByKey.get(`${modelKey}\u0000${role}`) : undefined;
 			const observed =
 				roleObserved && roleObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES
 					? roleObserved
 					: ledgerSuccessByKey.get(modelKey);
-			return blendCapabilityWithLedgerEvidence(
+			const blended = blendCapabilityWithLedgerEvidence(
 				baseCapability,
 				observed?.successRate ?? null,
 				observed?.samples ?? 0,
 			);
+			return modelId ? blended * runtimeVerdictMultiplier(modelId) : blended;
 		};
 		const runningModelKeys = new Set(
 			nkleinTaskSessionService
@@ -547,6 +576,7 @@ export async function handleStartTaskSession(
 										candidate.entry.key,
 										candidate.entry.capability.effectiveScore,
 										candidate.role,
+										candidate.entry.modelId,
 									),
 									contextWindow: candidate.entry.contextWindow.effective ?? 0,
 									predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
@@ -593,6 +623,7 @@ export async function handleStartTaskSession(
 						candidate.entry.key,
 						candidate.entry.capability.effectiveScore,
 						candidate.role,
+						candidate.entry.modelId,
 					),
 					...(affinityTags ? { affinityTags } : {}),
 				};
