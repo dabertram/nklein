@@ -2034,6 +2034,49 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return summary;
 	}
 
+	/**
+	 * Run20 live finding: `finalizeSandboxReview` disposes the worker's sandbox workspace right after capturing
+	 * the result branch (the branch holds the work; the slot frees) — but a review BOUNCE/ESCALATION re-drives
+	 * the SAME live session, whose tools then operate on a DELETED cwd (every read ENOENT'd; the worker flailed
+	 * "the repository is missing critical files" until the park rung gave up). The placement path is
+	 * deterministic from the taskId, so re-preparing under the same id makes the session's existing sandbox
+	 * executors valid again — checked out at the RESULT BRANCH first, so the accumulated work is present for the
+	 * follow-up round. No-op when there is no sandbox manager, the task never had a sandbox, or it still has one.
+	 */
+	private async restoreDisposedSandboxWorkspaceForRedrive(taskId: string): Promise<void> {
+		const manager = this.agentSandboxManager;
+		const repoPath = this.sandboxState.getRepoPath(taskId);
+		if (!manager || !repoPath || manager.hasWorkspace(taskId)) {
+			return;
+		}
+		try {
+			const resultCommit = await resolveTaskResultBranchCommit({ repoPath, taskId }).catch(() => null);
+			await manager.prepareWorkspace({
+				taskId,
+				projectRepoPath: repoPath,
+				baseRef: resultCommit ?? this.sandboxState.getBaseRef(taskId) ?? null,
+				maxQueueWaitMs: 120_000,
+			});
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Restored the disposed sandbox workspace for ${taskId} before a re-drive turn (checked out ${resultCommit ? "the result branch" : "the base ref"}).`,
+				taskId,
+				workspacePath: repoPath,
+				metadata: { category: "sandbox_workspace_redrive_restore", fromResultBranch: Boolean(resultCommit) },
+			});
+		} catch (error) {
+			recordSelfObservation({
+				signal: "runtime_error",
+				severity: "warning",
+				message: `Could not restore the sandbox workspace for ${taskId} before a re-drive: ${error instanceof Error ? error.message : String(error)}`,
+				taskId,
+				workspacePath: repoPath,
+				createdAt: Date.now(),
+			});
+		}
+	}
+
 	async sendTaskSessionInput(
 		taskId: string,
 		text: string,
@@ -2109,6 +2152,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			const runtimeSetupWorkspacePath = this.sandboxState.getRepoPath(taskId) ?? entry.summary.workspacePath ?? "";
 			void this.ensureRuntimeSetup(runtimeSetupWorkspacePath)
 				.then(async (runtimeSetup) => {
+					// A bounced/escalated card's workspace may have been disposed at capture — restore it BEFORE
+					// the turn so the session's sandbox tools work again (see the helper's run20 story).
+					await this.restoreDisposedSandboxWorkspaceForRedrive(taskId);
 					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
 					const resolvedContextWindow = this.resolveKnownContextWindowForTask(
 						taskId,
