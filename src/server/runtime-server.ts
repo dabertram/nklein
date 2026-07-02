@@ -361,7 +361,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// the board is FROZEN — self-heal by sweeping, and say so loudly. Legitimately-idle boards (everything
 	// terminal or held for the operator) never trip it.
 	const boardLivenessWatchdogByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
-	const BOARD_LIVENESS_TICK_MS = 60_000;
+	// 30s (was 60s): run36 gave the watchdog exactly ONE tick inside the harness's 90s dead-stall window — a
+	// single swallowed error meant no rescue. Halving the tick doubles the chances and the sweep is cheap.
+	const BOARD_LIVENESS_TICK_MS = 30_000;
+	// #35 (run36): the tick's failures were INVISIBLE (empty catch) — record the first error per workspace so a
+	// throwing tick (e.g. workspace-state lock contention) can never silently disable the watchdog again.
+	const watchdogErrorReportedWorkspaceIds = new Set<string>();
 	// §5.AW opportunistic best-of-N (user decision 2026-07-02): the per-workspace mirror tick + its budgets.
 	// The tick mirrors the hardest RUNNING card onto a lineage-diverse idle model as a `::spec` session; the
 	// A/B arbitration at the review seam picks the winner. Real work always outranks speculation (queued or
@@ -1437,9 +1442,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							if ((await readSwarmStopSignal(scope.workspacePath)) !== null) {
 								return; // swarm stopped by the operator — idle is intentional, not a stall
 							}
-							const state = await loadWorkspaceState(scope.workspacePath);
+							const state = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath));
 							const startable = listStartableUnstartedTaskIds(state.board, new Set<string>());
-							const deferredCount = deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0;
+							// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
+							// concurrency-deferral retry (run36: only the overlap set was checked).
+							const deferredCount =
+								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) +
+								(deferredRetryTimerByWorkspaceId.has(scope.workspaceId) ? 1 : 0);
 							if (startable.length === 0 && deferredCount === 0) {
 								return; // legitimately idle (everything terminal or held for the operator)
 							}
@@ -1458,8 +1467,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								},
 							});
 							retryWaitingCardsAfterTerminal(scope, trackedService);
-						} catch {
-							// The watchdog must never crash the runtime; the next tick retries.
+						} catch (error) {
+							// The watchdog must never crash the runtime — but its failures must be VISIBLE (#35:
+							// an empty catch here silently disabled the frozen-board rescue). First error per
+							// workspace is recorded; later ticks retry regardless.
+							if (!watchdogErrorReportedWorkspaceIds.has(scope.workspaceId)) {
+								watchdogErrorReportedWorkspaceIds.add(scope.workspaceId);
+								recordSelfObservation({
+									signal: "runtime_error",
+									severity: "warning",
+									message: `Board-liveness watchdog tick failed (rescue skipped this tick): ${
+										error instanceof Error ? error.message : String(error)
+									}`,
+									workspacePath: scope.workspacePath,
+									metadata: { category: "board_liveness_watchdog_error" },
+								});
+							}
 						}
 					})();
 				}, BOARD_LIVENESS_TICK_MS),

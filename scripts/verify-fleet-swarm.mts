@@ -57,6 +57,11 @@ interface BoardColumn {
 }
 interface BoardState {
 	board?: { columns?: BoardColumn[] };
+	/** Every session summary incl. SYNTHETIC ::review/::merge/::spec ones (invisible on the WS card stream). */
+	sessions?: Record<
+		string,
+		{ state?: string; lastHookAt?: number | null; lastOutputAt?: number | null; updatedAt?: number }
+	>;
 }
 
 function summarizeColumns(columns: BoardColumn[]): { summary: string; total: number; active: number; terminal: number } {
@@ -355,6 +360,11 @@ async function main(): Promise<void> {
 		let allTerminal = false;
 		let consecutivePollErrors = 0;
 		const MAX_CONSECUTIVE_POLL_ERRORS = 6;
+		// #36 (run36 false dead-stall): synthetic sessions (::review/::merge/::spec) never appear on the WS card
+		// stream, so a live 10-minute reviewer looked like total silence and the dead-stall lane killed the run
+		// mid-review. Track the freshest activity stamp across ALL polled sessions; synthetic liveness counts as
+		// progress for BOTH stall lanes.
+		let lastSeenSessionStamp = 0;
 		while (Date.now() < deadline) {
 			try {
 				const stateRes = await requestJson<BoardState>({
@@ -378,9 +388,19 @@ async function main(): Promise<void> {
 					allTerminal = true;
 					break;
 				}
-				const anySessionAlive = [...latestActivityByTask.values()].some((info) =>
-					ALIVE_SESSION_STATES.has(info.state),
+				const polledSessions = Object.entries(stateRes.payload.sessions ?? {});
+				const anyPolledSessionAlive = polledSessions.some(([, s]) => ALIVE_SESSION_STATES.has(s.state ?? ""));
+				const freshestStamp = Math.max(
+					0,
+					...polledSessions.map(([, s]) => Math.max(s.lastHookAt ?? 0, s.lastOutputAt ?? 0, s.updatedAt ?? 0)),
 				);
+				if (freshestStamp > lastSeenSessionStamp) {
+					lastSeenSessionStamp = freshestStamp;
+					lastProgressAt = Date.now();
+				}
+				const anySessionAlive =
+					anyPolledSessionAlive ||
+					[...latestActivityByTask.values()].some((info) => ALIVE_SESSION_STATES.has(info.state));
 				if (!anySessionAlive && latestActivityByTask.size > 0 && Date.now() - lastProgressAt > deadStallMs) {
 					stalled = true;
 					log(
