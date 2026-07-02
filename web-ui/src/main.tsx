@@ -23,8 +23,11 @@ if ("serviceWorker" in navigator) {
 try {
 	migrateLegacyLocalStorageKeys();
 	const _savedTheme = readLocalStorageItem(LocalStorageKey.Theme);
-	if (isThemeId(_savedTheme) && _savedTheme !== "default") {
-		document.documentElement.setAttribute("data-theme", _savedTheme);
+	// §5.AX: unset (or unknown) ⇒ the !Klein identity is the default look; an explicit "default" stays the
+	// legacy palette (data-theme removed); any other stored theme is applied as-is. No pre-paint flash.
+	const _bootTheme = isThemeId(_savedTheme) ? _savedTheme : "klein";
+	if (_bootTheme !== "default") {
+		document.documentElement.setAttribute("data-theme", _bootTheme);
 	}
 } catch {
 	// Ignore storage access failures and keep the default theme.

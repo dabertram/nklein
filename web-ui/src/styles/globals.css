@@ -59,6 +59,29 @@
 
 /* --- Dark themes ----------------------------------------------------- */
 
+/* §5.AX — the cool-technical dark-first !Klein identity. Near-black cool-slate surfaces, CYAN primary accent
+   (UI/actions/focus/live), VIOLET accent-2 reserved for AI/agent-authored elements. */
+[data-theme="klein"] {
+	--color-surface-0: #0A0C10;
+	--color-surface-1: #0F1319;
+	--color-surface-2: #151A22;
+	--color-surface-3: #1C232D;
+	--color-surface-4: #232C38;
+	--color-border: #232C38;
+	--color-border-bright: #31404F;
+	--color-border-focus: #3FE0E0;
+	--color-divider: #06080B;
+	--color-text-primary: #E8EEF5;
+	--color-text-secondary: #9FB0C3;
+	--color-text-tertiary: #63748A;
+	--color-accent: #3FE0E0;
+	--color-accent-hover: #6BEAEA;
+	--color-accent-fg: #062024;
+	--color-accent-2: #9D7BFF;
+	--color-accent-2-hover: #B29BFF;
+	--color-accent-2-fg: #140A2E;
+}
+
 [data-theme="graphite"] {
 	--color-surface-0: #1E1E1E;
 	--color-surface-1: #252526;

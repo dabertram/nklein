@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CardDetailView } from "@/components/card-detail-view";
+import { getTerminalThemeColors, readStoredThemeId } from "@/hooks/use-theme";
 import type {
 	RuntimeNKleinPlanArtifactsResponse,
 	RuntimeTaskAcceptanceVerifyResponse,
@@ -1055,7 +1056,9 @@ describe("CardDetailView", () => {
 		const lastCall = mockAgentTerminalPanel.mock.calls.at(-1);
 		expect(lastCall?.[0]).toMatchObject({
 			panelBackgroundColor: "var(--color-surface-0)",
-			terminalBackgroundColor: TERMINAL_THEME_COLORS.surfacePrimary,
+			// §5.AX: default look is now the klein theme — assert against the ACTIVE theme's surface-primary
+			// (resolves via readStoredThemeId) so this survives future default changes, not the static legacy color.
+			terminalBackgroundColor: getTerminalThemeColors(readStoredThemeId()).surfacePrimary,
 		});
 	});
 

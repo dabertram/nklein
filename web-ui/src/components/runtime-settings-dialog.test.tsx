@@ -1221,7 +1221,9 @@ describe("RuntimeSettingsDialog", () => {
 
 		expect(handleOpenChange).toHaveBeenCalledWith(false);
 		expect(window.localStorage.getItem(LocalStorageKey.Theme)).toBeNull();
-		expect(document.documentElement.getAttribute("data-theme")).toBeNull();
+		// §5.AX: cancel reverts the preview to the ACTIVE (unset ⇒ default) theme, which is now the klein
+		// identity, not the legacy no-data-theme default. localStorage stays null (nothing was saved).
+		expect(document.documentElement.getAttribute("data-theme")).toBe("klein");
 	});
 
 	it("persists theme selection only after clicking save", async () => {

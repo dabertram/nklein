@@ -8,6 +8,7 @@ import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/
 
 export type ThemeId =
 	| "default"
+	| "klein"
 	| "graphite"
 	| "midnight"
 	| "pitch"
@@ -48,6 +49,17 @@ export const THEMES: readonly ThemeDefinition[] = [
 		surface: "#1F2428",
 		accentFg: "#FFFFFF",
 		accent2Fg: "#FFFFFF",
+	},
+	{
+		// §5.AX — the cool-technical dark-first !Klein identity (cyan primary + violet reserved for AI).
+		id: "klein",
+		label: "!Klein",
+		group: "dark",
+		accent: "#3FE0E0",
+		accent2: "#9D7BFF",
+		surface: "#0A0C10",
+		accentFg: "#062024",
+		accent2Fg: "#140A2E",
 	},
 	{
 		id: "graphite",
@@ -188,6 +200,15 @@ const TERMINAL_COLORS_BY_THEME: Record<ThemeId, ThemeTerminalColors> = {
 		selectionBackground: "#0084FF4D",
 		selectionForeground: "#ffffff",
 		selectionInactiveBackground: "#2D333966",
+		isLightBackground: false,
+	},
+	klein: {
+		textPrimary: "#E8EEF5",
+		surfacePrimary: "#0A0C10",
+		surfaceRaised: "#151A22",
+		selectionBackground: "#3FE0E04D",
+		selectionForeground: "#062024",
+		selectionInactiveBackground: "#1C232D66",
 		isLightBackground: false,
 	},
 	graphite: {
@@ -338,7 +359,9 @@ function applyThemeChange(themeId: ThemeId): void {
 
 export function readStoredThemeId(): ThemeId {
 	const stored = readLocalStorageItem(LocalStorageKey.Theme);
-	return isThemeId(stored) ? stored : "default";
+	// §5.AX: an unset theme lands on the cool-technical dark-first !Klein identity (the new default look);
+	// users who explicitly chose another theme keep it.
+	return isThemeId(stored) ? stored : "klein";
 }
 
 export function applyThemeToDocument(themeId: ThemeId): void {

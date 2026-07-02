@@ -334,8 +334,16 @@ export function ProjectNavigationPanel({
 			<div style={{ padding: "12px 12px 8px" }}>
 				<div className="flex items-center justify-between">
 					<div className="font-semibold text-base flex items-baseline gap-1.5">
-						<NKleinMark size={18} className="text-text-primary shrink-0 self-center" />
-						!Klein <span className="text-text-secondary font-normal text-xs">v{__APP_VERSION__}</span>
+						<NKleinMark
+							size={18}
+							accent="var(--color-accent)"
+							accent2="var(--color-accent-2)"
+							className="shrink-0 self-center"
+						/>
+						<span>
+							<span className="text-accent">!</span>Klein
+						</span>{" "}
+						<span className="text-text-secondary font-normal text-xs">v{__APP_VERSION__}</span>
 					</div>
 					{isMobile ? (
 						<ElementTooltip id="project.collapse-sidebar" side="bottom">
