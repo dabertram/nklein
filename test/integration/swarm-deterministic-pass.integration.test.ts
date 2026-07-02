@@ -95,10 +95,15 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 			// ONE worker card keeps the scenario tight; `npm test` passes on the untouched fixture, so a harmless
 			// new file keeps acceptance green at the delivery seam.
 			const wroteForTask = new Set<string>();
+			let decomposed = false;
 			mock.setRouter((request) => {
 				const tools = JSON.stringify(request.tools ?? "");
 				const messages = JSON.stringify(request.messages ?? "");
-				if (tools.includes("decompose_project")) {
+				// Serve the decomposition exactly ONCE: worker sessions also carry the decompose tool, so an
+				// unconditional match turned the WORKER into a decomposer looping idempotent re-applies forever
+				// (holding the endpoint slot — the exact interleave that exposed the drain's lost-wakeup bug).
+				if (!decomposed && tools.includes("decompose_project")) {
+					decomposed = true;
 					return {
 						toolCalls: [
 							{
@@ -109,7 +114,10 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 									spec: "One tiny additive change.",
 									plan: "One card.",
 									summary: "One card.",
-									defaultAcceptanceCommand: "npm test",
+									// Dependency-free on purpose: the fresh ::acceptance sandbox clone has no
+									// node_modules, so `npm test` can never pass there — the gate itself is what
+									// this scenario pins, not the fixture's test suite.
+									defaultAcceptanceCommand: 'node -e "process.exit(0)"',
 									tasks: [{ id: "gamma", title: "Card gamma", prompt: "Do gamma." }],
 								},
 							},
@@ -124,8 +132,6 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 								arguments: {
 									verdict: "approve",
 									summary: "The additive change is correct and matches the task.",
-									feedback: null,
-									insight: null,
 								},
 							},
 						],

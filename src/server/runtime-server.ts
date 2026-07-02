@@ -283,6 +283,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		},
 	});
 	const queuedStartDrainInFlightByWorkspaceId = new Set<string>();
+	// LOST-WAKEUP fix (found deterministically by the W2.1 v2 harness): a drain request arriving while another
+	// drain is IN FLIGHT used to clear the pending retry timer and then bail on the in-flight check — destroying
+	// the only scheduled wakeup while the in-flight drain (whose retry had just re-enqueued and hit "busy" again)
+	// never re-armed. Net: a queued start slept FOREVER (the live runs' "queued behind a busy endpoint" stall).
+	// Requests that arrive mid-drain are remembered here and re-run when the in-flight drain finishes.
+	const queuedStartDrainRerunRequestByWorkspaceId = new Map<string, { force: boolean }>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
 	// W4.2a (run12 live finding): ONE automatic re-drive of an empty-patch worker before the fail-closed hold —
 	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
@@ -798,13 +804,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		});
 	};
 	const drainQueuedTaskStarts = (scope: RuntimeTrpcWorkspaceScope, options?: { force?: boolean }): void => {
+		if (queuedStartDrainInFlightByWorkspaceId.has(scope.workspaceId)) {
+			// Remember the request instead of dropping it (and DON'T touch the pending timer — it stays as a
+			// backstop): the in-flight drain re-runs it on completion. Force-ness is sticky across coalesced asks.
+			const pending = queuedStartDrainRerunRequestByWorkspaceId.get(scope.workspaceId);
+			queuedStartDrainRerunRequestByWorkspaceId.set(scope.workspaceId, {
+				force: Boolean(options?.force) || Boolean(pending?.force),
+			});
+			return;
+		}
 		const scheduledDrain = queuedStartDrainTimersByWorkspaceId.get(scope.workspaceId);
 		if (scheduledDrain) {
 			clearTimeout(scheduledDrain.timer);
 			queuedStartDrainTimersByWorkspaceId.delete(scope.workspaceId);
-		}
-		if (queuedStartDrainInFlightByWorkspaceId.has(scope.workspaceId)) {
-			return;
 		}
 		queuedStartDrainInFlightByWorkspaceId.add(scope.workspaceId);
 		queueMicrotask(() => {
@@ -826,6 +838,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					}
 				} finally {
 					queuedStartDrainInFlightByWorkspaceId.delete(scope.workspaceId);
+					const rerun = queuedStartDrainRerunRequestByWorkspaceId.get(scope.workspaceId);
+					if (rerun) {
+						queuedStartDrainRerunRequestByWorkspaceId.delete(scope.workspaceId);
+						drainQueuedTaskStarts(scope, { force: rerun.force });
+					}
 				}
 			})();
 		});

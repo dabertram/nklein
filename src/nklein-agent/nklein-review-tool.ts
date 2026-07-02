@@ -56,11 +56,16 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 					description: "A short summary of what you reviewed and your headline judgment.",
 				},
 				feedback: {
-					type: "string",
+					// Models routinely emit `feedback: null` on approval (the field is described as required only
+					// for request_changes). The Zod schema accepts null, but a string-only JSON schema made the SDK
+					// reject the call BEFORE execution — the reviewer then looped the same rejected call until the
+					// mistake guard abandoned the session, and the review counted as skipped (fail-closed hold).
+					// Harness-found (W2.1 v2); tolerate null at the boundary like the Zod schema does.
+					type: ["string", "null"],
 					description: "Concrete, actionable change requests. Required when verdict is `request_changes`.",
 				},
 				insight: {
-					type: "string",
+					type: ["string", "null"],
 					description: "Optional positive observations or insight worth recording even on approval.",
 				},
 			},
