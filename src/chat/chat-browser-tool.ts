@@ -111,8 +111,13 @@ export function isPrivateOrReservedIp(ip: string): boolean {
  * Resolves a URL's hostname to an IP address and checks whether it is private/reserved.
  * If the hostname is already a literal IP, it is checked directly without a DNS round-trip.
  * Returns an error string when the host resolves to a blocked range, or null when the host is allowed.
+ *
+ * Exported so the §5.AC retrieval `browse_url` wrapper ([nklein-browse-tool.ts](../nklein-agent/nklein-browse-tool.ts))
+ * can reuse the SAME SSRF guard (pre-fetch + post-redirect) rather than reimplementing it. There the guard runs
+ * UNCONDITIONALLY (a sandboxed agent must never reach the operator's LAN/loopback), whereas the chat tool gates it on
+ * remote/`--host` mode.
  */
-async function checkHostForSsrf(rawUrl: string): Promise<string | null> {
+export async function checkHostForSsrf(rawUrl: string): Promise<string | null> {
 	let parsed: URL;
 	try {
 		parsed = new URL(rawUrl);
@@ -175,8 +180,14 @@ function validateUrl(raw: unknown): string | null {
 	return null;
 }
 
-/** Build a default `BrowserDeps` that drives Playwright/Chromium headless. */
-function buildDefaultBrowserDeps(timeoutMs: number): BrowserDeps {
+/**
+ * Build a default `BrowserDeps` that drives Playwright/Chromium headless.
+ *
+ * Exported so the §5.AC retrieval `browse_url` wrapper can drive the SAME host-side Playwright fetcher the chat tool
+ * uses in production (its SSRF guard runs in the wrapper, not here). `timeoutMs` defaults to the chat tool's own
+ * default so callers get identical navigation behavior.
+ */
+export function buildDefaultBrowserDeps(timeoutMs: number = DEFAULT_TIMEOUT_MS): BrowserDeps {
 	return {
 		fetchPage: async (url) => {
 			const browser = await chromium.launch({ headless: true });

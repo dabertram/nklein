@@ -837,22 +837,26 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		return (startRequest?.extraTools ?? []).map((tool) => tool.name);
 	}
 
-	it("fails closed by default: sessions get no web_search tool (§5.AC)", async () => {
+	it("fails closed by default: sessions get neither retrieval tool (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({ taskId: "task-1" });
 		expect(toolNames).toContain("repo_map");
 		expect(toolNames).not.toContain("web_search");
+		expect(toolNames).not.toContain("browse_url");
 	});
 
-	it("does not attach web_search when egress is enabled but no backend is configured (§5.AC)", async () => {
+	// SPLIT GATE — browse_url needs ONLY egress (browsing is independent of the search backend); web_search additionally
+	// needs a configured backend URL. So egress-on with NO backend gets browse_url but not web_search.
+	it("attaches browse_url (but not web_search) when egress is enabled without a backend (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({
 			taskId: "task-1",
 			retrievalEgressEnabled: true,
 			retrievalSearchBackendUrl: null,
 		});
+		expect(toolNames).toContain("browse_url");
 		expect(toolNames).not.toContain("web_search");
 	});
 
-	it("attaches web_search alongside the sandbox tools when retrieval is enabled with a backend (§5.AC)", async () => {
+	it("attaches BOTH retrieval tools alongside the sandbox tools when egress is enabled with a backend (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({
 			taskId: "task-1",
 			retrievalEgressEnabled: true,
@@ -860,9 +864,10 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		expect(toolNames).toContain("repo_map");
 		expect(toolNames).toContain("web_search");
+		expect(toolNames).toContain("browse_url");
 	});
 
-	it("never attaches web_search to synthetic sessions even when retrieval is enabled (§5.AC)", async () => {
+	it("never attaches either retrieval tool to synthetic sessions even when egress is enabled (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({
 			taskId: "task-1::review",
 			retrievalEgressEnabled: true,
@@ -870,6 +875,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		expect(toolNames).toContain("repo_map");
 		expect(toolNames).not.toContain("web_search");
+		expect(toolNames).not.toContain("browse_url");
 	});
 
 	it("emits a queued summary while waiting for sandbox capacity", async () => {

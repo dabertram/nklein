@@ -5,6 +5,7 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // history, and subscribe to summaries and chat events without knowing SDK
 // host, repository, or event-adapter details.
 
+import { buildDefaultBrowserDeps } from "../chat/chat-browser-tool";
 import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
 import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
@@ -75,6 +76,7 @@ import {
 	resolveNKleinAgentPerceivedCwd,
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
+import { createNKleinBrowseTool } from "./nklein-browse-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS, planContextBudget } from "./nklein-context-budget-plan";
 import {
@@ -813,29 +815,51 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	/**
-	 * §5.AC step 3 — the egress-gated `web_search` extra tool for one session, or `[]` when it must not attach.
-	 * Fail closed, in gate order: (1) synthetic sessions (`::review` / `::plan-critique` / `::acceptance`) NEVER
-	 * get egress — reviewers/critics/acceptance judge local work only; (2) the runtime-config switch must be
-	 * literally `true`; (3) a non-blank backend URL must be configured. The SearXNG client is constructed per
-	 * search from the LIVE service fields (cheap factory), so a config-off while a session is running makes the
-	 * very next call fail closed (`blocked_by_egress`) instead of honoring values captured at session start.
+	 * §5.AC steps 3+4 — the egress-gated retrieval extra tools for one session (`web_search` + `browse_url`), or `[]`
+	 * when none may attach. Fail closed, and note the SPLIT GATE:
+	 *
+	 * - Gate 0 (both tools): synthetic sessions (`::review` / `::plan-critique` / `::acceptance`) NEVER get egress —
+	 *   reviewers/critics/acceptance judge local work only. And the egress switch must be literally `true` (default OFF).
+	 * - `browse_url` needs ONLY the egress gate: browsing a URL is egress but is INDEPENDENT of the search backend, so a
+	 *   configured egress with NO backend URL still gets browse_url (the agent can read URLs it already has).
+	 * - `web_search` ADDITIONALLY needs a non-blank backend URL (the SearXNG endpoint). So: egress-on ⇒ browse_url;
+	 *   egress-on + backend ⇒ web_search too.
+	 *
+	 * Both tools run HOST-side in the trusted runtime (the sandbox stays network-isolated; results enter as tool
+	 * results). The SearXNG client is constructed per search from the LIVE service fields (cheap factory), so a
+	 * config-off mid-session makes the very next call fail closed (`blocked_by_egress`) instead of honoring values
+	 * captured at session start. `browse_url` enforces the SSRF guard UNCONDITIONALLY (see nklein-browse-tool.ts): a
+	 * sandboxed agent must never reach the operator's LAN/loopback, whatever the host mode — the egress switch is the
+	 * on-switch, SSRF-always is the safety floor.
 	 */
 	private buildRetrievalExtraTools(taskId: string): AgentTool[] {
+		// Gate 0: no egress for synthetic sessions, and only when the switch is literally on.
 		if (taskId.includes("::")) {
 			return [];
 		}
-		if (this.retrievalEgressEnabled !== true || !this.retrievalSearchBackendUrl?.trim()) {
+		if (this.retrievalEgressEnabled !== true) {
 			return [];
 		}
-		return [
-			createNKleinWebSearchTool({
-				search: (query) =>
-					createSearxngWebSearchClient({
-						backendBaseUrl: this.retrievalSearchBackendUrl,
-						egressEnabled: this.retrievalEgressEnabled,
-					}).search(query),
+		const tools: AgentTool[] = [];
+		// browse_url — egress-on is sufficient (independent of the search backend). SSRF guard forced ALWAYS on.
+		tools.push(
+			createNKleinBrowseTool({
+				fetchPage: (url) => buildDefaultBrowserDeps().fetchPage(url),
 			}),
-		];
+		);
+		// web_search — additionally requires a configured backend URL.
+		if (this.retrievalSearchBackendUrl?.trim()) {
+			tools.push(
+				createNKleinWebSearchTool({
+					search: (query) =>
+						createSearxngWebSearchClient({
+							backendBaseUrl: this.retrievalSearchBackendUrl,
+							egressEnabled: this.retrievalEgressEnabled,
+						}).search(query),
+				}),
+			);
+		}
+		return tools;
 	}
 
 	/** Sandbox-proxied extra tools ⊕ the §5.AC retrieval tools, or undefined when there is nothing to attach. */
