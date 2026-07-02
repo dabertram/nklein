@@ -187,12 +187,19 @@ import {
 	toPermissiveAgentInputSchema,
 } from "./decomposition/plan-task-schemas";
 import { validateNKleinPlanTaskGraph } from "./decomposition/plan-task-validation";
+import { selectBestNKleinPlanTaskGraph } from "./nklein-decomposition-selection";
 
 function createDecomposeProjectTool(
 	workspacePath: string,
 	sourceTaskId?: string | null,
 	onApplied?: NKleinDecompositionAppliedHandler,
 ): AgentTool {
+	// W2.7a (audit 2026-07-02): rejected-but-PARSEABLE graphs are stashed per plan slug; after the bounce budget
+	// the BEST stashed candidate is applied instead of bouncing again — a weak model that keeps emitting
+	// quality-violating graphs converges on its best attempt rather than spiraling into the repeated-call guard
+	// ("recover in !Klein, don't teach the model"). A clean pass clears the stash.
+	const rejectedGraphCandidatesBySlug = new Map<string, NKleinPlanTaskGraph[]>();
+	const MAX_QUALITY_BOUNCES = 2;
 	return {
 		name: "decompose_project",
 		description:
@@ -269,7 +276,40 @@ function createDecomposeProjectTool(
 		async execute(input) {
 			const { slug, spec, plan, summary, questions, taskGraph, expansions } =
 				normalizeDecomposeProjectToolInput(input);
-			const validation = validateNKleinPlanTaskGraph({ taskGraph, enforceGraphQuality: true });
+			let validation: ReturnType<typeof validateNKleinPlanTaskGraph>;
+			try {
+				validation = validateNKleinPlanTaskGraph({ taskGraph, enforceGraphQuality: true });
+				rejectedGraphCandidatesBySlug.delete(slug);
+			} catch (qualityError) {
+				// W2.7a: stash the parseable-but-violating graph; bounce within budget, else apply the BEST seen.
+				const candidates = rejectedGraphCandidatesBySlug.get(slug) ?? [];
+				candidates.push(taskGraph);
+				rejectedGraphCandidatesBySlug.set(slug, candidates);
+				if (candidates.length <= MAX_QUALITY_BOUNCES) {
+					throw qualityError;
+				}
+				const best = selectBestNKleinPlanTaskGraph(candidates);
+				if (!best.best) {
+					throw qualityError;
+				}
+				// Structural validation only (no quality enforcement) — the graph parses/sizes; its coherence
+				// warnings ride along and the §5.AV repair net (cycle-break) still applies downstream.
+				validation = validateNKleinPlanTaskGraph({ taskGraph: best.best });
+				rejectedGraphCandidatesBySlug.delete(slug);
+				await recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `decompose_project applied the best of ${candidates.length} quality-rejected graphs for plan ${slug} after the bounce budget (fewest violations wins) instead of bouncing again.`,
+					taskId: sourceTaskId ?? null,
+					workspacePath,
+					metadata: {
+						operation: "decompose_project_best_of_rejected",
+						planSlug: slug,
+						candidateCount: candidates.length,
+						bestIndex: best.bestIndex,
+					},
+				});
+			}
 			if (validation.quality.warnings.length > 0) {
 				await recordSelfObservation({
 					signal: "custom",
