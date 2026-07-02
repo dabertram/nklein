@@ -460,13 +460,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 	};
 	/** run16: retry waiting cards when a card DIES (no completion will fire) — deferred set ∪ ready-sweep. */
+	// run25 strand class (#24): an interrupted card with NO captured work has no rescue path — the prior-work
+	// rebound (#21) needs a result branch, and the sweep below only rescues OTHER waiting cards. The dead card
+	// itself gets ONE fresh restart (bounded by this set), then it is left for the operator (attention).
+	const terminalRedriveAttemptedTaskKeys = new Set<string>();
 	const retryWaitingCardsAfterTerminal = (
 		scope: RuntimeTrpcWorkspaceScope,
 		service: NKleinTaskSessionService,
+		terminalTaskId?: string,
 	): void => {
 		const now = Date.now();
 		const last = lastTerminalRetrySweepAtByWorkspaceId.get(scope.workspaceId) ?? 0;
-		if (now - last < TERMINAL_RETRY_SWEEP_DEBOUNCE_MS) {
+		// The debounce guards against sweep storms — but a pending one-shot dead-card rescue (#24) must not be
+		// swallowed by a neighboring terminal's window (losing it would strand the card permanently).
+		const redrivePending =
+			terminalTaskId !== undefined &&
+			!terminalRedriveAttemptedTaskKeys.has(`${scope.workspaceId}:${terminalTaskId}`);
+		if (!redrivePending && now - last < TERMINAL_RETRY_SWEEP_DEBOUNCE_MS) {
 			return;
 		}
 		lastTerminalRetrySweepAtByWorkspaceId.set(scope.workspaceId, now);
@@ -486,7 +496,32 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				);
 				const sweepTaskIds = listStartableUnstartedTaskIds(state.board, activeSessionTaskIds);
 				const deferredTaskIds = [...(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId) ?? [])];
-				const candidates = [...new Set([...deferredTaskIds, ...sweepTaskIds])];
+				const redriveTaskIds: string[] = [];
+				if (terminalTaskId && !activeSessionTaskIds.has(terminalTaskId)) {
+					const redriveKey = `${scope.workspaceId}:${terminalTaskId}`;
+					const lane = state.board.columns.find((column) =>
+						column.cards.some((card) => card.id === terminalTaskId),
+					)?.id;
+					if (
+						(lane === "in_progress" || lane === "planning") &&
+						!terminalRedriveAttemptedTaskKeys.has(redriveKey)
+					) {
+						const resultCommit = await resolveTaskResultBranchCommit({
+							repoPath: scope.workspacePath,
+							taskId: terminalTaskId,
+						}).catch(() => null);
+						// A result branch means the #21 prior-work rebound owns recovery (review judges the work);
+						// only the NO-work dead card needs a fresh attempt here.
+						if (!resultCommit) {
+							terminalRedriveAttemptedTaskKeys.add(redriveKey);
+							deps.warn(
+								`Dead card ${terminalTaskId} left no captured work — attempting ONE fresh restart before leaving it for the operator.`,
+							);
+							redriveTaskIds.push(terminalTaskId);
+						}
+					}
+				}
+				const candidates = [...new Set([...deferredTaskIds, ...sweepTaskIds, ...redriveTaskIds])];
 				if (candidates.length > 0) {
 					await autoStartTaskIds(scope, candidates);
 				}
@@ -1047,8 +1082,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					drainQueuedTaskStarts(scope, { force: true });
 				}
 				if (summary.state === "interrupted" || summary.state === "failed") {
-					// A dying card fires no completion — retry the waiting cards it can no longer unblock (run16).
-					retryWaitingCardsAfterTerminal(scope, trackedService);
+					// A dying card fires no completion — retry the waiting cards it can no longer unblock (run16),
+					// and give the dead card ITSELF one fresh attempt when it left no reviewable work (#24).
+					retryWaitingCardsAfterTerminal(scope, trackedService, summary.taskId);
 				}
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
