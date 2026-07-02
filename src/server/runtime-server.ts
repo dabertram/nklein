@@ -331,6 +331,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
 	// missing piece was recovery). Keyed workspace:task; bounded to a single attempt, then the operator owns it.
 	const emptyPatchRedriveAttemptsByTaskKey = new Map<string, number>();
+	// #28 (run30, user-observed frozen fleet): an APPROVED-but-acceptance-failed hold had NO re-drive rung —
+	// bounces fire only on request_changes and the empty-patch re-drive only on empty patches, so the card sat
+	// held in Review forever with the whole fleet idle. ONE re-drive carries the failing acceptance output back
+	// to the worker; a second failure leaves the hold for the operator.
+	const acceptanceFailureRedriveAttemptsByTaskKey = new Map<string, number>();
 	// Plan-level integration gate (todo §5.0.5 — decision 2026-07-02: "YES, gate the plan"): ONE gate run per plan
 	// slug per process, keyed workspace:slug — a re-delivery/re-finalization of the plan's last card must not
 	// re-fire the (minutes-long) project-level acceptance run.
@@ -344,6 +349,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// raced the completing session's still-held slot, and after the LAST completion no event ever fires again.
 	// A concurrency-limit deferral therefore also arms a one-shot TIMER sweep (clears the debounce window).
 	const deferredRetryTimerByWorkspaceId = new Map<string, ReturnType<typeof setTimeout>>();
+	// #29 (user directive: "improve detection of stall"): a RUNTIME-level board-liveness watchdog. Every tick,
+	// if NO session is alive but actionable work exists (startable-unstarted cards or a non-empty deferred set),
+	// the board is FROZEN — self-heal by sweeping, and say so loudly. Legitimately-idle boards (everything
+	// terminal or held for the operator) never trip it.
+	const boardLivenessWatchdogByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
+	const BOARD_LIVENESS_TICK_MS = 60_000;
 	const DEFERRED_RETRY_TIMER_MS = 7_000;
 	const queuedStartDrainTimersByWorkspaceId = new Map<
 		string,
@@ -987,6 +998,36 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							},
 						);
 						if (deliveryDecision.action !== "merge") {
+							// #28: the reviewer APPROVED but the fresh acceptance failed ⇒ the worker never learns why the
+							// card is stuck. Re-drive ONCE with the acceptance failure (mirrors the W4.2a empty-patch
+							// re-drive); a repeat failure leaves the hold for the operator as before.
+							if (evidence.reviewApproved && !evidence.testsPassed && acceptance) {
+								const acceptanceRedrives = acceptanceFailureRedriveAttemptsByTaskKey.get(inFlightKey) ?? 0;
+								if (acceptanceRedrives < 1) {
+									acceptanceFailureRedriveAttemptsByTaskKey.set(inFlightKey, acceptanceRedrives + 1);
+									deps.warn(
+										`Approved-but-acceptance-failed card ${taskId}: re-driving the worker once with the failing acceptance output.`,
+									);
+									await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+										const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
+										return { board: movement.board, save: movement.moved, value: null };
+									});
+									const failureHead = (acceptance.output ?? "").slice(0, 700);
+									await service
+										.sendTaskSessionInput(
+											taskId,
+											`The reviewer APPROVED your work, but the acceptance check still FAILS — the card cannot merge until it passes. Command: ${acceptance.command ?? "(unknown)"} (exit ${acceptance.exitCode ?? "?"}).\nFailing output (head):\n${failureHead}\n\nFix the failure and finish with the acceptance check passing. Stay within the card's declared file scope.`,
+											"act",
+										)
+										.catch((error) => {
+											const message = error instanceof Error ? error.message : String(error);
+											deps.warn(
+												`Acceptance-failure re-drive of ${taskId} failed (${message}); leaving held in Review.`,
+											);
+										});
+									return;
+								}
+							}
 							deps.warn(
 								`Delivery held for ${taskId} (delivery tier → ${deliveryDecision.action}): ${deliveryDecision.reason} Left in Review.`,
 							);
@@ -1283,6 +1324,54 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
 			reconcileCapturedHeadlessAutoReviewTasks(scope, trackedService);
+			// #29: the board-liveness watchdog — self-healing runtime stall detection.
+			boardLivenessWatchdogByWorkspaceId.set(
+				scope.workspaceId,
+				setInterval(() => {
+					void (async () => {
+						try {
+							const anySessionAlive = trackedService
+								.listSummaries()
+								.some(
+									(summary) =>
+										summary.state === "running" ||
+										summary.state === "queued" ||
+										summary.state === "paused" ||
+										summary.state === "awaiting_review",
+								);
+							if (anySessionAlive) {
+								return;
+							}
+							if ((await readSwarmStopSignal(scope.workspacePath)) !== null) {
+								return; // swarm stopped by the operator — idle is intentional, not a stall
+							}
+							const state = await loadWorkspaceState(scope.workspacePath);
+							const startable = listStartableUnstartedTaskIds(state.board, new Set<string>());
+							const deferredCount = deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0;
+							if (startable.length === 0 && deferredCount === 0) {
+								return; // legitimately idle (everything terminal or held for the operator)
+							}
+							deps.warn(
+								`Board-liveness watchdog: no session alive but ${startable.length} startable + ${deferredCount} deferred card(s) exist for ${scope.workspacePath} — sweeping (frozen-board self-heal).`,
+							);
+							recordSelfObservation({
+								signal: "custom",
+								severity: "warning",
+								message: `Board-liveness watchdog fired: frozen board self-heal (startable=${startable.length}, deferred=${deferredCount}).`,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "board_liveness_watchdog",
+									startable: startable.length,
+									deferred: deferredCount,
+								},
+							});
+							retryWaitingCardsAfterTerminal(scope, trackedService);
+						} catch {
+							// The watchdog must never crash the runtime; the next tick retries.
+						}
+					})();
+				}, BOARD_LIVENESS_TICK_MS),
+			);
 		} else {
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
@@ -1304,6 +1393,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		if (drainTimer) {
 			clearTimeout(drainTimer.timer);
 			queuedStartDrainTimersByWorkspaceId.delete(workspaceId);
+		}
+		const livenessWatchdog = boardLivenessWatchdogByWorkspaceId.get(workspaceId);
+		if (livenessWatchdog) {
+			clearInterval(livenessWatchdog);
+			boardLivenessWatchdogByWorkspaceId.delete(workspaceId);
+		}
+		const deferredTimer = deferredRetryTimerByWorkspaceId.get(workspaceId);
+		if (deferredTimer) {
+			clearTimeout(deferredTimer);
+			deferredRetryTimerByWorkspaceId.delete(workspaceId);
 		}
 		taskStartQueue.clearWorkspace(workspaceId);
 		await service.dispose();
