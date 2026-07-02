@@ -373,6 +373,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					continue;
 				}
 				if (started.queued) {
+					// Run14 live finding: a silently-queued start is INVISIBLE — 17 minutes of dead air with no way
+					// to tell queued-and-stuck from never-started. Always say so (the queue's drain timers do the rest).
+					deps.warn(
+						`Auto-start of ${task.id} queued behind a busy endpoint${
+							started.retryAfterMs ? ` (retry in ~${Math.round(started.retryAfterMs / 1000)}s)` : ""
+						}.`,
+					);
 					continue;
 				}
 				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
