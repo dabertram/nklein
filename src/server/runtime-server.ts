@@ -23,6 +23,7 @@ import type {
 } from "../core/api-contract";
 import { readPausedTasks } from "../core/card-pause";
 import { decideDeliveryAction } from "../core/delivery-decision";
+import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/delivery-evidence";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -537,19 +538,54 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					if (reviewOutcome.type === "bounced" || reviewOutcome.type === "parked") {
 						return;
 					}
+					// FAIL-CLOSED delivery evidence (audit 2026-07-02 W0.1 — supersedes the prior fail-open hardcode).
+					// See deriveDeliveryGateEvidence for the posture: only a delivered review sign-off approves, and
+					// only a FRESH present-and-passed acceptance run at this seam counts as tests passing.
+					const deliveryCard = reviewState.board.columns
+						.flatMap((column) => column.cards)
+						.find((c) => c.id === taskId);
+					const acceptance = deliveryCard
+						? await (async () => {
+								try {
+									return await service.verifyTaskAcceptanceInSandbox({
+										taskId,
+										projectRepoPath: scope.workspacePath,
+										baseRef: deliveryCard.baseRef,
+										taskPrompt: deliveryCard.prompt,
+									});
+								} catch (error) {
+									const message = error instanceof Error ? error.message : String(error);
+									deps.warn(`Acceptance re-check unavailable for ${taskId} (fail-closed): ${message}`);
+									return null;
+								}
+							})()
+						: null;
+					const evidence = deriveDeliveryGateEvidence({
+						reviewOutcomeType: reviewOutcome.type,
+						acceptance,
+					});
+					if (evidence.testsDetail) {
+						deps.warn(`Delivery gate evidence for ${taskId}: tests NOT passed — ${evidence.testsDetail}.`);
+					}
+
+					if (shouldHoldEmptyPatchResult({ sandboxResult, reviewApproved: evidence.reviewApproved })) {
+						// A no-op result may only complete (and release its dependents) on an explicit reviewer
+						// sign-off — an unreviewed empty patch is a red flag (dead/errored session, bad planning),
+						// not a completion. Fail closed: leave it in Review for the operator.
+						deps.warn(
+							`Empty-patch card ${taskId} held in Review (fail-closed): no reviewer sign-off, so a no-op result cannot auto-complete.`,
+						);
+						return;
+					}
 
 					if (sandboxResult !== "empty_patch") {
 						// Delivery-autonomy gate (todo §5.L): the resolved delivery tier + safety gates decide whether
 						// this card auto-merges. Self-merge IS allowed (2026-06-23 decision) at the open tiers; a diff that
-						// touches protected safety paths always holds. Acceptance ran upstream (hub auto-repair) and the
-						// review didn't bounce/park, so tests + review are treated as passed here; regression delta is not
-						// yet measured (null → self-merge only at the most-open tier). Any non-merge action (manual / commit
-						// / open_pr) leaves the card in Review for now; auto-commit/PR + regression + per-project/card
-						// overrides are follow-ups. On any resolution error we fall through to the prior merge behavior.
+						// touches protected safety paths always holds. Missing/unavailable evidence fails CLOSED (held in
+						// Review with the reason logged above). Regression delta is not yet measured (null → self-merge
+						// only at the most-open tier). Any non-merge action (manual / commit / open_pr) leaves the card
+						// in Review.
 						const deliveryConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
-						const deliveryCard = reviewState.board.columns
-							.flatMap((column) => column.cards)
-							.find((c) => c.id === taskId);
 						const changedFiles = await getWorkspaceChangesBetweenRefs({
 							cwd: scope.workspacePath,
 							fromRef: deliveryCard?.baseRef ?? "HEAD",
@@ -564,8 +600,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								}),
 							),
 							{
-								reviewApproved: true,
-								testsPassed: true,
+								reviewApproved: evidence.reviewApproved,
+								testsPassed: evidence.testsPassed,
 								regressionDelta: null,
 								hasProtectedPathChanges: changedFiles.some(isTrustedAutoMergeProtectedPath),
 							},
