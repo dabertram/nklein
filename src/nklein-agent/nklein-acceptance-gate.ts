@@ -171,6 +171,17 @@ export async function runNKleinAcceptanceGate(
 	};
 }
 
+/**
+ * The acceptance re-check runs in its OWN synthetic sandbox session (`<taskId>::acceptance`), like the
+ * `::review` session does. Reusing the worker's task id was destructive (run19 autopsy): prepareWorkspace
+ * rm-rf's + re-clones the workdir keyed by taskId, so the check would DESTROY a live worker's workspace and
+ * then dispose the worker's slot — while testing whatever tree the passed ref named. Never collide.
+ */
+export const ACCEPTANCE_SESSION_TASK_SUFFIX = "::acceptance";
+
+/** Bounded slot wait for this auxiliary seam: the pool may be busy with the very sessions awaiting this check. */
+const ACCEPTANCE_SLOT_QUEUE_WAIT_MS = 120_000;
+
 export async function runNKleinAcceptanceGateInSandbox(
 	options: RunNKleinAcceptanceGateInSandboxOptions,
 ): Promise<NKleinAcceptanceGateResult> {
@@ -178,11 +189,15 @@ export async function runNKleinAcceptanceGateInSandbox(
 		throw new Error("A task id is required to run the acceptance gate in the agent sandbox.");
 	}
 	const taskId = options.taskId;
+	const sandboxTaskId = taskId.endsWith(ACCEPTANCE_SESSION_TASK_SUFFIX)
+		? taskId
+		: `${taskId}${ACCEPTANCE_SESSION_TASK_SUFFIX}`;
 	await options.sandboxManager.assertAvailable();
 	const workspace = await options.sandboxManager.prepareWorkspace({
-		taskId,
+		taskId: sandboxTaskId,
 		projectRepoPath: options.projectRepoPath,
 		baseRef: options.baseRef ?? null,
+		maxQueueWaitMs: ACCEPTANCE_SLOT_QUEUE_WAIT_MS,
 	});
 	try {
 		return await runNKleinAcceptanceGate({
@@ -191,12 +206,12 @@ export async function runNKleinAcceptanceGateInSandbox(
 			runCommand: async (execution) => {
 				await options.pauseController?.waitUntilResumed(taskId);
 				const shellExecution = resolveShellExecution(execution.command);
-				return await options.sandboxManager.exec(taskId, [shellExecution.binary, ...shellExecution.args], {
+				return await options.sandboxManager.exec(sandboxTaskId, [shellExecution.binary, ...shellExecution.args], {
 					timeoutMs: execution.timeoutMs,
 				});
 			},
 		});
 	} finally {
-		await options.sandboxManager.disposeWorkspace(taskId).catch(() => null);
+		await options.sandboxManager.disposeWorkspace(sandboxTaskId).catch(() => null);
 	}
 }

@@ -11,6 +11,7 @@ import {
 	buildAgentSandboxInteractiveShellArgs,
 	buildAgentSandboxWorkdir,
 	buildTaskShellSpawnSpec,
+	createAgentSandboxProjectKey,
 	createAgentSandboxTaskUid,
 	createAgentSandboxToolExecutors,
 	DEFAULT_AGENT_SANDBOX_IMAGE,
@@ -399,6 +400,69 @@ describe("AgentSandboxManager", () => {
 			"-rf",
 			"/workspaces/task-1",
 		]);
+	});
+
+	it("derives one canonical project key for every spelling of the same directory (run19)", async () => {
+		const { mkdtempSync, realpathSync, rmSync } = await import("node:fs");
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+		// macOS tmpdir is itself a symlink (/var/folders -> /private/var/folders) — the exact run19 pair.
+		const viaSymlink = mkdtempSync(join(tmpdir(), "nklein-key-"));
+		try {
+			const resolved = realpathSync(viaSymlink);
+			expect(createAgentSandboxProjectKey(viaSymlink)).toBe(createAgentSandboxProjectKey(resolved));
+		} finally {
+			rmSync(viaSymlink, { recursive: true, force: true });
+		}
+		// Nonexistent paths still key deterministically off the raw string (never throw).
+		expect(createAgentSandboxProjectKey("/no/such/path")).toBe(createAgentSandboxProjectKey("/no/such/path"));
+	});
+
+	it("never assigns a task to a running container missing its project mount — retires the empty stale container and restarts with fresh mounts (run19)", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
+		});
+
+		await manager.acquireSlot({ taskId: "task-a", projectRepoPath: "/no/such/repo-a" });
+		await manager.disposeWorkspace("task-a");
+		// The container is still running, but its mounts were baked at start — /repos/<key-b> does not exist
+		// inside it. Assigning task-b there would fail `git clone` (run19's "repository does not exist").
+		const second = await manager.acquireSlot({ taskId: "task-b", projectRepoPath: "/no/such/repo-b" });
+		expect(second.taskId).toBe("task-b");
+
+		const runs = calls.filter((args) => args[0] === "run");
+		expect(runs).toHaveLength(2);
+		const keyB = createAgentSandboxProjectKey("/no/such/repo-b");
+		expect(runs[1]?.join(" ")).toContain(`dst=/repos/${keyB}`);
+		// The stale container was retired (docker rm -f) before the fresh start.
+		const removals = calls.filter((args) => args[0] === "rm" && args.includes("nklein-agent-sandbox-1"));
+		expect(removals.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("rejects a bounded queued acquisition when no slot opens in time, without leaking the later-freed slot", async () => {
+		const { execFile: execFileStub } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 1, idleTimeoutMs: 0 },
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		// Auxiliary acquisitions (review sessions, acceptance re-checks) must NEVER wait forever — the slot
+		// holder may be waiting on the very check that queued (the review-seam freeze class).
+		await expect(
+			manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo", maxQueueWaitMs: 40 }),
+		).rejects.toThrow(/No sandbox slot opened within/);
+
+		// Freeing the holder afterwards must not leak the slot to the dead waiter: a new task gets it.
+		await manager.disposeWorkspace("task-1");
+		await expect(manager.acquireSlot({ taskId: "task-3", projectRepoPath: "/repo" })).resolves.toMatchObject({
+			taskId: "task-3",
+			slot: 1,
+		});
 	});
 
 	it("does not over-assign a freed slot while draining multiple queued tasks", async () => {

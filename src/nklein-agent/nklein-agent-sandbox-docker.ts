@@ -4,6 +4,7 @@
 // the deterministic per-task uid are unit-testable away from the effectful AgentSandboxManager. The sandbox
 // module re-exports this surface so existing importers (runtime-config, server, task-session-service) are unchanged.
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { type SandboxNetworkPolicy, sandboxNetworkHasEgress } from "../core/agent-rulesets";
 import {
 	normalizeNonNegativeInteger,
@@ -75,7 +76,18 @@ export function resolveAgentSandboxImageName(): string {
 }
 
 export function createAgentSandboxProjectKey(projectRepoPath: string): string {
-	return createHash("sha256").update(projectRepoPath).digest("hex").slice(0, 12);
+	// CANONICALIZE before hashing (run19 root cause): the same repo reached this seam under two spellings —
+	// macOS's `/var/folders/...` TMPDIR symlink vs the resolved `/private/var/folders/...` — hashing to two
+	// different keys. The container was started with a mount for one key, then the review/acceptance prep asked
+	// for the other, and `git clone /repos/<otherKey>` failed ("repository does not exist"), fail-closing every
+	// delivery. realpath makes every spelling of one directory produce ONE key (fallback: the raw path).
+	let canonicalPath = projectRepoPath;
+	try {
+		canonicalPath = realpathSync(projectRepoPath);
+	} catch {
+		// Path may not exist yet (tests, dry paths) — hash the raw string rather than throw.
+	}
+	return createHash("sha256").update(canonicalPath).digest("hex").slice(0, 12);
 }
 
 export function createAgentSandboxTaskUid(taskId: string): number {

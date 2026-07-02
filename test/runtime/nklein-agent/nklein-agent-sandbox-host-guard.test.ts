@@ -127,10 +127,11 @@ describe("sandbox no-host-execution guard", () => {
 		});
 
 		const shellExecution = resolveShellExecution("npm test");
-		expect(exec).toHaveBeenCalledWith("task-1", [shellExecution.binary, ...shellExecution.args], {
+		// The check runs in its OWN ::acceptance sandbox session — never the worker's placement (run19).
+		expect(exec).toHaveBeenCalledWith("task-1::acceptance", [shellExecution.binary, ...shellExecution.args], {
 			timeoutMs: 300_000,
 		});
-		expect(disposeWorkspace).toHaveBeenCalledWith("task-1");
+		expect(disposeWorkspace).toHaveBeenCalledWith("task-1::acceptance");
 		expect(childProcessMocks.execFile).not.toHaveBeenCalled();
 		expect(fsPromisesMocks.appendFile).not.toHaveBeenCalled();
 		expect(fsPromisesMocks.mkdir).not.toHaveBeenCalled();

@@ -888,14 +888,20 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		});
 		expect(sandboxManager.assertAvailableMock).toHaveBeenCalledTimes(1);
 		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
-			taskId: "task-acceptance",
+			// Its OWN ::acceptance session with a bounded slot wait (run19: colliding with the worker's placement
+			// destroyed the live workspace; an unbounded wait froze the review seam). No result branch exists for
+			// this task, so the base ref is the fallback tree.
+			taskId: "task-acceptance::acceptance",
 			projectRepoPath: "/tmp/project",
 			baseRef: "main",
+			maxQueueWaitMs: 120_000,
 		});
-		expect(sandboxManager.execMock).toHaveBeenCalledWith("task-acceptance", ["/bin/sh", "-c", "npm test"], {
-			timeoutMs: 1234,
-		});
-		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-acceptance");
+		expect(sandboxManager.execMock).toHaveBeenCalledWith(
+			"task-acceptance::acceptance",
+			["/bin/sh", "-c", "npm test"],
+			{ timeoutMs: 1234 },
+		);
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-acceptance::acceptance");
 	});
 
 	it("disposes a sandbox workspace when SDK start fails", async () => {

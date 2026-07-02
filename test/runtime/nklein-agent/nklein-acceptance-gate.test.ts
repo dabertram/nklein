@@ -188,9 +188,13 @@ describe("nklein acceptance gate", () => {
 
 		await vi.waitFor(() => {
 			expect(prepareWorkspace).toHaveBeenCalledWith({
-				taskId: "task-1",
+				// The check's OWN synthetic sandbox session — colliding with the worker's taskId destroyed the live
+				// worker workspace (prepareWorkspace rm-rf's + re-clones the workdir keyed by taskId). Bounded slot
+				// wait: this auxiliary seam must fail closed instead of queueing forever behind a busy pool.
+				taskId: "task-1::acceptance",
 				projectRepoPath: "/repo",
 				baseRef: null,
+				maxQueueWaitMs: 120_000,
 			});
 		});
 		await Promise.resolve();
@@ -207,10 +211,10 @@ describe("nklein acceptance gate", () => {
 		});
 		const shellExecution = resolveShellExecution("npm test");
 		expect(assertAvailable).toHaveBeenCalledTimes(1);
-		expect(exec).toHaveBeenCalledWith("task-1", [shellExecution.binary, ...shellExecution.args], {
+		expect(exec).toHaveBeenCalledWith("task-1::acceptance", [shellExecution.binary, ...shellExecution.args], {
 			timeoutMs: 300_000,
 		});
-		expect(disposeWorkspace).toHaveBeenCalledWith("task-1");
+		expect(disposeWorkspace).toHaveBeenCalledWith("task-1::acceptance");
 	});
 
 	it("rejects sandbox acceptance without a bound task id", async () => {

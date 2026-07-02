@@ -107,6 +107,13 @@ interface ContainerState {
 	retiring: Promise<void> | null;
 	occupancy: Set<string>;
 	idleTimer: ReturnType<typeof setTimeout> | null;
+	/**
+	 * The project keys this container was `docker run` with (mounts are BAKED at start — a project registered
+	 * later is NOT reachable under /repos/<key> in an already-running container). null = not started yet, so any
+	 * project fits (the start will mount the then-current registry). run19: assigning a task to a running
+	 * container without its mount made `git clone /repos/<key>` fail and fail-closed the whole delivery.
+	 */
+	mountedProjectKeys: Set<string> | null;
 }
 
 interface TaskPlacement {
@@ -129,6 +136,12 @@ interface AgentSandboxAcquireSlotInput {
 	taskId: string;
 	projectRepoPath: string;
 	onQueued?: () => void;
+	/**
+	 * Bounded queue wait (ms). When set, a queued acquisition REJECTS after this long instead of waiting forever —
+	 * required for auxiliary acquisitions (review sessions, acceptance re-checks) whose slot may be held by the very
+	 * session that is waiting on THEM (run19's review-seam deadlock). Unset = wait indefinitely (primary task starts).
+	 */
+	maxQueueWaitMs?: number;
 }
 
 export class AgentSandboxUnavailableError extends Error {
@@ -274,12 +287,32 @@ export class AgentSandboxManager {
 		}
 		input.onQueued?.();
 		return await new Promise<TaskPlacement>((resolve, reject) => {
-			this.queue.push({
+			const entry = {
 				taskId: input.taskId,
 				projectRepoPath: input.projectRepoPath,
 				resolve,
 				reject,
-			});
+			};
+			this.queue.push(entry);
+			// run19 live finding (the review-sandbox-prep hang): AUXILIARY acquisitions (the acceptance re-check,
+			// the reviewer session) must never queue FOREVER behind a held slot — the holder may be waiting on the
+			// very check that's queued (a pool-capacity deadlock at the review seam). A bounded wait rejects with a
+			// clear error; the auxiliary callers fail CLOSED (held in review) instead of freezing the run.
+			const waitCapMs = input.maxQueueWaitMs;
+			if (typeof waitCapMs === "number" && waitCapMs > 0) {
+				const timer = setTimeout(() => {
+					const queuedIndex = this.queue.indexOf(entry);
+					if (queuedIndex >= 0) {
+						this.queue.splice(queuedIndex, 1);
+						reject(
+							new AgentSandboxUnavailableError(
+								`No sandbox slot opened within ${Math.round(waitCapMs / 1000)}s for ${input.taskId}; giving up the queued wait (fail-closed).`,
+							),
+						);
+					}
+				}, waitCapMs);
+				timer.unref?.();
+			}
 		});
 	}
 
@@ -288,11 +321,14 @@ export class AgentSandboxManager {
 		projectRepoPath: string;
 		baseRef?: string | null;
 		onQueued?: () => void;
+		/** Bounded slot wait for AUXILIARY preparations (review sessions, acceptance re-checks) — see acquireSlot. */
+		maxQueueWaitMs?: number;
 	}): Promise<{ workdir: string; uid: number }> {
 		const placement = await this.acquireSlot({
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,
 			onQueued: input.onQueued,
+			...(input.maxQueueWaitMs !== undefined ? { maxQueueWaitMs: input.maxQueueWaitMs } : {}),
 		});
 		try {
 			const repoSource = `/repos/${placement.projectKey}`;
@@ -410,10 +446,14 @@ export class AgentSandboxManager {
 		if (!placement) {
 			return;
 		}
-		const removal = await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
-			workdir: AGENT_SANDBOX_WORKSPACES_DIR,
-		});
+		// run19 ROOT CAUSE: the exec used to be awaited OUTSIDE this try — a throwing docker exec (timeout,
+		// dead container) skipped releaseSlot and LEAKED the slot, deadlocking the pool forever (every later
+		// acquisition queued indefinitely, silently: callers .catch(() => null)). The slot release must be
+		// unconditional: a leftover workdir is recoverable, a leaked slot freezes the whole run.
 		try {
+			const removal = await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
+				workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+			});
 			assertSandboxExecOk(removal, "remove sandbox task workspace");
 		} finally {
 			this.releaseSlot(taskId);
@@ -445,9 +485,23 @@ export class AgentSandboxManager {
 	}
 
 	private async tryAcquireSlot(taskId: string, projectRepoPath: string): Promise<TaskPlacement | null> {
-		const reusable = [...this.containers.values()].find((container) => this.hasContainerCapacity(container));
+		const projectKey = createAgentSandboxProjectKey(projectRepoPath);
+		const canReachProject = (container: ContainerState): boolean =>
+			container.mountedProjectKeys === null || container.mountedProjectKeys.has(projectKey);
+		const reusable = [...this.containers.values()].find(
+			(container) => this.hasContainerCapacity(container) && canReachProject(container),
+		);
 		if (reusable) {
 			return await this.assignContainer(taskId, projectRepoPath, reusable);
+		}
+		// A running-but-EMPTY container whose baked mounts miss this project is stale — retire it so the fresh
+		// start below mounts the current registry (mounts cannot be added to a live container).
+		const staleEmpty = [...this.containers.values()].find(
+			(container) =>
+				this.hasContainerCapacity(container) && !canReachProject(container) && container.occupancy.size === 0,
+		);
+		if (staleEmpty) {
+			await this.retireContainer(staleEmpty);
 		}
 		if (this.containers.size >= this.poolConfig.maxContainers) {
 			return null;
@@ -503,11 +557,12 @@ export class AgentSandboxManager {
 
 	private async startContainer(container: ContainerState): Promise<void> {
 		await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
+		const mounts = [...this.projectMountsByKey.values()];
 		const result = await this.runDocker(
 			buildAgentSandboxDockerRunArgs({
 				slot: container.slot,
 				image: this.image,
-				projectMounts: [...this.projectMountsByKey.values()],
+				projectMounts: mounts,
 				config: this.poolConfig,
 				networkPolicy: this.networkPolicy,
 			}),
@@ -520,6 +575,7 @@ export class AgentSandboxManager {
 		}
 		container.containerId = result.stdout.trim();
 		container.starting = null;
+		container.mountedProjectKeys = new Set(mounts.map((mount) => mount.projectKey));
 	}
 
 	private createContainerState(slot: number): ContainerState {
@@ -532,6 +588,7 @@ export class AgentSandboxManager {
 			retiring: null,
 			occupancy: new Set<string>(),
 			idleTimer: null,
+			mountedProjectKeys: null,
 		};
 	}
 
@@ -598,17 +655,20 @@ export class AgentSandboxManager {
 						return;
 					}
 					const queuedIndex = this.queue.indexOf(queued);
-					if (queuedIndex >= 0) {
-						this.queue.splice(queuedIndex, 1);
+					if (queuedIndex < 0) {
+						// The bounded wait already rejected this entry — hand the slot back instead of leaking it.
+						this.releaseSlot(queued.taskId);
+						return;
 					}
+					this.queue.splice(queuedIndex, 1);
 					queued.resolve(placement);
 				})
 				.catch((error) => {
 					const queuedIndex = this.queue.indexOf(queued);
 					if (queuedIndex >= 0) {
 						this.queue.splice(queuedIndex, 1);
+						queued.reject(error);
 					}
-					queued.reject(error);
 				});
 			index += 1;
 		}

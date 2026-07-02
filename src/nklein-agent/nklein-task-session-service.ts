@@ -2409,10 +2409,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!this.agentSandboxManager) {
 			throw new Error("!Klein acceptance verification requires the configured agent sandbox manager.");
 		}
+		// Test the DELIVERED tree: acceptance evidence must run against the task's result branch, not the base
+		// ref the callers hold (run19 autopsy: base-tree acceptance is false evidence in both directions — a
+		// base-green repo rubber-stamps a no-op, a base-red repo fail-holds perfect work). No result branch yet
+		// (e.g. empty patch) falls back to the base ref, where the empty-patch hold already governs.
+		const resultCommit = await resolveTaskResultBranchCommit({
+			repoPath: input.projectRepoPath,
+			taskId: input.taskId,
+		}).catch(() => null);
 		return await runNKleinAcceptanceGateInSandbox({
 			taskId: input.taskId,
 			projectRepoPath: input.projectRepoPath,
-			baseRef: input.baseRef,
+			baseRef: resultCommit ?? input.baseRef,
 			taskPrompt: input.taskPrompt,
 			timeoutMs: input.timeoutMs,
 			sandboxManager: this.agentSandboxManager,
@@ -2544,6 +2552,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			taskId: reviewTaskId,
 			projectRepoPath: input.projectRepoPath,
 			baseRef: resultCommit ?? input.baseRef ?? null,
+			// Auxiliary seam — NEVER wait forever on a slot (run19 froze here for 15+ min after a leaked slot).
+			// A rejection propagates to the review runner's catch ⇒ review "skipped" ⇒ fail-closed hold, run alive.
+			maxQueueWaitMs: 180_000,
 		});
 		this.sandboxState.setSandbox(
 			reviewTaskId,
