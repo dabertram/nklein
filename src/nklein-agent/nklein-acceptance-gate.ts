@@ -9,6 +9,8 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_ACCEPTANCE_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_ACCEPTANCE_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const DEFAULT_ACCEPTANCE_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+// Keep in sync with the pure mirror in src/core/plan-integration-gate.ts (PLAN_ACCEPTANCE_CHECK_PATTERN) —
+// the core layer cannot value-import this impure module (node:child_process + telemetry sink).
 const ACCEPTANCE_CHECK_PATTERN = /^Acceptance check:\s*(.+?)\s*$/im;
 
 export interface NKleinAcceptanceGateExecution {

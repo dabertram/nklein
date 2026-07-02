@@ -15,6 +15,8 @@ import {
 } from "../core/agent-rulesets";
 import type {
 	RuntimeAgentSandboxStatus,
+	RuntimeBoardData,
+	RuntimeCardReview,
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
 	RuntimeTaskSessionSummary,
@@ -24,6 +26,11 @@ import type {
 import { readPausedTasks } from "../core/card-pause";
 import { decideDeliveryAction } from "../core/delivery-decision";
 import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/delivery-evidence";
+import {
+	findJustCompletedPlans,
+	resolvePlanAcceptanceCommand,
+	resolvePlanFailureSurfaceCardId,
+} from "../core/plan-integration-gate";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -96,7 +103,7 @@ import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from ".
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import type { RuntimeStateHub } from "./runtime-state-hub";
-import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
+import { applyCardReviewToBoard, runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
 
@@ -134,6 +141,10 @@ export interface RuntimeServer {
 
 const WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
 const SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS = [100, 250, 500, 1_000, 2_000] as const;
+/** Head of a failed plan-gate's output persisted on the surfaced card / in the self-observation (§5.0.5). */
+const PLAN_GATE_OUTPUT_HEAD_BUDGET = 400;
+/** Project-level build+test budget: 3× the per-card acceptance default — it checks the whole merged tree. */
+const PLAN_GATE_TIMEOUT_MS = 15 * 60 * 1000;
 
 async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {
 	let lastError: unknown = null;
@@ -320,6 +331,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// an unattended swarm otherwise stalls on a card the worker simply failed to do (the hold is correct; the
 	// missing piece was recovery). Keyed workspace:task; bounded to a single attempt, then the operator owns it.
 	const emptyPatchRedriveAttemptsByTaskKey = new Map<string, number>();
+	// Plan-level integration gate (todo §5.0.5 — decision 2026-07-02: "YES, gate the plan"): ONE gate run per plan
+	// slug per process, keyed workspace:slug — a re-delivery/re-finalization of the plan's last card must not
+	// re-fire the (minutes-long) project-level acceptance run.
+	const completedPlanGateRunKeys = new Set<string>();
 	// run16 live finding: recovery (deferred-retry + ready-sweep) only fired on COMPLETION — a card that dies
 	// (interrupted/failed, e.g. mid-write on a slow model) produces NO completion, so the board froze with
 	// retryable cards waiting. Debounced per workspace so a burst of summary updates costs one sweep.
@@ -628,6 +643,149 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			deps.warn(`Could not record knowledge tool usage for ${summary.taskId}: ${message}`);
 		});
 	};
+	/**
+	 * Surface a plan-gate FAILURE on the board (§5.0.5): move the plan's SOURCE card (or, when it is gone, the
+	 * plan's first member) into the Review lane with a parked review note carrying the command, exit code and
+	 * output head — so the operator sees the plan-level breakage where they already look, instead of a log line.
+	 */
+	const surfacePlanIntegrationGateFailure = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		planSlug: string,
+		failure: { command: string; exitCode: number | null; outputHead: string },
+	): Promise<void> => {
+		let surfacedTaskId: string | null = null;
+		await retryWorkspaceStateLock(() =>
+			mutateWorkspaceState(scope.workspacePath, (latestState) => {
+				const surfaceTaskId = resolvePlanFailureSurfaceCardId(latestState.board, planSlug);
+				const surfaceCard = latestState.board.columns
+					.flatMap((column) => column.cards)
+					.find((card) => card.id === surfaceTaskId);
+				if (!surfaceTaskId || !surfaceCard) {
+					return { board: latestState.board, save: false, value: null };
+				}
+				surfacedTaskId = surfaceTaskId;
+				const review: RuntimeCardReview = {
+					status: "parked",
+					round: surfaceCard.review?.round ?? 0,
+					history: surfaceCard.review?.history ?? [],
+					lastVerdict: "request_changes",
+					lastSummary:
+						`Plan-level integration gate FAILED for plan "${planSlug}": \`${failure.command}\` exited ` +
+						`${failure.exitCode ?? "?"} on the fully-merged tree.`,
+					lastFeedback: failure.outputHead || null,
+					lastInsight: null,
+					signOff: null,
+					parkedReason:
+						"Plan integration gate failed — every card passed in isolation but the merged tree does not. " +
+						"Operator repair owed (v1 opens no repair cards; the re-decompose rung will own that).",
+					updatedAt: Date.now(),
+				};
+				return {
+					board: applyCardReviewToBoard(latestState.board, surfaceTaskId, review, "review"),
+					value: null,
+				};
+			}),
+		);
+		if (surfacedTaskId) {
+			deps.warn(
+				`Plan integration gate FAILED for plan "${planSlug}" (exit ${failure.exitCode ?? "?"}): surfaced on card ${surfacedTaskId} in Review.`,
+			);
+		} else {
+			deps.warn(
+				`Plan integration gate FAILED for plan "${planSlug}" (exit ${failure.exitCode ?? "?"}), but no source/member card remains on the board to surface it on.`,
+			);
+		}
+	};
+	/**
+	 * Plan-level integration gate (todo §5.0.5 — decision 2026-07-02: "YES, gate the plan"). When the LAST
+	 * non-terminal card of a decomposition completes, run the plan's project-level acceptance command against the
+	 * fully-MERGED tree. Fire-and-forget from the completion path: the (minutes-long) check must not delay
+	 * releasing dependents/queued starts. No merge-mutex is needed — the sandbox acceptance CLONES the host repo
+	 * (at `baseRef: "HEAD"` = the merged tree, since the synthetic `plan::<slug>` id has no result branch) into
+	 * its own `plan--<slug>--acceptance` workspace (`normalizeTaskIdForSandboxPath` maps `::` to `--`), so it
+	 * never touches host git state and never collides with a live worker's sandbox.
+	 */
+	const runPlanIntegrationGateForCompletion = (
+		scope: RuntimeTrpcWorkspaceScope,
+		service: NKleinTaskSessionService,
+		completedTaskId: string,
+		board: RuntimeBoardData,
+	): void => {
+		for (const planSlug of findJustCompletedPlans({ board, completedTaskId })) {
+			const gateKey = `${scope.workspaceId}:${planSlug}`;
+			if (completedPlanGateRunKeys.has(gateKey)) {
+				continue;
+			}
+			completedPlanGateRunKeys.add(gateKey);
+			void (async () => {
+				const command = resolvePlanAcceptanceCommand({ board, planSlug });
+				if (!command) {
+					deps.warn(
+						`Plan integration gate skipped for plan "${planSlug}": no member card carries an acceptance command.`,
+					);
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Plan integration gate skipped for plan "${planSlug}": no acceptance command.`,
+						workspacePath: scope.workspacePath,
+						metadata: { category: "plan_integration_gate", planSlug, verdict: "skipped" },
+					});
+					return;
+				}
+				deps.warn(`Plan integration gate for plan "${planSlug}": running \`${command}\` on the merged tree.`);
+				const acceptance = await service.verifyTaskAcceptanceInSandbox({
+					taskId: `plan::${planSlug}`,
+					projectRepoPath: scope.workspacePath,
+					baseRef: "HEAD",
+					taskPrompt: `Acceptance check: ${command}`,
+					timeoutMs: PLAN_GATE_TIMEOUT_MS,
+				});
+				if (acceptance.passed === true) {
+					deps.warn(`Plan integration gate PASSED for plan "${planSlug}": ${command}`);
+					recordSelfObservation({
+						signal: "custom",
+						severity: "info",
+						message: `Plan integration gate passed for plan "${planSlug}".`,
+						workspacePath: scope.workspacePath,
+						metadata: { category: "plan_integration_gate", planSlug, command, verdict: "pass" },
+					});
+					return;
+				}
+				const outputHead = acceptance.output.slice(0, PLAN_GATE_OUTPUT_HEAD_BUDGET);
+				recordSelfObservation({
+					signal: "verification_failed",
+					severity: "error",
+					message: `Plan integration gate FAILED for plan "${planSlug}": ${command}`,
+					workspacePath: scope.workspacePath,
+					metadata: {
+						category: "plan_integration_gate",
+						planSlug,
+						command,
+						verdict: "fail",
+						exitCode: acceptance.exitCode,
+						outputHead,
+					},
+				});
+				await surfacePlanIntegrationGateFailure(scope, planSlug, {
+					command,
+					exitCode: acceptance.exitCode,
+					outputHead,
+				});
+			})().catch((error) => {
+				// An ERRORED gate (sandbox down, lock storm) is not a pass — keep it loud, but don't park cards on
+				// infrastructure noise: only a real FAIL of the command moves the source card to Review.
+				const message = error instanceof Error ? error.message : String(error);
+				deps.warn(`Plan integration gate errored for plan "${planSlug}" (result unknown — NOT a pass): ${message}`);
+				recordSelfObservation({
+					signal: "custom",
+					severity: "warning",
+					message: `Plan integration gate unavailable for plan "${planSlug}": ${message}`,
+					workspacePath: scope.workspacePath,
+					metadata: { category: "plan_integration_gate", planSlug, verdict: "unavailable" },
+				});
+			});
+		}
+	};
 	const finalizeHeadlessAutoReviewTask = (
 		scope: RuntimeTrpcWorkspaceScope,
 		service: NKleinTaskSessionService,
@@ -859,15 +1017,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						}
 					}
 					let readyTaskIds: string[] = [];
+					let completedBoard: RuntimeBoardData | null = null;
 					await mutateWorkspaceState(scope.workspacePath, (latestState) => {
 						const completed = completeTaskAndGetReadyLinkedTaskIds(latestState.board, taskId);
 						readyTaskIds = completed.readyTaskIds;
+						completedBoard = completed.board;
 						return {
 							board: completed.board,
 							save: completed.moved,
 							value: null,
 						};
 					});
+					// §5.0.5 plan-level integration gate: if this delivery completed a decomposition's LAST card, run
+					// the plan's project-level acceptance on the fully-merged tree (fire-and-forget + per-slug debounced
+					// inside — must not delay releasing dependents below).
+					if (completedBoard) {
+						runPlanIntegrationGateForCompletion(scope, service, taskId, completedBoard);
+					}
 					await service.stopTaskSession(taskId).catch(() => null);
 					drainQueuedTaskStarts(scope, { force: true });
 					// §5.AA/§5.AI: retry cards deferred for file-overlap (this completion may have released the file lock)
