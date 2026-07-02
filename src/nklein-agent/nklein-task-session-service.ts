@@ -26,6 +26,7 @@ import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from 
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
 import { applyThinkingDisable } from "../core/model-thinking-control";
+import { raisedTokenBudget } from "../core/retry-policy";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { appendTemporalContext, decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -35,7 +36,11 @@ import {
 	type TaskRunTerminalState,
 	type TaskRunTimeoutSource,
 } from "../state/task-run-summary-store";
-import { recordSelfObservation, type SelfObservationEventInput } from "../telemetry/self-observation-sink";
+import {
+	readSelfObservationEvents,
+	recordSelfObservation,
+	type SelfObservationEventInput,
+} from "../telemetry/self-observation-sink";
 import { isTaskPatchCaptureError, type TaskPatchCaptureError } from "../workspace/task-patch-capture-diagnostics";
 import { applyTaskPatchToResultBranch, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
@@ -236,6 +241,8 @@ export interface NKleinTaskLaunchConfigOverrides {
 	contextWindow?: number | null;
 	apiTimeoutMs?: number | null;
 	turnTimeoutMs?: number | null;
+	/** W1.1: per-turn output-token budget override (the §5.AA budget-raise retry lever); absent ⇒ unchanged. */
+	maxTokensPerTurn?: number | null;
 }
 
 interface NKleinTaskRestartLaunchConfig extends NKleinTaskLaunchConfigOverrides {
@@ -730,7 +737,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					? applyThinkingDisable(input.prompt, launchConfig.modelId ?? "")
 					: input.prompt,
 				initialMessages: input.initialMessages,
-				maxTokensPerTurn: input.maxTokensPerTurn ?? null,
+				maxTokensPerTurn: input.maxTokensPerTurn ?? input.launchConfig.maxTokensPerTurn ?? null,
 				images: input.images,
 				providerId: launchConfig.providerId,
 				modelId: launchConfig.modelId,
@@ -2732,6 +2739,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return;
 		}
 		this.lastRecordedRunStateByTaskId.set(taskId, state);
+		// W1.1b: flag-gated adaptive budget retry on the stall signature (see maybeAdaptiveBudgetRetry).
+		this.maybeAdaptiveBudgetRetry(taskId, summary);
 		const usage = summary.latestUsage ?? null;
 		const promptTokens = usage?.inputTokens ?? null;
 		const completionTokens = usage?.outputTokens ?? null;
@@ -2838,6 +2847,72 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return false;
 		}
 		return previousSummary.state !== "awaiting_review" && nextSummary.state === "awaiting_review";
+	}
+
+	/** W1.1b adaptive-retry state: attempts + last budget per task (bounded by MAX_ADAPTIVE_RETRY_ATTEMPTS). */
+	private readonly adaptiveRetryStateByTaskId = new Map<string, { attempt: number; lastBudget: number }>();
+
+	/**
+	 * W1.1b (audit 2026-07-02, §5.AA): the STALL-signature adaptive retry — flag-gated via `NKLEIN_ADAPTIVE_RETRY`
+	 * (default OFF until the W1.4 scoreboard proves the win). A reasoning model that burns its whole output budget
+	 * on reasoning_content terminates as awaiting_review with NO delivered work and a `model_stalled` observation;
+	 * at temp 0 a plain re-run re-truncates identically, so the ROOT-cause recovery is a re-send with a RAISED
+	 * per-turn budget (`raisedTokenBudget`, ceiling-clamped) through the W1.1a maxTokensPerTurn thread. Bounded to
+	 * 2 attempts; every fire is recorded as a self-observation so the scoreboard can measure recovery rate.
+	 */
+	private maybeAdaptiveBudgetRetry(taskId: string, summary: RuntimeTaskSessionSummary): void {
+		if (!isTruthyEnv(process.env.NKLEIN_ADAPTIVE_RETRY) || summary.state !== "awaiting_review") {
+			return;
+		}
+		const providerId = summary.providerId ?? null;
+		const modelId = summary.modelId ?? null;
+		if (!providerId || !modelId || isHomeAgentSessionId(taskId)) {
+			return;
+		}
+		const state = this.adaptiveRetryStateByTaskId.get(taskId) ?? { attempt: 0, lastBudget: 1024 };
+		if (state.attempt >= 2) {
+			return;
+		}
+		void (async () => {
+			try {
+				// Stall evidence: a model_stalled observation recorded during THIS run (since the session started).
+				const since = summary.startedAt ?? 0;
+				const events = await readSelfObservationEvents({ taskId, limit: 25 }).catch(() => []);
+				const stalled = events.some(
+					(event) =>
+						event.createdAt >= since &&
+						(event.signal === "model_stalled" || event.metadata?.category === "model_stalled"),
+				);
+				// Only a stall WITHOUT delivered work qualifies — a captured result branch means the turn produced
+				// something despite the stall observation (leave it to the normal review flow).
+				if (!stalled || this.sandboxState.getResultBranch(taskId)) {
+					return;
+				}
+				const contextWindow = this.resolveKnownContextWindowForTask(taskId, null) ?? 32_000;
+				const raised = raisedTokenBudget({
+					current: state.lastBudget,
+					attempt: state.attempt + 1,
+					ceiling: Math.max(2_048, contextWindow - 8_192),
+				});
+				this.adaptiveRetryStateByTaskId.set(taskId, { attempt: state.attempt + 1, lastBudget: raised });
+				recordSelfObservation({
+					signal: "custom",
+					severity: "info",
+					message: `Adaptive budget retry ${state.attempt + 1}/2 for ${taskId}: re-sending with maxTokensPerTurn=${raised} after a stalled (likely truncated-mid-reasoning) turn.`,
+					taskId,
+					metadata: { category: "adaptive_budget_retry", attempt: state.attempt + 1, raisedBudget: raised },
+				});
+				await this.sendTaskSessionInput(
+					taskId,
+					"Your previous turn produced no output (it likely exhausted the token budget mid-reasoning). Continue the task and complete it — the output budget has been raised.",
+					"act",
+					undefined,
+					{ providerId, modelId, maxTokensPerTurn: raised },
+				);
+			} catch {
+				// Best-effort recovery — a failed retry leaves the card held in Review exactly as before (fail-closed).
+			}
+		})();
 	}
 
 	/**

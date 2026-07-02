@@ -57,6 +57,11 @@ export class TaskSandboxStateStore {
 		this.finalizingReviewTaskIds.delete(taskId);
 	}
 
+	/** The captured result branch for a task this run, when finalize captured one (W1.1b stall-signature check). */
+	getResultBranch(taskId: string): TaskResultBranch | null {
+		return this.resultBranchByTaskId.get(taskId) ?? null;
+	}
+
 	setResultBranch(taskId: string, branch: TaskResultBranch): void {
 		this.resultBranchByTaskId.set(taskId, branch);
 	}
