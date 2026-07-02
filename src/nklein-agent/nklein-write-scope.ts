@@ -4,6 +4,8 @@
 // so the approval layer can compare an agent's target against the declared filesLikelyTouched scope regardless
 // of which root the path was expressed in. `..` escapes survive normalization so the caller can reject them.
 
+import { normalizeTaskIdForSandboxPath } from "./nklein-agent-sandbox-task-path";
+
 function trimMatchingQuotes(value: string): string {
 	const trimmed = value.trim();
 	if (trimmed.length < 2) {
@@ -26,7 +28,10 @@ export function normalizeScopePath(rawPath: string, workspacePath: string, taskI
 	}
 	const normalizedTaskId = taskId?.trim();
 	if (normalizedTaskId) {
-		const sandboxPrefix = `/workspaces/${normalizedTaskId}/`;
+		// The actual in-container workdir uses the PATH-SAFE task id (e.g. `<id>::merge` → `<id>--merge`), so the
+		// strip-prefix must be built the same way — a raw-id prefix would misclassify every absolute sandbox path
+		// of a synthetic (`::`-suffixed) session as out-of-scope.
+		const sandboxPrefix = `/workspaces/${normalizeTaskIdForSandboxPath(normalizedTaskId)}/`;
 		if (path.startsWith(sandboxPrefix)) {
 			path = path.slice(sandboxPrefix.length);
 		}

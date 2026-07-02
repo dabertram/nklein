@@ -1,3 +1,5 @@
+import { lstat, writeFile } from "node:fs/promises";
+import { resolve, sep } from "node:path";
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contract";
 import { runGit as defaultRunGit, type RunGitOptions } from "./git-utils";
 import { resolveTaskResultBranchCommit as defaultResolveTaskResultBranchCommit } from "./task-result-branches";
@@ -15,6 +17,8 @@ export interface TaskWorktreeAutoMergeSuccess {
 	taskId: string;
 	headCommit: string;
 	reason: string;
+	/** §5.AK Phase B: set when a merge conflict was resolved by the `::merge` agent instead of aborting. */
+	resolvedByAgent?: boolean;
 }
 
 export interface TaskWorktreeAutoMergeConflict {
@@ -47,6 +51,154 @@ export interface TaskWorktreeAutoMergeResult {
 
 type RunGit = (cwd: string, args: string[], options?: RunGitOptions) => ReturnType<typeof defaultRunGit>;
 type ResolveTaskResultBranchCommit = typeof defaultResolveTaskResultBranchCommit;
+
+/** One conflicted file's agent-resolved contents (repo-relative path, full file content). */
+export interface TaskWorktreeAutoMergeResolvedFile {
+	path: string;
+	content: string;
+}
+
+/**
+ * §5.AK Phase B: the merge-conflict RESOLUTION AGENT seam. Called while the host merge is STILL in its
+ * conflicted state (before any abort) with the conflicting task + paths; resolves to the agent-resolved
+ * contents of every conflicted file, or null to fall back to today's abort-and-surface. Implementations run
+ * the bounded `::merge` sandbox session — this module only applies the returned contents deterministically.
+ */
+export type TaskWorktreeAutoMergeConflictResolver = (input: {
+	taskId: string;
+	headCommit: string;
+	conflictedPaths: string[];
+}) => Promise<{ resolvedFiles: TaskWorktreeAutoMergeResolvedFile[] } | null>;
+
+/**
+ * Conflict-marker heuristic for agent-resolved contents: any line starting with the 7-character ours/theirs
+ * (or diff3 base) markers means the "resolution" still contains a conflict hunk. `=======` is deliberately
+ * NOT matched alone — it legitimately appears in Markdown setext headings and comment rules.
+ */
+const LEFTOVER_CONFLICT_MARKER_PATTERN = /^(?:<{7}|>{7}|\|{7})(?: |$)/mu;
+
+const defaultWriteResolvedFile = async (absolutePath: string, content: string): Promise<void> => {
+	await writeFile(absolutePath, content, "utf8");
+};
+
+/** What the host filesystem holds at a resolved-file target path (lstat, so symlinks are NOT followed). */
+export type TaskWorktreeAutoMergeHostPathKind = "file" | "absent" | "other";
+
+const defaultInspectResolvedFilePath = async (absolutePath: string): Promise<TaskWorktreeAutoMergeHostPathKind> => {
+	try {
+		const stats = await lstat(absolutePath);
+		return stats.isFile() ? "file" : "other";
+	} catch (error) {
+		return (error as NodeJS.ErrnoException | null)?.code === "ENOENT" ? "absent" : "other";
+	}
+};
+
+/** True when `git rev-parse -q --verify MERGE_HEAD` confirms the host repo is still mid-merge. */
+async function isMergeInProgress(runGit: RunGit, repoPath: string): Promise<boolean> {
+	const mergeHead = await runGit(repoPath, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
+	return mergeHead.ok;
+}
+
+/**
+ * Applies an agent's conflict resolution to the host repo's IN-CONFLICT merge state: overwrite the conflicted
+ * files with the resolved contents, `git add` them, verify no leftover conflict marker survived (in-memory scan
+ * on the exact written contents), and complete the merge with `git commit --no-edit`. Returns false on ANY
+ * doubt — the caller then aborts the merge (when still in progress), which discards these worktree/index
+ * changes and restores today's fail-safe exactly.
+ *
+ * Host-safety guards (adversarial review, 2026-07): every target must resolve INSIDE the repo and must be a
+ * regular file or absent on the host (lstat — a symlink/dir/fifo target would make writeFile land somewhere
+ * else entirely), and the merge must STILL be in progress (MERGE_HEAD present) immediately before the writes
+ * and again immediately before the commit — the multi-minute agent session leaves a window in which another
+ * actor (concurrent delivery, operator) can consume or abort the host merge state.
+ */
+async function tryApplyAgentConflictResolution(input: {
+	repoPath: string;
+	taskId: string;
+	headCommit: string;
+	conflictedPaths: string[];
+	resolveConflict: TaskWorktreeAutoMergeConflictResolver;
+	runGit: RunGit;
+	writeResolvedFile: (absolutePath: string, content: string) => Promise<void>;
+	inspectResolvedFilePath: (absolutePath: string) => Promise<TaskWorktreeAutoMergeHostPathKind>;
+}): Promise<boolean> {
+	let resolution: { resolvedFiles: TaskWorktreeAutoMergeResolvedFile[] } | null = null;
+	try {
+		resolution = await input.resolveConflict({
+			taskId: input.taskId,
+			headCommit: input.headCommit,
+			conflictedPaths: input.conflictedPaths,
+		});
+	} catch {
+		return false;
+	}
+	if (!resolution) {
+		return false;
+	}
+	const contentByPath = new Map(resolution.resolvedFiles.map((file) => [file.path, file.content]));
+	// A partial resolution cannot complete the merge: every conflicted path must be covered, and every covered
+	// file must be marker-free. Extra (non-conflicted) paths are ignored — the agent only owns the conflict.
+	if (input.conflictedPaths.some((path) => !contentByPath.has(path))) {
+		return false;
+	}
+	if (input.conflictedPaths.some((path) => LEFTOVER_CONFLICT_MARKER_PATTERN.test(contentByPath.get(path) ?? ""))) {
+		return false;
+	}
+	// Pre-write host checks on EVERY target before writing ANY (no partial writes): repo containment
+	// (resolve + prefix — a `../` escape must never leave the repo) and regular-file-or-absent (lstat).
+	const repoRoot = resolve(input.repoPath);
+	const absolutePathByPath = new Map<string, string>();
+	try {
+		for (const path of input.conflictedPaths) {
+			const absolutePath = resolve(repoRoot, path);
+			if (!absolutePath.startsWith(`${repoRoot}${sep}`)) {
+				return false;
+			}
+			if ((await input.inspectResolvedFilePath(absolutePath)) === "other") {
+				return false;
+			}
+			absolutePathByPath.set(path, absolutePath);
+		}
+	} catch {
+		return false;
+	}
+	// The merge must STILL be in progress right before the writes — otherwise the resolution has lost its
+	// target state (another delivery/operator consumed it) and writing would only dirty the host.
+	if (!(await isMergeInProgress(input.runGit, input.repoPath))) {
+		return false;
+	}
+	try {
+		for (const path of input.conflictedPaths) {
+			await input.writeResolvedFile(
+				absolutePathByPath.get(path) ?? resolve(repoRoot, path),
+				contentByPath.get(path) ?? "",
+			);
+		}
+	} catch {
+		return false;
+	}
+	const add = await input.runGit(input.repoPath, ["add", "--", ...input.conflictedPaths]);
+	if (!add.ok) {
+		return false;
+	}
+	// Belt-and-braces marker rescan on the EXACT content that was written (byte-identical to the staged files).
+	// `git diff --cached --check` is deliberately NOT authoritative here: git flags ANY added line of exactly
+	// seven marker characters as "leftover conflict marker" — including a bare `=======`, which legitimately
+	// appears as a Markdown setext underline / RST title and which LEFTOVER_CONFLICT_MARKER_PATTERN deliberately
+	// allows (see the pattern's doc note). The staged check still runs for its diagnostic output only.
+	if (input.conflictedPaths.some((path) => LEFTOVER_CONFLICT_MARKER_PATTERN.test(contentByPath.get(path) ?? ""))) {
+		return false;
+	}
+	await input.runGit(input.repoPath, ["diff", "--cached", "--check", "--", ...input.conflictedPaths]);
+	// Re-verify the merge is still in progress immediately before completing it: `git commit --no-edit` without
+	// our MERGE_HEAD/MERGE_MSG would either fail (empty message) or — worse — complete a DIFFERENT in-flight
+	// merge with these contents. Fail closed instead.
+	if (!(await isMergeInProgress(input.runGit, input.repoPath))) {
+		return false;
+	}
+	const commit = await input.runGit(input.repoPath, ["commit", "--no-edit"]);
+	return commit.ok;
+}
 
 function collectCandidateTasks(input: {
 	board: RuntimeBoardData;
@@ -141,6 +293,12 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 	taskIds?: readonly string[];
 	runGit?: RunGit;
 	resolveTaskResultBranchCommit?: ResolveTaskResultBranchCommit;
+	/** §5.AK Phase B: optional merge-conflict resolution agent; absent ⇒ today's abort-and-surface. */
+	resolveConflict?: TaskWorktreeAutoMergeConflictResolver;
+	/** Test seam for the resolved-content writes; defaults to fs writeFile. */
+	writeResolvedFile?: (absolutePath: string, content: string) => Promise<void>;
+	/** Test seam for the pre-write host-path type check; defaults to fs lstat (regular file / absent / other). */
+	inspectResolvedFilePath?: (absolutePath: string) => Promise<TaskWorktreeAutoMergeHostPathKind>;
 }): Promise<TaskWorktreeAutoMergeResult> {
 	const runGit = input.runGit ?? defaultRunGit;
 	const resolveTaskResultBranchCommit = input.resolveTaskResultBranchCommit ?? defaultResolveTaskResultBranchCommit;
@@ -217,13 +375,56 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 			const conflicted = await runGit(input.repoPath, ["diff", "--name-only", "--diff-filter=U", "-z"], {
 				trimStdout: false,
 			});
-			await runGit(input.repoPath, ["merge", "--abort"]);
+			const conflictedPaths = conflicted.ok ? parseNullSeparatedPaths(conflicted.stdout) : [];
+			// §5.AK Phase B: hand the STILL-CONFLICTED merge state to the resolution agent before aborting. A
+			// successful application completes the merge commit in place; ANY other outcome (null, error, partial
+			// coverage, leftover markers, failed commit) falls through to the abort below — today's fail-safe.
+			if (input.resolveConflict && conflictedPaths.length > 0) {
+				const applied = await tryApplyAgentConflictResolution({
+					repoPath: input.repoPath,
+					taskId: task.id,
+					headCommit,
+					conflictedPaths,
+					resolveConflict: input.resolveConflict,
+					runGit,
+					writeResolvedFile: input.writeResolvedFile ?? defaultWriteResolvedFile,
+					inspectResolvedFilePath: input.inspectResolvedFilePath ?? defaultInspectResolvedFilePath,
+				});
+				if (applied) {
+					const merged: TaskWorktreeAutoMergeSuccess = {
+						type: "merged",
+						taskId: task.id,
+						headCommit,
+						reason:
+							"merge conflict resolved by the merge agent; task result HEAD merged into the base workspace.",
+						resolvedByAgent: true,
+					};
+					steps.push(merged);
+					mergedTaskIds.push(task.id);
+					continue;
+				}
+			}
+			// Fail-safe abort — but only when the merge is actually still in progress (the resolution window is
+			// minutes long; another actor may already have consumed/aborted it, and `merge --abort` would then
+			// stomp on THAT actor's state). A FAILED abort leaves the host needing operator attention, so its
+			// outcome is checked and surfaced loudly in the conflict message — never thrown.
+			let abortWarning = "";
+			if (await isMergeInProgress(runGit, input.repoPath)) {
+				const abort = await runGit(input.repoPath, ["merge", "--abort"]);
+				if (!abort.ok) {
+					const statusAfterFailedAbort = await runGit(input.repoPath, ["status", "--porcelain"]);
+					const statusHead = statusAfterFailedAbort.stdout.split("\n").slice(0, 10).join("\n").trim();
+					abortWarning =
+						` WARNING: \`git merge --abort\` FAILED (${abort.stderr || abort.error || "unknown error"}) — ` +
+						`the base workspace may need manual cleanup. git status --porcelain (head):\n${statusHead || "(empty)"}`;
+				}
+			}
 			const conflict: TaskWorktreeAutoMergeConflict = {
 				type: "conflict",
 				taskId: task.id,
 				headCommit,
-				conflictedPaths: conflicted.ok ? parseNullSeparatedPaths(conflicted.stdout) : [],
-				message: merge.stderr || merge.error || `Merge conflict while merging task "${task.id}".`,
+				conflictedPaths,
+				message: (merge.stderr || merge.error || `Merge conflict while merging task "${task.id}".`) + abortWarning,
 			};
 			steps.push(conflict);
 			return { ok: false, steps, mergedTaskIds, skippedTaskIds, conflict };

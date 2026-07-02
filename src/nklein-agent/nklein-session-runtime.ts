@@ -37,6 +37,10 @@ import {
 	type NKleinMcpRuntimeService,
 	type NKleinMcpToolBundle,
 } from "./nklein-mcp-runtime-service";
+import {
+	createNKleinMergeResolutionTool,
+	type NKleinMergeResolutionSubmittedHandler,
+} from "./nklein-merge-resolution-tool";
 import { buildKanbanModelToolRoutingRules } from "./nklein-model-tool-routing";
 import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
 import {
@@ -490,6 +494,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	onReviewSubmitted?: NKleinReviewSubmittedHandler;
 	/** When provided, this is a W4.3 plan-critique turn: the `submit_plan_critique` tool is attached and its verdict is reported here. */
 	onPlanCritiqueSubmitted?: NKleinPlanCritiqueSubmittedHandler;
+	/** When provided, this is a §5.AK `::merge` turn: the `submit_merge_resolution` tool is attached and its verdict is reported here. */
+	onMergeResolutionSubmitted?: NKleinMergeResolutionSubmittedHandler;
 	/** Receives the agent's focus chain (todo §5.N) when it calls `update_focus_chain`; null disables the tool. */
 	onFocusChainUpdated?: NKleinFocusChainSubmittedHandler;
 	onTeamEvent?: (event: NKleinSdkTeamEvent, teamName: string | null) => void;
@@ -862,6 +868,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			// W4.3 plan-critique turns get the structured `submit_plan_critique` verdict tool — same gating pattern.
 			...(request.onPlanCritiqueSubmitted
 				? [createNKleinPlanCritiqueTool({ onSubmitted: request.onPlanCritiqueSubmitted })]
+				: []),
+			// §5.AK `::merge` turns get the structured `submit_merge_resolution` verdict tool — same gating pattern.
+			...(request.onMergeResolutionSubmitted
+				? [createNKleinMergeResolutionTool({ onSubmitted: request.onMergeResolutionSubmitted })]
 				: []),
 			// Focus-chain checklist tool (todo §5.N): attached whenever the runtime wires a persistence handler.
 			...(request.onFocusChainUpdated

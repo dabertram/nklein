@@ -23,6 +23,12 @@ describe("normalizeScopePath", () => {
 		expect(normalizeScopePath("/workspaces/task1/src/a.ts", "/ws/proj")).toBe("workspaces/task1/src/a.ts");
 	});
 
+	it("strips the PATH-SAFE sandbox prefix for synthetic ::-suffixed session ids (workdir uses -- not ::)", () => {
+		// The in-container workdir for `task1::merge` is /workspaces/task1--merge (normalizeTaskIdForSandboxPath),
+		// so the strip-prefix must match that — a raw-id prefix misclassified every absolute in-scope write.
+		expect(normalizeScopePath("/workspaces/task1--merge/src/a.ts", "/ws/proj", "task1::merge")).toBe("src/a.ts");
+	});
+
 	it("removes leading ./ and / and trailing slashes", () => {
 		expect(normalizeScopePath("./src/a.ts", "/ws/proj")).toBe("src/a.ts");
 		expect(normalizeScopePath("/src/a.ts", "/ws/proj")).toBe("src/a.ts");

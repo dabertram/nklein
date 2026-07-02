@@ -5,12 +5,17 @@ import type {
 	RuntimeProjectConfigFileShape,
 } from "./runtime-config-types";
 
-/** §5.AK file-overlap parallelization — SERIALIZE BY DEFAULT (today's defer-on-overlap; Phase B flips to "allow" once the merge agent lands). */
-export const DEFAULT_FILE_OVERLAP_PARALLELISM: RuntimeFileOverlapParallelism = "serialize";
+/**
+ * §5.AK file-overlap parallelization — ALLOW BY DEFAULT since Phase B: the user's default-allow decision is
+ * backed by the `::merge` conflict-resolution agent at the delivery seam (a conflict now gets one bounded
+ * resolution session before the abort-and-surface fail-safe). The field is opt-OUT: only an explicit
+ * `"serialize"` restores the old defer-on-overlap behavior.
+ */
+export const DEFAULT_FILE_OVERLAP_PARALLELISM: RuntimeFileOverlapParallelism = "allow";
 
-/** Fail-safe normalizer: only the literal string `"allow"` enables overlap parallelism — any other value serializes. */
+/** Opt-out normalizer: only the literal string `"serialize"` defers overlapping starts — absent/garbage resolve to the default (`"allow"`). */
 export function normalizeFileOverlapParallelism(value: unknown): RuntimeFileOverlapParallelism {
-	return value === "allow" ? "allow" : DEFAULT_FILE_OVERLAP_PARALLELISM;
+	return value === "serialize" ? "serialize" : DEFAULT_FILE_OVERLAP_PARALLELISM;
 }
 
 /** Sparse per-project override: `"allow"`/`"serialize"` pass through, anything else → null (= use the global value). */
@@ -37,9 +42,9 @@ export function deriveFileOverlapFields(defaultValue: unknown, overrideValue: un
 
 /**
  * Resolve the file-overlap parallelism block (§5.AK) from the global + project configs, with the
- * `effective = override ?? global` derivation (the skill-dynamics override pattern). Fail-safe: only the
- * literal string `"allow"` enables parallel starts on overlapping files — anything else (absent, garbage,
- * old configs) resolves to `"serialize"`, today's defer-on-overlap behavior.
+ * `effective = override ?? global` derivation (the skill-dynamics override pattern). The field is opt-OUT
+ * since Phase B (merge agent landed): only the literal string `"serialize"` defers overlapping starts —
+ * anything else (absent, garbage, old configs) resolves to `"allow"`.
  */
 export function resolveRuntimeFileOverlapConfig(
 	globalConfig: RuntimeGlobalConfigFileShape | null,

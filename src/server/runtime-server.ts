@@ -291,6 +291,26 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// Requests that arrive mid-drain are remembered here and re-run when the in-flight drain finishes.
 	const queuedStartDrainRerunRequestByWorkspaceId = new Map<string, { force: boolean }>();
 	const autoReviewFinalizationInFlightTaskIds = new Set<string>();
+	// §5.AK Phase B (adversarial review, 2026-07): per-workspace MERGE SERIALIZATION. Delivery finalizations
+	// dedupe per-taskId only, so two cards finishing simultaneously could interleave merge attempts on the SAME
+	// host repo — task B's fall-through `git merge --abort` then destroys task A's in-flight (possibly agent-
+	// resolving, multi-minute) merge and can wedge the repo dirty. Chain merge attempts per workspace so they
+	// run strictly one-at-a-time; a failed predecessor never blocks the next attempt (errors are swallowed in
+	// the chain link, each caller still sees its OWN result/rejection).
+	const mergeChainByWorkspaceId = new Map<string, Promise<unknown>>();
+	const runWorkspaceMergeSerialized = <T>(workspaceId: string, doMerge: () => Promise<T>): Promise<T> => {
+		const prev = mergeChainByWorkspaceId.get(workspaceId) ?? Promise.resolve();
+		const next = prev.catch(() => undefined).then(() => doMerge());
+		const tail = next
+			.catch(() => undefined)
+			.finally(() => {
+				if (mergeChainByWorkspaceId.get(workspaceId) === tail) {
+					mergeChainByWorkspaceId.delete(workspaceId);
+				}
+			});
+		mergeChainByWorkspaceId.set(workspaceId, tail);
+		return next;
+	};
 	// LOST-WAKEUP fix #2 (harness v3, same pattern as the queued-start drain): a finalization request arriving
 	// while one is IN FLIGHT was silently dropped — a fast bounce→re-work round-trip finalizes AGAIN while the
 	// bounce round is still persisting, so round 2's review never ran (and a later stray trigger raced the
@@ -751,12 +771,47 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							);
 							return;
 						}
-						const mergeResult = await mergeTaskWorktreesInDependencyOrder({
-							repoPath: scope.workspacePath,
-							board: reviewState.board,
-							columns: ["review"],
-							taskIds: [taskId],
-						});
+						// Serialized per workspace (see runWorkspaceMergeSerialized): concurrent finalizations must
+						// never interleave merge attempts on the same host repo.
+						const mergeResult = await runWorkspaceMergeSerialized(scope.workspaceId, () =>
+							mergeTaskWorktreesInDependencyOrder({
+								repoPath: scope.workspacePath,
+								board: reviewState.board,
+								columns: ["review"],
+								taskIds: [taskId],
+								// §5.AK Phase B: on a result-branch merge conflict, run the bounded `::merge` resolution
+								// session instead of hard-aborting. Wired UNCONDITIONALLY — conflicts can happen even under
+								// "serialize" (coarse-path edits), and the agent is strictly better than abort in all cases:
+								// every non-"resolved" outcome maps to null, which keeps the abort-and-surface fail-safe
+								// byte-identical to before.
+								resolveConflict: async ({ taskId: conflictTaskId, headCommit, conflictedPaths }) => {
+									try {
+										const session = await service.runMergeResolutionSession({
+											taskId: conflictTaskId,
+											projectRepoPath: scope.workspacePath,
+											mainRef: deliveryCard?.baseRef ?? "HEAD",
+											resultCommit: headCommit,
+											conflictedPaths,
+										});
+										if (session?.outcome === "resolved") {
+											return { resolvedFiles: session.resolvedFiles };
+										}
+										if (session?.outcome === "cannot_resolve") {
+											deps.warn(
+												`Merge-resolution agent could not resolve ${conflictTaskId} (falling back to abort): ${session.reason}`,
+											);
+										}
+										return null;
+									} catch (error) {
+										const message = error instanceof Error ? error.message : String(error);
+										deps.warn(
+											`Merge-resolution session errored for ${conflictTaskId} (falling back to abort): ${message}`,
+										);
+										return null;
+									}
+								},
+							}),
+						);
 						// Durable board-level merge history (todo §5.G) — best-effort, never blocks the merge flow.
 						void recordMergeHistory({ workspacePath: scope.workspacePath, taskId, result: mergeResult });
 						if (!mergeResult.ok) {

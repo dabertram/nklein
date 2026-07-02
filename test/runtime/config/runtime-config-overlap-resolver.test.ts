@@ -17,22 +17,35 @@ const projectConfig = (partial: Partial<RuntimeProjectConfigFileShape>): Runtime
 	partial as RuntimeProjectConfigFileShape;
 
 describe("resolveRuntimeFileOverlapConfig", () => {
-	it("resolves 'serialize' everywhere for empty configs (today's defer-on-overlap default)", () => {
-		expect(DEFAULT_FILE_OVERLAP_PARALLELISM).toBe("serialize");
+	it("resolves 'allow' everywhere for empty configs (§5.AK Phase B default: merge agent backs default-allow)", () => {
+		expect(DEFAULT_FILE_OVERLAP_PARALLELISM).toBe("allow");
 		expect(resolveRuntimeFileOverlapConfig(null, null)).toEqual({
-			fileOverlapParallelism: "serialize",
+			fileOverlapParallelism: "allow",
 			fileOverlapParallelismOverride: null,
-			effectiveFileOverlapParallelism: "serialize",
+			effectiveFileOverlapParallelism: "allow",
 		});
 	});
 
-	it("fails safe: only the literal string 'allow' enables parallelism", () => {
-		for (const value of [true, 1, "ALLOW", "Allow", "yes", "parallel", "", {}, [], null, undefined, "allow "]) {
-			expect(normalizeFileOverlapParallelism(value)).toBe("serialize");
+	it("is opt-OUT: only the literal string 'serialize' defers overlapping starts", () => {
+		for (const value of [
+			true,
+			1,
+			"SERIALIZE",
+			"Serialize",
+			"yes",
+			"parallel",
+			"",
+			{},
+			[],
+			null,
+			undefined,
+			"serialize ",
+		]) {
+			expect(normalizeFileOverlapParallelism(value)).toBe("allow");
 			expect(
 				resolveRuntimeFileOverlapConfig(globalConfig({ fileOverlapParallelism: value as unknown as "allow" }), null)
 					.effectiveFileOverlapParallelism,
-			).toBe("serialize");
+			).toBe("allow");
 		}
 		expect(normalizeFileOverlapParallelism("allow")).toBe("allow");
 		expect(normalizeFileOverlapParallelism("serialize")).toBe("serialize");
