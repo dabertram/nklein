@@ -271,6 +271,10 @@ async function main(): Promise<void> {
 		workspacePath = createRes.payload.workspacePath;
 		const task = createRes.payload.task;
 		log(`Project workspace: ${workspaceId}\n  path: ${workspacePath}\n  seed (decompose) card: ${task.id}`);
+		// The spawned backend serves the built web UI (src/server/assets.ts), so the LIVE project board is
+		// browsable for the whole run — the link is re-printed on every board change so it is always at hand.
+		const boardUrl = `${server.baseUrl}/${encodeURIComponent(workspaceId)}`;
+		log(`\n  ┌─ LIVE BOARD ──────────────────────────────────────────────\n  │  ${boardUrl}\n  └─ (open in a browser any time; dies when this harness exits)\n`);
 
 		const startRes = await requestJson<{ ok?: boolean; error?: string; errorCode?: string; selectionReason?: string }>({
 			baseUrl: server.baseUrl,
@@ -357,7 +361,9 @@ async function main(): Promise<void> {
 				const columns = stateRes.payload.board?.columns ?? [];
 				const { summary, total, active, terminal } = summarizeColumns(columns);
 				if (summary !== lastSummary) {
-					log(`[${new Date().toISOString().slice(11, 19)}] ${summary}  (total=${total} active=${active} terminal=${terminal})`);
+					log(
+						`[${new Date().toISOString().slice(11, 19)}] ${summary}  (total=${total} active=${active} terminal=${terminal})  board: ${boardUrl}`,
+					);
 					lastSummary = summary;
 					lastProgressAt = Date.now();
 				}
