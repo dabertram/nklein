@@ -1972,7 +1972,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		this.resetInterruptedTaskState(taskId);
 		this.launchConfigByTaskId.delete(taskId);
-		await this.sessionRuntime.stopTaskSession(taskId).catch(() => null);
+		// HARD-abort, not graceful stop (runs 21/22 live finding): the architect's in-flight turn kept streaming
+		// after the card completed — its hooks flipped the summary back to "running" for 18+ minutes, holding the
+		// endpoint slot AND defeating the dead-stall detector (a phantom-alive session). The decomposition is
+		// applied; whatever the turn was still generating is pure waste.
+		this.clearTaskTimeout(taskId, "stream");
+		this.clearTaskTimeout(taskId, "tool");
+		this.clearTaskTimeout(taskId, "conversation");
+		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
+		clearActiveTurnState(entry);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.forgetSandboxTask(taskId);
 		const message = "Decomposition applied; source task completed.";
