@@ -104,6 +104,10 @@ import {
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeRulesetsConfig } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
+import {
+	normalizeSetupWizardCompletedAt,
+	resolveRuntimeSetupWizardConfig,
+} from "./runtime-config-setup-wizard-resolver";
 import { resolveRuntimeSkillDynamicsConfig } from "./runtime-config-skill-dynamics-resolver";
 import { createRuntimeConfigStateFromValues } from "./runtime-config-state-factory";
 import { resolveRuntimeSuitabilityConfig } from "./runtime-config-suitability-resolver";
@@ -234,6 +238,7 @@ function toRuntimeConfigState({
 		selectedShortcutLabel: normalizeShortcutLabel(globalConfig?.selectedShortcutLabel),
 		developerModeEnabled: normalizeDeveloperModeEnabled(globalConfig),
 		replayCardsEnabled: normalizeBoolean(globalConfig?.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
+		...resolveRuntimeSetupWizardConfig(globalConfig, projectConfig),
 		knowsTodayEnabled: normalizeBoolean(globalConfig?.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		sandboxMcpServersEnabled: normalizeBoolean(
 			globalConfig?.sandboxMcpServersEnabled,
@@ -325,6 +330,7 @@ async function writeRuntimeProjectConfigFile(
 	configPath: string | null,
 	config: {
 		shortcuts: RuntimeProjectShortcut[];
+		projectSetupWizardCompletedAt?: number | null;
 		codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 		modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 		skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;
@@ -337,6 +343,7 @@ async function writeRuntimeProjectConfigFile(
 	},
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
+	const projectSetupWizardCompletedAt = normalizeSetupWizardCompletedAt(config.projectSetupWizardCompletedAt);
 	const codeEmbeddingOverride = normalizeCodeEmbeddingOverride(config.codeEmbeddingOverride);
 	const modelSuitabilityPolicyOverride = normalizeModelSuitabilityPolicyOverride(
 		config.modelSuitabilityPolicyOverride,
@@ -366,6 +373,9 @@ async function writeRuntimeProjectConfigFile(
 		if (fileOverlapParallelismOverride) {
 			throw new Error("Cannot save project file-overlap parallelism override without a selected project.");
 		}
+		if (projectSetupWizardCompletedAt !== null) {
+			throw new Error("Cannot save project setup-wizard completion stamp without a selected project.");
+		}
 		if (maxConcurrentTasksOverride !== null) {
 			throw new Error("Cannot save project concurrent task override without a selected project.");
 		}
@@ -382,6 +392,7 @@ async function writeRuntimeProjectConfigFile(
 	}
 	if (
 		normalizedShortcuts.length === 0 &&
+		projectSetupWizardCompletedAt === null &&
 		codeEmbeddingOverride === null &&
 		modelSuitabilityPolicyOverride === null &&
 		skillDynamicsLevelOverride === null &&
@@ -404,6 +415,7 @@ async function writeRuntimeProjectConfigFile(
 		configPath,
 		{
 			shortcuts: normalizedShortcuts,
+			...(projectSetupWizardCompletedAt !== null ? { projectSetupWizardCompletedAt } : {}),
 			...(codeEmbeddingOverride ? { codeEmbeddingOverride } : {}),
 			...(modelSuitabilityPolicyOverride ? { modelSuitabilityPolicyOverride } : {}),
 			...(skillDynamicsLevelOverride ? { skillDynamicsLevelOverride } : {}),
@@ -464,6 +476,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		workspaceBaseDir: current.workspaceBaseDir,
 		developerModeEnabled: current.developerModeEnabled,
 		replayCardsEnabled: current.replayCardsEnabled,
+		setupWizardCompletedAt: current.setupWizardCompletedAt,
+		projectSetupWizardCompletedAt: null,
 		knowsTodayEnabled: current.knowsTodayEnabled,
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
@@ -541,6 +555,8 @@ export async function saveRuntimeConfig(
 		workspaceBaseDir: string | null;
 		developerModeEnabled?: boolean;
 		replayCardsEnabled?: boolean;
+		setupWizardCompletedAt?: number | null;
+		projectSetupWizardCompletedAt?: number | null;
 		knowsTodayEnabled?: boolean;
 		sandboxMcpServersEnabled?: boolean;
 		retrievalEgressEnabled?: boolean;
@@ -595,6 +611,7 @@ export async function saveRuntimeConfig(
 			workspaceBaseDir: config.workspaceBaseDir,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
+			setupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.setupWizardCompletedAt),
 			knowsTodayEnabled: normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 			sandboxMcpServersEnabled: normalizeBoolean(
 				config.sandboxMcpServersEnabled,
@@ -655,6 +672,7 @@ export async function saveRuntimeConfig(
 		});
 		await writeRuntimeProjectConfigFile(projectConfigPath, {
 			shortcuts: config.shortcuts,
+			projectSetupWizardCompletedAt: config.projectSetupWizardCompletedAt,
 			codeEmbeddingOverride: config.codeEmbeddingOverride,
 			modelSuitabilityPolicyOverride: config.modelSuitabilityPolicyOverride,
 			skillDynamicsLevelOverride: config.skillDynamicsLevelOverride,
@@ -672,6 +690,8 @@ export async function saveRuntimeConfig(
 			workspaceBaseDir: config.workspaceBaseDir,
 			developerModeEnabled: normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED),
 			replayCardsEnabled: normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
+			setupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.setupWizardCompletedAt),
+			projectSetupWizardCompletedAt: normalizeSetupWizardCompletedAt(config.projectSetupWizardCompletedAt),
 			knowsTodayEnabled: normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 			sandboxMcpServersEnabled: normalizeBoolean(
 				config.sandboxMcpServersEnabled,
@@ -754,6 +774,11 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		}
 		const nextConfig = {
 			...mergeGlobalRuntimeConfigFields(updates, current),
+			projectSetupWizardCompletedAt: keepNormalizedValue(
+				updates.projectSetupWizardCompletedAt,
+				current.projectSetupWizardCompletedAt,
+				normalizeSetupWizardCompletedAt,
+			),
 			codeEmbeddingOverride: keepNormalizedValue(
 				updates.codeEmbeddingOverride,
 				current.codeEmbeddingOverride,
@@ -829,6 +854,7 @@ export async function updateGlobalRuntimeConfig(
 		async () => {
 			const nextConfig = {
 				...mergeGlobalRuntimeConfigFields(updates, current),
+				projectSetupWizardCompletedAt: null,
 				codeEmbeddingOverride: null,
 				modelSuitabilityPolicyOverride: null,
 				skillDynamicsLevelOverride: null,

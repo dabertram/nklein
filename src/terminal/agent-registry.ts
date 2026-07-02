@@ -171,6 +171,8 @@ export function buildRuntimeConfigResponse(
 		concurrencyOverride: runtimeConfig.concurrencyOverride,
 		developerModeEnabled: runtimeConfig.developerModeEnabled,
 		replayCardsEnabled: runtimeConfig.replayCardsEnabled,
+		setupWizardCompletedAt: runtimeConfig.setupWizardCompletedAt,
+		projectSetupWizardCompletedAt: runtimeConfig.projectSetupWizardCompletedAt,
 		knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 		sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
 		retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,

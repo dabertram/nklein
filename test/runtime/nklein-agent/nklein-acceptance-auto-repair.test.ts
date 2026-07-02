@@ -83,6 +83,8 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		workspaceBaseDir: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
+		setupWizardCompletedAt: null,
+		projectSetupWizardCompletedAt: null,
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
 		retrievalEgressEnabled: false,

@@ -92,6 +92,10 @@ import {
 	normalizeRetrievalEgressEnabled,
 	normalizeRetrievalSearchBackendUrl,
 } from "./runtime-config-retrieval-resolver";
+import {
+	DEFAULT_SETUP_WIZARD_COMPLETED_AT,
+	normalizeSetupWizardCompletedAt,
+} from "./runtime-config-setup-wizard-resolver";
 import type { RuntimeGlobalConfigFileShape } from "./runtime-config-types";
 import {
 	assignChangedConfigField,
@@ -106,6 +110,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	selectedShortcutLabel?: string | null;
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
+	setupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
@@ -155,6 +160,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 		config.selectedShortcutLabel === undefined ? undefined : normalizeShortcutLabel(config.selectedShortcutLabel);
 	const developerModeEnabled = normalizeBoolean(config.developerModeEnabled, DEFAULT_DEVELOPER_MODE_ENABLED);
 	const replayCardsEnabled = normalizeBoolean(config.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
+	const setupWizardCompletedAt = normalizeSetupWizardCompletedAt(config.setupWizardCompletedAt);
 	const knowsTodayEnabled = normalizeBoolean(config.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED);
 	const sandboxMcpServersEnabled = normalizeBoolean(
 		config.sandboxMcpServersEnabled,
@@ -333,6 +339,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		payload.developerModeEnabled = developerModeEnabled;
 	}
 	assignChangedConfigField(payload, existing, "replayCardsEnabled", replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"setupWizardCompletedAt",
+		setupWizardCompletedAt,
+		DEFAULT_SETUP_WIZARD_COMPLETED_AT,
+	);
 	assignChangedConfigField(payload, existing, "knowsTodayEnabled", knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED);
 	assignChangedConfigField(
 		payload,

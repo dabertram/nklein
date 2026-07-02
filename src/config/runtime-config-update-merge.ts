@@ -43,6 +43,7 @@ import {
 	normalizeRetrievalEgressEnabled,
 	normalizeRetrievalSearchBackendUrl,
 } from "./runtime-config-retrieval-resolver";
+import { normalizeSetupWizardCompletedAt } from "./runtime-config-setup-wizard-resolver";
 import type { RuntimeConfigState, RuntimeConfigUpdateInput } from "./runtime-config-types";
 import { keepNormalizedValue, keepUpdatedValue } from "./runtime-config-value-helpers";
 
@@ -57,6 +58,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 		),
 		replayCardsEnabled: keepNormalizedValue(updates.replayCardsEnabled, current.replayCardsEnabled, (value) =>
 			normalizeBoolean(value, DEFAULT_REPLAY_CARDS_ENABLED),
+		),
+		setupWizardCompletedAt: keepNormalizedValue(
+			updates.setupWizardCompletedAt,
+			current.setupWizardCompletedAt,
+			normalizeSetupWizardCompletedAt,
 		),
 		knowsTodayEnabled: keepNormalizedValue(updates.knowsTodayEnabled, current.knowsTodayEnabled, (value) =>
 			normalizeBoolean(value, DEFAULT_KNOWS_TODAY_ENABLED),

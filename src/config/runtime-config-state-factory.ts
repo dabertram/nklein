@@ -48,6 +48,7 @@ import { resolveRuntimeRetrievalConfig } from "./runtime-config-retrieval-resolv
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { deriveRulesetsFields } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
+import { resolveRuntimeSetupWizardConfig } from "./runtime-config-setup-wizard-resolver";
 import { deriveSkillDynamicsFields } from "./runtime-config-skill-dynamics-resolver";
 import { deriveSuitabilityFields } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
@@ -62,6 +63,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	selectedShortcutLabel: string | null;
 	developerModeEnabled: boolean;
 	replayCardsEnabled: boolean;
+	setupWizardCompletedAt: number | null;
+	projectSetupWizardCompletedAt: number | null;
 	knowsTodayEnabled: boolean;
 	sandboxMcpServersEnabled: boolean;
 	retrievalEgressEnabled: boolean;
@@ -150,6 +153,10 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			retrievalEgressEnabled: input.retrievalEgressEnabled,
 			retrievalSearchBackendUrl: input.retrievalSearchBackendUrl,
 		}),
+		...resolveRuntimeSetupWizardConfig(
+			{ setupWizardCompletedAt: input.setupWizardCompletedAt },
+			{ projectSetupWizardCompletedAt: input.projectSetupWizardCompletedAt },
+		),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig({
 			decompositionAutoApplyEnabled: input.decompositionAutoApplyEnabled,

@@ -51,6 +51,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("selectedShortcutLabel"),
 	runtimeConfigChangeField("developerModeEnabled"),
 	runtimeConfigChangeField("replayCardsEnabled"),
+	runtimeConfigChangeField("setupWizardCompletedAt"),
 	runtimeConfigChangeField("knowsTodayEnabled"),
 	runtimeConfigChangeField("sandboxMcpServersEnabled"),
 	runtimeConfigChangeField("retrievalEgressEnabled"),
@@ -91,6 +92,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 // Project-scoped save additionally diffs the project-only fields (the per-project override + shortcuts).
 export const RUNTIME_PROJECT_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeField[] = [
 	...RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS,
+	runtimeConfigChangeField("projectSetupWizardCompletedAt"),
 	runtimeConfigChangeField("codeEmbeddingOverride", areCodeEmbeddingSettingsEqual),
 	runtimeConfigChangeField("modelSuitabilityPolicyOverride", areModelSuitabilityPoliciesEqual),
 	runtimeConfigChangeField("skillDynamicsLevelOverride", areSkillDynamicsLevelsEqual),

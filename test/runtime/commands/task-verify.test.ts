@@ -71,6 +71,8 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		workspaceBaseDir: null,
 		developerModeEnabled: false,
 		replayCardsEnabled: false,
+		setupWizardCompletedAt: null,
+		projectSetupWizardCompletedAt: null,
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
 		retrievalEgressEnabled: false,

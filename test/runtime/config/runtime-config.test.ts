@@ -148,6 +148,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 			{ key: "selectedShortcutLabel", value: "label-x" },
 			{ key: "developerModeEnabled", value: true },
 			{ key: "replayCardsEnabled", value: true },
+			{ key: "setupWizardCompletedAt", value: 1_700_000_000_000 },
 			{ key: "agentAutonomousModeEnabled", value: false },
 			{ key: "agentTimeoutMode", value: "long" },
 			{ key: "agentTimeoutProfile", value: "custom" },
@@ -421,6 +422,45 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(withOverride.skillDynamicsLevelOverride).toBe("fully_static");
 				expect(withOverride.skillDynamicsLevelDefault).toBe("static_skills_auto_model");
 				expect(withOverride.effectiveSkillDynamicsLevel).toBe("fully_static");
+			});
+		} finally {
+			cleanupProject();
+			cleanupHome();
+		}
+	});
+
+	it("defaults both setup-wizard stamps to null and round-trips the global stamp + per-project stamp (§5.BA)", async () => {
+		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-runtime-config-setupwizard-");
+		const { path: tempProject, cleanup: cleanupProject } = createTempDir(
+			"kanban-project-runtime-config-setupwizard-",
+		);
+		try {
+			await withTemporaryEnv({ home: tempHome }, async () => {
+				// Fresh install: never run → both wizards auto-fire.
+				const defaults = await loadRuntimeConfig(tempProject);
+				expect(defaults.setupWizardCompletedAt).toBeNull();
+				expect(defaults.projectSetupWizardCompletedAt).toBeNull();
+
+				// Global stamp persists across reload (regression: the global save must write it to disk).
+				await updateRuntimeConfig(tempProject, { setupWizardCompletedAt: 1_700_000_000_000 });
+				const withGlobal = await loadRuntimeConfig(tempProject);
+				expect(withGlobal.setupWizardCompletedAt).toBe(1_700_000_000_000);
+				expect(withGlobal.projectSetupWizardCompletedAt).toBeNull();
+
+				// Per-project stamp persists independently and the global stamp is preserved.
+				await updateRuntimeConfig(tempProject, { projectSetupWizardCompletedAt: 1_800_000_000_000 });
+				const withProject = await loadRuntimeConfig(tempProject);
+				expect(withProject.projectSetupWizardCompletedAt).toBe(1_800_000_000_000);
+				expect(withProject.setupWizardCompletedAt).toBe(1_700_000_000_000);
+
+				// A garbage/zero stamp normalizes back to null (auto-fire).
+				await updateRuntimeConfig(tempProject, {
+					setupWizardCompletedAt: 0 as unknown as number,
+					projectSetupWizardCompletedAt: -1 as unknown as number,
+				});
+				const reset = await loadRuntimeConfig(tempProject);
+				expect(reset.setupWizardCompletedAt).toBeNull();
+				expect(reset.projectSetupWizardCompletedAt).toBeNull();
 			});
 		} finally {
 			cleanupProject();

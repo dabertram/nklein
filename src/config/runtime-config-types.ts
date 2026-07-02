@@ -24,6 +24,10 @@ export interface RuntimeConfigState {
 	selectedShortcutLabel: string | null;
 	developerModeEnabled: boolean;
 	replayCardsEnabled: boolean;
+	/** §5.BA global guided-setup completion stamp (epoch millis) — null = never run → the global wizard auto-fires on first start. */
+	setupWizardCompletedAt: number | null;
+	/** §5.BA per-project guided-setup completion stamp (epoch millis) — null = never run → the project wizard auto-fires on first load. */
+	projectSetupWizardCompletedAt: number | null;
 	/** §5.AC "knows today" temporal-context injection — OFF BY DEFAULT; opt-in date grounding, still relevance-gated. */
 	knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT; offered to fitting models, global/per-project opt-out. */
@@ -95,6 +99,8 @@ export interface RuntimeConfigUpdateInput {
 	selectedShortcutLabel?: string | null;
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
+	setupWizardCompletedAt?: number | null;
+	projectSetupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
@@ -148,6 +154,7 @@ export interface RuntimeGlobalConfigFileShape {
 	selectedShortcutLabel?: string;
 	developerModeEnabled?: boolean;
 	replayCardsEnabled?: boolean;
+	setupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
@@ -188,6 +195,7 @@ export interface RuntimeGlobalConfigFileShape {
 /** On-disk shape of a project's config file — only the project-scoped settings + per-project overrides. */
 export interface RuntimeProjectConfigFileShape {
 	shortcuts?: RuntimeProjectShortcut[];
+	projectSetupWizardCompletedAt?: number | null;
 	codeEmbeddingOverride?: RuntimeCodeEmbeddingSettings | null;
 	modelSuitabilityPolicyOverride?: RuntimeModelSuitabilityPolicy | null;
 	skillDynamicsLevelOverride?: RuntimeSkillDynamicsLevel | null;

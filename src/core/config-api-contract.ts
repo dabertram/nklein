@@ -94,6 +94,8 @@ export const runtimeConfigResponseSchema = z.object({
 	// §5.AC egress-gated online retrieval — optional for backward compatibility with older runtimes/config files.
 	retrievalEgressEnabled: z.boolean().optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),
+	setupWizardCompletedAt: z.number().nullable().optional(),
+	projectSetupWizardCompletedAt: z.number().nullable().optional(),
 	effectiveCommand: z.string().nullable(),
 	globalConfigPath: z.string(),
 	projectConfigPath: z.string().nullable(),
@@ -125,6 +127,8 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	workspaceBaseDir: z.string().nullable().optional(),
 	developerModeEnabled: z.boolean().optional(),
 	replayCardsEnabled: z.boolean().optional(),
+	setupWizardCompletedAt: z.number().nullable().optional(),
+	projectSetupWizardCompletedAt: z.number().nullable().optional(),
 	knowsTodayEnabled: z.boolean().optional(),
 	sandboxMcpServersEnabled: z.boolean().optional(),
 	retrievalEgressEnabled: z.boolean().optional(),
