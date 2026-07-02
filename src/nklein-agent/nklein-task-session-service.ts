@@ -195,6 +195,8 @@ export { computeRepeatedToolCallCandidate, formatRepeatedToolCallParkMessage } f
 
 /** Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned (todo §5.K). */
 const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
+/** §5.AW: a speculative mirror is a full worker attempt — give it a worker-scale bound (arbitration usually cancels it sooner). */
+const DEFAULT_SPECULATIVE_MIRROR_TIMEOUT_MS = 15 * 60 * 1000;
 /**
  * Opt-in stream-event tracing (`NKLEIN_DEBUG_STREAM_EVENTS=1`). Prints every SDK event reaching the service with a
  * wall-clock timestamp + the gap since the previous event for that task — so a "stream inactivity" stall can be read
@@ -392,6 +394,21 @@ export interface NKleinTaskSessionService {
 		conflictedPaths: string[];
 		timeoutMs?: number;
 	}): Promise<NKleinMergeResolutionSessionOutcome | null>;
+	/**
+	 * §5.AW opportunistic best-of-N: run a speculative worker session `<taskId>::spec` — a lineage-diverse
+	 * idle model independently implementing the same card in its own sandbox — capturing its work to the
+	 * `::spec` result branch. Resolves true when a non-empty spec result branch was captured.
+	 */
+	runSpeculativeMirrorSession(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		prompt: string;
+		mirror: { providerId: string; modelId: string };
+		timeoutMs?: number;
+	}): Promise<boolean>;
+	/** §5.AW: the primary handed off first — abort a still-running `::spec` mirror; its work is discarded. */
+	cancelSpeculativeMirror(taskId: string): Promise<void>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
@@ -2876,6 +2893,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return await this.pickDiverseReviewerModel(launch, taskId, "worker").catch(() => null);
 	}
 
+	/** #31: `::review` sessions share one workspace path per task — two concurrent rounds destroy each other. */
+	private readonly inFlightSecondOpinionReviewTaskIds = new Set<string>();
+
 	async runSecondOpinionReviewSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -2887,6 +2907,22 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!this.agentSandboxManager) {
 			return null;
 		}
+		// #31 (run32 live): a second concurrent review for the same task would prepare the SAME
+		// `<taskId>::review` workspace and the first round's teardown would destroy it mid-turn (the grinding
+		// blocked-read loop + no verdict). Single-flight: the caller treats null as "skipped" (fail-closed
+		// hold), and the in-flight round concludes normally.
+		if (this.inFlightSecondOpinionReviewTaskIds.has(input.taskId)) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Second-opinion review already in flight for ${input.taskId}; skipping the concurrent round.`,
+				taskId: `${input.taskId}::review`,
+				workspacePath: input.projectRepoPath,
+				metadata: { category: "second_opinion_review_single_flight" },
+			});
+			return null;
+		}
+		this.inFlightSecondOpinionReviewTaskIds.add(input.taskId);
 		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
 		// W2.5a (audit 2026-07-02, §5.AB): with NO configured reviewer this previously fell back to the WORKER's
 		// own model — the model reviewing its own work, the worst monoculture form. Auto-pick a lineage-DIVERSE
@@ -2999,6 +3035,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 			return verdict;
 		} finally {
+			this.inFlightSecondOpinionReviewTaskIds.delete(input.taskId);
 			await this.sessionRuntime.clearTaskSessions(reviewTaskId).catch(() => undefined);
 			await this.agentSandboxManager.disposeWorkspace(reviewTaskId).catch(() => undefined);
 			this.launchConfigByTaskId.delete(reviewTaskId);
@@ -3006,6 +3043,144 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.modelEndpoint.forget(reviewTaskId);
 			this.contextBudgetInputs.forget(reviewTaskId);
 			this.sandboxState.deleteSandbox(reviewTaskId);
+		}
+	}
+
+	/** §5.AW: specs the arbitration seam canceled — the runner must NOT capture their (partial) work. */
+	private readonly canceledSpeculativeMirrorTaskIds = new Set<string>();
+
+	/** §5.AW: the primary handed off first — abort a still-running `::spec` mirror and discard its work. */
+	async cancelSpeculativeMirror(taskId: string): Promise<void> {
+		const specTaskId = `${taskId}::spec`;
+		this.canceledSpeculativeMirrorTaskIds.add(specTaskId);
+		await this.cancelTaskTurn(specTaskId).catch(() => undefined);
+	}
+
+	/**
+	 * §5.AW opportunistic best-of-N: a SPECULATIVE WORKER session `<taskId>::spec` — a lineage-diverse idle
+	 * model independently implementing the same card in its own sandbox workspace. Mirrors
+	 * {@link runSecondOpinionReviewSession}'s bounded shape (auxiliary prepareWorkspace wait, bounded turn,
+	 * full teardown, never throws), but unlike the verdict sessions it CAPTURES its work to the `::spec`
+	 * result branch on completion — that branch's existence at review time is what arms the A/B arbitration
+	 * seed. A mirror canceled via {@link cancelSpeculativeMirror} (the primary won the race) never captures.
+	 */
+	async runSpeculativeMirrorSession(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		prompt: string;
+		mirror: { providerId: string; modelId: string };
+		timeoutMs?: number;
+	}): Promise<boolean> {
+		if (!this.agentSandboxManager) {
+			return false;
+		}
+		const specTaskId = `${input.taskId}::spec`;
+		this.canceledSpeculativeMirrorTaskIds.delete(specTaskId);
+		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
+		const launchConfig: NKleinTaskRestartLaunchConfig = {
+			...(workerLaunch ?? {}),
+			providerId: input.mirror.providerId,
+			modelId: input.mirror.modelId,
+			workspaceRoot: input.projectRepoPath,
+		};
+		await this.agentSandboxManager.assertAvailable();
+		const baseRef = input.baseRef.trim() || "HEAD";
+		const workspace = await this.agentSandboxManager.prepareWorkspace({
+			taskId: specTaskId,
+			projectRepoPath: input.projectRepoPath,
+			baseRef,
+			// Auxiliary seam — never wait forever on a slot (the run19 lesson); a rejection propagates to the
+			// tick's catch and the mirror is simply skipped this round.
+			maxQueueWaitMs: 180_000,
+		});
+		this.sandboxState.setSandbox(specTaskId, input.projectRepoPath, baseRef);
+		const deadlineMs = Date.now() + (input.timeoutMs ?? DEFAULT_SPECULATIVE_MIRROR_TIMEOUT_MS);
+		const recordSpecError = (error: unknown): void => {
+			recordSelfObservation({
+				signal: "runtime_error",
+				severity: "warning",
+				message: `Speculative mirror session failed: ${error instanceof Error ? error.message : String(error)}`,
+				taskId: specTaskId,
+				workspacePath: input.projectRepoPath,
+				createdAt: Date.now(),
+			});
+		};
+		const runBoundedTurn = async (turn: Promise<unknown>): Promise<void> => {
+			const remainingMs = deadlineMs - Date.now();
+			if (remainingMs <= 0) {
+				return;
+			}
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const timeout = new Promise<void>((resolve) => {
+				timer = setTimeout(resolve, remainingMs);
+			});
+			await Promise.race([turn.then(() => undefined, recordSpecError), timeout]);
+			if (timer) {
+				clearTimeout(timer);
+			}
+		};
+		try {
+			await runBoundedTurn(
+				this.startRuntimeTaskSessionFromLaunchConfig({
+					taskId: specTaskId,
+					cwd: workspace.workdir,
+					workspaceRoot: input.projectRepoPath,
+					prompt: input.prompt,
+					launchConfig,
+					// "smart" = the real-work default (the launch config does not persist the primary's scope choice;
+					// the spec is attempting the same card, so it gets the same default treatment).
+					contextScope: "smart",
+					toolExecutors: createAgentSandboxToolExecutors(this.agentSandboxManager, specTaskId, {
+						pauseController: this.pauseController,
+					}),
+					extraTools: createAgentSandboxExtraTools(this.agentSandboxManager, specTaskId, {
+						sessionId: createSessionId(specTaskId),
+						contextWindow: launchConfig.contextWindow ?? undefined,
+						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+					}),
+				}),
+			);
+			if (this.canceledSpeculativeMirrorTaskIds.has(specTaskId)) {
+				return false; // The primary won the race — partial speculative work is discarded, never captured.
+			}
+			const patch = await this.agentSandboxManager.captureWorkspacePatch(specTaskId, { baseRef });
+			const branch = await applyTaskPatchToResultBranch({
+				repoPath: input.projectRepoPath,
+				taskId: specTaskId,
+				baseRef,
+				patch,
+			});
+			if (!branch) {
+				return false;
+			}
+			this.sandboxState.setResultBranch(specTaskId, branch);
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Speculative mirror captured a candidate: ${branch.branchName} (worker ${workerLaunch?.modelId ?? "unknown"} vs mirror ${input.mirror.modelId}).`,
+				taskId: specTaskId,
+				workspacePath: input.projectRepoPath,
+				metadata: {
+					category: "speculative_mirror_captured",
+					branchName: branch.branchName,
+					headCommit: branch.headCommit,
+					mirrorModelId: input.mirror.modelId,
+				},
+			});
+			return true;
+		} catch (error) {
+			recordSpecError(error);
+			return false;
+		} finally {
+			await this.sessionRuntime.clearTaskSessions(specTaskId).catch(() => undefined);
+			await this.agentSandboxManager.disposeWorkspace(specTaskId).catch(() => undefined);
+			this.launchConfigByTaskId.delete(specTaskId);
+			this.providerIdStore.forget(specTaskId);
+			this.modelEndpoint.forget(specTaskId);
+			this.contextBudgetInputs.forget(specTaskId);
+			this.sandboxState.deleteSandbox(specTaskId);
+			this.canceledSpeculativeMirrorTaskIds.delete(specTaskId);
 		}
 	}
 
@@ -4162,7 +4337,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					);
 					this.recordPatchCaptureStatus(taskId, "empty");
 				}
-				await manager.disposeWorkspace(taskId);
+				// #31 (run32 live): a fast bounce can RE-DRIVE the worker (restore + running) while this
+				// fire-and-forget finalize is still capturing. Disposing then rips the workspace out from under
+				// the live turn (ENOENT '/workspaces', capture-unavailable, dead round-2 reviews). Dispose only
+				// while the card is still parked; a session back in flight owns its workspace, and the NEXT
+				// handoff re-finalizes (and disposes) as usual.
+				const stateAfterCapture = this.messageRepository.getTaskEntry(taskId)?.summary.state;
+				if (stateAfterCapture !== "running" && stateAfterCapture !== "queued") {
+					await manager.disposeWorkspace(taskId);
+				}
 				// Keep the sandbox STATE (repoPath/baseRef): the card is only AWAITING REVIEW — a bounce or
 				// escalation re-drive needs it to RESTORE the disposed workspace (run20 #17 / harness v3: with the
 				// state forgotten here, the restore helper no-op'd, the re-driven worker's tools had no placement,
@@ -4191,7 +4374,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							reason: benignReason,
 						},
 					});
-					if (hasWorkspace) {
+					if (hasWorkspace && this.messageRepository.getTaskEntry(taskId)?.summary.state !== "running") {
 						await manager.disposeWorkspace(taskId).catch(() => null);
 					}
 					// Same as the capture path above: keep the sandbox state for a possible re-drive round.

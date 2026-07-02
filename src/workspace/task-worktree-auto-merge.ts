@@ -315,6 +315,12 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 	board: RuntimeBoardData;
 	columns: readonly TaskWorktreeAutoMergeColumn[];
 	taskIds?: readonly string[];
+	/**
+	 * §5.AW best-of-N arbitration: per-task override of WHICH result branch to deliver. Maps a board task id
+	 * to the taskId whose result branch should be merged instead (e.g. `"<id>": "<id>::spec"` when the
+	 * reviewer preferred the speculative candidate). Tasks not in the map merge their own branch as always.
+	 */
+	resultBranchTaskIdOverrides?: Readonly<Record<string, string>>;
 	runGit?: RunGit;
 	resolveTaskResultBranchCommit?: ResolveTaskResultBranchCommit;
 	/** §5.AK Phase B: optional merge-conflict resolution agent; absent ⇒ today's abort-and-surface. */
@@ -364,10 +370,11 @@ export async function mergeTaskWorktreesInDependencyOrder(input: {
 
 		// A task's deliverable is its `nklein/tasks/<task>` result branch (the worktree subsystem is retired,
 		// §5.A). With no result branch there is nothing host-visible to merge, so skip the task rather than
-		// reaching into a (now-nonexistent) host worktree.
+		// reaching into a (now-nonexistent) host worktree. §5.AW: an arbitration override redirects the lookup
+		// to another taskId's branch (the `::spec` candidate) while every board mutation stays on task.id.
 		const headCommit = await resolveTaskResultBranchCommit({
 			repoPath: input.repoPath,
-			taskId: task.id,
+			taskId: input.resultBranchTaskIdOverrides?.[task.id] ?? task.id,
 			runGit,
 		});
 		if (!headCommit) {

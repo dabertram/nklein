@@ -28,6 +28,18 @@ describe("submit_review tool", () => {
 		expect(result?.insight).toBe("Nice use of the timebase primitive.");
 	});
 
+	it("§5.AW: defaults preferred to null on an ordinary single-candidate review", async () => {
+		const { result } = await run({ verdict: "approve", summary: "Fine." });
+		expect(result?.preferred).toBeNull();
+	});
+
+	it("§5.AW: records the reviewer's A/B pick and tolerates an explicit null", async () => {
+		const picked = await run({ verdict: "approve", summary: "B is more correct.", preferred: "speculative" });
+		expect(picked.result?.preferred).toBe("speculative");
+		const nulled = await run({ verdict: "approve", summary: "Fine.", preferred: null });
+		expect(nulled.result?.preferred).toBeNull();
+	});
+
 	it("accepts request_changes with feedback", async () => {
 		const { result } = await run({
 			verdict: "request_changes",

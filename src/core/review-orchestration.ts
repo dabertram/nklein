@@ -84,6 +84,12 @@ export interface ReviewSeedPromptInput {
 	taskObjective: string;
 	/** The worker's diff to review. */
 	diff: string;
+	/**
+	 * §5.AW best-of-N arbitration: a speculative mirror's diff for the SAME card (a different model's
+	 * independent attempt). When present and non-empty, the seed presents BOTH diffs labeled Candidate A
+	 * (primary) / Candidate B (speculative) and instructs the reviewer to name `preferred` in `submit_review`.
+	 */
+	speculativeDiff?: string | null;
 	/** The worker's own final summary of what it did and why — so the reviewer judges the reasoning, not just the diff. */
 	workerReasoning?: string | null;
 	/** The card's place in the wider board/plan, so the reviewer can judge fit, scope, and coherence. */
@@ -141,12 +147,12 @@ function formatBoardContext(context: ReviewBoardContext | null | undefined): str
 
 const REVIEW_DIFF_BUDGET = 24_000;
 
-function clampDiffForReview(diff: string): string {
+function clampDiffForReview(diff: string, budget: number = REVIEW_DIFF_BUDGET): string {
 	const trimmed = diff.trim();
-	if (trimmed.length <= REVIEW_DIFF_BUDGET) {
+	if (trimmed.length <= budget) {
 		return trimmed;
 	}
-	return `${trimmed.slice(0, REVIEW_DIFF_BUDGET)}\n… diff truncated (${trimmed.length - REVIEW_DIFF_BUDGET} more characters); review what is shown and the stated objective.`;
+	return `${trimmed.slice(0, budget)}\n… diff truncated (${trimmed.length - budget} more characters); review what is shown and the stated objective.`;
 }
 
 /**
@@ -170,7 +176,28 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 		lines.push("", "## Your previous change request (verify it was addressed)", input.priorFeedback.trim());
 	}
 	const hasDiff = input.diff.trim().length > 0;
-	if (hasDiff) {
+	const speculativeDiff = input.speculativeDiff?.trim() ?? "";
+	const isArbitration = hasDiff && speculativeDiff.length > 0;
+	if (isArbitration) {
+		// §5.AW best-of-N: both candidates share the single-diff budget so an A/B seed never doubles the
+		// reviewer's context cost. A (primary) is the card's own worker; B is the speculative mirror.
+		const perCandidateBudget = Math.floor(REVIEW_DIFF_BUDGET / 2);
+		lines.push(
+			"",
+			"## Two candidate implementations (A/B review)",
+			"This card was implemented twice, independently: Candidate A by the card's assigned worker, Candidate B by a different model working speculatively. Review BOTH against the objective and pick the one to deliver.",
+			"",
+			"### Candidate A — primary",
+			"```diff",
+			clampDiffForReview(input.diff, perCandidateBudget),
+			"```",
+			"",
+			"### Candidate B — speculative",
+			"```diff",
+			clampDiffForReview(speculativeDiff, perCandidateBudget),
+			"```",
+		);
+	} else if (hasDiff) {
 		lines.push("", "## Diff under review", "```diff", clampDiffForReview(input.diff), "```");
 	} else {
 		lines.push(
@@ -203,11 +230,15 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 	lines.push(
 		"",
 		"## How to review",
-		hasDiff
-			? "- Inspect the diff against the objective and the board context; read surrounding code only as needed."
-			: "- Decide whether 'no changes' can possibly satisfy the objective; read the relevant files to confirm the work isn't actually needed before approving.",
+		isArbitration
+			? "- Inspect BOTH candidates against the objective and the board context; read surrounding code only as needed."
+			: hasDiff
+				? "- Inspect the diff against the objective and the board context; read surrounding code only as needed."
+				: "- Decide whether 'no changes' can possibly satisfy the objective; read the relevant files to confirm the work isn't actually needed before approving.",
 		"- Keep your thinking and any prose brief — a short focused pass, then the tool call. Long output wastes the context budget.",
-		"- Call `submit_review` exactly once: `approve` to sign off (a valued second-opinion confirmation), or `request_changes` with concrete, actionable feedback the implementer can act on directly.",
+		isArbitration
+			? '- Call `submit_review` exactly once with `preferred` set to `"primary"` (Candidate A) or `"speculative"` (Candidate B): `approve` delivers the preferred candidate; `request_changes` sends concrete feedback to the primary worker (judge the better candidate against the objective — correctness first, then scope discipline and code quality).'
+			: "- Call `submit_review` exactly once: `approve` to sign off (a valued second-opinion confirmation), or `request_changes` with concrete, actionable feedback the implementer can act on directly.",
 		"Do not implement changes yourself and do not answer in prose; the review is delivered only by the `submit_review` tool call.",
 	);
 	return lines.join("\n");

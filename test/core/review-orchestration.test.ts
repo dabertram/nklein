@@ -58,6 +58,50 @@ describe("buildReviewSeedPrompt", () => {
 		expect(prompt).toContain("submit_review");
 	});
 
+	it("§5.AW: renders an A/B arbitration seed when a speculative diff is present", () => {
+		const prompt = buildReviewSeedPrompt({
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			speculativeDiff: "diff --git a/login-alt.ts b/login-alt.ts",
+			round: 1,
+		});
+		expect(prompt).toContain("Candidate A — primary");
+		expect(prompt).toContain("Candidate B — speculative");
+		expect(prompt).toContain("diff --git a/login.ts");
+		expect(prompt).toContain("diff --git a/login-alt.ts");
+		expect(prompt).toContain("`preferred`");
+		expect(prompt).not.toContain("## Diff under review");
+	});
+
+	it("§5.AW: an empty/whitespace speculative diff falls back to the ordinary single-diff seed", () => {
+		const prompt = buildReviewSeedPrompt({
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			speculativeDiff: "   ",
+			round: 1,
+		});
+		expect(prompt).toContain("## Diff under review");
+		expect(prompt).not.toContain("Candidate B");
+	});
+
+	it("§5.AW: both A/B candidates share the single-diff budget (each clamped to half)", () => {
+		const bigA = `A${"a".repeat(30_000)}`;
+		const bigB = `B${"b".repeat(30_000)}`;
+		const prompt = buildReviewSeedPrompt({
+			taskTitle: "T",
+			taskObjective: "O",
+			diff: bigA,
+			speculativeDiff: bigB,
+			round: 1,
+		});
+		expect(prompt).toContain("… diff truncated");
+		// Each candidate is clamped to 12k, so neither full 30k body may appear.
+		expect(prompt).not.toContain(bigA);
+		expect(prompt).not.toContain(bigB);
+	});
+
 	it("includes the acceptance summary and prior feedback when provided", () => {
 		const prompt = buildReviewSeedPrompt({
 			taskTitle: "T",

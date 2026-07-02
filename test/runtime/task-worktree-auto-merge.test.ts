@@ -188,6 +188,44 @@ describe("task worktree auto merge", () => {
 		expect(result.mergedTaskIds).toEqual(["storage"]);
 	});
 
+	it("§5.AW: an arbitration override merges the ::spec branch while board mutations stay on the task id", async () => {
+		const runGit = vi.fn(async (cwd: string, args: string[]) => {
+			const key = `${cwd} ${args.join(" ")}`;
+			if (key === "/repo status --porcelain -- . :(exclude).nklein/nklein") {
+				return { ok: true, stdout: "", stderr: "", output: "", error: null, exitCode: 0 };
+			}
+			if (key === "/repo branch --show-current") {
+				return { ok: true, stdout: "main", stderr: "", output: "main", error: null, exitCode: 0 };
+			}
+			if (key === "/repo merge-base --is-ancestor spec-head HEAD") {
+				return { ok: false, stdout: "", stderr: "", output: "", error: "not ancestor", exitCode: 1 };
+			}
+			if (key === "/repo merge --no-ff --no-edit spec-head") {
+				return { ok: true, stdout: "merged", stderr: "", output: "merged", error: null, exitCode: 0 };
+			}
+			throw new Error(`Unexpected git call: ${key}`);
+		});
+		const resolveCommit = vi.fn(async (input: { taskId: string }) =>
+			input.taskId === "storage::spec" ? "spec-head" : "primary-head",
+		);
+
+		const result = await mergeTaskWorktreesInDependencyOrder({
+			repoPath: "/repo",
+			board: createBoard(),
+			columns: ["review"],
+			taskIds: ["storage"],
+			resultBranchTaskIdOverrides: { storage: "storage::spec" },
+			runGit,
+			resolveTaskResultBranchCommit: resolveCommit as never,
+		});
+
+		expect(result.ok).toBe(true);
+		// The SPEC branch was resolved and merged…
+		expect(resolveCommit).toHaveBeenCalledWith(expect.objectContaining({ taskId: "storage::spec" }));
+		// …but the merged-task bookkeeping stays on the BOARD task id.
+		expect(result.mergedTaskIds).toEqual(["storage"]);
+	});
+
 	it("aborts a conflicted merge and reports conflicted paths", async () => {
 		const runGit = vi.fn(async (cwd: string, args: string[]) => {
 			const key = `${cwd} ${args.join(" ")}`;

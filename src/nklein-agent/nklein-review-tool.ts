@@ -21,6 +21,13 @@ export const nkleinReviewSubmissionSchema = z
 		feedback: z.string().nullable().optional(),
 		/** Optional positive observations / insight worth recording even on approval. */
 		insight: z.string().nullable().optional(),
+		/**
+		 * §5.AW best-of-N arbitration: when the seed presented TWO candidate diffs (A = primary, B =
+		 * speculative), the reviewer names the one to deliver. Absent/null on ordinary single-candidate
+		 * reviews — and tolerated-but-meaningless there (delivery only consults it when a speculative
+		 * result branch actually exists).
+		 */
+		preferred: z.enum(["primary", "speculative"]).nullable().optional(),
 	})
 	.refine((value) => value.verdict === "approve" || Boolean(value.feedback?.trim()), {
 		message: "feedback is required when verdict is request_changes",
@@ -34,6 +41,8 @@ export interface NKleinReviewResult {
 	summary: string;
 	feedback: string | null;
 	insight: string | null;
+	/** §5.AW: the candidate the reviewer picked in an A/B best-of-N review; null outside arbitration. */
+	preferred: "primary" | "speculative" | null;
 }
 
 export type NKleinReviewSubmittedHandler = (result: NKleinReviewResult) => void | Promise<void>;
@@ -73,6 +82,14 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 					type: ["string", "null"],
 					description: "Optional positive observations or insight worth recording even on approval.",
 				},
+				preferred: {
+					// §5.AW best-of-N: only meaningful when the review seed presented candidates A (primary) and
+					// B (speculative). Null-tolerant like feedback/insight — models emit explicit nulls.
+					type: ["string", "null"],
+					enum: ["primary", "speculative", null],
+					description:
+						"ONLY when this review compares candidate A (primary) and candidate B (speculative): the candidate to deliver — `primary` for A, `speculative` for B. Omit on ordinary single-candidate reviews.",
+				},
 			},
 			required: ["verdict", "summary"],
 			additionalProperties: false,
@@ -84,6 +101,7 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 				summary: parsed.summary.trim(),
 				feedback: parsed.feedback?.trim() || null,
 				insight: parsed.insight?.trim() || null,
+				preferred: parsed.preferred ?? null,
 			};
 			await options.onSubmitted?.(result);
 			return {
