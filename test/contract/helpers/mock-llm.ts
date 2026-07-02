@@ -46,6 +46,12 @@ export interface MockLlmServer {
 	enqueue: (response: MockLlmResponse) => void;
 	/** Reply used when the queue is empty (defaults to a fixed "OK" text). */
 	setDefault: (response: MockLlmResponse) => void;
+	/**
+	 * CONTENT-AWARE routing (W2.1 v2): inspect each request (messages/tools) and return a reply, or undefined to
+	 * fall through to the FIFO queue/default. Robust against interleaved concurrent sessions where FIFO ordering
+	 * is unpredictable (worker turns, review turns, and knowledge turns arrive in nondeterministic order).
+	 */
+	setRouter: (router: ((request: MockLlmRequestRecord) => MockLlmResponse | undefined) | null) => void;
 	/** Every chat/completions request received, in order. */
 	requests: MockLlmRequestRecord[];
 	close: () => Promise<void>;
@@ -165,6 +171,7 @@ export async function startMockLlm(options: { modelId?: string } = {}): Promise<
 	const modelId = options.modelId ?? "mock-model";
 	const queue: MockLlmResponse[] = [];
 	const requests: MockLlmRequestRecord[] = [];
+	let router: ((request: MockLlmRequestRecord) => MockLlmResponse | undefined) | null = null;
 	let defaultResponse: MockLlmResponse = { content: "OK" };
 
 	const handle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
@@ -197,8 +204,16 @@ export async function startMockLlm(options: { modelId?: string } = {}): Promise<
 				body = {};
 			}
 			const stream = body.stream === true;
-			requests.push({ path, stream, model: body.model, messages: body.messages, tools: body.tools, body });
-			const reply = queue.shift() ?? defaultResponse;
+			const record: MockLlmRequestRecord = {
+				path,
+				stream,
+				model: body.model,
+				messages: body.messages,
+				tools: body.tools,
+				body,
+			};
+			requests.push(record);
+			const reply = router?.(record) ?? queue.shift() ?? defaultResponse;
 			if (stream) {
 				writeStreaming(res, modelId, reply);
 			} else {
@@ -231,6 +246,9 @@ export async function startMockLlm(options: { modelId?: string } = {}): Promise<
 		modelId,
 		enqueue: (response) => {
 			queue.push(response);
+		},
+		setRouter: (nextRouter) => {
+			router = nextRouter;
 		},
 		setDefault: (response) => {
 			defaultResponse = response;
