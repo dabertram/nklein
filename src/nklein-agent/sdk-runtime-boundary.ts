@@ -25,6 +25,10 @@ import {
 	type ToolApprovalResult,
 	type UserInstructionConfigService,
 } from "@cline/sdk";
+import {
+	type RestructuredPromptShell,
+	restructureSystemPromptForPrefixStability,
+} from "../core/prompt-shell-restructure";
 import { NKLEIN_BUILTIN_SLASH_COMMANDS } from "./nklein-slash-commands";
 import { getCliTelemetryService } from "./nklein-telemetry-service";
 
@@ -123,21 +127,46 @@ export function loadNKleinSdkRulesForSystemPrompt(service: NKleinSdkUserInstruct
 	return formatRulesForSystemPrompt(rules);
 }
 
-export async function resolveNKleinSdkSystemPrompt(input: {
+/** The SDK base prompt split for cache-stable assembly — see {@link resolveNKleinSdkSystemPromptParts}. */
+export type NKleinSdkSystemPromptParts = RestructuredPromptShell;
+
+/**
+ * §5.AQ(e): build the SDK default system prompt, then RESTRUCTURE it for prefix stability — the vendor template
+ * embeds the task-volatile cwd + daily-volatile date in an `<env>` block ~1700 bytes in (with ~2k static bytes
+ * after it), which capped byte-prefix reuse between same-model session starts at ~8%. The restructure moves those
+ * two lines into a trailing `<session>` block, so `staticText` is byte-stable per model+workspace and the volatile
+ * `sessionEnvText` can be appended LAST by the fragment assembler. The fallback date mirrors the vendor builder's
+ * own substitution expression (`toLocaleDateString()`); the restructure prefers the exact values it extracts from
+ * the built prompt, so the fallback only covers a template without an `<env>` block.
+ */
+export async function resolveNKleinSdkSystemPromptParts(input: {
 	cwd: string;
 	providerId: string;
 	rules?: string;
-}): Promise<string> {
+}): Promise<NKleinSdkSystemPromptParts> {
 	// The NKlein SDK can run against non-NKlein providers too, but only the
 	// "nklein" provider expects the extra workspace metadata block that powers
 	// its repo-aware behavior in the same way the official CLI does.
 	const shouldAppendWorkspaceMetadata = input.providerId === "nklein";
 	const workspaceMetadata = shouldAppendWorkspaceMetadata ? await buildWorkspaceMetadata(input.cwd) : "";
-	return getClineDefaultSystemPrompt({
+	const basePrompt = getClineDefaultSystemPrompt({
 		ide: "!Klein",
 		rootPath: input.cwd,
 		providerId: input.providerId,
 		metadata: workspaceMetadata,
 		rules: input.rules ?? "",
 	});
+	return restructureSystemPromptForPrefixStability(basePrompt, {
+		cwd: input.cwd,
+		date: new Date().toLocaleDateString(),
+	});
+}
+
+/** The composed (static shell + `<session>` trailer) system prompt, for callers without a fragment assembler. */
+export async function resolveNKleinSdkSystemPrompt(input: {
+	cwd: string;
+	providerId: string;
+	rules?: string;
+}): Promise<string> {
+	return (await resolveNKleinSdkSystemPromptParts(input)).text;
 }

@@ -176,7 +176,7 @@ import {
 	type NKleinSdkSessionEvent,
 	type NKleinSdkSlashCommand,
 	type NKleinSdkTeamEvent,
-	resolveNKleinSdkSystemPrompt,
+	resolveNKleinSdkSystemPromptParts,
 } from "./sdk-runtime-boundary.js";
 
 export type { KanbanContextPressurePolicy, KanbanContextSafetyBudgets } from "./nklein-context-budgets";
@@ -712,23 +712,46 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * W2.3b (§5.AQ): assemble the session system prompt from VOLATILITY-ORDERED fragments instead of raw concat —
 	 * static/config content first, the daily date next, per-task content last — so the byte-prefix shared across
 	 * session starts is maximal by construction (local endpoints cache by longest byte-stable prefix). The SDK base
-	 * prompt must open the message (hard contract), so it is head-pinned; its per-task cwd makes it the visible
-	 * cache cost (`headPinnedVolatileKeys`). Also records the measured `reuseRatio` vs the previous start on the
-	 * same model — the telemetry that tells us whether the cache design works on real traffic.
+	 * prompt must open the message (hard contract), so it is head-pinned; since the §5.AQ(e) shell restructure it is
+	 * genuinely static per model+workspace (its cwd/date arrive separately as the `session-env` trailer), so only a
+	 * caller-supplied CUSTOM base still shows up as the visible cache cost (`headPinnedVolatileKeys`). Also records
+	 * the measured `reuseRatio` vs the previous start on the same model — the telemetry that tells us whether the
+	 * cache design works on real traffic.
 	 */
 	private assembleSessionSystemPrompt(input: {
 		taskId: string;
 		modelId: string | null | undefined;
 		basePrompt: string;
+		/**
+		 * True when `basePrompt` is the restructured SDK shell (cwd/date extracted into `sessionEnv`) — byte-stable
+		 * per model+workspace. False for caller-supplied custom prompts, which still embed per-task content.
+		 */
+		baseIsStaticShell: boolean;
 		planningPrompt?: string | null;
 		efficiencyRules: string;
 		temporalBlock: string;
+		/** The home-agent sidebar append (per-session-kind, task-tier) — folded in here instead of raw concat. */
+		homeAgentAppend?: string | null;
+		/** The `<session>` cwd+date trailer extracted from the SDK base — see the fragment ordering note below. */
+		sessionEnv?: string | null;
 	}): string {
 		const assembled = assemblePromptFragments([
-			{ key: "base", volatility: "task", text: input.basePrompt, pinned: "head" },
+			{
+				key: "base",
+				volatility: input.baseIsStaticShell ? "static" : "task",
+				text: input.basePrompt,
+				pinned: "head",
+			},
 			{ key: "efficiency-rules", volatility: "config", text: input.efficiencyRules },
 			{ key: "temporal-context", volatility: "daily", text: input.temporalBlock },
+			// Task-tier fragments keep input order, so ORDER BY CHURN across session starts: the planning workflow
+			// and the home-agent append are per-card/per-session-kind, while session-env diverges for EVERY task
+			// (cwd = /workspaces/<taskId>) and every day (date). session-env goes LAST so it is the true suffix:
+			// identical-card restarts share every byte up to it, and same-workspace tasks share everything before
+			// their cwd/date trailer (§5.AQ(e) byte-stable prompt shells).
 			{ key: "planning-workflow", volatility: "task", text: input.planningPrompt ?? "" },
+			{ key: "home-agent-append", volatility: "task", text: input.homeAgentAppend ?? "" },
+			{ key: "session-env", volatility: "task", text: input.sessionEnv ?? "" },
 		]);
 		const modelKey = input.modelId?.trim() || "(unconfigured)";
 		const previous = this.lastAssembledSystemPromptByModelId.get(modelKey);
@@ -839,26 +862,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const agentPerceivedCwd = sandboxWorkspace?.workdir ?? input.cwd;
 		const runtimeSetup = await this.ensureRuntimeSetup(hostWorkspaceRoot);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(input.taskId, launchConfig.contextWindow);
-		let systemPrompt =
-			input.systemPrompt?.trim() ||
-			(await resolveNKleinSdkSystemPrompt({
-				// Sandbox-aware working directory for the `<env>` block; never the host mount (AGENTS.md).
-				cwd: resolveNKleinAgentPerceivedCwd(input.taskId, agentPerceivedCwd),
-				providerId: launchConfig.providerId,
-				rules: runtimeSetup.loadRules(),
-			}));
-		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId);
-		if (appendedSystemPrompt) {
-			systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
-		}
-		// W2.3b (§5.AQ): VOLATILITY-ORDERED fragment assembly replaces raw concat — base (head-pinned, per-task cwd)
-		// → efficiency rules (config) → knows-today date (daily; empty unless enabled+relevant, §5.AC/§5.AE). Byte-
-		// identical to the previous concat order here, but the ordering is now a modeled property with a measured
-		// reuseRatio observation instead of a convention.
-		systemPrompt = this.assembleSessionSystemPrompt({
+		const customSystemPrompt = input.systemPrompt?.trim() || null;
+		const sdkPromptParts = customSystemPrompt
+			? null
+			: await resolveNKleinSdkSystemPromptParts({
+					// Sandbox-aware working directory for the `<session>` trailer; never the host mount (AGENTS.md).
+					cwd: resolveNKleinAgentPerceivedCwd(input.taskId, agentPerceivedCwd),
+					providerId: launchConfig.providerId,
+					rules: runtimeSetup.loadRules(),
+				});
+		// W2.3b (§5.AQ): VOLATILITY-ORDERED fragment assembly replaces raw concat — base (head-pinned; a byte-stable
+		// static shell since the §5.AQ(e) restructure moved its cwd/date out) → efficiency rules (config) → knows-
+		// today date (daily; empty unless enabled+relevant, §5.AC/§5.AE) → home-agent append (task) → session-env
+		// (the extracted cwd/date `<session>` trailer, LAST — the true task-volatile suffix).
+		const systemPrompt = this.assembleSessionSystemPrompt({
 			taskId: input.taskId,
 			modelId: launchConfig.modelId,
-			basePrompt: systemPrompt,
+			basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
+			baseIsStaticShell: !customSystemPrompt,
+			homeAgentAppend: resolveHomeAgentAppendSystemPrompt(input.taskId),
+			sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
 			efficiencyRules: buildKanbanEfficiencyRules({
 				contextScope: input.contextScope ?? "smart",
 				contextWindow: requestContextWindow,
@@ -1866,28 +1889,28 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						? appendSystemPrompt(planningWorkflowPrompt, startPromptParts.systemPrompt)
 						: startPromptParts.systemPrompt
 					: null;
-				let systemPrompt =
-					request.systemPrompt?.trim() ||
-					(await resolveNKleinSdkSystemPrompt({
-						// The system prompt's `<env>` "Working Directory" must match the agent's actual (sandbox) cwd,
-						// never the host mount — agents must never see host details (AGENTS.md). Same helper as the
-						// agent-core `config.cwd`, so the two can't drift (the bug that leaked the host path here).
-						cwd: resolveNKleinAgentPerceivedCwd(request.taskId, request.cwd),
-						providerId,
-						rules: runtimeSetup.loadRules(),
-					}));
-				const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(request.taskId);
-				if (appendedSystemPrompt) {
-					systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
-				}
-				// W2.3b (§5.AQ): volatility-ordered fragment assembly. This seam previously appended the DAILY date
-				// BEFORE the config-level efficiency rules (every rollover invalidated the rules' cached prefix) and
-				// left the per-task planning workflow ahead of both — the audit-flagged inversion. Assembly order is
-				// now base (head-pinned) → rules (config) → date (daily) → planning workflow (task).
-				systemPrompt = this.assembleSessionSystemPrompt({
+				const customSystemPrompt = request.systemPrompt?.trim() || null;
+				const sdkPromptParts = customSystemPrompt
+					? null
+					: await resolveNKleinSdkSystemPromptParts({
+							// The system prompt's `<session>` "Working Directory" must match the agent's actual (sandbox)
+							// cwd, never the host mount — agents must never see host details (AGENTS.md). Same helper as
+							// the agent-core `config.cwd`, so the two can't drift (the bug that leaked the host path here).
+							cwd: resolveNKleinAgentPerceivedCwd(request.taskId, request.cwd),
+							providerId,
+							rules: runtimeSetup.loadRules(),
+						});
+				// W2.3b (§5.AQ): volatility-ordered fragment assembly. Since the §5.AQ(e) shell restructure the
+				// head-pinned base is a byte-stable static shell (its cwd/date live in the session-env trailer), so
+				// the assembly is base (static, head) → rules (config) → date (daily) → planning workflow (task) →
+				// home-agent append (task) → session-env (task, LAST — the true task-volatile suffix).
+				const systemPrompt = this.assembleSessionSystemPrompt({
 					taskId: request.taskId,
 					modelId,
-					basePrompt: systemPrompt,
+					basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
+					baseIsStaticShell: !customSystemPrompt,
+					homeAgentAppend: resolveHomeAgentAppendSystemPrompt(request.taskId),
+					sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
 					planningPrompt: planningSystemPrompt,
 					efficiencyRules: buildKanbanEfficiencyRules({
 						contextScope: request.contextScope ?? "smart",

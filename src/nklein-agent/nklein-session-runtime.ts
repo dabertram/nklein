@@ -831,7 +831,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					maxFileLines: request.maxAgentWritableFileLines,
 				}),
 			] satisfies AgentTool[]);
+		// §5.AQ(e) ORDER INVARIANT: the tools array must be DETERMINISTIC, with the STABLE SHELL first (tools every
+		// session kind gets, in a fixed order) and every CONDITIONALLY-ATTACHED tool appended at the TAIL. Serialized
+		// tool schemas are part of the prompt bytes local endpoints prefix-cache, so a worker-vs-reviewer (etc.)
+		// toolset must diverge only at the end — never interleave a conditional tool between the stable ones.
 		const extraTools = [
+			// ---- STABLE SHELL (attached for every session on this path, fixed relative order) ----
 			// Decomposition / board / plan tools are TRUSTED CONTROL-PLANE: they mutate only !Klein-owned
 			// state (`~/.nklein/nklein` plan artifacts + the board via mutateWorkspaceState), never the user's
 			// working tree or a shell. They therefore stay host-side even under strict Docker isolation
@@ -846,6 +851,12 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 				onApplied: request.onDecompositionApplied,
 				requestPlanCritique: request.requestPlanCritique,
 			}),
+			...workspaceExtraTools,
+			...(mcpToolBundle?.tools ?? []),
+			// ---- CONDITIONAL TAIL (config/kind-divergent tools only, slowest-churning gate first) ----
+			...createWebResearchTool({
+				enabled: CLOUD_ENABLED && useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
+			}),
 			// Planning/Refinement → In Progress promotion (todo §5.B). Trusted control-plane board mutation, so it
 			// resolves against the host workspace root like the decomposition tools. Attached only when the service
 			// wires `onCardPromoted` (work-card starts), so decompose/plan-mode and home/chat sessions never see it.
@@ -858,10 +869,6 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						}),
 					]
 				: []),
-			...workspaceExtraTools,
-			...createWebResearchTool({
-				enabled: CLOUD_ENABLED && useHostWorkspaceTools && process.env.KANBAN_ENABLE_WEB_RESEARCH === "1",
-			}),
 			// Second-opinion review turns get the structured `submit_review` verdict tool (todo §5.K). Only attached
 			// when a verdict handler is provided, so ordinary worker/planning turns never see it.
 			...(request.onReviewSubmitted ? [createNKleinReviewTool({ onSubmitted: request.onReviewSubmitted })] : []),
@@ -885,7 +892,6 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 						}),
 					]
 				: []),
-			...(mcpToolBundle?.tools ?? []),
 		];
 
 		const sessionHost = await this.ensureSessionHost();
