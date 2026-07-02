@@ -948,7 +948,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > 2. **Plan-level integration gate — ANSWERED: YES, gate the plan.** ⇒ build the XL item: when a decomposition's LAST card completes, run a project-level build+test on the fully-merged tree before the plan counts done; failures open a repair card (re-decompose rung feeds here).
 > 3. **§5.AX brand — ANSWERED: cool-technical, dark-first.** ⇒ design tokens: dark canvas, high-contrast technical accents, dense-but-legible; prepare mockups on this direction (logo/mark exploration still welcome within it).
 > 4. **§5.AW speculative best-of-N — ANSWERED: OPPORTUNISTIC.** ⇒ any idle capacity may mirror the current card (best result wins); no explicit per-run ceiling was set — implement with a sane default ceiling surfaced in settings so the burn is visible/tunable.
-> 5. **Online retrieval egress (STILL OPEN):** the §5.AC loop + SearXNG adapter are ready to wire behind the egress gate — greenlight for an opt-in, default-off enablement? (PRIME DIRECTIVE #1 = always your call.)
+> 5. **Online retrieval egress — ANSWERED (2026-07-02): GREENLIT as OPT-IN, default-OFF.** ⇒ wire the §5.AC retrieval loop + SearXNG fetch adapter behind the egress gate: default OFF, per-project opt-in toggle, all fetches through the SSRF-safe adapter; the sandbox's strict isolation is untouched (only the gated retrieval path gets egress when the user enables it). ALL FIVE user questions are now decided — nothing awaits user input in §5.0.5.
 
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
