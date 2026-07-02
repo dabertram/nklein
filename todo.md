@@ -8807,6 +8807,31 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       cache can beat a stronger cold one for short tasks.
 > - [ ] **Success bar:** measured reuseRatio for same-model consecutive starts ≥70% after the shell work (from ~8%),
 >       and a visible prefill-seconds-per-run drop in the sweep log at equal quality.
+>
+> **ESCALATED TO NEXT-UP (user 2026-07-02 afternoon): "prepare implementing improvements now; start as soon as
+> current work is finalized."** Deep research launched in the background (all-source sweep: llama.cpp/LM Studio/MLX
+> mechanics, vLLM/SGLang prefix caching, papers, practitioner evidence — ranked recommendations for !Klein). Two
+> user-directed strategy additions to evaluate FIRST-CLASS:
+> - **CONTEXT RAILS (model-per-stream reservation):** reserve a model (or endpoint slot) exclusively for a task
+>   stream/epic — one card's whole lifecycle (worker turns, re-drives, bounces) stays on ONE warm model whose KV
+>   cache never sees a foreign prompt; other models serve other streams. The scheduler allocates rails, not turns.
+> - **SINGLE-CARD FAN-OUT as the parallelism mode:** when the fleet can't give every active card its own rail,
+>   PREFER fanning multiple models out on ONE card (worker + reviewer + critic + best-of-N attempts pipelined on
+>   the same content) over running unrelated cards in parallel — cross-card interleaving is what thrashes every
+>   cache; same-card fan-out shares most of its context by construction. Real card-parallelism only when enough
+>   models/pools exist to give each card a rail ("don't start what you can't keep warm").
+> - **MY OWN ANALYSIS (pre-research, to be validated):** the fleet is memory-bandwidth-bound — prefill and decode
+>   compete for the same bandwidth, so a cold 20k-token prefill (~seconds of full-bandwidth burn) can cost MORE
+>   aggregate throughput than the parallelism it buys; expected-prefill belongs IN the routing cost function
+>   (prefillTokens × missLikelihood ÷ prefillSpeed vs decode gain). Cache warmth is a per-(endpoint, promptShell)
+>   property the scheduler can TRACK deterministically (we know every prompt we send — compute the shared-prefix
+>   length against the endpoint's last prompt, no probing needed: a "warmth ledger"). Rails then fall out naturally:
+>   route to maximize predicted prefix reuse, subject to the diversity constraints for DECISION roles (reviewer/
+>   critic must stay lineage-diverse — rails must never silently sacrifice §5.AB diversity; a diverse decision turn
+>   is a legitimate cache miss, budget it as such).
+> - **MULTI-PROJECT PARALLELISM → LATE (user decision 2026-07-02):** running multiple projects in parallel on one
+>   fleet dilutes every cache and rail; DEPRIORITIZE enabling/optimizing it until the single-project cache/rail
+>   design is proven (ties to the existing multi-workspace meta-chat FUTURE note — same lane).
 > **Vision (user, 2026-06-29):** a user-facing **"sysprompt size" setting** with **4–5+ levels**, PLUS an **auto** mode that
 > adjusts sys-prompt depth to (a) the actually-available context window and (b) the context the TASK needs, PLUS intent
 > modes: **"minimize"** vs **"balance prompt + task info"** vs **"max actual task information"**. !Klein must **NEVER waste
