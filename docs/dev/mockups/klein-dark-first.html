@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en" data-accent="cyan">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>!Klein — cool-technical dark-first mockup</title>
+<style>
+  /* ============================================================================
+     §5.AX DESIGN TOKENS — cool-technical, dark-first (user decision 2026-07-02)
+     A precision-tool feel: near-black canvas, one high-chroma technical accent,
+     a mono/grotesk pairing, dense-but-legible. Distinct from Cline's kanban, not
+     a reskin. Accent is swappable (the toggle top-right) so the choice is yours.
+  ============================================================================ */
+  :root {
+    --bg-0:#0a0c10; --bg-1:#0f1319; --bg-2:#151a22; --bg-3:#1c232d;
+    --line:#232c38; --line-bright:#31404f;
+    --ink-0:#e8eef5; --ink-1:#9fb0c3; --ink-2:#63748a; --ink-3:#3f4c5c;
+    --ok:#3ad29f; --warn:#f0b849; --bad:#f0616d; --info:#5aa9ff;
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --r:10px; --r-sm:7px;
+  }
+  [data-accent=cyan]   { --acc:#3fe0e0; --acc-dim:#1b4d52; --acc-ink:#062024; --glow:rgba(63,224,224,.14); }
+  [data-accent=violet] { --acc:#9d7bff; --acc-dim:#3a2d63; --acc-ink:#140a2e; --glow:rgba(157,123,255,.16); }
+  [data-accent=lime]   { --acc:#a6e22e; --acc-dim:#3f4d16; --acc-ink:#0f1503; --glow:rgba(166,226,46,.13); }
+  * { box-sizing:border-box; }
+  body { margin:0; background:
+      radial-gradient(1200px 600px at 78% -10%, var(--glow), transparent 60%),
+      var(--bg-0);
+    color:var(--ink-0); font-family:var(--sans); font-size:13px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; height:100vh; overflow:hidden; }
+  .app { display:grid; grid-template-columns: 232px 1fr 400px; height:100vh; }
+
+  /* ---- left rail : projects / streams ---- */
+  .rail { background:var(--bg-1); border-right:1px solid var(--line); display:flex; flex-direction:column; }
+  .brand { display:flex; align-items:center; gap:10px; padding:16px 18px; border-bottom:1px solid var(--line); }
+  .logo { width:26px; height:26px; border-radius:8px; background:linear-gradient(135deg,var(--acc),var(--acc-dim));
+    display:grid; place-items:center; color:var(--acc-ink); font-family:var(--mono); font-weight:800; font-size:15px;
+    box-shadow:0 0 0 1px var(--line-bright), 0 6px 18px var(--glow); }
+  .brand b { font-weight:700; letter-spacing:.2px; } .brand b span{ color:var(--acc); }
+  .rail h4 { font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-2); margin:18px 18px 8px; }
+  .proj { display:flex; align-items:center; gap:9px; padding:7px 18px; color:var(--ink-1); cursor:pointer; }
+  .proj.sel { color:var(--ink-0); background:linear-gradient(90deg,var(--glow),transparent); box-shadow:inset 2px 0 0 var(--acc); }
+  .proj .dot { width:7px; height:7px; border-radius:50%; background:var(--ink-3); }
+  .proj.sel .dot,.proj .dot.live { background:var(--acc); box-shadow:0 0 8px var(--acc); }
+  .stream { margin:2px 18px 2px 30px; padding:6px 10px; border-left:1px solid var(--line-bright); color:var(--ink-2);
+    font-size:12px; cursor:pointer; display:flex; justify-content:space-between; }
+  .stream.sel { color:var(--ink-1); border-left-color:var(--acc); }
+  .stream b { font-family:var(--mono); color:var(--ink-2); font-weight:500; font-size:11px; }
+  .fleet { margin-top:auto; padding:14px 18px; border-top:1px solid var(--line); font-size:11px; }
+  .fleet .m { display:flex; align-items:center; gap:8px; padding:3px 0; color:var(--ink-1); font-family:var(--mono); }
+  .bar { height:4px; flex:1; border-radius:3px; background:var(--bg-3); overflow:hidden; }
+  .bar i { display:block; height:100%; background:linear-gradient(90deg,var(--acc),var(--acc-dim)); }
+
+  /* ---- center : board ---- */
+  .board-wrap { display:flex; flex-direction:column; min-width:0; }
+  .topbar { display:flex; align-items:center; gap:14px; padding:13px 20px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,var(--bg-1),transparent); }
+  .topbar h1 { font-size:14px; margin:0; font-weight:650; }
+  .topbar .sub { color:var(--ink-2); font-family:var(--mono); font-size:11px; }
+  .rollup { margin-left:auto; display:flex; gap:6px; }
+  .pill { font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--line-bright);
+    color:var(--ink-1); display:flex; gap:6px; align-items:center; }
+  .pill .n { color:var(--ink-0); font-weight:600; } .pill.ok .n{color:var(--ok);} .pill.warn .n{color:var(--warn);} .pill.bad .n{color:var(--bad);}
+  .accent-toggle { display:flex; gap:5px; margin-left:6px; }
+  .accent-toggle button { width:16px; height:16px; border-radius:50%; border:1px solid var(--line-bright); cursor:pointer; padding:0; }
+  .swatch-cyan{background:#3fe0e0;} .swatch-violet{background:#9d7bff;} .swatch-lime{background:#a6e22e;}
+
+  .cols { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; padding:16px 20px; overflow:auto; flex:1; }
+  .col h3 { font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-2);
+    display:flex; justify-content:space-between; align-items:center; margin:0 0 10px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+  .col h3 .c { background:var(--bg-3); color:var(--ink-1); border-radius:10px; padding:0 7px; font-size:10px; }
+  .card { background:var(--bg-2); border:1px solid var(--line); border-radius:var(--r); padding:11px 12px; margin-bottom:10px;
+    position:relative; overflow:hidden; }
+  .card::before { content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--edge,var(--line-bright)); }
+  .card.live { border-color:var(--acc-dim); box-shadow:0 0 0 1px var(--acc-dim), 0 8px 24px -12px var(--glow); --edge:var(--acc); }
+  .card .t { font-weight:600; font-size:12.5px; margin-bottom:7px; }
+  .card .meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .badge { font-family:var(--mono); font-size:10px; padding:2px 6px; border-radius:5px; background:var(--bg-3); color:var(--ink-1);
+    border:1px solid var(--line); display:inline-flex; gap:5px; align-items:center; }
+  .badge.model { color:var(--acc); border-color:var(--acc-dim); }
+  .badge .k { color:var(--ink-2); }
+  .act { margin-top:8px; font-family:var(--mono); font-size:10.5px; color:var(--ink-1); display:flex; gap:7px; align-items:center; }
+  .spin { width:9px; height:9px; border-radius:50%; border:1.5px solid var(--acc-dim); border-top-color:var(--acc);
+    animation:sp 0.8s linear infinite; } @keyframes sp{to{transform:rotate(360deg)}}
+  .reuse { position:absolute; top:9px; right:10px; font-family:var(--mono); font-size:9.5px; color:var(--ok); opacity:.85; }
+  .health { width:6px; height:6px; border-radius:50%; }
+  .h-ok{background:var(--ok);} .h-warn{background:var(--warn);} .h-bad{background:var(--bad);}
+  .ladder { margin-top:8px; display:flex; gap:3px; align-items:center; font-family:var(--mono); font-size:9.5px; color:var(--ink-2); }
+  .rung { padding:1px 5px; border-radius:4px; background:var(--bg-3); border:1px solid var(--line); }
+  .rung.done{ color:var(--ok); border-color:var(--acc-dim);} .rung.now{ color:var(--acc); border-color:var(--acc); }
+
+  /* ---- right : chat ---- */
+  .chat { background:var(--bg-1); border-left:1px solid var(--line); display:flex; flex-direction:column; min-width:0; }
+  .chat-top { padding:13px 16px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:9px; }
+  .chat-top .who { font-family:var(--mono); font-size:11px; color:var(--ink-2); }
+  .chat-top .who b { color:var(--acc); }
+  .msgs { flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:14px; }
+  .msg { max-width:92%; } .msg.me { align-self:flex-end; }
+  .msg .r { font-family:var(--mono); font-size:10px; color:var(--ink-2); margin-bottom:4px; letter-spacing:.05em; }
+  .msg .b { background:var(--bg-2); border:1px solid var(--line); border-radius:var(--r); padding:10px 12px; color:var(--ink-0); }
+  .msg.me .b { background:linear-gradient(180deg,var(--acc-dim),var(--bg-2)); border-color:var(--acc-dim); }
+  .msg .b code { font-family:var(--mono); font-size:11.5px; color:var(--acc); background:var(--bg-0); padding:1px 5px; border-radius:4px; }
+  .plan { margin-top:8px; border:1px solid var(--line); border-radius:var(--r-sm); overflow:hidden; }
+  .plan .ph { background:var(--bg-3); font-family:var(--mono); font-size:10px; color:var(--ink-1); padding:5px 9px; display:flex; justify-content:space-between; }
+  .plan .row { padding:5px 9px; font-size:11.5px; color:var(--ink-1); display:flex; gap:7px; align-items:center; border-top:1px solid var(--line); }
+  .plan .row .tick { color:var(--ok); font-family:var(--mono); }
+  .composer { border-top:1px solid var(--line); padding:12px 14px; }
+  .goal { display:flex; gap:8px; margin-bottom:9px; }
+  .goal input { flex:1; background:var(--bg-2); border:1px solid var(--line-bright); border-radius:var(--r-sm); color:var(--ink-0);
+    padding:8px 10px; font-family:var(--sans); font-size:12px; }
+  .goal button { background:var(--acc); color:var(--acc-ink); border:0; border-radius:var(--r-sm); padding:0 14px; font-weight:700;
+    font-family:var(--mono); font-size:11px; cursor:pointer; letter-spacing:.04em; }
+  .box { display:flex; gap:8px; align-items:flex-end; }
+  .box textarea { flex:1; background:var(--bg-2); border:1px solid var(--line); border-radius:var(--r-sm); color:var(--ink-0);
+    padding:9px 11px; resize:none; font-family:var(--sans); font-size:12.5px; height:38px; }
+  .box .send { width:38px; height:38px; border-radius:var(--r-sm); background:var(--bg-3); border:1px solid var(--line-bright);
+    color:var(--acc); cursor:pointer; display:grid; place-items:center; font-size:15px; }
+  .chip { font-family:var(--mono); font-size:10px; color:var(--ink-2); margin-bottom:7px; }
+  .chip b { color:var(--acc); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- LEFT RAIL -->
+  <aside class="rail">
+    <div class="brand">
+      <div class="logo">!K</div>
+      <b><span>!</span>Klein</b>
+    </div>
+    <h4>Projects</h4>
+    <div class="proj sel"><span class="dot live"></span> habit-insights <span style="margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--acc)">6·live</span></div>
+    <div class="stream sel">◆ scoring &amp; trends <b>3/4</b></div>
+    <div class="stream">◆ cli &amp; output <b>2/3</b></div>
+    <div class="proj"><span class="dot"></span> pantry-sync</div>
+    <div class="proj"><span class="dot"></span> invoice-parser</div>
+    <div class="fleet">
+      <h4 style="margin:0 0 8px">Fleet</h4>
+      <div class="m">gptoss120-m5 <div class="bar"><i style="width:72%"></i></div></div>
+      <div class="m">coder-gpu <div class="bar"><i style="width:44%"></i></div></div>
+      <div class="m">nano4-m5 <div class="bar"><i style="width:31%"></i></div></div>
+      <div class="m">v3-cpu <div class="bar"><i style="width:58%"></i></div></div>
+    </div>
+  </aside>
+
+  <!-- CENTER BOARD -->
+  <main class="board-wrap">
+    <div class="topbar">
+      <h1>habit-insights</h1>
+      <span class="sub">decompose → 7 cards · warm 99.7%</span>
+      <div class="rollup">
+        <span class="pill ok">healthy <span class="n">4</span></span>
+        <span class="pill warn">risky <span class="n">1</span></span>
+        <span class="pill bad">stuck <span class="n">0</span></span>
+        <span class="pill">needs you <span class="n">1</span></span>
+      </div>
+      <div class="accent-toggle">
+        <button class="swatch-cyan" onclick="document.documentElement.dataset.accent='cyan'"></button>
+        <button class="swatch-violet" onclick="document.documentElement.dataset.accent='violet'"></button>
+        <button class="swatch-lime" onclick="document.documentElement.dataset.accent='lime'"></button>
+      </div>
+    </div>
+
+    <div class="cols">
+      <div class="col">
+        <h3>Backlog <span class="c">1</span></h3>
+        <div class="card"><div class="t">Decompose: weekly digest</div>
+          <div class="meta"><span class="badge"><span class="k">auto</span> plan</span></div></div>
+      </div>
+      <div class="col">
+        <h3>Planning <span class="c">1</span></h3>
+        <div class="card live"><span class="reuse">▟ 57%</span><div class="t">final verification</div>
+          <div class="meta"><span class="badge model">◈ gptoss120</span><span class="badge"><span class="k">arch</span></span></div>
+          <div class="act"><span class="spin"></span> decompose_project</div></div>
+      </div>
+      <div class="col">
+        <h3>In Progress <span class="c">2</span></h3>
+        <div class="card live"><span class="reuse">▟ 99.7%</span><div class="t">trend classifier</div>
+          <div class="meta"><span class="badge model">◈ v3-cpu</span><span class="health h-ok"></span></div>
+          <div class="act"><span class="spin"></span> edit_file · src/insights.ts</div></div>
+        <div class="card live"><span class="reuse">▟ 99.6%</span><div class="t">score clamp</div>
+          <div class="meta"><span class="badge model">◈ coder-gpu</span><span class="health h-warn"></span></div>
+          <div class="ladder">ladder: <span class="rung done">bounce</span><span class="rung now">escalate</span><span class="rung">park</span></div></div>
+      </div>
+      <div class="col">
+        <h3>Review <span class="c">1</span></h3>
+        <div class="card"><span class="reuse">▟ 74%</span><div class="t">cli output</div>
+          <div class="meta"><span class="badge model">◈ gptoss120</span><span class="badge"><span class="k">review</span> diverse</span></div>
+          <div class="act">✓ acceptance green · merging</div></div>
+      </div>
+      <div class="col">
+        <h3>Completed <span class="c">2</span></h3>
+        <div class="card"><div class="t">recommendation string</div>
+          <div class="meta"><span class="badge"><span class="k">merged</span></span><span class="health h-ok"></span></div></div>
+        <div class="card"><div class="t">tests extension</div>
+          <div class="meta"><span class="badge"><span class="k">merged</span></span><span class="health h-ok"></span></div></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT CHAT -->
+  <aside class="chat">
+    <div class="chat-top">
+      <div class="logo" style="width:20px;height:20px;font-size:11px;border-radius:6px">!K</div>
+      <div class="who">talking to <b>@habit-insights</b> · board</div>
+    </div>
+    <div class="msgs">
+      <div class="msg me"><div class="r">you</div><div class="b">build a habit-insights CLI that summarizes weekly trends and flags declines</div></div>
+      <div class="msg"><div class="r">!klein · architect</div><div class="b">Planned it into 7 cards. Storage &amp; scoring first, then trend classification, then the CLI surface. A diverse critic reviewed the plan — <code>proceed</code>.
+        <div class="plan"><div class="ph"><span>decomposition · det-habit</span><span>7 cards</span></div>
+          <div class="row"><span class="tick">✓</span> score clamp <span style="margin-left:auto;color:var(--ink-2)">merged</span></div>
+          <div class="row"><span class="tick">✓</span> trend classifier <span style="margin-left:auto;color:var(--acc)">working · v3-cpu</span></div>
+          <div class="row"><span style="color:var(--ink-3)">○</span> weekly digest <span style="margin-left:auto;color:var(--ink-2)">backlog</span></div>
+        </div></div></div>
+      <div class="msg"><div class="r">!klein · card score-clamp</div><div class="b">This one defeated the first worker and its diverse takeover is on round 2. If it can't land, I'll split it into smaller cards automatically.</div></div>
+    </div>
+    <div class="composer">
+      <div class="chip">goal mode · <b>autonomous</b> · working 5/7 · warm rails held</div>
+      <div class="goal"><input value="ship the CLI with 90% test coverage" /><button>AUTO</button></div>
+      <div class="box"><textarea placeholder="Ask, steer, or answer a card's question…"></textarea><div class="send">↑</div></div>
+    </div>
+  </aside>
+
+</div>
+</body>
+</html>
