@@ -71,10 +71,16 @@ export function createRuntimeTaskStartQueue(options?: {
 			const now = input.now ?? Date.now();
 			const key = createQueueKey(input.workspaceScope.workspaceId, input.request.taskId);
 			const existing = queuedByKey.get(key);
+			// No caller-provided wait estimate ⇒ PACED exponential backoff (2s·2^attempts, 30s cap) instead of an
+			// immediate retry. The endpoint scheduler often has no estimate, and a 0-delay retry loop re-ran the
+			// full start pipeline dozens of times per second against a still-busy endpoint (live run20). Completion
+			// events force-drain past this pacing, so a freed slot is still picked up immediately.
+			const attemptsSoFar = existing?.attempts ?? 0;
+			const fallbackDelayMs = Math.min(2_000 * 2 ** attemptsSoFar, 30_000);
 			const delayMs =
 				typeof input.delayMs === "number" && Number.isFinite(input.delayMs) && input.delayMs > 0
 					? Math.trunc(input.delayMs)
-					: 0;
+					: fallbackDelayMs;
 			const queued: QueuedRuntimeTaskStart = {
 				workspaceScope: cloneWorkspaceScope(input.workspaceScope),
 				input: cloneQueuedRequest(input.request),

@@ -182,3 +182,25 @@ describe("runtime task start queue", () => {
 		expect(drainCalls).toBe(0);
 	});
 });
+
+describe("enqueue paced backoff (run20 live finding)", () => {
+	it("applies exponential backoff when the caller has no wait estimate (2s, 4s, 8s… capped 30s)", async () => {
+		const { createRuntimeTaskStartQueue } = await import("../../../src/trpc/runtime-task-start-queue");
+		const queue = createRuntimeTaskStartQueue();
+		const scope = { workspaceId: "w1", workspacePath: "/w1" };
+		const request = { taskId: "t1", prompt: "p" } as never;
+		const first = queue.enqueue({ workspaceScope: scope, request, now: 1_000 });
+		expect(first.nextAttemptAt).toBe(3_000); // attempts 0 → 2s
+		const second = queue.enqueue({ workspaceScope: scope, request, now: 10_000 });
+		expect(second.nextAttemptAt).toBe(14_000); // attempts 1 → 4s
+		// A caller-provided estimate always wins over the fallback.
+		const estimated = queue.enqueue({ workspaceScope: scope, request, delayMs: 500, now: 20_000 });
+		expect(estimated.nextAttemptAt).toBe(20_500);
+		// The fallback is capped at 30s no matter how many attempts accumulate.
+		let last = estimated;
+		for (let i = 0; i < 8; i += 1) {
+			last = queue.enqueue({ workspaceScope: scope, request, now: 50_000 });
+		}
+		expect(last.nextAttemptAt).toBe(80_000);
+	});
+});
