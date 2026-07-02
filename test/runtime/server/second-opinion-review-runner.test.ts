@@ -47,8 +47,9 @@ function makeDeps(overrides: {
 		effectiveModelRoles: { reviewer: { providerId: "lmstudio", modelId: "reviewer-model" } },
 	})) as unknown as never;
 	const loadWorkspaceState = vi.fn(async () => ({ board })) as unknown as never;
+	const mutationResults: unknown[] = [];
 	const mutateWorkspaceState = vi.fn(async (_cwd: string, mutate: (state: { board: RuntimeBoardData }) => unknown) => {
-		mutate({ board });
+		mutationResults.push(mutate({ board }));
 		return { saved: true };
 	}) as unknown as never;
 	const getTaskResultBranchDiff = vi.fn(async () =>
@@ -62,6 +63,7 @@ function makeDeps(overrides: {
 	const sendTaskSessionInput = vi.fn(async (_taskId: string, _prompt: string, _mode?: string) => null);
 	const cancelTaskTurn = vi.fn(async (_taskId: string) => null);
 	return {
+		mutationResults,
 		loadRuntimeConfig,
 		loadWorkspaceState,
 		mutateWorkspaceState,
@@ -249,6 +251,74 @@ describe("runSecondOpinionReviewForTask", () => {
 		});
 		expect(outcome.type).toBe("parked");
 		expect(deps.cancelTaskTurn).toHaveBeenCalledWith("task-1");
+	});
+
+	const boardsFromMutations = (deps: ReturnType<typeof makeDeps>): RuntimeBoardData[] =>
+		deps.mutationResults
+			.map((result) => (result as { board?: RuntimeBoardData })?.board)
+			.filter((candidate): candidate is RuntimeBoardData => Boolean(candidate));
+
+	const hasRedecomposeCard = (boards: RuntimeBoardData[], taskId: string): boolean =>
+		boards.some((candidate) =>
+			candidate.columns.some((column) => column.cards.some((card) => card.id === `redecompose-${taskId}`)),
+		);
+
+	it("a plain park (no prior escalation) never spawns a re-decompose card", async () => {
+		const deps = makeDeps({
+			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
+			maxRounds: 0,
+		});
+		const outcome = await runSecondOpinionReviewForTask({
+			workspacePath: "/repo",
+			taskId: "task-1",
+			service: service(deps),
+			loadRuntimeConfig: deps.loadRuntimeConfig,
+			loadWorkspaceState: deps.loadWorkspaceState,
+			mutateWorkspaceState: deps.mutateWorkspaceState,
+			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+		});
+		expect(outcome.type).toBe("parked");
+		expect(hasRedecomposeCard(boardsFromMutations(deps), "task-1")).toBe(false);
+	});
+
+	it("a park AFTER escalation spawns the §5.AB re-decompose card (the ladder escape)", async () => {
+		const deps = makeDeps({
+			submission: { verdict: "request_changes", summary: "Stuck", feedback: "Cannot proceed", insight: null },
+			maxRounds: 0,
+		});
+		const runnerService = {
+			...(service(deps) as unknown as Record<string, unknown>),
+			pickDiverseEscalationModel: vi.fn(async () => ({ providerId: "lmstudio", modelId: "gptoss120-m5" })),
+		} as unknown as never;
+		const run = () =>
+			runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: runnerService,
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+			});
+		const first = await run();
+		expect(first.type).toBe("escalated");
+		const second = await run();
+		expect(second.type).toBe("parked");
+		const boards = boardsFromMutations(deps);
+		expect(hasRedecomposeCard(boards, "task-1")).toBe(true);
+		// The spawned card carries the decompose instruction and lands in backlog for the sweep.
+		const spawned = boards
+			.flatMap((candidate) => candidate.columns.flatMap((column) => column.cards.map((card) => ({ column, card }))))
+			.find((entry) => entry.card.id === "redecompose-task-1");
+		expect(spawned?.column.id).toBe("backlog");
+		expect(spawned?.card.prompt).toContain("decompose_project");
+		// Idempotent: a THIRD park attempt must not duplicate the card (same runner instance set).
+		const third = await run();
+		expect(third.type).toBe("parked");
+		const duplicates = boardsFromMutations(deps)
+			.flatMap((candidate) => candidate.columns.flatMap((column) => column.cards))
+			.filter((card) => card.id === "redecompose-task-1").length;
+		expect(duplicates).toBeGreaterThanOrEqual(1);
 	});
 
 	it("delivered and bounced outcomes never cancel the worker's turn", async () => {

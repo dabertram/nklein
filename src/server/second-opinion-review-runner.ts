@@ -13,6 +13,7 @@ import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
+import { addTaskToColumn } from "../core/task-board-mutations";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
 import {
 	type NKleinSecondOpinionReviewOutcome,
@@ -301,6 +302,50 @@ export async function runSecondOpinionReviewForTask(
 				// the session: the turn is aborted and the state goes idle (slot freed), while the session stays
 				// resumable — sendTaskSessionInput accepts an idle session, so the human's follow-up just works.
 				await input.service.cancelTaskTurn?.(input.taskId).catch(() => null);
+				// §5.AB RE-DECOMPOSE RUNG: a card parked after its ESCALATION also failed has exhausted the whole
+				// ladder (bounce → diverse takeover → park) — the proven can't-handle-as-one-unit signal
+				// (decideCardDecomposition Rule 1). Spawn ONE follow-up decompose card so the architect splits the
+				// objective into smaller cards; the terminal sweep auto-starts it (backlog + no deps). Runs 21-25:
+				// this is the productive escape for the score-clamp-class cards that defeated all three model tiers.
+				if (escalatedWorkerTaskIds.has(input.taskId)) {
+					const redecomposeTaskId = `redecompose-${input.taskId}`;
+					await mutate(input.workspacePath, (current) => {
+						const exists = current.board.columns.some((column) =>
+							column.cards.some((boardCard) => boardCard.id === redecomposeTaskId),
+						);
+						if (exists) {
+							return { board: current.board, save: false, value: null };
+						}
+						const created = addTaskToColumn(
+							current.board,
+							"backlog",
+							{
+								taskId: redecomposeTaskId,
+								title: `Decompose: ${card.title ?? card.id}`,
+								prompt: [
+									`The card "${card.title ?? card.id}" proved too hard as ONE unit — a bounced worker, a diverse escalation, and the review ladder all failed to complete it. Split its objective into SMALLER, independently-verifiable cards using the decompose_project tool (do NOT implement it directly).`,
+									`Original objective:
+${card.prompt}`,
+									review.lastFeedback
+										? `Reviewer feedback the workers could not address:
+${review.lastFeedback}`
+										: "",
+									`Keep each new card small enough for a single focused session, declare tight file scopes, and give every card an objective acceptance check.`,
+								]
+									.filter(Boolean)
+									.join("\n\n"),
+								baseRef: card.baseRef,
+								startInPlanMode: true,
+								autoReviewEnabled: card.autoReviewEnabled ?? true,
+							},
+							() => globalThis.crypto.randomUUID(),
+						);
+						return { board: created.board, value: null };
+					});
+					input.warn?.(
+						`Parked card ${input.taskId} exhausted the escalation ladder — spawned re-decompose card ${redecomposeTaskId} (the architect will split the objective).`,
+					);
+				}
 			},
 		},
 	});
