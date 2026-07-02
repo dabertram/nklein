@@ -342,6 +342,17 @@ export async function handleStartTaskSession(
 					if (profile.isEmbedding) {
 						continue; // an embedding model is not an agentic candidate
 					}
+					// W2.5b (audit 2026-07-02): suitability-gate the AUTO-OFFERED candidates — run17 proved
+					// auto-discovery delivers (nano4-m5), so the catalog gate must apply to it too: a
+					// catalog-REJECTED family (reasoning-only, no tool training) must not enter routing as a
+					// worker candidate just because it happens to be loaded. Gate on the REAL model key.
+					const loadedSuitability = assessModelSuitability(
+						descriptor.modelKey,
+						resolveActiveModelSuitabilityPolicy(process.env, scopedRuntimeConfig.effectiveModelSuitabilityPolicy),
+					);
+					if (loadedSuitability.severity === "reject") {
+						continue;
+					}
 					try {
 						const loadedLaunchConfig = await deps.nkleinProviderService.resolveLaunchConfig({
 							modelIdOverride: descriptor.runtimeId,
