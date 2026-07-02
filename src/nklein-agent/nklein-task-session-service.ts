@@ -305,6 +305,11 @@ export interface NKleinTaskSessionService {
 		taskPrompt: string;
 		timeoutMs?: number;
 	}): Promise<RuntimeTaskAcceptanceResult>;
+	/**
+	 * W4.2 (layer 3): a lineage-diverse loaded model to ESCALATE a stuck card's worker to (null when none exists
+	 * or the task has no cached launch config). Reuses the W2.5a diverse-pick machinery.
+	 */
+	pickDiverseEscalationModel(taskId: string): Promise<{ providerId: string; modelId: string } | null>;
 	runSecondOpinionReviewSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -2483,6 +2488,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			metadata: { category: "reviewer_auto_diverse", reviewer: pick.modelKey, worker: workerRealId },
 		});
 		return { providerId: workerLaunch.providerId, modelId: pick.modelKey };
+	}
+
+	async pickDiverseEscalationModel(taskId: string): Promise<{ providerId: string; modelId: string } | null> {
+		const launch = this.launchConfigByTaskId.get(taskId) ?? null;
+		if (!launch?.providerId || !launch.modelId) {
+			return null;
+		}
+		return await this.pickDiverseReviewerModel(launch, taskId).catch(() => null);
 	}
 
 	async runSecondOpinionReviewSession(input: {

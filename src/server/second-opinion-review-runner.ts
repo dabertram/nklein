@@ -25,6 +25,9 @@ import { getTaskResultBranchDiff } from "../workspace/task-result-branches";
 /** Suffix the service uses for the isolated reviewer session id; guards against reviewing a review. */
 const REVIEW_SESSION_TASK_SUFFIX = "::review";
 
+/** W4.2 layer 3: one worker-escalation per card per server run (resets on restart — v1 semantics). */
+const escalatedWorkerTaskIds = new Set<string>();
+
 /** Returns a new board with the card's review state set, optionally moving it to `targetColumnId`. */
 export function applyCardReviewToBoard(
 	board: RuntimeBoardData,
@@ -62,7 +65,7 @@ export interface RunSecondOpinionReviewForTaskInput {
 	workspacePath: string;
 	taskId: string;
 	service: Pick<NKleinTaskSessionService, "runSecondOpinionReviewSession" | "sendTaskSessionInput" | "getSummary"> &
-		Partial<Pick<NKleinTaskSessionService, "verifyTaskAcceptanceInSandbox">>;
+		Partial<Pick<NKleinTaskSessionService, "verifyTaskAcceptanceInSandbox" | "pickDiverseEscalationModel">>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
 	mutateWorkspaceState?: typeof mutateWorkspaceState;
 	loadRuntimeConfig?: typeof loadRuntimeConfig;
@@ -217,6 +220,11 @@ export async function runSecondOpinionReviewForTask(
 			})()
 		: null;
 
+	// W4.2 layer 3: probe once per review run for a lineage-diverse escalation worker (null ⇒ park as before).
+	const escalationCandidate = config.secondOpinionReviewEnabled
+		? await input.service.pickDiverseEscalationModel?.(input.taskId).catch(() => null)
+		: null;
+
 	return runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
@@ -224,6 +232,8 @@ export async function runSecondOpinionReviewForTask(
 		maxRounds: config.reviewMaxRounds,
 		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
 		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance),
+		escalationAvailable: Boolean(escalationCandidate),
+		alreadyEscalated: escalatedWorkerTaskIds.has(input.taskId),
 		now,
 		deps: {
 			getCard: async () => ({
@@ -253,6 +263,24 @@ export async function runSecondOpinionReviewForTask(
 			onBounce: async ({ review, workerPrompt }) => {
 				await persistReview(review, "in_progress");
 				await input.service.sendTaskSessionInput(input.taskId, workerPrompt, "act");
+			},
+			onEscalate: async ({ review, workerPrompt }) => {
+				// W4.2: the stuck card retries ONCE on the diverse/stronger worker (the W1.1b override machinery).
+				escalatedWorkerTaskIds.add(input.taskId);
+				await persistReview(review, "in_progress");
+				const escalationPreamble = escalationCandidate
+					? `You are taking over this task from another model that got stuck in review. Read the feedback below carefully and address it directly.\n\n`
+					: "";
+				await input.service.sendTaskSessionInput(
+					input.taskId,
+					`${escalationPreamble}${workerPrompt}`,
+					"act",
+					undefined,
+					escalationCandidate ?? undefined,
+				);
+				input.warn?.(
+					`Escalated ${input.taskId} to ${escalationCandidate?.modelId ?? "?"} after a stuck review loop (one escalation per card).`,
+				);
 			},
 			onPark: async ({ review }) => {
 				await persistReview(review);
