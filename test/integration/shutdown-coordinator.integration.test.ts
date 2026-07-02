@@ -105,7 +105,7 @@ function createSession(
 }
 
 describe.sequential("shutdown coordinator integration", () => {
-	it("moves all in-progress and review cards to trash for every indexed project on shutdown", async () => {
+	it("parks in-progress cards in Review and leaves review cards in place on shutdown (reconcile-don't-destroy)", async () => {
 		await withTemporaryHome(async () => {
 			const { path: sandboxRoot, cleanup } = createTempDir("kanban-shutdown-scope-");
 			try {
@@ -174,8 +174,11 @@ describe.sequential("shutdown coordinator integration", () => {
 				expect(didCloseRuntimeServer).toBe(true);
 
 				const managedAfter = await loadWorkspaceState(managedProjectPath);
+				// W2.2 reconcile-don't-destroy: nothing is trashed; in-progress work parks in Review, review stays.
 				const managedTrash = managedAfter.board.columns.find((column) => column.id === "trash")?.cards ?? [];
-				expect(managedTrash.map((card) => card.id).sort()).toEqual(
+				expect(managedTrash).toEqual([]);
+				const managedReview = managedAfter.board.columns.find((column) => column.id === "review")?.cards ?? [];
+				expect(managedReview.map((card) => card.id).sort()).toEqual(
 					["managed-idle", "managed-missing-session", "managed-running"].sort(),
 				);
 				expect(managedAfter.sessions["managed-running"]?.state).toBe("interrupted");
@@ -184,7 +187,9 @@ describe.sequential("shutdown coordinator integration", () => {
 
 				const indexedAfter = await loadWorkspaceState(indexedProjectPath);
 				const indexedTrash = indexedAfter.board.columns.find((column) => column.id === "trash")?.cards ?? [];
-				expect(indexedTrash.map((card) => card.id).sort()).toEqual(
+				expect(indexedTrash).toEqual([]);
+				const indexedReview = indexedAfter.board.columns.find((column) => column.id === "review")?.cards ?? [];
+				expect(indexedReview.map((card) => card.id).sort()).toEqual(
 					["indexed-awaiting-review", "indexed-missing-session"].sort(),
 				);
 				expect(indexedAfter.sessions["indexed-awaiting-review"]?.state).toBe("interrupted");
@@ -267,8 +272,12 @@ describe.sequential("shutdown coordinator integration", () => {
 					["legacy-card-only", "legacy-codex"].sort(),
 				);
 				const after = await loadWorkspaceState(projectPath);
+				// W2.2 reconcile-don't-destroy: interrupted in-progress cards park in Review (never trash); the
+				// legacy-agent WORKTREE cleanup above is independent of the board lane.
 				const trash = after.board.columns.find((column) => column.id === "trash")?.cards ?? [];
-				expect(trash.map((card) => card.id).sort()).toEqual(
+				expect(trash).toEqual([]);
+				const review = after.board.columns.find((column) => column.id === "review")?.cards ?? [];
+				expect(review.map((card) => card.id).sort()).toEqual(
 					["default-nklein", "explicit-nklein", "legacy-card-only", "legacy-codex"].sort(),
 				);
 				expect(after.sessions["default-nklein"]?.state).toBe("interrupted");

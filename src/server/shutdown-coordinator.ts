@@ -57,10 +57,27 @@ function collectActiveBoardTasksForShutdown(board: RuntimeBoardData): ShutdownAc
 	return tasks;
 }
 
-function moveActiveBoardTasksToTrash(board: RuntimeBoardData, taskIds: Iterable<string>): RuntimeBoardData {
+/**
+ * RECONCILE-DON'T-DESTROY (audit 2026-07-02 W2.2; supersedes the trash-everything shutdown): a restart must never
+ * destroy queued or partially-done work. PLANNING cards are queued work with nothing in flight — they stay put and
+ * simply run after the restart. IN_PROGRESS cards carry partial work + an interrupted session — they move to REVIEW
+ * (the operator-attention lane) instead of trash so the work is visible and resumable. REVIEW cards stay where they
+ * are. Live-found via run11's board autopsy: the old behavior trashed 3 perfectly-good queued cards on harness
+ * shutdown, which read like a swarm bug until traced here.
+ */
+function parkInterruptedTasksForShutdown(board: RuntimeBoardData, taskIds: Iterable<string>): RuntimeBoardData {
 	let nextBoard = board;
+	const columnByTaskId = new Map<string, string>();
+	for (const column of nextBoard.columns) {
+		for (const card of column.cards) {
+			columnByTaskId.set(card.id, column.id);
+		}
+	}
 	for (const taskId of taskIds) {
-		const moved = moveTaskToColumn(nextBoard, taskId, "trash");
+		if (columnByTaskId.get(taskId) !== "in_progress") {
+			continue; // planning/review cards survive in place
+		}
+		const moved = moveTaskToColumn(nextBoard, taskId, "review");
 		if (moved.moved) {
 			nextBoard = moved.board;
 		}
@@ -108,7 +125,7 @@ async function persistInterruptedSessions(
 			};
 		}
 	}
-	const nextBoard = moveActiveBoardTasksToTrash(workspaceState.board, activeBoardTaskIds);
+	const nextBoard = parkInterruptedTasksForShutdown(workspaceState.board, activeBoardTaskIds);
 	await saveWorkspaceState(workspacePath, {
 		board: nextBoard,
 		sessions: nextSessions,
