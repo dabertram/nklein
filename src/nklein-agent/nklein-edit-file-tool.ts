@@ -27,6 +27,10 @@ interface EditFileBlockInput extends SearchReplaceBlock {}
 export interface EditFileRequest {
 	path: string;
 	edits: EditFileBlockInput[];
+	/** #38 (run37 live): the insert-at-line idiom (`insert_line` + `new_text`) models carry over from other
+	 * ecosystems' editor tools — 6 pre-rejections abandoned 3 workers in one run. One-based boundary line;
+	 * `text` is inserted BEFORE it (lineCount+1 appends at EOF). */
+	insert?: { line: number; text: string };
 }
 
 function toEditBlock(value: unknown): SearchReplaceBlock | null {
@@ -44,7 +48,9 @@ function toEditBlock(value: unknown): SearchReplaceBlock | null {
 					? record.old
 					: typeof record.old_string === "string"
 						? record.old_string
-						: null;
+						: typeof record.old_text === "string"
+							? record.old_text
+							: null;
 	const replace =
 		typeof record.replace === "string"
 			? record.replace
@@ -54,7 +60,9 @@ function toEditBlock(value: unknown): SearchReplaceBlock | null {
 					? record.new
 					: typeof record.new_string === "string"
 						? record.new_string
-						: null;
+						: typeof record.new_text === "string"
+							? record.new_text
+							: null;
 	if (search === null || replace === null) {
 		return null;
 	}
@@ -72,6 +80,17 @@ export function parseEditFileRequest(input: unknown): EditFileRequest | null {
 	if (!path) {
 		return null;
 	}
+	// #38: the insert-at-line idiom takes precedence when no search text was given — `insert_line` (or
+	// insertLine/line) plus new_text/text inserts BEFORE that one-based line.
+	const insertLineRaw = record.insert_line ?? record.insertLine ?? record.line;
+	const insertText =
+		typeof record.new_text === "string" ? record.new_text : typeof record.text === "string" ? record.text : null;
+	const hasSearchField = [record.search, record.search_text, record.old, record.old_string, record.old_text].some(
+		(value) => typeof value === "string",
+	);
+	if (typeof insertLineRaw === "number" && Number.isFinite(insertLineRaw) && insertText !== null && !hasSearchField) {
+		return { path, edits: [], insert: { line: Math.trunc(insertLineRaw), text: insertText } };
+	}
 	// Allow a single {search,replace} at the top level or an `edits` array.
 	const rawEdits = repairJsonStringValue(record.edits);
 	const editValues = Array.isArray(rawEdits) ? rawEdits : [record];
@@ -88,6 +107,8 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 		name: "edit_file",
 		description:
 			"Edit an existing text file with one or more search/replace blocks instead of rewriting it. Each edit has a `search` (exact current text, copied verbatim including indentation) and a `replace`. Matching is lenient (tolerates indentation and small differences) and far cheaper than rewriting the whole file. Use `...` on its own line inside a search/replace to elide unchanged middle sections.",
+		// LENIENT boundary (#38, the §5.BD law): the executor's parser already tolerates field-name variants
+		// and now the insert-at-line idiom — the boundary must never pre-reject what execute can normalize.
 		inputSchema: {
 			type: "object",
 			properties: {
@@ -101,18 +122,29 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 							search: { type: "string", description: "Exact current text to find, copied verbatim." },
 							replace: { type: "string", description: "Replacement text." },
 						},
-						required: ["search", "replace"],
-						additionalProperties: false,
+						required: [],
+						additionalProperties: true,
 					},
 				},
+				insert_line: {
+					type: ["number", "null"],
+					description:
+						"Alternative to `edits`: one-based line to insert `new_text` BEFORE (line_count + 1 appends at EOF).",
+				},
+				new_text: {
+					type: ["string", "null"],
+					description: "The text to insert when `insert_line` is provided.",
+				},
 			},
-			required: ["path", "edits"],
-			additionalProperties: false,
+			required: ["path"],
+			additionalProperties: true,
 		},
 		async execute(input) {
 			const request = parseEditFileRequest(input);
 			if (!request) {
-				throw new Error("edit_file requires a path and one or more { search, replace } edits.");
+				throw new Error(
+					"edit_file requires a path plus either `edits: [{ search, replace }]` blocks or `insert_line` (one-based) with `new_text` to insert before that line.",
+				);
 			}
 			const protectedPath = findProtectedTestPath(request.path);
 			if (protectedPath) {
@@ -120,7 +152,9 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 					formatProtectedTestBlockReason({
 						toolName: "edit_file",
 						path: protectedPath,
-						diff: request.edits.map((edit) => `- ${edit.search}\n+ ${edit.replace}`).join("\n"),
+						diff: request.insert
+							? `+ (insert before line ${request.insert.line}) ${request.insert.text}`
+							: request.edits.map((edit) => `- ${edit.search}\n+ ${edit.replace}`).join("\n"),
 						reason: "edit_file attempted to modify a protected test-suite file.",
 						expectedEffects: "The protected test-suite file would be edited.",
 					}),
@@ -148,17 +182,28 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 				);
 			}
 
-			const applied = applySearchReplaceBlocks(original, request.edits);
-			if (!applied.ok) {
-				const similarityHint =
-					typeof applied.bestSimilarity === "number"
-						? ` Closest match was ${(applied.bestSimilarity * 100).toFixed(0)}% similar.`
-						: "";
-				throw new Error(
-					`Blocked edit_file: edit block ${(applied.failedBlockIndex ?? 0) + 1} did not match ${request.path}.${similarityHint} ${
-						applied.reason ?? ""
-					}`.trim(),
-				);
+			let applied: { content: string; appliedStrategies: string[] };
+			if (request.insert) {
+				// #38: insert-at-line — clamp the one-based boundary into [1, lineCount+1] and splice the text in.
+				const lines = original.split("\n");
+				const boundary = Math.min(Math.max(1, request.insert.line), lines.length + 1);
+				const insertedLines = request.insert.text.replace(/\n$/u, "").split("\n");
+				lines.splice(boundary - 1, 0, ...insertedLines);
+				applied = { content: lines.join("\n"), appliedStrategies: [`insert@${boundary}`] };
+			} else {
+				const replaced = applySearchReplaceBlocks(original, request.edits);
+				if (!replaced.ok) {
+					const similarityHint =
+						typeof replaced.bestSimilarity === "number"
+							? ` Closest match was ${(replaced.bestSimilarity * 100).toFixed(0)}% similar.`
+							: "";
+					throw new Error(
+						`Blocked edit_file: edit block ${(replaced.failedBlockIndex ?? 0) + 1} did not match ${request.path}.${similarityHint} ${
+							replaced.reason ?? ""
+						}`.trim(),
+					);
+				}
+				applied = { content: replaced.content, appliedStrategies: replaced.appliedStrategies };
 			}
 			if (applied.content === original) {
 				return {
@@ -186,9 +231,7 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 				path: request.path,
 				changed: true,
 				strategies: applied.appliedStrategies,
-				instruction: `Applied ${request.edits.length} edit${
-					request.edits.length === 1 ? "" : "s"
-				} to ${request.path} (${applied.appliedStrategies.join(", ")}). Continue from the edited file; do not repeat this edit.`,
+				instruction: `Applied ${request.insert ? "the insert" : `${request.edits.length} edit${request.edits.length === 1 ? "" : "s"}`} to ${request.path} (${applied.appliedStrategies.join(", ")}). Continue from the edited file; do not repeat this edit.`,
 			};
 		},
 	};

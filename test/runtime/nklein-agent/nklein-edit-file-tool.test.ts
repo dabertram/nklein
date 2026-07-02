@@ -20,6 +20,16 @@ describe("parseEditFileRequest", () => {
 		});
 	});
 
+	it("#38 (run37): parses the insert-at-line idiom and the SDK editor's old_text/new_text pair", () => {
+		const insert = parseEditFileRequest({ path: "src/a.ts", insert_line: 30, new_text: "inserted\n" });
+		expect(insert).toEqual({ path: "src/a.ts", edits: [], insert: { line: 30, text: "inserted\n" } });
+		const editorPair = parseEditFileRequest({ path: "src/a.ts", old_text: "before", new_text: "after" });
+		expect(editorPair?.edits).toEqual([{ search: "before", replace: "after" }]);
+		// old_text present ⇒ a REPLACE even if a line number tags along.
+		const both = parseEditFileRequest({ path: "src/a.ts", old_text: "x", new_text: "y", insert_line: 2 });
+		expect(both?.insert).toBeUndefined();
+	});
+
 	it("rejects missing path or edits", () => {
 		expect(parseEditFileRequest({ edits: [{ search: "x", replace: "y" }] })).toBeNull();
 		expect(parseEditFileRequest({ path: "a.ts" })).toBeNull();
@@ -48,6 +58,15 @@ describe("edit_file tool", () => {
 		expect(result.changed).toBe(true);
 		expect(result.strategies).toContain("whitespace");
 		expect(await readFile(join(workspacePath, "math.ts"), "utf8")).toContain("\treturn a - b;");
+	});
+
+	it("#38: inserts new_text before the one-based line and clamps past-EOF to append", async () => {
+		const tool = createEditFileTool({ workspacePath });
+		await writeFile(join(workspacePath, "ins.txt"), "one\ntwo\nthree", "utf8");
+		await tool.execute({ path: "ins.txt", insert_line: 2, new_text: "between" }, undefined as never);
+		expect(await readFile(join(workspacePath, "ins.txt"), "utf8")).toBe("one\nbetween\ntwo\nthree");
+		await tool.execute({ path: "ins.txt", insert_line: 99, new_text: "tail" }, undefined as never);
+		expect(await readFile(join(workspacePath, "ins.txt"), "utf8")).toBe("one\nbetween\ntwo\nthree\ntail");
 	});
 
 	it("fails with a corrective, similarity-annotated error when the search does not match", async () => {
