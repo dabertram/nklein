@@ -5,7 +5,7 @@ import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isTruthyEnv } from "../../core/env-flag";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
-import { createDefaultLmsRunner, fetchLmsPsModels } from "../../core/lms-ps-json";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
@@ -428,7 +428,7 @@ export async function handleStartTaskSession(
 		// `isModelFree` = own-sessions only (byte-identical).
 		const busyModelIds = isTruthyEnv(process.env.NKLEIN_QUEUE_AWARE_FREE_FIRST)
 			? new Set(
-					(await fetchLmsPsModels(createDefaultLmsRunner()))
+					(await fetchLmsPsModelsCached(createDefaultLmsRunner()))
 						.filter((model) => model.queued > 0 || (model.status !== null && model.status !== "idle"))
 						.map((model) => model.identifier),
 				)
@@ -464,7 +464,7 @@ export async function handleStartTaskSession(
 		const machineByModelIdRaw =
 			perMachineCap !== null
 				? new Map(
-						(await fetchLmsPsModels(createDefaultLmsRunner())).map((model) => [
+						(await fetchLmsPsModelsCached(createDefaultLmsRunner())).map((model) => [
 							model.identifier,
 							model.machineId,
 						]),

@@ -16,6 +16,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { LmsRunner } from "./lms-model-runner";
+import { modelDiscoveryCacheTtlMs } from "./model-discovery-throttle";
 
 const execFileAsync = promisify(execFile);
 
@@ -143,4 +144,31 @@ export async function fetchLmsPsModels(run: LmsRunner): Promise<LmsPsModel[]> {
 	} catch {
 		return [];
 	}
+}
+
+// W0.5 (audit 2026-07-02): `lms ps --json` was spawned up to 3× per task start UNCACHED on the hot path (the
+// queue-aware free-first read + the per-machine map read), and an auto-start cascade multiplies that across every
+// card in a completion wave — each spawn is a full Node CLI fork. Mirror the `/api/v0/models` TTL-cache pattern
+// (`fetchLoadedModelIdsCached`): one shared snapshot inside the `modelDiscoveryCacheTtlMs` window. TTL 0 (the test
+// runner default) disables caching entirely, so tests and fakes see every call.
+let cachedPsSnapshot: { at: number; models: LmsPsModel[] } | null = null;
+
+/**
+ * TTL-cached {@link fetchLmsPsModels} — reuses a recent `lms ps` snapshot within the shared
+ * `modelDiscoveryCacheTtlMs` window so a task start (and a whole auto-start wave) pays for at most ONE subprocess.
+ * NOTE: the cache is keyed globally (one `lms` CLI per host), not per-runner — pass a custom runner only in tests
+ * (where the TTL is 0 and the cache is inert).
+ */
+export async function fetchLmsPsModelsCached(run: LmsRunner): Promise<LmsPsModel[]> {
+	const ttl = modelDiscoveryCacheTtlMs();
+	if (ttl <= 0) {
+		return fetchLmsPsModels(run);
+	}
+	const now = Date.now();
+	if (cachedPsSnapshot && now - cachedPsSnapshot.at <= ttl) {
+		return cachedPsSnapshot.models;
+	}
+	const models = await fetchLmsPsModels(run);
+	cachedPsSnapshot = { at: now, models };
+	return models;
 }
