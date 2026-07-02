@@ -31,9 +31,10 @@ import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
+import { assemblePromptFragments, computeSharedPrefixRatio } from "../core/prompt-fragment-assembly";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
-import { appendTemporalContext, decideTemporalContextInjection } from "../core/temporal-context-injection";
+import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import {
@@ -632,6 +633,51 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return this.cacheLaunchConfig(input.taskId, persisted);
 	}
 
+	/** W2.3b: last assembled system prompt per model — the baseline for the prefix reuseRatio observation. */
+	private lastAssembledSystemPromptByModelId = new Map<string, string>();
+
+	/**
+	 * W2.3b (§5.AQ): assemble the session system prompt from VOLATILITY-ORDERED fragments instead of raw concat —
+	 * static/config content first, the daily date next, per-task content last — so the byte-prefix shared across
+	 * session starts is maximal by construction (local endpoints cache by longest byte-stable prefix). The SDK base
+	 * prompt must open the message (hard contract), so it is head-pinned; its per-task cwd makes it the visible
+	 * cache cost (`headPinnedVolatileKeys`). Also records the measured `reuseRatio` vs the previous start on the
+	 * same model — the telemetry that tells us whether the cache design works on real traffic.
+	 */
+	private assembleSessionSystemPrompt(input: {
+		taskId: string;
+		modelId: string | null | undefined;
+		basePrompt: string;
+		planningPrompt?: string | null;
+		efficiencyRules: string;
+		temporalBlock: string;
+	}): string {
+		const assembled = assemblePromptFragments([
+			{ key: "base", volatility: "task", text: input.basePrompt, pinned: "head" },
+			{ key: "efficiency-rules", volatility: "config", text: input.efficiencyRules },
+			{ key: "temporal-context", volatility: "daily", text: input.temporalBlock },
+			{ key: "planning-workflow", volatility: "task", text: input.planningPrompt ?? "" },
+		]);
+		const modelKey = input.modelId?.trim() || "(unconfigured)";
+		const previous = this.lastAssembledSystemPromptByModelId.get(modelKey);
+		this.lastAssembledSystemPromptByModelId.set(modelKey, assembled.text);
+		if (previous !== undefined && previous !== assembled.text) {
+			const reuseRatio = computeSharedPrefixRatio(previous, assembled.text);
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Prompt prefix reuse for ${modelKey}: ${(reuseRatio * 100).toFixed(0)}% of the new system prompt is byte-shared with the previous start.`,
+				taskId: input.taskId,
+				metadata: {
+					category: "prompt_prefix_reuse",
+					reuseRatio: Number(reuseRatio.toFixed(4)),
+					headPinnedVolatileKeys: assembled.headPinnedVolatileKeys,
+				},
+			});
+		}
+		return assembled.text;
+	}
+
 	private async startRuntimeTaskSessionFromLaunchConfig(input: {
 		taskId: string;
 		cwd: string;
@@ -694,36 +740,35 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (appendedSystemPrompt) {
 			systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
 		}
-		// The "knows today" lighthouse (§5.AC): OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY), relevance-gated (§5.AE), and
-		// APPENDED AT THE END (§5.AQ cache-prefix stability). The decision core composes those three policies; when the
-		// flag is unset or the turn isn't temporal, `appendTemporalContext` returns the prompt byte-unchanged (zero cost).
-		// The clock is the trusted host `new Date()` — the sandbox never provides an authoritative "now".
-		// ORDER MATTERS (§5.AQ cache-prefix stability; audit 2026-07-02): the efficiency rules go BEFORE the
-		// temporal date block, so the DAILY-changing date stays the true suffix — previously the rules were appended
-		// AFTER the date, so every date rollover invalidated the rules' cached prefix too.
-		systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
-			contextScope: input.contextScope ?? "smart",
-			contextWindow: requestContextWindow,
-			timeoutMode: input.timeoutMode ?? "normal",
-			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-			// W2.4a: small (quality-effective) windows get the LEAN rules. FLAG-GATED OFF after live A/B evidence
-			// (run9 2026-07-02): the first lean run showed coder-gpu ping-ponging read_files/get_file_size for 14min
-			// with zero writes — the dropped "never re-read covered ranges" lines plausibly serve as anti-loop rails
-			// for small models. Enable with NKLEIN_LEAN_SYSPROMPT=1 to measure; default full until the scoreboard
-			// proves lean safe (research: measure-first).
-			level:
-				isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) && requestContextWindow && requestContextWindow <= 40_000
-					? "lean"
-					: "full",
-		})}`;
-		systemPrompt = appendTemporalContext(
-			systemPrompt,
-			decideTemporalContextInjection({
+		// W2.3b (§5.AQ): VOLATILITY-ORDERED fragment assembly replaces raw concat — base (head-pinned, per-task cwd)
+		// → efficiency rules (config) → knows-today date (daily; empty unless enabled+relevant, §5.AC/§5.AE). Byte-
+		// identical to the previous concat order here, but the ordering is now a modeled property with a measured
+		// reuseRatio observation instead of a convention.
+		systemPrompt = this.assembleSessionSystemPrompt({
+			taskId: input.taskId,
+			modelId: launchConfig.modelId,
+			basePrompt: systemPrompt,
+			efficiencyRules: buildKanbanEfficiencyRules({
+				contextScope: input.contextScope ?? "smart",
+				contextWindow: requestContextWindow,
+				timeoutMode: input.timeoutMode ?? "normal",
+				maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+				// W2.4a: small (quality-effective) windows get the LEAN rules. FLAG-GATED OFF after live A/B evidence
+				// (run9 2026-07-02): the first lean run showed coder-gpu ping-ponging read_files/get_file_size for 14min
+				// with zero writes — the dropped "never re-read covered ranges" lines plausibly serve as anti-loop rails
+				// for small models. Enable with NKLEIN_LEAN_SYSPROMPT=1 to measure; default full until the scoreboard
+				// proves lean safe (research: measure-first).
+				level:
+					isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) && requestContextWindow && requestContextWindow <= 40_000
+						? "lean"
+						: "full",
+			}),
+			temporalBlock: decideTemporalContextInjection({
 				enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
 				text: input.prompt,
 				now: new Date(),
-			}),
-		);
+			}).block,
+		});
 
 		await this.waitUntilTaskResumed(input.taskId);
 		this.requestTimer.markStarted(input.taskId);
@@ -1714,25 +1759,27 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				if (appendedSystemPrompt) {
 					systemPrompt = `${systemPrompt}\n\n${appendedSystemPrompt}`;
 				}
-				systemPrompt = appendSystemPrompt(systemPrompt, planningSystemPrompt);
-				// The "knows today" lighthouse (§5.AC): OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY), relevance-gated (§5.AE),
-				// and APPENDED AT THE END (§5.AQ cache-prefix stability), composed by the decision core. When the flag is
-				// unset or the turn isn't temporal, the prompt is returned byte-unchanged (zero token cost). The clock is
-				// the trusted host `new Date()` — the sandbox never provides an authoritative "now".
-				systemPrompt = appendTemporalContext(
-					systemPrompt,
-					decideTemporalContextInjection({
+				// W2.3b (§5.AQ): volatility-ordered fragment assembly. This seam previously appended the DAILY date
+				// BEFORE the config-level efficiency rules (every rollover invalidated the rules' cached prefix) and
+				// left the per-task planning workflow ahead of both — the audit-flagged inversion. Assembly order is
+				// now base (head-pinned) → rules (config) → date (daily) → planning workflow (task).
+				systemPrompt = this.assembleSessionSystemPrompt({
+					taskId: request.taskId,
+					modelId,
+					basePrompt: systemPrompt,
+					planningPrompt: planningSystemPrompt,
+					efficiencyRules: buildKanbanEfficiencyRules({
+						contextScope: request.contextScope ?? "smart",
+						contextWindow: requestContextWindow,
+						timeoutMode: request.timeoutMode ?? "normal",
+						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+					}),
+					temporalBlock: decideTemporalContextInjection({
 						enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
 						text: request.prompt,
 						now: new Date(),
-					}),
-				);
-				systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
-					contextScope: request.contextScope ?? "smart",
-					contextWindow: requestContextWindow,
-					timeoutMode: request.timeoutMode ?? "normal",
-					maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
-				})}`;
+					}).block,
+				});
 				const toolSchemaTokens = estimateKanbanToolSchemaTokens(runtimeSetup.toolPolicies);
 				this.contextBudgetInputs.record(request.taskId, systemPrompt, toolSchemaTokens);
 
