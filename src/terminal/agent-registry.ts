@@ -170,6 +170,8 @@ export function buildRuntimeConfigResponse(
 		replayCardsEnabled: runtimeConfig.replayCardsEnabled,
 		knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 		sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
+		retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
+		retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
 		effectiveCommand,
 		globalConfigPath: runtimeConfig.globalConfigPath,
 		projectConfigPath: runtimeConfig.projectConfigPath,

@@ -52,6 +52,8 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("replayCardsEnabled"),
 	runtimeConfigChangeField("knowsTodayEnabled"),
 	runtimeConfigChangeField("sandboxMcpServersEnabled"),
+	runtimeConfigChangeField("retrievalEgressEnabled"),
+	runtimeConfigChangeField("retrievalSearchBackendUrl"),
 	runtimeConfigChangeField("agentAutonomousModeEnabled"),
 	runtimeConfigChangeField("agentTimeoutMode"),
 	runtimeConfigChangeField("agentTimeoutProfile"),

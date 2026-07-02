@@ -85,6 +85,8 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		replayCardsEnabled: false,
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
+		retrievalEgressEnabled: false,
+		retrievalSearchBackendUrl: null,
 		agentAutonomousModeEnabled: true,
 		agentTimeoutMode: "normal",
 		agentTimeoutProfile: "local",

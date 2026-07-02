@@ -42,6 +42,7 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
+import { resolveRuntimeRetrievalConfig } from "./runtime-config-retrieval-resolver";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { deriveRulesetsFields } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
@@ -61,6 +62,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	replayCardsEnabled: boolean;
 	knowsTodayEnabled: boolean;
 	sandboxMcpServersEnabled: boolean;
+	retrievalEgressEnabled: boolean;
+	retrievalSearchBackendUrl: string | null;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -138,6 +141,10 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			sandboxMemoryPerContainerMb: input.sandboxMemoryPerContainerMb,
 			sandboxCpusPerContainer: input.sandboxCpusPerContainer,
 			sandboxIdleTimeoutMinutes: input.sandboxIdleTimeoutMinutes,
+		}),
+		...resolveRuntimeRetrievalConfig({
+			retrievalEgressEnabled: input.retrievalEgressEnabled,
+			retrievalSearchBackendUrl: input.retrievalSearchBackendUrl,
 		}),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig({

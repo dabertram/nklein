@@ -90,6 +90,11 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
+import {
+	normalizeRetrievalEgressEnabled,
+	normalizeRetrievalSearchBackendUrl,
+	resolveRuntimeRetrievalConfig,
+} from "./runtime-config-retrieval-resolver";
 import { resolveRuntimeReviewConfig } from "./runtime-config-review-resolver";
 import { resolveRuntimeRulesetsConfig } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
@@ -236,6 +241,7 @@ function toRuntimeConfigState({
 		maxAgentWritableFileLines: normalizeMaxAgentWritableFileLines(globalConfig?.maxAgentWritableFileLines),
 		...resolveRuntimeConcurrencyConfig(globalConfig, projectConfig),
 		...resolveRuntimeSandboxConfig(globalConfig),
+		...resolveRuntimeRetrievalConfig(globalConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig(globalConfig),
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
@@ -444,6 +450,8 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		replayCardsEnabled: current.replayCardsEnabled,
 		knowsTodayEnabled: current.knowsTodayEnabled,
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
+		retrievalEgressEnabled: current.retrievalEgressEnabled,
+		retrievalSearchBackendUrl: current.retrievalSearchBackendUrl,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		agentTimeoutMode: current.agentTimeoutMode,
 		agentTimeoutProfile: current.agentTimeoutProfile,
@@ -517,6 +525,8 @@ export async function saveRuntimeConfig(
 		replayCardsEnabled?: boolean;
 		knowsTodayEnabled?: boolean;
 		sandboxMcpServersEnabled?: boolean;
+		retrievalEgressEnabled?: boolean;
+		retrievalSearchBackendUrl?: string | null;
 		agentAutonomousModeEnabled: boolean;
 		agentTimeoutMode: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -570,6 +580,8 @@ export async function saveRuntimeConfig(
 				config.sandboxMcpServersEnabled,
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
+			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
+			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,
@@ -643,6 +655,8 @@ export async function saveRuntimeConfig(
 				config.sandboxMcpServersEnabled,
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
+			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
+			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
 			agentTimeoutProfile: config.agentTimeoutProfile,

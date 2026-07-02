@@ -163,6 +163,8 @@ describe.sequential("runtime-config auto agent selection", () => {
 			{ key: "sandboxMemoryPerContainerMb", value: 3072 },
 			{ key: "sandboxCpusPerContainer", value: 1.5 },
 			{ key: "sandboxIdleTimeoutMinutes", value: 20 },
+			{ key: "retrievalEgressEnabled", value: true },
+			{ key: "retrievalSearchBackendUrl", value: "http://localhost:8888" },
 			{ key: "lostHeartbeatPolicy", value: "keep_running" },
 			{ key: "decompositionAutoApplyEnabled", value: false },
 			{ key: "secondOpinionReviewEnabled", value: false },

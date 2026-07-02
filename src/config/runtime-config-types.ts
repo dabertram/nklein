@@ -27,6 +27,10 @@ export interface RuntimeConfigState {
 	knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT; offered to fitting models, global/per-project opt-out. */
 	sandboxMcpServersEnabled: boolean;
+	/** §5.AC egress-gated online retrieval (web_search + browse_url) — OFF BY DEFAULT; false must keep every retrieval path dormant. */
+	retrievalEgressEnabled: boolean;
+	/** §5.AC SearXNG-compatible search endpoint base URL — trimmed; empty → null (null = no search backend configured). */
+	retrievalSearchBackendUrl: string | null;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -88,6 +92,8 @@ export interface RuntimeConfigUpdateInput {
 	replayCardsEnabled?: boolean;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	retrievalEgressEnabled?: boolean;
+	retrievalSearchBackendUrl?: string | null;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -137,6 +143,8 @@ export interface RuntimeGlobalConfigFileShape {
 	replayCardsEnabled?: boolean;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	retrievalEgressEnabled?: boolean;
+	retrievalSearchBackendUrl?: string | null;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;

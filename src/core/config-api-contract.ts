@@ -86,6 +86,9 @@ export const runtimeConfigResponseSchema = z.object({
 	replayCardsEnabled: z.boolean().optional(),
 	knowsTodayEnabled: z.boolean().optional(),
 	sandboxMcpServersEnabled: z.boolean().optional(),
+	// §5.AC egress-gated online retrieval — optional for backward compatibility with older runtimes/config files.
+	retrievalEgressEnabled: z.boolean().optional(),
+	retrievalSearchBackendUrl: z.string().nullable().optional(),
 	effectiveCommand: z.string().nullable(),
 	globalConfigPath: z.string(),
 	projectConfigPath: z.string().nullable(),
@@ -119,6 +122,8 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	replayCardsEnabled: z.boolean().optional(),
 	knowsTodayEnabled: z.boolean().optional(),
 	sandboxMcpServersEnabled: z.boolean().optional(),
+	retrievalEgressEnabled: z.boolean().optional(),
+	retrievalSearchBackendUrl: z.string().nullable().optional(),
 	agentAutonomousModeEnabled: z.boolean().optional(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema.optional(),
 	agentTimeoutProfile: runtimeAgentTimeoutProfileSchema.optional(),

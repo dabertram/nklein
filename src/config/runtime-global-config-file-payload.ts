@@ -85,6 +85,11 @@ import {
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_OPEN_PR_PROMPT_TEMPLATE,
 } from "./runtime-config-prompt-templates";
+import {
+	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	normalizeRetrievalEgressEnabled,
+	normalizeRetrievalSearchBackendUrl,
+} from "./runtime-config-retrieval-resolver";
 import type { RuntimeGlobalConfigFileShape } from "./runtime-config-types";
 import {
 	assignChangedConfigField,
@@ -101,6 +106,8 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	replayCardsEnabled?: boolean;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	retrievalEgressEnabled?: boolean;
+	retrievalSearchBackendUrl?: string | null;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -150,6 +157,14 @@ export function buildRuntimeGlobalConfigFilePayload(
 		config.sandboxMcpServersEnabled,
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
+	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
+	const retrievalSearchBackendUrl =
+		config.retrievalSearchBackendUrl === undefined
+			? undefined
+			: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl);
+	const existingRetrievalSearchBackendUrl = hasOwnKey(existing, "retrievalSearchBackendUrl")
+		? normalizeRetrievalSearchBackendUrl(existing?.retrievalSearchBackendUrl)
+		: undefined;
 	const existingSelectedShortcutLabel = hasOwnKey(existing, "selectedShortcutLabel")
 		? normalizeShortcutLabel(existing?.selectedShortcutLabel)
 		: undefined;
@@ -322,6 +337,20 @@ export function buildRuntimeGlobalConfigFilePayload(
 		sandboxMcpServersEnabled,
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"retrievalEgressEnabled",
+		retrievalEgressEnabled,
+		DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	);
+	if (retrievalSearchBackendUrl !== undefined) {
+		if (retrievalSearchBackendUrl) {
+			payload.retrievalSearchBackendUrl = retrievalSearchBackendUrl;
+		}
+	} else if (existingRetrievalSearchBackendUrl) {
+		payload.retrievalSearchBackendUrl = existingRetrievalSearchBackendUrl;
+	}
 	assignChangedConfigField(
 		payload,
 		existing,

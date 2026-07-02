@@ -30,6 +30,8 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		replayCardsEnabled: false,
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
+		retrievalEgressEnabled: false,
+		retrievalSearchBackendUrl: null,
 		agentAutonomousModeEnabled: false,
 		agentTimeoutMode: DEFAULT_AGENT_TIMEOUT_MODE,
 		agentTimeoutProfile: DEFAULT_AGENT_TIMEOUT_PROFILE,

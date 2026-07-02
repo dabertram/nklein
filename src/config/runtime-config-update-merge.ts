@@ -38,6 +38,10 @@ import {
 	normalizePositiveNumber,
 	normalizeSkillDynamicsLevel,
 } from "./runtime-config-normalizers";
+import {
+	normalizeRetrievalEgressEnabled,
+	normalizeRetrievalSearchBackendUrl,
+} from "./runtime-config-retrieval-resolver";
 import type { RuntimeConfigState, RuntimeConfigUpdateInput } from "./runtime-config-types";
 import { keepNormalizedValue, keepUpdatedValue } from "./runtime-config-value-helpers";
 
@@ -60,6 +64,16 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.sandboxMcpServersEnabled,
 			current.sandboxMcpServersEnabled,
 			(value) => normalizeBoolean(value, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
+		),
+		retrievalEgressEnabled: keepNormalizedValue(
+			updates.retrievalEgressEnabled,
+			current.retrievalEgressEnabled,
+			normalizeRetrievalEgressEnabled,
+		),
+		retrievalSearchBackendUrl: keepNormalizedValue(
+			updates.retrievalSearchBackendUrl,
+			current.retrievalSearchBackendUrl,
+			normalizeRetrievalSearchBackendUrl,
 		),
 		agentAutonomousModeEnabled: keepUpdatedValue(
 			updates.agentAutonomousModeEnabled,
