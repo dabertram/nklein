@@ -25,6 +25,8 @@ export interface ReviewSubmissionInput {
 	summary: string;
 	feedback: string | null;
 	insight: string | null;
+	/** §5.AW: the reviewer's A/B pick when the seed presented two candidates; absent/null otherwise. */
+	preferred?: "primary" | "speculative" | null;
 }
 
 /**

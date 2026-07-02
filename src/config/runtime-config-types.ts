@@ -36,6 +36,12 @@ export interface RuntimeConfigState {
 	retrievalEgressEnabled: boolean;
 	/** §5.AC SearXNG-compatible search endpoint base URL — trimmed; empty → null (null = no search backend configured). */
 	retrievalSearchBackendUrl: string | null;
+	/** §5.AW opportunistic speculative best-of-N — ON BY DEFAULT (user 2026-07-02); only a literal `false` disables (opposite polarity of the retrieval fail-closed gate: the user opted in by default, disabling is the explicit act). */
+	speculativeBestOfNEnabled: boolean;
+	/** §5.AW ceiling on concurrently running speculative candidates — positive integer, clamped to 4. */
+	speculativeMaxConcurrentSpecs: number;
+	/** §5.AW ceiling on speculative candidates per run — positive integer, clamped to 20; no "0 = off" (disabling is the boolean). */
+	speculativeMaxSpecsPerRun: number;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -105,6 +111,9 @@ export interface RuntimeConfigUpdateInput {
 	sandboxMcpServersEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
+	speculativeBestOfNEnabled?: boolean;
+	speculativeMaxConcurrentSpecs?: number;
+	speculativeMaxSpecsPerRun?: number;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -159,6 +168,9 @@ export interface RuntimeGlobalConfigFileShape {
 	sandboxMcpServersEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
+	speculativeBestOfNEnabled?: boolean;
+	speculativeMaxConcurrentSpecs?: number;
+	speculativeMaxSpecsPerRun?: number;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;

@@ -215,6 +215,8 @@ export async function deleteTaskWorktree(options: {
 			if (!preserveChanges) {
 				await deleteTaskPatchFiles(options.repoPath, taskId);
 				await deleteTaskResultBranch({ repoPath: options.repoPath, taskId });
+				// §5.AW: the card's speculative candidate branch (if any) goes with it.
+				await deleteTaskResultBranch({ repoPath: options.repoPath, taskId: `${taskId}::spec` }).catch(() => false);
 			}
 			await deleteTaskWorktreeSyncState(options.repoPath, taskId);
 			await pruneEmptyParents(rootPath, dirname(worktreePath));
@@ -238,6 +240,8 @@ export async function deleteTaskWorktree(options: {
 		} else {
 			await deleteTaskPatchFiles(options.repoPath, taskId);
 			await deleteTaskResultBranch({ repoPath: options.repoPath, taskId });
+			// §5.AW: the card's speculative candidate branch (if any) goes with it.
+			await deleteTaskResultBranch({ repoPath: options.repoPath, taskId: `${taskId}::spec` }).catch(() => false);
 		}
 		const removed = await removeTaskWorktreeInternal(options.repoPath, worktreePath);
 		await deleteTaskWorktreeSyncState(options.repoPath, taskId);

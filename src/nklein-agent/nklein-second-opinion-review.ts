@@ -39,7 +39,8 @@ export interface SecondOpinionReviewCard {
 
 export type NKleinSecondOpinionReviewOutcome =
 	| { type: "skipped"; reason: "disabled" | "not_reviewable" | "card_not_found" | "no_verdict" }
-	| { type: "delivered"; round: number; signOff: string }
+	/** §5.AW: `preferred` is set only when the review was an A/B arbitration (a speculative candidate existed). */
+	| { type: "delivered"; round: number; signOff: string; preferred?: "primary" | "speculative" | null }
 	| { type: "bounced"; round: number }
 	/** W4.2: the stuck card was re-driven on a stronger/different-lineage worker (one escalation per card). */
 	| { type: "escalated"; round: number }
@@ -69,6 +70,8 @@ export interface RunNKleinSecondOpinionReviewInput {
 		getCard(taskId: string): Promise<SecondOpinionReviewCard | null>;
 		/** The worker's diff under review; null/empty means nothing to review. */
 		getTaskDiff(taskId: string): Promise<string | null>;
+		/** §5.AW: the speculative mirror's diff for the same card, when a `::spec` result branch exists. */
+		getSpeculativeDiff?(taskId: string): Promise<string | null>;
 		/** The worker's reasoning + the card's board/plan context, so the reviewer judges approach + fit, not just files. */
 		getReviewContext?(taskId: string): Promise<ReviewContext>;
 		/** Start a reviewer-role session with the seed prompt + `submit_review` tool; resolve to its verdict. */
@@ -136,10 +139,14 @@ export async function runNKleinSecondOpinionReview(
 	const history = card.review?.history ?? [];
 	const round = history.length + 1;
 	const reviewContext = (await input.deps.getReviewContext?.(input.taskId)) ?? null;
+	// §5.AW: a captured speculative candidate arms the A/B arbitration seed. Only a non-empty PRIMARY diff
+	// qualifies — a no-op primary keeps the ordinary no-changes review flow (the spec is discarded with it).
+	const speculativeDiff = diff ? ((await input.deps.getSpeculativeDiff?.(input.taskId))?.trim() ?? "") : "";
 	const seedPrompt = buildReviewSeedPrompt({
 		taskTitle: card.title,
 		taskObjective: card.prompt,
 		diff,
+		speculativeDiff: speculativeDiff || null,
 		workerReasoning: reviewContext?.workerReasoning ?? null,
 		boardContext: reviewContext?.boardContext ?? null,
 		acceptanceSummary: input.acceptanceSummary ?? null,
@@ -180,7 +187,14 @@ export async function runNKleinSecondOpinionReview(
 			now,
 		});
 		await input.deps.onDeliver({ taskId: input.taskId, review });
-		return { type: "delivered", round, signOff: transition.signOff };
+		return {
+			type: "delivered",
+			round,
+			signOff: transition.signOff,
+			// Arbitration verdict: an approving reviewer that names no candidate delivers the PRIMARY (the
+			// conservative default — the card's own worker won unless the reviewer said otherwise).
+			preferred: speculativeDiff ? (submission.preferred ?? "primary") : null,
+		};
 	}
 	if (transition.action === "bounce_to_worker") {
 		const review = buildNextReview({

@@ -96,6 +96,14 @@ import {
 	DEFAULT_SETUP_WIZARD_COMPLETED_AT,
 	normalizeSetupWizardCompletedAt,
 } from "./runtime-config-setup-wizard-resolver";
+import {
+	DEFAULT_SPECULATIVE_BEST_OF_N_ENABLED,
+	DEFAULT_SPECULATIVE_MAX_CONCURRENT_SPECS,
+	DEFAULT_SPECULATIVE_MAX_SPECS_PER_RUN,
+	normalizeSpeculativeBestOfNEnabled,
+	normalizeSpeculativeMaxConcurrentSpecs,
+	normalizeSpeculativeMaxSpecsPerRun,
+} from "./runtime-config-speculative-resolver";
 import type { RuntimeGlobalConfigFileShape } from "./runtime-config-types";
 import {
 	assignChangedConfigField,
@@ -115,6 +123,9 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	sandboxMcpServersEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
+	speculativeBestOfNEnabled?: boolean;
+	speculativeMaxConcurrentSpecs?: number;
+	speculativeMaxSpecsPerRun?: number;
 	agentAutonomousModeEnabled?: boolean;
 	agentTimeoutMode?: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile?: RuntimeAgentTimeoutProfile;
@@ -167,6 +178,9 @@ export function buildRuntimeGlobalConfigFilePayload(
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
 	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
+	const speculativeBestOfNEnabled = normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled);
+	const speculativeMaxConcurrentSpecs = normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs);
+	const speculativeMaxSpecsPerRun = normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun);
 	const fileOverlapParallelism = normalizeFileOverlapParallelism(config.fileOverlapParallelism);
 	const retrievalSearchBackendUrl =
 		config.retrievalSearchBackendUrl === undefined
@@ -368,6 +382,27 @@ export function buildRuntimeGlobalConfigFilePayload(
 	} else if (existingRetrievalSearchBackendUrl) {
 		payload.retrievalSearchBackendUrl = existingRetrievalSearchBackendUrl;
 	}
+	assignChangedConfigField(
+		payload,
+		existing,
+		"speculativeBestOfNEnabled",
+		speculativeBestOfNEnabled,
+		DEFAULT_SPECULATIVE_BEST_OF_N_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"speculativeMaxConcurrentSpecs",
+		speculativeMaxConcurrentSpecs,
+		DEFAULT_SPECULATIVE_MAX_CONCURRENT_SPECS,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"speculativeMaxSpecsPerRun",
+		speculativeMaxSpecsPerRun,
+		DEFAULT_SPECULATIVE_MAX_SPECS_PER_RUN,
+	);
 	assignChangedConfigField(
 		payload,
 		existing,

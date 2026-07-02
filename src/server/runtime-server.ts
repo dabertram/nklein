@@ -26,6 +26,8 @@ import type {
 import { readPausedTasks } from "../core/card-pause";
 import { decideDeliveryAction } from "../core/delivery-decision";
 import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/delivery-evidence";
+import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import {
 	findJustCompletedPlans,
 	resolvePlanAcceptanceCommand,
@@ -39,6 +41,7 @@ import {
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
+import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
@@ -97,7 +100,11 @@ import { loadQueuedTaskStartsFromDisk, saveQueuedTaskStartsToDisk } from "../trp
 import { createWorkspaceApi } from "../trpc/workspace-api";
 import { getWorkspaceChangesBetweenRefs } from "../workspace/get-workspace-changes";
 import { resolveRemoteBrowseRoots } from "../workspace/remote-path-confinement";
-import { createTaskResultBranchRef, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
+import {
+	createTaskResultBranchRef,
+	deleteTaskResultBranch,
+	resolveTaskResultBranchCommit,
+} from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
@@ -355,6 +362,24 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// terminal or held for the operator) never trip it.
 	const boardLivenessWatchdogByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
 	const BOARD_LIVENESS_TICK_MS = 60_000;
+	// §5.AW opportunistic best-of-N (user decision 2026-07-02): the per-workspace mirror tick + its budgets.
+	// The tick mirrors the hardest RUNNING card onto a lineage-diverse idle model as a `::spec` session; the
+	// A/B arbitration at the review seam picks the winner. Real work always outranks speculation (queued or
+	// overlap-deferred cards veto a mirror AND preempt running specs), and each card is mirrored at most once
+	// per process lifetime. KNOWN GAP (needs the `lms ps` machineId feed, not the /api/v1/models descriptors):
+	// the idle set is machine-blind — an "idle" model sharing a machine with the busy primary can slow it
+	// (legion CPU/GPU co-model ≈4× measured). Revisit with §5.AB machine-aware pools.
+	const speculativeMirrorTickByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
+	const speculativeConfigByWorkspaceId = new Map<
+		string,
+		{ enabled: boolean; maxConcurrentSpecs: number; maxSpecsPerRun: number }
+	>();
+	const speculativeSpecsStartedByWorkspaceId = new Map<string, number>();
+	const speculativeMirroredTaskIdsByWorkspaceId = new Map<string, Set<string>>();
+	// Specs between "tick fired" and "session visible" (sandbox prep) — invisible to listModelEndpointSessions,
+	// so the ceiling must count them explicitly or a 45s tick can double-book the one idle model.
+	const speculativeSpecsInFlightByWorkspaceId = new Map<string, number>();
+	const SPECULATIVE_MIRROR_TICK_MS = 45_000;
 	const DEFERRED_RETRY_TIMER_MS = 7_000;
 	const queuedStartDrainTimersByWorkspaceId = new Map<
 		string,
@@ -895,6 +920,22 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					});
 					const reviewReason = "reason" in reviewOutcome ? ` (${reviewOutcome.reason})` : "";
 					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
+					// §5.AW arbitration: when the reviewer compared candidates A/B and preferred the SPECULATIVE
+					// one, every delivery step below (acceptance evidence, protected-path scan, the merge itself)
+					// must target the ::spec result branch while all board bookkeeping stays on the card id.
+					let preferredSpeculative =
+						reviewOutcome.type === "delivered" && reviewOutcome.preferred === "speculative";
+					let deliveredBranchTaskId = preferredSpeculative ? `${taskId}::spec` : taskId;
+					if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Best-of-N arbitration for ${taskId}: reviewer preferred the ${reviewOutcome.preferred} candidate.`,
+							taskId,
+							workspacePath: scope.workspacePath,
+							metadata: { category: "speculative_arbitration", preferred: reviewOutcome.preferred ?? "primary" },
+						});
+					}
 					if (
 						reviewOutcome.type === "bounced" ||
 						reviewOutcome.type === "parked" ||
@@ -908,22 +949,48 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					const deliveryCard = reviewState.board.columns
 						.flatMap((column) => column.cards)
 						.find((c) => c.id === taskId);
-					const acceptance = deliveryCard
-						? await (async () => {
-								try {
-									return await service.verifyTaskAcceptanceInSandbox({
-										taskId,
-										projectRepoPath: scope.workspacePath,
-										baseRef: deliveryCard.baseRef,
-										taskPrompt: deliveryCard.prompt,
-									});
-								} catch (error) {
-									const message = error instanceof Error ? error.message : String(error);
-									deps.warn(`Acceptance re-check unavailable for ${taskId} (fail-closed): ${message}`);
-									return null;
-								}
-							})()
-						: null;
+					const runAcceptance = async (resultBranchTaskId?: string) => {
+						if (!deliveryCard) {
+							return null;
+						}
+						try {
+							return await service.verifyTaskAcceptanceInSandbox({
+								taskId,
+								projectRepoPath: scope.workspacePath,
+								baseRef: deliveryCard.baseRef,
+								taskPrompt: deliveryCard.prompt,
+								...(resultBranchTaskId ? { resultBranchTaskId } : {}),
+							});
+						} catch (error) {
+							const message = error instanceof Error ? error.message : String(error);
+							deps.warn(`Acceptance re-check unavailable for ${taskId} (fail-closed): ${message}`);
+							return null;
+						}
+					};
+					let acceptance = await runAcceptance(preferredSpeculative ? deliveredBranchTaskId : undefined);
+					// §5.AW (adversarial finding): a preferred-but-failing SPECULATIVE tree must not poison the
+					// primary's re-drive rung with an alien failure. Fall back to the PRIMARY candidate: if its
+					// tree passes acceptance, deliver it instead; if both fail, the hold/#28 rung below reasons
+					// about the primary tree (the card's own worker owns it).
+					if (preferredSpeculative && acceptance && !(acceptance.present === true && acceptance.passed === true)) {
+						const primaryAcceptance = await runAcceptance(undefined);
+						const primaryPasses = primaryAcceptance?.present === true && primaryAcceptance.passed === true;
+						recordSelfObservation({
+							signal: "custom",
+							severity: "info",
+							message: `Best-of-N: the preferred speculative candidate for ${taskId} failed acceptance — ${
+								primaryPasses
+									? "delivering the primary candidate instead"
+									: "falling back to the primary tree for the hold/re-drive rungs"
+							}.`,
+							taskId,
+							workspacePath: scope.workspacePath,
+							metadata: { category: "speculative_arbitration_fallback", primaryPasses: String(primaryPasses) },
+						});
+						preferredSpeculative = false;
+						deliveredBranchTaskId = taskId;
+						acceptance = primaryAcceptance;
+					}
 					const evidence = deriveDeliveryGateEvidence({
 						reviewOutcomeType: reviewOutcome.type,
 						acceptance,
@@ -980,7 +1047,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						const changedFiles = await getWorkspaceChangesBetweenRefs({
 							cwd: scope.workspacePath,
 							fromRef: deliveryCard?.baseRef ?? "HEAD",
-							toRef: createTaskResultBranchRef(taskId),
+							toRef: createTaskResultBranchRef(deliveredBranchTaskId),
 						})
 							.then((changes) => changes.files.map((file) => file.path))
 							.catch(() => [] as string[]);
@@ -1041,6 +1108,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								board: reviewState.board,
 								columns: ["review"],
 								taskIds: [taskId],
+								...(preferredSpeculative
+									? { resultBranchTaskIdOverrides: { [taskId]: deliveredBranchTaskId } }
+									: {}),
 								// §5.AK Phase B: on a result-branch merge conflict, run the bounded `::merge` resolution
 								// session instead of hard-aborting. Wired UNCONDITIONALLY — conflicts can happen even under
 								// "serialize" (coarse-path edits), and the agent is strictly better than abort in all cases:
@@ -1083,6 +1153,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								"unknown task result merge failure";
 							deps.warn(`Could not auto-merge task result ${taskId} for ${scope.workspacePath}: ${reason}`);
 							return;
+						}
+						// §5.AW (adversarial finding): prune the LOSING candidate after an arbitration merge — a
+						// rejected branch left mergeable can be silently delivered by a later merge seam. The ::spec
+						// branch always goes (its content is merged or rejected); a spec-preferred delivery also
+						// deletes the rejected primary branch so no seam resolves it again.
+						if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
+							await deleteTaskResultBranch({ repoPath: scope.workspacePath, taskId: `${taskId}::spec` }).catch(
+								() => false,
+							);
+							if (preferredSpeculative) {
+								await deleteTaskResultBranch({ repoPath: scope.workspacePath, taskId }).catch(() => false);
+							}
 						}
 					}
 					let readyTaskIds: string[] = [];
@@ -1330,15 +1412,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				setInterval(() => {
 					void (async () => {
 						try {
-							const anySessionAlive = trackedService
-								.listSummaries()
-								.some(
-									(summary) =>
-										summary.state === "running" ||
+							const anySessionAlive = trackedService.listSummaries().some(
+								(summary) =>
+									// §5.AW: a speculative mirror is auxiliary by definition — it must never
+									// mask a frozen board (real cards waiting while only a ::spec runs).
+									!summary.taskId.endsWith("::spec") &&
+									(summary.state === "running" ||
 										summary.state === "queued" ||
 										summary.state === "paused" ||
-										summary.state === "awaiting_review",
-								);
+										summary.state === "awaiting_review"),
+							);
 							if (anySessionAlive) {
 								return;
 							}
@@ -1372,12 +1455,201 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					})();
 				}, BOARD_LIVENESS_TICK_MS),
 			);
+			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
+				enabled: runtimeConfig.speculativeBestOfNEnabled,
+				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
+				maxSpecsPerRun: runtimeConfig.speculativeMaxSpecsPerRun,
+			});
+			// §5.AW: the opportunistic mirror tick (see the state maps above for the scheduling rules).
+			speculativeMirrorTickByWorkspaceId.set(
+				scope.workspaceId,
+				setInterval(() => {
+					void (async () => {
+						try {
+							const cfg = speculativeConfigByWorkspaceId.get(scope.workspaceId);
+							if (!cfg?.enabled) {
+								return;
+							}
+							const sessions = trackedService.listModelEndpointSessions();
+							const busyStates = new Set(["running", "queued"]);
+							const runningSpecSessions = sessions.filter(
+								(session) => session.taskId.endsWith("::spec") && busyStates.has(session.state),
+							);
+							// PREEMPTION (adversarial finding): "real work outranks speculation" must also hold for
+							// specs ALREADY running — a mirror occupying a per-model slot for its full bound would
+							// starve queued/deferred real cards. Whenever real work is waiting, cancel every live
+							// spec (the tick bounds preemption latency to one tick).
+							const realWorkWaiting =
+								taskStartQueue.size(scope.workspaceId) > 0 ||
+								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0;
+							if (realWorkWaiting && runningSpecSessions.length > 0) {
+								for (const spec of runningSpecSessions) {
+									const primaryTaskId = spec.taskId.slice(0, -"::spec".length);
+									deps.warn(
+										`Preempting speculative mirror ${spec.taskId}: real card(s) are waiting for capacity.`,
+									);
+									void trackedService.cancelSpeculativeMirror(primaryTaskId).catch(() => undefined);
+								}
+								return;
+							}
+							const runningSpecCount =
+								runningSpecSessions.length +
+								(speculativeSpecsInFlightByWorkspaceId.get(scope.workspaceId) ?? 0);
+							const runningWorkerSessions = sessions.filter(
+								(session) =>
+									session.state === "running" &&
+									!session.taskId.includes("::") &&
+									!isHomeAgentSessionId(session.taskId),
+							);
+							if (runningWorkerSessions.length === 0) {
+								return; // cheap early exit before any endpoint probe
+							}
+							const baseUrl =
+								runningWorkerSessions.find((session) => session.endpoint)?.endpoint ??
+								"http://127.0.0.1:1234/v1";
+							// Descriptor-derived facts (idle set, lineage keys) are only valid for sessions on the SAME
+							// endpoint they were fetched from — drop workers on other endpoints this tick.
+							const endpointConsistentWorkers = runningWorkerSessions.filter(
+								(session) => (session.endpoint ?? baseUrl) === baseUrl,
+							);
+							// Only cards that can actually REACH the A/B arbitration seam (headless auto-review commit
+							// flow) are worth mirroring — a plan-mode or manual-review card would burn the spec budget
+							// on a candidate no reviewer will ever compare.
+							const boardStateForTick = await loadWorkspaceState(scope.workspacePath);
+							const cardById = new Map(
+								boardStateForTick.board.columns.flatMap((column) =>
+									column.cards.map((card) => [card.id, card]),
+								),
+							);
+							const arbitrationEligibleWorkers = endpointConsistentWorkers.filter((session) => {
+								const card = cardById.get(session.taskId);
+								return (
+									card !== undefined &&
+									card.startInPlanMode !== true &&
+									card.autoReviewEnabled === true &&
+									(card.autoReviewMode ?? "commit") === "commit"
+								);
+							});
+							const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
+								() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
+							);
+							if (descriptors.length === 0) {
+								return;
+							}
+							// Sessions carry the SERVED alias; lineage needs the REAL model key. real→served is built from
+							// the IDLE instances below (an idle model key must resolve to its IDLE served instance — a
+							// both-ways map could route the mirror onto a busy duplicate instance).
+							const servedIdByRealKey = new Map<string, string>();
+							const toRealKey = (servedOrReal: string): string =>
+								descriptors.find(
+									(descriptor) =>
+										descriptor.runtimeId === servedOrReal || descriptor.modelKey === servedOrReal,
+								)?.modelKey ?? servedOrReal;
+							const busyModelIds = new Set(
+								sessions.filter((session) => busyStates.has(session.state)).map((session) => session.modelId),
+							);
+							const idleDescriptors = descriptors.filter(
+								(descriptor) =>
+									!descriptor.isEmbedding &&
+									!busyModelIds.has(descriptor.runtimeId) &&
+									!busyModelIds.has(descriptor.modelKey),
+							);
+							for (const descriptor of idleDescriptors) {
+								if (!servedIdByRealKey.has(descriptor.modelKey)) {
+									servedIdByRealKey.set(descriptor.modelKey, descriptor.runtimeId);
+								}
+							}
+							const idleModels = idleDescriptors.map((descriptor) => ({ modelId: descriptor.modelKey }));
+							const mirroredTaskIds =
+								speculativeMirroredTaskIdsByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+							speculativeMirroredTaskIdsByWorkspaceId.set(scope.workspaceId, mirroredTaskIds);
+							const decision = decideSpeculativeMirror({
+								enabled: cfg.enabled,
+								maxConcurrentSpecs: cfg.maxConcurrentSpecs,
+								maxSpecsPerRun: cfg.maxSpecsPerRun,
+								runningSpecCount,
+								specsStartedThisRun: speculativeSpecsStartedByWorkspaceId.get(scope.workspaceId) ?? 0,
+								queuedRealStartCount: taskStartQueue.size(scope.workspaceId),
+								deferredRealCardCount: deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0,
+								runningWorkers: arbitrationEligibleWorkers.map((session) => ({
+									taskId: session.taskId,
+									modelId: toRealKey(session.modelId),
+									// Router difficulty is not persisted on summaries yet — null sorts last, so the
+									// longest-running card wins the tie-break (a decent hardness proxy on a rail).
+									difficulty: null,
+									startedAt: session.startedAt,
+								})),
+								idleModels,
+								alreadyMirroredTaskIds: mirroredTaskIds,
+							});
+							if (decision.action !== "mirror") {
+								return;
+							}
+							const card = cardById.get(decision.taskId);
+							if (!card) {
+								return;
+							}
+							const mirrorSession = arbitrationEligibleWorkers.find(
+								(session) => session.taskId === decision.taskId,
+							);
+							const servedMirrorId = servedIdByRealKey.get(decision.mirrorModelId) ?? decision.mirrorModelId;
+							mirroredTaskIds.add(decision.taskId);
+							speculativeSpecsStartedByWorkspaceId.set(
+								scope.workspaceId,
+								(speculativeSpecsStartedByWorkspaceId.get(scope.workspaceId) ?? 0) + 1,
+							);
+							const scopeNote =
+								Array.isArray(card.filesLikelyTouched) && card.filesLikelyTouched.length > 0
+									? `\n\nIMPORTANT — this card's declared file scope (writes OUTSIDE these paths are blocked): ${card.filesLikelyTouched.join(", ")}. Work within it.`
+									: "";
+							recordSelfObservation({
+								signal: "custom",
+								severity: "info",
+								message: `Speculative mirror started: ${decision.reason}`,
+								taskId: decision.taskId,
+								workspacePath: scope.workspacePath,
+								metadata: {
+									category: "speculative_mirror_started",
+									mirrorModelId: servedMirrorId,
+									workerModelId: decision.workerModelId,
+								},
+							});
+							speculativeSpecsInFlightByWorkspaceId.set(
+								scope.workspaceId,
+								(speculativeSpecsInFlightByWorkspaceId.get(scope.workspaceId) ?? 0) + 1,
+							);
+							void trackedService
+								.runSpeculativeMirrorSession({
+									taskId: decision.taskId,
+									projectRepoPath: scope.workspacePath,
+									baseRef: card.baseRef ?? "HEAD",
+									prompt: `${card.prompt}${scopeNote}`,
+									mirror: { providerId: mirrorSession?.providerId ?? "lmstudio", modelId: servedMirrorId },
+								})
+								.catch(() => undefined)
+								.finally(() => {
+									speculativeSpecsInFlightByWorkspaceId.set(
+										scope.workspaceId,
+										Math.max(0, (speculativeSpecsInFlightByWorkspaceId.get(scope.workspaceId) ?? 1) - 1),
+									);
+								});
+						} catch {
+							// The mirror tick is strictly opportunistic — it must never crash the runtime.
+						}
+					})();
+				}, SPECULATIVE_MIRROR_TICK_MS),
+			);
 		} else {
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
 			service.setRetrievalConfig(runtimeConfig.retrievalEgressEnabled, runtimeConfig.retrievalSearchBackendUrl);
+			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
+				enabled: runtimeConfig.speculativeBestOfNEnabled,
+				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
+				maxSpecsPerRun: runtimeConfig.speculativeMaxSpecsPerRun,
+			});
 		}
 		return service;
 	};
@@ -1399,6 +1671,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			clearInterval(livenessWatchdog);
 			boardLivenessWatchdogByWorkspaceId.delete(workspaceId);
 		}
+		const mirrorTick = speculativeMirrorTickByWorkspaceId.get(workspaceId);
+		if (mirrorTick) {
+			clearInterval(mirrorTick);
+			speculativeMirrorTickByWorkspaceId.delete(workspaceId);
+		}
+		speculativeConfigByWorkspaceId.delete(workspaceId);
+		speculativeSpecsInFlightByWorkspaceId.delete(workspaceId);
 		const deferredTimer = deferredRetryTimerByWorkspaceId.get(workspaceId);
 		if (deferredTimer) {
 			clearTimeout(deferredTimer);

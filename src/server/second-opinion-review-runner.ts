@@ -23,7 +23,7 @@ import {
 } from "../nklein-agent/nklein-second-opinion-review";
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
-import { getTaskResultBranchDiff } from "../workspace/task-result-branches";
+import { deleteTaskResultBranch, getTaskResultBranchDiff } from "../workspace/task-result-branches";
 
 /** Suffix the service uses for the isolated reviewer session id; guards against reviewing a review. */
 const REVIEW_SESSION_TASK_SUFFIX = "::review";
@@ -71,7 +71,10 @@ export interface RunSecondOpinionReviewForTaskInput {
 		Partial<
 			Pick<
 				NKleinTaskSessionService,
-				"verifyTaskAcceptanceInSandbox" | "pickDiverseEscalationModel" | "cancelTaskTurn"
+				| "verifyTaskAcceptanceInSandbox"
+				| "pickDiverseEscalationModel"
+				| "cancelTaskTurn"
+				| "cancelSpeculativeMirror"
 			>
 		>;
 	loadWorkspaceState?: typeof loadWorkspaceState;
@@ -245,12 +248,27 @@ export async function runSecondOpinionReviewForTask(
 		);
 	}
 
+	// §5.AW (adversarial finding 2026-07-02): a review round that concludes WITHOUT delivering the speculative
+	// candidate must destroy its ::spec branch — otherwise the next round's getSpeculativeDiff re-arms the A/B
+	// seed with a candidate that predates this round's feedback (deliverable stale work), and the ref leaks in
+	// the user's repo forever. Deliver-path cleanup (loser pruning) happens at the merge seam in runtime-server.
+	const discardSpeculativeCandidate = async (): Promise<void> => {
+		await deleteTaskResultBranch({ repoPath: input.workspacePath, taskId: `${input.taskId}::spec` }).catch(
+			() => false,
+		);
+	};
+
 	const persistReview = async (review: RuntimeCardReview, targetColumnId?: string): Promise<void> => {
 		await mutate(input.workspacePath, (current) => ({
 			board: applyCardReviewToBoard(current.board, input.taskId, review, targetColumnId, now),
 			value: null,
 		}));
 	};
+
+	// §5.AW: the primary handed off — a speculative mirror still running has LOST the race. Cancel it now so
+	// (a) its endpoint frees up and (b) a partial spec never captures after this point; a spec that already
+	// captured its ::spec branch before this line is the arbitration candidate below.
+	await input.service.cancelSpeculativeMirror?.(input.taskId).catch(() => undefined);
 
 	// W1.5 (audit 2026-07-02): run the ACCEPTANCE check BEFORE the review, deterministically, and hand the reviewer
 	// its result — previously acceptanceSummary was never populated, so the reviewer judged the diff with zero
@@ -299,6 +317,11 @@ export async function runSecondOpinionReviewForTask(
 			}),
 			getTaskDiff: async () =>
 				getDiff({ repoPath: input.workspacePath, taskId: input.taskId, baseRef: card.baseRef }),
+			// §5.AW: the speculative candidate's diff (its ::spec result branch), arming the A/B seed when present.
+			getSpeculativeDiff: async () =>
+				getDiff({ repoPath: input.workspacePath, taskId: `${input.taskId}::spec`, baseRef: card.baseRef }).catch(
+					() => null,
+				),
 			getReviewContext: async () => ({
 				workerReasoning: input.service.getSummary(input.taskId)?.latestHookActivity?.finalMessage?.trim() || null,
 				boardContext: buildReviewBoardContext(state.board, card),
@@ -316,6 +339,7 @@ export async function runSecondOpinionReviewForTask(
 			},
 			onBounce: async ({ review, workerPrompt }) => {
 				await persistReview(review, "in_progress");
+				await discardSpeculativeCandidate();
 				await input.service.sendTaskSessionInput(input.taskId, `${workerPrompt}${fileScopeNote}`, "act");
 			},
 			onEscalate: async ({ review, workerPrompt }) => {
@@ -324,6 +348,7 @@ export async function runSecondOpinionReviewForTask(
 				// Persist the escalation as SERVER-SIDE TRUTH (the in-memory set dies with the process; the card
 				// chrome and future arbitration read this flag instead of re-deriving stuck signatures client-side).
 				await persistReview({ ...review, escalated: true }, "in_progress");
+				await discardSpeculativeCandidate();
 				const escalationPreamble = escalationCandidate
 					? `You are taking over this task from another model that got stuck in review. Read the feedback below carefully and address it directly.\n\n`
 					: "";
@@ -340,6 +365,7 @@ export async function runSecondOpinionReviewForTask(
 			},
 			onPark: async ({ review }) => {
 				await persistReview(review);
+				await discardSpeculativeCandidate();
 				// Run20 live finding: a parked card's worker session kept CHURNING turns — burning tokens on a card
 				// waiting for a human AND holding its endpoint slot (the scheduler counts `running` sessions), which
 				// starved every queued card routed to the same model for the rest of the run. Parking now QUIESCES

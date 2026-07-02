@@ -39,6 +39,7 @@ import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from 
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
@@ -364,6 +365,8 @@ export interface NKleinTaskSessionService {
 		baseRef: string;
 		taskPrompt: string;
 		timeoutMs?: number;
+		/** §5.AW arbitration: run acceptance against ANOTHER taskId's result branch (the `::spec` candidate). */
+		resultBranchTaskId?: string;
 	}): Promise<RuntimeTaskAcceptanceResult>;
 	/**
 	 * W4.2 (layer 3): a lineage-diverse loaded model to ESCALATE a stuck card's worker to (null when none exists
@@ -2757,6 +2760,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		baseRef: string;
 		taskPrompt: string;
 		timeoutMs?: number;
+		resultBranchTaskId?: string;
 	}): Promise<RuntimeTaskAcceptanceResult> {
 		if (!this.agentSandboxManager) {
 			throw new Error("!Klein acceptance verification requires the configured agent sandbox manager.");
@@ -2765,9 +2769,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// ref the callers hold (run19 autopsy: base-tree acceptance is false evidence in both directions — a
 		// base-green repo rubber-stamps a no-op, a base-red repo fail-holds perfect work). No result branch yet
 		// (e.g. empty patch) falls back to the base ref, where the empty-patch hold already governs.
+		// §5.AW: when the reviewer preferred the speculative candidate, the DELIVERED tree is the ::spec
+		// branch — acceptance evidence must run against what actually ships.
 		const resultCommit = await resolveTaskResultBranchCommit({
 			repoPath: input.projectRepoPath,
-			taskId: input.taskId,
+			taskId: input.resultBranchTaskId ?? input.taskId,
 		}).catch(() => null);
 		return await runNKleinAcceptanceGateInSandbox({
 			taskId: input.taskId,
@@ -2923,6 +2929,27 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		this.inFlightSecondOpinionReviewTaskIds.add(input.taskId);
+		try {
+			return await this.runSecondOpinionReviewSessionInner(input);
+		} finally {
+			this.inFlightSecondOpinionReviewTaskIds.delete(input.taskId);
+		}
+	}
+
+	/** The body of {@link runSecondOpinionReviewSession}; the wrapper owns ONLY the single-flight flag, so no
+	 * early return or pre-`try` throw (sandbox unavailable, prepareWorkspace queue rejection, unresolvable
+	 * reviewer) can leak it and permanently wedge the card's reviews (adversarial finding, 2026-07-02). */
+	private async runSecondOpinionReviewSessionInner(input: {
+		taskId: string;
+		projectRepoPath: string;
+		baseRef: string;
+		seedPrompt: string;
+		reviewer?: { providerId: string; modelId: string } | null;
+		timeoutMs?: number;
+	}): Promise<NKleinReviewResult | null> {
+		if (!this.agentSandboxManager) {
+			return null;
+		}
 		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
 		// W2.5a (audit 2026-07-02, §5.AB): with NO configured reviewer this previously fell back to the WORKER's
 		// own model — the model reviewing its own work, the worst monoculture form. Auto-pick a lineage-DIVERSE
@@ -3035,7 +3062,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 			return verdict;
 		} finally {
-			this.inFlightSecondOpinionReviewTaskIds.delete(input.taskId);
 			await this.sessionRuntime.clearTaskSessions(reviewTaskId).catch(() => undefined);
 			await this.agentSandboxManager.disposeWorkspace(reviewTaskId).catch(() => undefined);
 			this.launchConfigByTaskId.delete(reviewTaskId);
@@ -3076,8 +3102,33 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return false;
 		}
 		const specTaskId = `${input.taskId}::spec`;
-		this.canceledSpeculativeMirrorTaskIds.delete(specTaskId);
+		// Adversarial finding (2026-07-02): NEVER erase a prior cancel here — a stale tick snapshot can start a
+		// mirror after arbitration already canceled it, and erasing the flag would let post-handoff speculative
+		// work capture. A lingering flag is harmless (one mirror per card per run).
+		if (this.canceledSpeculativeMirrorTaskIds.has(specTaskId)) {
+			return false;
+		}
+		// The mirror only makes sense while the PRIMARY is still working the card (a stale tick snapshot may
+		// fire after a fast handoff — arbitration is already running or done by then).
+		if (this.messageRepository.getTaskEntry(input.taskId)?.summary.state !== "running") {
+			return false;
+		}
+		// No-model-load directive (§5.AB): a mirror must never trigger an LM Studio JIT auto-load. Re-verify the
+		// mirror model is STILL resident at start time (the tick's snapshot can be a whole tick stale).
 		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
+		const residencyBaseUrl = workerLaunch?.baseUrl?.trim() || "http://127.0.0.1:1234/v1";
+		const residentIds = await fetchLoadedModelIdsCached(residencyBaseUrl).catch(() => [] as string[]);
+		if (residentIds.length > 0 && !residentIds.includes(input.mirror.modelId)) {
+			recordSelfObservation({
+				signal: "custom",
+				severity: "info",
+				message: `Speculative mirror skipped for ${input.taskId}: model ${input.mirror.modelId} is no longer resident (never auto-load for speculation).`,
+				taskId: specTaskId,
+				workspacePath: input.projectRepoPath,
+				metadata: { category: "speculative_mirror_residency_skip", mirrorModelId: input.mirror.modelId },
+			});
+			return false;
+		}
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
 			...(workerLaunch ?? {}),
 			providerId: input.mirror.providerId,
@@ -3106,22 +3157,37 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				createdAt: Date.now(),
 			});
 		};
-		const runBoundedTurn = async (turn: Promise<unknown>): Promise<void> => {
+		const runBoundedTurn = async (turn: Promise<unknown>): Promise<"settled" | "timeout"> => {
 			const remainingMs = deadlineMs - Date.now();
 			if (remainingMs <= 0) {
-				return;
+				return "timeout";
 			}
 			let timer: ReturnType<typeof setTimeout> | undefined;
-			const timeout = new Promise<void>((resolve) => {
-				timer = setTimeout(resolve, remainingMs);
+			const timeout = new Promise<"timeout">((resolve) => {
+				timer = setTimeout(() => resolve("timeout"), remainingMs);
 			});
-			await Promise.race([turn.then(() => undefined, recordSpecError), timeout]);
+			const outcome = await Promise.race([
+				turn.then(
+					() => "settled" as const,
+					(error) => {
+						recordSpecError(error);
+						return "settled" as const;
+					},
+				),
+				timeout,
+			]);
 			if (timer) {
 				clearTimeout(timer);
 			}
+			return outcome;
 		};
 		try {
-			await runBoundedTurn(
+			// Cancel raced the sandbox prep (the primary handed off while this workspace queued) — stop before
+			// spending a model turn on a lost race.
+			if (this.canceledSpeculativeMirrorTaskIds.has(specTaskId)) {
+				return false;
+			}
+			const turnOutcome = await runBoundedTurn(
 				this.startRuntimeTaskSessionFromLaunchConfig({
 					taskId: specTaskId,
 					cwd: workspace.workdir,
@@ -3143,6 +3209,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			);
 			if (this.canceledSpeculativeMirrorTaskIds.has(specTaskId)) {
 				return false; // The primary won the race — partial speculative work is discarded, never captured.
+			}
+			if (turnOutcome === "timeout") {
+				// The turn is (possibly) STILL RUNNING — capturing now would snapshot a mid-write tree as the
+				// candidate. A spec that can't finish inside its bound is not a candidate; discard it.
+				await this.cancelTaskTurn(specTaskId).catch(() => undefined);
+				return false;
 			}
 			const patch = await this.agentSandboxManager.captureWorkspacePatch(specTaskId, { baseRef });
 			const branch = await applyTaskPatchToResultBranch({

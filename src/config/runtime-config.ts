@@ -109,6 +109,12 @@ import {
 	resolveRuntimeSetupWizardConfig,
 } from "./runtime-config-setup-wizard-resolver";
 import { resolveRuntimeSkillDynamicsConfig } from "./runtime-config-skill-dynamics-resolver";
+import {
+	normalizeSpeculativeBestOfNEnabled,
+	normalizeSpeculativeMaxConcurrentSpecs,
+	normalizeSpeculativeMaxSpecsPerRun,
+	resolveRuntimeSpeculativeConfig,
+} from "./runtime-config-speculative-resolver";
 import { createRuntimeConfigStateFromValues } from "./runtime-config-state-factory";
 import { resolveRuntimeSuitabilityConfig } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
@@ -253,6 +259,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeConcurrencyConfig(globalConfig, projectConfig),
 		...resolveRuntimeSandboxConfig(globalConfig),
 		...resolveRuntimeRetrievalConfig(globalConfig),
+		...resolveRuntimeSpeculativeConfig(globalConfig),
 		...resolveRuntimeFileOverlapConfig(globalConfig, projectConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		...resolveRuntimeReviewConfig(globalConfig),
@@ -482,6 +489,9 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
 		retrievalSearchBackendUrl: current.retrievalSearchBackendUrl,
+		speculativeBestOfNEnabled: current.speculativeBestOfNEnabled,
+		speculativeMaxConcurrentSpecs: current.speculativeMaxConcurrentSpecs,
+		speculativeMaxSpecsPerRun: current.speculativeMaxSpecsPerRun,
 		fileOverlapParallelism: current.fileOverlapParallelism,
 		fileOverlapParallelismOverride: null,
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
@@ -561,6 +571,9 @@ export async function saveRuntimeConfig(
 		sandboxMcpServersEnabled?: boolean;
 		retrievalEgressEnabled?: boolean;
 		retrievalSearchBackendUrl?: string | null;
+		speculativeBestOfNEnabled?: boolean;
+		speculativeMaxConcurrentSpecs?: number;
+		speculativeMaxSpecsPerRun?: number;
 		agentAutonomousModeEnabled: boolean;
 		agentTimeoutMode: RuntimeAgentTimeoutMode;
 		agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -619,6 +632,9 @@ export async function saveRuntimeConfig(
 			),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
+			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
+			speculativeMaxConcurrentSpecs: normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs),
+			speculativeMaxSpecsPerRun: normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun),
 			fileOverlapParallelism: normalizeFileOverlapParallelism(config.fileOverlapParallelism),
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			agentTimeoutMode: config.agentTimeoutMode,
@@ -699,6 +715,9 @@ export async function saveRuntimeConfig(
 			),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
+			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
+			speculativeMaxConcurrentSpecs: normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs),
+			speculativeMaxSpecsPerRun: normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun),
 			fileOverlapParallelism: normalizeFileOverlapParallelism(config.fileOverlapParallelism),
 			fileOverlapParallelismOverride: config.fileOverlapParallelismOverride ?? null,
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,

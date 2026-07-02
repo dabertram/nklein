@@ -50,6 +50,7 @@ import { deriveRulesetsFields } from "./runtime-config-rulesets-resolver";
 import { resolveRuntimeSandboxConfig } from "./runtime-config-sandbox-resolver";
 import { resolveRuntimeSetupWizardConfig } from "./runtime-config-setup-wizard-resolver";
 import { deriveSkillDynamicsFields } from "./runtime-config-skill-dynamics-resolver";
+import { resolveRuntimeSpeculativeConfig } from "./runtime-config-speculative-resolver";
 import { deriveSuitabilityFields } from "./runtime-config-suitability-resolver";
 import { resolveRuntimeTimeoutConfig } from "./runtime-config-timeout-resolver";
 import type { RuntimeConfigState } from "./runtime-config-types";
@@ -69,6 +70,9 @@ export interface RuntimeConfigStateFromValuesInput {
 	sandboxMcpServersEnabled: boolean;
 	retrievalEgressEnabled: boolean;
 	retrievalSearchBackendUrl: string | null;
+	speculativeBestOfNEnabled: boolean;
+	speculativeMaxConcurrentSpecs: number;
+	speculativeMaxSpecsPerRun: number;
 	agentAutonomousModeEnabled: boolean;
 	agentTimeoutMode: RuntimeAgentTimeoutMode;
 	agentTimeoutProfile: RuntimeAgentTimeoutProfile;
@@ -152,6 +156,11 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		...resolveRuntimeRetrievalConfig({
 			retrievalEgressEnabled: input.retrievalEgressEnabled,
 			retrievalSearchBackendUrl: input.retrievalSearchBackendUrl,
+		}),
+		...resolveRuntimeSpeculativeConfig({
+			speculativeBestOfNEnabled: input.speculativeBestOfNEnabled,
+			speculativeMaxConcurrentSpecs: input.speculativeMaxConcurrentSpecs,
+			speculativeMaxSpecsPerRun: input.speculativeMaxSpecsPerRun,
 		}),
 		...resolveRuntimeSetupWizardConfig(
 			{ setupWizardCompletedAt: input.setupWizardCompletedAt },

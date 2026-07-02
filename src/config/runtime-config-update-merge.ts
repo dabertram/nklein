@@ -44,6 +44,11 @@ import {
 	normalizeRetrievalSearchBackendUrl,
 } from "./runtime-config-retrieval-resolver";
 import { normalizeSetupWizardCompletedAt } from "./runtime-config-setup-wizard-resolver";
+import {
+	normalizeSpeculativeBestOfNEnabled,
+	normalizeSpeculativeMaxConcurrentSpecs,
+	normalizeSpeculativeMaxSpecsPerRun,
+} from "./runtime-config-speculative-resolver";
 import type { RuntimeConfigState, RuntimeConfigUpdateInput } from "./runtime-config-types";
 import { keepNormalizedValue, keepUpdatedValue } from "./runtime-config-value-helpers";
 
@@ -81,6 +86,21 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.retrievalSearchBackendUrl,
 			current.retrievalSearchBackendUrl,
 			normalizeRetrievalSearchBackendUrl,
+		),
+		speculativeBestOfNEnabled: keepNormalizedValue(
+			updates.speculativeBestOfNEnabled,
+			current.speculativeBestOfNEnabled,
+			normalizeSpeculativeBestOfNEnabled,
+		),
+		speculativeMaxConcurrentSpecs: keepNormalizedValue(
+			updates.speculativeMaxConcurrentSpecs,
+			current.speculativeMaxConcurrentSpecs,
+			normalizeSpeculativeMaxConcurrentSpecs,
+		),
+		speculativeMaxSpecsPerRun: keepNormalizedValue(
+			updates.speculativeMaxSpecsPerRun,
+			current.speculativeMaxSpecsPerRun,
+			normalizeSpeculativeMaxSpecsPerRun,
 		),
 		agentAutonomousModeEnabled: keepUpdatedValue(
 			updates.agentAutonomousModeEnabled,

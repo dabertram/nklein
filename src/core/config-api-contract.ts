@@ -94,6 +94,10 @@ export const runtimeConfigResponseSchema = z.object({
 	// §5.AC egress-gated online retrieval — optional for backward compatibility with older runtimes/config files.
 	retrievalEgressEnabled: z.boolean().optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),
+	// §5.AW opportunistic speculative best-of-N — optional for backward compatibility with older runtimes/config files.
+	speculativeBestOfNEnabled: z.boolean().optional(),
+	speculativeMaxConcurrentSpecs: z.number().int().positive().optional(),
+	speculativeMaxSpecsPerRun: z.number().int().positive().optional(),
 	setupWizardCompletedAt: z.number().nullable().optional(),
 	projectSetupWizardCompletedAt: z.number().nullable().optional(),
 	effectiveCommand: z.string().nullable(),
@@ -133,6 +137,9 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	sandboxMcpServersEnabled: z.boolean().optional(),
 	retrievalEgressEnabled: z.boolean().optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),
+	speculativeBestOfNEnabled: z.boolean().optional(),
+	speculativeMaxConcurrentSpecs: z.number().int().positive().optional(),
+	speculativeMaxSpecsPerRun: z.number().int().positive().optional(),
 	agentAutonomousModeEnabled: z.boolean().optional(),
 	agentTimeoutMode: runtimeAgentTimeoutModeSchema.optional(),
 	agentTimeoutProfile: runtimeAgentTimeoutProfileSchema.optional(),
