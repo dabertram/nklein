@@ -8809,9 +8809,35 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       and a visible prefill-seconds-per-run drop in the sweep log at equal quality.
 >
 > **ESCALATED TO NEXT-UP (user 2026-07-02 afternoon): "prepare implementing improvements now; start as soon as
-> current work is finalized."** Deep research launched in the background (all-source sweep: llama.cpp/LM Studio/MLX
-> mechanics, vLLM/SGLang prefix caching, papers, practitioner evidence — ranked recommendations for !Klein). Two
-> user-directed strategy additions to evaluate FIRST-CLASS:
+> current work is finalized."** **RESEARCH DONE (adversarially verified, 107 agents — full cited report:
+> docs/dev/prompt-cache-research-2026-07-02.md). THE VERIFIED IMPLEMENTATION ORDER:**
+> 1. **(e) BYTE-STABLE PROMPT SHELLS per model+session-kind, task content as LATE SUFFIX** — every viable local
+>    mechanism is EXACT-CONTIGUOUS-TOKEN-PREFIX only (llama.cpp `cache_prompt` compares to the slot's previous
+>    completion and re-prefills everything past the first divergent token; MLX likewise) ⇒ the ~8% baseline is
+>    fully explained, and shells are the PREREQUISITE that multiplies every other lever. Extend the W2.3b assembler
+>    to cover the SDK base prompt + tool schemas (the per-task cwd currently diverges at byte ~0).
+> 2. **(a) CACHE-AFFINITY ROUTING** — llama.cpp server SHIPS it natively (`-np` parallel slots + `-sps`
+>    slot-prompt-similarity longest-common-prefix routing, default 0.10); LM Studio 0.4.0 serves 4 unified-KV
+>    slots via continuous batching (llama.cpp engine) ⇒ orchestrator-side session stickiness + same-shell routing.
+>    CAVEAT: similarity routing considers IDLE slots only — a busy best-match slot still means a cold prefill.
+> 3. **(d) SESSION-KIND BATCHING** — run reviews/critics back-to-back per model instead of interleaving (SGLang
+>    longest-prefix-first + KVFlow's 1.83-2.91× workflow-aware-eviction gains are the precedent that LRU eviction
+>    is workflow-unaware and interleaving kinds thrashes it). Near-zero cost in the kanban scheduler.
+> 4. **(b) CONTEXT RAILS** — reserve a loaded model per card/stream lifecycle; natural once (a)+(d) exist.
+> 5. **(f) KV SAVE/RESTORE opportunistically** — FREE on Apple Silicon (LM Studio mlx-engine ≥1.8.5 checkpoints KV
+>    to disk at 256-token boundaries, restores longest exact prefix, while the model stays resident); on llama.cpp
+>    needs raw llama-server with `--slot-save-path` (LM Studio hides /slots) — documented ~43ms restore.
+> 6. **(c) SINGLE-CARD FAN-OUT vs card parallelism — MEASURE LOCALLY** (no quantified cross-comparison survived
+>    verification; multi-project dilution likewise unquantified — the HiCache 0.57× and SGLang-5× numbers were
+>    REFUTED in verification, don't cite them).
+> **REJECTED:** migrating to vLLM/SGLang for radix caching (CUDA-centric, poor GGUF/MLX/Apple-Silicon fit);
+> relying on `--cache-reuse` chunked reuse as a primary lever (off by default, open regressions, SWA hazards).
+> **TRAPS (verified):** SWA/hybrid-attention models (gpt-oss — incl. gptoss120-m5! — and Gemma) can defeat partial
+> reuse without `--swa-full`; MLX context-overflow ERASES the whole KV cache (keep rails under max_kv_size!); an
+> MLX concurrent-serving cross-contamination bug existed (mlx_lm.server 0.31.0) — verify LM Studio MLX concurrency
+> before relying on it (open question). **VALIDATE with:** the existing prompt_prefix_reuse metric, server-side
+> prefill counts (`kv cache rm` offsets / LM Studio stats), TTFT per session kind, cards/hour.
+> Original strategy notes (user-directed, now folded into the ranking above):
 > - **CONTEXT RAILS (model-per-stream reservation):** reserve a model (or endpoint slot) exclusively for a task
 >   stream/epic — one card's whole lifecycle (worker turns, re-drives, bounces) stays on ONE warm model whose KV
 >   cache never sees a foreign prompt; other models serve other streams. The scheduler allocates rails, not turns.
