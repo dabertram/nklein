@@ -6234,6 +6234,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > 2026-06-28 — see the §5.Z/Phase-2 notes.)
 
 ### 5.AC — Online knowledge retrieval + intrinsic temporal awareness (the "knows today" lighthouse) *(2026-06-26, user — ACTIVE)*
+> **EGRESS GREENLIT (user 2026-07-02): OPT-IN, DEFAULT-OFF.** Wiring plan (scouted; cores all exist):
+> 1. **Config:** `retrievalEgressEnabled` (global default OFF + per-project override, same resolver pattern as the concurrency caps) + `retrievalSearchBackendUrl` (the SearXNG endpoint; LAN or public — user's choice at config time). Settings UI rows under the Agents group with a clear "this sends queries off this machine" warning.
+> 2. **Backend:** implement the egress-gated `web_search` HTTP client against SearXNG's JSON API (`/search?format=json`), normalized through `web-search-contract.ts` (the pure contract + normalizer already exist); every fetch goes through `browserFetchAdapter`/the SSRF-safe fetcher (ca74f4e3) — no raw URL access.
+> 3. **Tool binding:** attach `web_search` + `browse_url` tools to sessions ONLY when the resolved config enables retrieval for that workspace (same gating pattern as sandboxMcpExecTarget); the skill-registry entry (skill-registry.ts:102) already lists both tools for the retrieval skillset.
+> 4. **Loop:** `runRetrievalLoop` (retrieval-loop-driver.ts) drives search→fetch→evidence for retrieval-role turns; knows-today (§5.AE relevance gate) decides WHEN a turn is temporal enough to warrant it.
+> 5. **Sandbox posture unchanged:** the container network stays `none`; retrieval HTTP runs HOST-side in the trusted runtime (like the other control-plane I/O), results enter the session as tool results.
+
 > **Vision (user, 2026-06-26):** two intertwined grounding features that make !Klein trustworthy where ChatGPT/other
 > agents repeatedly fail. **(A) Automatic ONLINE knowledge retrieval** — today the knowledge-retrieval skills check only
 > LOCAL knowledge (repo map / code index / embeddings); !Klein should ALSO automatically search + fetch from ONLINE
