@@ -6,6 +6,7 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // host, repository, or event-adapter details.
 
 import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
+import { buildModelBehaviorProfilesFromLedger } from "../core/agent-ledger-projections";
 import type {
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -26,6 +27,7 @@ import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from 
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
@@ -33,7 +35,7 @@ import { raisedTokenBudget } from "../core/retry-policy";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { appendTemporalContext, decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
-import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import {
 	recordTaskRunSummary,
 	type TaskRunTerminalState,
@@ -708,6 +710,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 		await this.waitUntilTaskResumed(input.taskId);
 		this.requestTimer.markStarted(input.taskId);
+		this.refreshLearnedQualityBudgets();
 		// Sandbox-proxied tool executors / extra tools for the rebuilt session (or the caller's, if supplied).
 		const sandboxToolExecutors =
 			input.toolExecutors ??
@@ -1306,7 +1309,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private resolveKnownContextWindowForTask(taskId: string, launchContextWindow?: number | null): number {
 		const contextWindow =
 			this.resolveContextWindowForTask(taskId, launchContextWindow) ?? RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS;
-		return this.normalizeEffectiveContextWindow(contextWindow);
+		// W2.3a: cap by the LEARNED quality-effective budget for this task's model when the ledger has observed a
+		// quality knee below the advertised window (never below the 32k floor — the budget itself enforces it).
+		const modelId = this.launchConfigByTaskId.get(taskId)?.modelId ?? null;
+		const qualityBudget = modelId ? (this.qualityBudgetByModelId.get(modelId) ?? null) : null;
+		const derated = qualityBudget !== null ? Math.min(contextWindow, qualityBudget) : contextWindow;
+		return this.normalizeEffectiveContextWindow(derated);
 	}
 
 	private recordContextBudgetGuard(input: {
@@ -2926,6 +2934,38 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return false;
 		}
 		return previousSummary.state !== "awaiting_review" && nextSummary.state === "awaiting_review";
+	}
+
+	/**
+	 * W2.3a (audit 2026-07-02, §5.AD/§5.AQ): LEARNED quality-effective context budgets per model, from the ledger's
+	 * qualityOk knee (`learnedQualityEffectiveBudget`) — the derate that was previously only printed to a dev
+	 * console while live budgeting used the ADVERTISED window (the exact small-model semantic-collapse case: a 4B
+	 * advertising 32k was budgeted as if all 32k were usable). Refreshed lazily+async at session start (sync reads
+	 * from the cache; empty ledger ⇒ no entry ⇒ advertised window unchanged). Floor 32k (PRIME DIRECTIVE #3).
+	 */
+	private readonly qualityBudgetByModelId = new Map<string, number>();
+	private qualityBudgetRefreshInFlight = false;
+
+	private refreshLearnedQualityBudgets(): void {
+		if (this.qualityBudgetRefreshInFlight) {
+			return;
+		}
+		this.qualityBudgetRefreshInFlight = true;
+		void (async () => {
+			try {
+				const events = await readAllAgentLedger();
+				for (const profile of buildModelBehaviorProfilesFromLedger(events)) {
+					const budget = learnedQualityEffectiveBudget(profile);
+					if (budget !== null) {
+						this.qualityBudgetByModelId.set(profile.modelId, budget);
+					}
+				}
+			} catch {
+				// Best-effort — an unreadable ledger leaves the advertised-window behavior unchanged.
+			} finally {
+				this.qualityBudgetRefreshInFlight = false;
+			}
+		})();
 	}
 
 	/** W1.1b adaptive-retry state: attempts + last budget per task (bounded by MAX_ADAPTIVE_RETRY_ATTEMPTS). */
