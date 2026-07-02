@@ -701,9 +701,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			contextWindow: requestContextWindow,
 			timeoutMode: input.timeoutMode ?? "normal",
 			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-			// W2.4a: small (quality-effective) windows get the LEAN rules — the optional packs + deep large-file
-			// protocol cost ~40 lines a ≤40k model can't spare; the full selectSysPromptLevel composition is W2.4b.
-			level: requestContextWindow && requestContextWindow <= 40_000 ? "lean" : "full",
+			// W2.4a: small (quality-effective) windows get the LEAN rules. FLAG-GATED OFF after live A/B evidence
+			// (run9 2026-07-02): the first lean run showed coder-gpu ping-ponging read_files/get_file_size for 14min
+			// with zero writes — the dropped "never re-read covered ranges" lines plausibly serve as anti-loop rails
+			// for small models. Enable with NKLEIN_LEAN_SYSPROMPT=1 to measure; default full until the scoreboard
+			// proves lean safe (research: measure-first).
+			level:
+				isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) && requestContextWindow && requestContextWindow <= 40_000
+					? "lean"
+					: "full",
 		})}`;
 		systemPrompt = appendTemporalContext(
 			systemPrompt,
