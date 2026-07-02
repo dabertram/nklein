@@ -2840,6 +2840,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.lastRecordedRunStateByTaskId.set(taskId, state);
 		// W1.1b: flag-gated adaptive budget retry on the stall signature (see maybeAdaptiveBudgetRetry).
 		this.maybeAdaptiveBudgetRetry(taskId, summary);
+		// W0.2 (run16: t4 died `interrupted` MID-WRITE and its partial work was lost): a dying terminal still
+		// salvages its sandbox work. error→awaiting_review already captures via the finalize hook (run10 proved
+		// it live); interrupted/failed did NOT — no capture, and the sandbox leaked until pool exhaustion.
+		// finalizeSandboxReview is idempotent-guarded, captures the patch to the result branch, and disposes the
+		// workspace — exactly the salvage+cleanup pair a dead session owes.
+		if (
+			(state === "interrupted" || state === "failed") &&
+			this.sandboxState.hasSandbox(taskId) &&
+			!this.sandboxState.getResultBranch(taskId)
+		) {
+			this.finalizeSandboxReview(taskId);
+		}
 		const usage = summary.latestUsage ?? null;
 		const promptTokens = usage?.inputTokens ?? null;
 		const completionTokens = usage?.outputTokens ?? null;
