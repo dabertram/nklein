@@ -1,5 +1,5 @@
 import { summarizeModelOutcomes } from "../../core/agent-attempt-ledger";
-import { blendCapabilityWithLedgerEvidence } from "../../core/agent-ledger-projections";
+import { blendCapabilityWithLedgerEvidence, summarizeModelOutcomesByRole } from "../../core/agent-ledger-projections";
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
@@ -392,16 +392,33 @@ export async function handleStartTaskSession(
 		// rows, the blend returns the registry score unchanged, and routing behaves exactly as before. Read once here and
 		// reuse for both the swarm free-pick (`selectRoleModel`) and the main router (`routeNKleinTask`).
 		const ledgerSuccessByKey = new Map<string, { successRate: number; samples: number }>();
+		// W2.6 (audit 2026-07-02): PER-ROLE ledger evidence — a 90%-worker/30%-architect model must not have its
+		// architect score inflated by its global success. Keyed `${modelId}\u0000${role}`; used when it has enough
+		// samples, else the global per-model rollup below stays the evidence.
+		const ledgerRoleSuccessByKey = new Map<string, { successRate: number; samples: number }>();
 		try {
 			const ledgerEvents = await readAllAgentLedger();
 			for (const outcome of summarizeModelOutcomes(ledgerEvents)) {
 				ledgerSuccessByKey.set(outcome.modelId, { successRate: outcome.successRate, samples: outcome.samples });
 			}
+			for (const outcome of summarizeModelOutcomesByRole(ledgerEvents)) {
+				ledgerRoleSuccessByKey.set(`${outcome.modelId}\u0000${outcome.role}`, {
+					successRate: outcome.successRate,
+					samples: outcome.samples,
+				});
+			}
 		} catch {
 			// best-effort: any ledger read failure leaves the map empty ⇒ registry capability used unchanged.
 		}
-		const blendedCapabilityForKey = (modelKey: string, baseCapability: number): number => {
-			const observed = ledgerSuccessByKey.get(modelKey);
+		// Minimum per-(model,role) samples before role evidence outranks the global rollup (thin role evidence is
+		// noisier than a well-sampled global rate).
+		const MIN_ROLE_EVIDENCE_SAMPLES = 3;
+		const blendedCapabilityForKey = (modelKey: string, baseCapability: number, role?: string | null): number => {
+			const roleObserved = role ? ledgerRoleSuccessByKey.get(`${modelKey}\u0000${role}`) : undefined;
+			const observed =
+				roleObserved && roleObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES
+					? roleObserved
+					: ledgerSuccessByKey.get(modelKey);
 			return blendCapabilityWithLedgerEvidence(
 				baseCapability,
 				observed?.successRate ?? null,
@@ -445,7 +462,11 @@ export async function handleStartTaskSession(
 		const freeFirstSelection = selectRoleModel({
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				modelKey: candidate.entry.key,
-				capability: blendedCapabilityForKey(candidate.entry.key, candidate.entry.capability.effectiveScore),
+				capability: blendedCapabilityForKey(
+					candidate.entry.key,
+					candidate.entry.capability.effectiveScore,
+					candidate.role,
+				),
 				contextWindow: candidate.entry.contextWindow.effective ?? 0,
 				predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
 				isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
@@ -525,6 +546,7 @@ export async function handleStartTaskSession(
 									capability: blendedCapabilityForKey(
 										candidate.entry.key,
 										candidate.entry.capability.effectiveScore,
+										candidate.role,
 									),
 									contextWindow: candidate.entry.contextWindow.effective ?? 0,
 									predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
@@ -570,6 +592,7 @@ export async function handleStartTaskSession(
 					observedCapability: blendedCapabilityForKey(
 						candidate.entry.key,
 						candidate.entry.capability.effectiveScore,
+						candidate.role,
 					),
 					...(affinityTags ? { affinityTags } : {}),
 				};
