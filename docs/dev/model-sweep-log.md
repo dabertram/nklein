@@ -425,3 +425,4 @@
 >   on-device guardrail is the real one (refused the m4mini mtp load safely, never froze).
 > - **Apple Silicon = always `--gpu max`** (unified memory); the Legion is where `--gpu <ratio>` / MoE expert-offload matter.
 >   Catalog folded (§5.AL): 6 new rows + qwen2.5-coder/qwen3.5 note updates (commit d8803b56).
+SWEEP-ROW | 2026-07-02T07:01:25.060Z | fleet mid_task | architect=gptoss120-m5 worker=coder-gpu | decompose=YES | result=PASS ✓ | power=high×1 — THE FIRST FULL FLEET PASS (run17; runs 9-17 converged 1→2→3→4→PASS via ten live-found fixes; see todo.md §5.0.5)
