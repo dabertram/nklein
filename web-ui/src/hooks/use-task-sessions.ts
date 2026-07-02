@@ -39,6 +39,7 @@ interface StartTaskSessionResult {
 		| "cloud_provider_disabled"
 		| "endpoint_busy"
 		| "swarm_stopped"
+		| "concurrency_limit"
 		| "agent_sandbox_unavailable";
 	retryAfterMs?: number | null;
 	/** §5.AB "why this model for this task" — the operator-readable selection explanation, when the backend provided one. */
