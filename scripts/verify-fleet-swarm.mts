@@ -330,6 +330,12 @@ async function main(): Promise<void> {
 
 		const deadline = Date.now() + TIMEOUT_MS;
 		const stallMs = Math.round(Number(process.env.NKLEIN_VERIFY_STALL_MS ?? "420000") * power.multiplier);
+		// FAST dead-stall (user 2026-07-02 "detect stalls earlier"): when NO session is alive (running/queued/
+		// starting) the long stall window is pointless — nothing can make progress. A short window catches a dead
+		// swarm in ~1.5min instead of 7min. Sessions that are RUNNING but silent (long prefill/generation) never
+		// trip this — that's what the long window is for (prefill silence ≠ death).
+		const deadStallMs = Math.round(Number(process.env.NKLEIN_VERIFY_DEAD_STALL_MS ?? "90000") * power.multiplier);
+		const ALIVE_SESSION_STATES = new Set(["running", "queued", "starting"]);
 		let stalled = false;
 		let lastSummary = "";
 		let decomposed = false;
@@ -357,6 +363,16 @@ async function main(): Promise<void> {
 					allTerminal = true;
 					break;
 				}
+				const anySessionAlive = [...latestActivityByTask.values()].some((info) =>
+					ALIVE_SESSION_STATES.has(info.state),
+				);
+				if (!anySessionAlive && latestActivityByTask.size > 0 && Date.now() - lastProgressAt > deadStallMs) {
+					stalled = true;
+					log(
+						`[${new Date().toISOString().slice(11, 19)}] DEAD-STALLED — every session is idle/terminal and no progress for ${Math.round(deadStallMs / 1000)}s; aborting early.`,
+					);
+					break;
+				}
 				if (Date.now() - lastProgressAt > stallMs) {
 					stalled = true;
 					log(`[${new Date().toISOString().slice(11, 19)}] STALLED — no progress for ${Math.round(stallMs / 1000)}s; aborting.`);
@@ -371,7 +387,7 @@ async function main(): Promise<void> {
 					break;
 				}
 			}
-			await new Promise((resolve) => setTimeout(resolve, 5000));
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 		}
 
 		log("");

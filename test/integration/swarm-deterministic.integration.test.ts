@@ -19,24 +19,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BackendUnderTest } from "../contract/helpers/index.js";
 import { initGitRepository, requestJson, startTsBackend } from "../contract/helpers/index.js";
 import { type MockLlmServer, startMockLlm } from "../contract/helpers/mock-llm";
+import { pollSwarmBoardUntil } from "../contract/helpers/swarm-poll";
 
 const TEST_TIMEOUT_MS = 300_000;
-
-interface BoardStateResponse {
-	board?: { columns?: Array<{ id?: string; cards?: Array<{ id?: string }> }> };
-}
-
-function lanesById(state: BoardStateResponse): Map<string, string> {
-	const lanes = new Map<string, string>();
-	for (const column of state.board?.columns ?? []) {
-		for (const card of column.cards ?? []) {
-			if (card.id && column.id) {
-				lanes.set(card.id, column.id);
-			}
-		}
-	}
-	return lanes;
-}
 
 describe.sequential("deterministic swarm harness (W2.1)", () => {
 	let mock: MockLlmServer;
@@ -151,39 +136,34 @@ describe.sequential("deterministic swarm harness (W2.1)", () => {
 			});
 			expect(startRes.payload.ok).toBe(true);
 
-			// Poll the board until the scenario settles: seed completed + both generated cards out of the waiting
-			// lanes and NOT completed (held in review after the re-drive), or time out with the last state shown.
-			const deadline = Date.now() + TEST_TIMEOUT_MS - 30_000;
-			let lanes = new Map<string, string>();
-			let alphaId = "";
-			let betaId = "";
-			while (Date.now() < deadline) {
-				const stateRes = await requestJson<BoardStateResponse>({
-					baseUrl: server.baseUrl,
-					procedure: "workspace.getState",
-					type: "query",
-					workspaceId,
-				});
-				lanes = lanesById(stateRes.payload);
-				alphaId = [...lanes.keys()].find((id) => id.includes("alpha")) ?? "";
-				betaId = [...lanes.keys()].find((id) => id.includes("beta")) ?? "";
-				const seedDone = lanes.get(seed.id) === "completed";
-				const bothSettled =
-					alphaId !== "" &&
-					betaId !== "" &&
-					["review"].includes(lanes.get(alphaId) ?? "") &&
-					["review"].includes(lanes.get(betaId) ?? "");
-				if (seedDone && bothSettled) {
-					break;
-				}
-				await new Promise((resolve) => setTimeout(resolve, 3_000));
-			}
+			// Early-exit poller: settles the moment the HOLD shape is reached; a dead swarm fails in seconds.
+			// (failOnParked stays OFF here — the held-in-review end state is adjacent to parking, and the HOLD
+			// assertion itself distinguishes them.)
+			const poll = await pollSwarmBoardUntil({
+				baseUrl: server.baseUrl,
+				workspaceId,
+				deadlineMs: Date.now() + TEST_TIMEOUT_MS - 30_000,
+				isTarget: (lanes) => {
+					const alpha = [...lanes.keys()].find((id) => id.includes("alpha")) ?? "";
+					const beta = [...lanes.keys()].find((id) => id.includes("beta")) ?? "";
+					return (
+						lanes.get(seed.id) === "completed" &&
+						alpha !== "" &&
+						beta !== "" &&
+						lanes.get(alpha) === "review" &&
+						lanes.get(beta) === "review"
+					);
+				},
+			});
+			const lanes = poll.lanes;
+			const alphaId = [...lanes.keys()].find((id) => id.includes("alpha")) ?? "";
+			const betaId = [...lanes.keys()].find((id) => id.includes("beta")) ?? "";
 
 			// The decomposition applied: both generated cards exist.
 			const debugLog = ((globalThis as { __detSwarmLog?: string[] }).__detSwarmLog ?? []).slice(-25).join("\n");
 			expect(
 				alphaId,
-				`lanes: ${JSON.stringify([...lanes.entries()])}\nmock requests: ${mock.requests.length}\nserver log tail:\n${debugLog}`,
+				`${poll.outcome}: ${poll.detail}\nmock requests: ${mock.requests.length}\nserver log tail:\n${debugLog}`,
 			).not.toBe("");
 			expect(betaId).not.toBe("");
 			// The seed completed via the decomposition-apply path.

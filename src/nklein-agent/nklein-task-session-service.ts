@@ -3402,6 +3402,41 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					},
 				}),
 			);
+		} else if ((status === "empty" || status === "error") && summary.state === "interrupted" && entry) {
+			// run21 stall class: an abandoned/interrupted session whose FINAL round captured nothing — but a
+			// PRIOR round already delivered a result branch (e.g. delivered → bounced → the re-drive died) —
+			// stranded the card in In Progress forever: the rebound above only looks at THIS capture, and the
+			// terminal sweep only rescues OTHER waiting cards. If reviewable work exists from any earlier round,
+			// rebind to review exactly like the salvage case — the review loop (bounce/escalate/park) owns it.
+			const repoPath = this.sandboxState.getRepoPath(taskId) ?? summary.workspacePath ?? null;
+			if (repoPath) {
+				void resolveTaskResultBranchCommit({ repoPath, taskId })
+					.catch(() => null)
+					.then((priorResultCommit) => {
+						const current = this.messageRepository.getTaskEntry(taskId);
+						if (!priorResultCommit || !current || current.summary.state !== "interrupted") {
+							return;
+						}
+						this.emitSummary(
+							updateSummary(current, {
+								state: "awaiting_review",
+								reviewReason: "exit",
+								lastOutputAt: now(),
+								lastHookAt: now(),
+								latestHookActivity: {
+									activityText:
+										"Interrupted session left no new changes, but a prior round's result branch exists — rebound into review so the existing work gets judged instead of stranding the card.",
+									toolName: null,
+									toolInputSummary: null,
+									finalMessage: null,
+									hookEventName: "interrupted_prior_work_rebound",
+									notificationType: null,
+									source: "nklein",
+								},
+							}),
+						);
+					});
+			}
 		}
 		// The store records TERMINAL states only; capture always completes around the awaiting_review/failed/
 		// interrupted transition, so a non-terminal snapshot (a benign race) maps to awaiting_review.

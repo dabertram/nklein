@@ -18,24 +18,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BackendUnderTest } from "../contract/helpers/index.js";
 import { initGitRepository, requestJson, startTsBackend } from "../contract/helpers/index.js";
 import { type MockLlmServer, startMockLlm } from "../contract/helpers/mock-llm";
+import { pollSwarmBoardUntil } from "../contract/helpers/swarm-poll";
 
 const TEST_TIMEOUT_MS = 300_000;
-
-interface BoardStateResponse {
-	board?: { columns?: Array<{ id?: string; cards?: Array<{ id?: string }> }> };
-}
-
-function lanesById(state: BoardStateResponse): Map<string, string> {
-	const lanes = new Map<string, string>();
-	for (const column of state.board?.columns ?? []) {
-		for (const card of column.cards ?? []) {
-			if (card.id && column.id) {
-				lanes.set(card.id, column.id);
-			}
-		}
-	}
-	return lanes;
-}
 
 describe.sequential("deterministic swarm harness — bounce → re-work → approve (W2.1 v3)", () => {
 	let mock: MockLlmServer;
@@ -222,28 +207,24 @@ describe.sequential("deterministic swarm harness — bounce → re-work → appr
 			});
 			expect(startRes.payload.ok).toBe(true);
 
-			const deadline = Date.now() + TEST_TIMEOUT_MS - 30_000;
-			let lanes = new Map<string, string>();
-			let gammaId = "";
-			while (Date.now() < deadline) {
-				const stateRes = await requestJson<BoardStateResponse>({
-					baseUrl: server.baseUrl,
-					procedure: "workspace.getState",
-					type: "query",
-					workspaceId,
-				});
-				lanes = lanesById(stateRes.payload);
-				gammaId = [...lanes.keys()].find((id) => id.includes("gamma")) ?? "";
-				if (gammaId && lanes.get(gammaId) === "completed" && lanes.get(seed.id) === "completed") {
-					break;
-				}
-				await new Promise((resolve) => setTimeout(resolve, 3_000));
-			}
+			// Early-exit poller: instant on success; a parked card or a dead swarm fails in seconds, not minutes.
+			const poll = await pollSwarmBoardUntil({
+				baseUrl: server.baseUrl,
+				workspaceId,
+				deadlineMs: Date.now() + TEST_TIMEOUT_MS - 30_000,
+				failOnParked: true,
+				isTarget: (lanes) => {
+					const gamma = [...lanes.keys()].find((id) => id.includes("gamma")) ?? "";
+					return Boolean(gamma) && lanes.get(gamma) === "completed" && lanes.get(seed.id) === "completed";
+				},
+			});
+			const lanes = poll.lanes;
+			const gammaId = [...lanes.keys()].find((id) => id.includes("gamma")) ?? "";
 
 			// THE ROUND-TRIP INVARIANT: the bounced card came back through a second review and completed —
 			// which requires the re-driven worker to have WRITTEN in a restored workspace (round 2's approval
 			// is only reachable after write #2 landed and was re-captured).
-			const detail = `lanes: ${JSON.stringify([...lanes.entries()])} | reviews=${reviewCalls} wrote1=${wroteFirst} wrote2=${wroteSecond}`;
+			const detail = `${poll.outcome}: ${poll.detail} | reviews=${reviewCalls} wrote1=${wroteFirst} wrote2=${wroteSecond}`;
 			expect(gammaId, detail).not.toBe("");
 			expect(lanes.get(seed.id), detail).toBe("completed");
 			expect(lanes.get(gammaId), detail).toBe("completed");
