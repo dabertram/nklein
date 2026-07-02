@@ -40,6 +40,17 @@ describe("submit_review tool", () => {
 		expect(nulled.result?.preferred).toBeNull();
 	});
 
+	it("#32 (run34): tolerates off-vocabulary preferred values instead of pre-rejecting the verdict", async () => {
+		// A reviewer on an ORDINARY review filled the field anyway; the strict enum rejected the whole verdict
+		// 4x and the abandoned reviewer's no-verdict hold froze a 1-wide rail. Junk now means "no preference".
+		const junk = await run({ verdict: "approve", summary: "Fine.", preferred: "not-applicable" });
+		expect(junk.result?.preferred).toBeNull();
+		const spellings = await run({ verdict: "approve", summary: "B wins.", preferred: "Candidate B" });
+		expect(spellings.result?.preferred).toBe("speculative");
+		const letter = await run({ verdict: "approve", summary: "A wins.", preferred: "A" });
+		expect(letter.result?.preferred).toBe("primary");
+	});
+
 	it("accepts request_changes with feedback", async () => {
 		const { result } = await run({
 			verdict: "request_changes",

@@ -25,9 +25,24 @@ export const nkleinReviewSubmissionSchema = z
 		 * §5.AW best-of-N arbitration: when the seed presented TWO candidate diffs (A = primary, B =
 		 * speculative), the reviewer names the one to deliver. Absent/null on ordinary single-candidate
 		 * reviews — and tolerated-but-meaningless there (delivery only consults it when a speculative
-		 * result branch actually exists).
+		 * result branch actually exists). TOLERANT parsing (#32, run34 live: a reviewer filled the field
+		 * with an off-vocabulary value on an ordinary review and the strict enum pre-rejected the whole
+		 * verdict 4× → reviewer abandoned → no-verdict hold froze the rail — the #15/#27 lesson again):
+		 * A/B/candidate-a/candidate-b/spec spellings normalize; anything else means "no preference" (null).
 		 */
-		preferred: z.enum(["primary", "speculative"]).nullable().optional(),
+		preferred: z.preprocess((value) => {
+			if (typeof value !== "string") {
+				return value === undefined ? undefined : null;
+			}
+			const normalized = value.trim().toLowerCase();
+			if (["primary", "a", "candidate a", "candidate_a"].includes(normalized)) {
+				return "primary";
+			}
+			if (["speculative", "spec", "b", "candidate b", "candidate_b"].includes(normalized)) {
+				return "speculative";
+			}
+			return null;
+		}, z.enum(["primary", "speculative"]).nullable().optional()),
 	})
 	.refine((value) => value.verdict === "approve" || Boolean(value.feedback?.trim()), {
 		message: "feedback is required when verdict is request_changes",
@@ -84,9 +99,9 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 				},
 				preferred: {
 					// §5.AW best-of-N: only meaningful when the review seed presented candidates A (primary) and
-					// B (speculative). Null-tolerant like feedback/insight — models emit explicit nulls.
+					// B (speculative). NO enum here (#32): a strict enum pre-rejects the whole verdict on any
+					// off-vocabulary value — the Zod layer normalizes A/B spellings and nulls the rest instead.
 					type: ["string", "null"],
-					enum: ["primary", "speculative", null],
 					description:
 						"ONLY when this review compares candidate A (primary) and candidate B (speculative): the candidate to deliver — `primary` for A, `speculative` for B. Omit on ordinary single-candidate reviews.",
 				},

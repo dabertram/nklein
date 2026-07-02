@@ -1033,6 +1033,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						deps.warn(
 							`Empty-patch card ${taskId} held in Review (fail-closed): no reviewer sign-off after a re-drive, so a no-op result cannot auto-complete.`,
 						);
+						// #33: final hold — quiesce so the held card frees its slot (see the delivery-hold comment).
+						await service.cancelTaskTurn(taskId).catch(() => null);
 						return;
 					}
 
@@ -1098,6 +1100,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							deps.warn(
 								`Delivery held for ${taskId} (delivery tier → ${deliveryDecision.action}): ${deliveryDecision.reason} Left in Review.`,
 							);
+							// #33 (run34 live): a HELD card must not keep owning a concurrency slot — an abandoned
+							// reviewer (no-verdict hold) on a 1-wide rail starved every deferred card forever while
+							// the held session sat awaiting_review. Quiesce exactly like park does: abort the turn
+							// (state → idle, slot freed, session stays resumable for the operator/re-drives); the
+							// card itself stays in Review as the operator surface.
+							await service.cancelTaskTurn(taskId).catch(() => null);
 							return;
 						}
 						// Serialized per workspace (see runWorkspaceMergeSerialized): concurrent finalizations must
