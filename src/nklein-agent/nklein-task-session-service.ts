@@ -693,6 +693,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// APPENDED AT THE END (§5.AQ cache-prefix stability). The decision core composes those three policies; when the
 		// flag is unset or the turn isn't temporal, `appendTemporalContext` returns the prompt byte-unchanged (zero cost).
 		// The clock is the trusted host `new Date()` — the sandbox never provides an authoritative "now".
+		// ORDER MATTERS (§5.AQ cache-prefix stability; audit 2026-07-02): the efficiency rules go BEFORE the
+		// temporal date block, so the DAILY-changing date stays the true suffix — previously the rules were appended
+		// AFTER the date, so every date rollover invalidated the rules' cached prefix too.
+		systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
+			contextScope: input.contextScope ?? "smart",
+			contextWindow: requestContextWindow,
+			timeoutMode: input.timeoutMode ?? "normal",
+			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+		})}`;
 		systemPrompt = appendTemporalContext(
 			systemPrompt,
 			decideTemporalContextInjection({
@@ -701,12 +710,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				now: new Date(),
 			}),
 		);
-		systemPrompt = `${systemPrompt}\n\n${buildKanbanEfficiencyRules({
-			contextScope: input.contextScope ?? "smart",
-			contextWindow: requestContextWindow,
-			timeoutMode: input.timeoutMode ?? "normal",
-			maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-		})}`;
 
 		await this.waitUntilTaskResumed(input.taskId);
 		this.requestTimer.markStarted(input.taskId);
