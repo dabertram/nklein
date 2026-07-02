@@ -197,7 +197,7 @@ async function main(): Promise<void> {
 				NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
 			},
 			onLog: (chunk, source) => {
-				if (/auto-start|could not|skipped|rootTask|queued|decompos|begin_implementation|routing|selection|model=|→/i.test(chunk)) {
+				if (/auto-start|could not|skipped|rootTask|queued|decompos|begin_implementation|routing|selection|model=|→|review|delivery|acceptance|diverse|lineage|re-driving|deferred|held/i.test(chunk)) {
 					for (const line of chunk.split("\n")) {
 						if (line.trim()) {
 							log(`   [server:${source}] ${line.trim().slice(0, 240)}`);
