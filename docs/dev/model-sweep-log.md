@@ -426,3 +426,4 @@
 > - **Apple Silicon = always `--gpu max`** (unified memory); the Legion is where `--gpu <ratio>` / MoE expert-offload matter.
 >   Catalog folded (§5.AL): 6 new rows + qwen2.5-coder/qwen3.5 note updates (commit d8803b56).
 SWEEP-ROW | 2026-07-02T07:01:25.060Z | fleet mid_task | architect=gptoss120-m5 worker=coder-gpu | decompose=YES | result=PASS ✓ | power=high×1 — THE FIRST FULL FLEET PASS (run17; runs 9-17 converged 1→2→3→4→PASS via ten live-found fixes; see todo.md §5.0.5)
+SWEEP-ROW | 2026-07-02T10:01:36Z | fleet mid_task run20 | architect=gptoss120-m5 worker=coder-gpu | decompose=YES | result=PARTIAL (t1 COMPLETED live through fail-closed gate w/ mount fix; t2 escalate→park ladder exercised, root-caused: disposed-workspace re-drive; t3 starved by parked churn; run stopped early after harvest) | power=high×1
