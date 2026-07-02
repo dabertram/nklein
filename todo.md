@@ -9315,6 +9315,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **Ordering:** UI wizards land with/after the §5.AX overhaul (they are prime §5.AX surfaces — dark-first,
 >       cool-technical); the completion-stamp config fields + detection probes can land earlier as pure runtime work.
 >
+### 5.BD — Schema-tolerance sweep across ALL SDK tool boundaries *(2026-07-03, from fixes #15/#27/#32/#34 + focus-chain)*
+> **Five separate live board-freezes were caused by the same disease:** a STRICT pre-execution schema rejecting a
+> semantically-obvious tool call (feedback:null #15 · tool-name echo #27 · focus-chain `name`→`text` · my
+> `preferred` enum #32 · run_commands bare-string #34). The AI-SDK validates args against each tool's inputSchema
+> BEFORE execute, so any strictness there turns a recoverable near-miss into 3-strikes-abandoned. LAW (§4A-worthy):
+> the SDK boundary schema is for GUIDANCE, never enforcement — validate loosely at the boundary, normalize
+> tolerantly in execute (aliases/synonyms/shape-coercion), and return corrective `ok:false` instructions for what
+> can't be coerced.
+> - [ ] Sweep every remaining `zodToJsonSchema(<strict>)` boundary in the vendored SDK's definitions.ts
+>       (read_files, search_codebase, write_file/edit_file family, fetch_web_content, read_large_file) + every
+>       !Klein-owned tool: compare the boundary schema against real model-emitted shapes from preserved run
+>       telemetry (`runtime_error` + `[tool] rejected before execution` events across nklein-fleet-home-*), loosen
+>       boundaries, add execute-side normalizers with tests (the #32/#34 pattern).
+> - [ ] Add a telemetry COUNTER for pre-execution rejections per tool per model — the scoreboard that proves the
+>       sweep worked and catches the next variant early (a rejected call should be RARE, not a stall mode).
+
 ### 5.BC — Board dependency-edge visualization *(2026-07-02 late, user — "rather one of the next steps")*
 > **User directive:** "check about visualizing the task/card graph edges .. maybe only as activate-able if it
 > would just draw disturbing lines everywhere .. visualization shall be decent, lean, non-disturbing as possible,
