@@ -9273,7 +9273,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       adopt for legion" or "everything boils down to a small dense model in VRAM — CONFIRMED, close the question".
 >       Record either way in docs/dev/gpu-offload-and-moe.md + the model-capability catalog + fleet sweet-spots memory.
 >
-### 5.BA — Guided configuration workflows: first-run global setup + first-load project setup *(2026-07-02, user)*
+### 5.BA — Guided configuration workflows: first-run global setup + first-load project setup *(2026-07-02, user)* — ✅ SHIPPED 2026-07-03
+> **DONE:** pure detection cores (setup-detection.ts) + completion stamps (foundation) → runtime vertical (getGlobalSetupPlan/getProjectSetupPlan tRPC, fact-gathering, tests) → web-UI (SetupWizardDialog stepper + useSetupWizard hook: auto-fire on completedAt===null, Finish writes the stamp; global-before-project precedence; project inert until a project is active; global re-trigger in general settings, project re-trigger in PROJECT settings only per the directive). 12 UI tests + 5 runtime tests. CLI parity (`nklein setup` / `nklein project setup`) remains the one deferred sub-item (the shared step model is the same; a terminal renderer over buildGlobal/ProjectSetupPlan).
 > **User framing (2026-07-02):** *"have a configuration workflow that guides through the relevant global settings when
 > starting !Klein the first time or when triggered (put trigger button in global settings). A similar guided
 > configuration workflow shall be offered when creating or loading a project the first time so that the user can
