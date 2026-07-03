@@ -63,6 +63,25 @@ describe("board-chat feedback wiring dispatch (§5.AT/§5.AU)", () => {
 		expect(f.transitioned[0]?.workspaceId).toBe("ws");
 	});
 
+	it("maps reviewReason 'attention' to a delivery-gate-held ASK override (not just a NOTIFY)", () => {
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge });
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: { taskId: "t1", state: "awaiting_review", reviewReason: "attention" } as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: { taskId: "t2", state: "awaiting_review", reviewReason: "error" } as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		expect(f.transitioned[0]?.overrides).toEqual({ deliveryGateHeld: true });
+		expect(f.transitioned[1]?.overrides).toEqual({ deliveryGateHeld: false });
+	});
+
 	it("skips synthetic (::review / ::acceptance / …) sessions — feedback is about the card", () => {
 		const f = fakeBridge();
 		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge });

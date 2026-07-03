@@ -89,6 +89,10 @@ export function createBoardChatFeedbackWiring(overrides?: { bridge?: BoardChatFe
 				paused: input.summary.paused ?? null,
 				heartbeatStatus: input.summary.heartbeatStatus ?? null,
 			},
+			// A card parked with reviewReason "attention" is HELD awaiting the operator's decision — surface it as an
+			// ASK (approve/edit/reject), which breaks through quiet mode, rather than a plain terminal NOTIFY. The
+			// other reasons (error/interrupted/exit/hook) are outcomes the NOTIFY path already covers.
+			overrides: { deliveryGateHeld: input.summary.reviewReason === "attention" },
 		};
 		if (input.isInitial) {
 			bridge.seed(transition);
