@@ -9535,9 +9535,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       stale after §5.BD boundary fix #40, and 4 from the `.cline`→`.nklein` workspace-dir rebrand (plugin-install +
 >       user-instruction-config-loader) + 3 more in `@cline/shared` storage paths (same rebrand). **All 8 now FIXED
 >       (commits 2da7e50d, 7ed422fb, 485e2fb8). Every runnable vendored package is GREEN: core 1224 · shared 205 ·
->       llms 334 · agents 46 (sdk has no vitest config).** STILL TODO: add a `test:vendor` script (`for p in
->       vendor/cline-sdk/packages/*; do (cd $p && vitest run); done`) and wire it into the release gate + ideally the
->       pre-commit hook when vendored files are staged, so fork drift is caught automatically. (Rebrand caveat
+>       llms 334 · agents 46 (sdk has no vitest config).** **`npm run test:vendor` ADDED (scripts/test-vendor.mjs) —
+>       runs all 4 vendored suites (1814 tests green).** STILL TODO: wire `test:vendor` into the release gate / CI
+>       (not pre-commit — it adds ~30s/commit; consider a staged-vendored-files guard instead) so fork drift is caught
+>       automatically. (Rebrand caveat
 >       learned: NOT every `.cline` is stale — home-scoped `CLINE_DIR`, an EXPLICITLY-set CLINE_DIR path,
 >       `resolvePluginConfigSearchPaths[0]` legacy-first, and `.cline/skills` back-compat subdirs are intentional; fix
 >       per failing assertion against the SOURCE, never a blanket replace — a blanket flip wrongly changed
