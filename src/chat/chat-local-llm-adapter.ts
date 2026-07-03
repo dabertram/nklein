@@ -2,6 +2,7 @@ import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { isTruthyEnv } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
+import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
@@ -73,11 +74,51 @@ const DEFAULT_SAMPLING: LocalLlmSamplingOptions = { temperature: 0.3, maxTokens:
 // typical local context window so the retry can't overshoot it.
 const TRUNCATION_RETRY_BUDGET_CEILING = 8192;
 
+/**
+ * OPT-IN env flag (§5.AN pre-flight budget sizing) — when truthy AND the resolved model is a reasoning model AND the
+ * caller did not pass an explicit `sampling.maxTokens`, size the chat-turn `max_tokens` with a reasoning reserve on top
+ * of the default answer budget (via the pure {@link planReasoningOutputBudget} core) so a reasoning model's answer isn't
+ * starved by its own thinking burn. Default (OFF) is byte-identical to today — the DEFAULT_SAMPLING is used unchanged.
+ */
+const REASONING_BUDGET_FLAG = "NKLEIN_REASONING_BUDGET";
+
+/**
+ * Resolve the sampling options for the chat-turn path. DEFAULT (flag OFF / non-reasoning model / caller-supplied
+ * `maxTokens`) is byte-identical to `options.sampling ?? DEFAULT_SAMPLING` — this is the hottest live path, so the
+ * un-opted behaviour must not change. When {@link REASONING_BUDGET_FLAG} is truthy and the model reasons AND the caller
+ * did NOT already fix `maxTokens`, replace ONLY `maxTokens` with the reasoning-reserve total (the answer budget is the
+ * DEFAULT_SAMPLING answer budget), leaving every other sampling field untouched.
+ */
+function resolveChatTurnSampling(options: {
+	sampling?: LocalLlmSamplingOptions;
+	modelId?: string;
+}): LocalLlmSamplingOptions {
+	const base = options.sampling ?? DEFAULT_SAMPLING;
+	// Only opt-in when the flag is ON, a modelId is known + reasons, and the caller did NOT pass an explicit
+	// `sampling.maxTokens` (an explicit caller budget always wins — we never inflate what the caller pinned). Any miss ⇒
+	// return `base` unchanged (byte-identical default). NOTE the guard checks the CALLER's `options.sampling?.maxTokens`,
+	// not `base.maxTokens` (which is always defined because DEFAULT_SAMPLING pins it) — so the fall-through only sizes the
+	// DEFAULT answer budget, never a caller-supplied one.
+	if (
+		options.sampling?.maxTokens !== undefined ||
+		!isTruthyEnv(process.env[REASONING_BUDGET_FLAG]) ||
+		!options.modelId ||
+		!isReasoningModel(options.modelId)
+	) {
+		return base;
+	}
+	// `base` is DEFAULT_SAMPLING here (caller passed no sampling, or sampling without maxTokens); size ONLY maxTokens off
+	// the default answer budget, preserving every other field.
+	const answerBudgetTokens = base.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
+	const budget = planReasoningOutputBudget({ answerBudgetTokens, isReasoning: true });
+	return { ...base, maxTokens: budget.totalMaxTokens };
+}
+
 export function createChatModelDeps(
 	client: ChatCompletionClient,
 	options: { sampling?: LocalLlmSamplingOptions; modelId?: string } = {},
 ): ChatModelDeps {
-	const sampling = options.sampling ?? DEFAULT_SAMPLING;
+	const sampling = resolveChatTurnSampling(options);
 	return {
 		...(options.modelId ? { modelId: options.modelId } : {}),
 		complete: async (prompt, onToken) => {

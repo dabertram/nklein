@@ -9,17 +9,27 @@ import {
 } from "../../../src/chat/chat-local-llm-adapter";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
 import type { ChatPromptMessage } from "../../../src/chat/chat-turn-context";
-import type { LocalLlmChatMessage, LocalLlmToolDefinition } from "../../../src/nklein-agent/nklein-local-llm-client";
+import type {
+	LocalLlmChatMessage,
+	LocalLlmSamplingOptions,
+	LocalLlmToolDefinition,
+} from "../../../src/nklein-agent/nklein-local-llm-client";
 
-function fakeClient(reply: string): { client: ChatCompletionClient; calls: LocalLlmChatMessage[][] } {
+function fakeClient(reply: string): {
+	client: ChatCompletionClient;
+	calls: LocalLlmChatMessage[][];
+	sampling: (LocalLlmSamplingOptions | undefined)[];
+} {
 	const calls: LocalLlmChatMessage[][] = [];
+	const sampling: (LocalLlmSamplingOptions | undefined)[] = [];
 	const client: ChatCompletionClient = {
 		complete: async (request) => {
 			calls.push(request.messages);
+			sampling.push(request.sampling);
 			return { content: reply, finishReason: "stop", raw: {} };
 		},
 	};
-	return { client, calls };
+	return { client, calls, sampling };
 }
 
 describe("createChatModelDeps", () => {
@@ -89,6 +99,70 @@ describe("createChatModelDeps", () => {
 		expect(calls[0]?.[0]?.role).toBe("system");
 		expect(calls[0]?.[1]?.content).toContain("user: about the merge");
 		expect(calls[0]?.[1]?.content).toContain("assistant: ok");
+	});
+
+	describe("§5.AN reasoning output-budget sizing (opt-in NKLEIN_REASONING_BUDGET)", () => {
+		const FLAG = "NKLEIN_REASONING_BUDGET";
+		let savedFlag: string | undefined;
+		beforeEach(() => {
+			savedFlag = process.env[FLAG];
+			delete process.env[FLAG];
+		});
+		afterEach(() => {
+			if (savedFlag === undefined) {
+				delete process.env[FLAG];
+			} else {
+				process.env[FLAG] = savedFlag;
+			}
+		});
+
+		// The concrete number from the real core (planReasoningOutputBudget) with the default answer budget (1024) on a
+		// reasoning model: reasoningReserve = ceil(768 × 1.25) = 960, total = 960 + 1024 = 1984.
+		const REASONING_TOTAL_MAX_TOKENS = 1984;
+
+		it("flag ON + a reasoning modelId ⇒ sizes maxTokens to the reasoning-reserve total (1984)", async () => {
+			process.env[FLAG] = "1";
+			const { client, sampling } = fakeClient("ok");
+			const deps = createChatModelDeps(client, { modelId: "qwen3.5-9b-mlx" });
+			await deps.complete([{ role: "user", content: "hi" }]);
+			// Only maxTokens changes; the default temperature is preserved untouched.
+			expect(sampling[0]).toEqual({ temperature: 0.3, maxTokens: REASONING_TOTAL_MAX_TOKENS });
+		});
+
+		it("flag ON + a NON-reasoning modelId ⇒ stays the default 1024 (no reserve)", async () => {
+			process.env[FLAG] = "1";
+			const { client, sampling } = fakeClient("ok");
+			const deps = createChatModelDeps(client, { modelId: "qwen2.5-coder-14b" });
+			await deps.complete([{ role: "user", content: "hi" }]);
+			expect(sampling[0]).toEqual({ temperature: 0.3, maxTokens: 1024 });
+		});
+
+		it("flag OFF (default) ⇒ byte-identical DEFAULT_SAMPLING even for a reasoning modelId", async () => {
+			// Flag cleared in beforeEach — the hot path must be unchanged.
+			const { client, sampling } = fakeClient("ok");
+			const deps = createChatModelDeps(client, { modelId: "qwen3.5-9b-mlx" });
+			await deps.complete([{ role: "user", content: "hi" }]);
+			expect(sampling[0]).toEqual({ temperature: 0.3, maxTokens: 1024 });
+		});
+
+		it("flag ON + reasoning modelId but caller passed an explicit maxTokens ⇒ caller's budget wins (unchanged)", async () => {
+			process.env[FLAG] = "1";
+			const { client, sampling } = fakeClient("ok");
+			const deps = createChatModelDeps(client, {
+				modelId: "qwen3.5-9b-mlx",
+				sampling: { temperature: 0.1, maxTokens: 512 },
+			});
+			await deps.complete([{ role: "user", content: "hi" }]);
+			expect(sampling[0]).toEqual({ temperature: 0.1, maxTokens: 512 });
+		});
+
+		it("flag ON but no modelId ⇒ byte-identical DEFAULT_SAMPLING (can't tell if it reasons)", async () => {
+			process.env[FLAG] = "1";
+			const { client, sampling } = fakeClient("ok");
+			const deps = createChatModelDeps(client);
+			await deps.complete([{ role: "user", content: "hi" }]);
+			expect(sampling[0]).toEqual({ temperature: 0.3, maxTokens: 1024 });
+		});
 	});
 });
 
