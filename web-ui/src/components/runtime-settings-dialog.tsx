@@ -253,6 +253,7 @@ export function RuntimeSettingsDialog({
 	);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
+	const [knowsTodayEnabled, setKnowsTodayEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [codeEmbeddingDefaultsProvider, setCodeEmbeddingDefaultsProvider] =
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
@@ -339,6 +340,7 @@ export function RuntimeSettingsDialog({
 	const bypassPermissionsCheckboxId = "runtime-settings-bypass-permissions";
 	const developerModeCheckboxId = "runtime-settings-developer-mode";
 	const replayCardsCheckboxId = "runtime-settings-replay-cards";
+	const knowsTodayCheckboxId = "runtime-settings-knows-today";
 	const maxConcurrentTasksId = "runtime-settings-max-concurrent-tasks";
 	const workspaceBaseDirId = "runtime-settings-workspace-base-dir";
 	const maxAgentWritableFileLinesId = "runtime-settings-max-agent-writable-file-lines";
@@ -438,6 +440,7 @@ export function RuntimeSettingsDialog({
 	const initialSwarmGuardrails = config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS;
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
 	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
+	const initialKnowsTodayEnabled = config?.knowsTodayEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 		provider: "local_lexical" as const,
@@ -696,6 +699,9 @@ export function RuntimeSettingsDialog({
 		if (replayCardsEnabled !== initialReplayCardsEnabled) {
 			return true;
 		}
+		if (knowsTodayEnabled !== initialKnowsTodayEnabled) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -824,6 +830,7 @@ export function RuntimeSettingsDialog({
 		initialRequestTimeoutMs,
 		initialReadyForReviewNotificationsEnabled,
 		initialReplayCardsEnabled,
+		initialKnowsTodayEnabled,
 		initialSelectedAgentId,
 		initialShortcuts,
 		initialMaxConcurrentTasksOverride,
@@ -854,6 +861,7 @@ export function RuntimeSettingsDialog({
 		requestTimeoutMs,
 		readyForReviewNotificationsEnabled,
 		replayCardsEnabled,
+		knowsTodayEnabled,
 		selectedAgentId,
 		shortcuts,
 		streamTimeoutMs,
@@ -894,6 +902,7 @@ export function RuntimeSettingsDialog({
 		setSwarmGuardrailInputs(swarmGuardrailsToInputs(config?.swarmGuardrails ?? DEFAULT_RUNTIME_SWARM_GUARDRAILS));
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
 		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
+		setKnowsTodayEnabled(config?.knowsTodayEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 			provider: "local_lexical" as const,
@@ -961,6 +970,7 @@ export function RuntimeSettingsDialog({
 		config?.swarmGuardrails,
 		config?.developerModeEnabled,
 		config?.replayCardsEnabled,
+		config?.knowsTodayEnabled,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
 		config?.workspaceBaseDir,
@@ -1415,6 +1425,7 @@ export function RuntimeSettingsDialog({
 			swarmGuardrails: inputsToSwarmGuardrails(swarmGuardrailInputs),
 			developerModeEnabled,
 			replayCardsEnabled,
+			knowsTodayEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
@@ -1616,6 +1627,28 @@ export function RuntimeSettingsDialog({
 									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
 										Shows a Replay action on finished cards to re-run them from scratch. Off by default — the
 										action is destructive and irreversible.
+									</p>
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
+										htmlFor={knowsTodayCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={knowsTodayCheckboxId}
+											checked={knowsTodayEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setKnowsTodayEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Tell the chat agent today&apos;s date</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										Injects the current date into the chat agent&apos;s context when a message is
+										time-sensitive (&sect;5.AC &quot;knows today&quot;). Off by default; relevance-gated +
+										placed to preserve prompt caching.
 									</p>
 								</div>
 							</div>
