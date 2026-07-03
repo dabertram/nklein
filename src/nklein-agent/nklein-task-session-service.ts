@@ -828,16 +828,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}),
 			at: now(),
 		});
-		if (previous !== undefined && previous !== assembled.text) {
-			const reuseRatio = computeSharedPrefixRatio(previous, assembled.text);
+		if (previous !== undefined) {
+			// run42 (§5.BE) lesson: an IDENTICAL reassembly — the perfect cache hit, exactly what per-alias warm
+			// rails produce card after card — was previously SILENT, making the best outcome invisible on the
+			// scoreboard. Log both cases with the same category so reuse is measurable per model/alias.
+			const identical = previous === assembled.text;
+			const reuseRatio = identical ? 1 : computeSharedPrefixRatio(previous, assembled.text);
 			recordSelfObservation({
 				signal: "custom",
 				severity: "info",
-				message: `Prompt prefix reuse for ${modelKey}: ${(reuseRatio * 100).toFixed(0)}% of the new system prompt is byte-shared with the previous start.`,
+				message: identical
+					? `Prompt prefix reuse for ${modelKey}: 100% — byte-identical shell (perfect prefix-cache hit).`
+					: `Prompt prefix reuse for ${modelKey}: ${(reuseRatio * 100).toFixed(0)}% of the new system prompt is byte-shared with the previous start.`,
 				taskId: input.taskId,
 				metadata: {
 					category: "prompt_prefix_reuse",
 					reuseRatio: Number(reuseRatio.toFixed(4)),
+					identical,
 					headPinnedVolatileKeys: assembled.headPinnedVolatileKeys,
 				},
 			});

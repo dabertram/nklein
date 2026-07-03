@@ -159,6 +159,25 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		if (!recoverable) {
 			clearActiveTurnState(entry);
 		}
+		// §5.BD: pre-execution SCHEMA rejections surface HERE (as recoverable "N tool call(s) failed:" agent
+		// errors), NOT as tool-finished events — run42 proved the tool-finished counter never fired. Count them
+		// at this seam so the per-tool-per-model scoreboard actually sees them.
+		if (recoverable && errorMessage && isPreExecutionToolRejection(errorMessage)) {
+			const toolNameMatch = errorMessage.match(/\[(\w+)\]/);
+			recordSelfObservation({
+				signal: "tool_argument_error",
+				severity: "warning",
+				message: `Pre-execution schema rejection for ${toolNameMatch?.[1] ?? "unknown tool"} on ${entry.summary.modelId ?? "unconfigured"} (§5.BD).`,
+				taskId,
+				workspacePath: entry.summary.workspacePath,
+				metadata: {
+					category: "tool_input_rejection",
+					toolName: toolNameMatch?.[1] ?? null,
+					modelId: entry.summary.modelId ?? null,
+					providerId: entry.summary.providerId ?? null,
+				},
+			});
+		}
 		if (recoverable && errorMessage && !isRecoverableToolCallFailure(errorMessage)) {
 			const retryMsg = createMessage(taskId, "system", `Retrying: ${errorMessage}`);
 			entry.messages.push(retryMsg);

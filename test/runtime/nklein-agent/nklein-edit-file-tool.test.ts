@@ -30,6 +30,14 @@ describe("parseEditFileRequest", () => {
 		expect(both?.insert).toBeUndefined();
 	});
 
+	it("#42 (run42): coerces a numeric-string insert_line and honors new_text-only as whole-file replace", () => {
+		const coerced = parseEditFileRequest({ path: "src/a.ts", insert_line: "42", new_text: "x" });
+		expect(coerced?.insert).toEqual({ line: 42, text: "x" });
+		const replace = parseEditFileRequest({ path: "src/a.ts", new_text: "whole new content" });
+		expect(replace?.replaceAll).toBe("whole new content");
+		expect(replace?.insert).toBeUndefined();
+	});
+
 	it("rejects missing path or edits", () => {
 		expect(parseEditFileRequest({ edits: [{ search: "x", replace: "y" }] })).toBeNull();
 		expect(parseEditFileRequest({ path: "a.ts" })).toBeNull();
@@ -67,6 +75,13 @@ describe("edit_file tool", () => {
 		expect(await readFile(join(workspacePath, "ins.txt"), "utf8")).toBe("one\nbetween\ntwo\nthree");
 		await tool.execute({ path: "ins.txt", insert_line: 99, new_text: "tail" }, undefined as never);
 		expect(await readFile(join(workspacePath, "ins.txt"), "utf8")).toBe("one\nbetween\ntwo\nthree\ntail");
+	});
+
+	it("#42: replaces the whole file via new_text-only, through the same guards", async () => {
+		const tool = createEditFileTool({ workspacePath });
+		await writeFile(join(workspacePath, "whole.txt"), "old content", "utf8");
+		await tool.execute({ path: "whole.txt", new_text: "brand new body" }, undefined as never);
+		expect(await readFile(join(workspacePath, "whole.txt"), "utf8")).toBe("brand new body");
 	});
 
 	it("fails with a corrective, similarity-annotated error when the search does not match", async () => {

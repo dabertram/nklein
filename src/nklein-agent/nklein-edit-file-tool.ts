@@ -31,6 +31,8 @@ export interface EditFileRequest {
 	 * ecosystems' editor tools — 6 pre-rejections abandoned 3 workers in one run. One-based boundary line;
 	 * `text` is inserted BEFORE it (lineCount+1 appends at EOF). */
 	insert?: { line: number; text: string };
+	/** #42 (run42): `new_text` alone = replace the whole file's content (the SDK editor's create/replace idiom). */
+	replaceAll?: string;
 }
 
 function toEditBlock(value: unknown): SearchReplaceBlock | null {
@@ -81,15 +83,27 @@ export function parseEditFileRequest(input: unknown): EditFileRequest | null {
 		return null;
 	}
 	// #38: the insert-at-line idiom takes precedence when no search text was given — `insert_line` (or
-	// insertLine/line) plus new_text/text inserts BEFORE that one-based line.
+	// insertLine/line) plus new_text/text inserts BEFORE that one-based line. run42 (#42): models also send
+	// the line as a NUMERIC STRING ("42") — coerce it rather than pre-reject the call.
 	const insertLineRaw = record.insert_line ?? record.insertLine ?? record.line;
+	const insertLine =
+		typeof insertLineRaw === "number" && Number.isFinite(insertLineRaw)
+			? Math.trunc(insertLineRaw)
+			: typeof insertLineRaw === "string" && /^\d+$/.test(insertLineRaw.trim())
+				? Number.parseInt(insertLineRaw.trim(), 10)
+				: null;
 	const insertText =
 		typeof record.new_text === "string" ? record.new_text : typeof record.text === "string" ? record.text : null;
 	const hasSearchField = [record.search, record.search_text, record.old, record.old_string, record.old_text].some(
 		(value) => typeof value === "string",
 	);
-	if (typeof insertLineRaw === "number" && Number.isFinite(insertLineRaw) && insertText !== null && !hasSearchField) {
-		return { path, edits: [], insert: { line: Math.trunc(insertLineRaw), text: insertText } };
+	if (insertLine !== null && insertText !== null && !hasSearchField) {
+		return { path, edits: [], insert: { line: insertLine, text: insertText } };
+	}
+	// run42 (#42): `{path, new_text}` with NO search and NO line = the whole-file-replace idiom (the SDK editor's
+	// "create/replace" semantics). Honor it as a full-content replacement through the same write guards.
+	if (insertText !== null && !hasSearchField && insertLineRaw === undefined) {
+		return { path, edits: [], replaceAll: insertText };
 	}
 	// Allow a single {search,replace} at the top level or an `edits` array.
 	const rawEdits = repairJsonStringValue(record.edits);
@@ -127,7 +141,7 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 					},
 				},
 				insert_line: {
-					type: ["number", "null"],
+					type: ["number", "string", "null"],
 					description:
 						"Alternative to `edits`: one-based line to insert `new_text` BEFORE (line_count + 1 appends at EOF).",
 				},
@@ -152,9 +166,12 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 					formatProtectedTestBlockReason({
 						toolName: "edit_file",
 						path: protectedPath,
-						diff: request.insert
-							? `+ (insert before line ${request.insert.line}) ${request.insert.text}`
-							: request.edits.map((edit) => `- ${edit.search}\n+ ${edit.replace}`).join("\n"),
+						diff:
+							request.replaceAll !== undefined
+								? `+ (replace whole file) ${request.replaceAll.slice(0, 200)}`
+								: request.insert
+									? `+ (insert before line ${request.insert.line}) ${request.insert.text}`
+									: request.edits.map((edit) => `- ${edit.search}\n+ ${edit.replace}`).join("\n"),
 						reason: "edit_file attempted to modify a protected test-suite file.",
 						expectedEffects: "The protected test-suite file would be edited.",
 					}),
@@ -183,7 +200,10 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 			}
 
 			let applied: { content: string; appliedStrategies: string[] };
-			if (request.insert) {
+			if (request.replaceAll !== undefined) {
+				// #42: whole-file replacement — same guards (protected paths, containment, line limit, secrets).
+				applied = { content: request.replaceAll, appliedStrategies: ["replace-all"] };
+			} else if (request.insert) {
 				// #38: insert-at-line — clamp the one-based boundary into [1, lineCount+1] and splice the text in.
 				const lines = original.split("\n");
 				const boundary = Math.min(Math.max(1, request.insert.line), lines.length + 1);
@@ -231,7 +251,7 @@ export function createEditFileTool(options: { workspacePath: string; maxFileLine
 				path: request.path,
 				changed: true,
 				strategies: applied.appliedStrategies,
-				instruction: `Applied ${request.insert ? "the insert" : `${request.edits.length} edit${request.edits.length === 1 ? "" : "s"}`} to ${request.path} (${applied.appliedStrategies.join(", ")}). Continue from the edited file; do not repeat this edit.`,
+				instruction: `Applied ${request.replaceAll !== undefined ? "the full-file replacement" : request.insert ? "the insert" : `${request.edits.length} edit${request.edits.length === 1 ? "" : "s"}`} to ${request.path} (${applied.appliedStrategies.join(", ")}). Continue from the edited file; do not repeat this edit.`,
 			};
 		},
 	};
