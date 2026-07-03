@@ -121,6 +121,10 @@ export function buildChatAgentToolDepsResolver(input: {
 			sessionId: session.id,
 			mode,
 			tools,
+			// §5.AA: thread the tools' JSON-Schema definitions so the executor can coerce a weak model's malformed
+			// arguments (e.g. a stringified number) against the matching schema before dispatch — and refuse a
+			// genuinely-broken call instead of feeding it raw. A tool without a strict schema degrades to pass-through.
+			definitions,
 			// §5.M G3b safe/unsafe risk model: run_command is a confirm-gated host_command in can-act modes. A command
 			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one runs only when
 			// the user has acknowledged the risk for this session (`riskAcknowledged`, the general-ack toggle) —

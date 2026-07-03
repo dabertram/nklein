@@ -5,6 +5,7 @@ import {
 	type ChatToolAuditRecord,
 	createGatedChatToolExecutor,
 } from "../../../src/chat/chat-tool-executor";
+import type { LocalLlmToolDefinition } from "../../../src/nklein-agent/nklein-local-llm-client";
 
 function call(name: string, args: Record<string, unknown> = {}): ChatToolCall {
 	return { id: "c1", name, arguments: args };
@@ -211,5 +212,107 @@ describe("createGatedChatToolExecutor", () => {
 		// Falls back to tool name — never the host path
 		expect(audit[0].detail).toBe("write_file");
 		expect(audit[0].detail).not.toContain("/private");
+	});
+
+	// -------------------------------------------------------------------------
+	// §5.AA tool-argument repair — opt-in schema coercion before tool.run
+	// -------------------------------------------------------------------------
+
+	// A tool whose schema declares a strict required `count: number`. Only present when `definitions` is passed.
+	const countToolDefinition: LocalLlmToolDefinition = {
+		name: "set_count",
+		description: "set the count",
+		parameters: {
+			type: "object",
+			properties: { count: { type: "number" } },
+			required: ["count"],
+		},
+	};
+
+	it("repairs a stringified number against the schema and runs with the coerced value", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		let received: Record<string, unknown> | undefined;
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "set_count",
+					actionKind: "sandbox_read",
+					run: async (args) => {
+						received = args;
+						return "ok";
+					},
+				},
+			],
+			definitions: [countToolDefinition],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		const result = await exec(call("set_count", { count: "3" }));
+		// The tool ran, and got the COERCED numeric value — not the raw "3".
+		expect(received).toEqual({ count: 3 });
+		expect(received?.count).toBe(3);
+		expect(typeof received?.count).toBe("number");
+		expect(result.content).toBe("ok");
+		expect(audit[0]).toMatchObject({ executed: true, decision: "allow" });
+	});
+
+	it("refuses an un-coercible required value: does not run and flags the field to re-ask", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		let ran = false;
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "set_count",
+					actionKind: "sandbox_read",
+					run: async () => {
+						ran = true;
+						return "ok";
+					},
+				},
+			],
+			definitions: [countToolDefinition],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		const result = await exec(call("set_count", { count: "abc" }));
+		// The tool was NOT run, and the result names `count` as needing a re-ask.
+		expect(ran).toBe(false);
+		expect(result.content).toContain("count");
+		expect(result.content.toLowerCase()).toContain("re-ask");
+		// A refused-before-dispatch call is not audited as an execution.
+		expect(audit).toHaveLength(0);
+	});
+
+	it("passes already-valid args through unchanged when a matching definition is supplied", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		let received: Record<string, unknown> | undefined;
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "set_count",
+					actionKind: "sandbox_read",
+					run: async (args) => {
+						received = args;
+						return "ok";
+					},
+				},
+			],
+			definitions: [countToolDefinition],
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		const result = await exec(call("set_count", { count: 5 }));
+		expect(received).toEqual({ count: 5 });
+		expect(result.content).toBe("ok");
+		expect(audit[0]).toMatchObject({ executed: true });
 	});
 });

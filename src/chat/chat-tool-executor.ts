@@ -1,3 +1,9 @@
+import {
+	assessToolArgumentRepair,
+	dispatchArgumentsAfterRepair,
+	isDispatchableAfterRepair,
+} from "../core/tool-argument-repair";
+import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolCall, ChatToolResult } from "./chat-agent-loop";
 import { buildAuditDetail } from "./chat-audit-detail";
 import { type ChatActionKind, type ChatExecutionMode, decideChatActionAccess } from "./chat-execution-mode";
@@ -33,6 +39,15 @@ export interface GatedChatToolExecutorInput {
 	sessionId: string;
 	mode: ChatExecutionMode;
 	tools: readonly ChatTool[];
+	/**
+	 * §5.AA tool-argument repair (OPT-IN): the offered tools' JSON-Schema definitions, keyed by `name`. When supplied,
+	 * each call's `arguments` are assessed against the matching schema BEFORE the tool runs — a losslessly-coercible
+	 * value (a stringified number/boolean, a JSON-encoded object) is repaired in place, and a genuinely-malformed call
+	 * (an un-coercible/missing REQUIRED field against a strict schema) is refused with a re-ask list instead of being
+	 * fed raw to the tool. ABSENT (or no matching definition, or a permissive schema) ⇒ byte-identical pass-through of
+	 * the original `call.arguments`, exactly as before this seam existed.
+	 */
+	definitions?: readonly LocalLlmToolDefinition[];
 	/** Prompt for a `confirm`-gated call; returns whether the user approved. Absent ⇒ treated as not confirmed. */
 	confirm?: (call: ChatToolCall, tool: ChatTool) => Promise<boolean>;
 	/** Sink for the audit log (the live wiring passes `recordChatHostAction`). */
@@ -47,6 +62,30 @@ export function createGatedChatToolExecutor(
 		if (!tool) {
 			return { callId: call.id, content: `Unknown tool: ${call.name}` };
 		}
+
+		// §5.AA tool-argument repair (opt-in). Only when the caller supplied definitions AND this tool has a matching
+		// one do we assess: a permissive/absent schema yields `usable` (→ original args, byte-identical), a losslessly-
+		// coercible defect yields `repairable` (→ coerced args), and a genuinely-malformed strict call is refused
+		// before it can reach `tool.run`. With no definition for this tool we fall through to today's pass-through so a
+		// tool without a declared schema behaves exactly as before.
+		const definition = input.definitions?.find((candidate) => candidate.name === call.name);
+		let args: Record<string, unknown> = call.arguments;
+		if (definition) {
+			const assessment = assessToolArgumentRepair({ name: call.name, arguments: call.arguments }, definition);
+			if (isDispatchableAfterRepair(assessment)) {
+				// `usable` → the original args; `repairable` → the coerced object.
+				args =
+					dispatchArgumentsAfterRepair({ name: call.name, arguments: call.arguments }, assessment) ??
+					call.arguments;
+			} else {
+				// `reprompt`/`reject`: don't run — surface the fields to re-ask (mirrors the error-return shape). This
+				// path is only reachable for args that would otherwise throw/misbehave against a strict schema.
+				const fields = assessment.fieldsToReask;
+				const detail = fields.length > 0 ? `re-ask required field(s): ${fields.join(", ")}` : assessment.reason;
+				return { callId: call.id, content: `Invalid arguments for ${call.name}: ${detail}` };
+			}
+		}
+
 		const access = decideChatActionAccess(input.mode, tool.actionKind);
 
 		let confirmed = false;
@@ -57,13 +96,13 @@ export function createGatedChatToolExecutor(
 		} else if (access.decision === "confirm") {
 			confirmed = input.confirm ? await input.confirm(call, tool) : false;
 			if (confirmed) {
-				content = await tool.run(call.arguments);
+				content = await tool.run(args);
 				executed = true;
 			} else {
 				content = `Not run (awaiting confirmation): ${access.reason}`;
 			}
 		} else {
-			content = await tool.run(call.arguments);
+			content = await tool.run(args);
 			executed = true;
 		}
 
@@ -74,7 +113,7 @@ export function createGatedChatToolExecutor(
 			decision: access.decision,
 			confirmed,
 			executed,
-			detail: buildAuditDetail(tool.name, call.arguments),
+			detail: buildAuditDetail(tool.name, args),
 		});
 
 		return { callId: call.id, content };
