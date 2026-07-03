@@ -8,6 +8,7 @@ import {
 	type SensorAPI,
 	type SnapDragActions,
 } from "@hello-pangea/dnd";
+import type { OperatorSignalOverrides } from "@runtime-operator-board-health";
 import {
 	Database,
 	PauseCircle,
@@ -20,7 +21,6 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
 import { showAppToast } from "@/components/app-toaster";
 import { BoardColumn } from "@/components/board-column";
 import { BoardHealthSummary } from "@/components/board-health-summary";
@@ -251,6 +251,20 @@ export function KanbanBoard({
 			return !current;
 		});
 	}, []);
+	// §5.AG/W3.3: feed the board-health rollup the per-task off-summary signals it can't derive from state alone, from
+	// data the client already has — the card's `blockedKind` and a session parked with reviewReason "attention" (held
+	// for the operator). Fixes the "needs you" / risky counts that were always 0 (no overrides were threaded). The
+	// remaining ASK signals (host-action ack, clarifying question) need server state not yet on the client.
+	const resolveBoardHealthOverrides = useCallback(
+		(taskId: string): OperatorSignalOverrides => {
+			const card = data.columns.flatMap((column) => column.cards).find((entry) => entry.id === taskId);
+			return {
+				blockedKind: card?.blockedKind ?? null,
+				deliveryGateHeld: taskSessions[taskId]?.reviewReason === "attention",
+			};
+		},
+		[data, taskSessions],
+	);
 	const [fleetRegistryModels, setFleetRegistryModels] = useState<RuntimeNKleinModelRegistryEntry[]>([]);
 	const [fleetStatus, setFleetStatus] = useState<RuntimeFleetStatusResponse | null>(null);
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
@@ -1026,7 +1040,11 @@ export function KanbanBoard({
 							{formatCodeIntelligenceChip(codeIntelligenceStatus)}
 						</span>
 					</ElementTooltip>
-					<BoardHealthSummary board={data} taskSessions={taskSessions} />
+					<BoardHealthSummary
+						board={data}
+						taskSessions={taskSessions}
+						resolveOverrides={resolveBoardHealthOverrides}
+					/>
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
 					<ElementTooltip id="board.fleet-strip" side="bottom">
