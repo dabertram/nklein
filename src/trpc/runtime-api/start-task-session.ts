@@ -393,6 +393,12 @@ export async function handleStartTaskSession(
 		const resolvedSkillIds = resolveActiveSkills({
 			role: body.startInPlanMode ? "architect" : "worker",
 			taskText: startTaskText,
+			// §5.AE live-wiring: honor the user's persisted skill-dynamics level (global default ← per-project override).
+			// RuntimeSkillDynamicsLevel is 1:1 with the resolver's SkillDynamicsLevel, so it passes through directly. Default
+			// (`fully_dynamic`) == the resolver's own default ⇒ byte-identical; only a user-picked static/assigned level
+			// diverges. NOTE: the `assigned_skills` level has no config-side assignedSkillIds source yet, so it resolves to
+			// an EMPTY skill set (the relevance fallback is only for the static levels with no role) — acceptable for now.
+			dynamicsLevel: scopedRuntimeConfig.effectiveSkillDynamicsLevel,
 		}).skills.map((skill) => skill.id);
 		const taskAffinityTags = affinityTagsForSkills(resolvedSkillIds);
 		const promptTokens = estimateNKleinStartPromptTokens({

@@ -70,6 +70,11 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 		taskGraph: input.taskGraph,
 		routingCandidates,
 		sharedContext: input.sharedContext,
+		// §5.AE live-wiring: honor the user's persisted skill-dynamics level on the artifact-apply routing path
+		// (RuntimeConfigState carries the resolved effective level). Absent config ⇒ undefined ⇒ resolver default
+		// ⇒ byte-identical. (The board-apply + validation callers are pure functions with no config in scope — their
+		// dynamicsLevel threading is a separate follow-up.)
+		dynamicsLevel: runtimeConfig?.effectiveSkillDynamicsLevel,
 	});
 	if (runtimeConfig?.decompositionAutoApplyEnabled === false) {
 		return {

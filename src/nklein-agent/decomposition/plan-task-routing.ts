@@ -1,6 +1,6 @@
 import type { RuntimeTaskNKleinSettings } from "../../core/api-contract";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
-import { resolveActiveSkills } from "../../core/skill-resolver";
+import { resolveActiveSkills, type SkillDynamicsLevel } from "../../core/skill-resolver";
 import type { NKleinPlanTaskGraphPreview, NKleinPlanTaskSharedContext } from "../nklein-decomposition-tool";
 import type { NKleinPlanTask, NKleinPlanTaskGraph } from "../nklein-plan-artifacts";
 import { type NKleinTaskRoutingCandidate, routeNKleinTask } from "../nklein-task-router";
@@ -17,6 +17,11 @@ export function selectTaskRoutingCandidate(
 	task: NKleinPlanTask,
 	taskPrompt: string,
 	routingCandidates: readonly NKleinTaskRoutingCandidate[] | undefined,
+	// §5.AE live-wiring: the user's persisted skill-dynamics level (RuntimeSkillDynamicsLevel is 1:1 with the resolver's
+	// SkillDynamicsLevel, so it passes through directly). OPTIONAL and defaulted to `undefined` so existing callers — which
+	// don't yet thread the scoped runtime config into decomposition — stay byte-identical (undefined ⇒ the resolver's own
+	// `fully_dynamic` default). Only a caller that passes a user-picked static/assigned level diverges — that IS the fix.
+	dynamicsLevel?: SkillDynamicsLevel,
 ): NKleinTaskRoutingCandidate | null | undefined {
 	if (!routingCandidates || routingCandidates.length === 0) {
 		return undefined;
@@ -27,10 +32,15 @@ export function selectTaskRoutingCandidate(
 	});
 	// §5.AE→§5.AB: resolve the card's skills, then project them onto the same affinity tags a fitting model carries, so a
 	// code-editing card prefers a `code` model and a planning card a `reasoning` one (best-fit BEFORE smallest-sufficient).
+	// NOTE: the `assigned_skills` level has no config-side assignedSkillIds source yet, so it resolves to an EMPTY skill
+	// set (the resolver's relevance fallback is only for the two STATIC levels when no role is known) — acceptable for now
+	// since no config path selects `assigned_skills`.
 	const taskAffinityTags = affinityTagsForSkills(
-		resolveActiveSkills({ role: task.suggestedRole, taskText: `${task.title}\n${taskPrompt}` }).skills.map(
-			(skill) => skill.id,
-		),
+		resolveActiveSkills({
+			role: task.suggestedRole,
+			taskText: `${task.title}\n${taskPrompt}`,
+			dynamicsLevel,
+		}).skills.map((skill) => skill.id),
 	);
 	const largestContextWindow =
 		routingCandidates
@@ -175,6 +185,10 @@ export function previewNKleinPlanTaskGraph(input: {
 	taskGraph: NKleinPlanTaskGraph;
 	routingCandidates?: readonly NKleinTaskRoutingCandidate[];
 	sharedContext?: NKleinPlanTaskSharedContext;
+	// §5.AE live-wiring: forwarded to `selectTaskRoutingCandidate` → `resolveActiveSkills`. OPTIONAL / defaulted so today's
+	// callers (which don't yet thread the scoped runtime config in) stay byte-identical; a caller that passes the user's
+	// persisted level opts into static/assigned skill selection.
+	dynamicsLevel?: SkillDynamicsLevel;
 }): NKleinPlanTaskGraphPreview {
 	const taskGraph = validateNKleinPlanTaskGraph({
 		taskGraph: input.taskGraph,
@@ -186,7 +200,12 @@ export function previewNKleinPlanTaskGraph(input: {
 			prompt: taskPrompt,
 			taskTitle: task.title,
 		});
-		const selectedRoutingCandidate = selectTaskRoutingCandidate(task, taskPrompt, input.routingCandidates);
+		const selectedRoutingCandidate = selectTaskRoutingCandidate(
+			task,
+			taskPrompt,
+			input.routingCandidates,
+			input.dynamicsLevel,
+		);
 		const modelLabel = selectedRoutingCandidate
 			? `${selectedRoutingCandidate.entry.providerId}/${selectedRoutingCandidate.entry.modelId}`
 			: "model selected at start";
