@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { Spinner } from "@/components/ui/spinner";
 import { fetchTaskEscalation } from "@/runtime/runtime-config-query";
+import type { TaskBlockedKind } from "@/types/board";
 
 /**
  * The card detail view's §5.AG "what was tried" escalation panel — the chronological attempt chain (rung × model ×
@@ -30,9 +31,12 @@ function getOutcomeClassName(outcome: string): string {
 export function TaskEscalationPanel({
 	workspaceId,
 	taskId,
+	blockedKind,
 }: {
 	workspaceId: string | null;
 	taskId: string;
+	/** The card's start-blocking reason (if any) — promotes the most-likely "get through the wall" fix to the front. */
+	blockedKind?: TaskBlockedKind | null;
 }): React.ReactElement {
 	const [open, setOpen] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
@@ -82,11 +86,14 @@ export function TaskEscalationPanel({
 			return null;
 		}
 		const stuckness = classifyAgentStuckness(buildStucknessSignalsFromReport(report));
+		// Promote the most-likely fix from the card's start-blocker: a sandbox/setup blocker leads with "fix the
+		// environment" (matches the §5.AG escalation-suggestion context's `environmentBlocked` mapping).
+		const suggestionContext = { environmentBlocked: blockedKind === "agent_sandbox_unavailable" };
 		return {
 			stuckness,
-			suggestions: stuckness === "hard_stuck" ? buildEscalationSuggestions() : [],
+			suggestions: stuckness === "hard_stuck" ? buildEscalationSuggestions(suggestionContext) : [],
 		};
-	}, [report]);
+	}, [report, blockedKind]);
 
 	return (
 		<div className="border-b border-border bg-surface-1 px-3 py-2">
