@@ -9542,12 +9542,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       forked SDK's own tests never run in CI — and our fork edits silently rot them. Live proof: `cd
 >       vendor/cline-sdk/packages/core && npx vitest run` had **5 pre-existing failures** — 1 read_files schema test
 >       stale after §5.BD boundary fix #40, and 4 from the `.cline`→`.nklein` workspace-dir rebrand (plugin-install +
->       user-instruction-config-loader). **All 5 now FIXED (commits 2da7e50d, 7ed422fb); `core` is green (1224).**
->       BUT the other vendored packages (`shared`, `llms`, `agents`, `sdk`) were NOT run — check + fix them, then add
->       a `test:vendor` script (`for p in packages/*; do vitest run` per its config`) to the release gate so fork
->       drift is caught. (Rebrand caveat learned: NOT every `.cline` is stale — home-scoped `CLINE_DIR`,
+>       user-instruction-config-loader) + 3 more in `@cline/shared` storage paths (same rebrand). **All 8 now FIXED
+>       (commits 2da7e50d, 7ed422fb, 485e2fb8). Every runnable vendored package is GREEN: core 1224 · shared 205 ·
+>       llms 334 · agents 46 (sdk has no vitest config).** STILL TODO: add a `test:vendor` script (`for p in
+>       vendor/cline-sdk/packages/*; do (cd $p && vitest run); done`) and wire it into the release gate + ideally the
+>       pre-commit hook when vendored files are staged, so fork drift is caught automatically. (Rebrand caveat
+>       learned: NOT every `.cline` is stale — home-scoped `CLINE_DIR`, an EXPLICITLY-set CLINE_DIR path,
 >       `resolvePluginConfigSearchPaths[0]` legacy-first, and `.cline/skills` back-compat subdirs are intentional; fix
->       per failing assertion against the SOURCE, never a blanket replace.)
+>       per failing assertion against the SOURCE, never a blanket replace — a blanket flip wrongly changed
+>       `resolvePluginConfigSearchPaths[0]` and the test caught it.)
 >
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
 > **SUPERSEDED / deferred indefinitely (owner decision 2026-06-26, via §5.X Phase 2): NO Python port — !Klein stays
