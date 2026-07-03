@@ -14,10 +14,11 @@ import {
 	formatMessagesForAiSdk,
 	sanitizeSurrogates,
 } from "@cline/shared";
-import { jsonSchema, streamText } from "ai";
+import { jsonSchema, NoSuchToolError, streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { extractErrorMessage } from "./format";
+import { resolveToolNameAlias } from "./tool-name-alias";
 import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
@@ -1160,6 +1161,26 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						? { maxOutputTokens: request.maxTokens }
 						: {}),
 					abortSignal: request.signal,
+					// !Klein §5.BD tool-NAME aliasing: when a model calls a near-miss name (read_file→read_files,
+					// grep→search_codebase, camelCase, singular/plural) the AI SDK raises NoSuchToolError before
+					// execution. Redirect to a REAL available tool (keeping the arguments) instead of rejecting — the
+					// resolver only ever returns a name in the offered set, so it can't invent or mis-route a tool.
+					// Only NoSuchToolError is repaired here; argument-validation errors fall through to the tolerant
+					// per-tool boundaries (§5.BD execute normalizers).
+					experimental_repairToolCall: async ({ toolCall, tools: offeredTools, error }) => {
+						if (!NoSuchToolError.isInstance(error)) {
+							return null;
+						}
+						const alias = resolveToolNameAlias(toolCall.toolName, Object.keys(offeredTools));
+						if (!alias) {
+							return null;
+						}
+						log?.log?.(
+							`[ai-sdk] §5.BD aliased unavailable tool "${toolCall.toolName}" → "${alias}"`,
+							{ providerId: request.providerId, severity: "info" },
+						);
+						return { ...toolCall, toolName: alias };
+					},
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
