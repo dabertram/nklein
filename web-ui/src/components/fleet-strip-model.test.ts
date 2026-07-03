@@ -237,6 +237,30 @@ describe("composeFleetRows", () => {
 		expect(groups.map((group) => group.endpointLabel)).toEqual(["legion5pro", "local", "m5max.local:1234"]);
 	});
 
+	it("§5.AX: machine names (LM-Link map) beat endpoint labels for grouping, keyed by served or real id", () => {
+		const groups = composeFleetRows({
+			registryModels: [makeEntry({ key: "qwop4b-a", modelId: "qwen3-4b-a" })],
+			runningSessions: [],
+			cardTitleByTaskId: new Map(),
+			machineByModelId: { "qwop4b-a": "m5max" },
+		});
+		expect(groups.map((group) => group.endpointLabel)).toEqual(["m5max"]);
+	});
+
+	it("§5.AQ: fresh warmth renders a warmKind; stale warmth (>10min) does not", () => {
+		const nowMs = 1_000_000_000;
+		const compose = (at: number) =>
+			composeFleetRows({
+				registryModels: [makeEntry({ key: "qwop4b-a", modelId: "qwen3-4b-a" })],
+				runningSessions: [],
+				cardTitleByTaskId: new Map(),
+				warmthByModelId: { "qwop4b-a": { kind: "worker", at } },
+				now: () => nowMs,
+			});
+		expect(compose(nowMs - 60_000)[0]?.rows[0]?.warmKind).toBe("worker");
+		expect(compose(nowMs - 11 * 60_000)[0]?.rows[0]?.warmKind).toBeNull();
+	});
+
 	it("ignores non-running sessions and models with a blank modelId when matching drivers", () => {
 		const registryModels: RuntimeNKleinModelRegistryEntry[] = [
 			makeEntry({

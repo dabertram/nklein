@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchFleetStatus } from "@/runtime/queries/config";
 import { fetchNKleinModelRegistry } from "@/runtime/queries/model-registry";
 import {
 	collectTaskEvidence,
@@ -44,6 +45,7 @@ import {
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeConfigResponse,
+	RuntimeFleetStatusResponse,
 	RuntimeMergeHistoryRecord,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
 	RuntimeNKleinModelRegistryEntry,
@@ -245,6 +247,7 @@ export function KanbanBoard({
 		});
 	}, []);
 	const [fleetRegistryModels, setFleetRegistryModels] = useState<RuntimeNKleinModelRegistryEntry[]>([]);
+	const [fleetStatus, setFleetStatus] = useState<RuntimeFleetStatusResponse | null>(null);
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
 	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
 		useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
@@ -422,6 +425,19 @@ export function KanbanBoard({
 					}
 				},
 			);
+			// Machine names + prompt-shell warmth ride the same cadence; both fail soft to null (labels/idle fall back).
+			void fetchFleetStatus(currentProjectId).then(
+				(response) => {
+					if (!cancelled) {
+						setFleetStatus(response);
+					}
+				},
+				() => {
+					if (!cancelled) {
+						setFleetStatus(null);
+					}
+				},
+			);
 		};
 		loadRegistry();
 		const intervalId = window.setInterval(loadRegistry, 15_000);
@@ -447,8 +463,10 @@ export function KanbanBoard({
 				registryModels: fleetRegistryModels,
 				runningSessions: Object.values(taskSessions),
 				cardTitleByTaskId,
+				...(fleetStatus ? { machineByModelId: fleetStatus.machineByModelId } : {}),
+				...(fleetStatus ? { warmthByModelId: fleetStatus.warmthByModelId } : {}),
 			}),
-		[fleetRegistryModels, taskSessions, cardTitleByTaskId],
+		[fleetRegistryModels, taskSessions, cardTitleByTaskId, fleetStatus],
 	);
 
 	const handleSaveConcurrencyCap = useCallback(

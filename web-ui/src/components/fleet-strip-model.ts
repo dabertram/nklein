@@ -66,6 +66,8 @@ export interface FleetRow {
 	state: "running" | "idle";
 	/** Rounded decode tok/s EWMA when the model has speed samples, else null. */
 	tokensPerSecond: number | null;
+	/** §5.AQ warmth: the shell kind this model last assembled ("worker"/"review"/…), when fresh; null otherwise. */
+	warmKind: string | null;
 }
 
 export interface FleetGroup {
@@ -78,7 +80,16 @@ export interface ComposeFleetRowsInput {
 	registryModels: readonly RuntimeNKleinModelRegistryEntry[];
 	runningSessions: readonly RuntimeTaskSessionSummary[];
 	cardTitleByTaskId: ReadonlyMap<string, string>;
+	/** §5.AX: served id → machine name (LM-Link `lms ps` feed); preferred over endpoint labels for grouping. */
+	machineByModelId?: Readonly<Record<string, string>>;
+	/** §5.AQ: served id → last prompt-shell (kind + assembled-at) for the warm-idle indicator. */
+	warmthByModelId?: Readonly<Record<string, { kind: string; at: number }>>;
+	/** Clock for warmth freshness (injected for tests); defaults to Date.now(). */
+	now?: () => number;
 }
+
+/** Warmth staleness window (mirrors the router's classifyShellWarmth 10-minute tier). */
+const WARMTH_FRESH_MS = 10 * 60 * 1000;
 
 /** A `::spec` (A/B speculative) session's taskId ends with this suffix. */
 const SPEC_SUFFIX = "::spec";
@@ -163,10 +174,14 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 	}
 
 	const groupsByLabel = new Map<string, FleetRow[]>();
+	const nowMs = input.now?.() ?? Date.now();
 	for (const entry of registryModels) {
 		const driver = driverByModelId.get(entry.modelId) ?? null;
 		const spec = specByModelId.get(entry.modelId) ?? null;
 		const drivingTaskId = driver?.taskId ?? null;
+		// Warmth is keyed by the SERVED id (the warmth ledger uses launch-config keys); only fresh entries show.
+		const warmth = input.warmthByModelId?.[entry.key] ?? input.warmthByModelId?.[entry.modelId] ?? null;
+		const warmKind = warmth && nowMs - warmth.at <= WARMTH_FRESH_MS ? warmth.kind : null;
 		const row: FleetRow = {
 			modelId: entry.modelId,
 			servedId: entry.key,
@@ -177,8 +192,11 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 			isSpec: spec !== null,
 			state: driver ? "running" : "idle",
 			tokensPerSecond: tokensPerSecondFor(entry),
+			warmKind,
 		};
-		const label = toEndpointLabel(endpointRefForModel(entry));
+		// Machine name (LM-Link feed) beats the endpoint label — real multi-machine grouping.
+		const machineName = input.machineByModelId?.[entry.key] ?? input.machineByModelId?.[entry.modelId];
+		const label = machineName?.trim() || toEndpointLabel(endpointRefForModel(entry));
 		const bucket = groupsByLabel.get(label);
 		if (bucket) {
 			bucket.push(row);

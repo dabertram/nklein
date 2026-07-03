@@ -19,6 +19,7 @@ import type {
 	RuntimeExpandNKleinPlanTaskRequest,
 	RuntimeExpandNKleinPlanTaskResponse,
 	RuntimeFeaturebaseTokenResponse,
+	RuntimeFleetStatusResponse,
 	RuntimeGitCheckoutRequest,
 	RuntimeGitCheckoutResponse,
 	RuntimeGitCommitDiffRequest,
@@ -181,6 +182,8 @@ export interface RuntimeTrpcContext {
 		getModelPerformanceStats: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeModelPerformanceStatsResponse>;
+		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
+		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** §5.BA: the resolved GLOBAL setup-wizard plan (gathered facts → steps) + completion stamp. */
 		getGlobalSetupPlan: () => Promise<RuntimeSetupPlanResponse>;
 		/** §5.BA: the resolved PROJECT setup-wizard plan for a workspace + completion stamp. */

@@ -101,10 +101,19 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 			<span
 				className={cn(
 					"justify-self-end text-[11px] tabular-nums",
-					row.tokensPerSecond === null ? "text-text-tertiary" : "text-text-secondary",
+					row.state === "idle" && row.warmKind
+						? "text-status-gold"
+						: row.tokensPerSecond === null
+							? "text-text-tertiary"
+							: "text-text-secondary",
 				)}
+				title={row.state === "idle" && row.warmKind ? `Prompt cache warm for ${row.warmKind} sessions` : undefined}
 			>
-				{row.tokensPerSecond === null ? "—" : `${row.tokensPerSecond} tok/s`}
+				{row.state === "idle" && row.warmKind
+					? `warm · ${row.warmKind}`
+					: row.tokensPerSecond === null
+						? "—"
+						: `${row.tokensPerSecond} tok/s`}
 			</span>
 		</div>
 	);

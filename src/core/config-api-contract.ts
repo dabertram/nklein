@@ -203,3 +203,25 @@ export const runtimeSetupPlanResponseSchema = z.object({
 	completedAt: z.number().nullable(),
 });
 export type RuntimeSetupPlanResponse = z.infer<typeof runtimeSetupPlanResponseSchema>;
+
+/**
+ * §5.AX fleet-strip live status: per-model machine names (from the LM-Link `lms ps` feed) + prompt-shell
+ * warmth (the §5.AQ warmth ledger), keyed by the SERVED model id. Both maps are best-effort — an unavailable
+ * `lms ps` or a not-yet-loaded session service yields empty maps and the strip falls back to endpoint labels /
+ * plain "idle" rows.
+ */
+export const runtimeFleetStatusResponseSchema = z.object({
+	/** served model id → owning machine id ("Local", "davidlegion5pro", …). */
+	machineByModelId: z.record(z.string(), z.string()),
+	/** served model id → the last prompt-shell this model assembled (its warm cache). */
+	warmthByModelId: z.record(
+		z.string(),
+		z.object({
+			/** The shell's session kind ("worker" / "review" / "architect" / …). */
+			kind: z.string(),
+			/** When the shell was assembled (epoch ms) — the client decides freshness. */
+			at: z.number(),
+		}),
+	),
+});
+export type RuntimeFleetStatusResponse = z.infer<typeof runtimeFleetStatusResponseSchema>;

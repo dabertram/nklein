@@ -5,6 +5,7 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
+	RuntimeFleetStatusResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeMergeHistoryResponse,
@@ -33,6 +34,11 @@ export async function fetchModelPerformanceStats(
 ): Promise<RuntimeModelPerformanceStatsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getModelPerformanceStats.query();
+}
+
+export async function fetchFleetStatus(workspaceId: string | null): Promise<RuntimeFleetStatusResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getFleetStatus.query();
 }
 
 export async function fetchGlobalSetupPlan(workspaceId: string | null): Promise<RuntimeSetupPlanResponse> {

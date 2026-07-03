@@ -12,6 +12,7 @@ import {
 	runtimeExpandNKleinPlanTaskRequestSchema,
 	runtimeExpandNKleinPlanTaskResponseSchema,
 	runtimeFeaturebaseTokenResponseSchema,
+	runtimeFleetStatusResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeMergeHistoryResponseSchema,
@@ -126,6 +127,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getModelPerformanceStats(ctx.workspaceScope);
 			}),
+		// §5.AX fleet-strip live status (machine names + warmth).
+		getFleetStatus: workspaceProcedure.output(runtimeFleetStatusResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getFleetStatus(ctx.workspaceScope);
+		}),
 		// §5.BA guided setup wizards.
 		getGlobalSetupPlan: t.procedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getGlobalSetupPlan();

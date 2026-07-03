@@ -40,6 +40,7 @@ import {
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
 import { isTruthyEnv } from "../core/env-flag";
+import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
@@ -68,6 +69,7 @@ import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat
 import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-deps-resolver.js";
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
 import { handleExpandNKleinPlanTask } from "./runtime-api/expand-plan-task.js";
+import { handleGetFleetStatus } from "./runtime-api/fleet-status";
 import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-api/github-context-import.js";
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
 import { handleMergeTaskWorktrees } from "./runtime-api/merge-task-worktrees.js";
@@ -260,6 +262,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}),
 		getModelPerformanceStats: async (workspaceScope) => {
 			return await handleGetModelPerformanceStats(workspaceScope);
+		},
+		getFleetStatus: async (workspaceScope) => {
+			return await handleGetFleetStatus({
+				getMachineMap: async () =>
+					new Map(
+						(await fetchLmsPsModelsCached(createDefaultLmsRunner())).map((model) => [
+							model.identifier,
+							model.machineId,
+						]),
+					),
+				getWarmthLedger: () =>
+					deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.getPromptWarmthLedger() ?? null,
+			});
 		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();
