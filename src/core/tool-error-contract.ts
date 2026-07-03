@@ -112,6 +112,76 @@ export function formatToolError(err: ToolErrorContract): string {
 }
 
 // ---------------------------------------------------------------------------
+// toolErrorFromZodError — the tool-arg rejection seam adapter
+// ---------------------------------------------------------------------------
+
+type ZodToolIssue = z.ZodError["issues"][number];
+
+/** Map a single Zod issue to the contract's `code` + the human-readable `expected`/`received` fields. */
+function mapZodIssue(issue: ZodToolIssue): Pick<ToolErrorContract, "code" | "expected" | "received"> {
+	switch (issue.code) {
+		case "invalid_type": {
+			// v4 folds the received value into the message ("… received undefined"); recover it for `received`.
+			const received = /received (\S+)/.exec(issue.message)?.[1];
+			const missing = received === "undefined" || received === "null";
+			return {
+				code: missing ? "MISSING_FIELD" : "INVALID_TYPE",
+				expected: issue.expected,
+				...(received !== undefined ? { received } : {}),
+			};
+		}
+		case "too_big":
+			return {
+				code: "OUT_OF_RANGE",
+				expected: `${issue.origin ?? "value"} ${issue.inclusive ? "≤" : "<"} ${issue.maximum}`,
+			};
+		case "too_small":
+			return {
+				code: "OUT_OF_RANGE",
+				expected: `${issue.origin ?? "value"} ${issue.inclusive ? "≥" : ">"} ${issue.minimum}`,
+			};
+		case "invalid_value":
+			return { code: "INVALID_VALUE", expected: `one of ${issue.values.map((v) => JSON.stringify(v)).join(", ")}` };
+		case "unrecognized_keys":
+			return { code: "UNRECOGNIZED_KEY", received: issue.keys.join(", ") };
+		case "invalid_format":
+			return { code: "INVALID_FORMAT" };
+		default:
+			return { code: "INVALID_ARGUMENT" };
+	}
+}
+
+/**
+ * Build a {@link ToolErrorContract} from a Zod validation failure at the tool-arg rejection seam (§5.O "EMIT it at
+ * the tool-arg rejection seam, not prose"). Small models repair one problem at a time, so this reports the FIRST
+ * issue (Zod orders them by traversal): its dot-path becomes `field`, its `code` maps to a SCREAMING_SNAKE class,
+ * and its message becomes the `hint`. A missing required field (`invalid_type` with `received: undefined`) is
+ * distinguished from a wrong-typed field so the model knows to ADD vs. FIX an arg. Every arg-rejection error is
+ * `retryable` — the model can always re-supply args — and the caller may pass `minimalValidExample` to seed the retry.
+ */
+export function toolErrorFromZodError(
+	error: z.ZodError,
+	options?: { minimalValidExample?: string },
+): ToolErrorContract {
+	const issue = error.issues[0];
+	if (issue === undefined) {
+		// Defensive: an empty ZodError should not occur, but must still yield a valid contract.
+		return { code: "INVALID_ARGUMENT", retryable: true };
+	}
+
+	const field = issue.path.map((segment) => String(segment)).join(".");
+	const mapped = mapZodIssue(issue);
+
+	return {
+		...mapped,
+		...(field.length > 0 ? { field } : {}),
+		retryable: true,
+		...(options?.minimalValidExample !== undefined ? { minimalValidExample: options.minimalValidExample } : {}),
+		hint: issue.message,
+	};
+}
+
+// ---------------------------------------------------------------------------
 // isRetryableToolError — named predicate for call-sites and the retry loop
 // ---------------------------------------------------------------------------
 

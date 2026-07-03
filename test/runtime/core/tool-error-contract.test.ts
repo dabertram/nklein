@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import {
 	formatToolError,
 	isRetryableToolError,
 	type ToolErrorContract,
 	toolErrorContractSchema,
+	toolErrorFromZodError,
 } from "../../../src/core/tool-error-contract";
 
 describe("toolErrorContractSchema", () => {
@@ -79,5 +81,95 @@ describe("isRetryableToolError", () => {
 	it("returns false when retryable is false", () => {
 		const err: ToolErrorContract = { code: "UNKNOWN_TOOL", retryable: false };
 		expect(isRetryableToolError(err)).toBe(false);
+	});
+});
+
+describe("toolErrorFromZodError (§5.O tool-arg rejection seam)", () => {
+	const toolArgs = z
+		.object({
+			query: z.string(),
+			limit: z.number().min(1).max(100),
+			mode: z.enum(["fast", "thorough"]),
+			options: z.object({ depth: z.number() }),
+		})
+		.strict();
+
+	/** Reject `input` against the tool schema and return the guaranteed ZodError. */
+	function reject(input: unknown): z.ZodError {
+		const result = toolArgs.safeParse(input);
+		if (result.success) {
+			throw new Error("expected the input to be rejected");
+		}
+		return result.error;
+	}
+
+	it("a missing required field becomes MISSING_FIELD (ADD an arg), not INVALID_TYPE", () => {
+		const err = toolErrorFromZodError(reject({ limit: 5, mode: "fast", options: { depth: 1 } }));
+		expect(err.code).toBe("MISSING_FIELD");
+		expect(err.field).toBe("query");
+		expect(err.expected).toBe("string");
+		expect(err.received).toBe("undefined");
+		expect(err.retryable).toBe(true);
+		expect(err.hint).toContain("expected string");
+	});
+
+	it("a wrong-typed field becomes INVALID_TYPE (FIX the arg) with the received type recovered", () => {
+		const err = toolErrorFromZodError(reject({ query: 42, limit: 5, mode: "fast", options: { depth: 1 } }));
+		expect(err.code).toBe("INVALID_TYPE");
+		expect(err.field).toBe("query");
+		expect(err.received).toBe("number");
+	});
+
+	it("an out-of-range number becomes OUT_OF_RANGE with the bound in `expected`", () => {
+		const err = toolErrorFromZodError(reject({ query: "x", limit: 500, mode: "fast", options: { depth: 1 } }));
+		expect(err.code).toBe("OUT_OF_RANGE");
+		expect(err.field).toBe("limit");
+		expect(err.expected).toContain("100");
+	});
+
+	it("a bad enum value becomes INVALID_VALUE listing the allowed options", () => {
+		const err = toolErrorFromZodError(reject({ query: "x", limit: 5, mode: "medium", options: { depth: 1 } }));
+		expect(err.code).toBe("INVALID_VALUE");
+		expect(err.field).toBe("mode");
+		expect(err.expected).toContain('"fast"');
+		expect(err.expected).toContain('"thorough"');
+	});
+
+	it("an unrecognized key becomes UNRECOGNIZED_KEY (empty path → no `field`) with the key in `received`", () => {
+		const err = toolErrorFromZodError(
+			reject({ query: "x", limit: 5, mode: "fast", options: { depth: 1 }, extra: 1 }),
+		);
+		expect(err.code).toBe("UNRECOGNIZED_KEY");
+		expect(err.field).toBeUndefined();
+		expect(err.received).toBe("extra");
+	});
+
+	it("a nested field yields a dot-path `field`", () => {
+		const err = toolErrorFromZodError(reject({ query: "x", limit: 5, mode: "fast", options: { depth: "deep" } }));
+		expect(err.field).toBe("options.depth");
+	});
+
+	it("reports only the FIRST issue (small models repair one arg per turn)", () => {
+		// query missing AND limit out of range AND mode bad — the contract carries a single field.
+		const err = toolErrorFromZodError(reject({ limit: 999, mode: "nope", options: { depth: 1 } }));
+		expect(err.field).toBe("query");
+		expect(err.code).toBe("MISSING_FIELD");
+	});
+
+	it("passes a caller-supplied minimalValidExample through for the retry to copy", () => {
+		const example = '{"query":"open bugs","limit":10,"mode":"fast","options":{"depth":1}}';
+		const err = toolErrorFromZodError(reject({ limit: 5, mode: "fast", options: { depth: 1 } }), {
+			minimalValidExample: example,
+		});
+		expect(err.minimalValidExample).toBe(example);
+	});
+
+	it("round-trips through the schema and formatter (a real end-to-end reject → message)", () => {
+		const err = toolErrorFromZodError(reject({ limit: 5, mode: "fast", options: { depth: 1 } }));
+		expect(() => toolErrorContractSchema.parse(err)).not.toThrow();
+		const message = formatToolError(err);
+		expect(message).toContain("[MISSING_FIELD]");
+		expect(message).toContain('field="query"');
+		expect(message).toContain("Retry: yes.");
 	});
 });
