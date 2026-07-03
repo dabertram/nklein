@@ -170,18 +170,18 @@ export function assessRunBudgetPressure(
 }
 
 /**
- * The classifier-facing signals this deriver computes. `heartbeatLost` + `noProgressOrLoop` are a structural subset of
- * `OperatorSignalOverrides`, so those two spread straight into `mapSessionSummaryToOperatorSignals` without this module
- * importing the classifier. `approachingCeiling` is the deriver's own "nearing a budget ceiling" read — an
- * operator-attention precursor a surface can act on (e.g. flag the run) alongside the mapped overrides.
+ * The classifier-facing signals this deriver computes — ALL THREE are a structural subset of `OperatorSignalOverrides`,
+ * so the whole result spreads straight into `mapSessionSummaryToOperatorSignals` without this module importing the
+ * classifier. `heartbeatLost` + `noProgressOrLoop` feed the like-named signals; `approachingBudgetCeiling` feeds the
+ * §5.AG budget-ceiling signal (a run nearing its tightest ceiling reads `stuck` — attention before the hard stop).
  */
 export interface RunAttentionOverrides {
 	/** Derived from `silent` liveness — feeds the classifier's `heartbeatLost`. */
 	heartbeatLost: boolean;
 	/** Derived from `stalled` liveness — feeds the classifier's `noProgressOrLoop`. */
 	noProgressOrLoop: boolean;
-	/** Derived from budget pressure — the run is approaching a ceiling and warrants operator attention. */
-	approachingCeiling: boolean;
+	/** Derived from budget pressure — feeds the classifier's `approachingBudgetCeiling` (nearing a ceiling → `stuck`). */
+	approachingBudgetCeiling: boolean;
 }
 
 export interface RunAttentionThresholds {
@@ -216,7 +216,7 @@ export function assessRunAttention(
 		overrides: {
 			heartbeatLost: livenessState === "silent",
 			noProgressOrLoop: livenessState === "stalled",
-			approachingCeiling: budget.approachingCeiling,
+			approachingBudgetCeiling: budget.approachingCeiling,
 		},
 	};
 }

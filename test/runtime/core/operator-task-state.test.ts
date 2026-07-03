@@ -17,6 +17,7 @@ const HEALTHY: OperatorTaskSignals = {
 	deliveryGateHeld: false,
 	clarifyingQuestionPending: false,
 	noProgressOrLoop: false,
+	approachingBudgetCeiling: false,
 };
 
 describe("classifyOperatorTaskState", () => {
@@ -37,6 +38,7 @@ describe("classifyOperatorTaskState", () => {
 		expect(classifyOperatorTaskState({ ...HEALTHY, paused: true })).toBe("stuck");
 		expect(classifyOperatorTaskState({ ...HEALTHY, heartbeatLost: true })).toBe("stuck");
 		expect(classifyOperatorTaskState({ ...HEALTHY, noProgressOrLoop: true })).toBe("stuck");
+		expect(classifyOperatorTaskState({ ...HEALTHY, approachingBudgetCeiling: true })).toBe("stuck");
 		expect(classifyOperatorTaskState({ ...HEALTHY, clarifyingQuestionPending: true })).toBe("stuck");
 		expect(classifyOperatorTaskState({ ...HEALTHY, blockedKind: "needs_decomposition" })).toBe("stuck");
 	});
@@ -118,6 +120,7 @@ describe("mapSessionSummaryToOperatorSignals", () => {
 			deliveryGateHeld: false,
 			clarifyingQuestionPending: false,
 			noProgressOrLoop: false,
+			approachingBudgetCeiling: false,
 		});
 	});
 
@@ -136,6 +139,17 @@ describe("mapSessionSummaryToOperatorSignals", () => {
 		});
 		expect(signals.deliveryGateHeld).toBe(true);
 		expect(signals.blockedKind).toBe("agent_sandbox_unavailable");
+	});
+
+	it("threads the approachingBudgetCeiling override (defaults false) → a nearing-ceiling run reads stuck", () => {
+		expect(mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress").approachingBudgetCeiling).toBe(
+			false,
+		);
+		const signals = mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress", {
+			approachingBudgetCeiling: true,
+		});
+		expect(signals.approachingBudgetCeiling).toBe(true);
+		expect(classifyOperatorTaskState(signals)).toBe("stuck");
 	});
 
 	it("composes with the classifier: summary-only → healthy/stuck/done, overrides → risky", () => {

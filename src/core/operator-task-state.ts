@@ -39,6 +39,8 @@ export interface OperatorTaskSignals {
 	clarifyingQuestionPending: boolean;
 	/** The run is parked / making no progress / was loop-salvaged (§5.AA). */
 	noProgressOrLoop: boolean;
+	/** The run is at/over the warn fraction of its tightest budget/iteration/timeout ceiling (§5.AG run-attention). */
+	approachingBudgetCeiling: boolean;
 }
 
 export function classifyOperatorTaskState(signals: OperatorTaskSignals): OperatorTaskState {
@@ -58,14 +60,15 @@ export function classifyOperatorTaskState(signals: OperatorTaskSignals): Operato
 	) {
 		return "done";
 	}
-	// STUCK — blocked/parked but not urgent: dead/parked run, paused, lost heartbeat, no-progress/loop, a pending
-	// clarification, or a non-urgent start blocker (needs-decomposition / local-model-required).
+	// STUCK — blocked/parked but not urgent: dead/parked run, paused, lost heartbeat, no-progress/loop, nearing a budget
+	// ceiling (attention before the hard stop), a pending clarification, or a non-urgent start blocker.
 	if (
 		signals.sessionState === "failed" ||
 		signals.sessionState === "interrupted" ||
 		signals.paused ||
 		signals.heartbeatLost ||
 		signals.noProgressOrLoop ||
+		signals.approachingBudgetCeiling ||
 		signals.clarifyingQuestionPending ||
 		signals.blockedKind !== null
 	) {
@@ -172,6 +175,7 @@ export interface OperatorSignalOverrides {
 	deliveryGateHeld?: boolean;
 	clarifyingQuestionPending?: boolean;
 	noProgressOrLoop?: boolean;
+	approachingBudgetCeiling?: boolean;
 }
 
 /**
@@ -194,5 +198,6 @@ export function mapSessionSummaryToOperatorSignals(
 		deliveryGateHeld: overrides.deliveryGateHeld ?? false,
 		clarifyingQuestionPending: overrides.clarifyingQuestionPending ?? false,
 		noProgressOrLoop: overrides.noProgressOrLoop ?? false,
+		approachingBudgetCeiling: overrides.approachingBudgetCeiling ?? false,
 	};
 }

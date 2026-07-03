@@ -17,6 +17,7 @@ function operatorSignals(overrides: Partial<OperatorTaskSignals> = {}): Operator
 		deliveryGateHeld: false,
 		clarifyingQuestionPending: false,
 		noProgressOrLoop: false,
+		approachingBudgetCeiling: false,
 		...overrides,
 	};
 }

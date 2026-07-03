@@ -158,25 +158,25 @@ describe("assessRunAttention", () => {
 	it("maps a silent run → heartbeatLost override (feeds the classifier's stuck)", () => {
 		const a = assessRunAttention({ ...ACTIVE, lastHeartbeatAtMs: null }, []);
 		expect(a.liveness).toBe("silent");
-		expect(a.overrides).toEqual({ heartbeatLost: true, noProgressOrLoop: false, approachingCeiling: false });
+		expect(a.overrides).toEqual({ heartbeatLost: true, noProgressOrLoop: false, approachingBudgetCeiling: false });
 	});
 
 	it("maps a stalled run → noProgressOrLoop override (feeds the classifier's stuck)", () => {
 		const a = assessRunAttention({ ...ACTIVE, lastActivityAtMs: NOW - stalledAfterMs }, []);
 		expect(a.liveness).toBe("stalled");
-		expect(a.overrides).toEqual({ heartbeatLost: false, noProgressOrLoop: true, approachingCeiling: false });
+		expect(a.overrides).toEqual({ heartbeatLost: false, noProgressOrLoop: true, approachingBudgetCeiling: false });
 	});
 
 	it("maps an approaching-ceiling active run → approachingCeiling override only (still live/progressing)", () => {
 		const a = assessRunAttention(ACTIVE, [{ kind: "wall_time", used: 9, cap: 10 }]);
 		expect(a.liveness).toBe("active");
 		expect(a.budget.tightest).toBe("wall_time");
-		expect(a.overrides).toEqual({ heartbeatLost: false, noProgressOrLoop: false, approachingCeiling: true });
+		expect(a.overrides).toEqual({ heartbeatLost: false, noProgressOrLoop: false, approachingBudgetCeiling: true });
 	});
 
 	it("a healthy run within budget derives no overrides at all", () => {
 		const a = assessRunAttention(ACTIVE, [{ kind: "iterations", used: 1, cap: 10 }]);
-		expect(a.overrides).toEqual({ heartbeatLost: false, noProgressOrLoop: false, approachingCeiling: false });
+		expect(a.overrides).toEqual({ heartbeatLost: false, noProgressOrLoop: false, approachingBudgetCeiling: false });
 	});
 
 	it("threads injected thresholds into both sub-assessments", () => {

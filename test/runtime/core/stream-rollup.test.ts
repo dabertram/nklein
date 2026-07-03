@@ -13,6 +13,7 @@ function signals(over: Partial<OperatorTaskSignals> = {}): OperatorTaskSignals {
 		deliveryGateHeld: false,
 		clarifyingQuestionPending: false,
 		noProgressOrLoop: false,
+		approachingBudgetCeiling: false,
 		...over,
 	};
 }
