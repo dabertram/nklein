@@ -15,6 +15,7 @@
  * `maxIterations`; a dead-end (zero-hit) query advances the round rather than re-searching; a failed fetch is skipped.
  */
 
+import { classifyTopicVolatility, freshnessThresholdsForVolatility } from "./knowledge-volatility-ttl";
 import { type RankableSource, rankByFreshnessAuthority } from "./retrieval-freshness-authority-rank";
 import { nextRetrievalAction, type RetrievalAction, type RetrievalLoopState } from "./retrieval-loop-state";
 import { buildRetrievalQueryPlan, type RetrievalQueryPlan } from "./retrieval-query-plan";
@@ -67,6 +68,14 @@ export interface RetrievalLoopOptions {
 	minSources?: number;
 	/** Force the freshness gate (else inferred from the task's recency cues by buildRetrievalQueryPlan). */
 	freshnessSensitive?: boolean;
+	/**
+	 * OPT-IN (default false): tune the ranker's freshness bands to the task's knowledge VOLATILITY (§5.AC
+	 * `knowledge-volatility-ttl.ts`). When on, the task text is classified once (`classifyTopicVolatility`) and the
+	 * derived `freshnessThresholdsForVolatility(class)` are passed to `rankByFreshnessAuthority`, so a fast-moving topic
+	 * bands an aged source `stale` while an evergreen one bands the SAME source `current`. When off (default) the ranker
+	 * is called exactly as before (default thresholds) — byte-identical, no behaviour change.
+	 */
+	topicAwareFreshness?: boolean;
 	/** §5.B knowledge-debt items → alternate queries. */
 	knowledgeDebt?: readonly string[];
 	signal?: AbortSignal;
@@ -119,6 +128,13 @@ export async function runRetrievalLoop(
 		...(options.knowledgeDebt !== undefined ? { knowledgeDebt: options.knowledgeDebt } : {}),
 		...(options.freshnessSensitive !== undefined ? { freshnessSensitive: options.freshnessSensitive } : {}),
 	});
+
+	// OPT-IN topic-aware freshness: classify the task's volatility ONCE and derive volatility-tuned freshness bands to
+	// hand the ranker. Left undefined when the flag is off ⇒ the ranking call below stays byte-identical to before.
+	const freshnessThresholds = options.topicAwareFreshness
+		? freshnessThresholdsForVolatility(classifyTopicVolatility(task).volatility)
+		: undefined;
+	const rankOptions = freshnessThresholds ? { freshnessThresholds } : undefined;
 	const queries = [queryPlan.primaryQuery, ...queryPlan.alternateQueries].filter((q) => q.length > 0);
 	const subQuestions = queries.length > 0 ? queries : [queryPlan.primaryQuery];
 
@@ -169,7 +185,7 @@ export async function runRetrievalLoop(
 		if (action === "search") {
 			const query = queries[queryIndex] ?? queryPlan.primaryQuery;
 			const hits = await deps.search(query, options.signal);
-			const ranked = rankByFreshnessAuthority(hits.map(toRankable), new Date(deps.now()));
+			const ranked = rankByFreshnessAuthority(hits.map(toRankable), new Date(deps.now()), rankOptions);
 			if (ranked.some((r) => FRESH_VERDICTS.has(r.freshnessVerdict))) {
 				freshnessSatisfied = true;
 			}

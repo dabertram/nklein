@@ -154,4 +154,50 @@ describe("runRetrievalLoop", () => {
 		expect(result.evidence.map((e) => e.id)).toEqual(["a", "b"]); // never [a,b,a,b]
 		expect(result.stoppedBecause).toBe("budget_exhausted"); // 2 sources < 3, and no new evidence from the alternate
 	});
+
+	// ── OPT-IN topic-aware freshness ────────────────────────────────────────────────────────────────────────────────
+	// The SAME 10-day-old source + the SAME injected `now`, ranked under volatility-tuned freshness bands:
+	//   • realtime bands (current=0, recent=1, possiblyStale=3): a 10-day source is `stale` → not fresh.
+	//   • stable bands   (current=1825, …):                       a 10-day source is `current` → fresh.
+	// With `freshnessSensitive` forcing a `fresh` plan, that difference flips the loop's stop reason.
+	const AGED_10D = "2026-06-21T00:00:00Z"; // 10 days before NOW (2026-07-01) — well within the default 30-day `current`.
+
+	it("topic-aware freshness ON: a fast-moving topic gates a 10-day source as stale (freshness unmet)", async () => {
+		const { deps } = makeDeps({ search: async () => [hit("a", { publishedAt: AGED_10D })] });
+		const result = await runRetrievalLoop("the live price of gold", deps, {
+			minSources: 1,
+			freshnessSensitive: true,
+			topicAwareFreshness: true,
+		});
+		expect(result.queryPlan.freshnessNeed).toBe("fresh");
+		// realtime bands ⇒ 10-day source is `stale` ⇒ freshness never satisfied ⇒ budget exhausted.
+		expect(result.stoppedBecause).toBe("budget_exhausted");
+		expect(result.sufficiency.reasons.some((r) => /fresh/i.test(r))).toBe(true);
+	});
+
+	it("topic-aware freshness ON: an evergreen topic treats the SAME 10-day source as current (sufficient)", async () => {
+		const { deps } = makeDeps({ search: async () => [hit("a", { publishedAt: AGED_10D })] });
+		const result = await runRetrievalLoop("the definition of a prime number", deps, {
+			minSources: 1,
+			freshnessSensitive: true,
+			topicAwareFreshness: true,
+		});
+		expect(result.queryPlan.freshnessNeed).toBe("fresh");
+		// stable bands ⇒ 10-day source is `current` ⇒ freshness satisfied ⇒ sufficient.
+		expect(result.stoppedBecause).toBe("sufficient");
+		expect(result.evidence.map((e) => e.id)).toEqual(["a"]);
+	});
+
+	it("topic-aware freshness OFF (default): the SAME fast-moving task keeps default bands (byte-identical)", async () => {
+		// Identical to the realtime-ON case EXCEPT the flag is off. Default `current`=30 days ⇒ the 10-day source is
+		// `current` ⇒ freshness satisfied ⇒ sufficient. Proves the flag actually changes behaviour AND that off = default.
+		const { deps } = makeDeps({ search: async () => [hit("a", { publishedAt: AGED_10D })] });
+		const result = await runRetrievalLoop("the live price of gold", deps, {
+			minSources: 1,
+			freshnessSensitive: true,
+			// topicAwareFreshness omitted (default off)
+		});
+		expect(result.queryPlan.freshnessNeed).toBe("fresh");
+		expect(result.stoppedBecause).toBe("sufficient");
+	});
 });
