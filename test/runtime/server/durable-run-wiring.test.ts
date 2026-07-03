@@ -136,6 +136,34 @@ describe("createDurableRunWiring", () => {
 		expect(dispatches.length).toBe(1);
 	});
 
+	it("tickAll HEARTBEATS a still-alive lease so a slow worker is not spuriously reclaimed", async () => {
+		let nowMs = 1_000;
+		const dispatches: string[] = [];
+		const wiring = createDurableRunWiring({
+			enabled: true,
+			appendEvent: () => {},
+			startCard: (_ws, taskId) => {
+				dispatches.push(taskId);
+			},
+			hashWorkspacePath: (p) => `hash:${p}`,
+			workflowIdFor: (ws) => `run:${ws}`,
+			now: () => nowMs,
+			mintWorkerId: () => "w",
+			config: { leaseDurationMs: 1_000, reclaimBackoffMs: 0 },
+		});
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a"] })); // leases a at t=1000, expiry 2000
+		expect(dispatches).toEqual(["a"]);
+		// Advance PAST the lease expiry, but the session is still alive → heartbeat renews the lease → NO reclaim/re-dispatch.
+		nowMs = 5_000;
+		await wiring.tickAll(() => ["a"]);
+		expect(dispatches).toEqual(["a"]); // not re-dispatched: the heartbeat kept the lease alive
+
+		// A lease with NO live session past expiry IS reclaimed → re-dispatched (backoff 0).
+		nowMs = 9_000;
+		await wiring.tickAll(() => []);
+		expect(dispatches).toEqual(["a", "a"]); // reclaimed + re-dispatched
+	});
+
 	it("resumeOnly: at service-creation on a fresh (no-ledger) board it builds NO run (waits for decompose)", async () => {
 		// The service-creation seam sees only the decompose SEED; building then would freeze a seed-only run and the
 		// decompose's real cards would never be leased (the bug the deterministic swarm caught). resumeOnly must skip it.

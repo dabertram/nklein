@@ -136,8 +136,13 @@ export interface DurableRunWiring {
 		state: RuntimeTaskSessionState,
 		error?: string | null,
 	): Promise<void>;
-	/** Tick every active run (the timer path) — reclaims dead-lease workers and dispatches freed dependents. */
-	tickAll(): Promise<void>;
+	/**
+	 * Tick every active run (the timer path) — reclaims dead-lease workers and dispatches freed dependents. `liveTaskIdsFor`
+	 * (when supplied) reports which of a workspace's leased cards STILL have a live session; those leases are HEARTBEATED
+	 * before the tick so a slow-but-alive worker (whose sparse summaries don't fire `observeSummary` within the lease window)
+	 * is not spuriously reclaimed. Only a lease with no live session ages out to a reclaim.
+	 */
+	tickAll(liveTaskIdsFor?: (workspaceId: string) => readonly string[]): Promise<void>;
 	/** Workspace ids with an active run (operator overview / shutdown sweep). */
 	activeWorkspaceIds(): string[];
 	/** Drop a workspace's run + its serialization chain (call on workspace disposal so the registry doesn't leak). */
@@ -246,7 +251,7 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 			await runSerial(workspaceId, () => registry.reactToTaskSummary(workspaceId, taskId, state, error));
 		},
 
-		async tickAll() {
+		async tickAll(liveTaskIdsFor) {
 			if (!deps.enabled) {
 				return;
 			}
@@ -254,10 +259,18 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 				registry.activeWorkspaceIds().map((workspaceId) =>
 					runSerial(workspaceId, async () => {
 						const controller = registry.get(workspaceId);
-						if (controller) {
-							await controller.tick();
-							disposeIfComplete(workspaceId);
+						if (!controller) {
+							return;
 						}
+						// Heartbeat every lease whose session is STILL ALIVE so a slow-but-alive worker (sparse summaries)
+						// is not spuriously reclaimed; only a lease with no live session ages out to a reclaim on the tick.
+						if (liveTaskIdsFor) {
+							for (const taskId of liveTaskIdsFor(workspaceId)) {
+								controller.heartbeat(taskId);
+							}
+						}
+						await controller.tick();
+						disposeIfComplete(workspaceId);
 					}),
 				),
 			);

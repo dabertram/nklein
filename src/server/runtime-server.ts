@@ -685,9 +685,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// C3: the reclaim/dispatch timer — ticks every active run so a DEAD-lease worker (missed heartbeat) is reclaimed and
 	// its card re-dispatched, and a card held off by reclaim backoff eventually starts. Created ONLY when enabled (no extra
 	// timer on the default path ⇒ byte-identical); cleared on server close.
+	// Report which of a workspace's cards still have a RUNNING session, so the tick heartbeats their leases (a
+	// slow-but-alive local worker emits sparse summaries; without this its lease would age out to a spurious reclaim).
+	const liveTaskIdsForWorkspace = (workspaceId: string): readonly string[] =>
+		(nkleinTaskSessionServiceByWorkspaceId.get(workspaceId)?.listSummaries() ?? [])
+			.filter((summary) => summary.state === "running")
+			.map((summary) => summary.taskId);
 	const durableTickTimer: ReturnType<typeof setInterval> | null = durableSchedulerEnabled
 		? setInterval(() => {
-				void durableRunWiring?.tickAll();
+				void durableRunWiring?.tickAll(liveTaskIdsForWorkspace);
 			}, DURABLE_RUN_TICK_INTERVAL_MS)
 		: null;
 	const autoStartDecompositionRootTasks = async (
