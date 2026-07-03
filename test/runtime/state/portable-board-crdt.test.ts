@@ -102,6 +102,28 @@ describe("portable board CRDT merge", () => {
 		expect(projected.dependencies).toEqual([{ id: "b->a", fromTaskId: "b", toTaskId: "a", createdAt: 1 }]);
 	});
 
+	it("round-trips the additive-optional focusChain field, and omits it when absent (§5.N)", () => {
+		const focusChain = {
+			steps: [
+				{ text: "read the spec", status: "done" as const },
+				{ text: "write the tests", status: "in_progress" as const },
+			],
+			updatedAt: 7,
+		};
+		const original = board([
+			{ columnId: "in_progress", card: card("with-chain", { updatedAt: 2, focusChain }) },
+			{ columnId: "planning", card: card("no-chain", { updatedAt: 2 }) },
+		]);
+		const projected = portableBoardCrdtToBoard(boardToPortableBoardCrdt(original, "m1"));
+		const cardsById = new Map(projected.columns.flatMap((column) => column.cards).map((entry) => [entry.id, entry]));
+		// The field survives the round-trip equivalently…
+		expect(cardsById.get("with-chain")?.focusChain).toEqual(focusChain);
+		// …and a card with no focusChain round-trips WITHOUT the key appearing (the additive-optional invariant).
+		const noChain = cardsById.get("no-chain");
+		expect(noChain).toBeDefined();
+		expect(noChain && "focusChain" in noChain).toBe(false);
+	});
+
 	it("drops dependencies whose endpoints were deleted", () => {
 		const base = boardToPortableBoardCrdt(
 			board(
