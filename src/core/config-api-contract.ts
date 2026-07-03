@@ -182,3 +182,24 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	openPrPromptTemplate: z.string().optional(),
 });
 export type RuntimeConfigSaveRequest = z.infer<typeof runtimeConfigSaveRequestSchema>;
+
+/**
+ * §5.BA guided-setup wizard response. A resolved list of {@link SetupPlanStep}s (from the pure detection cores in
+ * setup-detection.ts) plus the completion stamp, so the UI can render the wizard and know whether it should
+ * auto-fire on first run. The `kind` disambiguates the global vs per-project plan a caller requested.
+ */
+export const runtimeSetupPlanStepSchema = z.object({
+	stepId: z.string(),
+	title: z.string(),
+	recommendation: z.string(),
+	detail: z.string(),
+});
+export type RuntimeSetupPlanStep = z.infer<typeof runtimeSetupPlanStepSchema>;
+
+export const runtimeSetupPlanResponseSchema = z.object({
+	kind: z.enum(["global", "project"]),
+	steps: z.array(runtimeSetupPlanStepSchema),
+	/** Completion stamp (epoch millis) — null = never completed, so the wizard auto-fires. */
+	completedAt: z.number().nullable(),
+});
+export type RuntimeSetupPlanResponse = z.infer<typeof runtimeSetupPlanResponseSchema>;

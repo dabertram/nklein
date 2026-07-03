@@ -72,6 +72,7 @@ import {
 	runtimeRecordNKleinPlanGapRequestSchema,
 	runtimeRecordNKleinPlanGapResponseSchema,
 	runtimeRunUpdateResponseSchema,
+	runtimeSetupPlanResponseSchema,
 	runtimeShellSessionStartRequestSchema,
 	runtimeShellSessionStartResponseSchema,
 	runtimeSlashCommandsResponseSchema,
@@ -125,6 +126,13 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getModelPerformanceStats(ctx.workspaceScope);
 			}),
+		// §5.BA guided setup wizards.
+		getGlobalSetupPlan: t.procedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getGlobalSetupPlan();
+		}),
+		getProjectSetupPlan: workspaceProcedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
+			return await ctx.runtimeApi.getProjectSetupPlan(ctx.workspaceScope);
+		}),
 		getKnowledgeToolUsageStats: t.procedure
 			.output(runtimeKnowledgeToolUsageStatsResponseSchema)
 			.query(async ({ ctx }) => {

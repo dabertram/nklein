@@ -4,8 +4,8 @@
 // should stay in focused services instead of accumulating here.
 
 import { execFile } from "node:child_process";
-import { rm } from "node:fs/promises";
-import { homedir } from "node:os";
+import { readFile, rm } from "node:fs/promises";
+import { cpus, homedir, totalmem } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
@@ -40,6 +40,7 @@ import {
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
 import { isTruthyEnv } from "../core/env-flag";
+import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
@@ -88,6 +89,7 @@ import {
 } from "./runtime-api/provider-settings.js";
 import { handleRecordNKleinPlanGap } from "./runtime-api/record-plan-gap.js";
 import { handleLoadConfig, handleSaveConfig } from "./runtime-api/runtime-config-io.js";
+import { handleGetGlobalSetupPlan, handleGetProjectSetupPlan } from "./runtime-api/setup-plan";
 import { handleStartTaskSession } from "./runtime-api/start-task-session.js";
 import { handleClearSwarmStop, handleGetSwarmStop, handleRequestSwarmStop } from "./runtime-api/swarm-stop-control.js";
 import { handleSendTaskChatMessage } from "./runtime-api/task-chat-send.js";
@@ -110,7 +112,7 @@ import {
 import { handleVerifyTaskAcceptance } from "./runtime-api/verify-task-acceptance.js";
 import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
-const _execFileAsync = promisify(execFile);
+const execFileAsync = promisify(execFile);
 
 export interface CreateRuntimeApiDependencies {
 	getActiveWorkspaceId: () => string | null;
@@ -258,6 +260,48 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}),
 		getModelPerformanceStats: async (workspaceScope) => {
 			return await handleGetModelPerformanceStats(workspaceScope);
+		},
+		getGlobalSetupPlan: async () => {
+			const globalConfig = await loadGlobalRuntimeConfig();
+			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? "http://localhost:1234/v1";
+			return await handleGetGlobalSetupPlan({
+				getHardware: () => ({ totalRamMb: Math.round(totalmem() / (1024 * 1024)), cpuCount: cpus().length }),
+				getLoadedModelIds: () => fetchLoadedModelIdsCached(providerEndpoint),
+				providerEndpoint,
+				getDockerAvailable: () => deps.getAgentSandboxStatus?.()?.dockerAvailable ?? null,
+				getSecondOpinionReviewEnabled: () => globalConfig.secondOpinionReviewEnabled,
+				getCompletedAt: () => globalConfig.setupWizardCompletedAt,
+			});
+		},
+		getProjectSetupPlan: async (workspaceScope) => {
+			const scopedConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
+			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? "http://localhost:1234/v1";
+			return await handleGetProjectSetupPlan({
+				readPackageJson: async () => {
+					try {
+						const raw = await readFile(join(workspaceScope.workspacePath, "package.json"), "utf8");
+						return JSON.parse(raw) as { scripts?: Record<string, string> };
+					} catch {
+						return null;
+					}
+				},
+				getLoadedModelIds: () => fetchLoadedModelIdsCached(providerEndpoint),
+				getHardware: () => ({ cpuCount: cpus().length }),
+				detectBaseBranch: async () => {
+					try {
+						const { stdout } = await execFileAsync(
+							"git",
+							["-C", workspaceScope.workspacePath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+							{ timeout: 4000 },
+						);
+						const ref = stdout.trim();
+						return ref.includes("/") ? (ref.split("/").pop() ?? null) : ref || null;
+					} catch {
+						return null;
+					}
+				},
+				getCompletedAt: () => scopedConfig.projectSetupWizardCompletedAt,
+			});
 		},
 		getKnowledgeToolUsageStats: async (workspaceScope) => {
 			return await handleGetKnowledgeToolUsageStats(workspaceScope);
