@@ -129,6 +129,61 @@ describe("createDurableRunWiring", () => {
 		expect(dispatches.length).toBe(1);
 	});
 
+	it("resumeOnly: at service-creation on a fresh (no-ledger) board it builds NO run (waits for decompose)", async () => {
+		// The service-creation seam sees only the decompose SEED; building then would freeze a seed-only run and the
+		// decompose's real cards would never be leased (the bug the deterministic swarm caught). resumeOnly must skip it.
+		const { wiring, dispatches } = harness();
+		const created = await wiring.ensureRun("ws1", "/w", board({ planning: ["seed"] }), { resumeOnly: true });
+		expect(created).toBe(false);
+		expect(wiring.hasRun("ws1")).toBe(false);
+		expect(dispatches).toEqual([]);
+		// The FRESH run is built at decompose-apply (resumeOnly false) once the full DAG (seed + a,b) exists.
+		const built = await wiring.ensureRun(
+			"ws1",
+			"/w",
+			board({ completed: ["seed"], backlog: ["a", "b"] }, [{ fromTaskId: "b", toTaskId: "a" }]),
+		);
+		expect(built).toBe(true);
+		expect(dispatches.map((d) => d.taskId)).toEqual(["a"]); // a ready (seed done), b blocked
+	});
+
+	it("resumeOnly: DOES resume when a persisted ledger exists (a run in flight before a restart)", async () => {
+		const persisted: AgentSchedulerEvent[] = [];
+		const first = createDurableRunWiring({
+			enabled: true,
+			appendEvent: (e) => {
+				persisted.push(e);
+			},
+			startCard: () => {},
+			hashWorkspacePath: (p) => `hash:${p}`,
+			workflowIdFor: (ws) => `run:${ws}`,
+			now: () => 1_000_000,
+			mintWorkerId: () => "w1",
+		});
+		await first.ensureRun("ws1", "/w", board({ backlog: ["a"] })); // leases a, persists the lease
+		const redispatched: string[] = [];
+		let nowMs = 2_000_000;
+		const second = createDurableRunWiring({
+			enabled: true,
+			appendEvent: () => {},
+			startCard: (_ws, taskId) => {
+				redispatched.push(taskId);
+			},
+			readLedger: (): AgentLedgerEvent[] => persisted,
+			hashWorkspacePath: (p) => `hash:${p}`,
+			workflowIdFor: (ws) => `run:${ws}`,
+			now: () => nowMs,
+			mintWorkerId: () => "w2",
+			config: { reclaimBackoffMs: 30_000 },
+		});
+		// resumeOnly at boot: a persisted ledger exists → it resumes (reclaims the orphan), then re-dispatches after backoff.
+		const resumed = await second.ensureRun("ws1", "/w", board({ backlog: ["a"] }), { resumeOnly: true });
+		expect(resumed).toBe(true);
+		nowMs = 2_030_001;
+		await second.tickAll();
+		expect(redispatched).toEqual(["a"]);
+	});
+
 	it("ensureRun is idempotent: a second call while a run exists does not re-register or re-dispatch", async () => {
 		const { wiring, dispatches } = harness();
 		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a"] }));

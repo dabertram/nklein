@@ -111,8 +111,19 @@ export interface DurableRunWiring {
 	 * when present (reclaiming orphaned leases), register it, and tick once to lease + dispatch the first ready cards.
 	 * Idempotent (a no-op when disabled, when a run already exists, or when the board has no runnable cards). Returns true
 	 * when a run was newly created.
+	 *
+	 * `resumeOnly` (boot path): proceed ONLY when a persisted ledger already exists for this workspace — i.e. resume a run
+	 * that was in flight before a restart, never build a FRESH run. This is the service-creation seam: a fresh workspace's
+	 * board is only the decompose SEED at that point, so building then would freeze the run to a seed-only graph and the
+	 * later decompose's cards would never be leased. The fresh run is built at decompose-apply (`resumeOnly` false) when
+	 * the full DAG is known.
 	 */
-	ensureRun(workspaceId: string, workspacePath: string, board: DurableRunBoardView): Promise<boolean>;
+	ensureRun(
+		workspaceId: string,
+		workspacePath: string,
+		board: DurableRunBoardView,
+		options?: { resumeOnly?: boolean },
+	): Promise<boolean>;
 	/** Route a task-session state change into the workspace's run (report completion → tick → cascade, or heartbeat). */
 	observeSummary(
 		workspaceId: string,
@@ -180,7 +191,7 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 			return deps.enabled && registry.has(workspaceId);
 		},
 
-		async ensureRun(workspaceId, workspacePath, board) {
+		async ensureRun(workspaceId, workspacePath, board, options) {
 			if (!deps.enabled) {
 				return false;
 			}
@@ -199,6 +210,12 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 							workflowId: deps.workflowIdFor(workspaceId),
 						})
 					: [];
+				// Boot path: only RESUME a run that was already in flight (a persisted ledger). Never build a FRESH run at
+				// service creation — the board is only the decompose seed then, and a seed-only run would freeze out the
+				// decompose's real cards. The fresh run is built at decompose-apply (resumeOnly false), full DAG in hand.
+				if (options?.resumeOnly && priorLog.length === 0) {
+					return false;
+				}
 				const controller =
 					priorLog.length > 0
 						? await DurableRunController.resume(initialJobs, priorLog, config, ports)

@@ -663,13 +663,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		workflowIdFor: (workspaceId) => `durable-run:${workspaceId}`,
 	});
 	// Build/resume the workspace's durable run from its current board (idempotent; no-op when disabled or already running).
-	const ensureDurableRunForScope = async (scope: RuntimeTrpcWorkspaceScope): Promise<void> => {
+	const ensureDurableRunForScope = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		options?: { resumeOnly?: boolean },
+	): Promise<void> => {
 		if (!durableSchedulerEnabled || !durableRunWiring) {
 			return;
 		}
 		const state = await loadWorkspaceState(scope.workspacePath).catch(() => null);
 		if (state) {
-			await durableRunWiring.ensureRun(scope.workspaceId, scope.workspacePath, state.board);
+			await durableRunWiring.ensureRun(scope.workspaceId, scope.workspacePath, state.board, options);
 		}
 	};
 	// C3: the reclaim/dispatch timer — ticks every active run so a DEAD-lease worker (missed heartbeat) is reclaimed and
@@ -1565,7 +1568,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// Gated on the flag so the default path adds NO residual entry to the map (review finding #2).
 			if (durableSchedulerEnabled) {
 				scopeByWorkspaceId.set(scope.workspaceId, scope);
-				await ensureDurableRunForScope(scope);
+				// resumeOnly: at service creation the board is only the decompose seed — only RESUME a run that a prior
+				// process left in flight (a persisted ledger); the FRESH run is built at decompose-apply (full DAG known).
+				await ensureDurableRunForScope(scope, { resumeOnly: true });
 			}
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
 				recordNKleinKnowledgeToolUsage(scope, summary);
