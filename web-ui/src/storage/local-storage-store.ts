@@ -31,6 +31,8 @@ export enum LocalStorageKey {
 	Theme = "nklein.theme",
 	/** §5.BC (user pick: treatment C): the board dependency-edge overlay toggle. */
 	BoardDependencyEdgesVisible = "nklein.board-dependency-edges-visible",
+	/** §5.BB: the persisted UI zoom level (0 overview · 1 lean · 2 expert · 3 professional). */
+	UiZoomLevel = "nklein.ui-zoom-level",
 	/** §5.AX: whether the board's per-model fleet block is expanded (default collapsed). */
 	BoardFleetStripExpanded = "nklein.board-fleet-strip-expanded",
 }
@@ -116,6 +118,7 @@ const LEGACY_LOCAL_STORAGE_KEY_BY_CURRENT_KEY: Partial<Record<LocalStorageKey, s
 		LEGACY_LOCAL_STORAGE_PREFIX,
 		"board-dependency-edges-visible",
 	),
+	[LocalStorageKey.UiZoomLevel]: buildPrefixedKey(LEGACY_LOCAL_STORAGE_PREFIX, "ui-zoom-level"),
 	// Born after the rename (§5.AX); the legacy twin never shipped, but the migration test seeds every enum key's
 	// synthetic twin, so mapping it keeps the sweep exhaustive-by-construction.
 	[LocalStorageKey.BoardFleetStripExpanded]: buildPrefixedKey(

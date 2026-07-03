@@ -4,7 +4,8 @@
 import { FolderOpen } from "lucide-react";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
+import { composeActivityMap } from "@/components/activity-map-model";
+import { ActivityMapView } from "@/components/activity-map-view";
 import { AddProjectDialog } from "@/components/add-project-dialog";
 import { notifyError, showAppToast } from "@/components/app-toaster";
 import { CardDetailView } from "@/components/card-detail-view";
@@ -16,6 +17,7 @@ import { type DependencyPickerCard, DependencyPickerDialog } from "@/components/
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { GitHistoryView } from "@/components/git-history-view";
 import { KanbanBoard } from "@/components/kanban-board";
+import { LeanBoardView } from "@/components/lean-board-view";
 import { ProjectNavigationPanel } from "@/components/project-navigation-panel";
 import { RuntimeSettingsDialog, type RuntimeSettingsSection } from "@/components/runtime-settings-dialog";
 import { SetupWizardDialog } from "@/components/setup-wizard-dialog";
@@ -60,6 +62,7 @@ import { useTaskSessions } from "@/hooks/use-task-sessions";
 import { useTaskStartActions } from "@/hooks/use-task-start-actions";
 import { isShellTerminalTaskId, useTerminalPanels } from "@/hooks/use-terminal-panels";
 import { useWorkspaceSync } from "@/hooks/use-workspace-sync";
+import { useZoomLevel, ZOOM_LEVELS } from "@/hooks/use-zoom-level";
 import { LayoutCustomizationsProvider } from "@/resize/layout-customizations";
 import { ResizableBottomPane } from "@/resize/resizable-bottom-pane";
 import { useProjectNavigationLayout } from "@/resize/use-project-navigation-layout";
@@ -96,6 +99,8 @@ import type { BoardData } from "@/types";
 export default function App(): ReactElement {
 	const terminalThemeColors = useTerminalThemeColors();
 	const [board, setBoard] = useState<BoardData>(() => createInitialBoardData());
+	// §5.BB: the zoom-level surface (0 overview · 1 lean · 2 expert · 3 professional), chat as the constant rail.
+	const { zoom, setZoom, streamFilter, zoomToStream } = useZoomLevel();
 	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>({});
 	const [canPersistWorkspaceState, setCanPersistWorkspaceState] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -1045,6 +1050,35 @@ export default function App(): ReactElement {
 											}
 										/>
 									) : null}
+									{/* §5.BB zoom control — one continuous surface, four zoom levels (buttons per the user's pick). */}
+									{!isGitHistoryOpen ? (
+										<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-1 px-3 py-1.5">
+											<div className="inline-flex overflow-hidden rounded-lg border border-border-bright bg-surface-2">
+												{ZOOM_LEVELS.map((entry) => (
+													<button
+														key={entry.level}
+														type="button"
+														onClick={() => setZoom(entry.level)}
+														className={
+															zoom === entry.level
+																? "flex items-center gap-1.5 border-r border-border bg-accent/15 px-3 py-1 text-[12px] text-accent last:border-r-0"
+																: "flex items-center gap-1.5 border-r border-border px-3 py-1 text-[12px] text-text-tertiary hover:text-text-primary last:border-r-0"
+														}
+													>
+														<span className="rounded border border-current px-1 text-[9px] opacity-70">
+															{entry.short}
+														</span>
+														{entry.label}
+													</button>
+												))}
+											</div>
+											{zoom === 0 ? (
+												<span className="text-[11px] text-text-tertiary">
+													click a cluster to zoom in · chat on the right steers the swarm
+												</span>
+											) : null}
+										</div>
+									) : null}
 									<div className="flex flex-1 min-h-0 min-w-0">
 										{isGitHistoryOpen ? (
 											<GitHistoryView
@@ -1058,8 +1092,28 @@ export default function App(): ReactElement {
 												}}
 												isDiscardWorkingChangesPending={isDiscardingHomeWorkingChanges}
 											/>
+										) : zoom === 0 ? (
+											<ActivityMapView
+												map={composeActivityMap({
+													columns: board.columns,
+													dependencies: board.dependencies,
+													sessions,
+													now: Date.now,
+												})}
+												onSelectCard={handleCardSelect}
+												onZoomToStream={zoomToStream}
+											/>
+										) : zoom === 1 ? (
+											<LeanBoardView
+												columns={board.columns}
+												sessions={sessions}
+												streamFilter={streamFilter}
+												onSelectCard={handleCardSelect}
+												onBackToOverview={() => setZoom(0)}
+											/>
 										) : (
 											<KanbanBoard
+												forceFleetExpanded={zoom === 3}
 												data={board}
 												taskSessions={sessions}
 												workspacePath={workspacePath}

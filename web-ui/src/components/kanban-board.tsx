@@ -170,6 +170,7 @@ export function KanbanBoard({
 	onRuntimeConfigChanged,
 	onTaskSessionSummary,
 	replayCardsEnabled = false,
+	forceFleetExpanded = false,
 	defaultNKleinModelId,
 }: {
 	data: BoardData;
@@ -206,6 +207,8 @@ export function KanbanBoard({
 	onRuntimeConfigChanged?: () => void;
 	onTaskSessionSummary?: (summary: RuntimeTaskSessionSummary) => void;
 	replayCardsEnabled?: boolean;
+	/** §5.BB Zoom 3 (Professional): render the fleet block expanded regardless of the stored toggle. */
+	forceFleetExpanded?: boolean;
 	defaultNKleinModelId?: string | null;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
@@ -237,9 +240,11 @@ export function KanbanBoard({
 	}, []);
 	// §5.AX: the expandable per-model fleet block below the swarm counts. Persisted, DEFAULT COLLAPSED so the strip
 	// stays compact at rest; the loaded-model registry only polls while the block is open.
-	const [fleetStripExpanded, setFleetStripExpanded] = useState(
+	const [fleetStripExpandedStored, setFleetStripExpanded] = useState(
 		() => readLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded) === "1",
 	);
+	// §5.BB Zoom 3 (Professional) forces the fleet block open; the stored toggle still governs elsewhere.
+	const fleetStripExpanded = forceFleetExpanded || fleetStripExpandedStored;
 	const handleToggleFleetStrip = useCallback(() => {
 		setFleetStripExpanded((current) => {
 			writeLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded, current ? "0" : "1");

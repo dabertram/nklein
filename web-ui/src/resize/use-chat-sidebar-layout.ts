@@ -16,7 +16,9 @@ import { LocalStorageKey } from "@/storage/local-storage-store";
 // The board-independent chat lives in a resizeable right sidebar (todo §5.M). Wider range than the project nav since
 // it shows a session list + transcript + composer side by side.
 const CHAT_SIDEBAR_MIN_WIDTH = 320;
-const CHAT_SIDEBAR_MAX_WIDTH = 900;
+// §5.BB (user, 2026-07-03): the chat is the main entry's primary surface — allow dragging it FAR to the left
+// (up to most of the viewport), not just a narrow rail.
+const CHAT_SIDEBAR_MAX_WIDTH = 1600;
 const CHAT_SIDEBAR_DEFAULT_WIDTH_FALLBACK = 440;
 
 function getDefaultChatSidebarWidth(): number {
