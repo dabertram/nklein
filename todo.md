@@ -9336,6 +9336,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > that the wiring actually reaches the model/board at runtime, not just in unit tests). Adversarial workflow-style
 > review is appropriate (ultracode).
 >
+> **PRELIMINARY OPUS PASS ALREADY RUN (2026-07-03, commit `9434dd29`):** an adversarial verification workflow
+> (6 review hunters × 2-of-3-skeptic kill) over the six commits found + FIXED 3 confirmed defects — (1) MEDIUM: the
+> §5.AU relay could permanently LOSE mailbox guidance on a failed start (consume-before-start → now read-nondestructive
+> + `markCardMailboxConsumedUpTo` only after success); (2) LOW: the §5.BD rejection counter attributed multi-tool
+> turns to the first tool only (→ `extractRejectedToolNames`); (3) LOW: activity ticks stopped driving sticky-follow
+> at the 60 cap (→ newest-tick timestamp not array length). A 4th candidate did not survive verification. The formal
+> Fable+Opus pass should still run (a second model sees different things) but can treat these three as closed and
+> focus on what a single Opus pass may have missed — especially runtime behavior the unit tests don't exercise.
+>
 > **Scope — every commit from this session (`816c2fa7..HEAD` on `feat/kanban-reliability-context-upgrade`):**
 > - [ ] **`816c2fa7` — run42 autopsy trio (§5.AN):** #41 the tool_input_rejection counter now fires in the
 >       event-adapter ERROR branch (`isPreExecutionToolRejection`) — verify it can't DOUBLE-count when a rejection is
