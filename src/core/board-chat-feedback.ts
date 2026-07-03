@@ -83,6 +83,12 @@ const ASK_SIGNALS: readonly {
 	},
 ];
 
+/** The ASK kinds currently active for these signals — the feedback bridge clears a surfaced key once its ASK
+ *  goes inactive (resolved), so a later re-raise surfaces again instead of being permanently deduped. */
+export function activeBoardChatAskKinds(signals: OperatorTaskSignals): string[] {
+	return ASK_SIGNALS.filter((ask) => ask.active(signals)).map((ask) => ask.kind);
+}
+
 /** True when the signals represent the clean terminal "done / awaiting human review" state. */
 function isDone(s: OperatorTaskSignals): boolean {
 	return s.columnId === "completed" || s.columnId === "review" || s.sessionState === "awaiting_review";
