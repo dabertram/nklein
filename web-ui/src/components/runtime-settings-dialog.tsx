@@ -40,6 +40,7 @@ import {
 	buildCodeEmbeddingSettings,
 	CODE_EMBEDDING_PROVIDER_OPTIONS,
 	EmbeddingEndpointFields,
+	formatCodeEmbeddingSettings,
 	LOCAL_CODE_EMBEDDING_MODEL,
 } from "@/components/code-embedding-fields";
 import { ConcurrencyEditor, type ConcurrencyMap } from "@/components/concurrency-editor";
@@ -181,6 +182,14 @@ const TASK_AUTO_REVIEW_MODE_OPTIONS: Array<{ value: RuntimeTaskAutoReviewMode; l
 	{ value: "pr", label: "Open PR" },
 ];
 
+/** Readable labels for the §5.AE skill-dynamics levels (shared by the global control and the per-project override row). */
+const SKILL_DYNAMICS_LEVEL_LABELS: Record<RuntimeSkillDynamicsLevel, string> = {
+	fully_dynamic: "Fully dynamic",
+	static_skills_auto_model: "Static skills, auto model",
+	assigned_skills: "Assigned skills",
+	fully_static: "Fully static",
+};
+
 function readBooleanTaskDefault(key: LocalStorageKey, fallback: boolean): boolean {
 	const stored = readLocalStorageItem(key);
 	if (stored === "true") {
@@ -259,6 +268,12 @@ export function RuntimeSettingsDialog({
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
 	const [codeEmbeddingDefaultsModel, setCodeEmbeddingDefaultsModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
 	const [codeEmbeddingDefaultsBaseUrl, setCodeEmbeddingDefaultsBaseUrl] = useState("");
+	// §5.W per-project code-embedding override (raw fields preserved across provider switches, like the global set).
+	const [codeEmbeddingOverrideEnabled, setCodeEmbeddingOverrideEnabled] = useState(false);
+	const [codeEmbeddingOverrideProvider, setCodeEmbeddingOverrideProvider] =
+		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
+	const [codeEmbeddingOverrideModel, setCodeEmbeddingOverrideModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
+	const [codeEmbeddingOverrideBaseUrl, setCodeEmbeddingOverrideBaseUrl] = useState("");
 	const [taskDefaultStartInPlanMode, setTaskDefaultStartInPlanMode] = useState(() =>
 		readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false),
 	);
@@ -294,6 +309,7 @@ export function RuntimeSettingsDialog({
 	const [modelGateUnknown, setModelGateUnknown] = useState<RuntimeModelGateAction>("warn");
 	// §5.AE global skill-dynamics level default.
 	const [skillDynamicsLevel, setSkillDynamicsLevel] = useState<RuntimeSkillDynamicsLevel>("fully_dynamic");
+	const [skillDynamicsLevelOverride, setSkillDynamicsLevelOverride] = useState<RuntimeSkillDynamicsLevel | null>(null);
 	const [concurrencyOverride, setConcurrencyOverride] = useState<{
 		perProvider: ConcurrencyMap;
 		perModel: ConcurrencyMap;
@@ -447,6 +463,7 @@ export function RuntimeSettingsDialog({
 		model: LOCAL_CODE_EMBEDDING_MODEL,
 		baseUrl: null,
 	};
+	const initialCodeEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialMaxConcurrentTasksOverride = config?.maxConcurrentTasksOverride ?? null;
 	const initialSelectedAgentIdOverride = config?.selectedAgentIdOverride ?? null;
@@ -463,6 +480,8 @@ export function RuntimeSettingsDialog({
 		config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject";
 	const initialModelGateUnknown: RuntimeModelGateAction = config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn";
 	const initialSkillDynamicsLevel: RuntimeSkillDynamicsLevel = config?.skillDynamicsLevelDefault ?? "fully_dynamic";
+	const initialSkillDynamicsLevelOverride: RuntimeSkillDynamicsLevel | null =
+		config?.skillDynamicsLevelOverride ?? null;
 	const initialConcurrencyOverride = useMemo(
 		() =>
 			config?.concurrencyOverride != null
@@ -574,6 +593,22 @@ export function RuntimeSettingsDialog({
 				codeEmbeddingDefaultsBaseUrl,
 			),
 		[codeEmbeddingDefaultsBaseUrl, codeEmbeddingDefaultsModel, codeEmbeddingDefaultsProvider],
+	);
+	const draftCodeEmbeddingOverride = useMemo(
+		() =>
+			codeEmbeddingOverrideEnabled
+				? buildCodeEmbeddingSettings(
+						codeEmbeddingOverrideProvider,
+						codeEmbeddingOverrideModel,
+						codeEmbeddingOverrideBaseUrl,
+					)
+				: null,
+		[
+			codeEmbeddingOverrideEnabled,
+			codeEmbeddingOverrideProvider,
+			codeEmbeddingOverrideModel,
+			codeEmbeddingOverrideBaseUrl,
+		],
 	);
 	const sandboxPoolSummary = useMemo(() => {
 		const parsePositiveInteger = (value: string, fallback: number) => {
@@ -708,6 +743,9 @@ export function RuntimeSettingsDialog({
 		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingDefaults, initialCodeEmbeddingDefaults)) {
 			return true;
 		}
+		if (!areCodeEmbeddingSettingsEqual(draftCodeEmbeddingOverride, initialCodeEmbeddingOverride)) {
+			return true;
+		}
 		if (
 			taskDefaultStartInPlanMode !== initialTaskDefaultStartInPlanMode ||
 			taskDefaultAutoReviewEnabled !== initialTaskDefaultAutoReviewEnabled ||
@@ -746,6 +784,9 @@ export function RuntimeSettingsDialog({
 			return true;
 		}
 		if (maxConcurrentTasksOverride !== initialMaxConcurrentTasksOverride) {
+			return true;
+		}
+		if (skillDynamicsLevelOverride !== initialSkillDynamicsLevelOverride) {
 			return true;
 		}
 		if (selectedAgentIdOverride !== initialSelectedAgentIdOverride) {
@@ -789,8 +830,10 @@ export function RuntimeSettingsDialog({
 		speculativeMaxSpecsPerRun,
 		developerModeEnabled,
 		draftCodeEmbeddingDefaults,
+		draftCodeEmbeddingOverride,
 		draftThemeId,
 		initialCodeEmbeddingDefaults,
+		initialCodeEmbeddingOverride,
 		initialAgentAutonomousModeEnabled,
 		initialAgentTimeoutMs,
 		initialAgentTimeoutMode,
@@ -835,7 +878,9 @@ export function RuntimeSettingsDialog({
 		initialShortcuts,
 		initialMaxConcurrentTasksOverride,
 		initialSelectedAgentIdOverride,
+		initialSkillDynamicsLevelOverride,
 		maxConcurrentTasksOverride,
+		skillDynamicsLevelOverride,
 		selectedAgentIdOverride,
 		modelRolesOverride,
 		agentRulesetsOverride,
@@ -912,6 +957,11 @@ export function RuntimeSettingsDialog({
 		setCodeEmbeddingDefaultsProvider(nextEmbeddingDefaults.provider);
 		setCodeEmbeddingDefaultsModel(nextEmbeddingDefaults.model ?? "");
 		setCodeEmbeddingDefaultsBaseUrl(nextEmbeddingDefaults.baseUrl ?? "");
+		const nextEmbeddingOverride = config?.codeEmbeddingOverride ?? null;
+		setCodeEmbeddingOverrideEnabled(nextEmbeddingOverride !== null);
+		setCodeEmbeddingOverrideProvider(nextEmbeddingOverride?.provider ?? "local_lexical");
+		setCodeEmbeddingOverrideModel(nextEmbeddingOverride?.model ?? LOCAL_CODE_EMBEDDING_MODEL);
+		setCodeEmbeddingOverrideBaseUrl(nextEmbeddingOverride?.baseUrl ?? "");
 		const storedTaskDefaultStartInPlanMode = readBooleanTaskDefault(LocalStorageKey.TaskStartInPlanMode, false);
 		const storedTaskDefaultAutoReviewEnabled = readBooleanTaskDefault(LocalStorageKey.TaskAutoReviewEnabled, false);
 		const storedTaskDefaultAutoReviewMode = readTaskAutoReviewModeDefault();
@@ -933,6 +983,7 @@ export function RuntimeSettingsDialog({
 		setModelGateUnsuitable(config?.modelSuitabilityPolicyDefaults?.onUnsuitable ?? "reject");
 		setModelGateUnknown(config?.modelSuitabilityPolicyDefaults?.onUnknown ?? "warn");
 		setSkillDynamicsLevel(config?.skillDynamicsLevelDefault ?? "fully_dynamic");
+		setSkillDynamicsLevelOverride(config?.skillDynamicsLevelOverride ?? null);
 		setConcurrencyOverride(
 			config?.concurrencyOverride != null
 				? {
@@ -987,6 +1038,7 @@ export function RuntimeSettingsDialog({
 		config?.shortcuts,
 		config?.maxConcurrentTasksOverride,
 		config?.selectedAgentIdOverride,
+		config?.skillDynamicsLevelOverride,
 		config?.modelRoles,
 		config?.modelRolesOverride,
 		config?.agentRulesetsOverride,
@@ -1427,10 +1479,12 @@ export function RuntimeSettingsDialog({
 			replayCardsEnabled,
 			knowsTodayEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
+			codeEmbeddingOverride: draftCodeEmbeddingOverride,
 			readyForReviewNotificationsEnabled,
 			modelRoles: normalizeModelRolesForSettings(modelRoles),
 			modelSuitabilityPolicyDefaults: { onUnsuitable: modelGateUnsuitable, onUnknown: modelGateUnknown },
 			skillDynamicsLevelDefault: skillDynamicsLevel,
+			skillDynamicsLevelOverride,
 			concurrencyDefaults,
 			concurrencyOverride,
 			agentRulesets,
@@ -2934,6 +2988,88 @@ export function RuntimeSettingsDialog({
 											disabled={controlsDisabled}
 											onChange={setConcurrencyOverride}
 										/>
+									</OverrideRow>
+									<OverrideRow
+										label="Skill dynamics"
+										inheritLabel={
+											SKILL_DYNAMICS_LEVEL_LABELS[config.skillDynamicsLevelDefault ?? "fully_dynamic"]
+										}
+										isOverridden={skillDynamicsLevelOverride !== null}
+										onOverride={() =>
+											setSkillDynamicsLevelOverride(config.skillDynamicsLevelDefault ?? "fully_dynamic")
+										}
+										onRevert={() => setSkillDynamicsLevelOverride(null)}
+										disabled={controlsDisabled}
+									>
+										<NativeSelect
+											value={skillDynamicsLevelOverride ?? "fully_dynamic"}
+											onChange={(event) =>
+												setSkillDynamicsLevelOverride(event.target.value as RuntimeSkillDynamicsLevel)
+											}
+											disabled={controlsDisabled}
+											fill
+										>
+											<option value="fully_dynamic">
+												Fully dynamic (auto skills + model, may vary per turn)
+											</option>
+											<option value="static_skills_auto_model">Static skills, auto model</option>
+											<option value="assigned_skills">Assigned skills</option>
+											<option value="fully_static">Fully static (skills + model pinned)</option>
+										</NativeSelect>
+									</OverrideRow>
+									<OverrideRow
+										label="Code embeddings"
+										inheritLabel={
+											config.codeEmbeddingDefaults
+												? formatCodeEmbeddingSettings(config.codeEmbeddingDefaults)
+												: "Local lexical fallback"
+										}
+										isOverridden={codeEmbeddingOverrideEnabled}
+										onOverride={() => {
+											const defaults = config.codeEmbeddingDefaults;
+											setCodeEmbeddingOverrideProvider(defaults?.provider ?? "local_lexical");
+											setCodeEmbeddingOverrideModel(defaults?.model ?? LOCAL_CODE_EMBEDDING_MODEL);
+											setCodeEmbeddingOverrideBaseUrl(defaults?.baseUrl ?? "");
+											setCodeEmbeddingOverrideEnabled(true);
+										}}
+										onRevert={() => setCodeEmbeddingOverrideEnabled(false)}
+										disabled={controlsDisabled}
+									>
+										<div className="grid gap-2 lg:grid-cols-[minmax(180px,0.8fr)_1fr]">
+											<div className="min-w-0">
+												<span className="mb-1 block text-[12px] text-text-secondary">Project provider</span>
+												<NativeSelect
+													value={codeEmbeddingOverrideProvider}
+													onChange={(event) =>
+														setCodeEmbeddingOverrideProvider(
+															event.target.value as RuntimeCodeEmbeddingSettings["provider"],
+														)
+													}
+													disabled={controlsDisabled}
+													fill
+												>
+													{CODE_EMBEDDING_PROVIDER_OPTIONS.map((option) => (
+														<option key={option.value} value={option.value}>
+															{option.label}
+														</option>
+													))}
+												</NativeSelect>
+											</div>
+											<EmbeddingEndpointFields
+												workspaceId={workspaceId}
+												labelPrefix="Project"
+												disabled={controlsDisabled}
+												provider={codeEmbeddingOverrideProvider}
+												baseUrl={codeEmbeddingOverrideBaseUrl}
+												model={codeEmbeddingOverrideModel}
+												suggestedBaseUrl={suggestedCodeEmbeddingBaseUrl}
+												endpointPlaceholder={config.codeEmbeddingDefaults?.baseUrl || "Inherited endpoint"}
+												modelPlaceholder={config.codeEmbeddingDefaults?.model || "Inherited model"}
+												onBaseUrlChange={setCodeEmbeddingOverrideBaseUrl}
+												onModelChange={setCodeEmbeddingOverrideModel}
+												onError={setSaveError}
+											/>
+										</div>
 									</OverrideRow>
 								</div>
 							) : (
