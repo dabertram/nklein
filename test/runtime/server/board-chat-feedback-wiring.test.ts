@@ -82,6 +82,95 @@ describe("board-chat feedback wiring dispatch (§5.AT/§5.AU)", () => {
 		expect(f.transitioned[1]?.overrides).toEqual({ deliveryGateHeld: false });
 	});
 
+	// §5.AG — time/budget-aware attention overrides derived from summary telemetry via `assessRunAttention`, with an
+	// injected clock so the ages are deterministic. Fixed clock: 2026-07-03T00:00:00Z.
+	const NOW = 1_751_500_000_000;
+
+	it("routes a heartbeat aged past the lost window (≈130s > 120s) via nextSummary.heartbeatStatus='lost'", () => {
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: {
+				taskId: "t1",
+				state: "running",
+				reviewReason: null,
+				// Heartbeat 130s in the past ⇒ age 130_000 ≥ default lost window 120_000 ⇒ silent ⇒ heartbeatLost.
+				lastHeartbeatAt: NOW - 130_000,
+				// Upstream hasn't flipped heartbeatStatus yet — the TIME-BASED deriver is what must surface the loss.
+				heartbeatStatus: "healthy",
+			} as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		// The classifier reads `heartbeatLost` from the summary's heartbeatStatus, NOT from overrides — so a derived
+		// lost heartbeat must land in nextSummary.heartbeatStatus (upgraded from "healthy" to "lost") to actually route.
+		// This would FAIL if the wiring only spread `heartbeatLost` into the overrides object (a silent no-op the map drops).
+		expect(f.transitioned[0]?.nextSummary.heartbeatStatus).toBe("lost");
+		// It is NOT smuggled into the overrides object (which has no heartbeatLost key the map would honour).
+		expect(f.transitioned[0]?.overrides).not.toHaveProperty("heartbeatLost");
+	});
+
+	it("leaves nextSummary.heartbeatStatus untouched when the heartbeat is still fresh", () => {
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: {
+				taskId: "t1",
+				state: "running",
+				reviewReason: null,
+				// 30s in the past ⇒ well within the 120s lost window ⇒ NOT silent ⇒ heartbeatStatus passes through verbatim.
+				lastHeartbeatAt: NOW - 30_000,
+				heartbeatStatus: "healthy",
+			} as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		expect(f.transitioned[0]?.nextSummary.heartbeatStatus).toBe("healthy");
+	});
+
+	it("derives approachingBudgetCeiling from a context budget at ≈90% of its window", () => {
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: {
+				taskId: "t1",
+				state: "running",
+				reviewReason: null,
+				// 90/100 = 0.90 ≥ default warn fraction 0.80 ⇒ approaching. No heartbeat telemetry ⇒ never silent.
+				contextBudgetBreakdown: { usedWorkingTokens: 90, effectiveContextWindow: 100 },
+			} as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		expect(f.transitioned[0]?.overrides).toMatchObject({ deliveryGateHeld: false, approachingBudgetCeiling: true });
+		// A live-but-not-silent, not-stalled run adds ONLY the budget key — no heartbeatLost/noProgressOrLoop keys.
+		expect(f.transitioned[0]?.overrides).not.toHaveProperty("heartbeatLost");
+		expect(f.transitioned[0]?.overrides).not.toHaveProperty("noProgressOrLoop");
+	});
+
+	it("adds NO attention keys when the summary carries no telemetry (byte-identical default overrides)", () => {
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: { taskId: "t1", state: "awaiting_review", reviewReason: "attention" } as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: { taskId: "t2", state: "running", reviewReason: "error" } as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		// Exact equality proves no extra keys were spread in — the pre-change routing object is preserved verbatim.
+		expect(f.transitioned[0]?.overrides).toEqual({ deliveryGateHeld: true });
+		expect(f.transitioned[1]?.overrides).toEqual({ deliveryGateHeld: false });
+	});
+
 	it("skips synthetic (::review / ::acceptance / …) sessions — feedback is about the card", () => {
 		const f = fakeBridge();
 		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge });
