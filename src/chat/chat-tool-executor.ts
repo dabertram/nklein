@@ -3,10 +3,11 @@ import {
 	dispatchArgumentsAfterRepair,
 	isDispatchableAfterRepair,
 } from "../core/tool-argument-repair";
+import { decideManifestChatAccess, manifestForChatAction } from "../core/tool-capability-manifest";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolCall, ChatToolResult } from "./chat-agent-loop";
 import { buildAuditDetail } from "./chat-audit-detail";
-import { type ChatActionKind, type ChatExecutionMode, decideChatActionAccess } from "./chat-execution-mode";
+import type { ChatActionKind, ChatExecutionMode } from "./chat-execution-mode";
 
 /**
  * Gated chat tool executor (todo §5.M) — the governance wrapper the agent loop's `executeTool` uses. For each
@@ -86,7 +87,7 @@ export function createGatedChatToolExecutor(
 			}
 		}
 
-		const access = decideChatActionAccess(input.mode, tool.actionKind);
+		const access = decideManifestChatAccess(manifestForChatAction(tool.actionKind), input.mode);
 
 		let confirmed = false;
 		let executed = false;

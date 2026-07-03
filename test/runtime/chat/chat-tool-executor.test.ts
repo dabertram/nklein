@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ChatToolCall } from "../../../src/chat/chat-agent-loop";
 import {
+	type ChatActionKind,
+	type ChatExecutionMode,
+	decideChatActionAccess,
+} from "../../../src/chat/chat-execution-mode";
+import {
 	type ChatTool,
 	type ChatToolAuditRecord,
 	createGatedChatToolExecutor,
@@ -315,4 +320,123 @@ describe("createGatedChatToolExecutor", () => {
 		expect(result.content).toBe("ok");
 		expect(audit[0]).toMatchObject({ executed: true });
 	});
+
+	// -------------------------------------------------------------------------
+	// Manifest-gate migration (byte-identical) — CHARACTERIZATION TABLE
+	//
+	// The executor now gates via `decideManifestChatAccess(manifestForChatAction(actionKind), mode)`
+	// instead of `decideChatActionAccess(mode, actionKind)`. This table drives the LIVE seam for every
+	// (actionKind × mode) pair and asserts the observable outcome — the surfaced { decision, content }
+	// and the audit record's { decision, executed, confirmed } — is IDENTICAL to what the OLD gate
+	// (imported here as the oracle) would have produced. If the swap changed ANY cell, a row fails.
+	// -------------------------------------------------------------------------
+
+	const ALL_ACTION_KINDS: readonly ChatActionKind[] = [
+		"sandbox_read",
+		"sandbox_write",
+		"control_plane",
+		"host_read",
+		"host_write",
+		"host_command",
+	];
+	const ALL_MODES: readonly ChatExecutionMode[] = ["isolated_readonly", "sandbox_with_host_escape", "host"];
+
+	// The content the executor surfaces for each old-gate decision — derived from the executor's own
+	// branch logic (deny → "Denied: <reason>", confirm-declined → "Not run (awaiting confirmation): <reason>",
+	// allow/confirm-approved → the tool's own output). This is the byte-for-byte oracle for `result.content`.
+	const RUN_OUTPUT = "did-run";
+
+	for (const action of ALL_ACTION_KINDS) {
+		for (const mode of ALL_MODES) {
+			const expected = decideChatActionAccess(mode, action);
+
+			it(`manifest gate is byte-identical for action=${action} mode=${mode} (confirm approved)`, async () => {
+				const audit: ChatToolAuditRecord[] = [];
+				let ran = false;
+				const exec = createGatedChatToolExecutor({
+					sessionId: "s1",
+					mode,
+					tools: [
+						{
+							name: "t",
+							actionKind: action,
+							run: async () => {
+								ran = true;
+								return RUN_OUTPUT;
+							},
+						},
+					],
+					// A confirm-gated cell gets an APPROVING confirmer so we exercise the run path.
+					confirm: async () => true,
+					recordAudit: async (record) => {
+						audit.push(record);
+					},
+				});
+
+				const result = await exec(call("t"));
+
+				// Decision recorded must equal the OLD gate's decision for this cell.
+				expect(audit[0]?.decision, `decision for ${action}/${mode}`).toBe(expected.decision);
+
+				if (expected.decision === "deny") {
+					expect(result.content).toBe(`Denied: ${expected.reason}`);
+					expect(ran).toBe(false);
+					expect(audit[0]).toMatchObject({ executed: false, confirmed: false });
+				} else if (expected.decision === "confirm") {
+					// Approved → the tool ran, content is the tool output.
+					expect(result.content).toBe(RUN_OUTPUT);
+					expect(ran).toBe(true);
+					expect(audit[0]).toMatchObject({ executed: true, confirmed: true });
+				} else {
+					expect(result.content).toBe(RUN_OUTPUT);
+					expect(ran).toBe(true);
+					expect(audit[0]).toMatchObject({ executed: true, confirmed: false });
+				}
+			});
+
+			it(`manifest gate is byte-identical for action=${action} mode=${mode} (confirm declined)`, async () => {
+				const audit: ChatToolAuditRecord[] = [];
+				let ran = false;
+				const exec = createGatedChatToolExecutor({
+					sessionId: "s1",
+					mode,
+					tools: [
+						{
+							name: "t",
+							actionKind: action,
+							run: async () => {
+								ran = true;
+								return RUN_OUTPUT;
+							},
+						},
+					],
+					// A DECLINING confirmer so we exercise the not-run branch (surfaces the reason verbatim).
+					confirm: async () => false,
+					recordAudit: async (record) => {
+						audit.push(record);
+					},
+				});
+
+				const result = await exec(call("t"));
+
+				expect(audit[0]?.decision, `decision for ${action}/${mode}`).toBe(expected.decision);
+
+				if (expected.decision === "deny") {
+					expect(result.content).toBe(`Denied: ${expected.reason}`);
+					expect(ran).toBe(false);
+					expect(audit[0]).toMatchObject({ executed: false, confirmed: false });
+				} else if (expected.decision === "confirm") {
+					// Declined → the tool did NOT run, content surfaces the old-gate reason verbatim.
+					expect(result.content).toBe(`Not run (awaiting confirmation): ${expected.reason}`);
+					expect(ran).toBe(false);
+					expect(audit[0]).toMatchObject({ executed: false, confirmed: false });
+				} else {
+					// allow → runs regardless of the confirmer.
+					expect(result.content).toBe(RUN_OUTPUT);
+					expect(ran).toBe(true);
+					expect(audit[0]).toMatchObject({ executed: true, confirmed: false });
+				}
+			});
+		}
+	}
 });
