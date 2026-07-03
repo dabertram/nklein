@@ -57,6 +57,42 @@ describe("LocalLlmClient.complete", () => {
 		expect(fetchImpl).toHaveBeenCalledTimes(1);
 	});
 
+	it("§5.AN: rejects an illegal json_schema name PRE-FLIGHT (no wasted network call)", async () => {
+		const fetchImpl = vi.fn(async () => jsonResponse("ok"));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.complete({
+				messages: [{ role: "user", content: "hi" }],
+				format: { jsonSchema: { name: "bad name!", schema: { type: "object" } } },
+			}),
+		).rejects.toBeInstanceOf(LocalLlmRequestError);
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
+	it("§5.AN: rejects a strict schema missing additionalProperties PRE-FLIGHT with a machine-stable code", async () => {
+		const fetchImpl = vi.fn(async () => jsonResponse("ok"));
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+		await expect(
+			client.complete({
+				messages: [{ role: "user", content: "hi" }],
+				format: {
+					jsonSchema: { name: "ok_name", schema: { type: "object", properties: { x: { type: "string" } } } },
+				},
+			}),
+		).rejects.toThrow(/strict_missing_additional_properties/);
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
 	it("sends full sampling params and json_schema response_format to the endpoint", async () => {
 		const fetchImpl = vi.fn(async () => jsonResponse("ok"));
 		const client = new LocalLlmClient({

@@ -1,3 +1,4 @@
+import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
 import { reasoningAndAnswerText } from "../core/reasoning-channel-split";
 import { withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
@@ -161,14 +162,23 @@ export class LocalLlmClient {
 		if (sampling.maxTokens !== undefined) body.max_tokens = sampling.maxTokens;
 		if (sampling.stop && sampling.stop.length > 0) body.stop = sampling.stop;
 		if (request.format?.jsonSchema) {
-			body.response_format = {
-				type: "json_schema",
-				json_schema: {
-					name: request.format.jsonSchema.name,
-					schema: request.format.jsonSchema.schema,
-					strict: request.format.jsonSchema.strict ?? true,
-				},
-			};
+			// §5.AN: validate the json_schema response_format OFFLINE via the shared builder instead of assembling it
+			// blind. LM Studio SILENTLY rejects an illegal schema name or a strict schema missing
+			// additionalProperties:false / with an incomplete `required` — an empty/failed completion that wastes a
+			// live model turn. Surface it as a pre-flight error (before any network call) with the machine-stable
+			// code@path. On success the envelope is byte-identical to the old inline literal.
+			const built = buildJsonSchemaResponseFormat({
+				name: request.format.jsonSchema.name,
+				schema: request.format.jsonSchema.schema,
+				options: { strict: request.format.jsonSchema.strict ?? true },
+			});
+			if (!built.ok) {
+				throw new LocalLlmRequestError(
+					`invalid json_schema response_format: ${built.errors.map((error) => `${error.code}@${error.path}`).join(", ")}`,
+					null,
+				);
+			}
+			body.response_format = built.responseFormat;
 		}
 		if (request.format?.grammar) {
 			// llama.cpp server honors a top-level `grammar`; harmless to servers that ignore it.
@@ -233,7 +243,10 @@ export class LocalLlmClient {
 		signal?: AbortSignal;
 	}): Promise<T> {
 		const format: LocalLlmStructuredFormat = {
-			jsonSchema: input.jsonSchema,
+			// generateStructured does its OWN JSON recovery + retry, so it doesn't need LM Studio's STRICT enforcement
+			// (which additionally rejects a schema lacking additionalProperties:false / a complete `required`) — default
+			// strict OFF here so a tolerant schema isn't silently rejected upstream; a caller can still opt into strict.
+			jsonSchema: { ...input.jsonSchema, strict: input.jsonSchema.strict ?? false },
 			...(input.grammar ? { grammar: input.grammar } : {}),
 		};
 		const sampling: LocalLlmSamplingOptions = { temperature: 0.1, ...input.sampling };
