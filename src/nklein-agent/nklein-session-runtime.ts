@@ -88,6 +88,7 @@ import {
 	type NKleinSdkToolApprovalResult,
 	type NKleinSdkUserInstructionService,
 } from "./sdk-runtime-boundary";
+import { decideTaskReanchorForRequest } from "./task-reanchor-before-model";
 import { createOpenAiCompatPhaseOnePickCaller, latestStepText, narrowToolsForStep } from "./two-phase-before-model";
 import type { TwoPhasePickModelCaller } from "./two-phase-tool-runner";
 
@@ -175,6 +176,16 @@ export function readKanbanLaunchConfigFromSessionRecord(
  * context compaction (the chain is otherwise only present as the tool call/result, which compaction can drop).
  */
 const focusChainBySessionId = new Map<string, FocusChain>();
+
+/**
+ * §5.AD opt-in GOAL re-anchor (gated by NKLEIN_GOAL_REANCHOR): the turn at which the immutable top-level goal was last
+ * re-injected, per session, so the cadence gate fires every N turns. Untouched (and this whole feature inert) when the
+ * flag is off ⇒ byte-identical default. Cleared alongside the focus chain on session end/reset.
+ */
+const goalReanchorLastTurnBySessionId = new Map<string, number>();
+
+/** Env-gated (NKLEIN_GOAL_REANCHOR) turn cadence for the opt-in immutable-goal re-anchor; sane default when unset. */
+const GOAL_REANCHOR_EVERY_N_TURNS = 6;
 
 export function doesNKleinToolInvalidateRepoMap(context: AgentAfterToolContext): boolean {
 	if (context.result.isError === true) {
@@ -285,6 +296,26 @@ function createKanbanContextFocusExtension(
 				const baseMessages = result?.messages ?? context.request.messages;
 				const messages = reanchorFocusChainMessages(baseMessages, focusChainBySessionId.get(sessionId) ?? null);
 				let finalResult = messages === baseMessages ? result : { ...result, messages };
+				// Section 5.AD opt-in immutable-GOAL re-anchor (gated by NKLEIN_GOAL_REANCHOR; default OFF = byte-identical):
+				// every N turns, re-inject the ORIGINAL top-level task near the end of the context so a drifting model is
+				// reminded of the goal. Distinct from the focus-chain re-anchor above (which re-projects the agent's OWN
+				// plan). Pure decision over the current messages; only appends when the cadence gate fires AND a goal exists.
+				if (isTruthyEnv(process.env.NKLEIN_GOAL_REANCHOR)) {
+					const currentMessages = finalResult?.messages ?? baseMessages;
+					const reanchor = decideTaskReanchorForRequest({
+						messages: currentMessages,
+						turnCount: context.snapshot.iteration,
+						lastReanchorTurn: goalReanchorLastTurnBySessionId.get(sessionId) ?? null,
+						everyNTurns: GOAL_REANCHOR_EVERY_N_TURNS,
+					});
+					if (reanchor.appended) {
+						goalReanchorLastTurnBySessionId.set(
+							sessionId,
+							reanchor.nextLastReanchorTurn ?? context.snapshot.iteration,
+						);
+						finalResult = { ...(finalResult ?? {}), messages: reanchor.messages };
+					}
+				}
 				// §5.O opt-in two-phase tool narrowing (inert without a caller ⇒ byte-identical default): run a phase-1 pick
 				// over the offered tools and narrow the request's tools to it. Catch-guarded — any failure leaves the turn
 				// unchanged, so the ON path can only help (a narrowed set) or no-op, never break the turn.
@@ -1238,6 +1269,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			this.taskIdBySessionId.delete(sessionId);
 			releaseNKleinLargeFileWorkflow(sessionId);
 			focusChainBySessionId.delete(sessionId);
+			goalReanchorLastTurnBySessionId.delete(sessionId);
 		}
 		this.clearTaskSessionBinding(taskId);
 		await this.releaseTaskMcpToolBundle(taskId);
@@ -1284,6 +1316,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		this.lastStartRequestByTaskId.clear();
 		releaseAllNKleinLargeFileWorkflows();
 		focusChainBySessionId.clear();
+		goalReanchorLastTurnBySessionId.clear();
 
 		const mcpBundles = [...this.mcpToolBundleByTaskId.values()];
 		this.mcpToolBundleByTaskId.clear();
