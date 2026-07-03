@@ -382,6 +382,7 @@ async function startServer(): Promise<{
 		{ pickDirectoryPathFromSystemDialog },
 		{ createRuntimeServer },
 		{ createRuntimeStateHub },
+		{ createBoardChatFeedbackWiring },
 		{ resolveInteractiveShellCommand },
 		{ shutdownRuntimeServer },
 		{ collectProjectWorktreeTaskIdsForRemoval, createWorkspaceRegistry },
@@ -393,6 +394,7 @@ async function startServer(): Promise<{
 		import("./server/directory-picker.js"),
 		import("./server/runtime-server.js"),
 		import("./server/runtime-state-hub.js"),
+		import("./server/board-chat-feedback-wiring.js"),
 		import("./server/shell.js"),
 		import("./server/shutdown-coordinator.js"),
 		import("./server/workspace-registry.js"),
@@ -414,8 +416,11 @@ async function startServer(): Promise<{
 			runtimeStateHub?.trackTerminalManager(workspaceId, manager);
 		},
 	});
+	// §5.AT/§5.AU board→chat feedback bridge: surface terminal card outcomes into the owning project chat.
+	const { observeNKleinSummary } = createBoardChatFeedbackWiring();
 	runtimeStateHub = createRuntimeStateHub({
 		workspaceRegistry,
+		observeNKleinSummary,
 	});
 	const runtimeHub = runtimeStateHub;
 	for (const { workspaceId, terminalManager } of workspaceRegistry.listManagedWorkspaces()) {

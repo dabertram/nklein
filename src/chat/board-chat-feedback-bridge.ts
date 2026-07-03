@@ -51,7 +51,8 @@ export interface BoardSummaryTransition {
 	taskId: string;
 	workspaceId: string;
 	columnId: OperatorColumnId;
-	prevSummary: OperatorSessionSummaryView | null;
+	/** Ignored by `onTransition` (the bridge tracks prev-signals internally, keyed by taskId); kept for callers/tests. */
+	prevSummary?: OperatorSessionSummaryView | null;
 	nextSummary: OperatorSessionSummaryView;
 	/** Off-summary signals (gate/clarify/block/ack) the summary doesn't carry; omit when unknown. */
 	overrides?: OperatorSignalOverrides;
@@ -66,6 +67,9 @@ const DEFAULT_DIGEST_DELAY_MS = 15_000;
 export interface BoardChatFeedbackBridge {
 	/** Feed one summary transition. Best-effort (never throws). */
 	onTransition: (transition: BoardSummaryTransition) => Promise<void>;
+	/** Seed a task's prev-signals WITHOUT deciding/surfacing — call on startup for each existing session so the first
+	 *  LIVE transition compares against the real state instead of replaying an old completion as a new notification. */
+	seed: (transition: Pick<BoardSummaryTransition, "taskId" | "columnId" | "nextSummary" | "overrides">) => void;
 	/** Flush any queued digest for a session immediately (e.g. on chat open); all sessions when omitted. */
 	flush: (sessionId?: string) => Promise<void>;
 	/** Cancel all timers (on dispose). */
@@ -210,6 +214,15 @@ export function createBoardChatFeedbackBridge(deps: BoardChatFeedbackBridgeDeps)
 		}
 	};
 
+	const seed = (
+		transition: Pick<BoardSummaryTransition, "taskId" | "columnId" | "nextSummary" | "overrides">,
+	): void => {
+		prevSignalsByTask.set(
+			transition.taskId,
+			mapSessionSummaryToOperatorSignals(transition.nextSummary, transition.columnId, transition.overrides ?? {}),
+		);
+	};
+
 	const dispose = (): void => {
 		for (const scheduled of schedulerBySession.values()) {
 			scheduled.cancel();
@@ -217,5 +230,5 @@ export function createBoardChatFeedbackBridge(deps: BoardChatFeedbackBridgeDeps)
 		schedulerBySession.clear();
 	};
 
-	return { onTransition, flush, dispose };
+	return { onTransition, seed, flush, dispose };
 }

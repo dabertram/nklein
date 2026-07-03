@@ -47,6 +47,15 @@ export interface CreateRuntimeStateHubDependencies {
 		| "buildWorkspaceStateSnapshot"
 		| "setNKleinSessionSummariesProvider"
 	>;
+	/** §5.AT/§5.AU board→chat feedback bridge: observe every NKlein task-session summary (the startup snapshot with
+	 *  `isInitial: true` = seed-only, and every live update) so the bridge can surface terminal outcomes / ASKs to the
+	 *  owning project chat. Best-effort; the hub never depends on its behavior. */
+	observeNKleinSummary?: (input: {
+		workspaceId: string;
+		workspacePath: string;
+		summary: RuntimeTaskSessionSummary;
+		isInitial: boolean;
+	}) => void;
 }
 
 export interface RuntimeStateHub {
@@ -614,6 +623,9 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			for (const summary of service.listSummaries()) {
 				previousSummariesByTaskId.set(summary.taskId, summary);
 				queueTaskSessionSummaryBroadcast(workspaceId, summary);
+				// §5.AT/§5.AU: SEED the feedback bridge with the startup snapshot (no surfacing — never replay an old
+				// completion as a new notification), then observe live transitions below.
+				deps.observeNKleinSummary?.({ workspaceId, workspacePath, summary, isInitial: true });
 				if (isReviewableNKleinSummary(summary)) {
 					verifyNKleinTaskBeforeReady(workspaceId, workspacePath, service, summary);
 				}
@@ -622,6 +634,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				const previousSummary = previousSummariesByTaskId.get(summary.taskId);
 				previousSummariesByTaskId.set(summary.taskId, summary);
 				queueTaskSessionSummaryBroadcast(workspaceId, summary);
+				deps.observeNKleinSummary?.({ workspaceId, workspacePath, summary, isInitial: false });
 				// A freshly-started task is usually still queued/starting when start() returns, so the synchronous lane
 				// reconcile in startTaskSession is a no-op. Move the card out of Backlog the instant it actually
 				// transitions to running, so the board never shows agent activity behind a card still in Backlog (the
