@@ -30,6 +30,7 @@ import {
 	Settings,
 	ShieldCheck,
 	SlidersHorizontal,
+	Wand2,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -205,6 +206,8 @@ export function RuntimeSettingsDialog({
 	onSaved,
 	onAccountSwitched,
 	initialSection,
+	onRunGlobalSetupWizard,
+	onRunProjectSetupWizard,
 }: {
 	open: boolean;
 	workspaceId: string | null;
@@ -214,6 +217,10 @@ export function RuntimeSettingsDialog({
 	onSaved?: () => void;
 	onAccountSwitched?: () => void;
 	initialSection?: RuntimeSettingsSection | null;
+	/** §5.BA re-trigger for the GLOBAL guided-setup wizard (rendered in the General section). */
+	onRunGlobalSetupWizard?: () => void;
+	/** §5.BA re-trigger for the PROJECT guided-setup wizard (rendered in the Project section; omit when no project). */
+	onRunProjectSetupWizard?: () => void;
 }): React.ReactElement {
 	const { config, isLoading, isSaving, save, refresh } = useRuntimeConfig(open, workspaceId, initialConfig);
 	const { resetLayoutCustomizations } = useLayoutCustomizations();
@@ -1533,6 +1540,29 @@ export function RuntimeSettingsDialog({
 							</p>
 						</div>
 
+						{/* §5.BA guided-setup re-trigger (GLOBAL). The per-project wizard lives in the Project section below. */}
+						{onRunGlobalSetupWizard ? (
+							<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+								<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+									Guided setup
+								</h6>
+								<div className="flex items-center justify-between gap-3">
+									<p className="text-text-secondary text-[13px] m-0">
+										Walk through the recommended global configuration again.
+									</p>
+									<Button
+										variant="default"
+										size="sm"
+										icon={<Wand2 size={14} />}
+										onClick={onRunGlobalSetupWizard}
+										disabled={controlsDisabled}
+									>
+										Run setup wizard
+									</Button>
+								</div>
+							</div>
+						) : null}
+
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
 								Advanced
@@ -2716,6 +2746,29 @@ export function RuntimeSettingsDialog({
 								<ExternalLink size={12} className="inline ml-1.5 align-middle" />
 							) : null}
 						</p>
+						{/* §5.BA guided-setup re-trigger (PROJECT). Scoped to this project's settings, NOT the global modal —
+						    per the user directive. Only shown when a project is active (App passes onRunProjectSetupWizard). */}
+						{onRunProjectSetupWizard ? (
+							<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+								<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+									Guided setup
+								</h6>
+								<div className="flex items-center justify-between gap-3">
+									<p className="text-text-secondary text-[13px] m-0">
+										Walk through the recommended settings for this project again.
+									</p>
+									<Button
+										variant="default"
+										size="sm"
+										icon={<Wand2 size={14} />}
+										onClick={onRunProjectSetupWizard}
+										disabled={controlsDisabled}
+									>
+										Run setup wizard
+									</Button>
+								</div>
+							</div>
+						) : null}
 						<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
 							<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-3">
 								Per-project overrides

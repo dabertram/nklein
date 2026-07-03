@@ -11,6 +11,7 @@ import type {
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
 	RuntimeRunUpdateResponse,
+	RuntimeSetupPlanResponse,
 	RuntimeUpdateStatusResponse,
 } from "@/runtime/types";
 
@@ -32,6 +33,16 @@ export async function fetchModelPerformanceStats(
 ): Promise<RuntimeModelPerformanceStatsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getModelPerformanceStats.query();
+}
+
+export async function fetchGlobalSetupPlan(workspaceId: string | null): Promise<RuntimeSetupPlanResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getGlobalSetupPlan.query();
+}
+
+export async function fetchProjectSetupPlan(workspaceId: string | null): Promise<RuntimeSetupPlanResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getProjectSetupPlan.query();
 }
 
 export async function fetchKleinCorePyHealth(workspaceId: string | null): Promise<RuntimeKleinCorePyHealthResponse> {

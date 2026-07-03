@@ -18,6 +18,7 @@ import { GitHistoryView } from "@/components/git-history-view";
 import { KanbanBoard } from "@/components/kanban-board";
 import { ProjectNavigationPanel } from "@/components/project-navigation-panel";
 import { RuntimeSettingsDialog, type RuntimeSettingsSection } from "@/components/runtime-settings-dialog";
+import { SetupWizardDialog } from "@/components/setup-wizard-dialog";
 import { StartupOnboardingDialog } from "@/components/startup-onboarding-dialog";
 import { TaskCreateDialog } from "@/components/task-create-dialog";
 import { TaskInlineCreateCard } from "@/components/task-inline-create-card";
@@ -50,6 +51,7 @@ import { useOpenWorkspace } from "@/hooks/use-open-workspace";
 import { parseRemovedProjectPathFromStreamError, useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useProjectUiState } from "@/hooks/use-project-ui-state";
 import { useReviewReadyNotifications } from "@/hooks/use-review-ready-notifications";
+import { useSetupWizard } from "@/hooks/use-setup-wizard";
 import { useShortcutActions } from "@/hooks/use-shortcut-actions";
 import { useStartupOnboarding } from "@/hooks/use-startup-onboarding";
 import { useTaskBranchOptions } from "@/hooks/use-task-branch-options";
@@ -176,6 +178,29 @@ export default function App(): ReactElement {
 		isTaskAgentReady,
 		refreshRuntimeProjectConfig,
 		refreshSettingsRuntimeProjectConfig,
+	});
+	// §5.BA guided-setup wizards. Two independent controllers (global, project). Precedence: the global wizard fires
+	// first at startup; the project wizard is held back (autoFireSuppressed) while startup onboarding or the global
+	// wizard is showing, so two modals never stack. The project wizard only fetches/auto-fires once a project is active.
+	const globalSetupWizard = useSetupWizard({
+		kind: "global",
+		workspaceId: currentProjectId,
+		enabled: true,
+		autoFireSuppressed: isStartupOnboardingDialogOpen,
+		onCompleted: () => {
+			refreshRuntimeProjectConfig();
+			refreshSettingsRuntimeProjectConfig();
+		},
+	});
+	const projectSetupWizard = useSetupWizard({
+		kind: "project",
+		workspaceId: currentProjectId,
+		enabled: currentProjectId !== null,
+		autoFireSuppressed: isStartupOnboardingDialogOpen || globalSetupWizard.isOpen,
+		onCompleted: () => {
+			refreshRuntimeProjectConfig();
+			refreshSettingsRuntimeProjectConfig();
+		},
 	});
 	const {
 		developerModeEnabled,
@@ -1223,6 +1248,18 @@ export default function App(): ReactElement {
 						refreshSettingsRuntimeProjectConfig();
 					}}
 					onAccountSwitched={refreshKanbanAccess}
+					onRunGlobalSetupWizard={() => {
+						setIsSettingsOpen(false);
+						globalSetupWizard.open();
+					}}
+					onRunProjectSetupWizard={
+						settingsWorkspaceId !== null
+							? () => {
+									setIsSettingsOpen(false);
+									projectSetupWizard.open();
+								}
+							: undefined
+					}
 				/>
 				{/* informational dev surface -> developer mode only (works in packaged builds) */}
 				<CommandPalette
@@ -1313,6 +1350,26 @@ export default function App(): ReactElement {
 					runtimeConfig={runtimeProjectConfig ?? null}
 					onSelectAgent={handleSelectOnboardingAgent}
 					onNKleinSetupSaved={handleOnboardingNKleinSetupSaved}
+				/>
+
+				{/* §5.BA guided-setup wizards. Global takes precedence; project is suppressed while global is open. */}
+				<SetupWizardDialog
+					open={globalSetupWizard.isOpen}
+					kind="global"
+					steps={globalSetupWizard.steps}
+					isSaving={globalSetupWizard.isSaving}
+					completedAt={globalSetupWizard.completedAt}
+					onComplete={() => void globalSetupWizard.complete()}
+					onSkip={globalSetupWizard.skip}
+				/>
+				<SetupWizardDialog
+					open={projectSetupWizard.isOpen}
+					kind="project"
+					steps={projectSetupWizard.steps}
+					isSaving={projectSetupWizard.isSaving}
+					completedAt={projectSetupWizard.completedAt}
+					onComplete={() => void projectSetupWizard.complete()}
+					onSkip={projectSetupWizard.skip}
 				/>
 
 				<AddProjectDialog
