@@ -42,6 +42,7 @@ import { createIdleTaskSession } from "@/hooks/app-utils";
 import { KanbanAccessBlockedFallback } from "@/hooks/kanban-access-blocked-fallback";
 import { RuntimeDisconnectedFallback } from "@/hooks/runtime-disconnected-fallback";
 import { useAppHotkeys } from "@/hooks/use-app-hotkeys";
+import { useBoardActivityTicks } from "@/hooks/use-board-activity-ticks";
 import { useBoardInteractions } from "@/hooks/use-board-interactions";
 import { useDebugTools } from "@/hooks/use-debug-tools";
 import { useDetailTaskNavigation } from "@/hooks/use-detail-task-navigation";
@@ -102,6 +103,10 @@ export default function App(): ReactElement {
 	// §5.BB: the zoom-level surface (0 overview · 1 lean · 2 expert · 3 professional), chat as the constant rail.
 	const { zoom, setZoom, streamFilter, zoomToStream } = useZoomLevel();
 	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>({});
+	// §5.BB: live board-activity ticks (pure snapshot diff) interleaved into the chat transcript.
+	const activityTicks = useBoardActivityTicks(
+		useMemo(() => ({ columns: board.columns, sessions }), [board.columns, sessions]),
+	);
 	const [canPersistWorkspaceState, setCanPersistWorkspaceState] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [settingsInitialSection, setSettingsInitialSection] = useState<RuntimeSettingsSection | null>(null);
@@ -1288,7 +1293,17 @@ export default function App(): ReactElement {
 					boardCards={board.columns.flatMap((column) =>
 						column.id === "trash" ? [] : column.cards.map((card) => ({ id: card.id, title: card.title })),
 					)}
+					boardStreams={[
+						...new Set(
+							board.columns.flatMap((column) =>
+								column.id === "trash"
+									? []
+									: column.cards.flatMap((card) => card.generatedFromPlan?.planSlug?.trim() || []),
+							),
+						),
+					].map((slug) => ({ id: slug, title: slug.replaceAll(/[-_]+/g, " ") }))}
 					onOpenCard={handleCardSelect}
+					activityTicks={activityTicks}
 				/>
 				<RuntimeSettingsDialog
 					open={isSettingsOpen}

@@ -1,6 +1,14 @@
 import { Bot, MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import type { ActivityTick } from "@/components/chat/board-activity-ticker";
 import { type ChatCardCandidate, segmentChatMessage } from "@/components/chat/chat-card-references";
+import {
+	type ActiveMention,
+	applyMention,
+	filterMentionCandidates,
+	getActiveMention,
+	type MentionCandidate,
+} from "@/components/chat/composer-mention";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -463,6 +471,36 @@ function MessageBubble({
 	);
 }
 
+/**
+ * §5.BB — one board-activity tick interleaved in the transcript: a slim, centered system line ("Classify trends
+ * → review · 12:03"). Clicking it opens the card in the main panel (same affordance as the message chips).
+ */
+function ActivityTickLine({
+	tick,
+	onOpenCard,
+}: {
+	tick: ActivityTick;
+	onOpenCard?: (cardId: string) => void;
+}): React.ReactElement {
+	const time = new Date(tick.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+	return (
+		<div className="flex justify-center" data-testid="chat-activity-tick" data-kind={tick.kind}>
+			<button
+				type="button"
+				onClick={onOpenCard ? () => onOpenCard(tick.cardId) : undefined}
+				disabled={!onOpenCard}
+				title="Open the card in the main panel"
+				className={cn(
+					"max-w-[92%] truncate rounded-full px-2.5 py-0.5 text-[11px] text-text-tertiary",
+					onOpenCard ? "hover:bg-surface-2 hover:text-accent cursor-pointer" : "cursor-default",
+				)}
+			>
+				◦ {tick.label} · {time}
+			</button>
+		</div>
+	);
+}
+
 // ─── ChatPanel ─────────────────────────────────────────────────────────────────
 
 /**
@@ -559,14 +597,24 @@ function ChatPanel({
 	onCollapse,
 	boardCards = [],
 	onOpenCard,
+	activityTicks = [],
+	boardStreams = [],
 }: {
 	enabled: boolean;
 	onCollapse: () => void;
 	boardCards?: readonly ChatCardCandidate[];
 	onOpenCard?: (cardId: string) => void;
+	/** §5.BB: live board-activity ticks interleaved into the transcript (chronological with the messages). */
+	activityTicks?: readonly ActivityTick[];
+	/** §5.BB: plan streams (id + display title) offered by the composer's @-mention popover. */
+	boardStreams?: readonly { id: string; title: string }[];
 }): React.ReactElement {
 	const chat = useChatData(enabled);
 	const [draft, setDraft] = useState("");
+	// §5.BB @-mention popover state: the token being typed (null = closed) + the highlighted row.
+	const [mention, setMention] = useState<ActiveMention | null>(null);
+	const [mentionIndex, setMentionIndex] = useState(0);
+	const composerRef = useRef<HTMLTextAreaElement | null>(null);
 	const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 	const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
 	const selectedSession = chat.sessions.find((session) => session.id === chat.selectedSessionId) ?? null;
@@ -575,9 +623,48 @@ function ChatPanel({
 	// (progress/details stay put at the reader's pace); the "↓ Follow" pill (or scrolling back down) re-attaches.
 	const sticky = useStickyTranscript({
 		containerRef: transcriptContainerRef,
-		contentVersion: chat.transcript.length * 100_000 + (chat.streamingText?.length ?? 0),
+		contentVersion: (chat.transcript.length + activityTicks.length) * 100_000 + (chat.streamingText?.length ?? 0),
 		resetKey: chat.selectedSessionId,
 	});
+
+	// Interleave persisted messages and activity ticks chronologically (both carry epoch-ms timestamps). Messages
+	// win ties so a reply never renders below a same-instant tick.
+	const timelineItems: Array<{ at: number; message?: RuntimeChatMessage; tick?: ActivityTick }> = [
+		...chat.transcript.map((message) => ({ at: message.createdAt, message })),
+		...activityTicks.map((tick) => ({ at: tick.at, tick })),
+	];
+	timelineItems.sort((left, right) => left.at - right.at || (left.message ? -1 : 1));
+
+	// §5.BB @-mentions: cards + streams the popover offers, filtered by what's typed after the "@".
+	const mentionCandidates: MentionCandidate[] = [
+		...boardCards.map((card) => ({ kind: "card" as const, id: card.id, title: card.title })),
+		...boardStreams.map((stream) => ({ kind: "stream" as const, id: stream.id, title: stream.title })),
+	];
+	const mentionMatches = mention ? filterMentionCandidates(mention.query, mentionCandidates) : [];
+
+	const refreshMention = (value: string, caret: number): void => {
+		const active = getActiveMention(value, caret);
+		setMention((current) => {
+			if (current?.start !== active?.start) {
+				setMentionIndex(0);
+			}
+			return active;
+		});
+	};
+
+	const acceptMention = (candidate: MentionCandidate): void => {
+		if (!mention) {
+			return;
+		}
+		const caret = composerRef.current?.selectionStart ?? draft.length;
+		const applied = applyMention(draft, mention, caret, candidate);
+		setDraft(applied.next);
+		setMention(null);
+		requestAnimationFrame(() => {
+			composerRef.current?.focus();
+			composerRef.current?.setSelectionRange(applied.caret, applied.caret);
+		});
+	};
 
 	const handleSubmit = (event: FormEvent): void => {
 		event.preventDefault();
@@ -586,10 +673,33 @@ function ChatPanel({
 		}
 		const message = draft;
 		setDraft("");
+		setMention(null);
 		void chat.sendMessage(message);
 	};
 
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+		// While the @-mention popover is open it owns the keyboard: arrows move, Enter/Tab pick, Esc closes.
+		if (mention && mentionMatches.length > 0) {
+			if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+				event.preventDefault();
+				const step = event.key === "ArrowDown" ? 1 : -1;
+				setMentionIndex((index) => (index + step + mentionMatches.length) % mentionMatches.length);
+				return;
+			}
+			if (event.key === "Enter" || event.key === "Tab") {
+				event.preventDefault();
+				const picked = mentionMatches[Math.min(mentionIndex, mentionMatches.length - 1)];
+				if (picked) {
+					acceptMention(picked);
+				}
+				return;
+			}
+			if (event.key === "Escape") {
+				event.preventDefault();
+				setMention(null);
+				return;
+			}
+		}
 		if (event.key === "Enter" && !event.shiftKey) {
 			event.preventDefault();
 			handleSubmit(event);
@@ -679,14 +789,18 @@ function ChatPanel({
 								className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 flex flex-col gap-3"
 								data-testid="chat-transcript"
 							>
-								{chat.transcript.map((message) => (
-									<MessageBubble
-										key={message.id}
-										message={message}
-										boardCards={boardCards}
-										onOpenCard={onOpenCard}
-									/>
-								))}
+								{timelineItems.map((item) =>
+									item.message ? (
+										<MessageBubble
+											key={item.message.id}
+											message={item.message}
+											boardCards={boardCards}
+											onOpenCard={onOpenCard}
+										/>
+									) : item.tick ? (
+										<ActivityTickLine key={item.tick.id} tick={item.tick} onOpenCard={onOpenCard} />
+									) : null,
+								)}
 								{/* Optimistic user bubble while the turn is in flight (before the transcript catches up). */}
 								{chat.pendingUserText !== null ? (
 									<MessageBubble
@@ -741,15 +855,65 @@ function ChatPanel({
 							/>
 							<form
 								onSubmit={handleSubmit}
-								className="border-t border-border p-3 flex items-end gap-2 bg-surface-1 shrink-0 min-w-0"
+								className="relative border-t border-border p-3 flex items-end gap-2 bg-surface-1 shrink-0 min-w-0"
 							>
+								{mention && mentionMatches.length > 0 ? (
+									<div
+										data-testid="chat-mention-popover"
+										className="absolute bottom-full left-3 right-3 mb-1 overflow-hidden rounded-md border border-border bg-surface-1 shadow-lg"
+									>
+										{mentionMatches.map((candidate, index) => (
+											<button
+												key={`${candidate.kind}:${candidate.id}`}
+												type="button"
+												data-testid="chat-mention-option"
+												onMouseDown={(event) => {
+													// mousedown (not click) so the textarea never loses focus first
+													event.preventDefault();
+													acceptMention(candidate);
+												}}
+												onMouseEnter={() => setMentionIndex(index)}
+												className={cn(
+													"flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[12px]",
+													index === mentionIndex
+														? "bg-surface-2 text-text-primary"
+														: "text-text-secondary",
+												)}
+											>
+												<span
+													className={cn(
+														"shrink-0 text-[10px] font-semibold uppercase",
+														candidate.kind === "card" ? "text-accent" : "text-accent-2",
+													)}
+												>
+													{candidate.kind === "card" ? "card" : "#"}
+												</span>
+												<span className="truncate">{candidate.title}</span>
+												<span className="ml-auto shrink-0 truncate text-[10.5px] text-text-tertiary">
+													{candidate.id}
+												</span>
+											</button>
+										))}
+									</div>
+								) : null}
 								<textarea
+									ref={composerRef}
 									data-testid="chat-composer-input"
 									className="flex-1 min-w-0 resize-none rounded-md border border-border bg-surface-2 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus min-h-[40px] max-h-32"
 									rows={1}
-									placeholder="Message the local model…"
+									placeholder="Message the local model… (@ targets a card or stream)"
 									value={draft}
-									onChange={(event) => setDraft(event.target.value)}
+									onChange={(event) => {
+										setDraft(event.target.value);
+										refreshMention(
+											event.target.value,
+											event.target.selectionStart ?? event.target.value.length,
+										);
+									}}
+									onSelect={(event) => {
+										const target = event.currentTarget;
+										refreshMention(target.value, target.selectionStart ?? target.value.length);
+									}}
 									onKeyDown={handleKeyDown}
 								/>
 								<Button
@@ -799,11 +963,17 @@ function ChatPanel({
 export function ChatSidebar({
 	boardCards,
 	onOpenCard,
+	activityTicks,
+	boardStreams,
 }: {
 	/** §5.BB: current board cards (id + title) so assistant messages render openable card chips. */
 	boardCards?: readonly ChatCardCandidate[];
 	/** Opens a referenced card in the MAIN PANEL (the chat is the steering wheel, the panel shows the detail). */
 	onOpenCard?: (cardId: string) => void;
+	/** §5.BB: live board-activity ticks to interleave into the transcript. */
+	activityTicks?: readonly ActivityTick[];
+	/** §5.BB: plan streams offered by the composer's @-mention popover. */
+	boardStreams?: readonly { id: string; title: string }[];
 } = {}): React.ReactElement {
 	const { width, isCollapsed, setWidth, setCollapsed } = useChatSidebarLayout();
 	const { startDrag } = useResizeDrag();
@@ -846,7 +1016,14 @@ export function ChatSidebar({
 				}
 			/>
 			<div className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
-				<ChatPanel enabled onCollapse={() => setCollapsed(true)} boardCards={boardCards} onOpenCard={onOpenCard} />
+				<ChatPanel
+					enabled
+					onCollapse={() => setCollapsed(true)}
+					boardCards={boardCards}
+					onOpenCard={onOpenCard}
+					activityTicks={activityTicks}
+					boardStreams={boardStreams}
+				/>
 			</div>
 		</aside>
 	);
