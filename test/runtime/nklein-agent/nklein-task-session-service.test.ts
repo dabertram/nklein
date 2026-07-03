@@ -801,7 +801,8 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		);
 	});
 
-	// §5.AC step 3 — the egress-gated web_search tool binding at the session seams (fail-closed by default).
+	// §5.AC — the egress-gated `research` tool (the retrieval LOOP; single online-retrieval path) at the session
+	// seams (fail-closed by default; requires egress + a configured search backend).
 	async function startAndReadExtraToolNames(input: {
 		taskId: string;
 		retrievalEgressEnabled?: boolean;
@@ -837,45 +838,46 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		return (startRequest?.extraTools ?? []).map((tool) => tool.name);
 	}
 
-	it("fails closed by default: sessions get neither retrieval tool (§5.AC)", async () => {
+	it("fails closed by default: sessions get no research tool (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({ taskId: "task-1" });
 		expect(toolNames).toContain("repo_map");
-		expect(toolNames).not.toContain("web_search");
-		expect(toolNames).not.toContain("browse_url");
+		expect(toolNames).not.toContain("research");
 	});
 
-	// SPLIT GATE — browse_url needs ONLY egress (browsing is independent of the search backend); web_search additionally
-	// needs a configured backend URL. So egress-on with NO backend gets browse_url but not web_search.
-	it("attaches browse_url (but not web_search) when egress is enabled without a backend (§5.AC)", async () => {
+	// The retrieval LOOP requires a configured search backend (it searches). Egress-on WITHOUT a backend attaches
+	// nothing — there is no online-retrieval path without search (the manual browse_url/web_search split is retired).
+	it("attaches no research tool when egress is enabled without a backend (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({
 			taskId: "task-1",
 			retrievalEgressEnabled: true,
 			retrievalSearchBackendUrl: null,
 		});
-		expect(toolNames).toContain("browse_url");
+		expect(toolNames).not.toContain("research");
 		expect(toolNames).not.toContain("web_search");
+		expect(toolNames).not.toContain("browse_url");
 	});
 
-	it("attaches BOTH retrieval tools alongside the sandbox tools when egress is enabled with a backend (§5.AC)", async () => {
+	it("attaches the research tool alongside the sandbox tools when egress is enabled with a backend (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({
 			taskId: "task-1",
 			retrievalEgressEnabled: true,
 			retrievalSearchBackendUrl: "http://searx.lan:8080",
 		});
 		expect(toolNames).toContain("repo_map");
-		expect(toolNames).toContain("web_search");
-		expect(toolNames).toContain("browse_url");
+		expect(toolNames).toContain("research");
+		// The manual tools are retired.
+		expect(toolNames).not.toContain("web_search");
+		expect(toolNames).not.toContain("browse_url");
 	});
 
-	it("never attaches either retrieval tool to synthetic sessions even when egress is enabled (§5.AC)", async () => {
+	it("never attaches the research tool to synthetic sessions even when egress is enabled (§5.AC)", async () => {
 		const toolNames = await startAndReadExtraToolNames({
 			taskId: "task-1::review",
 			retrievalEgressEnabled: true,
 			retrievalSearchBackendUrl: "http://searx.lan:8080",
 		});
 		expect(toolNames).toContain("repo_map");
-		expect(toolNames).not.toContain("web_search");
-		expect(toolNames).not.toContain("browse_url");
+		expect(toolNames).not.toContain("research");
 	});
 
 	it("emits a queued summary while waiting for sandbox capacity", async () => {

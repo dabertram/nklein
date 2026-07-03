@@ -45,6 +45,9 @@ import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { assemblePromptFragments, computeSharedPrefixRatio } from "../core/prompt-fragment-assembly";
+import { browserFetchAdapter } from "../core/retrieval-fetch-adapter";
+import { runRetrievalLoop } from "../core/retrieval-loop-driver";
+import { searchHitsAdapter } from "../core/retrieval-search-adapter";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
@@ -77,7 +80,6 @@ import {
 	resolveNKleinAgentPerceivedCwd,
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
-import { createNKleinBrowseTool } from "./nklein-browse-tool";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS, planContextBudget } from "./nklein-context-budget-plan";
 import {
@@ -120,6 +122,7 @@ import {
 	type NKleinPlanCritiqueSubmittedHandler,
 } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
+import { createNKleinResearchTool } from "./nklein-research-tool";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import {
@@ -176,7 +179,6 @@ import {
 	type NKleinRuntimeSetupLease,
 	type NKleinWatcherRegistry,
 } from "./nklein-watcher-registry";
-import { createNKleinWebSearchTool } from "./nklein-web-search-tool";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
 import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
 import type { AgentTool } from "./sdk-agent-types";
@@ -869,26 +871,35 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (this.retrievalEgressEnabled !== true) {
 			return [];
 		}
-		const tools: AgentTool[] = [];
-		// browse_url — egress-on is sufficient (independent of the search backend). SSRF guard forced ALWAYS on.
-		tools.push(
-			createNKleinBrowseTool({
-				fetchPage: (url) => buildDefaultBrowserDeps().fetchPage(url),
-			}),
-		);
-		// web_search — additionally requires a configured backend URL.
-		if (this.retrievalSearchBackendUrl?.trim()) {
-			tools.push(
-				createNKleinWebSearchTool({
-					search: (query) =>
-						createSearxngWebSearchClient({
-							backendBaseUrl: this.retrievalSearchBackendUrl,
-							egressEnabled: this.retrievalEgressEnabled,
-						}).search(query),
-				}),
-			);
+		// §5.AC (user decision 2026-07-03): the retrieval LOOP is the single online-retrieval path — the manual
+		// web_search + browse_url chaining is retired in favor of one `research` tool that drives the whole
+		// bounded loop (search → rank → fetch → sufficiency). It REQUIRES a configured search backend (the loop
+		// searches); egress-on WITHOUT a backend attaches nothing (there is no online retrieval without search).
+		// The egress lives entirely in the injected adapters (SearXNG search + SSRF-guarded browse fetch),
+		// re-read from the LIVE service fields per call so a config-off mid-session fails closed on the next call.
+		const backendUrl = this.retrievalSearchBackendUrl?.trim();
+		if (!backendUrl) {
+			return [];
 		}
-		return tools;
+		return [
+			createNKleinResearchTool({
+				runLoop: (input) =>
+					runRetrievalLoop(
+						input.question,
+						{
+							search: searchHitsAdapter((query) =>
+								createSearxngWebSearchClient({
+									backendBaseUrl: this.retrievalSearchBackendUrl,
+									egressEnabled: this.retrievalEgressEnabled,
+								}).search(query),
+							),
+							fetch: browserFetchAdapter((url) => buildDefaultBrowserDeps().fetchPage(url)),
+							now: () => Date.now(),
+						},
+						{ ...(input.knowledgeDebt ? { knowledgeDebt: [...input.knowledgeDebt] } : {}) },
+					),
+			}),
+		];
 	}
 
 	/** Sandbox-proxied extra tools ⊕ the §5.AC retrieval tools, or undefined when there is nothing to attach. */
