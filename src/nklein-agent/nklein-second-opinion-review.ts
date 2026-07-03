@@ -101,6 +101,8 @@ function buildNextReview(input: {
 	parkedReason: string | null;
 	previousSignOff: string | null;
 	now: number;
+	/** §5.AW: persisted A/B arbitration pick on a delivered review; omitted otherwise. */
+	preferredCandidate?: "primary" | "speculative";
 }): RuntimeCardReview {
 	return {
 		status: input.status,
@@ -112,6 +114,7 @@ function buildNextReview(input: {
 		lastInsight: input.submission.insight,
 		signOff: input.signOff ?? input.previousSignOff,
 		parkedReason: input.parkedReason,
+		...(input.preferredCandidate ? { preferredCandidate: input.preferredCandidate } : {}),
 		updatedAt: input.now,
 	};
 }
@@ -175,6 +178,8 @@ export async function runNKleinSecondOpinionReview(
 	const previousSignOff = card.review?.signOff ?? null;
 
 	if (transition.action === "deliver") {
+		// §5.AW: an approving reviewer that named no candidate delivers the PRIMARY (conservative default).
+		const preferred = speculativeDiff ? (submission.preferred ?? "primary") : null;
 		const review = buildNextReview({
 			round,
 			history,
@@ -185,15 +190,15 @@ export async function runNKleinSecondOpinionReview(
 			parkedReason: null,
 			previousSignOff,
 			now,
+			// Persist the pick so a restart between this verdict and delivery still delivers the winner.
+			...(preferred ? { preferredCandidate: preferred } : {}),
 		});
 		await input.deps.onDeliver({ taskId: input.taskId, review });
 		return {
 			type: "delivered",
 			round,
 			signOff: transition.signOff,
-			// Arbitration verdict: an approving reviewer that names no candidate delivers the PRIMARY (the
-			// conservative default — the card's own worker won unless the reviewer said otherwise).
-			preferred: speculativeDiff ? (submission.preferred ?? "primary") : null,
+			preferred,
 		};
 	}
 	if (transition.action === "bounce_to_worker") {

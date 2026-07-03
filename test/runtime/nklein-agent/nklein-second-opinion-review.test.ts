@@ -20,6 +20,7 @@ function makeDeps(overrides: {
 	card?: SecondOpinionReviewCard | null;
 	diff?: string | null;
 	submission?: ReviewSubmissionInput | null;
+	speculativeDiff?: string | null;
 }): RunNKleinSecondOpinionReviewInput["deps"] & {
 	onDeliver: ReturnType<typeof vi.fn>;
 	onBounce: ReturnType<typeof vi.fn>;
@@ -33,6 +34,9 @@ function makeDeps(overrides: {
 	return {
 		getCard: vi.fn(async () => card),
 		getTaskDiff: vi.fn(async () => (overrides.diff === undefined ? "diff --git a/x b/x\n+code" : overrides.diff)),
+		...(overrides.speculativeDiff !== undefined
+			? { getSpeculativeDiff: vi.fn(async () => overrides.speculativeDiff ?? null) }
+			: {}),
 		runReviewSession: vi.fn(async () =>
 			overrides.submission === undefined
 				? ({ verdict: "approve", summary: "LGTM", feedback: null, insight: null } satisfies ReviewSubmissionInput)
@@ -97,6 +101,39 @@ describe("runNKleinSecondOpinionReview", () => {
 	it("skips when the reviewer session returns no verdict", async () => {
 		const deps = makeDeps({ submission: null });
 		expect(await runNKleinSecondOpinionReview({ ...base, deps })).toEqual({ type: "skipped", reason: "no_verdict" });
+	});
+
+	it("§5.AW: persists the reviewer's A/B pick on the delivered review (durable across restart)", async () => {
+		const choseSpec = makeDeps({
+			submission: {
+				verdict: "approve",
+				summary: "B is cleaner",
+				feedback: null,
+				insight: null,
+				preferred: "speculative",
+			},
+			speculativeDiff: "diff --git a/alt b/alt\n+alt",
+		});
+		const specOutcome = await runNKleinSecondOpinionReview({ ...base, deps: choseSpec });
+		expect(specOutcome).toMatchObject({ type: "delivered", preferred: "speculative" });
+		expect(firstArg<{ review: RuntimeCardReview }>(choseSpec.onDeliver).review.preferredCandidate).toBe(
+			"speculative",
+		);
+
+		// An approving reviewer that names no candidate (but a spec existed) delivers PRIMARY, persisted.
+		const silent = makeDeps({
+			submission: { verdict: "approve", summary: "fine", feedback: null, insight: null },
+			speculativeDiff: "diff --git a/alt b/alt\n+alt",
+		});
+		await runNKleinSecondOpinionReview({ ...base, deps: silent });
+		expect(firstArg<{ review: RuntimeCardReview }>(silent.onDeliver).review.preferredCandidate).toBe("primary");
+
+		// No speculative candidate ⇒ no arbitration ⇒ the field is absent.
+		const noSpec = makeDeps({
+			submission: { verdict: "approve", summary: "fine", feedback: null, insight: null },
+		});
+		await runNKleinSecondOpinionReview({ ...base, deps: noSpec });
+		expect(firstArg<{ review: RuntimeCardReview }>(noSpec.onDeliver).review.preferredCandidate).toBeUndefined();
 	});
 
 	it("delivers on approve, persisting an approved review with sign-off", async () => {

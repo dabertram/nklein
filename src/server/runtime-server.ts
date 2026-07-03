@@ -927,9 +927,16 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					deps.warn(`Second-opinion review outcome for ${taskId}: ${reviewOutcome.type}${reviewReason}`);
 					// §5.AW arbitration: when the reviewer compared candidates A/B and preferred the SPECULATIVE
 					// one, every delivery step below (acceptance evidence, protected-path scan, the merge itself)
-					// must target the ::spec result branch while all board bookkeeping stays on the card id.
+					// must target the ::spec result branch while all board bookkeeping stays on the card id. The
+					// in-process reviewOutcome.preferred is authoritative; the persisted review.preferredCandidate
+					// is the DURABLE fallback so a restart between the verdict and this delivery still ships the
+					// winner (the persistence is written by the review orchestrator's onDeliver).
+					const persistedPreferred = reviewState.board.columns
+						.flatMap((column) => column.cards)
+						.find((c) => c.id === taskId)?.review?.preferredCandidate;
 					let preferredSpeculative =
-						reviewOutcome.type === "delivered" && reviewOutcome.preferred === "speculative";
+						reviewOutcome.type === "delivered" &&
+						(reviewOutcome.preferred ?? persistedPreferred ?? null) === "speculative";
 					let deliveredBranchTaskId = preferredSpeculative ? `${taskId}::spec` : taskId;
 					if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
 						recordSelfObservation({

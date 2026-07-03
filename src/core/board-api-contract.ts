@@ -85,6 +85,12 @@ export const runtimeCardReviewSchema = z.object({
 	parkedReason: z.string().nullable().default(null),
 	/** True once this card's ONE diverse-worker escalation has fired (§5.AW W4.2 — server-side truth; optional for older boards). */
 	escalated: z.boolean().optional(),
+	/**
+	 * §5.AW best-of-N: the reviewer's A/B arbitration pick, persisted so a restart BETWEEN the review verdict
+	 * and delivery still delivers the winning candidate (without it, delivery falls back to primary). Absent on
+	 * non-arbitration reviews and older boards.
+	 */
+	preferredCandidate: z.enum(["primary", "speculative"]).optional(),
 	updatedAt: z.number(),
 });
 export type RuntimeCardReview = z.infer<typeof runtimeCardReviewSchema>;
