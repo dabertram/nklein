@@ -2561,8 +2561,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         tool" holds by construction. 8 tests. (Native SDK tools — run_commands/fetch_web/search — are SDK-owned, intentionally
         not re-carded.) **FIRST CONSUMER (2026-07-01):** `nklein dev tool-menu` (`nklein-two-phase-tool-menu-report.ts` →
         `buildTwoPhaseToolMenuReport`) renders the phase-1 menu + token footprint (live: 9 tools, ~631 tokens) so an operator can
-        review the small-model tool interface offline — no agent-loop touch. Owed (still): wire the card list into the small-model
-        PROMPT at the model seam (feeds the two-phase picker: cards → pick → schema reveal).
+        review the small-model tool interface offline — no agent-loop touch. **WIRED INTO THE LIVE SEAM — DONE (verified
+        2026-07-03):** `narrowToolsForStep`/`createOpenAiCompatPhaseOnePickCaller` (`two-phase-before-model.ts`) run the
+        phase-1 card menu (`buildPhaseOneToolMenu`) at the session runtime's `beforeModel` hook, flag-gated by
+        `NKLEIN_TWO_PHASE_TOOL_PICK` (nklein-session-runtime.ts:235/288/1003 — INERT/byte-identical when off), narrowing
+        the offered tools to the picked one. 11 tests (`two-phase-before-model.test.ts`) + `two-phase-tool-runner.test.ts`.
+        REMAINING: a live sweep to decide default-ON (the LIVE 9B validation already showed 6/6 correct picks §5.O below).
   - [~] **Two-phase tool use** (pure core first): phase-1 picker over tool cards → `none | one_tool | plan_needed`;
         phase-2 reveal ONLY the selected tool's full schema; unit-test the selection; then wire at the model seam. **(2026-06-29, batch #3)**
         PURE CORE done: `src/core/two-phase-tool-pick.ts` — `interpretPhaseOnePick(rawPick, cards)` (unknown/hallucinated tool → `plan_needed`,
