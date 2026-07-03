@@ -104,6 +104,7 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 		goal: session.goal,
 		riskAcknowledged: session.riskAcknowledged,
 		browserEnabled: session.browserEnabled,
+		focus: session.focus,
 		createdAt: session.createdAt,
 		updatedAt: session.updatedAt,
 	};
@@ -192,6 +193,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.goal !== undefined ? { goal: input.goal } : {}),
 					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 					...(input.browserEnabled !== undefined ? { browserEnabled: input.browserEnabled } : {}),
+					...(input.clearFocus ? { focus: null } : {}),
 				},
 				sessionOptions,
 			);

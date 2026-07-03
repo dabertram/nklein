@@ -171,6 +171,13 @@ describe("createChatService", () => {
 		const secondTurn = seen[2] ?? [];
 		expect(secondTurn[0]).toMatch(/^system:The conversation is currently focused on board card/);
 		expect(secondTurn.some((m) => m.includes("This message addresses"))).toBe(false);
+
+		// The wire session exposes the focus (drives the "talking to X" chip) and clearFocus drops it (the chip's ✕).
+		expect((await service.getSession(session.id))?.focus).toMatchObject({ kind: "card", id: "card-1" });
+		await service.updateSession({ id: session.id, clearFocus: true });
+		expect((await service.getSession(session.id))?.focus).toBeNull();
+		const backToGoal = await service.sendMessage({ sessionId: session.id, message: "carry on" });
+		expect(backToGoal?.targetLabel).toBeUndefined();
 	});
 
 	it("§5.AL gate: refuses a catalog-`reject` model on the tool-using path (modelId known)", async () => {

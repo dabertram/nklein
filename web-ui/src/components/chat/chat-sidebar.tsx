@@ -471,6 +471,20 @@ function MessageBubble({
 	);
 }
 
+/** §5.AU — human label for the sticky focus chip: resolve the card/stream title from the live board lists. */
+function describeFocus(
+	focus: { kind: "card" | "stream"; id: string },
+	boardCards: readonly ChatCardCandidate[],
+	boardStreams: readonly { id: string; title: string }[],
+): string {
+	if (focus.kind === "card") {
+		const card = boardCards.find((candidate) => candidate.id === focus.id);
+		return `card ${card?.title ?? focus.id}`;
+	}
+	const stream = boardStreams.find((candidate) => candidate.id === focus.id);
+	return `#${stream?.title ?? focus.id}`;
+}
+
 /**
  * §5.BB — one board-activity tick interleaved in the transcript: a slim, centered system line ("Classify trends
  * → review · 12:03"). Clicking it opens the card in the main panel (same affordance as the message chips).
@@ -853,6 +867,33 @@ function ChatPanel({
 								disabled={!chat.selectedSessionId}
 								onStart={(goal) => void chat.startAutonomousRun(goal)}
 							/>
+							{/* §5.AU sticky-focus chip: who the next message addresses (set by an explicit @handle); ✕ = back to Goal. */}
+							{selectedSession?.focus ? (
+								<div
+									data-testid="chat-focus-chip"
+									className="flex items-center gap-1.5 border-t border-border bg-surface-1 px-3 py-1.5 text-[11.5px] text-text-secondary shrink-0"
+								>
+									<span className="text-text-tertiary">talking to</span>
+									<span
+										className={cn(
+											"font-medium",
+											selectedSession.focus.kind === "card" ? "text-accent" : "text-accent-2",
+										)}
+									>
+										{describeFocus(selectedSession.focus, boardCards, boardStreams)}
+									</span>
+									<button
+										type="button"
+										aria-label="Clear focus (back to Goal)"
+										title="Clear focus (back to Goal)"
+										data-testid="chat-focus-clear"
+										onClick={() => void chat.updateSession({ id: selectedSession.id, clearFocus: true })}
+										className="ml-auto rounded px-1 text-text-tertiary hover:bg-surface-3 hover:text-text-primary"
+									>
+										✕
+									</button>
+								</div>
+							) : null}
 							<form
 								onSubmit={handleSubmit}
 								className="relative border-t border-border p-3 flex items-end gap-2 bg-surface-1 shrink-0 min-w-0"

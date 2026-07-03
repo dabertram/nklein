@@ -41,6 +41,12 @@ export const runtimeChatSessionSchema = z.object({
 	// Default false — `browse_url` is not offered until then. Browsing is a host action, so it still only runs in
 	// a host-capable scope (denied in chat-only).
 	browserEnabled: z.boolean().default(false),
+	// §5.AU: the session's sticky addressing focus (set server-side by an explicit @handle) — drives the client's
+	// persistent "talking to X" chip. Additive optional so older clients/records are unaffected.
+	focus: z
+		.object({ kind: z.enum(["card", "stream"]), id: z.string(), at: z.number() })
+		.nullable()
+		.optional(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -74,6 +80,9 @@ export const runtimeChatUpdateSessionRequestSchema = z.object({
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),
 	browserEnabled: z.boolean().optional(),
+	/** §5.AU: clear the sticky addressing focus (the "talking to X" chip's ✕). Clients never SET focus over the
+	 *  wire — only an explicit @handle does, server-side — so this is deliberately clear-only. */
+	clearFocus: z.boolean().optional(),
 });
 export type RuntimeChatUpdateSessionRequest = z.infer<typeof runtimeChatUpdateSessionRequestSchema>;
 
