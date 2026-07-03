@@ -47,6 +47,9 @@ export const runtimeChatSessionSchema = z.object({
 		.object({ kind: z.enum(["card", "stream"]), id: z.string(), at: z.number() })
 		.nullable()
 		.optional(),
+	// §5.AT/§5.AU: the ONE workspace this chat owns (one-chat-per-project) — the routing key the board→chat feedback
+	// bridge appends digests to. Additive optional; null for an unowned/global chat.
+	ownedWorkspaceId: z.string().nullable().optional(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -69,6 +72,8 @@ export const runtimeChatCreateSessionRequestSchema = z.object({
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),
 	browserEnabled: z.boolean().optional(),
+	// §5.AT/§5.AU: bind the new chat to a workspace it owns (one-chat-per-project).
+	ownedWorkspaceId: z.string().nullable().optional(),
 });
 export type RuntimeChatCreateSessionRequest = z.infer<typeof runtimeChatCreateSessionRequestSchema>;
 

@@ -105,6 +105,7 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 		riskAcknowledged: session.riskAcknowledged,
 		browserEnabled: session.browserEnabled,
 		focus: session.focus,
+		ownedWorkspaceId: session.ownedWorkspaceId,
 		createdAt: session.createdAt,
 		updatedAt: session.updatedAt,
 	};
@@ -178,6 +179,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.goal !== undefined ? { goal: input.goal } : {}),
 					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 					...(input.browserEnabled !== undefined ? { browserEnabled: input.browserEnabled } : {}),
+					...(input.ownedWorkspaceId !== undefined ? { ownedWorkspaceId: input.ownedWorkspaceId } : {}),
 				},
 				sessionOptions,
 			);

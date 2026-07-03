@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	createChatSession,
 	deleteChatSession,
+	ensureChatSessionForWorkspace,
+	findChatSessionByOwnedWorkspace,
 	getChatSession,
 	listChatSessions,
 	updateChatSession,
@@ -168,5 +170,33 @@ describe("chat-session-store", () => {
 		expect(sessions.map((session) => session.title)).toEqual(["A2", "B"]);
 		expect(sessions[0]?.id).toBe(a.id);
 		expect(sessions[1]?.id).toBe(b.id);
+	});
+});
+
+describe("one-chat-per-project (§5.AT/§5.AU ownedWorkspaceId)", () => {
+	let rootDir2: string;
+	beforeEach(async () => {
+		rootDir2 = await mkdtemp(join(tmpdir(), "nklein-chat-owned-"));
+	});
+	afterEach(async () => {
+		await rm(rootDir2, { recursive: true, force: true }).catch(() => undefined);
+	});
+
+	it("createChatSession persists ownedWorkspaceId and findChatSessionByOwnedWorkspace locates it", async () => {
+		const opts = { rootDir: rootDir2 };
+		await createChatSession({ title: "Other", ownedWorkspaceId: "ws-other" }, opts);
+		const mine = await createChatSession({ title: "Mine", ownedWorkspaceId: "ws-mine" }, opts);
+		expect((await findChatSessionByOwnedWorkspace("ws-mine", opts))?.id).toBe(mine.id);
+		expect(await findChatSessionByOwnedWorkspace("ws-nobody", opts)).toBeNull();
+	});
+
+	it("ensureChatSessionForWorkspace is idempotent — one owning chat per project", async () => {
+		const opts = { rootDir: rootDir2 };
+		const first = await ensureChatSessionForWorkspace({ workspaceId: "ws-1", title: "Project 1" }, opts);
+		const second = await ensureChatSessionForWorkspace({ workspaceId: "ws-1", title: "Project 1 again" }, opts);
+		expect(second.id).toBe(first.id); // reused, not a second chat
+		expect(first.ownedWorkspaceId).toBe("ws-1");
+		const owningWs1 = (await listChatSessions(opts)).filter((session) => session.ownedWorkspaceId === "ws-1");
+		expect(owningWs1).toHaveLength(1);
 	});
 });

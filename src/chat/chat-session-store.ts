@@ -235,6 +235,35 @@ export async function createChatSession(
 	return session;
 }
 
+/**
+ * §5.AT/§5.AU one-chat-per-project: the chat session that OWNS `workspaceId`, or null. The newest-updated match wins
+ * (deterministic if two ever exist), so the board→chat feedback bridge routes to a single, stable session per project.
+ */
+export async function findChatSessionByOwnedWorkspace(
+	workspaceId: string,
+	options: ChatSessionStoreOptions = {},
+): Promise<ChatSession | null> {
+	const owned = (await listChatSessions(options))
+		.filter((session) => session.ownedWorkspaceId === workspaceId)
+		.sort((a, b) => b.updatedAt - a.updatedAt);
+	return owned[0] ?? null;
+}
+
+/**
+ * §5.AT/§5.AU one-chat-per-project: find the chat owning `workspaceId`, or create one bound to it. Idempotent — the
+ * feedback bridge and the client both call this, and a project ends up with exactly one owning chat.
+ */
+export async function ensureChatSessionForWorkspace(
+	input: { workspaceId: string; title: string },
+	options: ChatSessionStoreOptions = {},
+): Promise<ChatSession> {
+	const existing = await findChatSessionByOwnedWorkspace(input.workspaceId, options);
+	if (existing) {
+		return existing;
+	}
+	return createChatSession({ title: input.title, ownedWorkspaceId: input.workspaceId }, options);
+}
+
 export async function updateChatSession(
 	id: string,
 	patch: {
