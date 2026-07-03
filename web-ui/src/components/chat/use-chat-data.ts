@@ -79,6 +79,26 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		retainDataOnError: true,
 	});
 
+	// §5.AT/§5.AU: the board→chat feedback bridge appends messages SERVER-side (terminal card outcomes / ASKs to the
+	// project's owning chat), so poll the selected transcript to surface pushed messages without a user turn. Only
+	// while the sidebar is open (`enabled`) with a session selected, and paused during a streaming turn (the send path
+	// refetches). Refs keep the interval stable (it re-arms only on enable/session change, not every render).
+	const sendingRef = useRef(sending);
+	sendingRef.current = sending;
+	const refetchTranscriptRef = useRef(transcriptQuery.refetch);
+	refetchTranscriptRef.current = transcriptQuery.refetch;
+	useEffect(() => {
+		if (!enabled || selectedSessionId === null) {
+			return;
+		}
+		const interval = setInterval(() => {
+			if (!sendingRef.current) {
+				void refetchTranscriptRef.current();
+			}
+		}, 4000);
+		return () => clearInterval(interval);
+	}, [enabled, selectedSessionId]);
+
 	const createSession = useCallback(
 		async (input: RuntimeChatCreateSessionRequest) => {
 			setError(null);
