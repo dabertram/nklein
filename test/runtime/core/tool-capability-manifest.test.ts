@@ -11,6 +11,7 @@ import {
 	manifestForChatAction,
 	manifestForKanbanTool,
 	type ToolCapabilityManifest,
+	toolPoliciesFromManifests,
 } from "../../../src/core/tool-capability-manifest";
 import { createKanbanToolPolicies } from "../../../src/nklein-agent/nklein-runtime-setup";
 
@@ -180,5 +181,58 @@ describe("auditDetailForManifest (§5.AF research addendum)", () => {
 		for (const action of ["sandbox_write", "control_plane", "host_read", "host_write", "host_command"] as const) {
 			expect(auditDetailForManifest(manifestForChatAction(action))).not.toBe("none");
 		}
+	});
+});
+
+describe("toolPoliciesFromManifests (§5.AF slice 3 — NKlein static tool-policy subsumption)", () => {
+	// CENTERPIECE characterization: the derived policy map must reproduce the hand-written createKanbanToolPolicies()
+	// EXACTLY — same key set AND each value {enabled:true,autoApprove:false}. A drift between the manifest set and the
+	// runtime's policy map is now a failing test rather than a silent divergence.
+	it("reproduces createKanbanToolPolicies() EXACTLY from KANBAN_TOOL_MANIFESTS", () => {
+		expect(toolPoliciesFromManifests(KANBAN_TOOL_MANIFESTS)).toEqual(createKanbanToolPolicies());
+	});
+
+	// The oracle really is uniform {enabled:true,autoApprove:false} per tool — pin that so the mapping rule stays honest.
+	it("createKanbanToolPolicies() is uniformly {enabled:true,autoApprove:false} (the mapping oracle)", () => {
+		for (const [tool, policy] of Object.entries(createKanbanToolPolicies())) {
+			expect(policy, tool).toEqual({ enabled: true, autoApprove: false });
+		}
+	});
+
+	it("yields {enabled:true,autoApprove:false} for every manifest key", () => {
+		const policies = toolPoliciesFromManifests(KANBAN_TOOL_MANIFESTS);
+		expect(new Set(Object.keys(policies))).toEqual(new Set(Object.keys(KANBAN_TOOL_MANIFESTS)));
+		for (const policy of Object.values(policies)) {
+			expect(policy).toEqual({ enabled: true, autoApprove: false });
+		}
+	});
+
+	it("an empty manifest map yields an empty policy map", () => {
+		expect(toolPoliciesFromManifests({})).toEqual({});
+	});
+
+	it("a synthetic 2-key manifest map yields both keys with the default policy", () => {
+		const synthetic: Readonly<Record<string, ToolCapabilityManifest>> = {
+			// Deliberately mixed tiers (an egress host mutation + a plain read) to prove the derived policy is INDEPENDENT
+			// of the manifest's approval/network/scope fields — the static map is always enable + never-auto-approve.
+			some_host_egress_tool: {
+				mutationLevel: "host_write",
+				networkLevel: "egress",
+				fsScope: "host",
+				approval: "typed_host",
+				replayable: false,
+			},
+			some_read_tool: {
+				mutationLevel: "read",
+				networkLevel: "none",
+				fsScope: "workspace",
+				approval: "auto",
+				replayable: true,
+			},
+		};
+		expect(toolPoliciesFromManifests(synthetic)).toEqual({
+			some_host_egress_tool: { enabled: true, autoApprove: false },
+			some_read_tool: { enabled: true, autoApprove: false },
+		});
 	});
 });

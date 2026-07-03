@@ -240,3 +240,26 @@ export function auditDetailForManifest(manifest: ToolCapabilityManifest): ToolAu
 	}
 	return "none";
 }
+
+/**
+ * Derive the NKlein runtime's static tool-policy map from capability manifests — the THIRD of the three drifted gating
+ * mechanisms (`createKanbanToolPolicies()` in `nklein-runtime-setup`) expressed as a pure function of the ONE vocabulary.
+ *
+ * WHY every value is uniformly `{ enabled: true, autoApprove: false }` regardless of the manifest's `approval` tier: the
+ * SDK `toolPolicies` map is only the coarse *enable + never-auto-approve* switch — the NKlein runtime deliberately routes
+ * EVERY kanban tool through `requestToolApproval` (see `createKanbanToolApprovalPolicy`) and decides there, using the
+ * content guards (path containment, size, secrets). So the manifest's `approval` field is the tool's inherent DEFAULT
+ * tier, and the runtime tightens the static policy to `autoApprove:false` across the board — the approval decision is made
+ * dynamically, not by the static map. A tool is `enabled` purely by having a declared manifest. This characterizes (does
+ * not change) `createKanbanToolPolicies()`: `toolPoliciesFromManifests(KANBAN_TOOL_MANIFESTS)` deep-equals it exactly, so
+ * a divergence between the manifest set and the hand-written policy map is now a failing test, not a silent drift.
+ */
+export function toolPoliciesFromManifests(
+	manifests: Readonly<Record<string, ToolCapabilityManifest>>,
+): Record<string, { enabled: boolean; autoApprove: boolean }> {
+	const policies: Record<string, { enabled: boolean; autoApprove: boolean }> = {};
+	for (const toolName of Object.keys(manifests)) {
+		policies[toolName] = { enabled: true, autoApprove: false };
+	}
+	return policies;
+}
