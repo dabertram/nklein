@@ -9327,6 +9327,49 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **Ordering:** UI wizards land with/after the §5.AX overhaul (they are prime §5.AX surfaces — dark-first,
 >       cool-technical); the completion-stamp config fields + detection probes can land earlier as pure runtime work.
 >
+### 5.BF — ★ DOUBLE-CHECK the 2026-07-03 Fable session (do with Opus 4.8 + Fable together when Fable returns ~2026-07-04) *(2026-07-03, user directive)*
+> **User directive (2026-07-03, mid-session, on switching to Opus 4.8):** *"take a note and add a task in todo.md to
+> doublecheck all of the work — we will now continue using opus4.8, with fable when it's available again (in ~18h)."*
+> A large batch of chat/board wiring landed FAST in one Fable session; the user wants a deliberate second-pass review
+> **once Fable is available again (est. 2026-07-04, ~18h from this note)**, ideally Opus 4.8 + Fable in tandem, BEFORE
+> this work is treated as trusted/settled. Not a rewrite — a verification pass (correctness, edge cases, invariants,
+> that the wiring actually reaches the model/board at runtime, not just in unit tests). Adversarial workflow-style
+> review is appropriate (ultracode).
+>
+> **Scope — every commit from this session (`816c2fa7..HEAD` on `feat/kanban-reliability-context-upgrade`):**
+> - [ ] **`816c2fa7` — run42 autopsy trio (§5.AN):** #41 the tool_input_rejection counter now fires in the
+>       event-adapter ERROR branch (`isPreExecutionToolRejection`) — verify it can't DOUBLE-count when a rejection is
+>       also a tool-finished event; #42 edit_file tolerance v2 (numeric-string `insert_line` coercion + `{path,
+>       new_text}` = whole-file replace) — verify the whole-file-replace path still honors protected-path/containment/
+>       line-limit/secret guards (the commit claims it does); the 100%-reuse telemetry (`identical === previous`).
+> - [ ] **`28d5c4ca` — git-hook env scrub in decomposition tests (§4A):** confirm `createGitProcessEnv()` at every
+>       spawn; the gotcha is recorded in §4A — sanity-check no OTHER test spawns raw-env `git init`/`commit` in a
+>       tmpdir (same hijack class).
+> - [ ] **`c741edbb` — §5.BB chat phase 2 (web-ui):** activity ticks (`board-activity-ticker.ts` pure diff — check the
+>       first-snapshot-seeds-silently + 60-cap + session-appears-already-failed tick logic) and the @-mention composer
+>       (`composer-mention.ts` — the `getActiveMention` email/whitespace guards, ranking, `applyMention` caret math).
+>       No DOM test for the panel (repo convention) — eyeball the keyboard handling (Enter submits only when popover
+>       closed; ↑/↓/Tab/Esc) and the timeline interleave/sort tie-break.
+> - [ ] **`05eb5a13` — §5.AU front-door wiring:** `resolveMessageTargetIndex` in `chat-service.sendMessage`; verify a
+>       GOAL-routed turn adds ZERO to the prompt (byte-stable §5.AQ claim), the note-strength-by-rung (directive vs
+>       soft-focus vs ask-don't-guess), explicit-handle-persists-focus, and that the live index in runtime-api
+>       (`deriveStreams` + persisted streams, `stream-<slug>` id alignment with the client composer) actually matches.
+> - [ ] **`9a9f27b2` — §5.AU "talking to X" chip:** wire `focus` exposure + clear-only `clearFocus`; check the chip
+>       renders/clears and that clients genuinely can't SET focus over the wire (only @handle does, server-side).
+> - [ ] **`6b076676` — §5.AU item 6 `send_to_card` relay (the biggest, review hardest):** the `(state × intent)`
+>       effect core + the NEW deterministic intent classifier (is "go with option B" really guidance not steer? is the
+>       question-opener regex too greedy?); the INVARIANT that a blocked card never starts; the live-delivery →
+>       mailbox-fallback path; and **the mailbox CONSUMPTION at `handleStartTaskSession`** — verify EVERY start path
+>       funnels through it (UI, autoStart, queued drain, re-drive) so consumed notes fold into the opening prompt and
+>       are never double-consumed or dropped; verify the `getActiveTaskSessions` live wiring resolves the right service.
+> - [ ] **Cross-cutting:** run the deterministic integration harnesses (swarm-deterministic{,-pass,-bounce}, ONE AT A
+>       TIME) — the relay touches `start-task-session.ts` (prompt now carries the mailbox addendum), a review/delivery-
+>       adjacent path the harnesses guard and test:fast doesn't. Confirm the §5.AU relay's prompt-addendum change
+>       didn't shift start-prompt token estimation / difficulty in a way that moves model selection.
+> - [ ] After the pass: fold any findings into fixes, then mark this settled. Related open §5.AU items (rung-5 LLM
+>       disambiguator, the candidate-picker on needs_clarify, live UI read for server-pushed messages 5b/8) stay their
+>       own tasks — this is verification of what shipped, not the remaining build.
+
 ### 5.BE — Small-model max-difficulty excursion: qwopus-4B fleet with per-alias cache rails *(2026-07-03, user — NEXT after run39)*
 > **User directive:** "increase the difficulty for !Klein to the current max .. i like the qwopus 4b model(s) ..
 > load as many as seem reasonable onto the m5max and the legion5pro + 1 or 2 more capable models to do the brain
