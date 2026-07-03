@@ -106,11 +106,21 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 						"ONLY when this review compares candidate A (primary) and candidate B (speculative): the candidate to deliver — `primary` for A, `speculative` for B. Omit on ordinary single-candidate reviews.",
 				},
 			},
-			required: ["verdict", "summary"],
+			// §5.BD sweep: `required` is advisory, not enforced at the boundary — a missing field returns an
+			// actionable ok:false below instead of a raw Zod pre-rejection that loops the reviewer.
+			required: [],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const parsed = nkleinReviewSubmissionSchema.parse(input);
+			const validation = nkleinReviewSubmissionSchema.safeParse(input);
+			if (!validation.success) {
+				return {
+					ok: false,
+					instruction:
+						"Could not read the review. Call submit_review with `verdict` (`approve` or `request_changes`) and a non-empty `summary`; include `feedback` when requesting changes.",
+				};
+			}
+			const parsed = validation.data;
 			const result: NKleinReviewResult = {
 				verdict: parsed.verdict,
 				summary: parsed.summary.trim(),

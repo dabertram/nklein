@@ -56,6 +56,13 @@ describe("submit_plan_critique (W4.3 decompose-critique)", () => {
 		expect(onSubmitted).toHaveBeenCalledWith({ verdict: "proceed", summary: "Fine.", feedback: null });
 	});
 
+	it("§5.BD: a verdict-less call returns an actionable ok:false instead of pre-rejecting", async () => {
+		const tool = createNKleinPlanCritiqueTool({});
+		const output = await tool.execute?.({ summary: "no verdict" }, {} as never);
+		expect(output).toMatchObject({ ok: false });
+		expect((output as { instruction: string }).instruction).toContain("verdict");
+	});
+
 	it("trims and null-coalesces whitespace-only feedback", async () => {
 		const onSubmitted = vi.fn();
 		const tool = createNKleinPlanCritiqueTool({ onSubmitted });

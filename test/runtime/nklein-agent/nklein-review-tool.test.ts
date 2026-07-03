@@ -28,6 +28,12 @@ describe("submit_review tool", () => {
 		expect(result?.insight).toBe("Nice use of the timebase primitive.");
 	});
 
+	it("§5.BD: a verdict-less call returns an actionable ok:false instead of pre-rejecting", async () => {
+		const { output } = await run({ summary: "no verdict field" });
+		expect(output).toMatchObject({ ok: false });
+		expect((output as { instruction: string }).instruction).toContain("verdict");
+	});
+
 	it("§5.AW: defaults preferred to null on an ordinary single-candidate review", async () => {
 		const { result } = await run({ verdict: "approve", summary: "Fine." });
 		expect(result?.preferred).toBeNull();
@@ -63,22 +69,20 @@ describe("submit_review tool", () => {
 		});
 	});
 
-	it("rejects request_changes without feedback", async () => {
-		const tool = createNKleinReviewTool({});
-		await expect(
-			tool.execute({ verdict: "request_changes", summary: "Needs work." }, undefined as never),
-		).rejects.toThrow(/feedback is required/i);
+	it("§5.BD: request_changes without feedback returns a corrective ok:false, not a throw", async () => {
+		const { output } = await run({ verdict: "request_changes", summary: "Needs work." });
+		expect(output).toMatchObject({ ok: false });
+		expect((output as { instruction: string }).instruction).toContain("feedback");
 	});
 
-	it("rejects an unknown verdict", async () => {
-		const tool = createNKleinReviewTool({});
-		await expect(tool.execute({ verdict: "maybe", summary: "x" }, undefined as never)).rejects.toThrow();
+	it("§5.BD: an unknown verdict returns a corrective ok:false, not a throw", async () => {
+		const { output } = await run({ verdict: "maybe", summary: "x" });
+		expect(output).toMatchObject({ ok: false });
 	});
 
-	it("treats blank feedback as missing for request_changes", async () => {
-		const tool = createNKleinReviewTool({});
-		await expect(
-			tool.execute({ verdict: "request_changes", summary: "x", feedback: "   " }, undefined as never),
-		).rejects.toThrow(/feedback is required/i);
+	it("§5.BD: blank feedback for request_changes returns a corrective ok:false, not a throw", async () => {
+		const { output } = await run({ verdict: "request_changes", summary: "x", feedback: "   " });
+		expect(output).toMatchObject({ ok: false });
+		expect((output as { instruction: string }).instruction).toContain("feedback");
 	});
 });

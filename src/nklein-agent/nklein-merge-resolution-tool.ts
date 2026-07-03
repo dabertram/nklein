@@ -69,11 +69,20 @@ export function createNKleinMergeResolutionTool(options: {
 					description: "The concrete blocker. Required when outcome is `cannot_resolve`.",
 				},
 			},
-			required: ["outcome", "summary"],
+			// §5.BD sweep: advisory-only; a missing field returns ok:false below, not a raw pre-rejection.
+			required: [],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const parsed = nkleinMergeResolutionSubmissionSchema.parse(input);
+			const validation = nkleinMergeResolutionSubmissionSchema.safeParse(input);
+			if (!validation.success) {
+				return {
+					ok: false,
+					instruction:
+						"Could not read the resolution. Call submit_merge_resolution with `outcome` (`resolved` or `cannot_resolve`) and a non-empty `summary`; include `reason` when you cannot resolve.",
+				};
+			}
+			const parsed = validation.data;
 			const result: NKleinMergeResolutionResult = {
 				outcome: parsed.outcome,
 				summary: parsed.summary.trim(),

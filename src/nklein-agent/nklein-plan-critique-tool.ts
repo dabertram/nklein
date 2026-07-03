@@ -65,11 +65,20 @@ export function createNKleinPlanCritiqueTool(options: { onSubmitted?: NKleinPlan
 					description: "Concrete, actionable plan changes. Required when verdict is `revise`.",
 				},
 			},
-			required: ["verdict", "summary"],
+			// §5.BD sweep: advisory-only; a missing field returns ok:false below, not a raw pre-rejection.
+			required: [],
 			additionalProperties: false,
 		},
 		async execute(input) {
-			const parsed = nkleinPlanCritiqueSubmissionSchema.parse(input);
+			const validation = nkleinPlanCritiqueSubmissionSchema.safeParse(input);
+			if (!validation.success) {
+				return {
+					ok: false,
+					instruction:
+						"Could not read the critique. Call submit_plan_critique with `verdict` (`proceed` or `revise`) and a non-empty `summary`; include `feedback` when requesting a revision.",
+				};
+			}
+			const parsed = validation.data;
 			const result: NKleinPlanCritiqueResult = {
 				verdict: parsed.verdict,
 				summary: parsed.summary.trim(),

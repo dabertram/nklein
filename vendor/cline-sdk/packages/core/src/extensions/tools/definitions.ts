@@ -32,7 +32,6 @@ import {
 } from "./helpers";
 import {
 	type ApplyPatchInput,
-	ApplyPatchInputSchema,
 	ApplyPatchInputUnionSchema,
 	type AskQuestionInput,
 	AskQuestionInputSchema,
@@ -44,7 +43,6 @@ import {
 	type ReadFilesInput,
 	ReadFilesInputUnionSchema,
 	type SearchCodebaseInput,
-	SearchCodebaseInputSchema,
 	SearchCodebaseUnionInputSchema,
 	type SkillsInput,
 	type StructuredCommandInput,
@@ -382,7 +380,20 @@ export function createSearchTool(
 			"Supports multiple parallel searches. When several search patterns could be useful and do not depend on each other, run them together in one call, and call this tool in the same response as other independent tool calls. " +
 			"Use for finding code patterns, function definitions, class names, imports, etc. " +
 			`Output beyond ~${Math.round(MAX_SEARCH_OUTPUT_CHARS / 1000)}k characters per query is middle-truncated; narrow patterns beat broad ones.`,
-		inputSchema: zodToJsonSchema(SearchCodebaseInputSchema),
+		// LENIENT boundary (!Klein 2026-07-03 §5.BD sweep): the executor's SearchCodebaseUnionInputSchema
+		// accepts string | string[] | {queries: string|string[]} — the strict boundary hid all but the last.
+		inputSchema: {
+			type: "object",
+			properties: {
+				queries: {
+					type: ["array", "string"],
+					items: { type: "string" },
+					description: "One or more regex patterns to search for (a single string is accepted too).",
+				},
+			},
+			required: [],
+			additionalProperties: true,
+		},
 		timeoutMs: timeoutMs * 2,
 		retryable: true,
 		maxRetries: 1,
@@ -525,13 +536,39 @@ export function createWebFetchTool(
 			"Fetch content from URLs and analyze them using the provided prompts. " +
 			"Use for retrieving documentation, API references, or any web content. " +
 			"Each request includes a URL and a prompt describing what information to extract. Fetch independent URLs together in one call, and call this tool in the same response as other independent tool calls.",
-		inputSchema: zodToJsonSchema(FetchWebContentInputSchema),
+		// LENIENT boundary (!Klein 2026-07-03 §5.BD sweep): accept a single {url, prompt} request OR the
+		// {requests:[...]} array; execute normalizes a lone request into a one-element array.
+		inputSchema: {
+			type: "object",
+			properties: {
+				requests: {
+					type: "array",
+					items: {
+						type: "object",
+						properties: { url: { type: "string" }, prompt: { type: "string" } },
+						additionalProperties: true,
+					},
+					description: "Array of { url, prompt } fetch requests.",
+				},
+				url: { type: "string", description: "Shorthand for a single request's URL (paired with `prompt`)." },
+				prompt: { type: "string", description: "Shorthand for a single request's analysis prompt." },
+			},
+			required: [],
+			additionalProperties: true,
+		},
 		timeoutMs: timeoutMs * 2,
 		retryable: true,
 		maxRetries: 2,
 		execute: async (input, context) => {
-			// Validate input with Zod schema
-			const validatedInput = validateWithZod(FetchWebContentInputSchema, input);
+			// Normalize a lone { url, prompt } into the { requests:[...] } array before validation (§5.BD sweep).
+			let normalizedFetchInput: unknown = input;
+			if (normalizedFetchInput && typeof normalizedFetchInput === "object" && !Array.isArray(normalizedFetchInput)) {
+				const record = normalizedFetchInput as Record<string, unknown>;
+				if (!Array.isArray(record.requests) && typeof record.url === "string") {
+					normalizedFetchInput = { requests: [{ url: record.url, prompt: record.prompt }] };
+				}
+			}
+			const validatedInput = validateWithZod(FetchWebContentInputSchema, normalizedFetchInput);
 
 			return Promise.all(
 				validatedInput.requests.map(
@@ -616,12 +653,34 @@ export function createApplyPatchTool(
 	return createTool<ApplyPatchInput, ToolOperationResult>({
 		name: "apply_patch",
 		description: APPLY_PATCH_TOOL_DESC,
-		inputSchema: zodToJsonSchema(ApplyPatchInputSchema),
+		// LENIENT boundary (!Klein 2026-07-03 §5.BD sweep): the executor accepts a bare string or {input};
+		// tolerate patch/diff aliases at the boundary (execute's union + the alias-normalize below handle them).
+		inputSchema: {
+			type: "object",
+			properties: {
+				input: { type: "string", description: "The freeform apply_patch payload in the canonical patch grammar." },
+				patch: { type: "string", description: "Alias for `input`." },
+				diff: { type: "string", description: "Alias for `input`." },
+			},
+			required: [],
+			additionalProperties: true,
+		},
 		timeoutMs,
 		retryable: false,
 		maxRetries: 0,
 		execute: async (input, context) => {
-			const validate = validateWithZod(ApplyPatchInputUnionSchema, input);
+			// Map {patch}/{diff} aliases onto {input} before validation (§5.BD sweep).
+			let normalizedPatchInput: unknown = input;
+			if (normalizedPatchInput && typeof normalizedPatchInput === "object" && !Array.isArray(normalizedPatchInput)) {
+				const record = normalizedPatchInput as Record<string, unknown>;
+				if (typeof record.input !== "string") {
+					const alias = typeof record.patch === "string" ? record.patch : record.diff;
+					if (typeof alias === "string") {
+						normalizedPatchInput = { ...record, input: alias };
+					}
+				}
+			}
+			const validate = validateWithZod(ApplyPatchInputUnionSchema, normalizedPatchInput);
 			const patchInput =
 				typeof validate === "string" ? validate : validate.input;
 

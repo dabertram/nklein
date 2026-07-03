@@ -9339,11 +9339,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > the SDK boundary schema is for GUIDANCE, never enforcement — validate loosely at the boundary, normalize
 > tolerantly in execute (aliases/synonyms/shape-coercion), and return corrective `ok:false` instructions for what
 > can't be coerced.
-> - [ ] Sweep every remaining `zodToJsonSchema(<strict>)` boundary in the vendored SDK's definitions.ts
->       (read_files, search_codebase, write_file/edit_file family, fetch_web_content, read_large_file) + every
->       !Klein-owned tool: compare the boundary schema against real model-emitted shapes from preserved run
->       telemetry (`runtime_error` + `[tool] rejected before execution` events across nklein-fleet-home-*), loosen
->       boundaries, add execute-side normalizers with tests (the #32/#34 pattern).
+> - [x] **SWEPT 2026-07-03:** vendored SDK boundaries loosened — run_commands (#34), editor/edit_file (#38),
+>       read_files (#40), **search_codebase / apply_patch (patch|diff aliases) / fetch_web_content (lone
+>       {url,prompt})** this pass — each boundary now string-or-array/alias-tolerant with the execute-side union/
+>       normalizer as the real parser (SDK dist rebuilt). !Klein verdict tools (submit_review / submit_plan_critique
+>       / submit_merge_resolution) dropped `required:[...]` and switched execute to safeParse → actionable ok:false
+>       instead of a raw Zod pre-rejection loop. REMAINING boundaries left strict on purpose (not in the sandbox
+>       worker toolset / negligible variance): skills, ask_question, submit_and_exit, browse (url unambiguous).
 > - [ ] Add a telemetry COUNTER for pre-execution rejections per tool per model — the scoreboard that proves the
 >       sweep worked and catches the next variant early (a rejected call should be RARE, not a stall mode).
 > - [ ] **run38 evidence — `read_files` double-encoded array:** a worker sent `{"files": "[{\"path\": ..."}` (the
