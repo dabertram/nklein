@@ -122,7 +122,12 @@ export interface DurableRunWiring {
 		workspaceId: string,
 		workspacePath: string,
 		board: DurableRunBoardView,
-		options?: { resumeOnly?: boolean },
+		options?: {
+			resumeOnly?: boolean;
+			/** Cap this run's concurrent leases (review #5): align with the board's `maxConcurrentTasks` so the controller
+			 *  never leases more cards than the board will start — over-leasing hits `concurrency_limit` and orphans a lease. */
+			maxConcurrentLeases?: number;
+		},
 	): Promise<boolean>;
 	/** Route a task-session state change into the workspace's run (report completion → tick → cascade, or heartbeat). */
 	observeSummary(
@@ -216,10 +221,16 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 				if (options?.resumeOnly && priorLog.length === 0) {
 					return false;
 				}
+				// Review #5: align this run's lease cap with the board's own concurrency cap when the caller supplies it, so
+				// the controller never leases more cards than the runtime will actually start (over-leasing → concurrency_limit).
+				const runConfig: DurableRunConfig =
+					typeof options?.maxConcurrentLeases === "number" && Number.isFinite(options.maxConcurrentLeases)
+						? { ...config, maxConcurrentLeases: Math.max(1, Math.trunc(options.maxConcurrentLeases)) }
+						: config;
 				const controller =
 					priorLog.length > 0
-						? await DurableRunController.resume(initialJobs, priorLog, config, ports)
-						: new DurableRunController(initialJobs, config, ports);
+						? await DurableRunController.resume(initialJobs, priorLog, runConfig, ports)
+						: new DurableRunController(initialJobs, runConfig, ports);
 				registry.register(workspaceId, controller);
 				// Lease + dispatch the first ready cards (or, on resume, re-dispatch the reclaimed orphans).
 				await controller.tick();

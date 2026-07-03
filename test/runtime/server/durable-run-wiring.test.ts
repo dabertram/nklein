@@ -129,6 +129,13 @@ describe("createDurableRunWiring", () => {
 		expect(dispatches.length).toBe(1);
 	});
 
+	it("a per-run maxConcurrentLeases override caps this run (review #5: align with the board cap)", async () => {
+		// Global config default is 3, but this run is capped at 1 via the option — only 1 of 2 ready cards leases.
+		const { wiring, dispatches } = harness();
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "b"] }), { maxConcurrentLeases: 1 });
+		expect(dispatches.length).toBe(1);
+	});
+
 	it("resumeOnly: at service-creation on a fresh (no-ledger) board it builds NO run (waits for decompose)", async () => {
 		// The service-creation seam sees only the decompose SEED; building then would freeze a seed-only run and the
 		// decompose's real cards would never be leased (the bug the deterministic swarm caught). resumeOnly must skip it.

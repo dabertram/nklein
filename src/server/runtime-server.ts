@@ -672,7 +672,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		const state = await loadWorkspaceState(scope.workspacePath).catch(() => null);
 		if (state) {
-			await durableRunWiring.ensureRun(scope.workspaceId, scope.workspacePath, state.board, options);
+			// Review #5: cap the run's leases at the board's own concurrency cap so the controller never over-leases past
+			// what the runtime will start (over-leasing → concurrency_limit → an orphaned lease). Fail-open to no cap.
+			const overlapConfig = await loadRuntimeConfig(scope.workspacePath).catch(() => null);
+			const boardCap = overlapConfig?.effectiveMaxConcurrentTasks;
+			await durableRunWiring.ensureRun(scope.workspaceId, scope.workspacePath, state.board, {
+				...options,
+				...(typeof boardCap === "number" ? { maxConcurrentLeases: boardCap } : {}),
+			});
 		}
 	};
 	// C3: the reclaim/dispatch timer — ticks every active run so a DEAD-lease worker (missed heartbeat) is reclaimed and
