@@ -7390,9 +7390,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (§5.L gate / §5.M ack / §5.S clarify / §5.A block / §5.AA loop) come from caller overrides defaulting to safe
       "not blocking" (so a summary-only call still classifies healthy/stuck/done; `risky` needs the overrides). The
       module stays dependency-free via a minimal structural `OperatorSessionSummaryView` so a runtime caller passes a
-      full `RuntimeTaskSessionSummary` directly. 7 unit tests incl. classifier composition. **Still owed (the surface):**
-      render the inbox/board-health panels consuming this map; thread the real gate/ack/clarify/block flags into
-      `overrides` at the call site; add protected-write approvals (§6.11) once that signal exists. **BOARD ROLLUP DONE
+      full `RuntimeTaskSessionSummary` directly. 7 unit tests incl. classifier composition. **PER-TASK-STATE THREAD —
+      board-derivable leg SHIPPED (2026-07-03, commits d1202dd1 + 4ca4842c):** the `escalatedToOperator` signal now flows
+      end-to-end — a card the review ladder PARKED or ESCALATED (`card.review.status==="parked" || .escalated`) is folded
+      straight from BOARD state in `operator-board-health` → reads `risky` + a new `escalatedToOperator` operator-inbox
+      bucket (surfaced in `nklein task health`) + a `escalated_to_operator` board→chat ASK (verbs review/retry/reassign,
+      honored in quiet mode). Fleet-free, durable across restarts (no live session needed). **Still owed (fleet/subsystem-
+      scoped):** the CLARIFY leg (`clarifyingQuestionPending` — compose the batch-1 `countUnresolvedClarifications`; needs
+      the card↔plan↔questions linkage: cards carry `generatedFromPlan.planSlug`, questions live on plan artifacts keyed by
+      source-task — real per-card I/O + a semantic call about leaf-card vs source-task clarify) and the HOST-ACK leg
+      (`awaitingHostActionAck`, §5.M G3b — session/chat-scoped, needs the runtime contract to expose per-task host-ack
+      state); plus protected-write approvals (§6.11) once that signal exists. **BOARD ROLLUP DONE
       (2026-06-27):** `buildOperatorBoardSummary(tasks)` (same module) is the board-header query the classifier comment
       promised — per-state `counts` + `byState` task-id lists + the folded-in `inbox` + `total`, composing
       `classifyOperatorTaskState` and `collectOperatorInbox` (2 unit tests, empty-board + mixed-board). **§5.AG pure data
