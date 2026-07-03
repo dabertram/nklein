@@ -1484,6 +1484,31 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								return; // swarm stopped by the operator — idle is intentional, not a stall
 							}
 							const state = await retryWorkspaceStateLock(() => loadWorkspaceState(scope.workspacePath));
+							// §5.BD rescue: interrupted sessions whose cards sit in NON-terminal lanes with a result
+							// branch are salvage the capture-path rebounds sometimes miss (runs 36/38) — rebind them
+							// into review so the machinery judges the work instead of stranding the card.
+							const nonTerminalLaneByTaskId = new Map<string, string>();
+							for (const column of state.board.columns) {
+								if (column.id === "completed" || column.id === "trash") {
+									continue;
+								}
+								for (const card of column.cards) {
+									nonTerminalLaneByTaskId.set(card.id, column.id);
+								}
+							}
+							for (const summary of trackedService.listSummaries()) {
+								if (summary.state !== "interrupted" || !nonTerminalLaneByTaskId.has(summary.taskId)) {
+									continue;
+								}
+								const rescued = await trackedService
+									.rescueInterruptedTaskWithPriorWork(summary.taskId)
+									.catch(() => false);
+								if (rescued) {
+									deps.warn(
+										`Board-liveness watchdog: rebound interrupted card ${summary.taskId} (prior result branch exists) into review.`,
+									);
+								}
+							}
 							const startable = listStartableUnstartedTaskIds(state.board, new Set<string>());
 							// BOTH deferral kinds are actionable: overlap-deferred cards AND a pending
 							// concurrency-deferral retry (run36: only the overlap set was checked).

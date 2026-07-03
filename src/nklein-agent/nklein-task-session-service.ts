@@ -414,6 +414,13 @@ export interface NKleinTaskSessionService {
 	}): Promise<boolean>;
 	/** §5.AW: the primary handed off first — abort a still-running `::spec` mirror; its work is discarded. */
 	cancelSpeculativeMirror(taskId: string): Promise<void>;
+	/**
+	 * §5.BD watchdog rescue: an INTERRUPTED session whose card still has a result branch is salvage the
+	 * capture-path rebounds sometimes miss (stop-path capture errors bypass recordPatchCaptureStatus — seen
+	 * live in runs 36/38 as docker-409 races). Re-checks state + prior branch and rebinds the session into
+	 * awaiting_review so the review/delivery machinery judges the existing work. True when rebound.
+	 */
+	rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
@@ -3079,6 +3086,43 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	/** §5.AW: specs the arbitration seam canceled — the runner must NOT capture their (partial) work. */
 	private readonly canceledSpeculativeMirrorTaskIds = new Set<string>();
+
+	async rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean> {
+		const entry = this.messageRepository.getTaskEntry(taskId);
+		if (entry?.summary.state !== "interrupted") {
+			return false;
+		}
+		const repoPath = this.sandboxState.getRepoPath(taskId) ?? entry.summary.workspacePath ?? null;
+		if (!repoPath) {
+			return false;
+		}
+		const priorResultCommit = await resolveTaskResultBranchCommit({ repoPath, taskId }).catch(() => null);
+		if (!priorResultCommit) {
+			return false;
+		}
+		if (this.messageRepository.getTaskEntry(taskId)?.summary.state !== "interrupted") {
+			return false; // something else revived it while we looked
+		}
+		this.emitSummary(
+			updateSummary(entry, {
+				state: "awaiting_review",
+				reviewReason: "exit",
+				lastOutputAt: now(),
+				lastHookAt: now(),
+				latestHookActivity: {
+					activityText:
+						"Watchdog rescue: interrupted session with a prior result branch rebound into review (salvage → judge, never lost).",
+					toolName: null,
+					toolInputSummary: null,
+					finalMessage: null,
+					hookEventName: "interrupted_prior_work_rebound",
+					notificationType: null,
+					source: "nklein",
+				},
+			}),
+		);
+		return true;
+	}
 
 	/** §5.AW: the primary handed off first — abort a still-running `::spec` mirror and discard its work. */
 	async cancelSpeculativeMirror(taskId: string): Promise<void> {
