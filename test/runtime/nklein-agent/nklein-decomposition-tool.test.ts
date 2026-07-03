@@ -1788,4 +1788,153 @@ describe("nklein decomposition tools", () => {
 			dependencyCount: 1,
 		});
 	});
+
+	// §5.B subtask-DAG structural gate + re-decompose trigger — RECORD-ONLY. These lock the observe-only wiring:
+	// the plan STILL applies (ok:true), the tool only ADDS a self-observation the operator can read.
+
+	it("records a split self-observation naming a coarse (oversized) card without bouncing the plan", async () => {
+		selfObservationMocks.recordSelfObservation.mockReset();
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-dag-split-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		// `coarse` sits at complexity 70: it PASSES the hard sizing gate (≤75) so it reaches the record-only DAG
+		// check, but it exceeds the trigger's stricter advisory ceiling (60) ⇒ the re-decompose trigger returns
+		// `split` and names it. `small` stays well-sized so the verdict is split (not merge/refine).
+		const result = (await tool.execute(
+			{
+				slug: "Coarse Plan",
+				title: "Coarse Plan",
+				spec: "One coarse-but-legal card and one small card.",
+				plan: "Build the coarse slice, then a small follow-up.",
+				defaultAcceptanceCommand: "npm test",
+				tasks: [
+					{
+						id: "coarse",
+						title: "Build the coarse slice",
+						prompt: "Implement the coarse-but-legal slice.",
+						complexity: 70,
+						filesLikelyTouched: ["src/coarse.ts"],
+					},
+					{
+						id: "small",
+						title: "Small follow-up",
+						prompt: "Wire the small follow-up.",
+						dependsOn: ["coarse"],
+						complexity: 30,
+						filesLikelyTouched: ["src/small.ts"],
+					},
+				],
+			},
+			undefined as never,
+		)) as { ok: boolean };
+
+		// The plan applies exactly as before — the observation never blocks it.
+		expect(result.ok).toBe(true);
+		const dagCall = selfObservationMocks.recordSelfObservation.mock.calls.find(
+			(call) =>
+				(call[0] as { metadata?: { operation?: string } }).metadata?.operation === "decompose_project_subtask_dag",
+		);
+		expect(dagCall).toBeDefined();
+		const event = dagCall?.[0] as {
+			signal: string;
+			severity: string;
+			message: string;
+			metadata: { action: string; oversizedSubtaskIds: string[]; hasBlockingStructuralDefect: boolean };
+		};
+		expect(event.metadata.action).toBe("split");
+		expect(event.metadata.oversizedSubtaskIds).toEqual(["coarse"]);
+		expect(event.metadata.hasBlockingStructuralDefect).toBe(false);
+		expect(event.signal).toBe("custom");
+		expect(event.message).toContain("oversized: coarse");
+	});
+
+	it("records a dependency_cycle + redo self-observation for a mutually-recursive graph (silent-cycle hole closed)", async () => {
+		selfObservationMocks.recordSelfObservation.mockReset();
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-dag-cycle-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		// A↔B: `validateTaskGraphReferences` has NO cycle detection, so this graph passes the live reference gate
+		// silently today. The record-only subtask-DAG check now catches it: `validateSubtaskDag` reports a
+		// dependency_cycle ⇒ `decideRedecomposeTrigger` returns `redo`. The plan STILL applies (observe-only).
+		const result = (await tool.execute(
+			{
+				slug: "Cyclic Plan",
+				title: "Cyclic Plan",
+				spec: "Two mutually-recursive cards.",
+				plan: "A depends on B, B depends on A.",
+				defaultAcceptanceCommand: "npm test",
+				tasks: [
+					{
+						id: "a",
+						title: "Card A",
+						prompt: "Do A.",
+						dependsOn: ["b"],
+						complexity: 30,
+						filesLikelyTouched: ["src/a.ts"],
+					},
+					{
+						id: "b",
+						title: "Card B",
+						prompt: "Do B.",
+						dependsOn: ["a"],
+						complexity: 30,
+						filesLikelyTouched: ["src/b.ts"],
+					},
+				],
+			},
+			undefined as never,
+		)) as { ok: boolean };
+
+		expect(result.ok).toBe(true);
+		const dagCall = selfObservationMocks.recordSelfObservation.mock.calls.find(
+			(call) =>
+				(call[0] as { metadata?: { operation?: string } }).metadata?.operation === "decompose_project_subtask_dag",
+		);
+		expect(dagCall).toBeDefined();
+		const event = dagCall?.[0] as {
+			signal: string;
+			severity: string;
+			message: string;
+			metadata: {
+				action: string;
+				hasBlockingStructuralDefect: boolean;
+				defectKinds: string[];
+				cycles: string[][];
+			};
+		};
+		expect(event.metadata.action).toBe("redo");
+		expect(event.metadata.hasBlockingStructuralDefect).toBe(true);
+		expect(event.metadata.defectKinds).toContain("dependency_cycle");
+		// The reported cycle path names both cards and closes on its entry id (e.g. ["a","b","a"]).
+		expect(event.metadata.cycles).toEqual([["a", "b", "a"]]);
+		expect(event.signal).toBe("decomposition_rejected");
+		expect(event.severity).toBe("error");
+		expect(event.message).toContain("dependency_cycle");
+	});
+
+	it("records NO subtask-DAG observation for a clean, well-sized graph (accept ⇒ byte-identical happy path)", async () => {
+		selfObservationMocks.recordSelfObservation.mockReset();
+		const workspacePath = await mkdtemp(join(tmpdir(), "kanban-decompose-dag-clean-"));
+		const tool = getTool("decompose_project", workspacePath);
+
+		const result = (await tool.execute(
+			{
+				slug: "Clean Plan",
+				title: "Clean Plan",
+				spec: "A clean, well-sized two-card graph.",
+				plan: "Storage before UI.",
+				tasks: createTaskGraph().tasks,
+			},
+			undefined as never,
+		)) as { ok: boolean };
+
+		expect(result.ok).toBe(true);
+		// The re-decompose trigger returns `accept` for a clean graph, so nothing is recorded — the happy-path
+		// telemetry is unchanged (this is the byte-identical-default guard for the observe-only wiring).
+		const dagCalls = selfObservationMocks.recordSelfObservation.mock.calls.filter(
+			(call) =>
+				(call[0] as { metadata?: { operation?: string } }).metadata?.operation === "decompose_project_subtask_dag",
+		);
+		expect(dagCalls).toHaveLength(0);
+	});
 });

@@ -178,6 +178,10 @@ export interface NKleinPlanTaskGraphPreview {
 // Tool factories — these stay in the barrel (the 3 functions named in the spec).
 // ---------------------------------------------------------------------------
 
+import type { SubtaskSizing } from "../core/decomposition-redecompose-trigger";
+import { decideRedecomposeTrigger } from "../core/decomposition-redecompose-trigger";
+import type { DecomposedSubtask } from "../core/decomposition-subtask-dag";
+import { validateSubtaskDag } from "../core/decomposition-subtask-dag";
 import { decidePlanCritique } from "../core/plan-critique-decision";
 import {
 	applyDecomposeProjectArtifactsToWorkspace,
@@ -338,6 +342,87 @@ function createDecomposeProjectTool(
 						dependencyCount: validation.quality.dependencyCount,
 						dependencyDensity: validation.quality.dependencyDensity,
 						warnings: validation.quality.warnings,
+					},
+				});
+			}
+			// §5.B subtask-DAG structural gate + re-decompose trigger — RECORD-ONLY (observe, never bounce/reject).
+			// The apply path above (validateNKleinPlanTaskGraph → writeNKleinPlanArtifacts → apply) is byte-identical;
+			// this block only OBSERVES. It closes a real gap: `validateTaskGraphReferences` throws on the first
+			// duplicate/unknown-dep it meets but has NO cycle detection, so a mutually-recursive pair (A→B→A) sails
+			// through here silently (the §5.AV cycle-BREAK repair only runs later, inside board apply). `validateSubtaskDag`
+			// runs full cycle/connectivity analysis on the SAME graph and `decideRedecomposeTrigger` turns its report
+			// (plus the sizing projection + semantic counts) into a redo/split/merge/refine/accept verdict we log for
+			// the operator. Nothing here changes control flow — a cyclic or coarse graph is recorded, then applied
+			// exactly as before (measure first; a live architect-bounce is a separate, later increment).
+			const subtaskDagInput: DecomposedSubtask[] = validation.taskGraph.tasks.map((task) => ({
+				id: task.id,
+				dependsOn: task.dependsOn,
+				title: task.title,
+			}));
+			const subtaskDagReport = validateSubtaskDag(subtaskDagInput);
+			// A blocking structural defect for the trigger = anything that makes the graph unrunnable (cycle / self-dep /
+			// dangling dep). Duplicate ids never reach here (the schema/reference gate above throws first), so in practice
+			// the only defect this live path surfaces is a dependency_cycle — the exact silent hole. `disconnected_subtask`
+			// is a fragmentation smell, tracked via componentCount, NOT a blocker (mirrors the core's own split).
+			const hasBlockingStructuralDefect = subtaskDagReport.defects.some(
+				(defect) =>
+					defect.kind === "dependency_cycle" ||
+					defect.kind === "self_dependency" ||
+					defect.kind === "unknown_dependency",
+			);
+			// Sizing projection: complexity + likely-file-count per card (an NKleinPlanTask projects 1:1). The hard sizing
+			// gate above rejects complexity > 75 / > 3 files, so a truly oversized card never reaches this point; the
+			// trigger runs a STRICTER advisory ceiling (60) to surface coarse-but-legal cards (approaching the hard limit)
+			// as a split SIGNAL the binary reject can't give. Record-only ⇒ this never blocks a card the gate allowed.
+			const subtaskSizing: SubtaskSizing[] = validation.taskGraph.tasks.map((task) => ({
+				id: task.id,
+				complexity: task.complexity,
+				likelyFileCount: task.filesLikelyTouched.length,
+			}));
+			const redecomposeVerdict = decideRedecomposeTrigger(
+				{
+					structure: {
+						hasBlockingStructuralDefect,
+						componentCount: subtaskDagReport.componentCount,
+						disconnectedSubtaskCount: subtaskDagReport.disconnectedIds.length,
+						subtaskCount: subtaskDagReport.subtaskCount,
+					},
+					sizing: subtaskSizing,
+					semanticViolationCount: validation.quality.violations.length,
+					semanticWarningCount: validation.quality.warnings.length,
+				},
+				{ maxSubtaskComplexity: 60 },
+			);
+			// Only record when there is something actionable to say — a clean, accepted graph stays silent so the
+			// telemetry (and the existing tests that count observations) is unchanged for the happy path.
+			if (redecomposeVerdict.action !== "accept") {
+				await recordSelfObservation({
+					signal: hasBlockingStructuralDefect ? "decomposition_rejected" : "custom",
+					severity: hasBlockingStructuralDefect ? "error" : "warning",
+					message: `decompose_project subtask-DAG check for plan ${slug}: re-decompose trigger says ${redecomposeVerdict.action}${
+						subtaskDagReport.cycles.length > 0
+							? ` (dependency_cycle: ${subtaskDagReport.cycles.map((cycle) => cycle.join(" → ")).join("; ")})`
+							: ""
+					}${
+						redecomposeVerdict.oversizedSubtaskIds.length > 0
+							? ` (oversized: ${redecomposeVerdict.oversizedSubtaskIds.join(", ")})`
+							: ""
+					} — RECORD-ONLY, the plan still applies unchanged.`,
+					taskId: sourceTaskId ?? null,
+					workspacePath,
+					metadata: {
+						operation: "decompose_project_subtask_dag",
+						planSlug: slug,
+						action: redecomposeVerdict.action,
+						hasBlockingStructuralDefect,
+						defectKinds: subtaskDagReport.defects.map((defect) => defect.kind),
+						cycles: subtaskDagReport.cycles.map((cycle) => [...cycle]),
+						componentCount: subtaskDagReport.componentCount,
+						disconnectedIds: [...subtaskDagReport.disconnectedIds],
+						oversizedSubtaskIds: [...redecomposeVerdict.oversizedSubtaskIds],
+						undersizedSubtaskIds: [...redecomposeVerdict.undersizedSubtaskIds],
+						shouldHaltRedecomposition: redecomposeVerdict.shouldHaltRedecomposition,
+						reasons: redecomposeVerdict.reasons,
 					},
 				});
 			}
