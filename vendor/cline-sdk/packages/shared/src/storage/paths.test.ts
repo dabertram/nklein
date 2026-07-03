@@ -212,10 +212,10 @@ describe("storage path resolution", () => {
 		const paths = resolveWorkflowsConfigSearchPaths(workspacePath);
 
 		expect(paths).toEqual([
-			join(workspacePath, ".clinerules", "workflows"),
+			join(workspacePath, ".nkleinrules", "workflows"),
 			expect.stringContaining(join("Documents", "Cline", "Workflows")),
-			join("/tmp/home", ".cline", "workflows"),
-			join(workspacePath, ".cline", "workflows"),
+			join("/tmp/home", ".cline", "workflows"), // explicit CLINE_DIR — stays legacy on purpose
+			join(workspacePath, ".nklein", "workflows"),
 		]);
 	});
 });
