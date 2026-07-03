@@ -635,9 +635,13 @@ function ChatPanel({
 
 	// §5.BB intuitive scrolling: follow live output only while the user is at the bottom — scrolling up detaches
 	// (progress/details stay put at the reader's pace); the "↓ Follow" pill (or scrolling back down) re-attaches.
+	// Use the NEWEST tick's timestamp (monotonic, always the last element) rather than the array length for the tick
+	// term: once the feed saturates at its 60 cap the length stops changing, so a length-based version would stop
+	// registering fresh ticks — the timestamp keeps growing per arrival, so the Follow pill / auto-scroll still fire.
+	const latestTickAt = activityTicks.length > 0 ? (activityTicks[activityTicks.length - 1]?.at ?? 0) : 0;
 	const sticky = useStickyTranscript({
 		containerRef: transcriptContainerRef,
-		contentVersion: (chat.transcript.length + activityTicks.length) * 100_000 + (chat.streamingText?.length ?? 0),
+		contentVersion: chat.transcript.length * 100_000 + latestTickAt + (chat.streamingText?.length ?? 0),
 		resetKey: chat.selectedSessionId,
 	});
 

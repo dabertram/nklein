@@ -51,7 +51,11 @@ import {
 } from "../../nklein-agent/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-agent/nklein-timeout-scaling";
 import { readAllAgentLedger } from "../../state/agent-attempt-ledger-store";
-import { composeMailboxPromptAddendum, consumeCardMailbox } from "../../state/card-mailbox-store";
+import {
+	composeMailboxPromptAddendum,
+	listPendingCardMailbox,
+	markCardMailboxConsumedUpTo,
+} from "../../state/card-mailbox-store";
 import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
@@ -858,9 +862,11 @@ export async function handleStartTaskSession(
 		const resolvedNKleinTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
 		// §5.AU: fold the card's pending mailbox notes (chat guidance queued while it waited) into the opening
 		// prompt — the "consumed as opening context when the card starts WORK" half of the communication/execution
-		// split. Every start path funnels through this handler, so nothing queued is ever silently dropped.
-		// Best-effort: a mailbox read failure must never block a start.
-		const mailboxNotes = await consumeCardMailbox(body.taskId).catch(() => []);
+		// split. Every start path funnels through this handler, so nothing queued is silently dropped. Read the
+		// notes NON-destructively here and only mark them consumed AFTER the start succeeds (below) — a start that
+		// throws (Docker down, bad baseRef, stale workspace) then leaves the guidance pending for the next attempt
+		// instead of losing it. Best-effort: a mailbox read failure must never block a start.
+		const mailboxNotes = await listPendingCardMailbox(body.taskId).catch(() => []);
 		const promptWithMailbox = `${body.prompt}${composeMailboxPromptAddendum(mailboxNotes)}`;
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
@@ -899,6 +905,16 @@ export async function handleStartTaskSession(
 		// Previously only the input/resume paths reconciled the lane, so a freshly-started card (e.g. a
 		// dev-test seed started programmatically) stayed in backlog. Best-effort; never blocks the start.
 		await reconcileStartedTaskBoardLane({ workspacePath: workspaceScope.workspacePath, summary });
+
+		// The start SUCCEEDED and the mailbox-augmented prompt is now bound into the session — safe to durably
+		// consume the notes we folded in. Consume up to the NEWEST note we read (not `now`), so a note that arrived
+		// during the start window stays pending for the next turn rather than being dropped. Best-effort.
+		if (mailboxNotes.length > 0) {
+			const newestConsumedAt = mailboxNotes[mailboxNotes.length - 1]?.createdAt;
+			if (newestConsumedAt !== undefined) {
+				await markCardMailboxConsumedUpTo(body.taskId, newestConsumedAt).catch(() => {});
+			}
+		}
 
 		return {
 			ok: true,

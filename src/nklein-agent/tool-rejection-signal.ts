@@ -23,3 +23,19 @@ export function isPreExecutionToolRejection(toolError: string | null | undefined
 	}
 	return PRE_EXECUTION_REJECTION_PATTERNS.some((pattern) => pattern.test(toolError));
 }
+
+/**
+ * Extract the DISTINCT rejected tool names from an aggregate turn-failure message. The SDK joins per-tool details
+ * as `[toolName] errText` with `; ` into `N tool call(s) failed: [a] …; [b] …`, so each tool name sits right after
+ * a segment boundary (`failed:` for the first, `;` for the rest). Anchoring on those boundaries — rather than a bare
+ * `[\w+]` scan — keeps an incidental `[token]` inside a Zod detail from being mistaken for a tool name, and returns
+ * EVERY tool (a non-global first-match attributed a whole multi-tool-rejection turn to just the first tool). Order
+ * is first-seen; duplicates collapsed. Empty when nothing matches (the caller records one "unknown tool").
+ */
+export function extractRejectedToolNames(message: string | null | undefined): string[] {
+	if (!message) {
+		return [];
+	}
+	const names = [...message.matchAll(/(?:failed:|;)\s*\[(\w+)\]/g)].map((match) => match[1]);
+	return [...new Set(names)].filter((name): name is string => Boolean(name));
+}

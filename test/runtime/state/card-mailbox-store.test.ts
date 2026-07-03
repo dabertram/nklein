@@ -8,6 +8,7 @@ import {
 	consumeCardMailbox,
 	countPendingCardMailbox,
 	listPendingCardMailbox,
+	markCardMailboxConsumedUpTo,
 } from "../../../src/state/card-mailbox-store";
 
 describe("card-mailbox-store", () => {
@@ -80,5 +81,45 @@ describe("composeMailboxPromptAddendum", () => {
 		expect(addendum).toContain("Operator guidance queued while this card waited");
 		expect(addendum).toContain("- prefer zod");
 		expect(addendum).toContain("- keep the API stable");
+	});
+});
+
+describe("markCardMailboxConsumedUpTo (§5.BF fix — consume only after a successful start)", () => {
+	let rootDir2: string;
+	beforeEach(async () => {
+		rootDir2 = await mkdtemp(join(tmpdir(), "nklein-card-mailbox-uptoc-"));
+	});
+	afterEach(async () => {
+		await rm(rootDir2, { recursive: true, force: true }).catch(() => undefined);
+	});
+
+	it("consumes notes AT OR BEFORE the timestamp and LEAVES newer ones pending (the start-window race)", async () => {
+		const opts = { rootDir: rootDir2 };
+		const n1 = await appendCardMailboxNote({ taskId: "t", text: "one" }, { ...opts, now: () => 1000 });
+		const n2 = await appendCardMailboxNote({ taskId: "t", text: "two" }, { ...opts, now: () => 2000 });
+		// A third note arrives DURING the (simulated) start window, after we read [n1, n2].
+		await appendCardMailboxNote({ taskId: "t", text: "three" }, { ...opts, now: () => 3000 });
+		// Consume up to the newest note we actually READ (n2).
+		await markCardMailboxConsumedUpTo("t", n2.createdAt, opts);
+		const stillPending = await listPendingCardMailbox("t", opts);
+		expect(stillPending.map((note) => note.text)).toEqual(["three"]);
+		expect(n1.createdAt).toBeLessThan(n2.createdAt);
+	});
+
+	it("is a no-op for a non-finite timestamp (defensive)", async () => {
+		const opts = { rootDir: rootDir2 };
+		await appendCardMailboxNote({ taskId: "t", text: "keep" }, { ...opts, now: () => 1000 });
+		await markCardMailboxConsumedUpTo("t", Number.NaN, opts);
+		expect(await countPendingCardMailbox("t", opts)).toBe(1);
+	});
+
+	it("a FAILED start (notes read but never consumed) leaves guidance pending for the next attempt", async () => {
+		const opts = { rootDir: rootDir2 };
+		await appendCardMailboxNote({ taskId: "t", text: "prefer streaming parser" }, { ...opts, now: () => 1000 });
+		// Simulate the fixed start path: read non-destructively, then the start THROWS -> we never mark consumed.
+		const read = await listPendingCardMailbox("t", opts);
+		expect(read).toHaveLength(1);
+		// (no markCardMailboxConsumedUpTo call — the start failed)
+		expect(await countPendingCardMailbox("t", opts)).toBe(1); // still there for the retry
 	});
 });

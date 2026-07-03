@@ -37,7 +37,7 @@ import { readSessionUsage } from "./nklein-session-usage-parser";
 import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-tool-call-display";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import { asRecord } from "./nklein-value-guards";
-import { isPreExecutionToolRejection } from "./tool-rejection-signal";
+import { extractRejectedToolNames, isPreExecutionToolRejection } from "./tool-rejection-signal";
 
 export interface ApplyNKleinSessionEventInput {
 	event: unknown;
@@ -163,20 +163,25 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		// errors), NOT as tool-finished events — run42 proved the tool-finished counter never fired. Count them
 		// at this seam so the per-tool-per-model scoreboard actually sees them.
 		if (recoverable && errorMessage && isPreExecutionToolRejection(errorMessage)) {
-			const toolNameMatch = errorMessage.match(/\[(\w+)\]/);
-			recordSelfObservation({
-				signal: "tool_argument_error",
-				severity: "warning",
-				message: `Pre-execution schema rejection for ${toolNameMatch?.[1] ?? "unknown tool"} on ${entry.summary.modelId ?? "unconfigured"} (§5.BD).`,
-				taskId,
-				workspacePath: entry.summary.workspacePath,
-				metadata: {
-					category: "tool_input_rejection",
-					toolName: toolNameMatch?.[1] ?? null,
-					modelId: entry.summary.modelId ?? null,
-					providerId: entry.summary.providerId ?? null,
-				},
-			});
+			// Record ONE observation per DISTINCT rejected tool — a multi-tool-rejection turn was previously
+			// attributed entirely to the first tool, undercounting the per-tool-per-model scoreboard this populates.
+			const rejectedTools = extractRejectedToolNames(errorMessage);
+			const toolsToRecord = rejectedTools.length > 0 ? rejectedTools : [null];
+			for (const toolName of toolsToRecord) {
+				recordSelfObservation({
+					signal: "tool_argument_error",
+					severity: "warning",
+					message: `Pre-execution schema rejection for ${toolName ?? "unknown tool"} on ${entry.summary.modelId ?? "unconfigured"} (§5.BD).`,
+					taskId,
+					workspacePath: entry.summary.workspacePath,
+					metadata: {
+						category: "tool_input_rejection",
+						toolName,
+						modelId: entry.summary.modelId ?? null,
+						providerId: entry.summary.providerId ?? null,
+					},
+				});
+			}
 		}
 		if (recoverable && errorMessage && !isRecoverableToolCallFailure(errorMessage)) {
 			const retryMsg = createMessage(taskId, "system", `Retrying: ${errorMessage}`);

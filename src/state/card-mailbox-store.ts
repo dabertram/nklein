@@ -131,8 +131,29 @@ export function composeMailboxPromptAddendum(notes: readonly CardMailboxNote[]):
 }
 
 /**
+ * Mark a card's mailbox consumed UP TO a specific note timestamp — the crash-safe half of "consume on start".
+ * A start reads the pending notes NON-destructively ({@link listPendingCardMailbox}), folds them into the opening
+ * prompt, and only calls this AFTER the start actually succeeds — so a start that throws (Docker down, bad baseRef,
+ * stale workspace) leaves the guidance pending for the next attempt instead of durably losing it. Consuming "up to"
+ * the newest read note (not `now`) also means a note that arrived DURING the start window stays pending rather than
+ * being marked consumed without ever reaching a prompt.
+ */
+export async function markCardMailboxConsumedUpTo(
+	taskId: string,
+	upToCreatedAt: number,
+	options: CardMailboxStoreOptions = {},
+): Promise<void> {
+	if (!Number.isFinite(upToCreatedAt)) {
+		return;
+	}
+	await appendEvent({ type: "consume", at: upToCreatedAt, taskId }, options.rootDir);
+}
+
+/**
  * Consume the card's pending guidance — call when the card STARTS WORK, to fold the notes into its opening context.
- * Returns the consumed notes (oldest first) and records the consume so they never resurface.
+ * Returns the consumed notes (oldest first) and records the consume so they never resurface. NOTE: this consumes
+ * BEFORE you can know the start succeeded; prefer `listPendingCardMailbox` + `markCardMailboxConsumedUpTo` (consume
+ * only after a successful start) on any path where the start can fail after the read.
  */
 export async function consumeCardMailbox(
 	taskId: string,
