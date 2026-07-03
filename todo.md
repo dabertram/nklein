@@ -9432,17 +9432,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       path (incl. one that merely starts with `{`) stays literal. Vendored suite green (52); also fixed a stale
 >       vendored schema test that still asserted the pre-#40 strict shape (unnoticed because `test:fast` excludes
 >       `vendor/**` — worth a periodic `cd vendor/cline-sdk/packages/core && vitest run` in the release gate).
-> - [ ] **run36/38 evidence — the interrupted-salvage capture paths don't all reach the rebound:** an abandoned
->       card whose stop-path capture errors (docker 409 exec race) is left `interrupted` with a PRIOR result
->       branch — the recordPatchCaptureStatus rebound never runs for that path. Rather than chase each capture
->       variant: teach the #29 WATCHDOG to rescue `interrupted` cards in non-terminal lanes that have a result
->       branch (rebind into review — the same salvage→judge move), making it the universal net for this class.
-> - [ ] **run37 evidence — `edit_file` insert-shape (6 rejections, 3 workers abandoned):** models emit
->       `{path, insert_line, new_text}` (an insert-at-line idiom from other ecosystems) where the SDK expects the
->       edits-array shape ("expected array"). Fix candidates: vendor-side normalizer mapping insert_line/new_text
->       → a real edit (execute can read the file for context), or at minimum an actionable rejection instruction
->       (the raw Zod dump made the model retry the same wrong shape 3×). Same family: run37's submit_review kill
->       was `"name": null` — the #27 echo-tolerance field itself wasn't null-tolerant (fixed as #37).
+> - [x] **run36/38 evidence — interrupted-salvage universal net — DONE (verified 2026-07-03):** the #29
+>       board-liveness watchdog rescues an `interrupted` card that still has a prior result branch —
+>       `rescueInterruptedTaskWithPriorWork` rebinds it into review (salvage → judge). Deliberately scoped to the
+>       **IN_PROGRESS lane only** (NOT all non-terminal lanes as originally phrased): a review-lane card is already
+>       being judged and a HELD card there has an interrupted session by design (#33), so re-rescuing would loop
+>       hold→stop→rebind→re-review forever. Tested (rebound → awaiting_review, task-session-service.test.ts
+>       2557/4108/4178). Any residual lane-coverage gap (e.g. a docker-409 abandon landing outside in_progress) is a
+>       sweep-time finding — the documented run36/38 case is covered.
+> - [x] **run37 evidence — `edit_file` insert-shape — DONE (verified 2026-07-03):** `{path, insert_line, new_text}`
+>       is fully handled end-to-end — the edit_file boundary schema requires only `path` (insert_line: number|string|
+>       null, new_text: string|null, edits optional), and `parseEditFileRequest` normalizes the shape to an insert
+>       (both numeric and numeric-string insert_line; tested lines 24/33/74). Fixed across #38 + #42. The submit_review
+>       `"name": null` sibling was fixed as #37. Nothing left here.
 
 ### 5.BC — Board dependency-edge visualization *(2026-07-02 late, user — "rather one of the next steps")*
 > **User directive:** "check about visualizing the task/card graph edges .. maybe only as activate-able if it
