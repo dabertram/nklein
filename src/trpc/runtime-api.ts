@@ -43,6 +43,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { deriveStreams } from "../core/stream-derivation";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
@@ -61,6 +62,7 @@ import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-sessi
 import { openInBrowser } from "../server/browser";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { readMergeHistory } from "../state/merge-history-store";
+import { loadWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -208,6 +210,40 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			resolveKnowsTodayEnabled: () =>
 				(deps.getActiveRuntimeConfig?.()?.knowsTodayEnabled ?? false) ||
 				isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
+			// §5.AU: the message-target index — the active board's cards + streams (persisted streams when present,
+			// else the same pure derivation the board uses), so an @card/@stream/@<title-slug> message resolves.
+			// Best-effort: any load failure just means "no index" ⇒ the turn routes to the goal like before.
+			resolveMessageTargetIndex: async () => {
+				const workspacePath = deps.getActiveWorkspacePath();
+				if (!workspacePath) {
+					return null;
+				}
+				try {
+					const board = (await loadWorkspaceState(workspacePath)).board;
+					const rawCards = board.columns
+						.filter((column) => column.id !== "trash")
+						.flatMap((column) => column.cards);
+					const derived = deriveStreams({
+						cards: rawCards.map((card) => ({
+							id: card.id,
+							title: card.title,
+							planSlug: card.generatedFromPlan?.planSlug ?? null,
+						})),
+						dependencies: board.dependencies ?? [],
+					});
+					const cards = rawCards.map((card) => {
+						const streamId = card.streamId ?? derived.cardStreamId[card.id];
+						return { id: card.id, title: card.title, ...(streamId ? { streamId } : {}) };
+					});
+					const streams =
+						board.streams && board.streams.length > 0
+							? board.streams.map((stream) => ({ id: stream.id, title: stream.title }))
+							: derived.streams.map((stream) => ({ id: stream.id, title: stream.title }));
+					return { cards, streams };
+				} catch {
+					return null;
+				}
+			},
 			// §5.AF: the chat-flow ledger writer — assemble the envelope (workspace/provider/endpoint) from the active
 			// runtime + append one `chat` attempt event. Fully best-effort: any failure is swallowed (observational only).
 			recordChatAttempt: (input) => {

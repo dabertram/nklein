@@ -120,6 +120,8 @@ export const runtimeChatSendMessageResponseSchema = z.object({
 	assistantMessage: runtimeChatMessageSchema.nullable(),
 	/** §5.AL/§5.AG: a model-capability caveat to surface (the model is flagged warn/unknown but the turn still ran). */
 	capabilityNotice: z.string().nullable().optional(),
+	/** §5.AU: the resolved target's "talking to X" label (card/stream/answer), null/absent for a goal-routed turn. */
+	targetLabel: z.string().nullable().optional(),
 });
 export type RuntimeChatSendMessageResponse = z.infer<typeof runtimeChatSendMessageResponseSchema>;
 
@@ -131,6 +133,8 @@ export const runtimeChatStreamEventSchema = z.discriminatedUnion("type", [
 		userMessage: runtimeChatMessageSchema.nullable(),
 		assistantMessage: runtimeChatMessageSchema.nullable(),
 		capabilityNotice: z.string().nullable().optional(),
+		/** §5.AU: the resolved target's "talking to X" label, null/absent for a goal-routed turn. */
+		targetLabel: z.string().nullable().optional(),
 	}),
 ]);
 export type RuntimeChatStreamEvent = z.infer<typeof runtimeChatStreamEventSchema>;

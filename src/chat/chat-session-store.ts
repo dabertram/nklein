@@ -244,6 +244,8 @@ export async function updateChatSession(
 		goal?: string | null;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		/** §5.AU: set (or `null` = clear) the session's addressing focus — e.g. after an explicit @card handle. */
+		focus?: ChatSessionFocus | null;
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession | null> {
@@ -261,6 +263,7 @@ export async function updateChatSession(
 		...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
 		...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
 		...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
+		...(patch.focus !== undefined ? { focus: patch.focus } : {}),
 		updatedAt: now,
 	};
 	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);

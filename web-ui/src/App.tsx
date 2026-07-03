@@ -1301,7 +1301,8 @@ export default function App(): ReactElement {
 									: column.cards.flatMap((card) => card.generatedFromPlan?.planSlug?.trim() || []),
 							),
 						),
-					].map((slug) => ({ id: slug, title: slug.replaceAll(/[-_]+/g, " ") }))}
+						// `stream-<slug>` matches the server's deriveStreams ids, so an inserted @stream:<id> resolves (§5.AU).
+					].map((slug) => ({ id: `stream-${slug}`, title: slug.replaceAll(/[-_]+/g, " ") }))}
 					onOpenCard={handleCardSelect}
 					activityTicks={activityTicks}
 				/>

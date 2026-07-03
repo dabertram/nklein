@@ -223,3 +223,31 @@ export function resolveMessageTarget(input: ResolveMessageTargetInput): Resolved
 		resolveFocus(input) ?? { kind: "goal", displayLabel: "Goal", confidence: "high", source: "default" }
 	);
 }
+
+/**
+ * Render the resolved target as the system note that leads the chat turn — how the addressing decision reaches the
+ * model. `goal` (the default) renders null: the un-targeted turn stays byte-identical to today's prompt (§5.AQ —
+ * no cache churn for the common case). `needs_clarify` instructs the model to ASK, never to guess a target.
+ */
+export function renderMessageTargetNote(target: ResolvedMessageTarget): string | null {
+	if (target.kind === "card" && target.id) {
+		// A sticky-focus binding (rung 3) is context, not a directive — the user may be changing subject; the
+		// explicit/reply-bound rungs are the user's own addressing and read as an instruction.
+		return target.source === "focus"
+			? `The conversation is currently focused on board card "${target.displayLabel ?? target.id}" (id: ${target.id}) — treat card-specific guidance as being about it unless the user clearly changes subject.`
+			: `This message addresses board card "${target.displayLabel ?? target.id}" (id: ${target.id}). Apply the user's guidance to THIS card — use get_board if you need its current column/state.`;
+	}
+	if (target.kind === "stream" && target.id) {
+		return target.source === "focus"
+			? `The conversation is currently focused on the work stream ${target.displayLabel ?? target.id} (id: ${target.id}) — treat stream-specific guidance as being about it unless the user clearly changes subject.`
+			: `This message addresses the work stream ${target.displayLabel ?? target.id} (id: ${target.id}). Apply the user's guidance to that stream's cards — use get_board to see them.`;
+	}
+	if (target.kind === "answer" && target.id) {
+		return `The user is ANSWERING the outstanding question on card ${target.id}${target.displayLabel ? ` (${target.displayLabel})` : ""}. Treat the message as that answer and act on it for this card.`;
+	}
+	if (target.kind === "needs_clarify") {
+		const options = (target.candidates ?? []).map((candidate) => `"${candidate.label}"`).join(", ");
+		return `The user's message ambiguously addresses one of: ${options || "several targets"}${target.reason ? ` (${target.reason})` : ""}. Ask which one they mean before acting — do not guess.`;
+	}
+	return null;
+}

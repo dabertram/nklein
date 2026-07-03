@@ -5,6 +5,11 @@ import type {
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract";
+import {
+	type MessageTargetIndex,
+	renderMessageTargetNote,
+	resolveMessageTarget,
+} from "../core/message-target-resolver";
 import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
 import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./chat-autonomous-loop";
 import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
@@ -76,6 +81,9 @@ export interface ChatServiceOptions {
 	}) => void;
 	/** Token estimator for the lean-window budget; defaults to ≈4 chars/token. */
 	estimateTokens?: (text: string) => number;
+	/** §5.AU: the card/stream index of the session's board, for message-target resolution (the addressing ladder).
+	 *  Called per tool-using turn; null (or omitted) ⇒ every message routes to the goal (today's behavior). */
+	resolveMessageTargetIndex?: (session: ChatSession) => Promise<MessageTargetIndex | null>;
 }
 
 export interface ChatSendResult {
@@ -83,6 +91,8 @@ export interface ChatSendResult {
 	assistantMessage: RuntimeChatMessage;
 	/** §5.AL/§5.AG: a model-capability caveat to surface (warn/unknown verdict — the turn still ran). Null when none. */
 	capabilityNotice?: string | null;
+	/** §5.AU: the resolved target's "talking to X" label (card/stream/answer), or null for a goal-routed turn. */
+	targetLabel?: string | null;
 }
 
 function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
@@ -245,6 +255,36 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						capabilityNotice = gate.message;
 					}
 				}
+				// §5.AU rung-1+ wiring: resolve WHO the message addresses (explicit @handle → reply-bind → focus → goal)
+				// against the session's board index, lead the turn with the rendered note, and persist an explicit
+				// handle as the session's new focus. Goal turns add nothing (prompt stays byte-identical — §5.AQ).
+				let targetNote: string | null = null;
+				let targetLabel: string | null = null;
+				if (options.resolveMessageTargetIndex) {
+					const index = await options.resolveMessageTargetIndex(session);
+					if (index) {
+						const target = resolveMessageTarget({
+							text: input.message,
+							outstandingAsks: session.outstandingAsks,
+							focus: session.focus,
+							lastReferencedTaskId: session.focus?.kind === "card" ? session.focus.id : null,
+							index,
+						});
+						targetNote = renderMessageTargetNote(target);
+						targetLabel = target.kind === "goal" ? null : (target.displayLabel ?? null);
+						if (
+							target.source === "explicit_handle" &&
+							target.id &&
+							(target.kind === "card" || target.kind === "stream")
+						) {
+							await updateChatSession(
+								session.id,
+								{ focus: { kind: target.kind, id: target.id, at: (options.now ?? Date.now)() } },
+								sessionOptions,
+							);
+						}
+					}
+				}
 				const turnStartedAt = Date.now();
 				const agentResult = await runChatAgentTurn(
 					{
@@ -253,6 +293,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						tokenBudget,
 						memoryLimit,
 						...(onToken ? { onToken } : {}),
+						...(targetNote ? { targetNote } : {}),
 					},
 					{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
 				);
@@ -273,6 +314,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					userMessage: toRuntimeChatMessage(agentResult.userMessage),
 					assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
 					...(capabilityNotice ? { capabilityNotice } : {}),
+					...(targetLabel ? { targetLabel } : {}),
 				};
 			}
 

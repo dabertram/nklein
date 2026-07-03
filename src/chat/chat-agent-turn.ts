@@ -80,6 +80,8 @@ export async function runChatAgentTurn(
 		/** Streams the final reply token-by-token (hybrid streaming, todo §5.M G3a); server-side only — callbacks
 		 *  can't cross the tRPC wire. Persisted reply is still the cleaned/stripped text. */
 		onToken?: (delta: string) => void;
+		/** §5.AU: the resolved message-target note (card/stream/answer/clarify) leading the turn; null/absent = goal. */
+		targetNote?: string | null;
 	},
 	deps: ChatAgentTurnDeps,
 ): Promise<ChatAgentTurnResult> {
@@ -106,15 +108,20 @@ export async function runChatAgentTurn(
 	// Re-anchor the agent's focus chain (todo §5.M G4): lead the turn with its current checklist so a small model
 	// stays on-plan, and offer `update_focus_chain` (wired into the tool set) to keep it current.
 	const focusChain = deps.readFocusChain ? await deps.readFocusChain(input.session.id) : null;
-	const messages: ChatPromptMessage[] = focusChain
-		? [
-				{
-					role: "system",
-					content: `Your current focus chain (update it with the update_focus_chain tool as you make progress):\n${formatFocusChainForPrompt(focusChain)}`,
-				},
-				...prompt,
-			]
-		: prompt;
+	// §5.AU: the resolved message-target note (when the message addresses a card/stream/answer) leads the turn,
+	// before the focus chain — the addressing decision frames everything else. Goal-targeted turns add nothing.
+	const messages: ChatPromptMessage[] = [
+		...(input.targetNote ? [{ role: "system" as const, content: input.targetNote }] : []),
+		...(focusChain
+			? [
+					{
+						role: "system" as const,
+						content: `Your current focus chain (update it with the update_focus_chain tool as you make progress):\n${formatFocusChainForPrompt(focusChain)}`,
+					},
+				]
+			: []),
+		...prompt,
+	];
 	// §5.AA controller evidence-gate: when the instruction explicitly names ≥2 offered tools (a clear multi-tool task,
 	// e.g. the e2e capstone), don't let the loop accept a premature "done" until every named tool has actually run —
 	// the fix for the ≤4B "I've completed all steps" prose-done-after-one-tool failure. Single-/no-named-tool turns

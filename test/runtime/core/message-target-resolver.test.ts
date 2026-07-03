@@ -3,6 +3,7 @@ import {
 	type MessageTargetIndex,
 	type OutstandingAsk,
 	type ResolveMessageTargetInput,
+	renderMessageTargetNote,
 	resolveMessageTarget,
 } from "../../../src/core/message-target-resolver";
 
@@ -151,5 +152,53 @@ describe("resolveMessageTarget — rung 3: focus, and rung 4: goal default", () 
 			}),
 		);
 		expect(t.kind).toBe("answer");
+	});
+});
+
+describe("renderMessageTargetNote (§5.AU — the note that leads the chat turn)", () => {
+	it("renders a directive for an explicit card handle, a soft context note for sticky focus, null for goal", () => {
+		const explicit = renderMessageTargetNote({
+			kind: "card",
+			id: "c1",
+			displayLabel: "card Fix parser",
+			confidence: "high",
+			source: "explicit_handle",
+		});
+		expect(explicit).toMatch(/^This message addresses board card "card Fix parser" \(id: c1\)/);
+		const focused = renderMessageTargetNote({
+			kind: "card",
+			id: "c1",
+			displayLabel: "card Fix parser",
+			confidence: "medium",
+			source: "focus",
+		});
+		expect(focused).toMatch(/^The conversation is currently focused on board card/);
+		expect(
+			renderMessageTargetNote({ kind: "goal", displayLabel: "Goal", confidence: "high", source: "default" }),
+		).toBeNull();
+	});
+
+	it("renders the answer binding and the clarify instruction (ask, don't guess)", () => {
+		const answer = renderMessageTargetNote({
+			kind: "answer",
+			id: "c1",
+			pendingKey: "c1:ask",
+			displayLabel: "answering: Which DB?",
+			confidence: "high",
+			source: "reply_bind",
+		});
+		expect(answer).toMatch(/ANSWERING the outstanding question on card c1/);
+		const clarify = renderMessageTargetNote({
+			kind: "needs_clarify",
+			confidence: "low",
+			source: "ambiguous",
+			reason: "2 questions are awaiting your answer",
+			candidates: [
+				{ kind: "answer", id: "c1", label: "Which DB?" },
+				{ kind: "answer", id: "c2", label: "Which port?" },
+			],
+		});
+		expect(clarify).toContain('ambiguously addresses one of: "Which DB?", "Which port?"');
+		expect(clarify).toMatch(/Ask which one they mean before acting/);
 	});
 });

@@ -52,6 +52,21 @@ describe("chat-session-store", () => {
 		expect(off?.riskAcknowledged).toBe(false);
 	});
 
+	it("§5.AU: focus defaults null, sets via update (round-trips), and clears with null", async () => {
+		const created = await createChatSession({ title: "Focus" }, { rootDir, now });
+		expect(created.focus).toBeNull();
+		clock = 2000;
+		const focused = await updateChatSession(
+			created.id,
+			{ focus: { kind: "card", id: "card-1", at: 2000 } },
+			{ rootDir, now },
+		);
+		expect(focused?.focus).toEqual({ kind: "card", id: "card-1", at: 2000 });
+		expect((await getChatSession(created.id, { rootDir }))?.focus).toEqual({ kind: "card", id: "card-1", at: 2000 });
+		const cleared = await updateChatSession(created.id, { focus: null }, { rootDir, now });
+		expect(cleared?.focus).toBeNull();
+	});
+
 	it("defaults browserEnabled to false, and update toggles + round-trips it (§5.M G6)", async () => {
 		const created = await createChatSession({ title: "Browsing" }, { rootDir, now });
 		expect(created.browserEnabled).toBe(false);

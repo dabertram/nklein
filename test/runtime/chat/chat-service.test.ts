@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ChatAgentModelResponse } from "../../../src/chat/chat-agent-loop";
 import { createChatService } from "../../../src/chat/chat-service";
+import { getChatSession } from "../../../src/chat/chat-session-store";
 import { appendChatMessage } from "../../../src/chat/chat-transcript-store";
 
 describe("createChatService", () => {
@@ -128,6 +129,48 @@ describe("createChatService", () => {
 		expect(result?.assistantMessage.content).toBe("The README documents the project.");
 		const transcript = await service.readTranscript(session.id);
 		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
+	});
+
+	it("§5.AU: resolves an @card handle — target note leads the turn, focus persists, targetLabel returns", async () => {
+		const seen: string[][] = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async (messages) => {
+					seen.push(messages.map((m) => `${m.role}:${m.content}`));
+					return { text: "Prioritized.", toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+			resolveMessageTargetIndex: async () => ({
+				cards: [{ id: "card-1", title: "Fix parser", streamId: "stream-alpha" }],
+				streams: [{ id: "stream-alpha", title: "Alpha" }],
+			}),
+		});
+		const session = await service.createSession({ title: "Targeting", scope: "chat_only" });
+
+		// No focus + no handle = the goal default: no note in the prompt (byte-identical to before — §5.AQ), no label.
+		const goalRouted = await service.sendMessage({ sessionId: session.id, message: "hello there" });
+		expect(goalRouted?.targetLabel).toBeUndefined();
+		expect((seen[0] ?? []).some((m) => m.includes("addresses") || m.includes("focused on"))).toBe(false);
+
+		const result = await service.sendMessage({ sessionId: session.id, message: "@card:card-1 prioritize this" });
+		expect(result?.targetLabel).toBe("card Fix parser");
+		const firstTurn = seen[1] ?? [];
+		expect(firstTurn[0]).toMatch(/^system:This message addresses board card "card Fix parser" \(id: card-1\)/);
+		// The explicit handle persisted as the session's addressing focus (§5.AU rung 3 for later turns).
+		const stored = await getChatSession(session.id, { rootDir: join(rootDir, "sessions") });
+		expect(stored?.focus).toMatchObject({ kind: "card", id: "card-1" });
+
+		// The NEXT message binds via the persisted focus (rung 3 — sticky "talking to X"): still labeled, but the
+		// note softens to context ("currently focused on") instead of the explicit directive.
+		const followUp = await service.sendMessage({ sessionId: session.id, message: "how is it going?" });
+		expect(followUp?.targetLabel).toBe("card Fix parser");
+		const secondTurn = seen[2] ?? [];
+		expect(secondTurn[0]).toMatch(/^system:The conversation is currently focused on board card/);
+		expect(secondTurn.some((m) => m.includes("This message addresses"))).toBe(false);
 	});
 
 	it("§5.AL gate: refuses a catalog-`reject` model on the tool-using path (modelId known)", async () => {
