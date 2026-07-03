@@ -79,7 +79,7 @@ import {
 	validateSession,
 } from "../security/passcode-manager";
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
-import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { recordMergeHistory } from "../state/merge-history-store";
 import {
 	isWorkspaceStateLockError,
@@ -646,7 +646,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				void autoStartTaskIds(startScope, [taskId], { bypassDurableGuard: true });
 			}
 		},
-		readLedger: () => readAllAgentLedger(),
+		// Scope the boot-resume read to THIS workspace's ledger file (not every workspace's — review finding #6), keyed by
+		// the same path hash the events were stamped with.
+		readLedger: (workspaceId) => {
+			const ledgerScope = scopeByWorkspaceId.get(workspaceId);
+			return ledgerScope
+				? readAgentLedger({ workspacePathHash: hashWorkspacePathForLedger(ledgerScope.workspacePath) })
+				: [];
+		},
 		hashWorkspacePath: hashWorkspacePathForLedger,
 		workflowIdFor: (workspaceId) => `durable-run:${workspaceId}`,
 	});
@@ -1549,10 +1556,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 			deps.runtimeStateHub.trackNKleinTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			// C3 (§5.AF): remember the scope so the durable controller's `startCard` port can re-enter the start path from a
-			// timer/summary callback, and BOOT-RESUME any durable run this workspace had in flight when the process died
-			// (idempotent + no-op when the flag is off ⇒ byte-identical).
-			scopeByWorkspaceId.set(scope.workspaceId, scope);
-			await ensureDurableRunForScope(scope);
+			// timer/summary callback, and BOOT-RESUME any durable run this workspace had in flight when the process died.
+			// Gated on the flag so the default path adds NO residual entry to the map (review finding #2).
+			if (durableSchedulerEnabled) {
+				scopeByWorkspaceId.set(scope.workspaceId, scope);
+				await ensureDurableRunForScope(scope);
+			}
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
 				recordNKleinKnowledgeToolUsage(scope, summary);
 				recordNKleinModelPerformance(scope, summary);
@@ -1873,6 +1882,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			return;
 		}
 		nkleinTaskSessionServiceByWorkspaceId.delete(workspaceId);
+		// C3 (§5.AF): drop the workspace's durable run + scope entry so a disposed workspace leaves no ghost run the tick
+		// timer keeps ticking (review finding #2). No-op when the flag is off.
+		durableRunWiring?.dispose(workspaceId);
+		scopeByWorkspaceId.delete(workspaceId);
 		queuedStartDrainUnsubscribeByWorkspaceId.get(workspaceId)?.();
 		queuedStartDrainUnsubscribeByWorkspaceId.delete(workspaceId);
 		const drainTimer = queuedStartDrainTimersByWorkspaceId.get(workspaceId);

@@ -38,15 +38,22 @@ export interface DurableRunBoardView {
 	dependencies: readonly DurableJobDependencyEdge[];
 }
 
-/** Board columns whose cards count as agent-job-SUCCEEDED when (re)building a run's graph: the agent's result exists. */
-const SUCCEEDED_COLUMN_IDS = new Set<string>(["review", "completed"]);
+/**
+ * Board columns whose cards count as agent-job-SUCCEEDED when (re)building a run's graph. ONLY `completed` — a `review`
+ * card is NOT terminal (the review ladder can bounce it back to `in_progress` / re-decompose it), so projecting a
+ * review card as succeeded on a resume with no ledger entry would start its dependents against work review may reject.
+ * The live durable ledger is the authoritative source once a run exists; this projection is only the fallback seed for a
+ * fresh/first-enable resume, so it must be CONSERVATIVE (a review card resumes as `blocked`/`ready` and its own
+ * `awaiting_review` summary re-reports success through the controller).
+ */
+const SUCCEEDED_COLUMN_IDS = new Set<string>(["completed"]);
 /** Board columns whose cards are NOT part of the run (trashed cards gate nothing and never lease). */
 const NON_RUN_COLUMN_IDS = new Set<string>(["trash"]);
 
 /**
- * Project a board into the {@link buildDurableJobGraph} input (pure): every non-trash card is a job; cards already in a
- * `review`/`completed` lane are `succeededTaskIds` (their agent produced a result — for resume, their dependents may
- * start). Trashed cards are excluded. Dependency edges pass through unchanged (same direction).
+ * Project a board into the {@link buildDurableJobGraph} input (pure): every non-trash card is a job; only cards already
+ * in the terminal `completed` lane are `succeededTaskIds`. Trashed cards are excluded. Dependency edges pass through
+ * unchanged (same direction).
  */
 export function durableJobGraphInputFromBoard(board: DurableRunBoardView): {
 	taskIds: string[];
@@ -117,6 +124,8 @@ export interface DurableRunWiring {
 	tickAll(): Promise<void>;
 	/** Workspace ids with an active run (operator overview / shutdown sweep). */
 	activeWorkspaceIds(): string[];
+	/** Drop a workspace's run + its serialization chain (call on workspace disposal so the registry doesn't leak). */
+	dispose(workspaceId: string): void;
 }
 
 /**
@@ -148,59 +157,91 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 		}
 	}
 
+	// A single controller is driven from three fire-and-forget entry points (onSummary, the tick timer, ensureRun) whose
+	// `commit()` awaits a ledger append BETWEEN reading and reassigning `jobs` — so concurrent calls could clobber each
+	// other (lost completions / double-leases). Serialize per workspace: every controller-touching op runs after the prior
+	// one for that workspace settles. The stored tail always resolves (errors are swallowed on the CHAIN, not the caller).
+	const chainByWorkspace = new Map<string, Promise<unknown>>();
+	function runSerial<T>(workspaceId: string, op: () => Promise<T>): Promise<T> {
+		const prior = chainByWorkspace.get(workspaceId) ?? Promise.resolve();
+		const result = prior.then(op, op);
+		chainByWorkspace.set(
+			workspaceId,
+			result.then(
+				() => undefined,
+				() => undefined,
+			),
+		);
+		return result;
+	}
+
 	return {
 		hasRun(workspaceId) {
 			return deps.enabled && registry.has(workspaceId);
 		},
 
 		async ensureRun(workspaceId, workspacePath, board) {
-			if (!deps.enabled || registry.has(workspaceId)) {
+			if (!deps.enabled) {
 				return false;
 			}
-			const graphInput = durableJobGraphInputFromBoard(board);
-			if (graphInput.taskIds.length === 0) {
-				return false;
-			}
-			const initialJobs = buildDurableJobGraph(graphInput);
-			const ports = portsFor(workspaceId, workspacePath);
-			const priorLog = deps.readLedger
-				? readDurableSchedulerLog(await deps.readLedger(workspaceId), {
-						workflowId: deps.workflowIdFor(workspaceId),
-					})
-				: [];
-			const controller =
-				priorLog.length > 0
-					? await DurableRunController.resume(initialJobs, priorLog, config, ports)
-					: new DurableRunController(initialJobs, config, ports);
-			registry.register(workspaceId, controller);
-			// Lease + dispatch the first ready cards (or, on resume, re-dispatch the reclaimed orphans).
-			await controller.tick();
-			disposeIfComplete(workspaceId);
-			return true;
+			return runSerial(workspaceId, async () => {
+				if (registry.has(workspaceId)) {
+					return false;
+				}
+				const graphInput = durableJobGraphInputFromBoard(board);
+				if (graphInput.taskIds.length === 0) {
+					return false;
+				}
+				const initialJobs = buildDurableJobGraph(graphInput);
+				const ports = portsFor(workspaceId, workspacePath);
+				const priorLog = deps.readLedger
+					? readDurableSchedulerLog(await deps.readLedger(workspaceId), {
+							workflowId: deps.workflowIdFor(workspaceId),
+						})
+					: [];
+				const controller =
+					priorLog.length > 0
+						? await DurableRunController.resume(initialJobs, priorLog, config, ports)
+						: new DurableRunController(initialJobs, config, ports);
+				registry.register(workspaceId, controller);
+				// Lease + dispatch the first ready cards (or, on resume, re-dispatch the reclaimed orphans).
+				await controller.tick();
+				disposeIfComplete(workspaceId);
+				return true;
+			});
 		},
 
 		async observeSummary(workspaceId, taskId, state, error) {
 			if (!deps.enabled) {
 				return;
 			}
-			await registry.reactToTaskSummary(workspaceId, taskId, state, error);
+			await runSerial(workspaceId, () => registry.reactToTaskSummary(workspaceId, taskId, state, error));
 		},
 
 		async tickAll() {
 			if (!deps.enabled) {
 				return;
 			}
-			for (const workspaceId of registry.activeWorkspaceIds()) {
-				const controller = registry.get(workspaceId);
-				if (controller) {
-					await controller.tick();
-					disposeIfComplete(workspaceId);
-				}
-			}
+			await Promise.all(
+				registry.activeWorkspaceIds().map((workspaceId) =>
+					runSerial(workspaceId, async () => {
+						const controller = registry.get(workspaceId);
+						if (controller) {
+							await controller.tick();
+							disposeIfComplete(workspaceId);
+						}
+					}),
+				),
+			);
 		},
 
 		activeWorkspaceIds() {
 			return registry.activeWorkspaceIds();
+		},
+
+		dispose(workspaceId) {
+			registry.dispose(workspaceId);
+			chainByWorkspace.delete(workspaceId);
 		},
 	};
 }

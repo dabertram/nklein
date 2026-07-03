@@ -44,7 +44,7 @@ function harness(overrides: Partial<DurableRunWiringDeps> = {}) {
 }
 
 describe("durableJobGraphInputFromBoard", () => {
-	it("maps non-trash cards to jobs, review/completed to succeeded, trash excluded, deps pass through", () => {
+	it("maps non-trash cards to jobs; ONLY completed = succeeded (review is non-terminal); trash excluded; deps pass through", () => {
 		const input = durableJobGraphInputFromBoard(
 			board(
 				{
@@ -58,8 +58,17 @@ describe("durableJobGraphInputFromBoard", () => {
 			),
 		);
 		expect(input.taskIds.sort()).toEqual(["a", "b", "c", "d", "e"]);
-		expect(input.succeededTaskIds.sort()).toEqual(["d", "e"]);
+		// a `review` card (d) is NOT succeeded — review can bounce it back — so its dependents must not start prematurely.
+		expect(input.succeededTaskIds.sort()).toEqual(["e"]);
 		expect(input.dependencies).toEqual([{ fromTaskId: "b", toTaskId: "a" }]);
+	});
+
+	it("does NOT start a dependent of a review-lane card on resume (review is not terminal)", () => {
+		// x is in review, y (backlog) depends on x. With review NOT succeeded, y stays blocked (not started).
+		const input = durableJobGraphInputFromBoard(
+			board({ review: ["x"], backlog: ["y"] }, [{ fromTaskId: "y", toTaskId: "x" }]),
+		);
+		expect(input.succeededTaskIds).toEqual([]);
 	});
 });
 
@@ -127,6 +136,27 @@ describe("createDurableRunWiring", () => {
 		const secondCreated = await wiring.ensureRun("ws1", "/w", board({ backlog: ["a"] }));
 		expect(secondCreated).toBe(false);
 		expect(dispatches.length).toBe(afterFirst);
+	});
+
+	it("dispose drops the workspace's run (so the registry does not leak on workspace teardown)", async () => {
+		const { wiring } = harness();
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "b"] }, [{ fromTaskId: "b", toTaskId: "a" }]));
+		expect(wiring.hasRun("ws1")).toBe(true);
+		wiring.dispose("ws1");
+		expect(wiring.hasRun("ws1")).toBe(false);
+		expect(wiring.activeWorkspaceIds()).toEqual([]);
+	});
+
+	it("serializes concurrent controller access per workspace (no double-lease under a summary/tick race)", async () => {
+		const { wiring, dispatches } = harness({ config: { maxConcurrentLeases: 1 } });
+		await wiring.ensureRun("ws1", "/w", board({ backlog: ["a", "b"] })); // cap 1 ⇒ one dispatched
+		// Fire a summary (completes a) and a timer tick CONCURRENTLY — serialization must prevent a double-lease.
+		await Promise.all([
+			wiring.observeSummary("ws1", dispatches[0]?.taskId ?? "a", "awaiting_review"),
+			wiring.tickAll(),
+		]);
+		// Exactly the two cards start once each, never more (a double-lease would push dispatches past 2).
+		expect(dispatches.map((d) => d.taskId).sort()).toEqual(["a", "b"]);
 	});
 
 	it("RESUME (restart-survivability): a run whose worker died mid-lease re-dispatches the orphaned card on boot", async () => {
