@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>!Klein — §5.AX restyle direction + augmented fleet strip</title>
+<style>
+	/* Exact shipped klein tokens (globals.css [data-theme="klein"]). */
+	:root {
+		--s0: #0A0C10; --s1: #0F1319; --s2: #151A22; --s3: #1C232D; --s4: #232C38;
+		--border: #232C38; --border-bright: #31404F; --divider: #06080B;
+		--text-1: #E8EEF5; --text-2: #9FB0C3; --text-3: #63748A;
+		--accent: #3FE0E0; --accent-hov: #6BEAEA; --accent-fg: #062024;
+		--ai: #9D7BFF; --ai-hov: #B29BFF; --ai-fg: #140A2E;
+		--ok: #4ADE80; --warn: #FBBF24; --red: #F87171; --gold: #FBBF24;
+	}
+	* { box-sizing: border-box; margin: 0; padding: 0; }
+	body { background: var(--s0); color: var(--text-1); font: 13px/1.45 ui-sans-serif, -apple-system, "Segoe UI", sans-serif; }
+	.note { max-width: 1180px; margin: 20px auto 12px; padding: 0 18px; color: var(--text-2); }
+	.note h1 { font-size: 16px; color: var(--text-1); display: flex; align-items: center; gap: 9px; letter-spacing: -0.01em; }
+	.note h1 .bang { color: var(--accent); }
+	.note p { margin-top: 7px; font-size: 12.5px; }
+	.note b { color: var(--text-1); }
+	.legend { display: flex; gap: 18px; margin: 10px 0 0; font-size: 11.5px; color: var(--text-3); flex-wrap: wrap; }
+	.legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+	.legend .l-worker::before { background: var(--accent); }
+	.legend .l-ai::before { background: var(--ai); }
+	.legend .l-ok::before { background: var(--ok); }
+	.legend .l-warn::before { background: var(--warn); }
+
+	/* ---------- App frame ---------- */
+	.app { max-width: 1180px; margin: 14px auto 40px; height: 720px; display: grid; grid-template-columns: 210px 1fr; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 24px 80px -30px #000; }
+
+	/* Sidebar */
+	.side { background: var(--s1); border-right: 1px solid var(--divider); display: flex; flex-direction: column; }
+	.brand { display: flex; align-items: center; gap: 9px; padding: 13px 14px; font-weight: 700; font-size: 15px; letter-spacing: -0.01em; border-bottom: 1px solid var(--divider); }
+	.brand .bang { color: var(--accent); }
+	.side h2 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-3); padding: 14px 14px 6px; }
+	.proj { display: flex; align-items: center; gap: 8px; padding: 7px 14px; color: var(--text-2); cursor: pointer; font-size: 12.5px; }
+	.proj:hover { background: var(--s2); color: var(--text-1); }
+	.proj.active { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); border-left: 2px solid var(--accent); padding-left: 12px; }
+	.proj .dot { width: 6px; height: 6px; border-radius: 99px; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+	.proj .badge { margin-left: auto; font-size: 10px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 99px; padding: 1px 6px; }
+	.side .foot { margin-top: auto; padding: 12px 14px; border-top: 1px solid var(--divider); color: var(--text-3); font-size: 11.5px; display: flex; align-items: center; gap: 8px; }
+
+	/* Main */
+	.main { background: var(--s0); display: flex; flex-direction: column; min-width: 0; }
+	.topbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--s1); }
+	.topbar .title { font-weight: 650; font-size: 14px; }
+	.topbar .sub { color: var(--text-3); font-size: 11.5px; }
+	.topbar .spacer { margin-left: auto; }
+	.btn { font: inherit; font-size: 12px; border-radius: 7px; padding: 5px 11px; border: 1px solid var(--border-bright); background: var(--s2); color: var(--text-2); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+	.btn:hover { background: var(--s3); color: var(--text-1); }
+	.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); font-weight: 600; }
+	.btn.danger { color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, var(--border-bright)); }
+
+	/* ---------- Augmented cockpit + fleet strip (THE hero) ---------- */
+	.cockpit { border-bottom: 1px solid var(--border); background: var(--s1); }
+	.cockpit .row1 { display: flex; align-items: center; gap: 10px; padding: 8px 16px; font-size: 12px; color: var(--text-2); }
+	.cockpit .row1 .lbl { font-weight: 650; color: var(--text-1); }
+	.pill { border: 1px solid var(--border-bright); background: var(--s2); border-radius: 99px; padding: 1.5px 9px; font-size: 11px; }
+	.pill.run { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+	.pill.wait { color: var(--text-2); }
+	.pill.block { color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+	.pill.queued { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 40%, transparent); cursor: help; }
+	.rolebtn { border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); border-radius: 7px; padding: 2px 9px; font-size: 11px; cursor: pointer; }
+	.cockpit .toggle { margin-left: auto; color: var(--text-3); font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+
+	/* the NEW per-model fleet rows */
+	.fleet { padding: 2px 16px 10px; }
+	.fleet .machine { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 8px 0 4px; display: flex; align-items: center; gap: 7px; }
+	.fleet .machine::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+	.frow { display: grid; grid-template-columns: 150px 14px 1fr 96px 84px; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 7px; font-size: 12px; }
+	.frow:hover { background: var(--s2); }
+	.frow .mdl { font-weight: 550; color: var(--text-1); display: flex; align-items: center; gap: 7px; }
+	.frow .life { width: 8px; height: 8px; border-radius: 99px; }
+	.frow .life.on { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
+	.frow .life.spec { background: var(--ai); box-shadow: 0 0 7px var(--ai); }
+	.frow .life.off { background: var(--s4); border: 1px solid var(--border-bright); box-shadow: none; }
+	.frow .card { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.frow .card.idle { color: var(--text-3); font-style: italic; }
+	.frow .lineage { font-size: 10px; border-radius: 99px; padding: 1px 7px; justify-self: start; }
+	.lin-gptoss { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+	.lin-qwen { color: var(--ai); background: color-mix(in srgb, var(--ai) 12%, transparent); }
+	.frow .speed { justify-self: end; font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+	.frow .speed.warm { color: var(--gold); }
+	.frow .speed.idle { color: var(--text-3); }
+	.role-tag { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; border-radius: 4px; padding: 0 5px; margin-left: 2px; }
+	.role-architect { color: var(--ai); border: 1px solid color-mix(in srgb, var(--ai) 45%, transparent); }
+	.role-worker { color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+	.role-reviewer { color: var(--gold); border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); }
+
+	/* ---------- Board ---------- */
+	.board { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; padding: 12px 16px; overflow: hidden; }
+	.col { background: var(--s1); border: 1px solid var(--border); border-radius: 10px; padding: 9px; min-width: 0; }
+	.col h3 { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); display: flex; justify-content: space-between; padding: 2px 3px 9px; }
+	.col h3 .n { color: var(--text-2); }
+	.kcard { background: var(--s2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; margin-bottom: 7px; }
+	.kcard.live { border-color: color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
+	.kcard .t { font-size: 12px; font-weight: 550; letter-spacing: -0.003em; }
+	.kcard .meta { display: flex; gap: 5px; margin-top: 7px; align-items: center; flex-wrap: wrap; }
+	.chip { font-size: 9.5px; padding: 1px 6px; border-radius: 99px; border: 1px solid var(--border-bright); color: var(--text-3); }
+	.chip.model { color: var(--ai); border-color: color-mix(in srgb, var(--ai) 45%, transparent); }
+	.chip.run { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+	.chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+	.chip.rev { color: var(--gold); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+	/* the review-ladder strip (shipped card chrome) */
+	.ladder { display: flex; gap: 3px; margin-top: 7px; }
+	.ladder .rung { flex: 1; height: 3px; border-radius: 2px; background: var(--s4); }
+	.ladder .rung.done { background: var(--gold); }
+	.ladder .rung.now { background: var(--ai); box-shadow: 0 0 6px color-mix(in srgb, var(--ai) 70%, transparent); }
+	.kcard .live-act { margin-top: 7px; font-size: 10.5px; color: var(--accent); display: flex; align-items: center; gap: 6px; }
+	.kcard .live-act .pulse { width: 6px; height: 6px; border-radius: 99px; background: var(--accent); animation: p 1.6s infinite; }
+	@keyframes p { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+	.spec-badge { font-size: 9px; color: var(--ai); border: 1px dashed color-mix(in srgb, var(--ai) 50%, transparent); border-radius: 4px; padding: 0 5px; }
+</style>
+</head>
+<body>
+	<div class="note">
+		<h1><svg width="20" height="20" viewBox="0 0 72 72" fill="none" aria-hidden><g stroke="rgba(63,224,224,0.42)" stroke-width="4" stroke-linecap="round"><line x1="20" y1="14" x2="20" y2="36"/><line x1="20" y1="36" x2="20" y2="58"/><line x1="20" y1="36" x2="50" y2="14"/><line x1="20" y1="36" x2="50" y2="58"/></g><circle cx="20" cy="14" r="5.5" fill="#3FE0E0"/><circle cx="20" cy="58" r="5.5" fill="#3FE0E0"/><circle cx="50" cy="14" r="5.5" fill="#3FE0E0"/><circle cx="50" cy="58" r="5.5" fill="#3FE0E0"/><circle cx="20" cy="36" r="7" fill="#9D7BFF"/></svg><span><span class="bang">!</span>Klein — §5.AX restyle direction</span></h1>
+		<p>The shipped klein language (exact tokens: near-black <b>#0A0C10</b>, cyan <b>#3FE0E0</b> = worker/primary, violet <b>#9D7BFF</b> = AI/reviewer) applied across the app frame. The <b>hero is the augmented cockpit strip</b> (your pick): the existing counts/role-buttons row stays, and an expandable <b>per-model fleet</b> block is added below it — each loaded model, lineage-colored, the card it's driving, its role, and tok/s / warmth. Sign off on the direction and I apply it to the live components; I'll mock detail/settings/chat next if you want them before I touch those.</p>
+		<div class="legend">
+			<span class="l-worker">cyan = worker / primary</span>
+			<span class="l-ai">violet = AI (architect · reviewer · speculative)</span>
+			<span class="l-ok">green = live / healthy</span>
+			<span class="l-warn">gold = review ladder · warm-idle · queued</span>
+		</div>
+	</div>
+
+	<div class="app">
+		<!-- Sidebar -->
+		<aside class="side">
+			<div class="brand">
+				<svg width="19" height="19" viewBox="0 0 72 72" fill="none" aria-hidden><g stroke="rgba(63,224,224,0.42)" stroke-width="4" stroke-linecap="round"><line x1="20" y1="14" x2="20" y2="36"/><line x1="20" y1="36" x2="20" y2="58"/><line x1="20" y1="36" x2="50" y2="14"/><line x1="20" y1="36" x2="50" y2="58"/></g><circle cx="20" cy="14" r="5.5" fill="#3FE0E0"/><circle cx="20" cy="58" r="5.5" fill="#3FE0E0"/><circle cx="50" cy="14" r="5.5" fill="#3FE0E0"/><circle cx="50" cy="58" r="5.5" fill="#3FE0E0"/><circle cx="20" cy="36" r="7" fill="#9D7BFF"/></svg>
+				<span><span class="bang">!</span>Klein</span>
+			</div>
+			<h2>Projects</h2>
+			<div class="proj active"><span class="dot"></span> habit-insights <span class="badge">3</span></div>
+			<div class="proj"><span class="dot" style="background:var(--text-3);box-shadow:none"></span> audio-vst</div>
+			<div class="proj"><span class="dot" style="background:var(--text-3);box-shadow:none"></span> daw-foundation</div>
+			<div class="foot">
+				<svg width="14" height="14" viewBox="0 0 72 72" fill="none" aria-hidden><g stroke="rgba(99,116,138,0.6)" stroke-width="5" stroke-linecap="round"><line x1="20" y1="14" x2="20" y2="36"/><line x1="20" y1="36" x2="20" y2="58"/><line x1="20" y1="36" x2="50" y2="14"/><line x1="20" y1="36" x2="50" y2="58"/></g></svg>
+				6 models · 2 machines
+			</div>
+		</aside>
+
+		<!-- Main -->
+		<div class="main">
+			<div class="topbar">
+				<span class="title">habit-insights</span>
+				<span class="sub">· 13 cards · main</span>
+				<span class="spacer"></span>
+				<button class="btn">Deps</button>
+				<button class="btn danger">Pause</button>
+				<button class="btn primary">+ Card</button>
+			</div>
+
+			<!-- Augmented cockpit + fleet strip -->
+			<div class="cockpit">
+				<div class="row1">
+					<span class="lbl">Local swarm</span>
+					<span class="pill run">Running 3</span>
+					<span class="pill wait">Waiting 2</span>
+					<span class="pill block">Blocked 0</span>
+					<span class="pill queued" title="Sandbox queue — waiting for a free container">Queued 1</span>
+					<span class="rolebtn">Architect 1</span>
+					<span class="rolebtn">Worker 2</span>
+					<span class="rolebtn">Reviewer 1</span>
+					<span class="toggle">▾ fleet</span>
+				</div>
+				<div class="fleet">
+					<div class="machine">m5max</div>
+					<div class="frow">
+						<span class="mdl"><span class="life on"></span> brain27 <span class="role-tag role-architect">arch</span></span>
+						<span></span>
+						<span class="card">decompose · habit-insights buildout</span>
+						<span class="lineage lin-gptoss">gpt-oss</span>
+						<span class="speed">41 tok/s</span>
+					</div>
+					<div class="frow">
+						<span class="mdl"><span class="life spec"></span> qwop4b-a <span class="role-tag role-worker">wrk</span></span>
+						<span></span>
+						<span class="card">classify-trends <span class="spec-badge">A/B spec</span></span>
+						<span class="lineage lin-qwen">qwen</span>
+						<span class="speed">33 tok/s</span>
+					</div>
+					<div class="frow">
+						<span class="mdl"><span class="life off"></span> qwop4b-b</span>
+						<span></span>
+						<span class="card idle">idle</span>
+						<span class="lineage lin-qwen">qwen</span>
+						<span class="speed warm">warm · worker</span>
+					</div>
+					<div class="frow">
+						<span class="mdl"><span class="life off"></span> ornith9-m5 <span class="role-tag role-reviewer">rev</span></span>
+						<span></span>
+						<span class="card idle">idle</span>
+						<span class="lineage lin-qwen">qwen</span>
+						<span class="speed idle">—</span>
+					</div>
+					<div class="machine">legion5pro</div>
+					<div class="frow">
+						<span class="mdl"><span class="life on"></span> coder-gpu <span class="role-tag role-worker">wrk</span></span>
+						<span></span>
+						<span class="card">validate-goal-settings</span>
+						<span class="lineage lin-qwen">qwen</span>
+						<span class="speed">55 tok/s</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- Board -->
+			<div class="board">
+				<div class="col">
+					<h3>Backlog <span class="n">0</span></h3>
+				</div>
+				<div class="col">
+					<h3>Planning <span class="n">6</span></h3>
+					<div class="kcard"><div class="t">Classify score bands</div><div class="meta"><span class="chip">depends 1</span></div></div>
+					<div class="kcard"><div class="t">Integrate goals into insights</div><div class="meta"><span class="chip">depends 2</span></div></div>
+					<div class="kcard"><div class="t">Define recommendation inputs</div></div>
+				</div>
+				<div class="col">
+					<h3>In Progress <span class="n">2</span></h3>
+					<div class="kcard live">
+						<div class="t">Classify trends</div>
+						<div class="meta"><span class="chip run">running</span><span class="chip model">qwop4b-a</span></div>
+						<div class="live-act"><span class="pulse"></span> edit_file · trend.ts — plus an A/B spec on ornith9</div>
+					</div>
+					<div class="kcard live">
+						<div class="t">Validate goal settings</div>
+						<div class="meta"><span class="chip run">running</span><span class="chip model">coder-gpu</span></div>
+						<div class="live-act"><span class="pulse"></span> run_commands · npm test</div>
+					</div>
+				</div>
+				<div class="col">
+					<h3>Review <span class="n">1</span></h3>
+					<div class="kcard">
+						<div class="t">Parse --goal flag</div>
+						<div class="meta"><span class="chip rev">reviewing</span><span class="chip model">ornith9-m5</span></div>
+						<div class="ladder" title="bounce → escalate → park"><span class="rung done"></span><span class="rung now"></span><span class="rung"></span></div>
+					</div>
+				</div>
+				<div class="col">
+					<h3>Completed <span class="n">4</span></h3>
+					<div class="kcard"><div class="t">Document domain model</div><div class="meta"><span class="chip ok">delivered</span><span class="chip model">brain27</span></div></div>
+					<div class="kcard"><div class="t">Add validation helper</div><div class="meta"><span class="chip ok">delivered</span></div></div>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
