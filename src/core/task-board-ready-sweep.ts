@@ -1,4 +1,5 @@
 import type { RuntimeBoardData } from "./api-contract";
+import type { CardExecutionState } from "./card-message-effect";
 
 /**
  * The READY-SWEEP (live-found across fleet runs 12/14/15, 2026-07-02): list every waiting card that is startable
@@ -20,21 +21,8 @@ export function listStartableUnstartedTaskIds(
 	board: RuntimeBoardData,
 	activeSessionTaskIds: ReadonlySet<string>,
 ): string[] {
-	const laneByTaskId = new Map<string, string>();
-	for (const column of board.columns) {
-		for (const card of column.cards) {
-			laneByTaskId.set(card.id, column.id);
-		}
-	}
-	// A dependency edge `fromTaskId -> toTaskId` means FROM depends on TO; TO must be completed to release FROM.
-	const unmetDependencyCounts = new Map<string, number>();
-	for (const dependency of board.dependencies) {
-		const prerequisiteLane = laneByTaskId.get(dependency.toTaskId);
-		if (prerequisiteLane === "completed") {
-			continue;
-		}
-		unmetDependencyCounts.set(dependency.fromTaskId, (unmetDependencyCounts.get(dependency.fromTaskId) ?? 0) + 1);
-	}
+	const laneByTaskId = indexLanesByTaskId(board);
+	const unmetDependencyCounts = countUnmetDependencies(board, laneByTaskId);
 	const startable: string[] = [];
 	for (const column of board.columns) {
 		if (column.id !== "backlog" && column.id !== "planning") {
@@ -51,4 +39,65 @@ export function listStartableUnstartedTaskIds(
 		}
 	}
 	return startable;
+}
+
+function indexLanesByTaskId(board: RuntimeBoardData): Map<string, string> {
+	const laneByTaskId = new Map<string, string>();
+	for (const column of board.columns) {
+		for (const card of column.cards) {
+			laneByTaskId.set(card.id, column.id);
+		}
+	}
+	return laneByTaskId;
+}
+
+/** A dependency edge `fromTaskId -> toTaskId` means FROM depends on TO; TO must be completed to release FROM. */
+function countUnmetDependencies(board: RuntimeBoardData, laneByTaskId: Map<string, string>): Map<string, number> {
+	const unmetDependencyCounts = new Map<string, number>();
+	for (const dependency of board.dependencies) {
+		const prerequisiteLane = laneByTaskId.get(dependency.toTaskId);
+		if (prerequisiteLane === "completed") {
+			continue;
+		}
+		unmetDependencyCounts.set(dependency.fromTaskId, (unmetDependencyCounts.get(dependency.fromTaskId) ?? 0) + 1);
+	}
+	return unmetDependencyCounts;
+}
+
+/**
+ * §5.AU — the card's EXECUTION state as it bears on a message's effect (`resolveCardMessageEffect`), from the same
+ * board facts the ready-sweep uses: a live/queued session ⇒ `running`; the completed lane ⇒ `done`; an explicit
+ * `blockedKind` or an unmet dependency ⇒ `blocked`; anything else waiting ⇒ `ready`. Null for an unknown card
+ * (trashed/never existed). Pure; `activeSessionTaskIds` as in the sweep above.
+ */
+export function resolveCardExecutionState(
+	board: RuntimeBoardData,
+	activeSessionTaskIds: ReadonlySet<string>,
+	taskId: string,
+): CardExecutionState | null {
+	const laneByTaskId = indexLanesByTaskId(board);
+	const lane = laneByTaskId.get(taskId);
+	if (lane === undefined || lane === "trash") {
+		return null;
+	}
+	if (activeSessionTaskIds.has(taskId)) {
+		return "running";
+	}
+	if (lane === "completed") {
+		return "done";
+	}
+	const card = board.columns.flatMap((column) => column.cards).find((candidate) => candidate.id === taskId);
+	const unmetDependencyCounts = countUnmetDependencies(board, laneByTaskId);
+	if (card?.blockedKind || (unmetDependencyCounts.get(taskId) ?? 0) > 0) {
+		return "blocked";
+	}
+	return "ready";
+}
+
+/** The unmet-prerequisite card ids for a task (for the suggest-unblock message), completed-lane deps excluded. */
+export function listUnmetDependencyTaskIds(board: RuntimeBoardData, taskId: string): string[] {
+	const laneByTaskId = indexLanesByTaskId(board);
+	return board.dependencies
+		.filter((dependency) => dependency.fromTaskId === taskId && laneByTaskId.get(dependency.toTaskId) !== "completed")
+		.map((dependency) => dependency.toTaskId);
 }

@@ -3,7 +3,12 @@
 // agent gets, wires the local-LLM client/model, and assembles the confirm/audit gate. Kept as a focused module
 // so the scope→capability mapping lives in one named place rather than inside the giant createRuntimeApi factory.
 import type { ChatAgentModelResponse } from "../../chat/chat-agent-loop";
-import { type ChatToolSet, createBoardMutationTools, createBoardReadTools } from "../../chat/chat-board-tools";
+import {
+	type ChatToolSet,
+	createBoardMutationTools,
+	createBoardReadTools,
+	createCardRelayTools,
+} from "../../chat/chat-board-tools";
 import { createBrowserTools } from "../../chat/chat-browser-tool";
 import { createCommandRunTool } from "../../chat/chat-command-tool";
 import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
@@ -23,12 +28,22 @@ import {
 	discoverLoadedModelId,
 } from "../../chat/local-chat-model";
 import { LocalLlmClient } from "../../nklein-agent/nklein-local-llm-client";
+import { appendCardMailboxNote, countPendingCardMailbox } from "../../state/card-mailbox-store";
+import { loadWorkspaceState } from "../../state/workspace-state";
 
 export function buildChatAgentToolDepsResolver(input: {
 	getActiveWorkspacePath: () => string | null;
 	getLocalChatBaseUrl: () => string | null;
 	/** Forwarded to `createBrowserTools` for §5.Y #5 SSRF protection. */
 	isRemoteMode: boolean;
+	/** §5.AU relay deps: the ACTIVE workspace's live task-session view (null ⇒ no live delivery; mailbox still works).
+	 *  Injected so this resolver stays decoupled from the task-session service's construction. */
+	getActiveTaskSessions?: () => {
+		listActiveTaskIds: () => ReadonlySet<string>;
+		sendInput: (taskId: string, text: string) => Promise<boolean>;
+	} | null;
+	/** §5.AU mailbox writer (defaults live inside the tool wiring; injected for tests). */
+	queueCardMailboxNote?: (taskId: string, text: string) => Promise<number>;
 }): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
 	return async (session, extra) => {
 		const workspacePath = input.getActiveWorkspacePath();
@@ -55,6 +70,22 @@ export function buildChatAgentToolDepsResolver(input: {
 		const board = createBoardReadTools(workspacePath);
 		const focus = createFocusChainTools(session.id);
 		const mutations = canAct ? createBoardMutationTools(workspacePath) : { tools: [], definitions: [] };
+		// §5.AU relay: `send_to_card` for can-act scopes (control_plane, like create_card). Live delivery needs the
+		// active task-session view; without it (or with no live session) messages fall back to the durable mailbox.
+		const taskSessions = input.getActiveTaskSessions?.() ?? null;
+		const relay = canAct
+			? createCardRelayTools(workspacePath, {
+					loadBoard: async (projectPath) => (await loadWorkspaceState(projectPath)).board,
+					listActiveSessionTaskIds: () => taskSessions?.listActiveTaskIds() ?? new Set<string>(),
+					deliverLive: (taskId, text) => taskSessions?.sendInput(taskId, text) ?? Promise.resolve(false),
+					queueMailbox:
+						input.queueCardMailboxNote ??
+						(async (taskId, text) => {
+							await appendCardMailboxNote({ taskId, text, source: "chat" });
+							return countPendingCardMailbox(taskId);
+						}),
+				})
+			: { tools: [], definitions: [] };
 		const commands = canAct ? createCommandRunTool(workspacePath) : { tools: [], definitions: [] };
 		// §5.M G6: the headless-browser tool is an orthogonal, per-session opt-in (`browserEnabled`). It's a host_command
 		// (reaching the internet is a host action), so the mode gate denies it in chat-only and confirms it in the
@@ -68,6 +99,7 @@ export function buildChatAgentToolDepsResolver(input: {
 			...board.tools,
 			...focus.tools,
 			...mutations.tools,
+			...relay.tools,
 			...commands.tools,
 			...browser.tools,
 			// Autonomous mode (todo §5.0.1) merges in the per-turn control tools (request_user_input /
@@ -79,6 +111,7 @@ export function buildChatAgentToolDepsResolver(input: {
 			...board.definitions,
 			...focus.definitions,
 			...mutations.definitions,
+			...relay.definitions,
 			...commands.definitions,
 			...browser.definitions,
 			...(extra?.definitions ?? []),

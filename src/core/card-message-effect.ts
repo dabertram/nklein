@@ -64,6 +64,30 @@ function questionEffect(input: ResolveCardMessageEffectInput): CardMessageEffect
 		: verdict("answer_from_state", "question answered from board/ledger state (cheap, local-first)");
 }
 
+/** Question openers/markers for the light deterministic intent classifier. */
+const QUESTION_OPENER_RE =
+	/^(who|what|when|where|why|how|is|are|was|were|does|do|did|can|could|should|would|will|has|have|any\s+update|status)\b/i;
+/** A clear "go" — the only phrasing that reads as steer (start-bearing on a READY card, so keep this strict). */
+const STEER_RE =
+	/^(go|start|begin|proceed|resume|continue|run\s+it|ship\s+it|kick\s+it\s+off|do\s+it|go\s+ahead)\b[.!]?/i;
+
+/**
+ * Classify a card-addressed message's intent — the "light local/deterministic step" the effect core expects from
+ * its caller. Deliberately conservative: only an explicit interrogative reads as `question`, only a clear leading
+ * "go" reads as `steer` (steer can start a READY card, so ambiguity must fall to `guidance`). Never returns
+ * `answer` — that binding comes from the addressing ladder (an outstanding ASK), not from the text.
+ */
+export function classifyCardMessageIntent(text: string): Exclude<CardMessageIntent, "answer"> {
+	const trimmed = text.trim();
+	if (STEER_RE.test(trimmed)) {
+		return "steer";
+	}
+	if (trimmed.endsWith("?") || QUESTION_OPENER_RE.test(trimmed)) {
+		return "question";
+	}
+	return "guidance";
+}
+
 /**
  * Decide the effect of a message to a card. Pure + deterministic. INVARIANT: a `blocked` card can never yield
  * `request_start`/`startsWork` — communication reaches it, execution does not.

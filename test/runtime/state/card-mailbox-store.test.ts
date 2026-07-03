@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	appendCardMailboxNote,
+	composeMailboxPromptAddendum,
 	consumeCardMailbox,
 	countPendingCardMailbox,
 	listPendingCardMailbox,
@@ -66,5 +67,18 @@ describe("card-mailbox-store", () => {
 		clock = 5000;
 		await appendCardMailboxNote({ taskId: "nobody", text: "hi" }, { rootDir, now });
 		expect(await countPendingCardMailbox("nobody", { rootDir })).toBe(1);
+	});
+});
+
+describe("composeMailboxPromptAddendum", () => {
+	it("renders queued notes as an operator-guidance addendum, empty for none", () => {
+		expect(composeMailboxPromptAddendum([])).toBe("");
+		const addendum = composeMailboxPromptAddendum([
+			{ schemaVersion: 1, id: "n1", taskId: "t", text: "prefer zod", source: "chat", createdAt: 1 },
+			{ schemaVersion: 1, id: "n2", taskId: "t", text: "keep the API stable", source: "chat", createdAt: 2 },
+		]);
+		expect(addendum).toContain("Operator guidance queued while this card waited");
+		expect(addendum).toContain("- prefer zod");
+		expect(addendum).toContain("- keep the API stable");
 	});
 });

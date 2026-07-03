@@ -1,5 +1,12 @@
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeWorkspaceStateResponse } from "../core/api-contract";
+import {
+	type CardExecutionState,
+	type CardMessageIntent,
+	classifyCardMessageIntent,
+	resolveCardMessageEffect,
+} from "../core/card-message-effect";
 import { addTaskToColumn } from "../core/task-board-mutations";
+import { listUnmetDependencyTaskIds, resolveCardExecutionState } from "../core/task-board-ready-sweep";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import {
 	loadWorkspaceState,
@@ -179,6 +186,161 @@ export function createBoardMutationTools(projectPath: string, options: { deps?: 
 					},
 				},
 				required: ["title", "prompt"],
+			},
+		},
+	];
+
+	return { tools, definitions };
+}
+
+/**
+ * §5.AU STEP 6 — the RELAY tool: `send_to_card` delivers a user/chat message TO a card, with the effect decided by
+ * the pure `(card state × intent)` core — communication is always possible, execution stays readiness-gated:
+ * RUNNING ⇒ delivered live into the agent's turn; READY/BLOCKED guidance ⇒ durably queued in the card's mailbox
+ * (consumed as opening context when it starts); a steer on a BLOCKED card ⇒ a gated unblock SUGGESTION (never an
+ * auto-start); questions ⇒ answered from board state. INVARIANT (core-tested): a blocked card is never started.
+ *
+ * `control_plane`: it touches only !Klein-owned state (mailbox, live session input) — never the working tree or a
+ * shell. Results name card ids/titles only, never on-disk paths.
+ */
+export interface CardRelayDeps {
+	/** The board + the live-session task ids (running/queued), for execution-state resolution. */
+	loadBoard: (projectPath: string) => Promise<RuntimeBoardData>;
+	listActiveSessionTaskIds: () => ReadonlySet<string>;
+	/** Deliver text into the card's LIVE session turn; false when no live session accepted it. */
+	deliverLive: (taskId: string, text: string) => Promise<boolean>;
+	/** Queue a note on the card's durable mailbox; returns the pending count after the append. */
+	queueMailbox: (taskId: string, text: string) => Promise<number>;
+}
+
+/** Parse and validate the `send_to_card` tool arguments. */
+function parseSendToCardArgs(
+	args: Record<string, unknown>,
+): { cardId: string; message: string; intent: CardMessageIntent | null } | { error: string } {
+	const rawCardId = args.card_id ?? args.cardId ?? args.id;
+	const rawMessage = args.message ?? args.text;
+	if (typeof rawCardId !== "string" || !rawCardId.trim()) {
+		return { error: "send_to_card requires a non-empty `card_id` string (use get_board to find card ids)." };
+	}
+	if (typeof rawMessage !== "string" || !rawMessage.trim()) {
+		return { error: "send_to_card requires a non-empty `message` string." };
+	}
+	const rawIntent = typeof args.intent === "string" ? args.intent.trim().toLowerCase() : null;
+	const intent =
+		rawIntent === "guidance" || rawIntent === "steer" || rawIntent === "question" || rawIntent === "answer"
+			? (rawIntent as CardMessageIntent)
+			: null;
+	return { cardId: rawCardId.trim(), message: rawMessage.trim(), intent };
+}
+
+/** A path-free one-line state answer for a card (the cheap local-first `answer_from_state`). */
+function describeCardState(
+	board: RuntimeBoardData,
+	cardId: string,
+	state: CardExecutionState,
+	activeSessionTaskIds: ReadonlySet<string>,
+): string {
+	const card = board.columns.flatMap((column) => column.cards).find((candidate) => candidate.id === cardId);
+	const title = card?.title?.trim() || cardId;
+	if (state === "running") {
+		return `Card [${cardId}] "${title}" is RUNNING — an agent is actively working it.`;
+	}
+	if (state === "done") {
+		return `Card [${cardId}] "${title}" is COMPLETED.`;
+	}
+	if (state === "blocked") {
+		const unmet = listUnmetDependencyTaskIds(board, cardId);
+		const why = card?.blockedKind
+			? `blocked (${card.blockedKind}${card.blockedReason ? `: ${card.blockedReason}` : ""})`
+			: unmet.length > 0
+				? `waiting on ${unmet.map((id) => `[${id}]`).join(", ")}`
+				: "blocked";
+		return `Card [${cardId}] "${title}" is BLOCKED — ${why}.`;
+	}
+	const waitingNote = activeSessionTaskIds.size > 0 ? " (other cards are running)" : "";
+	return `Card [${cardId}] "${title}" is READY to start${waitingNote}.`;
+}
+
+export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): ChatToolSet {
+	const tools: ChatTool[] = [
+		{
+			name: "send_to_card",
+			actionKind: "control_plane",
+			run: async (args) => {
+				const parsed = parseSendToCardArgs(args);
+				if ("error" in parsed) {
+					return parsed.error;
+				}
+				const { cardId, message } = parsed;
+				let board: RuntimeBoardData;
+				try {
+					board = await deps.loadBoard(projectPath);
+				} catch {
+					return "Could not read the project board.";
+				}
+				const activeSessionTaskIds = deps.listActiveSessionTaskIds();
+				const state = resolveCardExecutionState(board, activeSessionTaskIds, cardId);
+				if (state === null) {
+					return `No card with id "${cardId}" on the board (use get_board to list cards).`;
+				}
+				const intent = parsed.intent ?? classifyCardMessageIntent(message);
+				const verdict = resolveCardMessageEffect({ cardState: state, intent });
+				switch (verdict.effect) {
+					case "deliver_live": {
+						const delivered = await deps.deliverLive(cardId, message).catch(() => false);
+						if (delivered) {
+							return `Delivered to the agent working [${cardId}] (live).`;
+						}
+						// The session ended between the state read and the delivery — fall back to the durable mailbox.
+						const pending = await deps.queueMailbox(cardId, message);
+						return `The card's session just ended — queued to its mailbox instead (${pending} pending note(s)).`;
+					}
+					case "queue_mailbox": {
+						const pending = await deps.queueMailbox(cardId, message);
+						return `Queued on [${cardId}]'s mailbox (${pending} pending note(s)) — it will be read when the card starts. The card was NOT started (${state === "blocked" ? "it is blocked" : "starting stays a separate, gated action"}).`;
+					}
+					case "request_start": {
+						// v1: no start path from chat — the message is preserved and the READY state surfaced; starting
+						// remains the user's (or the swarm's) gated action. Never silently drops the guidance.
+						const pending = await deps.queueMailbox(cardId, message);
+						return `Card [${cardId}] is READY. Your note is queued (${pending} pending) and will open its run — ask the user to start the card (or the swarm will pick it up); chat cannot start cards yet.`;
+					}
+					case "suggest_unblock": {
+						const unmet = listUnmetDependencyTaskIds(board, cardId);
+						const pending = await deps.queueMailbox(cardId, message);
+						const blockers = unmet.length > 0 ? unmet.map((id) => `[${id}]`).join(", ") : "its blocker";
+						return `Card [${cardId}] is BLOCKED by ${blockers} — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: reprioritize ${blockers}, or drop the dependency.`;
+					}
+					case "append_followup": {
+						const pending = await deps.queueMailbox(cardId, message);
+						return `Card [${cardId}] is already completed — your note is recorded as a follow-up (${pending} pending note(s)).`;
+					}
+					default:
+						// answer_from_state / consult_response — both answer ABOUT the card from board state (consult's
+						// dedicated read-only model turn is a later §5.AU rung; the state answer is the honest v1).
+						return describeCardState(board, cardId, state, activeSessionTaskIds);
+				}
+			},
+		},
+	];
+
+	const definitions: LocalLlmToolDefinition[] = [
+		{
+			name: "send_to_card",
+			description:
+				"Send a message TO a specific board card: guidance or a steer for the agent working it (delivered live when it's running, queued to the card's durable mailbox otherwise), or a question about its status. Never starts a card — starting stays a separate, dependency-gated action. Use get_board first to find the card id.",
+			parameters: {
+				type: "object",
+				properties: {
+					card_id: { type: "string", description: "The target card's id (from get_board)." },
+					message: { type: "string", description: "What to tell (or ask) the card's agent." },
+					intent: {
+						type: "string",
+						description:
+							"Optional: how the message is meant — guidance (default), steer (a clear 'go'), question (about the card), or answer (replying to the card's own question).",
+					},
+				},
+				required: ["card_id", "message"],
 			},
 		},
 	];

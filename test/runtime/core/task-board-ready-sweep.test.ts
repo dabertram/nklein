@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
-import { listStartableUnstartedTaskIds } from "../../../src/core/task-board-ready-sweep";
+import {
+	listStartableUnstartedTaskIds,
+	listUnmetDependencyTaskIds,
+	resolveCardExecutionState,
+} from "../../../src/core/task-board-ready-sweep";
 
 function board(input: {
 	planning?: string[];
@@ -64,5 +68,30 @@ describe("listStartableUnstartedTaskIds (the ready-sweep — runs 12/14/15 stall
 		expect(listStartableUnstartedTaskIds(board({}), new Set())).toEqual([]);
 		const blocked = board({ planning: ["a"], deps: [["a", "ghost-incomplete"]] });
 		expect(listStartableUnstartedTaskIds(blocked, new Set())).toEqual([]);
+	});
+});
+
+describe("resolveCardExecutionState + listUnmetDependencyTaskIds (§5.AU relay facts)", () => {
+	const b = board({
+		planning: ["blocked-card", "ready-card", "live-card"],
+		completed: ["finished"],
+		deps: [
+			["blocked-card", "ready-card"],
+			["blocked-card", "finished"], // completed prerequisite — met, must not count
+		],
+	});
+
+	it("maps live session / completed lane / unmet deps / waiting to running / done / blocked / ready", () => {
+		const active = new Set(["live-card"]);
+		expect(resolveCardExecutionState(b, active, "live-card")).toBe("running");
+		expect(resolveCardExecutionState(b, active, "finished")).toBe("done");
+		expect(resolveCardExecutionState(b, active, "blocked-card")).toBe("blocked");
+		expect(resolveCardExecutionState(b, active, "ready-card")).toBe("ready");
+		expect(resolveCardExecutionState(b, active, "never-existed")).toBeNull();
+	});
+
+	it("lists only the UNMET prerequisites (completed ones excluded)", () => {
+		expect(listUnmetDependencyTaskIds(b, "blocked-card")).toEqual(["ready-card"]);
+		expect(listUnmetDependencyTaskIds(b, "ready-card")).toEqual([]);
 	});
 });

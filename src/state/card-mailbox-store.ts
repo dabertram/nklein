@@ -119,6 +119,18 @@ export async function countPendingCardMailbox(taskId: string, options: CardMailb
 }
 
 /**
+ * Render consumed mailbox notes as the opening-context addendum appended to the card's start prompt. Pure; empty
+ * string for no notes. Notes are quoted verbatim (oldest first) under a header that marks them as operator guidance.
+ */
+export function composeMailboxPromptAddendum(notes: readonly CardMailboxNote[]): string {
+	if (notes.length === 0) {
+		return "";
+	}
+	const lines = notes.map((note) => `- ${note.text}`);
+	return `\n\nOperator guidance queued while this card waited (read before starting; it may adjust or scope the task):\n${lines.join("\n")}`;
+}
+
+/**
  * Consume the card's pending guidance — call when the card STARTS WORK, to fold the notes into its opening context.
  * Returns the consumed notes (oldest first) and records the consume so they never resurface.
  */

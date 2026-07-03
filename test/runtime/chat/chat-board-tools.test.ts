@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createBoardMutationTools, createBoardReadTools } from "../../../src/chat/chat-board-tools";
+import {
+	type CardRelayDeps,
+	createBoardMutationTools,
+	createBoardReadTools,
+	createCardRelayTools,
+} from "../../../src/chat/chat-board-tools";
 import type {
 	RuntimeBoardCard,
 	RuntimeBoardColumnId,
@@ -255,5 +260,82 @@ describe("createBoardMutationTools — create_card", () => {
 		const { definitions } = createBoardMutationTools("/private/var/secret-proj");
 		expect(JSON.stringify(definitions)).not.toContain("secret-proj");
 		expect(definitions[0]?.name).toBe("create_card");
+	});
+});
+
+describe("createCardRelayTools — send_to_card (§5.AU step 6)", () => {
+	const RELAY_BOARD: RuntimeBoardData = {
+		...board([
+			{ id: "backlog", title: "Backlog", cards: [{ id: "ready-1", title: "Ready card" }] },
+			{ id: "planning", title: "Planning", cards: [{ id: "blocked-1", title: "Blocked card" }] },
+			{ id: "in_progress", title: "Doing", cards: [{ id: "running-1", title: "Running card" }] },
+			{ id: "completed", title: "Done", cards: [{ id: "done-1", title: "Done card" }] },
+		]),
+		dependencies: [{ id: "dep-1", fromTaskId: "blocked-1", toTaskId: "ready-1", createdAt: 1 }],
+	};
+
+	function relayTool(overrides: Partial<CardRelayDeps> = {}) {
+		const delivered: Array<{ taskId: string; text: string }> = [];
+		const queued: Array<{ taskId: string; text: string }> = [];
+		const deps: CardRelayDeps = {
+			loadBoard: async () => RELAY_BOARD,
+			listActiveSessionTaskIds: () => new Set(["running-1"]),
+			deliverLive: async (taskId, text) => {
+				delivered.push({ taskId, text });
+				return true;
+			},
+			queueMailbox: async (taskId, text) => {
+				queued.push({ taskId, text });
+				return queued.filter((note) => note.taskId === taskId).length;
+			},
+			...overrides,
+		};
+		const { tools } = createCardRelayTools("/proj", deps);
+		const tool = tools.find((candidate) => candidate.name === "send_to_card");
+		if (!tool) {
+			throw new Error("send_to_card tool missing");
+		}
+		return { tool, delivered, queued };
+	}
+
+	it("delivers guidance LIVE to a running card, and falls back to the mailbox when delivery fails", async () => {
+		const live = relayTool();
+		const result = await live.tool.run({ card_id: "running-1", message: "prefer the streaming parser" });
+		expect(result).toContain("Delivered to the agent");
+		expect(live.delivered).toEqual([{ taskId: "running-1", text: "prefer the streaming parser" }]);
+		expect(live.queued).toEqual([]);
+
+		const dead = relayTool({ deliverLive: async () => false });
+		const fallback = await dead.tool.run({ card_id: "running-1", message: "prefer the streaming parser" });
+		expect(fallback).toContain("queued to its mailbox instead");
+		expect(dead.queued).toHaveLength(1);
+	});
+
+	it("queues guidance on ready/blocked cards WITHOUT starting them (the §5.AU invariant)", async () => {
+		const relay = relayTool();
+		const ready = await relay.tool.run({ card_id: "ready-1", message: "use zod for the config schema" });
+		expect(ready).toContain("Queued on [ready-1]'s mailbox");
+		expect(ready).toContain("NOT started");
+		const blocked = await relay.tool.run({ card_id: "blocked-1", message: "keep the API backwards compatible" });
+		expect(blocked).toContain("Queued on [blocked-1]'s mailbox");
+		expect(relay.delivered).toEqual([]);
+	});
+
+	it("a steer on a BLOCKED card surfaces the gated unblock suggestion, never a start", async () => {
+		const relay = relayTool();
+		const result = await relay.tool.run({ card_id: "blocked-1", message: "go ahead", intent: "steer" });
+		expect(result).toContain("BLOCKED by [ready-1]");
+		expect(result).toContain("NOT started");
+		expect(relay.queued).toHaveLength(1);
+	});
+
+	it("answers questions from board state and records follow-ups on done cards", async () => {
+		const relay = relayTool();
+		const question = await relay.tool.run({ card_id: "blocked-1", message: "what is the status?" });
+		expect(question).toContain("BLOCKED — waiting on [ready-1]");
+		const followup = await relay.tool.run({ card_id: "done-1", message: "also document the flag" });
+		expect(followup).toContain("recorded as a follow-up");
+		const unknown = await relay.tool.run({ card_id: "nope", message: "hello" });
+		expect(unknown).toContain('No card with id "nope"');
 	});
 });

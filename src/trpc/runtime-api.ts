@@ -200,6 +200,30 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getActiveWorkspacePath: deps.getActiveWorkspacePath,
 				getLocalChatBaseUrl: () => nkleinProviderService.getLocalChatBaseUrl(),
 				isRemoteMode: deps.isRemoteMode ?? false,
+				// §5.AU relay: the ACTIVE workspace's live task sessions, so `send_to_card` can deliver into a running
+				// agent's turn (falls back to the durable mailbox when the service isn't loaded or the card isn't live).
+				getActiveTaskSessions: () => {
+					const workspaceId = deps.getActiveWorkspaceId();
+					const workspacePath = deps.getActiveWorkspacePath();
+					if (!workspaceId || !workspacePath) {
+						return null;
+					}
+					const service = deps.getLoadedScopedNKleinTaskSessionService?.({ workspaceId, workspacePath });
+					if (!service) {
+						return null;
+					}
+					return {
+						listActiveTaskIds: () =>
+							new Set(
+								service
+									.listSummaries()
+									.filter((summary) => summary.state === "running" || summary.state === "queued")
+									.map((summary) => summary.taskId),
+							),
+						sendInput: async (taskId, text) =>
+							(await service.sendTaskSessionInput(taskId, `${text}\n`).catch(() => null)) !== null,
+					};
+				},
 			}),
 			// §5.AL: feed the active project's effective gate policy as the chat gate's base, so chat honors a per-project
 			// policy like task-start does (env knobs still override on top).

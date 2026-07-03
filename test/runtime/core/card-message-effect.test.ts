@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type CardExecutionState,
 	type CardMessageIntent,
+	classifyCardMessageIntent,
 	resolveCardMessageEffect,
 } from "../../../src/core/card-message-effect";
 
@@ -65,5 +66,20 @@ describe("resolveCardMessageEffect — by state × intent", () => {
 		expect(effect("blocked", "question", false).effect).toBe("answer_from_state");
 		expect(effect("done", "question", false).effect).toBe("answer_from_state");
 		expect(effect("blocked", "question", true).effect).toBe("consult_response");
+	});
+});
+
+describe("classifyCardMessageIntent (the light deterministic classifier)", () => {
+	it("reads a clear leading go as steer, interrogatives as question, everything else as guidance", () => {
+		expect(classifyCardMessageIntent("go ahead")).toBe("steer");
+		expect(classifyCardMessageIntent("Start it.")).toBe("steer");
+		expect(classifyCardMessageIntent("proceed with the plan")).toBe("steer");
+		expect(classifyCardMessageIntent("what is the status?")).toBe("question");
+		expect(classifyCardMessageIntent("is this done")).toBe("question");
+		expect(classifyCardMessageIntent("any update on the parser")).toBe("question");
+		expect(classifyCardMessageIntent("prefer zod for the schema")).toBe("guidance");
+		// Ambiguity falls to guidance — steer can start a READY card, so it must be a CLEAR leading go.
+		expect(classifyCardMessageIntent("we should go with option B")).toBe("guidance");
+		expect(classifyCardMessageIntent("the goal is to start small")).toBe("guidance");
 	});
 });

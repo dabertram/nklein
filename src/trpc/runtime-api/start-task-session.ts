@@ -51,6 +51,7 @@ import {
 } from "../../nklein-agent/nklein-task-start-guard";
 import { applyMcsrAwareLocalTimeoutScaling } from "../../nklein-agent/nklein-timeout-scaling";
 import { readAllAgentLedger } from "../../state/agent-attempt-ledger-store";
+import { composeMailboxPromptAddendum, consumeCardMailbox } from "../../state/card-mailbox-store";
 import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
@@ -855,12 +856,18 @@ export async function handleStartTaskSession(
 		}
 		deps.taskStartQueue?.remove(workspaceScope.workspaceId, body.taskId);
 		const resolvedNKleinTitle = resolveTaskTitle(body.taskTitle?.trim(), body.prompt);
+		// §5.AU: fold the card's pending mailbox notes (chat guidance queued while it waited) into the opening
+		// prompt — the "consumed as opening context when the card starts WORK" half of the communication/execution
+		// split. Every start path funnels through this handler, so nothing queued is ever silently dropped.
+		// Best-effort: a mailbox read failure must never block a start.
+		const mailboxNotes = await consumeCardMailbox(body.taskId).catch(() => []);
+		const promptWithMailbox = `${body.prompt}${composeMailboxPromptAddendum(mailboxNotes)}`;
 		const summary = await nkleinTaskSessionService.startTaskSession({
 			taskId: body.taskId,
 			cwd: workspaceScope.workspacePath,
 			workspaceRoot: workspaceScope.workspacePath,
 			baseRef: body.baseRef,
-			prompt: body.prompt,
+			prompt: promptWithMailbox,
 			taskTitle: resolvedNKleinTitle.length > 0 ? resolvedNKleinTitle : undefined,
 			images: body.images,
 			filesLikelyTouched: body.filesLikelyTouched,
