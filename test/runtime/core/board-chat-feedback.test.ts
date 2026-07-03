@@ -73,6 +73,7 @@ describe("decideBoardChatFeedback — ASK tier (immediate, honored even at conci
 	const asks: Array<[string, Partial<OperatorTaskSignals>, string]> = [
 		["unsafe-action ack", { awaitingHostActionAck: true }, "unsafe_action_ack"],
 		["held delivery gate", { deliveryGateHeld: true }, "delivery_gate_held"],
+		["escalated/parked card", { escalatedToOperator: true }, "escalated_to_operator"],
 		["clarifying question", { clarifyingQuestionPending: true }, "needs_input"],
 		["sandbox unavailable", { blockedKind: "agent_sandbox_unavailable" }, "sandbox_unavailable"],
 	];

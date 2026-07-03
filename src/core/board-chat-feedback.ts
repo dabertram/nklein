@@ -75,6 +75,9 @@ const ASK_SIGNALS: readonly {
 }[] = [
 	{ kind: "unsafe_action_ack", verbs: ["approve", "reject"], active: (s) => s.awaitingHostActionAck },
 	{ kind: "delivery_gate_held", verbs: ["approve", "edit", "reject"], active: (s) => s.deliveryGateHeld },
+	// A card the review ladder parked / escalated for a human — surface it as an ASK so the operator can act from chat
+	// (review what was tried, retry on a stronger model, or reassign) instead of hunting the board (§5.AW).
+	{ kind: "escalated_to_operator", verbs: ["review", "retry", "reassign"], active: (s) => s.escalatedToOperator },
 	{ kind: "needs_input", verbs: ["respond"], active: (s) => s.clarifyingQuestionPending },
 	{
 		kind: "sandbox_unavailable",
