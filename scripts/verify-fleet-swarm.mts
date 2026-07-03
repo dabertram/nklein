@@ -398,10 +398,12 @@ async function main(): Promise<void> {
 					lastSeenSessionStamp = freshestStamp;
 					lastProgressAt = Date.now();
 				}
-				// A LIVE synthetic session (::review/::merge/::spec) is progress by definition — reviews are
-				// bounded to 10 min and mirrors to 15 min by the runtime, so trusting liveness cannot hang the
-				// harness (run39: a slow reviewer's 3-4 min tool gaps outran the stamp heuristic mid-grind).
-				if (polledSessions.some(([taskId, s]) => taskId.includes("::") && ALIVE_SESSION_STATES.has(s.state ?? ""))) {
+				// A RUNNING session is progress by definition — a 27B grinding a complexity-100 decompose can
+				// generate for 7+ minutes with zero tool events (run40), and synthetic sessions (::review/::spec)
+				// never emit board changes at all (run39). The RUNTIME's stream/tool timeouts bound a genuinely
+				// dead stream, so the harness trusts `running`; awaiting_review/queued deliberately do NOT count
+				// (wedged holds must still trip the stall lanes).
+				if (polledSessions.some(([, s]) => s.state === "running")) {
 					lastProgressAt = Date.now();
 				}
 				const anySessionAlive =
