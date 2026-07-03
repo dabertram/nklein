@@ -35,7 +35,7 @@ export function Dialog({
 					aria-describedby={contentAriaDescribedBy}
 					onEscapeKeyDown={onEscapeKeyDown}
 					className={cn(
-						"kb-dialog-content fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-lg max-h-[85vh] flex flex-col rounded-lg border border-[#5A6572] bg-surface-1 shadow-2xl focus:outline-none",
+						"kb-dialog-content fixed left-1/2 top-1/2 z-50 w-[90vw] max-w-lg max-h-[85vh] flex flex-col rounded-lg border border-border-bright bg-surface-1 shadow-2xl focus:outline-none",
 						contentClassName,
 					)}
 				>
@@ -56,7 +56,7 @@ export function DialogHeader({
 	children?: ReactNode;
 }): React.ReactElement {
 	return (
-		<div className="flex items-center justify-between px-2 py-2 max-md:px-3 max-md:py-3 bg-surface-2 border-b border-[#5A6572] shrink-0 rounded-t-lg">
+		<div className="flex items-center justify-between px-2 py-2 max-md:px-3 max-md:py-3 bg-surface-2 border-b border-border-bright shrink-0 rounded-t-lg">
 			<RadixDialog.Title className="flex items-center gap-2 text-sm font-semibold text-text-primary">
 				{icon ? <span className="text-text-secondary">{icon}</span> : null}
 				{title}
@@ -80,7 +80,7 @@ export function DialogBody({ children, className }: { children: ReactNode; class
 
 export function DialogFooter({ children }: { children: ReactNode }): React.ReactElement {
 	return (
-		<div className="flex justify-end gap-2 px-2 py-2 max-md:px-3 max-md:py-3 max-md:gap-3 bg-surface-2 border-t border-[#5A6572] shrink-0 rounded-b-lg">
+		<div className="flex justify-end gap-2 px-2 py-2 max-md:px-3 max-md:py-3 max-md:gap-3 bg-surface-2 border-t border-border-bright shrink-0 rounded-b-lg">
 			{children}
 		</div>
 	);
@@ -106,7 +106,7 @@ export function AlertDialog({
 					className="fixed inset-0 z-50 bg-black/60 touch-none"
 					style={{ animation: "kb-overlay-show 150ms ease" }}
 				/>
-				<RadixAlertDialog.Content className="kb-dialog-content fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[90vw] max-w-md flex-col rounded-lg border border-[#5A6572] bg-surface-1 shadow-2xl focus:outline-none">
+				<RadixAlertDialog.Content className="kb-dialog-content fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[90vw] max-w-md flex-col rounded-lg border border-border-bright bg-surface-1 shadow-2xl focus:outline-none">
 					{children}
 				</RadixAlertDialog.Content>
 			</RadixAlertDialog.Portal>
@@ -124,7 +124,7 @@ export function AlertDialogHeader({
 	return (
 		<div
 			className={cn(
-				"px-2 py-2 max-md:px-3 max-md:py-3 bg-surface-2 border-b border-[#5A6572] shrink-0 rounded-t-lg",
+				"px-2 py-2 max-md:px-3 max-md:py-3 bg-surface-2 border-b border-border-bright shrink-0 rounded-t-lg",
 				className,
 			)}
 		>
@@ -162,7 +162,7 @@ export function AlertDialogFooter({
 	return (
 		<div
 			className={cn(
-				"flex justify-end gap-2 px-2 py-2 max-md:px-3 max-md:py-3 max-md:gap-3 bg-surface-2 border-t border-[#5A6572] shrink-0 rounded-b-lg",
+				"flex justify-end gap-2 px-2 py-2 max-md:px-3 max-md:py-3 max-md:gap-3 bg-surface-2 border-t border-border-bright shrink-0 rounded-b-lg",
 				className,
 			)}
 		>

@@ -46,7 +46,7 @@ export function ShimmeringText({
 			ref={ref}
 			className={cn(
 				"relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
-				"[--base-color:#6E7681] [--shimmer-color:#C9D1D9]",
+				"[--base-color:var(--color-text-tertiary)] [--shimmer-color:var(--color-text-primary)]",
 				"[background-repeat:no-repeat,padding-box]",
 				"[--shimmer-bg:linear-gradient(90deg,transparent_calc(50%-var(--spread)),var(--shimmer-color),transparent_calc(50%+var(--spread)))]",
 				className,

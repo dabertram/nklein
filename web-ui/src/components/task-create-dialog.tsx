@@ -578,7 +578,7 @@ export function TaskCreateDialog({
 									<button
 										type="button"
 										onClick={handleSplitIntoTasks}
-										className="inline-flex items-center gap-1.5 text-[12px] text-status-blue hover:text-[#86BEFF] cursor-pointer shrink-0"
+										className="inline-flex items-center gap-1.5 text-[12px] text-status-blue hover:opacity-80 cursor-pointer shrink-0"
 									>
 										<List size={12} />
 										Split into {detectedItems.length} tasks

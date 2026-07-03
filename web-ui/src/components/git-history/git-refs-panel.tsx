@@ -19,13 +19,13 @@ import { Tooltip } from "@/components/ui/tooltip";
 import type { RuntimeGitRef } from "@/runtime/types";
 
 const ROW_HEIGHT = 30;
-const SELECTED_SUBTLE_TEXT_COLOR = "rgba(255, 255, 255, 0.64)";
+const SELECTED_SUBTLE_TEXT_COLOR = "var(--color-text-secondary)";
 const MATCHED_TEXT_STYLE = {
 	color: "var(--color-status-blue)",
 	fontWeight: 600,
 } as const;
 const MATCHED_TEXT_STYLE_SELECTED = {
-	color: "rgba(255, 255, 255, 0.92)",
+	color: "var(--color-text-primary)",
 	fontWeight: 600,
 } as const;
 const HEAD_BADGE_BACKGROUND = "color-mix(in srgb, var(--color-status-blue) 15%, transparent)";

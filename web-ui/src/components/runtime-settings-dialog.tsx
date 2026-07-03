@@ -2652,15 +2652,15 @@ export function RuntimeSettingsDialog({
 											<span className="flex shrink-0 h-5 w-10 rounded overflow-hidden border border-border">
 												<span
 													className="flex-1"
-													style={{ background: currentThemeDef?.surface ?? "#1F2428" }}
+													style={{ background: currentThemeDef?.surface ?? "#0A0C10" }}
 												/>
 												<span
 													className="flex-1"
-													style={{ background: currentThemeDef?.accent ?? "#0084FF" }}
+													style={{ background: currentThemeDef?.accent ?? "#3FE0E0" }}
 												/>
 												<span
 													className="flex-1"
-													style={{ background: currentThemeDef?.accent2 ?? "#7C5CFF" }}
+													style={{ background: currentThemeDef?.accent2 ?? "#9D7BFF" }}
 												/>
 											</span>
 											<RadixSelect.Value />
