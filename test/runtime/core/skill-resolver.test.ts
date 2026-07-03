@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { SKILL_REGISTRY } from "../../../src/core/skill-registry";
 import { resolveActiveSkills } from "../../../src/core/skill-resolver";
 
 describe("resolveActiveSkills", () => {
@@ -23,6 +24,20 @@ describe("resolveActiveSkills", () => {
 		const varied = resolveActiveSkills({ role: "worker", taskText: "fix the bug", priorFailures: 1 });
 		expect(varied.skills.length).toBe(base.skills.length + 1);
 		expect(varied.reason).toMatch(/varied for stuck task/);
+	});
+
+	it("fully_dynamic: the variation ESCALATES with the failure count (each rung widens the mix)", () => {
+		const base = resolveActiveSkills({ role: "worker", taskText: "fix the bug" });
+		const twice = resolveActiveSkills({ role: "worker", taskText: "fix the bug", priorFailures: 2 });
+		expect(twice.skills.length).toBe(base.skills.length + 2);
+		// two DISTINCT added ids appear in the reason
+		const added = twice.reason.match(/\(\+([^)]+)\)/)?.[1]?.split(",") ?? [];
+		expect(added).toHaveLength(2);
+		expect(new Set(added).size).toBe(2);
+		// a large count SATURATES to the whole registry with no duplicates
+		const saturated = resolveActiveSkills({ role: "worker", taskText: "fix the bug", priorFailures: 99 });
+		expect(saturated.skills).toHaveLength(SKILL_REGISTRY.length);
+		expect(new Set(saturated.skills.map((s) => s.id)).size).toBe(SKILL_REGISTRY.length);
 	});
 
 	it("static levels resolve the role's default bundle with no relevance/failure variation", () => {

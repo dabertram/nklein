@@ -97,11 +97,15 @@ export function resolveActiveSkills(input: ResolveActiveSkillsInput): ActiveSkil
 		// fully_dynamic
 		skills = selectByRelevance(input, threshold);
 		reason = `dynamic by relevance (≥${threshold})`;
-		if ((input.priorFailures ?? 0) > 0) {
-			const variation = firstUntriedSkill(skills);
-			if (variation) {
-				skills = [...skills, variation];
-				reason = `${reason}; varied for stuck task (+${variation.id})`;
+		const priorFailures = input.priorFailures ?? 0;
+		if (priorFailures > 0) {
+			// Escalate the variation WITH the failure count: the 2nd/3rd retry widens the skill mix instead of
+			// re-trying the same single untried skill, so each rung of the §5.AA ladder is genuinely different.
+			// Deterministic + saturating (a large count just adds all remaining registry skills, no duplicates).
+			const extras = untriedSkills(skills, priorFailures);
+			if (extras.length > 0) {
+				skills = [...skills, ...extras];
+				reason = `${reason}; varied for stuck task (+${extras.map((skill) => skill.id).join(",")})`;
 			}
 		}
 	}
@@ -127,8 +131,12 @@ function selectByRelevance(input: ResolveActiveSkillsInput, threshold: number): 
 	return scored.map((entry) => entry.skill);
 }
 
-/** The first registry skill not already active — the deterministic "vary the set" pick for a stuck task. */
-function firstUntriedSkill(active: readonly Skill[]): Skill | null {
+/** The first `n` registry skills not already active (registry order) — the deterministic "widen the set" picks for
+ *  a stuck task, scaled by the failure count. Saturates at the registry size (returns all remaining when n is large). */
+function untriedSkills(active: readonly Skill[], n: number): Skill[] {
+	if (n <= 0) {
+		return [];
+	}
 	const activeIds = new Set(active.map((skill) => skill.id));
-	return SKILL_REGISTRY.find((skill) => !activeIds.has(skill.id)) ?? null;
+	return SKILL_REGISTRY.filter((skill) => !activeIds.has(skill.id)).slice(0, n);
 }
