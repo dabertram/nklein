@@ -1,4 +1,5 @@
 import type { RuntimeTaskAcceptanceResult } from "./task-lifecycle-api-contract";
+import type { TestRegressionClassification } from "./test-regression-verdict";
 
 /**
  * FAIL-CLOSED delivery-gate evidence (audit 2026-07-02 W0.1). Derives the {@link decideDeliveryAction} gate inputs
@@ -47,6 +48,22 @@ export function deriveDeliveryGateEvidence(input: {
 					: `acceptance failed (exit ${acceptance.exitCode ?? "?"})`;
 	}
 	return { reviewApproved, testsPassed, testsDetail };
+}
+
+/**
+ * The signed regression delta for the {@link decideDeliveryAction} `regressionDelta` gate, derived from a FRESH
+ * {@link classifyTestRegression} result: `newlyFixed − newFailures`. `>0` means the change net-fixed tests (permits
+ * merge), `<0` means it introduced more failures than it fixed (blocks merge), `0` is neutral. Returns `null` (unknown)
+ * when there is NO baseline classification to measure against — an unmeasured delta the gate then self-merges only at
+ * the most-open tier (`allowSelfMergeOnUnknownDelta`). Pure; never fabricates a measurement from a missing baseline.
+ */
+export function regressionDeltaFromClassification(
+	classification: TestRegressionClassification | null | undefined,
+): number | null {
+	if (!classification) {
+		return null;
+	}
+	return classification.counts.newlyFixed - classification.counts.newFailures;
 }
 
 /**
