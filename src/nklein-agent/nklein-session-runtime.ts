@@ -1000,9 +1000,15 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 							// doesn't exist on the host, which previously left the repo map silently empty.
 							hostWorkspaceRoot,
 							request.contextWindow,
-							// §5.O opt-in two-phase tool narrowing: construct a phase-1 pick caller ONLY when the flag is set and
-							// we have a local endpoint+model — otherwise undefined ⇒ the extension's narrowing is inert.
-							isTruthyEnv(process.env.NKLEIN_TWO_PHASE_TOOL_PICK) && request.baseUrl && request.modelId
+							// §5.O opt-in two-phase tool narrowing: construct a phase-1 pick caller ONLY when the flag is set,
+							// we have a local endpoint+model, AND this is a WORK-card session (`onCardPromoted`, like the
+							// promotion tool above) — two-phase is a WORKER file-tool selector; on the architect/decompose,
+							// plan-mode, or home/chat turn it is pure overhead (a wasted phase-1 round-trip whose card menu
+							// doesn't fit `decompose_project` etc.) — a suspected cause of a stuck decompose in run44.
+							isTruthyEnv(process.env.NKLEIN_TWO_PHASE_TOOL_PICK) &&
+								request.baseUrl &&
+								request.modelId &&
+								request.onCardPromoted
 								? createOpenAiCompatPhaseOnePickCaller({ baseUrl: request.baseUrl, modelId: request.modelId })
 								: undefined,
 						),
