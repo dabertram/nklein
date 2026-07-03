@@ -7241,7 +7241,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       **STILL OWED:** subsume #2 (§5.L delivery rulesets) + #3's CONTENT policies (scope/size/secrets — the approval policy's
       capability tiers are done, see below) onto the manifest, add the research-addendum fields (`allowedRunStates`/taint/
       `auditDetail`), then **migrate the 3 call sites to the one gate** (the wiring).
-  - [ ] Subsume §5.L delivery rulesets onto the manifest (add characterization test matching current rulesets).
+      **★ MANIFEST CROSS-CORE ADAPTER CLUSTER SHIPPED (2026-07-03, workflow + adversarial-verify, 4 pure cores GREEN 6847):**
+      #3 subsumption via `toolPoliciesFromManifests` (commit 1aa1bb5a — derives the NKlein static tool-policy shape from the
+      manifest, characterization-proven deep-equal to `createKanbanToolPolicies()`; call site NOT swapped = inert slice) ·
+      `manifestAllowedInPhase`/`selectPhaseManifestTools` (the `allowedRunStates` addendum — gate a whole manifest by run
+      phase, pinned to agree with `isToolAllowedInPhase` across all 14 RunPhases) · `manifestProtectedInfluenceKinds` (§5.L
+      bridge — which taint sink(s) a manifested action touches) · `capabilityBrokerInputFromManifest`/`brokerManifestAction`
+      (a from-manifest constructor for the §5.L capability broker). These are the missing CROSS-CORE bridges between the six
+      interlocking manifest cores. **#2 (delivery-ruleset subsumption) SCOUT-REJECTED as out-of-scope (2026-07-03):** the
+      delivery dial (`autoCommit/autoOpenPr/autoMerge`) is a DIFFERENT axis (commit→PR→merge autonomy) the manifest
+      vocabulary (`mutationLevel/networkLevel/fsScope/approval`) doesn't model — subsuming it is a REDESIGN, not a
+      byte-identical migration. Leave it off the manifest. **REMAINING (fleet/wiring-gated):** migrate the 3 live call sites
+      to the one gate (the chat gate is done); the pure-adapter vein in this cluster is now thin.
+  - [ ] Subsume §5.L delivery rulesets onto the manifest (add characterization test matching current rulesets). **SCOUT-REJECTED 2026-07-03: different axis (delivery autonomy ≠ tool gating); a redesign not a subsumption — do NOT attempt as a bounded slice.**
   - [~] Subsume NKlein tool-approval policy onto the manifest (characterization test for all approval paths).
         **CAPABILITY-TIER HALF DONE (2026-07-01):** `KANBAN_TOOL_MANIFESTS` + `manifestForKanbanTool` in
         [tool-capability-manifest.ts](src/core/tool-capability-manifest.ts) declare each kanban tool's tier (reads →
