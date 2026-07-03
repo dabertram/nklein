@@ -9415,26 +9415,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       "type validation failed", NOT in-execute failures) and records a `tool_input_rejection` self-observation
 >       tagged toolName+modelId+providerId. After the sweep these should be rare; the counter makes a resurgence
 >       visible per-tool-per-model on telemetry instead of only in an autopsy.
-> - [ ] **run42 evidence — tool-NAME aliasing:** models call unavailable names (`read_file` singular for
->       `read_files`) and get "Model tried to call unavailable tool" pre-rejections. Next tolerance seam: a
->       tool-name alias map at the routing/dispatch layer (read_file→read_files, write_file variants, etc.) —
->       redirect instead of reject when the intent is unambiguous.
->       **★ EXECUTION-READY PLAN (investigated 2026-07-03, Opus; NOT yet built — deliberately deferred to a careful/
->       Fable-assisted session because it patches the vendored engine, a wide-blast-radius surface, and the user had
->       just flagged velocity):** the correct seam is the AI-SDK's `experimental_repairToolCall` hook. The vendored
->       provider `vendor/cline-sdk/packages/llms/src/providers/ai-sdk.ts` calls `streamText({…})` at ~line 1153 WITHOUT
->       it today; the AI-SDK raises `NoSuchToolError` when the model names a tool absent from the provided set, which is
->       what surfaces as the "unavailable tool" pre-rejection (this is DISTINCT from `resolveCoreSelectedToolIds`'s
->       allowlist-CONFIG throw at `extensions/tools/runtime.ts:240`, which is a config error, not a model-call path).
->       BUILD: pass `experimental_repairToolCall` to that `streamText` call; in it, on a NoSuchToolError, look up the
->       requested name in a small ALIAS MAP (read_file→read_files, list_dir→list_files, write_file→edit_file/create,
->       etc.) and, ONLY IF the alias target is in `error.tools`/the available set, return the repaired call with the
->       canonical name (and the same args); otherwise return null (let it reject as today). Keep the alias map data-
->       driven + unit-tested as a pure function (`resolveToolNameAlias(requested, availableNames) => string|null`) so
->       the SDK hook is a thin adapter. Requires `npm run build:sdk` + a live probe. Pairs with the §5.BD schema
->       tolerance (arg repair can ride the SAME repairToolCall hook later). Cross-check: some names may be BETTER
->       fixed by ADDING the alias as a real tolerant tool alias in `definitions.ts` — decide per-name (a true rename
->       vs a distinct tool) during the build.
+> - [x] **run42 evidence — tool-NAME aliasing — DONE (2026-07-03, commit ~a…):** models called unavailable names
+>       (`read_file` for `read_files`) and looped on the "unavailable tool" pre-rejection. Wired at the AI-SDK's
+>       `experimental_repairToolCall` hook on the provider's `streamText` call (`ai-sdk.ts`): on `NoSuchToolError`,
+>       `resolveToolNameAlias(requested, offeredNames)` (new PURE core, `llms/providers/tool-name-alias.ts`, 5 tests)
+>       redirects to a REAL offered tool (keeping args) — exact-normalized (readFiles→read_files) → curated synonym
+>       (grep→search_codebase, bash→run_commands, ls→list_files, browse_url→fetch_web_content) → singular↔plural. It
+>       only ever returns a name in the offered set (can't invent/mis-route). Only NoSuchToolError is repaired; arg
+>       errors fall through to the per-tool execute normalizers (layers compose — a repaired call is re-validated).
+>       Logs each alias. SDK rebuilt; vendored llms green (339); repo green (6585). Live-confirm at sweep time.
 > - [x] **run38 evidence — `read_files` double-encoded array — DONE:** the EVIDENCED whole-`files`-string shape
 >       (`{"files": "[{\"path\": ..."}`) is decoded in `read_files`' execute() (fix #40, vendored `definitions.ts`).
 >       **Extended 2026-07-03:** the PER-ELEMENT sibling (`{"files": ["{\"path\":\"a.ts\"}"]}` — an array whose
