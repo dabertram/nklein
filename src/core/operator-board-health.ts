@@ -21,7 +21,12 @@ export type { OperatorBoardSummary, OperatorSignalOverrides } from "./operator-t
 export interface BoardHealthBoardView {
 	columns: ReadonlyArray<{
 		id: OperatorColumnId;
-		cards: ReadonlyArray<{ id: string; blockedKind?: OperatorTaskSignals["blockedKind"] }>;
+		cards: ReadonlyArray<{
+			id: string;
+			blockedKind?: OperatorTaskSignals["blockedKind"];
+			/** The card's review state — a `parked` or `escalated` review is board state that needs the operator (§5.AW). */
+			review?: { status?: string; escalated?: boolean } | null;
+		}>;
 	}>;
 }
 
@@ -49,8 +54,13 @@ export function summarizeBoardHealth(
 			// The card's own `blockedKind` is board state — fold it into the signals (a caller override wins if it also
 			// supplies one), so a sandbox-unavailable card reads `risky` and a needs-decomposition card reads `stuck`
 			// straight from the board, without waiting on the §5.L/§5.S/§5.M subsystems to expose per-task state.
+			// A card the review ladder PARKED (gave up → held for a human) or ESCALATED to the user is board state that needs
+			// the operator — fold it in so a parked/escalated card reads `risky` + lands in the inbox straight from the board
+			// (a caller override still wins). §5.AW.
+			const escalatedToOperator = card.review?.status === "parked" || card.review?.escalated === true;
 			const overrides: OperatorSignalOverrides = {
 				...(card.blockedKind ? { blockedKind: card.blockedKind } : {}),
+				...(escalatedToOperator ? { escalatedToOperator: true } : {}),
 				...resolveOverrides?.(card.id),
 			};
 			tasks.push({

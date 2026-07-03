@@ -19,6 +19,7 @@ function signals(overrides: Partial<OperatorTaskSignals> = {}): OperatorTaskSign
 		clarifyingQuestionPending: false,
 		noProgressOrLoop: false,
 		approachingBudgetCeiling: false,
+		escalatedToOperator: false,
 		...overrides,
 	};
 }

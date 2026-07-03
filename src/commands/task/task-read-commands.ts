@@ -59,6 +59,7 @@ export async function reportBoardHealth(input: { cwd: string; projectPath?: stri
 			clarifyingQuestions: health.inbox.clarifyingQuestions,
 			heldDeliveries: health.inbox.heldDeliveries,
 			blockedOnSetup: health.inbox.blockedOnSetup,
+			escalatedToOperator: health.inbox.escalatedToOperator,
 		},
 	};
 }

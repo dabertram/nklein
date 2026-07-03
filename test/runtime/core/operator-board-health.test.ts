@@ -117,4 +117,19 @@ describe("summarizeWorkspaceBoardHealth", () => {
 		expect(summary.counts.risky).toBe(1);
 		expect(summary.inbox.heldDeliveries).toEqual(["gated"]);
 	});
+
+	it("folds a PARKED or ESCALATED review from board state → risky + the escalatedToOperator inbox (no session needed)", () => {
+		const parked = { ...card("parked"), review: { status: "parked" } } as RuntimeBoardCard;
+		const escalated = { ...card("escalated"), review: { status: "in_review", escalated: true } } as RuntimeBoardCard;
+		const summary = summarizeWorkspaceBoardHealth(
+			stateWith(
+				board([
+					{ columnId: "in_progress", card: parked },
+					{ columnId: "in_progress", card: escalated },
+				]),
+			),
+		);
+		expect(summary.counts.risky).toBe(2);
+		expect(summary.inbox.escalatedToOperator.sort()).toEqual(["escalated", "parked"]);
+	});
 });

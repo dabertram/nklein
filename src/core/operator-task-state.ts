@@ -41,13 +41,17 @@ export interface OperatorTaskSignals {
 	noProgressOrLoop: boolean;
 	/** The run is at/over the warn fraction of its tightest budget/iteration/timeout ceiling (§5.AG run-attention). */
 	approachingBudgetCeiling: boolean;
+	/** The card was PARKED by the review ladder or ESCALATED to the user — it needs an operator decision (§5.AB/§5.AW). */
+	escalatedToOperator: boolean;
 }
 
 export function classifyOperatorTaskState(signals: OperatorTaskSignals): OperatorTaskState {
-	// RISKY — needs the operator's attention NOW: an unsafe action to ack, a held delivery, or the sandbox unavailable.
+	// RISKY — needs the operator's attention NOW: an unsafe action to ack, a held delivery, a card parked/escalated for
+	// the operator, or the sandbox unavailable.
 	if (
 		signals.awaitingHostActionAck ||
 		signals.deliveryGateHeld ||
+		signals.escalatedToOperator ||
 		signals.blockedKind === "agent_sandbox_unavailable"
 	) {
 		return "risky";
@@ -97,6 +101,8 @@ export interface OperatorInbox {
 	heldDeliveries: string[];
 	/** Cards blocked on setup before they can run (needs-decomposition / local-model-required / sandbox-unavailable). */
 	blockedOnSetup: string[];
+	/** Cards parked by the review ladder or escalated to the user — needing an operator decision (§5.AB/§5.AW). */
+	escalatedToOperator: string[];
 	/** Distinct tasks needing ANY operator action. */
 	total: number;
 }
@@ -106,6 +112,7 @@ export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): Opera
 	const clarifyingQuestions: string[] = [];
 	const heldDeliveries: string[] = [];
 	const blockedOnSetup: string[] = [];
+	const escalatedToOperator: string[] = [];
 	const needingAction = new Set<string>();
 	for (const task of tasks) {
 		if (task.signals.awaitingHostActionAck) {
@@ -124,8 +131,19 @@ export function collectOperatorInbox(tasks: readonly OperatorInboxTask[]): Opera
 			blockedOnSetup.push(task.taskId);
 			needingAction.add(task.taskId);
 		}
+		if (task.signals.escalatedToOperator) {
+			escalatedToOperator.push(task.taskId);
+			needingAction.add(task.taskId);
+		}
 	}
-	return { unsafeActionAcks, clarifyingQuestions, heldDeliveries, blockedOnSetup, total: needingAction.size };
+	return {
+		unsafeActionAcks,
+		clarifyingQuestions,
+		heldDeliveries,
+		blockedOnSetup,
+		escalatedToOperator,
+		total: needingAction.size,
+	};
 }
 
 /**
@@ -176,6 +194,7 @@ export interface OperatorSignalOverrides {
 	clarifyingQuestionPending?: boolean;
 	noProgressOrLoop?: boolean;
 	approachingBudgetCeiling?: boolean;
+	escalatedToOperator?: boolean;
 }
 
 /**
@@ -199,5 +218,6 @@ export function mapSessionSummaryToOperatorSignals(
 		clarifyingQuestionPending: overrides.clarifyingQuestionPending ?? false,
 		noProgressOrLoop: overrides.noProgressOrLoop ?? false,
 		approachingBudgetCeiling: overrides.approachingBudgetCeiling ?? false,
+		escalatedToOperator: overrides.escalatedToOperator ?? false,
 	};
 }

@@ -18,6 +18,7 @@ const HEALTHY: OperatorTaskSignals = {
 	clarifyingQuestionPending: false,
 	noProgressOrLoop: false,
 	approachingBudgetCeiling: false,
+	escalatedToOperator: false,
 };
 
 describe("classifyOperatorTaskState", () => {
@@ -43,9 +44,10 @@ describe("classifyOperatorTaskState", () => {
 		expect(classifyOperatorTaskState({ ...HEALTHY, blockedKind: "needs_decomposition" })).toBe("stuck");
 	});
 
-	it("risky = an unsafe action to ack, a held delivery, or sandbox unavailable", () => {
+	it("risky = an unsafe action to ack, a held delivery, an escalated/parked card, or sandbox unavailable", () => {
 		expect(classifyOperatorTaskState({ ...HEALTHY, awaitingHostActionAck: true })).toBe("risky");
 		expect(classifyOperatorTaskState({ ...HEALTHY, deliveryGateHeld: true })).toBe("risky");
+		expect(classifyOperatorTaskState({ ...HEALTHY, escalatedToOperator: true })).toBe("risky");
 		expect(classifyOperatorTaskState({ ...HEALTHY, blockedKind: "agent_sandbox_unavailable" })).toBe("risky");
 	});
 
@@ -73,13 +75,15 @@ describe("collectOperatorInbox", () => {
 			{ taskId: "t-clarify", signals: { ...HEALTHY, clarifyingQuestionPending: true } },
 			{ taskId: "t-delivery", signals: { ...HEALTHY, deliveryGateHeld: true } },
 			{ taskId: "t-blocked", signals: { ...HEALTHY, blockedKind: "agent_sandbox_unavailable" } },
+			{ taskId: "t-escalated", signals: { ...HEALTHY, escalatedToOperator: true } },
 			{ taskId: "t-fine", signals: HEALTHY },
 		]);
 		expect(inbox.unsafeActionAcks).toEqual(["t-ack"]);
 		expect(inbox.clarifyingQuestions).toEqual(["t-clarify"]);
 		expect(inbox.heldDeliveries).toEqual(["t-delivery"]);
 		expect(inbox.blockedOnSetup).toEqual(["t-blocked"]);
-		expect(inbox.total).toBe(4); // t-fine needs nothing
+		expect(inbox.escalatedToOperator).toEqual(["t-escalated"]);
+		expect(inbox.total).toBe(5); // t-fine needs nothing
 	});
 
 	it("counts a task needing multiple actions once in total but in each relevant list", () => {
@@ -121,6 +125,7 @@ describe("mapSessionSummaryToOperatorSignals", () => {
 			clarifyingQuestionPending: false,
 			noProgressOrLoop: false,
 			approachingBudgetCeiling: false,
+			escalatedToOperator: false,
 		});
 	});
 
@@ -150,6 +155,15 @@ describe("mapSessionSummaryToOperatorSignals", () => {
 		});
 		expect(signals.approachingBudgetCeiling).toBe(true);
 		expect(classifyOperatorTaskState(signals)).toBe("stuck");
+	});
+
+	it("threads the escalatedToOperator override (defaults false) → a parked/escalated card reads risky", () => {
+		expect(mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress").escalatedToOperator).toBe(false);
+		const signals = mapSessionSummaryToOperatorSignals({ state: "running" }, "in_progress", {
+			escalatedToOperator: true,
+		});
+		expect(signals.escalatedToOperator).toBe(true);
+		expect(classifyOperatorTaskState(signals)).toBe("risky");
 	});
 
 	it("composes with the classifier: summary-only → healthy/stuck/done, overrides → risky", () => {

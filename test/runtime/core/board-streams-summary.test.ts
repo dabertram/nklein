@@ -15,6 +15,7 @@ function signals(over: Partial<OperatorTaskSignals> = {}): OperatorTaskSignals {
 		clarifyingQuestionPending: false,
 		noProgressOrLoop: false,
 		approachingBudgetCeiling: false,
+		escalatedToOperator: false,
 		...over,
 	};
 }
