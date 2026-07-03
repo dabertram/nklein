@@ -453,7 +453,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					sessions,
 					task,
 				});
-				if (overlappingTask && fileOverlapParallelism === "serialize") {
+				// C3 review #1: a DURABLE-driven start (the controller already decided the lease) must NOT be silently
+				// deferred here — deferring orphans the lease (no live start → reclaim → burns an attempt → wrongly failed),
+				// and the foreground deferred-overlap recovery is disabled while a durable run owns the workspace. The
+				// controller owns scheduling (its own concurrency), and §5.AK's "allow" policy already permits overlap
+				// parallel starts (the merge agent resolves conflicts at delivery), so a durable start proceeds regardless.
+				if (overlappingTask && fileOverlapParallelism === "serialize" && !opts?.bypassDurableGuard) {
 					const sharedPaths = getSharedLikelyTouchedPaths(task, overlappingTask);
 					// Remember it so the completion handler retries it once the overlapping task releases its file lock —
 					// otherwise this card orphans (no dependency edge re-triggers it). Re-checked on each retry.
