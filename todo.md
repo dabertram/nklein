@@ -9384,7 +9384,30 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] Start with mockups on the real run33-class board (13-20 cards, redecompose sub-plans) for user sign-off
 >       before wiring (same flow as the §5.AX mockup rounds).
 
-### 5.BB — UI complexity modes: chat-only / lean / expert / professional *(2026-07-02 late, user)*
+### 5.BB — UI complexity modes → EVOLVED (2026-07-03, user): a chat-centric entry with ZOOM LEVELS *(active — "use fable's UI superpowers while we have it")*
+> **Evolved vision (user, 2026-07-03):** the modes are not four skins but ZOOM LEVELS of one continuous surface.
+> "Chat centric view as the main entry point (a highlevel overview of board and its activity at the main panel …
+> maybe some bubbles, connections, activity, status … should give an impression of activity level and roughly in
+> which corners of the project activity is happening), then by zooming in user can go closer to the details like
+> lean board view, expert view, professional view." Also: "connecting the project chat with the board".
+> - [ ] **Zoom 0 — Overview (the new main entry):** project CHAT as the primary interaction surface + an ACTIVITY
+>       MAP as the main panel: bubbles = cards clustered by stream/plan ("corners of the project"), bubble size ≈
+>       recent activity, color = status (cyan running/pulsing · violet in-review · gold waiting/held · green done,
+>       fading with age · red blocked), thin dependency connections (treatment-C de-emphasis), cluster glow ≈
+>       activity level. Chat and map are LINKED: card mentions in chat highlight bubbles; activity events tick
+>       into the chat; @-mentions target cards/streams (resolveMessageTarget exists — W3.4).
+> - [ ] **Zoom 1 — Lean board:** minimal columns (Doing / Review / Done), no cockpit/fleet/telemetry chrome;
+>       reachable by clicking a cluster (filtered to that stream) or the zoom control.
+> - [ ] **Zoom 2 — Expert:** today's full board (cockpit strip, deps toggle, card chrome).
+> - [ ] **Zoom 3 — Professional:** expert + fleet strip expanded + telemetry surfaces (ledgers, warmth) — the
+>       operator cockpit.
+> - [ ] Mechanics: zoom = a per-user UI state (instant, no restart; persisted), gates VISIBILITY not capability;
+>       default entry for new users = Zoom 0; the §5.BA wizards ask "how much do you want to see".
+> - [ ] Flow: interactive mockup FIRST (fable) → user sign-off → implement Zoom 0 (chat-centric overview) as the
+>       new entry, wiring zoom transitions to the existing board; Lean = a filtered/simplified render of the same
+>       board component tree, NOT a fork.
+
+*(Original 4-discrete-modes sketch (2026-07-02) superseded by the zoom-level framing above.)*
 > **User feedback on the §5.AX overhaul: "looks amazing .. a bit bloated for beginners .. lets stick with the content
 > for now."** So this is recorded, NOT next-up: after the content/features settle, offer selectable UI COMPLEXITY
 > MODES so a beginner isn't confronted with the full operator cockpit. The user's four starting-point modes
