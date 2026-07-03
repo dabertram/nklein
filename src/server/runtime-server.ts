@@ -26,6 +26,7 @@ import type {
 import { readPausedTasks } from "../core/card-pause";
 import { decideDeliveryAction } from "../core/delivery-decision";
 import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/delivery-evidence";
+import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import {
@@ -56,6 +57,7 @@ import { isReviewableNKleinSummary } from "../core/task-session-guards";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
+import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { handleNKleinMcpOauthCallback } from "../nklein-agent/nklein-mcp-runtime-service";
 import {
 	createInMemoryNKleinTaskSessionService,
@@ -77,6 +79,7 @@ import {
 	validateSession,
 } from "../security/passcode-manager";
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { recordMergeHistory } from "../state/merge-history-store";
 import {
 	isWorkspaceStateLockError,
@@ -109,6 +112,7 @@ import {
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
+import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { applyCardReviewToBoard, runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
@@ -153,6 +157,9 @@ const SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS = [100, 250, 500, 1_000, 2_000] as co
 const PLAN_GATE_OUTPUT_HEAD_BUDGET = 400;
 /** Project-level build+test budget: 3× the per-card acceptance default — it checks the whole merged tree. */
 const PLAN_GATE_TIMEOUT_MS = 15 * 60 * 1000;
+// C3 (§5.AF): how often the durable-run reclaim/dispatch timer fires. Long enough not to busy-loop, short enough to
+// re-dispatch a reclaimed orphan (30s backoff) promptly. Only armed when NKLEIN_DURABLE_SCHEDULER is set.
+const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
 
 async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {
 	let lastError: unknown = null;
@@ -286,6 +293,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const getScopedTerminalManager = async (scope: RuntimeTrpcWorkspaceScope): Promise<TerminalSessionManager> =>
 		await deps.ensureTerminalManagerForWorkspace(scope.workspaceId, scope.workspacePath);
 	const nkleinTaskSessionServiceByWorkspaceId = new Map<string, NKleinTaskSessionService>();
+	// C3 (§5.AF): the durable-run wiring drives starts for a workspace with an active run when NKLEIN_DURABLE_SCHEDULER is
+	// set (default OFF ⇒ inert / byte-identical). `scopeByWorkspaceId` lets the controller's `startCard` port re-enter the
+	// start path from a timer/summary callback that has no scope in closure. `durableRunWiring` is assigned once
+	// `autoStartTaskIds` exists (its `startCard` delegates back to it with the durable guard bypassed).
+	const scopeByWorkspaceId = new Map<string, RuntimeTrpcWorkspaceScope>();
+	let durableRunWiring: DurableRunWiring | null = null;
 	// §5.AA/§5.AI: cards auto-start SKIPPED because they likely touch the same files as an active task (the concurrency
 	// guard below). Without this they orphan in planning/backlog — the completion handler only re-attempts dependency-edge
 	// successors, and a file-overlap skip is not a dependency block. We remember them per workspace and retry them on the
@@ -395,8 +408,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 	>();
 	let runtimeApi: RuntimeTrpcContext["runtimeApi"];
-	const autoStartTaskIds = async (scope: RuntimeTrpcWorkspaceScope, taskIds: readonly string[]): Promise<void> => {
+	const autoStartTaskIds = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		taskIds: readonly string[],
+		opts?: { bypassDurableGuard?: boolean },
+	): Promise<void> => {
 		if (taskIds.length === 0) {
+			return;
+		}
+		// C3 (§5.AF): when a durable run owns this workspace, ITS controller drives starts (lease → dispatch → cascade) —
+		// so the foreground cascade defers to it here. The controller's own `startCard` re-enters with `bypassDurableGuard`
+		// to perform the actual start. No-op when NKLEIN_DURABLE_SCHEDULER is off (`hasRun` is always false) ⇒ byte-identical.
+		if (!opts?.bypassDurableGuard && durableRunWiring?.hasRun(scope.workspaceId)) {
 			return;
 		}
 		// §5.AK Phase A: resolve the effective file-overlap policy ONCE per auto-start batch (project override ??
@@ -609,10 +632,49 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 		})();
 	};
+	// C3 (§5.AF): construct the durable-run wiring now that `autoStartTaskIds` + `scopeByWorkspaceId` exist. Its
+	// `startCard` port re-enters the start path with the durable guard bypassed (the controller already decided the lease);
+	// `appendEvent`/`readLedger` are the §5.AF agent-ledger store (persist-before-dispatch + boot-replay). Disabled by
+	// default (NKLEIN_DURABLE_SCHEDULER off) ⇒ every method is inert and the runtime is byte-identical.
+	const durableSchedulerEnabled = isTruthyEnv(process.env.NKLEIN_DURABLE_SCHEDULER);
+	durableRunWiring = createDurableRunWiring({
+		enabled: durableSchedulerEnabled,
+		appendEvent: (event) => appendAgentLedgerEvent(event),
+		startCard: (workspaceId, taskId) => {
+			const startScope = scopeByWorkspaceId.get(workspaceId);
+			if (startScope) {
+				void autoStartTaskIds(startScope, [taskId], { bypassDurableGuard: true });
+			}
+		},
+		readLedger: () => readAllAgentLedger(),
+		hashWorkspacePath: hashWorkspacePathForLedger,
+		workflowIdFor: (workspaceId) => `durable-run:${workspaceId}`,
+	});
+	// Build/resume the workspace's durable run from its current board (idempotent; no-op when disabled or already running).
+	const ensureDurableRunForScope = async (scope: RuntimeTrpcWorkspaceScope): Promise<void> => {
+		if (!durableSchedulerEnabled || !durableRunWiring) {
+			return;
+		}
+		const state = await loadWorkspaceState(scope.workspacePath).catch(() => null);
+		if (state) {
+			await durableRunWiring.ensureRun(scope.workspaceId, scope.workspacePath, state.board);
+		}
+	};
+	// C3: the reclaim/dispatch timer — ticks every active run so a DEAD-lease worker (missed heartbeat) is reclaimed and
+	// its card re-dispatched, and a card held off by reclaim backoff eventually starts. Created ONLY when enabled (no extra
+	// timer on the default path ⇒ byte-identical); cleared on server close.
+	const durableTickTimer: ReturnType<typeof setInterval> | null = durableSchedulerEnabled
+		? setInterval(() => {
+				void durableRunWiring?.tickAll();
+			}, DURABLE_RUN_TICK_INTERVAL_MS)
+		: null;
 	const autoStartDecompositionRootTasks = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		event: NKleinDecompositionAppliedEvent,
 	): Promise<void> => {
+		// C3: a decompose is a run start — build the durable run first so it drives the roots (no-op when the flag is off,
+		// in which case `autoStartTaskIds` starts them exactly as before).
+		await ensureDurableRunForScope(scope);
 		await autoStartTaskIds(scope, event.rootTaskIds);
 	};
 	const moveStartedQueuedTask = async (
@@ -1486,6 +1548,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				);
 			}
 			deps.runtimeStateHub.trackNKleinTaskSessionService(scope.workspaceId, scope.workspacePath, service);
+			// C3 (§5.AF): remember the scope so the durable controller's `startCard` port can re-enter the start path from a
+			// timer/summary callback, and BOOT-RESUME any durable run this workspace had in flight when the process died
+			// (idempotent + no-op when the flag is off ⇒ byte-identical).
+			scopeByWorkspaceId.set(scope.workspaceId, scope);
+			await ensureDurableRunForScope(scope);
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
 				recordNKleinKnowledgeToolUsage(scope, summary);
 				recordNKleinModelPerformance(scope, summary);
@@ -1500,6 +1567,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// and give the dead card ITSELF one fresh attempt when it left no reviewable work (#24).
 					retryWaitingCardsAfterTerminal(scope, trackedService, summary.taskId);
 				}
+				// C3: route the state change into the workspace's durable run (report completion → tick → cascade, or
+				// heartbeat a live lease). No-op when the flag is off. (errorText for transient classification is not on the
+				// summary shape yet — passed null; DOUBLE-CHECK: thread a real failure reason for transient-retry.)
+				void durableRunWiring?.observeSummary(scope.workspaceId, summary.taskId, summary.state, null);
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
 			reconcileCapturedHeadlessAutoReviewTasks(scope, trackedService);
@@ -2226,6 +2297,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				unsubscribe();
 			}
 			queuedStartDrainUnsubscribeByWorkspaceId.clear();
+			if (durableTickTimer) {
+				clearInterval(durableTickTimer);
+			}
 			await Promise.all(
 				Array.from(nkleinTaskSessionServiceByWorkspaceId.values()).map(async (service) => {
 					await service.dispose();
