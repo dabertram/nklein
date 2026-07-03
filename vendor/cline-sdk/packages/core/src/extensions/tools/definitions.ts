@@ -229,6 +229,36 @@ async function executeShellCommands(
 // =============================================================================
 
 /**
+ * Normalize ONE read_files entry into a request. A plain string is a literal path (the common case). A string that
+ * PARSES to an object carrying a string `path` is a PER-ELEMENT double-encoded request (`["{\"path\":\"a.ts\"}"]`,
+ * the array-element sibling of the whole-`files`-string double-encode handled in execute) — decode it so it isn't
+ * silently mis-read as a bogus path literally named `{"path":...}`. Anything that doesn't parse to such an object
+ * stays a literal path, preserving existing behavior. (!Klein §5.BD, 2026-07-03.)
+ */
+function normalizeReadFilesEntry(entry: unknown): ReadFileRequest {
+	if (typeof entry === "string") {
+		const trimmed = entry.trim();
+		if (trimmed.startsWith("{")) {
+			try {
+				const parsed: unknown = JSON.parse(trimmed);
+				if (
+					parsed !== null &&
+					typeof parsed === "object" &&
+					!Array.isArray(parsed) &&
+					typeof (parsed as { path?: unknown }).path === "string"
+				) {
+					return parsed as ReadFileRequest;
+				}
+			} catch {
+				// Not JSON — a literal path (e.g. a filename that happens to start with "{").
+			}
+		}
+		return { path: entry };
+	}
+	return entry as ReadFileRequest;
+}
+
+/**
  * Create the read_files tool
  *
  * Reads the content of one or more files from the filesystem.
@@ -295,30 +325,24 @@ export function createReadFilesTool(
 			const validate = validateWithZod(ReadFilesInputUnionSchema, normalizedInput);
 			let requests: ReadFileRequest[];
 			if (typeof validate === "string") {
-				requests = [{ path: validate }];
+				requests = [normalizeReadFilesEntry(validate)];
 			} else if (Array.isArray(validate)) {
-				requests = validate.map((value) =>
-					typeof value === "string" ? { path: value } : value,
-				);
+				requests = validate.map(normalizeReadFilesEntry);
 			} else if ("files" in validate) {
 				const files = Array.isArray(validate.files)
 					? validate.files
 					: [validate.files];
-				requests = files.map((file) =>
-					typeof file === "string" ? { path: file } : file,
-				);
+				requests = files.map(normalizeReadFilesEntry);
 			} else if ("file_paths" in validate) {
 				const filePaths = Array.isArray(validate.file_paths)
 					? validate.file_paths
 					: [validate.file_paths];
-				requests = filePaths.map((path) => ({ path }));
+				requests = filePaths.map(normalizeReadFilesEntry);
 			} else if ("paths" in validate) {
 				const paths = Array.isArray(validate.paths)
 					? validate.paths
 					: [validate.paths];
-				requests = paths.map((path) =>
-					typeof path === "string" ? { path } : path,
-				);
+				requests = paths.map(normalizeReadFilesEntry);
 			} else {
 				requests = [validate];
 			}

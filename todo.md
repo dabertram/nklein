@@ -9435,9 +9435,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       tolerance (arg repair can ride the SAME repairToolCall hook later). Cross-check: some names may be BETTER
 >       fixed by ADDING the alias as a real tolerant tool alias in `definitions.ts` — decide per-name (a true rename
 >       vs a distinct tool) during the build.
-> - [ ] **run38 evidence — `read_files` double-encoded array:** a worker sent `{"files": "[{\"path\": ..."}` (the
->       array JSON-ENCODED as a string) and was pre-rejected. edit_file's `repairJsonStringValue` already handles
->       exactly this — apply it at read_files' boundary/parser too (and sweep the other array-taking tools).
+> - [x] **run38 evidence — `read_files` double-encoded array — DONE:** the EVIDENCED whole-`files`-string shape
+>       (`{"files": "[{\"path\": ..."}`) is decoded in `read_files`' execute() (fix #40, vendored `definitions.ts`).
+>       **Extended 2026-07-03:** the PER-ELEMENT sibling (`{"files": ["{\"path\":\"a.ts\"}"]}` — an array whose
+>       element is a stringified object) was silently mis-read as a bogus path literally named `{"path":...}`; now
+>       `normalizeReadFilesEntry` decodes a string element that parses to an object carrying `path`, while a plain
+>       path (incl. one that merely starts with `{`) stays literal. Vendored suite green (52); also fixed a stale
+>       vendored schema test that still asserted the pre-#40 strict shape (unnoticed because `test:fast` excludes
+>       `vendor/**` — worth a periodic `cd vendor/cline-sdk/packages/core && vitest run` in the release gate).
 > - [ ] **run36/38 evidence — the interrupted-salvage capture paths don't all reach the rebound:** an abandoned
 >       card whose stop-path capture errors (docker 409 exec race) is left `interrupted` with a PRIOR result
 >       branch — the recordPatchCaptureStatus rebound never runs for that path. Rather than chase each capture

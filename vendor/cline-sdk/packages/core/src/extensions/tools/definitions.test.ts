@@ -1359,6 +1359,38 @@ describe("default read_files tool", () => {
 		);
 	});
 
+	it("decodes a PER-ELEMENT double-encoded object entry (§5.BD), keeping plain paths literal", async () => {
+		const execute = vi.fn(
+			async (request: { path: string }) => `content:${request.path}`,
+		);
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute(
+			{
+				files: [
+					'{"path":"/tmp/a.ts"}', // per-element double-encoded object → decode
+					'{"path":"/tmp/b.ts","end_line":4}', // decoded with its range preserved
+					"/tmp/c.ts", // a plain path stays literal
+					"{literal-brace-name}", // starts with "{" but is not JSON → stays a literal path
+				],
+			} as never,
+			{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+		);
+
+		expect(execute).toHaveBeenNthCalledWith(1, { path: "/tmp/a.ts" }, expect.objectContaining({ iteration: 1 }));
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{ path: "/tmp/b.ts", end_line: 4 },
+			expect.objectContaining({ iteration: 1 }),
+		);
+		expect(execute).toHaveBeenNthCalledWith(3, { path: "/tmp/c.ts" }, expect.objectContaining({ iteration: 1 }));
+		expect(execute).toHaveBeenNthCalledWith(
+			4,
+			{ path: "{literal-brace-name}" },
+			expect.objectContaining({ iteration: 1 }),
+		);
+	});
+
 	it("rejects invalid union inputs before calling the executor", async () => {
 		const execute = vi.fn(async () => "should not run");
 		const tool = createReadFilesTool(execute);
@@ -1495,38 +1527,29 @@ describe("default read_files tool", () => {
 });
 
 describe("zod schema conversion", () => {
-	it("preserves read_files required properties in generated JSON schema", () => {
+	it("exposes the LENIENT read_files boundary schema (§5.BD): files accepts array|string, items string|object", () => {
+		// The boundary is deliberately lenient (!Klein §5.BD): the strict zod-generated schema pre-rejected shapes the
+		// execute() union accepts (a bare string, a double-encoded `files` string, an object entry without a range).
+		// The boundary tolerates; execute() decodes + validates. This asserts that intentional shape, not the old strict one.
 		const tool = createReadFilesTool(async () => "ok");
 		const inputSchema = tool.inputSchema as Record<string, unknown>;
 		const properties = inputSchema.properties as Record<string, unknown>;
 		expect(inputSchema.type).toBe("object");
-		expect(properties.files).toMatchObject({
-			type: "array",
-			items: {
-				type: "object",
-				properties: {
-					path: {
-						type: "string",
-						description:
-							"The absolute file path of a text file to read content from",
-					},
-					start_line: {
-						anyOf: [{ type: "integer" }, { type: "null" }],
-						description:
-							"Optional one-based starting line number to read from; use null or omit for the start of the file",
-					},
-					end_line: {
-						anyOf: [{ type: "integer" }, { type: "null" }],
-						description:
-							"Optional one-based ending line number to read through; use null or omit to read to the end of the file or the read cap, whichever comes first",
-					},
-				},
-				required: ["path"],
-			},
-			description:
-				"Array of file read requests. Omit start_line/end_line or set them to null to read from the start; provide integers to return only that inclusive one-based line range. Reads are capped, so page through long files with start_line/end_line. Prefer this tool over running terminal command to get file content for better performance and reliability.",
-		});
-		expect(inputSchema.required).toEqual(["files"]);
+		const files = properties.files as { type: unknown; items: { anyOf: unknown[] } };
+		expect(files.type).toEqual(["array", "string"]);
+		// items accept either a bare string path or an object carrying at least `path`.
+		expect(files.items.anyOf).toEqual(
+			expect.arrayContaining([
+				{ type: "string" },
+				expect.objectContaining({
+					type: "object",
+					properties: expect.objectContaining({ path: { type: "string" } }),
+				}),
+			]),
+		);
+		// Lenient: nothing is required at the boundary (execute() produces the actionable error), and unknown keys pass.
+		expect(inputSchema.required).toEqual([]);
+		expect(inputSchema.additionalProperties).toBe(true);
 	});
 
 	it("exposes skills args as optional nullable in tool schemas", () => {
