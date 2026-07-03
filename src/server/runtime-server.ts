@@ -565,6 +565,32 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 		}
 	};
+	// C3 (§5.AF, live-found 2026-07-04 real-model mid_task STALL): the two legacy rescue sweeps below re-drive
+	// `autoStartTaskIds` WITHOUT the durable-guard bypass, so under a durable run they no-op — which strands a card the
+	// controller ALREADY leased+dispatched that then hit the board's `concurrency_limit` (its lease frees at
+	// awaiting_review, but the board cap still counts those cards, so a just-leased dependent is deferred). The
+	// controller treats the lease as running and only re-dispatches on the 5-min reclaim, long after the harness gives
+	// up. Split the rescue: under a durable run, retry ONLY the deferred set (durable-sanctioned dispatches that were
+	// concurrency/overlap-deferred — nothing else will restart them) WITH the bypass; the discovery legs (ready/sweep/
+	// redrive) stay the controller's job (lease → dispatch, reclaim → retry), so we never start a card its DAG hasn't
+	// unblocked. Off durable (`hasRun` false) ⇒ today's full-candidate union, byte-identical.
+	const startRescueCandidates = async (
+		scope: RuntimeTrpcWorkspaceScope,
+		deferredTaskIds: readonly string[],
+		discoveryTaskIds: readonly string[],
+	): Promise<void> => {
+		if (durableRunWiring?.hasRun(scope.workspaceId)) {
+			const deferred = [...new Set(deferredTaskIds)];
+			if (deferred.length > 0) {
+				await autoStartTaskIds(scope, deferred, { bypassDurableGuard: true });
+			}
+			return;
+		}
+		const candidates = [...new Set([...deferredTaskIds, ...discoveryTaskIds])];
+		if (candidates.length > 0) {
+			await autoStartTaskIds(scope, candidates);
+		}
+	};
 	/** run16: retry waiting cards when a card DIES (no completion will fire) — deferred set ∪ ready-sweep. */
 	// run25 strand class (#24): an interrupted card with NO captured work has no rescue path — the prior-work
 	// rebound (#21) needs a result branch, and the sweep below only rescues OTHER waiting cards. The dead card
@@ -627,10 +653,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						}
 					}
 				}
-				const candidates = [...new Set([...deferredTaskIds, ...sweepTaskIds, ...redriveTaskIds])];
-				if (candidates.length > 0) {
-					await autoStartTaskIds(scope, candidates);
-				}
+				// Under a durable run only the deferred set is ours to restart; sweep/redrive are the controller's (see
+				// startRescueCandidates). Off durable this is the same union as before.
+				await startRescueCandidates(scope, deferredTaskIds, [...sweepTaskIds, ...redriveTaskIds]);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				deps.warn(`Terminal retry sweep failed for ${scope.workspacePath}: ${message}`);
@@ -1365,9 +1390,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					const sweepTaskIds = sweepState
 						? listStartableUnstartedTaskIds(sweepState.board, activeSessionTaskIds)
 						: [];
-					await autoStartTaskIds(scope, [
-						...new Set([...readyTaskIds, ...deferredOverlapTaskIds, ...sweepTaskIds]),
-					]);
+					// Under a durable run the controller owns ready/sweep (dependency_unblocked → lease); only the
+					// deferred set is ours to restart here (startRescueCandidates). Off durable this is the same union.
+					await startRescueCandidates(scope, deferredOverlapTaskIds, [...readyTaskIds, ...sweepTaskIds]);
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
