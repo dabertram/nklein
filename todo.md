@@ -9346,8 +9346,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       / submit_merge_resolution) dropped `required:[...]` and switched execute to safeParse → actionable ok:false
 >       instead of a raw Zod pre-rejection loop. REMAINING boundaries left strict on purpose (not in the sandbox
 >       worker toolset / negligible variance): skills, ask_question, submit_and_exit, browse (url unambiguous).
-> - [ ] Add a telemetry COUNTER for pre-execution rejections per tool per model — the scoreboard that proves the
->       sweep worked and catches the next variant early (a rejected call should be RARE, not a stall mode).
+> - [x] **SHIPPED 2026-07-03:** pre-execution rejection counter — the event adapter's tool-finished handler
+>       detects the SDK's schema-rejection signature (isPreExecutionToolRejection: "rejected before execution" /
+>       "type validation failed", NOT in-execute failures) and records a `tool_input_rejection` self-observation
+>       tagged toolName+modelId+providerId. After the sweep these should be rare; the counter makes a resurgence
+>       visible per-tool-per-model on telemetry instead of only in an autopsy.
 > - [ ] **run38 evidence — `read_files` double-encoded array:** a worker sent `{"files": "[{\"path\": ..."}` (the
 >       array JSON-ENCODED as a string) and was pre-rejected. edit_file's `repairJsonStringValue` already handles
 >       exactly this — apply it at read_files' boundary/parser too (and sweep the other array-taking tools).

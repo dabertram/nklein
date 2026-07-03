@@ -2,6 +2,7 @@
 // Keep protocol-specific parsing here so the runtime and repository can stay
 // focused on lifecycle, storage, and task-facing orchestration.
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import {
 	readAgentEvent,
 	readChunkEvent,
@@ -36,6 +37,7 @@ import { readSessionUsage } from "./nklein-session-usage-parser";
 import { formatNKleinToolCallLabel, getNKleinToolCallDisplay } from "./nklein-tool-call-display";
 import { computeNKleinToolInputFingerprint } from "./nklein-tool-call-fingerprint";
 import { asRecord } from "./nklein-value-guards";
+import { isPreExecutionToolRejection } from "./tool-rejection-signal";
 
 export interface ApplyNKleinSessionEventInput {
 	event: unknown;
@@ -513,6 +515,24 @@ export function applyNKleinSessionEvent(input: ApplyNKleinSessionEventInput): vo
 		const toolInput = toolCallId ? entry.toolInputByToolCallId.get(toolCallId) : undefined;
 		const toolDisplay = getNKleinToolCallDisplay(toolName, toolInput, toolOutput);
 		const isUserAttentionTool = isNKleinUserAttentionTool(toolName);
+		// §5.BD: count a pre-execution SCHEMA rejection (a boundary stricter than the tool's own parser). After
+		// the boundary sweep these should be RARE — the counter makes a resurgence visible per-tool-per-model on
+		// telemetry instead of only in a post-mortem. A normal in-execute tool error is not counted.
+		if (isPreExecutionToolRejection(toolError)) {
+			recordSelfObservation({
+				signal: "tool_argument_error",
+				severity: "warning",
+				message: `Pre-execution schema rejection for ${toolName ?? "unknown tool"} on ${entry.summary.modelId ?? "unconfigured"} — a boundary schema rejected the call before execute (§5.BD).`,
+				taskId,
+				workspacePath: entry.summary.workspacePath,
+				metadata: {
+					category: "tool_input_rejection",
+					toolName: toolName ?? null,
+					modelId: entry.summary.modelId ?? null,
+					providerId: entry.summary.providerId ?? null,
+				},
+			});
+		}
 		input.emitMessage(
 			taskId,
 			finishToolCallMessage(entry, taskId, {
