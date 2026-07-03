@@ -900,21 +900,22 @@ export async function handleStartTaskSession(
 			codeEmbeddingProvider,
 		});
 
-		// Starting a task must move its card out of backlog (→ planning / in_progress) so the board reflects
-		// that the agent is now working it — a card should never show agent activity while it sits in backlog.
-		// Previously only the input/resume paths reconciled the lane, so a freshly-started card (e.g. a
-		// dev-test seed started programmatically) stayed in backlog. Best-effort; never blocks the start.
-		await reconcileStartedTaskBoardLane({ workspacePath: workspaceScope.workspacePath, summary });
-
-		// The start SUCCEEDED and the mailbox-augmented prompt is now bound into the session — safe to durably
-		// consume the notes we folded in. Consume up to the NEWEST note we read (not `now`), so a note that arrived
-		// during the start window stays pending for the next turn rather than being dropped. Best-effort.
+		// The start SUCCEEDED and the mailbox-augmented prompt is now bound into the session — durably consume the
+		// notes we folded in. Do this FIRST (before the best-effort lane reconcile below), so the durability-critical
+		// consume can never be skipped by a later step throwing. Consume up to the NEWEST note we read (not `now`),
+		// so a note that arrived during the start window stays pending for the next turn rather than being dropped.
 		if (mailboxNotes.length > 0) {
 			const newestConsumedAt = mailboxNotes[mailboxNotes.length - 1]?.createdAt;
 			if (newestConsumedAt !== undefined) {
 				await markCardMailboxConsumedUpTo(body.taskId, newestConsumedAt).catch(() => {});
 			}
 		}
+
+		// Starting a task must move its card out of backlog (→ planning / in_progress) so the board reflects
+		// that the agent is now working it — a card should never show agent activity while it sits in backlog.
+		// Previously only the input/resume paths reconciled the lane, so a freshly-started card (e.g. a
+		// dev-test seed started programmatically) stayed in backlog. Best-effort; never blocks the start.
+		await reconcileStartedTaskBoardLane({ workspacePath: workspaceScope.workspacePath, summary });
 
 		return {
 			ok: true,
