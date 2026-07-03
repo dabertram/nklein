@@ -9187,7 +9187,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [x] **7. Session addressing state:** `ChatSession.{ownedWorkspaceId,focus,outstandingAsks}` (additive, replay-normalized, back-compat test). **DECIDED: 1 chat ↔ 1 workspace v1** ([[multi-workspace-meta-chat-layer]] = future).
 > - [ ] **6. Relay tool (WIRING):** `send_to_card`/`send_to_stream` in `chat-board-tools.ts` → `resolveCardMessageEffect` → the existing `sendTaskSessionInput` (RUNNING) / `card-mailbox-store` (queue) / consult / state-answer / suggest-unblock. **Does NOT force-start a blocked card**; a `request_start` (READY) routes through the readiness-gated start; consume the mailbox at start. Needs a `getCardExecutionState(taskId)` resolver (running/ready/blocked/done) + a light intent classifier.
 > - [ ] **8. Feedback bridge (WIRING, extends §5.AT):** subscribe the task-session `onSummary` the hub already taps → diff prev/next → `mapSessionSummaryToOperatorSignals` (**+ finally feed the DEAD ASK overrides** from §5.M/§5.S/§5.L/§5.AA) → `decideBoardChatFeedback` → per-session `createCoalescingScheduler` → group by `streamId` → `buildBoardChatDigest` (groupLabel) → `chatService.appendMessage`; maintain `outstandingAsks`. Detect DONE from the summary transition directly. **Route to the owning session via `ownedWorkspaceId` (1↔1).**
-> - [ ] **9. Chat front door (WIRING):** wire `resolveMessageTarget` into `sendMessage`/`runChatAgentTurn` — relay on card/answer/stream, run-goal otherwise, candidate-picker on `needsClarification`; the LLM disambiguator as the isolated rung-5 local call.
+> - [~] **9. Chat front door (WIRING) — first half SHIPPED 2026-07-03:** `sendMessage` (tool path) now resolves every
+>       message against the live board index (cards + persisted-or-derived streams), leads the turn with the rendered
+>       target note (directive/soft-focus/ask-don't-guess; goal = byte-stable no-op §5.AQ), persists explicit handles
+>       as `session.focus`, and returns `targetLabel` over the contract + SSE. **Second half open:** actual RELAY
+>       (targeted message → send_to_card/mailbox per item 6, not just context injection), the candidate-PICKER on
+>       needs_clarify (today: the model is told to ask), and the isolated rung-5 LLM disambiguator.
 > - [ ] **5b. Live UI read (WIRING, the §5.AT hard gap):** a hub `chat_message_appended` event (mirror `task_chat_message`) → client refetch in `use-chat-data.ts`, so server-pushed system messages appear without a user turn.
 > - [ ] **10. UI (last):** `get_streams` lean read (composes `summarizeBoardStreams`) + the persistent stream-overview surface, the "talking to X" chip + breadcrumb, and the stream→DAG→card→thread drill reusing `decomposition-graph-view`/`card-detail-view`. Show the card mailbox's "N pending notes".
 >
@@ -9414,10 +9419,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       `board-activity-ticker.ts` — column arrivals, session start/fail, blocks; click ⇒ open card; capped 60,
 >       client-derived only); @-MENTION composer popover (`composer-mention.ts`) inserting explicit
 >       `@card:<id>`/`@stream:<id>` handles (the §5.AU resolver's rung-1 syntax).
-> - [ ] **Remaining:** SERVER-SIDE §5.AU wiring — the chat turn should call `resolveMessageTarget` (core exists,
->       W3.4) so an @card message actually routes (relay/answer/focus) instead of just reading as text; then map
->       highlight on chat card-mention hover (Z0 polish), zoom onboarding via §5.BA wizard ("how much do you want
->       to see").
+> - [x] **Server-side §5.AU wiring** *(shipped 2026-07-03)*: the tool-using send path resolves every message via
+>       `resolveMessageTarget` against the active board's index (cards + persisted-or-derived streams); the target
+>       renders as the system note leading the turn (directive for explicit/reply-bind, soft context for sticky
+>       focus, ask-don't-guess for clarify; goal adds NOTHING — §5.AQ byte-stable prompt); explicit handles persist
+>       as session focus; `targetLabel` rides the contract + SSE done event.
+> - [ ] **Remaining polish:** render the `targetLabel` "talking to X" chip at the composer (with an ✕ = clear
+>       focus); map highlight on chat card-mention hover (Z0); zoom onboarding via §5.BA wizard ("how much do you
+>       want to see").
 > - [x] Mechanics (shipped): zoom = per-user persisted UI state, gates VISIBILITY not capability; default = Z0.
 
 *(Original 4-discrete-modes sketch (2026-07-02) superseded by the zoom-level framing above.)*
