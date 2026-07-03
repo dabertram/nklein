@@ -86,17 +86,17 @@ describe("user instruction config loader", () => {
 		);
 	});
 
-	it("discovers managed plugin instruction roots from workspace .cline manifests", () => {
+	it("discovers managed plugin instruction roots from workspace .nklein manifests", () => {
 		const workspacePath = "/repo/demo";
 		expect(
 			createSkillsConfigDefinition({ workspacePath }).directories,
-		).toContain(join(workspacePath, ".cline"));
+		).toContain(join(workspacePath, ".nklein"));
 		expect(
 			createRulesConfigDefinition({ workspacePath }).directories,
-		).toContain(join(workspacePath, ".cline"));
+		).toContain(join(workspacePath, ".nklein"));
 		expect(
 			createWorkflowsConfigDefinition({ workspacePath }).directories,
-		).toContain(join(workspacePath, ".cline"));
+		).toContain(join(workspacePath, ".nklein"));
 	});
 
 	it("parses markdown frontmatter for skill, rule, and workflow configs", () => {
@@ -324,7 +324,7 @@ Use conventional commits.`,
 		);
 		tempRoots.push(tempRoot);
 
-		const pluginRoot = join(tempRoot, ".cline", "enterprise");
+		const pluginRoot = join(tempRoot, ".nklein", "enterprise");
 		await mkdir(join(pluginRoot, "workflows"), { recursive: true });
 		await mkdir(join(pluginRoot, "skills", "security-review"), {
 			recursive: true,

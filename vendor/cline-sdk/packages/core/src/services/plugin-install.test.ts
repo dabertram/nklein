@@ -160,14 +160,14 @@ describe("plugin install service", () => {
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(result.installPath).toContain(
-			join(workspace, ".cline", "plugins", "_installed", "remote"),
+			join(workspace, ".nklein", "plugins", "_installed", "remote"),
 		);
 		expect(result.entryPaths).toHaveLength(1);
 		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
 			"remote-weather",
 		);
 		expect(
-			discoverPluginModulePaths(join(workspace, ".cline", "plugins")),
+			discoverPluginModulePaths(join(workspace, ".nklein", "plugins")),
 		).toEqual(result.entryPaths);
 	});
 
@@ -190,7 +190,7 @@ describe("plugin install service", () => {
 		});
 
 		expect(result.installPath).toContain(
-			join(workspace, ".cline", "plugins", "_installed", "official"),
+			join(workspace, ".nklein", "plugins", "_installed", "official"),
 		);
 		expect(result.entryPaths).toHaveLength(1);
 		expect(readFileSync(result.entryPaths[0] ?? "", "utf8")).toContain(
@@ -204,6 +204,8 @@ describe("plugin install service", () => {
 		expect(
 			existsSync(join(result.installPath, "package", "other-plugin")),
 		).toBe(false);
+		// resolvePluginConfigSearchPaths keeps the legacy `.cline/plugins` first (only the INSTALL dir rebranded to
+		// `.nklein`); asserting the source's actual order, not a blanket rebrand.
 		expect(resolvePluginConfigSearchPaths(workspace)[0]).toBe(
 			join(workspace, ".cline", "plugins"),
 		);
