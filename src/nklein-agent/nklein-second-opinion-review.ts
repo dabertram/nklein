@@ -12,6 +12,7 @@
 
 import type { RuntimeCardReview, RuntimeReviewRoundRecord } from "../core/api-contract";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
+import type { ReviewLens } from "../core/review-lenses";
 import {
 	buildReviewSeedPrompt,
 	fingerprintReviewArtifact,
@@ -64,6 +65,12 @@ export interface RunNKleinSecondOpinionReviewInput {
 	isPlanningCard?: boolean;
 	/** Human acceptance-gate summary to give the reviewer, when an acceptance check ran. */
 	acceptanceSummary?: string | null;
+	/**
+	 * §5.AW review-panel lenses (opt-in): the orthogonal perspectives the reviewer seed should steer through. The
+	 * runner computes these via {@link planReviewPanel} only when `NKLEIN_REVIEW_LENSES` is set — otherwise absent,
+	 * so the seed prompt is byte-identical to the un-lensed default.
+	 */
+	reviewLenses?: readonly ReviewLens[];
 	now?: () => number;
 	deps: {
 		/** Resolve the card (with its persisted review history) by id; null when gone. */
@@ -156,6 +163,8 @@ export async function runNKleinSecondOpinionReview(
 		round,
 		priorFeedback: card.review?.lastFeedback ?? null,
 		focusChain: card.focusChain ? formatFocusChainForPrompt(card.focusChain) : null,
+		// Opt-in: absent unless the runner (gated on NKLEIN_REVIEW_LENSES) supplied a non-empty panel.
+		...(input.reviewLenses && input.reviewLenses.length > 0 ? { lenses: input.reviewLenses } : {}),
 	});
 	const submission = await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round });
 	if (!submission) {

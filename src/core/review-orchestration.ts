@@ -12,6 +12,7 @@
  */
 
 import { createHash } from "node:crypto";
+import type { ReviewLens } from "./review-lenses.js";
 import {
 	DEFAULT_MAX_REVIEW_ROUNDS,
 	decideReviewLoopAction,
@@ -107,6 +108,12 @@ export interface ReviewSeedPromptInput {
 	 * `formatFocusChainForPrompt`, so the reviewer can judge whether the work actually followed/completed its plan.
 	 */
 	focusChain?: string | null;
+	/**
+	 * §5.AW review-panel lenses: explicit orthogonal perspectives (from {@link planReviewPanel} → {@link assignReviewLenses})
+	 * the reviewer should look through, so an extra eye adds a DIFFERENT view rather than re-deriving the same findings.
+	 * Absent or empty ⇒ the seed is byte-identical to the un-lensed prompt (the section is omitted entirely).
+	 */
+	lenses?: readonly ReviewLens[];
 }
 
 const REVIEW_REASONING_BUDGET = 6_000;
@@ -176,6 +183,14 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 	}
 	if (input.priorFeedback?.trim()) {
 		lines.push("", "## Your previous change request (verify it was addressed)", input.priorFeedback.trim());
+	}
+	if (input.lenses && input.lenses.length > 0) {
+		lines.push(
+			"",
+			"## Review specifically through these lenses",
+			"Look through each assigned lens below (each is an orthogonal perspective — spend your attention where it says, not on a generic once-over):",
+			...input.lenses.map((lens) => `- ${lens.stance}`),
+		);
 	}
 	const hasDiff = input.diff.trim().length > 0;
 	const speculativeDiff = input.speculativeDiff?.trim() ?? "";

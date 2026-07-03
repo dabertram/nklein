@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REVIEW_LENSES } from "../../src/core/review-lenses";
 import type { ReviewRoundRecord } from "../../src/core/review-loop";
 import {
 	buildReviewBouncePrompt,
@@ -159,6 +160,35 @@ describe("buildReviewSeedPrompt", () => {
 		expect(prompt).toContain("Worker's focus chain");
 		expect(prompt).toContain("followed and completed its own plan");
 		expect(prompt).toContain("Write the parser");
+	});
+
+	it("§5.AW: renders a lens section listing each assigned lens stance when lenses are provided", () => {
+		const lenses = [REVIEW_LENSES[0], REVIEW_LENSES[4]];
+		const prompt = buildReviewSeedPrompt({
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			round: 1,
+			lenses,
+		});
+		expect(prompt).toContain("Review specifically through these lenses");
+		// Both assigned lens stance strings appear verbatim (spec_fit + security).
+		expect(prompt).toContain(REVIEW_LENSES[0].stance);
+		expect(prompt).toContain(REVIEW_LENSES[4].stance);
+	});
+
+	it("§5.AW: omits the lens section (byte-identical) when lenses are absent or empty", () => {
+		const base = {
+			taskTitle: "Add login",
+			taskObjective: "Implement email/password login.",
+			diff: "diff --git a/login.ts b/login.ts",
+			round: 1,
+		} as const;
+		const noLenses = buildReviewSeedPrompt(base);
+		const emptyLenses = buildReviewSeedPrompt({ ...base, lenses: [] });
+		// The default (no lenses) and an explicit empty panel both produce the un-lensed prompt, unchanged.
+		expect(noLenses).not.toContain("Review specifically through these lenses");
+		expect(emptyLenses).toBe(noLenses);
 	});
 });
 

@@ -11,11 +11,14 @@
 
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
+import { isTruthyEnv } from "../core/env-flag";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
+import { planReviewPanel } from "../core/review-panel-plan";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { addTaskToColumn } from "../core/task-board-mutations";
+import { classifyTaskComplexity } from "../core/task-complexity";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
 import {
 	type NKleinSecondOpinionReviewOutcome,
@@ -296,6 +299,21 @@ export async function runSecondOpinionReviewForTask(
 		? await input.service.pickDiverseEscalationModel?.(input.taskId).catch(() => null)
 		: null;
 
+	// §5.AW review-panel lenses (OPT-IN behind NKLEIN_REVIEW_LENSES; default = undefined ⇒ the seed prompt is
+	// byte-identical). complexity is derived from the card prompt; reviewerTier is a FIXED conservative "mid" because
+	// the reviewer object here carries only {providerId, modelId} with no tier (a tier-resolution subsystem is out of
+	// scope). An empty panel (e.g. no eligible lenses) still resolves to undefined so nothing is threaded.
+	const reviewLenses =
+		config.secondOpinionReviewEnabled && isTruthyEnv(process.env.NKLEIN_REVIEW_LENSES)
+			? (() => {
+					const plan = planReviewPanel({
+						complexity: classifyTaskComplexity({ taskText: card.prompt }),
+						reviewerTier: "mid",
+					});
+					return plan.lenses.length > 0 ? plan.lenses : undefined;
+				})()
+			: undefined;
+
 	return runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
@@ -303,6 +321,7 @@ export async function runSecondOpinionReviewForTask(
 		maxRounds: config.reviewMaxRounds,
 		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
 		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance),
+		...(reviewLenses ? { reviewLenses } : {}),
 		escalationAvailable: Boolean(escalationCandidate),
 		// In-memory set ∪ the persisted flag — the one-escalation guard survives a runtime restart (#W4.2).
 		alreadyEscalated: escalatedWorkerTaskIds.has(input.taskId) || card.review?.escalated === true,
