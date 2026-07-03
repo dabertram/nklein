@@ -26,10 +26,13 @@ import { BoardColumn } from "@/components/board-column";
 import { BoardHealthSummary } from "@/components/board-health-summary";
 import { DependencyOverlay } from "@/components/dependencies/dependency-overlay";
 import { useDependencyLinking } from "@/components/dependencies/use-dependency-linking";
+import { FleetStrip } from "@/components/fleet-strip";
+import { composeFleetRows } from "@/components/fleet-strip-model";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
+import { fetchNKleinModelRegistry } from "@/runtime/queries/model-registry";
 import {
 	collectTaskEvidence,
 	fetchMergeHistory,
@@ -43,6 +46,7 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeMergeHistoryRecord,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
+	RuntimeNKleinModelRegistryEntry,
 	RuntimeSwarmStopSignal,
 	RuntimeTaskSessionSummary,
 } from "@/runtime/types";
@@ -229,6 +233,18 @@ export function KanbanBoard({
 			return !current;
 		});
 	}, []);
+	// §5.AX: the expandable per-model fleet block below the swarm counts. Persisted, DEFAULT COLLAPSED so the strip
+	// stays compact at rest; the loaded-model registry only polls while the block is open.
+	const [fleetStripExpanded, setFleetStripExpanded] = useState(
+		() => readLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded) === "1",
+	);
+	const handleToggleFleetStrip = useCallback(() => {
+		setFleetStripExpanded((current) => {
+			writeLocalStorageItem(LocalStorageKey.BoardFleetStripExpanded, current ? "0" : "1");
+			return !current;
+		});
+	}, []);
+	const [fleetRegistryModels, setFleetRegistryModels] = useState<RuntimeNKleinModelRegistryEntry[]>([]);
 	const [isConcurrencyCapSaving, setIsConcurrencyCapSaving] = useState(false);
 	const [codeIntelligenceStatus, setCodeIntelligenceStatus] =
 		useState<RuntimeNKleinCodeIntelligenceStatusResponse | null>(null);
@@ -384,6 +400,56 @@ export function KanbanBoard({
 			cancelled = true;
 		};
 	}, [currentProjectId, swarmCounts.running]);
+
+	// §5.AX: poll the loaded-model registry (the fleet rows) every ~15s, but only while the fleet block is expanded —
+	// there is no reason to hit the endpoint when the block is collapsed (its default).
+	useEffect(() => {
+		if (!currentProjectId || !fleetStripExpanded) {
+			setFleetRegistryModels([]);
+			return;
+		}
+		let cancelled = false;
+		const loadRegistry = () => {
+			void fetchNKleinModelRegistry(currentProjectId).then(
+				(response) => {
+					if (!cancelled) {
+						setFleetRegistryModels(response.models);
+					}
+				},
+				() => {
+					if (!cancelled) {
+						setFleetRegistryModels([]);
+					}
+				},
+			);
+		};
+		loadRegistry();
+		const intervalId = window.setInterval(loadRegistry, 15_000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(intervalId);
+		};
+	}, [currentProjectId, fleetStripExpanded]);
+
+	const cardTitleByTaskId = useMemo(() => {
+		const titles = new Map<string, string>();
+		for (const column of data.columns) {
+			for (const card of column.cards) {
+				titles.set(card.id, card.title);
+			}
+		}
+		return titles;
+	}, [data.columns]);
+
+	const fleetGroups = useMemo(
+		() =>
+			composeFleetRows({
+				registryModels: fleetRegistryModels,
+				runningSessions: Object.values(taskSessions),
+				cardTitleByTaskId,
+			}),
+		[fleetRegistryModels, taskSessions, cardTitleByTaskId],
+	);
 
 	const handleSaveConcurrencyCap = useCallback(
 		async (nextCap: number) => {
@@ -940,6 +1006,17 @@ export function KanbanBoard({
 					<BoardHealthSummary board={data} taskSessions={taskSessions} />
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
+					<ElementTooltip id="board.fleet-strip" side="bottom">
+						<button
+							type="button"
+							onClick={handleToggleFleetStrip}
+							aria-expanded={fleetStripExpanded}
+							className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-surface-2 px-2 text-xs text-text-tertiary hover:text-text-secondary"
+						>
+							<span aria-hidden>{fleetStripExpanded ? "▾" : "▸"}</span>
+							fleet
+						</button>
+					</ElementTooltip>
 					<ElementTooltip id="board.concurrency-cap" side="bottom">
 						<label className="inline-flex h-7 items-center gap-2 rounded-md border border-border bg-surface-2 px-2 text-xs text-text-secondary">
 							<SlidersHorizontal size={12} />
@@ -1004,6 +1081,11 @@ export function KanbanBoard({
 					</ElementTooltip>
 				</div>
 			</div>
+			{fleetStripExpanded ? (
+				<div className="shrink-0 border-b border-border bg-surface-1">
+					<FleetStrip groups={fleetGroups} />
+				</div>
+			) : null}
 			{currentProjectId && data.columns.every((column) => column.id === "trash" || column.cards.length === 0) ? (
 				<div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-1 px-4 py-3 text-sm">
 					<div className="flex min-w-0 items-center gap-2 text-text-secondary">

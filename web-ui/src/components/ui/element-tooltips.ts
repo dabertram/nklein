@@ -86,6 +86,11 @@ export const ELEMENT_TOOLTIPS = {
 		description:
 			"Draw every card-dependency edge on the board (de-emphasized). Off by default so the board stays clean; linking a new dependency always shows its line.",
 	},
+	"board.fleet-strip": {
+		name: "Show the model fleet",
+		description:
+			"Expand a per-machine list of every loaded model — its role, the card it's driving (or idle), lineage, and tok/s. Off by default to keep the strip compact.",
+	},
 	"board.code-intel": {
 		name: "Code intelligence",
 		description: "The project's code-index status and the embedding provider used for retrieval.",
