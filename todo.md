@@ -9400,22 +9400,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > maybe some bubbles, connections, activity, status … should give an impression of activity level and roughly in
 > which corners of the project activity is happening), then by zooming in user can go closer to the details like
 > lean board view, expert view, professional view." Also: "connecting the project chat with the board".
-> - [ ] **Zoom 0 — Overview (the new main entry):** project CHAT as the primary interaction surface + an ACTIVITY
->       MAP as the main panel: bubbles = cards clustered by stream/plan ("corners of the project"), bubble size ≈
->       recent activity, color = status (cyan running/pulsing · violet in-review · gold waiting/held · green done,
->       fading with age · red blocked), thin dependency connections (treatment-C de-emphasis), cluster glow ≈
->       activity level. Chat and map are LINKED: card mentions in chat highlight bubbles; activity events tick
->       into the chat; @-mentions target cards/streams (resolveMessageTarget exists — W3.4).
-> - [ ] **Zoom 1 — Lean board:** minimal columns (Doing / Review / Done), no cockpit/fleet/telemetry chrome;
->       reachable by clicking a cluster (filtered to that stream) or the zoom control.
-> - [ ] **Zoom 2 — Expert:** today's full board (cockpit strip, deps toggle, card chrome).
-> - [ ] **Zoom 3 — Professional:** expert + fleet strip expanded + telemetry surfaces (ledgers, warmth) — the
->       operator cockpit.
-> - [ ] Mechanics: zoom = a per-user UI state (instant, no restart; persisted), gates VISIBILITY not capability;
->       default entry for new users = Zoom 0; the §5.BA wizards ask "how much do you want to see".
-> - [ ] Flow: interactive mockup FIRST (fable) → user sign-off → implement Zoom 0 (chat-centric overview) as the
->       new entry, wiring zoom transitions to the existing board; Lean = a filtered/simplified render of the same
->       board component tree, NOT a fork.
+> - [x] **Zoom 0 — Overview (the new main entry)** *(shipped 2026-07-03; mockup klein-zoom-levels approved)*:
+>       chat rail + ACTIVITY MAP main panel (`activity-map-model.ts` pure composer + SVG view: plan-slug clusters
+>       with activity-glow halos, state-colored bubbles w/ 3-min activity boost + 60-min done-fade, dependency
+>       connections, click bubble → card, click cluster → that stream's lean board).
+> - [x] **Zoom 1 — Lean board** *(shipped)*: Doing/Review/Done (`lean-board-view.tsx`), stream-filtered via
+>       cluster click, breadcrumb back to overview. **Zoom 2 — Expert** = existing board; **Zoom 3 —
+>       Professional** = expert + fleet strip force-expanded. 4 zoom buttons above the main panel
+>       (`use-zoom-level.ts`, persisted, default Z0); chat = right rail expandable to 1600px.
+> - [x] **Chat↔board linkage phase 2** *(shipped 2026-07-03)*: card-reference CHIPS in messages (openable,
+>       `chat-card-references.ts`); sticky-follow transcript scrolling + "↓ N new · Follow" pill
+>       (`use-sticky-transcript.ts`); live ACTIVITY TICKS interleaved into the transcript (pure snapshot differ
+>       `board-activity-ticker.ts` — column arrivals, session start/fail, blocks; click ⇒ open card; capped 60,
+>       client-derived only); @-MENTION composer popover (`composer-mention.ts`) inserting explicit
+>       `@card:<id>`/`@stream:<id>` handles (the §5.AU resolver's rung-1 syntax).
+> - [ ] **Remaining:** SERVER-SIDE §5.AU wiring — the chat turn should call `resolveMessageTarget` (core exists,
+>       W3.4) so an @card message actually routes (relay/answer/focus) instead of just reading as text; then map
+>       highlight on chat card-mention hover (Z0 polish), zoom onboarding via §5.BA wizard ("how much do you want
+>       to see").
+> - [x] Mechanics (shipped): zoom = per-user persisted UI state, gates VISIBILITY not capability; default = Z0.
 
 *(Original 4-discrete-modes sketch (2026-07-02) superseded by the zoom-level framing above.)*
 > **User feedback on the §5.AX overhaul: "looks amazing .. a bit bloated for beginners .. lets stick with the content
