@@ -245,6 +245,12 @@ source repo went private — so if it vanishes the buildable source still lives 
 ### Code quality
 - Write production-quality code, not prototypes. Break components into small, single-responsibility files. Extract shared logic into hooks/utilities. Prioritize maintainability + clean architecture over speed. Follow DRY + clear separation of concerns.
 - In `web-ui`, prefer `react-use` hooks (via `@/kanban/utils/react-use`) whenever possible.
+- **Any spawned `git` (prod OR tests) must scrub inherited hook env via `createGitProcessEnv()`** (`src/core/
+  git-process-env.ts`). Git hooks export `GIT_DIR`/`GIT_INDEX_FILE` (with `git commit -a` the index is a TEMP file),
+  and a child `git init`+`commit` in a tmpdir silently inherits them and operates on the OUTER repo's index — the
+  pre-commit test suite is exactly such a hook context, so raw `{...process.env}` spawns pass standalone but fail
+  under `git commit -a` (live 2026-07-03: three decomposition tests). Repro/guard: run the test with
+  `GIT_INDEX_FILE=<repo>/.git/index` poisoned.
 - **Prefer existing solutions over custom implementations — a standing directive.** Before hand-crafting any non-trivial
   capability, FIRST do **extensive, current online research** for a valid, well-maintained, *suitable* existing solution
   (library, tool, MCP server, service) — **web-search the ecosystem broadly; do NOT rely on training-cutoff memory (it is
@@ -9352,6 +9358,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       "type validation failed", NOT in-execute failures) and records a `tool_input_rejection` self-observation
 >       tagged toolName+modelId+providerId. After the sweep these should be rare; the counter makes a resurgence
 >       visible per-tool-per-model on telemetry instead of only in an autopsy.
+> - [ ] **run42 evidence — tool-NAME aliasing:** models call unavailable names (`read_file` singular for
+>       `read_files`) and get "Model tried to call unavailable tool" pre-rejections. Next tolerance seam: a
+>       tool-name alias map at the routing/dispatch layer (read_file→read_files, write_file variants, etc.) —
+>       redirect instead of reject when the intent is unambiguous.
 > - [ ] **run38 evidence — `read_files` double-encoded array:** a worker sent `{"files": "[{\"path\": ..."}` (the
 >       array JSON-ENCODED as a string) and was pre-rejected. edit_file's `repairJsonStringValue` already handles
 >       exactly this — apply it at read_files' boundary/parser too (and sweep the other array-taking tools).

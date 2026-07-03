@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeBoardData } from "../../../src/core/api-contract";
 import { AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS } from "../../../src/core/autonomous-timeout-defaults";
+import { createGitProcessEnv } from "../../../src/core/git-process-env";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
 	moveTaskToColumn,
@@ -1160,11 +1161,11 @@ describe("nklein decomposition tools", () => {
 		const previousHome = process.env.HOME;
 		process.env.HOME = homePath;
 		try {
-			await execFileAsync("git", ["init"], { cwd: workspacePath });
+			await execFileAsync("git", ["init"], { cwd: workspacePath, env: createGitProcessEnv() });
 			await execFileAsync("git", ["commit", "--allow-empty", "-m", "Initial"], {
 				cwd: workspacePath,
 				env: {
-					...process.env,
+					...createGitProcessEnv(),
 					GIT_AUTHOR_NAME: "!Klein Test",
 					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
 					GIT_COMMITTER_NAME: "!Klein Test",
@@ -1261,18 +1262,18 @@ describe("nklein decomposition tools", () => {
 		process.env.HOME = homePath;
 		try {
 			await mkdir(taskWorktreePath, { recursive: true });
-			await execFileAsync("git", ["init"], { cwd: parentWorkspacePath });
+			await execFileAsync("git", ["init"], { cwd: parentWorkspacePath, env: createGitProcessEnv() });
 			await execFileAsync("git", ["commit", "--allow-empty", "-m", "Initial"], {
 				cwd: parentWorkspacePath,
 				env: {
-					...process.env,
+					...createGitProcessEnv(),
 					GIT_AUTHOR_NAME: "!Klein Test",
 					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
 					GIT_COMMITTER_NAME: "!Klein Test",
 					GIT_COMMITTER_EMAIL: "kanban-test@example.invalid",
 				},
 			});
-			await execFileAsync("git", ["init"], { cwd: taskWorktreePath });
+			await execFileAsync("git", ["init"], { cwd: taskWorktreePath, env: createGitProcessEnv() });
 			await loadWorkspaceContext(parentWorkspacePath);
 			const sourceBoard = createBoard();
 			sourceBoard.columns[0]?.cards.push({
@@ -1360,11 +1361,11 @@ describe("nklein decomposition tools", () => {
 				JSON.stringify({ decompositionAutoApplyEnabled: false }),
 				"utf8",
 			);
-			await execFileAsync("git", ["init"], { cwd: workspacePath });
+			await execFileAsync("git", ["init"], { cwd: workspacePath, env: createGitProcessEnv() });
 			await execFileAsync("git", ["commit", "--allow-empty", "-m", "Initial"], {
 				cwd: workspacePath,
 				env: {
-					...process.env,
+					...createGitProcessEnv(),
 					GIT_AUTHOR_NAME: "!Klein Test",
 					GIT_AUTHOR_EMAIL: "kanban-test@example.invalid",
 					GIT_COMMITTER_NAME: "!Klein Test",
