@@ -9419,6 +9419,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       `read_files`) and get "Model tried to call unavailable tool" pre-rejections. Next tolerance seam: a
 >       tool-name alias map at the routing/dispatch layer (read_file→read_files, write_file variants, etc.) —
 >       redirect instead of reject when the intent is unambiguous.
+>       **★ EXECUTION-READY PLAN (investigated 2026-07-03, Opus; NOT yet built — deliberately deferred to a careful/
+>       Fable-assisted session because it patches the vendored engine, a wide-blast-radius surface, and the user had
+>       just flagged velocity):** the correct seam is the AI-SDK's `experimental_repairToolCall` hook. The vendored
+>       provider `vendor/cline-sdk/packages/llms/src/providers/ai-sdk.ts` calls `streamText({…})` at ~line 1153 WITHOUT
+>       it today; the AI-SDK raises `NoSuchToolError` when the model names a tool absent from the provided set, which is
+>       what surfaces as the "unavailable tool" pre-rejection (this is DISTINCT from `resolveCoreSelectedToolIds`'s
+>       allowlist-CONFIG throw at `extensions/tools/runtime.ts:240`, which is a config error, not a model-call path).
+>       BUILD: pass `experimental_repairToolCall` to that `streamText` call; in it, on a NoSuchToolError, look up the
+>       requested name in a small ALIAS MAP (read_file→read_files, list_dir→list_files, write_file→edit_file/create,
+>       etc.) and, ONLY IF the alias target is in `error.tools`/the available set, return the repaired call with the
+>       canonical name (and the same args); otherwise return null (let it reject as today). Keep the alias map data-
+>       driven + unit-tested as a pure function (`resolveToolNameAlias(requested, availableNames) => string|null`) so
+>       the SDK hook is a thin adapter. Requires `npm run build:sdk` + a live probe. Pairs with the §5.BD schema
+>       tolerance (arg repair can ride the SAME repairToolCall hook later). Cross-check: some names may be BETTER
+>       fixed by ADDING the alias as a real tolerant tool alias in `definitions.ts` — decide per-name (a true rename
+>       vs a distinct tool) during the build.
 > - [ ] **run38 evidence — `read_files` double-encoded array:** a worker sent `{"files": "[{\"path\": ..."}` (the
 >       array JSON-ENCODED as a string) and was pre-rejected. edit_file's `repairJsonStringValue` already handles
 >       exactly this — apply it at read_files' boundary/parser too (and sweep the other array-taking tools).
