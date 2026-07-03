@@ -9538,6 +9538,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **Release engineering:** version scheme, `npm run build` + sandbox image build reproducible on a clean machine,
 >       install/run docs verified on a fresh user profile, smoke-test checklist (the deterministic harness suite is the
 >       release gate: v1 HOLD + v2 PASS + v3 bounce must be green).
+> - [ ] **★ Gate the VENDORED SDK suite (finding 2026-07-03).** Repo `test:fast`/`vitest` EXCLUDE `vendor/**`, so the
+>       forked SDK's own tests never run in CI — and our fork edits silently rot them. Live proof: `cd
+>       vendor/cline-sdk/packages/core && npx vitest run` had **5 pre-existing failures** — 1 read_files schema test
+>       stale after §5.BD boundary fix #40, and 4 from the `.cline`→`.nklein` workspace-dir rebrand (plugin-install +
+>       user-instruction-config-loader). **All 5 now FIXED (commits 2da7e50d, 7ed422fb); `core` is green (1224).**
+>       BUT the other vendored packages (`shared`, `llms`, `agents`, `sdk`) were NOT run — check + fix them, then add
+>       a `test:vendor` script (`for p in packages/*; do vitest run` per its config`) to the release gate so fork
+>       drift is caught. (Rebrand caveat learned: NOT every `.cline` is stale — home-scoped `CLINE_DIR`,
+>       `resolvePluginConfigSearchPaths[0]` legacy-first, and `.cline/skills` back-compat subdirs are intentional; fix
+>       per failing assertion against the SOURCE, never a blanket replace.)
 >
 ### 5.P — LAST: full Python backend port *(raised 2026-06-23; bottom of the list)*
 > **SUPERSEDED / deferred indefinitely (owner decision 2026-06-26, via §5.X Phase 2): NO Python port — !Klein stays
