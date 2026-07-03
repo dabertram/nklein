@@ -42,6 +42,7 @@ import {
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
+import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
@@ -1450,6 +1451,40 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 			const trackedService = service;
 			nkleinTaskSessionServiceByWorkspaceId.set(scope.workspaceId, service);
+			// §5.0.5 W2.2 (startup crash-recovery): this block creates the service exactly once per workspace. A crash
+			// (which skips the shutdown-coordinator's parking) leaves cards in the in_progress lane with NO live session
+			// after restart — a "lying board". The fresh service has an empty summary set, so any in_progress card is
+			// orphaned; park those into Review (mirroring the clean-shutdown behavior) so the board is honest + the work
+			// resumable (the #21 salvage rebinds any that kept a result branch). Best-effort; never blocks tracking.
+			try {
+				const liveTaskIds = new Set(
+					trackedService
+						.listSummaries()
+						.filter(
+							(summary) =>
+								summary.state === "running" ||
+								summary.state === "queued" ||
+								summary.state === "awaiting_review",
+						)
+						.map((summary) => summary.taskId),
+				);
+				await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+					const reconciled = reconcileOrphanedInProgressCards({
+						board: latestState.board,
+						liveSessionTaskIds: liveTaskIds,
+					});
+					if (reconciled.parkedTaskIds.length > 0) {
+						deps.warn(
+							`Startup crash-recovery: parked ${reconciled.parkedTaskIds.length} orphaned in-progress card(s) into Review (sessions lost on restart): ${reconciled.parkedTaskIds.join(", ")}.`,
+						);
+					}
+					return { board: reconciled.board, save: reconciled.parkedTaskIds.length > 0, value: null };
+				});
+			} catch (error) {
+				deps.warn(
+					`Startup orphan reconcile failed for ${scope.workspacePath}: ${error instanceof Error ? error.message : String(error)}`,
+				);
+			}
 			deps.runtimeStateHub.trackNKleinTaskSessionService(scope.workspaceId, scope.workspacePath, service);
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
 				recordNKleinKnowledgeToolUsage(scope, summary);
