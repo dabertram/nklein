@@ -1284,7 +1284,12 @@ export default function App(): ReactElement {
 					</div>
 				</div>
 				{/* Board-independent chat as a resizeable right sidebar (todo §5.M), replacing the old modal. */}
-				<ChatSidebar />
+				<ChatSidebar
+					boardCards={board.columns.flatMap((column) =>
+						column.id === "trash" ? [] : column.cards.map((card) => ({ id: card.id, title: card.title })),
+					)}
+					onOpenCard={handleCardSelect}
+				/>
 				<RuntimeSettingsDialog
 					open={isSettingsOpen}
 					workspaceId={settingsWorkspaceId}

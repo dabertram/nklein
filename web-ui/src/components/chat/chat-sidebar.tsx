@@ -1,5 +1,6 @@
 import { Bot, MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type ChatCardCandidate, segmentChatMessage } from "@/components/chat/chat-card-references";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -15,6 +16,7 @@ import {
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
+import { useStickyTranscript } from "@/hooks/use-sticky-transcript";
 import { ResizeHandle } from "@/resize/resize-handle";
 import { clampBetween } from "@/resize/resize-persistence";
 import { CHAT_SIDEBAR_WIDTH_BOUNDS, useChatSidebarLayout } from "@/resize/use-chat-sidebar-layout";
@@ -381,7 +383,56 @@ function SessionRow({
 
 // ─── MessageBubble ─────────────────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: RuntimeChatMessage }): React.ReactElement {
+function MessageContent({
+	content,
+	boardCards,
+	onOpenCard,
+}: {
+	content: string;
+	boardCards: readonly ChatCardCandidate[];
+	onOpenCard: ((cardId: string) => void) | undefined;
+}): React.ReactElement {
+	// §5.BB phase 2: card references become OPENABLE chips — click one to open that card in the main panel.
+	if (!onOpenCard || boardCards.length === 0) {
+		return <>{content}</>;
+	}
+	const segments = segmentChatMessage(content, boardCards);
+	return (
+		<>
+			{segments.map((segment, index) =>
+				segment.kind === "text" ? (
+					// biome-ignore lint/suspicious/noArrayIndexKey: segments are positional fragments of one message.
+					<span key={index}>{segment.text}</span>
+				) : (
+					<button
+						// biome-ignore lint/suspicious/noArrayIndexKey: the same card may be referenced twice.
+						key={index}
+						type="button"
+						data-testid="chat-card-chip"
+						title="Open this card in the main panel"
+						onClick={() => onOpenCard(segment.cardId)}
+						className="mx-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent align-baseline hover:bg-accent/20"
+					>
+						{segment.label}
+						<span aria-hidden className="text-[10px] opacity-70">
+							↗
+						</span>
+					</button>
+				),
+			)}
+		</>
+	);
+}
+
+function MessageBubble({
+	message,
+	boardCards = [],
+	onOpenCard,
+}: {
+	message: RuntimeChatMessage;
+	boardCards?: readonly ChatCardCandidate[];
+	onOpenCard?: (cardId: string) => void;
+}): React.ReactElement {
 	if (message.role === "system") {
 		return (
 			<div data-testid="chat-message" data-role="system" className="text-[11px] text-text-tertiary italic px-2 py-1">
@@ -402,7 +453,11 @@ function MessageBubble({ message }: { message: RuntimeChatMessage }): React.Reac
 					isUser ? "bg-accent text-white" : "bg-surface-2 text-text-primary border border-border",
 				)}
 			>
-				{message.content}
+				{isUser ? (
+					message.content
+				) : (
+					<MessageContent content={message.content} boardCards={boardCards} onOpenCard={onOpenCard} />
+				)}
 			</div>
 		</div>
 	);
@@ -499,16 +554,30 @@ function AutonomousRunBar({
 	);
 }
 
-function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () => void }): React.ReactElement {
+function ChatPanel({
+	enabled,
+	onCollapse,
+	boardCards = [],
+	onOpenCard,
+}: {
+	enabled: boolean;
+	onCollapse: () => void;
+	boardCards?: readonly ChatCardCandidate[];
+	onOpenCard?: (cardId: string) => void;
+}): React.ReactElement {
 	const chat = useChatData(enabled);
 	const [draft, setDraft] = useState("");
 	const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+	const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
 	const selectedSession = chat.sessions.find((session) => session.id === chat.selectedSessionId) ?? null;
 
-	// Keep the latest message in view as the transcript grows and as the reply streams in.
-	useEffect(() => {
-		transcriptEndRef.current?.scrollIntoView({ block: "end" });
-	}, [chat.transcript, chat.streamingText]);
+	// §5.BB intuitive scrolling: follow live output only while the user is at the bottom — scrolling up detaches
+	// (progress/details stay put at the reader's pace); the "↓ Follow" pill (or scrolling back down) re-attaches.
+	const sticky = useStickyTranscript({
+		containerRef: transcriptContainerRef,
+		contentVersion: chat.transcript.length * 100_000 + (chat.streamingText?.length ?? 0),
+		resetKey: chat.selectedSessionId,
+	});
 
 	const handleSubmit = (event: FormEvent): void => {
 		event.preventDefault();
@@ -605,11 +674,18 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 								/>
 							) : null}
 							<div
+								ref={transcriptContainerRef}
+								onScroll={sticky.handleScroll}
 								className="flex-1 min-h-0 min-w-0 overflow-y-auto p-4 flex flex-col gap-3"
 								data-testid="chat-transcript"
 							>
 								{chat.transcript.map((message) => (
-									<MessageBubble key={message.id} message={message} />
+									<MessageBubble
+										key={message.id}
+										message={message}
+										boardCards={boardCards}
+										onOpenCard={onOpenCard}
+									/>
 								))}
 								{/* Optimistic user bubble while the turn is in flight (before the transcript catches up). */}
 								{chat.pendingUserText !== null ? (
@@ -639,11 +715,25 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
 												content: chat.streamingText,
 												createdAt: 0,
 											}}
+											boardCards={boardCards}
+											onOpenCard={onOpenCard}
 										/>
 									)
 								) : null}
 								<div ref={transcriptEndRef} />
 							</div>
+							{!sticky.following ? (
+								<div className="pointer-events-none relative">
+									<button
+										type="button"
+										data-testid="chat-follow-pill"
+										onClick={sticky.follow}
+										className="pointer-events-auto absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-accent/40 bg-surface-1/95 px-3 py-1 text-[11.5px] text-accent shadow-lg hover:bg-surface-2"
+									>
+										↓ {sticky.newCount > 0 ? `${sticky.newCount} new · ` : ""}Follow
+									</button>
+								</div>
+							) : null}
 							<AutonomousRunBar
 								status={chat.autonomousStatus}
 								disabled={!chat.selectedSessionId}
@@ -706,7 +796,15 @@ function ChatPanel({ enabled, onCollapse }: { enabled: boolean; onCollapse: () =
  * Collapsed by default to a thin bar (expand button); when open it shows the full chat and can be dragged wider via
  * the handle on its left edge. Width + collapsed state persist (`useChatSidebarLayout`). Replaces the old modal.
  */
-export function ChatSidebar(): React.ReactElement {
+export function ChatSidebar({
+	boardCards,
+	onOpenCard,
+}: {
+	/** §5.BB: current board cards (id + title) so assistant messages render openable card chips. */
+	boardCards?: readonly ChatCardCandidate[];
+	/** Opens a referenced card in the MAIN PANEL (the chat is the steering wheel, the panel shows the detail). */
+	onOpenCard?: (cardId: string) => void;
+} = {}): React.ReactElement {
 	const { width, isCollapsed, setWidth, setCollapsed } = useChatSidebarLayout();
 	const { startDrag } = useResizeDrag();
 
@@ -748,7 +846,7 @@ export function ChatSidebar(): React.ReactElement {
 				}
 			/>
 			<div className="flex flex-1 min-w-0 min-h-0 overflow-hidden">
-				<ChatPanel enabled onCollapse={() => setCollapsed(true)} />
+				<ChatPanel enabled onCollapse={() => setCollapsed(true)} boardCards={boardCards} onOpenCard={onOpenCard} />
 			</div>
 		</aside>
 	);
