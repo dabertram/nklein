@@ -5,6 +5,7 @@ import {
 	type RetrievalLoopDeps,
 	runRetrievalLoop,
 } from "../../../src/core/retrieval-loop-driver";
+import { citedSynthesisAdapter } from "../../../src/core/retrieval-synthesis-adapter";
 
 const NOW = Date.parse("2026-07-01T00:00:00Z");
 const RECENT = "2026-07-01T00:00:00Z"; // same day ⇒ current
@@ -52,6 +53,18 @@ describe("runRetrievalLoop", () => {
 		expect(result.actions).toContain("fetch");
 		expect(result.actions.at(-1)).toBe("stop_sufficient");
 		expect(result.iterations).toBe(0); // sufficient on the first round, before any advance
+	});
+
+	it("composes with citedSynthesisAdapter over an injected model → a rendered cited answer (§5.AC)", async () => {
+		// The loop gathers evidence [a, b], then the real synthesis adapter drives a fake model that returns the
+		// {claim,cite[]} contract; the loop's `answer` is the rendered cited answer with [n] markers + a sources list.
+		const fakeModel = async () =>
+			'[{"claim":"X is powered by A","cite":["a"]},{"claim":"X also uses B","cite":["b"]}]';
+		const { deps } = makeDeps({ synthesize: citedSynthesisAdapter(fakeModel) });
+		const result = await runRetrievalLoop("what is X", deps);
+		expect(result.answer).toBe(
+			"X is powered by A [1]\nX also uses B [2]\n\nSources:\n[1] https://example.com/a\n[2] https://example.com/b",
+		);
 	});
 
 	it("stops sufficient early once minSources is met (no wasted rounds)", async () => {
