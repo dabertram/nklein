@@ -29,6 +29,20 @@ export async function handleSendTaskChatMessage(
 	try {
 		const body = parseTaskChatSendRequest(input);
 		const nkleinTaskSessionService = await deps.getScopedNKleinTaskSessionService(workspaceScope);
+		// /clear is a pure teardown (forget the provider selection + abort the session + dispose the sandbox) that
+		// needs NO launch config. Resolve it BEFORE the resolveLaunchConfig call below — that call throws when the
+		// selected model can't be resolved (e.g. an LM Studio model was unloaded), which is exactly the recovery
+		// state where a user reaches for /clear. Gating teardown behind model resolution made /clear fail when it is
+		// needed most; the clear branch reads none of the launch-config overrides.
+		if (isNKleinClearSlashCommand(body.text)) {
+			const summary = await nkleinTaskSessionService.clearTaskSession(body.taskId);
+			deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);
+			return {
+				ok: true,
+				summary,
+				message: null,
+			};
+		}
 		const providerIdOverride = body.providerId?.trim() || undefined;
 		const modelIdOverride = body.modelId?.trim() || undefined;
 		const hasReasoningEffortOverride = Object.hasOwn(body, "reasoningEffort");
@@ -50,15 +64,6 @@ export async function handleSendTaskChatMessage(
 					contextWindow: launchConfigOverrides.contextWindow,
 				}
 			: undefined;
-		if (isNKleinClearSlashCommand(body.text)) {
-			const summary = await nkleinTaskSessionService.clearTaskSession(body.taskId);
-			deps.broadcastTaskChatCleared?.(workspaceScope.workspaceId, body.taskId);
-			return {
-				ok: true,
-				summary,
-				message: null,
-			};
-		}
 		const requestedMode = body.mode;
 		let summary = sessionLaunchConfigOverrides
 			? await nkleinTaskSessionService.sendTaskSessionInput(
