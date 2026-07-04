@@ -1,3 +1,4 @@
+import type { LookupAddress } from "node:dns";
 import { lookup as dnsLookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
 import { chromium } from "playwright";
@@ -138,19 +139,21 @@ export async function checkHostForSsrf(rawUrl: string): Promise<string | null> {
 		return null;
 	}
 
-	// Resolve hostname → IP.
-	let resolvedIp: string;
+	// Resolve hostname → ALL IPs and reject if ANY is private/reserved. Checking only the first address let a host
+	// with mixed public+private records pass the guard while the browser's own resolution/connection-fallback
+	// reached the private one; fail-closed on the whole record set instead.
+	let resolved: LookupAddress[];
 	try {
-		const result = await dnsLookup(host, { family: 0 });
-		resolvedIp = result.address;
+		resolved = await dnsLookup(host, { all: true, family: 0 });
 	} catch {
 		// DNS resolution failed — the URL is unreachable, but we cannot confirm it's internal. Let the navigation
 		// attempt fail naturally; refusing here would false-positive on valid but currently unreachable hosts.
 		return null;
 	}
 
-	if (isPrivateOrReservedIp(resolvedIp)) {
-		return `Browsing internal/private addresses is not allowed in remote mode (host: ${hostname}, resolved: ${resolvedIp}).`;
+	const blocked = resolved.find((entry) => isPrivateOrReservedIp(entry.address));
+	if (blocked) {
+		return `Browsing internal/private addresses is not allowed in remote mode (host: ${hostname}, resolved: ${blocked.address}).`;
 	}
 	return null;
 }
