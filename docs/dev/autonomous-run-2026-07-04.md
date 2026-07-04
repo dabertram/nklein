@@ -59,8 +59,11 @@ draft PR-style change I hold for review, not an auto-merge.
    just the last mile). So this needs skill-set resolution wired into the chat/session path FIRST, then
    the merged apiProfile applied (reconciled with the chat adapter's existing reasoning/force-tool). Larger
    than a simple apply-step. *(pending)*
-8. **§5.AV apply-time strictness** → REDO-ONLY; never hard-block (SCC-condense repair net handles it).
-   *(pending — verify current apply path already never blocks; likely a no-op + a pinning test)*
+8. ✅ **DONE (verified, no change needed)** **§5.AV apply-time strictness** → already REDO-ONLY by design:
+   `RedecomposeAction` has NO `block` member (`accept|refine|split|merge|redo`), the apply path in
+   `nklein-decomposition-tool` only RECORDS a self-observation on a non-accept verdict (never fails/blocks
+   the task), and `shouldHaltRedecomposition` bounds re-decompose loops (11 test assertions already pin it).
+   Matches David's decision exactly — nothing to change.
 9. **§5.AN model stats** → track ALWAYS per-request, FULL default, config knob to reduce (`full|basic|off`).
    *(pending)*
 10. **§5.AE skill-fragment mapping** → DRAFT + canonicalize naming + stub `repo_map`/`focus_chain`, hold
