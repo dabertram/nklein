@@ -22,10 +22,19 @@ describe("buildSynthesisPrompt (§5.AC)", () => {
 		expect(prompt).toContain("ONLY the EVIDENCE");
 	});
 
-	it("truncates a long excerpt to keep the prompt bounded", () => {
+	it("truncates a long excerpt with no query-term match to keep the prompt bounded", () => {
 		const prompt = buildSynthesisPrompt("q", [{ id: "e1", text: "x".repeat(2000) }]);
 		expect(prompt).toContain("…");
-		expect(prompt).not.toContain("x".repeat(1300)); // capped at 1200 chars
+		expect(prompt).not.toContain("x".repeat(1300)); // no term match → head truncation, capped at 1200 chars
+	});
+
+	it("narrows a long excerpt to the query-relevant span instead of an arbitrary head slice", () => {
+		const head = "PADDING ".repeat(300); // ~2400 chars of irrelevant lead-in (no query term)
+		const text = `${head}The Environment API is the headline change. ${"tail ".repeat(300)}`;
+		const prompt = buildSynthesisPrompt("what is the Environment API?", [{ id: "e1", text }]);
+		// The window around the matched terms is kept; the long padding head is dropped (extraction, not head-truncation).
+		expect(prompt).toContain("Environment API is the headline change");
+		expect(prompt).not.toContain("PADDING ".repeat(50));
 	});
 });
 

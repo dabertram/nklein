@@ -11,7 +11,9 @@
  */
 
 import { assembleCitedAnswer, type SynthesisClaim, type SynthesisEvidenceRef } from "./cited-synthesis";
+import { extractRelevantSpans } from "./extraction-span";
 import type { RetrievalEvidence } from "./retrieval-loop-driver";
+import { tokenizeQuery } from "./retrieval-rerank";
 
 /** The injected model completion the synthesis adapter drives: a prompt in, the model's text out. */
 export type SynthesisComplete = (prompt: string, signal?: AbortSignal) => Promise<string>;
@@ -20,13 +22,31 @@ export type SynthesisComplete = (prompt: string, signal?: AbortSignal) => Promis
 const MAX_EVIDENCE_CHARS = 1200;
 
 /**
+ * Trim ONE evidence text for the prompt. Short evidence is embedded whole. LONG evidence is narrowed to the query-
+ * relevant windows via {@link extractRelevantSpans} (§5.AC extract core) so the model reads the parts that actually
+ * bear on the question instead of an arbitrary head slice; if no query term appears in the text, fall back to a head
+ * truncation (never drop the evidence entirely).
+ */
+function evidenceExcerpt(text: string, queryTerms: readonly string[]): string {
+	if (text.length <= MAX_EVIDENCE_CHARS) {
+		return text;
+	}
+	const spans = extractRelevantSpans(text, queryTerms, { windowChars: 400, maxSpans: 4 });
+	if (spans.length > 0) {
+		return spans.map((span) => span.text).join(" … ");
+	}
+	return `${text.slice(0, MAX_EVIDENCE_CHARS)}…`;
+}
+
+/**
  * Build the synthesis prompt: the QUESTION plus each evidence excerpt tagged with its stable id, and an instruction to
  * answer using ONLY the evidence and to cite the id(s) each claim relies on as a JSON array of `{claim, cite}`.
- * Deterministic (pure) so it is unit-testable without a model.
+ * Deterministic (pure) so it is unit-testable without a model. Long evidence is narrowed to query-relevant spans.
  */
 export function buildSynthesisPrompt(task: string, evidence: readonly RetrievalEvidence[]): string {
+	const queryTerms = tokenizeQuery(task);
 	const blocks = evidence.map((item) => {
-		const excerpt = item.text.length > MAX_EVIDENCE_CHARS ? `${item.text.slice(0, MAX_EVIDENCE_CHARS)}…` : item.text;
+		const excerpt = evidenceExcerpt(item.text, queryTerms);
 		return `[${item.id}]${item.url ? ` (${item.url})` : ""}\n${excerpt}`;
 	});
 	return [
