@@ -49,9 +49,16 @@ draft PR-style change I hold for review, not an auto-merge.
 2. ✅ **DONE** **Chat `web_search`** → wired (chat-web-search-tool.ts, reuses the swarm SearXNG client),
    OFF by default (needs egress + backend). egress_read action.
 3. ✅ **DONE** **SSRF guard** → `checkHostForSsrf` checks ALL resolved IPs (fail-closed). +3 tests.
-4. **§5.L swarm-broker manifest** → PER-TOOL STATIC for v1; wire the escalation + egress gates live on the
-   swarm tool path. *(pending — the biggest item)*
-5. **Capability-broker default** → default ON **once the swarm seam (4) is wired**. *(pending, after 4)*
+4. ✅ **DONE (foundation) + KEY FINDING** **§5.L swarm-broker manifest** → shipped the per-tool STATIC
+   manifests (`swarmToolManifest`) + the shared `decideCapabilityBrokerGate` (chat now uses it too). **But
+   the gate is structurally INERT on the swarm today:** the swarm is Docker-isolated (invariant #2, no
+   host access) and its egress is read-only, so NO swarm tool touches a broker-protected sink (file writes
+   = sandbox_write; browse/search = egress_read). I therefore did NOT thread the beforeTool/afterTool live
+   hooks through the critical 1469-line loop — that's complexity/risk for ZERO current effect. **Recommend
+   wiring the live hooks WHEN a protected-sink swarm tool (egress-write / host-escape) is ever added** —
+   then it bites. Foundation + finding are tested/committed.
+5. ✅ **DONE** **Capability-broker default** → flipped DEFAULT-ON. Meaningful on the CHAT path (real host
+   sinks now guarded by the browse/web_search taint); safe + inert on the swarm.
 6. ✅ **DONE** **§5.L egress-read kind** → added `egress_read` ChatActionKind; browse_url + web_search use
    it → multi-page browsing works, write/exec sinks still taint-guarded. +tests.
 7. **§5.AE apiProfile SESSION-SCOPED** → *PRECURSOR FOUND (2026-07-04):* the chat path does NOT resolve a
