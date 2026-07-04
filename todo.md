@@ -1208,7 +1208,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] **Enrich generated card specs** (one leaf per field group): add `preconditions/inputs/expectedOutputs` ·
         `acceptanceChecks/nonGoals` · `dependencyOutputsConsumed` · `rollbackOrRepairHints/downstreamInvalidationRules`
         to the card schema, populate them in decomposition, and consume them node-locally.
-  - [ ] **Controller repair semantics** (one leaf each): retry-node · refine-spec · split-node · add-dependency ·
+  - [x] **Controller repair semantics** (one leaf each): retry-node · refine-spec · split-node · add-dependency · *(2026-07-04: pure `decideRepairAction` escalation ladder in repair-controller-decision.ts; 9 tests)*
         invalidate-downstream · re-review · global-re-decompose (last resort only).
 
 ### 5.C — Run summaries & timeout diagnostics
