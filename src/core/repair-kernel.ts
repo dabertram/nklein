@@ -100,13 +100,41 @@ function fullyPasses(validation: CandidateValidation): boolean {
 }
 
 /**
- * Rank validated candidates best-first (pure): repro-pass, then regression-pass, then checks-pass, then SMALLER diff.
- * A higher rank means a better fix; ties break to the smaller, less-invasive patch.
+ * Injectable per-candidate rank tiebreaks (§5.AK): softer evidence that only matters AFTER the hard gate score, but
+ * BEFORE the smaller-diff fallback. The SOURCES are computed by the caller and injected (so the ranker stays pure):
+ * fault-localization overlap for touched-file plausibility, the second-opinion reviewer's signal, and the learned
+ * prior from the §5.AF ledger. Higher is better; all default to 0 (absent ⇒ the ranker is byte-identical to before).
  */
-export function rankCandidateValidations(validations: readonly CandidateValidation[]): CandidateValidation[] {
-	const score = (v: CandidateValidation) =>
+export interface CandidateTiebreaks {
+	/** How plausible the candidate's touched files are for this bug (e.g. overlap with the localized fault set). */
+	touchedFilePlausibility?: number;
+	/** The reviewer-evidence signal (a second opinion favoring this candidate). */
+	reviewerEvidence?: number;
+	/** The learned prior from the §5.AF ledger (this shape/model historically succeeded on similar work). */
+	learnedPrior?: number;
+}
+
+/**
+ * Rank validated candidates best-first (pure): hard gates first (repro-pass, then regression-pass, then checks-pass),
+ * then the injectable evidence tiebreaks (higher = better), then the SMALLER diff. A higher rank means a better fix.
+ * `tiebreaksFor` is optional — absent ⇒ the classic gate-then-diff order, byte-identical to before.
+ */
+export function rankCandidateValidations(
+	validations: readonly CandidateValidation[],
+	tiebreaksFor?: (candidateId: string) => CandidateTiebreaks | undefined,
+): CandidateValidation[] {
+	const gateScore = (v: CandidateValidation) =>
 		(v.reproPass ? 4 : 0) + (v.regressionPass ? 2 : 0) + (v.checksPass ? 1 : 0);
-	return [...validations].sort((left, right) => score(right) - score(left) || left.diffSize - right.diffSize);
+	const tiebreakScore = (v: CandidateValidation): number => {
+		const t = tiebreaksFor?.(v.candidateId) ?? {};
+		return (t.touchedFilePlausibility ?? 0) + (t.reviewerEvidence ?? 0) + (t.learnedPrior ?? 0);
+	};
+	return [...validations].sort(
+		(left, right) =>
+			gateScore(right) - gateScore(left) ||
+			tiebreakScore(right) - tiebreakScore(left) ||
+			left.diffSize - right.diffSize,
+	);
 }
 
 /**

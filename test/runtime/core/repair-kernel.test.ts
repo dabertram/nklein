@@ -156,3 +156,38 @@ describe("aggregateCandidateValidation", () => {
 		expect(rankCandidateValidations([bad, good])[0].candidateId).toBe("c1");
 	});
 });
+
+describe("rankCandidateValidations injectable tiebreaks (§5.AK)", () => {
+	// Two all-pass candidates with the SAME diff size — only the injected evidence separates them.
+	const a = validation("a", { reproPass: true, regressionPass: true, checksPass: true, diffSize: 10 });
+	const b = validation("b", { reproPass: true, regressionPass: true, checksPass: true, diffSize: 10 });
+
+	it("touched-file plausibility breaks a gate+diff tie", () => {
+		const ranked = rankCandidateValidations([a, b], (id) =>
+			id === "b" ? { touchedFilePlausibility: 1 } : undefined,
+		);
+		expect(ranked[0].candidateId).toBe("b");
+	});
+
+	it("reviewer-evidence + learned-prior sum into the tiebreak score", () => {
+		const ranked = rankCandidateValidations([a, b], (id) =>
+			id === "a" ? { reviewerEvidence: 0.4, learnedPrior: 0.3 } : { touchedFilePlausibility: 0.2 },
+		);
+		expect(ranked[0].candidateId).toBe("a"); // 0.7 > 0.2
+	});
+
+	it("tiebreaks NEVER override the hard gates (a passing candidate outranks a failing one with big evidence)", () => {
+		const failing = validation("fail", { reproPass: false, diffSize: 1 });
+		const passing = validation("pass", { reproPass: true, regressionPass: true, checksPass: true, diffSize: 99 });
+		const ranked = rankCandidateValidations([failing, passing], (id) =>
+			id === "fail" ? { reviewerEvidence: 999 } : undefined,
+		);
+		expect(ranked[0].candidateId).toBe("pass");
+	});
+
+	it("absent tiebreaks ⇒ classic gate-then-smaller-diff order (byte-identical)", () => {
+		const small = validation("small", { reproPass: true, regressionPass: true, checksPass: true, diffSize: 5 });
+		const big = validation("big", { reproPass: true, regressionPass: true, checksPass: true, diffSize: 50 });
+		expect(rankCandidateValidations([big, small])[0].candidateId).toBe("small");
+	});
+});

@@ -1199,10 +1199,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] run the regression suite and capture structured pass/fail.
     - [ ] run typecheck + lint and capture structured failures.
     - [x] aggregate into the `ValidationResult` the ranker consumes; unit-test the aggregation. *(2026-07-04: `aggregateCandidateValidation` in repair-kernel.ts folds raw gate counts → CandidateValidation; 6 tests)*
-  - [ ] **Fill the ranker's injectable tiebreaks:**
-    - [ ] wire touched-file plausibility into the rank inputs.
-    - [ ] wire reviewer-evidence signal into the rank inputs.
-    - [ ] wire learned priors (from the §5.AF ledger) into the rank inputs; unit-test the combined order.
+  - [x] **Fill the ranker's injectable tiebreaks:** *(2026-07-04: `CandidateTiebreaks` + `rankCandidateValidations(validations, tiebreaksFor?)` in repair-kernel.ts)*
+    - [x] wire touched-file plausibility into the rank inputs. *(injectable `touchedFilePlausibility`)*
+    - [x] wire reviewer-evidence signal into the rank inputs. *(injectable `reviewerEvidence`)*
+    - [x] wire learned priors (from the §5.AF ledger) into the rank inputs; unit-test the combined order. *(injectable `learnedPrior`; tiebreaks apply after the hard gates + before smaller-diff; 4 tests)*
   - [ ] **Ledger the kernel run (§5.AF):** record (one leaf each) localization candidates · patch candidates ·
         validator results · refinement deltas · final ranking rationale.
   - [ ] **Enrich generated card specs** (one leaf per field group): add `preconditions/inputs/expectedOutputs` ·
