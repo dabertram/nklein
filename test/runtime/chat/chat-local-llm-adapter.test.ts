@@ -131,12 +131,13 @@ describe("createChatModelDeps", () => {
 			},
 		});
 
-		it("flag OFF (default) ⇒ a truncated plain completion is NOT retried (byte-identical single call)", async () => {
+		it("flag=0 (explicit disable) ⇒ a truncated plain completion is NOT retried (single call)", async () => {
+			process.env[FLAG] = "0"; // the ladder now DEFAULTS ON (David 2026-07-04); =0 restores the single-call path
 			const budgets: (number | undefined)[] = [];
 			const deps = createChatModelDeps(plainRecoversAtBudget(4096, budgets));
 			const reply = await deps.complete([{ role: "user", content: "explain at length" }]);
 			expect(budgets).toEqual([1024]); // one call at the default budget — no retry
-			expect(reply).toBe("The half-"); // the truncated reply is returned as-is (today's behavior)
+			expect(reply).toBe("The half-"); // the truncated reply is returned as-is
 		});
 
 		it("flag ON ⇒ a truncated plain completion re-asks with a compounding budget until it completes", async () => {
@@ -459,8 +460,9 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 			expect(budgets).toEqual([1024, 3072, 6144, 8192]);
 		});
 
-		it("flag OFF (default) ⇒ stops after the single 6144 escalation even when only 8192 would recover", async () => {
-			// Same client (recovers only at 8192), flag cleared in beforeEach → the one-shot path caps out at 6144.
+		it("flag=0 (explicit disable) ⇒ stops after the single 6144 escalation even when only 8192 would recover", async () => {
+			process.env[FLAG] = "0"; // ladder now DEFAULTS ON (David 2026-07-04); =0 restores the one-shot cap
+			// Same client (recovers only at 8192), flag disabled → the one-shot path caps out at 6144.
 			const budgets: (number | undefined)[] = [];
 			const model = createChatAgentModel(recoversAtBudget(8192, budgets), SIX_TOOLS, {
 				sampling: { temperature: 0, maxTokens: 1024 },

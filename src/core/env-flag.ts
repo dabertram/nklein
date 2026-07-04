@@ -11,3 +11,19 @@ export function isTruthyEnv(value: string | undefined): boolean {
 	const normalized = value.trim().toLowerCase();
 	return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
+
+/**
+ * Parse an env var as a DEFAULT-ON flag: enabled UNLESS explicitly disabled with `0` / `false` / `no` / `off`
+ * (trim + lowercase). An unset or empty var reads ON. The mirror of {@link isTruthyEnv} for features that ship
+ * on-by-default but keep an env escape hatch. Pure.
+ */
+export function isEnabledByDefaultEnv(value: string | undefined): boolean {
+	if (value === undefined) {
+		return true;
+	}
+	const normalized = value.trim().toLowerCase();
+	if (normalized === "") {
+		return true;
+	}
+	return !(normalized === "0" || normalized === "false" || normalized === "no" || normalized === "off");
+}

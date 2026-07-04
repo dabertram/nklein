@@ -1,5 +1,5 @@
 import { deriveTruncationSignal } from "../core/completion-stop-reason";
-import { isTruthyEnv } from "../core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from "../core/model-thinking-control";
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
@@ -137,7 +137,7 @@ async function completePlainWithTruncationLadder(
 	sampling: LocalLlmSamplingOptions,
 ): Promise<string> {
 	let { content, finishReason } = await client.complete({ messages, sampling });
-	if (isTruthyEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])) {
+	if (isEnabledByDefaultEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])) {
 		let budget = sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
 		for (let pass = 0; pass < TRUNCATION_RETRY_MAX_ATTEMPTS; pass += 1) {
 			if (!deriveTruncationSignal({ rawReason: finishReason, tokenBudget: budget }).shouldRetryLarger) {
@@ -273,7 +273,7 @@ export function createChatAgentModel(
 			// forward = doubling) across up to TRUNCATION_RETRY_MAX_ATTEMPTS passes, breaking the instant the model lands a
 			// call, the truncation signal clears, or the ceiling stops the budget from growing. Both the pass count AND the
 			// monotonic ceiling clamp bound the turn, so a persistently-truncating model can never spin.
-			const maxEscalations = isTruthyEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])
+			const maxEscalations = isEnabledByDefaultEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])
 				? TRUNCATION_RETRY_MAX_ATTEMPTS
 				: 1;
 			let escalationBudget = bumped.maxTokens;

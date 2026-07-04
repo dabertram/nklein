@@ -762,11 +762,20 @@ describe("DurableRunController — DURABLE_DEPTH_PRIORITY lease ordering (§5.AF
 		});
 	const oneSlot: DurableRunConfig = { ...config, maxConcurrentLeases: 1 };
 
-	it("flag OFF (default) ⇒ leases in raw input order — the earliest ready job (leaf) wins the slot", async () => {
+	it("flag=0 (explicit disable) ⇒ leases in raw input order — the earliest ready job (leaf) wins the slot", async () => {
+		process.env[FLAG] = "0";
 		const { ports, dispatches } = fakePorts();
 		const controller = new DurableRunController(fanOutGraph(), oneSlot, ports);
 		await controller.tick();
-		expect(dispatches.map((d) => d.jobId)).toEqual(["leaf"]); // input-order FIFO, unchanged
+		expect(dispatches.map((d) => d.jobId)).toEqual(["leaf"]); // input-order FIFO
+	});
+
+	it("DEFAULT (unset, David 2026-07-04) ⇒ depth-priority ON: the high-fan-out hub wins the slot", async () => {
+		// The flag now defaults ON, so an unset env leases the fan-out prerequisite first, same as flag=1.
+		const { ports, dispatches } = fakePorts();
+		const controller = new DurableRunController(fanOutGraph(), oneSlot, ports);
+		await controller.tick();
+		expect(dispatches.map((d) => d.jobId)).toEqual(["hub"]);
 	});
 
 	it("flag ON ⇒ leases the high-fan-out prerequisite (hub) first, ahead of the cheaper leaf", async () => {
