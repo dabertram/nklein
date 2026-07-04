@@ -75,6 +75,48 @@ export interface DurableSchedulerInput {
 	reclaimBackoffMs: number;
 	/** Mint a worker id for a new lease (e.g. a uuid). Called once per `lease` action, in decision order. */
 	mintWorkerId: () => string;
+	/**
+	 * OPTIONAL §5.AF depth/fan-out lease priority (from {@link module:core/durable-scheduler-ready-order#orderReadyJobs}):
+	 * the jobIds to CONSIDER FIRST when leasing under a scarce concurrency cap, highest-priority first. Absent ⇒ raw input
+	 * order (today's behavior, byte-identical). When present, step 4 iterates its lease candidates in this order — every
+	 * eligibility gate (deps met, past backoff, slots free, not-failed-this-tick) is unchanged; only WHICH eligible ready
+	 * job wins a scarce slot changes. Jobs not listed keep their relative input order, appended after the ranked ones (so a
+	 * job that only became eligible this tick via reclaim/unblock is still leased, just after the pre-ranked ready set).
+	 */
+	readyOrder?: readonly string[];
+}
+
+/**
+ * Order the step-4 lease CANDIDATES by an injected `readyOrder` (the §5.AF depth/fan-out priority): jobs named in
+ * `readyOrder` come first in that order; every other job keeps its relative input order, appended after. Pure + stable —
+ * a job absent from `readyOrder` (e.g. one that only became eligible this tick via reclaim/unblock) is never dropped,
+ * just deprioritized behind the pre-ranked ready set. When `readyOrder` is undefined the caller passes `input.jobs`
+ * unchanged (identity — byte-identical to the historical raw-input-order leasing).
+ */
+function orderLeaseCandidates(jobs: readonly DurableJob[], readyOrder: readonly string[]): readonly DurableJob[] {
+	const rank = new Map<string, number>();
+	readyOrder.forEach((jobId, index) => {
+		if (!rank.has(jobId)) {
+			rank.set(jobId, index);
+		}
+	});
+	return jobs
+		.map((job, index) => ({ job, index }))
+		.sort((left, right) => {
+			const leftRank = rank.get(left.job.jobId);
+			const rightRank = rank.get(right.job.jobId);
+			if (leftRank !== undefined && rightRank !== undefined) {
+				return leftRank - rightRank || left.index - right.index;
+			}
+			if (leftRank !== undefined) {
+				return -1; // a ranked job precedes an unranked one
+			}
+			if (rightRank !== undefined) {
+				return 1;
+			}
+			return left.index - right.index; // both unranked → preserve input order
+		})
+		.map((entry) => entry.job);
 }
 
 function dependenciesSucceeded(job: DurableJob, byId: ReadonlyMap<string, DurableJob>): boolean {
@@ -145,7 +187,12 @@ export function decideDurableSchedulerActions(input: DurableSchedulerInput): Dur
 	const unblockedThisTick = new Set(
 		actions.filter((action) => action.type === "unblock").map((action) => action.jobId),
 	);
-	for (const job of input.jobs) {
+	// Candidate iteration order for leasing: raw input order by default (identity — byte-identical), or the injected
+	// §5.AF depth/fan-out priority when the caller supplied one. Only the ORDER of candidates changes; every gate below
+	// is unchanged, so under a scarce slot count the higher-unblock-value job wins instead of whichever sat earlier.
+	const leaseCandidates =
+		input.readyOrder === undefined ? input.jobs : orderLeaseCandidates(input.jobs, input.readyOrder);
+	for (const job of leaseCandidates) {
 		if (activeLeases >= maxConcurrent) {
 			break;
 		}

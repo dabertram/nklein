@@ -698,3 +698,51 @@ describe("replayDurableJobs — skip/identity/backoff/budget", () => {
 		expect(retried.find((j) => j.jobId === "a")).toMatchObject({ state: "ready", attempts: 3 });
 	});
 });
+
+describe("decideDurableSchedulerActions — readyOrder (§5.AF depth/fan-out lease priority)", () => {
+	it("leases in raw INPUT order when readyOrder is undefined (identity default, byte-identical)", () => {
+		const jobs = [job({ jobId: "a" }), job({ jobId: "b" }), job({ jobId: "c" })];
+		const actions = decideDurableSchedulerActions(input(jobs, { maxConcurrentLeases: 1 }));
+		expect(actions.filter((a) => a.type === "lease").map((a) => a.jobId)).toEqual(["a"]);
+	});
+
+	it("honours the injected readyOrder for the scarce slot — the ranked job wins over its input position", () => {
+		const jobs = [job({ jobId: "a" }), job({ jobId: "b" }), job({ jobId: "c" })];
+		// Only 1 slot; readyOrder ranks c first ⇒ c is leased even though a sits earliest in input.
+		const leadC = decideDurableSchedulerActions(input(jobs, { maxConcurrentLeases: 1, readyOrder: ["c", "b", "a"] }));
+		expect(leadC.filter((a) => a.type === "lease").map((a) => a.jobId)).toEqual(["c"]);
+		// A different ranking leases a different job — proving the order argument is honoured.
+		const leadB = decideDurableSchedulerActions(input(jobs, { maxConcurrentLeases: 1, readyOrder: ["b", "a", "c"] }));
+		expect(leadB.filter((a) => a.type === "lease").map((a) => a.jobId)).toEqual(["b"]);
+	});
+
+	it("reordering NEVER bypasses an eligibility gate — a ranked-but-ineligible job is still skipped", () => {
+		// c is ranked FIRST but is not yet eligible (backoff: nextEligibleAt > now); it must be skipped and the next
+		// eligible ranked job (b) leased instead — the gate is unchanged, only the candidate order is.
+		const jobs = [job({ jobId: "a" }), job({ jobId: "b" }), job({ jobId: "c", nextEligibleAt: 5000 })];
+		const actions = decideDurableSchedulerActions(
+			input(jobs, { now: 1000, maxConcurrentLeases: 1, readyOrder: ["c", "b", "a"] }),
+		);
+		expect(actions.filter((a) => a.type === "lease").map((a) => a.jobId)).toEqual(["b"]);
+	});
+
+	it("appends jobs absent from readyOrder in their input order, after the ranked ones (none dropped)", () => {
+		const jobs = [job({ jobId: "a" }), job({ jobId: "b" }), job({ jobId: "c" })];
+		// Only c is ranked; a + b are unranked ⇒ c first, then a, then b (input order) — all three leased with 3 slots.
+		const actions = decideDurableSchedulerActions(input(jobs, { maxConcurrentLeases: 3, readyOrder: ["c"] }));
+		expect(actions.filter((a) => a.type === "lease").map((a) => a.jobId)).toEqual(["c", "a", "b"]);
+	});
+
+	it("leaves reclaim/fail/unblock (steps 1-3) unaffected — readyOrder only reorders step-4 lease candidates", () => {
+		// A dependency unblock + a lease in the same tick: readyOrder can't change that the unblock still happens.
+		const jobs = [
+			job({ jobId: "dep", state: "succeeded" }),
+			job({ jobId: "a", state: "blocked", dependsOn: ["dep"] }),
+			job({ jobId: "b" }),
+		];
+		const actions = decideDurableSchedulerActions(input(jobs, { maxConcurrentLeases: 1, readyOrder: ["b", "a"] }));
+		expect(actions.find((a) => a.type === "unblock")).toMatchObject({ jobId: "a" });
+		// b is ranked ahead of the just-unblocked a, so b wins the single slot (a stays ready for the next tick).
+		expect(actions.filter((a) => a.type === "lease").map((a) => a.jobId)).toEqual(["b"]);
+	});
+});

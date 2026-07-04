@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	type DurableDispatch,
 	type DurableRunConfig,
@@ -731,5 +731,50 @@ describe("DurableRunController", () => {
 		await t2;
 		expect(fake.events.slice(-3)).toEqual(["append:unblock:b", "append:lease:b", "dispatch:b"]);
 		expect(fake.dispatches.map((d) => d.jobId)).toEqual(["a", "b"]);
+	});
+});
+
+describe("DurableRunController — DURABLE_DEPTH_PRIORITY lease ordering (§5.AF, opt-in)", () => {
+	const FLAG = "DURABLE_DEPTH_PRIORITY";
+	let savedFlag: string | undefined;
+	beforeEach(() => {
+		savedFlag = process.env[FLAG];
+		delete process.env[FLAG];
+	});
+	afterEach(() => {
+		if (savedFlag === undefined) {
+			delete process.env[FLAG];
+		} else {
+			process.env[FLAG] = savedFlag;
+		}
+	});
+
+	// "leaf" sits FIRST in input order but unblocks nothing; "hub" sits later but unblocks x, y, z. Both are ready with
+	// no dependencies of their own, and only ONE slot is free — so which one leases reveals the ordering policy.
+	const fanOutGraph = () =>
+		buildDurableJobGraph({
+			taskIds: ["leaf", "hub", "x", "y", "z"],
+			dependencies: [
+				{ fromTaskId: "x", toTaskId: "hub" },
+				{ fromTaskId: "y", toTaskId: "hub" },
+				{ fromTaskId: "z", toTaskId: "hub" },
+			],
+		});
+	const oneSlot: DurableRunConfig = { ...config, maxConcurrentLeases: 1 };
+
+	it("flag OFF (default) ⇒ leases in raw input order — the earliest ready job (leaf) wins the slot", async () => {
+		const { ports, dispatches } = fakePorts();
+		const controller = new DurableRunController(fanOutGraph(), oneSlot, ports);
+		await controller.tick();
+		expect(dispatches.map((d) => d.jobId)).toEqual(["leaf"]); // input-order FIFO, unchanged
+	});
+
+	it("flag ON ⇒ leases the high-fan-out prerequisite (hub) first, ahead of the cheaper leaf", async () => {
+		process.env[FLAG] = "1";
+		const { ports, dispatches } = fakePorts();
+		const controller = new DurableRunController(fanOutGraph(), oneSlot, ports);
+		await controller.tick();
+		// hub unblocks 3 dependents ⇒ orderReadyJobs ranks it first ⇒ it wins the single slot despite its later input slot.
+		expect(dispatches.map((d) => d.jobId)).toEqual(["hub"]);
 	});
 });

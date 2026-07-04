@@ -28,7 +28,17 @@ import {
 	renewDurableLease,
 	replayDurableJobs,
 } from "./durable-scheduler";
+import { orderReadyJobs } from "./durable-scheduler-ready-order";
+import { isTruthyEnv } from "./env-flag";
 import { isTransientNetworkError } from "./transient-error";
+
+/**
+ * §5.AF OPT-IN (default OFF): when set, `tick()` leases ready jobs in DEPTH/FAN-OUT priority order (via the tested
+ * {@link module:core/durable-scheduler-ready-order#orderReadyJobs}) instead of raw input order — so under a scarce
+ * concurrency cap a high-fan-out prerequisite that unblocks many dependents wins the slot ahead of a cheap leaf. Default
+ * OFF ⇒ `readyOrder` is left undefined ⇒ the scheduler leases in raw input order, byte-identical to today.
+ */
+const DEPTH_PRIORITY_FLAG = "DURABLE_DEPTH_PRIORITY";
 
 /** The lease a `dispatch` carries — enough for the runtime to start the card and bound its heartbeat. */
 export interface DurableDispatch {
@@ -124,6 +134,13 @@ export class DurableRunController {
 	 */
 	async tick(): Promise<DurableSchedulerAction[]> {
 		const now = this.ports.now();
+		// §5.AF depth/fan-out lease priority (opt-in). Default OFF ⇒ readyOrder undefined ⇒ the scheduler leases in raw
+		// input order (byte-identical). When enabled, rank the READY jobs by unblock value + anti-starvation so a
+		// high-fan-out prerequisite wins a scarce slot ahead of a cheap leaf; the scheduler still owns every eligibility
+		// gate — this only reorders which eligible job it considers first.
+		const readyOrder = isTruthyEnv(process.env[DEPTH_PRIORITY_FLAG])
+			? orderReadyJobs({ jobs: this.jobs, now }).ordered.map((job) => job.jobId)
+			: undefined;
 		const actions = decideDurableSchedulerActions({
 			jobs: this.jobs,
 			now,
@@ -132,6 +149,7 @@ export class DurableRunController {
 			maxAttempts: this.config.maxAttempts,
 			reclaimBackoffMs: this.config.reclaimBackoffMs,
 			mintWorkerId: this.ports.mintWorkerId,
+			readyOrder,
 		});
 		await this.commit(actions, now);
 		return actions;
