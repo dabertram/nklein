@@ -126,7 +126,12 @@ export function buildAuditDetail(toolName: string, args: Record<string, unknown>
 				return toolName;
 			}
 			const redacted = redactSecrets(command);
-			const cwd = typeof args.cwd === "string" ? args.cwd.trim() : "";
+			const cwdRaw = typeof args.cwd === "string" ? args.cwd.trim() : "";
+			// Drop a host-absolute cwd — the same guard the file-tool branch applies to `path`. The runner
+			// ignores any model-supplied cwd (it always runs at the workspace root), but a hallucinated
+			// out-of-schema `cwd` key survives argument-repair byte-identical; logging it verbatim would
+			// leak a host-absolute path into the audit store, breaking this file's redaction contract.
+			const cwd = cwdRaw && !isAbsolutePath(cwdRaw) ? cwdRaw : "";
 			const detail = cwd ? `${redacted} (cwd: ${cwd})` : redacted;
 			return capDetail(detail);
 		}

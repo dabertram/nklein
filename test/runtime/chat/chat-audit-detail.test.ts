@@ -16,6 +16,15 @@ describe("buildAuditDetail", () => {
 			);
 		});
 
+		it("drops a host-absolute cwd (redaction contract) but keeps the command", () => {
+			// A hallucinated out-of-schema absolute `cwd` must never reach the audit log — same guard as the
+			// file-tool `path` branch. The command itself is still logged (redacted).
+			expect(buildAuditDetail("run_command", { command: "npm test", cwd: "/private/var/tmp/secret" })).toBe(
+				"npm test",
+			);
+			expect(buildAuditDetail("run_command", { command: "npm test", cwd: "C:\\Users\\secret" })).toBe("npm test");
+		});
+
 		it("falls back to tool name when command is empty", () => {
 			expect(buildAuditDetail("run_command", { command: "" })).toBe("run_command");
 			expect(buildAuditDetail("run_command", {})).toBe("run_command");
