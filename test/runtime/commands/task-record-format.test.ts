@@ -17,6 +17,18 @@ describe("resolveTaskCommandTarget", () => {
 		);
 		expect(() => resolveTaskCommandTarget({}, "move")).toThrow(/move requires either/u);
 	});
+
+	it("rejects a blank --task-id supplied ALONGSIDE --column (never silently a column-wide op)", () => {
+		// A whitespace-only --task-id trims to '' but the flag WAS supplied, so pairing it with --column is the
+		// ambiguous both-flags case. The old truthiness check let it fall through to a column target — turning
+		// `task delete --task-id '  ' --column review` into a delete-every-card-in-the-column.
+		expect(() => resolveTaskCommandTarget({ taskId: "   ", column: "review" }, "delete")).toThrow(
+			/delete accepts exactly one/u,
+		);
+		expect(() => resolveTaskCommandTarget({ taskId: "", column: "review" }, "delete")).toThrow(
+			/delete accepts exactly one/u,
+		);
+	});
 });
 
 describe("parseListColumn", () => {

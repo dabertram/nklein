@@ -23,7 +23,13 @@ import { formatTaskNKleinSettings } from "./task-nklein-settings.js";
 export function resolveTaskCommandTarget(input: TaskCommandTarget, commandName: string): ResolvedTaskCommandTarget {
 	const taskId = input.taskId?.trim();
 	const column = input.column;
-	if (taskId && column) {
+	// Mutual-exclusivity is decided by flag PRESENCE, not the trimmed value: a whitespace-only `--task-id`
+	// trims to '' but the user still supplied it, so pairing it with `--column` is the ambiguous both-flags
+	// case. Testing the trimmed value here let `--task-id '  ' --column review` skip this error and fall
+	// through to a column target — turning `task delete` into a silent DELETE-EVERY-CARD-IN-THE-COLUMN.
+	const hasTaskIdFlag = input.taskId !== undefined;
+	const hasColumnFlag = column !== undefined;
+	if (hasTaskIdFlag && hasColumnFlag) {
 		throw new Error(`${commandName} accepts exactly one of --task-id or --column.`);
 	}
 	if (taskId) {
