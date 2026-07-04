@@ -2089,6 +2089,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
 					taskText: request.prompt,
 					workspacePath: request.workspaceRoot?.trim() || request.cwd,
+					modelId,
+					// Same gate the tool bundle uses to offer curated sandbox MCP servers — so the structural-retrieval
+					// nudge is added exactly when (and only when) a structural code-graph server is offered to this model.
+					sandboxMcpEnabled: this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP),
 				});
 				const systemPrompt = this.assembleSessionSystemPrompt({
 					taskId: request.taskId,
