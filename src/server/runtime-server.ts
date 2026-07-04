@@ -1635,9 +1635,18 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					retryWaitingCardsAfterTerminal(scope, trackedService, summary.taskId);
 				}
 				// C3: route the state change into the workspace's durable run (report completion → tick → cascade, or
-				// heartbeat a live lease). No-op when the flag is off. (errorText for transient classification is not on the
-				// summary shape yet — passed null; DOUBLE-CHECK: thread a real failure reason for transient-retry.)
-				void durableRunWiring?.observeSummary(scope.workspaceId, summary.taskId, summary.state, null);
+				// heartbeat a live lease). No-op when the flag is off. Thread the failure reason (§5.AF #7): a failed/
+				// interrupted session stamps `warningMessage = errorMessage` (task-session-service ~L1194), and the reaction
+				// mapper only consults errorText for failed/interrupted (a running heartbeat / awaiting_review success ignore
+				// it), so a TRANSIENT network blip (body/headers timeout, connection reset, 5xx) now classifies as
+				// `transient_retry` — the job retries instead of parking — via `isTransientNetworkError`. A non-network
+				// failure (no matching pattern, or a null message) stays a permanent fail, unchanged.
+				void durableRunWiring?.observeSummary(
+					scope.workspaceId,
+					summary.taskId,
+					summary.state,
+					summary.warningMessage ?? null,
+				);
 			});
 			queuedStartDrainUnsubscribeByWorkspaceId.set(scope.workspaceId, unsubscribeQueueDrain);
 			reconcileCapturedHeadlessAutoReviewTasks(scope, trackedService);
