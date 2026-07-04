@@ -53,8 +53,57 @@ const TOOL_CALL_OPENER = /<\|?\s*(?:tool_call|function_call|python_tag)\s*\|?>|\
  */
 const TOOL_CALL_MARKER = /tool[_▁]call|function_call|python_tag|\[TOOL_CALLS\]|\[TOOL_REQUEST\]|<function\s*=/i;
 
-/** Functionary / some Llama fine-tunes: `<function=NAME>{json args}</function>` — the name lives in the tag. */
-const NAMED_FUNCTION_TAG = /<function\s*=\s*([A-Za-z0-9_.-]+)\s*>([\s\S]*?)<\/function\s*>/gi;
+/**
+ * Functionary / some Llama fine-tunes: `<function=NAME>{json args}</function>` — the name lives in the tag. We match
+ * only the OPENER and read the arguments as the first balanced JSON value after it (via {@link extractBalancedJsonSpan}),
+ * NOT with a `([\s\S]*?)…</function>` body capture: a non-greedy body stops at the first `</function>` SUBSTRING, so an
+ * argument value that itself contains the literal `</function>` (or a nested `<function=…>`) would truncate the JSON and
+ * silently drop every argument. Extracting the balanced value is string-aware, so those tokens inside a string are inert.
+ */
+const NAMED_FUNCTION_OPENER = /<function\s*=\s*([A-Za-z0-9_.-]+)\s*>/gi;
+
+/**
+ * From `fromIndex`, find the first `{`/`[` and return the balanced JSON slice plus the index just past its close.
+ * String- and escape-aware, so a `}`, `</function>`, or `<function=…>` appearing INSIDE a string value neither closes
+ * the value early nor is mistaken for structure. Returns null when no bracket follows; a truncated (never-closed) value
+ * returns the remainder with `end` at the text length (repairJsonValue closes the owed brackets).
+ */
+function extractBalancedJsonSpan(text: string, fromIndex: number): { json: string; end: number } | null {
+	const rel = text.slice(fromIndex).search(/[[{]/u);
+	if (rel < 0) {
+		return null;
+	}
+	const start = fromIndex + rel;
+	const open = text[start];
+	const close = open === "{" ? "}" : "]";
+	let depth = 0;
+	let inString = false;
+	let escaping = false;
+	for (let i = start; i < text.length; i += 1) {
+		const char = text[i];
+		if (inString) {
+			if (escaping) {
+				escaping = false;
+			} else if (char === "\\") {
+				escaping = true;
+			} else if (char === '"') {
+				inString = false;
+			}
+			continue;
+		}
+		if (char === '"') {
+			inString = true;
+		} else if (char === open) {
+			depth += 1;
+		} else if (char === close) {
+			depth -= 1;
+			if (depth === 0) {
+				return { json: text.slice(start, i + 1), end: i + 1 };
+			}
+		}
+	}
+	return { json: text.slice(start), end: text.length };
+}
 
 /**
  * DeepSeek-V3 / R1 native tool-call format. It uses special tokens (U+FF5C `｜`, U+2581 `▁`), puts the tool NAME
@@ -268,16 +317,23 @@ export function parseNarratedToolCalls(text: string): NarratedToolCall[] {
 		}
 	}
 
-	// `<function=NAME>{args}</function>` — the tool name is in the tag, the body is the arguments JSON.
-	NAMED_FUNCTION_TAG.lastIndex = 0;
-	let namedMatch: RegExpExecArray | null = NAMED_FUNCTION_TAG.exec(text);
+	// `<function=NAME>{args}</function>` — the tool name is in the tag, the body is the arguments JSON. Match only the
+	// opener and pull the arguments as the first balanced JSON value after it, then skip PAST that value: a `</function>`
+	// or `<function=…>` appearing inside a string argument must neither truncate the JSON nor spawn a spurious call.
+	NAMED_FUNCTION_OPENER.lastIndex = 0;
+	let namedMatch: RegExpExecArray | null = NAMED_FUNCTION_OPENER.exec(text);
 	while (namedMatch !== null) {
 		const toolName = namedMatch[1]?.trim();
+		const contentStart = namedMatch.index + namedMatch[0].length;
+		const span = extractBalancedJsonSpan(text, contentStart);
 		if (toolName) {
-			const repaired = repairJsonValue(namedMatch[2] ?? "");
+			const repaired = repairJsonValue(span ? span.json : text.slice(contentStart));
 			calls.push({ toolName, input: repaired.ok ? repaired.value : {} });
 		}
-		namedMatch = NAMED_FUNCTION_TAG.exec(text);
+		if (span && span.end > NAMED_FUNCTION_OPENER.lastIndex) {
+			NAMED_FUNCTION_OPENER.lastIndex = span.end;
+		}
+		namedMatch = NAMED_FUNCTION_OPENER.exec(text);
 	}
 
 	// DeepSeek-V3 / R1: `<｜tool▁call▁begin｜>function<｜tool▁sep｜>NAME ```json {…} ``` <｜tool▁call▁end｜>` — the tool

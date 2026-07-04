@@ -108,6 +108,24 @@ describe("parseNarratedToolCalls — model-family tool-call formats (todo §5.O)
 		]);
 	});
 
+	it("keeps ALL arguments when a named-function value contains the literal </function>", () => {
+		// The old non-greedy body capture stopped at the first </function> SUBSTRING, truncating the JSON so
+		// every argument was lost and the tool ran with {} (silent data loss). The balanced, string-aware
+		// extraction ignores </function> inside a string value.
+		const text = `<function=create_card>{"title":"Card","body":"see </function> tag"}</function>`;
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "create_card", input: { title: "Card", body: "see </function> tag" } },
+		]);
+	});
+
+	it("does not spawn a spurious call from a <function=…> token inside a string argument", () => {
+		// A tool name mentioned inside a string value must not become its own (empty-input) tool call.
+		const text = `<function=read_file>{"path":"<function=run_command>rm -rf</function>"}</function>`;
+		expect(parseNarratedToolCalls(text)).toEqual([
+			{ toolName: "read_file", input: { path: "<function=run_command>rm -rf</function>" } },
+		]);
+	});
+
 	it("does not fire on plain prose mentioning these tokens without a real block", () => {
 		expect(parseNarratedToolCalls("I'll use the python_tag approach and discuss tool_calls in general.")).toEqual([]);
 	});
