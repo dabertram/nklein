@@ -25,6 +25,11 @@ describe("manifestProtectedInfluenceKinds", () => {
 		const egress: ToolCapabilityManifest = { ...SANDBOX_READ, networkLevel: "egress" };
 		expect(manifestProtectedInfluenceKinds(egress)).toEqual<ProtectedInfluenceKind[]>(["network"]);
 
+		// §5.L decision-6: a READ-ONLY egress (browse/search) is NOT a protected sink — so a page taint never refuses
+		// the next browse. (Its exfil control is the egress allowlist + SSRF guard, not the taint gate.)
+		const egressRead: ToolCapabilityManifest = { ...SANDBOX_READ, networkLevel: "egress_read" };
+		expect(manifestProtectedInfluenceKinds(egressRead)).toEqual<ProtectedInfluenceKind[]>([]);
+
 		// A host_write manifest (host mutation + host fs) lands on the host-access sink.
 		const hostWrite: ToolCapabilityManifest = {
 			mutationLevel: "host_write",

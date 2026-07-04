@@ -47,10 +47,12 @@ const MUTATION_RANK: Record<ToolMutationLevel, number> = {
 	host_write: 3,
 };
 
-/** Network-reach ordering (low→high): no reach < network egress. Reaching the network is strictly more power. */
+/** Network-reach ordering (low→high): no reach < read-only egress < write/exfiltration egress. Reaching the network is
+ * strictly more power, and a write-capable egress is strictly more power than a read-only one. */
 const NETWORK_RANK: Record<ToolNetworkLevel, number> = {
 	none: 0,
-	egress: 1,
+	egress_read: 1,
+	egress: 2,
 };
 
 /** Filesystem-scope ordering (low→high): the sandbox workspace < the host filesystem. Host is strictly broader. */

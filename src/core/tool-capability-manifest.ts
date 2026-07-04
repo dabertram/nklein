@@ -26,8 +26,14 @@ export type ToolMutationLevel =
 	/** Mutates the host (host file write or host shell command). */
 	| "host_write";
 
-/** Whether the action can reach the network. (External-action policy = `egress` + a stricter `approval`.) */
-export type ToolNetworkLevel = "none" | "egress";
+/**
+ * Whether the action can reach the network. (External-action policy = `egress` + a stricter `approval`.)
+ *  - `egress`      — a network action that can WRITE/exfiltrate (a §5.L protected `network` influence sink).
+ *  - `egress_read` — a READ-ONLY network fetch (browse/search): egress-gated + full-audited like `egress`, but NOT a
+ *                    protected taint sink (its exfil control is the egress allowlist + SSRF guard, not the taint gate),
+ *                    so it does not block multi-page browsing after a page taints the turn.
+ */
+export type ToolNetworkLevel = "none" | "egress" | "egress_read";
 
 /** Whose filesystem the action touches. */
 export type ToolFsScope = "workspace" | "host";
@@ -82,6 +88,16 @@ export function manifestForChatAction(action: ChatActionKind): ToolCapabilityMan
 				fsScope: "workspace",
 				approval: "auto",
 				replayable: false,
+			};
+		case "egress_read":
+			// A read-only network fetch: reads only (no host/sandbox mutation), reaches the network as a read, gated
+			// like any egress. Not a protected taint sink (see manifest-influence-sink.ts) so multi-browse is allowed.
+			return {
+				mutationLevel: "read",
+				networkLevel: "egress_read",
+				fsScope: "workspace",
+				approval: "confirm",
+				replayable: true,
 			};
 		case "host_read":
 			return { mutationLevel: "read", networkLevel: "none", fsScope: "host", approval: "confirm", replayable: true };
@@ -156,7 +172,7 @@ export function decideManifestChatAccess(
 	// External-action policy (prime-directive #1, local-only): network egress is NEVER automatic, and the most-isolated
 	// mode forbids it outright. Checked first so it also gates an egress READ (a "read" that reaches the network — e.g. a
 	// web fetch — must not slip through the sandbox-read allow below). Byte-identical for today's manifests (all `none`).
-	if (manifest.networkLevel === "egress") {
+	if (manifest.networkLevel === "egress" || manifest.networkLevel === "egress_read") {
 		return mode === "isolated_readonly"
 			? { decision: "deny", reason: "Isolated read-only mode does not permit network egress." }
 			: {
@@ -232,7 +248,12 @@ export type ToolAuditDetail = "none" | "summary" | "full";
  * audit trail a single policy to consume, keyed off the same manifest the gate uses.
  */
 export function auditDetailForManifest(manifest: ToolCapabilityManifest): ToolAuditDetail {
-	if (manifest.networkLevel === "egress" || manifest.fsScope === "host" || manifest.mutationLevel === "host_write") {
+	if (
+		manifest.networkLevel === "egress" ||
+		manifest.networkLevel === "egress_read" ||
+		manifest.fsScope === "host" ||
+		manifest.mutationLevel === "host_write"
+	) {
 		return "full";
 	}
 	if (manifest.mutationLevel === "sandbox_write" || manifest.mutationLevel === "control_plane") {

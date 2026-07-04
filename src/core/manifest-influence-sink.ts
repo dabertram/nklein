@@ -43,7 +43,10 @@ import type { ToolCapabilityManifest } from "./tool-capability-manifest";
 export function manifestProtectedInfluenceKinds(manifest: ToolCapabilityManifest): ProtectedInfluenceKind[] {
 	const kinds = new Set<ProtectedInfluenceKind>();
 
-	// Network reach — an egress-capable action lands on the network sink.
+	// Network reach — an egress-capable action lands on the network sink. DELIBERATELY only `"egress"` (write/
+	// exfiltration-capable), NOT `"egress_read"`: a read-only fetch (browse/search) is egress-gated by the allowlist +
+	// SSRF guard, not by the taint gate, so it must NOT be a protected sink — else a page taints the turn and every
+	// further browse is refused (the §5.L decision-6 multi-browse case). The `web` taint still guards write/exec sinks.
 	if (manifest.networkLevel === "egress") {
 		kinds.add("network");
 	}

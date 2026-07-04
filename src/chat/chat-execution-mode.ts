@@ -18,6 +18,14 @@ export type ChatActionKind =
 	| "sandbox_read"
 	| "sandbox_write"
 	| "control_plane"
+	/**
+	 * A READ-ONLY network fetch (browse a URL / web search). Egress-gated exactly like any network reach (deny in
+	 * isolated_readonly, confirm otherwise) and audited in full — but §5.L-distinct from a host command: it neither
+	 * touches the host FS/shell nor exfiltrates, so it is NOT a protected taint sink. That lets multi-page browsing
+	 * continue after a page taints the turn, while the accumulated `web` taint still guards host write/exec sinks.
+	 * Its exfiltration control is the egress allowlist + SSRF guard, not the taint gate.
+	 */
+	| "egress_read"
 	| "host_read"
 	| "host_write"
 	| "host_command";
@@ -48,6 +56,17 @@ export function decideChatActionAccess(mode: ChatExecutionMode, action: ChatActi
 
 	if (action === "sandbox_read") {
 		return { decision: "allow", reason: "Reads inside the sandbox are always allowed." };
+	}
+
+	// Network egress (incl. a read-only egress fetch) is NEVER automatic, and the most-isolated mode forbids it
+	// outright — checked before the sandbox-read allow so an egress READ never slips through as a plain read.
+	if (action === "egress_read") {
+		return mode === "isolated_readonly"
+			? { decision: "deny", reason: "Isolated read-only mode does not permit network egress." }
+			: {
+					decision: "confirm",
+					reason: "Network egress is never automatic — it requires an explicit, logged confirmation.",
+				};
 	}
 
 	if (action === "control_plane") {

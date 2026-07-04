@@ -237,9 +237,13 @@ export function createBrowserTools(options: BrowserToolOptions = {}): ChatToolSe
 	const tools: ChatTool[] = [
 		{
 			name: "browse_url",
-			actionKind: "host_command",
+			// §5.L decision-6 (2026-07-04): a read-only egress fetch, NOT a host command. Egress-gated (deny in
+			// isolated_readonly, confirm otherwise) + full-audited, but NOT a protected taint sink — so a page taint
+			// doesn't refuse the NEXT browse (multi-page browsing works). Its exfil control is the egress allowlist +
+			// the SSRF guard, not the taint gate.
+			actionKind: "egress_read",
 			// §5.L: the fetched page is untrusted web content. When the capability broker is on, this taints the turn so a
-			// SUBSEQUENT protected-sink action (a host command) is refused — the fail-closed prompt-injection defense.
+			// SUBSEQUENT protected-sink action (a host write/command) is refused — the fail-closed prompt-injection defense.
 			taint: ["web"],
 			run: async (args) => {
 				const validationError = validateUrl(args.url);

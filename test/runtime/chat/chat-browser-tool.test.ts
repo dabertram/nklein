@@ -91,9 +91,9 @@ describe("isPrivateOrReservedIp", () => {
 });
 
 describe("createBrowserTools — browse_url", () => {
-	it("is a host_command action (gated by the execution-mode policy)", () => {
+	it("is an egress_read action (§5.L decision-6: egress-gated read, not a host command / taint sink)", () => {
 		const { tools } = createBrowserTools({ browser: fakeBrowser({ url: "https://x.com", title: "", text: "" }) });
-		expect(tools[0]?.actionKind).toBe("host_command");
+		expect(tools[0]?.actionKind).toBe("egress_read");
 	});
 
 	it("§5.L: carries a web taint label (its output is untrusted web content)", () => {
