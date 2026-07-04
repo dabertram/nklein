@@ -1,0 +1,15 @@
+DEEP CORRECTNESS ANALYSIS: agent-ledger-projections.ts
+
+Key functions to analyze:
+1. buildModelBehaviorProfilesFromLedger - line 42
+2. summarizeModelOutcomesByRole - line 81
+3. summarizeModelOutcomesByFlow - line 122
+4. buildModelFitnessFromLedger - line 178
+5. rankModelsByLedgerFitness - line 247
+6. blendCapabilityWithLedgerEvidence - line 274
+7. buildModelCapabilityAdvice - line 427
+8. buildFailingModelList - line 545
+9. buildStucknessSignalsFromLedger - line 333
+10. buildAttemptRetryNoteFromLedger - line 491
+
+Testing with concrete edge cases...

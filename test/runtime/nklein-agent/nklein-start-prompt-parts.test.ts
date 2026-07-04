@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildNKleinStartPromptParts } from "../../../src/nklein-agent/nklein-task-prompt-builders";
+import { appendSystemPrompt, buildNKleinStartPromptParts } from "../../../src/nklein-agent/nklein-task-prompt-builders";
 
 /**
  * §5.B — the Planning/Refinement lane prompt selection. A started WORK card gets the refinement preamble (re-validate
@@ -33,5 +33,21 @@ describe("buildNKleinStartPromptParts (§5.B refinement-lane prompt selection)",
 		const parts = buildNKleinStartPromptParts("Plan it", true, true);
 		expect(parts.systemPrompt).not.toMatch(/begin_implementation/);
 		expect(parts.systemWorkflowCommand).toBe("/kanban-decompose");
+	});
+});
+
+describe("appendSystemPrompt", () => {
+	it("appends a non-empty system prompt after a blank-line separator", () => {
+		expect(appendSystemPrompt("base", "extra")).toBe("base\n\nextra");
+	});
+
+	it("trims surrounding whitespace off the appended prompt", () => {
+		expect(appendSystemPrompt("base", "  extra  ")).toBe("base\n\nextra");
+	});
+
+	it("returns the base unchanged when the appended prompt is null, empty, or whitespace-only", () => {
+		expect(appendSystemPrompt("base", null)).toBe("base");
+		expect(appendSystemPrompt("base", "")).toBe("base");
+		expect(appendSystemPrompt("base", "   \n\t ")).toBe("base");
 	});
 });
