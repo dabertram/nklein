@@ -74,6 +74,12 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batches 4+5 (24 more cores) → 1 doc bug** (`isLeaseActionFenced` inverted docstring
+  polarity — code was correct; `1c…` fixed the comment). Yield tapering to ~0 confirms src/core
+  logic is substantially swept (52 modules reviewed, 9 logic + 1 doc bug total). **Vendored suites
+  health-checked (a documented rot risk): all GREEN** — core 1224, agents 46, shared 205, llms 339
+  = 1814 tests passing, no rot. Pivoting the hunt to our own pure logic in src/config +
+  src/nklein-agent (config normalizers, decomposition parse/expand, tool-call cores).
 - **Bug-hunt batches 2+3 (20 more cores) → 7 real bugs FIXED (9 total across 28 modules):**
   (HIGH) `judgeCellStability` passRateDoubt INVERTED — coin-flip rated most-confident (`dafd5f96`);
   (MED) its settled_fail decisiveness degenerated to 0 at a clamped fail-floor (same commit);
