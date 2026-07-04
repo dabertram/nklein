@@ -1,21 +1,27 @@
 /**
- * §5.AE skill-fragment → prompt-assembly mapping — DRAFT PROPOSAL (David decision-10, 2026-07-04), held for approval.
+ * §5.AE skill-fragment → prompt-assembly mapping — APPROVED (David decision-10, 2026-07-04).
  *
  * PROBLEM (verified): the skill registry names context fragments with UNDERSCORES ({@link ContextFragmentId}:
  * `temporal`, `repo_map`, `focus_chain`, `refinement_preamble`, `efficiency_rules`, `freshness_rail`,
  * `online_retrieval`), but the assembler ({@link PromptFragment}) takes free-form HYPHENATED keys (`base`,
- * `efficiency-rules`, `temporal-context`, …) bucketed by volatility. There is no bridge between the two id spaces, and
- * `repo_map` / `focus_chain` have no assembler fragment yet.
+ * `efficiency-rules`, `temporal-context`, …) bucketed by volatility. This is the canonical bridge between the two id
+ * spaces: each registry fragment id → its canonical assembler key, volatility class, and PRODUCER STATUS.
  *
- * THIS DRAFT proposes the bridge as a PURE table: each registry fragment id → its canonical assembler key, volatility
- * class, and PRODUCER STATUS. It is NOT wired into `assembleSessionSystemPrompt` — it's a proposal for David to approve
- * (or amend the keys/volatilities) before it goes live. Producer status:
- *   - `wired`         — the text already exists in the runtime and just needs routing to this key.
- *   - `needs_producer`— no producer exists yet; the block is aspirational (`repo_map`, `focus_chain`) and needs a
- *                       real builder before enabling. Marked so nothing silently injects an empty fragment.
+ * The bridge is applied by {@link ./skill-prompt-fragments}.buildSkillPromptFragments, which routes only `wired`
+ * fragments (and drops empty text), so a `needs_producer` fragment can never silently inject an empty block. Producer
+ * status (reconciled 2026-07-04 against the real assembler seam — several drafts were optimistic):
+ *   - `wired`         — a system-prompt producer exists AND yields a text block that can be pushed to the assembler
+ *                       under this key WITHOUT duplicating an existing injection. Today: `efficiency_rules` +
+ *                       `temporal` only (both already produced + keyed at the session-prompt seam).
+ *   - `needs_producer`— no clean assembler-fragment producer yet, so routing it is deferred until one is built:
+ *                       `repo_map` (no prompt producer — built for a status panel), `focus_chain` (formatter exists but
+ *                       is injected as a per-turn message, not a system fragment), `freshness_rail` (text is embedded
+ *                       inside the temporal block, not independently extractable), `refinement_preamble` (producer
+ *                       exists but reaches the prompt via a different concat seam — routing it here would double it),
+ *                       `online_retrieval` (only a tool description exists, no system-prompt block).
  *
- * Canonicalization rule proposed: assembler keys are hyphenated lowercase; the registry underscore id maps to the
- * hyphenated key, expanding two names that the assembler already spells differently (`temporal`→`temporal-context`).
+ * Canonicalization rule: assembler keys are hyphenated lowercase; the registry underscore id maps to the hyphenated
+ * key, expanding two names the assembler already spells differently (`temporal`→`temporal-context`).
  */
 
 import type { PromptFragmentVolatility } from "./prompt-fragment-assembly";
@@ -34,24 +40,34 @@ export interface SkillFragmentMapping {
 	producer: FragmentProducerStatus;
 }
 
-/** DRAFT table — the proposed mapping for every {@link ContextFragmentId}. Ordered by ascending volatility. */
-export const DRAFT_SKILL_FRAGMENT_MAPPINGS: readonly SkillFragmentMapping[] = [
-	{ fragmentId: "refinement_preamble", assemblerKey: "refinement-preamble", volatility: "static", producer: "wired" },
+/** Approved table — the mapping for every {@link ContextFragmentId}. Ordered by ascending volatility. */
+export const SKILL_FRAGMENT_MAPPINGS: readonly SkillFragmentMapping[] = [
+	// Producer exists but reaches the prompt via a separate concat seam (buildNKleinRefinementSystemPrompt →
+	// appendSystemPrompt) — routing it as a fragment too would DOUBLE it, so it's needs_producer for the assembler path.
+	{
+		fragmentId: "refinement_preamble",
+		assemblerKey: "refinement-preamble",
+		volatility: "static",
+		producer: "needs_producer",
+	},
 	{ fragmentId: "efficiency_rules", assemblerKey: "efficiency-rules", volatility: "static", producer: "wired" },
 	{ fragmentId: "temporal", assemblerKey: "temporal-context", volatility: "daily", producer: "wired" },
-	{ fragmentId: "freshness_rail", assemblerKey: "freshness-rail", volatility: "daily", producer: "wired" },
-	// Aspirational — no skill-fragment producer today (the runtime builds a repo map / focus chain via other seams,
-	// not as an assembler fragment). Do NOT enable until a real producer is wired, else an empty block is injected.
+	// Text is embedded INSIDE the temporal block (TEMPORAL_FRESHNESS_FRAMING), not independently extractable — extract
+	// it to its own producer before routing separately, else it duplicates the temporal fragment's framing.
+	{ fragmentId: "freshness_rail", assemblerKey: "freshness-rail", volatility: "daily", producer: "needs_producer" },
+	// Aspirational — no assembler-fragment producer today (repo map is built for a status panel; focus chain is a
+	// per-turn message, not a system fragment). Do NOT enable until a real producer is wired, else an empty block.
 	{ fragmentId: "repo_map", assemblerKey: "repo-map", volatility: "task", producer: "needs_producer" },
 	{ fragmentId: "focus_chain", assemblerKey: "focus-chain", volatility: "turn", producer: "needs_producer" },
-	{ fragmentId: "online_retrieval", assemblerKey: "online-retrieval", volatility: "turn", producer: "wired" },
+	// Only a tool DESCRIPTION exists (the research tool), no system-prompt block producer.
+	{ fragmentId: "online_retrieval", assemblerKey: "online-retrieval", volatility: "turn", producer: "needs_producer" },
 ];
 
 const BY_ID: ReadonlyMap<ContextFragmentId, SkillFragmentMapping> = new Map(
-	DRAFT_SKILL_FRAGMENT_MAPPINGS.map((mapping) => [mapping.fragmentId, mapping]),
+	SKILL_FRAGMENT_MAPPINGS.map((mapping) => [mapping.fragmentId, mapping]),
 );
 
-/** Resolve a registry fragment id to its proposed assembler mapping (draft). Total over the {@link ContextFragmentId} union. */
+/** Resolve a registry fragment id to its assembler mapping. Total over the {@link ContextFragmentId} union. */
 export function resolveSkillFragmentMapping(fragmentId: ContextFragmentId): SkillFragmentMapping {
 	const mapping = BY_ID.get(fragmentId);
 	if (!mapping) {

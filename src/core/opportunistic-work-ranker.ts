@@ -1,12 +1,12 @@
 /**
- * §5.AW opportunistic idle-work ranker — DRAFT PROPOSAL (David decision-11, 2026-07-04), held for approval.
+ * §5.AW opportunistic idle-work ranker — APPROVED (David decision-11, 2026-07-04).
  *
- * When the swarm is genuinely IDLE (no real card is ready-and-waiting or running), spare capacity could do
- * value-ahead work. The idle-detector + per-kind pickers are buildable; the UNDECIDED part was (a) the priority order
- * across the candidate kinds and (b) the veto rule when real work exists. THIS DRAFT proposes both as a pure function,
- * NOT wired to any scheduler — for David to approve or re-order before it drives anything.
+ * When the swarm is genuinely IDLE (no real card is ready-and-waiting or running), spare capacity does value-ahead
+ * work. This is the pure priority chooser + the hard veto. It is wired into the live idle path by the opportunistic
+ * idle-work sweep ({@link ./opportunistic-idle-work}); the per-kind PICKERS that populate `available` land incrementally
+ * — today only `review` has a producer + dispatch, so the other kinds are simply never available yet (see the sweep).
  *
- * Proposed candidate kinds + WHY the order (highest value first when idle):
+ * Candidate kinds + WHY the order (highest value first when idle):
  *   1. `review`           — a completed-but-unreviewed card is the highest-leverage idle task: reviewing it unblocks
  *                           delivery (turns done work into shipped work). Do this before speculating on future work.
  *   2. `work_ahead`       — prepare the NEXT likely-ready card (fetch its context / pre-plan) so it starts instantly.
@@ -25,8 +25,8 @@
 
 export type OpportunisticWorkKind = "review" | "work_ahead" | "deliberation_seed" | "spec_mirror" | "context_prep";
 
-/** The proposed priority order (highest-value first). */
-export const DRAFT_OPPORTUNISTIC_PRIORITY: readonly OpportunisticWorkKind[] = [
+/** The approved priority order (highest-value first). */
+export const OPPORTUNISTIC_PRIORITY: readonly OpportunisticWorkKind[] = [
 	"review",
 	"work_ahead",
 	"deliberation_seed",
@@ -50,7 +50,7 @@ export interface OpportunisticWorkVerdict {
 	reason: string;
 }
 
-/** DRAFT: pick the highest-priority AVAILABLE opportunistic task, unless real work vetoes it. Pure. */
+/** Pick the highest-priority AVAILABLE opportunistic task, unless real work vetoes it. Pure. */
 export function rankOpportunisticWork(input: OpportunisticWorkInput): OpportunisticWorkVerdict {
 	if (input.hasRealQueuedWork) {
 		return {
@@ -59,7 +59,7 @@ export function rankOpportunisticWork(input: OpportunisticWorkInput): Opportunis
 		};
 	}
 	const available = new Set(input.available);
-	for (const kind of DRAFT_OPPORTUNISTIC_PRIORITY) {
+	for (const kind of OPPORTUNISTIC_PRIORITY) {
 		if (available.has(kind)) {
 			return { chosen: kind, reason: `Idle — chose the highest-priority available opportunistic task (${kind}).` };
 		}
