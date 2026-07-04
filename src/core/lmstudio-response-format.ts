@@ -158,7 +158,14 @@ function collectStrictViolations(node: unknown, path: string, errors: ResponseFo
 		}
 	}
 
-	if (isPlainObject(node.items)) {
+	if (Array.isArray(node.items)) {
+		// Tuple-style items: each element is its own subschema — recurse into every element so a strict-mode
+		// violation nested inside a tuple position is caught, not silently accepted (isPlainObject is false for
+		// arrays). Mirrors wrapSchemaForStrict's array-items handling.
+		node.items.forEach((element, index) => {
+			collectStrictViolations(element, `${path}/items/${index}`, errors);
+		});
+	} else if (isPlainObject(node.items)) {
 		collectStrictViolations(node.items, `${path}/items`, errors);
 	}
 

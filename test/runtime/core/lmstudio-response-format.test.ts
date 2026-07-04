@@ -218,6 +218,25 @@ describe("buildJsonSchemaResponseFormat", () => {
 			expect(result.errors.some((e) => e.path === "#/properties/list/items")).toBe(true);
 		});
 
+		it("recurses into TUPLE-style items (an array of subschemas), not just object items", () => {
+			// Tuple items were gated on isPlainObject(node.items), which is false for arrays, so a non-strict
+			// tuple element slipped through as ok:true and was rejected by LM Studio at request time.
+			const result = buildJsonSchemaResponseFormat({
+				name: "r",
+				schema: {
+					type: "object",
+					properties: {
+						coords: { type: "array", items: [{ type: "object", properties: { x: { type: "number" } } }] },
+					},
+					required: ["coords"],
+					additionalProperties: false,
+				},
+			});
+			expect(result.ok).toBe(false);
+			if (result.ok) return;
+			expect(result.errors.some((e) => e.path.includes("/items/0"))).toBe(true);
+		});
+
 		it("recurses into anyOf/oneOf/allOf branches with indexed paths", () => {
 			const result = buildJsonSchemaResponseFormat({
 				name: "r",
