@@ -18,12 +18,15 @@ guidance here for a clarify-when-back session.
 
 **What I did:** ran a systematic adversarial bug-hunt across the codebase (review → independent
 adversarial-verify → CONFIRMED-only), fixing every confirmed defect with a regression test **proven to
-fail on the old code**, each committed GREEN through the full gate. **16 real bugs fixed** so far
-(several HIGH: weak-model tool-call data-loss, operator re-escalation silently swallowed, ledger-row
-collision, retry suppressed by an over-broad error match, strict-schema-validation gap, and a
-`task delete` that could wipe a whole column). Plus **2 additive test-coverage fences** (+30 tests) and
-a **completeness sweep** confirming one regex-bug class is fully contained. No behavior-changing feature
-was flipped on — everything is a fix or a test, so there's **zero rework risk** to review.
+fail on the old code** (where deterministically testable), each committed GREEN through the full gate.
+**20 real bugs fixed** so far (several HIGH: weak-model tool-call data-loss, operator re-escalation
+silently swallowed, ledger-row collision, retry suppressed by an over-broad error match,
+strict-schema-validation gap, a `task delete` that could wipe a whole column, **cross-machine board
+data-loss on schema mismatch**, and a **just-cleared card resurrected by a mid-flight race**). The final
+lens — cross-cutting concurrency/error/resource over the hot paths — found the class per-module review
+misses. Plus **2 additive test-coverage fences** (+30 tests) and a **completeness sweep** confirming one
+regex-bug class is fully contained. No behavior-changing feature was flipped on — everything is a fix or
+a test, so there's **zero rework risk** to review.
 
 **What needs YOU:** the **NEEDS-GUIDANCE queue** below (11 items) — genuine product/security/design forks
 I deliberately did NOT guess. Several are now investigated down to a concrete, approvable decision
@@ -121,6 +124,18 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batch 14 — NEW LENS: cross-cutting concurrency/error/resource over 12 hot-path
+  orchestrators → 3 real bugs FIXED (2 HIGH), the class per-module logic review missed:**
+  (HIGH, cross-machine data loss) `readPortableBoardCrdt` flattened absent/corrupt/newer-schema all to
+  null, so `exportLocalBoardToPortableCrdt` overwrote a newer machine's committed board-crdt.json with a
+  downgraded write — gave the export a state-distinguishing read that THROWS (best-effort caller skips the
+  write) on refused; (HIGH, reliability) `sendTaskSessionInput`'s fire-and-forget continuation mutated a
+  captured `entry` that a concurrent `clearTaskSession` had swapped out, resurrecting a just-cleared card
+  — re-fetch + identity-guard the live entry in .then/.catch (mirrors the verified line-4361 pattern);
+  (LOW) `resolveMachineReplicaId` check-then-act could generate divergent UUIDs — locked the whole
+  read-generate-write. Data-loss bug has a fail-on-old test; the two races are guarded by inspection
+  (deterministic interleaving needs disproportionate harness surgery). Session bug tally: **20 real
+  bugs** — the concurrency lens is a productive vein the per-module hunt could not reach.
 - **Bug-hunt batch 13 (12 FRESH nklein-agent/state/commands modules) → 1 real bug FIXED:** (HIGH)
   `parsePythonValue`'s number regex rejected scientific notation (`1e5`, `1.5e-3`) and dotted floats
   (`.5`, `5.`), so those valid Python literals (Gemma `tool_code` narration → tool args) arrived as
