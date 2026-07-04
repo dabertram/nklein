@@ -144,4 +144,54 @@ describe("selectRoleModel", () => {
 		});
 		expect(result).toMatchObject({ type: "assign", modelKey: "pinned", busyFallback: true });
 	});
+
+	describe("preferenceOrder (soft user override)", () => {
+		const candidates = [
+			candidate({ modelKey: "small", capability: 40 }),
+			candidate({ modelKey: "big", capability: 90 }),
+		];
+
+		it("chooses the user's preferred feasible model over the weighting default", () => {
+			// Efficient weighting would pick "small" (smallest-sufficient); the preference flips it to "big".
+			const result = selectRoleModel({
+				candidates,
+				difficulty: 30,
+				requiredContextTokens: 32_000,
+				preferenceOrder: ["big", "small"],
+			});
+			expect(result).toMatchObject({ type: "assign", modelKey: "big" });
+		});
+
+		it("only breaks ties WITHIN a preference rank (weighting orders the unranked remainder)", () => {
+			// Neither preferred → falls back to the efficient weighting (smallest sufficient = small).
+			const result = selectRoleModel({
+				candidates,
+				difficulty: 30,
+				requiredContextTokens: 32_000,
+				preferenceOrder: ["ghost-model"],
+			});
+			expect(result).toMatchObject({ type: "assign", modelKey: "small" });
+		});
+
+		it("a hard pin still beats the preference order", () => {
+			const result = selectRoleModel({
+				candidates,
+				difficulty: 30,
+				requiredContextTokens: 32_000,
+				preferenceOrder: ["big"],
+				pinnedModelKey: "small",
+			});
+			expect(result).toMatchObject({ type: "assign", modelKey: "small" });
+		});
+
+		it("an infeasible preferred model is skipped (preference never overrides the difficulty floor)", () => {
+			const result = selectRoleModel({
+				candidates,
+				difficulty: 60, // "small" (cap 40) is infeasible
+				requiredContextTokens: 32_000,
+				preferenceOrder: ["small", "big"],
+			});
+			expect(result).toMatchObject({ type: "assign", modelKey: "big" });
+		});
+	});
 });

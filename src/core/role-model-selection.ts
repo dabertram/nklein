@@ -46,6 +46,12 @@ export interface SelectRoleModelInput {
 	pinnedModelKey?: string | null;
 	/** User override: how to order feasible candidates. Defaults to {@link DEFAULT_MODEL_SELECTION_WEIGHTING}. */
 	weighting?: ModelSelectionWeighting;
+	/**
+	 * User override: a SOFT preference order (model keys, best first). A feasible candidate earlier in this list is
+	 * chosen ahead of one later or absent — the `weighting` comparator only breaks ties WITHIN the same preference rank.
+	 * Weaker than a `pinnedModelKey` (a hard force). Absent/empty ⇒ pure weighting order (byte-identical to before).
+	 */
+	preferenceOrder?: readonly string[];
 }
 
 export type RoleModelSelection =
@@ -132,7 +138,19 @@ export function selectRoleModel(input: SelectRoleModelInput): RoleModelSelection
 	const freeFeasible = feasible.filter((candidate) => candidate.isFree);
 	const busyFallback = freeFeasible.length === 0;
 	const pool = busyFallback ? feasible : freeFeasible;
-	const selected = pool.slice().sort(makeComparator(weighting))[0];
+	// User preference order (soft): a lower index wins; the weighting comparator only breaks ties within a rank.
+	const preferenceOrder = input.preferenceOrder ?? [];
+	// Unranked models get a FINITE sentinel (past the last real index), not Infinity — two unranked candidates must
+	// yield rankDelta 0 (fall to the weighting comparator), and Infinity − Infinity = NaN would corrupt the sort.
+	const preferenceRank = (modelKey: string): number => {
+		const index = preferenceOrder.indexOf(modelKey);
+		return index === -1 ? preferenceOrder.length : index;
+	};
+	const weightingComparator = makeComparator(weighting);
+	const selected = pool.slice().sort((a, b) => {
+		const rankDelta = preferenceRank(a.modelKey) - preferenceRank(b.modelKey);
+		return rankDelta !== 0 ? rankDelta : weightingComparator(a, b);
+	})[0];
 	return {
 		type: "assign",
 		modelKey: selected.modelKey,
