@@ -165,6 +165,41 @@ describe("judgeCellStability — high-bar clamp edge", () => {
 	});
 });
 
+describe("judgeCellStability — regression (bug-hunt 2026-07-04)", () => {
+	it("a dead-center (coin-flip) flaky cell is LESS confident than a near-decisive-edge flaky cell", () => {
+		// Default bar 0.75, margin 0.15 ⇒ band (0.60, 0.90). Both are flaky-via-borderline, low spread.
+		// Center: 6/8 = 0.75 (exactly the bar — maximally ambiguous). Edge: 5/8 = 0.625 (a hair above the fail edge).
+		// Regression: the old passRateDoubt formula (1 - min/…) INVERTED this — it rated the coin-flip as the MOST
+		// trustworthy flaky cell and the near-decisive one as the LEAST. Confidence must fall toward the center.
+		const center = judgeOneCell(
+			runs(8, { modelId: "m", role: "worker", difficulty: "medium", qualityScore: 0.7 }, (i) => ({ passed: i < 6 })),
+		);
+		const edge = judgeOneCell(
+			runs(8, { modelId: "m", role: "worker", difficulty: "medium", qualityScore: 0.7 }, (i) => ({ passed: i < 5 })),
+		);
+		expect(center.verdict).toBe("flaky");
+		expect(edge.verdict).toBe("flaky");
+		expect(center.passRate).toBeCloseTo(0.75, 5);
+		expect(edge.passRate).toBeCloseTo(0.625, 5);
+		expect(center.confidence).toBeLessThan(edge.confidence);
+		expect(center.confidence).toBeLessThan(0.05); // the exact coin-flip earns ~zero trust
+	});
+
+	it("a maximally-decisive settled_fail at a degenerate (clamped-to-0) fail floor is HIGH confidence", () => {
+		// A non-default bar ≤ margin clamps `lower` to 0, so the only reachable settled_fail is passRate 0 (all failed) —
+		// the most decisive fail possible. Regression: the old `(lower - passRate)/max(lower, EPSILON)` gave 0/EPSILON = 0
+		// decisiveness there, deflating confidence. It must be fully decisive.
+		const cell = judgeOneCell(
+			runs(5, { modelId: "m", role: "worker", difficulty: "easy", passed: false, qualityScore: 0.1 }),
+			DEFAULT_EVAL_STABILITY_POLICY,
+			{ minRunsPerCell: 2, reliabilityBar: 0.05 },
+		);
+		expect(cell.verdict).toBe("settled_fail");
+		expect(cell.passRate).toBe(0);
+		expect(cell.confidence).toBeGreaterThan(0.8); // old (degenerate decisiveness 0) gave ~0.625
+	});
+});
+
 describe("scoreModelEvalStability — ordering", () => {
 	it("lists worst-first: thin → flaky → settled, then more-owed first", () => {
 		const scored = scoreModelEvalStability([

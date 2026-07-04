@@ -214,7 +214,7 @@ export function judgeCellStability(
 		// Confidence erodes with how central the pass-rate is (distance from the nearer decisive edge) and how wide the
 		// spread is; a doubly-flaky cell (borderline AND spread) scores lower than a singly-flaky one.
 		const passRateDoubt = borderlinePassRate
-			? 1 - Math.min(cell.passRate - lower, upper - cell.passRate) / Math.max(margin, Number.EPSILON)
+			? Math.min(cell.passRate - lower, upper - cell.passRate) / Math.max(margin, Number.EPSILON)
 			: 0;
 		const spreadDoubt = spreadTooWide ? clamp01((spread - maxSpread) / Math.max(1 - maxSpread, Number.EPSILON)) : 0;
 		const confidence = clamp01(1 - Math.max(passRateDoubt, spreadDoubt)) * 0.5; // a flaky cell caps at 0.5 trust
@@ -233,9 +233,16 @@ export function judgeCellStability(
 	// (3) Settled — decisively above or below the bar, low spread, well-sampled.
 	const passed = cell.passRate >= upper;
 	// Confidence grows with distance past the decisive edge and with sample count (more repeats ⇒ firmer), 0.5..1.
-	const decisiveness = passed
-		? clamp01((cell.passRate - upper) / Math.max(1 - upper, Number.EPSILON))
-		: clamp01((lower - cell.passRate) / Math.max(lower, Number.EPSILON));
+	let decisiveness: number;
+	if (passed) {
+		decisiveness = clamp01((cell.passRate - upper) / Math.max(1 - upper, Number.EPSILON));
+	} else if (lower <= 0) {
+		// Degenerate fail floor: when the bar ≤ margin clamps `lower` to 0, the only reachable settled_fail is passRate 0
+		// (all runs failed) — the maximally decisive fail, so it is fully decisive (not the degenerate 0/EPSILON = 0).
+		decisiveness = cell.passRate <= 0 ? 1 : 0;
+	} else {
+		decisiveness = clamp01((lower - cell.passRate) / lower);
+	}
 	const sampleFirmness = clamp01((cell.runs - minSettled) / Math.max(targetSettled - minSettled, 1));
 	const confidence = clamp01(0.5 + 0.5 * ((decisiveness + sampleFirmness) / 2));
 	return {
