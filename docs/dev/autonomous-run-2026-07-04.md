@@ -175,6 +175,13 @@ to avoid locking in a direction you'd want to choose:
 
 ## Work log (newest first)
 
+- **LIVE-FLEET validation GREEN (2026-07-04):** ran two read-only live probes against the loaded fleet —
+  `dev swarm` (fleet discovery: brain27 prior 62, nano4-m5 prior 28, all idle — the lms-ps/affinity path
+  works) and `dev model-speed` (REAL inference on nano4-m5: **121 tok/s, 169ms ttft, Q4_K_M, 32k ctx**,
+  clean exit). The latter drives a full `LocalLlmClient` request, so it live-confirms the batch-15
+  resource-leak fixes (AbortSignal.any + reader.cancel) work against a real model, not just in unit tests.
+  The full dogfood swarm run (decompose→exec→merge, `scripts/dogfood.mjs`) is available + the fleet is ready,
+  but it's a long agentic run best kicked off deliberately.
 - **Fleet/Playwright validation (2026-07-04):** fleet healthy — 6 models loaded + IDLE (brain27 27B baseline,
   coder-gpu 4B on legion, nano4-m5, 3× qwop4b); nothing loaded/unloaded (all already resident, no overload).
   Ran the web-ui Playwright e2e (smoke + chat-browser-toggle): **7 failed** on "Backlog column not
