@@ -150,6 +150,17 @@ CONFIRMED, 2 refuted (both correctly, on threat-model grounds).
 **What needs YOU:** ALL RESOLVED — see **DECISIONS LOCKED** below (David cleared the whole queue
 2026-07-04). Now executing them.
 
+**#7 apiProfile — NOW FULLY WIRED (2026-07-04).** David answered the precursor: *a chat session's skills are
+USER-SELECTED per session*. Wired end-to-end: a session-scoped `selectedSkillIds` (state + contract + service
++ setter, mirroring `browserEnabled`), a pure `resolveSelectedSkillsApiProfile` (validate ids → merge via the
+registry's `resolveApiProfileForSkills`), the fold into `createChatAgentModel` via the model-gated
+`resolveApiProfileRequest` (temperature → sampling; reasoning intent → a `/think`/`/no_think` soft-switch on the
+last user message, only for switch-capable models; empty profile ⇒ byte-identical), and a per-session **skill
+selector UI** (toggle chips in the chat header). 10 new tests; full gate green (7074). **Staged follow-up:**
+folding `structuredOutput` (the constrained rung is escalation-driven) and `forceToolCall` — deferred to avoid
+destabilizing the chat adapter; both are inert for the current registry skills anyway. (Only draft-cores #10
+fragment-map + #11 idle-ranker still await your approval.)
+
 ---
 
 ## DECISIONS LOCKED (David, 2026-07-04) — the whole guidance queue, resolved + EXECUTION STATUS
