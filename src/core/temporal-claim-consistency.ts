@@ -89,9 +89,20 @@ function toIso(date: Date): string {
 	return date.toISOString().slice(0, 10);
 }
 
-/** Signed whole-day delta `a - b` on the UTC day grid (positive when `a` is later). */
+/** The integer UTC calendar-day index for a date (days since the epoch, ignoring time-of-day). */
+function utcDayNumber(date: Date): number {
+	return Math.floor(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) / MS_PER_DAY);
+}
+
+/**
+ * Signed whole-CALENDAR-day delta `a - b` on the UTC day grid (positive when `a` is a later calendar day). Differencing
+ * UTC day-numbers, NOT raw instants: `Math.round((a - b) / MS_PER_DAY)` is only correct when `a` and `b` share a
+ * time-of-day. A real wall-clock `now` (arbitrary time) compared against a midnight ISO claim date ("YYYY-MM-DD") would
+ * otherwise be off by a day near the boundary — e.g. a tomorrow-dated claim read as "current" instead of anachronistic,
+ * or a valid-through-today claim read as "stale" for the afternoon half of the day.
+ */
 function wholeDayDelta(a: Date, b: Date): number {
-	return Math.round((a.getTime() - b.getTime()) / MS_PER_DAY);
+	return utcDayNumber(a) - utcDayNumber(b);
 }
 
 function reasonFor(

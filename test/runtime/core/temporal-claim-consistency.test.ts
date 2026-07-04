@@ -117,6 +117,30 @@ describe("checkClaimTemporalConsistency", () => {
 	});
 });
 
+describe("checkClaimTemporalConsistency — wall-clock now vs midnight ISO dates (UTC calendar-day boundary)", () => {
+	// Regression: wholeDayDelta must diff UTC CALENDAR days, not raw instants. A real `now = new Date()` has an
+	// arbitrary time-of-day; claim dates parsed from ISO "YYYY-MM-DD" strings are midnight UTC. The old Math.round of
+	// the raw instant delta was off by a day for ~half of every day at the boundary.
+	const evening = new Date("2026-07-04T20:00:00.000Z");
+
+	it("flags a TOMORROW-dated claim as anachronistic even late in the day (was wrongly 'current')", () => {
+		// asOf is the next calendar day; it must read as +1 day future regardless of the time-of-day of `now`.
+		expect(checkClaimTemporalConsistency({ asOf: "2026-07-05" }, evening).status).toBe("anachronistic");
+	});
+
+	it("keeps a claim valid THROUGH today current in the afternoon (was wrongly 'stale')", () => {
+		// validUntil is today's calendar day → 0 whole days remaining = still valid, not expired.
+		const result = checkClaimTemporalConsistency({ asOf: "2026-01-01", validUntil: "2026-07-04" }, evening);
+		expect(result.status).toBe("current");
+		expect(result.validForDays).toBe(0);
+	});
+
+	it("reports the correct whole-day age for a past claim regardless of the time-of-day", () => {
+		// yesterday's calendar day, viewed in the evening, is exactly 1 day old (not 0, not 2).
+		expect(checkClaimTemporalConsistency({ asOf: "2026-07-03" }, evening).asOfAgeDays).toBe(1);
+	});
+});
+
 describe("checkClaimsTemporalConsistency (batch)", () => {
 	const claims = [
 		{ asOf: daysFromNow(-10) }, // 0: current
