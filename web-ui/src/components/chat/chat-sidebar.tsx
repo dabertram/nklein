@@ -63,6 +63,15 @@ const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: stri
 /** Scopes where the agent can run commands (not read-only). The risk toggle is only relevant here. */
 const CAN_ACT_SCOPES = new Set<RuntimeChatSessionScope>(["project_sandboxed", "all_projects", "host_access"]);
 
+// §5.AE the user-selectable per-session skills (ids mirror the backend SKILL_REGISTRY). A skill's merged apiProfile
+// (reasoning intensity / structured output / temperature) is folded into this session's model call.
+const SKILL_OPTIONS: readonly { id: string; label: string; icon: string }[] = [
+	{ id: "code_editing", label: "Code editing", icon: "✏️" },
+	{ id: "planning", label: "Planning", icon: "🧭" },
+	{ id: "review", label: "Review", icon: "🔍" },
+	{ id: "web_retrieval", label: "Web retrieval", icon: "📚" },
+];
+
 // ─── Session metadata helpers ──────────────────────────────────────────────────
 
 /**
@@ -185,11 +194,23 @@ function SessionHeader({
 		scope?: RuntimeChatSessionScope;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		selectedSkillIds?: string[];
 	}) => void;
 }): React.ReactElement {
 	const [title, setTitle] = useState(session.title);
 	const [goal, setGoal] = useState(session.goal ?? "");
 	const [riskDialogOpen, setRiskDialogOpen] = useState(false);
+
+	// §5.AE: the skills the user can enable for this session. Their merged apiProfile is folded into the model call
+	// (reasoning intensity / structured output / temperature). Selection is per session and free of scope gating —
+	// skills shape the model call, not host permissions.
+	const selectedSkillIds = session.selectedSkillIds ?? [];
+	const handleSkillToggle = (skillId: string): void => {
+		const next = selectedSkillIds.includes(skillId)
+			? selectedSkillIds.filter((id) => id !== skillId)
+			: [...selectedSkillIds, skillId];
+		onUpdate({ id: session.id, selectedSkillIds: next });
+	};
 
 	// Both per-session opt-ins only do anything in a can-act scope (host actions are denied in chat-only), so the
 	// toggles are shown together there. Browsing read-only pages is lower-risk than unsafe shell commands, so the
@@ -319,6 +340,31 @@ function SessionHeader({
 						</button>
 					</div>
 				) : null}
+				<div className="flex flex-wrap items-center gap-1.5" data-testid="chat-skill-selector">
+					<span className="text-[11px] text-text-tertiary select-none">Skills:</span>
+					{SKILL_OPTIONS.map((skill) => {
+						const active = selectedSkillIds.includes(skill.id);
+						return (
+							<button
+								key={skill.id}
+								type="button"
+								role="checkbox"
+								aria-checked={active}
+								data-testid={`chat-skill-${skill.id}`}
+								onClick={() => handleSkillToggle(skill.id)}
+								className={cn(
+									"flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors select-none cursor-pointer",
+									active
+										? "border-status-blue text-status-blue bg-surface-2 hover:bg-surface-3"
+										: "border-border text-text-tertiary bg-transparent hover:border-border-bright hover:text-text-secondary",
+								)}
+							>
+								<span aria-hidden="true">{skill.icon}</span>
+								<span>{skill.label}</span>
+							</button>
+						);
+					})}
+				</div>
 			</div>
 			<RiskAckConfirmDialog open={riskDialogOpen} onConfirm={handleRiskConfirm} onCancel={handleRiskCancel} />
 		</>
