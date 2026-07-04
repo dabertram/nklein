@@ -5,6 +5,12 @@ won't cause major reworks later; don't wait for greenlighting; don't stop; load/
 needed without overloading the 3 fleet machines; collect anything that genuinely needs David's
 guidance here for a clarify-when-back session.
 
+**SCOPE EXPANSION (David, 2026-07-04):** fleet-dependent and Playwright/e2e-dependent items are now
+**actionable** — I may manage the LM Studio fleet (load/unload/sweep) and drive the browser myself to
+work them, provided I **never crash/overload any of the 3 machines** (unload before load; respect the
+on-device guardrail + headroom; restore baseline after). This unblocks the "needs live-model
+validation" and "needs Playwright e2e" items previously parked for the user.
+
 **Operating rules I'm holding myself to**
 - Every commit GREEN (tsc + biome + `npm run test:fast`).
 - Behavior-changing work is **flag-gated / additive with a byte-identical default** → zero rework risk.
@@ -28,14 +34,40 @@ misses. Plus **2 additive test-coverage fences** (+30 tests) and a **completenes
 regex-bug class is fully contained. No behavior-changing feature was flipped on — everything is a fix or
 a test, so there's **zero rework risk** to review.
 
-**What needs YOU:** the **NEEDS-GUIDANCE queue** below (11 items) — genuine product/security/design forks
-I deliberately did NOT guess. Several are now investigated down to a concrete, approvable decision
-(#5 skill-fragment mapping, #6 apiProfile last-mile, #10 chat web_search wiring, #11 SSRF check-all-IPs
-hardening). Skim those first; the rest (#1–#4, #7–#9) are direction calls.
+**What needs YOU:** ALL RESOLVED — see **DECISIONS LOCKED** below (David cleared the whole queue
+2026-07-04). Now executing them.
 
-**Where the detail lives:** the work log (newest first) at the bottom. Bug-hunt state: `src/core` is
-swept (~100 modules, tapered to 0 new); the hunt is now working fresh non-core subsystems (nklein-agent,
-state, commands) where yield continues.
+---
+
+## DECISIONS LOCKED (David, 2026-07-04) — the whole guidance queue, resolved
+
+Execute all of these (flag-gated / tested / GREEN as usual). "I propose → you approve" items get a
+draft PR-style change I hold for review, not an auto-merge.
+
+1. **Default-on flips** → flip ALL THREE to default-ON: `NKLEIN_CHAT_ADAPTIVE_TRUNCATION`,
+   `DURABLE_DEPTH_PRIORITY`, retrieval-synthesis. (Env/config can still turn each OFF.)
+2. **Chat `web_search`** → WIRE it into the chat agent, reusing the swarm's egress-gated SearXNG client;
+   OFF by default (needs egress + backend to activate). Zero default change.
+3. **SSRF guard** → apply the check-ALL-resolved-IPs hardening in `checkHostForSsrf` (fail-closed).
+4. **§5.L swarm-broker manifest** → PER-TOOL STATIC for v1 (each tool declares host/network/approvals
+   caps once); wire it so the escalation + egress gates go live on the swarm tool path.
+5. **Capability-broker default** → default ON **once the swarm seam (item 4) is wired** (chat already live).
+6. **§5.L egress-read kind** → ADD a distinct read-only `egress-read` ChatActionKind so multi-page
+   browsing is allowed without laundering the write/exec sinks (still egress-gated).
+7. **§5.AE apiProfile** → wire SESSION-SCOPED; apply the merged `activeSkillSet.apiProfile` once per
+   session, reconciled with the chat adapter's existing reasoning/force-tool logic (no double-apply).
+8. **§5.AV apply-time strictness** → REDO-ONLY; never hard-block on split/merge/refine — the
+   SCC-condense repair net handles bad graphs (weak models must not spiral).
+9. **§5.AN model stats** → track ALWAYS (per-request), FULL tracking by DEFAULT, with a config knob to
+   REDUCE to a couple of levels (e.g. `full | basic | off`). (NOT on-demand-only — revised from my rec.)
+10. **§5.AE skill-fragment mapping** → I DRAFT the fragment-id→text mapping + canonicalize the naming
+    (underscore↔hyphen) + stub the missing blocks (`repo_map`, `focus_chain`), hold for David's approval.
+11. **§5.AW opportunistic-work ranker** → I DRAFT a priority order + a HARD veto when real queued work
+    exists, hold for David's approval.
+
+---
+
+## NEEDS-GUIDANCE queue — RESOLVED 2026-07-04 (kept for the rationale; decisions are above)
 
 ---
 
