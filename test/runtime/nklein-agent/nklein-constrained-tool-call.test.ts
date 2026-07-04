@@ -98,4 +98,34 @@ describe("parseConstrainedToolCall", () => {
 			arguments: {},
 		});
 	});
+
+	it("scans past a non-JSON brace group to reach the real call later in the prose", () => {
+		// A weak model narrates set-notation `{1,2}` (a balanced span that is NOT JSON) before the call.
+		// The old scanner committed to that first balanced span, failed to parse it, and returned null.
+		const content =
+			'The set {1,2} is not JSON, but here is the call: {"tool":"run_command","arguments":{"command":"ls"}}';
+		expect(parseConstrainedToolCall(content, TOOLS)).toEqual({ name: "run_command", arguments: { command: "ls" } });
+	});
+
+	it("skips a decoy inline-argument object and finds the structured call after it", () => {
+		// Weak models frequently render the args inline (`{"command":"ls"}`) while narrating, then emit the
+		// real `{tool,arguments}` call. The first balanced object has no tool name — keep scanning.
+		const content = 'I will run_command({"command":"ls"}) now:\n{"tool":"run_command","arguments":{"command":"ls"}}';
+		expect(parseConstrainedToolCall(content, TOOLS)).toEqual({ name: "run_command", arguments: { command: "ls" } });
+	});
+
+	it("skips a decoy empty object `{}` and finds the real call", () => {
+		const content = 'Thinking... {} Now the call: {"tool":"create_card","arguments":{"title":"Z"}}';
+		expect(parseConstrainedToolCall(content, TOOLS)).toEqual({ name: "create_card", arguments: { title: "Z" } });
+	});
+
+	it("skips a narrated hallucinated-name object and honors a later offered call", () => {
+		const content =
+			'I could {"tool":"delete_everything","arguments":{}} but instead {"tool":"create_card","arguments":{"title":"Q"}}';
+		expect(parseConstrainedToolCall(content, TOOLS)).toEqual({ name: "create_card", arguments: { title: "Q" } });
+	});
+
+	it("still returns null when every candidate names no offered tool", () => {
+		expect(parseConstrainedToolCall('nope {1,2} {"tool":"delete_everything"} {}', TOOLS)).toBeNull();
+	});
 });

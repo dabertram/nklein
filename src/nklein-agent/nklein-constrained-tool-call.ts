@@ -94,25 +94,27 @@ export interface ParsedConstrainedToolCall {
  * Parse a constrained-decoding response back into one of the OFFERED tool calls, or `null` when none matches. Tolerant
  * of how a weak model may render the JSON: accepts our `{ tool, arguments }` shape, a bare `{ name, arguments }`, and the
  * OpenAI-ish `{ function: { name, arguments } }`; `arguments` may be an object OR a JSON string (the OpenAI wire form);
- * and the JSON may be wrapped in prose or a ```json fence (we extract the first balanced object). Only returns a call
- * whose name is one of `tools` — a hallucinated name yields `null` (the caller falls through to the next rung).
+ * and the JSON may be wrapped in prose or a ```json fence. A weak model often narrates before the real call — emitting
+ * prose brace groups that are NOT JSON (`{1,2}`), a decoy `{}`, or an inline argument object (`{"path":"x"}`) ahead of
+ * the structured call — so we scan EVERY balanced object in order and return the first that names an offered tool, not
+ * merely the first balanced span. Only returns a call whose name is one of `tools` — a hallucinated (or absent) name is
+ * skipped, and if no candidate names an offered tool the result is `null` (the caller falls through to the next rung).
  */
 export function parseConstrainedToolCall(
 	content: string,
 	tools: readonly LocalLlmToolDefinition[],
 ): ParsedConstrainedToolCall | null {
 	const known = new Set(tools.map((tool) => tool.name));
-	const parsed = extractFirstJsonObject(content);
-	if (!parsed) {
-		return null;
+	for (const parsed of extractJsonObjectCandidates(content)) {
+		const fn = isRecord(parsed.function) ? parsed.function : null;
+		const name = pickString(parsed.tool) ?? pickString(parsed.name) ?? (fn ? pickString(fn.name) : null);
+		if (!name || !known.has(name)) {
+			continue;
+		}
+		const rawArgs = parsed.arguments ?? (fn ? fn.arguments : undefined);
+		return { name, arguments: coerceArguments(rawArgs) };
 	}
-	const fn = isRecord(parsed.function) ? parsed.function : null;
-	const name = pickString(parsed.tool) ?? pickString(parsed.name) ?? (fn ? pickString(fn.name) : null);
-	if (!name || !known.has(name)) {
-		return null;
-	}
-	const rawArgs = parsed.arguments ?? (fn ? fn.arguments : undefined);
-	return { name, arguments: coerceArguments(rawArgs) };
+	return null;
 }
 
 function coerceArguments(raw: unknown): Record<string, unknown> {
@@ -132,17 +134,41 @@ function coerceArguments(raw: unknown): Record<string, unknown> {
 	return {};
 }
 
-/** Parse `content` as JSON, or extract the first balanced `{…}` object embedded in prose / a code fence. */
-function extractFirstJsonObject(content: string): Record<string, unknown> | null {
-	const trimmed = content.trim();
-	const direct = tryParseObject(trimmed);
+/**
+ * Every balanced `{…}` object embedded in `content` (whole-string JSON, a ```json fence, or prose with several brace
+ * groups), in source order, keeping only spans that parse to a JSON object. Non-JSON brace groups (`{1,2}`) and
+ * unbalanced tails are skipped so a later, genuine object is still reached. The whole trimmed string is tried first as
+ * the common fast path (the model emitted just the JSON).
+ */
+function extractJsonObjectCandidates(content: string): Record<string, unknown>[] {
+	const direct = tryParseObject(content.trim());
 	if (direct) {
-		return direct;
+		return [direct];
 	}
-	const start = content.indexOf("{");
-	if (start < 0) {
-		return null;
+	const candidates: Record<string, unknown>[] = [];
+	let searchFrom = 0;
+	while (searchFrom < content.length) {
+		const start = content.indexOf("{", searchFrom);
+		if (start < 0) {
+			break;
+		}
+		const end = findBalancedObjectEnd(content, start);
+		if (end < 0) {
+			// This `{` never closes; a later top-level `{` may still open a balanced object.
+			searchFrom = start + 1;
+			continue;
+		}
+		const parsed = tryParseObject(content.slice(start, end + 1));
+		if (parsed) {
+			candidates.push(parsed);
+		}
+		searchFrom = end + 1;
 	}
+	return candidates;
+}
+
+/** Index of the `}` that balances the `{` at `start` (respecting strings + escapes), or -1 when it never closes. */
+function findBalancedObjectEnd(content: string, start: number): number {
 	let depth = 0;
 	let inString = false;
 	let escaped = false;
@@ -165,11 +191,11 @@ function extractFirstJsonObject(content: string): Record<string, unknown> | null
 		} else if (ch === "}") {
 			depth--;
 			if (depth === 0) {
-				return tryParseObject(content.slice(start, i + 1));
+				return i;
 			}
 		}
 	}
-	return null;
+	return -1;
 }
 
 function tryParseObject(text: string): Record<string, unknown> | null {
