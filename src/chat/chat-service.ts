@@ -107,6 +107,7 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 		focus: session.focus,
 		ownedWorkspaceId: session.ownedWorkspaceId,
 		selectedSkillIds: [...session.selectedSkillIds],
+		totalTokensUsed: session.totalTokensUsed,
 		createdAt: session.createdAt,
 		updatedAt: session.updatedAt,
 	};
@@ -316,6 +317,14 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						startedAt: turnStartedAt,
 						endedAt: Date.now(),
 					});
+				}
+				// §5.M: accumulate this turn's token usage onto the session's running total (best-effort display metric).
+				if (agentResult.totalTokens > 0) {
+					await updateChatSession(
+						session.id,
+						{ totalTokensUsed: session.totalTokensUsed + agentResult.totalTokens },
+						sessionOptions,
+					);
 				}
 				return {
 					userMessage: toRuntimeChatMessage(agentResult.userMessage),

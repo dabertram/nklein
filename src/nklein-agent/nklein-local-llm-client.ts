@@ -91,6 +91,8 @@ export interface LocalLlmToolCompletion {
 	 * §5.AA signal: high reasoning relative to budget is the truncation / over-rumination case.
 	 */
 	reasoningTokens?: number | null;
+	/** §5.M: total tokens this call consumed (`usage.total_tokens`) — null when the endpoint didn't report it. */
+	totalTokens?: number | null;
 	raw: unknown;
 }
 
@@ -416,7 +418,7 @@ export class LocalLlmClient {
 					};
 					finish_reason?: string | null;
 				}>;
-				usage?: { completion_tokens_details?: { reasoning_tokens?: number } };
+				usage?: { total_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } };
 			};
 			const choice = json.choices?.[0];
 			let toolCalls: LocalLlmToolCall[] = (choice?.message?.tool_calls ?? [])
@@ -477,6 +479,7 @@ export class LocalLlmClient {
 				toolCalls,
 				finishReason: choice?.finish_reason ?? null,
 				reasoningTokens: json.usage?.completion_tokens_details?.reasoning_tokens ?? null,
+				totalTokens: json.usage?.total_tokens ?? null,
 				raw: json,
 			};
 		} finally {

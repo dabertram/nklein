@@ -19,6 +19,7 @@ function session(): ChatSession {
 		focus: null,
 		outstandingAsks: [],
 		selectedSkillIds: [],
+		totalTokensUsed: 0,
 		createdAt: 0,
 		updatedAt: 0,
 	};

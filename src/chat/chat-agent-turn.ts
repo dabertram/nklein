@@ -68,6 +68,8 @@ export interface ChatAgentTurnResult {
 	steps: ChatAgentStep[];
 	context: ChatTurnContext;
 	hitIterationLimit: boolean;
+	/** §5.M: total tokens this turn consumed (summed across the loop's model calls). */
+	totalTokens: number;
 }
 
 /** Neutral user-facing reply when the model produced only (empty-after-strip) narrated markup and ran no tools. */
@@ -172,7 +174,14 @@ export async function runChatAgentTurn(
 				: NARRATION_ONLY_FALLBACK;
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: finalText });
-	return { userMessage, assistantMessage, steps: loop.steps, context, hitIterationLimit: loop.hitIterationLimit };
+	return {
+		userMessage,
+		assistantMessage,
+		steps: loop.steps,
+		context,
+		hitIterationLimit: loop.hitIterationLimit,
+		totalTokens: loop.totalTokens,
+	};
 }
 
 /** Distinct tool names used across the turn's steps, in first-seen order — for the narration-fallback confirmation. */

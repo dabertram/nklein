@@ -494,10 +494,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ([chat-api-contract.ts](src/core/chat-api-contract.ts) `runtimeChatSession`/`runtimeChatMessage`) carry **no
         usage/token field**, so it's a real backend feature, not a UI add. Cheap once usage is tracked. Sub-steps
         (buried in the original prose):
-    - [ ] capture per-turn usage from the LLM in the chat send loop
-    - [ ] persist a running token total on the session record (or per message)
-    - [ ] expose it in the schema/broadcast
-    - [ ] render it where the `buildSessionMeta` comment marks the spot
+    - [x] capture per-turn usage from the LLM in the chat send loop *(2026-07-04: `usage.total_tokens` extracted in the LLM client, summed across the loop's model calls into `ChatAgentLoopResult.totalTokens`)*
+    - [x] persist a running token total on the session record (or per message) *(`ChatSession.totalTokensUsed`, accumulated in `chat-service.sendMessage` after each turn)*
+    - [x] expose it in the schema/broadcast *(`runtimeChatSession.totalTokensUsed` in chat-api-contract, mapped in `toRuntimeChatSession`)*
+    - [x] render it where the `buildSessionMeta` comment marks the spot *(compact "3.4k tokens" in the session meta line, chat-sidebar.tsx)*
   - [-] **Later:** generated session title via embedding/LLM (replaces the literal "New chat"). *(deferred: nicety,
         prefixed "Later" by decision.)*
 - [~] **Autonomous chat agent — NOW ACTIVE** *(2026-06-25, user clarification pass — "promote to active now")* — the

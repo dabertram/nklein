@@ -53,6 +53,8 @@ export const runtimeChatSessionSchema = z.object({
 	// §5.AE: the skills the user has enabled for this session (their merged apiProfile is folded into the model call).
 	// Additive optional with a default so older clients/records are unaffected.
 	selectedSkillIds: z.array(z.string()).default([]),
+	// §5.M: running total of tokens this session's turns have consumed (for the session-label token count).
+	totalTokensUsed: z.number().default(0),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });

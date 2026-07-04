@@ -75,6 +75,8 @@ export interface ChatSession {
 	outstandingAsks: readonly ChatOutstandingAsk[];
 	/** §5.AE: the skills the user has enabled for this session; their merged apiProfile is folded into the model call. */
 	selectedSkillIds: readonly string[];
+	/** §5.M: running total of tokens this session's turns have consumed (usage.total_tokens summed across turns). */
+	totalTokensUsed: number;
 	createdAt: number;
 	updatedAt: number;
 }
@@ -118,6 +120,7 @@ const chatSessionPersistedSchema = z.object({
 		)
 		.optional(),
 	selectedSkillIds: z.array(z.string()).optional(),
+	totalTokensUsed: z.number().optional(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -193,6 +196,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				outstandingAsks: event.session.outstandingAsks ?? [],
 				// §5.AE back-compat: sessions persisted before skill selection existed → no skills enabled.
 				selectedSkillIds: event.session.selectedSkillIds ?? [],
+				// §5.M back-compat: sessions persisted before token tracking → 0.
+				totalTokensUsed: event.session.totalTokensUsed ?? 0,
 			});
 		}
 	}
@@ -236,6 +241,7 @@ export async function createChatSession(
 		focus: null,
 		outstandingAsks: [],
 		selectedSkillIds: input.selectedSkillIds ?? [],
+		totalTokensUsed: 0,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -285,6 +291,8 @@ export async function updateChatSession(
 		focus?: ChatSessionFocus | null;
 		/** §5.AE: replace the session's enabled skills. */
 		selectedSkillIds?: readonly string[];
+		/** §5.M: set the running token total (the caller accumulates the turn's usage onto the prior total). */
+		totalTokensUsed?: number;
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession | null> {
@@ -304,6 +312,7 @@ export async function updateChatSession(
 		...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
 		...(patch.focus !== undefined ? { focus: patch.focus } : {}),
 		...(patch.selectedSkillIds !== undefined ? { selectedSkillIds: patch.selectedSkillIds } : {}),
+		...(patch.totalTokensUsed !== undefined ? { totalTokensUsed: patch.totalTokensUsed } : {}),
 		updatedAt: now,
 	};
 	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);

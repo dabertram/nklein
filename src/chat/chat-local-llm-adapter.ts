@@ -460,6 +460,7 @@ export function createChatAgentModel(
 		return {
 			text: cleanModelReply(response.content),
 			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
+			totalTokens: response.totalTokens ?? null,
 		};
 	};
 }

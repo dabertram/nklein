@@ -42,6 +42,8 @@ export interface ChatAgentModelResponse {
 	/** The assistant's natural-language text (the final answer when there are no tool calls). */
 	text: string;
 	toolCalls: ChatToolCall[];
+	/** §5.M: total tokens this model call consumed (`usage.total_tokens`), or null when the endpoint didn't report it. */
+	totalTokens?: number | null;
 }
 
 export interface ChatAgentStep {
@@ -91,6 +93,8 @@ export interface ChatAgentLoopResult {
 	steps: ChatAgentStep[];
 	/** True when the loop was cut off at `maxIterations` and forced a final answer. */
 	hitIterationLimit: boolean;
+	/** §5.M: total tokens the whole turn consumed (summed across every model call in the loop). */
+	totalTokens: number;
 }
 
 export async function runChatAgentLoop(
@@ -109,6 +113,14 @@ export async function runChatAgentLoop(
 	const steps: ChatAgentStep[] = [];
 	const executedFingerprints = new Set<string>();
 	const usedToolNames = new Set<string>();
+	// §5.M: sum the usage of EVERY model call this turn (discovery + force + final streamed answer) so the caller can
+	// persist a running per-session token total. Wraps deps.complete so no call site can forget to count.
+	let totalTokens = 0;
+	const callModel: ChatAgentLoopDeps["complete"] = async (...args) => {
+		const response = await deps.complete(...args);
+		totalTokens += response.totalTokens ?? 0;
+		return response;
+	};
 
 	// Execute a model response's tool calls with the same-turn de-dup: run each genuinely-new call, replace an
 	// already-made identical call with the §5.O nudge (don't re-run it). Mutates `steps`/`executedFingerprints`/
@@ -143,7 +155,7 @@ export async function runChatAgentLoop(
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		// Tool-discovery turn: never stream (the model must be free to request a tool instead of answering). Pass the
 		// already-executed tool names so the §5.AA constrained rung, if it has to FORCE a call, steers to an un-done step.
-		const response = await deps.complete(messages, true, undefined, [...usedToolNames]);
+		const response = await callModel(messages, true, undefined, [...usedToolNames]);
 		if (response.toolCalls.length === 0) {
 			// §5.AA controller evidence-gate: if a completion assessor is supplied and the run is NOT yet complete by
 			// EVIDENCE, don't accept this premature "done" — nudge to keep going and continue (still bounded by
@@ -158,10 +170,10 @@ export async function runChatAgentLoop(
 			// it as a streaming, tools-disabled call so the answer streams token-by-token (the discovery call can't both
 			// offer tools and stream); without one we return the text we already have (no extra model call).
 			if (onToken) {
-				const streamed = await deps.complete(messages, false, onToken);
-				return { finalText: streamed.text, steps, hitIterationLimit: false };
+				const streamed = await callModel(messages, false, onToken);
+				return { finalText: streamed.text, steps, hitIterationLimit: false, totalTokens };
 			}
-			return { finalText: response.text, steps, hitIterationLimit: false };
+			return { finalText: response.text, steps, hitIterationLimit: false, totalTokens };
 		}
 		const executedNew = await applyResponse(response);
 		if (executedNew === 0) {
@@ -172,7 +184,7 @@ export async function runChatAgentLoop(
 			// tool_choice:"required" for reasoning models, else constrained json_schema) steers to an unused tool because
 			// we pass the executed names; if it lands a NEW call we've advanced, else we nudge and continue as before.
 			if (canStillMakeProgress(iteration)) {
-				const forced = await deps.complete(messages, true, undefined, [...usedToolNames], true);
+				const forced = await callModel(messages, true, undefined, [...usedToolNames], true);
 				const forcedNew = forced.toolCalls.length > 0 ? await applyResponse(forced) : 0;
 				if (forcedNew === 0) {
 					// The force couldn't produce a new call either — fall back to the §5.AA nudge and keep going.
@@ -183,12 +195,12 @@ export async function runChatAgentLoop(
 				continue;
 			}
 			// The model is stuck (all repeats) and the run is complete / out of runway — force a final (streamed) answer.
-			const finalResponse = await deps.complete(messages, false, onToken);
-			return { finalText: finalResponse.text, steps, hitIterationLimit: false };
+			const finalResponse = await callModel(messages, false, onToken);
+			return { finalText: finalResponse.text, steps, hitIterationLimit: false, totalTokens };
 		}
 	}
 
 	// Out of tool iterations — force one final (streamed) answer turn with tools disabled so it must conclude.
-	const finalResponse = await deps.complete(messages, false, onToken);
-	return { finalText: finalResponse.text, steps, hitIterationLimit: true };
+	const finalResponse = await callModel(messages, false, onToken);
+	return { finalText: finalResponse.text, steps, hitIterationLimit: true, totalTokens };
 }

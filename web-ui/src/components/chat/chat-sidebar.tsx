@@ -76,8 +76,8 @@ const SKILL_OPTIONS: readonly { id: string; label: string; icon: string }[] = [
 
 /**
  * Metadata derived from a chat session (and optionally from its loaded transcript) for display in
- * the session list. Token count is not available in the contract and is omitted rather than
- * estimated — it will be added once the backend exposes per-session usage totals.
+ * the session list — started/last-activity timestamps, message count, and the running token total
+ * (§5.M: `session.totalTokensUsed`, accumulated server-side from each turn's `usage.total_tokens`).
  */
 interface SessionMeta {
 	/** ISO-ish short timestamp of when the session was created, e.g. "Jun 25 14:32". */
@@ -89,6 +89,19 @@ interface SessionMeta {
 	lastActivityLabel: string | null;
 	/** Number of user+assistant messages in the transcript, or null when not yet loaded. */
 	messageCount: number | null;
+	/** Compact token-usage label (e.g. "3.4k tokens"), or null when none used / not the loaded session. */
+	tokenLabel: string | null;
+}
+
+/** Compact token count: "512 tokens", "3.4k tokens", "1.2M tokens". */
+function formatTokenCount(tokens: number): string {
+	if (tokens >= 1_000_000) {
+		return `${(tokens / 1_000_000).toFixed(1)}M tokens`;
+	}
+	if (tokens >= 1_000) {
+		return `${(tokens / 1_000).toFixed(1)}k tokens`;
+	}
+	return `${tokens} tokens`;
 }
 
 const DATE_FORMAT: Intl.DateTimeFormatOptions = {
@@ -115,7 +128,11 @@ function buildSessionMeta(session: RuntimeChatSession, messages: RuntimeChatMess
 
 	const messageCount = messages !== null ? messages.filter((m) => m.role !== "system").length : null;
 
-	return { startedLabel, lastActivityLabel, messageCount };
+	// Token usage only for the loaded/selected session (messages !== null) and only once some has accrued.
+	const tokenLabel =
+		messages !== null && session.totalTokensUsed > 0 ? formatTokenCount(session.totalTokensUsed) : null;
+
+	return { startedLabel, lastActivityLabel, messageCount, tokenLabel };
 }
 
 // ─── RiskAckConfirmDialog ──────────────────────────────────────────────────────
@@ -414,6 +431,12 @@ function SessionRow({
 						<>
 							<span className="text-text-tertiary opacity-40">·</span>
 							<span className="shrink-0 truncate">Last {meta.lastActivityLabel}</span>
+						</>
+					) : null}
+					{meta.tokenLabel !== null ? (
+						<>
+							<span className="text-text-tertiary opacity-40">·</span>
+							<span className="shrink-0 truncate">{meta.tokenLabel}</span>
 						</>
 					) : null}
 				</div>
