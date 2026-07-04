@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildSandboxMcpDockerExecArgs,
+	DEFAULT_OFF_SANDBOX_MCP_SERVERS,
+	filterEnabledSandboxServers,
 	listAvailableSandboxMcpServers,
 	SANDBOX_MCP_SERVERS,
 	selectSandboxMcpServersForModel,
@@ -79,5 +81,52 @@ describe("buildSandboxMcpDockerExecArgs — persistent docker-exec stdio command
 		expect(args.slice(-3)).toEqual(["codebase-memory-mcp", "serve", "--stdio"]);
 		expect(args[0]).toBe("exec");
 		expect(args).toContain("-i");
+	});
+
+	it("emits -e KEY=VALUE env pairs (sorted, deterministic) BEFORE the container name", () => {
+		const args = buildSandboxMcpDockerExecArgs(
+			{ containerName: "c1", uid: 10001, workdir: "/w" },
+			["basic-memory", "mcp"],
+			{ BASIC_MEMORY_MCP_PROJECT: "ws-abc", BASIC_MEMORY_AUTO_UPDATE: "false" },
+		);
+		// Sorted: BASIC_MEMORY_AUTO_UPDATE before BASIC_MEMORY_MCP_PROJECT; both before the container name.
+		const containerIdx = args.indexOf("c1");
+		expect(args.slice(0, containerIdx)).toEqual([
+			"exec",
+			"-i",
+			"-u",
+			"10001",
+			"-w",
+			"/w",
+			"-e",
+			"BASIC_MEMORY_AUTO_UPDATE=false",
+			"-e",
+			"BASIC_MEMORY_MCP_PROJECT=ws-abc",
+		]);
+		expect(args.slice(containerIdx)).toEqual(["c1", "basic-memory", "mcp"]);
+	});
+
+	it("no env ⇒ byte-identical to the two-arg form (backward compatible)", () => {
+		const target = { containerName: "c1", uid: 0, workdir: "/w" };
+		expect(buildSandboxMcpDockerExecArgs(target, ["x"], {})).toEqual(buildSandboxMcpDockerExecArgs(target, ["x"]));
+	});
+});
+
+describe("filterEnabledSandboxServers — default-OFF opt-in gate", () => {
+	it("basic-memory is default-OFF; dropped unless explicitly enabled", () => {
+		expect(DEFAULT_OFF_SANDBOX_MCP_SERVERS).toContain("basic-memory");
+		const all = listAvailableSandboxMcpServers();
+		const withoutOptIn = filterEnabledSandboxServers(all, new Set()).map((s) => s.id);
+		expect(withoutOptIn).not.toContain("basic-memory");
+		// Read-only, low-risk servers pass through untouched.
+		expect(withoutOptIn).toContain("sequential-thinking");
+		expect(withoutOptIn).toContain("codebase-memory");
+	});
+
+	it("basic-memory kept when explicitly opted in", () => {
+		const enabled = filterEnabledSandboxServers(listAvailableSandboxMcpServers(), new Set(["basic-memory"])).map(
+			(s) => s.id,
+		);
+		expect(enabled).toContain("basic-memory");
 	});
 });

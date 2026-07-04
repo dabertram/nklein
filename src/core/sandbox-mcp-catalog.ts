@@ -90,6 +90,26 @@ export function selectSandboxMcpServersForModel(modelId: string): readonly Sandb
 	return listAvailableSandboxMcpServers().filter((server) => decideMcpServerModelFitById(server.fit, modelId).offer);
 }
 
+/**
+ * Server ids that stay OFF by default even when baked + model-fitting — they require an EXPLICIT opt-in. `basic-memory`
+ * is write-capable authored memory: a durable free-form store is only trustworthy once the §5.AW strong-model audit is
+ * running, so it must be deliberately enabled (global/per-project setting), never on by default.
+ */
+export const DEFAULT_OFF_SANDBOX_MCP_SERVERS: readonly string[] = ["basic-memory"];
+
+/**
+ * Drop any default-OFF server not present in `enabledOptIns` (pure). Read-only, low-risk servers (sequential-thinking,
+ * codebase-memory) pass through untouched; a default-OFF server (basic-memory) is kept only when explicitly enabled.
+ */
+export function filterEnabledSandboxServers(
+	servers: readonly SandboxMcpServerDef[],
+	enabledOptIns: ReadonlySet<string>,
+): readonly SandboxMcpServerDef[] {
+	return servers.filter(
+		(server) => !DEFAULT_OFF_SANDBOX_MCP_SERVERS.includes(server.id) || enabledOptIns.has(server.id),
+	);
+}
+
 /** The identity of a task's sandbox container needed to build a `docker exec` into it. */
 export interface SandboxExecTarget {
 	/** The Docker container name (e.g. from `createAgentSandboxContainerName(slot)`). */
@@ -106,7 +126,31 @@ export interface SandboxExecTarget {
  * stdin stays open for the bidirectional MCP JSON-RPC stream. Pure — returns the argv for an MCP stdio transport whose
  * `command` is `"docker"`; the caller spawns it. NOTE: the returned process runs on the host, but it is only the
  * `docker exec` pipe — the MCP server itself runs INSIDE the container (isolation intact, invariant #2).
+ *
+ * `env` (optional) adds `-e KEY=VALUE` pairs BEFORE the container name — the per-server scoping + egress-hardening env
+ * some curated servers need (e.g. basic-memory's BASIC_MEMORY_CONFIG_DIR / BASIC_MEMORY_MCP_PROJECT + hardening). Keys
+ * are emitted in a stable (sorted) order so the argv is deterministic. Values are passed as literal `-e KEY=VALUE`
+ * tokens (argv, never a shell string — no interpolation/injection surface).
  */
-export function buildSandboxMcpDockerExecArgs(target: SandboxExecTarget, inContainerArgv: readonly string[]): string[] {
-	return ["exec", "-i", "-u", String(target.uid), "-w", target.workdir, target.containerName, ...inContainerArgv];
+export function buildSandboxMcpDockerExecArgs(
+	target: SandboxExecTarget,
+	inContainerArgv: readonly string[],
+	env?: Record<string, string>,
+): string[] {
+	const envArgs = env
+		? Object.keys(env)
+				.sort()
+				.flatMap((key) => ["-e", `${key}=${env[key]}`])
+		: [];
+	return [
+		"exec",
+		"-i",
+		"-u",
+		String(target.uid),
+		"-w",
+		target.workdir,
+		...envArgs,
+		target.containerName,
+		...inContainerArgv,
+	];
 }
