@@ -25,8 +25,8 @@ validation" and "needs Playwright e2e" items previously parked for the user.
 **What I did:** ran a systematic adversarial bug-hunt across the codebase (review → independent
 adversarial-verify → CONFIRMED-only), fixing every confirmed defect with a regression test **proven to
 fail on the old code** (where deterministically testable), each committed GREEN through the full gate.
-**30 real bugs fixed** so far (several HIGH: a retrieval-loop SSRF/egress bypass, a remote directory-browse
-symlink escape, weak-model tool-call data-loss, operator re-escalation
+**31 real bugs fixed** so far (several HIGH: a retrieval-loop SSRF/egress bypass, a remote directory-browse
+symlink escape, a remote git-clone local-repo exfiltration, weak-model tool-call data-loss, operator re-escalation
 silently swallowed, ledger-row collision, retry suppressed by an over-broad error match,
 strict-schema-validation gap, a `task delete` that could wipe a whole column, **cross-machine board
 data-loss on schema mismatch**, and a **just-cleared card resurrected by a mid-flight race**). The final
@@ -125,6 +125,27 @@ lived. 6 finders + skeptics → 3 CONFIRMED, 1 refuted.
   `buildSsrfGuardedPageFetcher` unconditionally — the batch-18 fix verified in place); runtime-api composition
   traced clean. Low-severity noted (not fixed): several redrive/plan-gate state maps are never pruned on
   dispose (slow unbounded growth, not a correctness/security bug).
+
+**Bug-hunt batch 20 (2026-07-04, SECURITY + workspace PRIMITIVES — the guards themselves, +1 bug → 31):**
+find→adversarial-refute Workflow over the auth/containment/git primitives. 6 finders + skeptics → 1
+CONFIRMED, 2 refuted (both correctly, on threat-model grounds).
+- **remote git-clone local-repo exfiltration (HIGH)** (`git-clone.ts:152`) — `cloneGitRepository` confined
+  only the DESTINATION, never the source `gitUrl`. So an authenticated remote (`--host`) client could
+  `projects.add` a `gitUrl` of `file:///path/to/any/repo` (or `../secret`) and clone an arbitrary LOCAL
+  repository (another user's project, a secrets/dotfile repo) INTO the sandbox, then read it via the confined
+  file APIs — a path-containment escape on the clone source. Fix: `isRemoteGitUrl` allow-list (only network
+  transports) + an `isRemoteMode` option that rejects a local/file source before cloning. Local mode unchanged.
+- **Hardening (defense-in-depth, from the 2 refuted findings):** added `--` end-of-options before the
+  user-controlled ref/branch in `git checkout --detach` and `git switch`, so a `-`-prefixed value is a value
+  not a git option. Both were REFUTED as high-severity (reachable only by an already-authenticated party who
+  already holds greater destructive power), but the `--` fixes are sound + match the existing `git clone --`
+  pattern, so applied as cheap consistency hardening.
+- **Clean (the core guards verified — high value):** `passcode-manager` (timing-safe compare over fixed-length
+  padded buffers, CSPRNG entropy w/ rejection sampling, no cookie-prefix confusion, fail-CLOSED default),
+  `remote-security-policy` (fail-safe truth table — no unauthenticated/plaintext remote bind without an explicit
+  double-flag opt-in), the path-containment primitives (`isPathWithinRoot`/`confineToAllowedRoots` — textbook
+  boundary check; independently re-confirms the batch-19 symlink fix), worktree containment (taskId normalized
+  before path join; `rm` always under `~/.nklein/worktrees`), and auto-merge integrity all traced clean.
 
 **What needs YOU:** ALL RESOLVED — see **DECISIONS LOCKED** below (David cleared the whole queue
 2026-07-04). Now executing them.
