@@ -74,6 +74,19 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batch 7 (12 chat + decomposition pure modules) → 4 real bugs FIXED:**
+  (HIGH) `suggest_unblock` told the user to "drop the dependency" for a card blocked by a `blockedKind`
+  (needs_decomposition/…) with NO dependency edge, hiding the real cause — now surfaces
+  `blockedKind(+reason)` like `describeCardState`; (MED-sec) `buildAuditDetail` leaked a host-absolute
+  `run_command` cwd (hallucinated out-of-schema key surviving arg-repair) into the audit log — added
+  the `isAbsolutePath` guard the file-path branch already had; (MED) `redactWorkspacePathForAgent`
+  mangled sibling paths sharing the workspace prefix (`/wsconfig.json`→`.config.json`) — added a
+  right path-boundary; (MED) `runChatAgentTurn` leaked RAW narrated markup to the user when the strip
+  emptied a tool-less reply — neutral fallback instead. Each with a regression test that fails on old
+  code; 4 separate GREEN commits. The chat/decomposition vein is bug-rich (4/12 vs src/core's tail).
+  **Also two coverage fences (§5.V, no bug, additive):** task-board-mutations 5 untested
+  board-integrity fns (+13, characterized the dependency reorientation contract) and ~20 untested
+  runtime-config normalizers (+17, corrupt-config throw-safety).
 - **Bug-hunt batch 6 (12 config + nklein-agent pure modules) → 1 real bug FIXED:** (MED)
   `parseConstrainedToolCall` committed to the FIRST balanced `{…}` span and gave up — a non-JSON
   brace group (`{1,2}`), a tool-less decoy (`{}` or an inline `{"command":"ls"}`), or an
