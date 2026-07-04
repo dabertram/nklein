@@ -672,6 +672,15 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// `startCard` port re-enters the start path with the durable guard bypassed (the controller already decided the lease);
 	// `appendEvent`/`readLedger` are the §5.AF agent-ledger store (persist-before-dispatch + boot-replay). Disabled by
 	// default (NKLEIN_DURABLE_SCHEDULER off) ⇒ every method is inert and the runtime is byte-identical.
+	// DEFAULT-ON DEFERRED (2026-07-04): the concurrency-defer fix is proven (deterministic guard + cap=1/cap=2 real-model
+	// PASS), but SWEEP-to-validate flipping the default found a REAL gap — the review-BOUNCE → RE-WORK flow is broken under
+	// durable. The controller reacts awaiting_review→succeeded (the agent finished), so when a reviewer BOUNCES the work
+	// the card's job is already `succeeded` and the durable scheduler never re-leases it to re-work; the legacy
+	// foreground re-drive that re-runs a bounced card is guarded out. (swarm-deterministic-bounce fails under the flag:
+	// "review outcome: bounced" → next review "skipped (not_reviewable)" → delivery held — the re-work never ran.) The
+	// HOLD path (no-op worker held in review) DOES work under durable. Fix = a durable reopen-on-bounce (transition a
+	// succeeded job back to ready + re-lease) before default-on. See todo §5.AF. (The 3-file swarm integration batch also
+	// flakes on parallel Docker-pool contention under the flag — the hold test passes ALONE.)
 	const durableSchedulerEnabled = isTruthyEnv(process.env.NKLEIN_DURABLE_SCHEDULER);
 	durableRunWiring = createDurableRunWiring({
 		enabled: durableSchedulerEnabled,
