@@ -1,16 +1,30 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_CODE_EMBEDDING_SETTINGS } from "../../../src/config/runtime-config-defaults";
 import {
+	areCodeEmbeddingSettingsEqual,
+	areModelRolesEqual,
+	areSkillDynamicsLevelsEqual,
 	normalizeAgentId,
+	normalizeAgentRulesets,
+	normalizeAgentRulesetsOverride,
 	normalizeAgentTimeoutMode,
 	normalizeAgentTimeoutProfile,
 	normalizeBoolean,
+	normalizeCodeEmbeddingOverride,
+	normalizeCodeEmbeddingSettings,
 	normalizeLostHeartbeatPolicy,
 	normalizeMaxConcurrentTasks,
 	normalizeMaxConcurrentTasksOverride,
+	normalizeModelRoles,
+	normalizeModelRolesOverride,
+	normalizeModelSuitabilityPolicyOverride,
 	normalizeNonNegativeInteger,
 	normalizePositiveInteger,
 	normalizePositiveNumber,
+	normalizePromptTemplateWithLegacyDefault,
 	normalizeSelectedAgentIdOverride,
+	normalizeShortcuts,
+	normalizeSkillDynamicsLevelOverride,
 	normalizeTimeoutMsValue,
 } from "../../../src/config/runtime-config-normalizers";
 
@@ -110,5 +124,147 @@ describe("normalizeLostHeartbeatPolicy", () => {
 		expect(normalizeLostHeartbeatPolicy("keep_running")).toBe("keep_running");
 		expect(normalizeLostHeartbeatPolicy("bogus")).toBe(normalizeLostHeartbeatPolicy(undefined));
 		expect(normalizeLostHeartbeatPolicy("bogus")).not.toBe("keep_running");
+	});
+});
+
+describe("normalizeShortcuts", () => {
+	it("returns [] for a non-array (corrupt config)", () => {
+		// biome-ignore lint/suspicious/noExplicitAny: exercising untrusted config input
+		expect(normalizeShortcuts("nope" as any)).toEqual([]);
+		expect(normalizeShortcuts(null)).toEqual([]);
+		expect(normalizeShortcuts(undefined)).toEqual([]);
+	});
+
+	it("drops entries missing a label or command and trims the survivors", () => {
+		const out = normalizeShortcuts([
+			{ label: "  Build  ", command: "  npm run build  ", icon: "  🔨  " },
+			{ label: "", command: "x" },
+			{ label: "NoCmd", command: "   " },
+			// biome-ignore lint/suspicious/noExplicitAny: garbage entry among valid ones
+			"garbage" as any,
+		]);
+		expect(out).toEqual([{ label: "Build", command: "npm run build", icon: "🔨" }]);
+	});
+
+	it("omits an empty icon rather than storing a blank string", () => {
+		const out = normalizeShortcuts([{ label: "L", command: "C", icon: "   " }]);
+		expect(out).toEqual([{ label: "L", command: "C", icon: undefined }]);
+	});
+});
+
+describe("normalizeModelRoles", () => {
+	it("returns {} for a non-object, array, or null", () => {
+		expect(normalizeModelRoles("x")).toEqual({});
+		expect(normalizeModelRoles(["a"])).toEqual({});
+		expect(normalizeModelRoles(null)).toEqual({});
+	});
+
+	it("keeps a valid role (trimming provider/model) and skips a blank role key", () => {
+		const out = normalizeModelRoles({
+			"  coder  ": { providerId: "  lmstudio  ", modelId: "  qwen  " },
+			"   ": { providerId: "p", modelId: "m" },
+		});
+		expect(out.coder).toEqual({ providerId: "lmstudio", modelId: "qwen" });
+		expect(Object.keys(out)).toEqual(["coder"]);
+	});
+
+	it("drops pool members that carry neither providerId nor modelId", () => {
+		const out = normalizeModelRoles({
+			coder: {
+				providerId: "p",
+				modelId: "m",
+				additionalModels: [{ providerId: "p2", modelId: "m2" }, { reasoningEffort: "high" }],
+			},
+		});
+		expect(out.coder?.additionalModels).toEqual([{ providerId: "p2", modelId: "m2" }]);
+	});
+
+	it("normalizeModelRolesOverride collapses an empty/absent map to null", () => {
+		expect(normalizeModelRolesOverride(null)).toBeNull();
+		expect(normalizeModelRolesOverride(undefined)).toBeNull();
+		expect(normalizeModelRolesOverride({})).toBeNull();
+		expect(normalizeModelRolesOverride({ coder: { providerId: "p", modelId: "m" } })).not.toBeNull();
+	});
+
+	it("areModelRolesEqual compares by normalized value, not reference", () => {
+		expect(
+			areModelRolesEqual({ coder: { providerId: "p", modelId: "m" } }, { coder: { providerId: "p", modelId: "m" } }),
+		).toBe(true);
+		expect(areModelRolesEqual({ coder: { providerId: "p", modelId: "m" } }, {})).toBe(false);
+	});
+});
+
+describe("normalizePromptTemplateWithLegacyDefault", () => {
+	it("falls back for a non-string or whitespace-only value", () => {
+		expect(normalizePromptTemplateWithLegacyDefault(42, "FB", "LEGACY")).toBe("FB");
+		expect(normalizePromptTemplateWithLegacyDefault("   ", "FB", "LEGACY")).toBe("FB");
+	});
+
+	it("maps a value equal to the legacy default onto the current fallback", () => {
+		expect(normalizePromptTemplateWithLegacyDefault("LEGACY", "FB", "LEGACY")).toBe("FB");
+	});
+
+	it("preserves a real custom value verbatim, including its surrounding whitespace", () => {
+		expect(normalizePromptTemplateWithLegacyDefault("  hello  ", "FB", "LEGACY")).toBe("  hello  ");
+	});
+});
+
+describe("code-embedding + policy override normalizers", () => {
+	it("normalizeCodeEmbeddingSettings falls back for garbage and forces the default for local_lexical", () => {
+		expect(normalizeCodeEmbeddingSettings("garbage", DEFAULT_CODE_EMBEDDING_SETTINGS)).toEqual(
+			DEFAULT_CODE_EMBEDDING_SETTINGS,
+		);
+		expect(normalizeCodeEmbeddingSettings({ provider: "local_lexical" }, DEFAULT_CODE_EMBEDDING_SETTINGS)).toEqual(
+			DEFAULT_CODE_EMBEDDING_SETTINGS,
+		);
+	});
+
+	it("normalizeCodeEmbeddingSettings trims an openai_compatible model/baseUrl and nulls blanks", () => {
+		expect(
+			normalizeCodeEmbeddingSettings(
+				{ provider: "openai_compatible", model: "  text-embed  ", baseUrl: "   " },
+				DEFAULT_CODE_EMBEDDING_SETTINGS,
+			),
+		).toEqual({ provider: "openai_compatible", model: "text-embed", baseUrl: null });
+	});
+
+	it("normalizeCodeEmbeddingOverride returns null for null/undefined", () => {
+		expect(normalizeCodeEmbeddingOverride(null)).toBeNull();
+		expect(normalizeCodeEmbeddingOverride(undefined)).toBeNull();
+	});
+
+	it("areCodeEmbeddingSettingsEqual compares structurally", () => {
+		expect(areCodeEmbeddingSettingsEqual(DEFAULT_CODE_EMBEDDING_SETTINGS, DEFAULT_CODE_EMBEDDING_SETTINGS)).toBe(
+			true,
+		);
+		expect(
+			areCodeEmbeddingSettingsEqual(DEFAULT_CODE_EMBEDDING_SETTINGS, {
+				provider: "openai_compatible",
+				model: "x",
+				baseUrl: null,
+			}),
+		).toBe(false);
+	});
+
+	it("suitability + skill-dynamics overrides reject invalid input and null out no-ops", () => {
+		expect(normalizeModelSuitabilityPolicyOverride(null)).toBeNull();
+		expect(normalizeModelSuitabilityPolicyOverride("garbage")).toBeNull();
+		expect(normalizeSkillDynamicsLevelOverride(undefined)).toBeNull();
+		expect(normalizeSkillDynamicsLevelOverride({ bogus: true })).toBeNull();
+	});
+
+	it("areSkillDynamicsLevelsEqual is a plain identity compare", () => {
+		const a = normalizeSkillDynamicsLevelOverride(null);
+		expect(areSkillDynamicsLevelsEqual(a, a)).toBe(true);
+	});
+});
+
+describe("normalizeAgentRulesets", () => {
+	it("returns the default for garbage and treats a garbage override as a no-op (null)", () => {
+		// Any invalid value normalizes to the shared default...
+		expect(normalizeAgentRulesets("garbage")).toEqual(normalizeAgentRulesets(undefined));
+		// ...and an override equal to the default is stored as null to keep the file clean.
+		expect(normalizeAgentRulesetsOverride("garbage")).toBeNull();
+		expect(normalizeAgentRulesetsOverride(null)).toBeNull();
 	});
 });
