@@ -329,6 +329,39 @@ describe("createCardRelayTools — send_to_card (§5.AU step 6)", () => {
 		expect(relay.queued).toHaveLength(1);
 	});
 
+	it("a steer on a blockedKind-only card surfaces the REAL cause, not a phantom dependency", async () => {
+		// Card blocked by an explicit blockedKind with NO dependency edge: the old suggest_unblock branch
+		// told the user to "reprioritize its blocker, or drop the dependency" — advice for a dependency that
+		// does not exist — and hid the actual cause. It must surface the blockedKind/blockedReason instead.
+		const kindBoard: RuntimeBoardData = {
+			columns: [
+				{
+					id: "planning",
+					title: "Planning",
+					cards: [
+						{
+							id: "k1",
+							title: "Big task",
+							prompt: "",
+							startInPlanMode: false,
+							baseRef: "main",
+							createdAt: 1,
+							updatedAt: 1,
+							blockedKind: "needs_decomposition",
+							blockedReason: "plan too large",
+						},
+					],
+				},
+			],
+			dependencies: [],
+		};
+		const relay = relayTool({ loadBoard: async () => kindBoard });
+		const result = await relay.tool.run({ card_id: "k1", message: "go ahead", intent: "steer" });
+		expect(result).toContain("BLOCKED (needs_decomposition: plan too large)");
+		expect(result).not.toContain("drop the dependency");
+		expect(relay.queued).toHaveLength(1);
+	});
+
 	it("answers questions from board state and records follow-ups on done cards", async () => {
 		const relay = relayTool();
 		const question = await relay.tool.run({ card_id: "blocked-1", message: "what is the status?" });

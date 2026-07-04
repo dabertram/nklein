@@ -308,8 +308,20 @@ export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): 
 					case "suggest_unblock": {
 						const unmet = listUnmetDependencyTaskIds(board, cardId);
 						const pending = await deps.queueMailbox(cardId, message);
-						const blockers = unmet.length > 0 ? unmet.map((id) => `[${id}]`).join(", ") : "its blocker";
-						return `Card [${cardId}] is BLOCKED by ${blockers} — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: reprioritize ${blockers}, or drop the dependency.`;
+						if (unmet.length > 0) {
+							const blockers = unmet.map((id) => `[${id}]`).join(", ");
+							return `Card [${cardId}] is BLOCKED by ${blockers} — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: reprioritize ${blockers}, or drop the dependency.`;
+						}
+						// No unmet dependency edge — the card is blocked by an explicit blockedKind
+						// (needs_decomposition, local_model_required, agent_sandbox_unavailable, …). Surface the REAL
+						// cause instead of pointing at a nonexistent dependency the user cannot reprioritize/drop.
+						const card = board.columns
+							.flatMap((column) => column.cards)
+							.find((candidate) => candidate.id === cardId);
+						const cause = card?.blockedKind
+							? `${card.blockedKind}${card.blockedReason ? `: ${card.blockedReason}` : ""}`
+							: "an unknown blocker";
+						return `Card [${cardId}] is BLOCKED (${cause}) — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: resolve the blocker above.`;
 					}
 					case "append_followup": {
 						const pending = await deps.queueMailbox(cardId, message);
