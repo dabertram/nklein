@@ -61,11 +61,13 @@ draft PR-style change I hold for review, not an auto-merge.
    sinks now guarded by the browse/web_search taint); safe + inert on the swarm.
 6. ✅ **DONE** **§5.L egress-read kind** → added `egress_read` ChatActionKind; browse_url + web_search use
    it → multi-page browsing works, write/exec sinks still taint-guarded. +tests.
-7. **§5.AE apiProfile SESSION-SCOPED** → *PRECURSOR FOUND (2026-07-04):* the chat path does NOT resolve a
-   skill set today (`resolveApiProfileForSkills` has no chat caller — apiProfile is dark END-TO-END, not
-   just the last mile). So this needs skill-set resolution wired into the chat/session path FIRST, then
-   the merged apiProfile applied (reconciled with the chat adapter's existing reasoning/force-tool). Larger
-   than a simple apply-step. *(pending)*
+7. ✅ **DONE (reconcile-core drafted; PRECURSOR needs your decision)** **§5.AE apiProfile SESSION-SCOPED** →
+   shipped the decidable half: `skill-api-profile-apply.ts` — a pure, IDEMPOTENT fold of a merged
+   SkillApiProfile into the chat model-call config, reconciled so nothing double-applies (stricter-wins;
+   inert on a null profile). +6 tests. **BLOCKED on a precursor DECISION:** the chat path resolves NO
+   skill set today, so nothing produces the profile. **Q: which skills apply to a chat session** (by
+   scope? by message content? always the chat/planning bundle?) — decide that + I wire
+   resolveApiProfileForSkills → this fold → the model call.
 8. ✅ **DONE (verified, no change needed)** **§5.AV apply-time strictness** → already REDO-ONLY by design:
    `RedecomposeAction` has NO `block` member (`accept|refine|split|merge|redo`), the apply path in
    `nklein-decomposition-tool` only RECORDS a self-observation on a non-accept verdict (never fails/blocks
