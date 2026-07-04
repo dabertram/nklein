@@ -1191,9 +1191,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] unit-test each localization mode with a fake index.
   - [ ] **N-candidate patch generator (narrow model subtask):**
     - [ ] define the generate-N-patches prompt (localized context in, unified-diff candidates out).
-    - [ ] parse the model output into N discrete diff candidates.
-    - [ ] reject malformed/empty/out-of-scope diffs before validation.
-    - [ ] unit-test the parser + rejection with a fake model.
+    - [x] parse the model output into N discrete diff candidates. *(2026-07-04: parseNPatchCandidates, src/core/patch-candidate-parser.ts)*
+    - [x] reject malformed/empty/out-of-scope diffs before validation. *(same module: empty / no_diff_content / out_of_scope reasons)*
+    - [x] unit-test the parser + rejection with a fake model. *(8 tests: fenced/unfenced/bare, prose reject, scope reject, dedup, /dev/null)*
   - [ ] **Validator (runs the gates):**
     - [ ] run the reproduction test and record fail-before / pass-after.
     - [ ] run the regression suite and capture structured pass/fail.
