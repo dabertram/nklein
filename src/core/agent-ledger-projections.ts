@@ -123,7 +123,10 @@ export function summarizeModelOutcomesByFlow(events: readonly AgentLedgerEvent[]
 	const byKey = new Map<string, { modelId: string; flow: string; byOutcome: Record<ModelOutcomeKind, number> }>();
 	for (const attempt of selectAttempts(events)) {
 		const flow = attempt.flow ?? "board";
-		const key = `${attempt.modelId} ${flow}`;
+		// Null-byte separator (matching summarizeModelOutcomesByRole / buildModelFitnessFromLedger): a SPACE is a
+		// legal char in both modelId (LM Studio display names like "Qwen 3 8B") and flow, so a space delimiter lets
+		// ("model A","board") collide with ("model","A board") and merge two distinct rows into one.
+		const key = `${attempt.modelId}\u0000${flow}`;
 		const entry = byKey.get(key) ?? { modelId: attempt.modelId, flow, byOutcome: emptyLedgerOutcomeCounts() };
 		entry.byOutcome[attempt.outcome] += 1;
 		byKey.set(key, entry);

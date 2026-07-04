@@ -282,6 +282,23 @@ describe("summarizeModelOutcomesByFlow", () => {
 	it("is empty for a stream with no attempts", () => {
 		expect(summarizeModelOutcomesByFlow([])).toEqual([]);
 	});
+
+	it("keeps distinct (model, flow) pairs apart even when a space-joined key would collide", () => {
+		// modelIds routinely contain spaces (LM Studio display names, e.g. "Qwen 3 8B"). A space key separator
+		// let ("model A","board") collide with ("model","A board") into one merged row; the null-byte separator
+		// (matching the sibling rollups) keeps them distinct.
+		const rows = summarizeModelOutcomesByFlow([
+			flowAttempt("model A", "board", "success"),
+			flowAttempt("model", "A board", "loop"),
+		]);
+		expect(rows).toHaveLength(2);
+		const rowA = rows.find((r) => r.modelId === "model A" && r.flow === "board");
+		const rowB = rows.find((r) => r.modelId === "model" && r.flow === "A board");
+		expect(rowA?.samples).toBe(1);
+		expect(rowA?.successRate).toBe(1);
+		expect(rowB?.samples).toBe(1);
+		expect(rowB?.successRate).toBe(0);
+	});
 });
 
 describe("rankModelsByLedgerFitness", () => {
