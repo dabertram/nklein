@@ -83,8 +83,15 @@ export function parsePythonValue(raw: string): unknown {
 	if (/^(?:none|null)$/i.test(value)) {
 		return null;
 	}
-	if (/^-?\d+(?:\.\d+)?$/.test(value)) {
-		return Number(value);
+	// Accept plain ints, fixed-point decimals, leading/trailing-dot floats (.5, 5.), and scientific notation
+	// (1e5, 1.5e-3, 1E-3) — all valid Python number literals an LLM emits as tool args. The prior /^-?\d+(?:\.\d+)?$/
+	// rejected the exponent + dotted forms, so they fell through to the raw-string fallback and a numeric argument
+	// arrived as a string. The `Number.isFinite` guard drops overflow/`NaN` (e.g. 1e999) back to the string path.
+	if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) {
+			return parsed;
+		}
 	}
 	if (value.startsWith("[") || value.startsWith("{")) {
 		// Lists/dicts of literals: Python single-quoted → JSON double-quoted, then reuse the robust JSON repair.

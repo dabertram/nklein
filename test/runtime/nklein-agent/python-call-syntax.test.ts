@@ -54,6 +54,22 @@ describe("parsePythonValue", () => {
 		expect(parsePythonValue("-3.5")).toBe(-3.5);
 	});
 
+	it("parses scientific notation and leading/trailing-dot floats as NUMBERS, not strings", () => {
+		// The old /^-?\d+(?:\.\d+)?$/ rejected these valid Python literals, so a numeric tool arg like
+		// timeout=1e5 arrived as the string "1e5" instead of 100000.
+		expect(parsePythonValue("1e5")).toBe(100000);
+		expect(parsePythonValue("1.5e-3")).toBe(0.0015);
+		expect(parsePythonValue("1E-3")).toBe(0.001);
+		expect(parsePythonValue(".5")).toBe(0.5);
+		expect(parsePythonValue("5.")).toBe(5);
+	});
+
+	it("does NOT mis-parse near-numeric junk as a number (stays a string)", () => {
+		for (const junk of ["1e", "1,000", "0x1F", "1.2.3", "Infinity"]) {
+			expect(parsePythonValue(junk)).toBe(junk);
+		}
+	});
+
 	it("parses lists/dicts via JSON repair (single→double quotes)", () => {
 		expect(parsePythonValue("[1, 2, 3]")).toEqual([1, 2, 3]);
 		expect(parsePythonValue("{'a': 1}")).toEqual({ a: 1 });
