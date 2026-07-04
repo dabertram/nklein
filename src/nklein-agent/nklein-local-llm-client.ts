@@ -287,6 +287,10 @@ export class LocalLlmClient {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 		const signal = request.signal ? anySignal([request.signal, controller.signal]) : controller.signal;
+		// Hoisted so the finally can release it: if reader.read() rejects (abort/timeout/network error mid-stream),
+		// the throw unwinds straight past the read loop and the reader would otherwise keep its lock on the response
+		// body — leaving the undici socket checked out of the keep-alive pool until GC.
+		let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 		try {
 			const response = await this.fetchImpl(url, {
 				method: "POST",
@@ -308,7 +312,7 @@ export class LocalLlmClient {
 			if (!body) {
 				throw new LocalLlmRequestError("Streaming response had no body.", response.status);
 			}
-			const reader = body.getReader();
+			reader = body.getReader();
 			const decoder = new TextDecoder();
 			let buffer = "";
 			let content = "";
@@ -351,6 +355,10 @@ export class LocalLlmClient {
 			return { content, finishReason, raw: null };
 		} finally {
 			clearTimeout(timeout);
+			// Release the reader on EVERY exit — most importantly the throw path (a rejected reader.read() unwinds
+			// here). cancel() releases the lock and signals the producer to stop, returning the undici socket to the
+			// keep-alive pool instead of leaking it until GC. No-op on the already-drained success path.
+			reader?.cancel().catch(() => {});
 		}
 	}
 
@@ -501,13 +509,11 @@ function tryParseJson(content: string): { ok: true; value: unknown } | { ok: fal
 }
 
 function anySignal(signals: AbortSignal[]): AbortSignal {
-	const controller = new AbortController();
-	for (const signal of signals) {
-		if (signal.aborted) {
-			controller.abort();
-			break;
-		}
-		signal.addEventListener("abort", () => controller.abort(), { once: true });
-	}
-	return controller.signal;
+	// Native AbortSignal.any manages the input-signal listeners internally (weak references, removed once the derived
+	// signal is unreferenced after the fetch settles) and preserves the aborting reason. The prior manual
+	// addEventListener("abort", …, {once:true}) LEAKED: {once:true} removes the listener only if that signal actually
+	// aborts, so on a normal exit (or when only the internal per-attempt timeout controller aborts, never
+	// request.signal) the listener on a reused, long-lived request.signal is never removed — one dead listener
+	// accumulates per turn (×2 per structured generation), growing unbounded over a session.
+	return AbortSignal.any(signals);
 }

@@ -619,3 +619,26 @@ describe("LocalLlmClient.completeWithTools", () => {
 		expect(resB.toolCalls).toEqual([]);
 	});
 });
+
+describe("LocalLlmClient.completeStream", () => {
+	it("cancels the stream reader when a read errors mid-stream (no leaked reader/connection)", async () => {
+		// Old finally only cleared the timeout, so a rejected reader.read() left the reader locked + the undici
+		// socket checked out of the keep-alive pool until GC. The finally must reader.cancel() on the throw path.
+		let cancelCalled = false;
+		const fakeReader = {
+			read: vi.fn().mockRejectedValue(new Error("read boom")),
+			cancel: vi.fn(async () => {
+				cancelCalled = true;
+			}),
+		};
+		const fakeResponse = { ok: true, status: 200, body: { getReader: () => fakeReader } } as unknown as Response;
+		const client = new LocalLlmClient({
+			providerId: "lmstudio",
+			modelId: "qwen",
+			baseUrl: "http://127.0.0.1:1234",
+			fetchImpl: (async () => fakeResponse) as unknown as typeof fetch,
+		});
+		await expect(client.completeStream({ messages: [{ role: "user", content: "hi" }] }, () => {})).rejects.toThrow();
+		expect(cancelCalled).toBe(true);
+	});
+});
