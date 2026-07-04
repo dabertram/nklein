@@ -25,7 +25,7 @@ validation" and "needs Playwright e2e" items previously parked for the user.
 **What I did:** ran a systematic adversarial bug-hunt across the codebase (review → independent
 adversarial-verify → CONFIRMED-only), fixing every confirmed defect with a regression test **proven to
 fail on the old code** (where deterministically testable), each committed GREEN through the full gate.
-**20 real bugs fixed** so far (several HIGH: weak-model tool-call data-loss, operator re-escalation
+**24 real bugs fixed** so far (several HIGH: weak-model tool-call data-loss, operator re-escalation
 silently swallowed, ledger-row collision, retry suppressed by an over-broad error match,
 strict-schema-validation gap, a `task delete` that could wipe a whole column, **cross-machine board
 data-loss on schema mismatch**, and a **just-cleared card resurrected by a mid-flight race**). The final
@@ -33,6 +33,33 @@ lens — cross-cutting concurrency/error/resource over the hot paths — found t
 misses. Plus **2 additive test-coverage fences** (+30 tests) and a **completeness sweep** confirming one
 regex-bug class is fully contained. No behavior-changing feature was flipped on — everything is a fix or
 a test, so there's **zero rework risk** to review.
+
+**Bug-hunt batches 16-17 (2026-07-04, post-decisions, +4 bugs → 24):**
+- **#94 card-mailbox same-ms data-loss** (`card-mailbox-store.replayPending`) — a guidance note arriving
+  during the start window at the SAME millisecond as the newest read note was silently, permanently
+  dropped (consume filter used `createdAt > max(at)`; `T > T` is false). Fix: replay in log order so a
+  consume clears only notes appended before it. Two agents independently converged on this exact path.
+- **#95 advisor scheme-less baseUrl** (`local-advisor-completion`) — a valid, local-only-allowed
+  `host:port` baseUrl (no scheme) broke the advisor URL resolvers (`localhost:1234` misparsed, `192.168…`
+  threw). Fix: prepend `http://` like `normalizeHost`. No egress risk (host already local-classified).
+- **#96 idempotent plan re-apply throw** (`plan-task-board-apply`) — re-applying a decomposition after a
+  prerequisite card advanced to completed/trash threw `Could not link … trash_task`, aborting the whole
+  re-apply (CLI/tRPC surfaces the error). Fix: skip the re-apply-benign reasons like `duplicate`.
+- **#97 nested-expansion boundary misclassification** (`plan-task-expansion`) — a child depending on an
+  expanded sibling was misclassified as entry/terminal → spurious (redundant) board dependency edges.
+  Fix: resolve child deps through nested expansions before boundary classification (lint-clean, no `!`).
+- Run as a **find → adversarial-refute Workflow** (7 finders, each finding refuted by an independent
+  skeptic). Signal: **2 CONFIRMED, 1 REFUTED, 4 clean**. The skeptic caught the expansion fix's naive
+  `!`-lint-gate violation, and correctly **refuted** a real-but-unreachable `windows-cmd-launch` escaper
+  defect (only caller `hooks.ts` is retired; live sandbox/host-shell args never carry ≥2 backslashes).
+  taint-labels, durable-scheduler, model-online-lookup, swarm-roster all traced clean.
+
+**Latent finding parked (not fixed — currently unreachable, respecting the reachability bar):**
+`escapeWindowsArgument` (`src/core/windows-cmd-launch.ts:109-110`) under-escapes a run of ≥2 backslashes
+before a quote/EOL (lazy-lookahead doubles only one). Real code defect, but no live caller passes such an
+arg (the escaper is only reached by backslash-free sandbox/host-shell args; the Windows cwd path bypasses
+it). Harden the escaper (greedy backslash-run doubling + round-trip tests) IF/WHEN a caller that passes
+Windows paths through it is wired.
 
 **What needs YOU:** ALL RESOLVED — see **DECISIONS LOCKED** below (David cleared the whole queue
 2026-07-04). Now executing them.
