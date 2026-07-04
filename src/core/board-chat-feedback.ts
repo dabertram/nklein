@@ -92,6 +92,14 @@ export function activeBoardChatAskKinds(signals: OperatorTaskSignals): string[] 
 	return ASK_SIGNALS.filter((ask) => ask.active(signals)).map((ask) => ask.kind);
 }
 
+/**
+ * EVERY ASK-signal kind (independent of current activeness). The feedback bridge uses this to distinguish a
+ * resolvable ASK key from a terminal NOTIFY / milestone key — both are namespaced `${taskId}:${kind}`, so only
+ * keys whose kind is a known ASK kind may be cleared on resolve. Deriving it from `ASK_SIGNALS` keeps the bridge
+ * from silently missing a kind (e.g. a hand-maintained regex once omitted `escalated_to_operator`).
+ */
+export const BOARD_CHAT_ASK_KINDS: readonly string[] = ASK_SIGNALS.map((ask) => ask.kind);
+
 /** True when the signals represent the clean terminal "done / awaiting human review" state. */
 function isDone(s: OperatorTaskSignals): boolean {
 	return s.columnId === "completed" || s.columnId === "review" || s.sessionState === "awaiting_review";

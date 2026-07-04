@@ -9,7 +9,12 @@
 // throws into the summary handler that drives it.
 
 import { type BoardChatDigestItem, buildBoardChatDigest } from "../core/board-chat-digest";
-import { activeBoardChatAskKinds, type BoardChatVerbosity, decideBoardChatFeedback } from "../core/board-chat-feedback";
+import {
+	activeBoardChatAskKinds,
+	BOARD_CHAT_ASK_KINDS,
+	type BoardChatVerbosity,
+	decideBoardChatFeedback,
+} from "../core/board-chat-feedback";
 import { type CoalescingScheduler, createCoalescingScheduler } from "../core/coalescing-scheduler";
 import {
 	mapSessionSummaryToOperatorSignals,
@@ -156,7 +161,8 @@ export function createBoardChatFeedbackBridge(deps: BoardChatFeedbackBridgeDeps)
 				for (const key of [...keys]) {
 					const isAskKey = key.startsWith(`${transition.taskId}:`) && !activeAsks.has(key);
 					// Only clear ASK keys — NOTIFY keys (done/failed) are terminal and stay deduped.
-					if (isAskKey && key.match(/:(unsafe_action_ack|delivery_gate_held|needs_input|sandbox_unavailable)$/)) {
+					const askKind = key.slice(transition.taskId.length + 1);
+					if (isAskKey && BOARD_CHAT_ASK_KINDS.includes(askKind)) {
 						keys.delete(key);
 						await deps.clearOutstandingAsk?.(owner.sessionId, key).catch((error) => deps.onError?.(error));
 					}

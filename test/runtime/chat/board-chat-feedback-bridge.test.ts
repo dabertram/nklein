@@ -104,6 +104,33 @@ describe("board→chat feedback bridge (§5.AT/§5.AU)", () => {
 		expect(h.appended).toHaveLength(2);
 	});
 
+	it("clears a resolved escalated_to_operator ASK so a re-escalation re-notifies the operator", async () => {
+		// Regression: the clear-loop's hand-maintained regex omitted `escalated_to_operator`, so a resolved
+		// escalation key was never cleared and a later re-escalation was deduped away — the operator was never
+		// re-notified. The ASK-kind list (single source of truth) now covers every kind.
+		const h = harness();
+		const escalated = tx({
+			columnId: "in_progress",
+			prevSummary: { state: "running" },
+			nextSummary: { state: "running" },
+			overrides: { escalatedToOperator: true },
+		});
+		await h.bridge.onTransition(escalated); // surface #1
+		expect(h.asks).toEqual([{ sessionId: "chat-1", signalKey: "t1:escalated_to_operator" }]);
+		await h.bridge.onTransition(
+			tx({
+				columnId: "in_progress",
+				prevSummary: { state: "running" },
+				nextSummary: { state: "running" },
+				overrides: { escalatedToOperator: false },
+			}),
+		); // resolved ⇒ must clear
+		expect(h.cleared).toEqual([{ sessionId: "chat-1", signalKey: "t1:escalated_to_operator" }]);
+		await h.bridge.onTransition(escalated); // re-escalation ⇒ surfaces + re-binds again
+		expect(h.appended).toHaveLength(2);
+		expect(h.asks).toHaveLength(2);
+	});
+
 	it("coalesces deferred (quiet-mode) NOTIFYs and flush() emits one combined digest", async () => {
 		const owner: OwningChatRef = { sessionId: "chat-1", verbosity: "normal", quiet: true };
 		const h = harness({ resolveOwningChat: async () => owner, digestDelayMs: 10_000 });
