@@ -37,12 +37,47 @@ to avoid locking in a direction you'd want to choose:
    prompt-injection defense; should it default ON once the swarm seam is also covered? (Strictness:
    the single-browse-per-turn behavior above.)
 
+5. **§5.AE skill-fragment → prompt-assembly mapping** — the skill registry's `ContextFragmentId`s
+   (repo_map, focus_chain, refinement_preamble, temporal, freshness_rail, online_retrieval) do NOT
+   map 1:1 to `assembleSessionSystemPrompt`'s keys (base, efficiency-rules, temporal-context,
+   planning-workflow, home-agent-append, session-env). **Q: what's the intended fragment-id→text
+   mapping, and which registry fragments are blocks that don't exist yet (repo_map, focus_chain)?**
+6. **§5.AE apiProfile plumbing** — `resolveApiProfileRequest` has zero live callers; the resolved
+   `activeSkillSet.apiProfile` (thinkingDirective/response_format/temperature/forceToolCall) is never
+   threaded to the client. **Q: session-scoped config vs per-call? And how does it reconcile with the
+   chat adapter's EXISTING reasoning/force-tool logic so they don't double-apply?**
+7. **§5.AV apply-time enforcement strictness** — beyond the creation-gate cycle rejection (which I
+   may do, it's bounded), should `decideRedecomposeTrigger`'s split/merge/refine verdicts ever BLOCK
+   (not just redo)? At what bounce-budget threshold, given weak models must not spiral? **Q: how
+   strict at apply time vs. letting the SCC-condense repair net handle it?**
+8. **§5.AW opportunistic-work value-ladder** — the idle-detector + work-ahead picker are buildable,
+   but composing them into the ranker (work-ahead vs review vs deliberation-seed vs spec-mirror vs
+   context-prep) is an undecided design. **Q: intended priority order + the veto rule when real
+   queued work exists?**
+9. **§5.AN native /api/v0 stats** — todo's own note says auto-feeding per-request is low-value /
+   high-latency; keep it on-demand (`dev model-speed`)? **Q: confirm on-demand only, or is there a
+   perf investigation that justifies per-request live stats?**
+10. **§5.AN/§5.AL runtime model-research needs a real web-SEARCH tool** — `browse_url` only fetches a
+    known URL, can't search. **Q: build a web-search tool now (behind what egress gate), or keep
+    deferred per the §5.AO strong-driver-first steer?** (Note: the §5.AC retrieval loop already has a
+    SearXNG search adapter — this may be mostly wiring, worth a look.)
+
 (Appended as I hit more forks.)
 
 ---
 
 ## Work log (newest first)
 
+- **Triage batch assessed (5 "ready-now" leaves) — most were over-credited on verification:**
+  #4 TTL-suggester seam is DARK (`loadModelExclusive`/`planGuardedModelLoad` have no live callers —
+  the live load path is elsewhere); #3 spec-ledger-field needs a NEW producer call threaded into
+  `second-opinion-review-runner` arbitration (not "just add a field"); #1 self-check tool + #2 WBS
+  prompt are flag-gated *behavior changes* (buildable, but #2 needs model-validation to know it
+  helps); #5 creation-gate rejection is a design-fork (routed to guidance #7). Net: the clean
+  5-minute additive-wire vein is confirmed harvested (matches 3 prior scout rounds). **Pivoting to a
+  TEST-COVERAGE push (§5.V)** — purely additive, zero rework risk, always valuable, sustainable for a
+  multi-day run: find under-tested pure cores → comprehensive tests → GREEN. Surfaced bugs get fixed
+  (never waived).
 - **§5.AC extract-into-synthesis** — `buildSynthesisPrompt` now narrows LONG evidence to
   query-relevant spans via the tested-but-dark `extractRelevantSpans` (lights it up) instead of an
   arbitrary head slice; short evidence + no-match fall back unchanged. +1 test. GREEN.
