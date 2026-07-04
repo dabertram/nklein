@@ -192,6 +192,17 @@ describe("isKnowledgeStale — re-fetch decider", () => {
 		expect(isKnowledgeStale({ volatility: "realtime", ageDays: 0 }).stale).toBe(false);
 	});
 
+	it("realtime is stale even at a FRACTIONAL sub-day age (regression: don't round the age to 0 before comparing)", () => {
+		// A live price cached ~7 hours ago (0.3 days). The old code rounded 0.3 → 0 and reported it current.
+		expect(isKnowledgeStale({ volatility: "realtime", ageDays: 0.3 }).stale).toBe(true);
+		expect(isKnowledgeStale({ volatility: "realtime", ageDays: 0.01 }).stale).toBe(true);
+	});
+
+	it("a fractional age just past a small TTL is stale (0.9 days > a 0-day floor)", () => {
+		// A non-realtime class pinned to a tight ttlDays=0 also stales at any positive fractional age.
+		expect(isKnowledgeStale({ volatility: "fast", ageDays: 0.9, ttlDays: 0 }).stale).toBe(true);
+	});
+
 	it("stable knowledge is not stale even after years, with an evergreen reason", () => {
 		const r = isKnowledgeStale({ volatility: "stable", ageDays: 1000 });
 		expect(r.stale).toBe(false);

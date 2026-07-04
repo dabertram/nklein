@@ -253,14 +253,18 @@ export function isKnowledgeStale(input: {
 	ttlDays?: number;
 }): KnowledgeStaleness {
 	const ttlDays = input.ttlDays ?? DEFAULT_TTL_DAYS[input.volatility];
-	const age = Number.isFinite(input.ageDays) ? Math.max(0, Math.round(input.ageDays)) : 0;
+	// Compare on the RAW (non-negative) age — NOT a rounded one — so a fractional age past a zero/small TTL is caught:
+	// `realtime` (TTL 0) is stale at ANY non-zero age (0.3 → stale). Rounding here would floor 0.3 to 0 and miss it.
+	const age = Number.isFinite(input.ageDays) ? Math.max(0, input.ageDays) : 0;
 	const stale = age > ttlDays;
-	const remainingDays = stale ? 0 : ttlDays - age;
+	// A whole-day figure for the human-readable strings only (the boolean above stays exact).
+	const displayAge = Math.round(age);
+	const remainingDays = stale ? 0 : Math.max(0, ttlDays - displayAge);
 	const reason = stale
-		? `Cached ${input.volatility} knowledge is ~${age} day${age === 1 ? "" : "s"} old, past its ~${ttlDays}-day TTL — re-fetch before relying on it.`
+		? `Cached ${input.volatility} knowledge is ~${displayAge} day${displayAge === 1 ? "" : "s"} old, past its ~${ttlDays}-day TTL — re-fetch before relying on it.`
 		: ttlDays >= DEFAULT_TTL_DAYS.stable
 			? `Cached ${input.volatility} knowledge is effectively evergreen — safe to reuse without re-fetching.`
-			: `Cached ${input.volatility} knowledge is ~${age} day${age === 1 ? "" : "s"} old, within its ~${ttlDays}-day TTL — reuse it (~${remainingDays} day${remainingDays === 1 ? "" : "s"} of headroom).`;
+			: `Cached ${input.volatility} knowledge is ~${displayAge} day${displayAge === 1 ? "" : "s"} old, within its ~${ttlDays}-day TTL — reuse it (~${remainingDays} day${remainingDays === 1 ? "" : "s"} of headroom).`;
 	return { stale, ttlDays, remainingDays, reason };
 }
 
