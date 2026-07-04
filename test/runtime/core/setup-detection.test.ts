@@ -15,51 +15,58 @@ import {
 } from "../../../src/core/setup-detection";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../../../src/nklein-agent/nklein-agent-sandbox-docker";
 
 const GB = 1024;
 
-describe("recommendSandboxPoolSizing", () => {
-	it("uses the DEFAULT_AGENT_SANDBOX_* constants as the floor on tiny hardware", () => {
-		const result = recommendSandboxPoolSizing({ totalRamMb: 8 * GB, cpuCount: 4 });
-		expect(result.maxContainers).toBe(DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS);
-		expect(result.agentsPerContainer).toBe(DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER);
-		expect(result.memoryPerContainerMb).toBe(DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB);
-		expect(result.cpusPerContainer).toBe(DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER);
-		expect(result.rationale).toContain("GB RAM");
+describe("recommendSandboxPoolSizing (one shared container + exec spike guard)", () => {
+	it("always recommends the one-shared-container model (maxContainers 1, unlimited co-occupancy)", () => {
+		const r = recommendSandboxPoolSizing({ totalRamMb: 32 * GB, cpuCount: 8, dockerVmMemoryMb: 16 * GB });
+		expect(r.maxContainers).toBe(1);
+		expect(r.agentsPerContainer).toBe(DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER); // 0
+		expect(r.maxConcurrentExec).toBeGreaterThanOrEqual(1);
+		expect(r.rationale).toContain("shared container");
 	});
 
-	it("never drops below the floor even with zero/garbage hardware facts", () => {
-		expect(recommendSandboxPoolSizing({ totalRamMb: 0, cpuCount: 0 }).maxContainers).toBe(
-			DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-		);
-		expect(recommendSandboxPoolSizing({ totalRamMb: Number.NaN, cpuCount: -4 }).maxContainers).toBe(
-			DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
-		);
+	it("sizes the container + exec cap against the DOCKER VM, not host RAM", () => {
+		// Huge host RAM but a SMALL Docker VM → the container is capped by the VM (minus Docker overhead), not the host.
+		const r = recommendSandboxPoolSizing({ totalRamMb: 128 * GB, cpuCount: 18, dockerVmMemoryMb: 8 * GB });
+		expect(r.dockerVmMemoryMb).toBe(8 * GB);
+		expect(r.memoryPerContainerMb).toBeLessThan(8 * GB); // strictly inside the VM
+		expect(r.memoryPerContainerMb).toBeGreaterThanOrEqual(DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB);
 	});
 
-	it("scales the container count up with RAM + CPU on a bigger machine", () => {
-		// 64 GB / 16 CPU: after reserving 8 GB + 1 CPU → ~28 GB, 15 CPU; RAM-bound at floor(28/2)=14 but CPU caps it.
-		const big = recommendSandboxPoolSizing({ totalRamMb: 64 * GB, cpuCount: 16 });
-		expect(big.maxContainers).toBeGreaterThan(DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS);
-		// Per-container memory/CPU stay at the tuned defaults — we grow the pool, not each container.
-		expect(big.memoryPerContainerMb).toBe(DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB);
-		expect(big.cpusPerContainer).toBe(DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER);
+	it("scales the container memory + exec cap up on a bigger Docker VM (not more containers)", () => {
+		const small = recommendSandboxPoolSizing({ totalRamMb: 128 * GB, cpuCount: 18, dockerVmMemoryMb: 8 * GB });
+		const big = recommendSandboxPoolSizing({ totalRamMb: 128 * GB, cpuCount: 18, dockerVmMemoryMb: 24 * GB });
+		expect(big.memoryPerContainerMb).toBeGreaterThan(small.memoryPerContainerMb);
+		expect(big.maxConcurrentExec).toBeGreaterThanOrEqual(small.maxConcurrentExec);
+		expect(big.maxContainers).toBe(1);
 	});
 
-	it("caps the recommended container count regardless of hardware", () => {
-		const huge = recommendSandboxPoolSizing({ totalRamMb: 1024 * GB, cpuCount: 128 });
-		expect(huge.maxContainers).toBeLessThanOrEqual(8);
+	it("caps the concurrent-exec recommendation regardless of hardware", () => {
+		const huge = recommendSandboxPoolSizing({ totalRamMb: 1024 * GB, cpuCount: 128, dockerVmMemoryMb: 256 * GB });
+		expect(huge.maxConcurrentExec).toBeLessThanOrEqual(6);
 	});
 
-	it("is RAM-bound when RAM is scarce relative to CPUs", () => {
-		// 16 GB / 32 CPU: after reserve → 8 GB → floor(8/4)=2 containers (RAM caps below the CPU allowance).
-		// (Per-container budget is now 4 GiB — the bumped DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB.)
-		const ramBound = recommendSandboxPoolSizing({ totalRamMb: 16 * GB, cpuCount: 32 });
-		expect(ramBound.maxContainers).toBe(2);
+	it("WARNS when the Docker VM is too small for the target concurrency", () => {
+		const r = recommendSandboxPoolSizing({ totalRamMb: 128 * GB, cpuCount: 18, dockerVmMemoryMb: 8 * GB });
+		expect(r.warnings.length).toBeGreaterThan(0);
+		expect(r.warnings.join(" ")).toMatch(/Docker.*VM is only|Raise it to/i);
+	});
+
+	it("warns to verify the Docker VM when its size is unknown (no docker info)", () => {
+		const r = recommendSandboxPoolSizing({ totalRamMb: 32 * GB, cpuCount: 8 });
+		expect(r.dockerVmMemoryMb).toBeNull();
+		expect(r.warnings.join(" ")).toMatch(/Could not detect the Docker VM/i);
+	});
+
+	it("never drops below a usable floor on garbage inputs (never throws)", () => {
+		const r = recommendSandboxPoolSizing({ totalRamMb: Number.NaN, cpuCount: -4, dockerVmMemoryMb: 0 });
+		expect(r.maxContainers).toBe(1);
+		expect(r.memoryPerContainerMb).toBeGreaterThanOrEqual(DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB);
+		expect(r.maxConcurrentExec).toBeGreaterThanOrEqual(1);
 	});
 });
 

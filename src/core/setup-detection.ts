@@ -16,7 +16,6 @@ import { DEFAULT_MAX_CONCURRENT_TASKS } from "../config/runtime-config-defaults"
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
-	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox-docker";
 
@@ -24,61 +23,116 @@ import {
 // Sandbox pool sizing
 // ---------------------------------------------------------------------------------------------------------
 
-/** Recommended Docker sandbox pool sizing derived from detected hardware. */
+/** Recommended ONE-shared-container sandbox sizing derived from the host + the Docker VM. */
 export interface SandboxPoolRecommendation {
+	/** 1 — one shared container hosts every agent. */
 	maxContainers: number;
+	/** 0 — unlimited co-occupancy; the exec cap (not the agent count) governs the memory peak. */
 	agentsPerContainer: number;
+	/** The one container's memory, fitted inside the Docker VM (minus Docker's own overhead). */
 	memoryPerContainerMb: number;
 	cpusPerContainer: number;
+	/** Concurrent in-container commands the container can hold at once — the spike guard. */
+	maxConcurrentExec: number;
+	/** The Docker VM memory (MB) the sizing was computed against, or null when it couldn't be detected. */
+	dockerVmMemoryMb: number | null;
+	/** Actionable warnings — chiefly "raise the Docker VM" when it's too small for a useful container. */
+	warnings: string[];
 	/** Plain-language explanation of how the numbers were derived (rendered under the wizard step). */
 	rationale: string;
 }
 
-/** Heuristic budget: reserve headroom for the OS + the local model server before sizing the sandbox pool. */
+/** Reserve for the OS + local model server when sizing against HOST RAM (the fallback when the Docker VM is unknown). */
 const SANDBOX_HOST_RESERVED_RAM_MB = 8192;
-/** Heuristic: reserve one CPU for the host/model server; the rest is available to the sandbox pool. */
+/** Reserve one CPU for the host/model server; the rest is available to the container. */
 const SANDBOX_HOST_RESERVED_CPUS = 1;
-/** Heuristic per-container budget the sizing scales the pool against (~2 GB + 1 CPU per container). */
-const SANDBOX_RAM_PER_CONTAINER_MB = DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB;
-const SANDBOX_CPUS_PER_CONTAINER_BUDGET = 1;
-/** Never recommend more than this many containers regardless of hardware (thrash / diminishing-returns guard). */
-const SANDBOX_MAX_RECOMMENDED_CONTAINERS = 8;
+/** Memory a single concurrent heavy in-container command (npm/build/the acceptance command) can claim. */
+const SANDBOX_EXEC_SPIKE_BUDGET_MB = 1536;
+/** The one container's baseline (sleep + page cache + light git ops) on top of the concurrent spikes. */
+const SANDBOX_CONTAINER_BASELINE_MB = 1024;
+/** Reserved inside the Docker VM for the docker daemon / buildkit / image layers, before the container's own budget. */
+const DOCKER_VM_OVERHEAD_MB = 3072;
+/** Never recommend more concurrent execs than this (diminishing returns + thrash guard). */
+const SANDBOX_MAX_RECOMMENDED_EXEC = 6;
 
 /**
- * Recommend Docker sandbox pool sizing from detected RAM + CPU. The established DEFAULT_AGENT_SANDBOX_*
- * constants are the FLOOR (a small machine gets exactly the defaults); larger machines scale the container
- * count up against a ~2 GB + 1 CPU per-container budget after reserving headroom for the OS and the local
- * model server. Per-container memory/CPU keep their tuned defaults — we grow the pool, not each container.
+ * Recommend ONE-shared-container sizing (todo §5.AR): one container hosts every agent (maxContainers=1,
+ * agentsPerContainer=0), and the memory ceiling is governed by how many in-container commands run AT ONCE
+ * (`maxConcurrentExec` — the spike guard), NOT the agent count. Sizes the container + exec cap against the DOCKER VM
+ * (containers live inside it on macOS/Windows), falling back to a host-RAM budget only when the VM size isn't known,
+ * and WARNS when the Docker VM is too small for a useful container (the real bottleneck on a big host running a
+ * default Docker VM). Pure: the caller passes detected host RAM/CPU + the Docker VM memory (from `docker info`).
  */
-export function recommendSandboxPoolSizing(input: { totalRamMb: number; cpuCount: number }): SandboxPoolRecommendation {
+export function recommendSandboxPoolSizing(input: {
+	totalRamMb: number;
+	cpuCount: number;
+	/** Docker VM memory in MB (from `docker info` Total Memory). null/undefined ⇒ unknown (Linux host, or not probed). */
+	dockerVmMemoryMb?: number | null;
+}): SandboxPoolRecommendation {
 	const totalRamMb = Number.isFinite(input.totalRamMb) && input.totalRamMb > 0 ? input.totalRamMb : 0;
 	const cpuCount = Number.isFinite(input.cpuCount) && input.cpuCount > 0 ? Math.floor(input.cpuCount) : 1;
+	const dockerVmMemoryMb =
+		typeof input.dockerVmMemoryMb === "number" &&
+		Number.isFinite(input.dockerVmMemoryMb) &&
+		input.dockerVmMemoryMb > 0
+			? Math.floor(input.dockerVmMemoryMb)
+			: null;
 
-	const availableRamMb = Math.max(0, totalRamMb - SANDBOX_HOST_RESERVED_RAM_MB);
+	// How many concurrent heavy commands the host could usefully run — ~one per 2 cores, clamped.
 	const availableCpus = Math.max(0, cpuCount - SANDBOX_HOST_RESERVED_CPUS);
+	const execTarget = Math.min(SANDBOX_MAX_RECOMMENDED_EXEC, Math.max(1, Math.floor(availableCpus / 2)));
+	const targetContainerMb = execTarget * SANDBOX_EXEC_SPIKE_BUDGET_MB + SANDBOX_CONTAINER_BASELINE_MB;
 
-	const byRam = Math.floor(availableRamMb / SANDBOX_RAM_PER_CONTAINER_MB);
-	const byCpu = Math.floor(availableCpus / SANDBOX_CPUS_PER_CONTAINER_BUDGET);
+	// The container lives inside the Docker VM (macOS/Windows) → capped by VM − Docker overhead. Unknown VM ⇒ fall back
+	// to a host-RAM budget (Linux, where containers use host memory directly).
+	const containerCeilingMb =
+		dockerVmMemoryMb !== null
+			? Math.max(0, dockerVmMemoryMb - DOCKER_VM_OVERHEAD_MB)
+			: Math.max(0, totalRamMb - SANDBOX_HOST_RESERVED_RAM_MB);
 
-	const scaled = Math.min(byRam, byCpu);
-	const maxContainers = Math.min(
-		SANDBOX_MAX_RECOMMENDED_CONTAINERS,
-		Math.max(DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS, scaled),
+	// Fit the target into the ceiling, never below the shipped floor (a tiny VM still gets a working — if capped — box).
+	const memoryPerContainerMb = Math.max(
+		DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
+		containerCeilingMb > 0 ? Math.min(targetContainerMb, containerCeilingMb) : targetContainerMb,
 	);
+	const maxConcurrentExec = Math.min(
+		execTarget,
+		Math.max(1, Math.floor((memoryPerContainerMb - SANDBOX_CONTAINER_BASELINE_MB) / SANDBOX_EXEC_SPIKE_BUDGET_MB)),
+	);
+	const cpusPerContainer = Math.max(DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER, Math.min(12, availableCpus));
+
+	const warnings: string[] = [];
+	const neededVmMb = targetContainerMb + DOCKER_VM_OVERHEAD_MB;
+	if (dockerVmMemoryMb !== null && dockerVmMemoryMb < neededVmMb) {
+		warnings.push(
+			`Docker's VM is only ${formatRamGb(dockerVmMemoryMb)} — too small to run ${execTarget} concurrent build/test ` +
+				`commands (capped at ${maxConcurrentExec}). Raise it to ≥ ${formatRamGb(neededVmMb)} in Docker Desktop → ` +
+				`Settings → Resources → Memory (your host has ${formatRamGb(totalRamMb)}; the VM is dynamic, so a higher cap ` +
+				`does not pre-reserve RAM).`,
+		);
+	} else if (dockerVmMemoryMb === null) {
+		warnings.push(
+			`Could not detect the Docker VM memory — on Docker Desktop, ensure its VM is ≥ ${formatRamGb(neededVmMb)} ` +
+				`(Settings → Resources → Memory) so the sandbox can run ${execTarget} concurrent build/test commands.`,
+		);
+	}
 
 	const rationale =
-		`Detected ${formatRamGb(totalRamMb)} RAM and ${cpuCount} CPU${cpuCount === 1 ? "" : "s"}. ` +
-		`After reserving ${formatRamGb(SANDBOX_HOST_RESERVED_RAM_MB)} + ${SANDBOX_HOST_RESERVED_CPUS} CPU for the OS and ` +
-		`local model server, budgeting ~${formatRamGb(SANDBOX_RAM_PER_CONTAINER_MB)} + ` +
-		`${SANDBOX_CPUS_PER_CONTAINER_BUDGET} CPU per container gives room for ${maxContainers} ` +
-		`container${maxContainers === 1 ? "" : "s"} (floor ${DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS}, ` +
-		`cap ${SANDBOX_MAX_RECOMMENDED_CONTAINERS}).`;
+		`One shared container hosts every agent; its memory ceiling is governed by how many in-container commands run at ` +
+		`once, not the agent count. Detected ${formatRamGb(totalRamMb)} host RAM, ${cpuCount} CPU${cpuCount === 1 ? "" : "s"}` +
+		`${dockerVmMemoryMb !== null ? `, Docker VM ${formatRamGb(dockerVmMemoryMb)}` : ", Docker VM size unknown"}. ` +
+		`Sized the container to ${formatRamGb(memoryPerContainerMb)} with up to ${maxConcurrentExec} concurrent command` +
+		`${maxConcurrentExec === 1 ? "" : "s"} (~${formatRamGb(SANDBOX_EXEC_SPIKE_BUDGET_MB)} each + ` +
+		`${formatRamGb(SANDBOX_CONTAINER_BASELINE_MB)} baseline).`;
 
 	return {
-		maxContainers,
+		maxContainers: 1,
 		agentsPerContainer: DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
-		memoryPerContainerMb: DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-		cpusPerContainer: DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+		memoryPerContainerMb,
+		cpusPerContainer,
+		maxConcurrentExec,
+		dockerVmMemoryMb,
+		warnings,
 		rationale,
 	};
 }
@@ -208,6 +262,8 @@ export interface GlobalSetupFacts {
 	providerEndpoint: string;
 	/** Whether the Docker daemon + sandbox image are available (null = not probed / unknown). */
 	dockerAvailable: boolean | null;
+	/** Docker VM memory in MB (from `docker info` Total Memory); null = not probed / Linux host. Sizes the sandbox. */
+	dockerVmMemoryMb?: number | null;
 	/** Current second-opinion review posture (defaults to the global default when unset). */
 	secondOpinionReviewEnabled: boolean;
 }
@@ -247,7 +303,11 @@ export const PROJECT_SETUP_STEP_IDS = [
  * ids (provider → sandbox → concurrency → review → guardrails → features); the UI renders this list later.
  */
 export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
-	const sandbox = recommendSandboxPoolSizing({ totalRamMb: facts.totalRamMb, cpuCount: facts.cpuCount });
+	const sandbox = recommendSandboxPoolSizing({
+		totalRamMb: facts.totalRamMb,
+		cpuCount: facts.cpuCount,
+		dockerVmMemoryMb: facts.dockerVmMemoryMb,
+	});
 	const concurrency = recommendConcurrency({ loadedModelCount: facts.loadedModelCount, cpuCount: facts.cpuCount });
 
 	const providerRecommendation = facts.providerReachable
@@ -270,9 +330,9 @@ export function buildGlobalSetupPlan(facts: GlobalSetupFacts): SetupPlanStep[] {
 		},
 		{
 			stepId: "sandbox",
-			title: "Docker sandbox pool",
-			recommendation: `Up to ${sandbox.maxContainers} container${sandbox.maxContainers === 1 ? "" : "s"} @ ${sandbox.memoryPerContainerMb} MB / ${sandbox.cpusPerContainer} CPU each.`,
-			detail: `${sandbox.rationale} ${dockerDetail}`,
+			title: "Docker sandbox",
+			recommendation: `One shared container @ ${sandbox.memoryPerContainerMb} MB / ${sandbox.cpusPerContainer} CPU, up to ${sandbox.maxConcurrentExec} concurrent command${sandbox.maxConcurrentExec === 1 ? "" : "s"}.`,
+			detail: [sandbox.rationale, dockerDetail, ...sandbox.warnings].join(" "),
 		},
 		{
 			stepId: "concurrency",
