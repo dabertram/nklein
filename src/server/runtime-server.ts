@@ -673,14 +673,17 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// `appendEvent`/`readLedger` are the §5.AF agent-ledger store (persist-before-dispatch + boot-replay). Disabled by
 	// default (NKLEIN_DURABLE_SCHEDULER off) ⇒ every method is inert and the runtime is byte-identical.
 	// DEFAULT-ON DEFERRED (2026-07-04): the concurrency-defer fix is proven (deterministic guard + cap=1/cap=2 real-model
-	// PASS), but SWEEP-to-validate flipping the default found a REAL gap — the review-BOUNCE → RE-WORK flow is broken under
-	// durable. The controller reacts awaiting_review→succeeded (the agent finished), so when a reviewer BOUNCES the work
-	// the card's job is already `succeeded` and the durable scheduler never re-leases it to re-work; the legacy
-	// foreground re-drive that re-runs a bounced card is guarded out. (swarm-deterministic-bounce fails under the flag:
-	// "review outcome: bounced" → next review "skipped (not_reviewable)" → delivery held — the re-work never ran.) The
-	// HOLD path (no-op worker held in review) DOES work under durable. Fix = a durable reopen-on-bounce (transition a
-	// succeeded job back to ready + re-lease) before default-on. See todo §5.AF. (The 3-file swarm integration batch also
-	// flakes on parallel Docker-pool contention under the flag — the hold test passes ALONE.)
+	// PASS), but SWEEP-to-validate flipping the default found swarm-deterministic-BOUNCE fails under the flag. DIAGNOSIS
+	// (from the preserved task-run: gamma reaches awaiting_review, re-works to awaiting_review AGAIN, then is INTERRUPTED):
+	// the re-work DOES run — the failure is the SECOND review firing `not_reviewable` (the known finalize-again-while-the-
+	// bounce-round-still-persists race, guarded at finalizeHeadlessAutoReviewTask ~L995) → card HELD → session stopped →
+	// interrupted → the round-2 review never lands → stuck in Review. The durable `observeSummary` on the first
+	// awaiting_review runs CONCURRENTLY with the review finalization (both fire on the same onSummary) and deterministically
+	// shifts the bounce→re-work→re-review timing past the in-flight guard. So the fix is NOT a durable reopen-on-bounce
+	// (an earlier wrong hypothesis — the re-work runs); it's making the finalization re-run robust to the durable-shifted
+	// timing (e.g. the durable observeSummary should not race the finalization for the same task, or the finalize in-flight
+	// guard must re-run reliably after a bounce persist). Subtle timing fix — needs a focused pass. See todo §5.AF.
+	// (The 3-file swarm integration batch also flakes on parallel Docker-pool contention under the flag; hold passes ALONE.)
 	const durableSchedulerEnabled = isTruthyEnv(process.env.NKLEIN_DURABLE_SCHEDULER);
 	durableRunWiring = createDurableRunWiring({
 		enabled: durableSchedulerEnabled,
