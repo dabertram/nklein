@@ -68,6 +68,12 @@ to avoid locking in a direction you'd want to choose:
 
 ## Work log (newest first)
 
+- **Bug-hunt batch 1 (8 complex src/core cores, review → adversarial-verify → CONFIRMED-only) → 2 real bugs FIXED:**
+  (HIGH) `assessToolArgumentRepair` ran the enum gate on the RAW value before coercion, so a
+  losslessly-coercible enum value (`"1"` for `[1,2,3]`) was refused a repairable tool call live —
+  fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
+  (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
+  matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
 - **Triage batch assessed (5 "ready-now" leaves) — most were over-credited on verification:**
   #4 TTL-suggester seam is DARK (`loadModelExclusive`/`planGuardedModelLoad` have no live callers —
   the live load path is elsewhere); #3 spec-ledger-field needs a NEW producer call threaded into
