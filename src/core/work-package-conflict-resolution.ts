@@ -296,7 +296,10 @@ function formatList(values: readonly string[]): string {
 function forbiddenTargetPaths(violations: readonly string[]): string[] {
 	const paths: string[] = [];
 	for (const violation of violations) {
-		const match = violation.match(/writes "([^"]+)"/u);
+		// Anchor the capture to the message's fixed trailing delimiter (`" inside … forbidden "`) rather than a
+		// negated-quote class — a write glob that itself contains a `"` would otherwise be truncated at the embedded
+		// quote, so the structured `paths` array reported a broader/wrong target than the human-readable rationale.
+		const match = violation.match(/writes "(.+)" inside .+ forbidden "/u);
 		if (match?.[1] !== undefined) {
 			paths.push(match[1]);
 		}

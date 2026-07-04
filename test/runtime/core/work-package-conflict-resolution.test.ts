@@ -166,6 +166,20 @@ describe("suggestPairConflictResolution — RED write-into-forbidden", () => {
 		expect(drop?.rationale).toContain("forbidden");
 	});
 
+	it("captures a write path containing an embedded quote (not truncated at the quote)", () => {
+		// The old /writes "([^"]+)"/ negated-quote class stopped at the embedded quote and reported the
+		// truncated "src/server/" in the machine-readable paths array (the rationale stayed correct).
+		const a = pkg({ id: "a", writeScope: ['src/server/"weird.ts'] });
+		const b = pkg({
+			id: "b",
+			writeScope: ["src/core/b.ts"],
+			forbiddenScope: ["src/server"],
+		});
+		const resolution = resolvePackagePairConflict(a, b) as ConflictResolution;
+		const drop = optionOf(resolution, "drop_forbidden_write");
+		expect(drop?.paths).toEqual(['src/server/"weird.ts']);
+	});
+
 	it("BOTH a shared specific file AND a forbidden violation → specific options, then forbidden, then serialize", () => {
 		const a = pkg({
 			id: "a",
