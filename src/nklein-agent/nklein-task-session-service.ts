@@ -18,6 +18,7 @@ import {
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
 import { buildModelBehaviorProfilesFromLedger } from "../core/agent-ledger-projections";
+import type { SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type {
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -434,6 +435,7 @@ export interface NKleinTaskSessionService {
 	 */
 	rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean>;
 	updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void>;
+	setSandboxNetworkPolicy(policy: SandboxNetworkPolicy): Promise<void>;
 	resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]>;
 	dispose(): Promise<void>;
 }
@@ -3904,6 +3906,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	async updateAgentSandboxPoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
 		await this.agentSandboxManager?.updatePoolConfig(config);
+	}
+
+	async setSandboxNetworkPolicy(policy: SandboxNetworkPolicy): Promise<void> {
+		await this.agentSandboxManager?.setNetworkPolicy(policy);
 	}
 
 	async resumePausedTasks(): Promise<RuntimeTaskSessionSummary[]> {

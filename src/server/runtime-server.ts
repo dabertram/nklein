@@ -1944,6 +1944,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			);
 		} else {
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
+			// Re-apply the sandbox Docker --network policy on a live capability-tier change. Without this, a cached
+			// service kept its original (looser) egress after the operator tightened isolation — a fail-open
+			// Docker-isolation drift (prime directive #2). Every other config field below is already re-applied here.
+			await service.setSandboxNetworkPolicy(sandboxNetworkPolicy);
 			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);

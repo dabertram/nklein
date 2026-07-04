@@ -426,6 +426,35 @@ describe("AgentSandboxManager", () => {
 		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
 	});
 
+	it("setNetworkPolicy re-applies the Docker --network policy to newly-started containers (isolation fix)", async () => {
+		// Regression: on a live capability-tier tightening the cached manager kept its original (looser) egress
+		// because networkPolicy was set once in the constructor and never updated — a fail-open Docker-isolation
+		// drift. setNetworkPolicy must update the policy AND retire idle containers so they recreate with the new
+		// --network flag; a still-idle container would otherwise be reused with the stale, looser egress.
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			networkPolicy: "full", // starts with real egress
+			poolConfig: { maxContainers: 1, agentsPerContainer: 1, idleTimeoutMs: 60_000 },
+		});
+		const runCalls = () => calls.filter((args) => args[0] === "run");
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		expect(runCalls()).toHaveLength(1);
+		expect(runCalls()[0]?.join(" ")).toContain("--network bridge"); // full egress
+
+		// Operator tightens isolation at runtime. Free the container so the idle one can be retired.
+		await manager.disposeWorkspace("task-1");
+		await manager.setNetworkPolicy("none");
+
+		await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		// The stale idle container was retired and a fresh one started with the tightened policy — NOT reused.
+		expect(runCalls()).toHaveLength(2);
+		expect(runCalls()[1]?.join(" ")).toContain("--network none"); // isolated egress now
+		expect(runCalls()[1]?.join(" ")).not.toContain("--network bridge");
+	});
+
 	it("notifies only tasks that actually wait for sandbox capacity", async () => {
 		const { execFile: execFileStub } = createExecFileStub();
 		const manager = new AgentSandboxManager({

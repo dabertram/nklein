@@ -186,7 +186,8 @@ export function createAgentSandboxToolExecutors(
 export class AgentSandboxManager {
 	private readonly image: string;
 	private poolConfig: AgentSandboxPoolConfig;
-	private readonly networkPolicy: SandboxNetworkPolicy;
+	// Mutable so an operator tightening/loosening the capability tier at runtime is re-applied (see setNetworkPolicy).
+	private networkPolicy: SandboxNetworkPolicy;
 	private readonly execFileImpl: typeof execFile;
 	private readonly setTimeoutImpl: typeof setTimeout;
 	private readonly clearTimeoutImpl: typeof clearTimeout;
@@ -212,6 +213,26 @@ export class AgentSandboxManager {
 	async updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
 		this.poolConfig = normalizeAgentSandboxPoolConfig(config);
 		await this.reconcileIdleContainersWithPoolConfig();
+		this.drainQueue();
+	}
+
+	/**
+	 * Re-apply the sandbox Docker `--network` policy at runtime (an operator tightening/loosening the capability tier).
+	 * The flag is baked into each container at `docker run` (buildAgentSandboxDockerRunArgs), so a change only takes
+	 * effect on the NEXT start — retire idle (unoccupied) containers now so they recreate with the new policy. Occupied
+	 * containers hold in-flight agent work and age out to recreate on their next assignment. Without this, a cached
+	 * manager kept its original (looser) egress after the operator restricted isolation — a fail-open Docker-isolation
+	 * drift (prime directive #2).
+	 */
+	async setNetworkPolicy(policy: SandboxNetworkPolicy): Promise<void> {
+		if (policy === this.networkPolicy) {
+			return;
+		}
+		this.networkPolicy = policy;
+		const retirements = [...this.containers.values()]
+			.filter((container) => container.occupancy.size === 0)
+			.map((container) => this.retireContainer(container));
+		await Promise.all(retirements);
 		this.drainQueue();
 	}
 
