@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
@@ -189,6 +190,11 @@ export const startTsBackend: BackendFactory = async (options: BackendStartOption
 				// without this opt-out a spawned backend would reap the unit test's live container mid-exec (exit 137). The
 				// reaper itself is covered by its own unit tests; these HTTP-contract backends don't need it. (todo §5.AM.)
 				NKLEIN_SANDBOX_SKIP_STARTUP_REAP: "1",
+				// Isolate THIS backend's sandbox pool from other parallel test backends: without a per-instance
+				// namespace they all collide on the global `nklein-agent-sandbox-1` (one's create/rm/exec races the
+				// other → flaky "No such container"). A stable hash of the unique per-test homeDir gives each backend
+				// its own container/volume names. (Docker-name-safe hex; the startup reap is already skipped above.)
+				NKLEIN_SANDBOX_NAMESPACE: `t${createHash("sha1").update(options.homeDir).digest("hex").slice(0, 12)}`,
 				...(options.extraEnv ?? {}),
 			},
 			stdio: ["ignore", "pipe", "pipe", "ipc"],

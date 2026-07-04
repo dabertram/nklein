@@ -33,6 +33,14 @@ export interface AgentSandboxPoolConfig {
 	memoryPerContainerMb: number;
 	cpusPerContainer: number;
 	idleTimeoutMs: number;
+	/**
+	 * Optional per-INSTANCE discriminator woven into the container/volume names (`nklein-agent-sandbox[-<namespace>]-<slot>`).
+	 * `undefined` (the default) ⇒ the historical global names — byte-identical for a single production instance. Set it to
+	 * isolate the pool of PARALLEL nklein instances on one host (e.g. concurrent integration-test backends, which otherwise
+	 * all collide on `nklein-agent-sandbox-1`). NOTE: startup orphan-reaping is by label, so a namespaced instance must
+	 * skip the reap (tests set NKLEIN_SANDBOX_SKIP_STARTUP_REAP) — cross-namespace reaping is a follow-up.
+	 */
+	namespace?: string;
 }
 
 export interface AgentSandboxProjectMount {
@@ -68,6 +76,7 @@ export function normalizeAgentSandboxPoolConfig(
 		),
 		cpusPerContainer: normalizePositiveNumber(config?.cpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
 		idleTimeoutMs: normalizeNonNegativeInteger(config?.idleTimeoutMs, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS),
+		namespace: config?.namespace?.trim() ? config.namespace.trim() : undefined,
 	};
 }
 
@@ -113,8 +122,8 @@ export function resolveAgentSandboxNetworkArgs(policy: SandboxNetworkPolicy): st
 }
 
 export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOptions): string[] {
-	const containerName = createAgentSandboxContainerName(options.slot);
-	const volumeName = createAgentSandboxVolumeName(options.slot);
+	const containerName = createAgentSandboxContainerName(options.slot, options.config.namespace);
+	const volumeName = createAgentSandboxVolumeName(options.slot, options.config.namespace);
 	const pidsLimit =
 		options.config.agentsPerContainer > 0 ? Math.max(256, 256 * options.config.agentsPerContainer) : 1024;
 	const args = [
@@ -152,10 +161,12 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 	return args;
 }
 
-export function createAgentSandboxContainerName(slot: number): string {
-	return `${AGENT_SANDBOX_CONTAINER_PREFIX}-${slot}`;
+export function createAgentSandboxContainerName(slot: number, namespace?: string): string {
+	const ns = namespace?.trim();
+	return ns ? `${AGENT_SANDBOX_CONTAINER_PREFIX}-${ns}-${slot}` : `${AGENT_SANDBOX_CONTAINER_PREFIX}-${slot}`;
 }
 
-export function createAgentSandboxVolumeName(slot: number): string {
-	return `${AGENT_SANDBOX_VOLUME_PREFIX}-${slot}`;
+export function createAgentSandboxVolumeName(slot: number, namespace?: string): string {
+	const ns = namespace?.trim();
+	return ns ? `${AGENT_SANDBOX_VOLUME_PREFIX}-${ns}-${slot}` : `${AGENT_SANDBOX_VOLUME_PREFIX}-${slot}`;
 }

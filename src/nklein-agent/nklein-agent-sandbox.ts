@@ -398,7 +398,7 @@ export class AgentSandboxManager {
 			return null;
 		}
 		return {
-			containerName: createAgentSandboxContainerName(placement.slot),
+			containerName: createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
 			uid: placement.uid,
 			workdir: placement.workdir,
 		};
@@ -647,8 +647,8 @@ export class AgentSandboxManager {
 	private createContainerState(slot: number): ContainerState {
 		return {
 			slot,
-			containerName: createAgentSandboxContainerName(slot),
-			volumeName: createAgentSandboxVolumeName(slot),
+			containerName: createAgentSandboxContainerName(slot, this.poolConfig.namespace),
+			volumeName: createAgentSandboxVolumeName(slot, this.poolConfig.namespace),
 			containerId: null,
 			starting: null,
 			retiring: null,
@@ -805,7 +805,7 @@ export class AgentSandboxManager {
 				String(placement.uid),
 				"-w",
 				options?.workdir ?? placement.workdir,
-				createAgentSandboxContainerName(placement.slot),
+				createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
 				...argv,
 			],
 			options,
@@ -824,7 +824,7 @@ export class AgentSandboxManager {
 				"0:0",
 				"-w",
 				AGENT_SANDBOX_WORKSPACES_DIR,
-				createAgentSandboxContainerName(placement.slot),
+				createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
 				...argv,
 			],
 			options,
@@ -850,7 +850,7 @@ export class AgentSandboxManager {
 			return null;
 		}
 		return {
-			containerName: createAgentSandboxContainerName(placement.slot),
+			containerName: createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
 			uid: placement.uid,
 			workdir: placement.workdir,
 		};

@@ -15,6 +15,10 @@ export function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): 
 		memoryPerContainerMb: runtimeConfig.sandboxMemoryPerContainerMb,
 		cpusPerContainer: runtimeConfig.sandboxCpusPerContainer,
 		idleTimeoutMs: runtimeConfig.sandboxIdleTimeoutMinutes * 60 * 1000,
+		// Per-instance pool isolation (opt-in): PARALLEL nklein instances on one host (concurrent integration-test
+		// backends) otherwise collide on the global container/volume names. Read here at the composition root; unset
+		// ⇒ undefined ⇒ the historical global names (byte-identical for a single production instance).
+		namespace: process.env.NKLEIN_SANDBOX_NAMESPACE?.trim() || undefined,
 	};
 }
 
