@@ -44,6 +44,8 @@ export function buildChatAgentToolDepsResolver(input: {
 	} | null;
 	/** §5.AU mailbox writer (defaults live inside the tool wiring; injected for tests). */
 	queueCardMailboxNote?: (taskId: string, text: string) => Promise<number>;
+	/** §5.L: current capability-broker opt-in (read per-turn so a config flip takes effect next turn). Absent ⇒ off. */
+	getCapabilityBrokerEnabled?: () => Promise<boolean>;
 }): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
 	return async (session, extra) => {
 		const workspacePath = input.getActiveWorkspacePath();
@@ -117,9 +119,13 @@ export function buildChatAgentToolDepsResolver(input: {
 			...(extra?.definitions ?? []),
 		];
 
+		const capabilityBrokerEnabled = (await input.getCapabilityBrokerEnabled?.()) ?? false;
 		const executeTool = createGatedChatToolExecutor({
 			sessionId: session.id,
 			mode,
+			// §5.L: opt-in capability broker — when on, a protected-sink tool call made after untrusted content entered the
+			// turn is refused fail-closed (prompt-injection defense). Default off ⇒ byte-identical (the executor skips it).
+			capabilityBrokerEnabled,
 			tools,
 			// §5.AA: thread the tools' JSON-Schema definitions so the executor can coerce a weak model's malformed
 			// arguments (e.g. a stringified number) against the matching schema before dispatch — and refuse a

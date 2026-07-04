@@ -217,6 +217,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getActiveWorkspacePath: deps.getActiveWorkspacePath,
 				getLocalChatBaseUrl: () => nkleinProviderService.getLocalChatBaseUrl(),
 				isRemoteMode: deps.isRemoteMode ?? false,
+				// §5.L: read the capability-broker opt-in per-turn (a config flip takes effect on the next turn).
+				getCapabilityBrokerEnabled: async () => (await loadGlobalRuntimeConfig()).capabilityBrokerEnabled,
 				// §5.AU relay: the ACTIVE workspace's live task sessions, so `send_to_card` can deliver into a running
 				// agent's turn (falls back to the durable mailbox when the service isn't loaded or the card isn't live).
 				getActiveTaskSessions: () => {

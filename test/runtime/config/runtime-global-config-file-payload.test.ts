@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_AGENT_ID,
+	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_MAX_CONCURRENT_TASKS,
 	DEFAULT_REPLAY_CARDS_ENABLED,
@@ -26,6 +27,19 @@ describe("buildRuntimeGlobalConfigFilePayload", () => {
 			null,
 		);
 		expect(unchanged).not.toHaveProperty("developerModeEnabled");
+	});
+
+	it("persists capabilityBrokerEnabled only when enabled (opt-in, default off → sparse)", () => {
+		const on = buildRuntimeGlobalConfigFilePayload(
+			{ capabilityBrokerEnabled: !DEFAULT_CAPABILITY_BROKER_ENABLED },
+			null,
+		);
+		expect(on.capabilityBrokerEnabled).toBe(true);
+		const off = buildRuntimeGlobalConfigFilePayload(
+			{ capabilityBrokerEnabled: DEFAULT_CAPABILITY_BROKER_ENABLED },
+			null,
+		);
+		expect(off).not.toHaveProperty("capabilityBrokerEnabled");
 	});
 
 	it("preserves an existing key even when its value equals the default (round-trips on resave)", () => {

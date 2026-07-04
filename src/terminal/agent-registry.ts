@@ -176,6 +176,7 @@ export function buildRuntimeConfigResponse(
 		projectSetupWizardCompletedAt: runtimeConfig.projectSetupWizardCompletedAt,
 		knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 		sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
+		capabilityBrokerEnabled: runtimeConfig.capabilityBrokerEnabled,
 		retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
 		retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
 		speculativeBestOfNEnabled: runtimeConfig.speculativeBestOfNEnabled,

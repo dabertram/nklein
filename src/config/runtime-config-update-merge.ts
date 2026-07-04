@@ -15,6 +15,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
 import {
+	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
@@ -77,6 +78,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.sandboxMcpServersEnabled,
 			current.sandboxMcpServersEnabled,
 			(value) => normalizeBoolean(value, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
+		),
+		capabilityBrokerEnabled: keepNormalizedValue(
+			updates.capabilityBrokerEnabled,
+			current.capabilityBrokerEnabled,
+			(value) => normalizeBoolean(value, DEFAULT_CAPABILITY_BROKER_ENABLED),
 		),
 		retrievalEgressEnabled: keepNormalizedValue(
 			updates.retrievalEgressEnabled,

@@ -54,6 +54,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("setupWizardCompletedAt"),
 	runtimeConfigChangeField("knowsTodayEnabled"),
 	runtimeConfigChangeField("sandboxMcpServersEnabled"),
+	runtimeConfigChangeField("capabilityBrokerEnabled"),
 	runtimeConfigChangeField("retrievalEgressEnabled"),
 	runtimeConfigChangeField("retrievalSearchBackendUrl"),
 	runtimeConfigChangeField("speculativeBestOfNEnabled"),

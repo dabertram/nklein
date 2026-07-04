@@ -29,6 +29,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 		projectSetupWizardCompletedAt: null,
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
+		capabilityBrokerEnabled: false,
 		retrievalEgressEnabled: false,
 		retrievalSearchBackendUrl: null,
 		speculativeBestOfNEnabled: true,

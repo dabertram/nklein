@@ -21,6 +21,8 @@ export const DEFAULT_REPLAY_CARDS_ENABLED = false;
 export const DEFAULT_KNOWS_TODAY_ENABLED = false;
 /** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT (user 2026-07-01: available with a global/per-project opt-out). */
 export const DEFAULT_SANDBOX_MCP_SERVERS_ENABLED = true;
+/** §5.L capability-broker taint gate at the chat model↔tool seam — OFF BY DEFAULT (opt-in prompt-injection defense). */
+export const DEFAULT_CAPABILITY_BROKER_ENABLED = false;
 export const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 export const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 export const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";

@@ -24,6 +24,7 @@ import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
+	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
 	DEFAULT_REPLAY_CARDS_ENABLED,
@@ -68,6 +69,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	projectSetupWizardCompletedAt: number | null;
 	knowsTodayEnabled: boolean;
 	sandboxMcpServersEnabled: boolean;
+	capabilityBrokerEnabled: boolean;
 	retrievalEgressEnabled: boolean;
 	retrievalSearchBackendUrl: string | null;
 	speculativeBestOfNEnabled: boolean;
@@ -126,6 +128,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		replayCardsEnabled: normalizeBoolean(input.replayCardsEnabled, DEFAULT_REPLAY_CARDS_ENABLED),
 		knowsTodayEnabled: normalizeBoolean(input.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		sandboxMcpServersEnabled: normalizeBoolean(input.sandboxMcpServersEnabled, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
+		capabilityBrokerEnabled: normalizeBoolean(input.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			input.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,

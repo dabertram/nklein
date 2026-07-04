@@ -43,6 +43,7 @@ import {
 	DEFAULT_AGENT_ID,
 	DEFAULT_AGENT_TIMEOUT_MODE,
 	DEFAULT_AGENT_TIMEOUT_PROFILE,
+	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
@@ -122,6 +123,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	setupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	capabilityBrokerEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
 	speculativeBestOfNEnabled?: boolean;
@@ -179,6 +181,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 		config.sandboxMcpServersEnabled,
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
+	const capabilityBrokerEnabled = normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED);
 	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
 	const speculativeBestOfNEnabled = normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled);
 	const speculativeMaxConcurrentSpecs = normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs);
@@ -373,6 +376,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		"sandboxMcpServersEnabled",
 		sandboxMcpServersEnabled,
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"capabilityBrokerEnabled",
+		capabilityBrokerEnabled,
+		DEFAULT_CAPABILITY_BROKER_ENABLED,
 	);
 	assignChangedConfigField(
 		payload,

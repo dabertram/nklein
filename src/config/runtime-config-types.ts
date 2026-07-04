@@ -32,6 +32,7 @@ export interface RuntimeConfigState {
 	knowsTodayEnabled: boolean;
 	/** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT; offered to fitting models, global/per-project opt-out. */
 	sandboxMcpServersEnabled: boolean;
+	capabilityBrokerEnabled: boolean;
 	/** §5.AC egress-gated online retrieval (web_search + browse_url) — OFF BY DEFAULT; false must keep every retrieval path dormant. */
 	retrievalEgressEnabled: boolean;
 	/** §5.AC SearXNG-compatible search endpoint base URL — trimmed; empty → null (null = no search backend configured). */
@@ -110,6 +111,7 @@ export interface RuntimeConfigUpdateInput {
 	projectSetupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	capabilityBrokerEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
 	speculativeBestOfNEnabled?: boolean;
@@ -168,6 +170,7 @@ export interface RuntimeGlobalConfigFileShape {
 	setupWizardCompletedAt?: number | null;
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
+	capabilityBrokerEnabled?: boolean;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
 	speculativeBestOfNEnabled?: boolean;

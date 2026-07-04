@@ -53,6 +53,7 @@ import { resolveRuntimeConcurrencyConfig } from "./runtime-config-concurrency-re
 import {
 	AUTO_SELECT_AGENT_PRIORITY,
 	DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
+	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
@@ -250,6 +251,10 @@ function toRuntimeConfigState({
 		sandboxMcpServersEnabled: normalizeBoolean(
 			globalConfig?.sandboxMcpServersEnabled,
 			DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
+		),
+		capabilityBrokerEnabled: normalizeBoolean(
+			globalConfig?.capabilityBrokerEnabled,
+			DEFAULT_CAPABILITY_BROKER_ENABLED,
 		),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			globalConfig?.agentAutonomousModeEnabled,
@@ -488,6 +493,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		projectSetupWizardCompletedAt: null,
 		knowsTodayEnabled: current.knowsTodayEnabled,
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
+		capabilityBrokerEnabled: current.capabilityBrokerEnabled,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
 		retrievalSearchBackendUrl: current.retrievalSearchBackendUrl,
 		speculativeBestOfNEnabled: current.speculativeBestOfNEnabled,
@@ -571,6 +577,7 @@ export async function saveRuntimeConfig(
 		projectSetupWizardCompletedAt?: number | null;
 		knowsTodayEnabled?: boolean;
 		sandboxMcpServersEnabled?: boolean;
+		capabilityBrokerEnabled?: boolean;
 		retrievalEgressEnabled?: boolean;
 		retrievalSearchBackendUrl?: string | null;
 		speculativeBestOfNEnabled?: boolean;
@@ -633,6 +640,7 @@ export async function saveRuntimeConfig(
 				config.sandboxMcpServersEnabled,
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
+			capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
@@ -720,6 +728,7 @@ export async function saveRuntimeConfig(
 				config.sandboxMcpServersEnabled,
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
+			capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
