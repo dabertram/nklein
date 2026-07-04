@@ -215,7 +215,14 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 			}
 			const linked = addTaskDependency(board, waitingTaskId, prerequisiteTaskId);
 			if (!linked.added || !linked.dependency) {
-				if (linked.reason === "duplicate") {
+				// Idempotent re-apply: on a re-apply the endpoints can legitimately have advanced past the waiting
+				// lanes — a prerequisite that reached `completed`/`trash` (reason `trash_task`) or a card now in
+				// `in_progress`/`review` (reason `non_backlog`) can no longer carry a board edge, and the edge is
+				// either already satisfied or no longer expressible. Skip those benignly (as with an existing
+				// `duplicate`). Only `missing_task`/`same_task` remain fatal — neither can occur for a validated,
+				// freshly-mapped graph, so they signal genuine corruption. (These non-duplicate reasons never arise
+				// on a clean first apply, where every generated card sits in the `planning` waiting lane.)
+				if (linked.reason === "duplicate" || linked.reason === "trash_task" || linked.reason === "non_backlog") {
 					continue;
 				}
 				throw new Error(`Could not link ${task.id} to ${dependencyPlanTaskId}: ${linked.reason ?? "unknown"}.`);

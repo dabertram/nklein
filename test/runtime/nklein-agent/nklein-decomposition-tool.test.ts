@@ -424,6 +424,39 @@ describe("applyNKleinPlanTaskGraphToBoard", () => {
 		expect(secondApply.board).toEqual(firstApply.board);
 	});
 
+	// Regression: idempotent re-apply must survive a prerequisite card advancing past the waiting lanes. Board
+	// evolution between applies is normal (a card gets worked and completed); moveTaskToColumn(completed) strips the
+	// ui->storage edge, so re-linking on re-apply returns reason `trash_task`. The old relink loop threw
+	// `Could not link ui to storage: trash_task`, aborting the ENTIRE re-apply (CLI/tRPC surfaces the error). The
+	// re-apply-benign reasons (trash_task / non_backlog) must be skipped like `duplicate`.
+	it("re-applies without throwing after a prerequisite card has moved to completed (regression: relink abort)", () => {
+		const firstApply = applyNKleinPlanTaskGraphToBoard({
+			board: createBoard(),
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 100,
+		});
+		// The prerequisite (storage) is worked and completed; this strips the ui->storage dependency edge.
+		const storageCompleted = moveTaskToColumn(firstApply.board, "habit-tracker-storage", "completed", 200);
+
+		const secondApply = applyNKleinPlanTaskGraphToBoard({
+			board: storageCompleted.board,
+			taskGraph: createTaskGraph(),
+			baseRef: "main",
+			randomUuid: () => "unused",
+			now: 300,
+		});
+
+		// No throw; a benign no-op re-apply — no new cards, and the (now-unblockable) edge is not re-created.
+		expect(secondApply.createdTasks).toEqual([]);
+		expect(secondApply.createdDependencies).toEqual([]);
+		expect(secondApply.taskIdByPlanTaskId).toEqual({
+			storage: "habit-tracker-storage",
+			ui: "habit-tracker-ui",
+		});
+	});
+
 	it("records the source task id on generated cards when provided", () => {
 		const result = applyNKleinPlanTaskGraphToBoard({
 			board: createBoard(),
