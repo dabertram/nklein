@@ -82,6 +82,19 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batch 8 (12 nklein-agent + chat loop/parse/route modules) → 3 real bugs FIXED:**
+  (MED) `parseNarratedToolCalls` named-function form (`<function=NAME>{…}</function>`) used a non-greedy
+  body capture that stopped at the first `</function>` SUBSTRING — an arg value containing that literal
+  (or a nested `<function=…>`) truncated the JSON and silently DROPPED ALL args (blank card created).
+  Fixed with balanced string-aware extraction + skip-past-value; this is stronger than the batch's own
+  fixHint, which had accepted a spurious-call caveat that (I found) could have EXECUTED a real tool with
+  empty args from string content. (MED) `stripInlineCodeComment` used `indexOf("//")` → matched inside
+  `"https://…"`, kept the real trailing comment via a broken quote-parity heuristic → string-state scan.
+  (HIGH) the board→chat feedback bridge's ASK-clear regex OMITTED `escalated_to_operator`, so a resolved
+  escalation was never cleared and a RE-escalation was silently swallowed (operator never re-notified) —
+  fixed at the source of truth (`BOARD_CHAT_ASK_KINDS` derived from `ASK_SIGNALS`). Each with a
+  regression test that fails on old code; 3 separate GREEN commits. Session bug tally: **8 real bugs**
+  (batch6:1, batch7:4, batch8:3) + 2 coverage fences.
 - **Bug-hunt batch 7 (12 chat + decomposition pure modules) → 4 real bugs FIXED:**
   (HIGH) `suggest_unblock` told the user to "drop the dependency" for a card blocked by a `blockedKind`
   (needs_decomposition/…) with NO dependency edge, hiding the real cause — now surfaces
