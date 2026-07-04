@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	BASIC_MEMORY_FIT,
 	CODEBASE_MEMORY_FIT,
 	decideMcpServerModelFit,
 	decideMcpServerModelFitById,
@@ -118,5 +119,27 @@ describe("decideMcpServerModelFitById", () => {
 		// Uncatalogued id ⇒ codebase-memory offers optimistically, sequential-thinking fails safe.
 		expect(decideMcpServerModelFitById(CODEBASE_MEMORY_FIT, "no-such-model-xyz-999").offer).toBe(true);
 		expect(decideMcpServerModelFitById(SEQUENTIAL_THINKING_FIT, "no-such-model-xyz-999").offer).toBe(false);
+	});
+});
+
+describe("decideMcpServerModelFit — basic-memory (write-capable authored memory: capable-only, fail-safe)", () => {
+	it("offers to a tool-capable model (reasoning is fine — not a reasoning scaffold)", () => {
+		expect(decideMcpServerModelFit(BASIC_MEMORY_FIT, capable("instruct")).offer).toBe(true);
+		expect(decideMcpServerModelFit(BASIC_MEMORY_FIT, capable("reasoning")).offer).toBe(true);
+	});
+
+	it("does NOT require chaining (a single-shot capable model can still read/write notes)", () => {
+		expect(decideMcpServerModelFit(BASIC_MEMORY_FIT, capable("instruct", "single_only")).offer).toBe(true);
+	});
+
+	it("SKIPS a weak tool-caller (below TOOL_CAPABLE — a weak writer accretes junk into a durable store)", () => {
+		expect(decideMcpServerModelFit(BASIC_MEMORY_FIT, entry({ toolUse: "TOOL_WEAK", kind: "instruct" })).offer).toBe(
+			false,
+		);
+	});
+
+	it("SKIPS an uncatalogued model (fail-safe — a memory tool that loops/writes junk is worse than none)", () => {
+		expect(decideMcpServerModelFit(BASIC_MEMORY_FIT, null).offer).toBe(false);
+		expect(decideMcpServerModelFitById(BASIC_MEMORY_FIT, "no-such-model-xyz-999").offer).toBe(false);
 	});
 });

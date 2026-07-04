@@ -172,3 +172,21 @@ export const CODEBASE_MEMORY_FIT: McpServerModelFitProfile = {
 		"Stateless code-graph query (search_graph/trace_path/get_code_snippet) that reduces tokens ~99%; helps any " +
 		"tool-capable model with no reasoning-harm, so it is offered broadly (uncatalogued models included).",
 };
+
+/**
+ * Curated fit profile for **basic-memory** (§5.AR authored markdown-graph memory) — a WRITE-capable, multi-tool surface
+ * (write_note/read_note/search_notes/build_context/…). Unlike codebase-memory (a read-only token-cutter offered broadly),
+ * a weak/one-shot caller that mis-drives a write tool can accrete GARBAGE into a durable store, so it is offered only to
+ * TOOL_CAPABLE+ models and NOT to uncatalogued ones (fail-safe: a memory tool that loops or writes junk is worse than
+ * none). Not reasoning-harmful, so native reasoners are fine; it does not require multi-step chaining.
+ */
+export const BASIC_MEMORY_FIT: McpServerModelFitProfile = {
+	serverId: "basic-memory",
+	minToolUse: "TOOL_CAPABLE",
+	allowUnknownToolUse: false,
+	skipForReasoningModels: false,
+	requiresChaining: false,
+	rationale:
+		"Write-capable authored-memory tool (write_note/read_note/search_notes/build_context): offered to tool-reliable " +
+		"mid+ models only (weak/one-shot callers can accrete junk into a durable store), uncatalogued skipped (fail-safe).",
+};

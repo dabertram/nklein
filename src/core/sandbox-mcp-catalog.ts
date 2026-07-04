@@ -14,6 +14,7 @@
  */
 
 import {
+	BASIC_MEMORY_FIT,
 	CODEBASE_MEMORY_FIT,
 	decideMcpServerModelFitById,
 	type McpServerModelFitProfile,
@@ -62,6 +63,16 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 		inContainerArgv: ["codebase-memory-mcp"],
 		fit: CODEBASE_MEMORY_FIT,
 		available: true,
+	},
+	{
+		id: "basic-memory",
+		label: "Basic Memory",
+		// §5.AR authored markdown-graph memory. `basic-memory mcp` forces STDIO (the published image CMD defaults to an
+		// SSE server). available:false until the binary + pre-seeded FastEmbed cache + egress-hardening env are baked
+		// into the sandbox image (next increment) — listAvailableSandboxMcpServers filters on this.
+		inContainerArgv: ["basic-memory", "mcp"],
+		fit: BASIC_MEMORY_FIT,
+		available: false,
 	},
 ];
 
