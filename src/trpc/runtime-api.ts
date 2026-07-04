@@ -219,6 +219,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				isRemoteMode: deps.isRemoteMode ?? false,
 				// §5.L: read the capability-broker opt-in per-turn (a config flip takes effect on the next turn).
 				getCapabilityBrokerEnabled: async () => (await loadGlobalRuntimeConfig()).capabilityBrokerEnabled,
+				// decision-2: the chat web_search egress config, read per-turn (off by default: egress off / no backend).
+				getRetrievalConfig: async () => {
+					const config = await loadGlobalRuntimeConfig();
+					return {
+						egressEnabled: config.retrievalEgressEnabled,
+						searchBackendUrl: config.retrievalSearchBackendUrl,
+					};
+				},
 				// §5.AU relay: the ACTIVE workspace's live task sessions, so `send_to_card` can deliver into a running
 				// agent's turn (falls back to the durable mailbox when the service isn't loaded or the card isn't live).
 				getActiveTaskSessions: () => {

@@ -27,10 +27,12 @@ describe("resolveChatToolConfirmation — §5.M run_command + browse_url gate", 
 		).toBe(false);
 	});
 
-	it("gates browse_url on the per-session browserEnabled opt-in", () => {
-		expect(resolveChatToolConfirmation({ name: "browse_url", browserEnabled: true })).toBe(true);
-		expect(resolveChatToolConfirmation({ name: "browse_url", browserEnabled: false })).toBe(false);
-		expect(resolveChatToolConfirmation({ name: "browse_url" })).toBe(false);
+	it("gates browse_url AND web_search on the per-session browserEnabled opt-in", () => {
+		for (const name of ["browse_url", "web_search"]) {
+			expect(resolveChatToolConfirmation({ name, browserEnabled: true })).toBe(true);
+			expect(resolveChatToolConfirmation({ name, browserEnabled: false })).toBe(false);
+			expect(resolveChatToolConfirmation({ name })).toBe(false);
+		}
 	});
 
 	it("denies any other tool by default", () => {

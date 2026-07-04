@@ -21,6 +21,7 @@ import type { ChatSession } from "../../chat/chat-session-store";
 import { resolveChatToolConfirmation } from "../../chat/chat-tool-confirmation";
 import { createGatedChatToolExecutor } from "../../chat/chat-tool-executor";
 import type { ChatPromptMessage } from "../../chat/chat-turn-context";
+import { createWebSearchTools } from "../../chat/chat-web-search-tool";
 import { createWorkspaceReadTools } from "../../chat/chat-workspace-tools";
 import {
 	DEFAULT_LOCAL_CHAT_BASE_URL,
@@ -28,6 +29,7 @@ import {
 	discoverLoadedModelId,
 } from "../../chat/local-chat-model";
 import { LocalLlmClient } from "../../nklein-agent/nklein-local-llm-client";
+import { createSearxngWebSearchClient } from "../../server/web-search-searxng";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../../state/card-mailbox-store";
 import { loadWorkspaceState } from "../../state/workspace-state";
 
@@ -46,6 +48,12 @@ export function buildChatAgentToolDepsResolver(input: {
 	queueCardMailboxNote?: (taskId: string, text: string) => Promise<number>;
 	/** §5.L: current capability-broker opt-in (read per-turn so a config flip takes effect next turn). Absent ⇒ off. */
 	getCapabilityBrokerEnabled?: () => Promise<boolean>;
+	/**
+	 * §5.AC/decision-2: the retrieval egress config (read per-turn). The chat `web_search` tool is offered ONLY when
+	 * the session opted into internet tools (`browserEnabled`) AND egress is on AND a SearXNG backend is configured —
+	 * OFF by default. Absent ⇒ egress off / no backend ⇒ web_search is never offered.
+	 */
+	getRetrievalConfig?: () => Promise<{ egressEnabled: boolean; searchBackendUrl: string | null }>;
 }): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
 	return async (session, extra) => {
 		const workspacePath = input.getActiveWorkspacePath();
@@ -96,6 +104,20 @@ export function buildChatAgentToolDepsResolver(input: {
 		const browser = session.browserEnabled
 			? createBrowserTools({ isRemoteMode: input.isRemoteMode })
 			: { tools: [], definitions: [] };
+		// decision-2: the chat `web_search` tool, reusing the swarm's fail-closed SearXNG client. OFF by default — offered
+		// only when the session opted into internet tools AND egress is on AND a backend URL is configured. egress_read,
+		// so it's egress-gated + confirm-gated (the same `confirm` toggle as browse) but never a taint sink.
+		const retrieval = (await input.getRetrievalConfig?.()) ?? { egressEnabled: false, searchBackendUrl: null };
+		const webSearch =
+			session.browserEnabled && retrieval.egressEnabled && retrieval.searchBackendUrl
+				? createWebSearchTools({
+						search: (query) =>
+							createSearxngWebSearchClient({
+								backendBaseUrl: retrieval.searchBackendUrl,
+								egressEnabled: retrieval.egressEnabled,
+							}).search(query),
+					})
+				: { tools: [], definitions: [] };
 		const tools = [
 			...read.tools,
 			...board.tools,
@@ -104,6 +126,7 @@ export function buildChatAgentToolDepsResolver(input: {
 			...relay.tools,
 			...commands.tools,
 			...browser.tools,
+			...webSearch.tools,
 			// Autonomous mode (todo §5.0.1) merges in the per-turn control tools (request_user_input /
 			// declare_goal_complete); interactive chat passes no extras.
 			...(extra?.tools ?? []),
@@ -116,6 +139,7 @@ export function buildChatAgentToolDepsResolver(input: {
 			...relay.definitions,
 			...commands.definitions,
 			...browser.definitions,
+			...webSearch.definitions,
 			...(extra?.definitions ?? []),
 		];
 
