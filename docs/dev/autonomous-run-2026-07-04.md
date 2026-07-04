@@ -14,6 +14,28 @@ guidance here for a clarify-when-back session.
 
 ---
 
+## TL;DR (read this first)
+
+**What I did:** ran a systematic adversarial bug-hunt across the codebase (review → independent
+adversarial-verify → CONFIRMED-only), fixing every confirmed defect with a regression test **proven to
+fail on the old code**, each committed GREEN through the full gate. **16 real bugs fixed** so far
+(several HIGH: weak-model tool-call data-loss, operator re-escalation silently swallowed, ledger-row
+collision, retry suppressed by an over-broad error match, strict-schema-validation gap, and a
+`task delete` that could wipe a whole column). Plus **2 additive test-coverage fences** (+30 tests) and
+a **completeness sweep** confirming one regex-bug class is fully contained. No behavior-changing feature
+was flipped on — everything is a fix or a test, so there's **zero rework risk** to review.
+
+**What needs YOU:** the **NEEDS-GUIDANCE queue** below (11 items) — genuine product/security/design forks
+I deliberately did NOT guess. Several are now investigated down to a concrete, approvable decision
+(#5 skill-fragment mapping, #6 apiProfile last-mile, #10 chat web_search wiring, #11 SSRF check-all-IPs
+hardening). Skim those first; the rest (#1–#4, #7–#9) are direction calls.
+
+**Where the detail lives:** the work log (newest first) at the bottom. Bug-hunt state: `src/core` is
+swept (~100 modules, tapered to 0 new); the hunt is now working fresh non-core subsystems (nklein-agent,
+state, commands) where yield continues.
+
+---
+
 ## NEEDS-GUIDANCE queue (clarify when back)
 
 These are genuine forks / product decisions where guessing risks rework — I did NOT build these,
