@@ -32,6 +32,22 @@ export interface OpportunisticIdleWorkDecision {
 	reviewTaskId: string | null;
 }
 
+/**
+ * The `review` picker (pure): card ids sitting in the review lane that haven't already had an idle review dispatched.
+ * `alreadyDispatched` gives per-workspace idempotency so the sweep never re-reviews the same card each tick. A card
+ * still in the review lane hasn't been reviewed-and-advanced, so it's a genuine candidate.
+ */
+export function findReviewCandidateTaskIds(
+	board: { columns: readonly { id: string; cards: readonly { id: string }[] }[] },
+	alreadyDispatched: ReadonlySet<string>,
+): string[] {
+	const reviewColumn = board.columns.find((column) => column.id === "review");
+	if (!reviewColumn) {
+		return [];
+	}
+	return reviewColumn.cards.map((card) => card.id).filter((taskId) => !alreadyDispatched.has(taskId));
+}
+
 /** Compose the ranker with the available pickers into a concrete idle-work decision. Pure. */
 export function decideOpportunisticIdleWork(input: OpportunisticIdleWorkInput): OpportunisticIdleWorkDecision {
 	const available: OpportunisticWorkKind[] = [];

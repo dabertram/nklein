@@ -29,6 +29,7 @@ import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { decideOpportunisticIdleWork, findReviewCandidateTaskIds } from "../core/opportunistic-idle-work";
 import {
 	findJustCompletedPlans,
 	resolvePlanAcceptanceCommand,
@@ -399,6 +400,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// so the ceiling must count them explicitly or a 45s tick can double-book the one idle model.
 	const speculativeSpecsInFlightByWorkspaceId = new Map<string, number>();
 	const SPECULATIVE_MIRROR_TICK_MS = 45_000;
+	// §5.AW opportunistic idle-work sweep (flag-gated, default OFF): when the swarm is genuinely idle, the ranker picks
+	// the highest-value available opportunistic task. Today only the `review` picker is wired (a review-lane card whose
+	// review the event path missed) — its per-workspace idempotency set stops re-reviewing the same card each tick.
+	const opportunisticIdleWorkTickByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
+	const idleReviewDispatchedByWorkspaceId = new Map<string, Set<string>>();
+	const OPPORTUNISTIC_IDLE_WORK_TICK_MS = 60_000;
 	const DEFERRED_RETRY_TIMER_MS = 7_000;
 	const queuedStartDrainTimersByWorkspaceId = new Map<
 		string,
@@ -1942,6 +1949,56 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					})();
 				}, SPECULATIVE_MIRROR_TICK_MS),
 			);
+			// §5.AW: flag-gated opportunistic idle-work sweep. When the swarm is genuinely idle (no running worker,
+			// no real work waiting), the ranker picks the highest-value available task — today only `review` (a review-
+			// lane card whose event-driven review was missed). Idempotent per workspace so it never re-reviews a card.
+			opportunisticIdleWorkTickByWorkspaceId.set(
+				scope.workspaceId,
+				setInterval(() => {
+					void (async () => {
+						try {
+							if (!isTruthyEnv(process.env.NKLEIN_OPPORTUNISTIC_IDLE_WORK)) {
+								return;
+							}
+							const sessions = trackedService.listModelEndpointSessions();
+							const runningWorkerSessions = sessions.filter(
+								(session) =>
+									session.state === "running" &&
+									!session.taskId.includes("::") &&
+									!isHomeAgentSessionId(session.taskId),
+							);
+							const realWorkWaiting =
+								taskStartQueue.size(scope.workspaceId) > 0 ||
+								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0;
+							const hasRealQueuedWork = realWorkWaiting || runningWorkerSessions.length > 0;
+							const boardState = await loadWorkspaceState(scope.workspacePath);
+							const dispatched = idleReviewDispatchedByWorkspaceId.get(scope.workspaceId) ?? new Set<string>();
+							const reviewCandidateTaskIds = findReviewCandidateTaskIds(boardState.board, dispatched);
+							const decision = decideOpportunisticIdleWork({ hasRealQueuedWork, reviewCandidateTaskIds });
+							if (!decision.reviewTaskId) {
+								return;
+							}
+							// Mark dispatched BEFORE the async review so a subsequent tick can never double-dispatch.
+							dispatched.add(decision.reviewTaskId);
+							idleReviewDispatchedByWorkspaceId.set(scope.workspaceId, dispatched);
+							deps.warn(
+								`Opportunistic idle review: swarm idle, dispatching a review for ${decision.reviewTaskId}.`,
+							);
+							void runSecondOpinionReviewForTask({
+								workspacePath: scope.workspacePath,
+								taskId: decision.reviewTaskId,
+								service: trackedService,
+								warn: deps.warn,
+							}).catch((error) => {
+								const message = error instanceof Error ? error.message : String(error);
+								deps.warn(`Opportunistic idle review for ${decision.reviewTaskId} errored: ${message}`);
+							});
+						} catch {
+							// Opportunistic — must never crash the runtime.
+						}
+					})();
+				}, OPPORTUNISTIC_IDLE_WORK_TICK_MS),
+			);
 		} else {
 			await service.updateAgentSandboxPoolConfig(sandboxPoolConfig);
 			// Re-apply the sandbox Docker --network policy on a live capability-tier change. Without this, a cached
@@ -1988,6 +2045,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			clearInterval(mirrorTick);
 			speculativeMirrorTickByWorkspaceId.delete(workspaceId);
 		}
+		const idleWorkTick = opportunisticIdleWorkTickByWorkspaceId.get(workspaceId);
+		if (idleWorkTick) {
+			clearInterval(idleWorkTick);
+			opportunisticIdleWorkTickByWorkspaceId.delete(workspaceId);
+		}
+		idleReviewDispatchedByWorkspaceId.delete(workspaceId);
 		speculativeConfigByWorkspaceId.delete(workspaceId);
 		speculativeSpecsInFlightByWorkspaceId.delete(workspaceId);
 		const deferredTimer = deferredRetryTimerByWorkspaceId.get(workspaceId);
