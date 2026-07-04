@@ -7,18 +7,17 @@ import {
 } from "../../../src/core/sandbox-mcp-catalog";
 
 describe("sandbox MCP catalog", () => {
-	it("registers both sequential-thinking and codebase-memory as available (both baked into the image)", () => {
+	it("registers all three curated servers as available (all baked into the image)", () => {
 		const byId = new Map(SANDBOX_MCP_SERVERS.map((s) => [s.id, s]));
 		expect(byId.get("sequential-thinking")?.available).toBe(true);
 		expect(byId.get("codebase-memory")?.available).toBe(true);
-		expect(listAvailableSandboxMcpServers().map((s) => s.id)).toEqual(["sequential-thinking", "codebase-memory"]);
-	});
-
-	it("registers basic-memory as not-yet-available (binary + FastEmbed cache not baked into the image yet)", () => {
-		const byId = new Map(SANDBOX_MCP_SERVERS.map((s) => [s.id, s]));
-		expect(byId.get("basic-memory")?.available).toBe(false);
+		expect(byId.get("basic-memory")?.available).toBe(true);
 		expect(byId.get("basic-memory")?.inContainerArgv).toEqual(["basic-memory", "mcp"]);
-		expect(listAvailableSandboxMcpServers().map((s) => s.id)).not.toContain("basic-memory");
+		expect(listAvailableSandboxMcpServers().map((s) => s.id)).toEqual([
+			"sequential-thinking",
+			"codebase-memory",
+			"basic-memory",
+		]);
 	});
 
 	it("each server's fit profile serverId matches its catalog id (so gate + opt-out key line up)", () => {

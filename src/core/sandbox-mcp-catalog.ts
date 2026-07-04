@@ -67,12 +67,12 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	{
 		id: "basic-memory",
 		label: "Basic Memory",
-		// §5.AR authored markdown-graph memory. `basic-memory mcp` forces STDIO (the published image CMD defaults to an
-		// SSE server). available:false until the binary + pre-seeded FastEmbed cache + egress-hardening env are baked
-		// into the sandbox image (next increment) — listAvailableSandboxMcpServers filters on this.
+		// §5.AR authored markdown-graph memory, baked into the image (uv tool install basic-memory==0.22.1, see docker/
+		// agent-sandbox/Dockerfile). `basic-memory mcp` forces STDIO (the published image CMD defaults to an SSE server).
+		// A failed connect degrades gracefully (createToolBundle try/catch → warning), so this is safe pre-rebuild.
 		inContainerArgv: ["basic-memory", "mcp"],
 		fit: BASIC_MEMORY_FIT,
-		available: false,
+		available: true,
 	},
 ];
 

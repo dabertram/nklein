@@ -32,6 +32,27 @@ ENV CBM_CACHE_DIR=/opt/nklein/cbm
 RUN mkdir -m 1777 -p /opt/nklein/cbm \
 	&& (codebase-memory-mcp config set auto_index true || echo "codebase-memory: auto_index not set (non-fatal)")
 
+# basic-memory (§5.AR authored markdown-graph memory) — AGPL-3.0-or-later, Python 3.12+ (the base image ships 3.11), so
+# install via uv: COPY the pinned uv static binary from Astral's official image, then `uv tool install` provisions an
+# ISOLATED venv + a managed CPython 3.12 at BUILD time (build has network; the running container is --network none).
+# The managed python + tool venv go under a WORLD-READABLE /opt/uv (chmod a+rX) because the sandbox execs the launcher
+# as an unprivileged uid — never from root's 0700 home. Bin: `basic-memory` (stdio via `basic-memory mcp`, overriding
+# the upstream SSE default). `--help` ASSERTS the install runs so a broken bake fails the BUILD, not runtime. Egress is
+# hardened by env (verified vectors: pypi auto-update, Umami analytics, FastEmbed HF download); semantic search is left
+# OFF (robust SQLite FTS recall — no ~73MB model to pre-seed; enable + pre-seed later). --network none is the backstop.
+COPY --from=ghcr.io/astral-sh/uv:0.11.26 /uv /uvx /usr/local/bin/
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+	UV_TOOL_DIR=/opt/uv/tools \
+	UV_TOOL_BIN_DIR=/usr/local/bin
+RUN uv tool install --python 3.12 basic-memory==0.22.1 \
+	&& chmod -R a+rX /opt/uv \
+	&& basic-memory --help >/dev/null
+ENV BASIC_MEMORY_AUTO_UPDATE=false \
+	BASIC_MEMORY_NO_PROMOS=1 \
+	BASIC_MEMORY_SEMANTIC_SEARCH_ENABLED=false \
+	HF_HUB_OFFLINE=1 \
+	TRANSFORMERS_OFFLINE=1
+
 RUN mkdir -m 1777 /workspaces
 
 WORKDIR /workspaces
