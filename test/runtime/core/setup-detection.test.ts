@@ -45,6 +45,17 @@ describe("recommendSandboxPoolSizing (one shared container + exec spike guard)",
 		expect(big.maxContainers).toBe(1);
 	});
 
+	it("clamps a tiny-but-valid Docker VM (≤ Docker overhead) to the floor — monotonic, never bigger than a larger VM", () => {
+		// Regression: when the VM (2 GiB) is at/below Docker's overhead, the container ceiling is ≤ 0; a bug let the
+		// UNCLAMPED target through, so the SMALLEST VM got the LARGEST recommendation. It must clamp to the shipped floor.
+		const tiny = recommendSandboxPoolSizing({ totalRamMb: 32 * GB, cpuCount: 8, dockerVmMemoryMb: 2 * GB });
+		expect(tiny.memoryPerContainerMb).toBe(DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB);
+		expect(tiny.warnings.length).toBeGreaterThan(0); // and it warns the VM is too small
+		// Monotonic: a slightly-bigger VM never yields a SMALLER container memory than the tiny one.
+		const bigger = recommendSandboxPoolSizing({ totalRamMb: 32 * GB, cpuCount: 8, dockerVmMemoryMb: 6 * GB });
+		expect(bigger.memoryPerContainerMb).toBeGreaterThanOrEqual(tiny.memoryPerContainerMb);
+	});
+
 	it("caps the concurrent-exec recommendation regardless of hardware", () => {
 		const huge = recommendSandboxPoolSizing({ totalRamMb: 1024 * GB, cpuCount: 128, dockerVmMemoryMb: 256 * GB });
 		expect(huge.maxConcurrentExec).toBeLessThanOrEqual(6);

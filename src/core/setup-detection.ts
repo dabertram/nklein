@@ -91,9 +91,12 @@ export function recommendSandboxPoolSizing(input: {
 			: Math.max(0, totalRamMb - SANDBOX_HOST_RESERVED_RAM_MB);
 
 	// Fit the target into the ceiling, never below the shipped floor (a tiny VM still gets a working — if capped — box).
+	// ALWAYS clamp to the ceiling: when the ceiling is ≤ 0 (a Docker VM at/below Docker's own overhead) `min(target, 0)`
+	// is 0 and the outer `Math.max` restores the floor — so a smaller VM never yields a LARGER recommendation than a
+	// bigger one (the too-small-VM warning below tells the operator to raise it).
 	const memoryPerContainerMb = Math.max(
 		DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
-		containerCeilingMb > 0 ? Math.min(targetContainerMb, containerCeilingMb) : targetContainerMb,
+		Math.min(targetContainerMb, containerCeilingMb),
 	);
 	const maxConcurrentExec = Math.min(
 		execTarget,
