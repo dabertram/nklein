@@ -1198,7 +1198,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] run the reproduction test and record fail-before / pass-after.
     - [ ] run the regression suite and capture structured pass/fail.
     - [ ] run typecheck + lint and capture structured failures.
-    - [ ] aggregate into the `ValidationResult` the ranker consumes; unit-test the aggregation.
+    - [x] aggregate into the `ValidationResult` the ranker consumes; unit-test the aggregation. *(2026-07-04: `aggregateCandidateValidation` in repair-kernel.ts folds raw gate counts → CandidateValidation; 6 tests)*
   - [ ] **Fill the ranker's injectable tiebreaks:**
     - [ ] wire touched-file plausibility into the rank inputs.
     - [ ] wire reviewer-evidence signal into the rank inputs.

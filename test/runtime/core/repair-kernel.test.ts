@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	aggregateCandidateValidation,
 	type CandidateValidation,
 	type RepairCandidate,
 	type RepairKernelDeps,
@@ -102,5 +103,56 @@ describe("runRepairKernel", () => {
 			refineRounds: 0,
 		});
 		expect(outcome.status).toBe("no_candidate");
+	});
+});
+
+describe("aggregateCandidateValidation", () => {
+	const gates = {
+		candidateId: "c1",
+		reproPassAfter: true,
+		regressionFailures: 0,
+		typecheckFailures: 0,
+		lintFailures: 0,
+		diffSize: 12,
+	};
+
+	it("folds all-clean raw gates into an all-pass validation", () => {
+		expect(aggregateCandidateValidation(gates)).toEqual({
+			candidateId: "c1",
+			reproPass: true,
+			regressionPass: true,
+			checksPass: true,
+			diffSize: 12,
+		});
+	});
+
+	it("any regression failure ⇒ regressionPass false", () => {
+		expect(aggregateCandidateValidation({ ...gates, regressionFailures: 2 }).regressionPass).toBe(false);
+	});
+
+	it("a typecheck OR lint failure ⇒ checksPass false", () => {
+		expect(aggregateCandidateValidation({ ...gates, typecheckFailures: 1 }).checksPass).toBe(false);
+		expect(aggregateCandidateValidation({ ...gates, lintFailures: 1 }).checksPass).toBe(false);
+	});
+
+	it("a not-passing repro ⇒ reproPass false", () => {
+		expect(aggregateCandidateValidation({ ...gates, reproPassAfter: false }).reproPass).toBe(false);
+	});
+
+	it("clamps negative counts / diff size (fail-safe on garbage)", () => {
+		const out = aggregateCandidateValidation({
+			...gates,
+			regressionFailures: -1,
+			typecheckFailures: -3,
+			lintFailures: -2,
+			diffSize: -5,
+		});
+		expect(out).toMatchObject({ regressionPass: true, checksPass: true, diffSize: 0 });
+	});
+
+	it("the aggregate feeds the ranker (an all-pass small diff outranks a repro-only failure)", () => {
+		const good = aggregateCandidateValidation(gates);
+		const bad = aggregateCandidateValidation({ ...gates, candidateId: "c2", regressionFailures: 1 });
+		expect(rankCandidateValidations([bad, good])[0].candidateId).toBe("c1");
 	});
 });

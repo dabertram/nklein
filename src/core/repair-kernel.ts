@@ -33,6 +33,37 @@ export interface CandidateValidation {
 	diffSize: number;
 }
 
+/**
+ * The RAW, structured gate outputs the validator captures for one candidate — the repro test's after-apply result,
+ * a count of regression / typecheck / lint failures, and the diff size. {@link aggregateCandidateValidation} folds
+ * these into the boolean {@link CandidateValidation} the ranker consumes (the effectful runners that RUN the gates and
+ * produce these numbers are the validator's other, integration-side leaves).
+ */
+export interface RawValidationGates {
+	candidateId: string;
+	/** The reproduction test PASSED after applying the candidate (the bug is fixed). */
+	reproPassAfter: boolean;
+	/** Number of regression-suite tests that failed (0 ⇒ no new breakage). */
+	regressionFailures: number;
+	/** Number of typecheck failures (0 ⇒ clean). */
+	typecheckFailures: number;
+	/** Number of lint failures (0 ⇒ clean). */
+	lintFailures: number;
+	/** Lines changed by the candidate. */
+	diffSize: number;
+}
+
+/** Fold the raw structured gate outputs into the boolean {@link CandidateValidation} the ranker consumes. Pure. */
+export function aggregateCandidateValidation(gates: RawValidationGates): CandidateValidation {
+	return {
+		candidateId: gates.candidateId,
+		reproPass: gates.reproPassAfter === true,
+		regressionPass: Math.max(0, gates.regressionFailures) === 0,
+		checksPass: Math.max(0, gates.typecheckFailures) === 0 && Math.max(0, gates.lintFailures) === 0,
+		diffSize: Math.max(0, gates.diffSize),
+	};
+}
+
 export interface RepairKernelDeps {
 	/** Establish a fail-before reproduction (a first-class artifact). Returns whether the bug reproduces. */
 	reproduce: () => Promise<boolean>;
