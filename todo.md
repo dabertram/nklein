@@ -1203,7 +1203,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] wire touched-file plausibility into the rank inputs. *(injectable `touchedFilePlausibility`)*
     - [x] wire reviewer-evidence signal into the rank inputs. *(injectable `reviewerEvidence`)*
     - [x] wire learned priors (from the §5.AF ledger) into the rank inputs; unit-test the combined order. *(injectable `learnedPrior`; tiebreaks apply after the hard gates + before smaller-diff; 4 tests)*
-  - [ ] **Ledger the kernel run (§5.AF):** record (one leaf each) localization candidates · patch candidates ·
+  - [x] **Ledger the kernel run (§5.AF):** record (one leaf each) localization candidates · patch candidates · *(2026-07-04: pure `summarizeRepairKernelRun` projection in repair-kernel-ledger.ts — all 5 leaves: localization/patch-candidates-by-round/validator-results/refinement-deltas/final-ranking-rationale; 9 tests)*
         validator results · refinement deltas · final ranking rationale.
   - [ ] **Enrich generated card specs** (one leaf per field group): add `preconditions/inputs/expectedOutputs` ·
         `acceptanceChecks/nonGoals` · `dependencyOutputsConsumed` · `rollbackOrRepairHints/downstreamInvalidationRules`

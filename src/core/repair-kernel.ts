@@ -115,6 +115,15 @@ export interface CandidateTiebreaks {
 }
 
 /**
+ * The hard-gate rank score for a validation: repro-pass (4) dominates regression-pass (2) dominates checks-pass (1),
+ * so a candidate that fixes the bug always outranks one that only keeps the checks clean. Range 0–7; higher = better.
+ * Exported so the ledger projection (§5.AK) scores rounds identically to the ranker — one source of truth, no drift.
+ */
+export function candidateGateScore(validation: CandidateValidation): number {
+	return (validation.reproPass ? 4 : 0) + (validation.regressionPass ? 2 : 0) + (validation.checksPass ? 1 : 0);
+}
+
+/**
  * Rank validated candidates best-first (pure): hard gates first (repro-pass, then regression-pass, then checks-pass),
  * then the injectable evidence tiebreaks (higher = better), then the SMALLER diff. A higher rank means a better fix.
  * `tiebreaksFor` is optional — absent ⇒ the classic gate-then-diff order, byte-identical to before.
@@ -123,8 +132,7 @@ export function rankCandidateValidations(
 	validations: readonly CandidateValidation[],
 	tiebreaksFor?: (candidateId: string) => CandidateTiebreaks | undefined,
 ): CandidateValidation[] {
-	const gateScore = (v: CandidateValidation) =>
-		(v.reproPass ? 4 : 0) + (v.regressionPass ? 2 : 0) + (v.checksPass ? 1 : 0);
+	const gateScore = candidateGateScore;
 	const tiebreakScore = (v: CandidateValidation): number => {
 		const t = tiebreaksFor?.(v.candidateId) ?? {};
 		return (t.touchedFilePlausibility ?? 0) + (t.reviewerEvidence ?? 0) + (t.learnedPrior ?? 0);
