@@ -277,8 +277,9 @@ export function decideLeaseRenewal(request: LeaseRenewalRequest): LeaseRenewalDe
 /**
  * Guard a mutating action carried by `actionEpoch` against the lease's current `fenceEpoch` — the zombie-holder fence.
  * A resurrected old holder (or a duplicate in-flight message) carries a STALE (lower) epoch than the one a `steal`
- * minted for the new holder; this returns `false` for it (refuse) and `true` only when the action's epoch is at least
- * the lease's current epoch. Pure. Absent epochs fold to 0, so a caller that never adopted fencing is never fenced out
+ * minted for the new holder; this returns `true` for it (FENCED — refuse the stale action) and `false` only when the
+ * action's epoch is at least the lease's current epoch (not fenced — the action may apply). Pure. Absent epochs fold to
+ * 0, so a caller that never adopted fencing is never fenced out
  * (0 ≥ 0). This is the check a `steal`'s `nextFenceEpoch` exists to enable.
  */
 export function isLeaseActionFenced(currentFenceEpoch: number | undefined, actionEpoch: number | undefined): boolean {
