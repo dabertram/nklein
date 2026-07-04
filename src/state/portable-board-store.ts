@@ -138,22 +138,30 @@ const REPLICA_ID_FILENAME = "replica-id";
  */
 export async function resolveMachineReplicaId(): Promise<string> {
 	const path = join(resolveNkleinRuntimeHomePath(homedir()), REPLICA_ID_FILENAME);
-	try {
-		const existing = (await readFile(path, "utf8")).trim();
-		if (existing) {
-			return existing;
+	// Hold the file lock across the whole read-generate-write. The replica-id file is machine-global but its only
+	// callers hold merely per-WORKSPACE directory locks, so without this two concurrent first-run resolutions (from
+	// different workspaces) could both read ENOENT and generate DISTINCT UUIDs — the write-side lock alone can't
+	// prevent the double-generation because it doesn't cover the earlier read. Re-reading inside the lock lets a
+	// racing caller that already persisted an id be observed instead of overwritten. (Nested writeTextFileAtomic on
+	// the same path is re-entrant-safe, so this does not deadlock.)
+	return await lockedFileSystem.withLock({ path }, async () => {
+		try {
+			const existing = (await readFile(path, "utf8")).trim();
+			if (existing) {
+				return existing;
+			}
+		} catch {
+			// Falls through to create one.
 		}
-	} catch {
-		// Falls through to create one.
-	}
-	const replicaId = randomUUID();
-	try {
-		await mkdir(resolveNkleinRuntimeHomePath(homedir()), { recursive: true });
-		await lockedFileSystem.writeTextFileAtomic(path, replicaId);
-	} catch {
-		// Best-effort persistence; a transient id is still correct for a single run.
-	}
-	return replicaId;
+		const replicaId = randomUUID();
+		try {
+			await mkdir(resolveNkleinRuntimeHomePath(homedir()), { recursive: true });
+			await lockedFileSystem.writeTextFileAtomic(path, replicaId);
+		} catch {
+			// Best-effort persistence; a transient id is still correct for a single run.
+		}
+		return replicaId;
+	});
 }
 
 /**
