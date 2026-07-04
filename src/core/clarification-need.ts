@@ -95,14 +95,22 @@ const EXPLICIT_UNCERTAINTY =
  * Pairs of mutually-tensioned intents; a request that states both sides looks internally conflicting.
  * Each entry is [sideA, sideB]; order-independent (both directions are checked).
  */
+// NOTE: each alternation is GROUPED as `\b(?:a|b|c)\b`. Writing `\ba|b|c\b` is a bug — `|` has the lowest regex
+// precedence, so the boundaries anchor only the first (`\ba`) and last (`c\b`) alternatives and every interior one
+// matches as a bare substring (e.g. `replace` inside "irreplaceable", `full` inside "fully"), firing a spurious
+// conflicting_constraints signal. Exception: `backward[- ]compat` is a deliberate PREFIX (must also match
+// "backward-compatible"/"compatibility"), so it keeps only a leading boundary.
 const CONFLICT_PAIRS: ReadonlyArray<readonly [RegExp, RegExp]> = [
-	[/\bminimal|small|simple|lightweight|tiny\b/i, /\bcomprehensive|everything|full|complete|exhaustive|all\s+the\b/i],
-	[/\bfast|quick|quickly|asap|now\b/i, /\bthorough|careful|robust|production[- ]ready|polished\b/i],
 	[
-		/\bkeep\b|\bdon'?t\s+change|\bpreserve\b|\bleave\b/i,
-		/\brewrite|replace|overhaul|redo\s+everything|from\s+scratch\b/i,
+		/\b(?:minimal|small|simple|lightweight|tiny)\b/i,
+		/\b(?:comprehensive|everything|full|complete|exhaustive|all\s+the)\b/i,
 	],
-	[/\bbackward[- ]compat|non[- ]breaking\b/i, /\bbreaking\s+change|drop\s+support|remove\s+the\s+old\b/i],
+	[/\b(?:fast|quick|quickly|asap|now)\b/i, /\b(?:thorough|careful|robust|production[- ]ready|polished)\b/i],
+	[
+		/\b(?:keep|don'?t\s+change|preserve|leave)\b/i,
+		/\b(?:rewrite|replace|overhaul|redo\s+everything|from\s+scratch)\b/i,
+	],
+	[/\bbackward[- ]compat|\bnon[- ]breaking\b/i, /\b(?:breaking\s+change|drop\s+support|remove\s+the\s+old)\b/i],
 ];
 
 /** The full assessment: the extracted signals, the aggregate score, and the mode-relative verdict. */

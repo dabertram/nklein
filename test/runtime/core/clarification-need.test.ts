@@ -58,6 +58,28 @@ describe("detectClarificationSignals", () => {
 		expect(kinds("keep the change minimal in the parser module")).not.toContain("conflicting_constraints");
 	});
 
+	it("does NOT fire on a conflict-term SUBSTRING inside a larger, non-conflicting word", () => {
+		// Unanchored alternation used to match 'replace' inside 'irreplaceable', 'full' inside 'fully',
+		// 'complete' inside 'completed' — pairing with the other side and raising a spurious clarifying
+		// question that stalls a clear task. Each of these fired on the old regex; none should now.
+		expect(kinds("preserve this irreplaceable artifact in the config module")).not.toContain(
+			"conflicting_constraints",
+		);
+		expect(kinds("make a minimal but fully-tested change to the parser module")).not.toContain(
+			"conflicting_constraints",
+		);
+		expect(kinds("keep it small but with the completed feature set in the module")).not.toContain(
+			"conflicting_constraints",
+		);
+	});
+
+	it("still fires on a genuine conflict term that is a prefix (backward-compatible ↔ breaking change)", () => {
+		// backward[- ]compat is a DELIBERATE prefix — it must still match "backward-compatible".
+		expect(kinds("make it backward-compatible but also a breaking change to the module")).toContain(
+			"conflicting_constraints",
+		);
+	});
+
 	it("flags multiple interpretations when open choices are offered", () => {
 		expect(kinds("add caching to the module, either redis or maybe something else")).toContain(
 			"multiple_interpretations",
