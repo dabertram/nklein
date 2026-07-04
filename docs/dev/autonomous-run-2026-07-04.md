@@ -65,7 +65,12 @@ draft PR-style change I hold for review, not an auto-merge.
    the task), and `shouldHaltRedecomposition` bounds re-decompose loops (11 test assertions already pin it).
    Matches David's decision exactly — nothing to change.
 9. **§5.AN model stats** → track ALWAYS per-request, FULL default, config knob to reduce (`full|basic|off`).
-   *(pending)*
+   *FINDING (2026-07-04):* the SWARM already records per-attempt usage (prompt/completion/reasoning tokens)
+   into the ledger (`nklein-task-session-service` ~L4123-4180 → `buildAttemptEvent` → `summarizeModelSpeed`
+   → `dev model-speed`/`dev ledger`). So "track always" is largely DONE. Remaining work = add a
+   `modelStatsTrackingLevel: "full"|"basic"|"off"` config field (default `full`) + normalizer, thread it to
+   the recording site, and gate: `off` skips recording, `basic` records token TOTALS only (null the granular
+   per-tool/reasoning fields), `full` = today. Bounded but threads config into the big service file. *(pending)*
 10. **§5.AE skill-fragment mapping** → DRAFT + canonicalize naming + stub `repo_map`/`focus_chain`, hold
     for approval. *(pending)*
 11. **§5.AW opportunistic-work ranker** → DRAFT priority order + HARD veto, hold for approval. *(pending)*
