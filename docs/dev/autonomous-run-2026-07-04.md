@@ -57,10 +57,18 @@ to avoid locking in a direction you'd want to choose:
 9. **§5.AN native /api/v0 stats** — todo's own note says auto-feeding per-request is low-value /
    high-latency; keep it on-demand (`dev model-speed`)? **Q: confirm on-demand only, or is there a
    perf investigation that justifies per-request live stats?**
-10. **§5.AN/§5.AL runtime model-research needs a real web-SEARCH tool** — `browse_url` only fetches a
-    known URL, can't search. **Q: build a web-search tool now (behind what egress gate), or keep
-    deferred per the §5.AO strong-driver-first steer?** (Note: the §5.AC retrieval loop already has a
-    SearXNG search adapter — this may be mostly wiring, worth a look.)
+10. **Web-SEARCH tool — refined after investigation (2026-07-04): mostly ALREADY BUILT.** The premise
+    ("browse_url can't search, build a web-search tool") is already solved on the SWARM path: a
+    `web_search` tool (`nklein-web-search-tool.ts` over the fail-closed SearXNG client
+    `server/web-search-searxng.ts`) AND `browse_url` are both bound per worker session in
+    `nklein-task-session-service.ts`, egress-gated: egress-on ⇒ `browse_url`; egress-on + a configured
+    SearXNG backend URL ⇒ `web_search` too. Defaults: `DEFAULT_RETRIEVAL_EGRESS_ENABLED=false`,
+    backend URL=null → both dormant (your 2026-07-02 opt-in). The ONLY gap: the **CHAT** agent gets
+    `browse_url` (`chat-browser-tool.ts`, Playwright) but NOT `web_search` — chat can fetch a known URL
+    but can't search. **Q: give the chat agent the SAME egress-gated `web_search` (pure wiring —
+    reuse the swarm's client + gate, off by default), or keep chat fetch-only?** If yes it's a small,
+    flag-gated, zero-default-change job I can do; it only touches the egress posture, so it's your call.
+    (Runtime model-research via search then rides on whichever paths you enable + a configured backend.)
 
 (Appended as I hit more forks.)
 
