@@ -3,6 +3,7 @@
 // the normalized state the app consumes: every field is run through its normalizer, and the derived
 // `effective*` fields are computed as `override ?? default`. Pure and IO-free — the load/save/update
 // orchestration that gathers these values stays in runtime-config.ts.
+
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
 	AgentRulesetsConfigPayload,
@@ -20,6 +21,11 @@ import type {
 } from "../core/api-contract";
 import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
+import {
+	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
+	type ModelStatsTrackingLevel,
+	normalizeModelStatsTrackingLevel,
+} from "../core/model-stats-tracking-level";
 import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
@@ -70,6 +76,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	knowsTodayEnabled: boolean;
 	sandboxMcpServersEnabled: boolean;
 	capabilityBrokerEnabled: boolean;
+	modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	retrievalEgressEnabled: boolean;
 	retrievalSearchBackendUrl: string | null;
 	speculativeBestOfNEnabled: boolean;
@@ -129,6 +136,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		knowsTodayEnabled: normalizeBoolean(input.knowsTodayEnabled, DEFAULT_KNOWS_TODAY_ENABLED),
 		sandboxMcpServersEnabled: normalizeBoolean(input.sandboxMcpServersEnabled, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED),
 		capabilityBrokerEnabled: normalizeBoolean(input.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
+		modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(input.modelStatsTrackingLevel),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			input.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,

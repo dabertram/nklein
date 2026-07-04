@@ -1545,6 +1545,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 				sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
 				retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
+				modelStatsTrackingLevel: runtimeConfig.modelStatsTrackingLevel,
 				retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
@@ -1947,6 +1948,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
 			service.setRetrievalConfig(runtimeConfig.retrievalEgressEnabled, runtimeConfig.retrievalSearchBackendUrl);
+			service.setModelStatsTrackingLevel(runtimeConfig.modelStatsTrackingLevel);
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
 				maxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,

@@ -3,9 +3,11 @@
 // updateGlobalRuntimeConfig built this same ~34-field block; they differ only in the project-override
 // fields and `shortcuts`, which each caller composes on top of this result. Each field keeps the
 // caller's update when provided (normalizing it) and otherwise retains the current value.
+
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { normalizeConcurrencyConfig } from "../core/concurrency-config";
+import { normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
@@ -83,6 +85,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.capabilityBrokerEnabled,
 			current.capabilityBrokerEnabled,
 			(value) => normalizeBoolean(value, DEFAULT_CAPABILITY_BROKER_ENABLED),
+		),
+		modelStatsTrackingLevel: keepNormalizedValue(
+			updates.modelStatsTrackingLevel,
+			current.modelStatsTrackingLevel,
+			(value) => normalizeModelStatsTrackingLevel(value),
 		),
 		retrievalEgressEnabled: keepNormalizedValue(
 			updates.retrievalEgressEnabled,

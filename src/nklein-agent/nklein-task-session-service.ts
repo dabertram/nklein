@@ -1,3 +1,8 @@
+import {
+	applyModelStatsTrackingLevel,
+	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
+	type ModelStatsTrackingLevel,
+} from "../core/model-stats-tracking-level";
 import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./nklein-sdk-event-readers";
 
 // Task-oriented facade for native NKlein sessions.
@@ -363,6 +368,8 @@ export interface NKleinTaskSessionService {
 	setSandboxMcpServersEnabled(enabled: boolean): void;
 	/** Apply the §5.AC egress-gated retrieval config (OFF by default, fail closed) when config changes. */
 	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void;
+	/** Apply the §5.AN model-stats tracking level (full by default) when config changes. */
+	setModelStatsTrackingLevel(level: ModelStatsTrackingLevel): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
 	verifyTaskAcceptanceInSandbox(input: {
 		taskId: string;
@@ -462,6 +469,8 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 * `::plan-critique` / `::acceptance`) never do. Live-updated when config changes (same seam as `swarmGuardrails`).
 	 */
 	retrievalEgressEnabled?: boolean;
+	/** §5.AN decision-9: how much per-request token stats to record (default full). */
+	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	/** The §5.AC SearXNG-compatible search endpoint base URL; null (default) keeps `web_search` detached. */
 	retrievalSearchBackendUrl?: string | null;
 	/**
@@ -537,6 +546,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private sandboxMcpServersEnabled: boolean;
 	/** §5.AC retrieval egress switch (OFF by default, fail closed); live-updated with config. */
 	private retrievalEgressEnabled: boolean;
+	private modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	/** §5.AC search backend base URL (null ⇒ `web_search` never attaches); live-updated with config. */
 	private retrievalSearchBackendUrl: string | null;
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
@@ -574,6 +584,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.knowsTodayEnabled = options.knowsTodayEnabled ?? DEFAULT_KNOWS_TODAY_ENABLED;
 		this.sandboxMcpServersEnabled = options.sandboxMcpServersEnabled ?? DEFAULT_SANDBOX_MCP_SERVERS_ENABLED;
 		this.retrievalEgressEnabled = options.retrievalEgressEnabled ?? DEFAULT_RETRIEVAL_EGRESS_ENABLED;
+		this.modelStatsTrackingLevel = options.modelStatsTrackingLevel ?? DEFAULT_MODEL_STATS_TRACKING_LEVEL;
 		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
@@ -2822,6 +2833,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.retrievalSearchBackendUrl = searchBackendUrl;
 	}
 
+	/** §5.AN decision-9: live-update the model-stats tracking level when the runtime config changes. */
+	setModelStatsTrackingLevel(level: ModelStatsTrackingLevel): void {
+		this.modelStatsTrackingLevel = level;
+	}
+
 	async waitUntilTaskResumed(taskId: string): Promise<void> {
 		await this.pauseController.waitUntilResumed(taskId);
 	}
@@ -4120,8 +4136,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.finalizeSandboxReview(taskId);
 		}
 		const usage = summary.latestUsage ?? null;
-		const promptTokens = usage?.inputTokens ?? null;
-		const completionTokens = usage?.outputTokens ?? null;
+		// §5.AN decision-9: gate the recorded token telemetry by the configured level (full ⇒ as-is; basic ⇒ totals only;
+		// off ⇒ suppress token stats, the attempt OUTCOME is still recorded). Applied ONCE so both recorders below (the
+		// run-summary and the ledger attempt event) use the gated values.
+		const gatedUsage = applyModelStatsTrackingLevel(this.modelStatsTrackingLevel, {
+			promptTokens: usage?.inputTokens ?? null,
+			completionTokens: usage?.outputTokens ?? null,
+			totalTokens: null,
+			reasoningTokens: null,
+		});
+		const promptTokens = gatedUsage.promptTokens;
+		const completionTokens = gatedUsage.completionTokens;
 		const { reason: timeoutReason, source: timeoutSource } = this.pendingTimeout.consume(taskId);
 		// Coarse role attribution (todo §5.C) for by-role timeout breakdowns — same resolution as the live summary
 		// stamp (resolveNKleinTaskRole), so the run summary and the session summary agree.

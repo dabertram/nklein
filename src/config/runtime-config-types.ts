@@ -1,6 +1,7 @@
 // Public config type surface for the runtime-config facade (§5.AK decomposition, first slice). Pure type
 // declarations only — the load / save / normalize / change-detection implementation stays in runtime-config.ts,
 // which imports these back and re-exports them from its original module path for import-compatibility.
+
 import type {
 	AgentRulesetsConfigPayload,
 	RuntimeAgentId,
@@ -16,6 +17,7 @@ import type {
 	RuntimeSwarmGuardrails,
 } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
+import type { ModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 
 export interface RuntimeConfigState {
 	globalConfigPath: string;
@@ -33,6 +35,7 @@ export interface RuntimeConfigState {
 	/** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT; offered to fitting models, global/per-project opt-out. */
 	sandboxMcpServersEnabled: boolean;
 	capabilityBrokerEnabled: boolean;
+	modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	/** §5.AC egress-gated online retrieval (web_search + browse_url) — OFF BY DEFAULT; false must keep every retrieval path dormant. */
 	retrievalEgressEnabled: boolean;
 	/** §5.AC SearXNG-compatible search endpoint base URL — trimmed; empty → null (null = no search backend configured). */
@@ -112,6 +115,7 @@ export interface RuntimeConfigUpdateInput {
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
 	capabilityBrokerEnabled?: boolean;
+	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
 	speculativeBestOfNEnabled?: boolean;
@@ -171,6 +175,7 @@ export interface RuntimeGlobalConfigFileShape {
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
 	capabilityBrokerEnabled?: boolean;
+	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
 	speculativeBestOfNEnabled?: boolean;

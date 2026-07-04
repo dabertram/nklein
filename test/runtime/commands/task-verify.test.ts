@@ -76,6 +76,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
 		capabilityBrokerEnabled: false,
+		modelStatsTrackingLevel: "full",
 		retrievalEgressEnabled: false,
 		retrievalSearchBackendUrl: null,
 		speculativeBestOfNEnabled: true,

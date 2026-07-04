@@ -30,6 +30,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
 		capabilityBrokerEnabled: false,
+		modelStatsTrackingLevel: "full",
 		retrievalEgressEnabled: false,
 		retrievalSearchBackendUrl: null,
 		speculativeBestOfNEnabled: true,

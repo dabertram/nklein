@@ -1,6 +1,7 @@
 // Persists !Klein-owned runtime preferences on disk.
 // This module should store !Klein settings such as selected agents,
 // shortcuts, and prompt templates, not SDK-owned NKlein secrets or OAuth data.
+
 import { copyFile, readFile, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -27,6 +28,11 @@ import {
 	DEFAULT_CONCURRENCY_CONFIG,
 	normalizeConcurrencyOverride,
 } from "../core/concurrency-config";
+import {
+	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
+	type ModelStatsTrackingLevel,
+	normalizeModelStatsTrackingLevel,
+} from "../core/model-stats-tracking-level";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
@@ -256,6 +262,7 @@ function toRuntimeConfigState({
 			globalConfig?.capabilityBrokerEnabled,
 			DEFAULT_CAPABILITY_BROKER_ENABLED,
 		),
+		modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(globalConfig?.modelStatsTrackingLevel),
 		agentAutonomousModeEnabled: normalizeBoolean(
 			globalConfig?.agentAutonomousModeEnabled,
 			DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED,
@@ -494,6 +501,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		knowsTodayEnabled: current.knowsTodayEnabled,
 		sandboxMcpServersEnabled: current.sandboxMcpServersEnabled,
 		capabilityBrokerEnabled: current.capabilityBrokerEnabled,
+		modelStatsTrackingLevel: current.modelStatsTrackingLevel,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
 		retrievalSearchBackendUrl: current.retrievalSearchBackendUrl,
 		speculativeBestOfNEnabled: current.speculativeBestOfNEnabled,
@@ -578,6 +586,7 @@ export async function saveRuntimeConfig(
 		knowsTodayEnabled?: boolean;
 		sandboxMcpServersEnabled?: boolean;
 		capabilityBrokerEnabled?: boolean;
+		modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 		retrievalEgressEnabled?: boolean;
 		retrievalSearchBackendUrl?: string | null;
 		speculativeBestOfNEnabled?: boolean;
@@ -641,6 +650,7 @@ export async function saveRuntimeConfig(
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
 			capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
+			modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
@@ -729,6 +739,7 @@ export async function saveRuntimeConfig(
 				DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 			),
 			capabilityBrokerEnabled: normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED),
+			modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
 			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),

@@ -33,6 +33,7 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		knowsTodayEnabled: false,
 		sandboxMcpServersEnabled: true,
 		capabilityBrokerEnabled: false,
+		modelStatsTrackingLevel: "full",
 		retrievalEgressEnabled: false,
 		retrievalSearchBackendUrl: null,
 		speculativeBestOfNEnabled: true,

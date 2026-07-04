@@ -4,6 +4,7 @@
 // it differs from its default or its key was already present on disk — so a freshly-defaulted config
 // stays sparse and round-trips unchanged. This is the logic-dense core of `writeRuntimeGlobalConfigFile`;
 // the surrounding read/write IO stays in runtime-config.ts.
+
 import { DEFAULT_AGENT_RULESETS_CONFIG } from "../core/agent-rulesets";
 import { DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES, normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
@@ -30,6 +31,11 @@ import {
 	DEFAULT_CONCURRENCY_CONFIG,
 	normalizeConcurrencyConfig,
 } from "../core/concurrency-config";
+import {
+	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
+	type ModelStatsTrackingLevel,
+	normalizeModelStatsTrackingLevel,
+} from "../core/model-stats-tracking-level";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
@@ -124,6 +130,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	knowsTodayEnabled?: boolean;
 	sandboxMcpServersEnabled?: boolean;
 	capabilityBrokerEnabled?: boolean;
+	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
 	speculativeBestOfNEnabled?: boolean;
@@ -182,6 +189,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 		DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 	);
 	const capabilityBrokerEnabled = normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED);
+	const modelStatsTrackingLevel = normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel);
 	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
 	const speculativeBestOfNEnabled = normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled);
 	const speculativeMaxConcurrentSpecs = normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs);
@@ -383,6 +391,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		"capabilityBrokerEnabled",
 		capabilityBrokerEnabled,
 		DEFAULT_CAPABILITY_BROKER_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"modelStatsTrackingLevel",
+		modelStatsTrackingLevel,
+		DEFAULT_MODEL_STATS_TRACKING_LEVEL,
 	);
 	assignChangedConfigField(
 		payload,
