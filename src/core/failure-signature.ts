@@ -142,7 +142,9 @@ const SIGNATURE_RULES: readonly SignatureRule[] = [
 			"enotfound",
 			"getaddrinfo",
 			"404",
-			"not found",
+			// NOTE: no bare "not found" needle — it would match unrelated errors like "file not found: config.json"
+			// and misclassify them as a gone endpoint (remediable:false), suppressing safe retries. Real
+			// model/endpoint cases are covered by "model not found" / "model_not_found" / "404" above.
 		),
 	},
 	{

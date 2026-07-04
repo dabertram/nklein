@@ -23,6 +23,18 @@ describe("classifyFailureSignature — model-unavailable (not a capability failu
 		expect(verdict.outcome).toBe("other_failure");
 		expect(verdict.remediable).toBe(false);
 	});
+
+	it.each([
+		"file not found: config.json",
+		"table not found",
+		"key not found in map",
+	])("does NOT misclassify a generic 'not found' (%j) as a gone endpoint — safe retries stay allowed", (message) => {
+		// A bare "not found" needle used to match any error → model_unavailable / remediable:false, suppressing
+		// otherwise-safe retries. Only model/endpoint needles (model not found / model_not_found / 404) qualify.
+		const verdict = classifyFailureSignature(new Error(message));
+		expect(verdict.signature).not.toBe("model_unavailable");
+		expect(verdict.remediable).toBe(true);
+	});
 });
 
 describe("classifyFailureSignature — context overflow (shrink the window, not the budget)", () => {
