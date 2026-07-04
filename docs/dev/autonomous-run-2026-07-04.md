@@ -76,6 +76,16 @@ to avoid locking in a direction you'd want to choose:
     reuse the swarm's client + gate, off by default), or keep chat fetch-only?** If yes it's a small,
     flag-gated, zero-default-change job I can do; it only touches the egress posture, so it's your call.
     (Runtime model-research via search then rides on whichever paths you enable + a configured backend.)
+11. **SSRF guard hardening — check ALL resolved IPs, not just the first (security, 2026-07-04).** The
+    `browse_url` SSRF guard (`checkHostForSsrf` in `chat-browser-tool.ts`) is otherwise solid (ipaddr.js
+    range table, IPv6-mapped unwrap, bracketed-IPv6, non-standard IP encodings caught via getaddrinfo,
+    post-redirect re-check). But `dnsLookup(host, {family:0})` returns only the FIRST address, so a host
+    with mixed public+private A/AAAA records could pass the check while Chromium's connection-fallback
+    reaches the private IP. Fix is 2 lines: `dnsLookup(host, {all:true, family:0})` → block if ANY
+    returned address `isPrivateOrReservedIp`. I did NOT change it autonomously (it's a security-guard
+    semantics change + a possible false-positive on a public host with a stale private A record — your
+    call). **Q: apply the check-all-addresses hardening?** (Strictly fail-closed; near-zero real
+    false-positive risk. Residual DNS-rebinding TOCTOU remains a known hard limit without IP-pinned fetch.)
 
 (Appended as I hit more forks.)
 
