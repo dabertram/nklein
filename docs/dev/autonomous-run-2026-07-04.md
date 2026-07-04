@@ -172,9 +172,24 @@ greenfield. **I deliberately did NOT splice the bridge into `assembleSessionSyst
 into `runtime-server`** — both would be inert/redundant today (the bridge overlaps already-added fragments; an
 idle-review sweep overlaps the existing event-driven review), and adding inert/speculative machinery to hot
 paths is the exact anti-pattern this whole run removed. The approved cores + tested seams are ready to activate
-the moment a producer/picker lands. **ALL 11 decisions now resolved; nothing awaits you.** Remaining is
-optional greenfield: build the fragment producers (repo_map/focus_chain/freshness) and the 4 idle pickers
-(work_ahead/deliberation_seed/spec_mirror/context_prep) + a flag-gated idle-work tick.
+the moment a producer/picker lands. **ALL 11 decisions now resolved; nothing awaits you.**
+
+**#10 + #11 made EFFECTFUL + BACKLOG GRIND STARTED (2026-07-04, per David: "make #10 effectful, then #11, then
+grind the backlog and don't stop before all 475 tasks are done").**
+- **#10 effectful** — `repo_map` marked wired; `buildSessionSkillFragments` resolves active skills → routes the
+  repo map (`buildNKleinRepoMap().rendered`) into `assembleSessionSystemPrompt` (deduped). FLAG-GATED
+  `NKLEIN_SKILL_PROMPT_FRAGMENTS` (default off; a repo-map scan is heavy). freshness/focus_chain stay
+  needs_producer (already effectful via the temporal block / per-turn rail).
+- **#11 effectful** — flag-gated (`NKLEIN_OPPORTUNISTIC_IDLE_WORK`, default off) idle-work tick in runtime-server
+  (mirrors the spec-mirror tick lifecycle): idle veto + `findReviewCandidateTaskIds` + `decideOpportunisticIdleWork`
+  → dispatch a review via `runSecondOpinionReviewForTask`, idempotent per workspace. Other 4 pickers greenfield.
+- **Backlog grind (crossing tasks off todo.md as done):** chat per-turn **token usage** (L497-500, 4 tasks —
+  capture `usage.total_tokens` → sum across the loop → persist `ChatSession.totalTokensUsed` → render in the
+  session label); **model-registry ELEMENT_TOOLTIPS** (§5.J, 1); **§5.AB task-difficulty estimate**
+  (`estimateTaskDifficulty`, 1). **475 → 469 open.** Grind continues (do-not-stop directive).
+
+Optional greenfield still open: the other fragment producers (focus_chain-as-fragment/freshness extraction) and
+the 4 idle pickers (work_ahead/deliberation_seed/spec_mirror/context_prep).
 
 ---
 
