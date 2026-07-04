@@ -1,3 +1,6 @@
+import { brokerManifestAction } from "../core/capability-broker-manifest-input";
+import { manifestProtectedInfluenceKinds } from "../core/manifest-influence-sink";
+import { propagateTaint, type TaintLabel } from "../core/taint-labels";
 import {
 	assessToolArgumentRepair,
 	dispatchArgumentsAfterRepair,
@@ -24,6 +27,13 @@ export interface ChatTool {
 	/** The action kind this tool performs, used by the execution-mode gate. */
 	actionKind: ChatActionKind;
 	run: (args: Record<string, unknown>) => Promise<string>;
+	/**
+	 * §5.L: the taint labels this tool's OUTPUT carries into the turn's context (e.g. `["web"]` for a page fetch,
+	 * `["mcp"]` for an MCP server result). Absent ⇒ the output is trusted (no external taint). Folded into the executor's
+	 * running taint window (opt-in) so a later protected-sink call in the same turn can be broker-gated. A static
+	 * source-kind label for now; content-derived labels (`secret_like`) are a later slice.
+	 */
+	taint?: readonly TaintLabel[];
 }
 
 export interface ChatToolAuditRecord {
@@ -53,11 +63,23 @@ export interface GatedChatToolExecutorInput {
 	confirm?: (call: ChatToolCall, tool: ChatTool) => Promise<boolean>;
 	/** Sink for the audit log (the live wiring passes `recordChatHostAction`). */
 	recordAudit?: (record: ChatToolAuditRecord) => Promise<void>;
+	/**
+	 * §5.L capability broker (OPT-IN, default off ⇒ byte-identical). When true, BEFORE the execution-mode gate the
+	 * executor refuses a tool call whose manifest touches a PROTECTED influence sink (host write / egress / elevated
+	 * approval) if the turn already ingested untrusted content (accumulated from prior tool outputs' {@link ChatTool.taint})
+	 * and no trusted plan backs it — the fail-closed prompt-injection defense. A tool touching no protected sink is never
+	 * blocked, and with the flag off none of this runs.
+	 */
+	capabilityBrokerEnabled?: boolean;
 }
 
 export function createGatedChatToolExecutor(
 	input: GatedChatToolExecutorInput,
 ): (call: ChatToolCall) => Promise<ChatToolResult> {
+	// §5.L per-executor taint window: the accumulated labels of prior tool outputs this executor has run. The resolver
+	// builds one executor per turn, so this is the turn's trust window — a tainted page read then a protected-sink call
+	// within the SAME turn is caught. Accumulate-only (never launders); empty + inert unless capabilityBrokerEnabled.
+	let accumulatedTaint: readonly TaintLabel[] = [];
 	return async (call) => {
 		const tool = input.tools.find((candidate) => candidate.name === call.name);
 		if (!tool) {
@@ -87,7 +109,38 @@ export function createGatedChatToolExecutor(
 			}
 		}
 
-		const access = decideManifestChatAccess(manifestForChatAction(tool.actionKind), input.mode);
+		const manifest = manifestForChatAction(tool.actionKind);
+
+		// §5.L capability broker (opt-in, fail-closed): BEFORE the execution-mode gate, refuse a tool call whose manifest
+		// touches a PROTECTED influence sink when the turn's accumulated taint is untrusted and no trusted plan backs it.
+		// baseline === requested at this seam (there is no per-call requested manifest), so the broker's escalation +
+		// egress gates are structural no-ops — the live rule is the taint-influence one. A tool touching no protected sink
+		// yields no sinks to check and is never blocked here.
+		if (input.capabilityBrokerEnabled) {
+			for (const influence of manifestProtectedInfluenceKinds(manifest)) {
+				const verdict = brokerManifestAction({
+					baseline: manifest,
+					requested: manifest,
+					taintLabels: accumulatedTaint,
+					influence,
+					backedByTrustedPlan: false,
+				});
+				if (verdict.decision !== "allow") {
+					await input.recordAudit?.({
+						sessionId: input.sessionId,
+						mode: input.mode,
+						action: tool.actionKind,
+						decision: "deny",
+						confirmed: false,
+						executed: false,
+						detail: buildAuditDetail(tool.name, args),
+					});
+					return { callId: call.id, content: `Denied by capability broker: ${verdict.reason}` };
+				}
+			}
+		}
+
+		const access = decideManifestChatAccess(manifest, input.mode);
 
 		let confirmed = false;
 		let executed = false;
@@ -116,6 +169,12 @@ export function createGatedChatToolExecutor(
 			executed,
 			detail: buildAuditDetail(tool.name, args),
 		});
+
+		// §5.L: fold this call's output taint into the running window (opt-in) so a LATER protected-sink call in the same
+		// turn is gated against it. Accumulate-only; a tool that ran with no taint label leaves the window unchanged.
+		if (input.capabilityBrokerEnabled && executed && tool.taint && tool.taint.length > 0) {
+			accumulatedTaint = propagateTaint(accumulatedTaint, tool.taint);
+		}
 
 		return { callId: call.id, content };
 	};
