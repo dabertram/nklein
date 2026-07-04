@@ -42,10 +42,13 @@ to avoid locking in a direction you'd want to choose:
    map 1:1 to `assembleSessionSystemPrompt`'s keys (base, efficiency-rules, temporal-context,
    planning-workflow, home-agent-append, session-env). **Q: what's the intended fragment-id→text
    mapping, and which registry fragments are blocks that don't exist yet (repo_map, focus_chain)?**
-6. **§5.AE apiProfile plumbing** — `resolveApiProfileRequest` has zero live callers; the resolved
-   `activeSkillSet.apiProfile` (thinkingDirective/response_format/temperature/forceToolCall) is never
-   threaded to the client. **Q: session-scoped config vs per-call? And how does it reconcile with the
-   chat adapter's EXISTING reasoning/force-tool logic so they don't double-apply?**
+6. **§5.AE apiProfile plumbing** — VERIFIED dark (2026-07-04): skills' apiProfiles ARE collected +
+   merged with conflict-detection (`resolveApiProfileForSkills` in skill-registry + `skill-compat`),
+   producing `activeSkillSet.apiProfile` — but `resolveApiProfileRequest` (the per-call request shaper)
+   has **zero non-test callers** and the merged profile is never applied to a model call. So only the
+   last mile is missing. **Q: session-scoped config vs per-call? And how does it reconcile with the
+   chat adapter's EXISTING reasoning/force-tool logic so they don't double-apply?** (Buildable
+   flag-gated once you pick the shape; I left it since guessing per-call-vs-session risks rework.)
 7. **§5.AV apply-time enforcement strictness** — beyond the creation-gate cycle rejection (which I
    may do, it's bounded), should `decideRedecomposeTrigger`'s split/merge/refine verdicts ever BLOCK
    (not just redo)? At what bounce-budget threshold, given weak models must not spiral? **Q: how
