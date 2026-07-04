@@ -120,6 +120,26 @@ export const ELEMENT_TOOLTIPS = {
 		description:
 			"chat-only: read-only browsing, no host access. The other three all run commands on your HOST machine (filesystem + shell — not Docker-sandboxed), gated by the session's risk acknowledgement: current (host) = this project, all (host) = every loaded project, ⚠️ host = anywhere on the host (most powerful).",
 	},
+	"model-registry.prune-stale": {
+		name: "Clear stale models",
+		description: "Remove model-registry rows whose endpoint no longer serves them, keeping the telemetry current.",
+	},
+	"model-registry.save-context-window": {
+		name: "Save context window",
+		description: "Pin a manual context-window size for this model, overriding the endpoint-advertised value.",
+	},
+	"model-registry.clear-context-window": {
+		name: "Clear context override",
+		description: "Remove the manual context-window override and fall back to the advertised/observed value.",
+	},
+	"model-registry.save-max-concurrent": {
+		name: "Save max concurrent",
+		description: "Cap how many requests this model handles at once (throttles a shared endpoint).",
+	},
+	"model-registry.clear-max-concurrent": {
+		name: "Clear concurrency cap",
+		description: "Remove the max-concurrent-requests cap for this model.",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;

@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { ElementTooltip } from "@/components/ui/element-tooltip";
 import {
 	formatNKleinContextWindowTokens,
 	isLmStudioProviderId,
@@ -272,18 +273,20 @@ export function NKleinModelRegistryPanel({
 				<Activity size={14} className="text-status-green" />
 				<span>Past telemetry</span>
 				{onPruneStale ? (
-					<Button
-						size="sm"
-						variant="ghost"
-						icon={<Trash2 size={14} />}
-						disabled={isPruning || isLoading}
-						onClick={() => {
-							void pruneStale();
-						}}
-						className="ml-auto"
-					>
-						{isPruning ? "Clearing..." : "Clear stale models"}
-					</Button>
+					<ElementTooltip id="model-registry.prune-stale">
+						<Button
+							size="sm"
+							variant="ghost"
+							icon={<Trash2 size={14} />}
+							disabled={isPruning || isLoading}
+							onClick={() => {
+								void pruneStale();
+							}}
+							className="ml-auto"
+						>
+							{isPruning ? "Clearing..." : "Clear stale models"}
+						</Button>
+					</ElementTooltip>
 				) : null}
 				{isLoading ? (
 					<span className={cn(!onPruneStale && "ml-auto", "text-[11px] font-normal text-text-tertiary")}>
@@ -407,30 +410,34 @@ export function NKleinModelRegistryPanel({
 												placeholder="Context tokens"
 												aria-label={`Context window override for ${entry.providerId}/${entry.modelId}`}
 											/>
-											<Button
-												size="sm"
-												variant="default"
-												icon={<Save size={14} />}
-												disabled={!canSaveOverride || isSaving}
-												onClick={() => {
-													if (hasValidOverride && parsedOverride !== null) {
-														void saveOverride(entry, parsedOverride);
-													}
-												}}
-											>
-												{isSaving ? "Saving..." : "Save"}
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												icon={<RotateCcw size={14} />}
-												disabled={!entry.contextWindow.userOverride || isSaving}
-												onClick={() => {
-													void saveOverride(entry, null);
-												}}
-											>
-												Clear
-											</Button>
+											<ElementTooltip id="model-registry.save-context-window">
+												<Button
+													size="sm"
+													variant="default"
+													icon={<Save size={14} />}
+													disabled={!canSaveOverride || isSaving}
+													onClick={() => {
+														if (hasValidOverride && parsedOverride !== null) {
+															void saveOverride(entry, parsedOverride);
+														}
+													}}
+												>
+													{isSaving ? "Saving..." : "Save"}
+												</Button>
+											</ElementTooltip>
+											<ElementTooltip id="model-registry.clear-context-window">
+												<Button
+													size="sm"
+													variant="ghost"
+													icon={<RotateCcw size={14} />}
+													disabled={!entry.contextWindow.userOverride || isSaving}
+													onClick={() => {
+														void saveOverride(entry, null);
+													}}
+												>
+													Clear
+												</Button>
+											</ElementTooltip>
 											<span className="text-[11px] text-text-tertiary">
 												Minimum {formatNKleinContextWindowTokens(NKLEIN_MIN_CONTEXT_WINDOW_TOKENS)}
 											</span>
@@ -463,30 +470,34 @@ export function NKleinModelRegistryPanel({
 												placeholder="Parallel requests"
 												aria-label={`Max concurrent requests for ${entry.providerId}/${entry.modelId}`}
 											/>
-											<Button
-												size="sm"
-												variant="default"
-												icon={<Save size={14} />}
-												disabled={!canSaveConcurrency || isSavingConcurrency}
-												onClick={() => {
-													if (hasValidConcurrency && parsedConcurrency !== null) {
-														void saveConcurrency(entry, parsedConcurrency);
-													}
-												}}
-											>
-												{isSavingConcurrency ? "Saving..." : "Save"}
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												icon={<RotateCcw size={14} />}
-												disabled={currentConcurrency === null || isSavingConcurrency}
-												onClick={() => {
-													void saveConcurrency(entry, null);
-												}}
-											>
-												Clear
-											</Button>
+											<ElementTooltip id="model-registry.save-max-concurrent">
+												<Button
+													size="sm"
+													variant="default"
+													icon={<Save size={14} />}
+													disabled={!canSaveConcurrency || isSavingConcurrency}
+													onClick={() => {
+														if (hasValidConcurrency && parsedConcurrency !== null) {
+															void saveConcurrency(entry, parsedConcurrency);
+														}
+													}}
+												>
+													{isSavingConcurrency ? "Saving..." : "Save"}
+												</Button>
+											</ElementTooltip>
+											<ElementTooltip id="model-registry.clear-max-concurrent">
+												<Button
+													size="sm"
+													variant="ghost"
+													icon={<RotateCcw size={14} />}
+													disabled={currentConcurrency === null || isSavingConcurrency}
+													onClick={() => {
+														void saveConcurrency(entry, null);
+													}}
+												>
+													Clear
+												</Button>
+											</ElementTooltip>
 											<span className="text-[11px] text-text-tertiary">
 												Parallel requests this model accepts (default 1).
 											</span>

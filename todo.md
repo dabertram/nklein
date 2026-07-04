@@ -1513,7 +1513,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         mobile collapse button (`project.collapse-sidebar`). web tsc + vitest (694) green.
   - [ ] remaining tail (one leaf each):
     - [ ] add `ELEMENT_TOOLTIPS` entries for the Settings section headers + fields.
-    - [ ] add `ELEMENT_TOOLTIPS` entries for the model-registry row actions.
+    - [x] add `ELEMENT_TOOLTIPS` entries for the model-registry row actions. *(2026-07-04: prune-stale + per-row context-window + max-concurrent save/clear, wrapped via ElementTooltip)*
 
 ### 5.K — Second-opinion reviewer workflow ✅ COMPLETE → moved to [done.md](done.md#5k--second-opinion-reviewer-workflow--complete-raised-2026-06-22)
 
