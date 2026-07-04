@@ -77,17 +77,35 @@ export function expandDecomposeProjectTasks(input: {
 
 		const childTasks = childResults.flatMap((result) => result.tasks);
 		const childTaskIds = new Set(childTasks.map((childTask) => childTask.id));
+		// Resolve each child's dependsOn through already-expanded nested siblings BEFORE classifying entry/terminal
+		// boundaries. A child can depend on a sibling id that was itself expanded (hence replaced by its terminal
+		// ids); that stale sibling id is absent from childTaskIds and is only remapped by the final rewrite pass
+		// below. Classifying against the raw ids would read a non-entry child as an entry (spuriously inheriting the
+		// parent's dependencies) and an internal node as a terminal (spurious downstream edges). Mirror the final
+		// pass's remap here. The stored dependsOn stays raw (see tasksWithInheritedDependencies) so the final pass
+		// still remaps it.
+		const resolveChildDependency = (dependencyTaskId: string): string[] =>
+			replacementByTaskId.get(dependencyTaskId)?.terminalTaskIds ?? [dependencyTaskId];
+		const childTasksWithResolvedDependencies = childTasks.map((childTask) => ({
+			childTask,
+			resolvedDependencies: uniqStrings(childTask.dependsOn.flatMap(resolveChildDependency)).filter(
+				(dependencyTaskId) => dependencyTaskId !== childTask.id,
+			),
+		}));
 		const dependedOnByChildTaskIds = new Set<string>();
-		for (const childTask of childTasks) {
-			for (const dependencyTaskId of childTask.dependsOn) {
+		for (const { resolvedDependencies } of childTasksWithResolvedDependencies) {
+			for (const dependencyTaskId of resolvedDependencies) {
 				if (childTaskIds.has(dependencyTaskId)) {
 					dependedOnByChildTaskIds.add(dependencyTaskId);
 				}
 			}
 		}
-		const entryTaskIds = childTasks
-			.filter((childTask) => !childTask.dependsOn.some((dependencyTaskId) => childTaskIds.has(dependencyTaskId)))
-			.map((childTask) => childTask.id);
+		const entryTaskIds = childTasksWithResolvedDependencies
+			.filter(
+				({ resolvedDependencies }) =>
+					!resolvedDependencies.some((dependencyTaskId) => childTaskIds.has(dependencyTaskId)),
+			)
+			.map(({ childTask }) => childTask.id);
 		const terminalTaskIds = childTasks
 			.filter((childTask) => !dependedOnByChildTaskIds.has(childTask.id))
 			.map((childTask) => childTask.id);

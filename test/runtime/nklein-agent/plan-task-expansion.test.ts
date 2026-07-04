@@ -122,4 +122,31 @@ describe("expandDecomposeProjectTasks", () => {
 			}),
 		).toThrow(/cycle/u);
 	});
+
+	// Regression: nested-expansion boundary misclassification. When an expansion child depends on a SIBLING that is
+	// itself expanded, the sibling's raw id is gone from the child set (only remapped in the final pass), so the
+	// child was misread as an entry node (spuriously inheriting the parent's deps) or an internal node was misread
+	// as a terminal (spurious downstream edges) — both materialize as real, redundant board dependency edges.
+	it("does not misclassify a child that depends on an expanded sibling as an entry node (no spurious parent edge)", () => {
+		// feature -> [core, extra(dependsOn core)], core -> [core1]; top-level feature depends on gate.
+		// extra depends on core (expanded to core1), so extra is NOT an entry node and must NOT inherit `gate`.
+		const out = expandDecomposeProjectTasks({
+			tasks: [task("gate"), task("feature", ["gate"])],
+			expansions: { feature: [task("core"), task("extra", ["core"])], core: [task("core1")] },
+			defaultAcceptanceCommand: null,
+		});
+		expect(depsOf(out, "extra")).toEqual(["core1"]); // old code: ["gate", "core1"] — spurious extra->gate
+		expect(depsOf(out, "core1")).toEqual(["gate"]); // core1 is the genuine entry node, correctly inherits gate
+	});
+
+	it("does not misclassify an internal node of an expanded sibling as a terminal (no spurious downstream edge)", () => {
+		// feature -> [A, B, C(dependsOn A)], A -> [A1]; deploy depends on feature.
+		// feature's terminals are B and C, NOT the internal A1, so deploy must depend on [B, C] only.
+		const out = expandDecomposeProjectTasks({
+			tasks: [task("feature"), task("deploy", ["feature"])],
+			expansions: { feature: [task("A"), task("B"), task("C", ["A"])], A: [task("A1")] },
+			defaultAcceptanceCommand: null,
+		});
+		expect(depsOf(out, "deploy").sort()).toEqual(["B", "C"]); // old code: ["A1", "B", "C"] — spurious deploy->A1
+	});
 });
