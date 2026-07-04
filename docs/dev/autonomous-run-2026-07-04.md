@@ -25,7 +25,7 @@ validation" and "needs Playwright e2e" items previously parked for the user.
 **What I did:** ran a systematic adversarial bug-hunt across the codebase (review → independent
 adversarial-verify → CONFIRMED-only), fixing every confirmed defect with a regression test **proven to
 fail on the old code** (where deterministically testable), each committed GREEN through the full gate.
-**24 real bugs fixed** so far (several HIGH: weak-model tool-call data-loss, operator re-escalation
+**27 real bugs fixed** so far (several HIGH: a retrieval-loop SSRF/egress bypass, weak-model tool-call data-loss, operator re-escalation
 silently swallowed, ledger-row collision, retry suppressed by an over-broad error match,
 strict-schema-validation gap, a `task delete` that could wipe a whole column, **cross-machine board
 data-loss on schema mismatch**, and a **just-cleared card resurrected by a mid-flight race**). The final
@@ -60,6 +60,41 @@ before a quote/EOL (lazy-lookahead doubles only one). Real code defect, but no l
 arg (the escaper is only reached by backslash-free sandbox/host-shell args; the Windows cwd path bypasses
 it). Harden the escaper (greedy backslash-run doubling + round-trip tests) IF/WHEN a caller that passes
 Windows paths through it is wired.
+
+**Bug-hunt batch 18 (2026-07-04, retrieval-loop + knows-today cluster, +3 bugs → 27):** security-weighted
+find→adversarial-refute Workflow over the freshly-built §5.AC cluster (7 finders + skeptics).
+- **#99 SSRF / local-only-egress BYPASS (HIGH)** (`nklein-task-session-service.ts:921`) — the live retrieval
+  loop wired its fetch dep to the RAW `buildDefaultBrowserDeps().fetchPage` (bare `page.goto`, no SSRF check,
+  no protocol allowlist). Search-hit URLs are untrusted (SearXNG normalizer does zero host/protocol
+  filtering), so a result URL of `http://169.254.169.254/…` (cloud metadata), `127.0.0.1`, or `192.168.x`
+  would navigate the host browser and exfiltrate LAN/loopback/metadata into the agent turn — violating PRIME
+  DIRECTIVE #1. Two independent finders + skeptic all reproduced it. Fix: centralized
+  `buildSsrfGuardedPageFetcher` (http/https + pre-fetch DNS-resolve-all-IPs refusal + post-redirect re-check,
+  the same floor `createNKleinBrowseTool` enforces) and wired the loop through it (fail-closed: blocked → skip).
+- **#100 dead-end query poisons sufficiency (HIGH)** (`retrieval-loop-driver.ts:197`) — a zero-hit query was
+  never marked `covered`, so a dead-end PRIMARY (routine on a backend error) left its sub-question permanently
+  uncovered → the loop always reported INSUFFICIENT even with ample fresh evidence. Fix: mark an attempted
+  query covered even on zero hits; minSources + freshness gates still block false sufficiency.
+- **#101 temporal claim off-by-one** (`temporal-claim-consistency.ts:93`) — `wholeDayDelta` did `Math.round`
+  on raw instants, so a wall-clock `now` vs a midnight ISO claim date misread a tomorrow-dated claim as
+  "current" (not anachronistic) and a valid-through-today claim as "stale". Currently latent (the
+  claim-admissibility gate is staged, not wired) but the correctness core of knows-today — hardened before the
+  cite step wires. Fix: diff UTC day-numbers.
+- **DECLINED — relevance-floor (contested finding).** One finder/skeptic CONFIRMED that a lexical relevance of
+  0 annihilates the freshness×authority score (dropping fresh authoritative sources); a parallel skeptic
+  REFUTED it. I adjudicated from the code and **did not apply it**: (a) the annihilation is deliberate + pinned
+  by an existing test (`retrieval-freshness-authority-rank.test.ts:197`), so a floor changes tested intent; and
+  (b) the harmful input is near-unreachable — `lexicalRelevanceScore` uses SUBSTRING matching over all query
+  terms incl. stopwords, and natural-language queries always contain stopwords ("is", "the") whose substrings
+  match almost any English snippet → real on-topic hits score >0. The CONFIRMED verdict over-weighted a
+  contrived hardcoded-relevance-0 input. (A future design call: should the optional relevance axis annihilate
+  or merely downweight? Low priority — flagged, not changed.)
+- **Latent/design noted (not fixed):** `retrieval-source-trust` scores any `docs.`/`api.` subdomain on ANY
+  attacker-registrable domain as reputable→trusted→citable-alone (documented intended policy — a design
+  hardening call, not a code bug); `citedSynthesisAdapter` surfaces a literal `"[]"` when the model returns an
+  empty array, but `result.answer` is a dead value today (formatResearchResult reads only evidence).
+- **Clean:** taint-labels wiring, durable-scheduler, model-online-lookup, swarm-roster, and the
+  synthesis/config resolver all traced clean.
 
 **What needs YOU:** ALL RESOLVED — see **DECISIONS LOCKED** below (David cleared the whole queue
 2026-07-04). Now executing them.
