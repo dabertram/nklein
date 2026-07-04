@@ -25,7 +25,8 @@ validation" and "needs Playwright e2e" items previously parked for the user.
 **What I did:** ran a systematic adversarial bug-hunt across the codebase (review → independent
 adversarial-verify → CONFIRMED-only), fixing every confirmed defect with a regression test **proven to
 fail on the old code** (where deterministically testable), each committed GREEN through the full gate.
-**27 real bugs fixed** so far (several HIGH: a retrieval-loop SSRF/egress bypass, weak-model tool-call data-loss, operator re-escalation
+**30 real bugs fixed** so far (several HIGH: a retrieval-loop SSRF/egress bypass, a remote directory-browse
+symlink escape, weak-model tool-call data-loss, operator re-escalation
 silently swallowed, ledger-row collision, retry suppressed by an over-broad error match,
 strict-schema-validation gap, a `task delete` that could wipe a whole column, **cross-machine board
 data-loss on schema mismatch**, and a **just-cleared card resurrected by a mid-flight race**). The final
@@ -95,6 +96,35 @@ find→adversarial-refute Workflow over the freshly-built §5.AC cluster (7 find
   empty array, but `result.answer` is a dead value today (formatResearchResult reads only evidence).
 - **Clean:** taint-labels wiring, durable-scheduler, model-online-lookup, swarm-roster, and the
   synthesis/config resolver all traced clean.
+
+**Bug-hunt batch 19 (2026-07-04, WIRING/composition layer, +3 bugs → 30):** find→adversarial-refute
+Workflow over the composition seam (server, deps-resolvers, handlers) — where the batch-18 SSRF guard-drift
+lived. 6 finders + skeptics → 3 CONFIRMED, 1 refuted.
+- **#104 remote directory-browse symlink escape (HIGH)** (`directory-browse.ts:83`) — remote-mode path
+  confinement used `path.resolve` (lexical, does NOT follow symlinks) while the `stat`/`readdir` sinks DO, so a
+  symlink inside an allowed root pointing outside it let an authenticated remote (`--host`) user enumerate
+  arbitrary host directories. Sibling workspace code already `realpath`-canonicalizes before containment; the
+  browse path skipped it (guard drift). Fix: in remote mode, confine the canonical path against the canonical
+  roots (realpath both — robust to `/tmp`→`/private/tmp`). Local mode unaffected.
+- **#105 sandbox `--network` policy config drift (Docker-isolation fail-open)** (`runtime-server.ts:1946`) —
+  the service-refresh branch re-applied every config field EXCEPT the sandbox network policy (the manager's
+  `networkPolicy` was `readonly`, set once at construction). So after an operator TIGHTENED isolation at
+  runtime, a cached service kept the looser egress (`full`) for its whole lifetime — prime-directive-#2
+  fail-open. Fix: mutable `networkPolicy` + `setNetworkPolicy` (retires idle containers so they recreate with
+  the new flag) + service delegator + a call in the refresh branch.
+- **#103 /clear gated behind launch-config resolution** (`task-chat-send.ts`) — `/clear` (pure teardown)
+  awaited `resolveLaunchConfig`, which throws when the selected model is unloaded — exactly the recovery state
+  where a user reaches for `/clear`. Fix: hoist the `/clear` early-return above the resolution.
+- **REFUTED — `resetAllState` missing an `isRemoteMode` gate** (`runtime-api.ts:856`). Structurally accurate,
+  but the claimed remote-unauthenticated delete is unreachable: the server-layer passcode gate 401s every
+  `/api/` route in remote mode (a non-loopback bind without a passcode is refused at startup), so only a
+  passcode-holding (trusted) user reaches it — and that user is resetting their own managed state. Correctly
+  not a high-severity bypass.
+- **Clean (corroborates prior fixes):** the chat-tool-deps-resolver has no SSRF/gate drift (the chat
+  `browse_url` guard is correctly threaded, and the sandboxed retrieval path now uses
+  `buildSsrfGuardedPageFetcher` unconditionally — the batch-18 fix verified in place); runtime-api composition
+  traced clean. Low-severity noted (not fixed): several redrive/plan-gate state maps are never pruned on
+  dispose (slow unbounded growth, not a correctness/security bug).
 
 **What needs YOU:** ALL RESOLVED — see **DECISIONS LOCKED** below (David cleared the whole queue
 2026-07-04). Now executing them.
