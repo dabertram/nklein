@@ -316,6 +316,84 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(budgets.slice(0, 3)).toEqual([1024, 3072, 6144]);
 	});
 
+	describe("§5.AA adaptive truncation ladder (opt-in NKLEIN_CHAT_ADAPTIVE_TRUNCATION)", () => {
+		const FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
+		let savedFlag: string | undefined;
+		beforeEach(() => {
+			savedFlag = process.env[FLAG];
+			delete process.env[FLAG];
+		});
+		afterEach(() => {
+			if (savedFlag === undefined) {
+				delete process.env[FLAG];
+			} else {
+				process.env[FLAG] = savedFlag;
+			}
+		});
+
+		// A client whose recovery is driven by the granted BUDGET (not the call index), so the test isolates the
+		// truncation LADDER: it lands the tool call only once a send's maxTokens reaches `recoveryBudget`, else it reports
+		// finish:length with no call. Downstream rungs (which re-send at the base 1024 budget) therefore never recover it,
+		// so the recorded budgets above 1024 belong to the ladder alone.
+		const recoversAtBudget = (
+			recoveryBudget: number,
+			budgets: (number | undefined)[],
+		): ChatAgentCompletionClient => ({
+			completeWithTools: async (request) => {
+				const budget = request.sampling?.maxTokens ?? 0;
+				budgets.push(budget);
+				if (budget >= recoveryBudget) {
+					return {
+						content: "",
+						toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+						finishReason: "tool_calls",
+						raw: {},
+					};
+				}
+				return { content: "", toolCalls: [], finishReason: "length", raw: {} };
+			},
+		});
+
+		it("flag ON ⇒ keeps escalating past the first bump, climbing to the 8192 ceiling to recover", async () => {
+			process.env[FLAG] = "1";
+			const budgets: (number | undefined)[] = [];
+			// Recovers ONLY at the ceiling (8192) — flag OFF would give up at 6144 and never reach it.
+			const model = createChatAgentModel(recoversAtBudget(8192, budgets), SIX_TOOLS, {
+				sampling: { temperature: 0, maxTokens: 1024 },
+			});
+			const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+			expect(result.toolCalls).toEqual([{ id: "c1", name: "create_card", arguments: { title: "X" } }]);
+			// 1024 → 3072 (×3 bump) → 6144 → 8192 (two compounding escalations, each ×2 under the ceiling).
+			expect(budgets).toEqual([1024, 3072, 6144, 8192]);
+		});
+
+		it("flag OFF (default) ⇒ stops after the single 6144 escalation even when only 8192 would recover", async () => {
+			// Same client (recovers only at 8192), flag cleared in beforeEach → the one-shot path caps out at 6144.
+			const budgets: (number | undefined)[] = [];
+			const model = createChatAgentModel(recoversAtBudget(8192, budgets), SIX_TOOLS, {
+				sampling: { temperature: 0, maxTokens: 1024 },
+			});
+			const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+			expect(result.toolCalls).toEqual([]); // never recovered — the ladder didn't reach 8192
+			expect(budgets.slice(0, 3)).toEqual([1024, 3072, 6144]);
+			expect(budgets).not.toContain(8192); // the flag-ON-only ceiling send never fired
+		});
+
+		it("flag ON + a model that ALWAYS truncates ⇒ terminates at the ceiling, bounded, never overshooting 8192", async () => {
+			process.env[FLAG] = "1";
+			const budgets: (number | undefined)[] = [];
+			// Never recoverable ⇒ every ladder send truncates; the loop must stop at the ceiling clamp, not spin.
+			const model = createChatAgentModel(recoversAtBudget(Number.POSITIVE_INFINITY, budgets), SIX_TOOLS, {
+				sampling: { temperature: 0, maxTokens: 1024 },
+			});
+			const result = await model([{ role: "user", content: "Use create_card to make a card." }], true);
+			expect(result.toolCalls).toEqual([]); // never recovered
+			// 1024 → 3072 → 6144 → 8192, then raisedTokenBudget stops growing (escalated ≤ current) → no further ladder send.
+			expect(budgets.slice(0, 4)).toEqual([1024, 3072, 6144, 8192]);
+			expect(Math.max(...budgets.map((b) => b ?? 0))).toBe(8192); // never overshoots the ceiling
+		});
+	});
+
 	it("§5.AA truncation rung: DISABLES thinking on the retry for a model with a soft-switch (qwen3 /no_think)", async () => {
 		const prompts: string[] = [];
 		let callIndex = 0;

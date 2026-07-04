@@ -73,6 +73,13 @@ const DEFAULT_SAMPLING: LocalLlmSamplingOptions = { temperature: 0.3, maxTokens:
 // §5.AA: the ceiling for the escalating truncation-retry budget — a generous reasoning headroom that stays well within a
 // typical local context window so the retry can't overshoot it.
 const TRUNCATION_RETRY_BUDGET_CEILING = 8192;
+// §5.AA OPT-IN (default OFF): when set, the truncation rung keeps raising the budget across up to
+// TRUNCATION_RETRY_MAX_ATTEMPTS escalations (toward the ceiling) instead of the single one-shot escalation. Flag OFF ⇒
+// exactly one escalation ⇒ byte-identical to the prior behavior. For big reasoners that need the full headroom (live: the
+// 27B truncated at 1024 and climbed across escalations) — a persistently-truncating model is still bounded by BOTH the
+// attempt count AND the ceiling clamp (raisedTokenBudget stops growing), so the turn can never spin.
+const ADAPTIVE_TRUNCATION_LADDER_FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
+const TRUNCATION_RETRY_MAX_ATTEMPTS = 3;
 
 /**
  * OPT-IN env flag (§5.AN pre-flight budget sizing) — when truthy AND the resolved model is a reasoning model AND the
@@ -222,28 +229,43 @@ export function createChatAgentModel(
 					: wire;
 			response = await client.completeWithTools({ messages: retryWire, sampling: bumped }, offered);
 			// §5.AA escalating truncation retry: if the single (x3) bump STILL truncated (a big reasoner needs more -- live:
-			// the 27B truncated at 1024 and needed ~4096 across escalations), grow the budget ONCE more via the tested
-			// raisedTokenBudget (ceiling-clamped so it can't overshoot the context window). Only fires on CONTINUED truncation,
-			// so it never affects a turn the first bump already fixed.
-			const stillTruncated =
-				response.toolCalls.length === 0 &&
-				deriveTruncationSignal({
-					rawReason: response.finishReason,
-					reasoningTokens: response.reasoningTokens,
-					tokenBudget: bumped.maxTokens,
-				}).shouldRetryLarger;
-			if (stillTruncated) {
+			// the 27B truncated at 1024 and needed ~4096 across escalations), grow the budget via the tested raisedTokenBudget
+			// (ceiling-clamped so it can't overshoot the context window). Only fires on CONTINUED truncation, so it never
+			// affects a turn the first bump already fixed.
+			//
+			// Default OFF ⇒ EXACTLY ONE escalation (byte-identical to the prior one-shot: current=bumped.maxTokens, attempt=1).
+			// With the ADAPTIVE_TRUNCATION_LADDER_FLAG on, keep compounding the budget (attempt=1 each pass, current carried
+			// forward = doubling) across up to TRUNCATION_RETRY_MAX_ATTEMPTS passes, breaking the instant the model lands a
+			// call, the truncation signal clears, or the ceiling stops the budget from growing. Both the pass count AND the
+			// monotonic ceiling clamp bound the turn, so a persistently-truncating model can never spin.
+			const maxEscalations = isTruthyEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])
+				? TRUNCATION_RETRY_MAX_ATTEMPTS
+				: 1;
+			let escalationBudget = bumped.maxTokens;
+			for (let pass = 0; pass < maxEscalations; pass += 1) {
+				const stillTruncated =
+					response.toolCalls.length === 0 &&
+					deriveTruncationSignal({
+						rawReason: response.finishReason,
+						reasoningTokens: response.reasoningTokens,
+						tokenBudget: escalationBudget,
+					}).shouldRetryLarger;
+				if (!stillTruncated) {
+					break;
+				}
 				const escalated = raisedTokenBudget({
-					current: bumped.maxTokens,
+					current: escalationBudget,
 					attempt: 1,
 					ceiling: TRUNCATION_RETRY_BUDGET_CEILING,
 				});
-				if (escalated > bumped.maxTokens) {
-					response = await client.completeWithTools(
-						{ messages: retryWire, sampling: { ...sampling, maxTokens: escalated } },
-						offered,
-					);
+				if (escalated <= escalationBudget) {
+					break;
 				}
+				response = await client.completeWithTools(
+					{ messages: retryWire, sampling: { ...sampling, maxTokens: escalated } },
+					offered,
+				);
+				escalationBudget = escalated;
 			}
 		}
 		// §5.AA task-complexity ladder: a model that returns NO tool call when several were offered AND the instruction
