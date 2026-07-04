@@ -31,6 +31,13 @@ interface ExecFileStubOptions {
 	volumeLsOutput?: string;
 	execStdout?: string;
 	failExecCommand?: readonly string[];
+	/**
+	 * Controls the DEAD-CONTAINER liveness probe (`docker inspect -f {{.State.Running}} <name>`). When set, the
+	 * function is asked once per inspect call (in order) and returns the running-state string to emit on stdout
+	 * ("true" = alive, "false"/"" = dead), or the literal `"THROW"` to simulate a docker daemon error (non-zero
+	 * exit with a connection-refused stderr — the ambiguous, keep-the-container path). Defaults to "true".
+	 */
+	inspectRunningState?: (callIndex: number) => string;
 }
 
 function createExecFileStub(options?: ExecFileStubOptions): {
@@ -38,6 +45,7 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 	calls: string[][];
 } {
 	const calls: string[][] = [];
+	let inspectCallIndex = 0;
 	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
 		expect(file).toBe("docker");
 		calls.push([...args]);
@@ -48,6 +56,35 @@ function createExecFileStub(options?: ExecFileStubOptions): {
 		}
 		if (options?.failImageInspect && args.join(" ") === "image inspect test-image") {
 			done(Object.assign(new Error("missing image"), { code: 1, stdout: "", stderr: "No such image" }));
+			return {} as ReturnType<typeof execFile>;
+		}
+		// DEAD-CONTAINER liveness probe: `docker inspect -f {{.State.Running}} <name>`.
+		if (args[0] === "inspect" && args[1] === "-f" && args[2] === "{{.State.Running}}") {
+			const state = options?.inspectRunningState?.(inspectCallIndex++) ?? "true";
+			if (state === "THROW") {
+				// Simulate a docker daemon failure (non-zero exit, no running-state) — the ambiguous path where the
+				// container must be KEPT, not torn out.
+				done(
+					Object.assign(new Error("daemon down"), {
+						code: 1,
+						stdout: "",
+						stderr: "Cannot connect to the Docker daemon",
+					}),
+				);
+				return {} as ReturnType<typeof execFile>;
+			}
+			if (state === "MISSING") {
+				// Simulate "No such container" — inspect exits non-zero, container is genuinely gone.
+				done(
+					Object.assign(new Error("no such container"), {
+						code: 1,
+						stdout: "",
+						stderr: "Error: No such object: nklein-agent-sandbox-1",
+					}),
+				);
+				return {} as ReturnType<typeof execFile>;
+			}
+			done(null, { stdout: `${state}\n`, stderr: "" });
 			return {} as ReturnType<typeof execFile>;
 		}
 		let stdout = "";
@@ -99,6 +136,46 @@ function createDelayedRunExecFileStub(): {
 			runCallback?.(null, { stdout: "container-id\n", stderr: "" });
 			runCallback = null;
 		},
+	};
+}
+
+/**
+ * Stub that HOLDS the dead-container liveness probe (`docker inspect -f {{.State.Running}} <name>`) until released,
+ * so a test can observe how many probes are in flight while two concurrent reuses are pending. `run` completes
+ * immediately (returns a container id); every other command is a no-op. This is the barrier that makes the
+ * single-flight race guard observable: the FIXED code issues ONE probe (the 2nd concurrent reuser awaits the shared
+ * `starting` promise), while the pre-fix probe-before-guard code would issue TWO (one per caller).
+ */
+function createProbeBarrierExecFileStub(): {
+	execFile: typeof execFile;
+	calls: string[][];
+	releaseProbe: (state: string) => void;
+	pendingProbes: () => number;
+} {
+	const calls: string[][] = [];
+	const probeCallbacks: ((error: unknown, result?: { stdout: string; stderr: string }) => void)[] = [];
+	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
+		expect(file).toBe("docker");
+		calls.push([...args]);
+		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
+		if (args[0] === "inspect" && args[1] === "-f" && args[2] === "{{.State.Running}}") {
+			probeCallbacks.push(done); // HOLD the probe until releaseProbe().
+			return {} as ReturnType<typeof execFile>;
+		}
+		if (args[0] === "run") {
+			done(null, { stdout: "container-id\n", stderr: "" });
+			return {} as ReturnType<typeof execFile>;
+		}
+		done(null, { stdout: "", stderr: "" });
+		return {} as ReturnType<typeof execFile>;
+	});
+	return {
+		execFile: stub as unknown as typeof execFile,
+		calls,
+		releaseProbe: (state: string) => {
+			probeCallbacks.shift()?.(null, { stdout: `${state}\n`, stderr: "" });
+		},
+		pendingProbes: () => probeCallbacks.length,
 	};
 }
 
@@ -440,6 +517,141 @@ describe("AgentSandboxManager", () => {
 		// The stale container was retired (docker rm -f) before the fresh start.
 		const removals = calls.filter((args) => args[0] === "rm" && args.includes("nklein-agent-sandbox-1"));
 		expect(removals.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("detects a cached container that died out-of-band and recreates it on the next acquire (dead-container recovery)", async () => {
+		// Bug 2026-07-04: a pooled container that dies OUT-OF-BAND (OOM inside the Docker VM, a docker restart, a
+		// manual rm) leaves its cached containerId pointing at nothing. Reusing that id makes every later docker
+		// exec fail with "No such container". The reuse path must probe liveness and re-create a dead slot.
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			// First reuse probe (for task-2) reports the container as dead; any later probe reports alive again.
+			inspectRunningState: (index) => (index === 0 ? "false" : "true"),
+		});
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 1, idleTimeoutMs: 0 },
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await manager.disposeWorkspace("task-1");
+		// The container stays pooled with a cached containerId (idleTimeoutMs=0 disarms teardown). It then dies
+		// out-of-band before task-2 reuses it — the liveness probe must catch that and recreate the slot.
+		const second = await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		expect(second).toMatchObject({ taskId: "task-2", slot: 1 });
+
+		// A dead container is re-created: a second docker run and a second `rm -f` of the slot name.
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(2);
+		expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-1").length).toBeGreaterThanOrEqual(
+			2,
+		);
+		// The liveness probe actually ran on the reuse.
+		expect(calls).toContainEqual(["inspect", "-f", "{{.State.Running}}", "nklein-agent-sandbox-1"]);
+	});
+
+	it("treats a genuinely missing container (inspect 'No such container') as dead and recreates it", async () => {
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			inspectRunningState: (index) => (index === 0 ? "MISSING" : "true"),
+		});
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 1, idleTimeoutMs: 0 },
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await manager.disposeWorkspace("task-1");
+		const second = await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		expect(second).toMatchObject({ taskId: "task-2", slot: 1 });
+
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(2);
+	});
+
+	it("does NOT recreate a container that is still alive on reuse (happy path unchanged)", async () => {
+		// A cached, LIVE container must be reused as-is — the added liveness probe must not perturb the hot path.
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			inspectRunningState: () => "true",
+		});
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 1, idleTimeoutMs: 0 },
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await manager.disposeWorkspace("task-1");
+		const second = await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		expect(second).toMatchObject({ taskId: "task-2", slot: 1 });
+
+		// Alive container is reused: exactly one docker run and one `rm -f` (from the very first start) — no recreate.
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
+		expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-1")).toHaveLength(1);
+	});
+
+	it("keeps a container (no recreate) when the liveness probe is inconclusive — never tears out a live co-occupant", async () => {
+		// CRITICAL multi-occupancy safety: a false "dead" verdict must NEVER rm/recreate a container that is still
+		// alive and hosting other occupants. When the inspect itself fails (docker daemon flakiness/timeout), that is
+		// NOT proof the container died, so the fix conservatively KEEPS the container. Here a live co-occupant
+		// (agentsPerContainer=0 = unlimited) shares the slot while a new reuse probe fails — the slot must survive.
+		const { execFile: execFileStub, calls } = createExecFileStub({
+			// The reuse probe for task-2 fails (daemon down); the container is genuinely alive and hosting task-1.
+			inspectRunningState: () => "THROW",
+		});
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
+		});
+
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		// task-2 co-occupies the SAME container; the reuse liveness probe fails (inconclusive) — keep the container.
+		const second = await manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		expect(second).toMatchObject({ taskId: "task-2", slot: 1 });
+
+		// No recreate: still exactly one docker run, and the co-occupant task-1 was not torn out.
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(1);
+		expect(calls.filter((args) => args.join(" ") === "rm -f nklein-agent-sandbox-1")).toHaveLength(1);
+		// Both occupants keep working — the manager still holds a live workspace for each.
+		expect(manager.hasWorkspace("task-1")).toBe(true);
+		expect(manager.hasWorkspace("task-2")).toBe(true);
+	});
+
+	it("issues EXACTLY ONE liveness probe under concurrent reuse of a dead container — the single-flight guard (race, C3 review 2026-07-04)", async () => {
+		// The discriminating regression guard for the double-recreate RACE. The pre-fix code awaited the liveness
+		// probe BEFORE the single-flight `starting` guard, so N concurrent reusers each probed + each could recreate →
+		// a second `docker run --name <same>` that Conflicts. The fix runs the whole liveness+recreate+start under ONE
+		// `starting` promise (set synchronously), so the 2nd concurrent reuser awaits the 1st instead of probing. We
+		// HOLD the probe and assert only ONE is in flight: the pre-fix probe-before-guard code would show TWO here.
+		const { execFile: execFileStub, calls, releaseProbe, pendingProbes } = createProbeBarrierExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
+		});
+		const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+		// task-1 creates the pooled container (a fresh container is not probed; `run` completes immediately).
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		await manager.disposeWorkspace("task-1");
+
+		// Two tasks concurrently reuse the SAME cached container; the reuse liveness probe is HELD.
+		const t2 = manager.acquireSlot({ taskId: "task-2", projectRepoPath: "/repo" });
+		const t3 = manager.acquireSlot({ taskId: "task-3", projectRepoPath: "/repo" });
+		await tick();
+		await tick();
+
+		// SINGLE-FLIGHT: exactly ONE probe is in flight — task-3 awaits task-2's `starting` promise rather than
+		// probing itself. The pre-fix code (probe before the guard) would have TWO probes pending here (one per caller).
+		expect(pendingProbes()).toBe(1);
+		expect(calls.filter((args) => args[0] === "inspect")).toHaveLength(1);
+
+		// Release the single probe as DEAD → exactly one recreate, shared by both reusers.
+		releaseProbe("false");
+		const [p2, p3] = await Promise.all([t2, t3]);
+		expect(p2).toMatchObject({ taskId: "task-2", slot: 1 });
+		expect(p3).toMatchObject({ taskId: "task-3", slot: 1 });
+		// task-1's initial run + exactly ONE recovery run (not two) despite the two concurrent reusers.
+		expect(calls.filter((args) => args[0] === "run")).toHaveLength(2);
 	});
 
 	it("rejects a bounded queued acquisition when no slot opens in time, without leaking the later-freed slot", async () => {

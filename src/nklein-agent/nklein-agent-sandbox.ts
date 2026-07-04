@@ -546,13 +546,78 @@ export class AgentSandboxManager {
 	}
 
 	private async ensureContainerStarted(container: ContainerState): Promise<void> {
-		if (container.containerId) {
-			return;
-		}
+		// SINGLE-FLIGHT the ENTIRE ensure operation — the liveness re-check of a cached container, the recreate-if-dead,
+		// AND the fresh start — under ONE `starting` promise, so concurrent reuses of the same slot await one recovery.
+		// (Race, C3 review 2026-07-04: doing the `await isCachedContainerLive` BEFORE the single-flight guard let two
+		// concurrent callers both probe a dead container, both clear `starting`, and both `docker run --name <same>` —
+		// the second Conflicts on the reused name → a spurious start failure of a healthy acquire.) A cached-LIVE
+		// container resolves the promise after just the inspect; the new-container hot path is a plain start.
 		if (!container.starting) {
-			container.starting = this.startContainer(container);
+			container.starting = this.ensureContainerRunning(container);
 		}
 		await container.starting;
+	}
+
+	/** The single-flight body behind {@link ensureContainerStarted}'s `starting` promise — never call it directly. */
+	private async ensureContainerRunning(container: ContainerState): Promise<void> {
+		try {
+			if (container.containerId) {
+				// DEAD-CONTAINER RECOVERY (bug 2026-07-04): a cached containerId is NOT proof the container is still
+				// alive — it can die OUT-OF-BAND (OOM inside the Docker VM, a `docker restart`, a manual `rm`). Reusing
+				// a dead id makes every later `docker exec` fail with "No such container" and stalls the whole run. So
+				// before trusting the cached id on a REUSE, verify the container is actually running. This inspect fires
+				// ONLY on the reuse path (containerId set), never on a fresh start, so the new-container path is a plain
+				// start. We do NOT recreate on an AMBIGUOUS liveness result (see isCachedContainerLive): a false "dead"
+				// verdict must never tear a LIVE container out from under co-occupants, so that path keeps the container.
+				if (await this.isCachedContainerLive(container)) {
+					return;
+				}
+				// Genuinely dead: its occupants (if any) are already lost — they would themselves fail on exec — so
+				// clearing the stale state and re-creating is correct. startContainer() `docker rm -f`s the name first.
+				container.containerId = null;
+				container.mountedProjectKeys = null;
+			}
+			await this.startContainer(container);
+		} finally {
+			// Clear the single-flight guard once the operation settles (success OR failure) so a later acquire can
+			// retry a failed start / a since-died container. `startContainer` no longer clears `starting` itself.
+			container.starting = null;
+		}
+	}
+
+	/**
+	 * Liveness gate for REUSING a container whose `containerId` is cached. Returns true when the container is
+	 * confirmed running (or when the check is inconclusive), false ONLY when the container is confirmed DEAD.
+	 *
+	 * Safety: this decides whether {@link ensureContainerStarted} will `docker rm -f` + re-create the slot. A false
+	 * "dead" verdict on a still-LIVE container would destroy it under any co-occupants (the pool defaults to
+	 * unlimited agents per container), so we recreate ONLY on an EXPLICIT dead signal:
+	 *   - inspect succeeds but the running state is not `true` (empty / "false") — the container is stopped/dead.
+	 *   - inspect exits non-zero AND stderr says the container is GONE ("No such container/object") — it was rm'd.
+	 * Any OTHER inspect failure (docker daemon unreachable, permission denied, timeout) is INCONCLUSIVE — it is not
+	 * proof the container died — so we conservatively KEEP the container. Tearing a live container out from under
+	 * co-occupants on daemon flakiness is destructive; when the container really is dead, the subsequent exec still
+	 * fails through the existing error path — no worse than before this fix — but a live co-occupant is never lost.
+	 */
+	private async isCachedContainerLive(container: ContainerState): Promise<boolean> {
+		try {
+			const result = await this.runDocker(["inspect", "-f", "{{.State.Running}}", container.containerName], {
+				timeoutMs: 10_000,
+			});
+			if (result.exitCode === 0) {
+				// Confirmed dead only when inspect succeeds AND the state is explicitly not running.
+				return result.stdout.trim() === "true";
+			}
+			// Non-zero: DEAD only when docker explicitly reports the container is gone; every other failure
+			// (daemon down, permission) is inconclusive → keep the container.
+			return !isContainerMissingError(joinDockerOutput(result));
+		} catch {
+			// runDocker swallows docker failures into a result, so reaching here means an UNEXPECTED throw. Decide
+			// conservatively: keep the container (do not recreate), never tearing a possibly-live container out from
+			// under co-occupants. No slot is leaked — ensureContainerStarted's caller (assignContainer) already
+			// releases occupancy on throw, and here we simply return without mutating state.
+			return true;
+		}
 	}
 
 	private async startContainer(container: ContainerState): Promise<void> {
@@ -574,7 +639,8 @@ export class AgentSandboxManager {
 			);
 		}
 		container.containerId = result.stdout.trim();
-		container.starting = null;
+		// NOTE: the `starting` single-flight guard is cleared by ensureContainerRunning's `finally` (its sole owner),
+		// not here — clearing it mid-flight would let a concurrent caller start a second recovery for the same slot.
 		container.mountedProjectKeys = new Set(mounts.map((mount) => mount.projectKey));
 	}
 
@@ -841,6 +907,16 @@ export function buildAgentSandboxWorkdir(taskId: string): string {
  */
 export function resolveNKleinAgentPerceivedCwd(taskId: string, hostCwd: string): string {
 	return isHomeAgentSessionId(taskId) ? hostCwd : buildAgentSandboxWorkdir(taskId);
+}
+
+/**
+ * Whether a `docker inspect` failure explicitly means the container is GONE (rm'd / OOM-killed / never existed),
+ * as opposed to an inconclusive daemon error. Only a genuinely-missing container is safe to treat as DEAD and
+ * recreate; every other failure keeps the container (see {@link AgentSandboxManager.isCachedContainerLive}).
+ */
+function isContainerMissingError(output: string): boolean {
+	const normalized = output.toLowerCase();
+	return normalized.includes("no such container") || normalized.includes("no such object");
 }
 
 function isAgentSandboxWorkspaceVolumeName(volumeName: string): boolean {
