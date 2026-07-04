@@ -51,7 +51,11 @@ import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
-import { assemblePromptFragments, computeSharedPrefixRatio } from "../core/prompt-fragment-assembly";
+import {
+	assemblePromptFragments,
+	computeSharedPrefixRatio,
+	type PromptFragment,
+} from "../core/prompt-fragment-assembly";
 import { browserFetchAdapter } from "../core/retrieval-fetch-adapter";
 import { runRetrievalLoop } from "../core/retrieval-loop-driver";
 import { searchHitsAdapter } from "../core/retrieval-search-adapter";
@@ -141,6 +145,7 @@ import {
 	type NKleinSessionRuntime,
 	readKanbanLaunchConfigFromSessionRecord,
 } from "./nklein-session-runtime";
+import { buildSessionSkillFragments } from "./nklein-session-skill-fragments";
 import {
 	clearActiveTurnState,
 	cloneSummary,
@@ -812,8 +817,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		homeAgentAppend?: string | null;
 		/** The `<session>` cwd+date trailer extracted from the SDK base — see the fragment ordering note below. */
 		sessionEnv?: string | null;
+		/**
+		 * §5.AE: skill-driven fragments (from the approved skill→fragment bridge — {@link buildSessionSkillFragments}).
+		 * Appended and DEDUPED against the fixed keys below, so a skill declaring an already-injected fragment
+		 * (efficiency_rules/temporal) never doubles it; today this only ever adds a `repo-map`. The assembler re-sorts
+		 * by volatility, so these land in their correct churn bucket regardless of append position.
+		 */
+		skillFragments?: readonly PromptFragment[];
 	}): string {
-		const assembled = assemblePromptFragments([
+		const baseFragments: PromptFragment[] = [
 			{
 				key: "base",
 				volatility: input.baseIsStaticShell ? "static" : "task",
@@ -830,7 +842,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			{ key: "planning-workflow", volatility: "task", text: input.planningPrompt ?? "" },
 			{ key: "home-agent-append", volatility: "task", text: input.homeAgentAppend ?? "" },
 			{ key: "session-env", volatility: "task", text: input.sessionEnv ?? "" },
-		]);
+		];
+		const fixedKeys = new Set(baseFragments.map((fragment) => fragment.key));
+		const extraSkillFragments = (input.skillFragments ?? []).filter((fragment) => !fixedKeys.has(fragment.key));
+		const assembled = assemblePromptFragments([...baseFragments, ...extraSkillFragments]);
 		const modelKey = input.modelId?.trim() || "(unconfigured)";
 		const previous = this.lastAssembledSystemPromptByModelId.get(modelKey);
 		this.lastAssembledSystemPromptByModelId.set(modelKey, assembled.text);
@@ -2068,6 +2083,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// head-pinned base is a byte-stable static shell (its cwd/date live in the session-env trailer), so
 				// the assembly is base (static, head) → rules (config) → date (daily) → planning workflow (task) →
 				// home-agent append (task) → session-env (task, LAST — the true task-volatile suffix).
+				// §5.AE: resolve the session's active skills → their `wired` system-prompt fragments (today: a repo map
+				// for a code/planning session). Fail-soft to [] — never blocks a start.
+				const sessionSkillFragments = await buildSessionSkillFragments({
+					role: resolveNKleinTaskRole(request.taskId, this.explicitDecompositionTaskIds.has(request.taskId)),
+					taskText: request.prompt,
+					workspacePath: request.workspaceRoot?.trim() || request.cwd,
+				});
 				const systemPrompt = this.assembleSessionSystemPrompt({
 					taskId: request.taskId,
 					modelId,
@@ -2093,6 +2115,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						text: request.prompt,
 						now: new Date(),
 					}).block,
+					skillFragments: sessionSkillFragments,
 				});
 				const toolSchemaTokens = estimateKanbanToolSchemaTokens(runtimeSetup.toolPolicies);
 				this.contextBudgetInputs.record(request.taskId, systemPrompt, toolSchemaTokens);

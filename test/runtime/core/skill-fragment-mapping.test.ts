@@ -30,20 +30,15 @@ describe("skill-fragment mapping (decision-10, APPROVED)", () => {
 		}
 	});
 
-	it("only efficiency_rules + temporal are `wired`; the rest need a producer (reconciled against the real seam)", () => {
-		// Reconciled 2026-07-04: only these two have a clean, non-duplicating system-prompt assembler producer today.
-		for (const id of ["efficiency_rules", "temporal"] as const) {
+	it("efficiency_rules + temporal + repo_map are `wired`; the rest need a producer (reconciled against the real seam)", () => {
+		// These have a clean, non-duplicating system-prompt producer: efficiency_rules + temporal (already keyed) and
+		// repo_map (buildNKleinRepoMap().rendered — the one fragment genuinely absent from the system prompt).
+		for (const id of ["efficiency_rules", "temporal", "repo_map"] as const) {
 			expect(resolveSkillFragmentMapping(id).producer).toBe("wired");
 		}
-		// The rest are needs_producer — repo_map/focus_chain aspirational; freshness_rail embedded in temporal;
+		// The rest stay needs_producer — focus_chain is a live per-turn message; freshness_rail is embedded in temporal;
 		// refinement_preamble routes via a different concat seam (would double); online_retrieval is only a tool desc.
-		for (const id of [
-			"repo_map",
-			"focus_chain",
-			"refinement_preamble",
-			"freshness_rail",
-			"online_retrieval",
-		] as const) {
+		for (const id of ["focus_chain", "refinement_preamble", "freshness_rail", "online_retrieval"] as const) {
 			expect(resolveSkillFragmentMapping(id).producer).toBe("needs_producer");
 		}
 	});

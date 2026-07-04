@@ -14,12 +14,18 @@ describe("buildSkillPromptFragments", () => {
 	});
 
 	it("skips `needs_producer` ids so no empty/aspirational block is injected", () => {
-		// repo_map, focus_chain, freshness_rail, refinement_preamble, online_retrieval are all needs_producer.
+		// focus_chain, freshness_rail, refinement_preamble, online_retrieval are all needs_producer (repo_map is wired).
 		const fragments = buildSkillPromptFragments(
-			["repo_map", "focus_chain", "freshness_rail", "refinement_preamble", "online_retrieval"],
+			["focus_chain", "freshness_rail", "refinement_preamble", "online_retrieval"],
 			produceAll,
 		);
 		expect(fragments).toEqual([]);
+	});
+
+	it("routes the wired repo_map fragment to the repo-map key", () => {
+		expect(buildSkillPromptFragments(["repo_map"], produceAll)).toEqual([
+			{ key: "repo-map", volatility: "task", text: "TEXT[repo_map]" },
+		]);
 	});
 
 	it("drops a wired fragment whose producer yields empty/whitespace text", () => {

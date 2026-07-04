@@ -55,9 +55,12 @@ export const SKILL_FRAGMENT_MAPPINGS: readonly SkillFragmentMapping[] = [
 	// Text is embedded INSIDE the temporal block (TEMPORAL_FRESHNESS_FRAMING), not independently extractable — extract
 	// it to its own producer before routing separately, else it duplicates the temporal fragment's framing.
 	{ fragmentId: "freshness_rail", assemblerKey: "freshness-rail", volatility: "daily", producer: "needs_producer" },
-	// Aspirational — no assembler-fragment producer today (repo map is built for a status panel; focus chain is a
-	// per-turn message, not a system fragment). Do NOT enable until a real producer is wired, else an empty block.
-	{ fragmentId: "repo_map", assemblerKey: "repo-map", volatility: "task", producer: "needs_producer" },
+	// WIRED (2026-07-04): buildSessionSkillFragments produces this from buildNKleinRepoMap().rendered — the one
+	// fragment genuinely absent from the system prompt, so routing it adds real new value (a repo map for a
+	// code/planning session) with no duplication.
+	{ fragmentId: "repo_map", assemblerKey: "repo-map", volatility: "task", producer: "wired" },
+	// focus_chain is already effectful as a live PER-TURN rail message (nklein-focus-chain-rail.ts) — it is
+	// turn-volatile, so it belongs in the message stream, NOT a static system fragment; needs_producer for THIS path.
 	{ fragmentId: "focus_chain", assemblerKey: "focus-chain", volatility: "turn", producer: "needs_producer" },
 	// Only a tool DESCRIPTION exists (the research tool), no system-prompt block producer.
 	{ fragmentId: "online_retrieval", assemblerKey: "online-retrieval", volatility: "turn", producer: "needs_producer" },
