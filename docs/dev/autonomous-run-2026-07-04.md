@@ -158,8 +158,23 @@ registry's `resolveApiProfileForSkills`), the fold into `createChatAgentModel` v
 last user message, only for switch-capable models; empty profile ⇒ byte-identical), and a per-session **skill
 selector UI** (toggle chips in the chat header). 10 new tests; full gate green (7074). **Staged follow-up:**
 folding `structuredOutput` (the constrained rung is escalation-driven) and `forceToolCall` — deferred to avoid
-destabilizing the chat adapter; both are inert for the current registry skills anyway. (Only draft-cores #10
-fragment-map + #11 idle-ranker still await your approval.)
+destabilizing the chat adapter; both are inert for the current registry skills anyway.
+
+**#10 + #11 — APPROVED + wired as far as is honestly safe (2026-07-04).** David approved both drafts. Promoted to
+canonical (renamed the `DRAFT_` consts, docstrings) and built the tested pure composition seam each needs:
+`buildSkillPromptFragments` (#10 bridge) and `decideOpportunisticIdleWork` (#11, ranker + review picker).
+**Key finding from seam-mapping:** both drafts' downstream machinery is largely greenfield, which the drafts
+themselves flagged. #10's `producer: "wired"` statuses were optimistic — reconciled to the truth (only
+`efficiency_rules` + `temporal` have a clean non-duplicating producer, and both are already added
+unconditionally, so the bridge is inert today). #11's idle-detector + hard-veto already exist (reusable from the
+speculative-mirror tick), but only the `review` picker has a producer + dispatch; the other 4 kinds are
+greenfield. **I deliberately did NOT splice the bridge into `assembleSessionSystemPrompt` or an idle-work tick
+into `runtime-server`** — both would be inert/redundant today (the bridge overlaps already-added fragments; an
+idle-review sweep overlaps the existing event-driven review), and adding inert/speculative machinery to hot
+paths is the exact anti-pattern this whole run removed. The approved cores + tested seams are ready to activate
+the moment a producer/picker lands. **ALL 11 decisions now resolved; nothing awaits you.** Remaining is
+optional greenfield: build the fragment producers (repo_map/focus_chain/freshness) and the 4 idle pickers
+(work_ahead/deliberation_seed/spec_mirror/context_prep) + a flag-gated idle-work tick.
 
 ---
 
