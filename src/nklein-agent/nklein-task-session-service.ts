@@ -894,11 +894,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					runRetrievalLoop(
 						input.question,
 						{
-							search: searchHitsAdapter((query) =>
-								createSearxngWebSearchClient({
-									backendBaseUrl: this.retrievalSearchBackendUrl,
-									egressEnabled: this.retrievalEgressEnabled,
-								}).search(query),
+							// §5.AC: enable lexical query-relevance ranking in the live loop — hits that actually match the
+							// query terms are folded above ones that are merely fresh/authoritative.
+							search: searchHitsAdapter(
+								(query) =>
+									createSearxngWebSearchClient({
+										backendBaseUrl: this.retrievalSearchBackendUrl,
+										egressEnabled: this.retrievalEgressEnabled,
+									}).search(query),
+								{ rerankByRelevance: true },
 							),
 							fetch: browserFetchAdapter((url) => buildDefaultBrowserDeps().fetchPage(url)),
 							now: () => Date.now(),
