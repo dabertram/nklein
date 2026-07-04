@@ -179,6 +179,53 @@ function createProbeBarrierExecFileStub(): {
 	};
 }
 
+/**
+ * Stub for the exec-concurrency spike guard: non-exec docker commands (run/rm/inspect) complete immediately, but when
+ * `gateExecs(true)` every `docker exec` is HELD (its callback parked) so a test can observe how many are in flight at
+ * once. `execStarts` counts execs that reached docker (i.e. got past the semaphore); `held` is how many are parked now.
+ */
+function createExecGateStub(): {
+	execFile: typeof execFile;
+	execStarts: () => number;
+	held: () => number;
+	gateExecs: (on: boolean) => void;
+	releaseAll: () => void;
+	releaseOne: () => void;
+} {
+	let gate = false;
+	let starts = 0;
+	const heldCbs: (() => void)[] = [];
+	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
+		expect(file).toBe("docker");
+		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
+		if (args[0] === "exec") {
+			starts += 1;
+			if (gate) {
+				heldCbs.push(() => done(null, { stdout: "", stderr: "" }));
+				return {} as ReturnType<typeof execFile>;
+			}
+		}
+		done(null, { stdout: args[0] === "run" ? "container-id\n" : "", stderr: "" });
+		return {} as ReturnType<typeof execFile>;
+	});
+	return {
+		execFile: stub as unknown as typeof execFile,
+		execStarts: () => starts,
+		held: () => heldCbs.length,
+		gateExecs: (on: boolean) => {
+			gate = on;
+		},
+		releaseAll: () => {
+			while (heldCbs.length > 0) {
+				heldCbs.shift()?.();
+			}
+		},
+		releaseOne: () => {
+			heldCbs.shift()?.();
+		},
+	};
+}
+
 describe("agent sandbox interactive shell (todo §5.A)", () => {
 	it("builds the interactive docker exec argv for a task shell", () => {
 		const args = buildAgentSandboxInteractiveShellArgs({
@@ -652,6 +699,63 @@ describe("AgentSandboxManager", () => {
 		expect(p3).toMatchObject({ taskId: "task-3", slot: 1 });
 		// task-1's initial run + exactly ONE recovery run (not two) despite the two concurrent reusers.
 		expect(calls.filter((args) => args[0] === "run")).toHaveLength(2);
+	});
+
+	it("bounds concurrent in-container execs to maxConcurrentExec — the spike guard (2026-07-04)", async () => {
+		// The ONE shared container hosts every agent; each `docker exec` (npm/build/acceptance) can spike to ~1–2 GiB,
+		// so simultaneous heavy commands used to OOM it. The exec-concurrency cap FIFO-queues excess commands so at most
+		// `maxConcurrentExec` run at once — the container is sized against THAT bound, not the (unbounded) agent count.
+		const gate = createExecGateStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: gate.execFile,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0, maxConcurrentExec: 2 },
+		});
+		const tick = () => new Promise((resolve) => setImmediate(resolve));
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" }); // container `run`; no execs yet
+
+		// Fire FIVE concurrent in-container commands with exec gated open.
+		gate.gateExecs(true);
+		const execs = Array.from({ length: 5 }, (_, i) => manager.exec("task-1", ["echo", String(i)]));
+		await tick();
+		await tick();
+		// Only 2 reached docker; the other 3 are queued behind the semaphore.
+		expect(gate.held()).toBe(2);
+		expect(gate.execStarts()).toBe(2);
+
+		// Completing ONE lets exactly one queued command in — never more than the cap in flight.
+		gate.releaseOne();
+		await tick();
+		await tick();
+		expect(gate.held()).toBe(2);
+		expect(gate.execStarts()).toBe(3);
+
+		// Drain: ungate + release the held ones; every command eventually runs, capped throughout.
+		gate.gateExecs(false);
+		gate.releaseAll();
+		await tick();
+		await tick();
+		await Promise.all(execs);
+		expect(gate.execStarts()).toBe(5);
+	});
+
+	it("maxConcurrentExec=0 disables the spike guard (in-container execs run unbounded)", async () => {
+		const gate = createExecGateStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: gate.execFile,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0, maxConcurrentExec: 0 },
+		});
+		const tick = () => new Promise((resolve) => setImmediate(resolve));
+		await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+		gate.gateExecs(true);
+		const execs = Array.from({ length: 5 }, (_, i) => manager.exec("task-1", ["echo", String(i)]));
+		await tick();
+		await tick();
+		// No cap → all 5 reach docker at once.
+		expect(gate.held()).toBe(5);
+		gate.releaseAll();
+		await Promise.all(execs);
 	});
 
 	it("rejects a bounded queued acquisition when no slot opens in time, without leaking the later-freed slot", async () => {

@@ -194,6 +194,11 @@ export class AgentSandboxManager {
 	private readonly placements = new Map<string, TaskPlacement>();
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
 	private readonly queue: QueueEntry[] = [];
+	// Spike guard (2026-07-04): the ONE shared container hosts every agent, and each `docker exec` tool command
+	// (npm/build/acceptance) can spike to ~1–2 GiB. `activeExecs` + `execWaiters` bound how many run AT ONCE
+	// (poolConfig.maxConcurrentExec) so simultaneous heavy commands can't OOM the container; excess FIFO-queue.
+	private activeExecs = 0;
+	private readonly execWaiters: (() => void)[] = [];
 
 	constructor(options: AgentSandboxManagerOptions = {}) {
 		this.image = options.image ?? resolveAgentSandboxImageName();
@@ -793,22 +798,54 @@ export class AgentSandboxManager {
 		await container.retiring;
 	}
 
+	/**
+	 * The SPIKE GUARD: run a `docker exec` under the container's concurrency cap so simultaneous heavy commands
+	 * (npm/build/acceptance across co-occupant agents) can't OOM the one shared container. A FIFO hand-off semaphore
+	 * bounded by `poolConfig.maxConcurrentExec` (0 = unbounded); excess execs queue and take a slot as one frees. Leaf
+	 * op — execs never nest or hold-a-slot-while-awaiting-another, so this cannot deadlock (prep/tool/capture all just
+	 * queue). Every exec is timeout-bounded by the caller, so a hung command releases its slot rather than wedging.
+	 */
+	private async withExecSlot<T>(run: () => Promise<T>): Promise<T> {
+		const limit = this.poolConfig.maxConcurrentExec;
+		if (!(limit > 0)) {
+			return await run();
+		}
+		if (this.activeExecs >= limit) {
+			await new Promise<void>((resolve) => this.execWaiters.push(resolve));
+			// A releaser HANDED us its slot (activeExecs unchanged) — do not re-increment.
+		} else {
+			this.activeExecs += 1;
+		}
+		try {
+			return await run();
+		} finally {
+			const next = this.execWaiters.shift();
+			if (next) {
+				next(); // hand the slot straight to the next waiter (keeps activeExecs at the cap, no gap)
+			} else {
+				this.activeExecs -= 1;
+			}
+		}
+	}
+
 	private async execAsTaskUser(
 		placement: TaskPlacement,
 		argv: string[],
 		options?: { timeoutMs?: number; workdir?: string },
 	): Promise<AgentSandboxExecResult> {
-		return await this.runDocker(
-			[
-				"exec",
-				"-u",
-				String(placement.uid),
-				"-w",
-				options?.workdir ?? placement.workdir,
-				createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
-				...argv,
-			],
-			options,
+		return await this.withExecSlot(() =>
+			this.runDocker(
+				[
+					"exec",
+					"-u",
+					String(placement.uid),
+					"-w",
+					options?.workdir ?? placement.workdir,
+					createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
+					...argv,
+				],
+				options,
+			),
 		);
 	}
 
@@ -817,17 +854,19 @@ export class AgentSandboxManager {
 		argv: string[],
 		options?: { timeoutMs?: number },
 	): Promise<AgentSandboxExecResult> {
-		return await this.runDocker(
-			[
-				"exec",
-				"-u",
-				"0:0",
-				"-w",
-				AGENT_SANDBOX_WORKSPACES_DIR,
-				createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
-				...argv,
-			],
-			options,
+		return await this.withExecSlot(() =>
+			this.runDocker(
+				[
+					"exec",
+					"-u",
+					"0:0",
+					"-w",
+					AGENT_SANDBOX_WORKSPACES_DIR,
+					createAgentSandboxContainerName(placement.slot, this.poolConfig.namespace),
+					...argv,
+				],
+				options,
+			),
 		);
 	}
 

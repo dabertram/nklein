@@ -20,10 +20,22 @@ export const AGENT_SANDBOX_CONTAINER_PREFIX = "nklein-agent-sandbox";
 export const AGENT_SANDBOX_WORKSPACES_DIR = "/workspaces";
 export const DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES = 10;
 export const DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS = DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES * 60 * 1000;
-export const DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB = 2048;
-export const DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER = 2;
+// ONE shared container hosts all agents (maxContainers=1, agentsPerContainer=0=unlimited). The container itself just
+// runs `sleep infinity`; ALL memory pressure comes from concurrent `docker exec` tool commands (git is cheap, but
+// npm/build/the acceptance command spike to ~1–2 GiB each). So the memory ceiling is governed by MAX_CONCURRENT_EXEC ×
+// per-command spike, NOT the agent count. These SHIPPED defaults stay conservative so they fit even a small (~7–8 GiB)
+// Docker VM; setup-detection recommends a larger container + higher exec cap once it sees the host + Docker VM memory.
+export const DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB = 4096;
+export const DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER = 4;
 export const DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS = 1;
 export const DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER = 0;
+/**
+ * Max in-container commands (`docker exec`) that may run AT ONCE across all co-occupant agents — the spike-management
+ * lever that keeps the one shared container from OOMing when several agents run a heavy command (npm/build/acceptance)
+ * simultaneously. Excess commands FIFO-queue. `0` = unbounded (disabled). Rule of thumb: memoryPerContainerMb should be
+ * ≥ maxConcurrentExec × ~1.5 GiB + slack. Conservative default so 2 concurrent spikes fit the 4 GiB shipped container.
+ */
+export const DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC = 2;
 const TASK_UID_BASE = 70_000;
 const TASK_UID_SPAN = 20_000;
 
@@ -33,6 +45,8 @@ export interface AgentSandboxPoolConfig {
 	memoryPerContainerMb: number;
 	cpusPerContainer: number;
 	idleTimeoutMs: number;
+	/** Max concurrent in-container `docker exec` commands (spike guard). 0 = unbounded. See DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC. */
+	maxConcurrentExec: number;
 	/**
 	 * Optional per-INSTANCE discriminator woven into the container/volume names (`nklein-agent-sandbox[-<namespace>]-<slot>`).
 	 * `undefined` (the default) ⇒ the historical global names — byte-identical for a single production instance. Set it to
@@ -76,6 +90,10 @@ export function normalizeAgentSandboxPoolConfig(
 		),
 		cpusPerContainer: normalizePositiveNumber(config?.cpusPerContainer, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
 		idleTimeoutMs: normalizeNonNegativeInteger(config?.idleTimeoutMs, DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MS),
+		maxConcurrentExec: normalizeNonNegativeInteger(
+			config?.maxConcurrentExec,
+			DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
+		),
 		namespace: config?.namespace?.trim() ? config.namespace.trim() : undefined,
 	};
 }

@@ -56,9 +56,10 @@ describe("recommendSandboxPoolSizing", () => {
 	});
 
 	it("is RAM-bound when RAM is scarce relative to CPUs", () => {
-		// 16 GB / 32 CPU: after reserve → 8 GB → floor(8/2)=4 containers (RAM caps below the CPU allowance).
+		// 16 GB / 32 CPU: after reserve → 8 GB → floor(8/4)=2 containers (RAM caps below the CPU allowance).
+		// (Per-container budget is now 4 GiB — the bumped DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB.)
 		const ramBound = recommendSandboxPoolSizing({ totalRamMb: 16 * GB, cpuCount: 32 });
-		expect(ramBound.maxContainers).toBe(4);
+		expect(ramBound.maxContainers).toBe(2);
 	});
 });
 

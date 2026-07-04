@@ -27,6 +27,8 @@ describe("buildAgentSandboxPoolConfig", () => {
 			memoryPerContainerMb: 1024,
 			cpusPerContainer: 2,
 			idleTimeoutMs: 5 * 60 * 1000,
+			// Spike guard — constant default (2) until the runtime-config field lands; namespace is undefined (env unset).
+			maxConcurrentExec: 2,
 		});
 	});
 
