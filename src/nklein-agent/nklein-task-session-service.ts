@@ -2524,31 +2524,45 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					}
 				})
 				.then(({ result, warnings }) => {
+					// This fire-and-forget continuation captured `entry` before several awaits. A concurrent
+					// clearTaskSession (/clear) can SWAP the map entry for a fresh cleared object in between, leaving
+					// the captured `entry` orphaned. Re-fetch the live entry and bail if it was replaced (identity
+					// check) or removed — else we push an assistant message onto the orphaned entry (lost from the
+					// live one) and emit stale running state to listeners, resurrecting the just-cleared card.
+					const live = this.messageRepository.getTaskEntry(taskId);
+					if (!live || live !== entry) {
+						return;
+					}
 					const warningMessage = formatStartWarnings(warnings);
 					this.failureBackoff.forget(taskId);
 					if (warningMessage) {
 						this.emitSummary(
-							updateSummary(entry, {
+							updateSummary(live, {
 								warningMessage,
 							}),
 						);
 					}
 					const agentText = readAgentResultText(result);
 					if (agentText) {
-						const assistantCountAfterSend = entry.messages.filter(
+						const assistantCountAfterSend = live.messages.filter(
 							(message) => message.role === "assistant",
 						).length;
 						if (assistantCountAfterSend > assistantCountBeforeSend) {
 							return;
 						}
 						const agentMessage =
-							setOrCreateAssistantMessage(entry, taskId, agentText) ??
-							createAssistantMessage(entry, taskId, agentText);
+							setOrCreateAssistantMessage(live, taskId, agentText) ??
+							createAssistantMessage(live, taskId, agentText);
 						this.emitMessage(taskId, agentMessage);
 					}
 				})
 				.catch((error: unknown) => {
-					this.emitTaskFailure(taskId, entry, "send", error);
+					// Same orphaned-entry guard: never emit a failure for a session cleared/replaced mid-flight.
+					const live = this.messageRepository.getTaskEntry(taskId);
+					if (!live || live !== entry) {
+						return;
+					}
+					this.emitTaskFailure(taskId, live, "send", error);
 				});
 		}
 		const summary = updateSummary(entry, {
