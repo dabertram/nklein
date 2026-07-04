@@ -235,6 +235,9 @@ export function createBrowserTools(options: BrowserToolOptions = {}): ChatToolSe
 		{
 			name: "browse_url",
 			actionKind: "host_command",
+			// §5.L: the fetched page is untrusted web content. When the capability broker is on, this taints the turn so a
+			// SUBSEQUENT protected-sink action (a host command) is refused — the fail-closed prompt-injection defense.
+			taint: ["web"],
 			run: async (args) => {
 				const validationError = validateUrl(args.url);
 				if (validationError !== null) {

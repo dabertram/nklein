@@ -96,6 +96,11 @@ describe("createBrowserTools — browse_url", () => {
 		expect(tools[0]?.actionKind).toBe("host_command");
 	});
 
+	it("§5.L: carries a web taint label (its output is untrusted web content)", () => {
+		const { tools } = createBrowserTools({ browser: fakeBrowser({ url: "https://x.com", title: "", text: "" }) });
+		expect(tools[0]?.taint).toEqual(["web"]);
+	});
+
 	it("returns the page title and text for a successful fetch", async () => {
 		const browser = fakeBrowser({ url: "https://example.com", title: "Example Domain", text: "Hello world." });
 		const out = await getBrowseTool(browser).run({ url: "https://example.com" });
