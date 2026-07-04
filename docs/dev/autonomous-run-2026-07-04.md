@@ -89,6 +89,13 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batch 11 (12 FRESH core modules: state-machine, tool-pick, stuckness, cache-order) → 0 bugs.**
+  First zero-yield batch after five productive ones (13 bugs) — these are exactly the bug-prone decision-logic
+  kinds, so a clean pass signals the `src/core` vein is thoroughly swept (~100 modules reviewed total).
+  Also ran a **completeness-critic sweep** for siblings of the batch-10 regex bug: audited every `src/` regex
+  literal combining `\b` with `|` — NO other instance of the unanchored-alternation bug; all others are
+  properly grouped or intentional substring matchers (e.g. `nklein-task-start-guard`'s keyword lists). The
+  bug class is contained. **Pivoting the hunt off `src/core` to a fresh subsystem (commands/trpc/server).**
 - **Bug-hunt batch 10 (12 FRESH core modules: verdicts, ranking, operator-state) → 2 real bugs FIXED:**
   (HIGH) `collectStrictViolations` skipped TUPLE-style `items` (an array of subschemas — `isPlainObject`
   is false for arrays), so a non-strict tuple element passed validation as ok:true then LM Studio
