@@ -74,6 +74,15 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batches 2+3 (20 more cores) → 7 real bugs FIXED (9 total across 28 modules):**
+  (HIGH) `judgeCellStability` passRateDoubt INVERTED — coin-flip rated most-confident (`dafd5f96`);
+  (MED) its settled_fail decisiveness degenerated to 0 at a clamped fail-floor (same commit);
+  (HIGH) `recommendSandboxPoolSizing` — MY regression this session: a tiny VM out-recommended a
+  bigger one (unclamped ceiling) (`9cb83d67`); (HIGH) `isKnowledgeStale` rounded a fractional
+  realtime age to 0 → reused a stale live price (`940d30ec`); (LOW×2) `api-validation` kept
+  empty-VALUE provider headers (`d62ae51d`); (HIGH) `summarizeModelSpeed` samples undercounted on
+  split ttft/tps coverage (`60683152`). Each with a regression test that fails on the old code.
+  The hunt earns its keep — incl. catching my own fresh regression.
 - **Triage batch assessed (5 "ready-now" leaves) — most were over-credited on verification:**
   #4 TTL-suggester seam is DARK (`loadModelExclusive`/`planGuardedModelLoad` have no live callers —
   the live load path is elsewhere); #3 spec-ledger-field needs a NEW producer call threaded into
