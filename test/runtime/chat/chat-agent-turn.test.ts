@@ -171,6 +171,30 @@ describe("runChatAgentTurn", () => {
 		expect(result.assistantMessage.content).not.toContain("tool_call");
 		expect(result.assistantMessage.content).toBe("Done. (used: write_file)");
 	});
+
+	it("never leaks raw narrated markup when the whole reply is markup and NO tools ran (§5.O)", async () => {
+		// Weak model narrates a malformed tool call as its ENTIRE final answer — nothing real ran and nothing
+		// parseable to recover. cleaned === "" and steps === []; the fallback must be neutral, NOT the raw markup.
+		const result = await runChatAgentTurn(
+			{ session: session(), userMessage: "do it", tokenBudget: 1000 },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) =>
+					({ schemaVersion: 1, id: "m", role: input.role, content: input.content, createdAt: 0 }) as ChatMessage,
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => ({ text: "<|tool_call>invalid json", toolCalls: [] }),
+				executeTool: async () => {
+					throw new Error("no tools expected");
+				},
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		expect(result.steps).toEqual([]);
+		expect(result.assistantMessage.content).not.toContain("tool_call");
+		expect(result.assistantMessage.content).toBe("I wasn't able to produce a response.");
+	});
 });
 
 describe("runChatAgentConversation", () => {

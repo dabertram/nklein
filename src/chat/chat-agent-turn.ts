@@ -70,6 +70,9 @@ export interface ChatAgentTurnResult {
 	hitIterationLimit: boolean;
 }
 
+/** Neutral user-facing reply when the model produced only (empty-after-strip) narrated markup and ran no tools. */
+const NARRATION_ONLY_FALLBACK = "I wasn't able to produce a response.";
+
 export async function runChatAgentTurn(
 	input: {
 		session: ChatSession;
@@ -158,12 +161,15 @@ export async function runChatAgentTurn(
 	// §5.O: weak models sometimes narrate a tool call as text in their final answer instead of confirming what they
 	// did. Strip that markup from the user-facing reply; if nothing readable remains but tools ran, confirm briefly.
 	const cleaned = stripNarratedToolCallMarkup(loop.finalText);
+	// When the whole reply was narrated tool-call markup, `cleaned` is empty. If tools actually ran, confirm
+	// them; otherwise fall back to a neutral note — NEVER `loop.finalText`, which is the raw markup this strip
+	// exists to keep away from the user (a weak model can emit only a malformed narrated call as its answer).
 	const finalText =
 		cleaned.length > 0
 			? cleaned
 			: loop.steps.length > 0
 				? `Done. (used: ${summarizeToolsUsed(loop.steps)})`
-				: loop.finalText;
+				: NARRATION_ONLY_FALLBACK;
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: finalText });
 	return { userMessage, assistantMessage, steps: loop.steps, context, hitIterationLimit: loop.hitIterationLimit };
