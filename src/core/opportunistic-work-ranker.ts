@@ -13,7 +13,11 @@
  *   3. `deliberation_seed`— pre-seed a family-diverse deliberation for a known HARD upcoming card (§5 pillar: process
  *                           compensates for small models) so its first real turn already has candidate approaches.
  *   4. `spec_mirror`      — reconcile the spec/knowledge from recent merges so the next decompose reads fresh truth.
- *   5. `context_prep`     — warm caches (repo map, embeddings) for the likely-next work. Cheapest + most speculative,
+ *   5. `memory_audit`     — a STRONG idle model re-checks recently-written free-form memory notes (§5.AR basic-memory)
+ *                           against the code-graph + the §5.AF ledger, flagging stale/hallucinated ones. The ledger is
+ *                           schema-gated harness EVIDENCE, but authored memory is model-written PROSE with no built-in
+ *                           verification — this is the strong-model verification pass that keeps that store trustworthy.
+ *   6. `context_prep`     — warm caches (repo map, embeddings) for the likely-next work. Cheapest + most speculative,
  *                           so it's the fallback — only when nothing higher-value is available.
  *
  * Proposed HARD VETO: if ANY real queued/active work exists (a ready card awaiting a slot, or a running session),
@@ -23,7 +27,13 @@
  * Pure + total + deterministic.
  */
 
-export type OpportunisticWorkKind = "review" | "work_ahead" | "deliberation_seed" | "spec_mirror" | "context_prep";
+export type OpportunisticWorkKind =
+	| "review"
+	| "work_ahead"
+	| "deliberation_seed"
+	| "spec_mirror"
+	| "memory_audit"
+	| "context_prep";
 
 /** The approved priority order (highest-value first). */
 export const OPPORTUNISTIC_PRIORITY: readonly OpportunisticWorkKind[] = [
@@ -31,6 +41,7 @@ export const OPPORTUNISTIC_PRIORITY: readonly OpportunisticWorkKind[] = [
 	"work_ahead",
 	"deliberation_seed",
 	"spec_mirror",
+	"memory_audit",
 	"context_prep",
 ];
 

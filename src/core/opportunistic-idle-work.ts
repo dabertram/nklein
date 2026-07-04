@@ -24,12 +24,19 @@ export interface OpportunisticIdleWorkInput {
 	hasRealQueuedWork: boolean;
 	/** Card ids in the review lane still needing a review dispatched (empty ⇒ the `review` picker has no candidate). */
 	reviewCandidateTaskIds: readonly string[];
+	/**
+	 * Refs of recently-written §5.AR memory notes that still need a strong-model audit (empty ⇒ the `memory_audit`
+	 * picker has no candidate). A ref is anything the dispatch can resolve back to a note (e.g. `permalink`/path).
+	 */
+	memoryAuditNoteRefs?: readonly string[];
 }
 
 export interface OpportunisticIdleWorkDecision {
 	verdict: OpportunisticWorkVerdict;
 	/** When `verdict.chosen === "review"`, the specific card to review (the first candidate); otherwise null. */
 	reviewTaskId: string | null;
+	/** When `verdict.chosen === "memory_audit"`, the specific note ref to audit (the first candidate); otherwise null. */
+	memoryAuditNoteRef: string | null;
 }
 
 /**
@@ -48,15 +55,32 @@ export function findReviewCandidateTaskIds(
 	return reviewColumn.cards.map((card) => card.id).filter((taskId) => !alreadyDispatched.has(taskId));
 }
 
+/**
+ * The `memory_audit` picker (pure): note refs written/edited since their last audit that a strong idle model should
+ * re-verify. `alreadyAudited` gives per-workspace idempotency (a ref whose current version was already audited is
+ * skipped), so a tick never re-audits an unchanged note.
+ */
+export function findMemoryAuditCandidates(
+	recentlyWrittenNoteRefs: readonly string[],
+	alreadyAudited: ReadonlySet<string>,
+): string[] {
+	return recentlyWrittenNoteRefs.filter((ref) => !alreadyAudited.has(ref));
+}
+
 /** Compose the ranker with the available pickers into a concrete idle-work decision. Pure. */
 export function decideOpportunisticIdleWork(input: OpportunisticIdleWorkInput): OpportunisticIdleWorkDecision {
 	const available: OpportunisticWorkKind[] = [];
 	if (input.reviewCandidateTaskIds.length > 0) {
 		available.push("review");
 	}
+	const memoryAuditNoteRefs = input.memoryAuditNoteRefs ?? [];
+	if (memoryAuditNoteRefs.length > 0) {
+		available.push("memory_audit");
+	}
 	const verdict = rankOpportunisticWork({ hasRealQueuedWork: input.hasRealQueuedWork, available });
 	return {
 		verdict,
 		reviewTaskId: verdict.chosen === "review" ? (input.reviewCandidateTaskIds[0] ?? null) : null,
+		memoryAuditNoteRef: verdict.chosen === "memory_audit" ? (memoryAuditNoteRefs[0] ?? null) : null,
 	};
 }
