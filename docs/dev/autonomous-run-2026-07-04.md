@@ -121,6 +121,12 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batch 13 (12 FRESH nklein-agent/state/commands modules) → 1 real bug FIXED:** (HIGH)
+  `parsePythonValue`'s number regex rejected scientific notation (`1e5`, `1.5e-3`) and dotted floats
+  (`.5`, `5.`), so those valid Python literals (Gemma `tool_code` narration → tool args) arrived as
+  STRINGS not numbers — `timeout=1e5` became `{timeout:"1e5"}`. Broadened the regex + `Number.isFinite`
+  guard; +2 test cases (fail on old). GREEN commit. Session bug tally: **17 real bugs** (yields
+  1,4,3,3,2,0,3,1). Yield tapering as the pure-logic is swept.
 - **Bug-hunt batch 12 (12 FRESH nklein-agent/commands modules) → 3 real bugs FIXED** (the subsystem pivot
   paid off — yield outside `src/core`): (MED×2, same fn) `isLocalBaseUrl` didn't recognize IPv6 ULA
   (`fc00::/7`) or link-local (`fe80::/10`) as local, so an IPv6-private-bound local LM Studio/Ollama was
