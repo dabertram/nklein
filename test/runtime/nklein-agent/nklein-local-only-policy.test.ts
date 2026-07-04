@@ -132,10 +132,26 @@ describe("nklein local-only policy", () => {
 			"http://169.254.1.1:1234",
 			"http://100.100.1.1:1234",
 			"http://my-box.local:1234",
+			// IPv6 loopback + private ranges (parity with the IPv4 rows above).
+			"http://[::1]:1234",
+			"http://[fd00::1]:1234", // unique-local fc00::/7
+			"http://[fc00::abcd]:1234", // unique-local fc00::/7
+			"http://[fe80::1]:1234", // link-local fe80::/10
 		]) {
 			expect(isLocalBaseUrl(url)).toBe(true);
 		}
-		for (const url of ["https://api.openai.com", "http://8.8.8.8:1234", "http://172.32.0.1", "", null]) {
+		for (const url of [
+			"https://api.openai.com",
+			"http://8.8.8.8:1234",
+			"http://172.32.0.1",
+			// A public hostname that merely STARTS with fc/fd/fe80 must NOT be misread as an IPv6 local literal.
+			"http://fcserver.com",
+			"http://fd-company.io:1234",
+			"http://fe80host.example.com",
+			"http://[2001:4860:4860::8888]:1234", // public IPv6 (Google DNS)
+			"",
+			null,
+		]) {
 			expect(isLocalBaseUrl(url)).toBe(false);
 		}
 	});

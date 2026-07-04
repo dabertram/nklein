@@ -60,6 +60,17 @@ export function isLocalBaseUrl(baseUrl: string | null | undefined): boolean {
 	if (host.endsWith(".local") || host.endsWith(".localhost")) {
 		return true;
 	}
+	// IPv6 private/local literals — parity with the IPv4 ranges below (mirrors egress-policy-decision.ts
+	// isPrivateIpv6). `host` is lowercased + de-bracketed by normalizeHost; a colon marks an IPv6 literal (a
+	// hostname carries none here — url.hostname dropped the port), so gating on it stops a public hostname like
+	// "fcserver.com" from matching the fc/fd prefix. Without this, an IPv6 ULA/link-local-bound local endpoint
+	// (LM Studio/Ollama) was wrongly treated as cloud and blocked, unlike its IPv4 equivalents.
+	if (
+		host.includes(":") &&
+		(host === "::" || host.startsWith("fe80") || host.startsWith("fc") || host.startsWith("fd"))
+	) {
+		return true; // unspecified :: / link-local fe80::/10 / unique-local fc00::/7
+	}
 	const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
 	if (ipv4) {
 		const first = Number(ipv4[1]);
