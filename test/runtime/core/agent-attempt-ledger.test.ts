@@ -266,6 +266,17 @@ describe("summarizeModelSpeed", () => {
 	it("returns an empty list when no attempts carry timing", () => {
 		expect(summarizeModelSpeed([speedAttempt("m", null, null)])).toEqual([]);
 	});
+
+	it("counts DISTINCT datum-carrying attempts when metric coverage is split (regression: not max of the two lists)", () => {
+		// A1 carried ttft only, A2 carried tok/s only → 2 distinct sampled attempts. The old `max(ttft.length, tps.length)`
+		// = max(1, 1) = 1 undercounted the denominator (the §5.AB sample-volume signal).
+		const events = [speedAttempt("m", 100, null), speedAttempt("m", null, 50)];
+		const rows = summarizeModelSpeed(events);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.samples).toBe(2);
+		expect(rows[0]?.avgTtftMs).toBe(100);
+		expect(rows[0]?.avgTokensPerSec).toBe(50);
+	});
 });
 
 describe("summarizeModelContextUsage", () => {

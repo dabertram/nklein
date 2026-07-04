@@ -507,7 +507,9 @@ export interface ModelSpeedRollup {
 export function summarizeModelSpeed(events: readonly AgentLedgerEvent[]): ModelSpeedRollup[] {
 	const ttftByModel = new Map<string, number[]>();
 	const tpsByModel = new Map<string, number[]>();
-	const sampledModels = new Set<string>();
+	// Count distinct datum-carrying ATTEMPTS per model — NOT max(ttft.length, tps.length), which undercounts when
+	// attempts split their metric coverage (some ttft-only, some tps-only): neither list alone covers every attempt.
+	const sampleCountByModel = new Map<string, number>();
 	const pushSample = (map: Map<string, number[]>, modelId: string, value: number): void => {
 		const list = map.get(modelId);
 		if (list) {
@@ -522,7 +524,7 @@ export function summarizeModelSpeed(events: readonly AgentLedgerEvent[]): ModelS
 		if (!hasTtft && !hasTps) {
 			continue;
 		}
-		sampledModels.add(attempt.modelId);
+		sampleCountByModel.set(attempt.modelId, (sampleCountByModel.get(attempt.modelId) ?? 0) + 1);
 		if (hasTtft) {
 			pushSample(ttftByModel, attempt.modelId, attempt.ttftMs as number);
 		}
@@ -531,12 +533,12 @@ export function summarizeModelSpeed(events: readonly AgentLedgerEvent[]): ModelS
 		}
 	}
 	const rollups: ModelSpeedRollup[] = [];
-	for (const modelId of sampledModels) {
+	for (const modelId of sampleCountByModel.keys()) {
 		const ttft = ttftByModel.get(modelId) ?? [];
 		const tps = tpsByModel.get(modelId) ?? [];
 		rollups.push({
 			modelId,
-			samples: Math.max(ttft.length, tps.length),
+			samples: sampleCountByModel.get(modelId) ?? 0,
 			avgTtftMs: meanOrNull(ttft),
 			medianTtftMs: medianOrNull(ttft),
 			avgTokensPerSec: meanOrNull(tps),
