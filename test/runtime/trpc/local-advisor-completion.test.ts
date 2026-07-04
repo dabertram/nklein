@@ -32,8 +32,17 @@ describe("resolveAdvisorOpenAiBaseUrl", () => {
 		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ providerId: "ollama" }))).toBe("http://localhost:11434/v1");
 	});
 
-	it("tolerates a non-URL configured value", () => {
-		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ baseUrl: "notaurl" }))).toBe("notaurl/v1");
+	it("tolerates a non-URL configured value (prepends an http scheme so the result is fetchable)", () => {
+		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ baseUrl: "notaurl" }))).toBe("http://notaurl/v1");
+	});
+
+	it("prepends an http scheme to a scheme-less host:port so the result is a fetchable absolute URL", () => {
+		// A scheme-less local baseUrl passes the local-only gate but URL-parses the port as an opaque path;
+		// without a scheme the joined /chat/completions URL is not accepted by fetch().
+		const resolved = resolveAdvisorOpenAiBaseUrl(launchConfig({ baseUrl: "192.168.1.5:1234" }));
+		expect(resolved).toBe("http://192.168.1.5:1234/v1");
+		expect(() => new URL(`${resolved}/chat/completions`)).not.toThrow();
+		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ baseUrl: "localhost:1234" }))).toBe("http://localhost:1234/v1");
 	});
 });
 
@@ -41,6 +50,12 @@ describe("resolveAdvisorOllamaBaseUrl", () => {
 	it("trims a trailing slash or defaults to localhost:11434", () => {
 		expect(resolveAdvisorOllamaBaseUrl(launchConfig({ baseUrl: "http://h:11434/" }))).toBe("http://h:11434");
 		expect(resolveAdvisorOllamaBaseUrl(launchConfig())).toBe("http://localhost:11434");
+	});
+
+	it("prepends an http scheme to a scheme-less host:port so the result is a fetchable absolute URL", () => {
+		const resolved = resolveAdvisorOllamaBaseUrl(launchConfig({ baseUrl: "192.168.1.5:11434" }));
+		expect(resolved).toBe("http://192.168.1.5:11434");
+		expect(() => new URL(`${resolved}/api/chat`)).not.toThrow();
 	});
 });
 

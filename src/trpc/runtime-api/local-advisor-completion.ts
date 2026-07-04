@@ -20,7 +20,11 @@ export function joinUrlPath(baseUrl: string, path: string): string {
 export function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
 	const configured = launchConfig.baseUrl?.trim();
 	if (configured) {
-		const trimmed = configured.replace(/\/+$/u, "");
+		// Ensure an http scheme (parity with nklein-local-only-policy's normalizeHost): a scheme-less
+		// `host:port` (e.g. "localhost:1234") is a valid, storable, local-only-allowed baseUrl, but URL
+		// parsing mistakes the port for an opaque path — the result isn't a fetchable absolute URL.
+		const withScheme = configured.includes("://") ? configured : `http://${configured}`;
+		const trimmed = withScheme.replace(/\/+$/u, "");
 		try {
 			const url = new URL(trimmed);
 			if (!url.pathname.endsWith("/v1")) {
@@ -38,7 +42,12 @@ export function resolveAdvisorOpenAiBaseUrl(launchConfig: ResolvedNKleinLaunchCo
 }
 
 export function resolveAdvisorOllamaBaseUrl(launchConfig: ResolvedNKleinLaunchConfig): string {
-	return launchConfig.baseUrl?.trim().replace(/\/+$/u, "") || "http://localhost:11434";
+	const configured = launchConfig.baseUrl?.trim().replace(/\/+$/u, "");
+	if (!configured) {
+		return "http://localhost:11434";
+	}
+	// A scheme-less `host:port` baseUrl isn't a fetchable absolute URL — prepend http (see the OpenAI resolver).
+	return configured.includes("://") ? configured : `http://${configured}`;
 }
 
 export function readAdvisorTextResponse(value: unknown): string {
