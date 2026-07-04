@@ -101,6 +101,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 4096,
 		sandboxCpusPerContainer: 2,
+		sandboxMaxConcurrentExec: 2,
 		sandboxIdleTimeoutMinutes: 10,
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,

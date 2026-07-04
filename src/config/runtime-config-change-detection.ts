@@ -73,6 +73,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("sandboxAgentsPerContainer"),
 	runtimeConfigChangeField("sandboxMemoryPerContainerMb"),
 	runtimeConfigChangeField("sandboxCpusPerContainer"),
+	runtimeConfigChangeField("sandboxMaxConcurrentExec"),
 	runtimeConfigChangeField("sandboxIdleTimeoutMinutes"),
 	runtimeConfigChangeField("lostHeartbeatPolicy"),
 	runtimeConfigChangeField("decompositionAutoApplyEnabled"),

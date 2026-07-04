@@ -60,6 +60,7 @@ export interface RuntimeConfigState {
 	sandboxAgentsPerContainer: number;
 	sandboxMemoryPerContainerMb: number;
 	sandboxCpusPerContainer: number;
+	sandboxMaxConcurrentExec: number;
 	sandboxIdleTimeoutMinutes: number;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
@@ -128,6 +129,7 @@ export interface RuntimeConfigUpdateInput {
 	sandboxAgentsPerContainer?: number;
 	sandboxMemoryPerContainerMb?: number;
 	sandboxCpusPerContainer?: number;
+	sandboxMaxConcurrentExec?: number;
 	sandboxIdleTimeoutMinutes?: number;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
@@ -185,6 +187,7 @@ export interface RuntimeGlobalConfigFileShape {
 	sandboxAgentsPerContainer?: number;
 	sandboxMemoryPerContainerMb?: number;
 	sandboxCpusPerContainer?: number;
+	sandboxMaxConcurrentExec?: number;
 	sandboxIdleTimeoutMinutes?: number;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;

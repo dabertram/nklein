@@ -10,6 +10,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
@@ -140,6 +141,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.sandboxCpusPerContainer,
 			current.sandboxCpusPerContainer,
 			(value) => normalizePositiveNumber(value, DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER),
+		),
+		sandboxMaxConcurrentExec: keepNormalizedValue(
+			updates.sandboxMaxConcurrentExec,
+			current.sandboxMaxConcurrentExec,
+			(value) => normalizeNonNegativeInteger(value, DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC),
 		),
 		sandboxIdleTimeoutMinutes: keepNormalizedValue(
 			updates.sandboxIdleTimeoutMinutes,

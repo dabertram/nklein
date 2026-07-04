@@ -89,6 +89,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	sandboxAgentsPerContainer: number;
 	sandboxMemoryPerContainerMb: number;
 	sandboxCpusPerContainer: number;
+	sandboxMaxConcurrentExec: number;
 	sandboxIdleTimeoutMinutes: number;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
@@ -151,6 +152,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			sandboxAgentsPerContainer: input.sandboxAgentsPerContainer,
 			sandboxMemoryPerContainerMb: input.sandboxMemoryPerContainerMb,
 			sandboxCpusPerContainer: input.sandboxCpusPerContainer,
+			sandboxMaxConcurrentExec: input.sandboxMaxConcurrentExec,
 			sandboxIdleTimeoutMinutes: input.sandboxIdleTimeoutMinutes,
 		}),
 		...resolveRuntimeRetrievalConfig({

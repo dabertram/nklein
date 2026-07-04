@@ -55,6 +55,7 @@ function makeInput(overrides: Partial<RuntimeConfigStateFromValuesInput> = {}): 
 		sandboxAgentsPerContainer: 2,
 		sandboxMemoryPerContainerMb: 2048,
 		sandboxCpusPerContainer: 2,
+		sandboxMaxConcurrentExec: 2,
 		sandboxIdleTimeoutMinutes: 30,
 		lostHeartbeatPolicy: DEFAULT_LOST_HEARTBEAT_POLICY,
 		decompositionAutoApplyEnabled: false,

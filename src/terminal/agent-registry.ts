@@ -150,6 +150,7 @@ export function buildRuntimeConfigResponse(
 		sandboxAgentsPerContainer: runtimeConfig.sandboxAgentsPerContainer,
 		sandboxMemoryPerContainerMb: runtimeConfig.sandboxMemoryPerContainerMb,
 		sandboxCpusPerContainer: runtimeConfig.sandboxCpusPerContainer,
+		sandboxMaxConcurrentExec: runtimeConfig.sandboxMaxConcurrentExec,
 		sandboxIdleTimeoutMinutes: runtimeConfig.sandboxIdleTimeoutMinutes,
 		lostHeartbeatPolicy: runtimeConfig.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: runtimeConfig.decompositionAutoApplyEnabled,

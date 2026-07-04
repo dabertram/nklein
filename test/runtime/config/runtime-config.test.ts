@@ -1104,6 +1104,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(initial.sandboxAgentsPerContainer).toBe(0);
 				expect(initial.sandboxMemoryPerContainerMb).toBe(4096);
 				expect(initial.sandboxCpusPerContainer).toBe(4);
+				expect(initial.sandboxMaxConcurrentExec).toBe(2);
 				expect(initial.sandboxIdleTimeoutMinutes).toBe(10);
 
 				const updated = await updateRuntimeConfig(tempProject, {
@@ -1111,12 +1112,14 @@ describe.sequential("runtime-config auto agent selection", () => {
 					sandboxAgentsPerContainer: 1,
 					sandboxMemoryPerContainerMb: 8192,
 					sandboxCpusPerContainer: 1.5,
+					sandboxMaxConcurrentExec: 5,
 					sandboxIdleTimeoutMinutes: 15,
 				});
 				expect(updated.sandboxMaxContainers).toBe(2);
 				expect(updated.sandboxAgentsPerContainer).toBe(1);
 				expect(updated.sandboxMemoryPerContainerMb).toBe(8192);
 				expect(updated.sandboxCpusPerContainer).toBe(1.5);
+				expect(updated.sandboxMaxConcurrentExec).toBe(5);
 				expect(updated.sandboxIdleTimeoutMinutes).toBe(15);
 
 				const globalPayload = JSON.parse(
@@ -1126,6 +1129,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					sandboxAgentsPerContainer?: number;
 					sandboxMemoryPerContainerMb?: number;
 					sandboxCpusPerContainer?: number;
+					sandboxMaxConcurrentExec?: number;
 					sandboxIdleTimeoutMinutes?: number;
 				};
 				expect(globalPayload).toMatchObject({
@@ -1133,6 +1137,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					sandboxAgentsPerContainer: 1,
 					sandboxMemoryPerContainerMb: 8192,
 					sandboxCpusPerContainer: 1.5,
+					sandboxMaxConcurrentExec: 5,
 					sandboxIdleTimeoutMinutes: 15,
 				});
 
@@ -1141,6 +1146,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				expect(reloaded.sandboxAgentsPerContainer).toBe(1);
 				expect(reloaded.sandboxMemoryPerContainerMb).toBe(8192);
 				expect(reloaded.sandboxCpusPerContainer).toBe(1.5);
+				expect(reloaded.sandboxMaxConcurrentExec).toBe(5);
 				expect(reloaded.sandboxIdleTimeoutMinutes).toBe(15);
 			});
 		} finally {

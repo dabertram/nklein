@@ -55,6 +55,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 2048,
 		sandboxCpusPerContainer: 2,
+		sandboxMaxConcurrentExec: 2,
 		sandboxIdleTimeoutMinutes: 10,
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,

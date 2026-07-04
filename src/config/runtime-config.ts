@@ -32,6 +32,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
@@ -510,6 +511,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		sandboxAgentsPerContainer: current.sandboxAgentsPerContainer,
 		sandboxMemoryPerContainerMb: current.sandboxMemoryPerContainerMb,
 		sandboxCpusPerContainer: current.sandboxCpusPerContainer,
+		sandboxMaxConcurrentExec: current.sandboxMaxConcurrentExec,
 		sandboxIdleTimeoutMinutes: current.sandboxIdleTimeoutMinutes,
 		lostHeartbeatPolicy: current.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
@@ -588,6 +590,7 @@ export async function saveRuntimeConfig(
 		sandboxAgentsPerContainer?: number;
 		sandboxMemoryPerContainerMb?: number;
 		sandboxCpusPerContainer?: number;
+		sandboxMaxConcurrentExec?: number;
 		sandboxIdleTimeoutMinutes?: number;
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
@@ -661,6 +664,10 @@ export async function saveRuntimeConfig(
 			sandboxCpusPerContainer: normalizePositiveNumber(
 				config.sandboxCpusPerContainer,
 				DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+			),
+			sandboxMaxConcurrentExec: normalizeNonNegativeInteger(
+				config.sandboxMaxConcurrentExec,
+				DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 			),
 			sandboxIdleTimeoutMinutes: normalizePositiveInteger(
 				config.sandboxIdleTimeoutMinutes,
@@ -749,6 +756,10 @@ export async function saveRuntimeConfig(
 			sandboxCpusPerContainer: normalizePositiveNumber(
 				config.sandboxCpusPerContainer,
 				DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+			),
+			sandboxMaxConcurrentExec: normalizeNonNegativeInteger(
+				config.sandboxMaxConcurrentExec,
+				DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 			),
 			sandboxIdleTimeoutMinutes: normalizePositiveInteger(
 				config.sandboxIdleTimeoutMinutes,

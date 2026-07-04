@@ -7,13 +7,14 @@ import {
 	createCheckingAgentSandboxStatus,
 } from "../../../src/server/agent-sandbox-runtime-config";
 
-/** Minimal config stub — buildAgentSandboxPoolConfig only reads the five sandbox fields. */
+/** Minimal config stub — buildAgentSandboxPoolConfig only reads the six sandbox fields. */
 function config(overrides: Partial<RuntimeConfigState>): RuntimeConfigState {
 	return {
 		sandboxMaxContainers: 2,
 		sandboxAgentsPerContainer: 3,
 		sandboxMemoryPerContainerMb: 1024,
 		sandboxCpusPerContainer: 2,
+		sandboxMaxConcurrentExec: 4,
 		sandboxIdleTimeoutMinutes: 5,
 		...overrides,
 	} as RuntimeConfigState;
@@ -27,8 +28,8 @@ describe("buildAgentSandboxPoolConfig", () => {
 			memoryPerContainerMb: 1024,
 			cpusPerContainer: 2,
 			idleTimeoutMs: 5 * 60 * 1000,
-			// Spike guard — constant default (2) until the runtime-config field lands; namespace is undefined (env unset).
-			maxConcurrentExec: 2,
+			// Spike guard — mapped one-to-one from the runtime-config field; namespace is undefined (env unset).
+			maxConcurrentExec: 4,
 		});
 	});
 

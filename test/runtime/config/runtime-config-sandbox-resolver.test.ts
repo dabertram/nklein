@@ -9,6 +9,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../../../src/nklein-agent/nklein-agent-sandbox";
@@ -18,6 +19,7 @@ const defaults: RuntimeSandboxConfigFields = {
 	sandboxAgentsPerContainer: DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	sandboxMemoryPerContainerMb: DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 	sandboxCpusPerContainer: DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+	sandboxMaxConcurrentExec: DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	sandboxIdleTimeoutMinutes: DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
 };
 
@@ -37,6 +39,7 @@ describe("resolveRuntimeSandboxConfig", () => {
 					sandboxAgentsPerContainer: 2,
 					sandboxMemoryPerContainerMb: 2048,
 					sandboxCpusPerContainer: 1.5,
+					sandboxMaxConcurrentExec: 3,
 					sandboxIdleTimeoutMinutes: 30,
 				}),
 			),
@@ -45,6 +48,7 @@ describe("resolveRuntimeSandboxConfig", () => {
 			sandboxAgentsPerContainer: 2,
 			sandboxMemoryPerContainerMb: 2048,
 			sandboxCpusPerContainer: 1.5,
+			sandboxMaxConcurrentExec: 3,
 			sandboxIdleTimeoutMinutes: 30,
 		});
 	});
@@ -61,5 +65,12 @@ describe("resolveRuntimeSandboxConfig", () => {
 
 	it("accepts 0 for the non-negative agents-per-container field", () => {
 		expect(resolveRuntimeSandboxConfig(config({ sandboxAgentsPerContainer: 0 })).sandboxAgentsPerContainer).toBe(0);
+	});
+
+	it("accepts 0 for maxConcurrentExec (disables the spike guard) but rejects a negative back to the default", () => {
+		expect(resolveRuntimeSandboxConfig(config({ sandboxMaxConcurrentExec: 0 })).sandboxMaxConcurrentExec).toBe(0);
+		expect(resolveRuntimeSandboxConfig(config({ sandboxMaxConcurrentExec: -2 })).sandboxMaxConcurrentExec).toBe(
+			DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
+		);
 	});
 });

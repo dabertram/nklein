@@ -34,6 +34,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_IDLE_TIMEOUT_MINUTES,
+	DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	DEFAULT_AGENT_SANDBOX_MAX_CONTAINERS,
 	DEFAULT_AGENT_SANDBOX_MEMORY_PER_CONTAINER_MB,
 } from "../nklein-agent/nklein-agent-sandbox";
@@ -140,6 +141,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	sandboxAgentsPerContainer?: number;
 	sandboxMemoryPerContainerMb?: number;
 	sandboxCpusPerContainer?: number;
+	sandboxMaxConcurrentExec?: number;
 	sandboxIdleTimeoutMinutes?: number;
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
@@ -253,6 +255,10 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const sandboxCpusPerContainer = normalizePositiveNumber(
 		config.sandboxCpusPerContainer,
 		DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+	);
+	const sandboxMaxConcurrentExec = normalizeNonNegativeInteger(
+		config.sandboxMaxConcurrentExec,
+		DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	);
 	const sandboxIdleTimeoutMinutes = normalizePositiveInteger(
 		config.sandboxIdleTimeoutMinutes,
@@ -471,6 +477,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		"sandboxCpusPerContainer",
 		sandboxCpusPerContainer,
 		DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"sandboxMaxConcurrentExec",
+		sandboxMaxConcurrentExec,
+		DEFAULT_AGENT_SANDBOX_MAX_CONCURRENT_EXEC,
 	);
 	assignChangedConfigField(
 		payload,
