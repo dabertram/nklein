@@ -37,11 +37,15 @@ to avoid locking in a direction you'd want to choose:
    prompt-injection defense; should it default ON once the swarm seam is also covered? (Strictness:
    the single-browse-per-turn behavior above.)
 
-5. **§5.AE skill-fragment → prompt-assembly mapping** — the skill registry's `ContextFragmentId`s
-   (repo_map, focus_chain, refinement_preamble, temporal, freshness_rail, online_retrieval) do NOT
-   map 1:1 to `assembleSessionSystemPrompt`'s keys (base, efficiency-rules, temporal-context,
-   planning-workflow, home-agent-append, session-env). **Q: what's the intended fragment-id→text
-   mapping, and which registry fragments are blocks that don't exist yet (repo_map, focus_chain)?**
+5. **§5.AE skill-fragment → prompt-assembly mapping** — VERIFIED (2026-07-04): the two id namespaces
+   are genuinely distinct. Registry `ContextFragmentId`s are UNDERSCORED (base, efficiency_rules,
+   focus_chain, freshness_rail, online_retrieval, refinement_preamble, repo_map, temporal); the
+   assembler (`prompt-fragment-assembly.ts`) takes free-form HYPHENATED `key`s (base, efficiency-rules,
+   temporal-context, …) bucketed by volatility. So even the shared concepts differ by convention
+   (`efficiency_rules`↔`efficiency-rules`, `temporal`↔`temporal-context`), and `repo_map`/`focus_chain`
+   have no assembler counterpart (aspirational blocks not yet produced). **Q: what's the intended
+   fragment-id→text mapping (+ the naming convention to canonicalize on), and which registry fragments
+   are blocks that don't exist yet (repo_map, focus_chain)?**
 6. **§5.AE apiProfile plumbing** — VERIFIED dark (2026-07-04): skills' apiProfiles ARE collected +
    merged with conflict-detection (`resolveApiProfileForSkills` in skill-registry + `skill-compat`),
    producing `activeSkillSet.apiProfile` — but `resolveApiProfileRequest` (the per-call request shaper)
