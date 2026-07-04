@@ -10,7 +10,7 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // history, and subscribe to summaries and chat events without knowing SDK
 // host, repository, or event-adapter details.
 
-import { buildDefaultBrowserDeps } from "../chat/chat-browser-tool";
+import { buildSsrfGuardedPageFetcher } from "../chat/chat-browser-tool";
 import { DEFAULT_LOCAL_CHAT_BASE_URL } from "../chat/local-chat-model";
 import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
 import {
@@ -918,7 +918,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									}).search(query),
 								{ rerankByRelevance: true },
 							),
-							fetch: browserFetchAdapter((url) => buildDefaultBrowserDeps().fetchPage(url)),
+							// PRIME DIRECTIVE #1: the retrieval loop fetches untrusted, backend/SEO-controllable result URLs,
+							// so the egress MUST be SSRF-guarded. buildSsrfGuardedPageFetcher enforces the same floor as
+							// browse_url (http/https only + pre-fetch DNS-resolve-all-IPs private/reserved refusal +
+							// post-redirect re-check); a blocked URL throws and the driver skips that hit (fail-closed).
+							fetch: browserFetchAdapter(buildSsrfGuardedPageFetcher()),
 							// §5.AC: synthesize the gathered evidence into a CITED answer via the task's own local model
 							// (validated 2026-07-04: a capable local model reliably emits the {claim,cite[]} contract). The
 							// model call is fail-soft — any error / no model ⇒ "" ⇒ the loop returns evidence only (its prior

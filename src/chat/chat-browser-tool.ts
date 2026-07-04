@@ -212,6 +212,39 @@ export function buildDefaultBrowserDeps(timeoutMs: number = DEFAULT_TIMEOUT_MS):
 	};
 }
 
+/**
+ * Build an SSRF-guarded page fetcher that enforces the SAME safety floor as {@link createNKleinBrowseTool}: reject
+ * non-http(s) URLs, DNS-resolve the host and refuse ANY private/reserved/loopback/link-local address BEFORE navigating,
+ * then re-check the FINAL URL after redirects. On any violation it THROWS — so a caller that treats a failed fetch as a
+ * skip (the §5.AC retrieval loop) fails CLOSED. Centralized here so the retrieval-egress path and the browse tool cannot
+ * drift on the SSRF floor: the retrieval loop previously wired the RAW `buildDefaultBrowserDeps().fetchPage` and so had
+ * no guard at all. `fetchPage` is injectable for tests; production uses the real Playwright fetcher.
+ */
+export function buildSsrfGuardedPageFetcher(
+	options: { fetchPage?: (url: string) => Promise<BrowserFetchResult>; timeoutMs?: number } = {},
+): (url: string) => Promise<BrowserFetchResult> {
+	const fetchPage = options.fetchPage ?? buildDefaultBrowserDeps(options.timeoutMs).fetchPage;
+	return async (url) => {
+		const invalid = validateUrl(url);
+		if (invalid !== null) {
+			throw new Error(invalid);
+		}
+		const ssrfError = await checkHostForSsrf(url);
+		if (ssrfError !== null) {
+			throw new Error(ssrfError);
+		}
+		const page = await fetchPage(url);
+		// Re-check the final URL after any redirects so a redirect-to-internal is also refused.
+		if (page.url && page.url !== url) {
+			const redirectSsrfError = await checkHostForSsrf(page.url);
+			if (redirectSsrfError !== null) {
+				throw new Error(redirectSsrfError);
+			}
+		}
+		return page;
+	};
+}
+
 /** Format the fetched page as a compact, agent-readable block (title + capped body text). */
 function formatPage(result: BrowserFetchResult, maxChars: number): string {
 	const title = result.title.trim() || "(no title)";

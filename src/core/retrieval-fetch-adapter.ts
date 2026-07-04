@@ -1,9 +1,13 @@
 /**
- * §5.AC retrieval-loop FETCH adapter — plugs the §5.M `browse_url` tool's SSRF-safe page fetcher into the retrieval
- * loop's injected `fetch` dep ({@link runRetrievalLoop}). PRIME DIRECTIVE #1: the actual egress is the INJECTED
- * `fetchPage` (already host-gated by browse_url's SSRF checks + the §5.M host-access gate); this adapter performs NO
- * egress itself — it only maps a fetched page into a `RetrievalEvidence` and carries the hit's `publishedAt` /
- * `sourceType` through (the rendered page has no publication date, so the freshness axis relies on the search hit's).
+ * §5.AC retrieval-loop FETCH adapter — plugs a page fetcher into the retrieval loop's injected `fetch` dep
+ * ({@link runRetrievalLoop}). This adapter performs NO egress itself and does NO SSRF check — it only maps a fetched
+ * page into a `RetrievalEvidence` and carries the hit's `publishedAt` / `sourceType` through (the rendered page has no
+ * publication date, so the freshness axis relies on the search hit's).
+ *
+ * PRIME DIRECTIVE #1 (CONTRACT): the retrieval loop fetches untrusted, backend/SEO-controllable result URLs, so the
+ * injected `fetchPage` MUST be SSRF-guarded. The production caller injects `buildSsrfGuardedPageFetcher()`
+ * (chat-browser-tool) — NOT the raw `buildDefaultBrowserDeps().fetchPage`, which has no guard and would let a result
+ * URL navigate to loopback/LAN/link-local/cloud-metadata. Do not wire a raw fetcher here.
  */
 
 import type { RetrievalEvidence, RetrievalHit } from "./retrieval-loop-driver";
