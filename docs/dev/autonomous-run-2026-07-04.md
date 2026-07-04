@@ -175,6 +175,22 @@ to avoid locking in a direction you'd want to choose:
 
 ## Work log (newest first)
 
+- **Fleet/Playwright validation (2026-07-04):** fleet healthy — 6 models loaded + IDLE (brain27 27B baseline,
+  coder-gpu 4B on legion, nano4-m5, 3× qwop4b); nothing loaded/unloaded (all already resident, no overload).
+  Ran the web-ui Playwright e2e (smoke + chat-browser-toggle): **7 failed** on "Backlog column not
+  rendering" — BUT this run touched **0 web-ui files** (all 11 decisions were backend/core/config/test), the
+  e2e uses a self-contained tRPC mock, and the web-ui code + mock are byte-identical to the baseline ⇒ the
+  failures are **pre-existing / environmental (this sandbox's Playwright render), NOT a regression from this
+  work.** The decisions' backend changes are validated by the 7000+ GREEN unit/integration tests. A full
+  live-model runtime validation (dogfood decompose→exec smoke on the idle fleet) needs the runtime server up
+  — a separate infra step, and the fleet is ready for it. **Remaining fleet/e2e work is genuinely
+  backend-runtime-dependent, not decision-blocked.**
+- **ALL 11 DECISIONS EXECUTED (2026-07-04)** — see DECISIONS LOCKED above. 7 fully live (#1/#2/#3/#5/#6/#8/#9),
+  #4 foundation + inert-on-swarm finding, #7/#10/#11 tested draft-cores held for David's approval. ~15 GREEN
+  commits, each gated. Two asks back to David: approve the 3 draft-cores + answer #7's which-skills-per-chat
+  precursor.
+
+
 - **Bug-hunt batch 1 (8 complex src/core cores, review → adversarial-verify → CONFIRMED-only) → 2 real bugs FIXED:**
   (HIGH) `assessToolArgumentRepair` ran the enum gate on the RAW value before coercion, so a
   losslessly-coercible enum value (`"1"` for `[1,2,3]`) was refused a repairable tool call live —
