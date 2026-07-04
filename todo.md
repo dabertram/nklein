@@ -1190,7 +1190,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist.
     - [ ] unit-test each localization mode with a fake index.
   - [ ] **N-candidate patch generator (narrow model subtask):**
-    - [ ] define the generate-N-patches prompt (localized context in, unified-diff candidates out).
+    - [x] define the generate-N-patches prompt (localized context in, unified-diff candidates out). *(2026-07-04: buildPatchGenerationPrompt in patch-generation-prompt.ts — asks for N distinct fenced ```diff candidates; round-trips through parseNPatchCandidates; 7 tests)*
     - [x] parse the model output into N discrete diff candidates. *(2026-07-04: parseNPatchCandidates, src/core/patch-candidate-parser.ts)*
     - [x] reject malformed/empty/out-of-scope diffs before validation. *(same module: empty / no_diff_content / out_of_scope reasons)*
     - [x] unit-test the parser + rejection with a fake model. *(8 tests: fenced/unfenced/bare, prose reject, scope reject, dedup, /dev/null)*
