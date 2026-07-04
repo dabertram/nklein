@@ -56,6 +56,15 @@ describe("parseNKleinAddProviderRequest — slugification, model dedup, model-or
 	it("rejects an empty (whitespace) provider name", () => {
 		expect(() => parseNKleinAddProviderRequest({ ...base, name: "   " })).toThrow(/name cannot be empty/i);
 	});
+
+	it("drops a header whose VALUE trims to empty (regression: keep only key AND value non-empty)", () => {
+		// Regression: the filter dropped empty keys but kept empty values, persisting a header sent as `Auth:` (empty).
+		const req = parseNKleinAddProviderRequest({
+			...base,
+			headers: { Auth: "  ", "X-Real": "v", "  ": "orphan" },
+		});
+		expect(req.headers).toEqual({ "X-Real": "v" });
+	});
 });
 
 describe("parseGitCheckoutRequest — trim + non-empty", () => {

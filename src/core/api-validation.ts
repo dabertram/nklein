@@ -508,7 +508,7 @@ export function parseNKleinAddProviderRequest(value: unknown): RuntimeNKleinAddP
 		? Object.fromEntries(
 				Object.entries(parsed.headers)
 					.map(([key, entry]) => [key.trim(), entry.trim()] as const)
-					.filter(([key]) => key.length > 0),
+					.filter(([key, entry]) => key.length > 0 && entry.length > 0),
 			)
 		: undefined;
 
@@ -541,7 +541,7 @@ export function parseNKleinUpdateProviderRequest(value: unknown): RuntimeNKleinU
 				: Object.fromEntries(
 						Object.entries(parsed.headers)
 							.map(([key, entry]) => [key.trim(), entry.trim()] as const)
-							.filter(([key]) => key.length > 0),
+							.filter(([key, entry]) => key.length > 0 && entry.length > 0),
 					);
 	const models = parsed.models?.map((model) => model.trim()).filter((model) => model.length > 0);
 
