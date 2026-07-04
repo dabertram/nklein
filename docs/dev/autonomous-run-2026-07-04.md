@@ -74,6 +74,14 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batch 6 (12 config + nklein-agent pure modules) → 1 real bug FIXED:** (MED)
+  `parseConstrainedToolCall` committed to the FIRST balanced `{…}` span and gave up — a non-JSON
+  brace group (`{1,2}`), a tool-less decoy (`{}` or an inline `{"command":"ls"}`), or an
+  unoffered-name object shadowed a genuine `{tool,arguments}` call later in the same string. Weak
+  models narrate exactly such prose before the structured call, so valid tool calls were silently
+  dropped to the next (worse) rung. Fixed: scan ALL balanced parseable objects in order, return the
+  first naming an OFFERED tool (`extractJsonObjectCandidates` + `findBalancedObjectEnd`). +5 tests
+  (4 fail on old scanner). Directly lifts weak-model tool-call reliability — the module's whole point.
 - **Bug-hunt batches 4+5 (24 more cores) → 1 doc bug** (`isLeaseActionFenced` inverted docstring
   polarity — code was correct; `1c…` fixed the comment). Yield tapering to ~0 confirms src/core
   logic is substantially swept (52 modules reviewed, 9 logic + 1 doc bug total). **Vendored suites

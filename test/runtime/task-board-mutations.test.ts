@@ -4,8 +4,13 @@ import type { RuntimeBoardData } from "../../src/core/api-contract";
 import {
 	addTaskDependency,
 	addTaskToColumn,
+	canAddTaskDependency,
 	deleteTasksFromBoard,
+	findBoardCardWithColumn,
+	getReadyLinkedTaskIdsForTaskInTrash,
+	getTaskColumnId,
 	moveTaskToColumn,
+	removeTaskDependency,
 	setCardStream,
 	trashTaskAndGetReadyLinkedTaskIds,
 	updateTask,
@@ -345,5 +350,139 @@ describe("setCardStream (§5.AU)", () => {
 	it("returns updated:false for a missing card or blank id", () => {
 		expect(setCardStream(createBoard(), "nope", "s").updated).toBe(false);
 		expect(setCardStream(createBoard(), "  ", "s").updated).toBe(false);
+	});
+});
+
+describe("getTaskColumnId / findBoardCardWithColumn", () => {
+	it("returns the lane of an existing task and trims the lookup id", () => {
+		const board = addTaskToColumn(
+			createBoard(),
+			"in_progress",
+			{ taskId: "abcde", prompt: "P", baseRef: "main" },
+			() => "x",
+		).board;
+		expect(getTaskColumnId(board, "abcde")).toBe("in_progress");
+		expect(getTaskColumnId(board, "  abcde  ")).toBe("in_progress");
+	});
+
+	it("returns null for an unknown, empty, or whitespace id", () => {
+		const board = createBoard();
+		expect(getTaskColumnId(board, "missing")).toBeNull();
+		expect(getTaskColumnId(board, "")).toBeNull();
+		expect(getTaskColumnId(board, "   ")).toBeNull();
+	});
+
+	it("findBoardCardWithColumn returns the card + lane, or null when absent", () => {
+		const board = addTaskToColumn(
+			createBoard(),
+			"review",
+			{ taskId: "card1", prompt: "Hello", baseRef: "main" },
+			() => "x",
+		).board;
+		const found = findBoardCardWithColumn(board, "card1");
+		expect(found?.columnId).toBe("review");
+		expect(found?.card.id).toBe("card1");
+		expect(found?.card.prompt).toBe("Hello");
+		expect(findBoardCardWithColumn(board, "nope")).toBeNull();
+	});
+
+	it("findBoardCardWithColumn matches the id EXACTLY — it does not trim like getTaskColumnId", () => {
+		// Callers pass canonical task ids from board state, so exact-match is intended (characterization).
+		const board = addTaskToColumn(
+			createBoard(),
+			"backlog",
+			{ taskId: "card1", prompt: "P", baseRef: "main" },
+			() => "x",
+		).board;
+		expect(getTaskColumnId(board, " card1 ")).toBe("backlog");
+		expect(findBoardCardWithColumn(board, " card1 ")).toBeNull();
+	});
+});
+
+describe("canAddTaskDependency", () => {
+	function twoWaiting(): RuntimeBoardData {
+		const a = addTaskToColumn(createBoard(), "backlog", { taskId: "aaaaa", prompt: "A", baseRef: "main" }, () => "x");
+		return addTaskToColumn(a.board, "planning", { taskId: "bbbbb", prompt: "B", baseRef: "main" }, () => "x").board;
+	}
+
+	it("mirrors addTaskDependency's verdict without mutating the board", () => {
+		const board = twoWaiting();
+		expect(canAddTaskDependency(board, "aaaaa", "bbbbb")).toBe(true);
+		// The predicate must not mutate: the real add still succeeds afterwards.
+		const added = addTaskDependency(board, "aaaaa", "bbbbb");
+		expect(added.added).toBe(true);
+		expect(board.dependencies).toEqual([]);
+	});
+
+	it("is false for a blank id, the same id twice, or an unknown task", () => {
+		const board = twoWaiting();
+		expect(canAddTaskDependency(board, "  ", "bbbbb")).toBe(false);
+		expect(canAddTaskDependency(board, "aaaaa", "aaaaa")).toBe(false);
+		expect(canAddTaskDependency(board, "aaaaa", "ghost")).toBe(false);
+	});
+
+	it("is false once the dependency already exists; two waiting tasks keep the reverse as a distinct link", () => {
+		const board = addTaskDependency(twoWaiting(), "aaaaa", "bbbbb").board;
+		expect(canAddTaskDependency(board, "aaaaa", "bbbbb")).toBe(false);
+		// Both tasks waiting → the FIRST arg is the blocker, so "b blocks a" is a genuinely different link.
+		expect(canAddTaskDependency(board, "bbbbb", "aaaaa")).toBe(true);
+	});
+
+	it("canonicalizes a waiting↔active link so the reversed argument order is the same (duplicate)", () => {
+		const w = addTaskToColumn(createBoard(), "backlog", { taskId: "wwwww", prompt: "W", baseRef: "main" }, () => "x");
+		const r = addTaskToColumn(w.board, "review", { taskId: "rrrrr", prompt: "R", baseRef: "main" }, () => "x");
+		const linked = addTaskDependency(r.board, "wwwww", "rrrrr");
+		expect(linked.added).toBe(true);
+		// The waiting task is always the blocker regardless of arg order → reversed args = same pair, not addable.
+		expect(canAddTaskDependency(linked.board, "rrrrr", "wwwww")).toBe(false);
+	});
+});
+
+describe("removeTaskDependency", () => {
+	it("removes a dependency by id and reports removed:true", () => {
+		const a = addTaskToColumn(createBoard(), "backlog", { taskId: "aaaaa", prompt: "A", baseRef: "main" }, () => "x");
+		const b = addTaskToColumn(a.board, "planning", { taskId: "bbbbb", prompt: "B", baseRef: "main" }, () => "x");
+		const linked = addTaskDependency(b.board, "aaaaa", "bbbbb");
+		if (!linked.added || !linked.dependency) {
+			throw new Error("Expected dependency to be created.");
+		}
+		const removed = removeTaskDependency(linked.board, linked.dependency.id);
+		expect(removed.removed).toBe(true);
+		expect(removed.board.dependencies).toEqual([]);
+	});
+
+	it("is a no-op (removed:false, same board reference) when the id is absent", () => {
+		const board = createBoard();
+		const result = removeTaskDependency(board, "does-not-exist");
+		expect(result.removed).toBe(false);
+		expect(result.board).toBe(board);
+	});
+});
+
+describe("getReadyLinkedTaskIdsForTaskInTrash", () => {
+	it("returns the waiting dependants of a task that is sitting in review", () => {
+		// waiting task W (backlog) is linked to active task R (review); when R leaves review, W is ready.
+		const w = addTaskToColumn(createBoard(), "backlog", { taskId: "wwwww", prompt: "W", baseRef: "main" }, () => "x");
+		const r = addTaskToColumn(w.board, "review", { taskId: "rrrrr", prompt: "R", baseRef: "main" }, () => "x");
+		const linked = addTaskDependency(r.board, "wwwww", "rrrrr");
+		if (!linked.added) {
+			throw new Error("Expected dependency to be created.");
+		}
+		expect(getReadyLinkedTaskIdsForTaskInTrash(linked.board, "rrrrr")).toEqual(["wwwww"]);
+	});
+
+	it("returns [] when the task is not in review (the guard lane)", () => {
+		const w = addTaskToColumn(createBoard(), "backlog", { taskId: "wwwww", prompt: "W", baseRef: "main" }, () => "x");
+		const r = addTaskToColumn(w.board, "planning", { taskId: "rrrrr", prompt: "R", baseRef: "main" }, () => "x");
+		const linked = addTaskDependency(r.board, "wwwww", "rrrrr");
+		if (!linked.added) {
+			throw new Error("Expected dependency to be created.");
+		}
+		// rrrrr is in planning, not review → no ready dependants surfaced
+		expect(getReadyLinkedTaskIdsForTaskInTrash(linked.board, "rrrrr")).toEqual([]);
+	});
+
+	it("returns [] for an unknown task or an empty board", () => {
+		expect(getReadyLinkedTaskIdsForTaskInTrash(createBoard(), "ghost")).toEqual([]);
 	});
 });
