@@ -106,6 +106,20 @@ describe("markCardMailboxConsumedUpTo (§5.BF fix — consume only after a succe
 		expect(n1.createdAt).toBeLessThan(n2.createdAt);
 	});
 
+	it("keeps a note that arrives during the start window at the SAME ms as the newest read note (equal-timestamp race)", async () => {
+		// Real Date.now() collides within a millisecond under fast/concurrent chat delivery. The start reads [n1],
+		// consumes up to n1.createdAt, and a second note arrives during the start window at the SAME millisecond
+		// (after the read). It must stay pending for the next attempt — not be silently dropped by the consume.
+		const opts = { rootDir: rootDir2 };
+		const n1 = await appendCardMailboxNote({ taskId: "t", text: "read-at-start" }, { ...opts, now: () => 1000 });
+		await markCardMailboxConsumedUpTo("t", n1.createdAt, opts);
+		// Arrives AFTER the consume marker in the append-only log, but shares n1's millisecond.
+		await appendCardMailboxNote({ taskId: "t", text: "arrived-during-start" }, { ...opts, now: () => 1000 });
+
+		const stillPending = await listPendingCardMailbox("t", opts);
+		expect(stillPending.map((note) => note.text)).toEqual(["arrived-during-start"]);
+	});
+
 	it("is a no-op for a non-finite timestamp (defensive)", async () => {
 		const opts = { rootDir: rootDir2 };
 		await appendCardMailboxNote({ taskId: "t", text: "keep" }, { ...opts, now: () => 1000 });

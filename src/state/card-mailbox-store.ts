@@ -75,16 +75,19 @@ async function appendEvent(event: CardMailboxEvent, rootDir?: string): Promise<v
 
 /** Replay to the still-PENDING notes for `taskId`, oldest first — those appended after the task's latest `consume`. */
 function replayPending(events: readonly CardMailboxEvent[], taskId: string): CardMailboxNote[] {
-	let lastConsumeAt = Number.NEGATIVE_INFINITY;
-	const notes: CardMailboxNote[] = [];
+	// Process events in LOG ORDER so a `consume(at)` only clears notes that were already appended before it. A note
+	// appended AFTER the consume event survives even if it shares the consume's millisecond (createdAt === at) — the
+	// start-window race where guidance arrives at the same ms as the newest read note would otherwise be silently
+	// dropped. Position in the append-only log, not just the createdAt comparison, disambiguates equal timestamps.
+	let notes: CardMailboxNote[] = [];
 	for (const event of events) {
 		if (event.type === "consume" && event.taskId === taskId) {
-			lastConsumeAt = Math.max(lastConsumeAt, event.at);
+			notes = notes.filter((note) => note.createdAt > event.at);
 		} else if (event.type === "append" && event.note.taskId === taskId) {
 			notes.push(event.note);
 		}
 	}
-	return notes.filter((note) => note.createdAt > lastConsumeAt).sort((a, b) => a.createdAt - b.createdAt);
+	return notes.sort((a, b) => a.createdAt - b.createdAt);
 }
 
 /** Queue a guidance note on a card's mailbox. */
