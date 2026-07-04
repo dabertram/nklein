@@ -24,6 +24,8 @@ export interface GlobalSetupPlanFactSources {
 	providerEndpoint: string;
 	/** Docker daemon availability (null = not probed / unknown). */
 	getDockerAvailable: () => boolean | null;
+	/** Docker VM memory in MB (`docker info` Total Memory), or null when it can't be probed. Sizes the sandbox. */
+	getDockerVmMemoryMb: () => Promise<number | null>;
 	getSecondOpinionReviewEnabled: () => boolean;
 	getCompletedAt: () => number | null;
 }
@@ -47,6 +49,7 @@ export async function handleGetGlobalSetupPlan(sources: GlobalSetupPlanFactSourc
 	} catch {
 		providerReachable = false;
 	}
+	const dockerVmMemoryMb = await sources.getDockerVmMemoryMb().catch(() => null);
 	const facts: GlobalSetupFacts = {
 		totalRamMb: hardware.totalRamMb,
 		cpuCount: hardware.cpuCount,
@@ -54,6 +57,7 @@ export async function handleGetGlobalSetupPlan(sources: GlobalSetupPlanFactSourc
 		providerReachable,
 		providerEndpoint: sources.providerEndpoint,
 		dockerAvailable: sources.getDockerAvailable(),
+		dockerVmMemoryMb,
 		secondOpinionReviewEnabled: sources.getSecondOpinionReviewEnabled(),
 	};
 	return { kind: "global", steps: buildGlobalSetupPlan(facts), completedAt: sources.getCompletedAt() };

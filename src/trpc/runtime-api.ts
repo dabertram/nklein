@@ -118,6 +118,23 @@ import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Probe the Docker VM's total memory (MB) via `docker info`. On macOS/Windows the sandbox container lives inside this
+ * VM, so its size — not host RAM — is the real ceiling the setup wizard must size against (todo §5.AR). Returns null on
+ * any failure (Docker down, Linux host where MemTotal is host RAM anyway, parse miss) so the recommender falls back to
+ * its host-RAM budget + emits the "verify the Docker VM" warning rather than throwing.
+ */
+async function probeDockerVmMemoryMb(): Promise<number | null> {
+	try {
+		const { stdout } = await execFileAsync("docker", ["info", "--format", "{{.MemTotal}}"], { timeout: 10_000 });
+		const bytes = Number.parseInt(stdout.trim(), 10);
+		if (!Number.isFinite(bytes) || bytes <= 0) return null;
+		return Math.round(bytes / (1024 * 1024));
+	} catch {
+		return null;
+	}
+}
+
 export interface CreateRuntimeApiDependencies {
 	getActiveWorkspaceId: () => string | null;
 	/** The active workspace's repo root, or null when no project is active. Drives the chat agent's read-only tools
@@ -344,6 +361,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getLoadedModelIds: () => fetchLoadedModelIdsCached(providerEndpoint),
 				providerEndpoint,
 				getDockerAvailable: () => deps.getAgentSandboxStatus?.()?.dockerAvailable ?? null,
+				getDockerVmMemoryMb: () => probeDockerVmMemoryMb(),
 				getSecondOpinionReviewEnabled: () => globalConfig.secondOpinionReviewEnabled,
 				getCompletedAt: () => globalConfig.setupWizardCompletedAt,
 			});
