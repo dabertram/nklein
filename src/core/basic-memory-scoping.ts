@@ -112,3 +112,35 @@ export function planBasicMemoryScoping(input: {
 		},
 	};
 }
+
+/** One RW bind mount the sandbox must add so basic-memory's host-side store is writable inside the container. */
+export interface BasicMemoryMount {
+	hostPath: string;
+	containerPath: string;
+	/** Always true here — the markdown store + SQLite index must be writable (the one deviation from the RO rootfs). */
+	readWrite: boolean;
+}
+
+/** The sandbox primitives a scoping plan needs: the RW bind mounts + the exec env. */
+export interface BasicMemorySandboxWiring {
+	mounts: BasicMemoryMount[];
+	env: Record<string, string>;
+}
+
+/**
+ * Bridge a scoping plan to the sandbox primitives (pure): the RW bind mounts (the config/index dir + every project's
+ * notes dir) plus the exec env. The runtime adds these mounts at container create + passes the env to
+ * `buildSandboxMcpDockerExecArgs`. The config dir is per-workspace (isolated index), each project's notes are bound to
+ * their host source (per-project = per-workspace; global = the shared cross-repo dir).
+ */
+export function planBasicMemorySandboxWiring(plan: BasicMemoryScopingPlan): BasicMemorySandboxWiring {
+	const mounts: BasicMemoryMount[] = [
+		{ hostPath: plan.hostConfigDir, containerPath: plan.containerConfigDir, readWrite: true },
+		...plan.projects.map((project) => ({
+			hostPath: project.hostNotesDir,
+			containerPath: project.containerNotesDir,
+			readWrite: true,
+		})),
+	];
+	return { mounts, env: plan.env };
+}

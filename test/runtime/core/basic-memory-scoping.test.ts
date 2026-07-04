@@ -3,6 +3,7 @@ import {
 	BASIC_MEMORY_GLOBAL_PROJECT,
 	basicMemoryHardeningEnv,
 	basicMemoryProjectName,
+	planBasicMemorySandboxWiring,
 	planBasicMemoryScoping,
 } from "../../../src/core/basic-memory-scoping";
 
@@ -63,5 +64,29 @@ describe("planBasicMemoryScoping", () => {
 	it("dedups scopes (global passed twice ⇒ one global registration)", () => {
 		const plan = planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "y", scopes: ["global", "global"] });
 		expect(plan.projects.filter((p) => p.scope === "global")).toHaveLength(1);
+	});
+});
+
+describe("planBasicMemorySandboxWiring", () => {
+	it("emits RW mounts for the config dir + every project's notes dir, plus the exec env", () => {
+		const plan = planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "w1", scopes: ["global"] });
+		const wiring = planBasicMemorySandboxWiring(plan);
+		// config dir first, then per-project + global notes — all read-write.
+		expect(wiring.mounts.every((m) => m.readWrite)).toBe(true);
+		expect(wiring.mounts[0]).toEqual({
+			hostPath: "/h/basic-memory/w1/config",
+			containerPath: plan.containerConfigDir,
+			readWrite: true,
+		});
+		const notesMounts = wiring.mounts.slice(1);
+		expect(notesMounts.map((m) => m.hostPath)).toEqual(["/h/basic-memory/w1/notes", "/h/basic-memory/global/notes"]);
+		expect(wiring.env).toBe(plan.env);
+	});
+
+	it("project-only ⇒ config + one notes mount", () => {
+		const wiring = planBasicMemorySandboxWiring(
+			planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "w2", scopes: [] }),
+		);
+		expect(wiring.mounts).toHaveLength(2); // config + per-project notes
 	});
 });

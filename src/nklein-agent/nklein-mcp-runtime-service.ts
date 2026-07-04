@@ -14,10 +14,12 @@ import type {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { z } from "zod";
 import type { RuntimeNKleinMcpServer } from "../core/api-contract";
+import { isTruthyEnv } from "../core/env-flag";
 import { toErrorMessage } from "../core/error-message";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint";
 import {
 	buildSandboxMcpDockerExecArgs,
+	filterEnabledSandboxServers,
 	type SandboxExecTarget,
 	selectSandboxMcpServersForModel,
 } from "../core/sandbox-mcp-catalog";
@@ -742,9 +744,17 @@ export function createNKleinMcpRuntimeService(
 		async createToolBundle(options?: NKleinMcpToolBundleOptions): Promise<NKleinMcpToolBundle> {
 			const loadedSettings = settingsService.loadSettings();
 			// §5.AR: curated MCP servers hosted INSIDE the task's sandbox, offered only to a fitting model. Empty unless the
-			// caller supplies BOTH the exec target and the model id (the opt-out gate lives in the caller).
+			// caller supplies BOTH the exec target and the model id (the opt-out gate lives in the caller). Default-OFF
+			// servers (basic-memory — write-capable authored memory) are additionally gated behind an explicit opt-in so
+			// they are NOT offered by default even once baked+fitting; NKLEIN_BASIC_MEMORY enables it.
+			const enabledOptIns = new Set<string>();
+			if (isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY)) {
+				enabledOptIns.add("basic-memory");
+			}
 			const curatedServers =
-				options?.sandboxExecTarget && options.modelId ? selectSandboxMcpServersForModel(options.modelId) : [];
+				options?.sandboxExecTarget && options.modelId
+					? filterEnabledSandboxServers(selectSandboxMcpServersForModel(options.modelId), enabledOptIns)
+					: [];
 
 			if (loadedSettings.servers.length === 0 && curatedServers.length === 0) {
 				return {
