@@ -99,6 +99,15 @@ to avoid locking in a direction you'd want to choose:
   fixed by coercing first, then gating on the effective value (`771c6e72`, +4 regression tests).
   (LOW) `normalizeAllowlistEntry` didn't strip a trailing FQDN-root dot, so an `example.com.` entry
   matched nothing — fixed (`edbcb97a`, +1 test). Both verified with tests that fail on the old code.
+- **Bug-hunt batch 12 (12 FRESH nklein-agent/commands modules) → 3 real bugs FIXED** (the subsystem pivot
+  paid off — yield outside `src/core`): (MED×2, same fn) `isLocalBaseUrl` didn't recognize IPv6 ULA
+  (`fc00::/7`) or link-local (`fe80::/10`) as local, so an IPv6-private-bound local LM Studio/Ollama was
+  wrongly blocked as cloud (IPv4 equivalents were accepted) — added an IPv6-literal check gated on a colon
+  (so `fcserver.com` can't match). (MED, destructive) `resolveTaskCommandTarget` tested the TRIMMED taskId
+  for mutual exclusivity, so `task delete --task-id '  ' --column review` skipped the both-flags error and
+  fell through to a column target = delete-every-card-in-the-column; now decided by flag presence. Each
+  with a fail-on-old regression test; 2 GREEN commits. Also triaged the `browse_url` SSRF guard (solid;
+  flagged one check-all-IPs hardening as guidance #11). Session bug tally: **16 real bugs**.
 - **Bug-hunt batch 11 (12 FRESH core modules: state-machine, tool-pick, stuckness, cache-order) → 0 bugs.**
   First zero-yield batch after five productive ones (13 bugs) — these are exactly the bug-prone decision-logic
   kinds, so a clean pass signals the `src/core` vein is thoroughly swept (~100 modules reviewed total).
