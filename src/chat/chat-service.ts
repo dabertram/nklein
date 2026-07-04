@@ -106,6 +106,7 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 		browserEnabled: session.browserEnabled,
 		focus: session.focus,
 		ownedWorkspaceId: session.ownedWorkspaceId,
+		selectedSkillIds: [...session.selectedSkillIds],
 		createdAt: session.createdAt,
 		updatedAt: session.updatedAt,
 	};
@@ -180,6 +181,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 					...(input.browserEnabled !== undefined ? { browserEnabled: input.browserEnabled } : {}),
 					...(input.ownedWorkspaceId !== undefined ? { ownedWorkspaceId: input.ownedWorkspaceId } : {}),
+					...(input.selectedSkillIds !== undefined ? { selectedSkillIds: input.selectedSkillIds } : {}),
 				},
 				sessionOptions,
 			);
@@ -196,6 +198,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 					...(input.browserEnabled !== undefined ? { browserEnabled: input.browserEnabled } : {}),
 					...(input.clearFocus ? { focus: null } : {}),
+					...(input.selectedSkillIds !== undefined ? { selectedSkillIds: input.selectedSkillIds } : {}),
 				},
 				sessionOptions,
 			);

@@ -409,6 +409,69 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(budgets.slice(0, 3)).toEqual([1024, 3072, 6144]);
 	});
 
+	describe("§5.AE skill apiProfile fold (user-selected chat skills → model call)", () => {
+		function capturingClient(): {
+			client: ChatAgentCompletionClient;
+			get: () => { temperature?: number; lastUser: string };
+		} {
+			let temperature: number | undefined;
+			let lastUser = "";
+			const client: ChatAgentCompletionClient = {
+				completeWithTools: async (request) => {
+					temperature = request.sampling?.temperature;
+					for (let i = request.messages.length - 1; i >= 0; i -= 1) {
+						if (request.messages[i].role === "user") {
+							lastUser = request.messages[i].content;
+							break;
+						}
+					}
+					return {
+						content: "",
+						toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+						finishReason: "tool_calls",
+						raw: {},
+					};
+				},
+			};
+			return { client, get: () => ({ temperature, lastUser }) };
+		}
+
+		it("a skill temperature overrides the call sampling", async () => {
+			const { client, get } = capturingClient();
+			const model = createChatAgentModel(client, SIX_TOOLS, { apiProfile: { temperature: 0.05 } });
+			await model([{ role: "user", content: "hi" }], true);
+			expect(get().temperature).toBe(0.05);
+		});
+
+		it("reasoning:high appends the model's think soft-switch to the last user message (switch-capable model)", async () => {
+			const { client, get } = capturingClient();
+			const model = createChatAgentModel(client, SIX_TOOLS, {
+				modelId: "qwen3-8b",
+				apiProfile: { reasoning: "high" },
+			});
+			await model([{ role: "user", content: "plan this" }], true);
+			expect(get().lastUser).toContain("/think");
+		});
+
+		it("skips the reasoning directive for a model with no known thinking switch", async () => {
+			const { client, get } = capturingClient();
+			const model = createChatAgentModel(client, SIX_TOOLS, {
+				modelId: "llama-3-8b",
+				apiProfile: { reasoning: "high" },
+			});
+			await model([{ role: "user", content: "plan this" }], true);
+			expect(get().lastUser).toBe("plan this");
+		});
+
+		it("an empty apiProfile leaves the call byte-identical (default temperature, message unchanged)", async () => {
+			const { client, get } = capturingClient();
+			const model = createChatAgentModel(client, SIX_TOOLS, { apiProfile: {} });
+			await model([{ role: "user", content: "plan this" }], true);
+			expect(get().temperature).toBe(0.3);
+			expect(get().lastUser).toBe("plan this");
+		});
+	});
+
 	describe("§5.AA adaptive truncation ladder (opt-in NKLEIN_CHAT_ADAPTIVE_TRUNCATION)", () => {
 		const FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
 		let savedFlag: string | undefined;

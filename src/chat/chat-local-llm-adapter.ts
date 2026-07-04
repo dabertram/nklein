@@ -4,6 +4,8 @@ import { applyThinkingDisable, isReasoningModel, supportsThinkingControl } from 
 import { stripReasoningChannel } from "../core/reasoning-channel-split";
 import { planReasoningOutputBudget } from "../core/reasoning-output-budget";
 import { raisedTokenBudget } from "../core/retry-policy";
+import { resolveApiProfileRequest } from "../core/skill-api-profile-request";
+import type { SkillApiProfile } from "../core/skill-registry";
 import { MAX_ATTEMPT_SIMPLIFICATION_LEVEL, selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { buildConstrainedToolCallSchema, parseConstrainedToolCall } from "../nklein-agent/nklein-constrained-tool-call";
 import type {
@@ -222,7 +224,7 @@ export interface ChatAgentCompletionClient {
 export function createChatAgentModel(
 	client: ChatAgentCompletionClient,
 	toolDefinitions: readonly LocalLlmToolDefinition[],
-	options: { sampling?: LocalLlmSamplingOptions; modelId?: string } = {},
+	options: { sampling?: LocalLlmSamplingOptions; modelId?: string; apiProfile?: SkillApiProfile } = {},
 ): (
 	messages: readonly ChatPromptMessage[],
 	allowTools: boolean,
@@ -230,9 +232,21 @@ export function createChatAgentModel(
 	usedToolNames?: readonly string[],
 	forceToolCall?: boolean,
 ) => Promise<ChatAgentModelResponse> {
-	const sampling = options.sampling ?? DEFAULT_SAMPLING;
+	// §5.AE: fold the session's merged skill apiProfile (from the user-selected skills) into the model call, gated by
+	// what the chosen model supports. temperature overrides sampling; the reasoning intent becomes a soft-switch
+	// directive appended to the last user message (only when the model has a known switch). An empty profile ⇒ no
+	// directive + no temperature override ⇒ byte-identical current behavior. structuredOutput/forceToolCall levers are
+	// intentionally NOT folded here yet (the constrained rung is escalation-driven; wiring them proactively is a
+	// separate increment).
+	const apiRequest = resolveApiProfileRequest(options.apiProfile, options.modelId ?? "");
+	const baseSampling = options.sampling ?? DEFAULT_SAMPLING;
+	const sampling =
+		apiRequest.temperature !== null ? { ...baseSampling, temperature: apiRequest.temperature } : baseSampling;
 	return async (messages, allowTools, _onToken, usedToolNames, forceToolCall) => {
-		const wire = messages.map((message) => ({ role: message.role, content: message.content }));
+		let wire = messages.map((message) => ({ role: message.role, content: message.content }));
+		if (apiRequest.thinkingDirective) {
+			wire = replaceLastUserText(wire, `${lastUserText(messages)}\n\n${apiRequest.thinkingDirective}`);
+		}
 		const offered = allowTools ? toolDefinitions : [];
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
 		// §5.AA truncation rung (the CHEAPEST first recovery): a reasoning model can burn its whole token budget on

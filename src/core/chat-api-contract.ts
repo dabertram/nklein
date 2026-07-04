@@ -50,6 +50,9 @@ export const runtimeChatSessionSchema = z.object({
 	// §5.AT/§5.AU: the ONE workspace this chat owns (one-chat-per-project) — the routing key the board→chat feedback
 	// bridge appends digests to. Additive optional; null for an unowned/global chat.
 	ownedWorkspaceId: z.string().nullable().optional(),
+	// §5.AE: the skills the user has enabled for this session (their merged apiProfile is folded into the model call).
+	// Additive optional with a default so older clients/records are unaffected.
+	selectedSkillIds: z.array(z.string()).default([]),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -74,6 +77,8 @@ export const runtimeChatCreateSessionRequestSchema = z.object({
 	browserEnabled: z.boolean().optional(),
 	// §5.AT/§5.AU: bind the new chat to a workspace it owns (one-chat-per-project).
 	ownedWorkspaceId: z.string().nullable().optional(),
+	// §5.AE: the skills the user enables for the new session.
+	selectedSkillIds: z.array(z.string()).optional(),
 });
 export type RuntimeChatCreateSessionRequest = z.infer<typeof runtimeChatCreateSessionRequestSchema>;
 
@@ -88,6 +93,8 @@ export const runtimeChatUpdateSessionRequestSchema = z.object({
 	/** §5.AU: clear the sticky addressing focus (the "talking to X" chip's ✕). Clients never SET focus over the
 	 *  wire — only an explicit @handle does, server-side — so this is deliberately clear-only. */
 	clearFocus: z.boolean().optional(),
+	/** §5.AE: replace the session's enabled skills (the user's selection). */
+	selectedSkillIds: z.array(z.string()).optional(),
 });
 export type RuntimeChatUpdateSessionRequest = z.infer<typeof runtimeChatUpdateSessionRequestSchema>;
 

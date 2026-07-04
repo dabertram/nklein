@@ -73,6 +73,8 @@ export interface ChatSession {
 	focus: ChatSessionFocus | null;
 	/** §5.AU: card ASKs currently awaiting the operator's answer (for reply-binding); empty when none. */
 	outstandingAsks: readonly ChatOutstandingAsk[];
+	/** §5.AE: the skills the user has enabled for this session; their merged apiProfile is folded into the model call. */
+	selectedSkillIds: readonly string[];
 	createdAt: number;
 	updatedAt: number;
 }
@@ -115,6 +117,7 @@ const chatSessionPersistedSchema = z.object({
 			}),
 		)
 		.optional(),
+	selectedSkillIds: z.array(z.string()).optional(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
 });
@@ -188,6 +191,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 					typeof event.session.ownedWorkspaceId === "string" ? event.session.ownedWorkspaceId : null,
 				focus: event.session.focus ?? null,
 				outstandingAsks: event.session.outstandingAsks ?? [],
+				// §5.AE back-compat: sessions persisted before skill selection existed → no skills enabled.
+				selectedSkillIds: event.session.selectedSkillIds ?? [],
 			});
 		}
 	}
@@ -212,6 +217,8 @@ export async function createChatSession(
 		browserEnabled?: boolean;
 		/** §5.AU: the workspace this chat owns (v1 = 1 chat ↔ 1 workspace). */
 		ownedWorkspaceId?: string | null;
+		/** §5.AE: skills the user enables for this session. */
+		selectedSkillIds?: readonly string[];
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession> {
@@ -228,6 +235,7 @@ export async function createChatSession(
 		ownedWorkspaceId: input.ownedWorkspaceId ?? null,
 		focus: null,
 		outstandingAsks: [],
+		selectedSkillIds: input.selectedSkillIds ?? [],
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -275,6 +283,8 @@ export async function updateChatSession(
 		browserEnabled?: boolean;
 		/** §5.AU: set (or `null` = clear) the session's addressing focus — e.g. after an explicit @card handle. */
 		focus?: ChatSessionFocus | null;
+		/** §5.AE: replace the session's enabled skills. */
+		selectedSkillIds?: readonly string[];
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession | null> {
@@ -293,6 +303,7 @@ export async function updateChatSession(
 		...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
 		...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
 		...(patch.focus !== undefined ? { focus: patch.focus } : {}),
+		...(patch.selectedSkillIds !== undefined ? { selectedSkillIds: patch.selectedSkillIds } : {}),
 		updatedAt: now,
 	};
 	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);

@@ -28,6 +28,7 @@ import {
 	DEFAULT_LOCAL_CHAT_PROVIDER_ID,
 	discoverLoadedModelId,
 } from "../../chat/local-chat-model";
+import { resolveSelectedSkillsApiProfile } from "../../core/chat-session-skill-profile";
 import { LocalLlmClient } from "../../nklein-agent/nklein-local-llm-client";
 import { createSearxngWebSearchClient } from "../../server/web-search-searxng";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../../state/card-mailbox-store";
@@ -171,7 +172,10 @@ export function buildChatAgentToolDepsResolver(input: {
 			},
 		});
 
-		const toolModel = createChatAgentModel(client, definitions, { modelId });
+		// §5.AE: fold the user-selected skills' merged apiProfile into the model call (David decision 2026-07-04 —
+		// chat-session skills are user-selected). Empty selection ⇒ `{}` ⇒ byte-identical current behavior.
+		const skillApiProfile = resolveSelectedSkillsApiProfile(session.selectedSkillIds);
+		const toolModel = createChatAgentModel(client, definitions, { modelId, apiProfile: skillApiProfile });
 		// Streaming final-answer dep: the tools-disabled final reply streams via the plain SSE completion (no tools);
 		// tool-discovery turns use the non-streaming tools-aware completion so the model can still request tools.
 		const streamComplete = createChatModelDeps(client).complete;
