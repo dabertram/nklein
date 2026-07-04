@@ -6,6 +6,7 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // host, repository, or event-adapter details.
 
 import { buildDefaultBrowserDeps } from "../chat/chat-browser-tool";
+import { DEFAULT_LOCAL_CHAT_BASE_URL } from "../chat/local-chat-model";
 import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
 import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
@@ -48,6 +49,7 @@ import { assemblePromptFragments, computeSharedPrefixRatio } from "../core/promp
 import { browserFetchAdapter } from "../core/retrieval-fetch-adapter";
 import { runRetrievalLoop } from "../core/retrieval-loop-driver";
 import { searchHitsAdapter } from "../core/retrieval-search-adapter";
+import { citedSynthesisAdapter } from "../core/retrieval-synthesis-adapter";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
@@ -98,6 +100,7 @@ import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
 import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
+import { LocalLlmClient } from "./nklein-local-llm-client";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import {
 	buildMergeResolutionSeedPrompt,
@@ -905,6 +908,30 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								{ rerankByRelevance: true },
 							),
 							fetch: browserFetchAdapter((url) => buildDefaultBrowserDeps().fetchPage(url)),
+							// §5.AC: synthesize the gathered evidence into a CITED answer via the task's own local model
+							// (validated 2026-07-04: a capable local model reliably emits the {claim,cite[]} contract). The
+							// model call is fail-soft — any error / no model ⇒ "" ⇒ the loop returns evidence only (its prior
+							// behavior), so enabling synthesis never degrades the result below evidence-only.
+							synthesize: citedSynthesisAdapter(async (prompt) => {
+								const modelId = this.modelEndpoint.getModelId(taskId);
+								if (!modelId) {
+									return "";
+								}
+								try {
+									const client = new LocalLlmClient({
+										providerId: this.resolveProviderIdForTask(taskId),
+										modelId,
+										baseUrl: this.modelEndpoint.getEndpoint(taskId) ?? DEFAULT_LOCAL_CHAT_BASE_URL,
+									});
+									const res = await client.complete({
+										messages: [{ role: "user", content: prompt }],
+										sampling: { temperature: 0.2, maxTokens: 1500 },
+									});
+									return res.content;
+								} catch {
+									return ""; // fail-soft → evidence-only (unchanged from before synthesis was wired)
+								}
+							}),
 							now: () => Date.now(),
 						},
 						{ ...(input.knowledgeDebt ? { knowledgeDebt: [...input.knowledgeDebt] } : {}) },
