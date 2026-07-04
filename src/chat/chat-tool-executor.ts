@@ -1,5 +1,4 @@
-import { brokerManifestAction } from "../core/capability-broker-manifest-input";
-import { manifestProtectedInfluenceKinds } from "../core/manifest-influence-sink";
+import { decideCapabilityBrokerGate } from "../core/capability-broker-gate";
 import { propagateTaint, type TaintLabel } from "../core/taint-labels";
 import {
 	assessToolArgumentRepair,
@@ -117,26 +116,18 @@ export function createGatedChatToolExecutor(
 		// egress gates are structural no-ops — the live rule is the taint-influence one. A tool touching no protected sink
 		// yields no sinks to check and is never blocked here.
 		if (input.capabilityBrokerEnabled) {
-			for (const influence of manifestProtectedInfluenceKinds(manifest)) {
-				const verdict = brokerManifestAction({
-					baseline: manifest,
-					requested: manifest,
-					taintLabels: accumulatedTaint,
-					influence,
-					backedByTrustedPlan: false,
+			const gate = decideCapabilityBrokerGate({ manifest, taintLabels: accumulatedTaint });
+			if (!gate.allow) {
+				await input.recordAudit?.({
+					sessionId: input.sessionId,
+					mode: input.mode,
+					action: tool.actionKind,
+					decision: "deny",
+					confirmed: false,
+					executed: false,
+					detail: buildAuditDetail(tool.name, args),
 				});
-				if (verdict.decision !== "allow") {
-					await input.recordAudit?.({
-						sessionId: input.sessionId,
-						mode: input.mode,
-						action: tool.actionKind,
-						decision: "deny",
-						confirmed: false,
-						executed: false,
-						detail: buildAuditDetail(tool.name, args),
-					});
-					return { callId: call.id, content: `Denied by capability broker: ${verdict.reason}` };
-				}
+				return { callId: call.id, content: `Denied by capability broker: ${gate.reason}` };
 			}
 		}
 
