@@ -34,17 +34,17 @@ export interface SandboxMcpServerDef {
 	/** The §5.AL model-fit profile — gates which models get this server (see {@link selectSandboxMcpServersForModel}). */
 	fit: McpServerModelFitProfile;
 	/**
-	 * Whether the server's binary is actually present in the current sandbox image. `sequential-thinking` is baked in
-	 * (§5.AR increment 1); `codebase-memory` is defined here but its static binary isn't in the image yet, so it stays
-	 * `available: false` until that increment lands — {@link listAvailableSandboxMcpServers} filters on this so we never
-	 * try to exec a missing binary.
+	 * Whether the server's binary is actually present in the current sandbox image. Both `sequential-thinking` (§5.AR
+	 * increment 1) and `codebase-memory` (`codebase-memory-mcp@0.8.1`, its static binary + compiled-in embeddings baked
+	 * in via docker/agent-sandbox/Dockerfile) now ship in the image — {@link listAvailableSandboxMcpServers} filters on
+	 * this so we never try to exec a missing binary.
 	 */
 	available: boolean;
 }
 
 /**
- * The curated registry. Order is display order. `available` reflects what the sandbox image currently ships — flip
- * `codebase-memory` to `true` once its binary + embeddings are baked in (§5.AR).
+ * The curated registry. Order is display order. `available` reflects what the sandbox image currently ships — keep it
+ * in lock-step with docker/agent-sandbox/Dockerfile (a server is `available: true` only once its binary is baked in).
  */
 export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	{
@@ -57,10 +57,11 @@ export const SANDBOX_MCP_SERVERS: readonly SandboxMcpServerDef[] = [
 	{
 		id: "codebase-memory",
 		label: "Codebase Memory",
-		// The single static binary's server subcommand (baked in a later increment); argv finalized when it lands.
+		// The static binary is baked into the image (§5.AR — `codebase-memory-mcp@0.8.1`, see docker/agent-sandbox/
+		// Dockerfile). Bare invocation speaks stdio MCP (matches its published client config `args: []`).
 		inContainerArgv: ["codebase-memory-mcp"],
 		fit: CODEBASE_MEMORY_FIT,
-		available: false,
+		available: true,
 	},
 ];
 

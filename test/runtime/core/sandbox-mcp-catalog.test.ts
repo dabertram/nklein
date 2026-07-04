@@ -7,11 +7,11 @@ import {
 } from "../../../src/core/sandbox-mcp-catalog";
 
 describe("sandbox MCP catalog", () => {
-	it("registers sequential-thinking as available and codebase-memory as not-yet-available", () => {
+	it("registers both sequential-thinking and codebase-memory as available (both baked into the image)", () => {
 		const byId = new Map(SANDBOX_MCP_SERVERS.map((s) => [s.id, s]));
 		expect(byId.get("sequential-thinking")?.available).toBe(true);
-		expect(byId.get("codebase-memory")?.available).toBe(false);
-		expect(listAvailableSandboxMcpServers().map((s) => s.id)).toEqual(["sequential-thinking"]);
+		expect(byId.get("codebase-memory")?.available).toBe(true);
+		expect(listAvailableSandboxMcpServers().map((s) => s.id)).toEqual(["sequential-thinking", "codebase-memory"]);
 	});
 
 	it("each server's fit profile serverId matches its catalog id (so gate + opt-out key line up)", () => {
@@ -34,10 +34,15 @@ describe("selectSandboxMcpServersForModel — applies the §5.AL fit gate over A
 		expect(ids).not.toContain("sequential-thinking");
 	});
 
-	it("never returns a not-yet-available server (codebase-memory) regardless of model", () => {
-		for (const modelId of ["qwen/qwen3-8b", "phi-4-reasoning-plus", "no-such-model-xyz"]) {
-			expect(selectSandboxMcpServersForModel(modelId).map((s) => s.id)).not.toContain("codebase-memory");
-		}
+	it("offers codebase-memory broadly — to a capable model AND an uncatalogued one (a token-cutter that helps all sizes)", () => {
+		// CODEBASE_MEMORY_FIT is minToolUse TOOL_WEAK + allowUnknownToolUse, no reasoning/chaining gate.
+		expect(selectSandboxMcpServersForModel("qwen/qwen3-8b").map((s) => s.id)).toContain("codebase-memory");
+		expect(selectSandboxMcpServersForModel("no-such-model-xyz").map((s) => s.id)).toContain("codebase-memory");
+	});
+
+	it("still withholds codebase-memory from a genuinely tool-UNSUITABLE model (offering it would just burn context)", () => {
+		// phi-4-reasoning-plus is catalogued TOOL_UNSUITABLE — below the TOOL_WEAK floor, so even the broad tool is skipped.
+		expect(selectSandboxMcpServersForModel("phi-4-reasoning-plus").map((s) => s.id)).not.toContain("codebase-memory");
 	});
 });
 
