@@ -42,6 +42,24 @@ describe("nklein context compression", () => {
 		expect(result.text).not.toContain("Keep this code structurally");
 	});
 
+	it("strips a trailing // comment even when the line holds a //-bearing string (URL)", () => {
+		// Regression: the old indexOf('//')+quote-parity heuristic located the '//' inside "https://…", saw an
+		// odd quote count before it, and kept the WHOLE line — so the real trailing comment survived minification.
+		const result = compressKanbanContextText(
+			[
+				"export function endpoint(): string {",
+				'  const base = "https://example.com/api"; // real trailing comment',
+				"  return base;",
+				"}",
+			].join("\n"),
+			{ maxTokens: 100 },
+		);
+
+		expect(result.mode).toBe("code_minify");
+		expect(result.text).toContain('"https://example.com/api"');
+		expect(result.text).not.toContain("real trailing comment");
+	});
+
 	it("falls back to deterministic compression until a safe provider is wired", () => {
 		const result = compressKanbanContextText("Important facts must not be silently model-compressed.", {
 			maxTokens: 20,

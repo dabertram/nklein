@@ -154,13 +154,31 @@ function compressProseCaveman(text: string): string {
 }
 
 function stripInlineCodeComment(line: string): string {
-	const commentIndex = line.indexOf("//");
-	if (commentIndex < 0) {
-		return line;
+	// Scan left-to-right tracking string state, so a `//` INSIDE a string literal (a URL like "https://…", a
+	// regex, a protocol string) is never mistaken for the comment. The prior indexOf("//") + quote-parity-before
+	// heuristic located the `//` inside such a string and then, seeing an odd quote count before it, wrongly kept
+	// the WHOLE line — so the real trailing comment survived into the minified output.
+	let stringDelimiter: string | null = null;
+	let escaping = false;
+	for (let i = 0; i < line.length; i += 1) {
+		const char = line[i];
+		if (stringDelimiter !== null) {
+			if (escaping) {
+				escaping = false;
+			} else if (char === "\\") {
+				escaping = true;
+			} else if (char === stringDelimiter) {
+				stringDelimiter = null;
+			}
+			continue;
+		}
+		if (char === '"' || char === "'" || char === "`") {
+			stringDelimiter = char;
+		} else if (char === "/" && line[i + 1] === "/") {
+			return line.slice(0, i);
+		}
 	}
-	const before = line.slice(0, commentIndex);
-	const quoteCount = (before.match(/["'`]/g) ?? []).length;
-	return quoteCount % 2 === 0 ? before : line;
+	return line;
 }
 
 function compressCodeMinify(text: string): string {
