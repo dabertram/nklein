@@ -195,7 +195,13 @@ export async function runRetrievalLoop(
 				.filter((hit): hit is RetrievalHit => hit !== undefined)
 				.slice(0, maxFetchPerQuery);
 			if (toFetch.length === 0) {
-				advanceRound(); // dead-end query — don't re-search the same empty query; advance the round
+				// Dead-end query — don't re-search the same empty query; advance the round. Mark it covered too: an
+				// ATTEMPTED query is covered for sufficiency even when it returned nothing, otherwise a single empty
+				// query (e.g. the primary dead-ending while alternates return ample fresh evidence) would leave its
+				// sub-question permanently uncovered and force the loop to always report INSUFFICIENT. The minSources
+				// floor and the freshness gate still prevent declaring sufficiency without enough real/fresh evidence.
+				coveredQueries.push(query);
+				advanceRound();
 			} else {
 				coveredQueries.push(query); // a query that returned results counts as covered for sufficiency
 				state.hitCount = toFetch.length;

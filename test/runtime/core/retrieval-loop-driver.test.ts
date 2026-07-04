@@ -106,6 +106,19 @@ describe("runRetrievalLoop", () => {
 		expect(fetchCalls).toEqual([]); // nothing to fetch
 	});
 
+	it("a dead-end PRIMARY query does not poison sufficiency when an alternate covers it (§5.AC regression)", async () => {
+		// The primary query dead-ends (0 hits — routine on a backend error / empty result set) while the
+		// knowledge-debt alternate returns 2 fresh sources. The loop must reach sufficiency: an attempted-but-empty
+		// query counts as covered. On the old code the primary sub-question stayed permanently uncovered, so the loop
+		// exhausted its budget and reported INSUFFICIENT despite gathering ample fresh evidence.
+		const { deps } = makeDeps({
+			search: async (query) => (query.includes("detail Y") ? [hit("c"), hit("d")] : []),
+		});
+		const result = await runRetrievalLoop("what is X", deps, { knowledgeDebt: ["detail Y"], minSources: 2 });
+		expect(result.stoppedBecause).toBe("sufficient");
+		expect(result.sufficiency.sufficient).toBe(true);
+	});
+
 	it("skips a failed fetch and keeps going (never rethrows)", async () => {
 		const { deps } = makeDeps({
 			fetch: async (h) => {
