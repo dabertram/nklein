@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir, realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, resolve } from "node:path";
 import type {
 	RuntimeDirectoryListRequest,
@@ -81,6 +81,27 @@ export async function handleListDirectoryContents(
 		// Absolute path is within sandbox — fall through to existing stat/readdir logic.
 	}
 	const resolvedPath = resolve(rootPath, requestedPath) || rootPath;
+
+	// Symlink containment: the checks above are LEXICAL (resolve does not follow symlinks) while stat/readdir below
+	// DO follow them, so a symlink whose link path is lexically inside an allowed root but whose TARGET is outside
+	// would let a remote user read the host filesystem. In remote mode, canonicalize BOTH the resolved path and the
+	// allowed roots (realpath) and re-confine — a canonical-vs-canonical comparison, robust to a non-canonical root
+	// (e.g. /tmp -> /private/tmp). A non-existent path can't leak, so fall back to the lexical value on a realpath
+	// failure (ENOENT while navigating to a not-yet-existent dir). Local mode (filesystemRoot="/") is unaffected.
+	if (deps.isRemoteMode && requestedPath) {
+		const canonicalPath = await realpath(resolvedPath).catch(() => resolvedPath);
+		const canonicalRoots = await Promise.all(deps.allowedBrowseRoots.map((root) => realpath(root).catch(() => root)));
+		if (!confineToAllowedRoots(canonicalPath, canonicalRoots).allowed) {
+			return {
+				ok: false,
+				currentPath: rootPath,
+				parentPath: null,
+				rootPath,
+				entries: [],
+				error: "Access denied: path is outside the allowed directories for remote mode.",
+			} satisfies RuntimeDirectoryListResponse;
+		}
+	}
 
 	if (!isPathWithinRoot(rootPath, resolvedPath)) {
 		return {

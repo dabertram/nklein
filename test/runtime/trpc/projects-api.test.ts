@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1107,6 +1107,28 @@ describe("remote-mode confinement — listDirectoryContents", () => {
 		const result = await api.listDirectoryContents(null, { path: outsidePath });
 		expect(result.ok).toBe(false);
 		expect(result.error).toMatch(/outside the allowed/);
+	});
+
+	it("remote mode: a symlink whose TARGET escapes the allowed root is rejected (no host-FS read via symlink)", async () => {
+		// Containment was LEXICAL (resolve does not follow symlinks) while stat/readdir DO — so a symlink inside an
+		// allowed root pointing outside it let a remote user list arbitrary host directories. The path must be
+		// canonicalized (realpath) before confinement. Fails on old (lists the secret dir); passes on the fix.
+		const allowed = realpathSync(testCwd);
+		const secret = join(dirname(allowed), `secret-${basename(allowed)}`);
+		mkdirSync(secret, { recursive: true });
+		writeFileSync(join(secret, "loot.txt"), "top secret", "utf8");
+		symlinkSync(realpathSync(secret), join(allowed, "escape"), "dir");
+		const deps = createDefaultDeps(allowed);
+		deps.isRemoteMode = true;
+		deps.allowedBrowseRoots = [allowed];
+		const api = createProjectsApi(deps);
+		try {
+			const result = await api.listDirectoryContents(null, { path: join(allowed, "escape") });
+			expect(result.ok).toBe(false);
+			expect(result.error).toMatch(/outside/);
+		} finally {
+			rmSync(secret, { recursive: true, force: true });
+		}
 	});
 
 	it("remote mode: sibling-prefix path is rejected (not a parent/ancestor)", async () => {
