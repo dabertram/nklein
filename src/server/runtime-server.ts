@@ -577,7 +577,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const startRescueCandidates = async (
 		scope: RuntimeTrpcWorkspaceScope,
 		deferredTaskIds: readonly string[],
-		discoveryTaskIds: readonly string[],
+		// The FULL ordered union for the off-durable path — passed explicitly so the byte-identical default preserves
+		// each call site's original candidate ORDER (order decides which card wins a scarce slot in autoStartTaskIds).
+		orderedCandidates: readonly string[],
 	): Promise<void> => {
 		if (durableRunWiring?.hasRun(scope.workspaceId)) {
 			const deferred = [...new Set(deferredTaskIds)];
@@ -586,7 +588,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}
 			return;
 		}
-		const candidates = [...new Set([...deferredTaskIds, ...discoveryTaskIds])];
+		const candidates = [...new Set(orderedCandidates)];
 		if (candidates.length > 0) {
 			await autoStartTaskIds(scope, candidates);
 		}
@@ -655,7 +657,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}
 				// Under a durable run only the deferred set is ours to restart; sweep/redrive are the controller's (see
 				// startRescueCandidates). Off durable this is the same union as before.
-				await startRescueCandidates(scope, deferredTaskIds, [...sweepTaskIds, ...redriveTaskIds]);
+				await startRescueCandidates(scope, deferredTaskIds, [
+					...deferredTaskIds,
+					...sweepTaskIds,
+					...redriveTaskIds,
+				]);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				deps.warn(`Terminal retry sweep failed for ${scope.workspacePath}: ${message}`);
@@ -1392,7 +1398,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						: [];
 					// Under a durable run the controller owns ready/sweep (dependency_unblocked → lease); only the
 					// deferred set is ours to restart here (startRescueCandidates). Off durable this is the same union.
-					await startRescueCandidates(scope, deferredOverlapTaskIds, [...readyTaskIds, ...sweepTaskIds]);
+					await startRescueCandidates(scope, deferredOverlapTaskIds, [
+						...readyTaskIds,
+						...deferredOverlapTaskIds,
+						...sweepTaskIds,
+					]);
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
