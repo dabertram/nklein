@@ -298,6 +298,8 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					const customDest = body.path ? deps.resolveProjectInputPath(body.path, deps.serverCwd) : undefined;
 					const cloneResult = await cloneGitRepository(body.gitUrl, deps.serverCwd, customDest, filesystemRoot, {
 						ref: body.ref,
+						// Remote clients may only clone network URLs — never a local/file source into the sandbox.
+						isRemoteMode: deps.isRemoteMode,
 					});
 					if (!cloneResult.ok) {
 						return {

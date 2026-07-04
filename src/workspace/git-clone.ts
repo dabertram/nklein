@@ -12,6 +12,35 @@ export interface GitCloneResult {
 
 export interface GitCloneOptions {
 	ref?: string | null;
+	/**
+	 * When true (a remote `--host` bind), reject a clone whose SOURCE reads the local filesystem — only network git
+	 * transports are allowed. The destination is already confined to the allowed roots, but the source was not, so a
+	 * remote client could clone an arbitrary LOCAL repo (via `file://` or a local path) into the sandbox and read it.
+	 */
+	isRemoteMode?: boolean;
+}
+
+/**
+ * Is `gitUrl` a NETWORK (remote) git transport rather than a local-filesystem one? Allow-list of network URL schemes
+ * plus scp-style `user@host:path`; everything else — bare/relative/absolute local paths, `file://`, and other local
+ * transports like `ext::`/`fd::` — reads the local filesystem and is REJECTED. Used to stop a remote client from
+ * exfiltrating an arbitrary local repository through the remote-confined project API (which confines only the clone
+ * DESTINATION, not the source). Allow-list, not deny-list: git supports many local/dangerous transports.
+ */
+export function isRemoteGitUrl(gitUrl: string): boolean {
+	const trimmed = gitUrl.trim();
+	if (!trimmed) {
+		return false;
+	}
+	// Network URL schemes (git over http/https/git/ssh/ftp).
+	if (/^(?:https?|git|ssh|ftps?):\/\//iu.test(trimmed)) {
+		return true;
+	}
+	// scp-style ssh syntax: user@host:path (no scheme). Reject anything with a slash before the colon (a local path).
+	if (/^[^@/\s]+@[^@:/\s]+:/u.test(trimmed)) {
+		return true;
+	}
+	return false;
 }
 
 /**
@@ -73,6 +102,16 @@ export async function cloneGitRepository(
 	allowedRootPath: string = serverCwd,
 	options: GitCloneOptions = {},
 ): Promise<GitCloneResult> {
+	// Remote-mode SOURCE confinement: only network transports may be cloned. The destination is confined to the
+	// allowed roots, but without this a remote client could clone an arbitrary LOCAL repo (file:// or a local path)
+	// into the sandbox and then read it through the confined file APIs — a path-containment escape on the source.
+	if (options.isRemoteMode && !isRemoteGitUrl(gitUrl)) {
+		return {
+			ok: false,
+			clonedPath: "",
+			error: "Access denied: only remote repository URLs (https://, http://, git://, ssh://, user@host:path) may be cloned in remote mode.",
+		};
+	}
 	const repoName = deriveRepoNameFromUrl(gitUrl);
 	if (!repoName && !destinationPath) {
 		return {
@@ -160,7 +199,8 @@ export async function cloneGitRepository(
 
 	const ref = options.ref?.trim();
 	if (ref) {
-		const checkoutResult = await runGit(clonePath, ["checkout", "--detach", ref]);
+		// `--` end-of-options so a ref beginning with `-` is treated as a value, not a git option (matches the clone).
+		const checkoutResult = await runGit(clonePath, ["checkout", "--detach", "--", ref]);
 		if (!checkoutResult.ok) {
 			return {
 				ok: false,

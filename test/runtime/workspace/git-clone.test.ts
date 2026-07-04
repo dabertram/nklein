@@ -30,7 +30,42 @@ vi.mock("node:fs/promises", () => ({
 	stat: fsMocks.stat,
 }));
 
-import { cloneGitRepository, deriveRepoNameFromUrl, validateCloneDestination } from "../../../src/workspace/git-clone";
+import {
+	cloneGitRepository,
+	deriveRepoNameFromUrl,
+	isRemoteGitUrl,
+	validateCloneDestination,
+} from "../../../src/workspace/git-clone";
+
+describe("isRemoteGitUrl", () => {
+	it("accepts network git transports", () => {
+		for (const url of [
+			"https://github.com/u/r.git",
+			"http://host/r.git",
+			"git://host/r.git",
+			"ssh://git@host/u/r.git",
+			"git@github.com:u/r.git", // scp-style
+		]) {
+			expect(isRemoteGitUrl(url)).toBe(true);
+		}
+	});
+
+	it("rejects local-filesystem transports (the exfiltration vectors)", () => {
+		for (const url of [
+			"file:///etc/secret",
+			"/abs/path/secret",
+			"../relative/secret",
+			"./repo",
+			"~/repo",
+			"ext::sh -c cmd", // dangerous helper transport
+			"fd::7",
+			"",
+			"   ",
+		]) {
+			expect(isRemoteGitUrl(url)).toBe(false);
+		}
+	});
+});
 
 describe("deriveRepoNameFromUrl", () => {
 	it("extracts repo name from HTTPS URL", () => {
@@ -144,6 +179,33 @@ describe("cloneGitRepository", () => {
 		expect(callArgs[1]).toContain("clone");
 		expect(callArgs[1]).toContain("https://github.com/user/my-repo.git");
 		expect(callArgs[1]).toContain(resolve(testCwd, "my-repo"));
+	});
+
+	it("remote mode: rejects a file:// source URL and never invokes git clone (source-exfiltration guard)", async () => {
+		const result = await cloneGitRepository("file:///etc/secret-repo", testCwd, undefined, testCwd, {
+			isRemoteMode: true,
+		});
+		expect(result.ok).toBe(false);
+		expect(result.error).toMatch(/Access denied/);
+		expect(childProcessMocks.execFilePromise).not.toHaveBeenCalled();
+	});
+
+	it("remote mode: rejects a relative local-path source (../secret) before cloning", async () => {
+		const result = await cloneGitRepository("../secret-repo", testCwd, undefined, testCwd, { isRemoteMode: true });
+		expect(result.ok).toBe(false);
+		expect(childProcessMocks.execFilePromise).not.toHaveBeenCalled();
+	});
+
+	it("local mode: still allows a file:// source (no regression for the trusted local operator)", async () => {
+		fsMocks.access.mockRejectedValueOnce(new Error("ENOENT"));
+		fsMocks.mkdir.mockResolvedValueOnce(undefined);
+		childProcessMocks.execFilePromise.mockResolvedValueOnce({ stdout: "", stderr: "" });
+
+		const result = await cloneGitRepository("file:///local/repo", testCwd, undefined, testCwd, {
+			isRemoteMode: false,
+		});
+		expect(result.ok).toBe(true);
+		expect(childProcessMocks.execFilePromise).toHaveBeenCalledOnce();
 	});
 
 	it("clones a repo to a custom destination path", async () => {
@@ -318,7 +380,7 @@ describe("cloneGitRepository", () => {
 		expect(childProcessMocks.execFilePromise).toHaveBeenCalledTimes(2);
 		const checkoutCall = childProcessMocks.execFilePromise.mock.calls[1];
 		expect(checkoutCall[0]).toBe("git");
-		expect(checkoutCall[1]).toEqual(["-c", "core.quotepath=false", "checkout", "--detach", "abc123def456"]);
+		expect(checkoutCall[1]).toEqual(["-c", "core.quotepath=false", "checkout", "--detach", "--", "abc123def456"]);
 		expect(checkoutCall[2]).toMatchObject({ cwd: resolve(testCwd, "my-repo") });
 	});
 

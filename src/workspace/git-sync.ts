@@ -322,11 +322,13 @@ export async function runGitCheckoutAction(options: {
 	const repoRoot = await resolveRepoRoot(options.cwd);
 
 	const hasLocalBranch = await hasGitRef(repoRoot, `refs/heads/${requestedBranch}`);
+	// `--` end-of-options so a branch beginning with `-` is treated as a value, not a git option (e.g. a hostile
+	// "--force-create=x" would otherwise reset a branch). The `--track origin/<b>` arm is already prefixed, so safe.
 	const commandResult = hasLocalBranch
-		? await runGit(repoRoot, ["switch", requestedBranch])
+		? await runGit(repoRoot, ["switch", "--", requestedBranch])
 		: (await hasGitRef(repoRoot, `refs/remotes/origin/${requestedBranch}`))
 			? await runGit(repoRoot, ["switch", "--track", `origin/${requestedBranch}`])
-			: await runGit(repoRoot, ["switch", requestedBranch]);
+			: await runGit(repoRoot, ["switch", "--", requestedBranch]);
 	const nextSummary = await getGitSyncSummary(repoRoot);
 
 	if (!commandResult.ok) {
