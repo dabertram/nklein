@@ -78,9 +78,15 @@ draft PR-style change I hold for review, not an auto-merge.
    `modelStatsTrackingLevel: "full"|"basic"|"off"` config field (default `full`) + normalizer, thread it to
    the recording site, and gate: `off` skips recording, `basic` records token TOTALS only (null the granular
    per-tool/reasoning fields), `full` = today. Bounded but threads config into the big service file. *(pending)*
-10. **§5.AE skill-fragment mapping** → DRAFT + canonicalize naming + stub `repo_map`/`focus_chain`, hold
-    for approval. *(pending)*
-11. **§5.AW opportunistic-work ranker** → DRAFT priority order + HARD veto, hold for approval. *(pending)*
+10. ✅ **DONE (draft, awaiting your APPROVAL)** **§5.AE skill-fragment mapping** → `skill-fragment-mapping.ts`:
+    a pure proposed table bridging the underscored registry ids → canonical hyphenated assembler keys
+    (temporal→temporal-context, …) + volatility + producer status; `repo_map`/`focus_chain` flagged
+    `needs_producer` (aspirational). NOT wired to the live assembler. **Approve/amend the keys+order, then
+    I'll wire it.** +3 tests (parity, canonicalization, producer-status).
+11. ✅ **DONE (draft, awaiting your APPROVAL)** **§5.AW opportunistic-work ranker** →
+    `opportunistic-work-ranker.ts`: proposed priority `review > work_ahead > deliberation_seed >
+    spec_mirror > context_prep` + a HARD veto (any real queued/active work suppresses ALL opportunistic
+    work). NOT wired to any scheduler. **Approve/re-order, then I'll wire it.** +5 tests.
 
 ---
 
