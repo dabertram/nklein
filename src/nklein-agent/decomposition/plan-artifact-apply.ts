@@ -44,8 +44,20 @@ export function redactWorkspacePathForAgent(workspacePath: string, text: string)
 	if (!workspacePath) {
 		return text;
 	}
-	// "<workspace>/sub/path" → "sub/path"; a bare "<workspace>" → "." (the agent's sandbox root).
-	return text.split(`${workspacePath}${sep}`).join("").split(workspacePath).join(".");
+	// "<workspace>/sub/path" → "sub/path".
+	const withoutPrefixed = text.split(`${workspacePath}${sep}`).join("");
+	// A bare "<workspace>" → "." (the agent's sandbox root) — but ONLY when it stands alone (end of
+	// string, whitespace, or a separator). Without the right-boundary a workspace path that is a PREFIX
+	// of a sibling segment (e.g. "/ws" inside "/wsconfig.json" or "/ws-backup/a.ts") would be mangled to
+	// ".config.json" / ".-backup/a.ts", corrupting unrelated paths in agent-facing error text.
+	const escapedWorkspace = escapeForRegExp(workspacePath);
+	const escapedSep = escapeForRegExp(sep);
+	return withoutPrefixed.replace(new RegExp(`${escapedWorkspace}(?![^\\s${escapedSep}])`, "g"), ".");
+}
+
+/** Escape a literal string for safe interpolation into a `RegExp`. */
+function escapeForRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function pluralizeCount(count: number, singular: string, plural = `${singular}s`): string {

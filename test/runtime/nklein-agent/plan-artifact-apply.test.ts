@@ -41,4 +41,21 @@ describe("redactWorkspacePathForAgent", () => {
 	it("returns the text unchanged when no workspace path is provided", () => {
 		expect(redactWorkspacePathForAgent("", "/ws/a")).toBe("/ws/a");
 	});
+
+	it("does NOT mangle a sibling path that merely shares the workspace prefix", () => {
+		// The bare-path rewrite must fire only on a whole path token, never mid-segment. Before the
+		// right-boundary guard, "/ws" matched inside "/wsconfig.json" → ".config.json", corrupting
+		// unrelated sibling paths embedded in agent-facing error text.
+		expect(redactWorkspacePathForAgent("/ws", "error: /wsconfig.json not found")).toBe(
+			"error: /wsconfig.json not found",
+		);
+		expect(redactWorkspacePathForAgent("/ws", "see /ws-backup/a.ts")).toBe("see /ws-backup/a.ts");
+		expect(redactWorkspacePathForAgent("/home/u/kanban", "moved to /home/u/kanban-old")).toBe(
+			"moved to /home/u/kanban-old",
+		);
+	});
+
+	it("still rewrites a bare workspace path at end-of-string", () => {
+		expect(redactWorkspacePathForAgent("/ws", "ran in /ws")).toBe("ran in .");
+	});
 });
