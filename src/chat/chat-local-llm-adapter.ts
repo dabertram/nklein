@@ -121,6 +121,42 @@ function resolveChatTurnSampling(options: {
 	return { ...base, maxTokens: budget.totalMaxTokens };
 }
 
+/**
+ * §5.AA plain-completion truncation ladder (opt-in via the same NKLEIN_CHAT_ADAPTIVE_TRUNCATION flag as the tool path).
+ * A plain (non-tool) completion that hit `finish:"length"` leaves the user a half-sentence answer or a summary that
+ * dropped context — but UNLIKE the tool path, the plain path had NO retry at all. When the flag is on, re-ask with a
+ * compounding larger budget (bounded by BOTH the pass count AND the ceiling clamp, so it can't spin) and return the
+ * fuller reply. Default OFF ⇒ a single completion, byte-identical to before.
+ *
+ * NON-STREAMING only: a streamed turn already showed the caller live deltas, so re-streaming a retry would double the
+ * visible output — that path is intentionally left untouched (its UX contract is the caller's to decide).
+ */
+async function completePlainWithTruncationLadder(
+	client: ChatCompletionClient,
+	messages: LocalLlmChatMessage[],
+	sampling: LocalLlmSamplingOptions,
+): Promise<string> {
+	let { content, finishReason } = await client.complete({ messages, sampling });
+	if (isTruthyEnv(process.env[ADAPTIVE_TRUNCATION_LADDER_FLAG])) {
+		let budget = sampling.maxTokens ?? DEFAULT_SAMPLING.maxTokens ?? 1024;
+		for (let pass = 0; pass < TRUNCATION_RETRY_MAX_ATTEMPTS; pass += 1) {
+			if (!deriveTruncationSignal({ rawReason: finishReason, tokenBudget: budget }).shouldRetryLarger) {
+				break;
+			}
+			const escalated = raisedTokenBudget({ current: budget, attempt: 1, ceiling: TRUNCATION_RETRY_BUDGET_CEILING });
+			if (escalated <= budget) {
+				break;
+			}
+			({ content, finishReason } = await client.complete({
+				messages,
+				sampling: { ...sampling, maxTokens: escalated },
+			}));
+			budget = escalated;
+		}
+	}
+	return cleanModelReply(content);
+}
+
 export function createChatModelDeps(
 	client: ChatCompletionClient,
 	options: { sampling?: LocalLlmSamplingOptions; modelId?: string } = {},
@@ -135,13 +171,13 @@ export function createChatModelDeps(
 				const { content } = await client.completeStream({ messages, sampling }, onToken);
 				return cleanModelReply(content);
 			}
-			const { content } = await client.complete({ messages, sampling });
-			return cleanModelReply(content);
+			return completePlainWithTruncationLadder(client, messages, sampling);
 		},
 		summarize: async (overflow) => {
 			const transcript = overflow.map((message) => `${message.role}: ${message.content}`).join("\n");
-			const { content } = await client.complete({
-				messages: [
+			return completePlainWithTruncationLadder(
+				client,
+				[
 					{
 						role: "system",
 						content:
@@ -150,8 +186,7 @@ export function createChatModelDeps(
 					{ role: "user", content: transcript },
 				],
 				sampling,
-			});
-			return cleanModelReply(content);
+			);
 		},
 	};
 }

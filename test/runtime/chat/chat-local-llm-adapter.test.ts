@@ -101,6 +101,98 @@ describe("createChatModelDeps", () => {
 		expect(calls[0]?.[1]?.content).toContain("assistant: ok");
 	});
 
+	describe("§5.AA plain-completion truncation ladder (opt-in NKLEIN_CHAT_ADAPTIVE_TRUNCATION)", () => {
+		const FLAG = "NKLEIN_CHAT_ADAPTIVE_TRUNCATION";
+		let savedFlag: string | undefined;
+		beforeEach(() => {
+			savedFlag = process.env[FLAG];
+			delete process.env[FLAG];
+		});
+		afterEach(() => {
+			if (savedFlag === undefined) {
+				delete process.env[FLAG];
+			} else {
+				process.env[FLAG] = savedFlag;
+			}
+		});
+
+		// A plain client that returns finish:"length" (truncated) with a partial reply until a send's budget reaches
+		// `recoveryBudget`, then finish:"stop" with the full reply — so the recorded budgets trace the ladder.
+		const plainRecoversAtBudget = (
+			recoveryBudget: number,
+			budgets: (number | undefined)[],
+		): ChatCompletionClient => ({
+			complete: async (request) => {
+				const budget = request.sampling?.maxTokens ?? 0;
+				budgets.push(budget);
+				return budget >= recoveryBudget
+					? { content: "The full complete answer.", finishReason: "stop", raw: {} }
+					: { content: "The half-", finishReason: "length", raw: {} };
+			},
+		});
+
+		it("flag OFF (default) ⇒ a truncated plain completion is NOT retried (byte-identical single call)", async () => {
+			const budgets: (number | undefined)[] = [];
+			const deps = createChatModelDeps(plainRecoversAtBudget(4096, budgets));
+			const reply = await deps.complete([{ role: "user", content: "explain at length" }]);
+			expect(budgets).toEqual([1024]); // one call at the default budget — no retry
+			expect(reply).toBe("The half-"); // the truncated reply is returned as-is (today's behavior)
+		});
+
+		it("flag ON ⇒ a truncated plain completion re-asks with a compounding budget until it completes", async () => {
+			process.env[FLAG] = "1";
+			const budgets: (number | undefined)[] = [];
+			const deps = createChatModelDeps(plainRecoversAtBudget(4096, budgets));
+			const reply = await deps.complete([{ role: "user", content: "explain at length" }]);
+			// 1024 → 2048 → 4096 (doubling from the base budget under the 8192 ceiling); recovers at 4096.
+			expect(budgets).toEqual([1024, 2048, 4096]);
+			expect(reply).toBe("The full complete answer.");
+		});
+
+		it("flag ON + always truncates ⇒ bounded at the ceiling (≤ 3 escalations), never overshooting 8192", async () => {
+			process.env[FLAG] = "1";
+			const budgets: (number | undefined)[] = [];
+			const deps = createChatModelDeps(plainRecoversAtBudget(Number.POSITIVE_INFINITY, budgets));
+			const reply = await deps.complete([{ role: "user", content: "explain at length" }]);
+			expect(budgets).toEqual([1024, 2048, 4096, 8192]); // initial + 3 escalations, clamped at the ceiling
+			expect(Math.max(...budgets.map((b) => b ?? 0))).toBe(8192);
+			expect(reply).toBe("The half-"); // never recovered, but bounded
+		});
+
+		it("flag ON ⇒ the STREAMING path is NOT retried on truncation (no double visible output)", async () => {
+			process.env[FLAG] = "1";
+			let completeCalls = 0;
+			let streamCalls = 0;
+			const client: ChatCompletionClient = {
+				complete: async () => {
+					completeCalls += 1;
+					return { content: "x", finishReason: "stop", raw: {} };
+				},
+				completeStream: async (_request, onChunk) => {
+					streamCalls += 1;
+					onChunk("The half-");
+					return { content: "The half-", finishReason: "length", raw: {} };
+				},
+			};
+			const deps = createChatModelDeps(client);
+			const reply = await deps.complete([{ role: "user", content: "hi" }], () => {});
+			expect(streamCalls).toBe(1);
+			expect(completeCalls).toBe(0); // no fallback retry via complete → the streamed turn is left untouched
+			expect(reply).toBe("The half-");
+		});
+
+		it("flag ON ⇒ a truncated summary is also re-asked with a larger budget", async () => {
+			process.env[FLAG] = "1";
+			const budgets: (number | undefined)[] = [];
+			const deps = createChatModelDeps(plainRecoversAtBudget(2048, budgets));
+			const summary = await deps.summarize([
+				{ schemaVersion: 1, id: "1", role: "user", content: "a long thread", createdAt: 1 },
+			]);
+			expect(budgets).toEqual([1024, 2048]); // recovered at 2048
+			expect(summary).toBe("The full complete answer.");
+		});
+	});
+
 	describe("§5.AN reasoning output-budget sizing (opt-in NKLEIN_REASONING_BUDGET)", () => {
 		const FLAG = "NKLEIN_REASONING_BUDGET";
 		let savedFlag: string | undefined;
