@@ -304,8 +304,16 @@ export function assessToolArgumentRepair(
 			continue;
 		}
 
-		// enum gate (checked before type-coercion so an out-of-enum required value routes to a re-ask, not a coerce).
-		if (schema.enum && schema.enum.length > 0 && !schema.enum.some((option) => option === value)) {
+		// Compute a lossless coercion UP FRONT (when the raw value's type is wrong) so BOTH the enum gate and the
+		// acceptance below operate on the value the tool would actually receive. Without this, a losslessly-coercible
+		// enum value (the string "1" for a numeric enum [1,2,3]) is rejected as out-of-enum before coercion is ever
+		// tried — refusing a repairable call, defeating this module's whole robustness purpose.
+		const declared = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
+		const coercion = !satisfiesType(schema, value) && declared.length > 0 ? tryCoerce(declared, value) : undefined;
+		const effectiveValue = coercion ? coercion.coerced : value;
+		// enum gate — tested against the EFFECTIVE (post-coercion) value: a genuinely out-of-enum value (e.g. "z" for
+		// [1,2,3], which can't coerce) still routes to a re-ask, while "1"→1 falls through to be coerced below.
+		if (schema.enum && schema.enum.length > 0 && !schema.enum.some((option) => option === effectiveValue)) {
 			if (requiredSet.has(field)) {
 				issues.push({
 					kind: ToolArgumentIssueKind.NotInEnum,
@@ -329,9 +337,7 @@ export function assessToolArgumentRepair(
 			continue;
 		}
 
-		// Type mismatch — try a lossless coercion.
-		const declared = schema.type === undefined ? [] : Array.isArray(schema.type) ? schema.type : [schema.type];
-		const coercion = declared.length > 0 ? tryCoerce(declared, value) : undefined;
+		// Type mismatch but in-enum (or no enum) — apply the lossless coercion computed above.
 		if (coercion) {
 			repaired[field] = coercion.coerced;
 			didRepair = true;

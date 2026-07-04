@@ -372,3 +372,41 @@ describe("assessToolArgumentRepair — union-type schemas", () => {
 		expect(result.repairedArguments).toEqual({ v: true });
 	});
 });
+
+describe("assessToolArgumentRepair — enum × coercion (regression: coerce THEN gate)", () => {
+	/** A required numeric-enum field: the exact shape that exposed the coerce-after-enum bug. */
+	const setLevel: LocalLlmToolDefinition = {
+		name: "set_level",
+		description: "set the level",
+		parameters: {
+			type: "object",
+			properties: { level: { type: "integer", enum: [1, 2, 3] } },
+			required: ["level"],
+		},
+	};
+
+	it("coerces a losslessly-coercible enum value BEFORE the enum gate ('1' → 1 ∈ [1,2,3])", () => {
+		// Regression: the enum gate used to run on the RAW string "1" (=== against 1/2/3 all false) and re-ask a valid,
+		// repairable call. It must coerce first, then match the coerced value against the enum.
+		const result = assessToolArgumentRepair({ name: "set_level", arguments: { level: "1" } }, setLevel);
+		expect(result.verdict).toBe(ToolArgumentVerdict.Repairable);
+		expect(result.repairedArguments).toEqual({ level: 1 });
+	});
+
+	it("still re-asks a coercible-but-out-of-enum required value ('9' → 9 ∉ [1,2,3])", () => {
+		const result = assessToolArgumentRepair({ name: "set_level", arguments: { level: "9" } }, setLevel);
+		expect(result.verdict).toBe(ToolArgumentVerdict.Reprompt);
+		expect(result.fieldsToReask).toContain("level");
+	});
+
+	it("still re-asks a genuinely un-coercible out-of-enum required value ('z')", () => {
+		const result = assessToolArgumentRepair({ name: "set_level", arguments: { level: "z" } }, setLevel);
+		expect(result.verdict).toBe(ToolArgumentVerdict.Reprompt);
+		expect(result.fieldsToReask).toContain("level");
+	});
+
+	it("accepts an already-valid in-enum value unchanged (level 2)", () => {
+		const result = assessToolArgumentRepair({ name: "set_level", arguments: { level: 2 } }, setLevel);
+		expect(result.verdict).toBe(ToolArgumentVerdict.Usable);
+	});
+});
