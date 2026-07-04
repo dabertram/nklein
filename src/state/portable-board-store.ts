@@ -52,6 +52,38 @@ export async function readPortableBoardCrdt(repoPath: string): Promise<PortableB
 	}
 }
 
+/**
+ * Committed-file states the EXPORT (write) path must tell apart — `readPortableBoardCrdt` flattens all of these to
+ * `null`, which is fine for read-only callers but DANGEROUS for a writer: treating "present but unusable" as "absent"
+ * makes the export overwrite (and destroy) a newer-schema or corrupt file with a downgraded current-schema write.
+ */
+type CommittedBoardCrdtState =
+	| { status: "absent" }
+	| { status: "usable"; crdt: PortableBoardCrdt }
+	| { status: "refused" };
+
+async function readCommittedPortableBoardCrdtState(repoPath: string): Promise<CommittedBoardCrdtState> {
+	let raw: string;
+	try {
+		raw = await readFile(getPortableBoardCrdtPath(repoPath), "utf8");
+	} catch (error) {
+		// Genuinely absent → a fresh start the export may safely initialize. Any OTHER read error (permissions, IO)
+		// is treated as "refused" so a file we merely could not read is never overwritten.
+		if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+			return { status: "absent" };
+		}
+		return { status: "refused" };
+	}
+	let migrated: PortableBoardCrdt | null;
+	try {
+		migrated = migratePortableBoardCrdt(JSON.parse(raw));
+	} catch {
+		return { status: "refused" }; // corrupt JSON — do not clobber
+	}
+	// migratePortableBoardCrdt returns null for a NEWER schema it refuses to downgrade → present but unusable.
+	return migrated ? { status: "usable", crdt: migrated } : { status: "refused" };
+}
+
 export async function writePortableBoardCrdt(repoPath: string, crdt: PortableBoardCrdt): Promise<string> {
 	const path = getPortableBoardCrdtPath(repoPath);
 	await mkdir(join(repoPath, NKLEIN_HOME_DIR_NAME, NKLEIN_RUNTIME_DIR_NAME, WORKSPACE_LOCAL_STATE_DIR), {
@@ -71,7 +103,17 @@ export async function exportLocalBoardToPortableCrdt(input: {
 	replicaId: string;
 }): Promise<{ crdt: PortableBoardCrdt; board: RuntimeBoardData; path: string }> {
 	const local = boardToPortableBoardCrdt(input.board, input.replicaId);
-	const committed = await readPortableBoardCrdt(input.repoPath);
+	const committedState = await readCommittedPortableBoardCrdtState(input.repoPath);
+	if (committedState.status === "refused") {
+		// The committed board-crdt.json is a NEWER schema (or corrupt/unreadable) this build cannot safely fold in.
+		// REFUSE to export — overwriting it with a downgraded current-schema write would silently destroy another
+		// machine's newer data, defeating migratePortableBoardCrdt's newer-schema guard. The caller's best-effort
+		// export catch skips the write; the local board is still persisted to local state either way.
+		throw new Error(
+			"Refusing to export the local board: committed board-crdt.json is a newer schema or unreadable and cannot be safely merged.",
+		);
+	}
+	const committed = committedState.status === "usable" ? committedState.crdt : null;
 	let merged = committed ? mergePortableBoardCrdt(committed, local) : local;
 	// A card that was in the committed CRDT but is no longer on the (non-empty, authoritative) local board was
 	// permanently removed; tombstone it so a re-export does not resurrect it. Guard on a non-empty local board

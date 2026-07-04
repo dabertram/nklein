@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -93,5 +93,29 @@ describe("portable board store", () => {
 
 	it("returns null when no committed portable board exists", async () => {
 		expect(await importPortableBoard({ repoPath, replicaId: "m1" })).toBeNull();
+	});
+
+	it("REFUSES to overwrite a committed board-crdt.json written by a NEWER schema (cross-machine data loss)", async () => {
+		// First export creates the file + directory at the current schema.
+		const first = await exportLocalBoardToPortableCrdt({
+			repoPath,
+			board: board([{ columnId: "planning", card: card("a") }]),
+			replicaId: "m1",
+		});
+		// A newer machine committed a schema this build can't safely downgrade.
+		const newerContent = JSON.stringify({ schemaVersion: 999, cards: { z: { future: "shape" } }, dependencies: {} });
+		await writeFile(first.path, newerContent, "utf8");
+
+		// Exporting the local board must REFUSE, not clobber the newer file with a downgraded write.
+		await expect(
+			exportLocalBoardToPortableCrdt({
+				repoPath,
+				board: board([{ columnId: "planning", card: card("b") }]),
+				replicaId: "m2",
+			}),
+		).rejects.toThrow(/newer schema or unreadable/u);
+
+		// The newer file is preserved byte-for-byte (the old code silently downgraded it to schemaVersion 1).
+		expect(await readFile(first.path, "utf8")).toBe(newerContent);
 	});
 });
