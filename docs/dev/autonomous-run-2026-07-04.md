@@ -39,31 +39,33 @@ a test, so there's **zero rework risk** to review.
 
 ---
 
-## DECISIONS LOCKED (David, 2026-07-04) — the whole guidance queue, resolved
+## DECISIONS LOCKED (David, 2026-07-04) — the whole guidance queue, resolved + EXECUTION STATUS
 
 Execute all of these (flag-gated / tested / GREEN as usual). "I propose → you approve" items get a
 draft PR-style change I hold for review, not an auto-merge.
 
-1. **Default-on flips** → flip ALL THREE to default-ON: `NKLEIN_CHAT_ADAPTIVE_TRUNCATION`,
-   `DURABLE_DEPTH_PRIORITY`, retrieval-synthesis. (Env/config can still turn each OFF.)
-2. **Chat `web_search`** → WIRE it into the chat agent, reusing the swarm's egress-gated SearXNG client;
-   OFF by default (needs egress + backend to activate). Zero default change.
-3. **SSRF guard** → apply the check-ALL-resolved-IPs hardening in `checkHostForSsrf` (fail-closed).
-4. **§5.L swarm-broker manifest** → PER-TOOL STATIC for v1 (each tool declares host/network/approvals
-   caps once); wire it so the escalation + egress gates go live on the swarm tool path.
-5. **Capability-broker default** → default ON **once the swarm seam (item 4) is wired** (chat already live).
-6. **§5.L egress-read kind** → ADD a distinct read-only `egress-read` ChatActionKind so multi-page
-   browsing is allowed without laundering the write/exec sinks (still egress-gated).
-7. **§5.AE apiProfile** → wire SESSION-SCOPED; apply the merged `activeSkillSet.apiProfile` once per
-   session, reconciled with the chat adapter's existing reasoning/force-tool logic (no double-apply).
-8. **§5.AV apply-time strictness** → REDO-ONLY; never hard-block on split/merge/refine — the
-   SCC-condense repair net handles bad graphs (weak models must not spiral).
-9. **§5.AN model stats** → track ALWAYS (per-request), FULL tracking by DEFAULT, with a config knob to
-   REDUCE to a couple of levels (e.g. `full | basic | off`). (NOT on-demand-only — revised from my rec.)
-10. **§5.AE skill-fragment mapping** → I DRAFT the fragment-id→text mapping + canonicalize the naming
-    (underscore↔hyphen) + stub the missing blocks (`repo_map`, `focus_chain`), hold for David's approval.
-11. **§5.AW opportunistic-work ranker** → I DRAFT a priority order + a HARD veto when real queued work
-    exists, hold for David's approval.
+1. ✅ **DONE** **Default-on flips** → `NKLEIN_CHAT_ADAPTIVE_TRUNCATION` + `DURABLE_DEPTH_PRIORITY` flipped
+   default-ON (`isEnabledByDefaultEnv`, `=0` disables); retrieval-synthesis was already unconditionally on.
+2. ✅ **DONE** **Chat `web_search`** → wired (chat-web-search-tool.ts, reuses the swarm SearXNG client),
+   OFF by default (needs egress + backend). egress_read action.
+3. ✅ **DONE** **SSRF guard** → `checkHostForSsrf` checks ALL resolved IPs (fail-closed). +3 tests.
+4. **§5.L swarm-broker manifest** → PER-TOOL STATIC for v1; wire the escalation + egress gates live on the
+   swarm tool path. *(pending — the biggest item)*
+5. **Capability-broker default** → default ON **once the swarm seam (4) is wired**. *(pending, after 4)*
+6. ✅ **DONE** **§5.L egress-read kind** → added `egress_read` ChatActionKind; browse_url + web_search use
+   it → multi-page browsing works, write/exec sinks still taint-guarded. +tests.
+7. **§5.AE apiProfile SESSION-SCOPED** → *PRECURSOR FOUND (2026-07-04):* the chat path does NOT resolve a
+   skill set today (`resolveApiProfileForSkills` has no chat caller — apiProfile is dark END-TO-END, not
+   just the last mile). So this needs skill-set resolution wired into the chat/session path FIRST, then
+   the merged apiProfile applied (reconciled with the chat adapter's existing reasoning/force-tool). Larger
+   than a simple apply-step. *(pending)*
+8. **§5.AV apply-time strictness** → REDO-ONLY; never hard-block (SCC-condense repair net handles it).
+   *(pending — verify current apply path already never blocks; likely a no-op + a pinning test)*
+9. **§5.AN model stats** → track ALWAYS per-request, FULL default, config knob to reduce (`full|basic|off`).
+   *(pending)*
+10. **§5.AE skill-fragment mapping** → DRAFT + canonicalize naming + stub `repo_map`/`focus_chain`, hold
+    for approval. *(pending)*
+11. **§5.AW opportunistic-work ranker** → DRAFT priority order + HARD veto, hold for approval. *(pending)*
 
 ---
 
