@@ -21,8 +21,14 @@ export const DEFAULT_REPLAY_CARDS_ENABLED = false;
 export const DEFAULT_KNOWS_TODAY_ENABLED = false;
 /** §5.AR curated sandbox-hosted MCP servers — ON BY DEFAULT (user 2026-07-01: available with a global/per-project opt-out). */
 export const DEFAULT_SANDBOX_MCP_SERVERS_ENABLED = true;
-/** §5.L capability-broker taint gate at the chat model↔tool seam — OFF BY DEFAULT (opt-in prompt-injection defense). */
-export const DEFAULT_CAPABILITY_BROKER_ENABLED = false;
+/**
+ * §5.L capability-broker taint gate at the chat model↔tool seam — DEFAULT-ON (David decision-5, 2026-07-04): the
+ * fail-closed prompt-injection defense ships on. Once untrusted web content enters a chat turn, a subsequent
+ * protected-sink action (host write/command) is refused unless a trusted plan backs it. Set `capabilityBrokerEnabled`
+ * false to disable. (Structurally inert on the Docker-isolated swarm, which has no protected sinks — see
+ * swarm-tool-capability.ts.)
+ */
+export const DEFAULT_CAPABILITY_BROKER_ENABLED = true;
 export const DEFAULT_AGENT_AUTONOMOUS_MODE_ENABLED = true;
 export const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 export const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";

@@ -29,17 +29,17 @@ describe("buildRuntimeGlobalConfigFilePayload", () => {
 		expect(unchanged).not.toHaveProperty("developerModeEnabled");
 	});
 
-	it("persists capabilityBrokerEnabled only when enabled (opt-in, default off → sparse)", () => {
-		const on = buildRuntimeGlobalConfigFilePayload(
+	it("persists capabilityBrokerEnabled only when it DIFFERS from the default (sparse)", () => {
+		const nonDefault = buildRuntimeGlobalConfigFilePayload(
 			{ capabilityBrokerEnabled: !DEFAULT_CAPABILITY_BROKER_ENABLED },
 			null,
 		);
-		expect(on.capabilityBrokerEnabled).toBe(true);
-		const off = buildRuntimeGlobalConfigFilePayload(
+		expect(nonDefault.capabilityBrokerEnabled).toBe(!DEFAULT_CAPABILITY_BROKER_ENABLED);
+		const atDefault = buildRuntimeGlobalConfigFilePayload(
 			{ capabilityBrokerEnabled: DEFAULT_CAPABILITY_BROKER_ENABLED },
 			null,
 		);
-		expect(off).not.toHaveProperty("capabilityBrokerEnabled");
+		expect(atDefault).not.toHaveProperty("capabilityBrokerEnabled");
 	});
 
 	it("preserves an existing key even when its value equals the default (round-trips on resave)", () => {
