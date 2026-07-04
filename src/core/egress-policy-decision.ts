@@ -205,9 +205,14 @@ function parseTargetHost(target: string): { host: string } | { reject: EgressDen
 	return { host };
 }
 
-/** Normalize an allowlist entry to a bare, lowercased apex host (drops a leading `.` and any surrounding whitespace). */
+/**
+ * Normalize an allowlist entry to a bare, lowercased apex host: drop surrounding whitespace, a leading `.`, AND a
+ * trailing FQDN-root `.` — the target host is canonicalized with its trailing dot stripped (see `parseTargetHost`), so
+ * an entry spelled as an FQDN (`example.com.`) must strip it too, else it would match nothing (neither the apex nor any
+ * subdomain of a dot-stripped target).
+ */
 function normalizeAllowlistEntry(entry: string): string {
-	return entry.trim().toLowerCase().replace(/^\./, "");
+	return entry.trim().toLowerCase().replace(/^\./, "").replace(/\.$/, "");
 }
 
 /**

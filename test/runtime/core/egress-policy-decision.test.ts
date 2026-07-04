@@ -196,6 +196,13 @@ describe("decideEgressPolicy — allowlist policy (default-deny)", () => {
 		expect(decide("https://deep.api.example.com", cfg([".example.com"])).decision).toBe("allow");
 	});
 
+	it("allows an entry spelled as an FQDN with a trailing root dot (regression: entry-side dot must be stripped too)", () => {
+		// The target host is canonicalized with its trailing dot stripped, so a `example.com.` ENTRY must strip it too —
+		// else it matched nothing (neither the apex nor any dot-stripped subdomain).
+		expect(decide("https://example.com", cfg(["example.com."])).decision).toBe("allow");
+		expect(decide("https://api.example.com", cfg(["example.com."])).decision).toBe("allow");
+	});
+
 	it("denies a host NOT on the allowlist", () => {
 		const d = decide("https://evil.com", cfg(["example.com"]));
 		expect(d.decision).toBe("deny");
