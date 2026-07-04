@@ -1488,7 +1488,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       are its inputs. Today each role binds one model. *Decided 2026-06-22:* estimate task difficulty → match to MCSR
       capability/speed, capability-weighted (most-capable free model that fits the ≥32k budget; speed tiebreaker; easy
       cards take the fast/small model); user can pin/prefer/weight per role.
-  - [ ] task-difficulty estimate (objective text, expected file/context footprint, acceptance shape, bounce history)
+  - [x] task-difficulty estimate (objective text, expected file/context footprint, acceptance shape, bounce history) *(2026-07-04: pure `estimateTaskDifficulty` in [task-difficulty-estimate.ts](src/core/task-difficulty-estimate.ts) → score+tier+reasons; bounces escalate; 6 tests)*
   - [ ] per-model metrics from MCSR (§6.4) — extend if missing, don't duplicate
   - [ ] one-to-many role→model config + free-vs-busy assignment in the swarm executor (§6.5)
   - [ ] user override (pin / preference order / speed-vs-capability weight) per role
