@@ -23,7 +23,9 @@ export type SelfObservationSignal =
 	| "eval_score"
 	/** §5.AA/§5.AN: a model turn produced NEITHER a tool call NOR any text (empty) — a stall/truncation (e.g. a reasoning
 	 *  model that burned its budget on reasoning_content before acting). Makes a previously-invisible swarm-path failure
-	 *  countable. Detected by content-shape (no tool-call part + empty text), not finishReason (the SDK abstracts that). */
+	 *  countable. DETECTED by content-shape (no tool-call part + empty text); CLASSIFIED via the afterModel context's
+	 *  finishReason through `deriveTruncationSignal` (metadata carries `finishReason`/`outcome`/`truncatedByStopReason`) so
+	 *  a `max-tokens` truncation is distinguishable from a genuine stall and the swarm-path finishReason is now measurable. */
 	| "model_stalled"
 	| "custom";
 

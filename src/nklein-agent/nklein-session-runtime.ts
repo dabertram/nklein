@@ -10,6 +10,7 @@ import {
 	type RuntimeTaskImage,
 	type RuntimeTaskSessionMode,
 } from "../core/api-contract";
+import { deriveTruncationSignal } from "../core/completion-stop-reason";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
@@ -368,13 +369,27 @@ function createKanbanContextFocusExtension(
 						.filter((part) => part.type === "text")
 						.reduce((total, part) => total + ((part as { text?: string }).text?.trim().length ?? 0), 0);
 					if (!hasToolCallPart && assistantTextLength === 0) {
+						// §5.AA classification (was "content-shape only"): the SDK DOES surface a finishReason on the
+						// afterModel context, so classify the empty turn via the SAME centralized `deriveTruncationSignal`
+						// the chat ladder uses — a `max-tokens` stop (or a starved reasoning budget) is a TRUNCATION (fixed by a
+						// bigger budget), distinct from a genuine empty stall. Recording the raw finishReason + the derived
+						// outcome makes the swarm-path truth MEASURABLE (resolving whether the finishReason is reliable here)
+						// and gives the future turn-level recovery a real `truncated` signal to act on. Still observation-only.
+						const truncation = deriveTruncationSignal({ rawReason: context.finishReason });
 						recordSelfObservation({
 							signal: "model_stalled",
 							severity: "warning",
-							message:
-								"Model turn produced no tool call and no text (stall/truncation) — likely budget exhausted on reasoning.",
+							message: truncation.truncatedByStopReason
+								? `Model turn truncated (${context.finishReason}) with no tool call and no text — raise the token budget.`
+								: "Model turn produced no tool call and no text (stall/truncation) — likely budget exhausted on reasoning.",
 							workspacePath: agentPerceivedCwd,
-							metadata: { category: "model_stalled", sessionId },
+							metadata: {
+								category: "model_stalled",
+								sessionId,
+								finishReason: context.finishReason,
+								outcome: truncation.outcome,
+								truncatedByStopReason: truncation.truncatedByStopReason,
+							},
 						});
 					}
 				}
