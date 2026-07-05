@@ -84,3 +84,16 @@ describe("allocateTurnBudget", () => {
 		expect(Object.keys(result.allocations)).toEqual(["semantic"]);
 	});
 });
+
+describe("allocateTurnBudget — non-finite fail-safe (regression: bug-hunt 2026-07-05)", () => {
+	it("sanitizes NaN / Infinity tokens to 0 so nothing poisons the allocation", () => {
+		const result = allocateTurnBudget(Number.NaN, [
+			{ id: "system_invariants", fixed: true, desired: Number.NaN, priority: 0 },
+			{ id: "semantic", fixed: false, desired: 10_000, priority: 50, min: 0 },
+		]);
+		expect(result.allocations.system_invariants).toBe(0);
+		expect(Number.isNaN(result.totalAllocated)).toBe(false);
+		expect(Number.isNaN(result.leftover)).toBe(false);
+		expect(Number.isFinite(allocateTurnBudget(Number.POSITIVE_INFINITY, []).totalAllocated)).toBe(true);
+	});
+});

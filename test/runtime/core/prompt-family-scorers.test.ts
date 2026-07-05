@@ -81,3 +81,16 @@ describe("scoreDefectCatchingReview", () => {
 		expect(scoreDefectCatchingReview(["noise", "d1"], ["d1", "d2"])).toBe(0.5);
 	});
 });
+
+describe("scorer non-finite / duplicate-node fail-safe (regression: bug-hunt 2026-07-05)", () => {
+	it("scorePassingCode sanitizes NaN to 0", () => {
+		expect(scorePassingCode(Number.NaN, 10)).toBe(0);
+		expect(scorePassingCode(5, Number.NaN)).toBe(0);
+		expect(Number.isNaN(scorePassingCode(Number.NaN, Number.NaN))).toBe(false);
+	});
+
+	it("scoreValidDag deduplicates node ids (a valid DAG with a repeated node id is not misreported as a cycle)", () => {
+		// Before the fix: removed(2) !== raw graph.nodes.length(3) ⇒ wrongly scored 0.
+		expect(scoreValidDag({ nodes: ["a", "b", "b"], edges: [{ from: "a", to: "b" }] })).toBe(1);
+	});
+});

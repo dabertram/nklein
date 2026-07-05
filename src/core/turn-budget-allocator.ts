@@ -54,7 +54,8 @@ export interface BudgetAllocation {
 	underFloor: boolean;
 }
 
-const clampTokens = (value: number): number => Math.max(0, Math.trunc(value));
+// Non-finite (NaN / ±Infinity) coerces to 0 — Math.max(0, NaN) is NaN, which would poison the whole allocation.
+const clampTokens = (value: number): number => (Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0);
 
 /**
  * Allocate a turn's token budget across its bands (pure). Fixed bands reserve their exact cost; the remainder is filled

@@ -30,7 +30,8 @@ export function scoreValidDag(graph: TaskGraph): number {
 	}
 
 	// Kahn: repeatedly remove a zero-indegree node; if all nodes are removed, the graph is acyclic.
-	const queue = graph.nodes.filter((node) => (indegree.get(node) ?? 0) === 0);
+	// Seed from the DISTINCT node set (not the raw array) so a duplicate node id isn't enqueued/counted twice.
+	const queue = [...nodes].filter((node) => (indegree.get(node) ?? 0) === 0);
 	let removed = 0;
 	while (queue.length > 0) {
 		const node = queue.shift();
@@ -46,18 +47,19 @@ export function scoreValidDag(graph: TaskGraph): number {
 			}
 		}
 	}
-	return removed === graph.nodes.length ? 1 : 0; // fewer removed ⇒ a cycle remains
+	return removed === nodes.size ? 1 : 0; // fewer distinct nodes removed ⇒ a cycle remains
 }
 
 // ── Coding family: passing code ─────────────────────────────────────────────────────────────────────────────────────
 
 /** Score a coding attempt on its test pass fraction in [0,1] (0 total tests ⇒ 0 — nothing was proven to pass). */
 export function scorePassingCode(passed: number, total: number): number {
-	const totalTests = Math.max(0, Math.trunc(total));
+	// Non-finite (NaN / ±Infinity) coerces to 0 so the totalTests===0 guard actually catches garbage (Math.max(0,NaN)=NaN).
+	const totalTests = Number.isFinite(total) ? Math.max(0, Math.trunc(total)) : 0;
 	if (totalTests === 0) {
 		return 0;
 	}
-	const passedTests = Math.min(totalTests, Math.max(0, Math.trunc(passed)));
+	const passedTests = Number.isFinite(passed) ? Math.min(totalTests, Math.max(0, Math.trunc(passed))) : 0;
 	return passedTests / totalTests;
 }
 
