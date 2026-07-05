@@ -334,9 +334,10 @@ describe("AgentSandboxManager", () => {
 				cpusPerContainer: 1,
 			}),
 		};
-		// Default: no writable mounts ⇒ fully read-only (no readwrite bind).
-		expect(buildAgentSandboxDockerRunArgs(base).some((a) => a.includes("readwrite"))).toBe(false);
-		// With writable mounts ⇒ each appears as a readwrite bind, before the image trailer.
+		// Default: no writable mounts ⇒ fully read-only (only the readonly project binds, no other bind).
+		expect(buildAgentSandboxDockerRunArgs(base).filter((a) => a.startsWith("type=bind")).length).toBe(0);
+		// With writable mounts ⇒ each appears as a read-WRITE bind (RW = the default; NO `readonly` + NO invalid
+		// `readwrite` field, which docker rejects), before the image trailer.
 		const withMounts = buildAgentSandboxDockerRunArgs({
 			...base,
 			writableMounts: [
@@ -344,8 +345,10 @@ describe("AgentSandboxManager", () => {
 				{ hostPath: "/host/bm/notes", containerPath: "/nklein/basic-memory/notes" },
 			],
 		});
-		expect(withMounts).toContain("type=bind,src=/host/bm/config,dst=/nklein/basic-memory/config,readwrite");
-		expect(withMounts).toContain("type=bind,src=/host/bm/notes,dst=/nklein/basic-memory/notes,readwrite");
+		expect(withMounts).toContain("type=bind,src=/host/bm/config,dst=/nklein/basic-memory/config");
+		expect(withMounts).toContain("type=bind,src=/host/bm/notes,dst=/nklein/basic-memory/notes");
+		expect(withMounts.some((a) => a.includes("readwrite"))).toBe(false); // no invalid docker field
+		expect(withMounts.some((a) => a.includes("/nklein/basic-memory/config,readonly"))).toBe(false); // it IS writable
 		expect(withMounts.slice(-3)).toEqual(["test-image", "sleep", "infinity"]);
 	});
 

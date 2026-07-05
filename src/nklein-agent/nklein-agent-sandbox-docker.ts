@@ -188,8 +188,9 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 		args.push("--mount", `type=bind,src=${mount.projectRepoPath},dst=/repos/${mount.projectKey},readonly`);
 	}
 	// RW writable mounts (§5.AR basic-memory) — the ONLY read-write host binds; absent by default (fully read-only).
+	// A bind mount is read-WRITE by default: omit `readonly` (there is NO `readwrite` field — docker rejects it).
 	for (const mount of options.writableMounts ?? []) {
-		args.push("--mount", `type=bind,src=${mount.hostPath},dst=${mount.containerPath},readwrite`);
+		args.push("--mount", `type=bind,src=${mount.hostPath},dst=${mount.containerPath}`);
 	}
 	args.push(options.image, "sleep", "infinity");
 	return args;
