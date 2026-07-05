@@ -58,3 +58,13 @@ David chose "enable egress live now." Done + validated end-to-end:
 - browse_url shares the host-side SSRF-guarded fetcher (live proof-of-block already added this run).
 
 So the §5.AC online-retrieval path is now LIVE (not dark). Guidance item #1 (egress greenlight) above is RESOLVED — egress is on, host-side, SSRF-safe, with a reproducible backend. The sandbox itself stays `--network none` (L1546 sandbox-direct-network proxy remains unneeded / a separate design Q; David didn't pick it).
+
+
+## Update 2026-07-05 (later): adversarial bug-hunt sweep on new + newly-LIVE code — 4 defects fixed, all live-validated
+
+Fanned out 3 parallel adversarial hunters (find→refute) over the session's new/newly-live code. Results:
+- **basic-memory wiring — 1 HIGH, CONFIRMED + FIXED + LIVE-VALIDATED.** Per-project stores used FIXED container paths (`/nklein/basic-memory/{notes,config}`, no workspace segment), but the ONE shared sandbox container mounts every registered project at once ⇒ two projects → duplicate `--mount` dst → `docker run` fails ("Duplicate mount point") → outage for ALL tasks. My single-project live e2e missed it (exactly the multi-project race David flagged). Fix: workspace-hash the per-project container paths + dedup the shared-global mount by dst in `startContainer`. Validated LIVE before/after with real docker: old style crashes, new style starts (5 unique mounts from 6 raw). Commits `0bacc394`.
+- **egress/SSRF — 2 real holes FIXED + LIVE-VALIDATED, both in the guard shared by browse_url + retrieval + nklein-browse.** (1) The IPv6 blocklist omitted IPv4-EMBEDDING ranges (NAT64 `64:ff9b::/96`, 6to4, Teredo) — `[64:ff9b::a9fe:a9fe]` reached 169.254.169.254 metadata; now blocked fail-closed (`293274f6`). (2) The guard only checked the TOP-LEVEL URL — subresource requests, redirect-to-internal (fired the GET before the post-hoc check), and DNS-rebinding slipped through; added a `page.route` per-request SSRF interceptor for the guarded contexts, validated live with real Chromium (raw reaches loopback hits=1; intercepting aborts before the request, hits=0) (`e492df47`). **RESIDUAL (tracked):** the last resolve→connect micro-TOCTOU is not closed — needs IP pinning (Playwright can't easily pin per-request); the interceptor shrinks the window from seconds to microseconds + closes the subresource/redirect holes entirely.
+- **truncation-classification vein — CLEAN** (no confirmed defects; the centralized classifier + budget math are sound; one non-reachable defensive NaN gap noted only).
+
+Full gate green after all fixes: 647 files / 7312 tests / tsc 0. Validation-first + adversarial sweep worked: the collision + SSRF holes were caught by the sweep, not the unit tests (which asserted single-project / literal-IP happy paths).
