@@ -8361,8 +8361,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Wire `/api/v1/models/{load,unload,download}` endpoints.
   - [ ] Re-verify exact load-params (context length, gpu, ttl) shape.
 - [ ] **Reasoning control as a first-class §5.AA lever, decomposed:**
-  - [ ] Disable thinking for SIMPLE/execution turns (kill reasoning overhead + truncation risk + latency).
-  - [ ] Keep reasoning for hard tasks.
+  - [x] Disable thinking for SIMPLE/execution turns (kill reasoning overhead + truncation risk + latency). *(2026-07-05: `decideReasoningControl` in reasoning-control.ts)*
+  - [x] Keep reasoning for hard tasks. *(2026-07-05: same `decideReasoningControl` — hard tier keeps thinking; deliberative turns (planning/review/chat) keep it; simple/execution disable it; 4 tests)*
   - [~] Use as truncation-recovery rung (already done for chat, qwen3). **CROSS-DIALECT CLASSIFIER CORE DONE (2026-07-01):**
         [completion-stop-reason.ts](src/core/completion-stop-reason.ts) normalizes the stop reason across ALL THREE request
         dialects — OpenAI `/v1` `finish_reason` (`stop`/`length`/`tool_calls`/…), Anthropic `/v1/messages` `stop_reason`
