@@ -1585,8 +1585,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         tier escalates by skipping the confirmation the tool was admitted behind, so even a "smaller" call cannot drop below
         its confirmation floor). `replayable` is deliberately not an axis. 20 tests; tsc + biome clean. The broker's full
         context-aware matrix (below) consumes this before any taint/provenance/mode reasoning.
-    - [ ] define the broker input `{ ruleset, role, provenance, tool trust, taint labels, action, target, is-sink? }`.
-    - [ ] implement the decision: `allow | deny | one-time-confirm | require-fresh-trusted-plan`; unit-test the matrix.
+    - [x] define the broker input `{ ruleset, role, provenance, tool trust, taint labels, action, target, is-sink? }`. *(2026-07-05: ALREADY DONE — `CapabilityBrokerInput` in capability-broker.ts mirrors exactly this §5.L input, reduced to the fields the composed cores consume)*
+    - [x] implement the decision: `allow | deny | one-time-confirm | require-fresh-trusted-plan`; unit-test the matrix. *(2026-07-05: ALREADY DONE — `decideCapabilityAction` (capability-broker.ts): fail-closed ladder escalation→deny · tainted-sink→require_fresh_trusted_plan · egress→one_time_confirm · else allow; 11 tests cover all 4 decisions)*
     - [x] a tool requesting caps BEYOND its declared manifest → deny + the exact escalated axes. *(PURE: `detectCapabilityEscalation` — the least-privilege "a call may use LESS power than baseline, never MORE" rule; approval-gate downgrades count as escalations. OWED WIRING: the broker calls this at the model↔tool seam before the context-aware matrix.)*
     - [ ] wire the broker at the model↔tool seam (every tool call passes through it).
   - [~] **Egress broker.** PURE DECISION CORE DONE (2026-07-01): `src/core/egress-policy-decision.ts` —
