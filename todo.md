@@ -1957,7 +1957,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         alone exceeds the budget; `consolidateChatContextWindow` folds the overflow into one summary via an injected
         summarizer (model call), invoked only when something overflows. Unit-tested (budget split, last-message-kept,
         no-overflow, summarize-only-when-present).
-    - [ ] wire the runtime token estimator into `splitChatContextWindow`.
+    - [x] wire the runtime token estimator into `splitChatContextWindow`. **DONE 2026-07-05:** the runtime `createChatService` (runtime-api.ts) + the CLI now inject the canonical bounded-BPE `countKanbanTextTokens` (§4A single entry point) as `estimateTokens`, replacing the crude `length/4` placeholder. tsc+biome green.
     - [ ] wire the summarizer model call into `consolidateChatContextWindow`.
   - [x] **long-term store + recall (2026-06-24)** — [src/chat/chat-memory-store.ts](src/chat/chat-memory-store.ts):
         persisted memories (append-only JSONL) + `recallChatMemories` — the pure, testable recall core that ranks
