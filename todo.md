@@ -5720,7 +5720,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Add on-demand trigger (Settings: "Evaluate connected models") with UI feedback.
 - [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`), decomposed:**
   - [x] Design the fitness table schema (model × role × difficulty dimensions + retry budget, failure modes). *(2026-07-05: fitness-table-schema.ts — zod fitnessRowSchema (model×role×difficulty key + sample/success counts, retryBudget, failureModes[], rolling perf) + fitnessCellKey + fitnessSuccessRate; 6 tests. Storage/migrations + wiring are the next leaves.)*
-  - [ ] Implement storage layer + schema migrations for the global fitness store.
+  - [x] Implement storage layer + schema migrations for the global fitness store. **DONE 2026-07-05:** `src/telemetry/fitness-table-store.ts` — keyed JSON blob (`<runtimeHome>/fitness-table.json`, `{version,rows}`), ATOMIC writes (temp+rename), defensive read (missing/corrupt ⇒ empty; per-row zod re-validation), forward migration by default-filling re-parse (versioned for future breaking steps). read/readRow/write/upsert + 6 tests. Write/read wiring = the next two leaves.
   - [ ] Wire write side: feed evaluation harness + live task outcomes into the store.
   - [ ] Wire read side: expose projections for the swarm scheduler + model-selection logic.
   - [~] **freshness/decay + re-eval prioritization policy (the "always-fresh grounded metrics" point 3 of the 2026-06-28
