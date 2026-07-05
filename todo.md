@@ -5433,7 +5433,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       pool-aware), §6.5 (the endpoint scheduler is the seam), §5.AF (the durable scheduler's per-endpoint leasing + the
       resource-governance leaf), §5.W (concurrency UI), and the `decideModelLoad` headroom guard (per-machine RAM budget,
       not one global). Decomposed:
-  - [ ] define the `ModelPool` model — one pool per machine: `{ id/label, baseUrl/endpoint, maxConcurrency, ramBudget,
+  - [x] define the `ModelPool` model — one pool per machine: `{ id/label, baseUrl/endpoint, maxConcurrency, ramBudget, *(2026-07-05: model-pool.ts — ModelPool type + pure per-pool primitives: poolResidentRamMb/poolFreeRamMb/poolHasRamHeadroom(per-machine budget)/poolHasConcurrencyHeadroom/poolHasResidentModel; 6 tests. The decideModelLoad/loader per-pool rewiring is L5560.)*
         residentModels[] }`; the loaded-set fetch + `decideModelLoad` headroom become **per-pool**, not global.
   - [~] discover/declare linked machines: read LM Studio's linked-endpoint set (or a user-configured pool list) and tag
         each loaded model with its owning pool/endpoint. **TAGGING FOUNDATION DONE (2026-07-01, 791a8162):**
