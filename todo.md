@@ -5671,7 +5671,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         long-lived query surface is worth a second local process).
 - [ ] **Eval-prompt corpus (per role × difficulty × size), decomposed:**
   - [ ] Design + collect role-specific prompt templates (architect/decompose, worker/implement, reviewer) across difficulty tiers (trivial–very-hard).
-  - [ ] Build deterministic scorers for each prompt family (valid DAG, passing code, defect-catching review).
+  - [x] Build deterministic scorers for each prompt family (valid DAG, passing code, defect-catching review). *(2026-07-05: prompt-family-scorers.ts — scoreValidDag (Kahn cycle-check + edge validity), scorePassingCode (pass fraction), scoreDefectCatchingReview (seeded-defect recall); 12 tests)*
   - [ ] Set up versioning infrastructure so re-evals compare corpus versions.
   - [ ] Integrate size/context footprint variants (per the research findings on effective context budgets).
 - [ ] **Evaluation harness (run a model through the matrix → fitness), decomposed:**
