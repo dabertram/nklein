@@ -2,6 +2,35 @@
 
 Living log of the autonomous grind + **the collected items that need David's guidance** (the `/goal`'s "collect everything that really needs my guidance"). Update as the run continues.
 
+## ★ DECISIONS OWED (David) — consolidated 2026-07-05
+
+Seven items the autonomous run collected rather than deciding unilaterally (each has a recommendation; detail in the
+per-sweep sections below):
+
+1. **§5.AB `defaultAcceptanceCommand`: fill-only vs override.** A non-null default currently OVERRIDES a card's own
+   `acceptanceCommand`; the tool-schema doc + `plan-task-schemas` say FILL-ONLY, but 2 deliberate tests assert override.
+   *Rec:* fill-only (honor a card's precise objective check; a coarse global default silently weakening it is the bug) —
+   confirm, since it flips a deliberate test.
+2. **§5.AV `addTaskDependency` cycle guard.** The predicate `wouldCreateDependencyCycle` ships (pure) but is NOT wired:
+   a deliberate test lets two WAITING cards hold a 2-cycle ("a distinct link"), yet a cycle deadlocks the board. *Rec:*
+   guard it (a deadlock is never desirable) — confirm, since it flips that test.
+3. **§5.AF ledger forward-compat.** `jsonl-store` drops a forward-incompatible terminal `completed` event before the
+   SB#3 fail-safe can fold it → a finished job re-runs on boot-replay. Speculative today (single schema version). *Rec:*
+   pick a forward-compat strategy (tolerant envelope vs raw-jsonl read for the scheduler family) before a v2 event ships.
+4. **§5.AL runtime-verdict precision (optional).** The penalty is now ACTIVE (ledger run denominator wired in). Stamping
+   a per-run id on `model_stalled` self-observations would let the stall NUMERATOR dedup per-run instead of a raw capped
+   count — a refinement, not a correctness gap. Also owed: a live check that the penalty fires on real stall history.
+5. **§5.AF strategy-effectiveness learning is not-ripe.** The pure core + projection can't run: the ledger has only
+   terminal (per-task/session) emitters, so there's no per-RUNG observation stream. Needs per-rung `attempt` emission in
+   the chat retry ladder (hot-path) first.
+6. **§5.AE skill-fragment dynamics level (LOW).** `buildSessionSkillFragments` resolves skills at `fully_dynamic`, not
+   the user's `effectiveSkillDynamicsLevel` — a divergence from the routing path. Needs the session service to thread
+   the level (it doesn't access that config at the fragment seam today).
+7. **Environment blockers (not decisions — just gates).** SWARM-recovery increments 2-3 need `bun` (vendored SDK build
+   tool, not installed); durable-scheduler default-on needs a Docker VM larger than 7.7 GiB to validate the swarm run.
+
+---
+
 ## Shipped this run (all green, gate at ~7279 tests, ~150 commits)
 
 - **MCP guidance arc (fully done + live-validated):** audited per-model gating of the 3 MCPs; made **codebase-memory** live (baked the pinned static binary into the sandbox image + the "prefer the code-graph over grep" nudge); implemented **basic-memory** across per-project + global scopes with the **strong-model `memory_audit`** (the verification the architecture was missing) — fit profile, scoping/keying, provenance frontmatter + provenance-weighted recall, default-OFF opt-in gate; **rebuilt the sandbox image + validated all 3 servers speak MCP offline** (`verify-sandbox-mcp.mts`).
