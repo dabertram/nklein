@@ -67,6 +67,7 @@ import {
 } from "../nklein-agent/nklein-task-session-service";
 import { isTrustedAutoMergeProtectedPath } from "../nklein-agent/nklein-trusted-auto-merge";
 import { createNKleinWatcherRegistry } from "../nklein-agent/nklein-watcher-registry";
+import { deriveTaskFitnessRecord } from "../nklein-agent/task-fitness-recording";
 import {
 	buildSessionCookieHeader,
 	checkRateLimit,
@@ -89,6 +90,7 @@ import {
 	loadWorkspaceState,
 	mutateWorkspaceState,
 } from "../state/workspace-state";
+import { recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -826,6 +828,12 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				runtimeConfig,
 				summary,
 			});
+			// §5.AB fitness store: fold this terminal outcome into its (model × role × difficulty) cell (best-effort,
+			// serialized write). Returns null + skips for synthetic / non-terminal / model-less sessions.
+			const fitnessRecord = deriveTaskFitnessRecord({ summary, card });
+			if (fitnessRecord) {
+				await recordTaskFitnessOutcome(fitnessRecord.key, fitnessRecord.outcome).catch(() => {});
+			}
 		})().catch((error) => {
 			const message = error instanceof Error ? error.message : String(error);
 			deps.warn(`Could not record model performance for ${summary.taskId}: ${message}`);

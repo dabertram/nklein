@@ -15,7 +15,15 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { type FitnessSelectionQuery, rankFitnessCandidatesForCell } from "../core/fitness-projections";
-import { type FitnessRow, fitnessCellKey, fitnessRowSchema } from "../core/fitness-table-schema";
+import {
+	emptyFitnessRow,
+	type FitnessKey,
+	type FitnessOutcome,
+	type FitnessRow,
+	fitnessCellKey,
+	fitnessRowSchema,
+	recordFitnessOutcome,
+} from "../core/fitness-table-schema";
 
 const DEFAULT_FITNESS_TABLE_PATH = join(resolveNkleinRuntimeHomePath(homedir()), "fitness-table.json");
 
@@ -117,4 +125,33 @@ export async function upsertFitnessRows(
 	}
 	await writeFitnessTable(table, options);
 	return table;
+}
+
+// Serialize read→fold→upsert PER store path: the keyed blob isn't atomic across a read-modify-write, so concurrent task
+// completions (many finish at once) would lose updates. A promise chain per path funnels the writes; each waits for the
+// prior. In-process only (single runtime writes this store) — good enough for the live write side.
+const fitnessWriteChains = new Map<string, Promise<unknown>>();
+
+/**
+ * §5.AB LIVE write side: record one task's outcome for a (model × role × difficulty) cell. Reads the cell, folds the
+ * outcome via the pure {@link recordFitnessOutcome}, and upserts — serialized per store path so concurrent completions
+ * can't race. Best-effort: swallows its own errors (this rides a completion hot path and must never throw into it).
+ */
+export async function recordTaskFitnessOutcome(
+	key: FitnessKey,
+	outcome: FitnessOutcome,
+	options: FitnessTableStoreOptions & { now?: number } = {},
+): Promise<void> {
+	const path = options.path ?? DEFAULT_FITNESS_TABLE_PATH;
+	const prior = fitnessWriteChains.get(path) ?? Promise.resolve();
+	const next = prior
+		.catch(() => {}) // a prior failure must not stall the chain
+		.then(async () => {
+			const existing = await readFitnessRow(key, options);
+			const folded = recordFitnessOutcome(existing ?? emptyFitnessRow(key), outcome, options.now ?? null);
+			await upsertFitnessRows([folded], options);
+		})
+		.catch(() => {}); // best-effort telemetry — never throw into the caller
+	fitnessWriteChains.set(path, next);
+	await next;
 }

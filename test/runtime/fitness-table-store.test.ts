@@ -8,6 +8,7 @@ import {
 	readFitnessRow,
 	readFitnessTable,
 	readRankedFitnessCandidates,
+	recordTaskFitnessOutcome,
 	upsertFitnessRows,
 	writeFitnessTable,
 } from "../../src/telemetry/fitness-table-store";
@@ -110,4 +111,16 @@ describe("fitness-table-store (§5.AB storage layer)", () => {
 		const ranked = await readRankedFitnessCandidates({ role: "worker", difficultyTier: "medium" }, { path });
 		expect(ranked.map((r) => r.modelKey)).toEqual(["strong", "mid", "weak"]); // other-cell (reviewer) excluded
 	});
-});
+	it("recordTaskFitnessOutcome: concurrent completions for one cell don't lose updates (serialized)", async () => {
+		const key = { modelKey: "prov:coder:default", role: "worker", difficultyTier: "medium" as const };
+		// Fire 20 outcomes concurrently at the SAME cell — a racy read-modify-write would lose some.
+		await Promise.all(
+			Array.from({ length: 20 }, (_, i) =>
+				recordTaskFitnessOutcome(key, { success: i % 2 === 0 }, { path, now: i }),
+			),
+		);
+		const back = await readFitnessRow(key, { path });
+		expect(back?.sampleCount).toBe(20); // all 20 folded — none lost
+		expect(back?.successCount).toBe(10); // even indices succeeded
+	});
+}); // end describe
