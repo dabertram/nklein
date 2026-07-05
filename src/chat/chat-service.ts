@@ -162,6 +162,24 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 	const memoryOptions = { ...(rootDir ? { rootDir: join(rootDir, "memories") } : {}), ...(now ? { now } : {}) };
 	const estimateTokens = options.estimateTokens ?? ((text: string) => Math.ceil(text.length / 4));
 
+	// Bug-hunt fix (2026-07-05): serialize whole TURNS per session id. sendMessage/runAutonomous each append a user
+	// message, run the (potentially long) model+tool loop, then append the assistant reply — two separate awaited
+	// writes with nothing serializing them against a SECOND concurrent turn on the SAME session. Turn A's user append,
+	// then turn B's user+assistant appends interleaving before turn A's own assistant append, corrupts the
+	// user→assistant transcript pairing every later read relies on. A second turn for a session already mid-flight now
+	// waits for the first to finish (matching how one conversation is expected to behave); turns on DIFFERENT sessions
+	// stay fully concurrent — this never serializes across sessions.
+	const sessionTurnChains = new Map<string, Promise<unknown>>();
+	function serializeSessionTurn<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+		const prior = sessionTurnChains.get(sessionId) ?? Promise.resolve();
+		const settled = prior.then(fn, fn);
+		sessionTurnChains.set(
+			sessionId,
+			settled.catch(() => undefined),
+		);
+		return settled;
+	}
+
 	return {
 		listSessions: async () => {
 			const sessions = await listChatSessions(sessionOptions);
@@ -213,196 +231,198 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			});
 			return messages.map(toRuntimeChatMessage);
 		},
-		sendMessage: async (input, onToken) => {
-			if (!options.resolveModelDeps) {
-				throw new Error("This chat service is read-only: no model is configured for sending messages.");
-			}
-			const session = await getChatSession(input.sessionId, sessionOptions);
-			if (!session) {
-				return null;
-			}
-			const modelDeps = await options.resolveModelDeps();
-			const tokenBudget = input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET;
-			const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
-			// §5.AC: resolve the "knows today" switch per turn (config || env, off by default) so a live config change
-			// applies immediately; undefined ⇒ the renderer's env fallback decides. Threaded into the turn deps below.
-			const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
-			const storeDeps = {
-				readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
-				readMemories: () => readChatMemories(memoryOptions),
-				appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
-					appendChatMessage(sessionId, message, transcriptOptions),
-				estimateTokens,
-				...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
-			};
-
-			// Tool-using path (todo §5.M G3a): when the session resolves agent tool deps, drive the tool-using agent
-			// loop instead of plain completion. `onToken` still streams the FINAL (no-tool) reply (hybrid streaming), so
-			// a turn that uses no tools keeps token-by-token streaming. `summarize` for the lean window comes from the
-			// plain model deps. Null ⇒ fall through to the plain `runChatTurn` path below (e.g. no active workspace).
-			const agentToolDeps = options.resolveAgentToolDeps ? await options.resolveAgentToolDeps(session) : null;
-			if (agentToolDeps) {
-				// §5.AL capability gate (web-ui/API chat path): the tool-using agent needs a tool-capable model, so refuse a
-				// catalog-`reject` model up front (e.g. a reasoning-only variant) rather than burning the turn on a model that
-				// can't drive tools. Override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1; warn/unknown proceed. Only when the model
-				// id is known (the live local resolver supplies it); a fake/test modelDeps without it is unaffected.
-				let capabilityNotice: string | null = null;
-				if (modelDeps.modelId) {
-					const policyBase = options.resolveModelGatePolicyBase
-						? await options.resolveModelGatePolicyBase()
-						: null;
-					const gate = decideChatModelGate(modelDeps.modelId, {
-						toolUsing: true,
-						allowOverride: process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL === "1",
-						...(policyBase ? { policyBase } : {}),
-					});
-					if (gate.action === "reject") {
-						throw new Error(gate.message);
-					}
-					if (gate.action === "warn") {
-						capabilityNotice = gate.message;
-					}
+		sendMessage: (input, onToken) =>
+			serializeSessionTurn(input.sessionId, async () => {
+				if (!options.resolveModelDeps) {
+					throw new Error("This chat service is read-only: no model is configured for sending messages.");
 				}
-				// §5.AU rung-1+ wiring: resolve WHO the message addresses (explicit @handle → reply-bind → focus → goal)
-				// against the session's board index, lead the turn with the rendered note, and persist an explicit
-				// handle as the session's new focus. Goal turns add nothing (prompt stays byte-identical — §5.AQ).
-				let targetNote: string | null = null;
-				let targetLabel: string | null = null;
-				if (options.resolveMessageTargetIndex) {
-					const index = await options.resolveMessageTargetIndex(session);
-					if (index) {
-						const target = resolveMessageTarget({
-							text: input.message,
-							outstandingAsks: session.outstandingAsks,
-							focus: session.focus,
-							lastReferencedTaskId: session.focus?.kind === "card" ? session.focus.id : null,
-							index,
+				const session = await getChatSession(input.sessionId, sessionOptions);
+				if (!session) {
+					return null;
+				}
+				const modelDeps = await options.resolveModelDeps();
+				const tokenBudget = input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET;
+				const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
+				// §5.AC: resolve the "knows today" switch per turn (config || env, off by default) so a live config change
+				// applies immediately; undefined ⇒ the renderer's env fallback decides. Threaded into the turn deps below.
+				const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
+				const storeDeps = {
+					readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
+					readMemories: () => readChatMemories(memoryOptions),
+					appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
+						appendChatMessage(sessionId, message, transcriptOptions),
+					estimateTokens,
+					...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
+				};
+
+				// Tool-using path (todo §5.M G3a): when the session resolves agent tool deps, drive the tool-using agent
+				// loop instead of plain completion. `onToken` still streams the FINAL (no-tool) reply (hybrid streaming), so
+				// a turn that uses no tools keeps token-by-token streaming. `summarize` for the lean window comes from the
+				// plain model deps. Null ⇒ fall through to the plain `runChatTurn` path below (e.g. no active workspace).
+				const agentToolDeps = options.resolveAgentToolDeps ? await options.resolveAgentToolDeps(session) : null;
+				if (agentToolDeps) {
+					// §5.AL capability gate (web-ui/API chat path): the tool-using agent needs a tool-capable model, so refuse a
+					// catalog-`reject` model up front (e.g. a reasoning-only variant) rather than burning the turn on a model that
+					// can't drive tools. Override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1; warn/unknown proceed. Only when the model
+					// id is known (the live local resolver supplies it); a fake/test modelDeps without it is unaffected.
+					let capabilityNotice: string | null = null;
+					if (modelDeps.modelId) {
+						const policyBase = options.resolveModelGatePolicyBase
+							? await options.resolveModelGatePolicyBase()
+							: null;
+						const gate = decideChatModelGate(modelDeps.modelId, {
+							toolUsing: true,
+							allowOverride: process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL === "1",
+							...(policyBase ? { policyBase } : {}),
 						});
-						targetNote = renderMessageTargetNote(target);
-						targetLabel = target.kind === "goal" ? null : (target.displayLabel ?? null);
-						if (
-							target.source === "explicit_handle" &&
-							target.id &&
-							(target.kind === "card" || target.kind === "stream")
-						) {
-							await updateChatSession(
-								session.id,
-								{ focus: { kind: target.kind, id: target.id, at: (options.now ?? Date.now)() } },
-								sessionOptions,
-							);
+						if (gate.action === "reject") {
+							throw new Error(gate.message);
+						}
+						if (gate.action === "warn") {
+							capabilityNotice = gate.message;
 						}
 					}
+					// §5.AU rung-1+ wiring: resolve WHO the message addresses (explicit @handle → reply-bind → focus → goal)
+					// against the session's board index, lead the turn with the rendered note, and persist an explicit
+					// handle as the session's new focus. Goal turns add nothing (prompt stays byte-identical — §5.AQ).
+					let targetNote: string | null = null;
+					let targetLabel: string | null = null;
+					if (options.resolveMessageTargetIndex) {
+						const index = await options.resolveMessageTargetIndex(session);
+						if (index) {
+							const target = resolveMessageTarget({
+								text: input.message,
+								outstandingAsks: session.outstandingAsks,
+								focus: session.focus,
+								lastReferencedTaskId: session.focus?.kind === "card" ? session.focus.id : null,
+								index,
+							});
+							targetNote = renderMessageTargetNote(target);
+							targetLabel = target.kind === "goal" ? null : (target.displayLabel ?? null);
+							if (
+								target.source === "explicit_handle" &&
+								target.id &&
+								(target.kind === "card" || target.kind === "stream")
+							) {
+								await updateChatSession(
+									session.id,
+									{ focus: { kind: target.kind, id: target.id, at: (options.now ?? Date.now)() } },
+									sessionOptions,
+								);
+							}
+						}
+					}
+					const turnStartedAt = Date.now();
+					const agentResult = await runChatAgentTurn(
+						{
+							session,
+							userMessage: input.message,
+							tokenBudget,
+							memoryLimit,
+							...(onToken ? { onToken } : {}),
+							...(targetNote ? { targetNote } : {}),
+						},
+						{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
+					);
+					// §5.AF: best-effort append a `chat`-flow attempt event to the ledger (observational; never throws into
+					// the turn — the sink swallows its own errors). Only when the model id is known.
+					if (options.recordChatAttempt && modelDeps.modelId) {
+						options.recordChatAttempt({
+							sessionId: session.id,
+							modelId: modelDeps.modelId,
+							toolNames: agentResult.steps.map((step) => step.toolCall.name),
+							hitIterationLimit: agentResult.hitIterationLimit,
+							flow: "chat",
+							startedAt: turnStartedAt,
+							endedAt: Date.now(),
+						});
+					}
+					// §5.M: accumulate this turn's token usage onto the session's running total (best-effort display metric).
+					// `addTokensUsed` (not a precomputed `session.totalTokensUsed + …`) so concurrent turns on one session
+					// don't race on a stale locally-held total (bug-hunt 2026-07-05: last-writer-wins lost updates).
+					if (agentResult.totalTokens > 0) {
+						await updateChatSession(session.id, { addTokensUsed: agentResult.totalTokens }, sessionOptions);
+					}
+					return {
+						userMessage: toRuntimeChatMessage(agentResult.userMessage),
+						assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
+						...(capabilityNotice ? { capabilityNotice } : {}),
+						...(targetLabel ? { targetLabel } : {}),
+					};
 				}
-				const turnStartedAt = Date.now();
-				const agentResult = await runChatAgentTurn(
+
+				const result = await runChatTurn(
 					{
 						session,
 						userMessage: input.message,
 						tokenBudget,
 						memoryLimit,
 						...(onToken ? { onToken } : {}),
-						...(targetNote ? { targetNote } : {}),
 					},
-					{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
+					{ ...storeDeps, ...modelDeps },
 				);
-				// §5.AF: best-effort append a `chat`-flow attempt event to the ledger (observational; never throws into
-				// the turn — the sink swallows its own errors). Only when the model id is known.
-				if (options.recordChatAttempt && modelDeps.modelId) {
-					options.recordChatAttempt({
-						sessionId: session.id,
-						modelId: modelDeps.modelId,
-						toolNames: agentResult.steps.map((step) => step.toolCall.name),
-						hitIterationLimit: agentResult.hitIterationLimit,
-						flow: "chat",
-						startedAt: turnStartedAt,
-						endedAt: Date.now(),
-					});
-				}
-				// §5.M: accumulate this turn's token usage onto the session's running total (best-effort display metric).
-				// `addTokensUsed` (not a precomputed `session.totalTokensUsed + …`) so concurrent turns on one session
-				// don't race on a stale locally-held total (bug-hunt 2026-07-05: last-writer-wins lost updates).
-				if (agentResult.totalTokens > 0) {
-					await updateChatSession(session.id, { addTokensUsed: agentResult.totalTokens }, sessionOptions);
-				}
 				return {
-					userMessage: toRuntimeChatMessage(agentResult.userMessage),
-					assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
-					...(capabilityNotice ? { capabilityNotice } : {}),
-					...(targetLabel ? { targetLabel } : {}),
+					userMessage: toRuntimeChatMessage(result.userMessage),
+					assistantMessage: toRuntimeChatMessage(result.assistantMessage),
 				};
-			}
-
-			const result = await runChatTurn(
-				{
-					session,
-					userMessage: input.message,
-					tokenBudget,
-					memoryLimit,
-					...(onToken ? { onToken } : {}),
-				},
-				{ ...storeDeps, ...modelDeps },
-			);
-			return {
-				userMessage: toRuntimeChatMessage(result.userMessage),
-				assistantMessage: toRuntimeChatMessage(result.assistantMessage),
-			};
-		},
-		runAutonomous: async (input) => {
-			if (!options.resolveModelDeps) {
-				throw new Error("This chat service is read-only: no model is configured for autonomous runs.");
-			}
-			const session = await getChatSession(input.sessionId, sessionOptions);
-			if (!session) {
-				return null;
-			}
-			const modelDeps = await options.resolveModelDeps();
-			const tokenBudget = DEFAULT_CHAT_TOKEN_BUDGET;
-			const memoryLimit = DEFAULT_CHAT_MEMORY_LIMIT;
-			// §5.AC: same per-turn "knows today" resolution as the interactive path (config || env, off by default).
-			const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
-			const storeDeps = {
-				readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
-				readMemories: () => readChatMemories(memoryOptions),
-				appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
-					appendChatMessage(sessionId, message, transcriptOptions),
-				estimateTokens,
-				...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
-			};
-			const resolveAgentToolDeps = options.resolveAgentToolDeps;
-			return runAutonomousChatSession(input.goal, {
-				// Each turn re-resolves the gated tool deps WITH that turn's control tools merged in (the runtime-api
-				// resolver's `extra`); the agent thus gets the work tools + request_user_input / declare_goal_complete.
-				assembleTurnDeps: (extra) =>
-					resolveAgentToolDeps ? resolveAgentToolDeps(session, extra) : Promise.resolve(null),
-				runAgentTurn: async ({ userMessage, maxIterations }, agentToolDeps) => {
-					const turnStartedAt = Date.now();
-					const turn = await runChatAgentTurn(
-						{ session, userMessage, tokenBudget, memoryLimit, ...(maxIterations ? { maxIterations } : {}) },
-						{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
-					);
-					// §5.AF: best-effort `autonomous`-flow ledger attempt per autonomous turn (observational; never throws).
-					if (options.recordChatAttempt && modelDeps.modelId) {
-						options.recordChatAttempt({
-							sessionId: session.id,
-							modelId: modelDeps.modelId,
-							toolNames: turn.steps.map((step) => step.toolCall.name),
-							hitIterationLimit: turn.hitIterationLimit,
-							flow: "autonomous",
-							startedAt: turnStartedAt,
-							endedAt: Date.now(),
-						});
-					}
-					// §5.M: accumulate this turn's token usage (bug-hunt 2026-07-05 — the autonomous path never did this,
-					// unlike sendMessage, so totalTokensUsed was frozen for an autonomous session however many turns it ran).
-					if (turn.totalTokens > 0) {
-						await updateChatSession(session.id, { addTokensUsed: turn.totalTokens }, sessionOptions);
-					}
-					return { finalText: turn.assistantMessage.content, steps: turn.steps };
-				},
-				readPlanProgress: () => readAutonomousChatPlanProgress(session.id),
-				budget: input.budget,
-				...(input.maxIterationsPerTurn ? { maxIterationsPerTurn: input.maxIterationsPerTurn } : {}),
-			});
-		},
+			}),
+		runAutonomous: (input) =>
+			serializeSessionTurn(input.sessionId, async () => {
+				if (!options.resolveModelDeps) {
+					throw new Error("This chat service is read-only: no model is configured for autonomous runs.");
+				}
+				const session = await getChatSession(input.sessionId, sessionOptions);
+				if (!session) {
+					return null;
+				}
+				const modelDeps = await options.resolveModelDeps();
+				const tokenBudget = DEFAULT_CHAT_TOKEN_BUDGET;
+				const memoryLimit = DEFAULT_CHAT_MEMORY_LIMIT;
+				// §5.AC: same per-turn "knows today" resolution as the interactive path (config || env, off by default).
+				const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
+				const storeDeps = {
+					readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
+					readMemories: () => readChatMemories(memoryOptions),
+					appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
+						appendChatMessage(sessionId, message, transcriptOptions),
+					estimateTokens,
+					...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
+				};
+				const resolveAgentToolDeps = options.resolveAgentToolDeps;
+				return runAutonomousChatSession(input.goal, {
+					// Each turn re-resolves the gated tool deps WITH that turn's control tools merged in (the runtime-api
+					// resolver's `extra`); the agent thus gets the work tools + request_user_input / declare_goal_complete.
+					assembleTurnDeps: (extra) =>
+						resolveAgentToolDeps ? resolveAgentToolDeps(session, extra) : Promise.resolve(null),
+					runAgentTurn: async ({ userMessage, maxIterations }, agentToolDeps) => {
+						const turnStartedAt = Date.now();
+						const turn = await runChatAgentTurn(
+							{ session, userMessage, tokenBudget, memoryLimit, ...(maxIterations ? { maxIterations } : {}) },
+							{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
+						);
+						// §5.AF: best-effort `autonomous`-flow ledger attempt per autonomous turn (observational; never throws).
+						if (options.recordChatAttempt && modelDeps.modelId) {
+							options.recordChatAttempt({
+								sessionId: session.id,
+								modelId: modelDeps.modelId,
+								toolNames: turn.steps.map((step) => step.toolCall.name),
+								hitIterationLimit: turn.hitIterationLimit,
+								flow: "autonomous",
+								startedAt: turnStartedAt,
+								endedAt: Date.now(),
+							});
+						}
+						// §5.M: accumulate this turn's token usage (bug-hunt 2026-07-05 — the autonomous path never did this,
+						// unlike sendMessage, so totalTokensUsed was frozen for an autonomous session however many turns it ran).
+						if (turn.totalTokens > 0) {
+							await updateChatSession(session.id, { addTokensUsed: turn.totalTokens }, sessionOptions);
+						}
+						return { finalText: turn.assistantMessage.content, steps: turn.steps };
+					},
+					readPlanProgress: () => readAutonomousChatPlanProgress(session.id),
+					budget: input.budget,
+					...(input.maxIterationsPerTurn ? { maxIterationsPerTurn: input.maxIterationsPerTurn } : {}),
+				});
+			}),
 	};
 }

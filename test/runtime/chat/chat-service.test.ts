@@ -98,6 +98,47 @@ describe("createChatService", () => {
 		expect(prompts[0]?.some((m) => m.content.includes("Help with TypeScript settings"))).toBe(true);
 	});
 
+	it("bug-hunt #3 (2026-07-05): concurrent sendMessage calls on the SAME session don't interleave the transcript", async () => {
+		let releaseFirst!: () => void;
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let callIndex = 0;
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({
+				complete: async () => {
+					callIndex += 1;
+					if (callIndex === 1) {
+						await firstGate; // held open until we explicitly release it below
+						return "first reply";
+					}
+					return "second reply";
+				},
+				summarize: async () => "",
+			}),
+		});
+		const session = await service.createSession({ title: "Race" });
+
+		const p1 = service.sendMessage({ sessionId: session.id, message: "one" });
+		const p2 = service.sendMessage({ sessionId: session.id, message: "two" });
+		// Give call 2's fast (unblocked) model reply a chance to race ahead before call 1 is released.
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		releaseFirst();
+		await Promise.all([p1, p2]);
+
+		const transcript = await service.readTranscript(session.id);
+		// Without serialization, call 2 (unblocked) would write its user+assistant pair WHILE call 1 sat blocked,
+		// interleaving to [user:one, user:two, assistant:second, assistant:first]. Serialized per session, call 2
+		// cannot even START until call 1's whole turn (including its blocked model call) finishes.
+		expect(transcript.map((m) => `${m.role}:${m.content}`)).toEqual([
+			"user:one",
+			"assistant:first reply",
+			"user:two",
+			"assistant:second reply",
+		]);
+	});
+
 	it("routes through the tool-using agent loop when resolveAgentToolDeps is non-null (todo §5.M G3a)", async () => {
 		const executed: string[] = [];
 		let turn = 0;
