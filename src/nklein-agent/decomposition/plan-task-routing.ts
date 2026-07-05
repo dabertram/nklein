@@ -236,3 +236,24 @@ export function previewNKleinPlanTaskGraph(input: {
 		].join("\n"),
 	};
 }
+
+/**
+ * Preview a plan graph, degrading gracefully when routing candidates make it infeasible. `previewNKleinPlanTaskGraph`
+ * THROWS the model-feasibility guard when a card is infeasible for EVERY candidate — but a preview is advisory, so a card
+ * that can't route to any AVAILABLE model should simply preview as "model selected at start" (deferred to card start),
+ * not crash the caller. On that throw, retry WITHOUT candidates (deferred selection), mirroring the board-apply routing
+ * fallback. A structurally-invalid graph (bad sizing/refs) still throws from the candidate-less attempt — that is a
+ * genuinely broken graph, not a routing-availability problem, and surfacing it is correct.
+ */
+export function previewNKleinPlanTaskGraphWithFallback(input: {
+	taskGraph: NKleinPlanTaskGraph;
+	routingCandidates?: readonly NKleinTaskRoutingCandidate[];
+	sharedContext?: NKleinPlanTaskSharedContext;
+	dynamicsLevel?: SkillDynamicsLevel;
+}): NKleinPlanTaskGraphPreview {
+	try {
+		return previewNKleinPlanTaskGraph(input);
+	} catch {
+		return previewNKleinPlanTaskGraph({ ...input, routingCandidates: undefined });
+	}
+}

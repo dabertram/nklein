@@ -134,3 +134,31 @@ emit a per-rung `attempt` event that sets `parentAttemptId` (the rung it retried
 its own `outcome`. Only then can `buildStrategyEffectivenessFromLedger(events, modelId)` project effectiveness and
 `orderLadderByEffectiveness` reorder the live ladder. Both the emit and the consume are load-bearing chat-recovery
 changes — do them together with a live chat-e2e validation, not as a blind pure projection over absent data.
+
+## Decompose/routing bug-hunt (2026-07-05) — 4 fixed, 1 collected for a product decision
+
+A find→adversarial-verify workflow over the decomposition/routing spine confirmed 6 findings (5 unique). Verified each
+against the code myself; fixed 4 (unit-tested, full suite green 7395), and COLLECTED 1 as a product decision:
+
+**FIXED:**
+1. `plan-artifact-apply.ts` — `fallbackPreview` (preview WITH routing candidates) ran OUTSIDE the apply try/catch, so a
+   card infeasible for EVERY loaded model threw the feasibility guard and failed the WHOLE decompose. Now degrades to a
+   candidate-less "model selected at start" preview via the new `previewNKleinPlanTaskGraphWithFallback` helper.
+3. `plan-task-board-apply.ts` — an EMPTY task graph created no cards yet still moved the source planning card to
+   `completed` (silent work loss). Now guarded on `producedCards` (taskIdByPlanTaskId non-empty).
+4. `plan-task-validation.ts` — a task `id` with surrounding whitespace (valid per `z.string().min(1)`) was NOT trimmed,
+   but its dependents' `dependsOn` WAS, so `validateTaskGraphReferences` bogus-rejected a legit edge as "unknown task".
+   Now the id is trimmed to match.
+5. `nklein-task-router.ts` — `compareCandidates` returned `NaN` (`Infinity - Infinity`) when both candidates lacked a
+   costRank/wall-time (the auto-discovered decomposition candidates never set costRank), making Array.sort
+   engine/insertion-order dependent → non-deterministic model pick. Now guards `leftCost !== rightCost` before subtracting.
+
+**COLLECTED — USER DECISION NEEDED (bug #2, contract ambiguity):** In `normalizeTaskAcceptanceCommand`, a non-null
+`defaultAcceptanceCommand` currently OVERRIDES a task's own `acceptanceCommand` (`default ?? task`). BUT the tool-schema
+doc AND `plan-task-schemas` both describe it as FILL-ONLY ("applied to tasks that OMIT acceptanceCommand" / "falls back to
+defaultAcceptanceCommand"). The bug-hunt flagged the override as a defect (a coarse global default silently discards a
+card's precise per-card objective check, e.g. `grep -q storage src/storage.ts` → `npm test`). However, TWO deliberate
+tests assert the override (incl. nklein-decomposition-tool.test.ts:1485, which sets up exactly that scenario and expects
+the default to win), so it is NOT a clear mechanical mistake. **Question for the user:** should `defaultAcceptanceCommand`
+be FILL-ONLY (honor a card's own command, default only fills gaps — matches the docs, preserves per-card checks) or
+OVERRIDE (current + tested behavior)? Left as-is (override) pending the decision; inline note added at the code site.

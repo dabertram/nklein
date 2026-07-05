@@ -183,15 +183,17 @@ function compareCandidates(left: ScoredCandidate, right: ScoredCandidate): numbe
 	}
 	const leftCost = left.costRank ?? Number.POSITIVE_INFINITY;
 	const rightCost = right.costRank ?? Number.POSITIVE_INFINITY;
-	const costDelta = leftCost - rightCost;
-	if (costDelta !== 0) {
-		return costDelta;
+	// Compare only when the ranks DIFFER. When both are the Infinity sentinel (neither candidate has a costRank —
+	// e.g. the auto-discovered decomposition candidates never set one), `Infinity - Infinity` is NaN, and a NaN return
+	// makes Array.sort engine/insertion-order dependent, so the router would pick a different model per candidate order.
+	// `Infinity !== Infinity` is false ⇒ we fall through to the deterministic wall-time / localeCompare tiebreak.
+	if (leftCost !== rightCost) {
+		return leftCost - rightCost; // finite-vs-Infinity yields ±Infinity — a valid, correctly-signed comparator result
 	}
 	const leftWallTime = left.predictedWallTimeMs ?? Number.POSITIVE_INFINITY;
 	const rightWallTime = right.predictedWallTimeMs ?? Number.POSITIVE_INFINITY;
-	const wallTimeDelta = leftWallTime - rightWallTime;
-	if (wallTimeDelta !== 0) {
-		return wallTimeDelta;
+	if (leftWallTime !== rightWallTime) {
+		return leftWallTime - rightWallTime;
 	}
 	return left.entry.key.localeCompare(right.entry.key);
 }

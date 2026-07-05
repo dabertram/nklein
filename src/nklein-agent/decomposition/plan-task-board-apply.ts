@@ -233,7 +233,12 @@ export function applyNKleinPlanTaskGraphToBoard(input: ApplyNKleinPlanTaskGraphI
 	}
 
 	const sourceTaskId = input.sourceTaskId?.trim() || null;
-	if (sourceTaskId && !Object.values(taskIdByPlanTaskId).includes(sourceTaskId)) {
+	// Complete the source PLANNING card only when its work actually materialized into cards. `taskIdByPlanTaskId` is
+	// empty iff the task graph was empty — completing the source then would silently DISCARD the planning card with
+	// zero cards created (work lost, no error). An empty graph is a model/upstream error, not a done decomposition:
+	// leave the source card in place so it can be re-decomposed or inspected.
+	const producedCards = Object.keys(taskIdByPlanTaskId).length > 0;
+	if (sourceTaskId && producedCards && !Object.values(taskIdByPlanTaskId).includes(sourceTaskId)) {
 		board = moveTaskToColumn(board, sourceTaskId, "completed", now).board;
 	}
 

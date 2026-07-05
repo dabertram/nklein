@@ -19,7 +19,7 @@ import {
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
 import { buildDecompositionRoutingCandidates } from "./build-decomposition-routing-candidates";
 import { applyNKleinPlanTaskGraphToBoard, replaceNKleinPlanTaskInGraph } from "./plan-task-board-apply";
-import { previewNKleinPlanTaskGraph } from "./plan-task-routing";
+import { previewNKleinPlanTaskGraphWithFallback } from "./plan-task-routing";
 
 export { replaceNKleinPlanTaskInGraph };
 
@@ -78,14 +78,15 @@ export async function applyDecomposeProjectArtifactsToWorkspace(input: {
 	const routingCandidates = runtimeConfig
 		? await buildDecompositionRoutingCandidates(runtimeConfig).catch(() => undefined)
 		: undefined;
-	const fallbackPreview = previewNKleinPlanTaskGraph({
+	// Compute the fallback preview (shown on the not-applied return paths below, incl. the outer catch which depends on
+	// this value) BEFORE the apply `try` — so it must not throw. The *-WithFallback helper degrades an all-infeasible
+	// card to a candidate-less "model selected at start" preview instead of letting the model-feasibility guard escape
+	// and fail the whole decompose. §5.AE live-wiring: the persisted skill-dynamics level threads through (absent config
+	// ⇒ undefined ⇒ resolver default ⇒ byte-identical).
+	const fallbackPreview = previewNKleinPlanTaskGraphWithFallback({
 		taskGraph: input.taskGraph,
 		routingCandidates,
 		sharedContext: input.sharedContext,
-		// §5.AE live-wiring: honor the user's persisted skill-dynamics level on the artifact-apply routing path
-		// (RuntimeConfigState carries the resolved effective level). Absent config ⇒ undefined ⇒ resolver default
-		// ⇒ byte-identical. (The board-apply + validation callers are pure functions with no config in scope — their
-		// dynamicsLevel threading is a separate follow-up.)
 		dynamicsLevel: runtimeConfig?.effectiveSkillDynamicsLevel,
 	});
 	if (runtimeConfig?.decompositionAutoApplyEnabled === false) {

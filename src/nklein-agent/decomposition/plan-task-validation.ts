@@ -15,6 +15,14 @@ export function normalizeTaskAcceptanceCommand(
 	const acceptanceTestPrompt = task.acceptanceTestPrompt?.trim() || null;
 	return {
 		...task,
+		// Trim the id so it matches its dependents' (already-trimmed) `dependsOn` entries below — otherwise a padded id
+		// (` build `, valid per `z.string().min(1)` which counts chars without trimming) never equals the trimmed edge
+		// target, and `validateTaskGraphReferences` bogus-rejects a legitimate edge as "depends on unknown task".
+		id: task.id.trim(),
+		// NOTE (contract ambiguity, flagged 2026-07-05): a non-null `defaultAcceptanceCommand` OVERRIDES a task's own
+		// acceptanceCommand here — but the tool-schema doc + `plan-task-schemas` both describe it as fill-only ("applied
+		// to tasks that OMIT acceptanceCommand" / "falls back to defaultAcceptanceCommand"). Two deliberate tests assert
+		// the override, so this behavior is INTENTIONALLY left as-is pending a product decision; do not flip it silently.
 		acceptanceCommand: normalizedDefaultAcceptanceCommand ?? task.acceptanceCommand?.trim() ?? null,
 		testFirst: task.testFirst && acceptanceTestPrompt !== null,
 		acceptanceTestPrompt,
