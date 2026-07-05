@@ -143,6 +143,9 @@ export function getLinkFailureMessage(reason: RuntimeAddTaskDependencyResult["re
 	if (reason === "non_backlog") {
 		return "Links require at least one backlog task.";
 	}
+	if (reason === "would_create_cycle") {
+		return "That link would create a dependency cycle (the tasks would deadlock, none could start).";
+	}
 	return "One or both tasks could not be found.";
 }
 

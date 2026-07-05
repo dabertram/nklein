@@ -2,32 +2,30 @@
 
 Living log of the autonomous grind + **the collected items that need David's guidance** (the `/goal`'s "collect everything that really needs my guidance"). Update as the run continues.
 
-## ★ DECISIONS OWED (David) — consolidated 2026-07-05
+## ★ DECISIONS OWED (David) — consolidated 2026-07-05, RESOLVED same day
 
-Seven items the autonomous run collected rather than deciding unilaterally (each has a recommendation; detail in the
-per-sweep sections below):
+David reviewed all seven via AskUserQuestion. Decisions 1-2 applied (code + tests flipped, gate green); 3 deferred;
+4/5/6 approved to build now (see below for progress).
 
-1. **§5.AB `defaultAcceptanceCommand`: fill-only vs override.** A non-null default currently OVERRIDES a card's own
-   `acceptanceCommand`; the tool-schema doc + `plan-task-schemas` say FILL-ONLY, but 2 deliberate tests assert override.
-   *Rec:* fill-only (honor a card's precise objective check; a coarse global default silently weakening it is the bug) —
-   confirm, since it flips a deliberate test.
-2. **§5.AV `addTaskDependency` cycle guard.** The predicate `wouldCreateDependencyCycle` ships (pure) but is NOT wired:
-   a deliberate test lets two WAITING cards hold a 2-cycle ("a distinct link"), yet a cycle deadlocks the board. *Rec:*
-   guard it (a deadlock is never desirable) — confirm, since it flips that test.
-3. **§5.AF ledger forward-compat.** `jsonl-store` drops a forward-incompatible terminal `completed` event before the
-   SB#3 fail-safe can fold it → a finished job re-runs on boot-replay. Speculative today (single schema version). *Rec:*
-   pick a forward-compat strategy (tolerant envelope vs raw-jsonl read for the scheduler family) before a v2 event ships.
-4. **§5.AL runtime-verdict precision (optional).** The penalty is now ACTIVE (ledger run denominator wired in). Stamping
-   a per-run id on `model_stalled` self-observations would let the stall NUMERATOR dedup per-run instead of a raw capped
-   count — a refinement, not a correctness gap. Also owed: a live check that the penalty fires on real stall history.
-5. **§5.AF strategy-effectiveness learning is not-ripe.** The pure core + projection can't run: the ledger has only
-   terminal (per-task/session) emitters, so there's no per-RUNG observation stream. Needs per-rung `attempt` emission in
-   the chat retry ladder (hot-path) first.
-6. **§5.AE skill-fragment dynamics level (LOW).** `buildSessionSkillFragments` resolves skills at `fully_dynamic`, not
-   the user's `effectiveSkillDynamicsLevel` — a divergence from the routing path. Needs the session service to thread
-   the level (it doesn't access that config at the fragment seam today).
-7. **Environment blockers (not decisions — just gates).** SWARM-recovery increments 2-3 need `bun` (vendored SDK build
-   tool, not installed); durable-scheduler default-on needs a Docker VM larger than 7.7 GiB to validate the swarm run.
+1. **✅ RESOLVED — fill-only.** `defaultAcceptanceCommand` now fills in only when a task omits its own
+   `acceptanceCommand`; the task's own command always wins. Flipped `normalizeTaskAcceptanceCommand` +
+   the 2 deliberate tests that asserted override (`plan-task-validation-graph.test.ts`,
+   `nklein-decomposition-tool.test.ts:1485`) + restored the bug-hunt regression test. Gate green.
+2. **✅ RESOLVED — guard it.** `addTaskDependency`/`canAddTaskDependency` now reject an edge that would close a
+   dependency cycle (`wouldCreateDependencyCycle` wired in, reason `would_create_cycle`, message added to
+   `getLinkFailureMessage`). Flipped the deliberate "two waiting tasks keep the reverse as a distinct link" test to
+   assert rejection instead + added an `addTaskDependency`-level cycle/shortcut test. Gate green.
+3. **Deferred (David's call).** §5.AF ledger forward-compat (`jsonl-store` drops a forward-incompatible terminal event
+   before the SB#3 fail-safe sees it) — not worth designing against with only one schema version live. Revisit when a
+   breaking ledger event change is actually proposed.
+4. **Approved — build now.** §5.AL runtime-verdict per-run precision (stamp a per-run id on `model_stalled`
+   self-observations so the stall numerator dedups per-run).
+5. **Approved — build now.** §5.AF strategy-effectiveness per-rung `attempt` emission in the chat retry ladder (the
+   hot-path change the not-ripe learning core needs to have real data to fold).
+6. **Approved — build now.** §5.AE skill-fragment dynamics-level threading (`buildSessionSkillFragments` should resolve
+   at the user's `effectiveSkillDynamicsLevel`, not always `fully_dynamic`).
+7. **Environment blockers (not decisions — just gates, unaffected).** SWARM-recovery increments 2-3 need `bun` (vendored
+   SDK build tool, not installed); durable-scheduler default-on needs a Docker VM larger than 7.7 GiB to validate.
 
 ---
 

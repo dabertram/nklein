@@ -85,12 +85,18 @@ describe("validateTaskGraphReferences", () => {
 });
 
 describe("normalizeTaskAcceptanceCommand", () => {
-	it("lets a provided default acceptance command win over the task's own", () => {
+	it("fill-only: the task's own acceptance command wins over a provided default (2026-07-05 decision)", () => {
 		expect(
 			normalizeTaskAcceptanceCommand(task({ acceptanceCommand: "npm test" }), "make check").acceptanceCommand,
-		).toBe("make check");
+		).toBe("npm test");
 		expect(normalizeTaskAcceptanceCommand(task({ acceptanceCommand: "npm test" }), null).acceptanceCommand).toBe(
 			"npm test",
+		);
+	});
+
+	it("fills from the default only when the task omits its own", () => {
+		expect(normalizeTaskAcceptanceCommand(task({ acceptanceCommand: "" }), "make check").acceptanceCommand).toBe(
+			"make check",
 		);
 	});
 

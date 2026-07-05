@@ -83,9 +83,28 @@ const candidate = (key: string, capability: number, role: string | null = "worke
 	role,
 });
 
-// NOTE: bug #2 (defaultAcceptanceCommand override vs fill-only) was a CONTRACT AMBIGUITY, not a clear defect — the code +
-// two deliberate tests implement override while the tool-schema doc says fill-only. Left as-is pending a product decision
-// (see the note in plan-task-validation.ts + the collected question), so no regression test is added for it here.
+describe("bug #2 — defaultAcceptanceCommand is FILL-ONLY (decided 2026-07-05, David)", () => {
+	it("keeps the task's own acceptanceCommand when a non-null default is supplied", () => {
+		const normalized = normalizeTaskAcceptanceCommand(
+			task({ id: "t", title: "T", acceptanceCommand: "pnpm test:unit -- graph" }),
+			"pnpm test",
+		);
+		expect(normalized.acceptanceCommand).toBe("pnpm test:unit -- graph");
+	});
+
+	it("fills from the default only when the task omits (empty/whitespace) its own", () => {
+		const filled = normalizeTaskAcceptanceCommand(
+			task({ id: "t", title: "T", acceptanceCommand: "   " }),
+			"pnpm test",
+		);
+		expect(filled.acceptanceCommand).toBe("pnpm test");
+	});
+
+	it("is null when neither the task nor the default supplies one", () => {
+		const none = normalizeTaskAcceptanceCommand(task({ id: "t", title: "T", acceptanceCommand: "" }), null);
+		expect(none.acceptanceCommand).toBeNull();
+	});
+});
 
 describe("bug #4 — a padded task id is trimmed to match its (trimmed) dependency references", () => {
 	it("trims the id in normalizeTaskAcceptanceCommand", () => {

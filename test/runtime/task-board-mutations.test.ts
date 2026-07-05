@@ -30,7 +30,7 @@ function createBoard(): RuntimeBoardData {
 	};
 }
 
-describe("wouldCreateDependencyCycle (pure predicate — NOT wired into addTaskDependency, see the run doc)", () => {
+describe("wouldCreateDependencyCycle (pure predicate — wired into addTaskDependency, decided 2026-07-05)", () => {
 	// Three backlog cards A, B, C. Capture the real card ids (addTaskToColumn derives them), then link A→B, B→C.
 	function chainABC() {
 		const a = addTaskToColumn(createBoard(), "backlog", { prompt: "A", baseRef: "main" }, () => "aaaaa111");
@@ -53,6 +53,20 @@ describe("wouldCreateDependencyCycle (pure predicate — NOT wired into addTaskD
 
 	it("a self-edge is a trivial cycle", () => {
 		expect(wouldCreateDependencyCycle(createBoard(), "x", "x")).toBe(true);
+	});
+
+	it("addTaskDependency itself rejects a cycle-closing edge with reason would_create_cycle", () => {
+		const { board, idA, idC } = chainABC();
+		const result = addTaskDependency(board, idC, idA); // would close A→B→C→A
+		expect(result.added).toBe(false);
+		expect(result.reason).toBe("would_create_cycle");
+		expect(result.board.dependencies).toHaveLength(2); // unchanged
+	});
+
+	it("addTaskDependency still allows an acyclic shortcut edge", () => {
+		const { board, idA, idC } = chainABC();
+		const result = addTaskDependency(board, idA, idC);
+		expect(result.added).toBe(true);
 	});
 });
 
@@ -448,11 +462,12 @@ describe("canAddTaskDependency", () => {
 		expect(canAddTaskDependency(board, "aaaaa", "ghost")).toBe(false);
 	});
 
-	it("is false once the dependency already exists; two waiting tasks keep the reverse as a distinct link", () => {
+	it("is false once the dependency already exists; the reverse link between two waiting tasks is a CYCLE (rejected, decided 2026-07-05)", () => {
 		const board = addTaskDependency(twoWaiting(), "aaaaa", "bbbbb").board;
 		expect(canAddTaskDependency(board, "aaaaa", "bbbbb")).toBe(false);
-		// Both tasks waiting → the FIRST arg is the blocker, so "b blocks a" is a genuinely different link.
-		expect(canAddTaskDependency(board, "bbbbb", "aaaaa")).toBe(true);
+		// Both tasks waiting → "b blocks a" would close a 2-cycle (a↔b), deadlocking both — rejected by the cycle guard.
+		expect(canAddTaskDependency(board, "bbbbb", "aaaaa")).toBe(false);
+		expect(addTaskDependency(board, "bbbbb", "aaaaa").reason).toBe("would_create_cycle");
 	});
 
 	it("canonicalizes a waiting↔active link so the reversed argument order is the same (duplicate)", () => {

@@ -1523,8 +1523,10 @@ describe("nklein decomposition tools", () => {
 		expect(result.taskCount).toBe(2);
 		const taskGraph = await readFile(join(workspacePath, result.taskGraphPath), "utf8");
 		expect(taskGraph).toContain('"schemaVersion": 1');
+		// FILL-ONLY (2026-07-05 decision): "storage" keeps its own acceptanceCommand; "ui" (which omitted one) fills
+		// from defaultAcceptanceCommand.
+		expect(taskGraph).toContain("grep -q storage src/storage.ts");
 		expect(taskGraph).toContain('"acceptanceCommand": "npm test"');
-		expect(taskGraph).not.toContain("grep -q");
 		expect(taskGraph).toContain('"dependsOn": [');
 	});
 

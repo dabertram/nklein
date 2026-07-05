@@ -80,7 +80,7 @@ export interface RuntimeUpdateTaskResult {
 export interface RuntimeAddTaskDependencyResult {
 	board: RuntimeBoardData;
 	added: boolean;
-	reason?: "missing_task" | "same_task" | "duplicate" | "trash_task" | "non_backlog";
+	reason?: "missing_task" | "same_task" | "duplicate" | "trash_task" | "non_backlog" | "would_create_cycle";
 	dependency?: RuntimeBoardDependency;
 }
 
@@ -417,9 +417,12 @@ export function addTaskDependency(
 	if (hasDependencyPair(board, resolved.backlogTaskId, resolved.linkedTaskId)) {
 		return { board, added: false, reason: "duplicate" };
 	}
-	// NOTE (collected 2026-07-05): `wouldCreateDependencyCycle(board, resolved.backlogTaskId, resolved.linkedTaskId)` is
-	// intentionally NOT gated here. Wiring it would reject a cycle-closing edge, but a deliberate test allows the reverse
-	// link between two WAITING tasks ("a genuinely different link"), so guarding is a product decision — see the run doc.
+	// Reject an edge that would deadlock the board by closing a dependency cycle (decided 2026-07-05, David). The
+	// decompose apply path is unaffected — it adds edges only AFTER breakDependencyCycles, so its set is always acyclic
+	// and this never fires there; this guards the manual/tool dependency-add paths, which have no repair net behind them.
+	if (wouldCreateDependencyCycle(board, resolved.backlogTaskId, resolved.linkedTaskId)) {
+		return { board, added: false, reason: "would_create_cycle" };
+	}
 	const dependency: RuntimeBoardDependency = {
 		id: createDependencyId(),
 		fromTaskId: resolved.backlogTaskId,
@@ -446,7 +449,10 @@ export function canAddTaskDependency(board: RuntimeBoardData, firstTaskId: strin
 	if ("reason" in resolved) {
 		return false;
 	}
-	return !hasDependencyPair(board, resolved.backlogTaskId, resolved.linkedTaskId);
+	if (hasDependencyPair(board, resolved.backlogTaskId, resolved.linkedTaskId)) {
+		return false;
+	}
+	return !wouldCreateDependencyCycle(board, resolved.backlogTaskId, resolved.linkedTaskId);
 }
 
 export function removeTaskDependency(board: RuntimeBoardData, dependencyId: string): RuntimeRemoveTaskDependencyResult {
