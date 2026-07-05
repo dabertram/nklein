@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+	addChatOutstandingAsk,
+	clearChatOutstandingAsk,
 	createChatSession,
 	deleteChatSession,
 	ensureChatSessionForWorkspace,
@@ -242,5 +244,53 @@ describe("bug-hunt #9/#10 (2026-07-05): totalTokensUsed accumulates via addToken
 		]);
 		const final = await getChatSession(created.id, opts);
 		expect(final?.totalTokensUsed).toBe(80); // both deltas landed, in EITHER order — not last-writer-wins
+	});
+});
+
+describe("bug-hunt #4 (2026-07-05): outstandingAsks has a writer (addChatOutstandingAsk/clearChatOutstandingAsk)", () => {
+	let rootDir4: string;
+	beforeEach(async () => {
+		rootDir4 = await mkdtemp(join(tmpdir(), "nklein-chat-asks-"));
+	});
+	afterEach(async () => {
+		await rm(rootDir4, { recursive: true, force: true }).catch(() => undefined);
+	});
+
+	it("addChatOutstandingAsk persists an ask onto the session (previously always stayed [])", async () => {
+		const opts = { rootDir: rootDir4 };
+		const created = await createChatSession({ title: "T" }, opts);
+		expect(created.outstandingAsks).toEqual([]);
+		const updated = await addChatOutstandingAsk(
+			created.id,
+			{ signalKey: "task-1:awaiting_review", taskId: "task-1", question: "Ready to merge?" },
+			opts,
+		);
+		expect(updated?.outstandingAsks).toEqual([
+			{ signalKey: "task-1:awaiting_review", taskId: "task-1", question: "Ready to merge?" },
+		]);
+		// Persisted, not just returned — a fresh read sees it too.
+		const reread = await getChatSession(created.id, opts);
+		expect(reread?.outstandingAsks).toHaveLength(1);
+	});
+
+	it("dedupes by signalKey — a re-surfaced ASK replaces its prior entry, not doubles it", async () => {
+		const opts = { rootDir: rootDir4 };
+		const created = await createChatSession({ title: "T" }, opts);
+		await addChatOutstandingAsk(created.id, { signalKey: "k1", taskId: "t1", question: "first?" }, opts);
+		const second = await addChatOutstandingAsk(
+			created.id,
+			{ signalKey: "k1", taskId: "t1", question: "second?" },
+			opts,
+		);
+		expect(second?.outstandingAsks).toEqual([{ signalKey: "k1", taskId: "t1", question: "second?" }]);
+	});
+
+	it("clearChatOutstandingAsk removes exactly the matching signalKey", async () => {
+		const opts = { rootDir: rootDir4 };
+		const created = await createChatSession({ title: "T" }, opts);
+		await addChatOutstandingAsk(created.id, { signalKey: "k1", taskId: "t1", question: "a?" }, opts);
+		await addChatOutstandingAsk(created.id, { signalKey: "k2", taskId: "t2", question: "b?" }, opts);
+		const cleared = await clearChatOutstandingAsk(created.id, "k1", opts);
+		expect(cleared?.outstandingAsks).toEqual([{ signalKey: "k2", taskId: "t2", question: "b?" }]);
 	});
 });

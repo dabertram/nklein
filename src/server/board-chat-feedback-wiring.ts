@@ -15,7 +15,11 @@ import {
 	createBoardChatFeedbackBridge,
 	type OwningChatRef,
 } from "../chat/board-chat-feedback-bridge";
-import { ensureChatSessionForWorkspace } from "../chat/chat-session-store";
+import {
+	addChatOutstandingAsk,
+	clearChatOutstandingAsk,
+	ensureChatSessionForWorkspace,
+} from "../chat/chat-session-store";
 import { appendChatMessage } from "../chat/chat-transcript-store";
 import type { RuntimeTaskSessionState, RuntimeTaskSessionSummary } from "../core/api-contract";
 import type { OperatorColumnId, OperatorSignalOverrides } from "../core/operator-task-state";
@@ -128,6 +132,16 @@ export function createBoardChatFeedbackWiring(overrides?: {
 				} catch {
 					return taskId;
 				}
+			},
+			// §5.AT/§5.AU (bug-hunt 2026-07-05): the reply-binding ladder (resolveMessageTarget's "bind the next message to
+			// the ASK it answers" rung) depends on `session.outstandingAsks`, but nothing ever wrote to it — these two
+			// optional hooks existed on the bridge's DI interface and were called internally, yet were never SUPPLIED here,
+			// so they silently no-op'd end-to-end. Wire them to the store so a surfaced ASK actually becomes reply-bindable.
+			addOutstandingAsk: async (sessionId, ask) => {
+				await addChatOutstandingAsk(sessionId, ask);
+			},
+			clearOutstandingAsk: async (sessionId, signalKey) => {
+				await clearChatOutstandingAsk(sessionId, signalKey);
 			},
 		});
 

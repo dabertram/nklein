@@ -358,6 +358,56 @@ export async function updateChatSession(
 	});
 }
 
+/**
+ * §5.AT/§5.AU — record an outstanding card ASK on the session (bug-hunt 2026-07-05: this was the missing writer —
+ * `updateChatSession`'s patch has no `outstandingAsks` field and nothing else ever set it, so the reply-binding ladder
+ * in `resolveMessageTarget` always read an empty array and its rung 2 (bind the next message to the ASK it answers)
+ * never fired). Dedupes by `signalKey` (a re-surfaced ASK for the same signal replaces its prior entry, not doubles it).
+ * Serialized like `updateChatSession` so a concurrent add/clear on the same session can't race.
+ */
+export async function addChatOutstandingAsk(
+	sessionId: string,
+	ask: ChatOutstandingAsk,
+	options: ChatSessionStoreOptions = {},
+): Promise<ChatSession | null> {
+	return serializeChatSessionWrite(options.rootDir, async () => {
+		const existing = await getChatSession(sessionId, options);
+		if (!existing) {
+			return null;
+		}
+		const now = (options.now ?? Date.now)();
+		const session: ChatSession = {
+			...existing,
+			outstandingAsks: [...existing.outstandingAsks.filter((a) => a.signalKey !== ask.signalKey), ask],
+			updatedAt: now,
+		};
+		await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);
+		return session;
+	});
+}
+
+/** §5.AT/§5.AU — clear an outstanding ASK (its signal resolved) so it stops being reply-bind eligible. */
+export async function clearChatOutstandingAsk(
+	sessionId: string,
+	signalKey: string,
+	options: ChatSessionStoreOptions = {},
+): Promise<ChatSession | null> {
+	return serializeChatSessionWrite(options.rootDir, async () => {
+		const existing = await getChatSession(sessionId, options);
+		if (!existing) {
+			return null;
+		}
+		const now = (options.now ?? Date.now)();
+		const session: ChatSession = {
+			...existing,
+			outstandingAsks: existing.outstandingAsks.filter((a) => a.signalKey !== signalKey),
+			updatedAt: now,
+		};
+		await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);
+		return session;
+	});
+}
+
 export async function deleteChatSession(id: string, options: ChatSessionStoreOptions = {}): Promise<boolean> {
 	const existing = await getChatSession(id, options);
 	if (!existing) {
