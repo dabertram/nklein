@@ -374,6 +374,8 @@ export interface NKleinTaskSessionService {
 	setSandboxMcpServersEnabled(enabled: boolean): void;
 	/** Apply the §5.AC egress-gated retrieval config (OFF by default, fail closed) when config changes. */
 	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void;
+	/** Apply the §5.L per-role web-research capability gate (default allowed = fully_open) when config changes. */
+	setAgentWebResearchAllowed(allowed: boolean): void;
 	/** Apply the §5.AN model-stats tracking level (full by default) when config changes. */
 	setModelStatsTrackingLevel(level: ModelStatsTrackingLevel): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
@@ -481,6 +483,13 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	/** The §5.AC SearXNG-compatible search endpoint base URL; null (default) keeps `web_search` detached. */
 	retrievalSearchBackendUrl?: string | null;
 	/**
+	 * §5.L — whether the resolved capability ruleset GRANTS the agent web-research (`resolveAgentToolAccess().webResearch`).
+	 * Default `true` (the shipped `fully_open` preset ⇒ byte-identical). When a restricted role's ruleset denies it, the
+	 * `research` tool is withheld EVEN IF egress + a backend are configured — the per-role capability gate ANDed on top of
+	 * the global egress switch. Live-updated on config change (same seam as `retrievalEgressEnabled`).
+	 */
+	agentWebResearchAllowed?: boolean;
+	/**
 	 * Root dir for the diagnostic stores this service writes (task-run summaries + the Agent Attempt Ledger).
 	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.
 	 */
@@ -556,6 +565,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	/** §5.AC search backend base URL (null ⇒ `web_search` never attaches); live-updated with config. */
 	private retrievalSearchBackendUrl: string | null;
+	/** §5.L per-role capability gate on web-research (default true = fully_open); live-updated with config. */
+	private agentWebResearchAllowed: boolean;
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
 	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
@@ -593,6 +604,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.retrievalEgressEnabled = options.retrievalEgressEnabled ?? DEFAULT_RETRIEVAL_EGRESS_ENABLED;
 		this.modelStatsTrackingLevel = options.modelStatsTrackingLevel ?? DEFAULT_MODEL_STATS_TRACKING_LEVEL;
 		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
+		this.agentWebResearchAllowed = options.agentWebResearchAllowed ?? true;
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
@@ -907,6 +919,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return [];
 		}
 		if (this.retrievalEgressEnabled !== true) {
+			return [];
+		}
+		// §5.L capability gate: even with egress on, a restricted role's ruleset can DENY web-research — withhold the
+		// research tool then (default fully_open ⇒ allowed ⇒ byte-identical). ANDed ON TOP of the global egress switch.
+		if (!this.agentWebResearchAllowed) {
 			return [];
 		}
 		// §5.AC (user decision 2026-07-03): the retrieval LOOP is the single online-retrieval path — the manual
@@ -2870,6 +2887,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void {
 		this.retrievalEgressEnabled = egressEnabled;
 		this.retrievalSearchBackendUrl = searchBackendUrl;
+	}
+
+	/** §5.L: live-update the per-role web-research capability gate when the runtime config (ruleset) changes. */
+	setAgentWebResearchAllowed(allowed: boolean): void {
+		this.agentWebResearchAllowed = allowed;
 	}
 
 	/** §5.AN decision-9: live-update the model-stats tracking level when the runtime config changes. */

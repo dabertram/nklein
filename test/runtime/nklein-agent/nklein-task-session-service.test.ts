@@ -807,6 +807,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		taskId: string;
 		retrievalEgressEnabled?: boolean;
 		retrievalSearchBackendUrl?: string | null;
+		agentWebResearchAllowed?: boolean;
 	}): Promise<string[]> {
 		const runtime = createFakeNKleinSessionRuntime();
 		const runtimeSetup = createFakeRuntimeSetup();
@@ -820,6 +821,9 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				: {}),
 			...(input.retrievalSearchBackendUrl !== undefined
 				? { retrievalSearchBackendUrl: input.retrievalSearchBackendUrl }
+				: {}),
+			...(input.agentWebResearchAllowed !== undefined
+				? { agentWebResearchAllowed: input.agentWebResearchAllowed }
 				: {}),
 		});
 		services.push(service);
@@ -868,6 +872,17 @@ describe("InMemoryNKleinTaskSessionService", () => {
 		// The manual tools are retired.
 		expect(toolNames).not.toContain("web_search");
 		expect(toolNames).not.toContain("browse_url");
+	});
+
+	it("withholds the research tool when the capability ruleset denies web-research, even with egress + a backend (§5.L)", async () => {
+		const toolNames = await startAndReadExtraToolNames({
+			taskId: "task-1",
+			retrievalEgressEnabled: true,
+			retrievalSearchBackendUrl: "http://searx.lan:8080",
+			agentWebResearchAllowed: false,
+		});
+		expect(toolNames).toContain("repo_map"); // the sandbox tools still attach
+		expect(toolNames).not.toContain("research"); // the per-role gate withheld it
 	});
 
 	it("never attaches the research tool to synthetic sessions even when egress is enabled (§5.AC)", async () => {

@@ -1532,7 +1532,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] sandbox network activation (VERIFIED LIVE) — tier → `--network` (none/bridge), allowlist fail-closed, under
         `--cap-drop ALL --read-only --security-opt no-new-privileges`
   - [~] tool gating — `resolveAgentToolAccess` built + tested; **remaining (one leaf each):**
-    - [ ] thread `resolveAgentToolAccess` into `nklein-session-runtime` so the per-role ruleset gates the agent's tools.
+    - [x] thread `resolveAgentToolAccess` into `nklein-session-runtime` so the per-role ruleset gates the agent's tools. **DONE 2026-07-05:** `resolveAgentToolAccess(capabilitiesForTier(globalPreset)).webResearch` resolved at the service seam (runtime-server) + threaded as `agentWebResearchAllowed` into `InMemoryNKleinTaskSessionService` (field + setter re-applied on live config change, same drift-guard as the --network re-apply); the `research` tool is now ANDed with the per-role capability gate on top of the global egress switch. Default fully_open ⇒ allowed ⇒ byte-identical. +1 test (denied ruleset withholds research even with egress+backend); 118 service tests green. (MCP-access gating is the separate leaf below.)
     - [ ] enable web-research as a gated tool (on when the ruleset allows it).
     - [ ] add a sandbox-side headless-browser tool (gated).
     - [ ] gate MCP tool access by the resolved ruleset.
