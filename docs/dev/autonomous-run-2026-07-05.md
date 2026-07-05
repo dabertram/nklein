@@ -577,3 +577,42 @@ is in-scope (not the deferred extended sweeps); (2) the item-10 refinements (cli
 functional UI, lower value; (3) scan §5.AG / §5.W for a clean slice. If none surfaces real value, surface the three
 David-unblocks and stop rather than pad. Prefer (1) — verifying our own recent work is the highest-confidence use of a
 solo iteration.
+
+### ✓ DONE (2026-07-06) — option (1) bug-hunt of this run's §5.AU code: 1 real bug found + fixed (831a8a0a)
+Adversarially reviewed everything shipped this run. **One real bug:** `send_to_stream` resolved member cards by
+flattening ALL columns including `trash` — a trashed card keeps its streamId (moveTaskToColumn doesn't clear it), so a
+broadcast would queue notes on discarded cards + inflate the count. Fixed (skip trash, mirroring
+summarizeWorkspaceBoardStreams) + a regression test; caught pre-release. **The rest checked out SOUND:** the mute re-read
+(`getChatSession` normalizes `feedbackMuted` for old records → safe), `clarifyingQuestionPending` (mutually exclusive with
+`deliveryGateHeld` via reviewReason; conditional fold stays byte-identical), the stream panel (active-workspace data
+source is consistent with every other chat board tool + resolveMessageTargetIndex; the refetch-loop already fixed),
+`get_streams`/`summarizeWorkspaceBoardStreams` (excludes trash; ungrouped excludes trash). No other defects.
+
+---
+
+## ★★ CONSOLIDATED STATE FOR DAVID (as of 2026-07-06, after the autonomous run) ★★
+
+**What this multi-day run shipped (all green, on `feat/nklein-upcoming`, ~20 commits):** the §5.AU streams/addressing +
+§5.AT board→chat epics are now FEATURE-COMPLETE end-to-end — the board→chat feedback bridge with live ASK sourcing
+(incl. the "card is asking you a question" ASK), per-session **mute** (persisted + honored live + a UI toggle), the
+`get_board_status` + `get_streams` + `send_to_stream` chat tools, and the **stream-overview UI panel** (a new
+`chat.getBoardStreams` endpoint + a live-refreshing sidebar panel). Plus 2 real bug fixes found by self-review (a
+chat-sidebar refetch loop; the send_to_stream trash broadcast) and continuous todo.md/CHANGELOG reconciliation (several
+stale checkboxes corrected — the bridge, the focus chip, item 6/10 were all further along than marked).
+
+**The 3 things that need YOU (each unlocks far more than any remaining solo slice):**
+1. **A SearXNG backend URL** — the entire §5.AC/§5.AB/§5.M online-retrieval cluster is BUILT + wired + gated, dormant.
+   Set `retrievalEgressEnabled` + the URL in Settings (a `docker/searxng/` backend is included) to light it up.
+2. **A Docker VM > 7.7 GiB** — needed to validate the §5.AF durable scheduler default-on live.
+3. **A UX nod on §5.AU item 9** — should an `@card`-addressed chat message RELAY-and-confirm (deterministic) or keep the
+   current answer-with-context (model calls send_to_card)? The current path works for a capable model; the deterministic
+   version is robustness for weak models but changes the chat UX.
+
+**What remains actionable WITHOUT you (lower value):** §5.AU item-10 refinements (stream drill-down, click-to-focus,
+mailbox "N pending" indicator); item-7 optional local-summarizer; scanning §5.AG/§5.W for clean slices. All the deferred
+extended sweeps + the §5.AX visual overhaul remain in polishing.md for the post-implementation phase (with Fable).
+
+**Loop status:** the high-confidence solo-work surface (compose-a-core feature slices + self-review of new code) is worked
+through. Continuing yields diminishing returns until one of the 3 unblocks above. The recurring cron will keep the loop
+alive; the next iterations should do a real lower-value slice IF one has genuine value, else say so plainly and idle
+rather than pad — per the loop contract.
