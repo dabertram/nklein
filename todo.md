@@ -1187,7 +1187,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] *(native fallback — DEPRIORITIZED: the eval did NOT reject codebase-memory-mcp, so this is the only-if-it-regresses path)* implement symbol/definition lookup over the existing code index (read-only).
     - [ ] *(native fallback)* implement import/dependency-edge lookup for a touched file.
     - [ ] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol).
-    - [ ] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist.
+    - [x] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist. *(2026-07-05: `rankSpectrumSuspects` (Ochiai) in spectrum-fault-localization.ts — failing/passing coverage → suspiciousness, ranked; 7 tests)*
     - [ ] unit-test each localization mode with a fake index.
   - [ ] **N-candidate patch generator (narrow model subtask):**
     - [x] define the generate-N-patches prompt (localized context in, unified-diff candidates out). *(2026-07-04: buildPatchGenerationPrompt in patch-generation-prompt.ts — asks for N distinct fenced ```diff candidates; round-trips through parseNPatchCandidates; 7 tests)*
