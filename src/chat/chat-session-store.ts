@@ -155,6 +155,26 @@ function normalizeRole(value: unknown): ChatSessionRole {
 		: DEFAULT_CHAT_SESSION_ROLE;
 }
 
+// Serialize check-then-act sequences (read the current session set, decide, then append) per rootDir. The append-only
+// log is safe against WRITE corruption on its own, but NOT against a logical race: two concurrent callers can both read
+// the SAME pre-write state, decide independently, and both append — a lost update (§5.M totalTokensUsed) or a duplicate
+// creation (§5.AT/§5.AU ensureChatSessionForWorkspace "one chat per project"). A promise chain per rootDir gives every
+// read-decide-append sequence exclusive access to the store in between its own read and its own append.
+const chatSessionWriteChains = new Map<string, Promise<unknown>>();
+
+function serializeChatSessionWrite<T>(rootDir: string | undefined, fn: () => Promise<T>): Promise<T> {
+	const key = rootDir ?? DEFAULT_ROOT;
+	const prior = chatSessionWriteChains.get(key) ?? Promise.resolve();
+	// Run `fn` once the prior write SETTLES (success or failure) so one caller's error never wedges the chain for the
+	// next; each caller still gets ITS OWN accurate result/error via the returned `settled` promise.
+	const settled = prior.then(fn, fn);
+	chatSessionWriteChains.set(
+		key,
+		settled.catch(() => undefined),
+	);
+	return settled;
+}
+
 async function readChatSessionEvents(rootDir?: string): Promise<ChatSessionEvent[]> {
 	let raw: string;
 	try {
@@ -271,11 +291,17 @@ export async function ensureChatSessionForWorkspace(
 	input: { workspaceId: string; title: string },
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession> {
-	const existing = await findChatSessionByOwnedWorkspace(input.workspaceId, options);
-	if (existing) {
-		return existing;
-	}
-	return createChatSession({ title: input.title, ownedWorkspaceId: input.workspaceId }, options);
+	// Serialized (bug-hunt 2026-07-05): this is a check-then-act find-or-create with no lock. Two concurrent callers for
+	// the SAME workspace (the feedback bridge + the client, or two racing summary observers) could both miss the cache,
+	// both find no owner, and both create a session — splitting ownership of one project across two chats. The write
+	// chain gives each caller exclusive access between its own find and its own create.
+	return serializeChatSessionWrite(options.rootDir, async () => {
+		const existing = await findChatSessionByOwnedWorkspace(input.workspaceId, options);
+		if (existing) {
+			return existing;
+		}
+		return createChatSession({ title: input.title, ownedWorkspaceId: input.workspaceId }, options);
+	});
 }
 
 export async function updateChatSession(
@@ -291,32 +317,45 @@ export async function updateChatSession(
 		focus?: ChatSessionFocus | null;
 		/** §5.AE: replace the session's enabled skills. */
 		selectedSkillIds?: readonly string[];
-		/** §5.M: set the running token total (the caller accumulates the turn's usage onto the prior total). */
+		/** §5.M: set the running token total to an ABSOLUTE value. Prefer `addTokensUsed` for accumulation — computing
+		 * `existing + delta` from a caller-held session snapshot races against a concurrent turn's own update (bug-hunt
+		 * 2026-07-05: two turns on one session both read the same stale base, and the later write clobbers the earlier). */
 		totalTokensUsed?: number;
+		/** §5.M: accumulate the turn's token usage by this DELTA, added to the value freshly read INSIDE this call's
+		 * own serialized critical section — concurrency-safe, unlike a caller precomputing `existing.totalTokensUsed +
+		 * delta` from a session snapshot that may already be stale by the time this call runs. */
+		addTokensUsed?: number;
 	},
 	options: ChatSessionStoreOptions = {},
 ): Promise<ChatSession | null> {
-	const existing = await getChatSession(id, options);
-	if (!existing) {
-		return null;
-	}
-	const now = (options.now ?? Date.now)();
-	const session: ChatSession = {
-		...existing,
-		...(patch.title !== undefined ? { title: patch.title.trim() || existing.title } : {}),
-		...(patch.scope !== undefined ? { scope: patch.scope } : {}),
-		...(patch.role !== undefined ? { role: patch.role } : {}),
-		// `goal: null` clears it; `goal: undefined` (absent) leaves it unchanged.
-		...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
-		...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
-		...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
-		...(patch.focus !== undefined ? { focus: patch.focus } : {}),
-		...(patch.selectedSkillIds !== undefined ? { selectedSkillIds: patch.selectedSkillIds } : {}),
-		...(patch.totalTokensUsed !== undefined ? { totalTokensUsed: patch.totalTokensUsed } : {}),
-		updatedAt: now,
-	};
-	await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);
-	return session;
+	// Serialized (bug-hunt 2026-07-05): a read-then-append with no lock let concurrent updates race — most visibly
+	// `addTokensUsed`, where the fresh read below must happen-after any write already queued for this rootDir.
+	return serializeChatSessionWrite(options.rootDir, async () => {
+		const existing = await getChatSession(id, options);
+		if (!existing) {
+			return null;
+		}
+		const now = (options.now ?? Date.now)();
+		const session: ChatSession = {
+			...existing,
+			...(patch.title !== undefined ? { title: patch.title.trim() || existing.title } : {}),
+			...(patch.scope !== undefined ? { scope: patch.scope } : {}),
+			...(patch.role !== undefined ? { role: patch.role } : {}),
+			// `goal: null` clears it; `goal: undefined` (absent) leaves it unchanged.
+			...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
+			...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
+			...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
+			...(patch.focus !== undefined ? { focus: patch.focus } : {}),
+			...(patch.selectedSkillIds !== undefined ? { selectedSkillIds: patch.selectedSkillIds } : {}),
+			...(patch.totalTokensUsed !== undefined ? { totalTokensUsed: patch.totalTokensUsed } : {}),
+			...(patch.addTokensUsed !== undefined
+				? { totalTokensUsed: existing.totalTokensUsed + patch.addTokensUsed }
+				: {}),
+			updatedAt: now,
+		};
+		await appendChatSessionEvent({ type: "upsert", at: now, session }, options.rootDir);
+		return session;
+	});
 }
 
 export async function deleteChatSession(id: string, options: ChatSessionStoreOptions = {}): Promise<boolean> {

@@ -319,12 +319,10 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					});
 				}
 				// §5.M: accumulate this turn's token usage onto the session's running total (best-effort display metric).
+				// `addTokensUsed` (not a precomputed `session.totalTokensUsed + …`) so concurrent turns on one session
+				// don't race on a stale locally-held total (bug-hunt 2026-07-05: last-writer-wins lost updates).
 				if (agentResult.totalTokens > 0) {
-					await updateChatSession(
-						session.id,
-						{ totalTokensUsed: session.totalTokensUsed + agentResult.totalTokens },
-						sessionOptions,
-					);
+					await updateChatSession(session.id, { addTokensUsed: agentResult.totalTokens }, sessionOptions);
 				}
 				return {
 					userMessage: toRuntimeChatMessage(agentResult.userMessage),
@@ -393,6 +391,11 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							startedAt: turnStartedAt,
 							endedAt: Date.now(),
 						});
+					}
+					// §5.M: accumulate this turn's token usage (bug-hunt 2026-07-05 — the autonomous path never did this,
+					// unlike sendMessage, so totalTokensUsed was frozen for an autonomous session however many turns it ran).
+					if (turn.totalTokens > 0) {
+						await updateChatSession(session.id, { addTokensUsed: turn.totalTokens }, sessionOptions);
 					}
 					return { finalText: turn.assistantMessage.content, steps: turn.steps };
 				},

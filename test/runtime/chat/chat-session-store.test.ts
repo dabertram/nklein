@@ -199,4 +199,48 @@ describe("one-chat-per-project (§5.AT/§5.AU ownedWorkspaceId)", () => {
 		const owningWs1 = (await listChatSessions(opts)).filter((session) => session.ownedWorkspaceId === "ws-1");
 		expect(owningWs1).toHaveLength(1);
 	});
+
+	it("bug-hunt #7 (2026-07-05): CONCURRENT ensureChatSessionForWorkspace calls still yield exactly one owning chat", async () => {
+		const opts = { rootDir: rootDir2 };
+		// Two callers race for the SAME workspace with no cache populated yet (the feedback bridge + the client, or two
+		// racing summary observers). Without serialization both would find-no-owner and both create — splitting
+		// ownership. Fire them together (not sequentially) to exercise the actual race window.
+		const [a, b] = await Promise.all([
+			ensureChatSessionForWorkspace({ workspaceId: "ws-race", title: "Race" }, opts),
+			ensureChatSessionForWorkspace({ workspaceId: "ws-race", title: "Race" }, opts),
+		]);
+		expect(a.id).toBe(b.id);
+		const owning = (await listChatSessions(opts)).filter((session) => session.ownedWorkspaceId === "ws-race");
+		expect(owning).toHaveLength(1);
+	});
+});
+
+describe("bug-hunt #9/#10 (2026-07-05): totalTokensUsed accumulates via addTokensUsed, concurrency-safe", () => {
+	let rootDir3: string;
+	beforeEach(async () => {
+		rootDir3 = await mkdtemp(join(tmpdir(), "nklein-chat-tokens-"));
+	});
+	afterEach(async () => {
+		await rm(rootDir3, { recursive: true, force: true }).catch(() => undefined);
+	});
+
+	it("addTokensUsed accumulates onto the prior total (not an absolute overwrite)", async () => {
+		const opts = { rootDir: rootDir3 };
+		const created = await createChatSession({ title: "T" }, opts);
+		await updateChatSession(created.id, { addTokensUsed: 30 }, opts);
+		const after = await updateChatSession(created.id, { addTokensUsed: 50 }, opts);
+		expect(after?.totalTokensUsed).toBe(80);
+	});
+
+	it("CONCURRENT addTokensUsed calls on one session both land (no lost update)", async () => {
+		const opts = { rootDir: rootDir3 };
+		const created = await createChatSession({ title: "T" }, opts);
+		// Two turns finishing around the same time — fired together, not sequentially, to exercise the actual race.
+		await Promise.all([
+			updateChatSession(created.id, { addTokensUsed: 30 }, opts),
+			updateChatSession(created.id, { addTokensUsed: 50 }, opts),
+		]);
+		const final = await getChatSession(created.id, opts);
+		expect(final?.totalTokensUsed).toBe(80); // both deltas landed, in EITHER order — not last-writer-wins
+	});
 });
