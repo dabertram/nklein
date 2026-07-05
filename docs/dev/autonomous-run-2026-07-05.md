@@ -75,3 +75,19 @@ Full gate green after all fixes: 647 files / 7312 tests / tsc 0. Validation-firs
 Live-fleet sweep (the machines David freed) validated the newly-enabled egress with REAL models driving it — not just the client harness. `scripts/verify-egress-model-e2e.mts` offers a loaded model the real `web_search` tool, and asserts the full loop: model EMITS a web_search call → its query runs against the live SearXNG → real results fed back → model answers using them. Passed on **3 models across 2 machines + 2 sizes**: `brain27` (27B, local), `coder-gpu` (4B, legion), `qwop4b-a` (4B fable, local) — each emitted the call (finish=tool_calls), got 8 real results, and returned the correct real URL (`anthropic.com/claude/opus`). So egress works with the SMALL local models that are !Klein's whole point, not just a capable model. Fleet untouched (inference calls to already-loaded models only; no load/unload). Reproducible: `NKLEIN_E2E_MODEL=<id> npx tsx scripts/verify-egress-model-e2e.mts`.
 
 **Session sequence COMPLETE** (David's order: egress-live → UI-notes → swarm-recovery → bug-sweep → live-fleet): egress enabled + validated 3 ways (client, SSRF floor, model-e2e); UI parked for Fable; swarm-recovery classification shipped + vendored milestone scoped; bug-sweep found+fixed+live-validated 4 defects (2 HIGH); live-fleet egress proven across the fleet.
+
+
+## Update 2026-07-05 (evening grind — David away until tomorrow, wants a big part of the backlog finished)
+
+David: "keep going, i will be back again tomorrow and expect you to finish a big part of the backlog." Plus earlier: work the backlog / use models when needed / **UI now allowed if logged for a Fable revisit** (`docs/dev/ui-work-fable-revisit.md`) / broader sweeps only AFTER direct tasks.
+
+**Backlog leaves completed this grind (all green, gate ~7349 tests, tsc 0, web-ui tsc 0):**
+- **§5.AA ModelBehaviorProfile persistence store** — event-sourced append-JSONL (`model-behavior-profile-store.ts`), + **fed at the task-outcome seam** (coarse success/failure → successRate/retry-budget). Store now has a live producer.
+- **§5.AB fitness cluster — COMPLETE**: storage layer + schema migrations (`fitness-table-store.ts`) → read-side ranking projection (`rankFitnessCandidatesForCell` + store adapter) → write-side fold (`recordFitnessOutcome`/`emptyFitnessRow`) → **write-side WIRED** (`deriveTaskFitnessRecord` + serialized `recordTaskFitnessOutcome` at the completion seam, concurrency-safe, 20-way test). Schema+read+write+wiring all done.
+- **§5.M** real BPE token estimator into the chat lean-window split (was length/4 placeholder).
+- **§5.L** agent web-research tool + curated-MCP tools gated by the per-role capability ruleset (centralized `isSandboxMcpEnabled` helper vs guard-drift).
+- **§5.AI** test-driven-mode delivery-gate CORE (`decideTestDrivenDelivery` + `isLikelyTestFile`) — wiring is a control-flow change in the completion path, left for a careful fresh pass (risky at marathon depth).
+
+**UI (logged in ui-work-fable-revisit.md):** egress toggle + SearXNG backend URL, curated-MCP + capability-broker toggles, **fixed the web-ui typecheck** (8 stale fixtures missing sandboxMaxConcurrentExec → 0 errors).
+
+**Frontier:** the remaining direct leaves are coupled integrations (loop-level read/update hooks, control-flow gates, scheduler consumption, chat-scope features) or medium multi-file features (config promotions, session fields) or milestones (durable-scheduler, SWARM-recovery vendored change). Completing them = focused per-feature work, not quick leaves. Open: ~429.
