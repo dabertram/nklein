@@ -752,6 +752,30 @@ describe("RuntimeSettingsDialog", () => {
 		expect(document.body.textContent).toContain(".nklein/nklein/telemetry, limit 20");
 	});
 
+	it("surfaces the online-retrieval egress toggle + SearXNG backend URL (§5.AC)", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedNKleinOauthConfig,
+							retrievalEgressEnabled: true,
+							retrievalSearchBackendUrl: "http://localhost:18888",
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+		expect(document.body.textContent).toContain("Allow online web research (egress)");
+		expect(document.body.textContent).toContain("SearXNG backend URL");
+		expect((document.getElementById("runtime-settings-retrieval-backend-url") as HTMLInputElement).value).toBe(
+			"http://localhost:18888",
+		);
+	});
+
 	it("edits and saves the global model-capability gate policy (§5.AL)", async () => {
 		const handleOpenChange = vi.fn();
 		await act(async () => {

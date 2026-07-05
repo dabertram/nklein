@@ -263,6 +263,9 @@ export function RuntimeSettingsDialog({
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [knowsTodayEnabled, setKnowsTodayEnabled] = useState(false);
+	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a SearXNG backend URL.
+	const [retrievalEgressEnabled, setRetrievalEgressEnabled] = useState(false);
+	const [retrievalSearchBackendUrl, setRetrievalSearchBackendUrl] = useState("");
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [codeEmbeddingDefaultsProvider, setCodeEmbeddingDefaultsProvider] =
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
@@ -357,6 +360,8 @@ export function RuntimeSettingsDialog({
 	const developerModeCheckboxId = "runtime-settings-developer-mode";
 	const replayCardsCheckboxId = "runtime-settings-replay-cards";
 	const knowsTodayCheckboxId = "runtime-settings-knows-today";
+	const retrievalEgressCheckboxId = "runtime-settings-retrieval-egress";
+	const retrievalBackendUrlInputId = "runtime-settings-retrieval-backend-url";
 	const maxConcurrentTasksId = "runtime-settings-max-concurrent-tasks";
 	const workspaceBaseDirId = "runtime-settings-workspace-base-dir";
 	const maxAgentWritableFileLinesId = "runtime-settings-max-agent-writable-file-lines";
@@ -457,6 +462,8 @@ export function RuntimeSettingsDialog({
 	const initialDeveloperModeEnabled = config?.developerModeEnabled ?? false;
 	const initialReplayCardsEnabled = config?.replayCardsEnabled ?? false;
 	const initialKnowsTodayEnabled = config?.knowsTodayEnabled ?? false;
+	const initialRetrievalEgressEnabled = config?.retrievalEgressEnabled ?? false;
+	const initialRetrievalSearchBackendUrl = config?.retrievalSearchBackendUrl ?? "";
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 		provider: "local_lexical" as const,
@@ -737,6 +744,12 @@ export function RuntimeSettingsDialog({
 		if (knowsTodayEnabled !== initialKnowsTodayEnabled) {
 			return true;
 		}
+		if (retrievalEgressEnabled !== initialRetrievalEgressEnabled) {
+			return true;
+		}
+		if (retrievalSearchBackendUrl.trim() !== initialRetrievalSearchBackendUrl.trim()) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -948,6 +961,8 @@ export function RuntimeSettingsDialog({
 		setDeveloperModeEnabled(config?.developerModeEnabled ?? false);
 		setReplayCardsEnabled(config?.replayCardsEnabled ?? false);
 		setKnowsTodayEnabled(config?.knowsTodayEnabled ?? false);
+		setRetrievalEgressEnabled(config?.retrievalEgressEnabled ?? false);
+		setRetrievalSearchBackendUrl(config?.retrievalSearchBackendUrl ?? "");
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 			provider: "local_lexical" as const,
@@ -1022,6 +1037,8 @@ export function RuntimeSettingsDialog({
 		config?.developerModeEnabled,
 		config?.replayCardsEnabled,
 		config?.knowsTodayEnabled,
+		config?.retrievalEgressEnabled,
+		config?.retrievalSearchBackendUrl,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
 		config?.workspaceBaseDir,
@@ -1478,6 +1495,8 @@ export function RuntimeSettingsDialog({
 			developerModeEnabled,
 			replayCardsEnabled,
 			knowsTodayEnabled,
+			retrievalEgressEnabled,
+			retrievalSearchBackendUrl: retrievalSearchBackendUrl.trim() || null,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			codeEmbeddingOverride: draftCodeEmbeddingOverride,
 			readyForReviewNotificationsEnabled,
@@ -1704,6 +1723,49 @@ export function RuntimeSettingsDialog({
 										time-sensitive (&sect;5.AC &quot;knows today&quot;). Off by default; relevance-gated +
 										placed to preserve prompt caching.
 									</p>
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
+										htmlFor={retrievalEgressCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={retrievalEgressCheckboxId}
+											checked={retrievalEgressEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setRetrievalEgressEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Allow online web research (egress)</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										Lets agents + chat use the online <code>research</code>/<code>web_search</code> tool
+										against a self-hosted SearXNG backend (&sect;5.AC). OFF by default (fail-closed); the
+										runtime reaches only your configured backend, which queries the web. SSRF-guarded.
+									</p>
+									<div className="ml-11 mt-2">
+										<label
+											htmlFor={retrievalBackendUrlInputId}
+											className="block text-[12px] text-text-secondary mb-1"
+										>
+											SearXNG backend URL
+										</label>
+										<input
+											id={retrievalBackendUrlInputId}
+											type="url"
+											value={retrievalSearchBackendUrl}
+											disabled={controlsDisabled || !retrievalEgressEnabled}
+											onChange={(event) => setRetrievalSearchBackendUrl(event.target.value)}
+											placeholder="http://localhost:18888"
+											className="w-full max-w-sm rounded border border-border bg-surface-2 px-2 py-1 text-[12px] text-text-primary disabled:opacity-40"
+										/>
+										<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+											Start one with <code>docker compose -f docker/searxng/docker-compose.yml up -d</code>{" "}
+											(binds localhost:18888). Web search stays off until egress is on AND a backend is set.
+										</p>
+									</div>
 								</div>
 							</div>
 						</div>
