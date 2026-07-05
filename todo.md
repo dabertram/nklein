@@ -4977,7 +4977,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       biome green. **Still owed (wiring):** the thin JSON persistence layer in the runtime home (like MCSR) + read/update
       hooks from the attempt loop (choose the best first approach + skip known-failing ones, no circles) + Settings
       model-telemetry surface. Built core-first to avoid a speculative persisted schema ahead of its consumers.
-  - [ ] Build thin JSON persistence layer in runtime home (like MCSR)
+  - [x] Build thin JSON persistence layer in runtime home (like MCSR) **DONE 2026-07-05:** event-sourced append-JSONL store `src/telemetry/model-behavior-profile-store.ts` (`persistModelBehaviorOutcome` / `readModelBehaviorProfile` / `readAllModelBehaviorProfiles`) — mirrors model-performance-stats (concurrency-safe append-only, folded oldest-first via the pure `recordModelBehaviorOutcome`); 6 tests. Read/update hooks into the live attempt loop remain (separate wiring).
   - [ ] Add read hooks in attempt loop (choose best first, skip known-failing, no circles)
   - [ ] Add update hooks after each outcome (record to persisted profile)
   - [ ] Expose model-telemetry surface in Settings UI
