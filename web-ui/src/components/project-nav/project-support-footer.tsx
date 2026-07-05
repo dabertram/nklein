@@ -8,7 +8,7 @@ import type { FeaturebaseFeedbackState } from "@/hooks/use-featurebase-feedback-
  * otherwise links out to the GitHub issues page. Self-contained.
  */
 
-const GITHUB_ISSUES_URL = "https://github.com/dabertram/kanban/issues";
+const GITHUB_ISSUES_URL = "https://github.com/dabertram/nklein/issues";
 
 export function ProjectSupportFooter({
 	shouldShowFeaturebaseFeedback,

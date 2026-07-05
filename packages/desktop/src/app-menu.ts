@@ -110,11 +110,11 @@ export class AppMenu {
 			submenu: [
 				{
 					label: "!Klein Documentation",
-					click: () => openExternalSafe("https://github.com/dabertram/kanban"),
+					click: () => openExternalSafe("https://github.com/dabertram/nklein"),
 				},
 				{
 					label: "Report Issue",
-					click: () => openExternalSafe("https://github.com/dabertram/kanban/issues"),
+					click: () => openExternalSafe("https://github.com/dabertram/nklein/issues"),
 				},
 			],
 		};

@@ -35,11 +35,11 @@ describe("self observation sink", () => {
 			taskId: " task-1 ",
 			providerId: "ollama",
 			modelId: "qwen3.5-9b",
-			workspacePath: "/Users/david/GIT/kanban",
+			workspacePath: "/Users/david/GIT/nklein",
 			metadata: {
 				apiKey: "sk-abc123456789999",
 				aws: "AKIA1234567890ABCDEF",
-				filePath: "/Users/david/GIT/kanban/src/index.ts",
+				filePath: "/Users/david/GIT/nklein/src/index.ts",
 				prompt: "Implement the entire feature with local secrets and long user instructions intact.",
 				spec: "# Spec\n\nKeep the full planning document out of telemetry.",
 				nested: {
