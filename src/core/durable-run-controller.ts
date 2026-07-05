@@ -17,6 +17,7 @@
  * `mintWorkerId` = wall clock + uuid — and drives `tick()` on a timer + `reportCompletion()` when a session finishes.
  */
 
+import { type DurableRunLeaseIdentity, keyDurableLeaseActions } from "./durable-lease-idempotency";
 import {
 	applyDurableSchedulerActions,
 	type DurableJob,
@@ -80,6 +81,9 @@ export class DurableRunController {
 		initialJobs: readonly DurableJob[],
 		private readonly config: DurableRunConfig,
 		private readonly ports: DurableRunPorts,
+		/** §5.AF at-most-once: when supplied, each leased action stamps an idempotency key (workflow×task×attempt) onto its
+		 *  persisted scheduler event, so a lease re-appended after a crash dedups on replay. Absent ⇒ keys stay null. */
+		private readonly identity?: DurableRunLeaseIdentity,
 	) {
 		this.jobs = initialJobs.map((job) => ({ ...job }));
 	}
@@ -95,12 +99,13 @@ export class DurableRunController {
 		log: readonly DurableSchedulerLogEntry[],
 		config: DurableRunConfig,
 		ports: DurableRunPorts,
+		identity?: DurableRunLeaseIdentity,
 	): Promise<DurableRunController> {
 		const replayed = replayDurableJobs(initialJobs, log, {
 			reclaimBackoffMs: config.reclaimBackoffMs,
 			maxAttempts: config.maxAttempts,
 		});
-		const controller = new DurableRunController(replayed, config, ports);
+		const controller = new DurableRunController(replayed, config, ports, identity);
 		await controller.reclaimOrphanedLeases();
 		return controller;
 	}
@@ -191,8 +196,26 @@ export class DurableRunController {
 		// persisted) the caller MUST discard this controller and `resume()` from the log: the in-memory mirror is
 		// intentionally NOT advanced (apply + dispatch are skipped), so it can lag its own persisted prefix until a
 		// restart replays the log. Continuing to tick this same instance would decide against a stale snapshot.
+		// §5.AF at-most-once: stamp each LEASE action with an idempotency key derived over the PRE-apply job identity
+		// (workflow×task×attempt), so a lease re-appended after a crash/replay collapses to one on read. `this.jobs` here
+		// is the pre-action snapshot — exactly the state a boot-replay re-derives the same lease against, so the key is
+		// reproducible. No identity ⇒ no keys ⇒ byte-identical to before.
+		const keyByAction = this.identity
+			? new Map<DurableSchedulerAction, string>(
+					keyDurableLeaseActions(actions, this.jobs, this.identity).map((keyed) => [
+						keyed.action,
+						keyed.idempotencyKey,
+					]),
+				)
+			: null;
 		for (const action of actions) {
-			await this.ports.appendLog({ kind: "scheduled", now, action });
+			const idempotencyKey = keyByAction?.get(action);
+			await this.ports.appendLog({
+				kind: "scheduled",
+				now,
+				action,
+				...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
+			});
 		}
 		this.jobs = applyDurableSchedulerActions(this.jobs, actions, {
 			now,

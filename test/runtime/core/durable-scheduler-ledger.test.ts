@@ -420,3 +420,53 @@ describe("readDurableSchedulerLog → replayDurableJobs (boot-replay consequence
 		expect(good).not.toEqual(corrupted);
 	});
 });
+
+describe("readDurableSchedulerLog — idempotency dedup (§5.AF at-most-once)", () => {
+	it("collapses duplicate-KEY lease events to the first occurrence; distinct + null-key events are all kept", () => {
+		const events = [
+			sched({
+				event: "lease_acquired",
+				workerId: "w1",
+				leaseId: "w1",
+				detail: "1000",
+				idempotencyKey: "k1",
+				recordedAt: 1,
+			}),
+			sched({
+				event: "lease_acquired",
+				workerId: "w2",
+				leaseId: "w2",
+				detail: "1000",
+				idempotencyKey: "k1",
+				recordedAt: 3,
+			}), // DUP of k1 (crash re-dispatch)
+			sched({
+				event: "lease_acquired",
+				workerId: "w3",
+				leaseId: "w3",
+				detail: "1000",
+				idempotencyKey: "k2",
+				recordedAt: 4,
+			}),
+			sched({ event: "reclaimed", detail: "lease_expired", recordedAt: 5 }), // null key → always kept
+		];
+		const log = readDurableSchedulerLog(events);
+		const leases = log.filter((e) => e.kind === "scheduled" && e.action.type === "lease");
+		expect(leases).toHaveLength(2); // k1 (the first, recordedAt 1) + k2; the duplicate k1@3 dropped
+		// the FIRST k1 is kept: its worker is w1 (recordedAt 1), not the dropped w2@3
+		const firstLease = leases[0];
+		expect(firstLease?.kind === "scheduled" && firstLease.action.type === "lease" && firstLease.action.workerId).toBe(
+			"w1",
+		);
+		// the null-key reclaim survived
+		expect(log.some((e) => e.kind === "scheduled" && e.action.type === "reclaim")).toBe(true);
+	});
+
+	it("with NO keys (identity absent) it is byte-identical to an unkeyed read (nothing deduped)", () => {
+		const events = [
+			sched({ event: "lease_acquired", workerId: "w1", leaseId: "w1", detail: "1000", recordedAt: 1 }),
+			sched({ event: "lease_acquired", workerId: "w2", leaseId: "w2", detail: "1000", recordedAt: 2 }),
+		];
+		expect(readDurableSchedulerLog(events)).toHaveLength(2); // both kept — null keys never dedup
+	});
+});

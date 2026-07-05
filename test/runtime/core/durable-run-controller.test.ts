@@ -786,4 +786,34 @@ describe("DurableRunController — DURABLE_DEPTH_PRIORITY lease ordering (§5.AF
 		// hub unblocks 3 dependents ⇒ orderReadyJobs ranks it first ⇒ it wins the single slot despite its later input slot.
 		expect(dispatches.map((d) => d.jobId)).toEqual(["hub"]);
 	});
+
+	describe("lease idempotency keys (§5.AF at-most-once)", () => {
+		const identity = { workflowId: "wf-1", workspacePathHash: "hash-1" };
+		const leaseKeyOf = (log: readonly DurableSchedulerLogEntry[]): string | undefined => {
+			const entry = log.find((e) => e.kind === "scheduled" && e.action.type === "lease");
+			return entry && entry.kind === "scheduled" ? entry.idempotencyKey : undefined;
+		};
+
+		it("stamps a non-null key on a lease when an identity is supplied; leaves it undefined without one", async () => {
+			const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+			const keyed = fakePorts();
+			await new DurableRunController(graph, config, keyed.ports, identity).tick();
+			expect(typeof leaseKeyOf(keyed.log)).toBe("string");
+
+			const bare = fakePorts();
+			await new DurableRunController(graph, config, bare.ports).tick();
+			expect(leaseKeyOf(bare.log)).toBeUndefined(); // byte-identical to before the composition
+		});
+
+		it("keys the SAME lease (workflow x task x attempt) identically across runs — so a crash re-dispatch dedups on replay", async () => {
+			const graph = buildDurableJobGraph({ taskIds: ["a"], dependencies: [] });
+			const run1 = fakePorts();
+			await new DurableRunController(graph, config, run1.ports, identity).tick();
+			const run2 = fakePorts();
+			await new DurableRunController(graph, config, run2.ports, identity).tick();
+			const key1 = leaseKeyOf(run1.log);
+			expect(key1).toBeDefined();
+			expect(key1).toBe(leaseKeyOf(run2.log));
+		});
+	});
 });

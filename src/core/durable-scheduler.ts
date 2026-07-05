@@ -424,7 +424,14 @@ export function buildDurableJobGraph(input: DurableJobGraphInput): DurableJob[] 
  * external worker completion (`completed`).
  */
 export type DurableSchedulerLogEntry =
-	| { kind: "scheduled"; now: number; action: DurableSchedulerAction }
+	| {
+			kind: "scheduled";
+			now: number;
+			action: DurableSchedulerAction;
+			/** §5.AF at-most-once key for a `lease` action (from `keyDurableLeaseActions`); absent ⇒ the persisted scheduler
+			 *  event's `idempotencyKey` stays null (no dedup). Only leases carry one; other actions leave it undefined. */
+			idempotencyKey?: string;
+	  }
 	| { kind: "completed"; jobId: string; outcome: "succeeded" | "failed" | "transient_retry" };
 
 /**

@@ -24,6 +24,7 @@
  */
 
 import type { AgentLedgerEvent, AgentSchedulerEvent } from "../core/agent-attempt-ledger";
+import type { DurableRunLeaseIdentity } from "../core/durable-lease-idempotency";
 import { type DurableRunConfig, DurableRunController, type DurableRunPorts } from "../core/durable-run-controller";
 import { createLedgerDurableRunPorts } from "../core/durable-run-ports";
 import { DurableRunRegistry } from "../core/durable-run-registry";
@@ -232,10 +233,16 @@ export function createDurableRunWiring(deps: DurableRunWiringDeps): DurableRunWi
 					typeof options?.maxConcurrentLeases === "number" && Number.isFinite(options.maxConcurrentLeases)
 						? { ...config, maxConcurrentLeases: Math.max(1, Math.trunc(options.maxConcurrentLeases)) }
 						: config;
+				// §5.AF at-most-once: the run-level identity a lease's idempotency key is derived against (run-wide
+				// workflow + workspace hash; per-job model/endpoint left unset ⇒ the key is the workflow×task×attempt).
+				const identity: DurableRunLeaseIdentity = {
+					workflowId: deps.workflowIdFor(workspaceId),
+					workspacePathHash: deps.hashWorkspacePath(workspacePath),
+				};
 				const controller =
 					priorLog.length > 0
-						? await DurableRunController.resume(initialJobs, priorLog, runConfig, ports)
-						: new DurableRunController(initialJobs, runConfig, ports);
+						? await DurableRunController.resume(initialJobs, priorLog, runConfig, ports, identity)
+						: new DurableRunController(initialJobs, runConfig, ports, identity);
 				registry.register(workspaceId, controller);
 				// Lease + dispatch the first ready cards (or, on resume, re-dispatch the reclaimed orphans).
 				await controller.tick();

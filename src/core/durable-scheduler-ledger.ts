@@ -34,6 +34,7 @@ import {
 	buildSchedulerEvent,
 	type SchedulerEventName,
 } from "./agent-attempt-ledger";
+import { dedupeSchedulerEventsByIdempotencyKey } from "./attempt-idempotency-key";
 import type { DurableSchedulerAction, DurableSchedulerLogEntry } from "./durable-scheduler";
 
 /** Envelope fields the runtime supplies when persisting a durable-log entry as a ledger event. */
@@ -108,6 +109,9 @@ export function durableLogEntryToSchedulerEvent(
 		workerId: fields.workerId,
 		leaseId: fields.leaseId,
 		detail: fields.detail,
+		// §5.AF at-most-once: carry the controller's lease idempotency key onto the persisted event so a re-appended lease
+		// (crash/replay) dedups on read via readDurableSchedulerLog. Non-lease entries have none ⇒ null (never deduped).
+		...(entry.idempotencyKey !== undefined ? { idempotencyKey: entry.idempotencyKey } : {}),
 	});
 }
 
@@ -175,11 +179,16 @@ export function readDurableSchedulerLog(
 	options?: { workflowId?: string },
 ): DurableSchedulerLogEntry[] {
 	const workflowId = options?.workflowId;
-	return events
+	const ordered = events
 		.filter(isSchedulerEvent)
 		.filter((event) => workflowId === undefined || event.workflowId === workflowId)
 		.map((event, index) => ({ event, index }))
 		.sort((a, b) => a.event.recordedAt - b.event.recordedAt || a.index - b.index)
-		.map(({ event }) => schedulerEventToDurableLogEntry(event))
+		.map(({ event }) => event);
+	// §5.AF at-most-once: collapse duplicate-KEY lease events (a crash between append+dispatch can re-append the SAME
+	// lease on the reclaim/re-dispatch) to the FIRST occurrence before replay; null-keyed events (every non-lease action)
+	// are always kept. A no-op when keys are null (identity absent) ⇒ byte-identical to the pre-idempotency read.
+	return dedupeSchedulerEventsByIdempotencyKey(ordered)
+		.kept.map((event) => schedulerEventToDurableLogEntry(event))
 		.filter((entry): entry is DurableSchedulerLogEntry => entry !== null);
 }
