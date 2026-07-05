@@ -478,3 +478,26 @@ lower priority than net-new feature-completeness. **Item 8**: record the board�
 multi-level chat addressing) — READ its item states first (the stale-checkbox lesson is now confirmed 4×). Prefer:
 read real code → smallest green functional slice → reconcile todo.md. When touching web-ui, run the web gate
 (web tsc + vitest + build) manually — the root pre-commit does not.
+
+### ✓ SHIPPED (2026-07-06) — §5.AU get_streams pull tool + 3 stale-checkbox reconciles (5c738340)
+Reading the code first (now the 5th confirmation of the lesson) turned a docs task into a feature:
+- **Item 8 (integrations.md) was a MISMATCH, not owed work:** that registry is by charter for EXTERNAL integrations;
+  the board→chat bridge is internal → closed as done (documented in §5.AT + CHANGELOG), not force-fit.
+- **§5.AU item 6 (relay) was STALE `[ ]`:** `send_to_card` is built + wired (`createCardRelayTools`). Marked `[~]` —
+  only `send_to_stream` remains.
+- **Shipped `get_streams`** (item 10's lean-read half): a `sandbox_read` chat tool = new `summarizeWorkspaceBoardStreams`
+  adapter (per-card signals from session+column, mirrors `summarizeWorkspaceBoardHealth`) → `summarizeBoardStreams` (done
+  core) → new pure `renderBoardStreamsSummary` ("Streams (N): title · health · done/total · running"). Auto-offered via
+  the resolver board-toolset spread; injectable `loadBoardStreams`; 6 tests; full fast suite green. This is the third
+  `get_*` read tool composing a done operator core (get_board, get_board_status, get_streams — a clean, repeatable
+  pattern).
+
+### ★ NEXT — §5.AU remaining (feature-complete the streams/addressing epic)
+Owed, roughly in value order: **item 9 second-half** (the chat FRONT DOOR relay — a targeted message actually routes
+through `send_to_card`/mailbox per item 6, not just context injection; + the needs_clarify candidate-picker; + the rung-5
+LLM disambiguator) — this is runtime/chat wiring composing built cores. **item 10 UI-proper** (the stream-overview
+surface, the "talking to X" composer chip + breadcrumb, the stream→DAG→card drill) — functional UI slices (greenlit;
+run the web gate). **`send_to_stream`** (item 6 remainder). Item 7 (optional local-summarizer digest rewrite) is
+explicitly OPTIONAL — skip until the rest is done. READ each item's real state first. When §5.AU is drained, the
+next epics are §5.AF durable scheduler / §5.AG operator UX / the §5.AR MCP wiring — but many of those need David's
+inputs (egress URL for the online cluster, a Docker VM ≥ the 7.7 GiB the durable-scheduler validation needs).
