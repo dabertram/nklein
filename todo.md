@@ -736,6 +736,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >    (e) **Cache-awareness** — a spec start is a legitimate WARM use of an idle rail (the idle model's shell stays warm for its kind); never evict a warm rail that a QUEUED real card will need (check the queued-start queue before mirroring — real work outranks speculation).
 > 5. **Online retrieval egress — ANSWERED (2026-07-02): GREENLIT as OPT-IN, default-OFF.** **⇒ RETRIEVAL LOOP SHIPPED as the single online path 2026-07-03 (user decision): one `research` tool drives runRetrievalLoop (search→rank→fetch→sufficiency); the manual web_search/browse_url split is RETIRED; requires egress + a configured SearXNG backend; synthetic sessions never get egress.** ⇒ wire the §5.AC retrieval loop + SearXNG fetch adapter behind the egress gate: default OFF, per-project opt-in toggle, all fetches through the SSRF-safe adapter; the sandbox's strict isolation is untouched (only the gated retrieval path gets egress when the user enables it). ALL FIVE user questions are now decided — nothing awaits user input in §5.0.5.
 
+### 5.0.6 — CURRENT-PHASE SCOPE: drive to feature-complete first *(2026-07-05, user — operating directive for the current autonomous grind)*
+> Re-affirms + sharpens the [polishing.md](polishing.md) phase split for the current run. **This phase = get !Klein
+> FEATURE-COMPLETE. Do what is necessary for the task at hand — no more.** Concretely:
+> - **Implement to feature-complete.** Each item: build the capability + the wiring that makes it live (the §5.0.5
+>   "built-not-running" theme), and only the coverage/verification that is a **hard gate for that specific feature**.
+>   Don't gold-plate; don't chase breadth the task doesn't need.
+> - **Extended sweeps → [polishing.md](polishing.md), LATER.** All model-attribute A/B excursions (§5.AO), cross-model
+>   verification (§5.Z), broad live-fleet measurement sweeps, and the comprehensive coverage-for-completeness work are
+>   **deferred to the polishing phase** — they run only once the implementation backlog is drained. The §5.AA/§5.AL
+>   runtime-unsuitability detection + persistent data collection stay always-on passively; do not open a dedicated sweep
+>   session now.
+> - **UI: prepare FUNCTIONAL slices NOW; VISUAL polish LATER with Fable.** Build the working UI surfaces a feature needs
+>   in this phase (settings toggles, panels, the operator surfaces §5.AT/§5.AU/§5.W need) so nothing is "done" without
+>   its UI. The distinctive **visual overhaul (§5.AX)** — the "!Klein" design system, restyle, look-and-feel — is
+>   **deferred to polishing.md and done with the Fable model** (its UI superpowers), NOT ground out now.
+> - **Egress: GREENLIT (host-side).** The online-retrieval feature is CODE-COMPLETE incl. the Settings toggle
+>   (`retrievalEgressEnabled` + `retrievalSearchBackendUrl`, [runtime-settings-dialog.tsx](web-ui/src/components/runtime-settings-dialog.tsx));
+>   the SSRF safety floor is live-validated. Turning it ON is an operational toggle (Settings / global config), and
+>   `web_search` additionally needs a running **SearXNG backend URL** (owed input from David; `browse_url` works without).
+>   No code work remains to "enable" it — do not flip the fail-closed default in code.
+
 ### 5.0 — Clarification decisions (2026-06-23 pass; all FINAL unless re-decided)
 > The user went through every open question in §5. Recorded here so the tasks are actionable without further
 > clarification; the per-section items below are annotated to match.
