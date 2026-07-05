@@ -1402,6 +1402,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			taskId,
 			workspacePath: entry.summary.workspacePath ?? null,
 			metadata: { category: "model_lost_residency" },
+			// §5.AL runtime-verdict precision (approved follow-up, 2026-07-05): stamp a per-run id (mirroring the ledger's
+			// `${taskId}:${startedAt}` attempt identity) so assessRuntimeModelVerdict can DEDUP this stall to its run
+			// instead of falling back to a raw capped event count when multiple stalls land on the same run.
+			...(entry.summary.startedAt ? { runId: `${taskId}:${entry.summary.startedAt}` } : {}),
 		});
 		this.emitTaskFailure(
 			taskId,
