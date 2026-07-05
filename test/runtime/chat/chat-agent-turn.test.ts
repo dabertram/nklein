@@ -97,6 +97,63 @@ describe("runChatAgentTurn", () => {
 		expect(note?.content).toContain("[~]");
 	});
 
+	it("nudges to draft a focus chain when enabled + no chain + a multi-tool turn (§5.M/§5.N)", async () => {
+		let seenMessages: Array<{ role: string; content: string }> = [];
+		await runChatAgentTurn(
+			{ session: session(), userMessage: "do a multi-step thing", tokenBudget: 1000 },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				// no readFocusChain ⇒ no chain; enabled + tools offered ⇒ nudge.
+				focusChainNudgeEnabled: true,
+				offeredToolNames: ["a", "b"],
+				appendMessage: async (_sessionId, input) =>
+					({ schemaVersion: 1, id: "m", role: input.role, content: input.content, createdAt: 0 }) as ChatMessage,
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async (messages) => {
+					seenMessages = messages as Array<{ role: string; content: string }>;
+					return { text: "ok", toolCalls: [] };
+				},
+				executeTool: async () => {
+					throw new Error("no tools expected");
+				},
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		expect(
+			seenMessages.find((message) => message.role === "system" && message.content.includes("draft your plan")),
+		).toBeTruthy();
+	});
+
+	it("does NOT nudge when the flag is off (byte-identical default)", async () => {
+		let seenMessages: Array<{ role: string; content: string }> = [];
+		await runChatAgentTurn(
+			{ session: session(), userMessage: "do a thing", tokenBudget: 1000 },
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				focusChainNudgeEnabled: false,
+				offeredToolNames: ["a", "b"],
+				appendMessage: async (_sessionId, input) =>
+					({ schemaVersion: 1, id: "m", role: input.role, content: input.content, createdAt: 0 }) as ChatMessage,
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async (messages) => {
+					seenMessages = messages as Array<{ role: string; content: string }>;
+					return { text: "ok", toolCalls: [] };
+				},
+				executeTool: async () => {
+					throw new Error("no tools expected");
+				},
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		expect(
+			seenMessages.find((message) => message.role === "system" && message.content.includes("draft your plan")),
+		).toBeUndefined();
+	});
+
 	it("persists a direct answer when the model uses no tools", async () => {
 		const result = await runChatAgentTurn(
 			{ session: session(), userMessage: "hi", tokenBudget: 1000 },

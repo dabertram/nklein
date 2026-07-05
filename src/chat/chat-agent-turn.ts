@@ -1,5 +1,6 @@
 import { isTruthyEnv } from "../core/env-flag";
 import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain";
+import { decideFocusChainNudge } from "../core/focus-chain-nudge";
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
 import {
@@ -60,6 +61,12 @@ export interface ChatAgentTurnDeps {
 	/** Names of the tools offered this turn — feeds the §5.AA controller evidence-gate (don't accept a premature "done"
 	 *  while a tool the instruction explicitly named is still uncalled). Omit to disable the gate (today's behavior). */
 	offeredToolNames?: readonly string[];
+	/**
+	 * §5.M/§5.N focus-chain nudge switch — OFF BY DEFAULT. When omitted, the env flag `NKLEIN_FOCUS_CHAIN_NUDGE` decides.
+	 * When on AND the session has NO focus chain AND this is a multi-tool turn, the turn leads with a note nudging the
+	 * agent to draft its plan first with `update_focus_chain`. Off ⇒ byte-identical to today.
+	 */
+	focusChainNudgeEnabled?: boolean;
 }
 
 export interface ChatAgentTurnResult {
@@ -113,6 +120,12 @@ export async function runChatAgentTurn(
 	// Re-anchor the agent's focus chain (todo §5.M G4): lead the turn with its current checklist so a small model
 	// stays on-plan, and offer `update_focus_chain` (wired into the tool set) to keep it current.
 	const focusChain = deps.readFocusChain ? await deps.readFocusChain(input.session.id) : null;
+	// §5.M/§5.N focus-chain NUDGE (OFF BY DEFAULT via NKLEIN_FOCUS_CHAIN_NUDGE / deps override): when there's no chain
+	// yet AND this is a multi-tool turn, lead with a note to draft one first. Off ⇒ nudge=false ⇒ byte-identical.
+	const focusChainNudge =
+		(deps.focusChainNudgeEnabled ?? isTruthyEnv(process.env.NKLEIN_FOCUS_CHAIN_NUDGE)) && !focusChain
+			? decideFocusChainNudge({ hasFocusChain: false, toolsOffered: deps.offeredToolNames?.length ?? 0 })
+			: { nudge: false, reason: "" };
 	// §5.AU: the resolved message-target note (when the message addresses a card/stream/answer) leads the turn,
 	// before the focus chain — the addressing decision frames everything else. Goal-targeted turns add nothing.
 	const messages: ChatPromptMessage[] = [
@@ -124,7 +137,15 @@ export async function runChatAgentTurn(
 						content: `Your current focus chain (update it with the update_focus_chain tool as you make progress):\n${formatFocusChainForPrompt(focusChain)}`,
 					},
 				]
-			: []),
+			: focusChainNudge.nudge
+				? [
+						{
+							role: "system" as const,
+							content:
+								"You have no focus chain yet. Before doing multi-step work, draft your plan as an ordered checklist with the update_focus_chain tool, then work through it.",
+						},
+					]
+				: []),
 		...prompt,
 	];
 	// §5.AA controller evidence-gate: when the instruction explicitly names ≥2 offered tools (a clear multi-tool task,

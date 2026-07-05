@@ -2077,7 +2077,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [x] **Agent tool** — `update_focus_chain` (full-list re-emit, relaxed schema, `onUpdated`); unit-tested
 - [~] **Wire into every agent surface** — seed "draft a chain first" into per-task prompts; reviewer checks adherence
   - [x] board agents: "Focus Chain" rule pack + tool attached in the session runtime + state-hub persists onto `card.focusChain`
-  - [ ] seed the "draft a chain first" rule into the chat-agent surface (§5.M).
+  - [x] seed the "draft a chain first" rule into the chat-agent surface (§5.M). *(2026-07-05: wired decideFocusChainNudge into runChatAgentTurn — no chain + multi-tool turn ⇒ leads with a "draft your plan first with update_focus_chain" note; flag-gated NKLEIN_FOCUS_CHAIN_NUDGE / deps override, default OFF = byte-identical; 2 tests)*
   - [x] optional re-prompt nudge when a task runs without a focus chain. *(2026-07-05: `decideFocusChainNudge` in focus-chain-nudge.ts — nudge a non-trivial, tools-offered, chain-less task; quiet otherwise; the re-prompt emission is the call-site's; 4 tests)*
 - [~] **Visual representation (todo list)** — checklist UI with done/in-progress/pending
   - [x] board: `FocusChainPanel` in card detail (✓/▸/○/– + x/total), threaded through `BoardCard` + normalizer
