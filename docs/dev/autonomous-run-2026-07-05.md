@@ -353,3 +353,51 @@ the scoped runtime config — but the service does NOT currently access that con
 start-task-session, which reads scopedRuntimeConfig.effectiveSkillDynamicsLevel). That plumbing is disproportionate to a
 LOW divergence that only affects users who set a non-default (static/assigned) skill-dynamics level; owed as a bounded
 wiring follow-up.
+
+---
+
+## 2026-07-06 — resumption after the repo rename (kanban → nklein); grind re-armed
+
+Session died mid-work during the repo rename. Recovered: all 409 local commits pushed to the renamed remote
+`feat/nklein-upcoming` (was `feat/kanban-reliability-context-upgrade`), local+remote in sync, `worktree-agent-*`
+branches dropped (proved fully merged). David set the **current-phase scope** → todo.md §5.0.6: drive to
+FEATURE-COMPLETE; extended sweeps (§5.AO/§5.Z + broad live measurement) + the §5.AX visual overhaul deferred to
+polishing.md; UI = FUNCTIONAL slices now, visual polish with Fable later; egress greenlit (host-side). Continuation is a
+recurring idle-only cron (every 2 min) that re-enters via goal.md.
+
+### Actionable-boundary re-confirmation (a full scan this iteration, not idle)
+Scanned the top ready wiring candidates to find the highest-leverage clean increment. Confirmed the 2026-07-05 finding
+holds: **the clean, deterministic, actionable-without-David pure-core leaves are worked through.** Specifics found:
+- **§5.M modality gate (`resolveChatModalities`, todo L1967)** — the pure core is dark (ZERO non-test callers), but the
+  chat contract is text-only (`runtimeChatMessageSchema.content: z.string()`, `sendMessage.message: z.string()`); there
+  is no attachment/image field to gate. Wiring it is NOT a small leaf — it depends on first plumbing multimodal input
+  end-to-end (contract + provider + UI). Not iteration-sized; leave until multimodal input is a funded feature.
+- **§5.L capability broker at the swarm seam (todo L1620)** — the shared gate `decideCapabilityBrokerGate`
+  (capability-broker-gate.ts) exists and is *explicitly built for both seams* ("one broker, both seams"), but only the
+  chat executor calls it. Two swarm sub-paths: (a) the **sandbox executors** (`createAgentSandboxToolExecutors` in
+  nklein-agent-sandbox.ts: bash/readFile/search/editor/applyPatch; webFetch disabled) are workspace-scoped with NO
+  web/MCP taint and touch NO protected sink → wiring the broker there is a structural **no-op** (skip; would be dead
+  code). (b) the **host-side retrieval seam** (`buildRetrievalExtraTools` ~nklein-task-session-service.ts:917 →
+  `createNKleinResearchTool`) DOES bear real egress + ingests untrusted web content and is confirmed **not
+  broker-gated** — this is the true keystone.
+
+### ★ PRE-SCOPED NEXT TARGET (execute next iteration, fresh context) — swarm-path capability broker
+Wire `decideCapabilityBrokerGate` into the swarm's host-side retrieval/research tool seam so tainted web content the
+`research` tool ingests cannot drive a *subsequent* egress/MCP call in the same turn (the browse-evil→exfiltrate class).
+Mirror the chat template `createGatedChatToolExecutor` (chat-tool-executor.ts) exactly:
+- **Flag:** gate on the existing `capabilityBrokerEnabled` runtime config (default OFF ⇒ byte-identical; the swarm never
+  runs the gate today). Thread it to the seam like the chat path threads it via the resolver getter.
+- **Taint window:** one per-turn accumulate-only `TaintLabel[]`; the `research` tool's output carries `["web"]`
+  (untrusted, SEO/backend-controllable). Fold it after a successful research call (`propagateTaint`).
+- **Gate:** before each tool runs, `decideCapabilityBrokerGate({ manifest, taintLabels })`; deny fail-closed if a
+  protected-sink call follows tainted content with no trusted plan. Needs a per-tool `ToolCapabilityManifest` for the
+  research/egress tool (network=egress) — reuse/extend `tool-capability-manifest.ts` (do not fork the logic).
+- **Tests (deterministic, no live model):** research(→web taint) then a second egress call ⇒ DENY; research alone ⇒
+  allow; flag OFF ⇒ byte-identical (never gates); a workspace-only tool after taint ⇒ allow (no protected sink).
+- **Verify:** root tsc + biome + test:fast green; adversarial 3-refuter pass (byte-identity / no-bypass / no-false-block)
+  as the chat path had. Live end-to-end validation (needs egress ON + a SearXNG URL) is polishing, not a gate here.
+
+### Highest-leverage David unblock (unchanged, still owed)
+A **SearXNG backend URL** turns the entire online-retrieval cluster (the research tool + this broker's live path) from
+dormant to live. Egress is code-complete incl. the Settings toggle; only the backend URL + the toggle flip remain, both
+David's. `browse_url`-style direct fetch works without a backend; `web_search`/`research` need it.
