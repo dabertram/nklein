@@ -200,12 +200,39 @@ function validateUrl(raw: unknown): string | null {
  * uses in production (its SSRF guard runs in the wrapper, not here). `timeoutMs` defaults to the chat tool's own
  * default so callers get identical navigation behavior.
  */
-export function buildDefaultBrowserDeps(timeoutMs: number = DEFAULT_TIMEOUT_MS): BrowserDeps {
+export function buildDefaultBrowserDeps(
+	timeoutMs: number = DEFAULT_TIMEOUT_MS,
+	// When true, install a per-request SSRF interceptor that re-checks EVERY request (top-level nav, subresources, AND
+	// redirect targets) at request time and aborts any that resolve to a private/reserved address. This is defense the
+	// pre-navigation `checkHostForSsrf` cannot provide: it (a) covers subresource requests the pre-check never sees
+	// (`<img src="http://169.254.169.254/…">`), (b) aborts a redirect-to-internal BEFORE the internal GET fires, and
+	// (c) re-resolves closer to Chromium's own connect, shrinking the DNS-rebinding window from seconds to microseconds.
+	// Residual: the last micro-TOCTOU between this resolve and Chromium's is not closed (would need IP pinning). MUST
+	// stay OFF for local-mode browsing (the operator legitimately browses their own localhost); the guarded contexts
+	// (remote chat + the untrusted-URL retrieval loop) turn it ON. (Hardening from the 2026-07-05 bug-hunt sweep.)
+	interceptSsrf = false,
+): BrowserDeps {
 	return {
 		fetchPage: async (url) => {
 			const browser = await chromium.launch({ headless: true });
 			try {
 				const page = await browser.newPage();
+				if (interceptSsrf) {
+					const hostVerdicts = new Map<string, Promise<string | null>>();
+					await page.route("**/*", async (route) => {
+						const requestUrl = route.request().url();
+						let verdict = hostVerdicts.get(requestUrl);
+						if (verdict === undefined) {
+							verdict = checkHostForSsrf(requestUrl);
+							hostVerdicts.set(requestUrl, verdict);
+						}
+						if ((await verdict) !== null) {
+							await route.abort("blockedbyclient");
+							return;
+						}
+						await route.continue();
+					});
+				}
 				try {
 					await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
 					const title = (await page.evaluate("document.title")) as string;
@@ -233,7 +260,9 @@ export function buildDefaultBrowserDeps(timeoutMs: number = DEFAULT_TIMEOUT_MS):
 export function buildSsrfGuardedPageFetcher(
 	options: { fetchPage?: (url: string) => Promise<BrowserFetchResult>; timeoutMs?: number } = {},
 ): (url: string) => Promise<BrowserFetchResult> {
-	const fetchPage = options.fetchPage ?? buildDefaultBrowserDeps(options.timeoutMs).fetchPage;
+	// The untrusted-URL retrieval loop always runs guarded — use the SSRF-intercepting default fetcher so subresource
+	// requests + redirect-to-internal + a rebinding record are refused at request time, not just pre-navigation.
+	const fetchPage = options.fetchPage ?? buildDefaultBrowserDeps(options.timeoutMs, true).fetchPage;
 	return async (url) => {
 		const invalid = validateUrl(url);
 		if (invalid !== null) {
@@ -275,7 +304,9 @@ export function createBrowserTools(options: BrowserToolOptions = {}): ChatToolSe
 	const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
 	const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 	const isRemoteMode = options.isRemoteMode ?? false;
-	const deps = options.browser ?? buildDefaultBrowserDeps(timeoutMs);
+	// In remote mode enable the per-request SSRF interceptor (subresources + redirect targets + rebinding window),
+	// complementing the pre-navigation `checkHostForSsrf` below. Local mode stays OFF so the operator can browse localhost.
+	const deps = options.browser ?? buildDefaultBrowserDeps(timeoutMs, isRemoteMode);
 
 	const tools: ChatTool[] = [
 		{
