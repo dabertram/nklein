@@ -5,7 +5,7 @@
  * means the scheduler + model selector read live evidence, never a stale curated list. Pure + total.
  */
 
-import { type FitnessRow, fitnessSuccessRate } from "./fitness-table-schema.js";
+import { type FitnessDifficultyTier, type FitnessRow, fitnessSuccessRate } from "./fitness-table-schema.js";
 
 export interface BelowBarCriteria {
 	/** The success-rate bar; a well-sampled cell below this is "failing". */
@@ -29,4 +29,45 @@ export function projectPassingCells(rows: readonly FitnessRow[], criteria: Below
 	return rows
 		.filter((row) => row.sampleCount >= criteria.minSamples && fitnessSuccessRate(row) >= criteria.minSuccessRate)
 		.sort((a, b) => fitnessSuccessRate(b) - fitnessSuccessRate(a));
+}
+
+/** A model-selection query over the fitness table: which models fit a specific (role × difficulty) cell. */
+export interface FitnessSelectionQuery {
+	role: string;
+	difficultyTier: FitnessDifficultyTier;
+	/** Exclude cells below this sample count (no evidence yet ⇒ not rankable). Default 1. */
+	minSamples?: number;
+}
+
+/**
+ * The model-selection READ SIDE (§5.AB): rank the models with evidence for a specific (role × difficulty) cell,
+ * BEST-FIRST. Tie-break order: success rate desc → sample count desc (more evidence is more trustworthy) → mean wall
+ * time asc (faster wins a further tie; unmeasured sorts last). Cells below `minSamples` are excluded. Pure + total —
+ * the swarm scheduler / model selector reads LIVE evidence, never a stale curated list.
+ */
+export function rankFitnessCandidatesForCell(rows: readonly FitnessRow[], query: FitnessSelectionQuery): FitnessRow[] {
+	const minSamples = query.minSamples ?? 1;
+	return rows
+		.filter(
+			(row) =>
+				row.role === query.role && row.difficultyTier === query.difficultyTier && row.sampleCount >= minSamples,
+		)
+		.sort((a, b) => {
+			const byRate = fitnessSuccessRate(b) - fitnessSuccessRate(a);
+			if (byRate !== 0) {
+				return byRate;
+			}
+			if (b.sampleCount !== a.sampleCount) {
+				return b.sampleCount - a.sampleCount;
+			}
+			return (a.meanWallTimeMs ?? Number.POSITIVE_INFINITY) - (b.meanWallTimeMs ?? Number.POSITIVE_INFINITY);
+		});
+}
+
+/** The single best-fit model for a cell (top of the ranking), or null when no model has evidence yet. Pure. */
+export function bestFitnessCandidateForCell(
+	rows: readonly FitnessRow[],
+	query: FitnessSelectionQuery,
+): FitnessRow | null {
+	return rankFitnessCandidatesForCell(rows, query)[0] ?? null;
 }

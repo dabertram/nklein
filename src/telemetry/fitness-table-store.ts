@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { type FitnessSelectionQuery, rankFitnessCandidatesForCell } from "../core/fitness-projections";
 import { type FitnessRow, fitnessCellKey, fitnessRowSchema } from "../core/fitness-table-schema";
 
 const DEFAULT_FITNESS_TABLE_PATH = join(resolveNkleinRuntimeHomePath(homedir()), "fitness-table.json");
@@ -91,6 +92,18 @@ export async function writeFitnessTable(table: FitnessTable, options: FitnessTab
 	const tmp = `${path}.tmp-${process.pid}`;
 	await writeFile(tmp, payload, "utf8");
 	await rename(tmp, path);
+}
+
+/**
+ * §5.AB read side: rank the persisted models for a (role × difficulty) cell, best-first — the store-backed view the
+ * swarm scheduler / model selector consumes. Reads the table then applies the pure {@link rankFitnessCandidatesForCell}.
+ */
+export async function readRankedFitnessCandidates(
+	query: FitnessSelectionQuery,
+	options: FitnessTableStoreOptions = {},
+): Promise<FitnessRow[]> {
+	const table = await readFitnessTable(options);
+	return rankFitnessCandidatesForCell(Object.values(table.rows), query);
 }
 
 /** Upsert rows by their cell key (read → merge → atomic write); returns the resulting table. */

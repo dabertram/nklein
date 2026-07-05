@@ -7,6 +7,7 @@ import {
 	FITNESS_TABLE_SCHEMA_VERSION,
 	readFitnessRow,
 	readFitnessTable,
+	readRankedFitnessCandidates,
 	upsertFitnessRows,
 	writeFitnessTable,
 } from "../../src/telemetry/fitness-table-store";
@@ -94,5 +95,19 @@ describe("fitness-table-store (§5.AB storage layer)", () => {
 	it("writes a valid, current-version file", async () => {
 		await upsertFitnessRows([row()], { path });
 		expect(JSON.parse(await readFile(path, "utf8")).version).toBe(FITNESS_TABLE_SCHEMA_VERSION);
+	});
+
+	it("read side: ranks persisted models for a role×difficulty cell best-first (§5.AB)", async () => {
+		await upsertFitnessRows(
+			[
+				row({ modelKey: "strong", successCount: 9, sampleCount: 10 }),
+				row({ modelKey: "weak", successCount: 2, sampleCount: 10 }),
+				row({ modelKey: "mid", successCount: 6, sampleCount: 10 }),
+				row({ modelKey: "other-cell", role: "reviewer", successCount: 10, sampleCount: 10 }),
+			],
+			{ path },
+		);
+		const ranked = await readRankedFitnessCandidates({ role: "worker", difficultyTier: "medium" }, { path });
+		expect(ranked.map((r) => r.modelKey)).toEqual(["strong", "mid", "weak"]); // other-cell (reviewer) excluded
 	});
 });
