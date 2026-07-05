@@ -3,6 +3,7 @@ import {
 	BASIC_MEMORY_GLOBAL_PROJECT,
 	basicMemoryHardeningEnv,
 	basicMemoryProjectName,
+	basicMemorySeedProjectArgs,
 	planBasicMemorySandboxWiring,
 	planBasicMemoryScoping,
 } from "../../../src/core/basic-memory-scoping";
@@ -88,5 +89,16 @@ describe("planBasicMemorySandboxWiring", () => {
 			planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "w2", scopes: [] }),
 		);
 		expect(wiring.mounts).toHaveLength(2); // config + per-project notes
+	});
+});
+
+describe("basicMemorySeedProjectArgs", () => {
+	it("emits a `project add <name> <notesDir>` per project (validated live: no auto-init)", () => {
+		const plan = planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "w1", scopes: ["global"] });
+		const seeds = basicMemorySeedProjectArgs(plan);
+		expect(seeds).toEqual([
+			["basic-memory", "project", "add", "ws-w1", "/nklein/basic-memory/notes"],
+			["basic-memory", "project", "add", "global", "/nklein/basic-memory/global"],
+		]);
 	});
 });

@@ -144,3 +144,14 @@ export function planBasicMemorySandboxWiring(plan: BasicMemoryScopingPlan): Basi
 	];
 	return { mounts, env: plan.env };
 }
+
+/**
+ * The `docker exec` argv(s) that SEED basic-memory's config for a plan — one `basic-memory project add <name> <notesDir>`
+ * per project (validated live 2026-07-05: basic-memory does NOT auto-init; an explicit `project add` registers the
+ * project → its mounted notes dir, after which `write_note` pinned via BASIC_MEMORY_MCP_PROJECT persists there). Run each
+ * with BASIC_MEMORY_CONFIG_DIR (in {@link BasicMemoryScopingPlan.env}) pointed at the mounted config dir. Pure — returns
+ * the argv arrays; the caller execs them once at container start (idempotent: re-adding an existing project is a no-op).
+ */
+export function basicMemorySeedProjectArgs(plan: BasicMemoryScopingPlan): string[][] {
+	return plan.projects.map((project) => ["basic-memory", "project", "add", project.name, project.containerNotesDir]);
+}
