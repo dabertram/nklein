@@ -6443,7 +6443,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Track native-reasoning quality in `ModelBehaviorProfile`: measure how often model reasons correctly alone.
   - [ ] Record whether enforced reasoning helps (A/B: outcome with vs. without reasoning loop).
   - [ ] Learn which kind wins for this model: self-consistency vs. cross-model debate vs. stronger-model carry.
-  - [ ] Compute learned rounds budget (when to stop iterating).
+  - [x] Compute learned rounds budget (when to stop iterating). *(2026-07-05: rounds-budget.ts — decideStopIterating (converged→cap→diminishing-returns) + learnRoundsBudget (leading rounds clearing the improvement floor, clamped [1,cap]); 8 tests)*
   - [ ] Wire into §5.AB model selector: apply reasoning loop only where it helps; skip for robust models on easy tasks.
 - [ ] **Re-verify across the §5.Z roster + matrix.** After each increment, sweep all loaded models: arrangement +
       learned budget + enforced reasoning should LIFT the weak/small models (esp. phi-4-mini/-plus on the harder flows)
