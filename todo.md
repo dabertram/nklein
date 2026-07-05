@@ -7935,7 +7935,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > tangle. The escalation path (the automatic across-all-loaded-models ladder → user escalation with "get through the
 > wall" suggestions) is specced in §5.AB; the rest:
 - [ ] **Decompose emits work-package-shaped cards, decomposed:**
-  - [ ] Define the richer card schema: write-scope, forbidden paths, interfaces, acceptance shape.
+  - [x] Define the richer card schema: write-scope, forbidden paths, interfaces, acceptance shape. *(2026-07-05: richer-card-schema.ts — zod richerCardSpecSchema (writeScope · forbiddenPaths · interfaces[frozen] · acceptance{checks,command,nonGoals} · dependsOn) + richerCardToWorkPackage projecting to the existing overlap classifier; 6 tests. Populating these in decompose is the next leaf.)*
   - [ ] Update decompose logic to produce cards carrying these contract bounds.
   - [~] Verify small workers stay in-bounds by construction (overlap classification Green/Yellow/Red). **PURE CORE DONE
         (2026-07-01):** [`src/core/work-package-dispatch.ts`](src/core/work-package-dispatch.ts) — the §5.AK module-ownership
