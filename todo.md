@@ -6360,7 +6360,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `max_tokens` matched to complexity); consensus = match budget to task DIFFICULTY per-STEP, not a static per-session cap
       ("simple problems shouldn't consume as much compute as complex"). Practitioner ref: the aisecuritygateway "5-layer
       token-budget strategies for agents" guide. (Citations in the commit; a fuller writeup → `docs/dev/` when implementing.)
-  - [ ] **Size UP-FRONT** from (a) the model's learned reasoning-token burn (per-model, from the §5.AA `ModelBehaviorProfile`
+  - [x] **Size UP-FRONT** from (a) the model's learned reasoning-token burn (per-model, from the §5.AA `ModelBehaviorProfile` *(2026-07-05: ALREADY DONE — `answerBudgetPrior` in answer-budget-prior.ts sizes maxTokens from (reasoning-profile+learnedReasoningTokens × taskClass × outputMode), clamped so inputTokens+maxTokens ≤ window; its own doc names this §5.AD 'Size UP-FRONT'; 10 tests. Only the WIRE+live-verify leaf below stays open.)*
         / §5.AF ledger — reasoning tier needs large headroom, non-reasoning little); (b) the TASK CLASS (trivial reply /
         single-tool / multi-tool / decomposition / long-generation — each a distinct answer-size prior); (c) the OUTPUT MODE
         (a forced native tool call needs little; free-gen needs the answer budget; per the §5.AN structured-output finding,
