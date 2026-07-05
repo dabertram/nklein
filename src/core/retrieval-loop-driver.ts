@@ -136,12 +136,21 @@ export async function runRetrievalLoop(
 		: undefined;
 	const rankOptions = freshnessThresholds ? { freshnessThresholds } : undefined;
 	const queries = [queryPlan.primaryQuery, ...queryPlan.alternateQueries].filter((q) => q.length > 0);
-	const subQuestions = queries.length > 0 ? queries : [queryPlan.primaryQuery];
+	// The coverage requirement for sufficiency is the sub-questions the loop can ACTUALLY pursue within its iteration
+	// budget: it covers one query per round and stops at `maxIterations`, so it can cover at most min(queries, maxIter).
+	// Requiring coverage of MORE than that (e.g. 4 knowledge-debt sub-questions under the default 3-round budget) made
+	// sufficiency permanently UNREACHABLE — the loop always falsely reported insufficient (→ needless escalation) even
+	// with complete, fresh evidence (bug-hunt 2026-07-05). Cap the coverage set to what the budget allows; the source
+	// floor + freshness gate still guard against declaring sufficiency without enough real/fresh evidence.
+	const subQuestions = (queries.length > 0 ? queries : [queryPlan.primaryQuery]).slice(0, maxIterations);
 
 	const evidence: RetrievalEvidence[] = [];
 	const seenEvidence = new Set<string>();
 	const coveredQueries: string[] = [];
 	const actions: RetrievalAction[] = [];
+	// Each hit's freshness verdict (by id), recorded at rank time and read when the hit is actually FETCHED — the gate is
+	// flipped only by a fetched-and-kept fresh source (bug-hunt 2026-07-05), never by a hit that never reached evidence.
+	const freshnessVerdictById = new Map<string, string>();
 	let freshnessSatisfied = queryPlan.freshnessNeed === "any";
 
 	let queryIndex = 0;
@@ -186,8 +195,12 @@ export async function runRetrievalLoop(
 			const query = queries[queryIndex] ?? queryPlan.primaryQuery;
 			const hits = await deps.search(query, options.signal);
 			const ranked = rankByFreshnessAuthority(hits.map(toRankable), new Date(deps.now()), rankOptions);
-			if (ranked.some((r) => FRESH_VERDICTS.has(r.freshnessVerdict))) {
-				freshnessSatisfied = true;
+			// Record each hit's freshness verdict by id — do NOT flip the gate here. A fresh hit only satisfies the
+			// freshness gate once it is actually FETCHED into `evidence` (below); flipping from `ranked` let a fresh hit
+			// that is never fetched (buried past maxFetchPerQuery, or whose fetch throws) declare the loop "fresh &
+			// sufficient" over purely stale evidence (bug-hunt 2026-07-05, HIGH, 3-lens consensus).
+			for (const r of ranked) {
+				freshnessVerdictById.set(r.id, r.freshnessVerdict);
 			}
 			const byId = new Map(hits.map((hit) => [hit.id, hit] as const));
 			// Dedup by id BEFORE the slice: `ranked` can carry two entries for a duplicate hit id, both mapping (last-wins)
@@ -228,6 +241,10 @@ export async function runRetrievalLoop(
 					if (!seenEvidence.has(fetched.id)) {
 						seenEvidence.add(fetched.id);
 						evidence.push(fetched);
+						// §5.AC freshness gate: satisfied ONLY by a fetched-and-kept fresh source (see the search branch).
+						if (FRESH_VERDICTS.has(freshnessVerdictById.get(fetched.id) ?? "")) {
+							freshnessSatisfied = true;
+						}
 					}
 				} catch {
 					// Skip a failed fetch (transient/blocked) — the loop still progresses.

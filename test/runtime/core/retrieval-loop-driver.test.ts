@@ -227,6 +227,46 @@ describe("runRetrievalLoop", () => {
 		expect(result.stoppedBecause).toBe("sufficient");
 	});
 
+	it("bug-hunt 2026-07-05 (HIGH): a 'fresh' plan is NOT satisfied when the only fresh hit's FETCH fails (gate reflects FETCHED evidence, not hits)", async () => {
+		// A fresh hit + a stale hit are both returned; the FRESH one's fetch throws (blocked/transient) so only the STALE
+		// source enters `evidence`. Pre-fix the gate flipped from the ranked HIT list, so the loop declared "fresh &
+		// sufficient" over purely stale evidence — the exact freshness bypass the knows-today gate exists to prevent.
+		const { deps } = makeDeps({
+			search: async () => [hit("f", { publishedAt: RECENT }), hit("s", { publishedAt: STALE })],
+			fetch: async (h): Promise<RetrievalEvidence> => {
+				if (h.id === "f") {
+					throw new Error("blocked");
+				}
+				return { id: h.id, url: h.url, text: `text-${h.id}`, publishedAt: h.publishedAt };
+			},
+		});
+		const result = await runRetrievalLoop("latest X release", deps, { minSources: 1 });
+		expect(result.queryPlan.freshnessNeed).toBe("fresh");
+		expect(result.evidence.map((e) => e.id)).toEqual(["s"]); // only the stale source was actually fetched
+		expect(result.stoppedBecause).toBe("budget_exhausted"); // freshness gate NOT satisfied by an unfetched fresh hit
+		expect(result.sufficiency.reasons.some((r) => /fresh/i.test(r))).toBe(true);
+	});
+
+	it("bug-hunt 2026-07-05 (MEDIUM): sufficiency is reachable when knowledge-debt sub-questions exceed maxIterations", async () => {
+		// 3 knowledge-debt items → 4 sub-questions; with maxIterations=2 the loop can only cover 2 queries, so the old
+		// coverage requirement (ALL 4) was permanently unreachable → the loop always reported insufficient even with
+		// ample fresh evidence. The fix caps the coverage requirement to the budget-attemptable sub-questions.
+		let n = 0;
+		const { deps } = makeDeps({
+			search: async () => {
+				n += 1;
+				return [hit(`r${n}`), hit(`t${n}`)]; // distinct fresh ids per query so evidence accumulates
+			},
+		});
+		const result = await runRetrievalLoop("what is X", deps, {
+			knowledgeDebt: ["gap A", "gap B", "gap C"],
+			maxIterations: 2,
+			minSources: 1,
+		});
+		expect(result.stoppedBecause).toBe("sufficient");
+		expect(result.sufficiency.sufficient).toBe(true);
+	});
+
 	it("dedups duplicate-id hits before fetching so a distinct hit is not starved (bug-hunt 2026-07-05)", async () => {
 		// search returns id 'x' twice + a distinct 'y'; with maxFetchPerQuery=2 the old byId-last-wins mapping filled both
 		// slots with 'x', starving 'y'. The dedup keeps 'x' once and fetches 'y'.
