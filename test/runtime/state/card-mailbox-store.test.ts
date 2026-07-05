@@ -127,6 +127,39 @@ describe("markCardMailboxConsumedUpTo (§5.BF fix — consume only after a succe
 		expect(await countPendingCardMailbox("t", opts)).toBe(1);
 	});
 
+	it("bug-hunt #6 (2026-07-05): an id-based consume keeps a same-ms racing note pending under the REAL production ordering", async () => {
+		// The prior "equal-timestamp race" test above appends the racing note AFTER calling markCardMailboxConsumedUpTo
+		// — the OPPOSITE of what actually happens in start-task-session.ts: there, the racing note can be appended to
+		// the log DURING the (long) startTaskSession call, i.e. BEFORE markCardMailboxConsumedUpTo is invoked (which
+		// only runs after start succeeds). Reproduce THAT real ordering here: read n1, then a same-ms racing note is
+		// appended to the log BEFORE the consume call — and pass the read note's id (as start-task-session.ts now
+		// does) so it survives regardless of the timestamp tie.
+		const opts = { rootDir: rootDir2 };
+		const n1 = await appendCardMailboxNote({ taskId: "t", text: "read-at-start" }, { ...opts, now: () => 1000 });
+		const read = await listPendingCardMailbox("t", opts); // simulates the start's non-destructive read: [n1]
+		// The racing note logs to the SAME store BEFORE the consume call — the real start-window ordering.
+		await appendCardMailboxNote({ taskId: "t", text: "arrived-during-start" }, { ...opts, now: () => 1000 });
+		await markCardMailboxConsumedUpTo(
+			"t",
+			n1.createdAt,
+			opts,
+			read.map((note) => note.id),
+		);
+		const stillPending = await listPendingCardMailbox("t", opts);
+		expect(stillPending.map((note) => note.text)).toEqual(["arrived-during-start"]);
+	});
+
+	it("bug-hunt #6: WITHOUT the id (legacy timestamp boundary), the same-ms racing note under the REAL ordering is wrongly dropped", async () => {
+		// Documents the bug this fix closes: the legacy 3-arg call (no ids) is still tie-prone under the ordering that
+		// actually occurs in production (racing note logged before the consume).
+		const opts = { rootDir: rootDir2 };
+		const n1 = await appendCardMailboxNote({ taskId: "t", text: "read-at-start" }, { ...opts, now: () => 1000 });
+		await appendCardMailboxNote({ taskId: "t", text: "arrived-during-start" }, { ...opts, now: () => 1000 });
+		await markCardMailboxConsumedUpTo("t", n1.createdAt, opts); // no ids ⇒ legacy createdAt > at boundary
+		const stillPending = await listPendingCardMailbox("t", opts);
+		expect(stillPending).toEqual([]); // the legacy path's known limitation — motivates always passing ids
+	});
+
 	it("a FAILED start (notes read but never consumed) leaves guidance pending for the next attempt", async () => {
 		const opts = { rootDir: rootDir2 };
 		await appendCardMailboxNote({ taskId: "t", text: "prefer streaming parser" }, { ...opts, now: () => 1000 });

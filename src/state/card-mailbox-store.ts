@@ -42,7 +42,14 @@ const cardMailboxNoteSchema = z.object({
 
 const cardMailboxEventSchema = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("append"), at: z.number(), note: cardMailboxNoteSchema }),
-	z.object({ type: z.literal("consume"), at: z.number(), taskId: z.string() }),
+	z.object({
+		type: z.literal("consume"),
+		at: z.number(),
+		taskId: z.string(),
+		/** The exact ids consumed (bug-hunt 2026-07-05 fix). Absent ⇒ an OLD event predating this field; falls back to
+		 * the legacy `createdAt > at` boundary (best-effort for already-persisted logs, still subject to the tie bug). */
+		noteIds: z.array(z.string()).optional(),
+	}),
 ]);
 type CardMailboxEvent = z.infer<typeof cardMailboxEventSchema>;
 
@@ -75,14 +82,22 @@ async function appendEvent(event: CardMailboxEvent, rootDir?: string): Promise<v
 
 /** Replay to the still-PENDING notes for `taskId`, oldest first — those appended after the task's latest `consume`. */
 function replayPending(events: readonly CardMailboxEvent[], taskId: string): CardMailboxNote[] {
-	// Process events in LOG ORDER so a `consume(at)` only clears notes that were already appended before it. A note
-	// appended AFTER the consume event survives even if it shares the consume's millisecond (createdAt === at) — the
-	// start-window race where guidance arrives at the same ms as the newest read note would otherwise be silently
-	// dropped. Position in the append-only log, not just the createdAt comparison, disambiguates equal timestamps.
+	// Process events in LOG ORDER: a `consume` only clears the notes SEEN SO FAR (already appended earlier in the log);
+	// one appended after the consume event's log position is naturally preserved (it isn't in `notes` yet).
 	let notes: CardMailboxNote[] = [];
 	for (const event of events) {
 		if (event.type === "consume" && event.taskId === taskId) {
-			notes = notes.filter((note) => note.createdAt > event.at);
+			// Bug-hunt fix (2026-07-05): consume by EXACT id when the event carries `noteIds` (the ids actually read),
+			// not by a `createdAt > at` timestamp boundary. The boundary form is ambiguous on a tie: a note that
+			// arrives during the read-to-consume window can share the SAME millisecond as the newest note that WAS
+			// read (real under "fast/concurrent chat delivery"), and `createdAt > at` then wrongly drops it — even
+			// though it was never actually read/folded into the prompt this consume is finalizing. An id-set has no
+			// such ambiguity: only the notes truly read are ever removed. Legacy events (persisted before this fix)
+			// carry no `noteIds` — fall back to the old boundary for those (best-effort on old, unmigrated logs only).
+			const consumedIds = event.noteIds;
+			notes = consumedIds
+				? notes.filter((note) => !consumedIds.includes(note.id))
+				: notes.filter((note) => note.createdAt > event.at);
 		} else if (event.type === "append" && event.note.taskId === taskId) {
 			notes.push(event.note);
 		}
@@ -137,19 +152,28 @@ export function composeMailboxPromptAddendum(notes: readonly CardMailboxNote[]):
  * Mark a card's mailbox consumed UP TO a specific note timestamp — the crash-safe half of "consume on start".
  * A start reads the pending notes NON-destructively ({@link listPendingCardMailbox}), folds them into the opening
  * prompt, and only calls this AFTER the start actually succeeds — so a start that throws (Docker down, bad baseRef,
- * stale workspace) leaves the guidance pending for the next attempt instead of durably losing it. Consuming "up to"
- * the newest read note (not `now`) also means a note that arrived DURING the start window stays pending rather than
- * being marked consumed without ever reaching a prompt.
+ * stale workspace) leaves the guidance pending for the next attempt instead of durably losing it.
+ *
+ * Pass `consumedNoteIds` (the exact ids of the notes just read/folded in) whenever the caller has them — bug-hunt fix
+ * 2026-07-05: a boundary based only on `upToCreatedAt` is ambiguous on a tie (a note arriving during the read-to-
+ * consume window can share the SAME millisecond as the newest note that WAS read — real under fast/concurrent chat
+ * delivery — and gets wrongly swept up by a plain `createdAt > at` filter even though it was never actually read).
+ * An id-set has no such ambiguity. Omit it only for a caller that doesn't have the read notes' ids on hand; that path
+ * keeps the older, tie-prone timestamp boundary for back-compat.
  */
 export async function markCardMailboxConsumedUpTo(
 	taskId: string,
 	upToCreatedAt: number,
 	options: CardMailboxStoreOptions = {},
+	consumedNoteIds?: readonly string[],
 ): Promise<void> {
 	if (!Number.isFinite(upToCreatedAt)) {
 		return;
 	}
-	await appendEvent({ type: "consume", at: upToCreatedAt, taskId }, options.rootDir);
+	await appendEvent(
+		{ type: "consume", at: upToCreatedAt, taskId, ...(consumedNoteIds ? { noteIds: [...consumedNoteIds] } : {}) },
+		options.rootDir,
+	);
 }
 
 /**

@@ -918,12 +918,19 @@ export async function handleStartTaskSession(
 
 		// The start SUCCEEDED and the mailbox-augmented prompt is now bound into the session — durably consume the
 		// notes we folded in. Do this FIRST (before the best-effort lane reconcile below), so the durability-critical
-		// consume can never be skipped by a later step throwing. Consume up to the NEWEST note we read (not `now`),
-		// so a note that arrived during the start window stays pending for the next turn rather than being dropped.
+		// consume can never be skipped by a later step throwing. Consume by EXACT id (the notes we actually read), not
+		// just a timestamp boundary — a note that arrives during the start window can share the same millisecond as
+		// the newest note we read (bug-hunt 2026-07-05), and an id-set has no such tie ambiguity: it stays pending for
+		// the next turn rather than being wrongly swept up.
 		if (mailboxNotes.length > 0) {
 			const newestConsumedAt = mailboxNotes[mailboxNotes.length - 1]?.createdAt;
 			if (newestConsumedAt !== undefined) {
-				await markCardMailboxConsumedUpTo(body.taskId, newestConsumedAt).catch(() => {});
+				await markCardMailboxConsumedUpTo(
+					body.taskId,
+					newestConsumedAt,
+					undefined,
+					mailboxNotes.map((note) => note.id),
+				).catch(() => {});
 			}
 		}
 
