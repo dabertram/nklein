@@ -226,4 +226,15 @@ describe("runRetrievalLoop", () => {
 		expect(result.queryPlan.freshnessNeed).toBe("fresh");
 		expect(result.stoppedBecause).toBe("sufficient");
 	});
+
+	it("dedups duplicate-id hits before fetching so a distinct hit is not starved (bug-hunt 2026-07-05)", async () => {
+		// search returns id 'x' twice + a distinct 'y'; with maxFetchPerQuery=2 the old byId-last-wins mapping filled both
+		// slots with 'x', starving 'y'. The dedup keeps 'x' once and fetches 'y'.
+		const { deps, fetchCalls } = makeDeps({
+			search: async () => [hit("x"), hit("x", { url: "https://example.com/x-dup" }), hit("y")],
+		});
+		await runRetrievalLoop("what is X", deps, { maxFetchPerQuery: 2, minSources: 2 });
+		expect(fetchCalls.filter((id) => id === "x")).toHaveLength(1); // fetched once, not twice
+		expect(fetchCalls).toContain("y"); // the distinct hit is NOT starved by the duplicate
+	});
 });
