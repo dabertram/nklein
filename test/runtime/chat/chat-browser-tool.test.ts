@@ -65,6 +65,15 @@ describe("isPrivateOrReservedIp", () => {
 		expect(isPrivateOrReservedIp("fe80::1")).toBe(true);
 	});
 
+	it("returns true for IPv4-embedding IPv6 transition ranges reaching internal IPv4 (SSRF fail-open regression)", () => {
+		// Each of these carries an IPv4 in its low bits; before the fix ipaddr's range name (rfc6052/6to4/teredo)
+		// was NOT in the blocklist, so the guard classified them as public → SSRF to loopback/LAN/cloud-metadata.
+		expect(isPrivateOrReservedIp("64:ff9b::7f00:1")).toBe(true); // NAT64 → 127.0.0.1
+		expect(isPrivateOrReservedIp("64:ff9b::a9fe:a9fe")).toBe(true); // NAT64 → 169.254.169.254 (metadata)
+		expect(isPrivateOrReservedIp("2002:7f00:1::")).toBe(true); // 6to4 → 127.0.0.1
+		expect(isPrivateOrReservedIp("2001::1")).toBe(true); // Teredo
+	});
+
 	it("returns false for public IPv4 addresses", () => {
 		expect(isPrivateOrReservedIp("8.8.8.8")).toBe(false);
 		expect(isPrivateOrReservedIp("1.1.1.1")).toBe(false);

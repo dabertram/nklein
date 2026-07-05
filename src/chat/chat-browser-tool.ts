@@ -104,6 +104,16 @@ export function isPrivateOrReservedIp(ip: string): boolean {
 		"unspecified", // ::
 		"ipv4Mapped", // already unwrapped above, but keep as backstop
 		"reserved",
+		// IPv4-EMBEDDING transition ranges — each carries/routes to an IPv4 destination in its low bits, so an
+		// attacker can reach loopback/LAN/cloud-metadata through the IPv6 literal (e.g. `64:ff9b::a9fe:a9fe` → the
+		// 169.254.169.254 metadata endpoint). ipaddr.js names them distinctly and they are NOT covered by the
+		// unwrap above (that only handles `::ffff:` mapped). Block the whole ranges (fail-closed): a literal NAT64/
+		// 6to4/Teredo URL in a page-fetch is an SSRF attempt, never a legitimate public-page fetch (which resolves
+		// via DNS to a normal address). Was a fail-OPEN hole (bug-hunt 2026-07-05).
+		"rfc6052", // 64:ff9b::/96 — NAT64 well-known prefix (embeds IPv4 in low 32 bits)
+		"rfc6145", // ::ffff:0:0/96 — IPv4-translatable (stateless NAT64)
+		"6to4", // 2002::/16 — 6to4 (embeds IPv4 in bits 16-48)
+		"teredo", // 2001::/32 — Teredo tunneling (embeds a mapped IPv4)
 	]);
 	return BLOCKED_IPV6_RANGES.has(range);
 }
