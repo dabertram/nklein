@@ -9,6 +9,7 @@ import {
 	getActiveMention,
 	type MentionCandidate,
 } from "@/components/chat/composer-mention";
+import { StreamOverviewPanel } from "@/components/chat/stream-overview-panel";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -966,6 +967,8 @@ function ChatPanel({
 								disabled={!chat.selectedSessionId}
 								onStart={(goal) => void chat.startAutonomousRun(goal)}
 							/>
+							{/* §5.AU stream-overview surface: the owning project's epics at a glance (health · progress · running). */}
+							<StreamOverviewPanel enabled={enabled && Boolean(selectedSession?.ownedWorkspaceId)} />
 							{/* §5.AU sticky-focus chip: who the next message addresses (set by an explicit @handle); ✕ = back to Goal. */}
 							{selectedSession?.focus ? (
 								<div
