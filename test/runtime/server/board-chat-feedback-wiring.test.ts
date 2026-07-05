@@ -171,6 +171,45 @@ describe("board-chat feedback wiring dispatch (§5.AT/§5.AU)", () => {
 		expect(f.transitioned[1]?.overrides).toEqual({ deliveryGateHeld: false });
 	});
 
+	it("sources clarifyingQuestionPending from a user_attention hook (ask_followup_question) as an ASK override", () => {
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		// A card that called ask_followup_question: state awaiting_review + reviewReason "hook" + the dedicated
+		// notificationType "user_attention" marker (nklein-event-adapter stamps exactly this for user-attention tools).
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: {
+				taskId: "asks",
+				state: "awaiting_review",
+				reviewReason: "hook",
+				latestHookActivity: { toolName: "ask_followup_question", notificationType: "user_attention" },
+			} as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		// deliveryGateHeld is false (reviewReason is "hook", not "attention") — the two ASKs are distinct signals.
+		expect(f.transitioned[0]?.overrides).toEqual({ deliveryGateHeld: false, clarifyingQuestionPending: true });
+	});
+
+	it("does NOT source clarifyingQuestionPending for a non-attention hook (byte-identical default overrides)", () => {
+		const f = fakeBridge();
+		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge, now: () => NOW });
+		// A regular tool-call hook (notificationType null) must not spuriously trip the question ASK.
+		observeNKleinSummary({
+			workspaceId: "ws",
+			workspacePath: "/p",
+			summary: {
+				taskId: "t1",
+				state: "running",
+				reviewReason: null,
+				latestHookActivity: { toolName: "bash", notificationType: null },
+			} as RuntimeTaskSessionSummary,
+			isInitial: false,
+		});
+		// Exact equality proves no clarifyingQuestionPending key was spread in.
+		expect(f.transitioned[0]?.overrides).toEqual({ deliveryGateHeld: false });
+	});
+
 	it("skips synthetic (::review / ::acceptance / …) sessions — feedback is about the card", () => {
 		const f = fakeBridge();
 		const { observeNKleinSummary } = createBoardChatFeedbackWiring({ bridge: f.bridge });

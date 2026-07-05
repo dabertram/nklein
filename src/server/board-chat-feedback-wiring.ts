@@ -159,6 +159,14 @@ export function createBoardChatFeedbackWiring(overrides?: {
 		// `heartbeatStatus` (the channel the signal map reads for `heartbeatLost` — the overrides object has no such key).
 		const attention = deriveAttentionOverrides(input.summary, now());
 		const heartbeatStatus = attention?.heartbeatLost === true ? "lost" : (input.summary.heartbeatStatus ?? null);
+		// §5.S/§5.AT: the card is BLOCKED on a question for the operator. The agent calls a user-attention tool
+		// (ask_followup_question / plan_mode_respond), which stamps `notificationType: "user_attention"` on the hook
+		// activity (nklein-event-adapter) — the dedicated marker. Surface it as a `needs_input` ASK (verbs: respond)
+		// that breaks through quiet mode, so "card X is asking you something" reaches the owning chat instead of only
+		// sitting on the board. Distinct from `deliveryGateHeld` (reviewReason "attention" = a review hold, not a
+		// question). `awaitingHostActionAck` is intentionally NOT sourced here: swarm cards run in the no-network
+		// sandbox with no host actions, so that ASK is a chat-path concept and stays false for board cards.
+		const clarifyingQuestionPending = input.summary.latestHookActivity?.notificationType === "user_attention";
 		const transition = {
 			taskId: input.summary.taskId,
 			workspaceId: input.workspaceId,
@@ -171,8 +179,11 @@ export function createBoardChatFeedbackWiring(overrides?: {
 			// A card parked with reviewReason "attention" is HELD awaiting the operator's decision — surface it as an
 			// ASK (approve/edit/reject), which breaks through quiet mode, rather than a plain terminal NOTIFY. The
 			// other reasons (error/interrupted/exit/hook) are outcomes the NOTIFY path already covers.
+			// `clarifyingQuestionPending` is folded CONDITIONALLY (only when it trips) so a summary with no pending
+			// question yields the byte-identical pre-change override object (no spurious key).
 			overrides: {
 				deliveryGateHeld: input.summary.reviewReason === "attention",
+				...(clarifyingQuestionPending ? { clarifyingQuestionPending: true } : {}),
 				...attention?.overrides,
 			},
 		};
