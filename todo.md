@@ -7281,6 +7281,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         them, only reach review when green). **Default ON**, with a **global** toggle and a **per-project override** (wire
         through `runtime.saveConfig` global + workspace-scope, same pattern as §5.W concurrency / Suite-16 settings
         contract). Surface in Settings + the project-settings menu. The dev-test oracle (§5.V) is the natural verifier.
+        **SEAM IDENTIFIED (2026-07-05) — the pure core is DONE + tested but DARK (0 callers):**
+        [decideTestDrivenDelivery](src/core/test-driven-delivery.ts) (`{enabled, changedFilePaths}` → allow/block + a
+        reason; `isLikelyTestFile` heuristic). Wire it at the delivery gate `finalizeHeadlessAutoReviewTask`
+        ([runtime-server.ts:1031](src/server/runtime-server.ts#L1031)), BEFORE the §5.K second-opinion review call
+        (~L1089): the result branch is ready (its `--name-only` diff is available via `resolveReviewSandboxResult` /
+        `sandboxResult`), so compute changedFilePaths, and on `!allowReview` BOUNCE the card back to In Progress with the
+        reason (mirror the second-opinion `bounced` path — re-drive the worker with the "add a test" reason) instead of
+        proceeding to delivery. **Slice it (proven env-flag-first pattern, cf. §5.AC knows-today):** (1) env flag
+        `NKLEIN_TEST_DRIVEN_MODE` (default off) gating the seam — a small completable slice; (2) the full config field
+        (global default + per-project override, the ~10-site `secondOpinionReviewEnabled` pattern) + Settings UI second.
+        CONTROL-FLOW change in a critical file — do it deliberately with the bounce mechanism mirrored exactly, and
+        validate with a live task whose change has no test (must bounce) vs one that adds a test (must deliver).
   - [x] **Re-verify `read_large_file` — CONFIRMED satisfied, closed as superseded (2026-06-28).** Verified the live impl
         ([nklein-large-file-workflow.ts](src/nklein-agent/nklein-large-file-workflow.ts)) is the simplified §5.O protocol:
         the model only *triggers* the workflow with a `path` then advances with `cursor: "next"` (or an empty/`continue`/
