@@ -410,3 +410,25 @@ now"). Pivoting there.
 A **SearXNG backend URL** turns the entire online-retrieval cluster (the research tool + this broker's live path) from
 dormant to live. Egress is code-complete incl. the Settings toggle; only the backend URL + the toggle flip remain, both
 David's. `browse_url`-style direct fetch works without a backend; `web_search`/`research` need it.
+
+### ✓ SHIPPED this iteration (e45ec04a) — §5.AT item 4: clarifyingQuestionPending sourced
+Correcting the "pivot to UI" conclusion above: found a real, deterministic, non-UI increment. The board→chat feedback
+**bridge is already built + wired live** (via `createBoardChatFeedbackWiring` → `createRuntimeStateHub({observeNKleinSummary})`,
+cli.ts:420) — todo.md §5.AT item 4 was stale `[ ]`. Its highest-value gap (the DEAD ASK overrides) was mostly already
+sourced (`deliveryGateHeld` via reviewReason "attention"; `noProgressOrLoop`/`approachingBudgetCeiling`/`heartbeatLost`
+via §5.AG `assessRunAttention`). The one genuinely-dead ASK, **`clarifyingQuestionPending`**, is now sourced: derived
+from the dedicated `latestHookActivity.notificationType === "user_attention"` marker the event-adapter stamps for
+`ask_followup_question`/`plan_mode_respond` (state→awaiting_review, reviewReason "hook"). Folded conditionally
+(byte-identical when no question). The live bridge now surfaces "card X is asking you something · respond" as a
+`needs_input` ASK that breaks quiet mode. `awaitingHostActionAck` deliberately left false (sandboxed cards have no host
+actions — a chat-path concept). 2 wiring tests; full fast suite green; todo §5.AT item 4 marked done + CHANGELOG.
+**Lesson:** todo.md `[ ]` markers can be stale for built-but-unreconciled work — read the actual code before trusting the
+checkbox (this is the SECOND stale-status find, after the bridge itself).
+
+### ★ NEXT (next iteration) — §5.AT items 5–8, then §5.AU
+Item 4 is done. **Item 5 (Seam-3 live UI)** is the natural next: a hub `chat_message_appended` event (mirror the existing
+`task_chat_message`) + a client refetch of `chat.getTranscript` in `use-chat-data.ts`, so a server-pushed system message
+(the ASKs this bridge now emits) actually appears without waiting for the user's next turn or the 2.5s poll. This is a
+functional UI slice (David greenlit) — verify with root+web tsc, web vitest, web:build. Then items 6 (user
+controls/verbosity/mute + `get_board_status` pull tool), 7 (optional local-summarizer digest rewrite), 8 (record in
+integrations.md). NOTE: re-read the code first — check what `use-chat-data.ts` + the hub already do before assuming a gap.
