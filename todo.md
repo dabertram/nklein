@@ -2059,8 +2059,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] **Turn-budget allocator** (pure core): apportion the context window across the bands (system/invariants · *(2026-07-05: `allocateTurnBudget` in turn-budget-allocator.ts — fixed bands reserved first, flexible filled by priority, dropped when min unmet, over-budget/under-floor flags; 7 tests)*
         objective/focus-chain · current message · recent transcript · overflow summary · semantic · episodic ·
         procedural · tool defs), respecting the ≥32k floor; unit-test the allocation. (Ties §5.AD smart-zone.)
-  - [ ] **Namespaced memory scope** — replace the owed "access-all-loaded-projects" boolean with a namespaced scope.
-  - [ ] **Memory governance** (one leaf each): provenance tagging · scope enforcement · deletion · contradiction-
+  - [x] **Namespaced memory scope** — replace the owed "access-all-loaded-projects" boolean with a namespaced scope. *(2026-07-05: realized by basic-memory-scoping namespaces (ws-<hash> + global) + `isMemoryAccessAllowed` enforcement in memory-governance.ts)*
+  - [x] **Memory governance** (one leaf each): provenance tagging · scope enforcement · deletion · contradiction- *(2026-07-05: memory-governance.ts — scope enforcement, recency×frequency×importance weighting, reversible supersede (contradiction-replacement), soft deletion; provenance tagging already in basic-memory-provenance.ts; 8 tests)*
         replacement · recency/frequency/importance weighting · reversible history.
   - [x] **"Why recalled" surfacing** — show, per recalled memory, why it was selected. *(2026-07-05: `explainRecall` in basic-memory-provenance.ts surfaces relevance × trust(verdict) × freshness(age-decay) = effective score, with human labels; WeightedRecall now exposes the components; 3 tests)*
   - [ ] gate broadening memory scope on passing an internal LongMemEval-style task (built under §5.V).
