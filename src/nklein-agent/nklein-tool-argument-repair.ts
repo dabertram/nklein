@@ -71,17 +71,70 @@ function extractBalanced(text: string): string | null {
 	return null;
 }
 
-/** Light structural repairs that don't change valid JSON: trailing commas, single→double quotes on keys. */
+/**
+ * Convert single-quoted strings to double-quoted, but ONLY outside already-double-quoted strings. A plain regex
+ * (`/'([^'"\\]*)'/`) is NOT string-context-aware: on a valid double-quoted value like `"don't break the 'build' step"`
+ * it pairs the apostrophe after `don` with the quote before `build`, rewriting the value to invalid JSON and dropping the
+ * whole tool call. This scanner tracks double-quote state (honoring escapes) and leaves in-string apostrophes untouched,
+ * converting only single-quoted runs that appear OUTSIDE a double-quoted string (the `{k:'v'}` case the repair targets).
+ */
+function convertSingleQuotedStrings(text: string): string {
+	let out = "";
+	let inDouble = false;
+	for (let i = 0; i < text.length; ) {
+		const ch = text[i];
+		if (inDouble) {
+			if (ch === "\\" && i + 1 < text.length) {
+				out += ch + text[i + 1]; // keep the escaped char pair verbatim
+				i += 2;
+				continue;
+			}
+			if (ch === '"') {
+				inDouble = false;
+			}
+			out += ch;
+			i += 1;
+			continue;
+		}
+		if (ch === '"') {
+			inDouble = true;
+			out += ch;
+			i += 1;
+			continue;
+		}
+		if (ch === "'") {
+			// Scan a single-quoted run (same character class as the old regex: no raw double-quote or backslash inside).
+			let j = i + 1;
+			let content = "";
+			let clean = true;
+			while (j < text.length && text[j] !== "'") {
+				if (text[j] === '"' || text[j] === "\\") {
+					clean = false;
+					break;
+				}
+				content += text[j];
+				j += 1;
+			}
+			if (clean && j < text.length && text[j] === "'") {
+				out += `"${content}"`;
+				i = j + 1;
+				continue;
+			}
+		}
+		out += ch;
+		i += 1;
+	}
+	return out;
+}
+
+/** Light structural repairs that don't change valid JSON: trailing commas, single→double quotes on keys/values. */
 function repairCommon(text: string): string {
-	return (
-		text
-			// Remove trailing commas before } or ].
-			.replace(/,(\s*[}\]])/gu, "$1")
-			// Quote unquoted object keys: { key: ... } -> { "key": ... }.
-			.replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)(\s*:)/gu, '$1"$2"$3')
-			// Convert single-quoted strings to double-quoted (best-effort; skips ones containing double quotes).
-			.replace(/'([^'"\\]*)'/gu, '"$1"')
-	);
+	const structural = text
+		// Remove trailing commas before } or ].
+		.replace(/,(\s*[}\]])/gu, "$1")
+		// Quote unquoted object keys: { key: ... } -> { "key": ... }.
+		.replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$]*)(\s*:)/gu, '$1"$2"$3');
+	return convertSingleQuotedStrings(structural);
 }
 
 /**

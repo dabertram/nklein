@@ -204,8 +204,10 @@ function tryCoerce(declared: readonly JsonSchemaType[], value: unknown): { coerc
 
 	for (const type of declared) {
 		if ((type === "number" || type === "integer") && typeof trimmedString === "string") {
-			// A numeric-looking string ⇒ the number. `Number("")` is 0, so guard against empty/space-only.
-			if (trimmedString.length > 0 && Number.isFinite(Number(trimmedString))) {
+			// Only a PLAIN decimal literal coerces. `Number()` also parses hex/octal/binary/scientific ("0x10"→16,
+			// "0b101"→5, "1e3"→1000) — coercing those would FABRICATE a value from a string the model likely did not
+			// intend as a number, violating the lossless/never-a-guess contract. The regex also rejects "" (Number("")=0).
+			if (/^-?\d+(\.\d+)?$/.test(trimmedString)) {
 				const n = Number(trimmedString);
 				if (type === "integer" && !Number.isInteger(n)) {
 					continue;
@@ -289,8 +291,9 @@ export function assessToolArgumentRepair(
 		const schema = properties[field] as PropertySchema | undefined;
 
 		if (schema === undefined) {
-			if (hasDeclaredProperties) {
-				// The schema declares its properties and this isn't one ⇒ a hallucinated extra field — drop it.
+			if (hasDeclaredProperties && !requiredSet.has(field)) {
+				// The schema declares its properties and this isn't one (and isn't required) ⇒ a hallucinated extra
+				// field — drop it.
 				issues.push({
 					kind: ToolArgumentIssueKind.UnknownField,
 					field,
@@ -299,7 +302,9 @@ export function assessToolArgumentRepair(
 				didRepair = true;
 				continue;
 			}
-			// No declared properties ⇒ can't call anything "unknown"; pass it through untouched.
+			// No declared properties, OR a REQUIRED field with no `properties` entry (valid JSON Schema: `required` may
+			// name a field absent from `properties`, meaning "must be present, any value") — pass it through untouched
+			// rather than DROPPING a required value and then judging the call dispatchable without it.
 			repaired[field] = value;
 			continue;
 		}

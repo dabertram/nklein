@@ -149,26 +149,34 @@ function parseGemmaToolCodeCalls(text: string): NarratedToolCall[] {
 	const calls: NarratedToolCall[] = [];
 	const callRe = /([A-Za-z_][A-Za-z0-9_.]*)\s*\(/g;
 	const markerRe = /tool_code/gi;
+	// Do NOT slice the text into `[marker, nextMarker]` regions: the next-marker search is string-UNAWARE, so a
+	// `tool_code` inside a call's string argument (e.g. run_command(command="grep tool_code .")) was mistaken for the
+	// next region boundary and truncated the call mid-string, dropping it. Instead scan the FULL text and let the
+	// string-aware `extractBalancedParens` decide where each call ends; `consumedUpTo` skips markers that fall inside an
+	// already-parsed call (its own body / string args) so they aren't reprocessed.
+	let consumedUpTo = 0;
 	let marker: RegExpExecArray | null = markerRe.exec(text);
 	while (marker !== null) {
-		const regionEnd = (() => {
-			markerRe.lastIndex = marker.index + marker[0].length;
-			const next = markerRe.exec(text);
-			markerRe.lastIndex = marker.index + marker[0].length; // restore for the outer loop's next step
-			return next ? next.index : text.length;
-		})();
-		const region = text.slice(marker.index, regionEnd);
-		callRe.lastIndex = 0;
-		let call: RegExpExecArray | null = callRe.exec(region);
-		while (call !== null) {
-			const name = call[1].split(".").at(-1)?.trim() ?? "";
-			const openParen = call.index + call[0].length - 1;
-			const balanced = extractBalancedParens(region, openParen);
-			if (name && !GEMMA_WRAPPER_NAMES.has(name.toLowerCase()) && balanced) {
-				calls.push({ toolName: name, input: parsePythonKwargs(balanced.body) });
-				break; // one tool call per `tool_code` marker (the first non-wrapper call)
+		if (marker.index >= consumedUpTo) {
+			callRe.lastIndex = marker.index + marker[0].length;
+			let call: RegExpExecArray | null = callRe.exec(text);
+			while (call !== null) {
+				const name = call[1].split(".").at(-1)?.trim() ?? "";
+				if (name && !GEMMA_WRAPPER_NAMES.has(name.toLowerCase())) {
+					// The first non-wrapper call is this marker's call. `extractBalancedParens` is string-aware, so a
+					// `tool_code` (or the next call) inside a string argument no longer truncates it.
+					const openParen = call.index + call[0].length - 1;
+					const balanced = extractBalancedParens(text, openParen);
+					if (balanced) {
+						calls.push({ toolName: name, input: parsePythonKwargs(balanced.body) });
+						consumedUpTo = balanced.end + 1;
+					}
+					break;
+				}
+				// A wrapper call (e.g. print(default_api.fn(...))) — the real call is NESTED inside its parens, so advance
+				// to the NEXT call match (do NOT skip past the wrapper's body, which would miss the inner call).
+				call = callRe.exec(text);
 			}
-			call = callRe.exec(region);
 		}
 		marker = markerRe.exec(text);
 	}

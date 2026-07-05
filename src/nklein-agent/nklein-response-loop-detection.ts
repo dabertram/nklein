@@ -59,9 +59,25 @@ export function detectResponseLoop(text: string, options: ResponseLoopOptions = 
 			pos -= unitLen;
 		}
 		if (repeats >= minRepeats) {
-			// `pos` is now the start of the FIRST occurrence in the repeated run; keep the prefix + one unit.
-			const salvagedText = text.slice(0, pos + unitLen).trimEnd();
-			return { looping: true, salvagedText, repeatedUnit: unit.trim(), repeats };
+			// The matched `unit` may itself be several copies of a SHORTER cycle (a 12-char "go. go. go. " is really
+			// "go. "×3). `minUnitLen` is only a DETECTION floor (avoid flagging trivial short runs); the REPORT should be
+			// the true smallest period so telemetry gets the real cycle + exact repeat count and salvage collapses to
+			// exactly ONE occurrence (not several). Reduce to the smallest divisor-length period, then recount over it.
+			let period = unit;
+			for (let d = 1; d < unitLen; d += 1) {
+				if (unitLen % d === 0 && unit.slice(0, d).repeat(unitLen / d) === unit) {
+					period = unit.slice(0, d);
+					break;
+				}
+			}
+			let periodRepeats = 0;
+			let periodPos = n;
+			while (periodPos - period.length >= 0 && text.slice(periodPos - period.length, periodPos) === period) {
+				periodRepeats += 1;
+				periodPos -= period.length;
+			}
+			const salvagedText = text.slice(0, periodPos + period.length).trimEnd();
+			return { looping: true, salvagedText, repeatedUnit: period.trim(), repeats: periodRepeats };
 		}
 	}
 	return { looping: false, salvagedText: text };

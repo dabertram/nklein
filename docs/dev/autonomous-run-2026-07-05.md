@@ -251,3 +251,28 @@ which is a 2-cycle. Wiring the guard would reject that, changing a deliberately-
 between two waiting tasks" case becomes disallowed — or does the planning-phase design intend to tolerate those cycles
 (and is the board's cycle-repair supposed to cover the manual path too)? Recommendation: guard it (a deadlock is never
 desirable; the 2-waiting reverse-link is a footgun), but confirm since it flips a deliberate test.
+
+## Model-robustness/retry bug-hunt (2026-07-05) — 5 defects fixed
+
+A find→adversarial-verify workflow over the §5.AA/§5.AN model-robustness cluster (tool-call parsing/repair, loop/
+truncation detection, retry ladder) confirmed 5 unique findings. Verified each; all fixed with regression tests
+(test/runtime/nklein-agent/model-robustness-bugfixes.test.ts, 7 tests), full suite 7423 green. Three DROP a valid tool
+call the model actually delivered — the worst class for a weak-model swarm.
+
+1. **nklein-tool-argument-repair.repairCommon — apostrophes in a double-quoted value corrupted the JSON, dropping the
+   call.** The single→double-quote regex `/'([^'"\\]*)'/` isn't string-aware: on `"don't break the 'build' step"` it
+   paired the apostrophe after `don` with the quote before `build`. Replaced with a string-state scanner that only
+   converts single-quoted runs OUTSIDE double-quoted strings; in-string apostrophes are left alone.
+2. **nklein-narrated-tool-call.parseGemmaToolCodeCalls — a `tool_code` inside an argument truncated the call.** The
+   region boundary was a string-UNAWARE search for the next `tool_code` marker, so `run_command(command="grep tool_code
+   .")` was cut mid-string and dropped. Rewrote to scan the full text and let the string-aware `extractBalancedParens`
+   end each call; a `consumedUpTo` cursor skips markers inside an already-parsed call (wrapper unwrapping preserved).
+3. **tool-argument-repair — a required field absent from `properties` was dropped as unknown.** Valid JSON Schema lets
+   `required` name a field with no `properties` entry ("must be present, any value"); it was dropped, then the call was
+   judged dispatchable WITHOUT its required value. Now a required-but-unschematized field passes through.
+4. **tool-argument-repair.tryCoerce — hex/octal/binary/scientific strings were coerced to numbers.** `Number("0x10")`
+   is 16, fabricating a value from a string the model likely didn't mean as a number. Restricted to a plain-decimal
+   regex `/^-?\d+(\.\d+)?$/`.
+5. **nklein-response-loop-detection — reported a MULTIPLE of the true loop period + under-counted repeats + over-kept
+   salvage.** `minUnitLen` is only a detection floor; now the detected unit is reduced to its smallest divisor-length
+   period so telemetry gets the real cycle + exact repeats and salvage collapses to exactly one occurrence.
