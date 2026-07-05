@@ -22,7 +22,9 @@ const row = (over: Partial<FitnessRow> = {}): FitnessRow => ({
 	retryBudget: 2,
 	failureModes: [{ kind: "no_tool_call", count: 1 }],
 	meanWallTimeMs: 1200,
+	meanWallTimeSamples: 3,
 	tokensPerSec: 40,
+	tokensPerSecSamples: 3,
 	updatedAt: 1000,
 	...over,
 });

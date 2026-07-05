@@ -96,5 +96,19 @@ describe("recordFitnessOutcome (write-side fold)", () => {
 			r = recordFitnessOutcome(r, { success: true, wallTimeMs: ms });
 		}
 		expect(r.meanWallTimeMs).toBe(600); // (300+600+900)/3
+		expect(r.meanWallTimeSamples).toBe(3);
+	});
+
+	it("means over only the CONTRIBUTING samples — null-metric attempts don't skew it (regression)", () => {
+		// wall times 1000, null, null, 3000 → mean of the TWO reported values is 2000 (not 1500 as when the divisor
+		// was the total sample count). The intervening null attempts advance sampleCount but not the wall-time mean.
+		let r = emptyFitnessRow(key);
+		r = recordFitnessOutcome(r, { success: true, wallTimeMs: 1000 });
+		r = recordFitnessOutcome(r, { success: true }); // no wall time
+		r = recordFitnessOutcome(r, { success: false }); // no wall time
+		r = recordFitnessOutcome(r, { success: true, wallTimeMs: 3000 });
+		expect(r.sampleCount).toBe(4);
+		expect(r.meanWallTimeMs).toBe(2000);
+		expect(r.meanWallTimeSamples).toBe(2);
 	});
 });

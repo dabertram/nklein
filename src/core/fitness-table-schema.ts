@@ -38,8 +38,12 @@ export const fitnessRowSchema = fitnessKeySchema.extend({
 	failureModes: z.array(fitnessFailureModeSchema).default([]),
 	/** Rolling mean wall time (ms), or null when unsampled. */
 	meanWallTimeMs: z.number().nonnegative().nullable().default(null),
+	/** How many attempts actually CONTRIBUTED a wall time to the mean (not every attempt reports one). */
+	meanWallTimeSamples: z.number().int().nonnegative().default(0),
 	/** Rolling throughput (tokens/sec), or null when unsampled. */
 	tokensPerSec: z.number().nonnegative().nullable().default(null),
+	/** How many attempts actually CONTRIBUTED a throughput to the mean. */
+	tokensPerSecSamples: z.number().int().nonnegative().default(0),
 	/** Last-updated timestamp (ms), or null. */
 	updatedAt: z.number().nullable().default(null),
 });
@@ -69,15 +73,23 @@ export interface FitnessOutcome {
 	tokensPerSec?: number | null;
 }
 
-/** Incremental mean: fold `next` into the running `mean` over `priorCount` prior samples. Null `next` leaves it. */
-function foldMean(mean: number | null, priorCount: number, next: number | null | undefined): number | null {
+/**
+ * Incremental mean over the CONTRIBUTING samples: fold `next` into the running `mean` of `samples` prior VALUES. A null
+ * `next` leaves the mean + count untouched (an attempt that reported nothing must not advance the divisor — else later
+ * values get under-weighted by the intervening non-reporters). Returns the new `{ mean, samples }`.
+ */
+function foldMean(
+	mean: number | null,
+	samples: number,
+	next: number | null | undefined,
+): { mean: number | null; samples: number } {
 	if (typeof next !== "number" || !Number.isFinite(next)) {
-		return mean;
+		return { mean, samples };
 	}
-	if (mean === null || priorCount <= 0) {
-		return next;
+	if (mean === null || samples <= 0) {
+		return { mean: next, samples: 1 };
 	}
-	return mean + (next - mean) / (priorCount + 1);
+	return { mean: mean + (next - mean) / (samples + 1), samples: samples + 1 };
 }
 
 /**
@@ -97,13 +109,17 @@ export function recordFitnessOutcome(row: FitnessRow, outcome: FitnessOutcome, n
 			failureModes.push({ kind: outcome.failureMode, count: 1 });
 		}
 	}
+	const wall = foldMean(row.meanWallTimeMs, row.meanWallTimeSamples, outcome.wallTimeMs);
+	const tps = foldMean(row.tokensPerSec, row.tokensPerSecSamples, outcome.tokensPerSec);
 	return {
 		...row,
 		sampleCount: priorCount + 1,
 		successCount: row.successCount + (outcome.success ? 1 : 0),
 		failureModes,
-		meanWallTimeMs: foldMean(row.meanWallTimeMs, priorCount, outcome.wallTimeMs),
-		tokensPerSec: foldMean(row.tokensPerSec, priorCount, outcome.tokensPerSec),
+		meanWallTimeMs: wall.mean,
+		meanWallTimeSamples: wall.samples,
+		tokensPerSec: tps.mean,
+		tokensPerSecSamples: tps.samples,
 		updatedAt: now ?? row.updatedAt,
 	};
 }
@@ -117,7 +133,9 @@ export function emptyFitnessRow(key: FitnessKey): FitnessRow {
 		retryBudget: 0,
 		failureModes: [],
 		meanWallTimeMs: null,
+		meanWallTimeSamples: 0,
 		tokensPerSec: null,
+		tokensPerSecSamples: 0,
 		updatedAt: null,
 	};
 }

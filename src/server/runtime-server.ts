@@ -165,6 +165,21 @@ const PLAN_GATE_TIMEOUT_MS = 15 * 60 * 1000;
 // C3 (§5.AF): how often the durable-run reclaim/dispatch timer fires. Long enough not to busy-loop, short enough to
 // re-dispatch a reclaimed orphan (30s backoff) promptly. Only armed when NKLEIN_DURABLE_SCHEDULER is set.
 const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
+// Dedup terminal-outcome recording (§5.AA/§5.AB): a terminal summary RE-EMITS for one run (salvage-rebound, resume,
+// review rounds), so its fitness + behavior outcome must be folded ONCE per run — keyed by taskId + startedAt (a genuine
+// re-run gets a fresh startedAt; a re-emit of the same run does not). The sibling model-performance store dedups on READ
+// via a stable id; these two stores fold on WRITE, so they dedup here. Bounded (FIFO-evicted) against unbounded growth.
+const recordedTerminalRuns = new Set<string>();
+const RECORDED_TERMINAL_RUNS_CAP = 5000;
+function rememberRecordedTerminalRun(key: string): void {
+	recordedTerminalRuns.add(key);
+	if (recordedTerminalRuns.size > RECORDED_TERMINAL_RUNS_CAP) {
+		const oldest = recordedTerminalRuns.values().next().value;
+		if (oldest !== undefined) {
+			recordedTerminalRuns.delete(oldest);
+		}
+	}
+}
 
 async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {
 	let lastError: unknown = null;
@@ -832,7 +847,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// §5.AB fitness store: fold this terminal outcome into its (model × role × difficulty) cell (best-effort,
 			// serialized write). Returns null + skips for synthetic / non-terminal / model-less sessions.
 			const fitnessRecord = deriveTaskFitnessRecord({ summary, card });
-			if (fitnessRecord) {
+			const terminalRunKey = `${summary.taskId}|${summary.startedAt ?? 0}`;
+			if (fitnessRecord && !recordedTerminalRuns.has(terminalRunKey)) {
+				rememberRecordedTerminalRun(terminalRunKey);
 				await recordTaskFitnessOutcome(fitnessRecord.key, fitnessRecord.outcome).catch(() => {});
 				// §5.AA ModelBehaviorProfile: also fold the coarse terminal outcome into the model's cross-session
 				// reliability profile (successRate + retry budget). Append-only ⇒ concurrency-safe. Best-effort.

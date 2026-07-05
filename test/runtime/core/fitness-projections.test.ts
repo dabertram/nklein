@@ -15,7 +15,9 @@ const row = (
 	retryBudget: 0,
 	failureModes: [],
 	meanWallTimeMs: null,
+	meanWallTimeSamples: 0,
 	tokensPerSec: null,
+	tokensPerSecSamples: 0,
 	updatedAt: null,
 	...over,
 });
