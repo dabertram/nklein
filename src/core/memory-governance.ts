@@ -8,6 +8,7 @@
  */
 
 import { ageDecay } from "./basic-memory-provenance.js";
+import { BASIC_MEMORY_GLOBAL_PROJECT } from "./basic-memory-scoping.js";
 
 // ── Namespaced scope + enforcement (§5.M / §5.AR — replaces the owed "access-all-loaded-projects" boolean) ──────────
 
@@ -25,6 +26,36 @@ export interface MemoryAccessRequest {
  */
 export function isMemoryAccessAllowed(request: MemoryAccessRequest): boolean {
 	return request.allowedNamespaces.includes(request.noteNamespace);
+}
+
+export interface MemoryScopeResolution {
+	/** This session's own project namespace (e.g. `ws-<hash>`). */
+	ownNamespace: string;
+	/** Whether the shared `global` store is in scope (default per §5.AR: yes). */
+	globalEnabled: boolean;
+	/**
+	 * OPT-IN (default OFF): widen the scope to ALL currently-loaded project namespaces — the "access-all-loaded-projects"
+	 * escape hatch, now an explicit opt-in instead of an always-on boolean. Off ⇒ a session sees only its own + global.
+	 */
+	accessAllOptIn: boolean;
+	/** The namespaces of all currently-loaded projects — consulted ONLY when `accessAllOptIn` is set. */
+	loadedNamespaces: readonly string[];
+}
+
+/**
+ * Resolve the allowed-namespace set for a session (pure). Default: own project + `global`. The access-all-loaded-
+ * projects breadth is an EXPLICIT opt-in (never on by default), and even then own + global are always included.
+ * De-duplicated + stable (own first, then global, then the loaded set in order).
+ */
+export function resolveAllowedNamespaces(input: MemoryScopeResolution): string[] {
+	const allowed = [input.ownNamespace];
+	if (input.globalEnabled) {
+		allowed.push(BASIC_MEMORY_GLOBAL_PROJECT);
+	}
+	if (input.accessAllOptIn) {
+		allowed.push(...input.loadedNamespaces);
+	}
+	return [...new Set(allowed)];
 }
 
 // ── Importance weighting (recency × frequency × importance) ─────────────────────────────────────────────────────────

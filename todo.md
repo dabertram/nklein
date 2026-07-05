@@ -1973,7 +1973,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] wire the extractor model call that proposes candidate memories.
     - [ ] persist consolidated memories on session end.
   - [ ] the ≥32k-floor budget integration (memory wired against the context floor)
-  - [ ] opt-in access-all-loaded-projects memory scope
+  - [x] opt-in access-all-loaded-projects memory scope *(2026-07-05: `resolveAllowedNamespaces` in memory-governance.ts — default own+global; access-all-loaded-projects is an explicit opt-in, off by default; composes with isMemoryAccessAllowed; 4 tests)*
 - [x] **Rename the misleading chat "sandboxed" scope naming → make host-access explicit — DONE (2026-06-27, user
       decision; §5.U #1 HIGH security finding).** The can-act scopes (`project_sandboxed` / `all_projects` / `host_access`)
       all grant host fs/shell command access under a session-wide `riskAcknowledged` opt-in, but the terse labels hid that

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	isMemoryAccessAllowed,
 	markMemoryDeleted,
+	resolveAllowedNamespaces,
 	scoreMemoryImportance,
 	supersedeMemory,
 } from "../../../src/core/memory-governance";
@@ -63,5 +64,50 @@ describe("markMemoryDeleted (soft, reversible)", () => {
 	it("marks deleted without destroying (retained on disk, reversible)", () => {
 		const del = markMemoryDeleted("notes/stale.md", "user pruned");
 		expect(del).toEqual({ ref: "notes/stale.md", deleted: true, reason: "user pruned", reversible: true });
+	});
+});
+
+describe("resolveAllowedNamespaces (opt-in access-all)", () => {
+	it("default scope = own + global (no access-all)", () => {
+		expect(
+			resolveAllowedNamespaces({
+				ownNamespace: "ws-a",
+				globalEnabled: true,
+				accessAllOptIn: false,
+				loadedNamespaces: ["ws-b", "ws-c"],
+			}),
+		).toEqual(["ws-a", "global"]);
+	});
+
+	it("global can be excluded", () => {
+		expect(
+			resolveAllowedNamespaces({
+				ownNamespace: "ws-a",
+				globalEnabled: false,
+				accessAllOptIn: false,
+				loadedNamespaces: [],
+			}),
+		).toEqual(["ws-a"]);
+	});
+
+	it("opt-in access-all widens to every loaded project (own + global still included, deduped)", () => {
+		const allowed = resolveAllowedNamespaces({
+			ownNamespace: "ws-a",
+			globalEnabled: true,
+			accessAllOptIn: true,
+			loadedNamespaces: ["ws-a", "ws-b", "ws-c"],
+		});
+		expect(allowed).toEqual(["ws-a", "global", "ws-b", "ws-c"]);
+	});
+
+	it("the resolved scope composes with isMemoryAccessAllowed", () => {
+		const allowedNamespaces = resolveAllowedNamespaces({
+			ownNamespace: "ws-a",
+			globalEnabled: true,
+			accessAllOptIn: false,
+			loadedNamespaces: ["ws-b"],
+		});
+		expect(isMemoryAccessAllowed({ allowedNamespaces, noteNamespace: "ws-b" })).toBe(false);
+		expect(isMemoryAccessAllowed({ allowedNamespaces, noteNamespace: "global" })).toBe(true);
 	});
 });
