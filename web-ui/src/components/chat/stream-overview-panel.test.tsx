@@ -81,6 +81,24 @@ describe("StreamOverviewPanel (§5.AU)", () => {
 		expect(container.querySelector('[data-testid="chat-stream-overview"]')).toBeNull();
 	});
 
+	it("calls onSelectStream with the stream id when a row is clicked", async () => {
+		const onSelectStream = vi.fn();
+		mockGetBoardStreams.mockResolvedValue({
+			streams: [{ id: "s1", title: "Auth", health: "on_track", done: 0, total: 2, running: 1 }],
+			ungroupedCardCount: 0,
+		});
+		act(() => {
+			root.render(<StreamOverviewPanel enabled={true} onSelectStream={onSelectStream} />);
+		});
+		await flush();
+		const row = container.querySelector('[data-testid="chat-stream-row-s1"]') as HTMLButtonElement | null;
+		expect(row).not.toBeNull();
+		act(() => {
+			row?.click();
+		});
+		expect(onSelectStream).toHaveBeenCalledWith("s1");
+	});
+
 	it("does not fetch or render when disabled", async () => {
 		act(() => {
 			root.render(<StreamOverviewPanel enabled={false} />);

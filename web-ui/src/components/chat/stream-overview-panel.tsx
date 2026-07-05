@@ -23,7 +23,14 @@ const HEALTH_STYLE: Record<RuntimeChatBoardStream["health"], { label: string; cl
 
 const REFRESH_MS = 5000;
 
-export function StreamOverviewPanel({ enabled }: { enabled: boolean }): React.ReactElement | null {
+export function StreamOverviewPanel({
+	enabled,
+	onSelectStream,
+}: {
+	enabled: boolean;
+	/** Address the chat to a stream (inserts its `@stream:<id>` handle into the composer). Absent ⇒ rows are non-clickable. */
+	onSelectStream?: (streamId: string) => void;
+}): React.ReactElement | null {
 	const client = useMemo(() => getRuntimeTrpcClient(null), []);
 	// Stable queryFn: `useTrpcQuery`'s fetch effect keys on the queryFn identity, so a fresh inline function every render
 	// would re-fire the effect each render (a refetch loop). Memoized on the (stable) client.
@@ -57,10 +64,17 @@ export function StreamOverviewPanel({ enabled }: { enabled: boolean }): React.Re
 			{data.streams.map((stream) => {
 				const style = HEALTH_STYLE[stream.health];
 				return (
-					<div
+					<button
+						type="button"
 						key={stream.id}
 						data-testid={`chat-stream-row-${stream.id}`}
-						className="flex min-w-0 items-center gap-2 text-[11.5px]"
+						onClick={onSelectStream ? () => onSelectStream(stream.id) : undefined}
+						disabled={!onSelectStream}
+						title={onSelectStream ? `Address the chat to "${stream.title}"` : undefined}
+						className={cn(
+							"flex min-w-0 items-center gap-2 rounded px-1 text-left text-[11.5px]",
+							onSelectStream ? "cursor-pointer hover:bg-surface-2" : "cursor-default",
+						)}
 					>
 						<span className={cn("shrink-0 rounded border px-1 py-0.5 text-[10px]", style.cls)}>
 							{style.label}
@@ -70,7 +84,7 @@ export function StreamOverviewPanel({ enabled }: { enabled: boolean }): React.Re
 							{stream.done}/{stream.total}
 							{stream.running > 0 ? ` · ${stream.running} running` : ""}
 						</span>
-					</div>
+					</button>
 				);
 			})}
 			{data.ungroupedCardCount > 0 ? (

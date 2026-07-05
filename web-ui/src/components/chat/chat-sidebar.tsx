@@ -791,6 +791,17 @@ function ChatPanel({
 		void chat.sendMessage(message);
 	};
 
+	// §5.AU click-to-focus: clicking a stream in the overview appends its explicit `@stream:<id>` handle to the composer
+	// draft (the resolver's rung-1 syntax), so the next message addresses that stream — the same handle the @-mention
+	// popover inserts, just reached by click. Appended at the end with a separating space; the user then types + sends.
+	const selectStream = (streamId: string): void => {
+		setDraft((prev) => {
+			const separator = prev.length === 0 || /\s$/.test(prev) ? "" : " ";
+			return `${prev}${separator}@stream:${streamId} `;
+		});
+		requestAnimationFrame(() => composerRef.current?.focus());
+	};
+
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
 		// While the @-mention popover is open it owns the keyboard: arrows move, Enter/Tab pick, Esc closes.
 		if (mention && mentionMatches.length > 0) {
@@ -968,7 +979,10 @@ function ChatPanel({
 								onStart={(goal) => void chat.startAutonomousRun(goal)}
 							/>
 							{/* §5.AU stream-overview surface: the owning project's epics at a glance (health · progress · running). */}
-							<StreamOverviewPanel enabled={enabled && Boolean(selectedSession?.ownedWorkspaceId)} />
+							<StreamOverviewPanel
+								enabled={enabled && Boolean(selectedSession?.ownedWorkspaceId)}
+								onSelectStream={selectStream}
+							/>
 							{/* §5.AU sticky-focus chip: who the next message addresses (set by an explicit @handle); ✕ = back to Goal. */}
 							{selectedSession?.focus ? (
 								<div
