@@ -20,6 +20,7 @@ import {
 	decideChatModelGate,
 	discoverLoadedModelId,
 } from "../chat/local-chat-model";
+import { countKanbanTextTokens } from "../nklein-agent/nklein-context-budgets";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 
 /**
@@ -33,9 +34,9 @@ import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
 const DEFAULT_LOCAL_BASE_URL = DEFAULT_LOCAL_CHAT_BASE_URL;
 const DEFAULT_CHAT_TOKEN_BUDGET = 8000;
 
-/** Rough token estimate for the lean-window budget (≈4 chars/token); the runtime can supply a precise one later. */
+/** Lean-window token estimate — the canonical bounded BPE counter (§4A single entry point), not the crude length/4. */
 function estimateChatTokens(text: string): number {
-	return Math.ceil(text.length / 4);
+	return countKanbanTextTokens(text);
 }
 
 interface ChatSendOptions {

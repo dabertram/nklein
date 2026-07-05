@@ -46,6 +46,7 @@ import { protectedTestApprovalStore } from "../core/protected-test-approval-stor
 import { deriveStreams } from "../core/stream-derivation";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
+import { countKanbanTextTokens } from "../nklein-agent/nklein-context-budgets";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { buildChatAttemptEvent } from "../nklein-agent/nklein-ledger-chat-attempt";
@@ -206,6 +207,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 	const chatService =
 		deps.chatService ??
 		createChatService({
+			// §5.M: split the lean chat window on ACTUAL (bounded BPE) token counts, not the crude length/4 placeholder —
+			// so the short-term memory boundary + overflow summarization trigger at the real budget the model sees.
+			estimateTokens: countKanbanTextTokens,
 			// Use the configured LOCAL provider endpoint (LM Studio / Ollama) when one is selected, so the chat hits the
 			// same model server the user set — not a hardcoded default port. A cloud selection resolves to null and the
 			// chat falls back to its own default local endpoint (the chat is local-only).
