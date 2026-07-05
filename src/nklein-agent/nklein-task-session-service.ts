@@ -1144,7 +1144,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// §5.AR: offer the curated sandbox-hosted MCP servers (fit-gated per model) when enabled — the runtime-config
 				// `sandboxMcpServersEnabled` (ON by default; global/per-project opt-out) OR the `NKLEIN_SANDBOX_MCP` env override.
 				...((this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && sandboxWorkspace
-					? { sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(input.taskId) }
+					? {
+							sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(input.taskId),
+							basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(input.taskId),
+						}
 					: {}),
 				userInstructionService: runtimeSetup.userInstructionService,
 				requestToolApproval: runtimeSetup.createToolApproval({
@@ -2209,7 +2212,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
 					// exists for the rebuilt task.
 					...((this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && sandboxWorkspace
-						? { sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId) }
+						? {
+								sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId),
+								basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
+							}
 						: {}),
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,

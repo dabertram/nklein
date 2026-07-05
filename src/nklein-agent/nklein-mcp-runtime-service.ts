@@ -118,6 +118,11 @@ export interface NKleinMcpToolBundleOptions {
 	modelId?: string;
 	/** The task's sandbox `docker exec` target; when present + a curated server fits, its tools are added. */
 	sandboxExecTarget?: SandboxExecTarget | null;
+	/**
+	 * §5.AR: the basic-memory exec env (BASIC_MEMORY_CONFIG_DIR + BASIC_MEMORY_MCP_PROJECT + hardening) for this task's
+	 * project — applied ONLY to the basic-memory `docker exec` so it reads/writes the task's mounted per-project store.
+	 */
+	basicMemoryExecEnv?: Record<string, string>;
 }
 
 export interface NKleinMcpRuntimeService {
@@ -812,7 +817,11 @@ export function createNKleinMcpRuntimeService(
 							transport: {
 								type: "stdio",
 								command: "docker",
-								args: buildSandboxMcpDockerExecArgs(execTarget, server.inContainerArgv),
+								args: buildSandboxMcpDockerExecArgs(
+									execTarget,
+									server.inContainerArgv,
+									server.id === "basic-memory" ? options?.basicMemoryExecEnv : undefined,
+								),
 							},
 						});
 						const serverTools = await createSdkMcpTools({ serverName: server.id, provider: manager });

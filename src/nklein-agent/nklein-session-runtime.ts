@@ -511,6 +511,8 @@ export interface StartNKleinSessionRuntimeRequest {
 	 * opt-out gate lives in the caller (the task-session-service), so this is only set when the feature is enabled.
 	 */
 	sandboxMcpExecTarget?: SandboxExecTarget | null;
+	/** §5.AR: basic-memory MCP exec env (CONFIG_DIR + MCP_PROJECT + hardening) for this task's project (from the manager). */
+	basicMemoryExecEnv?: Record<string, string>;
 	onDecompositionApplied?: NKleinDecompositionAppliedHandler;
 	/** W4.3: executes one diverse-critic round for a high-stakes decomposition (see createNKleinDecompositionTools). */
 	requestPlanCritique?: NKleinPlanCritiqueRequestHandler;
@@ -687,6 +689,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 			mcpToolBundle = await this.nkleinMcpRuntimeService.createToolBundle({
 				modelId: request.modelId,
 				sandboxExecTarget: request.sandboxMcpExecTarget ?? null,
+				...(request.basicMemoryExecEnv ? { basicMemoryExecEnv: request.basicMemoryExecEnv } : {}),
 			});
 			startWarnings = mcpToolBundle.warnings;
 		} catch (error) {

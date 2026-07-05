@@ -445,6 +445,16 @@ export class AgentSandboxManager {
 		};
 	}
 
+	/**
+	 * §5.AR: the basic-memory MCP exec env (BASIC_MEMORY_CONFIG_DIR + BASIC_MEMORY_MCP_PROJECT + egress hardening) for a
+	 * task's project, or undefined when basic-memory is off or the task has no placement. The MCP runtime applies it
+	 * ONLY to the basic-memory `docker exec`, so the server reads/writes THIS project's mounted store.
+	 */
+	getBasicMemoryExecEnv(taskId: string): Record<string, string> | undefined {
+		const placement = this.placements.get(taskId);
+		return placement ? this.basicMemoryPlanByKey.get(placement.projectKey)?.env : undefined;
+	}
+
 	async runTool(taskId: string, tool: string, input: unknown): Promise<string> {
 		const placement = this.requirePlacement(taskId);
 		const result = await this.execAsTaskUser(
