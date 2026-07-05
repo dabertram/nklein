@@ -2062,7 +2062,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] **Namespaced memory scope** — replace the owed "access-all-loaded-projects" boolean with a namespaced scope.
   - [ ] **Memory governance** (one leaf each): provenance tagging · scope enforcement · deletion · contradiction-
         replacement · recency/frequency/importance weighting · reversible history.
-  - [ ] **"Why recalled" surfacing** — show, per recalled memory, why it was selected.
+  - [x] **"Why recalled" surfacing** — show, per recalled memory, why it was selected. *(2026-07-05: `explainRecall` in basic-memory-provenance.ts surfaces relevance × trust(verdict) × freshness(age-decay) = effective score, with human labels; WeightedRecall now exposes the components; 3 tests)*
   - [ ] gate broadening memory scope on passing an internal LongMemEval-style task (built under §5.V).
 
 ### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*

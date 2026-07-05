@@ -67,8 +67,12 @@ export interface RecallCandidate {
 }
 
 export interface WeightedRecall extends RecallCandidate {
-	/** baseRelevance × verdict weight × age decay. */
+	/** baseRelevance × verdictWeight × ageDecayFactor. */
 	effectiveScore: number;
+	/** The trust multiplier from the audit verdict (surfaced for the "why recalled" explanation). */
+	verdictWeight: number;
+	/** The freshness multiplier from age decay (surfaced for the "why recalled" explanation). */
+	ageDecayFactor: number;
 }
 
 export interface DeweightRecallOptions {
@@ -87,17 +91,46 @@ export function deweightRecall(
 	options: DeweightRecallOptions = {},
 ): WeightedRecall[] {
 	const dropContradicted = options.dropContradicted ?? true;
-	const weighted = candidates
+	const weighted: WeightedRecall[] = candidates
 		.filter((candidate) => !(dropContradicted && candidate.auditVerdict === "contradicted"))
-		.map((candidate) => ({
-			...candidate,
-			effectiveScore:
-				candidate.baseRelevance *
-				verdictRecallWeight(candidate.auditVerdict) *
-				ageDecay(candidate.ageDays, options.halfLifeDays),
-		}));
+		.map((candidate) => {
+			const verdictWeight = verdictRecallWeight(candidate.auditVerdict);
+			const ageDecayFactor = ageDecay(candidate.ageDays, options.halfLifeDays);
+			return {
+				...candidate,
+				verdictWeight,
+				ageDecayFactor,
+				effectiveScore: candidate.baseRelevance * verdictWeight * ageDecayFactor,
+			};
+		});
 	return weighted
 		.map((candidate, index) => ({ candidate, index }))
 		.sort((a, b) => b.candidate.effectiveScore - a.candidate.effectiveScore || a.index - b.index)
 		.map((entry) => entry.candidate);
+}
+
+/**
+ * "Why recalled" (§5.M) — a short human-readable explanation of why a note surfaced where it did, from its recall
+ * components: the raw search relevance, the audit-verdict trust multiplier, and the freshness (age-decay) multiplier.
+ * Pure. Surfacing the reason is a memory-governance requirement — a recalled memory should never be an opaque assertion.
+ */
+export function explainRecall(recall: WeightedRecall): string {
+	const trust =
+		recall.auditVerdict === "confirmed"
+			? "audit-confirmed"
+			: recall.auditVerdict === "unverifiable"
+				? "unverifiable (de-weighted)"
+				: recall.auditVerdict === "contradicted"
+					? "audit-contradicted"
+					: "unaudited (de-weighted)";
+	const freshness =
+		recall.ageDecayFactor >= 0.95
+			? "fresh"
+			: recall.ageDecayFactor >= 0.5
+				? `aging (${Math.round(recall.ageDays)}d)`
+				: `stale (${Math.round(recall.ageDays)}d)`;
+	return (
+		`relevance ${recall.baseRelevance.toFixed(2)} × trust ${recall.verdictWeight.toFixed(2)} (${trust}) × ` +
+		`freshness ${recall.ageDecayFactor.toFixed(2)} (${freshness}) = ${recall.effectiveScore.toFixed(2)}`
+	);
 }

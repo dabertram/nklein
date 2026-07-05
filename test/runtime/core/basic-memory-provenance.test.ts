@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	ageDecay,
 	deweightRecall,
+	explainRecall,
 	type NoteProvenance,
 	type RecallCandidate,
 	renderProvenanceFrontmatter,
@@ -105,5 +106,36 @@ describe("deweightRecall", () => {
 	it("effectiveScore = base × verdictWeight × ageDecay", () => {
 		const [only] = deweightRecall([c("n", { auditVerdict: "unverifiable", baseRelevance: 2, ageDays: 90 })]);
 		expect(only?.effectiveScore).toBeCloseTo(2 * 0.3 * 0.5, 10);
+	});
+});
+
+describe("explainRecall", () => {
+	const c = (over: Partial<RecallCandidate>): RecallCandidate => ({
+		ref: "n",
+		baseRelevance: 0.8,
+		auditVerdict: null,
+		ageDays: 0,
+		...over,
+	});
+
+	it("surfaces relevance × trust × freshness with the effective score", () => {
+		const [w] = deweightRecall([c({ auditVerdict: "confirmed", ageDays: 0 })]);
+		const why = explainRecall(w);
+		expect(why).toContain("relevance 0.80");
+		expect(why).toContain("audit-confirmed");
+		expect(why).toContain("fresh");
+		expect(why).toMatch(/= 0\.80$/);
+	});
+
+	it("labels an unaudited, aging note", () => {
+		const [w] = deweightRecall([c({ auditVerdict: null, ageDays: 90 })]);
+		const why = explainRecall(w);
+		expect(why).toContain("unaudited (de-weighted)");
+		expect(why).toContain("aging (90d)");
+	});
+
+	it("labels a stale note", () => {
+		const [w] = deweightRecall([c({ auditVerdict: "confirmed", ageDays: 400 })]);
+		expect(explainRecall(w)).toContain("stale (400d)");
 	});
 });
