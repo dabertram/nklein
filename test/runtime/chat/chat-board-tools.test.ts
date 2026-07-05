@@ -534,4 +534,21 @@ describe("createCardRelayTools — send_to_stream (§5.AU)", () => {
 		expect(await streamRelayTool().tool.run({ message: "x" })).toContain("requires a non-empty `stream_id`");
 		expect(await streamRelayTool().tool.run({ stream_id: "s1" })).toContain("requires a non-empty `message`");
 	});
+
+	it("excludes trashed cards — a trashed card keeps its streamId but must not receive a broadcast", async () => {
+		const boardWithTrash: RuntimeBoardData = {
+			columns: [
+				{ id: "in_progress", title: "Doing", cards: [streamCard("run-1", "s1")] },
+				{ id: "trash", title: "Trash", cards: [streamCard("dead-1", "s1")] },
+			],
+			dependencies: [],
+			streams: [{ id: "s1", title: "Auth", source: "decomposition", createdAt: 1, updatedAt: 1 }],
+		};
+		const r = streamRelayTool({ loadBoard: async () => boardWithTrash });
+		const result = await r.tool.run({ stream_id: "s1", message: "use bcrypt" });
+		// Only the live (non-trashed) member counts + receives it; the trashed card is neither counted nor messaged.
+		expect(result).toContain('Sent to stream "Auth" (1 card(s))');
+		expect(r.delivered.map((d) => d.taskId)).toEqual(["run-1"]);
+		expect(r.queued).toEqual([]);
+	});
 });

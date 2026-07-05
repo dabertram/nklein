@@ -415,7 +415,11 @@ export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): 
 				if (!stream) {
 					return `No stream with id "${streamId}" on the board (use get_streams to list streams).`;
 				}
+				// Exclude the trash column: a trashed card keeps its streamId (moveTaskToColumn doesn't clear it), but it is
+				// not a live stream member — broadcasting to it would queue notes on a discarded card and inflate the count.
+				// Mirrors summarizeWorkspaceBoardStreams, which also skips trash.
 				const memberCards = board.columns
+					.filter((column) => column.id !== "trash")
 					.flatMap((column) => column.cards)
 					.filter((card) => card.streamId === streamId);
 				if (memberCards.length === 0) {
