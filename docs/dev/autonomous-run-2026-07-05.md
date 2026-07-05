@@ -91,3 +91,13 @@ David: "keep going, i will be back again tomorrow and expect you to finish a big
 **UI (logged in ui-work-fable-revisit.md):** egress toggle + SearXNG backend URL, curated-MCP + capability-broker toggles, **fixed the web-ui typecheck** (8 stale fixtures missing sandboxMaxConcurrentExec → 0 errors).
 
 **Frontier:** the remaining direct leaves are coupled integrations (loop-level read/update hooks, control-flow gates, scheduler consumption, chat-scope features) or medium multi-file features (config promotions, session fields) or milestones (durable-scheduler, SWARM-recovery vendored change). Completing them = focused per-feature work, not quick leaves. Open: ~429.
+
+
+## Update 2026-07-05 (evening): validation hunt on THIS session's new code — 2 real defects fixed
+
+Ran 3 parallel adversarial hunters over the session's new integration code (a focused validation of MY work, not a broad sweep — appropriate now the clean direct-leaves are worked through + David returns tomorrow). Result:
+- **Fitness write path — 1 HIGH, fixed:** `foldMean` divided the rolling mean by total `sampleCount`, not the CONTRIBUTING count — so attempts reporting a null metric (e.g. a session with no valid startedAt/updatedAt → null wallTime) skewed `meanWallTimeMs` (1000,null,null,3000 → 1500 not 2000), mis-ranking a faster model below a slower one in the live tie-break. Fixed with per-metric contributing counts (additive schema migration) + a regression test. Serialized-write, migration, key-derivation all refuted CLEAN.
+- **Seam wiring — 1 HIGH, fixed:** the task-outcome seam fired on EVERY summary re-emit (terminal summaries re-fire on salvage-rebound/resume/review rounds), double-folding a single run's outcome into BOTH the fitness + behavior stores (the sibling model-performance store dedups on read via a stable id; mine fold on write). Fixed with a bounded per-run dedup guard (taskId+startedAt) so each run records once. Oldest-first behavior-fold ordering + best-effort error handling refuted CLEAN.
+- **Tool-gating + test-driven vein — CLEAN** (no defects): fail-closed gating confirmed, no guard-drift across the 3 MCP sites, live re-apply fires, `isLikelyTestFile` correct against 37 adversarial names.
+
+Full gate green after fixes: 651 files / 7350 tests / tsc 0. Validation-first caught what the unit tests (which asserted the happy path) missed — same lesson as the earlier basic-memory `readwrite` bug.
