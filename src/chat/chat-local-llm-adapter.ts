@@ -323,11 +323,21 @@ export function createChatAgentModel(
 		// instead of re-prompting. Only fires when there is a named-but-uncalled tool to anchor on (else no extra calls).
 		if (offered.length > 1 && response.toolCalls.length === 0) {
 			const instruction = lastUserText(messages);
+			let previousNames: string | null = null;
 			for (let level = 1; level <= MAX_ATTEMPT_SIMPLIFICATION_LEVEL; level += 1) {
 				const selection = selectToolsForAttempt(offered, instruction, level);
 				if (!selection.reduced) {
 					break;
 				}
+				// Bug-hunt fix (2026-07-05): when the instruction names exactly ONE tool, `selectToolsForAttempt` caps at
+				// 1 from level 1 onward, so level 2 selects the SAME single tool as level 1 — re-sending an IDENTICAL
+				// request the model already just failed on (wasted latency/tokens). Skip a level whose selection is
+				// byte-identical to the one just tried.
+				const names = selection.tools.map((tool) => tool.name).join(",");
+				if (names === previousNames) {
+					continue;
+				}
+				previousNames = names;
 				response = await client.completeWithTools({ messages: wire, sampling }, selection.tools);
 				if (response.toolCalls.length > 0) {
 					break;

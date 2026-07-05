@@ -342,6 +342,30 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(offeredCounts).toEqual([6, 1]);
 	});
 
+	it("bug-hunt #8 (2026-07-05): skips a reduced-tool-set level identical to the one just tried", async () => {
+		// The instruction names exactly ONE tool: selectToolsForAttempt caps at 1 from level 1 onward, so level 2
+		// would select the SAME single tool as level 1 AND resend the UNMODIFIED instruction (the reduced-tool-set
+		// ladder always sends `wire` as-is) — an exact duplicate of the level-1 call, wasted latency. The downstream
+		// prompt-variant rung also offers just 1 tool once anchored, but it always REFRAMES the text (imperative /
+		// explicit-format / etc.), so a request with the ORIGINAL instruction text + a 1-tool offer can only be the
+		// reduced-tool-set ladder — counting those isolates the ladder's own (non-)duplication from what follows.
+		const instruction = 'Use create_card to make a card titled "X".';
+		const requests: { toolsLength: number; lastContent: string }[] = [];
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request, toolsArg) => {
+				requests.push({
+					toolsLength: toolsArg.length,
+					lastContent: String(request.messages.at(-1)?.content ?? ""),
+				});
+				return { content: "still no call", toolCalls: [], finishReason: "stop", raw: {} };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		await model([{ role: "user", content: instruction }], true);
+		const unmodifiedSingleToolCalls = requests.filter((r) => r.toolsLength === 1 && r.lastContent === instruction);
+		expect(unmodifiedSingleToolCalls).toHaveLength(1); // level 1 only — level 2 (identical) is skipped, not resent
+	});
+
 	it("§5.AA: does NOT retry when the no-call reply references no tool by name (legit direct answer)", async () => {
 		const offeredCounts: number[] = [];
 		const client: ChatAgentCompletionClient = {
