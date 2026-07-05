@@ -68,3 +68,10 @@ Fanned out 3 parallel adversarial hunters (find→refute) over the session's new
 - **truncation-classification vein — CLEAN** (no confirmed defects; the centralized classifier + budget math are sound; one non-reachable defensive NaN gap noted only).
 
 Full gate green after all fixes: 647 files / 7312 tests / tsc 0. Validation-first + adversarial sweep worked: the collision + SSRF holes were caught by the sweep, not the unit tests (which asserted single-project / literal-IP happy paths).
+
+
+## Update 2026-07-05 (later): egress END-TO-END with LIVE models across the fleet — flagship feature proven
+
+Live-fleet sweep (the machines David freed) validated the newly-enabled egress with REAL models driving it — not just the client harness. `scripts/verify-egress-model-e2e.mts` offers a loaded model the real `web_search` tool, and asserts the full loop: model EMITS a web_search call → its query runs against the live SearXNG → real results fed back → model answers using them. Passed on **3 models across 2 machines + 2 sizes**: `brain27` (27B, local), `coder-gpu` (4B, legion), `qwop4b-a` (4B fable, local) — each emitted the call (finish=tool_calls), got 8 real results, and returned the correct real URL (`anthropic.com/claude/opus`). So egress works with the SMALL local models that are !Klein's whole point, not just a capable model. Fleet untouched (inference calls to already-loaded models only; no load/unload). Reproducible: `NKLEIN_E2E_MODEL=<id> npx tsx scripts/verify-egress-model-e2e.mts`.
+
+**Session sequence COMPLETE** (David's order: egress-live → UI-notes → swarm-recovery → bug-sweep → live-fleet): egress enabled + validated 3 ways (client, SSRF floor, model-e2e); UI parked for Fable; swarm-recovery classification shipped + vendored milestone scoped; bug-sweep found+fixed+live-validated 4 defects (2 HIGH); live-fleet egress proven across the fleet.
