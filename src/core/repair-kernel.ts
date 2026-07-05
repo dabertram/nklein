@@ -179,7 +179,10 @@ export async function runRepairKernel(
 				if (fullyPasses(top)) {
 					return { status: "fixed", candidate, validation: top, rounds: roundsRun };
 				}
-				if (bestPartial === null) {
+				// Keep the BEST partial across ALL rounds (the point of refine rounds is that a later round can
+				// surface a better candidate). Replace only when `top` strictly out-ranks the current best — the
+				// stable ranker keeps the first-found on a tie, so equal partials don't churn.
+				if (bestPartial === null || rankCandidateValidations([bestPartial.validation, top])[0] === top) {
 					bestPartial = { candidate, validation: top };
 				}
 			}

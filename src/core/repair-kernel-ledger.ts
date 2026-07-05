@@ -94,23 +94,33 @@ function gate(pass: boolean): string {
 }
 
 /**
- * Explain WHY the winning candidate ranked first. The kernel returns `fixed` the moment a round fully passes and stops,
- * so the winner always lives in the LAST round that ran — rank that round with the same rule (gates → tiebreaks → diff)
- * and describe its top candidate.
+ * Explain WHY the winning candidate ranked first. On the `fixed` path the kernel returns the moment a round fully
+ * passes; on the partial path it keeps the BEST-ranked candidate across ALL rounds (never just the last). Either way the
+ * winner is the globally best-ranked candidate, so rank EVERY round's candidates together (gates → tiebreaks → diff) and
+ * describe it — ranking only the last round would name the wrong candidate on a partial run whose best came earlier.
  */
 function buildFinalRankingRationale(trace: RepairKernelRunTrace): string {
-	const lastRound = trace.rounds.at(-1);
-	if (!lastRound || lastRound.validations.length === 0) {
+	const allValidations = trace.rounds.flatMap((round) => round.validations);
+	if (allValidations.length === 0) {
 		return "No candidates were validated; nothing to rank.";
 	}
-	const winner = rankCandidateValidations(lastRound.validations, lastRound.tiebreaksFor)[0];
+	// A combined per-candidate tiebreak lookup across rounds (candidate ids are unique per round, so no collision).
+	const tiebreaksById = new Map<string, CandidateTiebreaks | undefined>();
+	for (const round of trace.rounds) {
+		for (const validation of round.validations) {
+			if (!tiebreaksById.has(validation.candidateId)) {
+				tiebreaksById.set(validation.candidateId, round.tiebreaksFor?.(validation.candidateId));
+			}
+		}
+	}
+	const winner = rankCandidateValidations(allValidations, (id) => tiebreaksById.get(id))[0];
 	if (!winner) {
 		return "No candidates were validated; nothing to rank.";
 	}
 	const score = candidateGateScore(winner);
 	const fullyPasses = winner.reproPass && winner.regressionPass && winner.checksPass;
 	const verdict = fullyPasses ? "fully passes" : "is the best partial (no candidate fully passed)";
-	const evidence = tiebreakSum(lastRound.tiebreaksFor?.(winner.candidateId));
+	const evidence = tiebreakSum(tiebreaksById.get(winner.candidateId));
 	const roundsNote = trace.rounds.length > 1 ? ` after ${trace.rounds.length} rounds` : "";
 	return (
 		`Winner "${winner.candidateId}" ${verdict}${roundsNote}: gate score ${score}/7 ` +

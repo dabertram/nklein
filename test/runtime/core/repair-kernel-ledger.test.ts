@@ -122,3 +122,27 @@ describe("summarizeRepairKernelRun", () => {
 		expect(record.finalRankingRationale).toContain("nothing to rank");
 	});
 });
+
+describe("summarizeRepairKernelRun — cross-round winner (regression: bug-hunt 2026-07-05)", () => {
+	it("names the globally best partial across ALL rounds, not just the last one", () => {
+		const partialAcrossRounds: RepairKernelRunTrace = {
+			localization: [],
+			rounds: [
+				{
+					round: 1,
+					candidates: [candidate("r1")],
+					validations: [validation("r1", { reproPass: true, diffSize: 10 })],
+				}, // score 4
+				{
+					round: 2,
+					candidates: [candidate("r2")],
+					validations: [validation("r2", { checksPass: true, diffSize: 5 })],
+				}, // score 1
+			],
+		};
+		const rationale = summarizeRepairKernelRun(partialAcrossRounds).finalRankingRationale;
+		expect(rationale).toContain('"r1"'); // r1 (4/7) wins, NOT last round's r2 (1/7)
+		expect(rationale).toContain("gate score 4/7");
+		expect(rationale).not.toContain('"r2"');
+	});
+});

@@ -191,3 +191,46 @@ describe("rankCandidateValidations injectable tiebreaks (§5.AK)", () => {
 		expect(rankCandidateValidations([big, small])[0].candidateId).toBe("small");
 	});
 });
+
+describe("runRepairKernel — best partial across rounds (regression: bug-hunt 2026-07-05)", () => {
+	it("keeps the BEST partial across rounds, not just the first (a later round can improve it)", async () => {
+		let round = 0;
+		const outcome = await runRepairKernel(
+			deps({
+				generateCandidates: async () => {
+					round += 1;
+					return round === 1 ? [candidate("weak")] : [candidate("strong")];
+				},
+				validate: async (c) =>
+					c.id === "strong"
+						? validation("strong", { reproPass: true, regressionPass: true, diffSize: 2 }) // score 6
+						: validation("weak", { reproPass: true, diffSize: 9 }), // score 4
+			}),
+			{ candidateCount: 1, refineRounds: 1 },
+		);
+		expect(outcome.status).toBe("no_candidate_passed");
+		if (outcome.status === "no_candidate_passed") {
+			expect(outcome.best.candidate.id).toBe("strong"); // round 2's better partial, not round 1's weak
+		}
+	});
+
+	it("keeps the earlier partial when a later round is strictly worse", async () => {
+		let round = 0;
+		const outcome = await runRepairKernel(
+			deps({
+				generateCandidates: async () => {
+					round += 1;
+					return round === 1 ? [candidate("good")] : [candidate("bad")];
+				},
+				validate: async (c) =>
+					c.id === "good"
+						? validation("good", { reproPass: true, regressionPass: true, diffSize: 2 }) // score 6
+						: validation("bad", { reproPass: true, diffSize: 1 }), // score 4
+			}),
+			{ candidateCount: 1, refineRounds: 1 },
+		);
+		if (outcome.status === "no_candidate_passed") {
+			expect(outcome.best.candidate.id).toBe("good"); // round 1 kept (round 2 worse)
+		}
+	});
+});
