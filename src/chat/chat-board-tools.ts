@@ -391,6 +391,60 @@ export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): 
 				}
 			},
 		},
+		{
+			name: "send_to_stream",
+			actionKind: "control_plane",
+			run: async (args) => {
+				const rawStreamId = args.stream_id ?? args.streamId ?? args.id;
+				const rawMessage = args.message ?? args.text;
+				if (typeof rawStreamId !== "string" || !rawStreamId.trim()) {
+					return "send_to_stream requires a non-empty `stream_id` string (use get_streams to find stream ids).";
+				}
+				if (typeof rawMessage !== "string" || !rawMessage.trim()) {
+					return "send_to_stream requires a non-empty `message` string.";
+				}
+				const streamId = rawStreamId.trim();
+				const message = rawMessage.trim();
+				let board: RuntimeBoardData;
+				try {
+					board = await deps.loadBoard(projectPath);
+				} catch {
+					return "Could not read the project board.";
+				}
+				const stream = (board.streams ?? []).find((candidate) => candidate.id === streamId);
+				if (!stream) {
+					return `No stream with id "${streamId}" on the board (use get_streams to list streams).`;
+				}
+				const memberCards = board.columns
+					.flatMap((column) => column.cards)
+					.filter((card) => card.streamId === streamId);
+				if (memberCards.length === 0) {
+					return `Stream "${stream.title}" has no cards — nothing to send to.`;
+				}
+				// A stream broadcast is guidance for the WHOLE epic: deliver live to any running member, queue the rest to
+				// their durable mailboxes (read when the card starts). Never starts a card (starting stays gated). Composes
+				// the same deliverLive/queueMailbox deps as send_to_card, per-card.
+				const activeSessionTaskIds = deps.listActiveSessionTaskIds();
+				let deliveredLive = 0;
+				let queued = 0;
+				for (const card of memberCards) {
+					if (activeSessionTaskIds.has(card.id) && (await deps.deliverLive(card.id, message).catch(() => false))) {
+						deliveredLive += 1;
+					} else {
+						await deps.queueMailbox(card.id, message);
+						queued += 1;
+					}
+				}
+				const parts: string[] = [];
+				if (deliveredLive > 0) {
+					parts.push(`${deliveredLive} delivered live`);
+				}
+				if (queued > 0) {
+					parts.push(`${queued} queued to mailbox(es)`);
+				}
+				return `Sent to stream "${stream.title}" (${memberCards.length} card(s)): ${parts.join(", ")}. No cards were started (starting stays a separate, gated action).`;
+			},
+		},
 	];
 
 	const definitions: LocalLlmToolDefinition[] = [
@@ -410,6 +464,19 @@ export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): 
 					},
 				},
 				required: ["card_id", "message"],
+			},
+		},
+		{
+			name: "send_to_stream",
+			description:
+				"Broadcast a message to EVERY card in a stream (epic) — guidance that applies to the whole group. It's delivered live to any of the stream's cards that are running, and queued to the durable mailbox of the rest (read when each card starts). Never starts a card. Use get_streams first to find the stream id.",
+			parameters: {
+				type: "object",
+				properties: {
+					stream_id: { type: "string", description: "The target stream's id (from get_streams)." },
+					message: { type: "string", description: "The guidance to broadcast to the stream's cards." },
+				},
+				required: ["stream_id", "message"],
 			},
 		},
 	];

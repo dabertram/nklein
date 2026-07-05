@@ -467,3 +467,71 @@ describe("createCardRelayTools — send_to_card (§5.AU step 6)", () => {
 		expect(unknown).toContain('No card with id "nope"');
 	});
 });
+
+describe("createCardRelayTools — send_to_stream (§5.AU)", () => {
+	const streamCard = (id: string, streamId: string): RuntimeBoardCard => ({
+		id,
+		title: id,
+		prompt: "",
+		startInPlanMode: false,
+		baseRef: "main",
+		createdAt: 1,
+		updatedAt: 1,
+		streamId,
+	});
+	const STREAM_BOARD: RuntimeBoardData = {
+		columns: [
+			{ id: "in_progress", title: "Doing", cards: [streamCard("run-1", "s1")] },
+			{
+				id: "backlog",
+				title: "Backlog",
+				cards: [streamCard("wait-1", "s1"), streamCard("wait-2", "s1"), streamCard("other", "s2")],
+			},
+		],
+		dependencies: [],
+		streams: [{ id: "s1", title: "Auth", source: "decomposition", createdAt: 1, updatedAt: 1 }],
+	};
+
+	function streamRelayTool(overrides: Partial<CardRelayDeps> = {}) {
+		const delivered: Array<{ taskId: string; text: string }> = [];
+		const queued: Array<{ taskId: string; text: string }> = [];
+		const deps: CardRelayDeps = {
+			loadBoard: async () => STREAM_BOARD,
+			listActiveSessionTaskIds: () => new Set(["run-1"]),
+			deliverLive: async (taskId, text) => {
+				delivered.push({ taskId, text });
+				return true;
+			},
+			queueMailbox: async (taskId, text) => {
+				queued.push({ taskId, text });
+				return queued.filter((note) => note.taskId === taskId).length;
+			},
+			...overrides,
+		};
+		const tool = createCardRelayTools("/proj", deps).tools.find((candidate) => candidate.name === "send_to_stream");
+		if (!tool) {
+			throw new Error("send_to_stream tool missing");
+		}
+		return { tool, delivered, queued };
+	}
+
+	it("broadcasts to a stream: delivers live to running members, queues the rest (starts nothing)", async () => {
+		const r = streamRelayTool();
+		const result = await r.tool.run({ stream_id: "s1", message: "use bcrypt" });
+		expect(result).toContain('Sent to stream "Auth" (3 card(s))');
+		expect(result).toContain("1 delivered live");
+		expect(result).toContain("2 queued to mailbox(es)");
+		expect(result).toContain("No cards were started");
+		// Only the running member (run-1) was delivered live; the two waiting members were queued; s2's card untouched.
+		expect(r.delivered).toEqual([{ taskId: "run-1", text: "use bcrypt" }]);
+		expect(r.queued.map((q) => q.taskId).sort()).toEqual(["wait-1", "wait-2"]);
+	});
+
+	it("errors on an unknown stream id and requires stream_id + message", async () => {
+		expect(await streamRelayTool().tool.run({ stream_id: "nope", message: "x" })).toContain(
+			'No stream with id "nope"',
+		);
+		expect(await streamRelayTool().tool.run({ message: "x" })).toContain("requires a non-empty `stream_id`");
+		expect(await streamRelayTool().tool.run({ stream_id: "s1" })).toContain("requires a non-empty `message`");
+	});
+});
