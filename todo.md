@@ -5939,7 +5939,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       deliberate cloud-lockdown lift (a reviewed code change, never a feature toggle). Related idea to collect: a
       per-task "max local spend/time before offering cloud escalation" budget the user sets.
 - [ ] **Confidence- and RESOURCE-aware routing, decomposed:**
-  - [ ] (a) Build calibrated-confidence scorer from evidence (tool-call validity, test pass/fail, reviewer verdict, self-consistency) keyed by model × role × task-shape.
+  - [x] (a) Build calibrated-confidence scorer from evidence (tool-call validity, test pass/fail, reviewer verdict, self-consistency) keyed by model × role × task-shape. *(2026-07-05: confidence-scorer.ts — combineConfidenceEvidence (weighted, renormalized over present signals) + applyCalibration (piecewise-linear per-key curve, identity when unlearned) + scoreCalibratedConfidence; 10 tests. The per-key curve is fit from observed-vs-predicted elsewhere.)*
   - [ ] (b) Implement resource-cost tracking (wall+queue time, RAM/VRAM pressure, load time, endpoint occupancy).
   - [ ] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models.
   - [ ] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table.
