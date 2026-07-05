@@ -322,6 +322,33 @@ describe("AgentSandboxManager", () => {
 		expect(args.slice(-3)).toEqual(["test-image", "sleep", "infinity"]);
 	});
 
+	it("adds READ-WRITE writable mounts when supplied (§5.AR basic-memory), none by default", () => {
+		const base = {
+			slot: 1,
+			image: "test-image",
+			projectMounts: [] as const,
+			config: normalizeAgentSandboxPoolConfig({
+				maxContainers: 1,
+				agentsPerContainer: 1,
+				memoryPerContainerMb: 1024,
+				cpusPerContainer: 1,
+			}),
+		};
+		// Default: no writable mounts ⇒ fully read-only (no readwrite bind).
+		expect(buildAgentSandboxDockerRunArgs(base).some((a) => a.includes("readwrite"))).toBe(false);
+		// With writable mounts ⇒ each appears as a readwrite bind, before the image trailer.
+		const withMounts = buildAgentSandboxDockerRunArgs({
+			...base,
+			writableMounts: [
+				{ hostPath: "/host/bm/config", containerPath: "/nklein/basic-memory/config" },
+				{ hostPath: "/host/bm/notes", containerPath: "/nklein/basic-memory/notes" },
+			],
+		});
+		expect(withMounts).toContain("type=bind,src=/host/bm/config,dst=/nklein/basic-memory/config,readwrite");
+		expect(withMounts).toContain("type=bind,src=/host/bm/notes,dst=/nklein/basic-memory/notes,readwrite");
+		expect(withMounts.slice(-3)).toEqual(["test-image", "sleep", "infinity"]);
+	});
+
 	it("maps the capability network policy to docker --network args (allowlist fails closed)", () => {
 		expect(resolveAgentSandboxNetworkArgs("none")).toEqual(["--network", "none"]);
 		expect(resolveAgentSandboxNetworkArgs("full")).toEqual(["--network", "bridge"]);

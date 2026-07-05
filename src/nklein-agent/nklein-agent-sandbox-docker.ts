@@ -62,10 +62,22 @@ export interface AgentSandboxProjectMount {
 	projectRepoPath: string;
 }
 
+/**
+ * A READ-WRITE host bind mount — the one deliberate deviation from the read-only rootfs, for a host-persistent store a
+ * curated tool needs to write (e.g. §5.AR basic-memory's markdown notes + SQLite index). Absent by default: the sandbox
+ * stays fully read-only unless a caller explicitly supplies these (behind its own opt-out gate). NEVER a repo path.
+ */
+export interface AgentSandboxWritableMount {
+	hostPath: string;
+	containerPath: string;
+}
+
 export interface AgentSandboxDockerRunOptions {
 	slot: number;
 	image: string;
 	projectMounts: readonly AgentSandboxProjectMount[];
+	/** RW bind mounts (default none) — a host-persistent store the sandbox may write (§5.AR basic-memory). */
+	writableMounts?: readonly AgentSandboxWritableMount[];
 	config: AgentSandboxPoolConfig;
 	/**
 	 * Sandbox network posture from the resolved capability ruleset. Defaults to `"none"` (the historical,
@@ -174,6 +186,10 @@ export function buildAgentSandboxDockerRunArgs(options: AgentSandboxDockerRunOpt
 	];
 	for (const mount of options.projectMounts) {
 		args.push("--mount", `type=bind,src=${mount.projectRepoPath},dst=/repos/${mount.projectKey},readonly`);
+	}
+	// RW writable mounts (§5.AR basic-memory) — the ONLY read-write host binds; absent by default (fully read-only).
+	for (const mount of options.writableMounts ?? []) {
+		args.push("--mount", `type=bind,src=${mount.hostPath},dst=${mount.containerPath},readwrite`);
 	}
 	args.push(options.image, "sleep", "infinity");
 	return args;
