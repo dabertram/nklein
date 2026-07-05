@@ -497,7 +497,11 @@ function tryParseJson(content: string): { ok: true; value: unknown } | { ok: fal
 	try {
 		return { ok: true, value: JSON.parse(trimmed) };
 	} catch {
-		// Recover a JSON object/array embedded in surrounding prose.
+		// Recover a JSON object/array embedded in surrounding prose. NOTE: this first-bracket..last-bracket span is
+		// deliberately kept simple — a prose bracket before the JSON makes it fail to parse, but generateStructured's
+		// RETRY (ask for JSON-only) is the safety net, so a first-attempt miss is recovered without data loss. A robust
+		// largest-balanced-span recovery would avoid the extra retry but risks picking prose that is itself valid JSON
+		// (e.g. a "[1]" citation) and throwing before the retry can run — not worth the regression here.
 		const start = trimmed.search(/[[{]/u);
 		const end = Math.max(trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]"));
 		if (start >= 0 && end > start) {
