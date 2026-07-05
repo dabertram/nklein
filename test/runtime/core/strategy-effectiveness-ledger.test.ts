@@ -227,6 +227,32 @@ describe("strategy-effectiveness-ledger", () => {
 			expect(ordered.indexOf("reduced_tool_set")).toBeLessThan(ordered.indexOf("constrained_schema"));
 		});
 
+		it("bug-hunt 2026-07-05: a sub-margin CHAIN spanning the margin still promotes the clearly-best rung (transitive order)", () => {
+			// The pre-fix pairwise-margin comparator was intransitive: with effectiveness forming a chain where each
+			// adjacent pair is within the margin but the ENDS span it, Array.sort left the ladder unsorted and the head
+			// stayed on the worst rung. Encode exactly that: no_tool_call curated [reduced_tool_set(#0),
+			// constrained_schema(#1), alternate_endpoint(#2), ...]. Beta mean = (successes+1)/(attempts+2):
+			//   reduced_tool_set  3/6  → 4/8   = 0.500 → bucket floor(0.500/0.05)=10
+			//   constrained_schema 6/11 → 7/13 ≈ 0.538 → bucket 10  (gap vs reduced 0.038 < 0.05)
+			//   alternate_endpoint 4/7  → 5/9  ≈ 0.556 → bucket 11  (gap vs constrained 0.018 < 0.05; vs reduced 0.056 ≥ 0.05)
+			// So reduced~constrained and constrained~alternate are each sub-margin, but reduced<alternate clears it.
+			let ledger = emptyStrategyEffectivenessLedger("modelA");
+			ledger = recordMany(ledger, { outcome: "no_tool_call", strategy: "reduced_tool_set", recovered: true }, 3);
+			ledger = recordMany(ledger, { outcome: "no_tool_call", strategy: "reduced_tool_set", recovered: false }, 3);
+			ledger = recordMany(ledger, { outcome: "no_tool_call", strategy: "constrained_schema", recovered: true }, 6);
+			ledger = recordMany(ledger, { outcome: "no_tool_call", strategy: "constrained_schema", recovered: false }, 5);
+			ledger = recordMany(ledger, { outcome: "no_tool_call", strategy: "alternate_endpoint", recovered: true }, 4);
+			ledger = recordMany(ledger, { outcome: "no_tool_call", strategy: "alternate_endpoint", recovered: false }, 3);
+			const ordered = orderLadderByEffectiveness(ledger, "no_tool_call");
+			// The genuinely-most-effective rung (alternate_endpoint, 0.556, clears the margin over reduced by 0.056) MUST
+			// lead — pre-fix it stayed behind reduced_tool_set (0.500) because the intransitive chain left sort a no-op.
+			expect(ordered[0]).toBe("alternate_endpoint");
+			expect(bestStrategyForOutcome(ledger, "no_tool_call")).toBe("alternate_endpoint");
+			// Sub-margin pair keeps curated order (reduced #0 before constrained #1); set preserved.
+			expect(ordered.indexOf("reduced_tool_set")).toBeLessThan(ordered.indexOf("constrained_schema"));
+			expect([...ordered].sort()).toEqual([...retryLadderForOutcome("no_tool_call")].sort());
+		});
+
 		it("returns an empty ladder for `success` (no remedy rungs)", () => {
 			const empty = emptyStrategyEffectivenessLedger("modelA");
 			expect(orderLadderByEffectiveness(empty, "success")).toEqual([]);

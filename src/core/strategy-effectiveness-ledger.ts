@@ -189,12 +189,23 @@ export function orderLadderByEffectiveness(
 		effectiveness.set(strategy, observed ? strategyEffectiveness(ledger, outcome, strategy, options) : 0.5);
 	});
 
+	// Rank by a TRANSITIVE scalar key, not a pairwise margin test. Comparing `|effA - effB| >= reorderMargin` per pair is
+	// a semiorder, not a total order: with effectiveness like 0.50 / 0.53 / 0.56 (each adjacent gap < margin, but the ends
+	// span it) the pairwise relation is intransitive, so `Array.sort` — which assumes a total order — leaves the ladder
+	// unsorted and a clearly-better rung (0.56, beating 0.50 by > margin) never climbs (bug-hunt 2026-07-05, 4-lens
+	// consensus). Instead, QUANTIZE effectiveness into `reorderMargin`-wide buckets: rungs in the same bucket are
+	// "not meaningfully different" and keep curated order; a rung in a higher bucket leads. Sorting by (bucket desc,
+	// curatedIndex asc) is a proper lexicographic total order, so a sub-margin edge never blocks a margin-clearing climb.
+	// (Boundary note: two rungs straddling a bucket edge with a < margin gap can still swap — bounded by margin, far
+	// milder than the intransitivity it replaces.) reorderMargin <= 0 ⇒ the key is raw effectiveness (any gap reorders).
+	const bucketKey = (strategy: RetryStrategy): number => {
+		const eff = effectiveness.get(strategy) ?? 0.5;
+		return reorderMargin > 0 ? Math.floor(eff / reorderMargin) : eff;
+	};
 	return [...ladder].sort((a, b) => {
-		const effA = effectiveness.get(a) ?? 0.5;
-		const effB = effectiveness.get(b) ?? 0.5;
-		// Only let learned effectiveness reorder when the gap clears the noise margin; otherwise defer to curated order.
-		if (Math.abs(effA - effB) >= reorderMargin) {
-			return effB - effA; // higher effectiveness first
+		const bucketDelta = bucketKey(b) - bucketKey(a); // higher-effectiveness bucket first
+		if (bucketDelta !== 0) {
+			return bucketDelta;
 		}
 		return (curatedIndex.get(a) ?? 0) - (curatedIndex.get(b) ?? 0); // stable: preserve hand-authored priority
 	});
