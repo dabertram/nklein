@@ -653,3 +653,77 @@ to their own module first, then the normalizers depend on *that*, not on the loa
   - Interspersed stay-functions (`getRuntimeHomePath`, `pickBestInstalledAgentId`, `pickBestInstalledAgentIdFromDetected`,
         the field-equality change-detection registry) correctly left in `runtime-config.ts`. Verified green: tsc + biome +
         config/utilities vitest (65 tests).
+
+
+### 5.AM + 5.BD — moved from todo.md 2026-07-05 (belated migrations: fully-shipped sections that never got moved in their delivering commits)
+
+### 5.AM — Surfaced test-failure debts (all discharged) ✅ COMPLETE — moved from todo.md 2026-07-05
+> Concrete failures that have SURFACED. Top-of-queue by the §4A no-waive rule. (Currently: all discharged.)
+- [x] **agent-sandbox Docker integration: flaky 137 under the full parallel suite — ROOT-CAUSED & FIXED (2026-06-29).**
+      Symptom: `test/integration/agent-sandbox.integration.test.ts` execs (`mkdir`/`readFile`/`editor`…) intermittently
+      returned `exitCode: 137`; passed in isolation, failed under the full `vitest run`. **Root cause (measured, not
+      guessed):** `docker events` showed `kill signal=9 → die 137`, `oomKilled` UNSET → NOT a kernel OOM (the tempting
+      7.7 GiB-VM/2 GiB-container theory was wrong). It was **cross-process orphan-reaping**: `runtime-server` startup calls
+      `AgentSandboxManager.reapOrphanResources()`, which `docker rm -f`s EVERY container carrying the sandbox label, and
+      container names are a FIXED global slot (`nklein-agent-sandbox-1`). Under the full suite, OTHER suites boot a server
+      in a parallel worker — spawned backends (`startTsBackend`, used by all contract suites) AND in-process boots
+      (`createRuntimeServer`, e.g. `ws-upgrade-passcode`) — and their startup reap destroyed the agent-sandbox test's LIVE
+      container mid-exec → 137. (Confirmed by debug-logging the `rm -f` sites + bisecting: it tracked exactly with
+      backend-spawning suites.) **Fix:** gate the startup reap — skip when `NKLEIN_SANDBOX_SKIP_STARTUP_REAP=1` (set by the
+      test backend factory for spawned backends) OR `process.env.VITEST === "true"` (covers in-process boots, since
+      hand-built spawn envs don't inherit VITEST). Production single-instance startup still reaps. Full suite now
+      **3101/3101 green ×2 consecutive**. NOTE the latent PRODUCT fragility this exposed (separate, lower-priority):
+      label-based reaping + fixed global container/volume names mean **two real !Klein instances on one host would reap
+      each other's sandbox containers** — if multi-instance-per-host is ever supported, scope reaping/naming per instance.
+
+### 5.BD — Schema-tolerance sweep across ALL SDK tool boundaries ✅ COMPLETE — moved from todo.md 2026-07-05
+> **Five separate live board-freezes were caused by the same disease:** a STRICT pre-execution schema rejecting a
+> semantically-obvious tool call (feedback:null #15 · tool-name echo #27 · focus-chain `name`→`text` · my
+> `preferred` enum #32 · run_commands bare-string #34). The AI-SDK validates args against each tool's inputSchema
+> BEFORE execute, so any strictness there turns a recoverable near-miss into 3-strikes-abandoned. LAW (§4A-worthy):
+> the SDK boundary schema is for GUIDANCE, never enforcement — validate loosely at the boundary, normalize
+> tolerantly in execute (aliases/synonyms/shape-coercion), and return corrective `ok:false` instructions for what
+> can't be coerced.
+> - [x] **SWEPT 2026-07-03:** vendored SDK boundaries loosened — run_commands (#34), editor/edit_file (#38),
+>       read_files (#40), **search_codebase / apply_patch (patch|diff aliases) / fetch_web_content (lone
+>       {url,prompt})** this pass — each boundary now string-or-array/alias-tolerant with the execute-side union/
+>       normalizer as the real parser (SDK dist rebuilt). !Klein verdict tools (submit_review / submit_plan_critique
+>       / submit_merge_resolution) dropped `required:[...]` and switched execute to safeParse → actionable ok:false
+>       instead of a raw Zod pre-rejection loop. REMAINING boundaries left strict on purpose (not in the sandbox
+>       worker toolset / negligible variance): skills, ask_question, submit_and_exit, browse (url unambiguous).
+> - [x] **SHIPPED 2026-07-03:** pre-execution rejection counter — the event adapter's tool-finished handler
+>       detects the SDK's schema-rejection signature (isPreExecutionToolRejection: "rejected before execution" /
+>       "type validation failed", NOT in-execute failures) and records a `tool_input_rejection` self-observation
+>       tagged toolName+modelId+providerId. After the sweep these should be rare; the counter makes a resurgence
+>       visible per-tool-per-model on telemetry instead of only in an autopsy.
+> - [x] **run42 evidence — tool-NAME aliasing — DONE (2026-07-03, commit ~a…):** models called unavailable names
+>       (`read_file` for `read_files`) and looped on the "unavailable tool" pre-rejection. Wired at the AI-SDK's
+>       `experimental_repairToolCall` hook on the provider's `streamText` call (`ai-sdk.ts`): on `NoSuchToolError`,
+>       `resolveToolNameAlias(requested, offeredNames)` (new PURE core, `llms/providers/tool-name-alias.ts`, 5 tests)
+>       redirects to a REAL offered tool (keeping args) — exact-normalized (readFiles→read_files) → curated synonym
+>       (grep→search_codebase, bash→run_commands, ls→list_files, browse_url→fetch_web_content) → singular↔plural. It
+>       only ever returns a name in the offered set (can't invent/mis-route). Only NoSuchToolError is repaired; arg
+>       errors fall through to the per-tool execute normalizers (layers compose — a repaired call is re-validated).
+>       Logs each alias. SDK rebuilt; vendored llms green (339); repo green (6585). Live-confirm at sweep time.
+> - [x] **run38 evidence — `read_files` double-encoded array — DONE:** the EVIDENCED whole-`files`-string shape
+>       (`{"files": "[{\"path\": ..."}`) is decoded in `read_files`' execute() (fix #40, vendored `definitions.ts`).
+>       **Extended 2026-07-03:** the PER-ELEMENT sibling (`{"files": ["{\"path\":\"a.ts\"}"]}` — an array whose
+>       element is a stringified object) was silently mis-read as a bogus path literally named `{"path":...}`; now
+>       `normalizeReadFilesEntry` decodes a string element that parses to an object carrying `path`, while a plain
+>       path (incl. one that merely starts with `{`) stays literal. Vendored suite green (52); also fixed a stale
+>       vendored schema test that still asserted the pre-#40 strict shape (unnoticed because `test:fast` excludes
+>       `vendor/**` — worth a periodic `cd vendor/cline-sdk/packages/core && vitest run` in the release gate).
+> - [x] **run36/38 evidence — interrupted-salvage universal net — DONE (verified 2026-07-03):** the #29
+>       board-liveness watchdog rescues an `interrupted` card that still has a prior result branch —
+>       `rescueInterruptedTaskWithPriorWork` rebinds it into review (salvage → judge). Deliberately scoped to the
+>       **IN_PROGRESS lane only** (NOT all non-terminal lanes as originally phrased): a review-lane card is already
+>       being judged and a HELD card there has an interrupted session by design (#33), so re-rescuing would loop
+>       hold→stop→rebind→re-review forever. Tested (rebound → awaiting_review, task-session-service.test.ts
+>       2557/4108/4178). Any residual lane-coverage gap (e.g. a docker-409 abandon landing outside in_progress) is a
+>       sweep-time finding — the documented run36/38 case is covered.
+> - [x] **run37 evidence — `edit_file` insert-shape — DONE (verified 2026-07-03):** `{path, insert_line, new_text}`
+>       is fully handled end-to-end — the edit_file boundary schema requires only `path` (insert_line: number|string|
+>       null, new_text: string|null, edits optional), and `parseEditFileRequest` normalizes the shape to an insert
+>       (both numeric and numeric-string insert_line; tested lines 24/33/74). Fixed across #38 + #42. The submit_review
+>       `"name": null` sibling was fixed as #37. Nothing left here.
+
