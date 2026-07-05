@@ -1,0 +1,14 @@
+# Local SearXNG backend for §5.AC egress-gated web_search (David 2026-07-05: "enable egress live").
+# `use_default_settings: true` inherits SearXNG's full defaults; we override only what the !Klein client needs:
+#   - search.formats MUST include `json` (SearXNG ships JSON OFF by default; the client hits /search?format=json).
+#   - server.secret_key is a LOCAL-ONLY dev secret (this backend binds to localhost; not internet-exposed).
+#   - limiter off so the trusted local runtime isn't rate-limited against its own backend.
+use_default_settings: true
+server:
+  secret_key: "nklein-local-searxng-dev-secret-change-if-exposed"
+  limiter: false
+  image_proxy: false
+search:
+  formats:
+    - html
+    - json
