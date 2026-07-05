@@ -121,7 +121,10 @@ export function selectModelForTask(
 			qualified: record.qualityScore >= policy.qualityBar && record.maxDifficultyCleared >= input.difficulty,
 			available: input.availableModelIds.has(record.modelId),
 		}))
-		.sort((a, b) => b.score - a.score);
+		// Deterministic tiebreak on equal fitness (and NaN-safe): without it, `.sort` is only stable, so two equal-score
+		// models are ordered by the CALLER's records array — violating the module's pure+deterministic contract (the same
+		// evidence in a different order would assign a different model). modelId keeps it total + reproducible.
+		.sort((a, b) => b.score - a.score || a.record.modelId.localeCompare(b.record.modelId));
 
 	const qualified = scored.filter((entry) => entry.qualified);
 	const qualifiedAvailable = qualified.find((entry) => entry.available);

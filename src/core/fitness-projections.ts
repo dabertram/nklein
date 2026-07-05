@@ -60,7 +60,15 @@ export function rankFitnessCandidatesForCell(rows: readonly FitnessRow[], query:
 			if (b.sampleCount !== a.sampleCount) {
 				return b.sampleCount - a.sampleCount;
 			}
-			return (a.meanWallTimeMs ?? Number.POSITIVE_INFINITY) - (b.meanWallTimeMs ?? Number.POSITIVE_INFINITY);
+			const aWall = a.meanWallTimeMs ?? Number.POSITIVE_INFINITY;
+			const bWall = b.meanWallTimeMs ?? Number.POSITIVE_INFINITY;
+			// Compare only when they differ: two unmeasured rows are both +Infinity, and `Infinity - Infinity` is NaN — a
+			// NaN comparator makes Array.sort engine/insertion-order dependent, so `bestFitnessCandidateForCell` (index 0)
+			// could return either tied model nondeterministically. Fall through to a stable modelKey tiebreak.
+			if (aWall !== bWall) {
+				return aWall - bWall; // faster (smaller) first; finite always beats +Infinity
+			}
+			return a.modelKey.localeCompare(b.modelKey);
 		});
 }
 

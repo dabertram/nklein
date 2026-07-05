@@ -243,9 +243,12 @@ export function learnedQualityEffectiveBudget(
 	const degraded = profile.qualityDegradedAtTokens;
 	const good = profile.qualityEffectiveContextTokens;
 	if (degraded !== null) {
-		// Target a margin below the first observed degradation, but never below the floor or a known-good size.
+		// Target a margin below the first observed degradation, floored at the ≥32k invariant. Do NOT raise the target by
+		// the best-observed `good` size: the good/degraded scalars ratchet INDEPENDENTLY and can cross (a good sample at
+		// 100k then a degraded one at 60k — stochastic quality, or a good sample from before a config change), and
+		// including `good` in the max would then aim the model at a context ABOVE where it has failed quality.
 		const target = Math.floor(degraded * 0.9);
-		return Math.max(floor, good ?? 0, target);
+		return Math.max(floor, target);
 	}
 	if (good !== null) {
 		return Math.max(floor, good);

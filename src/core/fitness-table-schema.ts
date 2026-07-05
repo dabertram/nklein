@@ -86,10 +86,15 @@ function foldMean(
 	if (typeof next !== "number" || !Number.isFinite(next)) {
 		return { mean, samples };
 	}
-	if (mean === null || samples <= 0) {
+	if (mean === null) {
 		return { mean: next, samples: 1 };
 	}
-	return { mean: mean + (next - mean) / (samples + 1), samples: samples + 1 };
+	// A row can carry a real historical mean with a LOST sample count (`samples === 0`): a fitness-table.json written
+	// before the `*-Samples` fields existed migrates its `meanWallTimeMs`/`tokensPerSec` forward but defaults the count to
+	// 0. Treat the existing mean as at least one prior sample so it BLENDS with `next` instead of being discarded — else
+	// the first new attempt silently overwrites the model's entire historical average.
+	const priorSamples = Math.max(1, samples);
+	return { mean: mean + (next - mean) / (priorSamples + 1), samples: priorSamples + 1 };
 }
 
 /**

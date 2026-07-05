@@ -97,6 +97,7 @@ export function assessRuntimeModelVerdict(input: AssessRuntimeModelVerdictInput)
 	>;
 	const runIds = new Set<string>();
 	const stalledRunIds = new Set<string>();
+	let stallEventsWithoutRunId = 0;
 	for (const event of ourEvents) {
 		if ((RUNTIME_DIFFICULTY_SIGNALS as readonly string[]).includes(event.signal)) {
 			signalCounts[event.signal as RuntimeDifficultySignal] += 1;
@@ -106,6 +107,11 @@ export function assessRuntimeModelVerdict(input: AssessRuntimeModelVerdictInput)
 			if (event.signal === "model_stalled") {
 				stalledRunIds.add(event.runId);
 			}
+		} else if (event.signal === "model_stalled") {
+			// A stall with no runId can't be deduped to a run — count it directly. Self-observation events currently never
+			// carry a runId, so WITHOUT this the deduped `stalledRunIds` is empty and a chronic staller (whose runs come
+			// from the ledger `runs` list) is mis-judged TOOL_CAPABLE (stallRate structurally 0).
+			stallEventsWithoutRunId += 1;
 		}
 	}
 	for (const run of input.runs ?? []) {
@@ -114,11 +120,14 @@ export function assessRuntimeModelVerdict(input: AssessRuntimeModelVerdictInput)
 		}
 	}
 
-	// Sample count = distinct runs we have evidence for; fall back to the raw event count when runIds are absent.
-	const sampleCount = runIds.size > 0 ? runIds.size : ourEvents.length;
-	// "Stalls" for the RATE = distinct runs that stalled (so one run with several empty turns counts once, keeping the
-	// rate in [0,1]); when there are no runIds to dedup against, fall back to the raw stall-event count (≤ event count).
-	const stalledCount = runIds.size > 0 ? stalledRunIds.size : signalCounts.model_stalled;
+	// Sample count = the DISTINCT runs we have run-id evidence for (from the events' runIds + the ledger `runs` list). The
+	// fallback must NOT be the failure-event count: self-observation events fire only on FAILURES + never on clean runs,
+	// so counting them as "runs" inflates the failure fraction (a capable model with a few stalls then looks chronically
+	// unsuitable). With no run-id evidence at all we have no honest denominator ⇒ 0 samples ⇒ UNKNOWN below.
+	const sampleCount = runIds.size;
+	// Distinct stalled RUNS (dedup when runIds are present — one run with several empty turns counts once) PLUS stalls
+	// that carried no runId (can't be deduped), capped at the sample count so the rate stays in [0,1].
+	const stalledCount = Math.min(sampleCount, stalledRunIds.size + stallEventsWithoutRunId);
 	const stallRate = sampleCount > 0 ? stalledCount / sampleCount : 0;
 	const confidence = confidenceForSamples(sampleCount);
 

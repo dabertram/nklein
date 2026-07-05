@@ -162,3 +162,35 @@ tests assert the override (incl. nklein-decomposition-tool.test.ts:1485, which s
 the default to win), so it is NOT a clear mechanical mistake. **Question for the user:** should `defaultAcceptanceCommand`
 be FILL-ONLY (honor a card's own command, default only fills gaps — matches the docs, preserves per-card checks) or
 OVERRIDE (current + tested behavior)? Left as-is (override) pending the decision; inline note added at the code site.
+
+## Selection/fitness/learning bug-hunt (2026-07-05) — 6 unique defects fixed (7 confirmed findings, 1 dup)
+
+A find→adversarial-verify workflow over the model-selection/fitness/learning cluster (~3465 LOC) confirmed 8 findings
+(7 unique). Verified each against the code myself; ALL 6 fixed (the 2 runtime-verdict bugs share a root), regression
+tests in test/runtime/core/selection-fitness-bugfixes.test.ts (7 tests), full suite 7406 green.
+
+1. **runtime-model-verdict — chronic staller mis-judged TOOL_CAPABLE (HIGH).** Root cause: self-observation events
+   NEVER carry a runId (no emitter sets it), so the deduped `stalledRunIds` is structurally empty; via the CLI path
+   (which supplies ledger runs → runIds.size>0) `stalledCount` collapsed to 0 → stallRate 0 → a model that stalls every
+   turn reads TOOL_CAPABLE. Fixed: count runId-less stalls (`stallEventsWithoutRunId`) alongside the deduped distinct
+   stalled runs, capped at sampleCount. PRESERVES the per-run dedup when runIds ARE present (the L62 test).
+2. **runtime-model-verdict — capable model mis-judged TOOL_UNSUITABLE (denominator).** The `runIds.size>0 ? … :
+   ourEvents.length` fallback treated the FAILURE-event count as a run count (clean runs emit nothing), inflating the
+   stall rate to ~100% at the start-task-session call site (which passes no `runs`). Fixed: `sampleCount = runIds.size`
+   only — with no run-id evidence there is no honest denominator ⇒ UNKNOWN (safe: 1.0× multiplier, no false penalty).
+3. **model-behavior-profile.learnedQualityEffectiveBudget** could return a budget ABOVE the degradation point (the
+   `good`/`degraded` scalars ratchet independently + can cross); dropped `good` from the degraded-branch max.
+4. **model-swarm-route.tierByPool** scored a pool's capability WITHOUT a context check → routed to a context-infeasible
+   pool → within-pool no_fit blocked the task; now only context-feasible models count toward a pool's tier.
+5. **fitness-projections.rankFitnessCandidatesForCell** — the wall-time tiebreak was `Infinity − Infinity = NaN` when
+   two tied rows both lacked a wall time (the SAME NaN-comparator class as the router bug); added a `!==` guard + a
+   stable modelKey final tiebreak.
+6. **fitness-table-schema.foldMean** discarded a forward-migrated historical mean (v0 rows have a mean but *-Samples=0);
+   now treats the existing mean as ≥1 prior sample and blends. **model-fitness.selectModelForTask** got a deterministic
+   modelId tiebreak (was caller-order-dependent on equal fitness).
+
+**COLLECTED — wiring follow-up (to make the runtime-verdict feature actually WORK, not just be safe):** the pure core is
+now correct, but (a) the self-observation emitter (`recordObservationWithModel`, nklein-task-session-service) should
+stamp the current runId/taskId on `model_stalled` etc. so per-run dedup works; and (b) start-task-session.ts:~457 should
+pass the ledger `runs` (the total-run denominator) to `assessRuntimeModelVerdict`. Until both land, the start-task-session
+runtime-verdict multiplier is a safe no-op (UNKNOWN → 1.0×) rather than the prior harmful false TOOL_UNSUITABLE penalty.

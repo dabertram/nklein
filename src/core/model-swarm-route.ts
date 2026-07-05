@@ -67,6 +67,13 @@ export function selectSwarmRouteForTask(input: SelectSwarmRouteInput): SwarmRout
 		if (!eligibleKeys.has(candidate.modelKey)) {
 			continue;
 		}
+		// A model that cannot hold the required context is NOT a capable candidate for this task — count only
+		// context-FEASIBLE models toward a pool's tier. Otherwise the pool selector (which sees capability only) can pick a
+		// pool whose strongest model then fails the within-pool context guard and returns no_fit, blocking the task while a
+		// genuinely feasible pool sits unused. Mirrors the within-pool `isFeasible` check (role-model-selection).
+		if (candidate.contextWindow < input.requiredContextTokens) {
+			continue;
+		}
 		const current = tierByPool.get(candidate.poolId);
 		const cap = capabilityByKey.get(candidate.modelKey) ?? 0;
 		if (current === undefined || cap > current) {
