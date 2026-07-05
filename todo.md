@@ -2056,7 +2056,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         project the **episodic** layer over the §5.AF event/attempt ledger · build the **semantic** layer (extract
         facts/preferences/project-constraints from episodes) · project the **procedural** layer over the §5.AE
         `ProceduralSkillBank`.
-  - [ ] **Turn-budget allocator** (pure core): apportion the context window across the bands (system/invariants ·
+  - [x] **Turn-budget allocator** (pure core): apportion the context window across the bands (system/invariants · *(2026-07-05: `allocateTurnBudget` in turn-budget-allocator.ts — fixed bands reserved first, flexible filled by priority, dropped when min unmet, over-budget/under-floor flags; 7 tests)*
         objective/focus-chain · current message · recent transcript · overflow summary · semantic · episodic ·
         procedural · tool defs), respecting the ≥32k floor; unit-test the allocation. (Ties §5.AD smart-zone.)
   - [ ] **Namespaced memory scope** — replace the owed "access-all-loaded-projects" boolean with a namespaced scope.
