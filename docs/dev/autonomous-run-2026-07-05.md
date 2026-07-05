@@ -454,3 +454,27 @@ but the wiring hardcodes `normal`/`false` (board-chat-feedback-wiring.ts:116); n
 already in CHANGELOG) is a quick doc close-out. Then **§5.AU** (streams/addressing) — check its item states before
 assuming, per the now-thrice-confirmed stale-checkbox lesson. Keep preferring: read the real code, ship the smallest
 green functional slice, reconcile todo.md as you go.
+
+### ✓ SHIPPED (2026-07-06) — §5.AT item 6 per-session MUTE, end-to-end (63e61263 backend, 8936dac0 UI)
+A full-stack functional feature this iteration:
+- **Backend/runtime (63e61263):** `feedbackMuted` persisted per-session field (mirrors `browserEnabled` through
+  contract → chat-service → chat-session-store → replay, back-compat default false), settable via `updateSession`,
+  honored LIVE by the board→chat bridge. Key correctness call: the wiring's `resolveOwningChat` now caches only the
+  owning session id and RE-READS the session each resolve — caching the whole `OwningChatRef` would have pinned `muted`
+  at its first-seen value so a toggle never took effect until restart. `muted` → `decideBoardChatFeedback` suppresses
+  every tier. 3 tests.
+- **UI (8936dac0):** a 🔔/🔕 "Mute board updates" toggle in `chat-sidebar.tsx`, shown only for a chat that owns a
+  workspace. Web gate green (web tsc + 883 vitest + build).
+- **Bonus — a PRE-EXISTING stale web test fixed:** running the web suite for the UI slice surfaced
+  `board-state.test.ts` asserting a backlog↔backlog reverse link adds both ways, but the 2026-07-05 cycle guard rejects
+  the reverse edge (`would_create_cycle`) — the root test was flipped then, this web copy was missed. Fixed (§4A: never
+  waive a surfaced failure). **Lesson:** the web-ui vitest suite (not run by the root pre-commit) can harbor stale twins
+  of core tests — run `npm --prefix web-ui run test` when touching web-ui, and it may surface unrelated pre-existing rot.
+
+### ★ NEXT — §5.AT item 8 (quick), then §5.AU
+Item 6's core (mute) is functional end-to-end; the remainder (verbosity/quiet selectors, push escalation) is refinement —
+lower priority than net-new feature-completeness. **Item 8**: record the board→chat bridge in
+`docs/dev/integrations.md` (CHANGELOG already done) — a quick close-out. Then **§5.AU** (streams/addressing above cards +
+multi-level chat addressing) — READ its item states first (the stale-checkbox lesson is now confirmed 4×). Prefer:
+read real code → smallest green functional slice → reconcile todo.md. When touching web-ui, run the web gate
+(web tsc + vitest + build) manually — the root pre-commit does not.
