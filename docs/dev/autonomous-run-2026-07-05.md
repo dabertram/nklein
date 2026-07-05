@@ -501,3 +501,30 @@ run the web gate). **`send_to_stream`** (item 6 remainder). Item 7 (optional loc
 explicitly OPTIONAL — skip until the rest is done. READ each item's real state first. When §5.AU is drained, the
 next epics are §5.AF durable scheduler / §5.AG operator UX / the §5.AR MCP wiring — but many of those need David's
 inputs (egress URL for the online cluster, a Docker VM ≥ the 7.7 GiB the durable-scheduler validation needs).
+
+### ✓ SHIPPED (2026-07-06) — §5.AU send_to_stream, item 6 complete (c7984158)
+`send_to_stream`: broadcast one message to a stream's cards — deliver live to running members, queue the rest to their
+mailboxes, never start a card. Composes the existing `deliverLive`/`queueMailbox` deps (no send_to_card refactor — a
+stream broadcast is a simpler "guidance to all" semantic than the per-card WORK/CONSULT split), membership off
+`card.streamId`, auto-offered via the resolver relay-set spread. 3 tests; full fast suite green. Also confirmed the
+"talking to X" chip is already built (item 10 note corrected).
+
+### ★ §5.AU is now feature-complete for its CORES + TOOLS — what's left is meatier
+Done: all cores/schema/write-path/mailbox/session-state (items 1–5,7), both relay tools (item 6), the feedback bridge
+(item 8), get_streams + the focus chip (item 10 partial), the front-door FIRST half (item 9). **The remaining two pieces
+are NOT clean compose-a-core slices** (the pattern that produced the last 5 features):
+- **item 9 second-half** — direct front-door RELAY (deterministic relay of an @card message instead of note-injection +
+  model-called send_to_card) is a genuine UX BEHAVIOR change (relay-and-confirm vs answer-with-context) + the WORK/CONSULT
+  nuance; the current note+tool path already works for a capable model, so this is robustness for weak models. Worth a
+  David sanity-check on the intended UX before building. The candidate-picker + rung-5 LLM disambiguator need a model call.
+- **item 10 stream-overview SURFACE** — a real functional-UI investment: needs a new tRPC endpoint returning
+  `summarizeWorkspaceBoardStreams` (the board-independent chat client has no per-card session signals to roll up
+  client-side) + a new panel component + the drill navigation. Meaty but greenlit; the biggest remaining §5.AU value.
+
+### ★ NEXT — pick ONE: the stream-overview surface (meaty UI, high value), OR pivot epics
+If continuing §5.AU: build the stream-overview surface = (1) a `chat.getBoardStreams`-style tRPC read composing
+`summarizeWorkspaceBoardStreams`, (2) a panel in the chat sidebar listing each stream (title · health · progress ·
+frontier) with click-to-focus, (3) the "N pending notes" mailbox indicator. Run the web gate. Otherwise the honest
+alternative: §5.AU's clean-slice supply is drained (like the broader backlog was at iteration 2) — the highest-leverage
+moves now increasingly need David (the SearXNG URL unblocks the whole §5.AC/§5.AB online cluster; a bigger Docker VM
+unblocks §5.AF durable-scheduler live validation; a UX nod unblocks item 9). Surface these and let David steer.
