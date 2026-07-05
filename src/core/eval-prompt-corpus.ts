@@ -356,3 +356,30 @@ export function evalPromptsByDifficulty(difficulty: TaskDifficultyTier): EvalPro
 export function evalPromptById(id: string): EvalPrompt | undefined {
 	return EVAL_PROMPT_CORPUS.find((prompt) => prompt.id === id);
 }
+
+// ── Versioning ──────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Bump on a BREAKING change to the corpus schema or scoring SEMANTICS (a change that makes old scores incomparable even
+ * if the prompt text is unchanged — e.g. a scorer's meaning shifts). Additive prompt edits don't need a bump; the content
+ * fingerprint below detects those automatically. Persisted eval results should record BOTH so a re-eval knows whether the
+ * corpus it scored against still matches.
+ */
+export const EVAL_CORPUS_VERSION = 1;
+
+/**
+ * A stable content fingerprint of the corpus: `v<version>-<hash>` where the hash is a deterministic 32-bit rolling hash
+ * (djb2-xor) of the serialized rows. The SAME corpus always fingerprints identically; ANY change to a prompt, answer key,
+ * or row set changes it — so the eval harness can detect that stored scores were produced against a DIFFERENT corpus and
+ * must be recomputed, even without a manual version bump. Pure + deterministic (no crypto dependency); this is a
+ * change-detector, not a security hash, so collision-resistance is not required.
+ */
+export function evalCorpusFingerprint(corpus: readonly EvalPrompt[] = EVAL_PROMPT_CORPUS): string {
+	const serialized = JSON.stringify(corpus);
+	let hash = 5381;
+	for (let index = 0; index < serialized.length; index += 1) {
+		// hash * 33 ^ charCode, coerced to a 32-bit int each step so long inputs don't drift into float imprecision.
+		hash = (((hash << 5) + hash) ^ serialized.charCodeAt(index)) | 0;
+	}
+	return `v${EVAL_CORPUS_VERSION}-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}

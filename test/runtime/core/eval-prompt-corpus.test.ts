@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	EVAL_CORPUS_VERSION,
 	EVAL_PROMPT_CORPUS,
 	type EvalPrompt,
+	evalCorpusFingerprint,
 	evalPromptById,
 	evalPromptSchema,
 	evalPromptsByDifficulty,
@@ -127,5 +129,33 @@ describe("eval-prompt-corpus selectors", () => {
 	it("evalPromptById round-trips and returns undefined for an unknown id", () => {
 		expect(evalPromptById("implement-slugify")?.id).toBe("implement-slugify");
 		expect(evalPromptById("nope")).toBeUndefined();
+	});
+});
+
+describe("eval-corpus versioning", () => {
+	it("EVAL_CORPUS_VERSION is a positive integer", () => {
+		expect(Number.isInteger(EVAL_CORPUS_VERSION)).toBe(true);
+		expect(EVAL_CORPUS_VERSION).toBeGreaterThan(0);
+	});
+
+	it("fingerprint is stable + well-formed (same corpus → same value)", () => {
+		const fp = evalCorpusFingerprint();
+		expect(fp).toBe(evalCorpusFingerprint(EVAL_PROMPT_CORPUS));
+		expect(fp).toMatch(new RegExp(`^v${EVAL_CORPUS_VERSION}-[0-9a-f]{8}$`));
+	});
+
+	it("fingerprint changes when any row changes (a change-detector)", () => {
+		const base = evalCorpusFingerprint();
+		const extraRow = evalCorpusFingerprint([...EVAL_PROMPT_CORPUS, EVAL_PROMPT_CORPUS[0]]);
+		expect(extraRow).not.toBe(base);
+		const mutated: EvalPrompt[] = [
+			{ ...EVAL_PROMPT_CORPUS[0], prompt: "changed prompt text" },
+			...EVAL_PROMPT_CORPUS.slice(1),
+		];
+		expect(evalCorpusFingerprint(mutated)).not.toBe(base);
+	});
+
+	it("fingerprint is order-sensitive but total over the empty corpus", () => {
+		expect(evalCorpusFingerprint([])).toMatch(/^v\d+-[0-9a-f]{8}$/);
 	});
 });
