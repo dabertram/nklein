@@ -266,6 +266,9 @@ export function RuntimeSettingsDialog({
 	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a SearXNG backend URL.
 	const [retrievalEgressEnabled, setRetrievalEgressEnabled] = useState(false);
 	const [retrievalSearchBackendUrl, setRetrievalSearchBackendUrl] = useState("");
+	// §5.AR curated sandbox-MCP servers (ON by default) + §5.M capability broker (prompt-injection taint gate).
+	const [sandboxMcpServersEnabled, setSandboxMcpServersEnabled] = useState(true);
+	const [capabilityBrokerEnabled, setCapabilityBrokerEnabled] = useState(false);
 	const [readyForReviewNotificationsEnabled, setReadyForReviewNotificationsEnabled] = useState(true);
 	const [codeEmbeddingDefaultsProvider, setCodeEmbeddingDefaultsProvider] =
 		useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
@@ -362,6 +365,8 @@ export function RuntimeSettingsDialog({
 	const knowsTodayCheckboxId = "runtime-settings-knows-today";
 	const retrievalEgressCheckboxId = "runtime-settings-retrieval-egress";
 	const retrievalBackendUrlInputId = "runtime-settings-retrieval-backend-url";
+	const sandboxMcpCheckboxId = "runtime-settings-sandbox-mcp";
+	const capabilityBrokerCheckboxId = "runtime-settings-capability-broker";
 	const maxConcurrentTasksId = "runtime-settings-max-concurrent-tasks";
 	const workspaceBaseDirId = "runtime-settings-workspace-base-dir";
 	const maxAgentWritableFileLinesId = "runtime-settings-max-agent-writable-file-lines";
@@ -464,6 +469,8 @@ export function RuntimeSettingsDialog({
 	const initialKnowsTodayEnabled = config?.knowsTodayEnabled ?? false;
 	const initialRetrievalEgressEnabled = config?.retrievalEgressEnabled ?? false;
 	const initialRetrievalSearchBackendUrl = config?.retrievalSearchBackendUrl ?? "";
+	const initialSandboxMcpServersEnabled = config?.sandboxMcpServersEnabled ?? true;
+	const initialCapabilityBrokerEnabled = config?.capabilityBrokerEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
 	const initialCodeEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 		provider: "local_lexical" as const,
@@ -750,6 +757,12 @@ export function RuntimeSettingsDialog({
 		if (retrievalSearchBackendUrl.trim() !== initialRetrievalSearchBackendUrl.trim()) {
 			return true;
 		}
+		if (sandboxMcpServersEnabled !== initialSandboxMcpServersEnabled) {
+			return true;
+		}
+		if (capabilityBrokerEnabled !== initialCapabilityBrokerEnabled) {
+			return true;
+		}
 		if (readyForReviewNotificationsEnabled !== initialReadyForReviewNotificationsEnabled) {
 			return true;
 		}
@@ -963,6 +976,8 @@ export function RuntimeSettingsDialog({
 		setKnowsTodayEnabled(config?.knowsTodayEnabled ?? false);
 		setRetrievalEgressEnabled(config?.retrievalEgressEnabled ?? false);
 		setRetrievalSearchBackendUrl(config?.retrievalSearchBackendUrl ?? "");
+		setSandboxMcpServersEnabled(config?.sandboxMcpServersEnabled ?? true);
+		setCapabilityBrokerEnabled(config?.capabilityBrokerEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
 		const nextEmbeddingDefaults = config?.codeEmbeddingDefaults ?? {
 			provider: "local_lexical" as const,
@@ -1039,6 +1054,8 @@ export function RuntimeSettingsDialog({
 		config?.knowsTodayEnabled,
 		config?.retrievalEgressEnabled,
 		config?.retrievalSearchBackendUrl,
+		config?.sandboxMcpServersEnabled,
+		config?.capabilityBrokerEnabled,
 		config?.maxAgentWritableFileLines,
 		config?.maxConcurrentTasks,
 		config?.workspaceBaseDir,
@@ -1497,6 +1514,8 @@ export function RuntimeSettingsDialog({
 			knowsTodayEnabled,
 			retrievalEgressEnabled,
 			retrievalSearchBackendUrl: retrievalSearchBackendUrl.trim() || null,
+			sandboxMcpServersEnabled,
+			capabilityBrokerEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
 			codeEmbeddingOverride: draftCodeEmbeddingOverride,
 			readyForReviewNotificationsEnabled,
@@ -1766,6 +1785,50 @@ export function RuntimeSettingsDialog({
 											(binds localhost:18888). Web search stays off until egress is on AND a backend is set.
 										</p>
 									</div>
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
+										htmlFor={sandboxMcpCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={sandboxMcpCheckboxId}
+											checked={sandboxMcpServersEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setSandboxMcpServersEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Curated sandbox MCP servers</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										Offers the baked-in, offline MCP servers (codebase-memory, sequential-thinking,
+										basic-memory) to agents whose capability ruleset allows MCP (&sect;5.AR). ON by default;
+										each runs inside the <code>--network none</code> sandbox.
+									</p>
+								</div>
+								<div className="border-t border-border pt-4">
+									<label
+										htmlFor={capabilityBrokerCheckboxId}
+										className="flex items-center gap-2 text-[13px] text-text-primary cursor-pointer"
+									>
+										<RadixSwitch.Root
+											id={capabilityBrokerCheckboxId}
+											checked={capabilityBrokerEnabled}
+											disabled={controlsDisabled}
+											onCheckedChange={setCapabilityBrokerEnabled}
+											className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+										>
+											<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+										</RadixSwitch.Root>
+										<span>Prompt-injection capability broker</span>
+									</label>
+									<p className="text-text-tertiary text-[11px] ml-11 mt-1 mb-0">
+										Taints untrusted (web/MCP/repo) content and refuses a later protected sink (host
+										write/command/git) without a trusted plan (&sect;5.M). OFF by default;
+										assume-injection-succeeds defense for when online + MCP tools are live.
+									</p>
 								</div>
 							</div>
 						</div>

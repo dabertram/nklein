@@ -776,6 +776,29 @@ describe("RuntimeSettingsDialog", () => {
 		);
 	});
 
+	it("surfaces the curated sandbox-MCP + capability-broker capability toggles (§5.AR/§5.M)", async () => {
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={
+						{
+							...savedNKleinOauthConfig,
+							sandboxMcpServersEnabled: true,
+							capabilityBrokerEnabled: false,
+						} as RuntimeConfigResponse
+					}
+					onOpenChange={() => {}}
+				/>,
+			);
+		});
+		expect(document.body.textContent).toContain("Curated sandbox MCP servers");
+		expect(document.body.textContent).toContain("Prompt-injection capability broker");
+		expect(document.getElementById("runtime-settings-sandbox-mcp")).not.toBeNull();
+		expect(document.getElementById("runtime-settings-capability-broker")).not.toBeNull();
+	});
+
 	it("edits and saves the global model-capability gate policy (§5.AL)", async () => {
 		const handleOpenChange = vi.fn();
 		await act(async () => {

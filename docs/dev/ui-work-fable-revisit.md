@@ -16,3 +16,8 @@ _(entries appended as work proceeds)_
 
 ### Web-ui typecheck debt — FIXED 2026-07-05
 `web-ui npm run typecheck` is RED on 8 test files (`native-agent`, `kanban-board`, `use-git-actions`, `use-runtime-settings-nklein-controller`, `use-startup-onboarding`, `use-runtime-config`, `use-runtime-project-config`, `nklein-agent-chat-panel`) — each inline `createRuntimeConfig*()` fixture is missing the now-required `sandboxMaxConcurrentExec` field. NOT caused by this session (the root `test:fast` gate doesn't run the web-ui tsc, so it drifted). Fix = add `sandboxMaxConcurrentExec: 2` to each fixture. FIXED: added `sandboxMaxConcurrentExec: 2` to all 8 fixtures; `web-ui npm run typecheck` is now GREEN (0 errors), so future UI work gets clean type feedback.
+
+### 2. Curated sandbox-MCP + capability-broker Settings toggles (§5.AR/§5.M) — 2026-07-05
+- **File:** `web-ui/src/components/runtime-settings-dialog.tsx` (General section, after egress).
+- **What:** two Radix switches — "Curated sandbox MCP servers" (`sandboxMcpServersEnabled`, default ON) and "Prompt-injection capability broker" (`capabilityBrokerEnabled`, default OFF). Both config fields were already readable+savable in the contract but had NO UI. Full lifecycle mirroring egress/knowsToday. +1 component test; 41 dialog tests green.
+- **Revisit with Fable:** these are security/capability toggles buried in a growing flat list in General — they + egress probably want a dedicated "Agent capabilities / Online & tools" subsection (the Agents section may be the better home). The capability-broker copy is dense; consider a tooltip/expander. Visual grouping + iconography.
