@@ -1,10 +1,13 @@
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeWorkspaceStateResponse } from "../core/api-contract";
+import { buildBoardChatDigest } from "../core/board-chat-digest";
 import {
 	type CardExecutionState,
 	type CardMessageIntent,
 	classifyCardMessageIntent,
 	resolveCardMessageEffect,
 } from "../core/card-message-effect";
+import { summarizeWorkspaceBoardHealth } from "../core/operator-board-health";
+import type { OperatorBoardSummary } from "../core/operator-task-state";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { listUnmetDependencyTaskIds, resolveCardExecutionState } from "../core/task-board-ready-sweep";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
@@ -31,10 +34,16 @@ import type { ChatTool } from "./chat-tool-executor";
 export interface BoardToolDeps {
 	/** Load the board for the given project root. Defaults to the on-disk workspace state. */
 	loadBoard: (projectPath: string) => Promise<RuntimeBoardData>;
+	/**
+	 * §5.AG/§5.AT: load the operator board-health rollup (healthy/stuck/risky/done counts) for the project. Defaults to
+	 * the on-disk workspace state (board + live sessions). Injected so `get_board_status` is unit-testable without disk.
+	 */
+	loadBoardHealth?: (projectPath: string) => Promise<OperatorBoardSummary>;
 }
 
-const DEFAULT_BOARD_DEPS: BoardToolDeps = {
+const DEFAULT_BOARD_DEPS: Required<BoardToolDeps> = {
 	loadBoard: async (projectPath) => (await loadWorkspaceState(projectPath)).board,
+	loadBoardHealth: async (projectPath) => summarizeWorkspaceBoardHealth(await loadWorkspaceState(projectPath)),
 };
 
 export interface ChatToolSet {
@@ -82,6 +91,22 @@ export function createBoardReadTools(projectPath: string, options: { deps?: Boar
 				}
 			},
 		},
+		{
+			name: "get_board_status",
+			actionKind: "sandbox_read",
+			run: async () => {
+				try {
+					const loadBoardHealth = deps.loadBoardHealth ?? DEFAULT_BOARD_DEPS.loadBoardHealth;
+					const { counts } = await loadBoardHealth(projectPath);
+					// items: [] ⇒ the digest renders just the board-health rollup line ("Board: N need you · M stuck · …") —
+					// the §5.AT pull path, composing the SAME renderer the push feedback uses. Never empty (renderHealthLine
+					// always returns a line), but keep a defensive fallback.
+					return buildBoardChatDigest({ items: [], boardHealth: counts }).message || "Board: nothing in progress.";
+				} catch {
+					return "Could not read the project board status.";
+				}
+			},
+		},
 	];
 
 	const definitions: LocalLlmToolDefinition[] = [
@@ -89,6 +114,12 @@ export function createBoardReadTools(projectPath: string, options: { deps?: Boar
 			name: "get_board",
 			description:
 				"Show the current project's kanban board — every column and the cards in it (each card's id and title). Use this to see the existing tasks before you discuss, create, or work on cards. Takes no arguments.",
+			parameters: { type: "object", properties: {} },
+		},
+		{
+			name: "get_board_status",
+			description:
+				"Show a one-line health rollup of the current project's board — how many cards need your attention, are stuck, are on track, or are done. Use this for a quick triage/status check; use get_board to list the actual cards. Takes no arguments.",
 			parameters: { type: "object", properties: {} },
 		},
 	];

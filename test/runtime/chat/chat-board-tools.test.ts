@@ -11,10 +11,25 @@ import type {
 	RuntimeBoardData,
 	RuntimeWorkspaceStateResponse,
 } from "../../../src/core/api-contract";
+import { buildOperatorBoardSummary, type OperatorBoardSummary } from "../../../src/core/operator-task-state";
 import type {
 	RuntimeWorkspaceAtomicMutationResponse,
 	RuntimeWorkspaceAtomicMutationResult,
 } from "../../../src/state/workspace-state";
+
+/** A valid OperatorBoardSummary with the given counts (empty byState/inbox — the digest reads only `counts`). */
+function boardHealth(counts: OperatorBoardSummary["counts"]): OperatorBoardSummary {
+	return { ...buildOperatorBoardSummary([]), counts };
+}
+
+function getBoardStatusTool(loadBoardHealth: (projectPath: string) => Promise<OperatorBoardSummary>) {
+	const { tools } = createBoardReadTools("/proj", { deps: { loadBoard: async () => board([]), loadBoardHealth } });
+	const tool = tools.find((candidate) => candidate.name === "get_board_status");
+	if (!tool) {
+		throw new Error("get_board_status tool missing");
+	}
+	return tool;
+}
 
 function board(
 	columns: Array<{ id: RuntimeBoardColumnId; title: string; cards: Array<{ id: string; title?: string }> }>,
@@ -129,6 +144,39 @@ describe("createBoardReadTools — get_board", () => {
 		const { definitions } = createBoardReadTools("/private/var/secret-proj");
 		expect(JSON.stringify(definitions)).not.toContain("secret-proj");
 		expect(definitions[0]?.name).toBe("get_board");
+	});
+});
+
+describe("createBoardReadTools — get_board_status", () => {
+	it("is a sandbox_read action (a safe control-plane query, like get_board)", () => {
+		const { tools } = createBoardReadTools("/proj");
+		const tool = tools.find((t) => t.name === "get_board_status");
+		expect(tool?.actionKind).toBe("sandbox_read");
+	});
+
+	it("renders the board-health rollup line from the operator counts", async () => {
+		const tool = getBoardStatusTool(async () => boardHealth({ healthy: 3, stuck: 1, risky: 2, done: 5 }));
+		// renderHealthLine order: risky ("need you") → stuck → healthy ("on track") → done.
+		expect(await tool.run({})).toBe("Board: 2 need you · 1 stuck · 3 on track · 5 done.");
+	});
+
+	it("says nothing is in progress when every bucket is empty", async () => {
+		const tool = getBoardStatusTool(async () => boardHealth({ healthy: 0, stuck: 0, risky: 0, done: 0 }));
+		expect(await tool.run({})).toBe("Board: nothing in progress.");
+	});
+
+	it("singularizes a single card needing attention", async () => {
+		const tool = getBoardStatusTool(async () => boardHealth({ healthy: 0, stuck: 0, risky: 1, done: 0 }));
+		expect(await tool.run({})).toBe("Board: 1 needs you.");
+	});
+
+	it("degrades to a safe message when the health load throws (no path leak)", async () => {
+		const tool = getBoardStatusTool(async () => {
+			throw new Error("/private/var/secret-proj boom");
+		});
+		const out = await tool.run({});
+		expect(out).toBe("Could not read the project board status.");
+		expect(out).not.toContain("/private/var");
 	});
 });
 
