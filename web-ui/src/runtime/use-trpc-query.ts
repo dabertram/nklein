@@ -2,6 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseTrpcQueryOptions<TData> {
 	enabled: boolean;
+	/**
+	 * MUST be a STABLE reference (wrap it in `useCallback` with the query's real input deps). The fetch effect keys on
+	 * this function's identity — that IS the "inputs changed, refetch" signal (e.g. a queryFn closing over `sessionId`
+	 * refetches when `sessionId` changes). A fresh inline function every render therefore re-fires the effect on EVERY
+	 * render (a refetch loop). Every caller memoizes; do not pass an inline arrow.
+	 */
 	queryFn: () => Promise<TData>;
 	retainDataOnError?: boolean;
 }

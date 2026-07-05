@@ -62,20 +62,25 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		[],
 	);
 
+	// `useTrpcQuery`'s fetch effect keys on the queryFn identity, so these MUST be memoized — a fresh inline function
+	// every render re-fires the effect each render (a refetch loop; every other useTrpcQuery caller memoizes). The
+	// transcript's queryFn depends on `selectedSessionId`, so it re-fetches when the selected session changes (intended).
+	const listSessionsQueryFn = useCallback(async () => (await client.chat.listSessions.query()).sessions, [client]);
 	const sessionsQuery = useTrpcQuery({
 		enabled,
-		queryFn: async () => (await client.chat.listSessions.query()).sessions,
+		queryFn: listSessionsQueryFn,
 		retainDataOnError: true,
 	});
 
+	const transcriptQueryFn = useCallback(async () => {
+		if (!selectedSessionId) {
+			return [];
+		}
+		return (await client.chat.getTranscript.query({ sessionId: selectedSessionId })).messages;
+	}, [client, selectedSessionId]);
 	const transcriptQuery = useTrpcQuery({
 		enabled: enabled && selectedSessionId !== null,
-		queryFn: async () => {
-			if (!selectedSessionId) {
-				return [];
-			}
-			return (await client.chat.getTranscript.query({ sessionId: selectedSessionId })).messages;
-		},
+		queryFn: transcriptQueryFn,
 		retainDataOnError: true,
 	});
 
