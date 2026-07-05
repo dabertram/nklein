@@ -9289,6 +9289,27 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > maybe some bubbles, connections, activity, status … should give an impression of activity level and roughly in
 > which corners of the project activity is happening), then by zooming in user can go closer to the details like
 > lean board view, expert view, professional view." Also: "connecting the project chat with the board".
+>
+> **★ UI SLICES PARKED FOR A DEDICATED FABLE SESSION (2026-07-05, David directive).** During the autonomous grind I
+> deliberately did NOT build UI in a non-Fable session (Fable has the UI superpowers; a plain-Opus session would produce
+> weaker surfaces that then need redoing). The concrete UI slices that surfaced as ready-to-build and are HELD for the
+> next Fable session, with what each needs:
+> - **Chat focus-chain surface** — render the agent's live focus-chain (current step / plan) in the chat transcript.
+>   The data already flows (`focus-chain` tool + `decideFocusChainNudge` core exist); this is the *view* half. Mirror the
+>   per-card panel's message rendering; bind to `ownedWorkspaceId`. Ties **W3.1** (the chat contract upgrade below).
+> - **W3.1 Chat contract upgrade + ONE shared renderer** (already listed under Batch 3/4 above, L692) — main chat can't
+>   render reasoning/tools/markdown/code and is bound to `getRuntimeTrpcClient(null)`. Promote roles+events, share
+>   `NKleinChatMessageItem` across both surfaces. This is the *prerequisite* for the focus-chain surface — do it first.
+> - **Settings panels** for the flags shipped dark this run: `NKLEIN_BASIC_MEMORY` (+ the memory-audit cadence),
+>   egress enable + `searchBackendUrl`, `NKLEIN_CHAT_ADAPTIVE_TRUNCATION`, `NKLEIN_REASONING_BUDGET`, `NKLEIN_REVIEW_LENSES`.
+>   Follow the existing `AgentRulesetsSettingsPanel` pattern (self-contained panel + wire into General settings + the
+>   `updateRuntimeConfig` save path). Each flag needs a read-path in `buildRuntimeConfigResponse` too (see the §5.M note).
+> - **Fitness-table browser** — a read-only view over the §5.AL fitness table (`fitness-table-schema.ts` +
+>   `fitness-projections.ts`, both built this run): per-model tool-use verdicts + the failing-LLM list. Table + filter.
+> - **§5.BC board dependency-edge visualization** + the §5.AX visual overhaul remain as their own sections below.
+> **Instruction for the Fable session:** do W3.1 first (unblocks the chat-side surfaces), then the focus-chain surface,
+> then the Settings panels (mechanical, high-value — they expose everything shipped dark), then the fitness browser.
+> Validate each with `npm --prefix web-ui run test` + a live Playwright render (the §5.BA/settings suites are the model).
 > - [x] **Zoom 0 — Overview (the new main entry)** *(shipped 2026-07-03; mockup klein-zoom-levels approved)*:
 >       chat rail + ACTIVITY MAP main panel (`activity-map-model.ts` pure composer + SVG view: plan-slug clusters
 >       with activity-glow halos, state-colored bubbles w/ 3-min activity boost + 60-min done-fade, dependency
