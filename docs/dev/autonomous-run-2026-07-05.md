@@ -276,3 +276,31 @@ call the model actually delivered — the worst class for a weak-model swarm.
 5. **nklein-response-loop-detection — reported a MULTIPLE of the true loop period + under-counted repeats + over-kept
    salvage.** `minUnitLen` is only a detection floor; now the detected unit is reduced to its smallest divisor-length
    period so telemetry gets the real cycle + exact repeats and salvage collapses to exactly one occurrence.
+
+## Context/prompt-assembly bug-hunt (2026-07-05) — 6 defects fixed + loop-stall mechanism fixed
+
+STALL FIX: the autonomous loop kept parking on one-shot ScheduleWakeups while a ~9.5-min background sweep ran (David had
+to nudge "stalled"/"keep going"). Switched to a RECURRING cron (CronCreate every 2 min, idle-only, prompt <<autonomous-
+loop>>) per [[loop-mechanism-use-recurring-cron]] — this reliably re-invokes the loop so it no longer parks. Stop using
+ScheduleWakeup one-shots for loop continuation.
+
+A find→adversarial-verify workflow over the §5.AD/§5.AC context/prompt-assembly cluster confirmed 6 findings. Verified
+each; all fixed with regression tests (test/runtime/nklein-agent/context-assembly-bugfixes.test.ts, 4 tests for the
+clear+exported ones), full suite 7427 green.
+
+1. **context-compaction.planCompaction dropped/summarized the MOST-RECENT message** when it alone exceeded
+   keepRecentTokens (the recency loop broke before admitting it) — losing the live turn/tool result the model must act on
+   next (the module's own core invariant). Now always keeps the last message verbatim (mirrors splitChatContextWindow).
+2. **nklein-context-overflow-compaction fallback cut onto an orphaned tool_result** — it trimmed to the first `user`
+   message, which is often a tool_result-only message whose tool_use was dropped in the first half → provider HTTP 400,
+   defeating the overflow recovery. Now snaps to a real turn-start (added isToolResultOnlyUserMessage; returns null when
+   none exists — a safe no-op the caller already handles). Mirrors the SDK's isTurnStartMessage guard.
+3. **retrieval-freshness.judgeRetrievedFreshness rounded sub-day ages to whole days** → any source <12h read `current`
+   under a realtime band, collapsing it. Now compares the FRACTIONAL age (matches the sibling isKnowledgeStale).
+4. **retrieval-synthesis-adapter.parseSynthesisClaims used indexOf('[')..lastIndexOf(']')** → a prose bracket before the
+   array (a markdown [link]) broke the slice → JSON.parse threw → ALL cited claims silently discarded. Replaced with a
+   string/nesting-aware balanced-bracket scan that returns the first `[...]` parsing to an array.
+5. **retrieval-loop-driver duplicate-id hits wasted a fetch slot** — a last-wins byId Map + one ranked entry per hit put
+   the same hit twice in toFetch, starving a distinct hit under maxFetchPerQuery. Now dedups by id before the slice.
+6. **retrieval-synthesis-adapter.evidenceExcerpt could exceed MAX_EVIDENCE_CHARS** (4 non-merging ~400-char spans) —
+   now caps the joined spans, keeping the synthesis prompt bounded.

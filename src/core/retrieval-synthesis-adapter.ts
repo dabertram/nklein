@@ -33,7 +33,10 @@ function evidenceExcerpt(text: string, queryTerms: readonly string[]): string {
 	}
 	const spans = extractRelevantSpans(text, queryTerms, { windowChars: 400, maxSpans: 4 });
 	if (spans.length > 0) {
-		return spans.map((span) => span.text).join(" … ");
+		// Cap the joined spans too: 4 non-merging ~400-char windows can exceed MAX_EVIDENCE_CHARS, and the point of this
+		// excerpt is to keep the synthesis prompt bounded (as the head-truncation branch below already does).
+		const joined = spans.map((span) => span.text).join(" … ");
+		return joined.length <= MAX_EVIDENCE_CHARS ? joined : `${joined.slice(0, MAX_EVIDENCE_CHARS)}…`;
 	}
 	return `${text.slice(0, MAX_EVIDENCE_CHARS)}…`;
 }
@@ -63,23 +66,62 @@ export function buildSynthesisPrompt(task: string, evidence: readonly RetrievalE
 }
 
 /**
+ * Find the first substring that is a balanced `[...]` and JSON-parses to an ARRAY, scanning each `[` in turn (string- and
+ * nesting-aware). Robust to prose brackets BEFORE the array (e.g. a markdown "[docs]" link or a ```json fence preamble):
+ * a plain `indexOf("[")..lastIndexOf("]")` grabs the OUTERMOST pair, which then fails to parse and silently discards
+ * every cited claim. Returns null when no bracket-run parses to an array.
+ */
+function firstJsonArray(text: string): unknown[] | null {
+	for (let i = 0; i < text.length; i += 1) {
+		if (text[i] !== "[") {
+			continue;
+		}
+		let depth = 0;
+		let inString: string | null = null;
+		let escaped = false;
+		for (let j = i; j < text.length; j += 1) {
+			const ch = text[j];
+			if (inString) {
+				if (escaped) {
+					escaped = false;
+				} else if (ch === "\\") {
+					escaped = true;
+				} else if (ch === inString) {
+					inString = null;
+				}
+				continue;
+			}
+			if (ch === '"' || ch === "'") {
+				inString = ch;
+			} else if (ch === "[" || ch === "{") {
+				depth += 1;
+			} else if (ch === "]" || ch === "}") {
+				depth -= 1;
+				if (depth === 0) {
+					try {
+						const value: unknown = JSON.parse(text.slice(i, j + 1));
+						if (Array.isArray(value)) {
+							return value;
+						}
+					} catch {
+						// This `[` didn't open a valid JSON array — try the next one.
+					}
+					break;
+				}
+			}
+		}
+	}
+	return null;
+}
+
+/**
  * Parse the model's response into {@link SynthesisClaim}s, fail-soft. Extracts the first JSON array in the text (models
  * often wrap it in prose / ```json fences), keeps only well-formed `{claim:string, cite:string[]}` entries, and drops
  * cited ids not in `knownIds`. Any parse failure ⇒ `[]` (the caller then falls back to the raw text).
  */
 export function parseSynthesisClaims(raw: string, knownIds: ReadonlySet<string>): SynthesisClaim[] {
-	const start = raw.indexOf("[");
-	const end = raw.lastIndexOf("]");
-	if (start === -1 || end <= start) {
-		return [];
-	}
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(raw.slice(start, end + 1));
-	} catch {
-		return [];
-	}
-	if (!Array.isArray(parsed)) {
+	const parsed = firstJsonArray(raw);
+	if (parsed === null) {
 		return [];
 	}
 	const claims: SynthesisClaim[] = [];

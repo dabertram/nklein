@@ -80,6 +80,18 @@ function readMessagePreview(message: NKleinSdkPersistedMessage): string {
 	return `${normalized.slice(0, CONTEXT_COMPACTION_PREVIEW_CHARS)}...`;
 }
 
+/**
+ * A user-role message whose blocks are ALL `tool_result` — i.e. the second half of a tool_use/tool_result pair, not a
+ * real turn start. Cutting the transcript here (keeping the tool_result but not its assistant `tool_use`) orphans it and
+ * the provider rejects the request. A string-content user message, or one with any non-tool_result block, IS a turn start.
+ */
+function isToolResultOnlyUserMessage(message: NKleinSdkPersistedMessage): boolean {
+	if (message.role !== "user" || typeof message.content === "string") {
+		return false;
+	}
+	return message.content.length > 0 && message.content.every((block) => block.type === "tool_result");
+}
+
 function prependCompactionNotice(
 	message: NKleinSdkPersistedMessage,
 	firstUserMessage: string,
@@ -115,8 +127,13 @@ export function compactPersistedMessagesForContextOverflow(
 	}
 	const firstUserMessagePreview = readMessagePreview(firstUserMessage);
 
+	// Snap the cut to a TURN-START user message — one carrying real user/text content, NOT a tool_result-only message.
+	// A tool_result-only user message pairs with a `tool_use` in the assistant turn before it; if that assistant turn
+	// was dropped in the first half, keeping the tool_result orphans it and the provider rejects the request (HTTP 400),
+	// defeating the overflow recovery. If no clean turn-start exists in the retained slice, return null (no safe cut) —
+	// the caller already handles a null (couldn't-compact) result. Mirrors the SDK's isTurnStartMessage guard.
 	let retained = messages.slice(Math.floor(messages.length / 2));
-	while (retained.length > 0 && retained[0]?.role !== "user") {
+	while (retained.length > 0 && (retained[0]?.role !== "user" || isToolResultOnlyUserMessage(retained[0]))) {
 		retained = retained.slice(1);
 	}
 	if (retained.length === 0) {

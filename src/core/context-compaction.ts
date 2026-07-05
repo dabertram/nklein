@@ -91,7 +91,11 @@ export function planCompaction(input: PlanCompactionInput): CompactionPlan {
 	let cumulative = 0;
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		const next = cumulative + messages[index].tokens;
-		if (next > keepRecentTokens) {
+		// ALWAYS keep the most-recent message verbatim even if it alone exceeds the budget — it is the live turn / latest
+		// tool result the model must act on next (this module's core invariant + the file-header hazard). Only stop
+		// admitting OLDER messages once the cumulative cost would overflow. Mirrors chat-context-window's
+		// splitChatContextWindow, which keeps the last turn even when it alone exceeds the budget.
+		if (next > keepRecentTokens && recent.size > 0) {
 			break;
 		}
 		cumulative = next;

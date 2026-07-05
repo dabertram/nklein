@@ -190,9 +190,20 @@ export async function runRetrievalLoop(
 				freshnessSatisfied = true;
 			}
 			const byId = new Map(hits.map((hit) => [hit.id, hit] as const));
+			// Dedup by id BEFORE the slice: `ranked` can carry two entries for a duplicate hit id, both mapping (last-wins)
+			// to the same hit — that would fill two of the `maxFetchPerQuery` slots with the same hit and STARVE a distinct
+			// one. Keep the first occurrence of each id.
+			const seenFetchIds = new Set<string>();
 			toFetch = ranked
 				.map((r) => byId.get(r.id))
 				.filter((hit): hit is RetrievalHit => hit !== undefined)
+				.filter((hit) => {
+					if (seenFetchIds.has(hit.id)) {
+						return false;
+					}
+					seenFetchIds.add(hit.id);
+					return true;
+				})
 				.slice(0, maxFetchPerQuery);
 			if (toFetch.length === 0) {
 				// Dead-end query — don't re-search the same empty query; advance the round. Mark it covered too: an

@@ -71,7 +71,10 @@ export function judgeRetrievedFreshness(
 	if (published === null) {
 		return { verdict: "unknown", ageDays: null, publishedIso: null, guidance: guidanceFor("unknown", null) };
 	}
-	const ageDays = Math.max(0, Math.round((now.getTime() - published.getTime()) / MS_PER_DAY));
+	// Do NOT round to whole days: with a realtime band (current threshold 0), Math.round collapses any sub-12h age to 0
+	// and mis-judges an 11h-old source as `current`. Keep the age FRACTIONAL so the band comparison is exact (mirrors
+	// the sibling isKnowledgeStale, fixed for exactly this case).
+	const ageDays = Math.max(0, (now.getTime() - published.getTime()) / MS_PER_DAY);
 	const t = { ...DEFAULT_THRESHOLDS, ...options?.thresholds };
 	const verdict: FreshnessVerdict =
 		ageDays <= t.current
