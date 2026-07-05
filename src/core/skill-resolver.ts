@@ -56,12 +56,14 @@ export interface ActiveSkillSet {
 	reason: string;
 }
 
-/** The default skill bundle for a role — the skills that name this role in `defaultRoles`. */
+/** The default skill bundle for a role — the skills that name this role in `defaultRoles`. Case-insensitive: the role
+ * is a free-form LLM `suggestedRole` ("Worker"), and `defaultRoles` are lowercase, so match on the normalized form. */
 function defaultBundleForRole(role: string | null | undefined): Skill[] {
-	if (!role) {
+	const normalized = role?.trim().toLowerCase();
+	if (!normalized) {
 		return [];
 	}
-	return SKILL_REGISTRY.filter((skill) => skill.defaultRoles.includes(role));
+	return SKILL_REGISTRY.filter((skill) => skill.defaultRoles.includes(normalized));
 }
 
 /**

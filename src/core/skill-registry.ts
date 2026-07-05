@@ -185,19 +185,32 @@ export interface SkillRelevanceInput {
 	taskText: string;
 }
 
+/** Whole-word/phrase keyword match (word boundaries), so a short keyword doesn't over-match inside a larger word. */
+function matchesKeyword(loweredText: string, keyword: string): boolean {
+	const escaped = keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+	return new RegExp(`\\b${escaped}\\b`, "u").test(loweredText);
+}
+
 /**
  * Score a skill's relevance to a task/turn in [0, 1] (pure). A DEFAULT-role match dominates (1.0); otherwise a task
  * keyword hit is a soft signal (0.6), and a temporal/freshness signal lifts a temporally-sensitive skill (0.7, reusing
  * the §5.AC predicate). 0 ⇒ not relevant for this turn.
  */
 export function skillRelevance(skill: Skill, input: SkillRelevanceInput): number {
-	if (input.role && skill.defaultRoles.includes(input.role)) {
+	// Case-insensitive role match: `suggestedRole` is a free-form LLM field ("Worker"/"Architect"), so an exact,
+	// case-sensitive compare against the lowercase `defaultRoles` silently loses the 1.0 role→bundle guarantee.
+	const normalizedRole = input.role?.trim().toLowerCase();
+	if (normalizedRole && skill.defaultRoles.includes(normalizedRole)) {
 		return 1;
 	}
 	const text = input.taskText.toLowerCase();
 	let score = 0;
 	for (const keyword of skill.keywords) {
-		if (text.includes(keyword)) {
+		// WORD-BOUNDARY match, not raw substring: a short keyword like "add"/"online"/"file"/"test" would otherwise hit
+		// "address"/"OnlineStatus"/"profiler"/"attest" and pull the WRONG skill (e.g. web_retrieval onto a coding card,
+		// injecting network tools + temporal fragments + a `web` affinity tag that mis-routes the model). Mirrors the
+		// \b discipline the sibling temporal-awareness already uses.
+		if (matchesKeyword(text, keyword)) {
 			score = Math.max(score, 0.6);
 			break;
 		}

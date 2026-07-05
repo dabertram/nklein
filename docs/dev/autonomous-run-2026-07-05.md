@@ -304,3 +304,25 @@ clear+exported ones), full suite 7427 green.
    the same hit twice in toFetch, starving a distinct hit under maxFetchPerQuery. Now dedups by id before the slice.
 6. **retrieval-synthesis-adapter.evidenceExcerpt could exceed MAX_EVIDENCE_CHARS** (4 non-merging ~400-char spans) —
    now caps the joined spans, keeping the synthesis prompt bounded.
+
+## Skill-resolver/capability bug-hunt (2026-07-05) — 2 fixed, 1 collected
+
+A find→adversarial-verify workflow over the §5.AE/§5.AN skill-resolver/capability/api-profile cluster confirmed 3
+findings. Fixed the 2 impactful ones (regression tests; 7432 green); collected the LOW one.
+
+1. **skill-registry.skillRelevance matched keywords by RAW SUBSTRING** (`text.includes(keyword)`) → a short registry
+   keyword over-matched inside a larger word: 'search'→'searchindex', 'online'→'OnlineStatus', 'add'→'address',
+   'file'→'profiler', 'test'→'attest'. So a pure CODING card scored web_retrieval ≥0.6 and got web_search/browse_url
+   tools + temporal/freshness/online fragments it never needed + a `web` affinity tag biasing model routing. Now matches
+   on WORD boundaries (\b), mirroring the sibling temporal-awareness discipline.
+2. **Role matching was case-sensitive + exact** against the free-form LLM `suggestedRole` — 'Worker'/'Architect' (or any
+   non-lowercase) silently scored 0, losing the 1.0 role→bundle guarantee AND its affinity-tag routing signal (both in
+   skill-registry.skillRelevance AND skill-resolver.defaultBundleForRole). Now normalized (trim+lowercase) at both sites.
+
+**COLLECTED (LOW): nklein-session-skill-fragments.buildSessionSkillFragments resolves skills at fully_dynamic**, never
+threading the user's effectiveSkillDynamicsLevel, so the session prompt's fragment set diverges from the routing path
+(which honors the level). Fixing it needs the session service (nklein-task-session-service:2119) to thread the level from
+the scoped runtime config — but the service does NOT currently access that config at the fragment seam (unlike
+start-task-session, which reads scopedRuntimeConfig.effectiveSkillDynamicsLevel). That plumbing is disproportionate to a
+LOW divergence that only affects users who set a non-default (static/assigned) skill-dynamics level; owed as a bounded
+wiring follow-up.
