@@ -15,6 +15,7 @@ function session(): ChatSession {
 		goal: null,
 		riskAcknowledged: false,
 		browserEnabled: false,
+		feedbackMuted: false,
 		ownedWorkspaceId: null,
 		focus: null,
 		outstandingAsks: [],

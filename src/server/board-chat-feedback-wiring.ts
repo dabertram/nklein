@@ -19,6 +19,7 @@ import {
 	addChatOutstandingAsk,
 	clearChatOutstandingAsk,
 	ensureChatSessionForWorkspace,
+	getChatSession,
 } from "../chat/chat-session-store";
 import { appendChatMessage } from "../chat/chat-transcript-store";
 import type { RuntimeTaskSessionState, RuntimeTaskSessionSummary } from "../core/api-contract";
@@ -100,22 +101,36 @@ export function createBoardChatFeedbackWiring(overrides?: {
 } {
 	const now = overrides?.now ?? Date.now;
 	const workspacePathById = new Map<string, string>();
-	const owningChatCache = new Map<string, OwningChatRef>();
+	// Cache only the RESOLVED owning session id (the find-or-create is the expensive part) — NOT the mute preference,
+	// which the user can toggle live: caching the whole ref would pin `muted` at its first-seen value so a mute never
+	// took effect until restart. Each resolve re-reads the session for a fresh `feedbackMuted`.
+	const owningSessionIdByWorkspace = new Map<string, string>();
 
 	const bridge =
 		overrides?.bridge ??
 		createBoardChatFeedbackBridge({
 			resolveOwningChat: async (workspaceId) => {
-				const cached = owningChatCache.get(workspaceId);
-				if (cached) {
-					return cached;
+				const toRef = (session: { id: string; feedbackMuted: boolean }): OwningChatRef => ({
+					sessionId: session.id,
+					// §5.AT: verbosity/quiet stay defaults for now (a later slice surfaces those); mute is honored live.
+					verbosity: "normal",
+					quiet: false,
+					muted: session.feedbackMuted,
+				});
+				const cachedId = owningSessionIdByWorkspace.get(workspaceId);
+				if (cachedId) {
+					const session = await getChatSession(cachedId);
+					if (session) {
+						return toRef(session);
+					}
+					// The cached session vanished (deleted) — fall through to re-resolve/create.
+					owningSessionIdByWorkspace.delete(workspaceId);
 				}
 				const workspacePath = workspacePathById.get(workspaceId);
 				const title = workspacePath ? basename(workspacePath) : workspaceId;
 				const session = await ensureChatSessionForWorkspace({ workspaceId, title });
-				const ref: OwningChatRef = { sessionId: session.id, verbosity: "normal", quiet: false };
-				owningChatCache.set(workspaceId, ref);
-				return ref;
+				owningSessionIdByWorkspace.set(workspaceId, session.id);
+				return toRef(session);
 			},
 			appendChatMessage: async (sessionId, text) => {
 				await appendChatMessage(sessionId, { role: "system", content: text });

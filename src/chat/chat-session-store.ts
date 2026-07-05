@@ -67,6 +67,8 @@ export interface ChatSession {
 	riskAcknowledged: boolean;
 	/** §5.M G6: the user enabled the headless-browser/internet tool for this session (orthogonal). Default false. */
 	browserEnabled: boolean;
+	/** §5.AT: the user muted board→chat feedback for this (owning) chat — the bridge suppresses every tier. Default false. */
+	feedbackMuted: boolean;
 	/** §5.AU: the ONE workspace this chat owns (v1 is 1 chat ↔ 1 workspace) — routes board→chat feedback here; null when unset. */
 	ownedWorkspaceId: string | null;
 	/** §5.AU: the current addressing focus (the "talking to X" target), or null (⇒ the goal). */
@@ -104,6 +106,7 @@ const chatSessionPersistedSchema = z.object({
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),
 	browserEnabled: z.boolean().optional(),
+	feedbackMuted: z.boolean().optional(),
 	ownedWorkspaceId: z.string().nullable().optional(),
 	focus: z
 		.object({ kind: z.enum(["card", "stream"]), id: z.string(), at: z.number() })
@@ -209,6 +212,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				riskAcknowledged: event.session.riskAcknowledged === true,
 				// Back-compat for sessions persisted before `browserEnabled` existed (default: disabled).
 				browserEnabled: event.session.browserEnabled === true,
+				// Back-compat for sessions persisted before `feedbackMuted` existed (default: not muted).
+				feedbackMuted: event.session.feedbackMuted === true,
 				// §5.AU back-compat: addressing state absent on old records → unset / empty.
 				ownedWorkspaceId:
 					typeof event.session.ownedWorkspaceId === "string" ? event.session.ownedWorkspaceId : null,
@@ -240,6 +245,7 @@ export async function createChatSession(
 		goal?: string | null;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		feedbackMuted?: boolean;
 		/** §5.AU: the workspace this chat owns (v1 = 1 chat ↔ 1 workspace). */
 		ownedWorkspaceId?: string | null;
 		/** §5.AE: skills the user enables for this session. */
@@ -257,6 +263,7 @@ export async function createChatSession(
 		goal: input.goal?.trim() || null,
 		riskAcknowledged: input.riskAcknowledged ?? false,
 		browserEnabled: input.browserEnabled ?? false,
+		feedbackMuted: input.feedbackMuted ?? false,
 		ownedWorkspaceId: input.ownedWorkspaceId ?? null,
 		focus: null,
 		outstandingAsks: [],
@@ -313,6 +320,7 @@ export async function updateChatSession(
 		goal?: string | null;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		feedbackMuted?: boolean;
 		/** §5.AU: set (or `null` = clear) the session's addressing focus — e.g. after an explicit @card handle. */
 		focus?: ChatSessionFocus | null;
 		/** §5.AE: replace the session's enabled skills. */
@@ -345,6 +353,7 @@ export async function updateChatSession(
 			...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
 			...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
 			...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
+			...(patch.feedbackMuted !== undefined ? { feedbackMuted: patch.feedbackMuted } : {}),
 			...(patch.focus !== undefined ? { focus: patch.focus } : {}),
 			...(patch.selectedSkillIds !== undefined ? { selectedSkillIds: patch.selectedSkillIds } : {}),
 			...(patch.totalTokensUsed !== undefined ? { totalTokensUsed: patch.totalTokensUsed } : {}),

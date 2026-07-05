@@ -24,11 +24,13 @@ import {
 	type OperatorTaskSignals,
 } from "../core/operator-task-state";
 
-/** The owning chat for a workspace + its push preferences (verbosity/quiet), or null when none can be resolved. */
+/** The owning chat for a workspace + its push preferences (verbosity/quiet/muted), or null when none can be resolved. */
 export interface OwningChatRef {
 	sessionId: string;
 	verbosity: BoardChatVerbosity;
 	quiet: boolean;
+	/** §5.AT: the user muted board→chat feedback for this chat ⇒ suppress every tier. Optional (defaults to not-muted). */
+	muted?: boolean;
 }
 
 export interface BoardChatFeedbackBridgeDeps {
@@ -148,7 +150,7 @@ export function createBoardChatFeedbackBridge(deps: BoardChatFeedbackBridgeDeps)
 				prev,
 				next,
 				verbosity: owner?.verbosity ?? "normal",
-				muted: false,
+				muted: owner?.muted ?? false,
 				quiet: owner?.quiet ?? false,
 				ownerResolved: owner !== null,
 				sessionInAutonomousRun: transition.sessionInAutonomousRun ?? false,

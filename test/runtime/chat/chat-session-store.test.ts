@@ -56,6 +56,19 @@ describe("chat-session-store", () => {
 		expect(off?.riskAcknowledged).toBe(false);
 	});
 
+	it("§5.AT: feedbackMuted defaults false, and update toggles + round-trips it (board→chat mute)", async () => {
+		const created = await createChatSession({ title: "Muted?" }, { rootDir, now });
+		expect(created.feedbackMuted).toBe(false);
+		clock = 2000;
+		const muted = await updateChatSession(created.id, { feedbackMuted: true }, { rootDir, now });
+		expect(muted?.feedbackMuted).toBe(true);
+		// Persisted across a fresh read (replayed from the event log).
+		expect((await getChatSession(created.id, { rootDir }))?.feedbackMuted).toBe(true);
+		// And can be un-muted.
+		const off = await updateChatSession(created.id, { feedbackMuted: false }, { rootDir, now });
+		expect(off?.feedbackMuted).toBe(false);
+	});
+
 	it("§5.AU: focus defaults null, sets via update (round-trips), and clears with null", async () => {
 		const created = await createChatSession({ title: "Focus" }, { rootDir, now });
 		expect(created.focus).toBeNull();

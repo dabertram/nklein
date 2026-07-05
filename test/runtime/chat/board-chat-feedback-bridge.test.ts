@@ -58,6 +58,20 @@ describe("board→chat feedback bridge (§5.AT/§5.AU)", () => {
 		expect(h.appended[0]?.text).toContain("Card t1");
 	});
 
+	it("§5.AT: a MUTED owning chat suppresses every tier (the same done transition surfaces nothing)", async () => {
+		const h = harness({
+			resolveOwningChat: async () => ({ sessionId: "chat-1", verbosity: "normal", quiet: false, muted: true }),
+		});
+		await h.bridge.onTransition(
+			tx({ columnId: "in_progress", prevSummary: { state: "running" }, nextSummary: { state: "running" } }),
+		);
+		await h.bridge.onTransition(
+			tx({ columnId: "completed", prevSummary: { state: "running" }, nextSummary: { state: "idle" } }),
+		);
+		// muted ⇒ decideBoardChatFeedback returns `suppress` for every tier — nothing reaches the chat.
+		expect(h.appended).toHaveLength(0);
+	});
+
 	it("suppresses everything when no owning chat resolves (never broadcast to every chat)", async () => {
 		const h = harness({ resolveOwningChat: async () => null });
 		await h.bridge.onTransition(
