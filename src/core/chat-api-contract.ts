@@ -135,6 +135,27 @@ export const runtimeChatTranscriptResponseSchema = z.object({
 });
 export type RuntimeChatTranscriptResponse = z.infer<typeof runtimeChatTranscriptResponseSchema>;
 
+// §5.AU: the stream-overview surface — one lean row per stream (health/progress/frontier) for the owning workspace's
+// board, plus the count of cards in no stream. A flattened, serializable projection of `BoardStreamsSummary` (the client
+// can't roll streams up itself — it has no per-card session signals), fetched by the main chat's stream panel.
+export const runtimeChatBoardStreamSchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	/** Worst-live-signal badge (mirrors the `StreamHealth` union). */
+	health: z.enum(["on_track", "stale", "at_risk", "blocked", "done", "empty"]),
+	done: z.number().int().nonnegative(),
+	total: z.number().int().nonnegative(),
+	/** How many of the stream's cards are running right now. */
+	running: z.number().int().nonnegative(),
+});
+export type RuntimeChatBoardStream = z.infer<typeof runtimeChatBoardStreamSchema>;
+
+export const runtimeChatBoardStreamsResponseSchema = z.object({
+	streams: z.array(runtimeChatBoardStreamSchema),
+	ungroupedCardCount: z.number().int().nonnegative(),
+});
+export type RuntimeChatBoardStreamsResponse = z.infer<typeof runtimeChatBoardStreamsResponseSchema>;
+
 export const runtimeChatSendMessageRequestSchema = z.object({
 	sessionId: z.string(),
 	message: z.string().min(1),

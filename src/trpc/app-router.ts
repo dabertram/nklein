@@ -150,6 +150,7 @@ import type {
 import type {
 	RuntimeChatAutonomousRunStatus,
 	RuntimeChatAutonomousStatusRequest,
+	RuntimeChatBoardStreamsResponse,
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatMessage,
 	RuntimeChatSendMessageRequest,
@@ -401,6 +402,7 @@ export interface RuntimeTrpcContext {
 		updateChatSession: (input: RuntimeChatUpdateSessionRequest) => Promise<RuntimeChatSession | null>;
 		deleteChatSession: (id: string) => Promise<boolean>;
 		readChatTranscript: (sessionId: string, limit?: number) => Promise<RuntimeChatMessage[]>;
+		getChatBoardStreams: () => Promise<RuntimeChatBoardStreamsResponse>;
 		sendChatMessage: (
 			input: RuntimeChatSendMessageRequest,
 			onToken?: (delta: string) => void,

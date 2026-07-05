@@ -5,6 +5,7 @@ import {
 	type BoardStreamsSummary,
 	renderBoardStreamsSummary,
 	summarizeBoardStreams,
+	toStreamOverviewRows,
 } from "../../../src/core/board-streams-summary";
 import type { OperatorTaskSignals } from "../../../src/core/operator-task-state";
 
@@ -163,5 +164,32 @@ describe("renderBoardStreamsSummary", () => {
 		expect(renderBoardStreamsSummary({ streams: [], ungroupedCardIds: ["a", "b"] })).toBe(
 			"No streams yet — 2 loose card(s) on the board.",
 		);
+	});
+});
+
+describe("toStreamOverviewRows", () => {
+	it("flattens each stream to a lean row (id · title · health · done/total · running)", () => {
+		const rows = toStreamOverviewRows({
+			streams: [
+				{
+					stream: stream("s1", "Auth"),
+					memberTaskIds: ["a", "b", "c"],
+					rollup: {
+						counts: { healthy: 1, stuck: 0, risky: 1, done: 1 },
+						progress: { done: 1, total: 3, method: "card_count" },
+						health: "at_risk",
+						lifecycle: "active",
+						frontierTaskIds: ["a", "b"],
+						stale: false,
+					},
+				},
+			],
+			ungroupedCardIds: ["z"],
+		});
+		expect(rows).toEqual([{ id: "s1", title: "Auth", health: "at_risk", done: 1, total: 3, running: 2 }]);
+	});
+
+	it("returns no rows for a board with no streams", () => {
+		expect(toStreamOverviewRows({ streams: [], ungroupedCardIds: ["a"] })).toEqual([]);
 	});
 });

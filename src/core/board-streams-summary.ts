@@ -116,3 +116,29 @@ export function renderBoardStreamsSummary(summary: BoardStreamsSummary): string 
 	}
 	return `Streams (${summary.streams.length}):\n${lines.join("\n")}`;
 }
+
+/** One lean stream row for the §5.AU stream-overview surface — the serializable projection the chat API returns. */
+export interface BoardStreamOverviewRow {
+	id: string;
+	title: string;
+	health: StreamHealth;
+	done: number;
+	total: number;
+	/** How many of the stream's cards are running right now. */
+	running: number;
+}
+
+/**
+ * Flatten a {@link BoardStreamsSummary} into lean, serializable overview rows (drops the per-card member lists + the full
+ * rollup, keeping just what the stream-overview UI shows). Pure; the chat API wraps these + `ungroupedCardIds.length`.
+ */
+export function toStreamOverviewRows(summary: BoardStreamsSummary): BoardStreamOverviewRow[] {
+	return summary.streams.map((entry) => ({
+		id: entry.stream.id,
+		title: entry.stream.title,
+		health: entry.rollup.health,
+		done: entry.rollup.progress.done,
+		total: entry.rollup.progress.total,
+		running: entry.rollup.frontierTaskIds.length,
+	}));
+}

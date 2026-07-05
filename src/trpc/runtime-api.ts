@@ -39,9 +39,11 @@ import {
 	parseShellSessionStartRequest,
 	parseTaskContextImportRequest,
 } from "../core/api-validation";
+import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { isTruthyEnv } from "../core/env-flag";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
+import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { deriveStreams } from "../core/stream-derivation";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
@@ -898,6 +900,25 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		updateChatSession: (input) => chatService.updateSession(input),
 		deleteChatSession: (id) => chatService.deleteSession(id),
 		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
+		getChatBoardStreams: async () => {
+			// §5.AU: the main chat's stream-overview surface. Roll up the ACTIVE workspace's streams server-side (the
+			// board-independent chat client has no per-card session signals to do it itself), flattened to the lean DTO.
+			const workspacePath = deps.getActiveWorkspacePath();
+			if (!workspacePath) {
+				return { streams: [], ungroupedCardCount: 0 };
+			}
+			try {
+				const state = await loadWorkspaceState(workspacePath);
+				const summary = summarizeWorkspaceBoardStreams(state, { now: Date.now() });
+				return {
+					streams: toStreamOverviewRows(summary),
+					ungroupedCardCount: summary.ungroupedCardIds.length,
+				};
+			} catch {
+				// A missing/unreadable workspace ⇒ an empty overview (never throws into the chat UI).
+				return { streams: [], ungroupedCardCount: 0 };
+			}
+		},
 		sendChatMessage: async (input, onToken) => {
 			const result = await chatService.sendMessage(input, onToken);
 			return {

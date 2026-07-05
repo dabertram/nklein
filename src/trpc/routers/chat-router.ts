@@ -7,6 +7,7 @@ import type { RuntimeChatStreamEvent } from "../../core/chat-api-contract.js";
 import {
 	runtimeChatAutonomousRunStatusSchema,
 	runtimeChatAutonomousStatusRequestSchema,
+	runtimeChatBoardStreamsResponseSchema,
 	runtimeChatCreateSessionRequestSchema,
 	runtimeChatDeleteSessionRequestSchema,
 	runtimeChatDeleteSessionResponseSchema,
@@ -60,6 +61,9 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 					messages: await ctx.runtimeApi.readChatTranscript(input.sessionId, input.limit),
 				};
 			}),
+		getBoardStreams: t.procedure
+			.output(runtimeChatBoardStreamsResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getChatBoardStreams()),
 		sendMessage: t.procedure
 			.input(runtimeChatSendMessageRequestSchema)
 			.output(runtimeChatSendMessageResponseSchema)
