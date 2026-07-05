@@ -116,3 +116,21 @@ David: "go for the hardest least quick win tasks .. do the heavy work now" + /go
 2. **Durable-scheduler DEFAULT-ON needs a bigger Docker VM.** The bounce-race + acceptance-sandbox-prep fixes can't be validated at the current **7.7 GiB Docker VM** (sandbox OOM), and the notes are explicit this critical hot path must not be fixed blind. → *A Docker-healthy host (bigger VM / lighter fleet) unblocks the default-on validation.* The scheduler is well-validated + opt-in meanwhile.
 
 Doing other (non-blocked) backlog tasks next per the /goal.
+
+## Collected blocker — §5.AF/§5.AA strategy-effectiveness learning is NOT-RIPE (2026-07-05)
+
+The scout ranked "wire collected rung outcomes into retry-policy feedback loop" as completable-here, but a code
+check disproves it. The pure core is done (`strategy-effectiveness-ledger.ts`: `recordStrategyOutcome`,
+`strategyEffectiveness`, `orderLadderByEffectiveness`) and `agent-ledger-projections.inferAttemptStrategy` already
+maps an attempt's levers → `RetryStrategy`. **But the observation stream it needs does not exist yet:**
+
+- The attempt ledger has exactly TWO emitters, both TERMINAL: `buildTerminalAttemptEvent` (one per task) and
+  `buildChatAttemptEvent` (one per chat session, `attemptId = flow:sessionId:endedAt`). Neither is per-rung.
+- Consequently `parentAttemptId` and `promptStrategy` are ALWAYS null (never set by either writer). There is no
+  rung→(remedied-failure, recovered?) chain to fold: `recordStrategyOutcome` would see an empty stream.
+
+**Prerequisite (hot-path):** the chat retry ladder (`createChatAgentModel` in `chat-local-llm-adapter.ts`) must
+emit a per-rung `attempt` event that sets `parentAttemptId` (the rung it retried) + `promptStrategy` (the lever) +
+its own `outcome`. Only then can `buildStrategyEffectivenessFromLedger(events, modelId)` project effectiveness and
+`orderLadderByEffectiveness` reorder the live ladder. Both the emit and the consume are load-bearing chat-recovery
+changes — do them together with a live chat-e2e validation, not as a blind pure projection over absent data.

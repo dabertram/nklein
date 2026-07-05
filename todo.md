@@ -5671,7 +5671,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] decide invocation mode: CLI shell-out (default, matches the `lms` pattern) vs `llmfit serve` REST (only if a
         long-lived query surface is worth a second local process).
 - [ ] **Eval-prompt corpus (per role × difficulty × size), decomposed:**
-  - [ ] Design + collect role-specific prompt templates (architect/decompose, worker/implement, reviewer) across difficulty tiers (trivial–very-hard).
+  - [x] Design + collect role-specific prompt templates (architect/decompose, worker/implement, reviewer) across difficulty tiers. *(2026-07-05: src/core/eval-prompt-corpus.ts — EVAL_PROMPT_CORPUS of 9 rows (architect/worker/reviewer × easy/medium/hard, aligned to the real estimateTaskDifficulty tiers, not the aspirational trivial–very-hard), each with a deterministic answer key: decompose→reference DAG, implement→acceptance tests, review→seeded-defect code+ids; zod discriminated-union schema + scoreEvalAnswer dispatcher over prompt-family-scorers + byRole/byDifficulty/byId selectors; 14 tests incl. every-row-self-scores-1. Wiring into verify-all-models.mts sweep is the sibling harness item (5679).)*
   - [x] Build deterministic scorers for each prompt family (valid DAG, passing code, defect-catching review). *(2026-07-05: prompt-family-scorers.ts — scoreValidDag (Kahn cycle-check + edge validity), scorePassingCode (pass fraction), scoreDefectCatchingReview (seeded-defect recall); 12 tests)*
   - [ ] Set up versioning infrastructure so re-evals compare corpus versions.
   - [ ] Integrate size/context footprint variants (per the research findings on effective context budgets).
