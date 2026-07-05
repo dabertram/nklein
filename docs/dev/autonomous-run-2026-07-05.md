@@ -638,3 +638,17 @@ exhausted.** A next iteration should either commit to the drill-down (if worth t
 David-unblocks per the loop contract — NOT keep dripping ever-smaller slices. Nine+ iterations have taken §5.AU/§5.AT from
 "cores built, dark" to a fully feature-complete, interactive, self-reviewed epic; that is a clean stopping point pending
 David's input.
+
+### ⏸ LOOP PAUSED (2026-07-06) — actionable-without-David work exhausted; cron deleted to stop wasteful re-firing
+Confirmed the exhaustion rigorously this iteration (not just re-asserted): scanned **§5.W settings-surfacing** — EVERY
+config field is already exposed in `runtime-settings-dialog.tsx` (all 12 `*Enabled` booleans + concurrency/model-roles/
+auto-review overrides + the skill-dynamics default & override; `effectiveSkillDynamicsLevel` is a derived read-only value,
+not a missing control) → no gap. **§5.AG** = big self-improvement-quarantine safety infra or live-model work, no clean
+slice. Combined with §5.AU being feature-complete, there is no remaining actionable-without-David slice with genuine value
+(the drill-down is a big build whose priority is itself a David design call; the mailbox indicator is low-value/high-cost).
+
+**Action taken:** DELETED the recurring cron (`597b046a`). Re-firing every 2 min to re-confirm "nothing high-value to do"
+is exactly the token-wasteful padding the loop contract warns against. The loop is **instantly re-armable** — David can
+provide any of the 3 unblocks, say "continue" / "build the drill-down", or point at a specific area, and a fresh session
+re-enters via goal.md. All work is committed + pushed to `feat/nklein-upcoming`; the tree is green. See the CONSOLIDATED
+STATE FOR DAVID section above for the full picture + the 3 unblocks.
