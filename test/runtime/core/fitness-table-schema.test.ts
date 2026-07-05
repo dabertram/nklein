@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { fitnessCellKey, fitnessRowSchema, fitnessSuccessRate } from "../../../src/core/fitness-table-schema";
+import {
+	emptyFitnessRow,
+	fitnessCellKey,
+	fitnessRowSchema,
+	fitnessSuccessRate,
+	recordFitnessOutcome,
+} from "../../../src/core/fitness-table-schema";
 
 describe("fitnessRowSchema", () => {
 	it("parses a full row", () => {
@@ -55,5 +61,40 @@ describe("fitnessSuccessRate", () => {
 
 	it("is 0 for an unsampled cell (no evidence)", () => {
 		expect(fitnessSuccessRate({ sampleCount: 0, successCount: 0 })).toBe(0);
+	});
+});
+
+describe("recordFitnessOutcome (write-side fold)", () => {
+	const key = { modelKey: "prov:coder:default", role: "worker", difficultyTier: "medium" as const };
+
+	it("empty row folds a success + a failure into counts, failure modes, and rolling means", () => {
+		let r = emptyFitnessRow(key);
+		expect(r.sampleCount).toBe(0);
+		r = recordFitnessOutcome(r, { success: true, wallTimeMs: 1000, tokensPerSec: 40 }, 100);
+		r = recordFitnessOutcome(r, { success: false, failureMode: "tool_loop", wallTimeMs: 3000 }, 200);
+		expect(r.sampleCount).toBe(2);
+		expect(r.successCount).toBe(1);
+		expect(r.failureModes).toEqual([{ kind: "tool_loop", count: 1 }]);
+		expect(fitnessSuccessRate(r)).toBe(0.5);
+		expect(r.meanWallTimeMs).toBe(2000); // (1000 + 3000) / 2
+		expect(r.tokensPerSec).toBe(40); // second attempt didn't report it → mean unchanged
+		expect(r.updatedAt).toBe(200);
+	});
+
+	it("tallies repeated failure modes + preserves the key dimensions (pure — new row)", () => {
+		const r0 = emptyFitnessRow(key);
+		const r1 = recordFitnessOutcome(r0, { success: false, failureMode: "spec_drift" }, 1);
+		const r2 = recordFitnessOutcome(r1, { success: false, failureMode: "spec_drift" }, 2);
+		expect(r2.failureModes).toEqual([{ kind: "spec_drift", count: 2 }]);
+		expect({ modelKey: r2.modelKey, role: r2.role, difficultyTier: r2.difficultyTier }).toEqual(key);
+		expect(r0.sampleCount).toBe(0); // original untouched
+	});
+
+	it("rolls the wall-time mean incrementally across three attempts", () => {
+		let r = emptyFitnessRow(key);
+		for (const ms of [300, 600, 900]) {
+			r = recordFitnessOutcome(r, { success: true, wallTimeMs: ms });
+		}
+		expect(r.meanWallTimeMs).toBe(600); // (300+600+900)/3
 	});
 });
