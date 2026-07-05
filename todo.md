@@ -5050,6 +5050,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `orderLadderByEffectiveness` into `decideNextRetryStrategy`/`runAdaptiveAttemptLoop` so the live loop tries the
         learned-best rung first; the thin JSON persistence layer in the runtime home (mirrors `ModelBehaviorProfile`); and
         source the observation stream from the §5.AF terminal `attempt` events (rung tried → whether it recovered).
+        **⚠ PREREQUISITE re-scoped (2026-07-05, investigation):** the "source from attempt events" step is BLOCKED — the
+        ledger's `promptStrategy` field is emitted NOWHERE today (grep-confirmed: only the schema default + the
+        `buildAttemptEvent` pass-through; every persisted event has `promptStrategy:null`), and NEITHER attempt writer has
+        the applied `RetryStrategy` in scope: `buildTerminalAttemptEvent` (board) maps a terminal state→outcome, and
+        `buildChatAttemptEvent` records ONE per-turn event (the chat retry ladder tries reduced-tool-set/force/constrained
+        rungs INSIDE the adapter, which never reports WHICH rung recovered back to the writer). So the honest decomposition
+        of this owed wiring is: (a) **thread the applied `RetryStrategy` to the emission seam** — the retry decision
+        (`decideNextRetryStrategy` consumer / the chat adapter's recovering rung) must be carried into
+        `Build{Terminal,Chat}AttemptEventInput.promptStrategy`; the board seam threads it from the restart-launch retry
+        decision, the chat seam needs the adapter to RETURN its recovering rung; (b) a pure `projectStrategyEffectiveness`
+        that pairs each task's consecutive attempts (obs = prior-attempt.outcome × this-attempt.promptStrategy ×
+        recovered=this.outcome==success) folding via `recordStrategyOutcome`; (c) the JSON store; (d) feed
+        `orderLadderByEffectiveness` back into the live loop. (a) is the true unblocker — until `promptStrategy` is
+        populated, (b)/(d) are dark. Each lands green; validate emission with a live retry (board `complex_dag` + a chat
+        no-tool-call recovery).
   - [x] **Cross-attempt PROGRESS tracker — "did the last remedy improve anything MEASURABLE?" (PURE CORE DONE 2026-07-01).**
         [src/core/attempt-progress-tracker.ts](src/core/attempt-progress-tracker.ts) closes the gap all the DONE §5.AA cores
         left open: the ladder can PICK + FIRE remedies (`retry-policy`, `adaptive-attempt-loop`) and PARK on rung/budget
