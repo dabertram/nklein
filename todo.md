@@ -5718,7 +5718,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         records — this leaf is the persistence/store write of its output.)*
   - [ ] Add on-demand trigger (Settings: "Evaluate connected models") with UI feedback.
 - [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`), decomposed:**
-  - [ ] Design the fitness table schema (model × role × difficulty dimensions + retry budget, failure modes).
+  - [x] Design the fitness table schema (model × role × difficulty dimensions + retry budget, failure modes). *(2026-07-05: fitness-table-schema.ts — zod fitnessRowSchema (model×role×difficulty key + sample/success counts, retryBudget, failureModes[], rolling perf) + fitnessCellKey + fitnessSuccessRate; 6 tests. Storage/migrations + wiring are the next leaves.)*
   - [ ] Implement storage layer + schema migrations for the global fitness store.
   - [ ] Wire write side: feed evaluation harness + live task outcomes into the store.
   - [ ] Wire read side: expose projections for the swarm scheduler + model-selection logic.
