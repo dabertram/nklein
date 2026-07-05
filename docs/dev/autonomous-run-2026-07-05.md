@@ -528,3 +528,32 @@ frontier) with click-to-focus, (3) the "N pending notes" mailbox indicator. Run 
 alternative: §5.AU's clean-slice supply is drained (like the broader backlog was at iteration 2) — the highest-leverage
 moves now increasingly need David (the SearXNG URL unblocks the whole §5.AC/§5.AB online cluster; a bigger Docker VM
 unblocks §5.AF durable-scheduler live validation; a UX nod unblocks item 9). Surface these and let David steer.
+
+### ✓ SHIPPED (2026-07-06) — §5.AU stream-overview surface, end-to-end (f0b85af9 backend, 0855fdf7 UI)
+The meatiest slice of the run — a full multi-layer feature, both commits green:
+- **Backend:** `chat.getBoardStreams` tRPC read (contract DTO + runtime-api → `summarizeWorkspaceBoardStreams` → the pure
+  `toStreamOverviewRows` projection + the router query + the RuntimeApi interface). Empty on no-workspace/error. 2 projection tests.
+- **UI:** `StreamOverviewPanel` in the chat sidebar (shown for a workspace-owning session) — one row per stream
+  (health badge · title · done/total · running), 5s refresh, hidden when no streams. 3 component tests; full web gate green.
+- **Real bug fixed in passing:** the panel's inline `queryFn` re-fired `useTrpcQuery`'s fetch effect every render (the
+  effect keys on queryFn identity) — a refetch loop that surfaced as a test timeout. Memoized it with `useCallback`.
+  NOTE for later: other `useTrpcQuery` callers (e.g. `use-chat-data.ts`) pass inline queryFns too — worth a sweep to
+  confirm they don't refetch-storm (they may be saved only by the request-id race guard + infrequent renders).
+
+### ★ §5.AU is now FEATURE-COMPLETE for its functional surface
+Done end-to-end: addressing resolver, both relay tools (send_to_card + send_to_stream), the feedback bridge with live ASK
+sourcing + mute (backend+UI), get_board_status/get_streams tools, the focus chip, AND the stream-overview surface. What
+remains is genuinely lower-value or design-gated:
+- **item 9 second-half** — direct front-door RELAY is a UX BEHAVIOR change (needs a David nod); the note+tool path already
+  works for a capable model. The candidate-picker + rung-5 disambiguator need a model call.
+- **item 10 drill** — stream→graph→card→thread navigation + click-to-focus + the mailbox "N pending" indicator. Lower value.
+- **item 7** — the OPTIONAL local-summarizer digest rewrite. Explicitly optional.
+
+### ★ NEXT — the honest read: the clean functional-slice supply across the ACTIVE epics is thinning
+Six iterations shipped five+ features by finding compose-a-core slices; §5.AU is now drained of them. The remaining
+high-value work is increasingly **David-gated**: (a) the **SearXNG URL** lights up the entire §5.AC/§5.AB/§5.M online
+cluster (all cores built, dormant); (b) a **Docker VM > 7.7 GiB** lets §5.AF durable-scheduler default-on be validated
+live; (c) a **UX nod on item 9** unblocks the deterministic front-door relay. A next iteration CAN still do the item 10
+drill or hunt clean slices in §5.AG (operator UX) / §5.W (settings surfacing) — but they should be weighed against just
+surfacing the three David-unblocks, since those open far more. If a scan finds no clean actionable-without-David slice,
+say so plainly per the loop contract rather than manufacturing low-value motion.
