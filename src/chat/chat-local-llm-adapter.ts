@@ -373,14 +373,22 @@ export function createChatAgentModel(
 		// proven-safe anchor) so we never force a call on a legit prose answer to a non-tool question. On the
 		// `forceToolCall` path the LOOP's evidence-gate is the safety (it only forces while REQUIRED, named tools remain
 		// uncalled), so we may force an UNNAMED-but-offered tool to advance the chain — see the `forceTools` fallback.
-		if (allowTools && (response.toolCalls.length === 0 || forceToolCall) && client.complete) {
+		const used = new Set(usedToolNames ?? []);
+		// Bug-hunt fix (2026-07-05): on the FORCE-ADVANCE path, an upstream rung (truncation / reduced-tool-set / prompt-
+		// variant — all gated on `response.toolCalls.length === 0`) can recover a genuinely NEW, not-yet-used call within
+		// THIS SAME invocation even though `forceToolCall` is set (the PRIMARY call at the top of this function happened
+		// to return empty this time — a different case than the "stuck repeating an already-done call" forceToolCall
+		// exists for). Forcing anyway would silently discard that fresh call and substitute a separately-forced one,
+		// possibly a DIFFERENT tool than the model chose. Only force when there is still nothing to show for it: no call
+		// at all, OR every call in `response.toolCalls` names an already-used (non-progressing) tool.
+		const hasFreshCall = response.toolCalls.some((call) => !used.has(call.name));
+		if (allowTools && client.complete && (response.toolCalls.length === 0 || (forceToolCall && !hasFreshCall))) {
 			const anchored = selectToolsForAttempt(offered, lastUserText(messages), 1);
 			// Steer a stalled chain to the NEXT step: drop tools already executed this run from the forced set so a weak
 			// model can't re-pick a done tool (which the loop dedupes → no progress). Prefer the instruction-anchored
 			// remaining tools; when those are exhausted, fall back to ANY offered-but-unused tool (the force-advance path
 			// needs a next step to steer to even when the anchor is used up); only when everything is used do we fall back
 			// to the anchored set (the no-op / genuinely-finished case, which the evidence-gate would already have ended).
-			const used = new Set(usedToolNames ?? []);
 			const anchoredRemaining = anchored.tools.filter((tool) => !used.has(tool.name));
 			const offeredRemaining = offered.filter((tool) => !used.has(tool.name));
 			const forceTools =
@@ -389,11 +397,19 @@ export function createChatAgentModel(
 					: offeredRemaining.length > 0
 						? offeredRemaining
 						: anchored.tools;
-			// Build the forced schema whenever we have a tool to force. On the plain no-call path the anchor still guards us
-			// (an unanchored prose answer yields no forceTools worth forcing); on the force-advance path the evidence-gate is
-			// the guard, so any non-empty forceTools is fair game.
+			// Build the forced schema whenever we have a tool to force.
 			const schema = forceTools.length > 0 ? buildConstrainedToolCallSchema(forceTools) : null;
-			const anchorGuardsForce = anchored.matchedNames.length > 0 || (forceToolCall && offeredRemaining.length > 0);
+			// Bug-hunt fix (2026-07-05): on the PLAIN no-call path, require BOTH a genuine named match (`matchedNames`)
+			// AND that named tool still being unused (`anchoredRemaining`). `matchedNames.length > 0` alone is not enough:
+			// it's satisfied even when every NAMED tool is already used (forceTools then silently falls back to
+			// `offeredRemaining`, an UNRELATED set) — fabricating a forced call on what was really a legitimate prose
+			// final answer. And `anchoredRemaining.length > 0` alone is not enough either: when NOTHING was named,
+			// `selectToolsForAttempt` falls back to the FULL offered set (`{tools:[...tools], matchedNames:[]}`), so
+			// `anchoredRemaining` is non-empty despite no genuine anchor. On the FORCE-ADVANCE path the loop's own
+			// evidence-gate is the safety (only forces while genuinely stuck), so any unused offered tool is fair game.
+			const anchorGuardsForce = forceToolCall
+				? offeredRemaining.length > 0
+				: anchored.matchedNames.length > 0 && anchoredRemaining.length > 0;
 			if (schema && anchorGuardsForce) {
 				// §5.AA/§5.AN native-forcing for REASONING models: their json_schema path silently dead-ends (empty content —
 				// grammar vs the reasoning channel, live-probed 2026-07-01), but native `tool_choice:"required"` lands a valid

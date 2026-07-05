@@ -918,6 +918,73 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(result.toolCalls).toEqual([]);
 	});
 
+	it("bug-hunt #1 (2026-07-05): does NOT force a fabricated call when the only named tool is already used (plain path)", async () => {
+		// Instruction names ONLY "read_file"; it's already used this run; the model's no-call reply is a legit prose
+		// final answer. Old code's anchorGuardsForce was satisfied by matchedNames alone (read_file was named — just
+		// already used), so it fell back to forcing an UNRELATED offered tool. Must not fire.
+		let constrainedCalled = false;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({
+				content: "The file says hello.",
+				toolCalls: [],
+				finishReason: "stop",
+				raw: {},
+			}),
+			complete: async () => {
+				constrainedCalled = true;
+				return { content: '{"tool":"create_card","arguments":{}}' };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model(
+			[{ role: "user", content: "read_file X and tell me what it says." }],
+			true,
+			undefined,
+			["read_file"],
+		);
+		expect(constrainedCalled).toBe(false);
+		expect(result.text).toBe("The file says hello.");
+		expect(result.toolCalls).toEqual([]);
+	});
+
+	it("bug-hunt #2 (2026-07-05): a fresh call recovered mid-invocation is NOT discarded by a stale forceToolCall", async () => {
+		// forceToolCall=true (the loop is trying to break a stuck repeat), but THIS invocation's primary call returns
+		// empty and the reduced-tool-set rung recovers a genuinely NEW (not-yet-used) call. The force rung must not
+		// override it with a separately-forced (possibly different) tool.
+		let callIndex = 0;
+		let constrainedCalled = false;
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (_request, toolsArg) => {
+				callIndex += 1;
+				if (callIndex === 1) {
+					expect(toolsArg.length).toBe(6); // the primary call, full tool set
+					return { content: "", toolCalls: [], finishReason: "stop", raw: {} };
+				}
+				// The reduced-tool-set retry (anchored on "read_file") recovers a genuine new call.
+				return {
+					content: "",
+					toolCalls: [{ id: "fresh", name: "read_file", arguments: { path: "X.txt" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+			complete: async () => {
+				constrainedCalled = true;
+				return { content: '{"tool":"create_card","arguments":{}}' };
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS);
+		const result = await model(
+			[{ role: "user", content: "read_file X and tell me what it says." }],
+			true,
+			undefined,
+			["list_dir"], // something else already used; read_file is NOT used yet
+			true, // forceToolCall
+		);
+		expect(constrainedCalled).toBe(false); // the force rung must not fire — a fresh call already landed
+		expect(result.toolCalls).toEqual([{ id: "fresh", name: "read_file", arguments: { path: "X.txt" } }]);
+	});
+
 	it("§5.AA constrained rung: skipped when a structured/recovered call already exists (no wasted forcing)", async () => {
 		let constrainedCalled = false;
 		const client: ChatAgentCompletionClient = {
