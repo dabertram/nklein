@@ -211,6 +211,7 @@ function SessionHeader({
 		scope?: RuntimeChatSessionScope;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		feedbackMuted?: boolean;
 		selectedSkillIds?: string[];
 	}) => void;
 }): React.ReactElement {
@@ -236,6 +237,13 @@ function SessionHeader({
 
 	const handleBrowserToggle = (): void => {
 		onUpdate({ id: session.id, browserEnabled: !session.browserEnabled });
+	};
+
+	// §5.AT: a chat that OWNS a project receives board→chat feedback (card outcomes / "needs you" ASKs); muting it
+	// stops those posts. Only meaningful for an owning chat, so the toggle shows only when this chat owns a workspace.
+	const ownsWorkspace = session.ownedWorkspaceId !== null && session.ownedWorkspaceId !== undefined;
+	const handleFeedbackMuteToggle = (): void => {
+		onUpdate({ id: session.id, feedbackMuted: !session.feedbackMuted });
 	};
 
 	const handleRiskToggle = (): void => {
@@ -356,6 +364,24 @@ function SessionHeader({
 							<span>{session.browserEnabled ? "Browser enabled" : "Enable browser"}</span>
 						</button>
 					</div>
+				) : null}
+				{ownsWorkspace ? (
+					<button
+						type="button"
+						role="checkbox"
+						aria-checked={session.feedbackMuted}
+						data-testid="chat-feedback-mute-toggle"
+						onClick={handleFeedbackMuteToggle}
+						className={cn(
+							"flex items-center gap-1.5 text-[11px] rounded px-1.5 py-0.5 border transition-colors select-none cursor-pointer self-start",
+							session.feedbackMuted
+								? "border-status-orange text-status-orange bg-surface-2 hover:bg-surface-3"
+								: "border-border text-text-tertiary bg-transparent hover:border-border-bright hover:text-text-secondary",
+						)}
+					>
+						<span aria-hidden="true">{session.feedbackMuted ? "🔕" : "🔔"}</span>
+						<span>{session.feedbackMuted ? "Board updates muted" : "Mute board updates"}</span>
+					</button>
 				) : null}
 				<div className="flex flex-wrap items-center gap-1.5" data-testid="chat-skill-selector">
 					<span className="text-[11px] text-text-tertiary select-none">Skills:</span>

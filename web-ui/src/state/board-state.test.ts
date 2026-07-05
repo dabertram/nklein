@@ -127,18 +127,20 @@ describe("board dependency state", () => {
 		]);
 	});
 
-	it("allows backlog-to-backlog links in either direction", () => {
+	it("adds a backlog link but REJECTS the reverse (it would close a 2-cycle) — cycle guard, decided 2026-07-05", () => {
 		const fixture = createBacklogBoard(["Task A", "Task B"]);
 		const taskA = requireTaskId(fixture.taskIdByPrompt["Task A"], "Task A");
 		const taskB = requireTaskId(fixture.taskIdByPrompt["Task B"], "Task B");
 
 		const firstDirection = addTaskDependency(fixture.board, taskA, taskB);
 		expect(firstDirection.added).toBe(true);
+		// A→B is in place, so B→A would close the cycle a↔b (deadlocking both) — the guard rejects it.
 		const reverseDirection = addTaskDependency(firstDirection.board, taskB, taskA);
-		expect(reverseDirection.added).toBe(true);
+		expect(reverseDirection.added).toBe(false);
+		expect(reverseDirection.reason).toBe("would_create_cycle");
+		// The board keeps only the original edge.
 		expect(reverseDirection.board.dependencies).toEqual([
 			expect.objectContaining({ fromTaskId: taskA, toTaskId: taskB }),
-			expect.objectContaining({ fromTaskId: taskB, toTaskId: taskA }),
 		]);
 	});
 
