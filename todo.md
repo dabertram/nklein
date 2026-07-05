@@ -8956,6 +8956,30 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > - [ ] **STEP 7 — guardrails from the research.** Async fan-out with the existing liveness/heartbeat (no synchronous joins — one slow local worker can't block the swarm); keep escalation/model-swap USER-GATED; trim per-worker context (last-message + shared artifact store) to protect the ≥32k floor + avoid small-model context-quality collapse.
 >
 > Converges with `[[auto-model-selection-vision]]` + §5.AB/§5.AL/§5.AF/§5.0.1. **This is the §5.AF durable-scheduler wiring the MCF already named as the first build target** — the orchestrator research independently re-derived it as the top gap. Do NOT re-litigate ADOPT (a central conductor) — it's REJECTED with reasons above.
+>
+> **★ "ORCHESTRATOR CONTEXT ROT" refinement (2026-07-05, user — "take in what helps"; from a design discussion on the
+> Opus-4.8 meta-orchestration essay).** The essay's antidote — *"don't ask the orchestrator to remember; ask it to write
+> the system that remembers"* — is ALREADY !Klein's founding bet (structure carries quality, not model size): todo.md =
+> CURRENT_GOAL/DECISIONS/OPEN_QUESTIONS, done.md = FAILED/shipped archive, the §5.AF ledger = typed attempt state
+> ("compact into STRUCTURED state, never raw chat history" is literally its design note), the board (§5.AT) = the task
+> graph + long-term brain, focus-chains = per-agent checklists, tests = the hard truth gate. So the essay VALIDATES the
+> direction; two grounded refinements it adds (both stay INSIDE the no-conductor verdict above — bounded + deterministic,
+> never a free-form LLM control plane):
+> - [ ] **A. Structured-state-not-transcript AUDIT of the autonomous loop (concrete, near-term, safe).** Verify §5.0.1's
+>       `runAutonomousChatSession` + the §5.M chat loop RELOAD the relevant structured state (board + §5.AF ledger +
+>       focus-chain + the lean §5.M window) each turn rather than leaning on an accreting raw transcript — the essay's
+>       sharpest operational rule, and a *checkable* anti-rot property. Where the loop carries raw transcript growth
+>       instead of re-deriving from structured state, that IS live orchestrator rot; fold the fix into the existing
+>       compaction/lean-window seams (§5.AQ/§5.AD). Acceptance: an audit note in `docs/dev/` naming each turn's context
+>       source (structured vs transcript) + any fix; verify with a long autonomous run's context trace.
+> - [ ] **B. Bounded per-goal orchestration RECIPE (design-first; respects the no-conductor verdict).** Between "fixed
+>       loop" and "LLM conductor" sits a middle !Klein hasn't built: at decompose time the architect already emits a task
+>       DAG — it could ALSO emit a schema-CONSTRAINED, deterministically-EXECUTED recipe (which §5.AW review lenses, how
+>       many eyes, which verification gates, compaction cadence) from a FIXED vocabulary the runtime runs deterministically.
+>       That is "the model reshapes the loop for the task" WITHOUT handing it the control plane. Converges §5.AV (valid
+>       decomposition) + §5.AW (N-eyes lenses) + §5.AS. Gate: the recipe is DATA (a validated config), never executable
+>       control; the loop that consumes it stays deterministic + test-gated. Design + a small eval (does a per-goal recipe
+>       beat the fixed loop?) before wiring — do NOT let it drift into a conductor.
 
 ### 5.AT — Board→chat feedback: the board as the chat's task-planning brain *(2026-07-01, user — ACTIVE, designed)*
 > **Vision (user 2026-07-01):** make the kanban board **"basically the long-term task-planning brain of the chat."** The user mainly talks to the **CHAT**; the board reflects + organizes the main goal and how it decomposes to be worked by the agent swarm. The board = the *simplest, most intuitive way to control + interact with !Klein* — investigating/adapting/interacting with cards is possible, but the **main workflow is just the chat**; the board gives transparency + optional micro-management. **The MISSING piece is FEEDBACK from the board/cards BACK to the chat** (updates, results, details) so the user gets progress without leaving the conversation. **The hard part: don't SPAM the user while keeping it comprehensive, meaningful, complete.**
