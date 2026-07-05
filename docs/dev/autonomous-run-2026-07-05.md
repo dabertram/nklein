@@ -557,3 +557,23 @@ live; (c) a **UX nod on item 9** unblocks the deterministic front-door relay. A 
 drill or hunt clean slices in §5.AG (operator UX) / §5.W (settings surfacing) — but they should be weighed against just
 surfacing the three David-unblocks, since those open far more. If a scan finds no clean actionable-without-David slice,
 say so plainly per the loop contract rather than manufacturing low-value motion.
+
+### ✓ SHIPPED (2026-07-06) — a real refetch-loop bug fix (52c03bf7)
+Followed up last commit's finding (the stream-panel test timed out under an inline `queryFn`): swept ALL `useTrpcQuery`
+callers. **`use-chat-data.ts` was the LONE caller passing inline queryFns** (sessions + transcript) — every other caller
+(git-history ×3, nklein-agent-chat-panel, use-runtime-config/project-config/workspace-changes) already memoizes with
+`useCallback`. Since the fetch effect keys on queryFn identity, the chat sidebar's data hook re-fired the effect every
+render → an unbounded refetch loop (sessions + the open transcript) whenever the sidebar was open. Fixed: memoized both
+(transcript on `[client, selectedSessionId]` so it still reloads on session switch) + documented the stable-queryFn
+contract on `UseTrpcQueryOptions` so it can't recur. Web gate green (tsc + 886 vitest + biome). No use-chat-data test
+existed to catch it; the mechanism is now pinned by the stream-panel test + the contract doc.
+
+### ★ NEXT — the David-gated frontier is real; remaining solo work is refinement or bug-hunt
+This iteration was a genuine bug fix (not manufactured). The honest state stands: §5.AU's functional surface is complete,
+and the high-value remaining work needs David (SearXNG URL / bigger Docker VM / item-9 UX nod). A next iteration's options,
+in rough value order: (1) a LIGHT adversarial bug-hunt on this run's new §5.AU code (send_to_stream / get_streams / the
+stream panel / the mute wiring) — the refetch-loop find shows this pays off, and a light self-review of just-shipped code
+is in-scope (not the deferred extended sweeps); (2) the item-10 refinements (click-to-focus, mailbox "N pending") —
+functional UI, lower value; (3) scan §5.AG / §5.W for a clean slice. If none surfaces real value, surface the three
+David-unblocks and stop rather than pad. Prefer (1) — verifying our own recent work is the highest-confidence use of a
+solo iteration.
