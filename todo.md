@@ -4979,7 +4979,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       model-telemetry surface. Built core-first to avoid a speculative persisted schema ahead of its consumers.
   - [x] Build thin JSON persistence layer in runtime home (like MCSR) **DONE 2026-07-05:** event-sourced append-JSONL store `src/telemetry/model-behavior-profile-store.ts` (`persistModelBehaviorOutcome` / `readModelBehaviorProfile` / `readAllModelBehaviorProfiles`) — mirrors model-performance-stats (concurrency-safe append-only, folded oldest-first via the pure `recordModelBehaviorOutcome`); 6 tests. Read/update hooks into the live attempt loop remain (separate wiring).
   - [ ] Add read hooks in attempt loop (choose best first, skip known-failing, no circles)
-  - [ ] Add update hooks after each outcome (record to persisted profile)
+  - [x] Add update hooks after each outcome (record to persisted profile) **DONE 2026-07-05 (coarse):** the task-outcome seam (runtime-server) now folds each terminal outcome into the model's ModelBehaviorProfile via `persistModelBehaviorOutcome` (success/other_failure → successRate + retry-budget signal; append-only, concurrency-safe, best-effort). Rich per-ATTEMPT failure-mode capture (no_tool_call/narrated/timeout during the recovery ladder) still rides the loop-level read/update wiring — a follow-up.
   - [ ] Expose model-telemetry surface in Settings UI
   - [ ] Test with real multi-model runs (verify learning across sessions)
 - [~] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure

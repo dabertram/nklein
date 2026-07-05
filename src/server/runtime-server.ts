@@ -92,6 +92,7 @@ import {
 } from "../state/workspace-state";
 import { recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
+import { persistModelBehaviorOutcome } from "../telemetry/model-behavior-profile-store";
 import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -833,6 +834,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			const fitnessRecord = deriveTaskFitnessRecord({ summary, card });
 			if (fitnessRecord) {
 				await recordTaskFitnessOutcome(fitnessRecord.key, fitnessRecord.outcome).catch(() => {});
+				// §5.AA ModelBehaviorProfile: also fold the coarse terminal outcome into the model's cross-session
+				// reliability profile (successRate + retry budget). Append-only ⇒ concurrency-safe. Best-effort.
+				await persistModelBehaviorOutcome(fitnessRecord.key.modelKey, {
+					kind: fitnessRecord.outcome.success ? "success" : "other_failure",
+				}).catch(() => {});
 			}
 		})().catch((error) => {
 			const message = error instanceof Error ? error.message : String(error);
