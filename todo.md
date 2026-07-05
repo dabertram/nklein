@@ -18,6 +18,13 @@
 > umbrella/grouping rows that only collect children are plain **bold rows without a checkbox** so they don't inflate the count.
 > Greps: ready = `grep -c '^\s*- \[ \]'` · waiting-on-user = `grep -c '^\s*- \[?\]'` · task-blocked = `grep -c '^\s*- \[>\]'`.
 >
+> **Ready vs. designed-but-not-ready (the blockquote convention — 2026-07-05):** a leaf is a **top-level** `- [ ]` only
+> when it is genuinely **ready to start now**. A DESIGN / RESEARCH-VERDICT / POST-MATURITY / DEFERRED section keeps its
+> checkboxes **inside its `>` blockquote** (`> - [ ]`) — they render as a plan but are **deliberately excluded** from the
+> ready grep above (which only matches non-quoted `- [ ]`). So a section "goes active" by **un-blockquoting** its ready
+> leaves (promoting `> - [ ]` → `- [ ]`); until then its `> - [ ]` items are the design sketch, not the work queue. This
+> keeps the ready count honest (it never inflates with not-yet-buildable design) without losing any planned detail.
+>
 > **⚡ Effort tag (2026-07-01, user — for cheap-compute routing):** an open item marked **`⚡`** (right after the checkbox,
 > e.g. `- [ ] ⚡ …`) is **LOW-EFFORT** — well-specified enough to hand to a **low-thinking model** (Sonnet at low reasoning
 > effort) with NO discovery or design judgment required. Every `⚡` item carries a **`Recipe:`** sub-line: the exact **file**
@@ -8923,7 +8930,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >
 > **The real GAPS = built-but-DARK cores (wire, don't invent):** `durable-scheduler.ts` + `durable-run-controller.ts`/`-ports`/`-registry` + `durable-scheduler-ledger.ts` + `durable-run-reaction.ts` + `durable-lease-renewal.ts` (mid-run crash recovery — a card actively running when the process dies is currently leaseless/lost); `durable-scheduler-ready-order.ts` (`orderReadyJobs`) + `durable-job-critical-path.ts` + `durable-scheduler-backpressure.ts` (contention: ready cards start in board order not critical-path order, per-endpoint queues unbounded); `adaptive-decomposition-decision.ts` (`decideCardDecomposition`) + `decomposition-redecompose-trigger.ts` (`decideRedecomposeAction`) — adaptive granularity + bounded re-planning, both pure/tested with **zero callers**. All confirmed UNWIRED (no `src/server`/`src/trpc` importers).
 >
-> **THE PLAN — deterministic control-loop WIRING (no LLM conductor); sequenced, measurement-gated:**
+> **THE PLAN — deterministic control-loop WIRING (no LLM conductor); sequenced, measurement-gated.** *(These 7 STEPS are
+> the SAME durable-scheduler wiring tracked as build leaves in [§5.AF](#5af--shared-substrate-the-agent-attempt-ledger--durable-scheduler--replay--tool-capability-manifest-2026-06-26-from-the-spec-audit--the-keystone-build-before-widening-5aa5ae) — kept BLOCKQUOTED here so the ready-work grep counts them once, in §5.AF, not twice. This section is the research VERDICT + rationale; §5.AF is the work queue.)*
 > - [ ] **STEP 1 — measurement harness FIRST.** Add a control baseline ("single capable local model, no fan-out") + instrument quality-per-token + wall-clock for a fan-out card vs the baseline. Research is explicit: **if the swarm doesn't beat the honest single-model control, don't ship the swarm.** Gates every wiring step below.
 > - [ ] **STEP 2 — mid-run recovery (highest value, lowest policy risk).** Wire the durable cluster: `runtime-server.ts onSummary` → `mapTaskSessionStateToDurableRunReaction` (`durable-run-reaction.ts`) → `durable-run-controller.tick()`; persist via `durable-scheduler-ledger.ts`; heartbeat live sessions; reclaim on lease expiry (`durable-lease-renewal.ts`). Pure cores are tested — the leaf is the port impls (dispatch/appendLog/now/mintWorkerId) + the onSummary subscription. No LLM.
 > - [ ] **STEP 3 — contention safety.** Wire `orderReadyJobs` (fan-out/critical-path/starvation via `durable-job-critical-path.ts`) into `autoStartTaskIds` (start in critical-path order, not board order) + `durable-scheduler-backpressure.ts` (admit/defer/shed; per-pool cap + global ceiling). *(Disjoint from STEP 5, per the critique: STEP 3 = lease-ORDER of ready jobs; STEP 5 = SHAPE re-planning of a subtree — wiring both is not redundant.)*
