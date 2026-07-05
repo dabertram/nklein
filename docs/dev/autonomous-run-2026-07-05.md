@@ -229,3 +229,25 @@ boot-replay → re-runs finished work. NOT fixed because it is (a) speculative �
 version system, only a rolling-upgrade concern; and (b) a genuine design decision on the forward-compat strategy (a
 forward-tolerant envelope schema vs. a raw-jsonl read path for the scheduler family so SB#3 can see envelope-invalid
 terminal events). Owed: pick a forward-compat strategy for the §5.AF ledger before a v2 event shape ships.
+
+## §5.AV wouldCreateDependencyCycle predicate + a COLLECTED design decision (2026-07-05)
+
+While investigating the todo §5.AV note ("add wouldCreateDependencyCycle"), found that `addTaskDependency`
+(task-board-mutations) has NO cycle guard — it rejects missing/same/duplicate/trash/non-backlog edges but not one that
+CLOSES a dependency cycle. Since a cycle deadlocks the board (every card on it waits on another, none is a startable
+root — exactly what the decompose path's `breakDependencyCycles` repairs), a manual/tool dependency-add (which has no
+repair net) can wedge the board.
+
+SHIPPED the pure predicate `wouldCreateDependencyCycle(board, fromTaskId, toTaskId)` (reachability over the depends-on
+edges: adding from→to closes a cycle iff `to` already transitively depends on `from`; a self-edge is a trivial cycle).
+3 unit tests.
+
+**COLLECTED — DECISION OWED (did NOT wire the guard into addTaskDependency):** a DELIBERATE existing test
+(task-board-mutations.test.ts:460 "two waiting tasks keep the reverse as a distinct link") asserts that for two WAITING
+(backlog/planning) cards, after A depends on B the REVERSE link B depends on A is a genuinely-different, ALLOWED link —
+which is a 2-cycle. Wiring the guard would reject that, changing a deliberately-tested behavior. Same class as the
+`defaultAcceptanceCommand` decision: a doc/deadlock-correctness view vs. a deliberate test. **Question for David:** should
+`addTaskDependency` reject cycle-closing edges (the predicate is ready to gate it) — accepting that the "reverse link
+between two waiting tasks" case becomes disallowed — or does the planning-phase design intend to tolerate those cycles
+(and is the board's cycle-repair supposed to cover the manual path too)? Recommendation: guard it (a deadlock is never
+desirable; the 2-waiting reverse-link is a footgun), but confirm since it flips a deliberate test.

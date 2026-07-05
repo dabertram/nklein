@@ -14,6 +14,7 @@ import {
 	setCardStream,
 	trashTaskAndGetReadyLinkedTaskIds,
 	updateTask,
+	wouldCreateDependencyCycle,
 } from "../../src/core/task-board-mutations";
 
 function createBoard(): RuntimeBoardData {
@@ -28,6 +29,32 @@ function createBoard(): RuntimeBoardData {
 		dependencies: [],
 	};
 }
+
+describe("wouldCreateDependencyCycle (pure predicate — NOT wired into addTaskDependency, see the run doc)", () => {
+	// Three backlog cards A, B, C. Capture the real card ids (addTaskToColumn derives them), then link A→B, B→C.
+	function chainABC() {
+		const a = addTaskToColumn(createBoard(), "backlog", { prompt: "A", baseRef: "main" }, () => "aaaaa111");
+		const b = addTaskToColumn(a.board, "backlog", { prompt: "B", baseRef: "main" }, () => "bbbbb111");
+		const c = addTaskToColumn(b.board, "backlog", { prompt: "C", baseRef: "main" }, () => "ccccc111");
+		const withAB = addTaskDependency(c.board, a.task.id, b.task.id).board; // A depends on B
+		const withBC = addTaskDependency(withAB, b.task.id, c.task.id).board; // B depends on C
+		return { board: withBC, idA: a.task.id, idB: b.task.id, idC: c.task.id };
+	}
+
+	it("detects a back-edge that would close a cycle (A→B→C, then C→A)", () => {
+		const { board, idA, idC } = chainABC();
+		expect(wouldCreateDependencyCycle(board, idC, idA)).toBe(true); // C depends on A closes A→B→C→A
+	});
+
+	it("returns false for an acyclic edge (a diamond shortcut A→C)", () => {
+		const { board, idA, idC } = chainABC();
+		expect(wouldCreateDependencyCycle(board, idA, idC)).toBe(false); // A already reaches C; a shortcut stays acyclic
+	});
+
+	it("a self-edge is a trivial cycle", () => {
+		expect(wouldCreateDependencyCycle(createBoard(), "x", "x")).toBe(true);
+	});
+});
 
 describe("deleteTasksFromBoard", () => {
 	it("removes a trashed task and any dependencies that reference it", () => {

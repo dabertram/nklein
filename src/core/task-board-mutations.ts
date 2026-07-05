@@ -358,6 +358,45 @@ export function findBoardCardWithColumn(
 	return found ? { card: found.task, columnId: found.columnId } : null;
 }
 
+/**
+ * Would adding the dependency edge `fromTaskId → toTaskId` (fromTaskId depends on toTaskId — it can start only once
+ * toTaskId is done) create a cycle in the board's dependency graph? True iff `toTaskId` already TRANSITIVELY depends on
+ * `fromTaskId` (a path `toTaskId → … → fromTaskId` exists), which the new edge would loop back — deadlocking every card
+ * on the cycle (none can ever become startable). A self-edge is a trivial 1-cycle. Pure; iterative DFS over
+ * `board.dependencies` (edge = `from → to`), cycle-safe via a visited set even if the existing graph is already cyclic.
+ */
+export function wouldCreateDependencyCycle(board: RuntimeBoardData, fromTaskId: string, toTaskId: string): boolean {
+	if (fromTaskId === toTaskId) {
+		return true;
+	}
+	const dependsOn = new Map<string, string[]>();
+	for (const dependency of board.dependencies) {
+		const targets = dependsOn.get(dependency.fromTaskId);
+		if (targets) {
+			targets.push(dependency.toTaskId);
+		} else {
+			dependsOn.set(dependency.fromTaskId, [dependency.toTaskId]);
+		}
+	}
+	// Reachable from `toTaskId` following depends-on edges; if that reaches `fromTaskId`, the new `from → to` closes a loop.
+	const stack = [...(dependsOn.get(toTaskId) ?? [])];
+	const visited = new Set<string>([toTaskId]);
+	while (stack.length > 0) {
+		const node = stack.pop();
+		if (node === undefined || visited.has(node)) {
+			continue;
+		}
+		if (node === fromTaskId) {
+			return true;
+		}
+		visited.add(node);
+		for (const next of dependsOn.get(node) ?? []) {
+			stack.push(next);
+		}
+	}
+	return false;
+}
+
 export function addTaskDependency(
 	board: RuntimeBoardData,
 	firstTaskId: string,
@@ -378,6 +417,9 @@ export function addTaskDependency(
 	if (hasDependencyPair(board, resolved.backlogTaskId, resolved.linkedTaskId)) {
 		return { board, added: false, reason: "duplicate" };
 	}
+	// NOTE (collected 2026-07-05): `wouldCreateDependencyCycle(board, resolved.backlogTaskId, resolved.linkedTaskId)` is
+	// intentionally NOT gated here. Wiring it would reject a cycle-closing edge, but a deliberate test allows the reverse
+	// link between two WAITING tasks ("a genuinely different link"), so guarding is a product decision — see the run doc.
 	const dependency: RuntimeBoardDependency = {
 		id: createDependencyId(),
 		fromTaskId: resolved.backlogTaskId,
