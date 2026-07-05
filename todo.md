@@ -6366,7 +6366,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (a forced native tool call needs little; free-gen needs the answer budget; per the §5.AN structured-output finding,
         budget the reasoning+prose path for reasoning models); (d) clamp `input_context + max_tokens ≤ the model window`
         (≥32k floor / 40000 ctx — never exceed).
-  - [ ] **Learn + converge** the per-`(model, task-class)` budget from observed completion+reasoning-token consumption
+  - [x] **Learn + converge** the per-`(model, task-class)` budget from observed completion+reasoning-token consumption *(2026-07-05: answer-budget-learn.ts — learnAnswerBudget (nearest-rank percentile × (1+margin), drops non-finite/neg, confidence gate) + blendAnswerBudget (EWMA convergence); 8 tests)*
         (e.g. a p90/p95 + margin, EWMA-updated) — the OUTPUT-budget sibling of §5.AD's input-context `context-budget-knee`.
         Keep the §5.AA reactive ladder as the SAFETY NET for the tail the proactive size under-shoots.
   - [ ] **Wire + live-verify (§5.Z, resident tier):** thread the computed budget into the chat/agent + swarm model-call
