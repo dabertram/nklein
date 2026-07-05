@@ -432,3 +432,25 @@ Item 4 is done. **Item 5 (Seam-3 live UI)** is the natural next: a hub `chat_mes
 functional UI slice (David greenlit) — verify with root+web tsc, web vitest, web:build. Then items 6 (user
 controls/verbosity/mute + `get_board_status` pull tool), 7 (optional local-summarizer digest rewrite), 8 (record in
 integrations.md). NOTE: re-read the code first — check what `use-chat-data.ts` + the hub already do before assuming a gap.
+
+### ✓ SHIPPED (2026-07-06, same session) — §5.AT item 5 reconciled + item 6 pull-tool (fdc8dd1d)
+The "re-read first" note paid off (THIRD stale-status find):
+- **Item 5 (Seam-3 live UI) — FUNCTIONALLY MET, not owed.** `use-chat-data.ts:82-100` ALREADY polls the selected
+  transcript every 4s specifically for the bridge's server-pushed messages (explicit §5.AT/§5.AU comment, paused during a
+  streaming turn). So a pushed ASK surfaces in the OPEN sidebar without a user turn — the functional requirement is met.
+  The hub `chat_message_appended` event is only a latency optimization (≤4s → instant) the original design explicitly
+  deferred → moved to polishing scope. Did NOT build it (would be gold-plating per §5.0.6). Marked item 5 `[x]`.
+- **Item 6 pull-tool — SHIPPED.** `get_board_status` chat tool (`createBoardReadTools`): composes
+  `summarizeWorkspaceBoardHealth` → `buildBoardChatDigest({items:[], boardHealth})` → the "Board: N need you · …" rollup
+  line (same renderer as the push path). Auto-offered via the resolver's board-toolset spread (no resolver edit needed —
+  the set is spread wholesale). Injectable `loadBoardHealth` dep; 4 tests; safe-degrade with no path leak. Full fast suite
+  green. Item 6 marked `[~]`.
+
+### ★ NEXT — §5.AT item 6 remainder, then item 8, then §5.AU
+Item 6 still owes: **per-session verbosity/mute/quiet config** — the bridge reads `verbosity`/`quiet` from `OwningChatRef`
+but the wiring hardcodes `normal`/`false` (board-chat-feedback-wiring.ts:116); needs a config field + persistence
+(precedent `readyForReviewNotificationsEnabled`) + a Settings toggle (functional UI slice). Push/desktop escalation needs
+`PushNotification` infra (check what exists first). **Item 8** (record the bridge in docs/dev/integrations.md + it's
+already in CHANGELOG) is a quick doc close-out. Then **§5.AU** (streams/addressing) — check its item states before
+assuming, per the now-thrice-confirmed stale-checkbox lesson. Keep preferring: read the real code, ship the smallest
+green functional slice, reconcile todo.md as you go.
