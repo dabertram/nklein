@@ -687,12 +687,22 @@ export class AgentSandboxManager {
 		const basicMemoryPlans = mounts
 			.map((mount) => this.basicMemoryPlanByKey.get(mount.projectKey))
 			.filter((plan): plan is BasicMemoryScopingPlan => plan !== undefined);
-		const writableMounts = basicMemoryPlans.flatMap((plan) =>
-			planBasicMemorySandboxWiring(plan).mounts.map((mount) => ({
-				hostPath: mount.hostPath,
-				containerPath: mount.containerPath,
-			})),
-		);
+		// DEDUP by container destination: the per-project stores are workspace-hashed (unique), but the GLOBAL store is
+		// intentionally shared, so every project's plan yields the SAME `/nklein/basic-memory/global` mount — docker
+		// rejects duplicate `--mount` destinations ("Duplicate mount point"), which would crash the whole shared
+		// container. Keeping the first occurrence is lossless (same-dst mounts here have the same host source too).
+		const writableMountsByDst = new Map<string, { hostPath: string; containerPath: string }>();
+		for (const plan of basicMemoryPlans) {
+			for (const mount of planBasicMemorySandboxWiring(plan).mounts) {
+				if (!writableMountsByDst.has(mount.containerPath)) {
+					writableMountsByDst.set(mount.containerPath, {
+						hostPath: mount.hostPath,
+						containerPath: mount.containerPath,
+					});
+				}
+			}
+		}
+		const writableMounts = [...writableMountsByDst.values()];
 		// Create the host store dirs (the RW bind sources) before the container mounts them.
 		await Promise.all(
 			writableMounts.map((mount) => mkdir(mount.hostPath, { recursive: true }).catch(() => undefined)),

@@ -97,8 +97,33 @@ describe("basicMemorySeedProjectArgs", () => {
 		const plan = planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "w1", scopes: ["global"] });
 		const seeds = basicMemorySeedProjectArgs(plan);
 		expect(seeds).toEqual([
-			["basic-memory", "project", "add", "ws-w1", "/nklein/basic-memory/notes"],
+			["basic-memory", "project", "add", "ws-w1", "/nklein/basic-memory/w1/notes"],
 			["basic-memory", "project", "add", "global", "/nklein/basic-memory/global"],
 		]);
+	});
+});
+
+describe("planBasicMemoryScoping — multi-project collision safety (shared container)", () => {
+	// Regression for the 2026-07-05 multi-project outage: the shared sandbox container mounts EVERY registered
+	// project's stores at once, so per-project container destinations MUST carry the workspace hash (else two projects
+	// collide on the same `--mount` dst and `docker run` fails). The global store is the one deliberately-shared dst.
+	it("per-project container paths are UNIQUE per workspace; the global path is the ONLY shared one", () => {
+		const a = planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "aaa", scopes: ["global"] });
+		const b = planBasicMemoryScoping({ runtimeHome: "/h", workspaceHash: "bbb", scopes: ["global"] });
+		// config dirs differ across workspaces (no collision):
+		expect(a.containerConfigDir).toBe("/nklein/basic-memory/aaa/config");
+		expect(b.containerConfigDir).toBe("/nklein/basic-memory/bbb/config");
+		expect(a.containerConfigDir).not.toBe(b.containerConfigDir);
+		// per-project notes dirs differ across workspaces:
+		const aProject = a.projects.find((p) => p.scope === "project");
+		const bProject = b.projects.find((p) => p.scope === "project");
+		expect(aProject?.containerNotesDir).toBe("/nklein/basic-memory/aaa/notes");
+		expect(bProject?.containerNotesDir).toBe("/nklein/basic-memory/bbb/notes");
+		expect(aProject?.containerNotesDir).not.toBe(bProject?.containerNotesDir);
+		// the GLOBAL notes dir is intentionally identical (shared cross-repo store — runtime dedups the mount):
+		const aGlobal = a.projects.find((p) => p.scope === "global");
+		const bGlobal = b.projects.find((p) => p.scope === "global");
+		expect(aGlobal?.containerNotesDir).toBe("/nklein/basic-memory/global");
+		expect(aGlobal?.containerNotesDir).toBe(bGlobal?.containerNotesDir);
 	});
 });

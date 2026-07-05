@@ -20,7 +20,15 @@ export type BasicMemoryScope = "project" | "global";
 /** The basic-memory project name for the single shared cross-repo store. */
 export const BASIC_MEMORY_GLOBAL_PROJECT = "global";
 
-/** Fixed in-container root the per-task stores mount under (the container is per-task, so paths need not be unique). */
+/**
+ * In-container root the basic-memory stores mount under. The sandbox container is SHARED across every project a slot
+ * serves (maxContainers=1, unlimited agents), and `startContainer` mounts ALL registered projects into it at once — so
+ * a per-project store's container path MUST carry the workspace hash (`<root>/<workspaceHash>/…`), else two projects
+ * collide on the same `--mount` destination and `docker run` fails ("Duplicate mount point"), crashing the whole
+ * container. The GLOBAL store is the one deliberate shared path (`<root>/global`, identical across projects — the
+ * runtime dedups it by destination). (Fixed 2026-07-05: the old fixed `<root>/{notes,config}` was a multi-project
+ * outage bug — a single-project run passed, two projects in one slot did not.)
+ */
 export const BASIC_MEMORY_CONTAINER_ROOT = "/nklein/basic-memory";
 
 /** The per-project basic-memory project name for a workspace hash (never the host path — invariant #2). */
@@ -81,12 +89,17 @@ export function planBasicMemoryScoping(input: {
 	const home = input.runtimeHome.replace(/\/+$/u, "");
 	const enabled = new Set<BasicMemoryScope>(["project", ...input.scopes]);
 
+	// Per-workspace container root — the shared container mounts several projects at once, so each project's config +
+	// notes dst MUST be unique (else duplicate `--mount` destinations crash `docker run`). The global store is the one
+	// intentionally-shared path (identical across projects; the runtime dedups it by destination).
+	const containerBase = `${BASIC_MEMORY_CONTAINER_ROOT}/${input.workspaceHash}`;
+
 	const projectName = basicMemoryProjectName(input.workspaceHash);
 	const projects: BasicMemoryProjectRegistration[] = [
 		{
 			scope: "project",
 			name: projectName,
-			containerNotesDir: `${BASIC_MEMORY_CONTAINER_ROOT}/notes`,
+			containerNotesDir: `${containerBase}/notes`,
 			hostNotesDir: `${home}/basic-memory/${input.workspaceHash}/notes`,
 		},
 	];
@@ -99,7 +112,7 @@ export function planBasicMemoryScoping(input: {
 		});
 	}
 
-	const containerConfigDir = `${BASIC_MEMORY_CONTAINER_ROOT}/config`;
+	const containerConfigDir = `${containerBase}/config`;
 	return {
 		containerConfigDir,
 		hostConfigDir: `${home}/basic-memory/${input.workspaceHash}/config`,
