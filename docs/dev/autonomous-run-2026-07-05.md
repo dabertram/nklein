@@ -101,3 +101,18 @@ Ran 3 parallel adversarial hunters over the session's new integration code (a fo
 - **Tool-gating + test-driven vein — CLEAN** (no defects): fail-closed gating confirmed, no guard-drift across the 3 MCP sites, live re-apply fires, `isLikelyTestFile` correct against 37 adversarial names.
 
 Full gate green after fixes: 651 files / 7350 tests / tsc 0. Validation-first caught what the unit tests (which asserted the happy path) missed — same lesson as the earlier basic-memory `readwrite` bug.
+
+
+## Update 2026-07-05 (evening): heaviest-first milestone pass — 1 durable piece DONE, SWARM-recovery inc-1 DONE, 2 env blockers COLLECTED
+
+David: "go for the hardest least quick win tasks .. do the heavy work now" + /goal "heaviest to lightest, autonomous, collect interaction-required tasks + do others first".
+
+**Heavy work COMPLETED + validated here (no env blocker):**
+- **§5.AF at-most-once durable leases** (commit `2ff56b47`) — wired the built-but-dark `keyDurableLeaseActions` + `dedupeSchedulerEventsByIdempotencyKey` end-to-end (controller stamps lease log entries over the pre-apply job identity → ledger mapper carries the key → `readDurableSchedulerLog` dedups a crash-re-appended lease before replay). Additive/identity-optional ⇒ byte-identical, +4 tests, 66 existing durable tests unchanged. A real §5.AF #8 milestone piece.
+- **§5.AA SWARM-recovery increment 1** (commit `921278e2`) — the recovery-ladder `AgentModel` wrapper (`createRecoveryLadderModel`): buffers a base turn, on a stalled no-tool-call turn re-invokes with a reframed request + REPLACES the events (bounded), verbatim replay otherwise. Injected policy ⇒ 6 unit tests. Decorates the config-builder's pre-built model — no bridge reimplementation. De-risked the milestone from "deep vendored rewrite" to "a `wrapModel` hook + this wrapper".
+
+**★ COLLECTED — the two heaviest milestones are ENVIRONMENT-BLOCKED here (need David / a different host):**
+1. **SWARM-recovery increments 2-3 need `bun`.** The vendored `wrapModel` hook requires rebuilding `vendor/cline-sdk/packages/core` (build = `bun run ./bun.mts && bun tsc`); **`bun` is not installed** on this host, and raw-`npx tsc` bypass is too fragile for the load-bearing engine. → *Install `bun` (or provide a pre-built vendored dist), then I land the hook + wire flag-gated `NKLEIN_SWARM_RECOVERY` + brain27-validate. Increment 1 is ready to plug in.*
+2. **Durable-scheduler DEFAULT-ON needs a bigger Docker VM.** The bounce-race + acceptance-sandbox-prep fixes can't be validated at the current **7.7 GiB Docker VM** (sandbox OOM), and the notes are explicit this critical hot path must not be fixed blind. → *A Docker-healthy host (bigger VM / lighter fleet) unblocks the default-on validation.* The scheduler is well-validated + opt-in meanwhile.
+
+Doing other (non-blocked) backlog tasks next per the /goal.
