@@ -18,7 +18,7 @@ import {
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
 import { buildModelBehaviorProfilesFromLedger } from "../core/agent-ledger-projections";
-import type { SandboxNetworkPolicy } from "../core/agent-rulesets";
+import type { McpAccess, SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type {
 	RuntimeNKleinReasoningEffort,
 	RuntimeNKleinTeamProgressEvent,
@@ -376,6 +376,8 @@ export interface NKleinTaskSessionService {
 	setRetrievalConfig(egressEnabled: boolean, searchBackendUrl: string | null): void;
 	/** Apply the §5.L per-role web-research capability gate (default allowed = fully_open) when config changes. */
 	setAgentWebResearchAllowed(allowed: boolean): void;
+	/** Apply the §5.L per-role MCP-access capability gate (default "on" = fully_open) when config changes. */
+	setAgentMcpAccess(access: McpAccess): void;
 	/** Apply the §5.AN model-stats tracking level (full by default) when config changes. */
 	setModelStatsTrackingLevel(level: ModelStatsTrackingLevel): void;
 	waitUntilTaskResumed(taskId: string): Promise<void>;
@@ -490,6 +492,12 @@ interface BaseCreateInMemoryNKleinTaskSessionServiceOptions {
 	 */
 	agentWebResearchAllowed?: boolean;
 	/**
+	 * §5.L — the resolved capability ruleset's MCP access (`resolveAgentToolAccess().mcp`). Default `"on"` (the shipped
+	 * `fully_open` preset ⇒ byte-identical). `"off"` withholds ALL curated sandbox-MCP tools even when the config/env
+	 * switch is on; `"local"`/`"on"` allow them (every curated server is local/offline). Live-updated on config change.
+	 */
+	agentMcpAccess?: McpAccess;
+	/**
 	 * Root dir for the diagnostic stores this service writes (task-run summaries + the Agent Attempt Ledger).
 	 * Defaults to the real `~/.nklein` runtime home; tests inject a temp dir so they don't pollute it.
 	 */
@@ -567,6 +575,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private retrievalSearchBackendUrl: string | null;
 	/** §5.L per-role capability gate on web-research (default true = fully_open); live-updated with config. */
 	private agentWebResearchAllowed: boolean;
+	/** §5.L per-role capability gate on MCP access (default "on" = fully_open); live-updated with config. */
+	private agentMcpAccess: McpAccess;
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
 	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
@@ -605,6 +615,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelStatsTrackingLevel = options.modelStatsTrackingLevel ?? DEFAULT_MODEL_STATS_TRACKING_LEVEL;
 		this.retrievalSearchBackendUrl = options.retrievalSearchBackendUrl ?? DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL;
 		this.agentWebResearchAllowed = options.agentWebResearchAllowed ?? true;
+		this.agentMcpAccess = options.agentMcpAccess ?? "on";
 		this.diagnosticStoreRoot = options.diagnosticStoreRoot;
 		this.decompositionStallNudger = new DecompositionStallNudger(this.buildNudgerCallbacks());
 		this.repeatedToolCallGuard = new RepeatedToolCallGuard(this.buildGuardCallbacks());
@@ -1160,7 +1171,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				...(combinedExtraTools ? { extraTools: combinedExtraTools } : {}),
 				// §5.AR: offer the curated sandbox-hosted MCP servers (fit-gated per model) when enabled — the runtime-config
 				// `sandboxMcpServersEnabled` (ON by default; global/per-project opt-out) OR the `NKLEIN_SANDBOX_MCP` env override.
-				...((this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && sandboxWorkspace
+				...(this.isSandboxMcpEnabled() && sandboxWorkspace
 					? {
 							sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(input.taskId),
 							basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(input.taskId),
@@ -2112,7 +2123,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					modelId,
 					// Same gate the tool bundle uses to offer curated sandbox MCP servers — so the structural-retrieval
 					// nudge is added exactly when (and only when) a structural code-graph server is offered to this model.
-					sandboxMcpEnabled: this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP),
+					sandboxMcpEnabled: this.isSandboxMcpEnabled(),
 				});
 				const systemPrompt = this.assembleSessionSystemPrompt({
 					taskId: request.taskId,
@@ -2228,7 +2239,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// §5.AR: a RESTARTED isolated task gets the curated sandbox MCP servers too (consistent with the main
 					// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
 					// exists for the rebuilt task.
-					...((this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && sandboxWorkspace
+					...(this.isSandboxMcpEnabled() && sandboxWorkspace
 						? {
 								sandboxMcpExecTarget: sandboxWorkspace.manager.getSandboxExecTarget(request.taskId),
 								basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
@@ -2892,6 +2903,22 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** §5.L: live-update the per-role web-research capability gate when the runtime config (ruleset) changes. */
 	setAgentWebResearchAllowed(allowed: boolean): void {
 		this.agentWebResearchAllowed = allowed;
+	}
+
+	/** §5.L: live-update the per-role MCP-access capability gate when the runtime config (ruleset) changes. */
+	setAgentMcpAccess(access: McpAccess): void {
+		this.agentMcpAccess = access;
+	}
+
+	/**
+	 * §5.L: whether curated sandbox-MCP tools should be offered — the config/env switch ANDed with the per-role
+	 * capability gate. The ONE place both conditions meet, so the three tool-assembly sites can't drift (the §4A
+	 * guard-drift lesson). `"off"` withholds MCP even with the switch on; `"local"`/`"on"` allow the (local) servers.
+	 */
+	private isSandboxMcpEnabled(): boolean {
+		return (
+			(this.sandboxMcpServersEnabled || isTruthyEnv(process.env.NKLEIN_SANDBOX_MCP)) && this.agentMcpAccess !== "off"
+		);
 	}
 
 	/** §5.AN decision-9: live-update the model-stats tracking level when the runtime config changes. */

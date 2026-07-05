@@ -1546,8 +1546,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			runtimeConfig.effectiveAgentRulesets?.capability.globalPreset ?? DEFAULT_AGENT_CAPABILITY_TIER,
 		);
 		const sandboxNetworkPolicy = globalAgentCapabilities.network;
-		// §5.L: the resolved capability ruleset gates the agent's web-research tool (default fully_open ⇒ allowed).
-		const agentWebResearchAllowed = resolveAgentToolAccess(globalAgentCapabilities).webResearch;
+		// §5.L: the resolved capability ruleset gates the agent's web-research tool + MCP access (default fully_open).
+		const agentToolAccess = resolveAgentToolAccess(globalAgentCapabilities);
+		const agentWebResearchAllowed = agentToolAccess.webResearch;
+		const agentMcpAccess = agentToolAccess.mcp;
 		let service = nkleinTaskSessionServiceByWorkspaceId.get(scope.workspaceId);
 		if (!service) {
 			service = createInMemoryNKleinTaskSessionService({
@@ -1559,6 +1561,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				modelStatsTrackingLevel: runtimeConfig.modelStatsTrackingLevel,
 				retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
 				agentWebResearchAllowed,
+				agentMcpAccess,
 				agentSandboxManager: new AgentSandboxManager({
 					poolConfig: sandboxPoolConfig,
 					networkPolicy: sandboxNetworkPolicy,
@@ -2017,6 +2020,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// §5.L: re-apply the per-role web-research capability gate on a live ruleset change (same drift class as the
 			// --network re-apply above — a cached service must not keep looser tool access after the operator tightens it).
 			service.setAgentWebResearchAllowed(agentWebResearchAllowed);
+			service.setAgentMcpAccess(agentMcpAccess);
 			service.setModelStatsTrackingLevel(runtimeConfig.modelStatsTrackingLevel);
 			speculativeConfigByWorkspaceId.set(scope.workspaceId, {
 				enabled: runtimeConfig.speculativeBestOfNEnabled,
