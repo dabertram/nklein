@@ -616,3 +616,25 @@ extended sweeps + the §5.AX visual overhaul remain in polishing.md for the post
 through. Continuing yields diminishing returns until one of the 3 unblocks above. The recurring cron will keep the loop
 alive; the next iterations should do a real lower-value slice IF one has genuine value, else say so plainly and idle
 rather than pad — per the loop contract.
+
+### ✓ SHIPPED (2026-07-06) — §5.AU item-10 click-to-focus (207e2d0f)
+A genuine (if smaller) functional-UI slice: clicking a stream row in the overview panel appends its `@stream:<id>` handle
+(the resolver's rung-1 syntax, same as the @-mention popover) to the composer draft + focuses it, so the next message
+addresses that stream. `StreamOverviewPanel` gains an optional `onSelectStream` (rows are buttons when provided); ChatPanel's
+`selectStream` does the append-with-separator + focus. 1 panel click test; full web gate green (887 vitest + build). The
+stream overview is now interactive, not just informational.
+
+### ★ NEXT — the remaining item-10 pieces are the last low-value slices; then it's David's move
+§5.AU item 10 now has: get_streams · the overview surface · the focus chip · click-to-focus — all shipped. **Only two
+pieces remain, both genuinely lower value / higher cost:**
+- **Stream drill-down** (click a stream → its decomposition graph → a card → its thread, reusing `decomposition-graph-view`
+  /`card-detail-view`). This is a REAL feature but a bigger navigation build in the chat context — the biggest remaining
+  §5.AU piece by effort. Do it only as a committed multi-step slice, not a rushed tail.
+- **Mailbox "N pending" indicator.** `countPendingCardMailbox` exists but summing it per-stream on every 5s poll = N file
+  reads/poll (a perf cost for marginal value). Needs an endpoint change + a batched count. Low value / real cost — skip
+  unless David wants it.
+After these, the honest conclusion holds: **the actionable-without-David surface with genuine value is essentially
+exhausted.** A next iteration should either commit to the drill-down (if worth the build) or STOP and surface the 3
+David-unblocks per the loop contract — NOT keep dripping ever-smaller slices. Nine+ iterations have taken §5.AU/§5.AT from
+"cores built, dark" to a fully feature-complete, interactive, self-reviewed epic; that is a clean stopping point pending
+David's input.
