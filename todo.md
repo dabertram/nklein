@@ -2078,7 +2078,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [~] **Wire into every agent surface** — seed "draft a chain first" into per-task prompts; reviewer checks adherence
   - [x] board agents: "Focus Chain" rule pack + tool attached in the session runtime + state-hub persists onto `card.focusChain`
   - [ ] seed the "draft a chain first" rule into the chat-agent surface (§5.M).
-  - [ ] optional re-prompt nudge when a task runs without a focus chain.
+  - [x] optional re-prompt nudge when a task runs without a focus chain. *(2026-07-05: `decideFocusChainNudge` in focus-chain-nudge.ts — nudge a non-trivial, tools-offered, chain-less task; quiet otherwise; the re-prompt emission is the call-site's; 4 tests)*
 - [~] **Visual representation (todo list)** — checklist UI with done/in-progress/pending
   - [x] board: `FocusChainPanel` in card detail (✓/▸/○/– + x/total), threaded through `BoardCard` + normalizer
   - [ ] chat surface (§5.M)
