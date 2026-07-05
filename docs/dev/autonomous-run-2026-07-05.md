@@ -381,21 +381,30 @@ holds: **the clean, deterministic, actionable-without-David pure-core leaves are
   `createNKleinResearchTool`) DOES bear real egress + ingests untrusted web content and is confirmed **not
   broker-gated** — this is the true keystone.
 
-### ★ PRE-SCOPED NEXT TARGET (execute next iteration, fresh context) — swarm-path capability broker
-Wire `decideCapabilityBrokerGate` into the swarm's host-side retrieval/research tool seam so tainted web content the
-`research` tool ingests cannot drive a *subsequent* egress/MCP call in the same turn (the browse-evil→exfiltrate class).
-Mirror the chat template `createGatedChatToolExecutor` (chat-tool-executor.ts) exactly:
-- **Flag:** gate on the existing `capabilityBrokerEnabled` runtime config (default OFF ⇒ byte-identical; the swarm never
-  runs the gate today). Thread it to the seam like the chat path threads it via the resolver getter.
-- **Taint window:** one per-turn accumulate-only `TaintLabel[]`; the `research` tool's output carries `["web"]`
-  (untrusted, SEO/backend-controllable). Fold it after a successful research call (`propagateTaint`).
-- **Gate:** before each tool runs, `decideCapabilityBrokerGate({ manifest, taintLabels })`; deny fail-closed if a
-  protected-sink call follows tainted content with no trusted plan. Needs a per-tool `ToolCapabilityManifest` for the
-  research/egress tool (network=egress) — reuse/extend `tool-capability-manifest.ts` (do not fork the logic).
-- **Tests (deterministic, no live model):** research(→web taint) then a second egress call ⇒ DENY; research alone ⇒
-  allow; flag OFF ⇒ byte-identical (never gates); a workspace-only tool after taint ⇒ allow (no protected sink).
-- **Verify:** root tsc + biome + test:fast green; adversarial 3-refuter pass (byte-identity / no-bypass / no-false-block)
-  as the chat path had. Live end-to-end validation (needs egress ON + a SearXNG URL) is polishing, not a gate here.
+### ✗ PRE-SCOPE RETRACTED (next iteration read the seam deeper) — swarm broker is NOT a clean wiring; DEFERRED
+The 2026-07-06-morning pre-scope above was wrong on the semantics. Reading the actual dispatch seams corrected it:
+- The sandbox tools run in a SEPARATE process (`agent-sandbox/tool-runner.ts`, a `process.argv` CLI inside the
+  `--network none` container) — not a single host-side executor wrapper like chat's `createGatedChatToolExecutor`.
+  There is no clean "one wrapper, all swarm tools" seam; the host `research` tool and the in-container tools dispatch
+  through different paths.
+- **The fatal semantic bug in the pre-scope:** `research` is an egress-**READ** (fetch info IN), not an
+  egress-**exfiltrate** (send data OUT). If it both SOURCES `["web"]` taint AND counts as a protected egress SINK, the
+  SECOND `research` call in a session self-DENIES — breaking legitimate multi-step research (research → reason →
+  research). This is exactly the "distinct egress-read manifest so benign multi-page browsing doesn't self-block" item
+  the §5.L L1604 note already flagged as OWED. So a naive mirror of the chat path would ship a self-blocking bug.
+- **And there is no exfiltration sink on the swarm path today** — the only egress is `research`/browse (both READS);
+  nothing sends data OUT. The genuine exfil risk (tainted content → a tool that transmits) arrives with the swarm MCP
+  tool seam (§5.AR), which isn't wired. So the broker's swarm value is LOW until (a) an egress-read/exfil manifest
+  distinction exists AND (b) a real swarm exfil sink (MCP) exists.
+- **DEFERRED (correct call):** don't wire the swarm broker now. It needs the manifest read/exfil-direction refinement
+  (a real design piece, not mechanical) and a consumer (swarm MCP) that doesn't exist yet. Reconsider when §5.AR lands
+  the swarm MCP seam. The chat-path broker (already live) covers the surface that has a real exfil sink today (browse →
+  run_command). Recorded so no future iteration re-attempts the naive wiring.
+
+### Actionable lane going forward (this iteration's conclusion)
+With the pure-leaf supply drained and the flagged wiring keystones either no-ops, David-blocked (egress URL, MCP), or
+design-dependent, the productive actionable-without-David lane is **functional UI slices** (David greenlit "functional UI
+now"). Pivoting there.
 
 ### Highest-leverage David unblock (unchanged, still owed)
 A **SearXNG backend URL** turns the entire online-retrieval cluster (the research tool + this broker's live path) from
