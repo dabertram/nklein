@@ -1,7 +1,17 @@
 import { execFile } from "node:child_process";
+import { mkdir } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import type { ToolExecutors } from "@cline/sdk";
 import type { SandboxNetworkPolicy } from "../core/agent-rulesets";
+import {
+	type BasicMemoryScopingPlan,
+	basicMemorySeedProjectArgs,
+	planBasicMemorySandboxWiring,
+	planBasicMemoryScoping,
+} from "../core/basic-memory-scoping";
+import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import type { SandboxExecTarget } from "../core/sandbox-mcp-catalog";
 import {
@@ -194,6 +204,11 @@ export class AgentSandboxManager {
 	private readonly containers = new Map<number, ContainerState>();
 	private readonly placements = new Map<string, TaskPlacement>();
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
+	// §5.AR basic-memory (OFF by default via NKLEIN_BASIC_MEMORY): per-project scoping plan keyed by projectKey. When
+	// enabled, each registered project gets a per-project writable store (config + notes) mounted RW at container start
+	// and seeded via `basic-memory project add`. Empty ⇒ no writable mounts ⇒ the sandbox stays fully read-only.
+	private readonly basicMemoryEnabled = isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
+	private readonly basicMemoryPlanByKey = new Map<string, BasicMemoryScopingPlan>();
 	private readonly queue: QueueEntry[] = [];
 	// Spike guard (2026-07-04): the ONE shared container hosts every agent, and each `docker exec` tool command
 	// (npm/build/acceptance) can spike to ~1–2 GiB. `activeExecs` + `execWaiters` bound how many run AT ONCE
@@ -507,6 +522,14 @@ export class AgentSandboxManager {
 		const projectKey = createAgentSandboxProjectKey(projectRepoPath);
 		const mount = { projectKey, projectRepoPath };
 		this.projectMountsByKey.set(projectKey, mount);
+		// §5.AR: when basic-memory is enabled, give each project a per-project writable store (pure plan; the host dirs
+		// are created + mounted + seeded at container start). Keyed by projectKey so it survives across this container.
+		if (this.basicMemoryEnabled && !this.basicMemoryPlanByKey.has(projectKey)) {
+			this.basicMemoryPlanByKey.set(
+				projectKey,
+				planBasicMemoryScoping({ runtimeHome: join(homedir(), ".nklein"), workspaceHash: projectKey, scopes: [] }),
+			);
+		}
 		return mount;
 	}
 
@@ -649,11 +672,27 @@ export class AgentSandboxManager {
 	private async startContainer(container: ContainerState): Promise<void> {
 		await this.runDocker(["rm", "-f", container.containerName], { timeoutMs: 30_000 }).catch(() => null);
 		const mounts = [...this.projectMountsByKey.values()];
+		// §5.AR basic-memory (flag-gated): the per-project writable stores for the projects this container serves. Empty
+		// unless NKLEIN_BASIC_MEMORY is on ⇒ no writable mounts ⇒ the sandbox is byte-identical + fully read-only.
+		const basicMemoryPlans = mounts
+			.map((mount) => this.basicMemoryPlanByKey.get(mount.projectKey))
+			.filter((plan): plan is BasicMemoryScopingPlan => plan !== undefined);
+		const writableMounts = basicMemoryPlans.flatMap((plan) =>
+			planBasicMemorySandboxWiring(plan).mounts.map((mount) => ({
+				hostPath: mount.hostPath,
+				containerPath: mount.containerPath,
+			})),
+		);
+		// Create the host store dirs (the RW bind sources) before the container mounts them.
+		await Promise.all(
+			writableMounts.map((mount) => mkdir(mount.hostPath, { recursive: true }).catch(() => undefined)),
+		);
 		const result = await this.runDocker(
 			buildAgentSandboxDockerRunArgs({
 				slot: container.slot,
 				image: this.image,
 				projectMounts: mounts,
+				...(writableMounts.length > 0 ? { writableMounts } : {}),
 				config: this.poolConfig,
 				networkPolicy: this.networkPolicy,
 			}),
@@ -665,6 +704,16 @@ export class AgentSandboxManager {
 			);
 		}
 		container.containerId = result.stdout.trim();
+		// §5.AR: seed basic-memory's per-project config (validated live: no auto-init) — an idempotent `project add`
+		// per project, run as root with the plan's env (BASIC_MEMORY_CONFIG_DIR → the mounted config dir). Best-effort.
+		for (const plan of basicMemoryPlans) {
+			const envArgs = Object.entries(plan.env).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
+			for (const argv of basicMemorySeedProjectArgs(plan)) {
+				await this.runDocker(["exec", ...envArgs, container.containerName, ...argv], { timeoutMs: 30_000 }).catch(
+					() => null,
+				);
+			}
+		}
 		// NOTE: the `starting` single-flight guard is cleared by ensureContainerRunning's `finally` (its sole owner),
 		// not here — clearing it mid-flight would let a concurrent caller start a second recovery for the same slot.
 		container.mountedProjectKeys = new Set(mounts.map((mount) => mount.projectKey));
