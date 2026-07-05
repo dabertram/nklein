@@ -62,4 +62,25 @@ describe("buildSessionSkillFragments (§5.AE effectful bridge)", () => {
 		});
 		expect(fragments.find((fragment) => fragment.key === "repo-map")).toBeUndefined();
 	});
+
+	it("§5.AE (approved follow-up 2026-07-05): the skill-dynamics level is HONORED — `assigned_skills` (no ids) suppresses the repo map", async () => {
+		process.env[FLAG] = "1";
+		// Baseline: the resolver's default (fully_dynamic) resolves the worker code bundle → a repo-map fragment.
+		const dynamic = await buildSessionSkillFragments({
+			role: "worker",
+			taskText: "fix a bug in the widget",
+			workspacePath: workspace,
+		});
+		expect(dynamic.find((fragment) => fragment.key === "repo-map")).toBeDefined();
+		// With the user's level = assigned_skills and NO assigned ids, resolveActiveSkills yields an EMPTY skill set,
+		// so NO repo-map fragment is produced. This can only differ from the baseline if dynamicsLevel is truly threaded
+		// (before the fix, buildSessionSkillFragments ignored it and always used fully_dynamic).
+		const assigned = await buildSessionSkillFragments({
+			role: "worker",
+			taskText: "fix a bug in the widget",
+			workspacePath: workspace,
+			dynamicsLevel: "assigned_skills",
+		});
+		expect(assigned.find((fragment) => fragment.key === "repo-map")).toBeUndefined();
+	});
 });

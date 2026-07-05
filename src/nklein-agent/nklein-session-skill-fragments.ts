@@ -13,7 +13,7 @@ import { isTruthyEnv } from "../core/env-flag.js";
 import type { PromptFragment } from "../core/prompt-fragment-assembly.js";
 import { selectSandboxMcpServersForModel } from "../core/sandbox-mcp-catalog.js";
 import { buildSkillPromptFragments } from "../core/skill-prompt-fragments.js";
-import { resolveActiveSkills } from "../core/skill-resolver.js";
+import { resolveActiveSkills, type SkillDynamicsLevel } from "../core/skill-resolver.js";
 import { buildStructuralRetrievalGuidance } from "../core/structural-retrieval-guidance.js";
 import { buildNKleinRepoMap } from "./nklein-repo-map.js";
 
@@ -30,6 +30,12 @@ export interface BuildSessionSkillFragmentsInput {
 	modelId?: string | null;
 	/** Whether curated sandbox MCP servers are offered this session (the same gate the tool bundle uses). */
 	sandboxMcpEnabled?: boolean;
+	/**
+	 * §5.AE the user's effective skill-dynamics level (global default ← per-project override). Drives WHICH skills
+	 * `resolveActiveSkills` selects (role bundle vs relevance-scored vs assigned) — so the repo-map/other fragments this
+	 * session actually carries honor the setting. Absent ⇒ the resolver's own default (`fully_dynamic`).
+	 */
+	dynamicsLevel?: SkillDynamicsLevel;
 }
 
 /** Resolve active skills → their `wired` context fragments → assembler PromptFragments (with real producer text). */
@@ -52,7 +58,11 @@ export async function buildSessionSkillFragments(input: BuildSessionSkillFragmen
 	// §5.AE repo-map fragment — opt-in (default OFF): building a repo map is a real workspace scan, so it's gated.
 	// Enabling it makes a code/planning session's system prompt carry a repo map. Off ⇒ no repo map (no scan).
 	if (isTruthyEnv(process.env.NKLEIN_SKILL_PROMPT_FRAGMENTS)) {
-		const activeFragments = resolveActiveSkills({ role: input.role, taskText: input.taskText }).fragments;
+		const activeFragments = resolveActiveSkills({
+			role: input.role,
+			taskText: input.taskText,
+			...(input.dynamicsLevel !== undefined ? { dynamicsLevel: input.dynamicsLevel } : {}),
+		}).fragments;
 		if (activeFragments.length > 0) {
 			// Pre-compute the async producer text (repo map) ONLY when a skill actually declares it — the builder is a
 			// real workspace scan, so we never pay it for a session whose skills don't want a repo map.

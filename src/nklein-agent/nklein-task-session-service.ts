@@ -61,6 +61,7 @@ import { runRetrievalLoop } from "../core/retrieval-loop-driver";
 import { searchHitsAdapter } from "../core/retrieval-search-adapter";
 import { citedSynthesisAdapter } from "../core/retrieval-synthesis-adapter";
 import { raisedTokenBudget } from "../core/retry-policy";
+import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
@@ -284,6 +285,12 @@ export interface StartNKleinTaskSessionRequest {
 	maxAgentWritableFileLines?: number | null;
 	codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
 	systemPrompt?: string | null;
+	/**
+	 * §5.AE the user's effective skill-dynamics level (global default ← per-project override), forwarded from the tRPC
+	 * layer so {@link buildSessionSkillFragments}'s `resolveActiveSkills` honors the SAME setting the affinity-tag
+	 * resolution already uses. Absent ⇒ the resolver's own default (`fully_dynamic`).
+	 */
+	skillDynamicsLevel?: SkillDynamicsLevel | null;
 }
 
 export interface NKleinTaskLaunchConfigOverrides {
@@ -2128,6 +2135,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// Same gate the tool bundle uses to offer curated sandbox MCP servers — so the structural-retrieval
 					// nudge is added exactly when (and only when) a structural code-graph server is offered to this model.
 					sandboxMcpEnabled: this.isSandboxMcpEnabled(),
+					// §5.AE honor the user's skill-dynamics level so the fragment resolution matches the affinity-tag one.
+					...(request.skillDynamicsLevel ? { dynamicsLevel: request.skillDynamicsLevel } : {}),
 				});
 				const systemPrompt = this.assembleSessionSystemPrompt({
 					taskId: request.taskId,
