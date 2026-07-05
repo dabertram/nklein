@@ -11,6 +11,7 @@ import type {
 	RuntimeBoardData,
 	RuntimeWorkspaceStateResponse,
 } from "../../../src/core/api-contract";
+import type { BoardStreamsSummary } from "../../../src/core/board-streams-summary";
 import { buildOperatorBoardSummary, type OperatorBoardSummary } from "../../../src/core/operator-task-state";
 import type {
 	RuntimeWorkspaceAtomicMutationResponse,
@@ -27,6 +28,15 @@ function getBoardStatusTool(loadBoardHealth: (projectPath: string) => Promise<Op
 	const tool = tools.find((candidate) => candidate.name === "get_board_status");
 	if (!tool) {
 		throw new Error("get_board_status tool missing");
+	}
+	return tool;
+}
+
+function getStreamsTool(loadBoardStreams: (projectPath: string) => Promise<BoardStreamsSummary>) {
+	const { tools } = createBoardReadTools("/proj", { deps: { loadBoard: async () => board([]), loadBoardStreams } });
+	const tool = tools.find((candidate) => candidate.name === "get_streams");
+	if (!tool) {
+		throw new Error("get_streams tool missing");
 	}
 	return tool;
 }
@@ -176,6 +186,43 @@ describe("createBoardReadTools — get_board_status", () => {
 		});
 		const out = await tool.run({});
 		expect(out).toBe("Could not read the project board status.");
+		expect(out).not.toContain("/private/var");
+	});
+});
+
+describe("createBoardReadTools — get_streams", () => {
+	it("is a sandbox_read action", () => {
+		const { tools } = createBoardReadTools("/proj");
+		expect(tools.find((t) => t.name === "get_streams")?.actionKind).toBe("sandbox_read");
+	});
+
+	it("renders the per-stream overview from the loaded summary", async () => {
+		const tool = getStreamsTool(async () => ({
+			streams: [
+				{
+					stream: { id: "s1", title: "Auth", source: "decomposition", createdAt: 1, updatedAt: 1 },
+					memberTaskIds: ["a", "b"],
+					rollup: {
+						counts: { healthy: 1, stuck: 0, risky: 0, done: 1 },
+						progress: { done: 1, total: 2, method: "card_count" },
+						health: "on_track",
+						lifecycle: "active",
+						frontierTaskIds: ["b"],
+						stale: false,
+					},
+				},
+			],
+			ungroupedCardIds: [],
+		}));
+		expect(await tool.run({})).toBe('Streams (1):\n"Auth" — on track · 1/2 done · running: 1');
+	});
+
+	it("degrades to a safe message when the streams load throws (no path leak)", async () => {
+		const tool = getStreamsTool(async () => {
+			throw new Error("/private/var/secret-proj boom");
+		});
+		const out = await tool.run({});
+		expect(out).toBe("Could not read the project streams.");
 		expect(out).not.toContain("/private/var");
 	});
 });

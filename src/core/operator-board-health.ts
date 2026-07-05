@@ -1,4 +1,5 @@
 import type { RuntimeWorkspaceStateResponse } from "./api-contract";
+import { type BoardStreamMemberState, type BoardStreamsSummary, summarizeBoardStreams } from "./board-streams-summary";
 import {
 	buildOperatorBoardSummary,
 	mapSessionSummaryToOperatorSignals,
@@ -9,6 +10,9 @@ import {
 	type OperatorSignalOverrides,
 	type OperatorTaskSignals,
 } from "./operator-task-state";
+
+/** Default staleness window for the stream rollup on the pull path — a stream quiet longer than this reads `stale`. */
+const DEFAULT_STREAM_STALENESS_MS = 600_000;
 
 export type { OperatorBoardSummary, OperatorSignalOverrides } from "./operator-task-state";
 
@@ -78,4 +82,40 @@ export function summarizeWorkspaceBoardHealth(
 	resolveOverrides?: (taskId: string) => OperatorSignalOverrides,
 ): OperatorBoardSummary {
 	return summarizeBoardHealth(state.board, state.sessions, resolveOverrides);
+}
+
+/**
+ * §5.AU: the per-stream overview for a full workspace state — the `get_streams` pull path. Mirrors
+ * {@link summarizeWorkspaceBoardHealth}: builds each non-trash card's live operator signals (from its session summary +
+ * column) and its last-activity time, then composes {@link summarizeBoardStreams}. A card with no live session is still
+ * a stream member (its column drives the rollup); trash cards are excluded.
+ */
+export function summarizeWorkspaceBoardStreams(
+	state: RuntimeWorkspaceStateResponse,
+	options: { now: number; stalenessMs?: number },
+): BoardStreamsSummary {
+	const cards: { id: string; streamId?: string }[] = [];
+	const taskState: Record<string, BoardStreamMemberState> = {};
+	for (const column of state.board.columns) {
+		if (column.id === "trash") {
+			continue;
+		}
+		for (const card of column.cards) {
+			cards.push(card.streamId ? { id: card.id, streamId: card.streamId } : { id: card.id });
+			const summary = state.sessions[card.id];
+			if (summary) {
+				taskState[card.id] = {
+					signals: mapSessionSummaryToOperatorSignals(summary, column.id, {}),
+					lastActivityAt: summary.lastOutputAt ?? summary.updatedAt ?? options.now,
+				};
+			}
+		}
+	}
+	return summarizeBoardStreams({
+		streams: state.board.streams ?? [],
+		cards,
+		taskState,
+		now: options.now,
+		stalenessMs: options.stalenessMs ?? DEFAULT_STREAM_STALENESS_MS,
+	});
 }

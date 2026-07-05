@@ -1,12 +1,13 @@
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeWorkspaceStateResponse } from "../core/api-contract";
 import { buildBoardChatDigest } from "../core/board-chat-digest";
+import { type BoardStreamsSummary, renderBoardStreamsSummary } from "../core/board-streams-summary";
 import {
 	type CardExecutionState,
 	type CardMessageIntent,
 	classifyCardMessageIntent,
 	resolveCardMessageEffect,
 } from "../core/card-message-effect";
-import { summarizeWorkspaceBoardHealth } from "../core/operator-board-health";
+import { summarizeWorkspaceBoardHealth, summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import type { OperatorBoardSummary } from "../core/operator-task-state";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { listUnmetDependencyTaskIds, resolveCardExecutionState } from "../core/task-board-ready-sweep";
@@ -39,11 +40,18 @@ export interface BoardToolDeps {
 	 * the on-disk workspace state (board + live sessions). Injected so `get_board_status` is unit-testable without disk.
 	 */
 	loadBoardHealth?: (projectPath: string) => Promise<OperatorBoardSummary>;
+	/**
+	 * §5.AU: load the per-stream overview (each stream's health/progress/frontier + loose cards) for the project.
+	 * Defaults to the on-disk workspace state. Injected so `get_streams` is unit-testable without disk.
+	 */
+	loadBoardStreams?: (projectPath: string) => Promise<BoardStreamsSummary>;
 }
 
 const DEFAULT_BOARD_DEPS: Required<BoardToolDeps> = {
 	loadBoard: async (projectPath) => (await loadWorkspaceState(projectPath)).board,
 	loadBoardHealth: async (projectPath) => summarizeWorkspaceBoardHealth(await loadWorkspaceState(projectPath)),
+	loadBoardStreams: async (projectPath) =>
+		summarizeWorkspaceBoardStreams(await loadWorkspaceState(projectPath), { now: Date.now() }),
 };
 
 export interface ChatToolSet {
@@ -107,6 +115,18 @@ export function createBoardReadTools(projectPath: string, options: { deps?: Boar
 				}
 			},
 		},
+		{
+			name: "get_streams",
+			actionKind: "sandbox_read",
+			run: async () => {
+				try {
+					const loadBoardStreams = deps.loadBoardStreams ?? DEFAULT_BOARD_DEPS.loadBoardStreams;
+					return renderBoardStreamsSummary(await loadBoardStreams(projectPath));
+				} catch {
+					return "Could not read the project streams.";
+				}
+			},
+		},
 	];
 
 	const definitions: LocalLlmToolDefinition[] = [
@@ -120,6 +140,12 @@ export function createBoardReadTools(projectPath: string, options: { deps?: Boar
 			name: "get_board_status",
 			description:
 				"Show a one-line health rollup of the current project's board — how many cards need your attention, are stuck, are on track, or are done. Use this for a quick triage/status check; use get_board to list the actual cards. Takes no arguments.",
+			parameters: { type: "object", properties: {} },
+		},
+		{
+			name: "get_streams",
+			description:
+				"Show the current project's streams (epics/groups of related cards) — each stream's title, health, progress (done/total), and how many of its cards are running now, plus any cards not in a stream. Use this for the 'group altitude' overview before drilling into individual cards. Takes no arguments.",
 			parameters: { type: "object", properties: {} },
 		},
 	];

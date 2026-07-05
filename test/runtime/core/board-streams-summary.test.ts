@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeStream } from "../../../src/core/board-api-contract";
-import { type BoardStreamMemberState, summarizeBoardStreams } from "../../../src/core/board-streams-summary";
+import {
+	type BoardStreamMemberState,
+	type BoardStreamsSummary,
+	renderBoardStreamsSummary,
+	summarizeBoardStreams,
+} from "../../../src/core/board-streams-summary";
 import type { OperatorTaskSignals } from "../../../src/core/operator-task-state";
 
 function signals(over: Partial<OperatorTaskSignals> = {}): OperatorTaskSignals {
@@ -105,5 +110,58 @@ describe("summarizeBoardStreams", () => {
 		// Only 'a' contributes to the rollup counts (1 healthy), 'b' is skipped (no signals).
 		expect(result.streams[0]?.rollup.counts.healthy).toBe(1);
 		expect(result.streams[0]?.rollup.progress.total).toBe(1);
+	});
+});
+
+describe("renderBoardStreamsSummary", () => {
+	it("renders one line per stream (title · health · done/total · running) + a loose-cards line", () => {
+		const summary: BoardStreamsSummary = {
+			streams: [
+				{
+					stream: stream("s1", "Auth"),
+					memberTaskIds: ["a", "b"],
+					rollup: {
+						counts: { healthy: 1, stuck: 0, risky: 0, done: 1 },
+						progress: { done: 1, total: 2, method: "card_count" },
+						health: "on_track",
+						lifecycle: "active",
+						frontierTaskIds: ["b"],
+						stale: false,
+					},
+				},
+			],
+			ungroupedCardIds: ["z"],
+		};
+		expect(renderBoardStreamsSummary(summary)).toBe(
+			'Streams (1):\n"Auth" — on track · 1/2 done · running: 1\n(+1 card(s) not in any stream)',
+		);
+	});
+
+	it("omits the running note when no card is running", () => {
+		const summary: BoardStreamsSummary = {
+			streams: [
+				{
+					stream: stream("s1", "Billing"),
+					memberTaskIds: ["a"],
+					rollup: {
+						counts: { healthy: 0, stuck: 0, risky: 0, done: 1 },
+						progress: { done: 1, total: 1, method: "card_count" },
+						health: "done",
+						lifecycle: "done",
+						frontierTaskIds: [],
+						stale: false,
+					},
+				},
+			],
+			ungroupedCardIds: [],
+		};
+		expect(renderBoardStreamsSummary(summary)).toBe('Streams (1):\n"Billing" — done · 1/1 done');
+	});
+
+	it("says there are no streams (with or without loose cards) when the board has none", () => {
+		expect(renderBoardStreamsSummary({ streams: [], ungroupedCardIds: [] })).toBe("No streams on the board yet.");
+		expect(renderBoardStreamsSummary({ streams: [], ungroupedCardIds: ["a", "b"] })).toBe(
+			"No streams yet — 2 loose card(s) on the board.",
+		);
 	});
 });

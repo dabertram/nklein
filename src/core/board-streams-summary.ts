@@ -11,7 +11,7 @@
 
 import type { RuntimeStream } from "./board-api-contract";
 import type { OperatorTaskSignals } from "./operator-task-state";
-import { deriveStreamRollup, type StreamRollup } from "./stream-rollup";
+import { deriveStreamRollup, type StreamHealth, type StreamRollup } from "./stream-rollup";
 
 /** The live state of a member card the rollup needs. */
 export interface BoardStreamMemberState {
@@ -83,4 +83,36 @@ export function summarizeBoardStreams(input: BoardStreamsSummaryInput): BoardStr
 	});
 
 	return { streams, ungroupedCardIds };
+}
+
+const STREAM_HEALTH_LABEL: Record<StreamHealth, string> = {
+	on_track: "on track",
+	stale: "stale",
+	at_risk: "at risk",
+	blocked: "blocked",
+	done: "done",
+	empty: "empty",
+};
+
+/**
+ * Render a {@link BoardStreamsSummary} into a compact, scannable text block for the `get_streams` pull tool — one line
+ * per stream (title · health · done/total · running count), plus a trailing loose-cards line. Pure; the SAME data the
+ * UI stream-overview surface renders. Never empty (a board with no streams says so).
+ */
+export function renderBoardStreamsSummary(summary: BoardStreamsSummary): string {
+	const lines: string[] = summary.streams.map((entry) => {
+		const { rollup } = entry;
+		const running = rollup.frontierTaskIds.length;
+		const runningNote = running > 0 ? ` · running: ${running}` : "";
+		return `"${entry.stream.title}" — ${STREAM_HEALTH_LABEL[rollup.health]} · ${rollup.progress.done}/${rollup.progress.total} done${runningNote}`;
+	});
+	if (summary.ungroupedCardIds.length > 0) {
+		lines.push(`(+${summary.ungroupedCardIds.length} card(s) not in any stream)`);
+	}
+	if (summary.streams.length === 0) {
+		return summary.ungroupedCardIds.length > 0
+			? `No streams yet — ${summary.ungroupedCardIds.length} loose card(s) on the board.`
+			: "No streams on the board yet.";
+	}
+	return `Streams (${summary.streams.length}):\n${lines.join("\n")}`;
 }
