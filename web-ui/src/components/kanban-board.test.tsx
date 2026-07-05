@@ -162,6 +162,7 @@ function createRuntimeConfig(maxConcurrentTasks: number): RuntimeConfigResponse 
 		selectedAgentIdOverride: null,
 		effectiveSelectedAgentId: "nklein",
 		sandboxMaxContainers: 1,
+		sandboxMaxConcurrentExec: 2,
 		sandboxAgentsPerContainer: 0,
 		sandboxMemoryPerContainerMb: 4096,
 		sandboxCpusPerContainer: 2,
