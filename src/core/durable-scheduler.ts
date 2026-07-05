@@ -145,6 +145,13 @@ export function decideDurableSchedulerActions(input: DurableSchedulerInput): Dur
 	const maxAttempts = Number.isFinite(input.maxAttempts) ? Math.max(1, Math.trunc(input.maxAttempts)) : 1;
 	const leaseDurationMs = Math.max(1, Math.trunc(input.leaseDurationMs));
 	const reclaimBackoffMs = Math.max(0, Math.trunc(input.reclaimBackoffMs));
+	// NaN guard for the CLOCK: `x > NaN` is always false, so a non-finite `now` (a bad ports.now() or a corrupted
+	// recorded-now on replay) would make EVERY `expiresAt > now` false — mass-reclaiming every live lease — AND every
+	// `eligibleAt > now` false — leasing every ready job ignoring backoff. One bad clock reading thus both evicts all
+	// live work and over-subscribes in a single tick. Fail-safe: with an invalid clock, make no TIME-based decision
+	// (skip reclaim + leasing); the dependency-based fail/unblock steps below don't read the clock and still run. (The
+	// sibling durable-scheduler-ready-order guards its own `now` the same way.)
+	const clockValid = Number.isFinite(input.now);
 	const byId = new Map(input.jobs.map((job) => [job.jobId, job]));
 	const actions: DurableSchedulerAction[] = [];
 
@@ -153,7 +160,7 @@ export function decideDurableSchedulerActions(input: DurableSchedulerInput): Dur
 
 	// 1. Reclaim expired leases (or fail if the budget is spent). A reclaim frees a slot.
 	for (const job of input.jobs) {
-		if (job.state !== "leased" || job.lease === null || job.lease.expiresAt > input.now) {
+		if (job.state !== "leased" || job.lease === null || !clockValid || job.lease.expiresAt > input.now) {
 			continue;
 		}
 		activeLeases -= 1;
@@ -203,9 +210,10 @@ export function decideDurableSchedulerActions(input: DurableSchedulerInput): Dur
 		if (!willBeReady) {
 			continue;
 		}
-		// A reclaimed job's backoff starts now; an already-ready job must be past its recorded backoff.
+		// A reclaimed job's backoff starts now; an already-ready job must be past its recorded backoff. With an invalid
+		// clock we can't verify eligibility (and can't stamp a lease expiry), so don't lease.
 		const eligibleAt = reclaimedThisTick.has(job.jobId) ? input.now + reclaimBackoffMs : job.nextEligibleAt;
-		if (eligibleAt > input.now) {
+		if (!clockValid || eligibleAt > input.now) {
 			continue;
 		}
 		if (!dependenciesSucceeded(job, byId)) {
@@ -300,11 +308,19 @@ export function markDurableJob(
  * needn't be replayed.
  */
 export function renewDurableLease(jobs: readonly DurableJob[], jobId: string, newExpiresAt: number): DurableJob[] {
-	return jobs.map((job) =>
-		job.jobId === jobId && job.state === "leased" && job.lease !== null
-			? { ...job, lease: { ...job.lease, expiresAt: newExpiresAt } }
-			: job,
-	);
+	return jobs.map((job) => {
+		if (job.jobId !== jobId || job.state !== "leased" || job.lease === null) {
+			return job;
+		}
+		// MONOTONIC: a heartbeat means the worker is ALIVE, so it may only push the reclaim deadline OUT, never in. Without
+		// this, a backward clock step (NTP correction / suspend-resume) makes `now + leaseDurationMs` EARLIER than the
+		// current expiry, shortening a live lease so the very next tick reclaims a still-working card. A non-finite
+		// `newExpiresAt` is ignored (keeping the current expiry) so it can't poison the reclaim comparison.
+		const expiresAt = Number.isFinite(newExpiresAt)
+			? Math.max(job.lease.expiresAt, newExpiresAt)
+			: job.lease.expiresAt;
+		return { ...job, lease: { ...job.lease, expiresAt } };
+	});
 }
 
 /** True when every job is terminal (`succeeded`/`failed`) — the run is finished and the scheduler can stop ticking. */

@@ -169,7 +169,11 @@ export class DurableRunController {
 	 */
 	async reportCompletion(jobId: string, outcome: "succeeded" | "failed", error?: unknown): Promise<void> {
 		const job = this.jobs.find((candidate) => candidate.jobId === jobId);
-		if (!job || job.state === "succeeded" || job.state === "failed") {
+		// Only a LEASED job may accept a worker's terminal report (at-most-once per lease). Rejecting every non-leased
+		// state also covers the subtle case a transient-retry already returned the job to `ready`: a late/duplicate
+		// `failed`/`interrupted` summary for the SAME task would otherwise be applied again — double-burning an attempt or
+		// PARKING a card that holds no lease and is mid-redispatch. Terminal (succeeded/failed) + unknown stay no-ops too.
+		if (!job || job.state !== "leased") {
 			return;
 		}
 		const effectiveOutcome = outcome === "failed" && isTransientNetworkError(error) ? "transient_retry" : outcome;

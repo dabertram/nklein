@@ -36,7 +36,15 @@ export function latestRunState(events: readonly AgentLedgerEvent[], workflowId: 
 		if (event.kind !== "transition" || event.workflowId !== workflowId) {
 			continue;
 		}
-		if (latest === null || event.recordedAt >= latest.recordedAt) {
+		// Strictly-later timestamp wins; on an EQUAL recordedAt (two transitions stamped in one fast advance at the same
+		// millisecond) break the tie by eventId so the result is ORDER-INDEPENDENT — the upstream store merges *.jsonl
+		// files and sorts by recordedAt only, so array order isn't stable, and "resume exactly where it was" must be
+		// deterministic. eventId is arbitrary-but-stable, so which same-ms transition wins is fixed across reads.
+		if (
+			latest === null ||
+			event.recordedAt > latest.recordedAt ||
+			(event.recordedAt === latest.recordedAt && event.eventId > latest.eventId)
+		) {
 			latest = event;
 		}
 	}

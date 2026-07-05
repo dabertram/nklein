@@ -194,3 +194,38 @@ now correct, but (a) the self-observation emitter (`recordObservationWithModel`,
 stamp the current runId/taskId on `model_stalled` etc. so per-run dedup works; and (b) start-task-session.ts:~457 should
 pass the ledger `runs` (the total-run denominator) to `assessRuntimeModelVerdict`. Until both land, the start-task-session
 runtime-verdict multiplier is a safe no-op (UNKNOWN → 1.0×) rather than the prior harmful false TOOL_UNSUITABLE penalty.
+
+## Durable-scheduler/ledger reliability bug-hunt (2026-07-05) — 4 fixed, 1 collected
+
+A find→adversarial-verify workflow over the §5.AF durable/ledger reliability spine (~5200 LOC) confirmed 5 findings.
+Verified each against the code myself; 4 fixed (regression tests in test/runtime/core/durable-reliability-bugfixes.test.ts,
+7 tests), full suite 7413 green. The verifier UPGRADED two from medium→high on the reachability analysis.
+
+**FIXED:**
+1. **durable-run-controller.reportCompletion — accepted a report on a NON-leased job (HIGH).** The guard rejected only
+   terminal (succeeded/failed) jobs, so a late/duplicate `failed`/`interrupted` summary for a card a transient-retry had
+   already returned to `ready` was applied AGAIN — double-burning an attempt, or PARKING a card that holds no lease and
+   is mid-redispatch (freezing it + its dependents; the extra `completed` event is unkeyed so it replays). Now requires
+   `job.state === 'leased'` (at-most-once per lease; a first report always arrives while leased).
+2. **durable-scheduler.decideDurableSchedulerActions — `input.now` unguarded for finiteness (HIGH).** `x > NaN` is
+   always false, so a non-finite `now` (bad ports.now() / corrupted recorded-now on replay) both mass-reclaimed EVERY
+   live lease AND leased every ready job ignoring backoff, in one tick. maxAttempts/durations were already NaN-guarded;
+   `now` was the gap (the sibling ready-order module already guards its own). Fail-safe: with an invalid clock, make no
+   TIME-based decision (skip reclaim + leasing); the dependency fail/unblock steps don't read the clock and still run.
+3. **durable-scheduler.renewDurableLease — non-monotonic (heartbeat could SHORTEN a live lease).** A backward clock step
+   (NTP/suspend-resume) made `now + leaseDurationMs` earlier than the current expiry, so a heartbeat (which means the
+   worker is ALIVE) shortened the lease → the next tick reclaimed a still-working card. Now `Math.max(current, proposed)`
+   + ignores a non-finite proposed expiry.
+4. **agent-ledger-selectors.latestRunState — not order-independent on equal recordedAt.** The "resume exactly where it
+   was" projection used `>=` with no tiebreak, so two same-millisecond transitions resolved to whichever appeared last
+   in the (unstable, cross-file-merged) array order. Added a stable eventId tiebreak.
+
+**COLLECTED — forward-compat hardening (bug: jsonl-store drops a schema-invalid terminal event).** `parseValidatedJsonl`
+silently skips a record that fails the ledger zod schema — which DEFEATS the SB#3 fail-safe in `readDurableSchedulerLog`
+(that fail-safe folds an unparseable-DETAIL `completed` event to `failed` rather than dropping it, but it only ever runs
+on events that ALREADY passed the store validation). A forward-incompatible terminal `completed` event (a future writer
+bumps schemaVersion or adds a required field) is therefore dropped BEFORE the fail-safe → the job reverts to `leased` on
+boot-replay → re-runs finished work. NOT fixed because it is (a) speculative — unreachable in the current single-schema-
+version system, only a rolling-upgrade concern; and (b) a genuine design decision on the forward-compat strategy (a
+forward-tolerant envelope schema vs. a raw-jsonl read path for the scheduler family so SB#3 can see envelope-invalid
+terminal events). Owed: pick a forward-compat strategy for the §5.AF ledger before a v2 event shape ships.
