@@ -492,7 +492,12 @@
 > by ContextBudgetController) + the W1.1b stall-signature adaptive retry, all 3 state maps/flags; verbatim move, lazy-arrow
 > deps, 5 characterization tests, gated incl. swarm-deterministic-pass. **→ 3157 (+context-overflow cluster, `0652a6f7`):**
 > `createContextOverflowController(deps)` owns the reactive `recoverAfterOverflow` + proactive `compactBeforeOverflow`; their
-> identical restart-or-rebuild tail collapsed into one `restartOrStartWithMessages` helper (DRY win), 6 tests. Learnings:
+> identical restart-or-rebuild tail collapsed into one `restartOrStartWithMessages` helper (DRY win), 6 tests. **→ 2773
+> (2026-07-06 iteration, +4): prompt-warmth ledger (`ad57d82b`, zero-dep self-contained), second-opinion review runner
+> (`5ec0f3aa`) + plan-critique runner (`1e858df7`) — the review-session cluster now FULLY extracted as standalone
+> harness-based runners — and the runtime observation recorders (`e6f8c045`, +§5.V coverage of previously-untested wiring).
+> task-session-service 4886 → 2773 (−43%); every cohesive AUXILIARY cluster extracted, the remainder is the entangled
+> primary lifecycle (David-gated boundary).** Learnings:
 > review + plan-critique share the harness
 > (void runBoundedTurn, additive primaryTaskId-optional baseRef); mirror + merge diverge (own boolean/settled-timeout
 > runBoundedTurn, cancel-state / git-merge reproduction) → standalone via the named StartRuntimeTaskSessionFromLaunchConfigInput

@@ -1463,3 +1463,31 @@ A fresh survey found clean, bounded clusters the prior checkpoint missed:
   earlier, + second-opinion + plan-critique now). **task-session-service 4886 → 2835 across the whole run (−42%).**
 - Pattern confirmed: harness-based runners take the harness via `getHarness()` (preserving `runBracketed`'s generic) and pass
   consts shared with a sibling (timeout default, max nudges) as deps rather than forcing a shared-consts module.
+
+- **Runtime observation recorders** (`e6f8c045`) — `createRuntimeObservationRecorder(deps)` owns the three SDK-event →
+  registry/self-observation recorders. The pure extractors were tested; the WIRING glue (local-provider gate, credit-limit
+  → provider_error classification, no-observation skip) was not — 8 new tests pin it (§5.U + §5.V). task-session-service
+  2835 → 2773.
+
+### Checkpoint (2026-07-06, end of iteration) — clean cohesive-cluster vein exhausted across the big-3
+
+This iteration landed **4 clean §5.U/§5.V increments** (prompt-warmth ledger, second-opinion runner, plan-critique runner,
+observation recorders), all green (tsc+biome+fast+integration), one cluster/commit. Flagship state at run's end:
+- `nklein-task-session-service.ts` **4886 → 2773 (−43%)** — every cohesive AUXILIARY cluster is now extracted (residency
+  watcher, focus-chain, team-progress, park/timeout/failure controllers, context-budget, retrieval, acceptance verifier,
+  reviewer-model-selection, secondary-session harness, speculative-mirror, merge-resolution, adaptive-budget,
+  context-overflow, prompt-warmth ledger, second-opinion + plan-critique runners, observation recorders).
+- `runtime-server.ts` **2527 → 2230**; `nklein-provider-service.ts` **1651 → 933**.
+
+**What remains in the big-3 is NOT clean-autonomous (unchanged from the prior checkpoint, now more sharply true):**
+- task-session-service's remainder is the ENTANGLED PRIMARY LIFECYCLE — `startTaskSession` (~400 lines), `sendTaskSessionInput`,
+  `dispatchResolvedTaskInput`, `startRuntimeTaskSessionFromLaunchConfig` (~180), `handleTaskEvent` — plus cross-cutting helpers
+  (`recordObservationWithModel` 9 refs, `resolveProviderIdForTask` 8, `cacheLaunchConfig`/`launchConfigByTaskId` 20+ refs) whose
+  extraction is a WIDE, risky rewrite. Decomposing the lifecycle needs a **David boundary decision** (as he gave for the
+  review-cluster seam) — the module boundary is genuinely ambiguous and it's not "one bounded cluster."
+- runtime-server's remainder is the big `createRuntimeServer` closures (headless-auto-review ~430 lines with mutable in-flight
+  sets; the ~500-line scoped-service factory) — large single clusters, ambiguous boundary → David.
+- provider-service (933) is reasonably sized; the only remaining item is the optional 2→1 base-URL fetcher consolidation
+  (now covered, so unblocked, but low-value / log-shape risk).
+
+§5.Z heavy flows (need a live workspace) + §5.AZ release prep (David-gated) remain per prior entries.
