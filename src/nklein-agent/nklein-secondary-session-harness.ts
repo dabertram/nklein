@@ -27,8 +27,12 @@ export interface SecondarySessionContext {
 }
 
 export interface SecondarySessionConfig {
-	/** The PRIMARY (worker) task id — used to resolve the delivered result-branch commit. */
-	primaryTaskId: string;
+	/**
+	 * The PRIMARY (worker) task id. When provided, the harness resolves the DELIVERED result-branch commit and uses it
+	 * (falling back to `baseRef`) — the review runner wants this. Omit it to check out `baseRef` directly (plan-critique
+	 * / merge / mirror pass their own ref: the source-card base, the main ref, etc.).
+	 */
+	primaryTaskId?: string;
 	/** The synthetic `<primary>::<kind>` id owning this bounded session's workspace + state. */
 	syntheticTaskId: string;
 	projectRepoPath: string;
@@ -63,23 +67,24 @@ export function createSecondarySessionHarness(deps: SecondarySessionHarnessDeps)
 			return null;
 		}
 		await sandboxManager.assertAvailable();
-		const resultCommit = await resolveTaskResultBranchCommit({
-			repoPath: config.projectRepoPath,
-			taskId: config.primaryTaskId,
-		}).catch(() => null);
+		// Review runs against the DELIVERED tree (resolve the result-branch commit); the other runners check out the
+		// caller-supplied ref directly (no primaryTaskId).
+		const resultCommit = config.primaryTaskId
+			? await resolveTaskResultBranchCommit({
+					repoPath: config.projectRepoPath,
+					taskId: config.primaryTaskId,
+				}).catch(() => null)
+			: null;
+		const effectiveBaseRef = resultCommit ?? config.baseRef;
 		const workspace = await sandboxManager.prepareWorkspace({
 			taskId: config.syntheticTaskId,
 			projectRepoPath: config.projectRepoPath,
-			baseRef: resultCommit ?? config.baseRef ?? null,
+			baseRef: effectiveBaseRef ?? null,
 			// Auxiliary seam — NEVER wait forever on a slot (run19 froze here for 15+ min after a leaked slot).
 			// A rejection propagates to the runner's catch ⇒ session "skipped" ⇒ fail-closed hold, run alive.
 			maxQueueWaitMs: 180_000,
 		});
-		deps.setSandbox(
-			config.syntheticTaskId,
-			config.projectRepoPath,
-			(resultCommit ?? config.baseRef)?.trim() || "HEAD",
-		);
+		deps.setSandbox(config.syntheticTaskId, config.projectRepoPath, effectiveBaseRef?.trim() || "HEAD");
 		const deadlineMs = Date.now() + (config.timeoutMs ?? config.defaultTimeoutMs);
 		const recordSessionError = (error: unknown): void => {
 			recordSelfObservation({

@@ -2984,7 +2984,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		/** Pre-picked diverse critic (the budget-owning handler probes first); absent ⇒ probe here. */
 		critic?: { providerId: string; modelId: string } | null;
 	}): Promise<NKleinPlanCritiqueResult | null> {
-		if (!this.agentSandboxManager) {
+		const sandboxManager = this.agentSandboxManager;
+		if (!sandboxManager) {
 			return null;
 		}
 		const architectLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
@@ -3007,90 +3008,54 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			workspaceRoot: input.projectRepoPath,
 		};
 		const critiqueTaskId = `${input.taskId}::plan-critique`;
-		await this.agentSandboxManager.assertAvailable();
-		const workspace = await this.agentSandboxManager.prepareWorkspace({
-			taskId: critiqueTaskId,
-			projectRepoPath: input.projectRepoPath,
-			baseRef: input.baseRef ?? null,
-			// Auxiliary seam — bounded like ::review/::acceptance; a rejection degrades to null (proceed).
-			maxQueueWaitMs: 180_000,
-		});
-		this.sandboxState.setSandbox(critiqueTaskId, input.projectRepoPath, input.baseRef?.trim() || "HEAD");
-		let verdict: NKleinPlanCritiqueResult | null = null;
-		const deadlineMs = Date.now() + (input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS);
-		const runBoundedTurn = async (turn: Promise<unknown>): Promise<void> => {
-			const remainingMs = deadlineMs - Date.now();
-			if (remainingMs <= 0) {
-				return;
-			}
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const timeout = new Promise<void>((resolve) => {
-				timer = setTimeout(resolve, remainingMs);
-			});
-			await Promise.race([
-				turn.then(
-					() => undefined,
-					(error) => {
-						recordSelfObservation({
-							signal: "runtime_error",
-							severity: "warning",
-							message: `Plan-critique session failed: ${error instanceof Error ? error.message : String(error)}`,
-							taskId: critiqueTaskId,
-							workspacePath: input.projectRepoPath,
-							createdAt: Date.now(),
-						});
-					},
-				),
-				timeout,
-			]);
-			if (timer) {
-				clearTimeout(timer);
-			}
-		};
-		try {
-			await runBoundedTurn(
-				this.startRuntimeTaskSessionFromLaunchConfig({
-					taskId: critiqueTaskId,
-					cwd: workspace.workdir,
-					workspaceRoot: input.projectRepoPath,
-					prompt: input.seedPrompt,
-					launchConfig,
-					contextScope: "minimal",
-					onPlanCritiqueSubmitted: (result) => {
-						verdict = result;
-					},
-					toolExecutors: createAgentSandboxToolExecutors(this.agentSandboxManager, critiqueTaskId, {
-						pauseController: this.pauseController,
-					}),
-					extraTools: createAgentSandboxExtraTools(this.agentSandboxManager, critiqueTaskId, {
-						sessionId: createSessionId(critiqueTaskId),
-						contextWindow: launchConfig.contextWindow ?? undefined,
-						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-					}),
-				}),
-			);
-			for (
-				let nudge = 0;
-				verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
-				nudge += 1
-			) {
+		// No primaryTaskId ⇒ the harness checks out `baseRef` (the source card's base) directly, not the delivered tree.
+		return this.secondarySessionHarness.runBracketed(
+			{
+				syntheticTaskId: critiqueTaskId,
+				projectRepoPath: input.projectRepoPath,
+				baseRef: input.baseRef,
+				timeoutMs: input.timeoutMs,
+				defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
+				errorLabel: "Plan-critique session",
+			},
+			async ({ workspace, deadlineMs, runBoundedTurn }) => {
+				let verdict: NKleinPlanCritiqueResult | null = null;
 				await runBoundedTurn(
-					this.sessionRuntime.sendTaskSessionInput(
-						critiqueTaskId,
-						"Submit your critique now by calling the submit_plan_critique tool with a `proceed` or `revise` verdict. Do not reply in prose.",
-					),
+					this.startRuntimeTaskSessionFromLaunchConfig({
+						taskId: critiqueTaskId,
+						cwd: workspace.workdir,
+						workspaceRoot: input.projectRepoPath,
+						prompt: input.seedPrompt,
+						launchConfig,
+						contextScope: "minimal",
+						onPlanCritiqueSubmitted: (result) => {
+							verdict = result;
+						},
+						toolExecutors: createAgentSandboxToolExecutors(sandboxManager, critiqueTaskId, {
+							pauseController: this.pauseController,
+						}),
+						extraTools: createAgentSandboxExtraTools(sandboxManager, critiqueTaskId, {
+							sessionId: createSessionId(critiqueTaskId),
+							contextWindow: launchConfig.contextWindow ?? undefined,
+							maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+						}),
+					}),
 				);
-			}
-			return verdict;
-		} finally {
-			await this.sessionRuntime.clearTaskSessions(critiqueTaskId).catch(() => undefined);
-			await this.agentSandboxManager.disposeWorkspace(critiqueTaskId).catch(() => undefined);
-			this.launchConfigByTaskId.delete(critiqueTaskId);
-			this.providerIdStore.forget(critiqueTaskId);
-			this.modelEndpoint.forget(critiqueTaskId);
-			this.contextBudgetInputs.forget(critiqueTaskId);
-			this.sandboxState.deleteSandbox(critiqueTaskId);
-		}
+				for (
+					let nudge = 0;
+					verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
+					nudge += 1
+				) {
+					await runBoundedTurn(
+						this.sessionRuntime.sendTaskSessionInput(
+							critiqueTaskId,
+							"Submit your critique now by calling the submit_plan_critique tool with a `proceed` or `revise` verdict. Do not reply in prose.",
+						),
+					);
+				}
+				return verdict;
+			},
+		);
 	}
 
 	/**

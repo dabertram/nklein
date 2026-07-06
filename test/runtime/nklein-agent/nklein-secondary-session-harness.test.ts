@@ -56,7 +56,7 @@ describe("createSecondarySessionHarness.runBracketed", () => {
 	it("prepares the DELIVERED-tree workspace, drives, returns the verdict, and tears down in a finally", async () => {
 		const mgr = sandboxManager();
 		const d = deps(mgr);
-		const drive = vi.fn(async () => "verdict");
+		const drive = vi.fn(async (_ctx: { workspace: { workdir: string }; deadlineMs: number }) => "verdict");
 		const result = await createSecondarySessionHarness(d).runBracketed(config, drive);
 
 		expect(mgr.assertAvailable).toHaveBeenCalled();
@@ -105,11 +105,21 @@ describe("createSecondarySessionHarness.runBracketed", () => {
 		expect(sawResolve).toBe(true);
 	});
 
-	it("falls back to the base ref when no result-branch commit resolves", async () => {
+	it("falls back to the base ref when the result-branch commit does not resolve (primaryTaskId given)", async () => {
 		mocks.resolveTaskResultBranchCommit.mockResolvedValueOnce(null);
 		const mgr = sandboxManager();
 		const d = deps(mgr);
 		await createSecondarySessionHarness(d).runBracketed(config, async () => "v");
+		expect(mgr.prepareWorkspace).toHaveBeenCalledWith(expect.objectContaining({ baseRef: "main" }));
+		expect(d.setSandbox).toHaveBeenCalledWith("t1::review", "/repo", "main");
+	});
+
+	it("checks out the base ref DIRECTLY (no result-commit resolution) when primaryTaskId is omitted", async () => {
+		const mgr = sandboxManager();
+		const d = deps(mgr);
+		const { primaryTaskId: _omit, ...noPrimary } = config;
+		await createSecondarySessionHarness(d).runBracketed(noPrimary, async () => "v");
+		expect(mocks.resolveTaskResultBranchCommit).not.toHaveBeenCalled();
 		expect(mgr.prepareWorkspace).toHaveBeenCalledWith(expect.objectContaining({ baseRef: "main" }));
 		expect(d.setSandbox).toHaveBeenCalledWith("t1::review", "/repo", "main");
 	});
