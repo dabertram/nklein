@@ -93,11 +93,8 @@ import {
 import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
 import { createParkController } from "./nklein-park-controller";
 import { NKleinPauseController } from "./nklein-pause-controller";
-import {
-	buildPlanCritiqueSeedPrompt,
-	type NKleinPlanCritiqueRequestHandler,
-	type NKleinPlanCritiqueResult,
-} from "./nklein-plan-critique-tool";
+import { createPlanCritiqueRunner } from "./nklein-plan-critique-runner";
+import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
@@ -526,6 +523,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
 		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
 		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
+	});
+	/** §5.U auxiliary secondary-session runner: the W4.3 plan-critique session (owns its per-run critique budget). */
+	private readonly planCritiqueRunner = createPlanCritiqueRunner({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
+		getShellKeyByModelId: () => this.promptWarmthLedger.shellKeyByModelId,
+		getPauseController: () => this.pauseController,
+		getHarness: () => this.secondarySessionHarness,
+		pickEscalationModel: (taskId) => this.pickDiverseEscalationModel(taskId),
+		getBaseRef: (taskId) => this.sandboxState.getBaseRef(taskId) ?? null,
+		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
+		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
+		runBudget: 2,
 	});
 	/** W2.3a/W1.1b: learned quality-effective budgets (read by the ContextBudgetController) + the stall-signature
 	 * adaptive retry (re-sends the card on a raised per-turn budget). Owns its three state maps/flags. */
@@ -1041,7 +1053,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				}),
 				toolPolicies: runtimeSetup.toolPolicies,
 				onDecompositionApplied: this.onDecompositionApplied,
-				requestPlanCritique: this.buildPlanCritiqueRequestHandler(input.taskId, hostWorkspaceRoot),
+				requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(input.taskId, hostWorkspaceRoot),
 				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.onCardPromoted,
 				onReviewSubmitted: input.onReviewSubmitted,
 				onPlanCritiqueSubmitted: input.onPlanCritiqueSubmitted,
@@ -1616,7 +1628,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						: {}),
 					toolPolicies: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
-					requestPlanCritique: this.buildPlanCritiqueRequestHandler(request.taskId, request.cwd),
+					requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
 					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
 					onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(request.taskId, chain),
 					onTeamEvent: (event, teamName) => {
@@ -2403,64 +2415,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return this.speculativeMirrorRunner.runSpeculativeMirrorSession(input);
 	}
 
-	/** W4.3 per-run critique budget: deliberation is rare by design (high-stakes × unclean quality only). */
-	private planCritiqueRunsUsed = 0;
-	private static readonly PLAN_CRITIQUE_RUN_BUDGET = 2;
-
-	/**
-	 * W4.3: build the `requestPlanCritique` executor for a session's decompose tool — or undefined for synthetic
-	 * sessions (`::review`/`::plan-critique`/`::acceptance` must never recurse into a critique). Enforces the
-	 * per-run count budget; failures and empty verdicts degrade to null (proceed) so a critique never blocks.
-	 */
-	private buildPlanCritiqueRequestHandler(
-		taskId: string,
-		projectRepoPath: string,
-	): NKleinPlanCritiqueRequestHandler | undefined {
-		if (taskId.includes("::") || isHomeAgentSessionId(taskId)) {
-			return undefined;
-		}
-		return async (request) => {
-			if (this.planCritiqueRunsUsed >= InMemoryNKleinTaskSessionService.PLAN_CRITIQUE_RUN_BUDGET) {
-				return null;
-			}
-			if (!this.agentSandboxManager) {
-				return null;
-			}
-			// Adversarial-review fix (2026-07-02): probe for the diverse critic BEFORE spending budget — degraded
-			// no-op attempts (single-model fleets) were burning the whole budget without ever running a session,
-			// permanently self-disabling deliberation for the service lifetime. And the waiver is SURFACED here
-			// (the shared trigger's waiver path is unreachable from the tool seam, which only knows an executor
-			// exists — see the decompose tool's gate comment).
-			const critic = await this.pickDiverseEscalationModel(taskId).catch(() => null);
-			if (!critic) {
-				recordSelfObservation({
-					signal: "custom",
-					severity: "info",
-					message: `Plan-critique diversity waived for ${request.slug}: no lineage-diverse capable critic is loaded — proceeding without deliberation (a same-family debate is correlated noise).`,
-					taskId,
-					metadata: { category: "plan_critique_diversity_waived", planSlug: request.slug },
-				});
-				return null;
-			}
-			this.planCritiqueRunsUsed += 1;
-			return await this.runPlanCritiqueSession({
-				taskId,
-				projectRepoPath,
-				baseRef: this.sandboxState.getBaseRef(taskId) ?? "HEAD",
-				seedPrompt: buildPlanCritiqueSeedPrompt(request),
-				critic,
-			}).catch(() => null);
-		};
-	}
-
-	/**
-	 * W4.3: one bounded DIVERSE-CRITIC turn over a validated decomposition plan, BEFORE the cascade starts —
-	 * mirrors {@link runSecondOpinionReviewSession} 1:1 (synthetic `<taskId>::plan-critique` session, lineage-
-	 * diverse auto-pick, sandbox workspace at the source card's base so the critic can verify file claims,
-	 * bounded turn + nudges, full teardown). Resolves to the critic's structured verdict, or null when the turn
-	 * ends without one / no diverse critic exists / the sandbox is unavailable — callers treat null as "proceed"
-	 * (a critique must NEVER block a decomposition; it only ever adds one revision round).
-	 */
 	async runPlanCritiqueSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -2470,78 +2424,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		/** Pre-picked diverse critic (the budget-owning handler probes first); absent ⇒ probe here. */
 		critic?: { providerId: string; modelId: string } | null;
 	}): Promise<NKleinPlanCritiqueResult | null> {
-		const sandboxManager = this.agentSandboxManager;
-		if (!sandboxManager) {
-			return null;
-		}
-		const architectLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
-		if (!architectLaunch?.providerId || !architectLaunch.modelId) {
-			return null;
-		}
-		// The whole point is a DIVERSE second perspective — degrade to null (proceed) without one.
-		const critic =
-			input.critic ??
-			(await pickDiverseReviewerModel(architectLaunch, input.taskId, "plan-critique", {
-				lastShellKeyByModel: this.promptWarmthLedger.shellKeyByModelId,
-			}).catch(() => null));
-		if (!critic) {
-			return null;
-		}
-		const launchConfig: NKleinTaskRestartLaunchConfig = {
-			...architectLaunch,
-			providerId: critic.providerId,
-			modelId: critic.modelId,
-			workspaceRoot: input.projectRepoPath,
-		};
-		const critiqueTaskId = `${input.taskId}::plan-critique`;
-		// No primaryTaskId ⇒ the harness checks out `baseRef` (the source card's base) directly, not the delivered tree.
-		return this.secondarySessionHarness.runBracketed(
-			{
-				syntheticTaskId: critiqueTaskId,
-				projectRepoPath: input.projectRepoPath,
-				baseRef: input.baseRef,
-				timeoutMs: input.timeoutMs,
-				defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
-				errorLabel: "Plan-critique session",
-			},
-			async ({ workspace, deadlineMs, runBoundedTurn }) => {
-				let verdict: NKleinPlanCritiqueResult | null = null;
-				await runBoundedTurn(
-					this.startRuntimeTaskSessionFromLaunchConfig({
-						taskId: critiqueTaskId,
-						cwd: workspace.workdir,
-						workspaceRoot: input.projectRepoPath,
-						prompt: input.seedPrompt,
-						launchConfig,
-						contextScope: "minimal",
-						onPlanCritiqueSubmitted: (result) => {
-							verdict = result;
-						},
-						toolExecutors: createAgentSandboxToolExecutors(sandboxManager, critiqueTaskId, {
-							pauseController: this.pauseController,
-						}),
-						extraTools: createAgentSandboxExtraTools(sandboxManager, critiqueTaskId, {
-							sessionId: createSessionId(critiqueTaskId),
-							contextWindow: launchConfig.contextWindow ?? undefined,
-							maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-						}),
-					}),
-				);
-				for (
-					let nudge = 0;
-					verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
-					nudge += 1
-				) {
-					await runBoundedTurn(
-						this.sessionRuntime.sendTaskSessionInput(
-							critiqueTaskId,
-							"Submit your critique now by calling the submit_plan_critique tool with a `proceed` or `revise` verdict. Do not reply in prose.",
-						),
-					);
-				}
-				return verdict;
-			},
-		);
+		return this.planCritiqueRunner.runPlanCritiqueSession(input);
 	}
 
 	runMergeResolutionSession(input: {
