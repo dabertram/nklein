@@ -117,6 +117,7 @@ import {
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
+import { createBoundedDedupSet } from "./bounded-dedup-set";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import type { RuntimeStateHub } from "./runtime-state-hub";
@@ -169,17 +170,7 @@ const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
 // review rounds), so its fitness + behavior outcome must be folded ONCE per run — keyed by taskId + startedAt (a genuine
 // re-run gets a fresh startedAt; a re-emit of the same run does not). The sibling model-performance store dedups on READ
 // via a stable id; these two stores fold on WRITE, so they dedup here. Bounded (FIFO-evicted) against unbounded growth.
-const recordedTerminalRuns = new Set<string>();
-const RECORDED_TERMINAL_RUNS_CAP = 5000;
-function rememberRecordedTerminalRun(key: string): void {
-	recordedTerminalRuns.add(key);
-	if (recordedTerminalRuns.size > RECORDED_TERMINAL_RUNS_CAP) {
-		const oldest = recordedTerminalRuns.values().next().value;
-		if (oldest !== undefined) {
-			recordedTerminalRuns.delete(oldest);
-		}
-	}
-}
+const recordedTerminalRuns = createBoundedDedupSet(5000);
 
 async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {
 	let lastError: unknown = null;
@@ -849,7 +840,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			const fitnessRecord = deriveTaskFitnessRecord({ summary, card });
 			const terminalRunKey = `${summary.taskId}|${summary.startedAt ?? 0}`;
 			if (fitnessRecord && !recordedTerminalRuns.has(terminalRunKey)) {
-				rememberRecordedTerminalRun(terminalRunKey);
+				recordedTerminalRuns.remember(terminalRunKey);
 				await recordTaskFitnessOutcome(fitnessRecord.key, fitnessRecord.outcome).catch(() => {});
 				// §5.AA ModelBehaviorProfile: also fold the coarse terminal outcome into the model's cross-session
 				// reliability profile (successRate + retry budget). Append-only ⇒ concurrency-safe. Best-effort.
