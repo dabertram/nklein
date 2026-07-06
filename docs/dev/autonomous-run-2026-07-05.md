@@ -1050,13 +1050,23 @@ context-window-policy helpers — `isNKleinContextWindowPolicyError` (instanceof
 (Math.trunc / null on non-positive/non-finite/non-number), `formatNKleinContextWindowTokens` (locale-grouped, asserted via
 delegation so it isn't locale-brittle). No source change.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 33) — for David
+### ▶ §5.V slices 34–35 (2026-07-06, 5bce61c3 + 9b8894ac) — plan-task-routing resolvers + task-start-guard helpers
+Slice 34 (+7 tests): the two pure routing settings resolvers — `resolveTaskRoleSettings` (selectedRole overrides
+task.suggestedRole; null/blank role → undefined; trimmed; absent role-settings → undefined; the conditional field-spread
+that DROPS falsy strings but KEEPS a zero numeric timeout) and `resolveTaskModelSettings` (no candidate → role-only; a
+candidate overrides provider/model while carrying the role's other fields). Slice 35 (+7 tests): the task-start-guard
+helpers — `estimateNKleinStartPromptTokens` (+1000/image, title counted; relative asserts), `estimateNKleinStartFitBudgetTokens`
+(prompt + safety-budget reserves + 4k min room, exact via buildKanbanContextSafetyBudgets; null → default window), and
+`formatNKleinTaskRoutingBlockMessage` (decompose vs escalate framing). No source change.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 35) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **33 slices this run (20 §5.U extractions + 13 §5.V coverage batches), ~234 new unit tests, zero behavior changes** (the
+- **35 slices this run (20 §5.U extractions + 15 §5.V coverage batches), ~248 new unit tests, zero behavior changes** (the
   pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed: the api-validation parser boundary,
   runtime-config-normalizers gaps, speculative/retrieval resolver normalizers, server path/host helpers, two SECURITY modules
-  (passcode rate-limiter + windows-cmd escaping), plan-gap prompt builders, and context-window-policy helpers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+  (passcode rate-limiter + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, the plan-task-routing
+  settings resolvers, and the task-start-guard token/budget/message helpers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
