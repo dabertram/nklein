@@ -32,13 +32,7 @@ import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy"
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
-import {
-	hasOauthAccessToken,
-	hasOauthRefreshToken,
-	normalizeEpochMs,
-	resolveVisibleApiKey,
-	toResponseExpirySeconds,
-} from "./nklein-provider-credential-helpers";
+import { hasOauthAccessToken, normalizeEpochMs, resolveVisibleApiKey } from "./nklein-provider-credential-helpers";
 import { buildDiscoveredModelSourceUrls, normalizeLmStudioModelListBaseUrl } from "./nklein-provider-discovery-urls";
 import {
 	formatManagedProviderDisplayName,
@@ -54,6 +48,7 @@ import {
 	toLmStudioModels,
 	toRuntimeProviderModel,
 } from "./nklein-provider-model-parsing";
+import { toProviderSettingsSummary, toRuntimeReasoningEffort } from "./nklein-provider-settings-summary";
 import { ensureWorkosPrefix, stripWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-token.js";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import {
@@ -114,7 +109,6 @@ const KANBAN_PROVIDER_SELECTION_SCHEMA = z.object({
 type NKleinRemoteConfig = z.infer<typeof NKLEIN_REMOTE_CONFIG_SCHEMA>;
 type LiteLlmModelListPathname = (typeof LITELLM_MODEL_LIST_PATHNAMES)[number];
 type LiteLlmModelListItem = NonNullable<z.infer<typeof LITELLM_MODELS_RESPONSE_SCHEMA>["data"]>[number];
-type SdkReasoningEffort = NonNullable<NonNullable<SdkProviderSettings["reasoning"]>["effort"]>;
 
 function getKanbanProviderSelectionPath(): string {
 	return (
@@ -197,13 +191,6 @@ function parseNKleinRemoteConfigValue(value: string): NKleinRemoteConfig {
 function readEnvApiKey(envKey: string): string | null {
 	const apiKey = process.env[envKey]?.trim() ?? "";
 	return apiKey.length > 0 ? apiKey : null;
-}
-
-function toRuntimeReasoningEffort(effort: SdkReasoningEffort | null | undefined): RuntimeNKleinReasoningEffort | null {
-	if (!effort || effort === "none") {
-		return null;
-	}
-	return effort;
 }
 
 function resolveManagedProviderEnvApiKey(providerId: ManagedNKleinOauthProviderId): string | null {
@@ -593,43 +580,6 @@ async function assertProviderModelMeetsContextRequirement(input: {
 		contextWindow: resolvedModel?.contextWindow ?? null,
 		label: input.label ?? "Selected !Klein model",
 	});
-}
-
-function createEmptyProviderSettingsSummary(): RuntimeNKleinProviderSettings {
-	return {
-		providerId: null,
-		modelId: null,
-		baseUrl: null,
-		reasoningEffort: null,
-		apiKeyConfigured: false,
-		oauthProvider: null,
-		oauthAccessTokenConfigured: false,
-		oauthRefreshTokenConfigured: false,
-		oauthAccountId: null,
-		oauthExpiresAt: null,
-	};
-}
-
-function toProviderSettingsSummary(settings: SdkProviderSettings | null): RuntimeNKleinProviderSettings {
-	if (!settings) {
-		return createEmptyProviderSettingsSummary();
-	}
-
-	const providerId = settings.provider?.trim() || null;
-	const oauthProvider = providerId && isManagedOauthProviderId(providerId) ? providerId : null;
-
-	return {
-		providerId,
-		modelId: settings.model?.trim() || null,
-		baseUrl: settings.baseUrl?.trim() || null,
-		reasoningEffort: toRuntimeReasoningEffort(settings.reasoning?.effort),
-		apiKeyConfigured: Boolean(resolveVisibleApiKey(settings)),
-		oauthProvider,
-		oauthAccessTokenConfigured: hasOauthAccessToken(settings),
-		oauthRefreshTokenConfigured: hasOauthRefreshToken(settings),
-		oauthAccountId: settings.auth?.accountId?.trim() || null,
-		oauthExpiresAt: toResponseExpirySeconds(settings.auth?.expiresAt),
-	};
 }
 
 function getSelectedProviderSettings(): SdkProviderSettings | null {
