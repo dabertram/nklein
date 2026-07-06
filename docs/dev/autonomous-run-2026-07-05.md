@@ -1020,12 +1020,19 @@ debug-env fallback precedence, env branch made deterministic by clearing NKLEIN_
 `resolveProfileTimeoutDefaults` (cloud≡local non-null, custom all-null), `areAgentRulesetsEqual`,
 `normalizeModelSuitabilityPolicy` + `areModelSuitabilityPoliciesEqual`, `normalizeSkillDynamicsLevel`. No source change.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 27) — for David
+### ▶ §5.V slice 28 (2026-07-06, 0f49f03c) — speculative/retrieval resolver normalizers + severity guard
+Next scanned offenders. +6 tests over 6 pure functions from three modules: `normalizeSpeculativeBestOfNEnabled` (default-ON:
+only explicit false disables), `normalizeSpeculativeMaxConcurrentSpecs` + `normalizeSpeculativeMaxSpecsPerRun` (keep-valid /
+clamp-to-cap / default-on-invalid), `normalizeRetrievalEgressEnabled` (**FAIL-CLOSED**: only a strict boolean true enables
+egress — a security-relevant property now locked), `normalizeRetrievalSearchBackendUrl` (trim / blank+non-string → default,
+asserted relative to the default so it's not brittle), and `isSelfObservationSeverity` (four-literal enum guard). No source change.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 28) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **27 slices this run (20 §5.U extractions + 7 §5.V coverage batches), ~201 new unit tests, zero behavior changes** (the
+- **28 slices this run (20 §5.U extractions + 8 §5.V coverage batches), ~207 new unit tests, zero behavior changes** (the
   pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed: the whole api-validation parser
-  boundary, and the runtime-config-normalizers gaps. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+  boundary, the runtime-config-normalizers gaps, and the speculative/retrieval resolver normalizers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44

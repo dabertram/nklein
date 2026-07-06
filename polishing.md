@@ -395,7 +395,7 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **27 slices so far (20 §5.U extractions + 7 §5.V coverage batches), ~201 new unit tests, zero behavior changes** (pre-commit
+> - **28 slices so far (20 §5.U extractions + 8 §5.V coverage batches), ~207 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
 >   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
@@ -404,11 +404,12 @@
 > (advisor build/send, dogfood, config-save, workspace-state-save) are PURE `schema.parse` passthroughs — intentionally left
 > (a test would only re-assert Zod; the schema IS the contract). The untrusted tRPC input boundary is now covered.
 >
-> **§5.V veins DONE:** api-validation (all logic-bearing parsers) + runtime-config-normalizers (7 gaps closed, slice 27).
-> **Next scanned offenders (ready to mine):** `telemetry/self-observation-sink.ts` (3), `config/runtime-config-speculative-resolver.ts`
-> (3), `server/middleware.ts` (2), `server/assets.ts` (2), `config/runtime-config-retrieval-resolver.ts` (2), then the tRPC
-> routers (1 each). Same method: coverage-gap scan (`grep -w` untested exported fns) → read body + any schema → characterization
-> tests, no source change. NB: verify each is genuinely pure/logic-bearing (skip pure `schema.parse` passthroughs).
+> **§5.V veins DONE:** api-validation (all logic-bearing parsers), runtime-config-normalizers (7 gaps), speculative +
+> retrieval resolver normalizers + the self-observation severity guard (slice 28). **Next scanned offenders (ready):**
+> `server/middleware.ts` (2), `server/assets.ts` (2), then the tRPC routers (1 each) and other small modules. Remaining
+> self-observation-sink exports are singleton accessors / test-reset helpers (skip). Same method: coverage-gap scan (`grep -w`
+> untested exported fns) → read body → characterization tests, no source change; verify each is genuinely pure/logic-bearing
+> (skip pure `schema.parse` passthroughs, singleton getters, and I/O-bound handlers).
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,
