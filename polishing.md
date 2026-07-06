@@ -404,8 +404,13 @@
 > (advisor build/send, dogfood, config-save, workspace-state-save) are PURE `schema.parse` passthroughs — intentionally left
 > (a test would only re-assert Zod; the schema IS the contract). The untrusted tRPC input boundary is now covered.
 >
-> **Next §5.V veins** (run a coverage-gap scan — exported fns never named in any test — to pick the next module):
-> candidates beyond api-validation still to survey for untested post-schema/pure logic.
+> **Next §5.V vein (scanned, ready):** `src/config/runtime-config-normalizers.ts` is mostly tested but has 7 genuine gaps —
+> pure normalizers/equality-checkers: `normalizeDeveloperModeEnabled`, `readLegacyDeveloperModeEnabled`,
+> `resolveProfileTimeoutDefaults`, `areAgentRulesetsEqual`, `normalizeModelSuitabilityPolicy`, `areModelSuitabilityPoliciesEqual`,
+> `normalizeSkillDynamicsLevel`. After that, other scanned offenders: `telemetry/self-observation-sink.ts` (3),
+> `config/runtime-config-speculative-resolver.ts` (3), `server/middleware.ts` (2), `server/assets.ts` (2),
+> `config/runtime-config-retrieval-resolver.ts` (2). Same method: read body + any schema, write characterization tests, no
+> source change.
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,
