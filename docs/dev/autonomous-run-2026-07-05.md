@@ -1692,3 +1692,18 @@ Egress LIVE at `localhost:18888`; resident roster this session = `qwen3.5-122b-a
   (`https://www.anthropic.com/claude/opus`). Proves model → tool-call → egress → real results → grounded answer end-to-end.
 - The 122B was already proven in prior sweeps (egress 8B→122B), so its slow re-run was skipped. Logged to
   cross-model-verification.md.
+
+### 2026-07-06 (Opus) · §5.AZ — fix stale repo URLs in release-facing metadata (post kanban→nklein rename)
+
+A release-readiness metadata pass found the repo URL was **stale on two counts** — the pre-rename name `kanban` AND an
+org (`nklein`) that matches NEITHER remote (origin is `dabertram/nklein`, upstream `cline/kanban`). It pointed at a
+non-existent `github.com/nklein/kanban`, and with `publishConfig.provenance:true` a wrong `repository.url` would
+misattribute npm provenance. Fixed to the actual origin `github.com/dabertram/nklein`:
+- **`package.json`** — `homepage`, `bugs.url`, `repository.url` (all three).
+- **`CONTRIBUTING.md`** — the `git clone` URL + the security-advisory link.
+- **`src/core/agent-catalog.ts`** — the !Klein agent's self-referential `installUrl` (was `nklein/nklein`, which also
+  doesn't exist; siblings correctly point to real repos like `openai/codex`).
+Deliberately LEFT: CHANGELOG's `~/.nklein/kanban` entries (accurate *filesystem-path* migration history, not URLs),
+the `parseGitHubContextTarget` test fixtures (`nklein/app` — arbitrary parser inputs), the `kanban` keyword (the board
+concept was deliberately kept), and todo.md notes. If David intends to publish under a dedicated `nklein` GitHub org,
+these retarget together then — for now they point at the one repo that actually exists. Gate: tsc ✓, biome ✓, tests ✓.

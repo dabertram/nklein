@@ -15,14 +15,14 @@
     "task-management",
     "typescript"
   ],
-  "homepage": "https://github.com/nklein/kanban",
+  "homepage": "https://github.com/dabertram/nklein",
   "bugs": {
-    "url": "https://github.com/nklein/kanban/issues"
+    "url": "https://github.com/dabertram/nklein/issues"
   },
   "author": "NKlein",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nklein/kanban"
+    "url": "https://github.com/dabertram/nklein"
   },
   "type": "module",
   "bin": {

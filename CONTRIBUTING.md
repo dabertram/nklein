@@ -27,7 +27,7 @@ Before opening a new issue, search existing issues to avoid duplicates. When fil
 - Expected vs. actual behavior
 - Any relevant terminal output or screenshots
 
-If you discover a security vulnerability, please report it privately using [GitHub's security advisory tool](https://github.com/nklein/kanban/security/advisories/new).
+If you discover a security vulnerability, please report it privately using [GitHub's security advisory tool](https://github.com/dabertram/nklein/security/advisories/new).
 
 ## Before Contributing
 
@@ -39,7 +39,7 @@ PRs without a corresponding issue may be closed.
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/nklein/kanban.git
+   git clone https://github.com/dabertram/nklein.git
    cd kanban
    ```
 

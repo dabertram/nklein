@@ -32,7 +32,7 @@ export const RUNTIME_AGENT_CATALOG: RuntimeAgentCatalogEntry[] = [
 		binary: "nklein",
 		baseArgs: [],
 		autonomousArgs: ["--auto-approve-all"],
-		installUrl: "https://github.com/nklein/nklein",
+		installUrl: "https://github.com/dabertram/nklein",
 	},
 	{
 		id: "opencode",
