@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	activeBoardChatAskKinds,
+	BOARD_CHAT_ASK_KINDS,
 	type BoardChatFeedbackInput,
 	type BoardChatVerbosity,
 	decideBoardChatFeedback,
@@ -214,5 +216,49 @@ describe("decideBoardChatFeedback — MILESTONE tier (focus-chain phase boundary
 			}),
 		);
 		expect(v.action).toBe("suppress");
+	});
+});
+
+describe("activeBoardChatAskKinds — which operator 'needs-you' asks are pending", () => {
+	it("no asks when nothing is awaiting the operator", () => {
+		expect(activeBoardChatAskKinds(signals())).toEqual([]);
+	});
+
+	it("maps each triggering signal to its ask kind", () => {
+		expect(activeBoardChatAskKinds(signals({ awaitingHostActionAck: true }))).toContain("unsafe_action_ack");
+		expect(activeBoardChatAskKinds(signals({ deliveryGateHeld: true }))).toContain("delivery_gate_held");
+		expect(activeBoardChatAskKinds(signals({ clarifyingQuestionPending: true }))).toContain("needs_input");
+		expect(activeBoardChatAskKinds(signals({ escalatedToOperator: true }))).toContain("escalated_to_operator");
+		expect(activeBoardChatAskKinds(signals({ blockedKind: "agent_sandbox_unavailable" }))).toContain(
+			"sandbox_unavailable",
+		);
+	});
+
+	it("a non-sandbox block does NOT raise the sandbox ask", () => {
+		expect(activeBoardChatAskKinds(signals({ blockedKind: "needs_decomposition" }))).not.toContain(
+			"sandbox_unavailable",
+		);
+	});
+
+	it("surfaces multiple asks at once", () => {
+		const kinds = activeBoardChatAskKinds(signals({ awaitingHostActionAck: true, clarifyingQuestionPending: true }));
+		expect(kinds).toContain("unsafe_action_ack");
+		expect(kinds).toContain("needs_input");
+	});
+
+	it("every kind it returns is a member of the exported BOARD_CHAT_ASK_KINDS bridge set", () => {
+		const kinds = activeBoardChatAskKinds(
+			signals({
+				awaitingHostActionAck: true,
+				deliveryGateHeld: true,
+				clarifyingQuestionPending: true,
+				escalatedToOperator: true,
+				blockedKind: "agent_sandbox_unavailable",
+			}),
+		);
+		expect(kinds.length).toBeGreaterThan(0);
+		for (const kind of kinds) {
+			expect(BOARD_CHAT_ASK_KINDS).toContain(kind);
+		}
 	});
 });
