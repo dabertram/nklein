@@ -26,6 +26,11 @@ import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { openInBrowser } from "../server/browser";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
+import {
+	type AddCustomNKleinProviderInput,
+	createCustomProviderManager,
+	type UpdateCustomNKleinProviderInput,
+} from "./nklein-custom-provider-manager";
 import { computeKanbanEnabled, parseNKleinRemoteConfigValue } from "./nklein-kanban-access-policy";
 import {
 	appendMissingModels,
@@ -54,17 +59,18 @@ import { readKanbanSelectedProviderId, writeKanbanSelectedProviderId } from "./n
 import { toProviderSettingsSummary, toRuntimeReasoningEffort } from "./nklein-provider-settings-summary";
 import { ensureWorkosPrefix, stripWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-token.js";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
+
+// Re-exported for API compatibility — the custom-provider input types now live with their manager (§5.U).
+export type { AddCustomNKleinProviderInput, UpdateCustomNKleinProviderInput } from "./nklein-custom-provider-manager";
+
 import {
-	addSdkCustomProvider,
 	completeNKleinDeviceAuth as completeSdkDeviceAuth,
-	deleteSdkCustomProvider,
 	fetchSdkFeaturebaseToken,
 	fetchSdkNKleinAccountBalance,
 	fetchSdkNKleinAccountProfile,
 	fetchSdkNKleinUserRemoteConfig,
 	fetchSdkOrganizationBalance,
 	fetchSdkOrgData,
-	getLastUsedSdkProviderSettings,
 	getSdkProviderSettings,
 	listSdkProviderCatalog,
 	listSdkProviderModels,
@@ -73,12 +79,10 @@ import {
 	refreshManagedOauthCredentials,
 	SDK_DEFAULT_MODEL_ID,
 	SDK_DEFAULT_PROVIDER_ID,
-	type SdkCustomProviderCapability,
 	type SdkProviderSettings,
 	saveSdkProviderSettings,
 	startNKleinDeviceAuth as startSdkDeviceAuth,
 	switchSdkNKleinAccount,
-	updateSdkCustomProvider,
 } from "./sdk-provider-boundary";
 
 const DEFAULT_NKLEIN_API_BASE_URL = "https://api.nklein.bot";
@@ -108,32 +112,6 @@ export interface ResolvedNKleinLaunchConfig {
 	apiKey: string | null;
 	baseUrl: string | null;
 	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
-}
-
-export interface AddCustomNKleinProviderInput {
-	providerId: string;
-	name: string;
-	baseUrl: string;
-	apiKey?: string | null;
-	headers?: Record<string, string>;
-	timeoutMs?: number;
-	models: string[];
-	defaultModelId?: string | null;
-	modelsSourceUrl?: string | null;
-	capabilities?: SdkCustomProviderCapability[];
-}
-
-export interface UpdateCustomNKleinProviderInput {
-	providerId: string;
-	name?: string;
-	baseUrl?: string;
-	apiKey?: string | null;
-	headers?: Record<string, string> | null;
-	timeoutMs?: number | null;
-	models?: string[];
-	defaultModelId?: string | null;
-	modelsSourceUrl?: string | null;
-	capabilities?: SdkCustomProviderCapability[];
 }
 
 function toErrorMessage(error: unknown): string {
@@ -579,6 +557,8 @@ export function createNKleinProviderService() {
 		});
 		return promise;
 	}
+
+	const customProviderManager = createCustomProviderManager({ getProviderSettingsSummary });
 
 	return {
 		getProviderSettingsSummary(): RuntimeNKleinProviderSettings {
@@ -1058,80 +1038,16 @@ export function createNKleinProviderService() {
 			return await discoverModelsFromEndpoint(input);
 		},
 
-		async addCustomProvider(input: AddCustomNKleinProviderInput): Promise<RuntimeNKleinProviderSettings> {
-			const providerId = input.providerId.trim().toLowerCase();
-			if (!providerId) {
-				throw new Error("Provider ID cannot be empty.");
-			}
-			assertLocalProviderAllowed({ providerId, baseUrl: input.baseUrl });
-			const existingProviders = await listSdkProviderCatalog().catch(() => []);
-			if (existingProviders.some((provider) => provider.id.trim().toLowerCase() === providerId)) {
-				throw new Error(`Provider "${providerId}" already exists.`);
-			}
-
-			await addSdkCustomProvider({
-				providerId,
-				name: input.name,
-				baseUrl: input.baseUrl,
-				apiKey: input.apiKey ?? null,
-				headers: input.headers,
-				timeoutMs: input.timeoutMs,
-				models: input.models,
-				defaultModelId: input.defaultModelId ?? null,
-				modelsSourceUrl: input.modelsSourceUrl ?? null,
-				capabilities: input.capabilities,
-			});
-
-			const existingSettings = getSdkProviderSettings(providerId) ?? { provider: providerId };
-			saveSdkProviderSettings({
-				settings: existingSettings,
-				tokenSource: hasOauthAccessToken(existingSettings) ? "oauth" : "manual",
-				setLastUsed: true,
-			});
-			writeKanbanSelectedProviderId(providerId);
-
-			return toProviderSettingsSummary(getSdkProviderSettings(providerId));
+		addCustomProvider(input: AddCustomNKleinProviderInput): Promise<RuntimeNKleinProviderSettings> {
+			return customProviderManager.addCustomProvider(input);
 		},
 
-		async updateCustomProvider(input: UpdateCustomNKleinProviderInput): Promise<RuntimeNKleinProviderSettings> {
-			const providerId = input.providerId.trim().toLowerCase();
-			if (!providerId) {
-				throw new Error("Provider ID cannot be empty.");
-			}
-			const existingSettings = getSdkProviderSettings(providerId) ?? { provider: providerId };
-			assertLocalProviderAllowed({ providerId, baseUrl: input.baseUrl ?? existingSettings.baseUrl });
-
-			await updateSdkCustomProvider({
-				providerId,
-				name: input.name,
-				baseUrl: input.baseUrl,
-				apiKey: input.apiKey ?? undefined,
-				headers: input.headers ?? undefined,
-				timeoutMs: input.timeoutMs ?? undefined,
-				models: input.models,
-				defaultModelId: input.defaultModelId ?? undefined,
-				modelsSourceUrl: input.modelsSourceUrl ?? undefined,
-				capabilities: input.capabilities,
-			});
-
-			const isLastUsed = getLastUsedSdkProviderSettings()?.provider?.trim().toLowerCase() === providerId;
-			saveSdkProviderSettings({
-				settings: existingSettings,
-				tokenSource: hasOauthAccessToken(existingSettings) ? "oauth" : "manual",
-				setLastUsed: isLastUsed,
-			});
-
-			return toProviderSettingsSummary(getSdkProviderSettings(providerId));
+		updateCustomProvider(input: UpdateCustomNKleinProviderInput): Promise<RuntimeNKleinProviderSettings> {
+			return customProviderManager.updateCustomProvider(input);
 		},
 
-		async deleteCustomProvider(input: { providerId: string }): Promise<RuntimeNKleinProviderSettings> {
-			const providerId = input.providerId.trim().toLowerCase();
-			if (!providerId) {
-				throw new Error("Provider ID cannot be empty.");
-			}
-
-			await deleteSdkCustomProvider(providerId);
-			return getProviderSettingsSummary();
+		deleteCustomProvider(input: { providerId: string }): Promise<RuntimeNKleinProviderSettings> {
+			return customProviderManager.deleteCustomProvider(input);
 		},
 
 		async saveProviderSettings(input: {
