@@ -113,14 +113,20 @@ export interface ProvisionalCatalogEntry {
 	verified: false;
 }
 
-/** Strip the provider prefix (`qwen/…`) and quant/instance suffixes (`@4bit`, `-m5max`, `-q8`, …) to a family slug. */
+/**
+ * Reduce a model NAME to a family slug: drop the provider prefix (`qwen/…`) and the generic quant/format tails
+ * (`@4bit`, `-q8`, `-gguf`, …). Prefer feeding this the STABLE publisher key (`descriptor.modelKey`, e.g.
+ * `qwen3.5-9b-mtp`) — NOT the raw LM Studio runtime id: those ids carry user-chosen, non-stable instance/machine
+ * suffixes (`-m5max`, `-gpu-coder`) that can change any time, so we deliberately do NOT hardcode machine names to
+ * strip. The stable key already lacks them; the runtime-id fallback is best-effort only.
+ */
 export function deriveModelFamily(modelId: string): string {
 	const afterProvider = modelId.includes("/") ? modelId.slice(modelId.lastIndexOf("/") + 1) : modelId;
 	return afterProvider
 		.trim()
 		.toLowerCase()
 		.replace(/@.*$/, "") // drop an `@quant` suffix
-		.replace(/-(m5max|m4mini|q4|q8|q4_k_m|q8_0|4bit|8bit|gguf|mlx|instance|local)\b.*$/i, "") // drop instance/quant tails
+		.replace(/-(q4|q8|q4_k_m|q8_0|4bit|8bit|gguf|mlx|instance|local)\b.*$/i, "") // drop generic quant/format tails
 		.replace(/[^a-z0-9.\-_]+/g, "-") // collapse stray punctuation
 		.replace(/^-+|-+$/g, "");
 }
@@ -137,11 +143,20 @@ function escapeRegexSource(value: string): string {
 export function buildProvisionalCatalogEntry(
 	modelId: string,
 	result: ModelInvestigationResult,
+	options?: {
+		/**
+		 * The STABLE publisher key for this model (`descriptor.modelKey`, e.g. `qwen3.5-9b-mtp`) — the real name used
+		 * everywhere else for capability/telemetry lookup. When supplied, the family is derived from IT rather than the
+		 * unstable runtime `modelId`, so a renamed/machine-suffixed LM Studio instance still yields the right family.
+		 */
+		modelKey?: string | null;
+	},
 ): ProvisionalCatalogEntry | null {
 	if (!result.succeeded || result.toolUse === "UNKNOWN") {
 		return null;
 	}
-	const family = deriveModelFamily(modelId);
+	const stableName = options?.modelKey?.trim() || modelId;
+	const family = deriveModelFamily(stableName);
 	if (family.length === 0) {
 		return null;
 	}
@@ -150,7 +165,7 @@ export function buildProvisionalCatalogEntry(
 		family,
 		matchSource: escapeRegexSource(family),
 		toolUse: result.toolUse,
-		note: `${summary ? `${summary} ` : ""}(PROVISIONAL — from an online self-lookup of "${modelId}"; confirm against a live sweep before trusting.)`,
+		note: `${summary ? `${summary} ` : ""}(PROVISIONAL — from an online self-lookup of "${stableName}"; confirm against a live sweep before trusting.)`,
 		sources: result.sources,
 		basis: "research",
 		verified: false,

@@ -66,11 +66,18 @@ describe("model-online-lookup: parse", () => {
 });
 
 describe("model-online-lookup: deriveModelFamily", () => {
-	it("strips the provider prefix and quant/instance suffixes", () => {
+	it("strips the provider prefix and GENERIC quant/format suffixes", () => {
 		expect(deriveModelFamily("qwen/qwen3-8b@4bit")).toBe("qwen3-8b");
-		expect(deriveModelFamily("google/gemma-4-e2b-m5max")).toBe("gemma-4-e2b");
 		expect(deriveModelFamily("phi-4-mini-instruct@8bit")).toBe("phi-4-mini-instruct");
 		expect(deriveModelFamily("SomeVendor/Cool-Model-Q8")).toBe("cool-model");
+		// The STABLE publisher key is already clean, so it survives intact as the family.
+		expect(deriveModelFamily("qwen3.5-9b-mtp")).toBe("qwen3.5-9b-mtp");
+	});
+
+	it("does NOT hardcode unstable LM Studio machine/instance suffixes (David 2026-07-06)", () => {
+		// A user-chosen machine suffix on the RUNTIME id is left alone — we can't know it's a machine name, and it can
+		// change any time. The correct input is the stable publisher key (which never carries such a suffix).
+		expect(deriveModelFamily("google/gemma-4-e2b-m5max")).toBe("gemma-4-e2b-m5max");
 	});
 });
 
@@ -91,6 +98,17 @@ describe("model-online-lookup: buildProvisionalCatalogEntry", () => {
 		expect(entry?.note).toMatch(/PROVISIONAL/);
 		expect(entry?.note).toMatch(/confirm against a live sweep/i);
 		expect(entry?.sources).toEqual(["https://hf.co/acme/new-coder-7b"]);
+	});
+
+	it("derives the family from the STABLE model key when given one (a machine-suffixed runtime id still yields the right family)", () => {
+		const entry = buildProvisionalCatalogEntry(
+			"acme/new-coder-7b-gpu-rig", // the unstable runtime id (user-chosen machine suffix)
+			{ succeeded: true, toolUse: "TOOL_CAPABLE", summary: "ok", sources: [] },
+			{ modelKey: "acme/new-coder-7b" }, // the stable publisher key
+		);
+		expect(entry?.family).toBe("new-coder-7b"); // from the stable key, NOT the "-gpu-rig" runtime suffix
+		expect(entry?.note).toContain("new-coder-7b");
+		expect(entry?.note).not.toContain("gpu-rig"); // the note references the stable name, not the runtime id
 	});
 
 	it("returns null for a failed lookup or an UNKNOWN verdict (nothing trustworthy to propose)", () => {

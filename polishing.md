@@ -781,3 +781,20 @@
 >       `resolvePluginConfigSearchPaths[0]` and the test caught it.)
 >
 
+
+### 5.BG — Model identity: key observed/measured info by the STABLE model key, not the LM Studio runtime id *(2026-07-06, David directive)*
+> **David:** LM Studio runtime ids are NOT stable — a user renames instances (`coder-gpu`, `gpu-coder`, `-m5max`) any
+> time. So collect / persist / look up model-related info by **stable model metadata + the real model name**, never the
+> runtime id.
+>
+> **DONE (bounded, non-wired flow):** `deriveModelFamily` (model-online-lookup.ts) no longer hardcodes machine tokens
+> (`m5max|m4mini`); `buildProvisionalCatalogEntry` now prefers the stable `descriptor.modelKey`. (commit — see run log.)
+>
+> **OPEN (David-gated — re-keys PERSISTED telemetry, needs a migration decision):** the live keying is SPLIT. Capability/
+> routing (`resolveLoadedModelProfile`) + lineage/diverse-escalation already key off the stable `descriptor.modelKey` ✓.
+> But **self-observations + fitness key off the UNSTABLE runtime id** — `resolveTaskModelIdentity` →
+> `modelEndpoint.getModelId(taskId)` (the launch/endpoint id), stamped by `recordObservationWithModel` on every telemetry
+> row, and `ModelFitnessFingerprint` keys by it. **Effect:** renaming an LM Studio instance FRAGMENTS its measured
+> fitness/observation history. **Proposed:** resolve `descriptor.modelKey` for a running task and stamp THAT as the model
+> identity on observations + fitness (keep the runtime id only as a display alias); decide migration for existing rows
+> (re-key vs. let them decay). Needs David's sign-off on approach (persisted-data change) before implementing.

@@ -1791,3 +1791,22 @@ Appended: the parse reads the first path segment URL-decoded (null on root/empty
 (encoded to `%2F` so `split("/")` can't lose it) or unicode; `normalizeStoredTaskAutoReviewMode` accepts only
 `commit`/`pr` and rejects blanks/case-variants/legacy values (untrusted stored input). Web gate: web-ui tsc ✓, vitest
 10/10 ✓. Remaining named-untested `.tsx` pure fns: `code-embedding-fields.tsx`, `countTasksByColumn` (needs a board fixture).
+
+### 2026-07-06 (Opus) · model-identity — drop unstable LM Studio machine tokens; prefer the stable model key (David directive)
+
+David answered the flagged `deriveModelFamily` decision + broadened it: **LM Studio runtime ids are NOT stable** (a
+user renames instances — `coder-gpu`, `gpu-coder`, `-m5max` — any time), so model-related info should be collected /
+persisted / looked-up by **stable model metadata + the real model name**, never the runtime id.
+- **Fix shipped:** `model-online-lookup.ts` `deriveModelFamily` no longer hardcodes `m5max|m4mini` (unstable, machine-
+  specific, and useless on anyone else's box) — it strips only GENERIC quant/format tails. `buildProvisionalCatalogEntry`
+  now takes the stable `modelKey` (`descriptor.modelKey`, e.g. `qwen3.5-9b-mtp`) and derives the family + note from it,
+  so a machine-suffixed runtime id still yields the right family. Tests updated to the corrected behavior + a stable-key
+  case (11/11). This flow is not yet live-wired, so zero regression risk. tsc ✓, biome ✓.
+- **Broader finding (investigated, NOT auto-refactored — needs David's approach sign-off):** the LIVE keying is SPLIT.
+  Capability/routing (`resolveLoadedModelProfile`) and lineage/diverse-escalation already key off the stable
+  `descriptor.modelKey` ✓. But **self-observations + fitness key off the UNSTABLE runtime id**: `resolveTaskModelIdentity`
+  returns `modelId: this.modelEndpoint.getModelId(taskId)` (the launch/endpoint id), which `recordObservationWithModel`
+  stamps on every telemetry row, and `ModelFitnessFingerprint` keys by that `modelId`. So renaming an LM Studio instance
+  FRAGMENTS its measured fitness/observation history. Recommended fix (David-gated — it re-keys persisted telemetry, so
+  it needs a migration decision): resolve `descriptor.modelKey` for a running task and stamp THAT (stable) as the model
+  identity on observations/fitness, keeping the runtime id only as a display alias. Captured as a polishing.md item.
