@@ -942,20 +942,33 @@ Into event-adapter.ts (806). Moved the three pure tool-activity classifiers — 
 a critical path (SDK events → session summaries) and were previously UNTESTED, now +3 tests (11 assertions).
 **Progress:** event-adapter 806 → **768**.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 16) — for David
+### ▶ §5.U slice 17 (2026-07-06, 1a6051a4) — FIRST cut into the flagship: lifted shouldCaptureReviewCheckpoint
+First reduction of `nklein-task-session-service.ts` (4886) this run. `shouldCaptureReviewCheckpoint` was a PURE private
+method (reads only its two summary args + `isHomeAgentSessionId` — no `this`), and its final condition was a byte-for-byte
+copy of the entering-awaiting-review transition that the sibling `shouldFinalizeSandboxReview` already delegates to
+`isEnteringAwaitingReview`. Moved it into the existing `src/core/task-session-guards.ts` next to that helper, reusing it
+(transition rule no longer duplicated); the service imports + calls it as a free function. Behavior-preserving (with `next`
+already non-null, the copied condition IS `isEnteringAwaitingReview(prev, next)`); previously UNTESTED, now +5 tests in the
+guards suite. **Progress:** task-session-service 4886 → **4873**. **Pattern for the flagship:** lift PURE private methods
+(no `this`) into the core guard/helper modules + test — safe, and it de-duplicates. `normalizeEffectiveContextWindow` is
+just `Math.trunc` (not worth it) and the neighboring context-window resolvers touch `this` stores (not pure); the bigger
+reduction still needs the collaborator responsibility-split.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 17) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **16 §5.U slices this run, ~101 new unit tests, 16 focused modules extracted, zero behavior changes** (the pre-commit fast
-  suite gates every commit; extractions delegate). Note the vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
-  agent-sandbox, event-adapter) yield extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED.
+- **17 §5.U slices this run, ~106 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
+  extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service, agent-sandbox, event-adapter) yield
+  extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED. Slice 17 opened a flagship pattern: lifting
+  PURE private methods (no `this`) into the core guard modules.
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
   `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
   `nklein-mcp-runtime-service.ts` 949 → **777** (oauth-settings-store, transport-factory — both were untested);
   `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
   `nklein-event-adapter.ts` 806 → **768** (tool-activity classifiers — was untested);
-  `nklein-task-session-service.ts` still **4886** (the hardest — class-heavy, instance-stateful; earlier slices nibbled it,
-  next needs the responsibility-split not just pure-fn lifts).
+  `nklein-task-session-service.ts` 4886 → **4873** (shouldCaptureReviewCheckpoint lifted to task-session-guards — first
+  flagship cut this run; class-heavy, the bulk still needs the collaborator responsibility-split).
 - **PRODUCTIVE VEIN (corrected):** the big-3 pure-fn seams are done, but the NEXT-TIER large files (mcp-runtime-service,
   workspace-state, agent-sandbox, projects-api, task-board-mutations, dev.ts) have clean cohesive seams, several UNTESTED
   → each is §5.U + §5.V at once. Keep mining these before the risky big-3 class-splits.
