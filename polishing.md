@@ -395,7 +395,7 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **35 slices so far (20 §5.U extractions + 15 §5.V coverage batches), ~248 new unit tests, zero behavior changes** (pre-commit
+> - **37 slices so far (20 §5.U extractions + 17 §5.V coverage batches), ~257 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
 >   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
@@ -416,8 +416,16 @@
 >   slice 33 (+3 tests).
 > - ~~`nklein-agent/nklein-task-start-guard.ts` (3)~~ DONE slice 35 (+7). ~~`decomposition/plan-task-routing.ts` (3)~~ DONE
 >   slice 34 (+7, left the heavier previewNKleinPlanTaskGraph orchestrator).
-> - `core/runtime-endpoint.ts` (4) — url/endpoint builders (some already tested; check the gaps). **← next**
-> - Then re-run the broad coverage-gap scan for the next tier; skip SDK-boundary passthroughs, singleton getters, I/O handlers.
+> - ~~`core/runtime-endpoint.ts`~~ DONE slice 36 (origin builders, +3; TLS getter + fetch-timeout installer skipped).
+> - **`nklein-agent/nklein-session-state.ts` (17) — the big vein, STARTED slice 37 (+6 pure).** ~13 remain: pure clones
+>   (`cloneSummary`/`cloneMessage`), builders (`createMessage`/`createMessageWithMeta`/`createAssistantMessage`/
+>   `createReasoningMessage`), and entry MUTATORS (`append{Assistant,Reasoning}Chunk`, `setOrCreate{Assistant,Reasoning}Message`,
+>   `start/finishToolCallMessage`, `clearActiveTurnState`) — mutators are testable by passing an entry + asserting the change.
+>   A rich multi-batch target. **← next**
+> - Other scanned offenders (2 each): `operator-board-health.ts` (summarizeBoardHealth/summarizeWorkspaceBoardStreams),
+>   `nklein-provider-model-parsing.ts` (toRuntimeProviderModel/toLmStudioModels), `dev-test-project-registry.ts`. SKIP the
+>   SDK-boundary files (sdk-runtime-boundary 7 / sdk-provider-boundary 4 — vendored passthroughs) and the api-validation
+>   pure-passthrough remainder.
 > - `core/runtime-endpoint.ts` (4) — url/endpoint builders (some already tested; check the gaps).
 > - `nklein-agent/nklein-session-state.ts` (17) — LARGE but mixed: many are stateful mutators (createMessage/updateSummary)
 >   — triage for the genuinely pure ones only.

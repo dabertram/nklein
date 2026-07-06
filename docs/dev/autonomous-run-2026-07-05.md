@@ -1059,14 +1059,24 @@ helpers — `estimateNKleinStartPromptTokens` (+1000/image, title counted; relat
 (prompt + safety-budget reserves + 4k min room, exact via buildKanbanContextSafetyBudgets; null → default window), and
 `formatNKleinTaskRoutingBlockMessage` (decompose vs escalate framing). No source change.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 35) — for David
+### ▶ §5.V slices 36–37 (2026-07-06, 763de1e5 + 1cd4d0cf) — runtime-endpoint origins + session-state helpers (batch 1)
+Slice 36 (+3 tests): the http/ws origin builders `getKanbanRuntimeOrigin` / `getKanbanRuntimeWsOrigin` — asserted relative
+to the underlying getters (host/port/isHttps) + the https↔wss scheme-mapping cross-check; left the singleton TLS getter
+and the global-dispatcher installer. Slice 37 (+6 tests): started the big `nklein-session-state.ts` vein (17 untested
+exports) with the clearly-pure ones — `isNKleinUserAttentionTool` (the ask_followup/plan_mode_respond set),
+`canReturnToRunning` (attention/hook/error only), `buildSessionIdPrefix` (normalize → trailing-dash; blank → 'session-'),
+`latestAssistantMessageMatches` (last assistant message, trim-compare). No source change. **session-state vein: ~13 more
+untested exports remain — mostly entry MUTATORS (append*Chunk, setOrCreate*, start/finishToolCallMessage, clearActiveTurnState)
++ pure clones (cloneSummary/cloneMessage) + builders (createMessage*/createAssistantMessage) — a rich multi-batch target.**
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 37) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **35 slices this run (20 §5.U extractions + 15 §5.V coverage batches), ~248 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed: the api-validation parser boundary,
-  runtime-config-normalizers gaps, speculative/retrieval resolver normalizers, server path/host helpers, two SECURITY modules
-  (passcode rate-limiter + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, the plan-task-routing
-  settings resolvers, and the task-start-guard token/budget/message helpers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+- **37 slices this run (20 §5.U extractions + 17 §5.V coverage batches), ~257 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed/underway: the api-validation parser
+  boundary, runtime-config-normalizers, speculative/retrieval resolver normalizers, server path/host + endpoint-origin helpers,
+  two SECURITY modules (passcode rate-limiter + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers,
+  plan-task-routing resolvers, task-start-guard helpers, and (started) the nklein-session-state core helpers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
