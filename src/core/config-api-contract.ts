@@ -215,7 +215,7 @@ export type RuntimeSetupPlanResponse = z.infer<typeof runtimeSetupPlanResponseSc
  * plain "idle" rows.
  */
 export const runtimeFleetStatusResponseSchema = z.object({
-	/** served model id → owning machine id ("Local", "legion5pro", …). */
+	/** served model id → owning machine id ("Local", "laptop", …). */
 	machineByModelId: z.record(z.string(), z.string()),
 	/** served model id → the last prompt-shell this model assembled (its warm cache). */
 	warmthByModelId: z.record(

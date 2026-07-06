@@ -10,9 +10,9 @@ describe("parseModelAttributes — resident-id examples (§5.AB-(B))", () => {
 		// not `4b`; and `@4bit` is a quant, not a size token — so paramB is undefined.
 		["phi-4-mini-instruct@4bit", { format: "unknown", quant: "4bit", paramB: undefined }],
 		// GGUF-style quant with `-` separators + a trailing machine tag that must NOT be swallowed; size 9b.
-		["qwen3.5-9b-mtp-q4-k-xl-legion5pro", { format: "unknown", quant: "q4_k_xl", paramB: 9 }],
-		// `@q8_0` alias with a trailing machine tag; no size (m4mini's 4 is letter-prefixed).
-		["text-embedding-nomic-embed-text-v1.5@q8_0-m4mini", { format: "unknown", quant: "q8_0", paramB: undefined }],
+		["qwen3.5-9b-mtp-q4-k-xl-rig5pro", { format: "unknown", quant: "q4_k_xl", paramB: 9 }],
+		// `@q8_0` alias with a trailing machine tag; no size (box4's 4 is letter-prefixed).
+		["text-embedding-nomic-embed-text-v1.5@q8_0-box4", { format: "unknown", quant: "q8_0", paramB: undefined }],
 		// mlx format AND `@4bit` quant together; size 35b.
 		["ornith-1.0-35b-mlx@4bit", { format: "mlx", quant: "4bit", paramB: 35 }],
 		// Neither format nor quant token; size 14b.
@@ -79,9 +79,9 @@ describe("parseModelAttributes — quant normalization", () => {
 	});
 
 	it("stops the quant token at a machine tag / format token (no greedy swallow)", () => {
-		expect(parseModelAttributes("qwen3.5-9b-q4-k-xl-legion5pro").quant).toBe("q4_k_xl");
+		expect(parseModelAttributes("qwen3.5-9b-q4-k-xl-rig5pro").quant).toBe("q4_k_xl");
 		expect(parseModelAttributes("llama-3.1-8b-q4_k_m-gguf").quant).toBe("q4_k_m");
-		expect(parseModelAttributes("nomic@q8_0-m4mini").quant).toBe("q8_0");
+		expect(parseModelAttributes("nomic@q8_0-box4").quant).toBe("q8_0");
 	});
 
 	it("is undefined when no quant token is present", () => {
@@ -164,7 +164,7 @@ describe("parseModelAttributes — totality & edge cases", () => {
 	});
 
 	it("is deterministic (same input → identical output across calls)", () => {
-		const id = "qwen3.5-9b-mtp-q4-k-xl-legion5pro";
+		const id = "qwen3.5-9b-mtp-q4-k-xl-rig5pro";
 		expect(parseModelAttributes(id)).toEqual(parseModelAttributes(id));
 	});
 

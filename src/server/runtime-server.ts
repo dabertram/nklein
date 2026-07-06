@@ -326,7 +326,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// overlap-deferred cards veto a mirror AND preempt running specs), and each card is mirrored at most once
 	// per process lifetime. KNOWN GAP (needs the `lms ps` machineId feed, not the /api/v1/models descriptors):
 	// the idle set is machine-blind — an "idle" model sharing a machine with the busy primary can slow it
-	// (legion CPU/GPU co-model ≈4× measured). Revisit with §5.AB machine-aware pools.
+	// (laptop CPU/GPU co-model ≈4× measured). Revisit with §5.AB machine-aware pools.
 	const speculativeMirrorTickByWorkspaceId = new Map<string, ReturnType<typeof setInterval>>();
 	const speculativeConfigByWorkspaceId = new Map<
 		string,

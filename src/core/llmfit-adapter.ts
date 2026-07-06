@@ -161,7 +161,7 @@ export function llmfitPredictedWallTimeMs(model: LlmfitModel, outputTokens: numb
 /** Runs `llmfit` with argv, returns stdout + exit code. Injected so the calls are testable without a real binary. */
 export type LlmfitRunner = (args: readonly string[]) => Promise<{ stdout: string; exitCode: number }>;
 
-/** A machine's resource envelope, used to SIMULATE a pool (e.g. the legion's 8 GB VRAM) from any host. */
+/** A machine's resource envelope, used to SIMULATE a pool (e.g. a laptop's 8 GB VRAM) from any host. */
 export interface LlmfitMachineEnvelope {
 	/** GPU VRAM override, llmfit `--memory` syntax (e.g. "8G", "8000M"). */
 	vram?: string;

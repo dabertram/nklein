@@ -1644,3 +1644,22 @@ already authoritative in `docs/dev/model-catalog-recommendations.md` (docs are f
   `config-api-contract.ts`) and the model-id SUFFIX parsers (`model-online-lookup.ts`, `model-attributes.ts` strip
   `-m5max`/`-legion5pro` tails) + `model-capability-catalog.ts` provenance notes — the parsers are behavior-bearing, so
   they get their own careful pass, not folded into this data-move.
+
+### 2026-07-06 (Opus) · scrub the remaining machine hostnames from src comments/prose (+ model-attributes examples)
+
+Follow-up to the roster move — finished David's "hostnames out of shipped code" across the rest of `src/`:
+- **Cosmetic prose genericized** (comments/JSDoc/provenance only, zero logic) to the shared `workstation`/`desktop`/`laptop`
+  vocabulary: `lms-link-status.ts`, `lms-model-control.ts`, `lms-model-runner.ts`, `config-api-contract.ts`,
+  `lmstudio-loaded-model-descriptors.ts`, `model-pool.ts`, `llmfit-adapter.ts`, `runtime-server.ts`, and the
+  `model-capability-catalog.ts` provenance notes (`legion5pro`/`m4mini`/`Legion` → `laptop`/`desktop`, keeping the model +
+  result — the model-tracking "stats" David OK'd, just without the host name).
+- **`model-attributes.ts` + its test**: the machine tags there are illustrative TRAILING tokens (the parser strips them
+  generically). Swapped `legion5pro`→`rig5pro`, `m4mini`→`box4` — chosen to PRESERVE the digit-trap edge cases the tests
+  pin (the `5` mid-token / the letter-prefixed `4` must not be misread as a param size). 29/29 model-attributes tests green.
+- **★ ONE behavior-bearing hostname left — needs David's call:** `model-online-lookup.ts:123` — `deriveModelFamily`'s
+  regex hardcodes `-(m5max|m4mini|…)` to strip a machine-instance suffix when deriving a family slug for a PROVISIONAL
+  catalog entry (uncatalogued models). Its test (line 71) pins `gemma-4-e2b-m5max → gemma-4-e2b`, so dropping the tokens
+  REMOVES that instance-suffix-stripping capability. Options: (a) config-drive it — strip the user's now-configured
+  machine ids from swarm-rosters.json (clean, no regression, but threads the config into a sync deriver); (b) drop the
+  two tokens (low real impact — David's own models are already catalogued, so the provisional path rarely runs for them);
+  (c) leave it. Flagged, not guessed. Gate for the scrub: tsc ✓, biome ✓, **7925/7925 ✓**.

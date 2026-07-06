@@ -56,7 +56,7 @@ const BIT_ALIAS_QUANT = /@(\d{1,2})bit\b/i;
  * `iqN`) optionally followed by `_`/`-`-separated sub-tokens drawn from the CLOSED GGUF quant vocabulary
  * (`k`, `s`/`m`/`l`, `xs`/`xl`/`xxs`/`xxl`, `0`/`1`, unsloth's `ud`). Bounding the continuation to that vocabulary (not
  * "any alnum group") is what stops the token from greedily swallowing a trailing machine tag or format token — e.g.
- * `...-q4-k-xl-legion5pro` must yield `q4_k_xl` (not `q4_k_xl_legion5pro`) and `...-q4_k_m-gguf` must yield `q4_k_m`.
+ * `...-q4-k-xl-rig5pro` must yield `q4_k_xl` (not `q4_k_xl_rig5pro`) and `...-q4_k_m-gguf` must yield `q4_k_m`.
  * Bounded on the left by a non-alphanumeric (or start) so it does not fire inside an unrelated word; the whole quant
  * token is captured and normalized separately.
  */
@@ -85,7 +85,7 @@ const PARAM_SIZE = /(?:^|[^a-z0-9])(\d+(?:\.\d+)?)b(?:$|[^a-z0-9])/i;
  *
  * @example parseModelAttributes("phi-4-mini-instruct@4bit")            // { format: "unknown", quant: "4bit", paramB: 4 }
  * @example parseModelAttributes("ornith-1.0-35b-mlx@4bit")             // { format: "mlx", quant: "4bit", paramB: 35 }
- * @example parseModelAttributes("qwen3.5-9b-mtp-q4-k-xl-legion5pro")   // { format: "unknown", quant: "q4_k_xl", paramB: 9 }
+ * @example parseModelAttributes("qwen3.5-9b-mtp-q4-k-xl-rig5pro")   // { format: "unknown", quant: "q4_k_xl", paramB: 9 }
  * @example parseModelAttributes("qwen2.5-coder-14b")                   // { format: "unknown", paramB: 14 }
  */
 export function parseModelAttributes(modelId: string): ModelAttributes {

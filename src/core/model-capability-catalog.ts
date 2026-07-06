@@ -231,9 +231,9 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		synthesis: "full",
 		speed: "fast",
 		sizeGb: 7,
-		note: "gemma-4-12b-it-qat (12B, quantization-aware-trained). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LEGION 8 GB-VRAM box): CLEAN PASS (~21s) — drove ALL 4 tools + PERSISTED the card + echoed the marker = FULL synthesis. Here even cleaner than the 26B-A4B sibling (which had weak synth), and far above the e2b/e4b EDGE variants (which drop the chain). A capable small all-rounder that runs FAST even on the Legion's discrete 8 GB GPU.",
+		note: "gemma-4-12b-it-qat (12B, quantization-aware-trained). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LAPTOP 8 GB-VRAM box): CLEAN PASS (~21s) — drove ALL 4 tools + PERSISTED the card + echoed the marker = FULL synthesis. Here even cleaner than the 26B-A4B sibling (which had weak synth), and far above the e2b/e4b EDGE variants (which drop the chain). A capable small all-rounder that runs FAST even on the laptop's discrete 8 GB GPU.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on legion5pro — gemma-4-12b-it-qat CLEAN PASS, ~21s, full synth); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — gemma-4-12b-it-qat CLEAN PASS, ~21s, full synth); see docs/dev/model-sweep-log.md",
 		],
 		basis: "empirical",
 		verified: true,
@@ -384,7 +384,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		sources: [
 			"https://github.com/QwenLM/Qwen3-Coder/issues/180",
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep — qwen2.5-coder-14b: all 4 tools + persist, weak synth, ~45s)",
-			"live chat-agent e2e 2026-07-01 (model-lab guarded sweep on legion5pro — qwen2.5-coder-7b-instruct CLEAN PASS, ~18s, full synth — the 7B variant clears the full chain fast on the Legion's 8 GB GPU)",
+			"live chat-agent e2e 2026-07-01 (model-lab guarded sweep on laptop — qwen2.5-coder-7b-instruct CLEAN PASS, ~18s, full synth — the 7B variant clears the full chain fast on the laptop's 8 GB GPU)",
 		],
 		basis: "both",
 		verified: true,
@@ -422,7 +422,7 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		structuredOutput: "native_tool_call",
 		speed: "medium",
 		sizeGb: 6,
-		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever. Medium speed (~6 GB resident 9B). UPDATE 2026-07-01: on the m4mini (fresh-loaded, 24 GB, device-targeted) a clean e2e = FULL PASS (172s) WITH the marker echoed — so its synthesis is STOCHASTIC (full IS achievable), not fixed-weak; the §5.AB force-advance still carries the chain.",
+		note: "qwen3.5-9b (arch qwen3_5; ignores /no_think, still reasons — §4A). Completes the full 4-step agentic tool-chain + persists a card, but VIA !Klein's §5.AB force-advance rung; WITHOUT it it fixates and re-calls the first tool (not a clean native multi-tool chainer). Live 2026-07-01 e2e = PASS/PARTIAL (chain executed + card PERSISTED; only miss = final reply lacks the marker string = weak SYNTHESIS, not a capability gap). Per §4A json_schema structured output DEAD-ENDS on it — native tool_choice:required is the working lever. Medium speed (~6 GB resident 9B). UPDATE 2026-07-01: on the desktop (fresh-loaded, 24 GB, device-targeted) a clean e2e = FULL PASS (172s) WITH the marker echoed — so its synthesis is STOCHASTIC (full IS achievable), not fixed-weak; the §5.AB force-advance still carries the chain.",
 		sources: [
 			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts; commits dec62245+89becd66); todo §5.AA/§5.AB force-advance + §4A structured-output-strategy/thinking-control notes",
 		],
@@ -468,25 +468,25 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 		synthesis: "weak",
 		speed: "slow",
 		sizeGb: 9,
-		note: "qwen3-14b (arch qwen3). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LEGION 8 GB-VRAM box): ❌ INCOMPLETE (122s) — card not persisted (dropped the chain). ODDLY weaker than the coder-7b + gemma-4-12b that PASS on the same box, so possibly a stochastic miss rather than a hard ceiling — n=1, verdict PROVISIONAL (verified:false; ×3 re-run owed, ideally on faster HW to rule out a speed confound).",
+		note: "qwen3-14b (arch qwen3). Live e2e 2026-07-01 (model-lab guarded sweep, ON THE LAPTOP 8 GB-VRAM box): ❌ INCOMPLETE (122s) — card not persisted (dropped the chain). ODDLY weaker than the coder-7b + gemma-4-12b that PASS on the same box, so possibly a stochastic miss rather than a hard ceiling — n=1, verdict PROVISIONAL (verified:false; ×3 re-run owed, ideally on faster HW to rule out a speed confound).",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on legion5pro — qwen3-14b ❌ INCOMPLETE 122s, n=1); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — qwen3-14b ❌ INCOMPLETE 122s, n=1); see docs/dev/model-sweep-log.md",
 		],
 		basis: "empirical",
 		verified: false,
 	},
 	{
 		// qwen3.6-27b (base qwen3.6, arch qwen35) — NOT the qwopus3.6 merge (own row above). Only data is a SPEED-CONFOUNDED
-		// legion run, so the verdict is research-led + verified:false — do NOT read a slow-HW timeout as incapacity.
+		// laptop run, so the verdict is research-led + verified:false — do NOT read a slow-HW timeout as incapacity.
 		family: "qwen3.6-27b",
 		match: /qwen-?3[._]6-27b/,
 		toolUse: "TOOL_CAPABLE",
 		kind: "reasoning",
 		speed: "slow",
 		sizeGb: 17,
-		note: "qwen3.6-27b (base qwen3.6 reasoning family; the qwopus3.6-27b MERGE — the backlog driver — has its own row and drives multi-tool chains fine). Only live data 2026-07-01 is SPEED-CONFOUNDED: on the LEGION (8 GB VRAM + 32 GB RAM) it ran ~14 min (840s) mostly RAM-bound and hit INCOMPLETE — a throughput/timeout artifact, NOT a capability ceiling (the known 'a 27B is too slow for a multi-turn tool-chain in-window' pattern). Held TOOL_CAPABLE (the 3.6 gen chains natively on adequate HW), verified:false — a CLEAN run owed on a fast box.",
+		note: "qwen3.6-27b (base qwen3.6 reasoning family; the qwopus3.6-27b MERGE — the backlog driver — has its own row and drives multi-tool chains fine). Only live data 2026-07-01 is SPEED-CONFOUNDED: on the LAPTOP (8 GB VRAM + 32 GB RAM) it ran ~14 min (840s) mostly RAM-bound and hit INCOMPLETE — a throughput/timeout artifact, NOT a capability ceiling (the known 'a 27B is too slow for a multi-turn tool-chain in-window' pattern). Held TOOL_CAPABLE (the 3.6 gen chains natively on adequate HW), verified:false — a CLEAN run owed on a fast box.",
 		sources: [
-			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on legion5pro — qwen3.6-27b INCOMPLETE @840s, speed-confounded); see docs/dev/model-sweep-log.md",
+			"live chat-agent e2e 2026-07-01 (scripts/verify-chat-agent-e2e.mts, model-lab guarded sweep on laptop — qwen3.6-27b INCOMPLETE @840s, speed-confounded); see docs/dev/model-sweep-log.md",
 		],
 		basis: "both",
 		verified: false,

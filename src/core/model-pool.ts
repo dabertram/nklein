@@ -1,6 +1,6 @@
 /**
- * §5.W / §5.AF — the `ModelPool` model (pure core). !Klein drives models across several machines (an m5max, an
- * m4mini, a legion box), each linked through LM Studio. Residency + headroom are PER-MACHINE, not global: loading a
+ * §5.W / §5.AF — the `ModelPool` model (pure core). !Klein drives models across several machines (an workstation, an
+ * desktop, a laptop box), each linked through LM Studio. Residency + headroom are PER-MACHINE, not global: loading a
  * model must respect THAT machine's RAM/VRAM budget and concurrency, not the local host's. This defines one pool per
  * machine + the pure per-pool headroom primitives the loader/scheduler consult (the actual `decideModelLoad`/loader
  * rewiring to be per-pool is a separate integration leaf). Pure + total + deterministic.
@@ -18,7 +18,7 @@ export interface PoolResidentModel {
 export interface ModelPool {
 	/** Stable id — typically the LM Studio device id (`lms ps` deviceIdentifier), or `local`. */
 	id: string;
-	/** Human label (e.g. `m5max`, `m4mini`, `legion`). */
+	/** Human label (e.g. `workstation`, `desktop`, `laptop`). */
 	label: string;
 	/** The pool's LM Studio base endpoint. */
 	endpoint: string;

@@ -18,8 +18,8 @@ export interface ResidentModel {
 	contextLength: number | null;
 	/**
 	 * The LM Link device the model is resident on (the `lms ps` DEVICE column: "Local" | a linked device name like
-	 * "m4mini"/"legion5pro"); null when the column is absent (older `lms`). Lets the guard scope "unload others" to
-	 * the SAME machine (todo §5.AB per-machine concurrency — an m5 load must never evict a model on another linked box).
+	 * "desktop"/"laptop"); null when the column is absent (older `lms`). Lets the guard scope "unload others" to
+	 * the SAME machine (todo §5.AB per-machine concurrency — a workstation load must never evict a model on another linked box).
 	 */
 	device: string | null;
 }
@@ -66,7 +66,7 @@ export interface LmsLoadOptions {
 	maxContextLength?: number;
 	/**
 	 * GPU offload policy; default "max" (use the GPU fully on the unified-memory Mac). A NUMBER in [0,1] is a
-	 * partial-offload ratio (clamped) — the key lever for a small-VRAM linked box (e.g. the Legion's 8 GB dGPU, where a
+	 * partial-offload ratio (clamped) — the key lever for a small-VRAM linked box (e.g. the laptop's 8 GB dGPU, where a
 	 * 12–14B can't fully offload and must spill to system RAM). "auto" omits the flag so LM Studio auto-determines it.
 	 */
 	gpu?: "max" | "off" | "auto" | number;

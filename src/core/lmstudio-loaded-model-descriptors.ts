@@ -4,7 +4,7 @@
  * separates the two identifiers LM Studio carries:
  *
  *   - `loaded_instances[].id` — the **runtime id you INVOKE**, i.e. the user's per-instance ALIAS (e.g.
- *     `qwen3.5-9b-mtp-q4-k-xl-legion5pro`, a name the user gave the instance to mark which machine it's on);
+ *     `qwen3.5-9b-mtp-q4-k-xl-laptop`, a name the user gave the instance to mark which machine it's on);
  *   - `key` — the **real publisher model key** (e.g. `qwen3.5-9b-mtp`), the right string to match against the §5.AL
  *     catalog / llmfit DB. (User, 2026-07-01: "get the real model names from the API, then use those.")
  *
