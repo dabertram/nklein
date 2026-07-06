@@ -130,6 +130,7 @@ import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import { createRuntimeSetupLeaseCache } from "./nklein-runtime-setup-lease-cache";
 import { createSandboxReviewFinalizer } from "./nklein-sandbox-review-finalizer";
+import { createSecondarySessionHarness } from "./nklein-secondary-session-harness";
 import {
 	type CreateInMemoryNKleinSessionRuntimeOptions,
 	createInMemoryNKleinSessionRuntime,
@@ -520,6 +521,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly acceptanceVerifier = createAcceptanceVerifier({
 		getAgentSandboxManager: () => this.agentSandboxManager,
 		getPauseController: () => this.pauseController,
+	});
+	/** §5.U shared skeleton for the auxiliary secondary sessions (reviewer/plan-critic/merge/mirror): bounded sandbox
+	 * session against the delivered tree, always torn down. Runners supply only their `drive` closure. */
+	private readonly secondarySessionHarness = createSecondarySessionHarness({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		setSandbox: (taskId, repoPath, baseRef) => this.sandboxState.setSandbox(taskId, repoPath, baseRef),
+		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
+		forgetSyntheticState: (taskId) => {
+			this.launchConfigByTaskId.delete(taskId);
+			this.providerIdStore.forget(taskId);
+			this.modelEndpoint.forget(taskId);
+			this.contextBudgetInputs.forget(taskId);
+			this.sandboxState.deleteSandbox(taskId);
+		},
 	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
@@ -2595,7 +2610,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
 	}): Promise<NKleinReviewResult | null> {
-		if (!this.agentSandboxManager) {
+		const sandboxManager = this.agentSandboxManager;
+		if (!sandboxManager) {
 			return null;
 		}
 		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
@@ -2626,100 +2642,58 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			workspaceRoot: input.projectRepoPath,
 		};
 		const reviewTaskId = `${input.taskId}::review`;
-		await this.agentSandboxManager.assertAvailable();
-		const resultCommit = await resolveTaskResultBranchCommit({
-			repoPath: input.projectRepoPath,
-			taskId: input.taskId,
-		}).catch(() => null);
-		const workspace = await this.agentSandboxManager.prepareWorkspace({
-			taskId: reviewTaskId,
-			projectRepoPath: input.projectRepoPath,
-			baseRef: resultCommit ?? input.baseRef ?? null,
-			// Auxiliary seam — NEVER wait forever on a slot (run19 froze here for 15+ min after a leaked slot).
-			// A rejection propagates to the review runner's catch ⇒ review "skipped" ⇒ fail-closed hold, run alive.
-			maxQueueWaitMs: 180_000,
-		});
-		this.sandboxState.setSandbox(
-			reviewTaskId,
-			input.projectRepoPath,
-			(resultCommit ?? input.baseRef)?.trim() || "HEAD",
-		);
-		let verdict: NKleinReviewResult | null = null;
-		const deadlineMs = Date.now() + (input.timeoutMs ?? DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS);
-		const recordReviewSessionError = (error: unknown): void => {
-			recordSelfObservation({
-				signal: "runtime_error",
-				severity: "warning",
-				message: `Second-opinion reviewer session failed: ${error instanceof Error ? error.message : String(error)}`,
-				taskId: reviewTaskId,
-				workspacePath: input.projectRepoPath,
-				createdAt: Date.now(),
-			});
-		};
-		// Awaits one reviewer turn, bounded by the remaining overall budget (an SDK turn can hang); turn errors are
-		// recorded, not thrown, so they fall through to a null verdict (the caller then fail-safe-delivers).
-		const runBoundedTurn = async (turn: Promise<unknown>): Promise<void> => {
-			const remainingMs = deadlineMs - Date.now();
-			if (remainingMs <= 0) {
-				return;
-			}
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const timeout = new Promise<void>((resolve) => {
-				timer = setTimeout(resolve, remainingMs);
-			});
-			await Promise.race([turn.then(() => undefined, recordReviewSessionError), timeout]);
-			if (timer) {
-				clearTimeout(timer);
-			}
-		};
-		try {
-			// First turn: seed prompt + the submit_review tool. startRuntimeTaskSessionFromLaunchConfig awaits the
-			// turn, so the tool's verdict (if emitted) is captured by the time it settles.
-			await runBoundedTurn(
-				this.startRuntimeTaskSessionFromLaunchConfig({
-					taskId: reviewTaskId,
-					cwd: workspace.workdir,
-					workspaceRoot: input.projectRepoPath,
-					prompt: input.seedPrompt,
-					launchConfig,
-					contextScope: "minimal",
-					onReviewSubmitted: (result) => {
-						verdict = result;
-					},
-					// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
-					// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
-					toolExecutors: createAgentSandboxToolExecutors(this.agentSandboxManager, reviewTaskId, {
-						pauseController: this.pauseController,
-					}),
-					extraTools: createAgentSandboxExtraTools(this.agentSandboxManager, reviewTaskId, {
-						sessionId: createSessionId(reviewTaskId),
-						contextWindow: launchConfig.contextWindow ?? undefined,
-						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-					}),
-				}),
-			);
-			// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
-			// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
-			// small budget and the overall deadline.
-			for (
-				let nudge = 0;
-				verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
-				nudge += 1
-			) {
+		return this.secondarySessionHarness.runBracketed(
+			{
+				primaryTaskId: input.taskId,
+				syntheticTaskId: reviewTaskId,
+				projectRepoPath: input.projectRepoPath,
+				baseRef: input.baseRef,
+				timeoutMs: input.timeoutMs,
+				defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
+				errorLabel: "Second-opinion reviewer session",
+			},
+			async ({ workspace, deadlineMs, runBoundedTurn }) => {
+				let verdict: NKleinReviewResult | null = null;
+				// First turn: seed prompt + the submit_review tool. startRuntimeTaskSessionFromLaunchConfig awaits the
+				// turn, so the tool's verdict (if emitted) is captured by the time it settles.
 				await runBoundedTurn(
-					this.sessionRuntime.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT),
+					this.startRuntimeTaskSessionFromLaunchConfig({
+						taskId: reviewTaskId,
+						cwd: workspace.workdir,
+						workspaceRoot: input.projectRepoPath,
+						prompt: input.seedPrompt,
+						launchConfig,
+						contextScope: "minimal",
+						onReviewSubmitted: (result) => {
+							verdict = result;
+						},
+						// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
+						// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
+						toolExecutors: createAgentSandboxToolExecutors(sandboxManager, reviewTaskId, {
+							pauseController: this.pauseController,
+						}),
+						extraTools: createAgentSandboxExtraTools(sandboxManager, reviewTaskId, {
+							sessionId: createSessionId(reviewTaskId),
+							contextWindow: launchConfig.contextWindow ?? undefined,
+							maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+						}),
+					}),
 				);
-			}
-			return verdict;
-		} finally {
-			await this.sessionRuntime.clearTaskSessions(reviewTaskId).catch(() => undefined);
-			await this.agentSandboxManager.disposeWorkspace(reviewTaskId).catch(() => undefined);
-			this.launchConfigByTaskId.delete(reviewTaskId);
-			this.providerIdStore.forget(reviewTaskId);
-			this.modelEndpoint.forget(reviewTaskId);
-			this.contextBudgetInputs.forget(reviewTaskId);
-			this.sandboxState.deleteSandbox(reviewTaskId);
-		}
+				// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
+				// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
+				// small budget and the overall deadline.
+				for (
+					let nudge = 0;
+					verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
+					nudge += 1
+				) {
+					await runBoundedTurn(
+						this.sessionRuntime.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT),
+					);
+				}
+				return verdict;
+			},
+		);
 	}
 
 	/** §5.AW: specs the arbitration seam canceled — the runner must NOT capture their (partial) work. */
