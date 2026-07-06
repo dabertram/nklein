@@ -385,7 +385,8 @@
 > - `nklein-provider-service.ts`: 1651 → **1463** — extracted `nklein-provider-settings-summary`, `nklein-litellm-model-list`,
 >   `nklein-managed-provider-credentials`, `nklein-provider-selection-store`, `nklein-model-list-settings`,
 >   `nklein-kanban-access-policy` (+ 3 earlier).
-> - `runtime-server.ts`: 2527 → **2468** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`.
+> - `runtime-server.ts`: 2527 → **2451** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`,
+>   and `runtime-server-http` (readRequestBody + getRemoteIp lifted from INSIDE the createRuntimeServer closure).
 > - `nklein-mcp-runtime-service.ts`: 949 → **762** — extracted `nklein-mcp-oauth-settings-store` + `nklein-mcp-transport-factory`
 >   + `nklein-mcp-oauth-callback` (all were untested → +26 tests).
 > - `nklein-agent-sandbox.ts`: 1090 → **1071** — extracted `nklein-agent-sandbox-predicates` (was untested → +4 tests).
@@ -394,7 +395,9 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **19 slices so far, ~123 new unit tests, zero behavior changes** (pre-commit fast suite gates each).
+> - **20 slices so far, ~129 new unit tests, zero behavior changes** (pre-commit fast suite gates each). Two flagship
+>   patterns proven: lift pure `this`-free private methods into core guard modules, and lift state-free INNER closures out
+>   of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,

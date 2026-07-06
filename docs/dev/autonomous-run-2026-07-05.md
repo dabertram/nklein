@@ -969,16 +969,26 @@ staying `formatStitchingAreaContent` now imports `formatOutputHeader` from there
 AgentMessage / AgentToolDefinition type imports. Behavior-preserving (12-test workflow suite still green); previously
 UNTESTED, now +10 tests. **Progress:** large-file-workflow 781 → **740**.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 19) — for David
+### ▶ §5.U slice 20 (2026-07-06, d60ac262) — lifted readRequestBody + getRemoteIp out of the createRuntimeServer closure
+Fourth cut into runtime-server.ts, and the FIRST into the ~2300-line `createRuntimeServer` closure itself (not just its
+module-level helpers). `readRequestBody` + `getRemoteIp` were inner closures that captured NO server state (they use only
+their `req` arg), so they lifted cleanly to a new `runtime-server-http` module; the closure imports them back.
+Behavior-preserving (identical bodies, 4 KiB default cap preserved); previously UNTESTED, now +6 tests over a PassThrough
+stream. **Establishes the pattern for chipping at the big closure: lift state-free inner helpers out.** **Progress:**
+runtime-server 2468 → **2451**.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 20) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **19 §5.U slices this run, ~123 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
+- **20 §5.U slices this run, ~129 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
   extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service, agent-sandbox, event-adapter,
-  large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED. Slice 17 opened a
-  flagship pattern: lifting PURE private methods (no `this`) into the core guard modules.
+  large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED. TWO flagship
+  patterns now proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift state-free INNER
+  closures out of the big `createRuntimeServer` / class bodies. Both are safe, behavior-preserving, and add coverage.
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
-  `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
+  `runtime-server.ts` 2527 → **2451** (bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result, and now
+  runtime-server-http lifted from INSIDE the createRuntimeServer closure);
   `nklein-mcp-runtime-service.ts` 949 → **762** (oauth-settings-store, transport-factory, oauth-callback — all were untested);
   `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
   `nklein-event-adapter.ts` 806 → **768** (tool-activity classifiers — was untested);
