@@ -652,3 +652,20 @@ is exactly the token-wasteful padding the loop contract warns against. The loop 
 provide any of the 3 unblocks, say "continue" / "build the drill-down", or point at a specific area, and a fresh session
 re-enters via goal.md. All work is committed + pushed to `feat/nklein-upcoming`; the tree is green. See the CONSOLIDATED
 STATE FOR DAVID section above for the full picture + the 3 unblocks.
+
+### ▶ RESUMED (2026-07-06, David engaged) — 2 unblocks answered + item 9 relay-and-confirm SHIPPED
+David answered the 3 unblocks: **(1) SearXNG** — run the bundled `docker/searxng/` (`docker compose -f
+docker/searxng/docker-compose.yml up -d`), URL `http://localhost:18888`, set `retrievalSearchBackendUrl` + enable egress
+in Settings. **(2) Docker VM** — David correctly pushed back; the >7.7 GiB was overstated. The 1-container + exec-cap
+design works; the scheduler is validated + opt-in; default-on validation is low-priority + tunable (lower the exec-cap
+for a small VM), NOT a real blocker. DROPPED it from the "needs you" list. **(3) item 9 relay-and-confirm — greenlit +
+BUILT (3 commits, green + pushed):** extracted `applyCardMessageRelay` (shared relay path) → `chat-service`
+`relayAddressedMessage` option (relay a card/answer-addressed message + confirm, skip the model turn; null ⇒ model turn)
+→ `runtime-api` provides it from the active workspace's board + task-session + mailbox deps. A goal message still runs
+the model; an @card message relays. 2 tests + the existing 31.
+
+**Follow-ups noticed (small):** (a) the relayed message keeps its `@card:<id> ` handle prefix — the card agent sees the
+handle noise; strip the leading handle before delivery for a clean message. (b) STREAM relay from the front door (needs
+send_to_stream's broadcast extracted like applyCardMessageRelay). (c) needs_clarify candidate-picker + rung-5
+disambiguator. (d) live-verify the relay in the running app (a hot-path change; deterministic tests cover the logic).
+The loop stays interactive (David is engaged); cron NOT re-armed.
