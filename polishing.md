@@ -395,8 +395,8 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **41 slices so far (20 §5.U extractions + 21 §5.V coverage batches), ~284 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
+> - **42 slices so far (20 §5.U extractions + 22 §5.V coverage batches), ~285 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42 finding). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
 >   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
 > **§5.V api-validation coverage — COMPLETE (slices 21–26, +57 tests):** all ~35 `src/core/api-validation.ts` parsers with
@@ -419,12 +419,15 @@
 > - ~~`core/runtime-endpoint.ts`~~ DONE slice 36 (origin builders, +3; TLS getter + fetch-timeout installer skipped).
 > - ~~`nklein-agent/nklein-session-state.ts` (17) — the big vein~~ DONE slices 37–39 (+19 tests, all 17 exports: pure helpers,
 >   clones, builders, and the entry mutators incl. the full tool-call lifecycle).
-> - ~~`nklein-provider-model-parsing.ts`~~ DONE slice 40 (+5). ~~`operator-board-health.ts` summarizeBoardHealth~~ DONE slice 41
->   (+2; summarizeWorkspaceBoardStreams still open — a distinct streams/staleness path via summarizeBoardStreams).
-> - **Remaining scanned offenders: `dev-test-project-registry.ts` (2), `operator-board-health.ts` summarizeWorkspaceBoardStreams,
->   `telemetry/sentry-node.ts` (2, may be I/O), `runtime-config.ts` (3, path getters + toGlobalRuntimeConfigState).** ← next.
->   SKIP the SDK-boundary files (sdk-runtime-boundary 7 / sdk-provider-boundary 4 — vendored passthroughs) and the
->   api-validation pure-passthrough remainder. Re-run the broad scan once these are done.
+> - ~~`nklein-provider-model-parsing.ts`~~ DONE slice 40. ~~`operator-board-health.ts` summarizeBoardHealth~~ DONE slice 41.
+>   ~~`runtime-config.ts` toGlobalRuntimeConfigState~~ DONE slice 42.
+>
+> **§5.V HIGH-VALUE COVERAGE SATURATED (slice 42 finding).** A broad scan (export function + const, all of src) shows the
+> remaining untested exports are dominated by `*-api-contract.ts` Zod SCHEMA/type declarations — transitively tested via the
+> now-fully-covered parsers + every consumer; a direct test would only re-assert Zod. The rest of the tail is LOW-VALUE:
+> trivial path-joins (getRuntime*ConfigPath), I/O-bound fns (dev-test-project-registry, sentry-node), and vendored
+> SDK-boundary passthroughs. Do NOT pad with schema smoke-tests. If a future change adds real post-schema/pure logic, cover
+> it then. Optional genuine-but-modest leftovers: `summarizeWorkspaceBoardStreams` (streams/staleness path).
 > - `core/runtime-endpoint.ts` (4) — url/endpoint builders (some already tested; check the gaps).
 > - `nklein-agent/nklein-session-state.ts` (17) — LARGE but mixed: many are stateful mutators (createMessage/updateSummary)
 >   — triage for the genuinely pure ones only.

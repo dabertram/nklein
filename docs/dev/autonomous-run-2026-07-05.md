@@ -1087,15 +1087,35 @@ instances → empty). Slice 41 (+2 tests): direct coverage for the lower-level `
 `summarizeWorkspaceBoardHealth` wraps it, so it was only transitively covered) — trash-column exclusion + the per-card
 resolveOverrides callback. No source change. Left `summarizeWorkspaceBoardStreams` (distinct streams/staleness path).
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 41) — for David
+### ▶ §5.V slice 42 + COVERAGE-SATURATION FINDING (2026-07-06, 2a4cfab0)
+Slice 42 (+1 test): `toGlobalRuntimeConfigState` — the global-only projection that must CLEAR every project-scoped field
+(projectConfigPath, *Override fields, projectSetupWizardCompletedAt, shortcuts) while preserving the global ones; verified
+against a real default state under an isolated temp HOME. Config-isolation correctness; also documents that the projection
+re-materializes objects (no shared mutable refs leak between the global view and its source).
+
+**FINDING — high-value §5.V pure-logic coverage is now essentially SATURATED.** A broad scan (export function + export const,
+across all of src) shows the remaining untested exports are dominated by `*-api-contract.ts` files — i.e. **Zod schema +
+inferred-type declarations** (runtime-config-api-contract 31, nklein-provider-api-contract 27, projects/chat/task contracts,
+…). Those are NOT genuine gaps: they're declarations, exercised transitively through the (now fully-covered) api-validation
+parsers and every runtime consumer; a direct test would only re-assert Zod. The rest of the tail is trivial path-joins
+(getRuntime*ConfigPath), I/O-bound functions (dev-test-project-registry, sentry-node), and vendored SDK-boundary passthroughs.
+**Net: over 42 slices this run I've closed every substantial vein of untested PURE LOGIC** — input boundary, core
+session-state, security (passcode + cmd escaping), config normalizers/resolvers/projection, routing/prompt/model-parsing/policy.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 42) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **41 slices this run (20 §5.U extractions + 21 §5.V coverage batches), ~284 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). §5.V veins CLOSED: the api-validation parser boundary,
-  runtime-config-normalizers, speculative/retrieval resolver normalizers, server path/host + endpoint-origin helpers, two
-  SECURITY modules (passcode rate-limiter + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers,
-  plan-task-routing resolvers, task-start-guard helpers, the nklein-session-state core module (all 17 exports),
-  provider-model-parsing mappers, and operator-board-health. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+- **42 slices this run (20 §5.U extractions + 22 §5.V coverage batches), ~285 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). §5.V high-value pure-logic coverage is now SATURATED
+  (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
+  normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
+  + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, plan-task-routing resolvers,
+  task-start-guard helpers, the nklein-session-state core module (all 17 exports), provider-model-parsing, operator-board-health.
+- **What remains actionable WITHOUT David is now low-value tail** (Zod schema declarations — transitively tested; trivial
+  path-joins; I/O-bound registry/sentry; vendored SDK passthroughs). **The one HIGH-VALUE item left is the big-3 stateful
+  responsibility-split** (task-session-service class + createRuntimeServer closure) — a multi-commit DI-threading undertaking
+  that genuinely benefits from David's steer on intended module boundaries, not an autonomous guess. §5.Z cross-model
+  verification (needs live models driven through flows) and §5.AZ release prep (POST-MATURITY, David-gated) also remain. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
