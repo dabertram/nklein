@@ -1435,3 +1435,14 @@ integration, one cluster per commit). Flagship monolith state now:
    THEN consolidate.** That §5.V test-first step IS autonomous and is the natural next action if the grind resumes.
 
 §5.Z heavy flows (need a live workspace) and §5.AZ release prep (David-gated, on hold) also remain per prior entries.
+
+- **provider-service: base-URL model-discovery fetchers lift + coverage** (`84c2ee18`) — extracted
+  fetchLiteLlmBaseUrlModels + fetchLmStudioBaseUrlModels (and their fetcher-only locals) into
+  `nklein-baseurl-model-discovery.ts`; logger keeps component "nklein-provider-service" (byte-identical logs). The §5.V half:
+  the fetch LOOP was previously uncovered (only the throttle/cache was) — new direct fetch-mocked test (5) covers both
+  providers' happy/non-ok/unreachable/dedup/no-base-URL branches, establishing the net the future 2→1 consolidation was owed.
+  **nklein-provider-service.ts 1073 → 933.** Dead LOGGER + createKanbanNKleinLogger + zod removed.
+- **Continuation tally: 5 clean §5.U increments, all three flagship monoliths reduced** — task-session-service 3392 → 3157,
+  runtime-server 2451 → 2230, provider-service 1073 → 933. All gated tsc+biome+fast+swarm-deterministic-pass, one cluster/commit.
+  **Available-next (now unblocked, low-risk):** the two base-URL fetchers can be consolidated into one parameterized
+  template-method fetcher now that direct coverage exists — a pure DRY win (~40 lines), no longer a behavior risk.
