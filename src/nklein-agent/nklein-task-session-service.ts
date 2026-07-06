@@ -57,7 +57,7 @@ import { searchHitsAdapter } from "../core/retrieval-search-adapter";
 import { citedSynthesisAdapter } from "../core/retrieval-synthesis-adapter";
 import { raisedTokenBudget } from "../core/retry-policy";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
-import { isEnteringAwaitingReview, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
+import { shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
@@ -72,7 +72,6 @@ import {
 	recordSelfObservation,
 	type SelfObservationEventInput,
 } from "../telemetry/self-observation-sink";
-import { isTaskPatchCaptureError, type TaskPatchCaptureError } from "../workspace/task-patch-capture-diagnostics";
 import { applyTaskPatchToResultBranch, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog";
@@ -146,6 +145,7 @@ import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-
 import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import { createRuntimeSetupLeaseCache } from "./nklein-runtime-setup-lease-cache";
+import { createSandboxReviewFinalizer } from "./nklein-sandbox-review-finalizer";
 import {
 	type CreateInMemoryNKleinSessionRuntimeOptions,
 	createInMemoryNKleinSessionRuntime,
@@ -181,12 +181,7 @@ import { isExplicitDecompositionPrompt } from "./nklein-task-prompt-parsing";
 import { TaskProviderIdStore } from "./nklein-task-provider-id-store";
 import { TaskRequestTimer } from "./nklein-task-request-timer";
 import { TaskSandboxStateStore } from "./nklein-task-sandbox-state";
-import {
-	formatStartWarnings,
-	isBenignSandboxPatchStagingTeardown,
-	resolveNKleinTaskRole,
-	toErrorMessage,
-} from "./nklein-task-session-helpers";
+import { formatStartWarnings, resolveNKleinTaskRole, toErrorMessage } from "./nklein-task-session-helpers";
 import { shouldDisableSwarmThinking } from "./nklein-task-start-guard";
 import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
 import { createTeamProgressEmitter } from "./nklein-team-progress-emitter";
@@ -523,6 +518,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		abortTaskSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
 		recordObservation: (event) => this.recordObservationWithModel(event),
 		emitTaskFailure: (taskId, entry, context, error) => this.emitTaskFailure(taskId, entry, context, error),
+	});
+	private readonly sandboxReviewFinalizer = createSandboxReviewFinalizer({
+		getSandboxState: () => this.sandboxState,
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId),
+		emitSummary: (summary) => this.emitSummary(summary),
+		emitMessage: (taskId, message) => this.emitMessage(taskId, message),
+		isExplicitDecomposition: (taskId) => this.explicitDecompositionTaskIds.has(taskId),
+		getDiagnosticStoreRoot: () => this.diagnosticStoreRoot,
 	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
@@ -3882,7 +3886,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.sandboxState.hasSandbox(taskId) &&
 			!this.sandboxState.getResultBranch(taskId)
 		) {
-			this.finalizeSandboxReview(taskId);
+			this.sandboxReviewFinalizer.finalizeSandboxReview(taskId);
 		}
 		const usage = summary.latestUsage ?? null;
 		// §5.AN decision-9: gate the recorded token telemetry by the configured level (full ⇒ as-is; basic ⇒ totals only;
@@ -4080,296 +4084,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * the capture completion) is the delivery-evidence signal — readers take the LAST record per task. Errored /
 	 * empty-capture runs therefore stop looking identical to delivered ones in the evidence stream.
 	 */
-	private recordPatchCaptureStatus(taskId: string, status: "captured" | "empty" | "error"): void {
-		const entry = this.messageRepository.getTaskEntry(taskId);
-		const summary = entry?.summary ?? null;
-		if (!summary) {
-			return;
-		}
-		// RESURRECTION (run18 live finding — the last stall class): an INTERRUPTED card whose dying-terminal
-		// salvage (W0.2) just CAPTURED real work has no path back into the flow — isReviewableNKleinSummary
-		// excludes `interrupted`, so the captured work sat unjudged and the run stalled. Rebind it into the
-		// reviewable flow: the review + fail-closed gate machinery decides its fate exactly like any handoff.
-		if (status === "captured" && summary.state === "interrupted" && entry) {
-			this.emitSummary(
-				updateSummary(entry, {
-					state: "awaiting_review",
-					reviewReason: "exit",
-					lastOutputAt: now(),
-					lastHookAt: now(),
-					latestHookActivity: {
-						activityText:
-							"Interrupted session's captured work rebound into review (salvage → judge, never lost).",
-						toolName: null,
-						toolInputSummary: null,
-						finalMessage: null,
-						hookEventName: "interrupted_salvage_rebound",
-						notificationType: null,
-						source: "nklein",
-					},
-				}),
-			);
-		} else if ((status === "empty" || status === "error") && summary.state === "interrupted" && entry) {
-			// run21 stall class: an abandoned/interrupted session whose FINAL round captured nothing — but a
-			// PRIOR round already delivered a result branch (e.g. delivered → bounced → the re-drive died) —
-			// stranded the card in In Progress forever: the rebound above only looks at THIS capture, and the
-			// terminal sweep only rescues OTHER waiting cards. If reviewable work exists from any earlier round,
-			// rebind to review exactly like the salvage case — the review loop (bounce/escalate/park) owns it.
-			const repoPath = this.sandboxState.getRepoPath(taskId) ?? summary.workspacePath ?? null;
-			if (repoPath) {
-				void resolveTaskResultBranchCommit({ repoPath, taskId })
-					.catch(() => null)
-					.then((priorResultCommit) => {
-						const current = this.messageRepository.getTaskEntry(taskId);
-						if (!priorResultCommit || !current || current.summary.state !== "interrupted") {
-							return;
-						}
-						this.emitSummary(
-							updateSummary(current, {
-								state: "awaiting_review",
-								reviewReason: "exit",
-								lastOutputAt: now(),
-								lastHookAt: now(),
-								latestHookActivity: {
-									activityText:
-										"Interrupted session left no new changes, but a prior round's result branch exists — rebound into review so the existing work gets judged instead of stranding the card.",
-									toolName: null,
-									toolInputSummary: null,
-									finalMessage: null,
-									hookEventName: "interrupted_prior_work_rebound",
-									notificationType: null,
-									source: "nklein",
-								},
-							}),
-						);
-					});
-			}
-		}
-		// The store records TERMINAL states only; capture always completes around the awaiting_review/failed/
-		// interrupted transition, so a non-terminal snapshot (a benign race) maps to awaiting_review.
-		const terminalState =
-			summary.state === "failed" || summary.state === "interrupted" ? summary.state : ("awaiting_review" as const);
-		void recordTaskRunSummary(
-			{
-				taskId,
-				workspacePath: summary.workspacePath ?? null,
-				state: terminalState,
-				reviewReason: summary.reviewReason ?? null,
-				providerId: summary.providerId ?? null,
-				modelId: summary.modelId ?? null,
-				endpoint: summary.endpoint ?? null,
-				lastActivity: `patch capture: ${status}`,
-				warningMessage: null,
-				exitCode: summary.exitCode ?? null,
-				startedAt: summary.startedAt ?? null,
-				endedAt: summary.updatedAt,
-				promptTokens: null,
-				completionTokens: null,
-				totalTokens: null,
-				timeoutReason: null,
-				timeoutSource: null,
-				role: resolveNKleinTaskRole(taskId, this.explicitDecompositionTaskIds.has(taskId)),
-				scenario: null,
-				focusChain: null,
-				patchCaptureStatus: status,
-			},
-			{ rootDir: this.diagnosticStoreRoot },
-		);
-	}
-
-	private shouldFinalizeSandboxReview(
-		previousSummary: RuntimeTaskSessionSummary,
-		nextSummary: RuntimeTaskSessionSummary | null,
-	): nextSummary is RuntimeTaskSessionSummary {
-		if (!isEnteringAwaitingReview(previousSummary, nextSummary)) {
-			return false;
-		}
-		if (isHomeAgentSessionId(nextSummary.taskId) || this.sandboxState.isFinalizing(nextSummary.taskId)) {
-			return false;
-		}
-		return Boolean(this.agentSandboxManager && this.sandboxState.hasSandbox(nextSummary.taskId));
-	}
-
-	private finalizeSandboxReview(taskId: string): void {
-		const manager = this.agentSandboxManager;
-		const repoPath = this.sandboxState.getRepoPath(taskId);
-		const baseRef = this.sandboxState.getBaseRef(taskId);
-		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (!manager || !repoPath || !baseRef || !entry || this.sandboxState.isFinalizing(taskId)) {
-			return;
-		}
-		this.sandboxState.markFinalizing(taskId);
-		void (async () => {
-			try {
-				const patch = await manager.captureWorkspacePatch(taskId, { baseRef });
-				const branch = await applyTaskPatchToResultBranch({
-					repoPath,
-					taskId,
-					baseRef,
-					patch,
-				});
-				if (branch) {
-					this.sandboxState.setResultBranch(taskId, branch);
-					recordSelfObservation({
-						signal: "custom",
-						severity: "info",
-						message: `Sandbox task result branch updated: ${branch.branchName}`,
-						taskId,
-						workspacePath: repoPath,
-						metadata: {
-							category: "agent_sandbox_result_patch",
-							branchName: branch.branchName,
-							headCommit: branch.headCommit,
-							baseCommit: branch.baseCommit,
-						},
-					});
-					const message = createMessage(
-						taskId,
-						"system",
-						`Captured sandbox changes to task result branch ${branch.branchName} (${branch.headCommit.slice(
-							0,
-							12,
-						)}).`,
-					);
-					entry.messages.push(message);
-					this.emitMessage(taskId, message);
-					this.emitSummary(
-						updateSummary(entry, {
-							workspacePath: repoPath,
-							lastOutputAt: now(),
-							lastHookAt: now(),
-							latestHookActivity: {
-								activityText: `Result patch captured: ${branch.branchName}`,
-								toolName: null,
-								toolInputSummary: null,
-								finalMessage: branch.headCommit,
-								hookEventName: "sandbox_patch_captured",
-								notificationType: null,
-								source: "nklein",
-							},
-						}),
-					);
-					this.recordPatchCaptureStatus(taskId, "captured");
-				} else {
-					this.emitSummary(
-						updateSummary(entry, {
-							workspacePath: repoPath,
-							lastOutputAt: now(),
-							lastHookAt: now(),
-							latestHookActivity: {
-								activityText: "Sandbox finished with no file changes",
-								toolName: null,
-								toolInputSummary: null,
-								finalMessage: null,
-								hookEventName: "sandbox_patch_empty",
-								notificationType: null,
-								source: "nklein",
-							},
-						}),
-					);
-					this.recordPatchCaptureStatus(taskId, "empty");
-				}
-				// #31 (run32 live): a fast bounce can RE-DRIVE the worker (restore + running) while this
-				// fire-and-forget finalize is still capturing. Disposing then rips the workspace out from under
-				// the live turn (ENOENT '/workspaces', capture-unavailable, dead round-2 reviews). Dispose only
-				// while the card is still parked; a session back in flight owns its workspace, and the NEXT
-				// handoff re-finalizes (and disposes) as usual.
-				const stateAfterCapture = this.messageRepository.getTaskEntry(taskId)?.summary.state;
-				if (stateAfterCapture !== "running" && stateAfterCapture !== "queued") {
-					await manager.disposeWorkspace(taskId);
-				}
-				// Keep the sandbox STATE (repoPath/baseRef): the card is only AWAITING REVIEW — a bounce or
-				// escalation re-drive needs it to RESTORE the disposed workspace (run20 #17 / harness v3: with the
-				// state forgotten here, the restore helper no-op'd, the re-driven worker's tools had no placement,
-				// and the session could never finalize a second round). True terminal cleanup forgets it.
-				this.sandboxState.unmarkFinalizing(taskId);
-			} catch (error) {
-				this.sandboxState.unmarkFinalizing(taskId);
-				const errorMessage = toErrorMessage(error);
-				// Benign teardown race: the sandbox workspace was disposed concurrently before the patch could
-				// be captured. Genuine capture failures while the workspace still exists fall through below.
-				const hasWorkspace = manager.hasWorkspace(taskId);
-				const benignReason = !hasWorkspace
-					? "workspace_disposed_before_capture"
-					: isBenignSandboxPatchStagingTeardown(error)
-						? "workspace_missing_before_capture"
-						: null;
-				if (benignReason) {
-					recordSelfObservation({
-						signal: "custom",
-						severity: "info",
-						message: `Sandbox workspace for task ${taskId} was unavailable before a result patch could be captured; nothing to capture.`,
-						taskId,
-						workspacePath: repoPath,
-						metadata: {
-							category: "agent_sandbox_result_patch",
-							reason: benignReason,
-						},
-					});
-					if (hasWorkspace && this.messageRepository.getTaskEntry(taskId)?.summary.state !== "running") {
-						await manager.disposeWorkspace(taskId).catch(() => null);
-					}
-					// Same as the capture path above: keep the sandbox state for a possible re-drive round.
-					this.sandboxState.unmarkFinalizing(taskId);
-					return;
-				}
-				this.recordPatchCaptureStatus(taskId, "error");
-				const captureError: TaskPatchCaptureError | null = isTaskPatchCaptureError(error) ? error : null;
-				// follow-up-6 §3.5: distinguish a corrupt/garbled captured diff (an infrastructure capture
-				// problem) from an agent failure, and keep the failing file/hunk + preserved artifact on the card.
-				const classification = captureError?.classification ?? null;
-				const cardNote = captureError
-					? `Could not capture sandbox task result patch (${captureError.classification})${
-							captureError.firstFailingFile ? ` in ${captureError.firstFailingFile}` : ""
-						}${
-							captureError.firstFailingHunkHeader ? ` ${captureError.firstFailingHunkHeader}` : ""
-						}: ${captureError.gitError.trim()}${
-							captureError.preservedPatchPath
-								? ` Preserved failing patch: ${captureError.preservedPatchPath}`
-								: ""
-						}`
-					: `Could not capture sandbox task result patch: ${errorMessage}`;
-				recordSelfObservation({
-					signal: "runtime_error",
-					severity: "error",
-					message: cardNote,
-					taskId,
-					workspacePath: repoPath,
-					metadata: {
-						category: "agent_sandbox_result_patch",
-						...(classification ? { patchCaptureClassification: classification } : {}),
-						...(captureError?.firstFailingFile ? { firstFailingFile: captureError.firstFailingFile } : {}),
-						...(captureError?.firstFailingHunkHeader
-							? { firstFailingHunkHeader: captureError.firstFailingHunkHeader }
-							: {}),
-						...(captureError?.failingLine !== null && captureError?.failingLine !== undefined
-							? { failingLine: captureError.failingLine }
-							: {}),
-						...(captureError?.preservedPatchPath ? { preservedPatchPath: captureError.preservedPatchPath } : {}),
-					},
-				});
-				const latestEntry = this.messageRepository.getTaskEntry(taskId);
-				if (!latestEntry) {
-					return;
-				}
-				this.emitSummary(
-					updateSummary(latestEntry, {
-						warningMessage: cardNote,
-						lastHookAt: now(),
-						latestHookActivity: {
-							activityText: `Result patch capture failed${classification ? ` (${classification})` : ""}: ${errorMessage}`,
-							toolName: null,
-							toolInputSummary: null,
-							finalMessage: errorMessage,
-							hookEventName: "sandbox_patch_capture_failed",
-							notificationType: null,
-							source: "nklein",
-						},
-					}),
-				);
-			}
-		})();
-	}
 
 	private captureReviewCheckpoint(taskId: string, summary: RuntimeTaskSessionSummary): void {
 		const nextTurn = (summary.latestTurnCheckpoint?.turn ?? 0) + 1;
@@ -4437,8 +4151,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const shouldAbortForCreditLimit =
 			entry.summary.latestHookActivity?.notificationType === "credit_limit" &&
 			previousSummary?.latestHookActivity?.notificationType !== "credit_limit";
-		if (this.shouldFinalizeSandboxReview(previousSummary, latestSummary)) {
-			this.finalizeSandboxReview(taskId);
+		if (this.sandboxReviewFinalizer.shouldFinalizeSandboxReview(previousSummary, latestSummary)) {
+			this.sandboxReviewFinalizer.finalizeSandboxReview(taskId);
 		} else if (shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
 			this.captureReviewCheckpoint(taskId, latestSummary);
 		}
