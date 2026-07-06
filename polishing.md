@@ -395,7 +395,7 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **39 slices so far (20 §5.U extractions + 19 §5.V coverage batches), ~272 new unit tests, zero behavior changes** (pre-commit
+> - **41 slices so far (20 §5.U extractions + 21 §5.V coverage batches), ~284 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
 >   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
@@ -419,8 +419,10 @@
 > - ~~`core/runtime-endpoint.ts`~~ DONE slice 36 (origin builders, +3; TLS getter + fetch-timeout installer skipped).
 > - ~~`nklein-agent/nklein-session-state.ts` (17) — the big vein~~ DONE slices 37–39 (+19 tests, all 17 exports: pure helpers,
 >   clones, builders, and the entry mutators incl. the full tool-call lifecycle).
-> - **Next scanned offenders (2 each): `operator-board-health.ts` (summarizeBoardHealth/summarizeWorkspaceBoardStreams),
->   `nklein-provider-model-parsing.ts` (toRuntimeProviderModel/toLmStudioModels), `dev-test-project-registry.ts`.** ← next.
+> - ~~`nklein-provider-model-parsing.ts`~~ DONE slice 40 (+5). ~~`operator-board-health.ts` summarizeBoardHealth~~ DONE slice 41
+>   (+2; summarizeWorkspaceBoardStreams still open — a distinct streams/staleness path via summarizeBoardStreams).
+> - **Remaining scanned offenders: `dev-test-project-registry.ts` (2), `operator-board-health.ts` summarizeWorkspaceBoardStreams,
+>   `telemetry/sentry-node.ts` (2, may be I/O), `runtime-config.ts` (3, path getters + toGlobalRuntimeConfigState).** ← next.
 >   SKIP the SDK-boundary files (sdk-runtime-boundary 7 / sdk-provider-boundary 4 — vendored passthroughs) and the
 >   api-validation pure-passthrough remainder. Re-run the broad scan once these are done.
 > - `core/runtime-endpoint.ts` (4) — url/endpoint builders (some already tested; check the gaps).
