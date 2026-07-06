@@ -484,7 +484,10 @@
 > **★ SEAM COMPLETE (2026-07-06, 6/6):** all auxiliary secondary-session runners extracted, each gated by
 > tsc+biome+fast+swarm-deterministic-pass, behavior byte-identical. 1 AcceptanceVerifier · 2 pickDiverseReviewerModel ·
 > 3 SecondarySessionHarness (+review) · 4 PlanCritique(on-harness) · 5 SpeculativeMirror(standalone) · 6 MergeResolution
-> (standalone). **task-session-service 4886 → 3392 this run (−31%).** Learnings: review + plan-critique share the harness
+> (standalone). **task-session-service 4886 → 3392 (seam) → 3293 (+adaptive-budget cluster, `b03a2854`) this run.** The
+> adaptive-budget/quality-budget cluster: `createAdaptiveBudgetController(deps)` owns the W2.3a learned quality budgets (read
+> by ContextBudgetController) + the W1.1b stall-signature adaptive retry, all 3 state maps/flags; verbatim move, lazy-arrow
+> deps, 5 characterization tests, gated incl. swarm-deterministic-pass. Learnings: review + plan-critique share the harness
 > (void runBoundedTurn, additive primaryTaskId-optional baseRef); mirror + merge diverge (own boolean/settled-timeout
 > runBoundedTurn, cancel-state / git-merge reproduction) → standalone via the named StartRuntimeTaskSessionFromLaunchConfigInput
 > dep-type (shared nklein-runtime-session-input module). The original approval below.

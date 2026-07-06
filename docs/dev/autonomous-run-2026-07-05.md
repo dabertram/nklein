@@ -1366,3 +1366,28 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   `createRuntimeServer` closure and the task-session-service class by responsibility. §5.Z cross-model verification + §5.AZ
   release prep remain open; §5.AX visual overhaul is Fable-only.
 - **polishing.md:** §5.U section migrated in (per the phase directive), with the same tally + next targets.
+
+---
+
+### Update (2026-07-06) — review-cluster seam complete + adaptive-budget cluster
+
+- **`nklein-task-session-service.ts` 4040 → 3293** since the last entry. Two arcs:
+  - **Review-cluster auxiliary-session seam (6/6)** — the biggest single §5.U reduction. Extracted the review/critique/
+    verify/mirror/merge secondary-session machinery: `nklein-acceptance-verifier`, `nklein-reviewer-model-selection`
+    (shared by 3 call sites), `nklein-secondary-session-harness` (the `runBracketed` skeleton — sandbox setup + bounded
+    turn + always-teardown; runners supply only their `drive` closure), `nklein-runtime-session-input` (shared input-type
+    module to break the cycle), `nklein-speculative-mirror-runner` (§5.AW best-of-N mirror, owns its cancel flags), and
+    `nklein-merge-resolution-runner` (§5.AK sandbox merge-conflict resolution). Each gated with tsc + biome + fast suite +
+    the `swarm-deterministic-pass` integration pass. New tests: 5+3+6+5+8 = 27.
+  - **Adaptive-budget/quality-budget cluster** (this commit, `b03a2854`) — `createAdaptiveBudgetController(deps)` owns the
+    LEARNED quality-effective budgets (W2.3a, read by ContextBudgetController) + the stall-signature adaptive retry (W1.1b),
+    all three state maps/flags. Verbatim move, lazy-arrow deps, 5 characterization tests. 3392 → 3293.
+- **Runner heterogeneity established:** review + plan-critique share the harness (void runBoundedTurn); mirror + merge diverge
+  (own boolean / settled-timeout runBoundedTurn, cancel-state, git reproduction) → standalone extraction via the named
+  `startRuntimeSession` dep-type. The `forgetSyntheticSessionState(taskId)` service helper is now the shared synthetic-session
+  teardown reused by harness + mirror + merge.
+- **New modules:** nklein-acceptance-verifier, nklein-reviewer-model-selection, nklein-secondary-session-harness,
+  nklein-runtime-session-input, nklein-speculative-mirror-runner, nklein-merge-resolution-runner, nklein-adaptive-budget-controller.
+- **Next targets:** continue surveying task-session-service (3293) for the next cohesive cluster; the entangled primary-lifecycle
+  orchestration is the remaining hard core (module boundary may be genuinely ambiguous — flag for David if so). §5.Z heavy flows
+  (need workspace) + §5.AZ release prep (David-gated) remain open.
