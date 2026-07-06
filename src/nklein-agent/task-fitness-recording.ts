@@ -43,11 +43,11 @@ export function deriveTaskFitnessRecord(input: {
 
 	const modelKey = buildNKleinModelRegistryKey({
 		providerId: summary.providerId ?? "",
-		// NOTE (§5.BG): stays keyed by the RUNTIME id for now. Fitness is read back for routing/display by the runtime-id
-		// registry key (candidates derive from `descriptor.runtimeId`), so keying the WRITE by the stable key alone would
-		// misalign write vs read. The stable-key migration must switch the candidate/registry key source + all reads
-		// together (see §5.BG); until then the write stays runtime-keyed to preserve read/write consistency.
-		modelId: summary.modelId ?? "",
+		// §5.BG: the fitness table + model-behavior STORE are DISPLAY/inert streams — NOT read for routing (routing reads
+		// the ledger projection, keyed by the runtime id, which stays runtime until its own coordinated flip). So keying
+		// fitness off the STABLE publisher key is self-contained + safe: a renamed LM Studio instance's fitness cells stay
+		// MERGED instead of fragmenting. Falls back to the runtime id for cloud / not-loaded / legacy summaries.
+		modelId: summary.modelKey ?? summary.modelId ?? "",
 		endpoint: summary.endpoint,
 	});
 	const role = resolveNKleinTaskRole(summary.taskId, card?.generatedFromPlan?.artifactKind === "decomposition");

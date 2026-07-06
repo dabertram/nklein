@@ -1,53 +1,55 @@
 import { describe, expect, it } from "vitest";
-import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "../../../src/core/api-contract";
+import { buildTerminalAttemptEvent } from "../../../src/nklein-agent/nklein-ledger-attempt";
 import { buildLoadedModelRoutingCandidates } from "../../../src/nklein-agent/nklein-loaded-model-candidates";
 import { buildNKleinModelRegistryKey } from "../../../src/nklein-agent/nklein-model-registry-key";
-import { deriveTaskFitnessRecord } from "../../../src/nklein-agent/task-fitness-recording";
 
 /**
- * §5.BG read/write KEY-ALIGNMENT guard — the safety net whose ABSENCE let an earlier mismatch through.
+ * §5.BG ROUTING read/write KEY-ALIGNMENT guard — the safety net whose ABSENCE let an earlier mismatch through.
  *
- * Model telemetry is only correct when the identity the routing READ side keys off (`candidate.entry.key`) is the SAME
- * identity the telemetry WRITE side stamps (the fitness cell key). A one-sided change — e.g. flipping the write to the
- * stable publisher key while the routing read still keys off the runtime id — SILENTLY breaks selection: evidence
- * written under one key is never found under the other, and no per-function unit test catches it. This pins that the two
- * paths derive the SAME registry key for the same model coordinates, so any future divergence fails loudly HERE.
+ * The routing evidence loop is: the terminal-attempt LEDGER event is WRITTEN with a registry-key `modelId`
+ * (`nklein-ledger-attempt`), summarized into per-model success rates, and looked up at start by the routing candidate's
+ * `entry.key`. Selection is only correct when the ledger WRITE key and the candidate READ key derive from the SAME model
+ * identity. A one-sided change — flipping one to the stable publisher key while the other stays runtime-keyed — SILENTLY
+ * breaks selection (evidence written under one key is never found under the other), and no per-function unit test catches
+ * it (that is exactly the bug that shipped once). This pins that the two derive the SAME key for the same coordinates.
  *
- * When the §5.BG stable-key switch lands, BOTH sides move together (this test is UPDATED, not deleted, to assert they
- * now agree on the stable key).
+ * NOTE: fitness + the model-behavior store are DISPLAY/inert (not read for routing), so they are intentionally NOT part
+ * of this coupling and may key stably on their own. When the ROUTING cluster's stable-key switch lands, the ledger write
+ * and the candidate read move together and this test is UPDATED (not deleted) to assert they agree on the stable key.
  */
-describe("model-telemetry key alignment (§5.BG): routing READ key == fitness WRITE key", () => {
+describe("model-telemetry ROUTING key alignment (§5.BG): candidate READ key == ledger WRITE key", () => {
 	const providerId = "lmstudio";
 	const modelId = "coder-gpu"; // a runtime id (an LM Studio per-instance alias)
 	const endpoint = "http://localhost:1234/v1";
 
-	it("a routing candidate's entry.key equals the fitness write key for the same model coordinates", () => {
-		const candidates = buildLoadedModelRoutingCandidates({
+	it("a routing candidate's entry.key equals the terminal-attempt ledger event's modelId for the same coordinates", () => {
+		const candidate = buildLoadedModelRoutingCandidates({
 			loadedModelIds: [modelId],
 			registryEntries: [],
 			providerId,
 			endpoint,
 			now: 0,
-		});
-		const candidate = candidates[0];
-		const fitness = deriveTaskFitnessRecord({
-			summary: {
-				taskId: "t1",
-				providerId,
-				modelId,
-				endpoint,
-				state: "awaiting_review",
-				startedAt: 0,
-				updatedAt: 1,
-			} as RuntimeTaskSessionSummary,
-			card: { id: "t1", title: "x" } as RuntimeBoardCard,
+		})[0];
+
+		const ledgerEvent = buildTerminalAttemptEvent({
+			taskId: "t1",
+			workspacePath: null,
+			state: "awaiting_review",
+			role: "worker",
+			providerId,
+			modelId, // the write side stamps the SAME runtime id the read side keys off
+			endpoint,
+			startedAt: 0,
+			endedAt: 1,
+			promptTokens: null,
+			completionTokens: null,
+			timeoutReason: null,
 		});
 
 		expect(candidate?.entry.key).toBeDefined();
-		expect(fitness?.key.modelKey).toBeDefined();
-		// THE INVARIANT: the read side (routing candidate) and the write side (fitness) agree on the model's identity.
-		expect(candidate?.entry.key).toBe(fitness?.key.modelKey);
-		// …and both are the canonical registry key for these coordinates (runtime-keyed today, pre-§5.BG-flip).
+		// THE INVARIANT: routing read identity (candidate.entry.key) == routing write identity (ledger event modelId).
+		expect(candidate?.entry.key).toBe(ledgerEvent.modelId);
+		// …and both are the canonical registry key for these coordinates (runtime-keyed today, pre-§5.BG routing flip).
 		expect(candidate?.entry.key).toBe(buildNKleinModelRegistryKey({ providerId, modelId, endpoint }));
 	});
 });

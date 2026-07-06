@@ -1859,3 +1859,21 @@ consistency (7952 green). **KEPT** the harmless, tested scaffolding as the found
   coordinated, test-verified change (with the read-side alignment explicitly tested, not just the writers). Plus the
   best-effort re-key-on-load for existing runtime-keyed rows. This is a larger hot-path + persisted-data change; flagged
   for David rather than continued piecemeal.
+
+### 2026-07-07 (Opus) · §5.BG — netted the routing coupling + flipped the SAFE (display) cluster
+
+David: "do it as one coordinated change." Executing the netted plan. Deeper read-side tracing settled the coupling map:
+- **Fitness table + model-behavior STORE are DISPLAY/inert** — `readModelBehaviorProfile` has NO routing callers, and the
+  routing behavior actually comes from the LEDGER PROJECTION (`buildModelBehaviorProfilesFromLedger`, keyed by the runtime
+  `attempt.modelId`). So fitness is a self-contained write→display stream, DECOUPLED from routing.
+- **The real routing-evidence coupling** is `candidate.entry.key` (READ) ↔ the terminal-attempt ledger event's `modelId`
+  (WRITE) — both `buildNKleinModelRegistryKey` on the runtime coords. THAT pair must move together in the routing flip.
+- **Flipped the SAFE cluster now:** `deriveTaskFitnessRecord` keys off `summary.modelKey ?? summary.modelId`, so the
+  fitness browser + model-behavior store MERGE a renamed instance's cells instead of fragmenting (display/inert ⇒ zero
+  routing risk). +2 fitness tests (rename-merge + fallback).
+- **Re-pointed the alignment guard** from the coincidental fitness↔candidate pair to the REAL candidate↔ledger routing
+  pair — so a one-sided routing flip (candidate→stable but ledger stays runtime, or vice versa) now fails loudly. 7955 green.
+- **Remaining = the ROUTING cluster (the hot, coupled part):** flip `candidate.entry.key` source (`d.runtimeId` →
+  `d.modelKey`) + the ledger write + the residency set (`runningModelKeys`) + the verdict (add a stable field to the
+  candidate; observations write stable) TOGETHER, guard verifying, then re-key-on-load the ledger/registry. Endpoint
+  scheduler stays runtime (invocation). This is the high-risk step — next, with the guard now covering it.
