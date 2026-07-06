@@ -12,14 +12,19 @@ import {
 	type LineRange,
 	mergeRanges,
 } from "./nklein-large-file-line-ranges";
+import {
+	createRailMessage,
+	filterToolsByName,
+	formatOutputHeader,
+	hasSynthesisText,
+	sanitizePathSegment,
+} from "./nklein-large-file-workflow-helpers";
 import { assertRealToolPathWithinRoot, confineToolPath } from "./nklein-tool-path-containment";
 import type {
 	AgentAfterModelContext,
 	AgentBeforeModelContext,
 	AgentBeforeModelResult,
-	AgentMessage,
 	AgentTool,
-	AgentToolDefinition,
 } from "./sdk-agent-types";
 
 const STITCH_CONTEXT_LINES = 20;
@@ -84,11 +89,6 @@ interface LargeFileWorkflowIndex {
 
 export function isLargeFileForWorkflow(_sizeBytes: number, tokenCount: number, tokenBudget: number): boolean {
 	return tokenCount > tokenBudget;
-}
-
-function sanitizePathSegment(value: string): string {
-	const normalized = value.replace(/[^a-zA-Z0-9._-]/g, "_");
-	return normalized || "session";
 }
 
 function buildStitchBoundaries(ranges: readonly LineRange[]): StitchBoundary[] {
@@ -158,47 +158,6 @@ function expectedCursorForFile(file: LargeFileState): string {
 		return pendingStitchCursor;
 	}
 	return file.synthesisCompleted ? "complete" : "synthesis";
-}
-
-function createRailMessage(text: string): AgentMessage {
-	return {
-		id: `kanban-large-file-rail-${Date.now()}`,
-		role: "user",
-		content: [{ type: "text", text }],
-		createdAt: Date.now(),
-		metadata: {
-			kind: "kanban_large_file_rail",
-		},
-	};
-}
-
-function filterToolsByName(
-	tools: readonly AgentToolDefinition[],
-	allowedToolNames: ReadonlySet<string>,
-): readonly AgentToolDefinition[] {
-	return tools.filter((tool) => allowedToolNames.has(tool.name));
-}
-
-function hasSynthesisText(message: AgentMessage): boolean {
-	let hasText = false;
-	for (const part of message.content) {
-		if (part.type === "tool-call") {
-			return false;
-		}
-		if (part.type === "text" && part.text.trim().length > 0) {
-			hasText = true;
-		}
-	}
-	return hasText;
-}
-
-function formatOutputHeader(output: {
-	kind: "primary" | "stitch";
-	sourcePath: string;
-	startLine: number;
-	endLine: number;
-}): string {
-	return `### ${output.kind} ${output.sourcePath}:${output.startLine}-${output.endLine}`;
 }
 
 function formatStitchingAreaContent(options: {
