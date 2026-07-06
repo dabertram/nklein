@@ -10,6 +10,11 @@ import {
 	readHookEvent,
 	readStatusEvent,
 } from "./nklein-event-adapter-readers";
+import {
+	getRetainedNKleinToolActivity,
+	isRecoverableToolCallFailure,
+	isReviewableAbortedToolCompletion,
+} from "./nklein-event-adapter-tool-activity";
 import { extractAgentErrorMessage, readMessagePartText, readToolResult } from "./nklein-message-content-readers";
 import { normalizePreviewText, toPreviewText } from "./nklein-preview-text";
 import { isLikelySerializedAgentEventChunk } from "./nklein-serialized-event-chunk";
@@ -47,45 +52,6 @@ export interface ApplyNKleinSessionEventInput {
 	isNKleinProvider: boolean;
 	emitSummary: (summary: RuntimeTaskSessionSummary) => void;
 	emitMessage: (taskId: string, message: NKleinTaskMessage) => void;
-}
-
-function getRetainedNKleinToolActivity(entry: NKleinTaskSessionEntry): {
-	toolName: string | null;
-	toolInputSummary: string | null;
-} {
-	const latestHookActivity = entry.summary.latestHookActivity;
-	if (latestHookActivity?.source !== "nklein-sdk" || !latestHookActivity.toolName) {
-		return {
-			toolName: null,
-			toolInputSummary: null,
-		};
-	}
-
-	return {
-		toolName: latestHookActivity.toolName,
-		toolInputSummary: latestHookActivity.toolInputSummary ?? null,
-	};
-}
-
-function isReviewableAbortedToolCompletion(entry: NKleinTaskSessionEntry): boolean {
-	const latestHookActivity = entry.summary.latestHookActivity;
-	if (latestHookActivity?.source !== "nklein-sdk" || latestHookActivity.hookEventName !== "tool_result") {
-		return false;
-	}
-	const toolName = latestHookActivity.toolName?.trim().toLowerCase();
-	if (!toolName || isNKleinUserAttentionTool(toolName)) {
-		return false;
-	}
-	return new Set([
-		"edit",
-		"edit_file",
-		"replace_in_file",
-		"run_command",
-		"run_commands",
-		"write",
-		"write_file",
-		"write_files",
-	]).has(toolName);
 }
 
 function emitAssistantTextSummary(input: ApplyNKleinSessionEventInput, text: string | null): void {
@@ -132,10 +98,6 @@ export function extractNKleinSessionId(event: unknown): string | null {
 	}
 	const payload = asRecord(record.payload);
 	return payload && typeof payload.sessionId === "string" ? payload.sessionId : null;
-}
-
-function isRecoverableToolCallFailure(message: string | null): boolean {
-	return Boolean(message?.includes("tool call(s) failed:"));
 }
 
 // Translate raw SDK events into !Klein summary and chat mutations so the session service can stay focused on host ownership.
