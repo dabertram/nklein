@@ -37,7 +37,6 @@ import {
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
@@ -57,7 +56,7 @@ import {
 	recordSelfObservation,
 	type SelfObservationEventInput,
 } from "../telemetry/self-observation-sink";
-import { applyTaskPatchToResultBranch, resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
+import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog";
 import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
@@ -99,11 +98,7 @@ import {
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
-import {
-	buildMergeResolutionSeedPrompt,
-	type NKleinMergeResolutionResult,
-	type NKleinMergeResolutionSubmittedHandler,
-} from "./nklein-merge-resolution-tool";
+import { buildMergeResolutionSeedPrompt, type NKleinMergeResolutionResult } from "./nklein-merge-resolution-tool";
 import {
 	createInMemoryNKleinMessageRepository,
 	createTaskEntryFromPersistedSession,
@@ -121,12 +116,15 @@ import {
 	buildPlanCritiqueSeedPrompt,
 	type NKleinPlanCritiqueRequestHandler,
 	type NKleinPlanCritiqueResult,
-	type NKleinPlanCritiqueSubmittedHandler,
 } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
-import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
+import type { NKleinReviewResult } from "./nklein-review-tool";
 import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
+import type {
+	RuntimeTaskSessionStartResult,
+	StartRuntimeTaskSessionFromLaunchConfigInput,
+} from "./nklein-runtime-session-input";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import { createRuntimeSetupLeaseCache } from "./nklein-runtime-setup-lease-cache";
 import { createSandboxReviewFinalizer } from "./nklein-sandbox-review-finalizer";
@@ -155,6 +153,7 @@ import {
 	updateSummary,
 } from "./nklein-session-state";
 import { buildSessionSystemPrompt } from "./nklein-session-system-prompt";
+import { createSpeculativeMirrorRunner } from "./nklein-speculative-mirror-runner";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
 import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker";
 import { createTaskFailureEmitter } from "./nklein-task-failure-emitter";
@@ -190,7 +189,6 @@ export { computeRepeatedToolCallCandidate, formatRepeatedToolCallParkMessage } f
 /** Overall time budget for a second-opinion reviewer session (first turn + any nudges) before it is abandoned (todo §5.K). */
 const DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
 /** §5.AW: a speculative mirror is a full worker attempt — give it a worker-scale bound (arbitration usually cancels it sooner). */
-const DEFAULT_SPECULATIVE_MIRROR_TIMEOUT_MS = 15 * 60 * 1000;
 /**
  * Opt-in stream-event tracing (`NKLEIN_DEBUG_STREAM_EVENTS=1`). Prints every SDK event reaching the service with a
  * wall-clock timestamp + the gap since the previous event for that task — so a "stream inactivity" stall can be read
@@ -528,13 +526,20 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		getAgentSandboxManager: () => this.agentSandboxManager,
 		setSandbox: (taskId, repoPath, baseRef) => this.sandboxState.setSandbox(taskId, repoPath, baseRef),
 		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
-		forgetSyntheticState: (taskId) => {
-			this.launchConfigByTaskId.delete(taskId);
-			this.providerIdStore.forget(taskId);
-			this.modelEndpoint.forget(taskId);
-			this.contextBudgetInputs.forget(taskId);
-			this.sandboxState.deleteSandbox(taskId);
-		},
+		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
+	});
+	/** §5.U auxiliary secondary-session runner: the §5.AW speculative best-of-N mirror (owns its own cancel flags). */
+	private readonly speculativeMirrorRunner = createSpeculativeMirrorRunner({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId),
+		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId),
+		getPauseController: () => this.pauseController,
+		setSandbox: (taskId, repoPath, baseRef) => this.sandboxState.setSandbox(taskId, repoPath, baseRef),
+		setResultBranch: (taskId, branch) => this.sandboxState.setResultBranch(taskId, branch),
+		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
+		cancelTaskTurn: (taskId) => this.cancelTaskTurn(taskId),
+		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
+		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
 	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
@@ -948,27 +953,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return [...(sandboxExtraTools ?? []), ...retrievalExtraTools];
 	}
 
-	private async startRuntimeTaskSessionFromLaunchConfig(input: {
-		taskId: string;
-		cwd: string;
-		workspaceRoot?: string | null;
-		prompt: string;
-		initialMessages?: NKleinSdkPersistedMessage[];
-		/** W1.1a: optional per-turn output budget (see StartNKleinTaskSessionInput.maxTokensPerTurn). */
-		maxTokensPerTurn?: number | null;
-		images?: RuntimeTaskImage[];
-		mode?: RuntimeTaskSessionMode;
-		launchConfig: NKleinTaskRestartLaunchConfig;
-		systemPrompt?: string | null;
-		contextScope?: "full" | "smart" | "minimal" | "custom";
-		timeoutMode?: "normal" | "long" | "extended" | "unlimited";
-		codeEmbeddingProvider?: NKleinCodeEmbeddingProvider;
-		onReviewSubmitted?: NKleinReviewSubmittedHandler;
-		onPlanCritiqueSubmitted?: NKleinPlanCritiqueSubmittedHandler;
-		onMergeResolutionSubmitted?: NKleinMergeResolutionSubmittedHandler;
-		toolExecutors?: ReturnType<typeof createAgentSandboxToolExecutors>;
-		extraTools?: ReturnType<typeof createAgentSandboxExtraTools>;
-	}): Promise<{ result: unknown; warnings?: string[] }> {
+	private async startRuntimeTaskSessionFromLaunchConfig(
+		input: StartRuntimeTaskSessionFromLaunchConfigInput,
+	): Promise<RuntimeTaskSessionStartResult> {
 		const launchConfig = this.cacheLaunchConfig(input.taskId, input.launchConfig);
 		assertLocalProviderAllowed({
 			providerId: launchConfig.providerId,
@@ -2696,9 +2683,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		);
 	}
 
-	/** §5.AW: specs the arbitration seam canceled — the runner must NOT capture their (partial) work. */
-	private readonly canceledSpeculativeMirrorTaskIds = new Set<string>();
-
 	async rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean> {
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (entry?.summary.state !== "interrupted") {
@@ -2736,11 +2720,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return true;
 	}
 
-	/** §5.AW: the primary handed off first — abort a still-running `::spec` mirror and discard its work. */
-	async cancelSpeculativeMirror(taskId: string): Promise<void> {
-		const specTaskId = `${taskId}::spec`;
-		this.canceledSpeculativeMirrorTaskIds.add(specTaskId);
-		await this.cancelTaskTurn(specTaskId).catch(() => undefined);
+	cancelSpeculativeMirror(taskId: string): Promise<void> {
+		return this.speculativeMirrorRunner.cancelSpeculativeMirror(taskId);
 	}
 
 	/**
@@ -2751,7 +2732,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * result branch on completion — that branch's existence at review time is what arms the A/B arbitration
 	 * seed. A mirror canceled via {@link cancelSpeculativeMirror} (the primary won the race) never captures.
 	 */
-	async runSpeculativeMirrorSession(input: {
+	runSpeculativeMirrorSession(input: {
 		taskId: string;
 		projectRepoPath: string;
 		baseRef: string;
@@ -2759,162 +2740,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		mirror: { providerId: string; modelId: string };
 		timeoutMs?: number;
 	}): Promise<boolean> {
-		if (!this.agentSandboxManager) {
-			return false;
-		}
-		const specTaskId = `${input.taskId}::spec`;
-		// Adversarial finding (2026-07-02): NEVER erase a prior cancel here — a stale tick snapshot can start a
-		// mirror after arbitration already canceled it, and erasing the flag would let post-handoff speculative
-		// work capture. A lingering flag is harmless (one mirror per card per run).
-		if (this.canceledSpeculativeMirrorTaskIds.has(specTaskId)) {
-			return false;
-		}
-		// The mirror only makes sense while the PRIMARY is still working the card (a stale tick snapshot may
-		// fire after a fast handoff — arbitration is already running or done by then).
-		if (this.messageRepository.getTaskEntry(input.taskId)?.summary.state !== "running") {
-			return false;
-		}
-		// No-model-load directive (§5.AB): a mirror must never trigger an LM Studio JIT auto-load. Re-verify the
-		// mirror model is STILL resident at start time (the tick's snapshot can be a whole tick stale).
-		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
-		const residencyBaseUrl = workerLaunch?.baseUrl?.trim() || "http://127.0.0.1:1234/v1";
-		const residentIds = await fetchLoadedModelIdsCached(residencyBaseUrl).catch(() => [] as string[]);
-		if (residentIds.length > 0 && !residentIds.includes(input.mirror.modelId)) {
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: `Speculative mirror skipped for ${input.taskId}: model ${input.mirror.modelId} is no longer resident (never auto-load for speculation).`,
-				taskId: specTaskId,
-				workspacePath: input.projectRepoPath,
-				metadata: { category: "speculative_mirror_residency_skip", mirrorModelId: input.mirror.modelId },
-			});
-			return false;
-		}
-		const launchConfig: NKleinTaskRestartLaunchConfig = {
-			...(workerLaunch ?? {}),
-			providerId: input.mirror.providerId,
-			modelId: input.mirror.modelId,
-			workspaceRoot: input.projectRepoPath,
-		};
-		await this.agentSandboxManager.assertAvailable();
-		const baseRef = input.baseRef.trim() || "HEAD";
-		const workspace = await this.agentSandboxManager.prepareWorkspace({
-			taskId: specTaskId,
-			projectRepoPath: input.projectRepoPath,
-			baseRef,
-			// Auxiliary seam — never wait forever on a slot (the run19 lesson); a rejection propagates to the
-			// tick's catch and the mirror is simply skipped this round.
-			maxQueueWaitMs: 180_000,
-		});
-		this.sandboxState.setSandbox(specTaskId, input.projectRepoPath, baseRef);
-		const deadlineMs = Date.now() + (input.timeoutMs ?? DEFAULT_SPECULATIVE_MIRROR_TIMEOUT_MS);
-		const recordSpecError = (error: unknown): void => {
-			recordSelfObservation({
-				signal: "runtime_error",
-				severity: "warning",
-				message: `Speculative mirror session failed: ${error instanceof Error ? error.message : String(error)}`,
-				taskId: specTaskId,
-				workspacePath: input.projectRepoPath,
-				createdAt: Date.now(),
-			});
-		};
-		const runBoundedTurn = async (turn: Promise<unknown>): Promise<"settled" | "timeout"> => {
-			const remainingMs = deadlineMs - Date.now();
-			if (remainingMs <= 0) {
-				return "timeout";
-			}
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const timeout = new Promise<"timeout">((resolve) => {
-				timer = setTimeout(() => resolve("timeout"), remainingMs);
-			});
-			const outcome = await Promise.race([
-				turn.then(
-					() => "settled" as const,
-					(error) => {
-						recordSpecError(error);
-						return "settled" as const;
-					},
-				),
-				timeout,
-			]);
-			if (timer) {
-				clearTimeout(timer);
-			}
-			return outcome;
-		};
-		try {
-			// Cancel raced the sandbox prep (the primary handed off while this workspace queued) — stop before
-			// spending a model turn on a lost race.
-			if (this.canceledSpeculativeMirrorTaskIds.has(specTaskId)) {
-				return false;
-			}
-			const turnOutcome = await runBoundedTurn(
-				this.startRuntimeTaskSessionFromLaunchConfig({
-					taskId: specTaskId,
-					cwd: workspace.workdir,
-					workspaceRoot: input.projectRepoPath,
-					prompt: input.prompt,
-					launchConfig,
-					// "smart" = the real-work default (the launch config does not persist the primary's scope choice;
-					// the spec is attempting the same card, so it gets the same default treatment).
-					contextScope: "smart",
-					toolExecutors: createAgentSandboxToolExecutors(this.agentSandboxManager, specTaskId, {
-						pauseController: this.pauseController,
-					}),
-					extraTools: createAgentSandboxExtraTools(this.agentSandboxManager, specTaskId, {
-						sessionId: createSessionId(specTaskId),
-						contextWindow: launchConfig.contextWindow ?? undefined,
-						maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-					}),
-				}),
-			);
-			if (this.canceledSpeculativeMirrorTaskIds.has(specTaskId)) {
-				return false; // The primary won the race — partial speculative work is discarded, never captured.
-			}
-			if (turnOutcome === "timeout") {
-				// The turn is (possibly) STILL RUNNING — capturing now would snapshot a mid-write tree as the
-				// candidate. A spec that can't finish inside its bound is not a candidate; discard it.
-				await this.cancelTaskTurn(specTaskId).catch(() => undefined);
-				return false;
-			}
-			const patch = await this.agentSandboxManager.captureWorkspacePatch(specTaskId, { baseRef });
-			const branch = await applyTaskPatchToResultBranch({
-				repoPath: input.projectRepoPath,
-				taskId: specTaskId,
-				baseRef,
-				patch,
-			});
-			if (!branch) {
-				return false;
-			}
-			this.sandboxState.setResultBranch(specTaskId, branch);
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: `Speculative mirror captured a candidate: ${branch.branchName} (worker ${workerLaunch?.modelId ?? "unknown"} vs mirror ${input.mirror.modelId}).`,
-				taskId: specTaskId,
-				workspacePath: input.projectRepoPath,
-				metadata: {
-					category: "speculative_mirror_captured",
-					branchName: branch.branchName,
-					headCommit: branch.headCommit,
-					mirrorModelId: input.mirror.modelId,
-				},
-			});
-			return true;
-		} catch (error) {
-			recordSpecError(error);
-			return false;
-		} finally {
-			await this.sessionRuntime.clearTaskSessions(specTaskId).catch(() => undefined);
-			await this.agentSandboxManager.disposeWorkspace(specTaskId).catch(() => undefined);
-			this.launchConfigByTaskId.delete(specTaskId);
-			this.providerIdStore.forget(specTaskId);
-			this.modelEndpoint.forget(specTaskId);
-			this.contextBudgetInputs.forget(specTaskId);
-			this.sandboxState.deleteSandbox(specTaskId);
-			this.canceledSpeculativeMirrorTaskIds.delete(specTaskId);
-		}
+		return this.speculativeMirrorRunner.runSpeculativeMirrorSession(input);
 	}
 
 	/** W4.3 per-run critique budget: deliberation is rare by design (high-stakes × unclean quality only). */
@@ -3592,6 +3418,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.sandboxState.deleteSandbox(taskId);
 		this.sandboxState.unmarkFinalizing(taskId);
 		this.focusChainStore.delete(taskId);
+	}
+
+	/** The shared teardown-forgets for an auxiliary synthetic session (§5.U harness + speculative-mirror runner). */
+	private forgetSyntheticSessionState(taskId: string): void {
+		this.launchConfigByTaskId.delete(taskId);
+		this.providerIdStore.forget(taskId);
+		this.modelEndpoint.forget(taskId);
+		this.contextBudgetInputs.forget(taskId);
+		this.sandboxState.deleteSandbox(taskId);
 	}
 
 	private emitMessage(taskId: string, message: NKleinTaskMessage): void {
