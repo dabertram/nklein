@@ -1171,6 +1171,18 @@ cross-cutting (WRITTEN at prompt-assembly, READ at model-selection). **The clean
 task-session-service are now largely mined (4 splits done).** Further big reduction needs either the entangled clusters (David's
 boundary steer) or a different file.
 
+### ▶ §5.U slice 50 (2026-07-06, fda084c0) — ParkController: the FIRST entangled-cluster split (biggest reduction)
+Executed the fully-scoped (slice-49) pause/park extraction → `createParkController(deps)`: the shared teardown, the two
+terminal shapes (operator PAUSE → `paused`, reversible; autonomy-budget PARK → `awaiting_review`/`attention`),
+`parkActiveTasksForOperatorPause`, and `enforceAutonomyBudgets`. 11 service touchpoints supplied via `ParkControllerDeps`;
+6 call sites rewired (2 pause handlers, applyTurnCheckpoint, guard+watchdog callback wirings). The
+parkController↔autonomyBudgetWatchdog circular ref is safe (lazy `this` arrows). Behavior-preserving — 145 tests across
+task-session-service / autonomy-budget-watchdog / pause-controller / card-pause suites green; +4 focused ParkController
+tests. **task-session-service 4744 → 4637 (−107, biggest single reduction this run).** **CORRECTS the "entangled needs
+David's steer" framing:** entangled orchestration splits ARE autonomously doable when the BOUNDARY is clear (the pause/park
+concern was unambiguous, even with an 11-dep interface); David's steer is only needed when the boundary ITSELF is ambiguous.
+Next entangled candidates via the same recipe: timeout-scheduling, sandbox-review finalization.
+
 ### ▶ §5.U INVESTIGATION (2026-07-06, after slice 49) — the clean vein is mined; what's actionable next
 Thorough probe of every large file this iteration confirms: the codebase is WELL-FACTORED — the big functions already
 delegate their pure logic to helper modules (e.g. session-runtime's 220-line `createKanbanContextFocusExtension` calls
@@ -1190,11 +1202,11 @@ so they warrant fresh context + extra care rather than being rushed at a long-co
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 49) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **49 slices this run (27 §5.U extractions + 22 §5.V coverage batches), ~310 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4744** this run (4 clean
-  collaborator splits — residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter — + wrapper
-  cleanup), all proven by the existing suites. The clean single-Map concerns there are now largely mined (see slice-49 survey).
-  §5.V high-value pure-logic coverage is SATURATED
+- **50 slices this run (28 §5.U extractions + 22 §5.V coverage batches), ~314 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4637** this run (−249) via
+  FIVE collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, and the
+  ParkController pause/park orchestration) + wrapper cleanup — all proven by the existing suites. The ParkController proved
+  entangled orchestration splits are autonomously safe when the boundary is clear. §5.V high-value pure-logic coverage is SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
   + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, plan-task-routing resolvers,
