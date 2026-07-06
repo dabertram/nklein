@@ -1391,3 +1391,10 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
 - **Next targets:** continue surveying task-session-service (3293) for the next cohesive cluster; the entangled primary-lifecycle
   orchestration is the remaining hard core (module boundary may be genuinely ambiguous — flag for David if so). §5.Z heavy flows
   (need workspace) + §5.AZ release prep (David-gated) remain open.
+
+- **Context-overflow recovery cluster** (`0652a6f7`) — `createContextOverflowController(deps)` owns the reactive
+  `recoverAfterOverflow` (retry after a provider context-overflow error) + proactive `compactBeforeOverflow` (pre-send
+  compaction guard). Both compacted history then re-drove the task via an IDENTICAL "restart live session / else rebuild
+  from launch config / else throw" tail — now a single `restartOrStartWithMessages` helper (DRY win). The onTeamEvent wiring
+  stays service-side on the restartTaskSession dep. 6 characterization tests. **task-session-service 3293 → 3157.** Run total:
+  4886 → 3157 (−35%).

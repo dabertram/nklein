@@ -487,7 +487,10 @@
 > (standalone). **task-session-service 4886 → 3392 (seam) → 3293 (+adaptive-budget cluster, `b03a2854`) this run.** The
 > adaptive-budget/quality-budget cluster: `createAdaptiveBudgetController(deps)` owns the W2.3a learned quality budgets (read
 > by ContextBudgetController) + the W1.1b stall-signature adaptive retry, all 3 state maps/flags; verbatim move, lazy-arrow
-> deps, 5 characterization tests, gated incl. swarm-deterministic-pass. Learnings: review + plan-critique share the harness
+> deps, 5 characterization tests, gated incl. swarm-deterministic-pass. **→ 3157 (+context-overflow cluster, `0652a6f7`):**
+> `createContextOverflowController(deps)` owns the reactive `recoverAfterOverflow` + proactive `compactBeforeOverflow`; their
+> identical restart-or-rebuild tail collapsed into one `restartOrStartWithMessages` helper (DRY win), 6 tests. Learnings:
+> review + plan-critique share the harness
 > (void runBoundedTurn, additive primaryTaskId-optional baseRef); mirror + merge diverge (own boolean/settled-timeout
 > runBoundedTurn, cancel-state / git-merge reproduction) → standalone via the named StartRuntimeTaskSessionFromLaunchConfigInput
 > dep-type (shared nklein-runtime-session-input module). The original approval below.
