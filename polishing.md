@@ -373,8 +373,9 @@
       by itself fix phi:** with a SIMPLE 1-tool prompt phi emits a clean STRUCTURED `tool_call` (LM Studio normalizes it),
       so phi CAN call tools — it fails the 6-tool `create_card`/`run_command` harness because of **task COMPLEXITY** (too
       many tools + the full agent-loop prompt), not narration. That insight launches the new **[§5.AA](#5aa)** adaptive
-      model-robustness arc. Still owed there: extend `stripNarratedToolCallMarkup` to plain-prose `Tool call: name(args)`
-      (gemma-e2b leaked exactly that into its final reply).
+      model-robustness arc. **DONE (2026-07-07 verify):** `stripNarratedToolCallMarkup` already handles plain-prose
+      `Tool call: name(args)` (via `PLAIN_PROSE_TOOL_CALL`) — both strip (display) and recover (execute, via
+      `parsePlainProseToolCalls`) paths ship with unit coverage in `nklein-narrated-tool-call.test.ts`.
 >
 > **Open LLM-interactive tasks inherit this requirement automatically** — when §5.0.1 (autonomous agent), §5.S
 > (auto-clarify), §5.V (pipeline / chat e2e), §5.H (native-core integration), §5.B (audio rubric scoring), etc. reach
