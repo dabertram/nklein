@@ -1283,10 +1283,15 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > +3 tests, −74). task-session-service **4040 → 3922**. **3/6 SecondarySessionHarness** (the shared skeleton, lifted from the review runner —
 > the CRUX/riskiest commit: `runBracketed(config, drive)` owns sandbox setup + deadline-bounded runBoundedTurn + always-teardown;
 > the review runner rewired onto it with the drive closure; `deadlineMs` threaded to the drive so the nudge-loop guard is
-> byte-preserved. +5 characterization tests + the integration gate green — restructure confirmed behavior-preserving). REMAINING
-> 3 commits (now more mechanical — the harness pattern is established): **4–6 PlanCritique / SpeculativeMirror / MergeResolution**
-> onto the harness (plan-critique is the biggest, ~600 lines w/ buildPlanCritiqueRequestHandler). Each gated by
-> tsc + biome + fast + swarm-deterministic-pass. Not rushed (no fast-net; behavior must stay byte-identical).
+> byte-preserved. +5 characterization tests + the integration gate green — restructure confirmed behavior-preserving). **4/6 PlanCritique**
+> onto the (additively generalized) harness: `primaryTaskId` is now OPTIONAL — present ⇒ resolve the delivered tree (review,
+> byte-identical); omit ⇒ check out `baseRef` directly (plan-critique/merge/mirror). +1 harness test, integration gate green.
+> task-session-service **3922 → 3887**. **REFINED PLAN for the last 2** (they DIVERGE too far for the harness's `void`
+> runBoundedTurn — extract STANDALONE, verbatim): **5/6 SpeculativeMirror** (returns `boolean`; own `"settled"|"timeout"`
+> runBoundedTurn; multiple cancel-checkpoints + residency re-check + capture) and **6/6 MergeResolution** (own `boolean`+TOCTOU
+> runBoundedTurn; a git-merge reproduction/verify before the turn; `mainRef` baseRef). Each a wide-dep verbatim collaborator,
+> gated by tsc + biome + fast + swarm-deterministic-pass. So: review + plan-critique share the harness; mirror + merge become
+> their own modules (all four out of the monolith). Not rushed (no fast-net; behavior byte-identical).
 
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
