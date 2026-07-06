@@ -43,6 +43,7 @@ import {
 } from "../core/api-validation";
 import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { isTruthyEnv } from "../core/env-flag";
+import { buildFitnessTableView } from "../core/fitness-table-view";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { stripAddressingHandle } from "../core/message-target-resolver";
@@ -70,6 +71,7 @@ import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceState } from "../state/workspace-state";
+import { readFitnessTable } from "../telemetry/fitness-table-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -413,6 +415,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}),
 		getModelPerformanceStats: async (workspaceScope) => {
 			return await handleGetModelPerformanceStats(workspaceScope);
+		},
+		// §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + the failing-LLM
+		// projection. Read-only; empty when the store is missing/unreadable (never throws into the UI).
+		getFitnessTable: async () => {
+			const table = await readFitnessTable().catch(() => ({ version: 0, rows: {} }));
+			return {
+				generatedAt: Date.now(),
+				rows: buildFitnessTableView(Object.values(table.rows)),
+			};
 		},
 		getFleetStatus: async (workspaceScope) => {
 			return await handleGetFleetStatus({

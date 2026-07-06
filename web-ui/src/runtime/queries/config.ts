@@ -6,6 +6,7 @@ import type {
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
+	RuntimeFitnessTableResponse,
 	RuntimeFleetStatusResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
@@ -35,6 +36,12 @@ export async function fetchModelPerformanceStats(
 ): Promise<RuntimeModelPerformanceStatsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getModelPerformanceStats.query();
+}
+
+/** §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + failing-LLM projection. */
+export async function fetchFitnessTable(workspaceId: string | null): Promise<RuntimeFitnessTableResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getFitnessTable.query();
 }
 
 export async function fetchFleetStatus(workspaceId: string | null): Promise<RuntimeFleetStatusResponse> {

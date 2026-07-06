@@ -97,6 +97,32 @@ export const runtimeModelPerformanceStatsResponseSchema = z.object({
 });
 export type RuntimeModelPerformanceStatsResponse = z.infer<typeof runtimeModelPerformanceStatsResponseSchema>;
 
+// §5.AL fitness browser: the read-only per-(model × role × difficulty) fitness cells + the failing-LLM projection.
+// A lean wire mirror of the store's FitnessRow (decoupled from the internal schema); `successRate`/`belowBar` are
+// server-derived (see `buildFitnessTableView`). Worst-first order.
+export const runtimeFitnessRowSchema = z.object({
+	modelKey: z.string(),
+	role: z.string(),
+	difficultyTier: z.enum(["easy", "medium", "hard"]),
+	sampleCount: z.number().int().nonnegative(),
+	successCount: z.number().int().nonnegative(),
+	successRate: z.number().min(0).max(1),
+	retryBudget: z.number().int().nonnegative(),
+	failureModes: z.array(z.object({ kind: z.string(), count: z.number().int().nonnegative() })),
+	meanWallTimeMs: z.number().nonnegative().nullable(),
+	tokensPerSec: z.number().nonnegative().nullable(),
+	updatedAt: z.number().nullable(),
+	/** In the failing-LLM projection: well-sampled AND under the success bar. */
+	belowBar: z.boolean(),
+});
+export type RuntimeFitnessRow = z.infer<typeof runtimeFitnessRowSchema>;
+
+export const runtimeFitnessTableResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	rows: z.array(runtimeFitnessRowSchema),
+});
+export type RuntimeFitnessTableResponse = z.infer<typeof runtimeFitnessTableResponseSchema>;
+
 export const runtimeKnowledgeToolCategorySchema = z.enum([
 	"architecture_knowledge",
 	"external_fetch",

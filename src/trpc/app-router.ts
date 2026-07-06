@@ -21,6 +21,7 @@ import type {
 	RuntimeExpandNKleinPlanTaskRequest,
 	RuntimeExpandNKleinPlanTaskResponse,
 	RuntimeFeaturebaseTokenResponse,
+	RuntimeFitnessTableResponse,
 	RuntimeFleetStatusResponse,
 	RuntimeGitCheckoutRequest,
 	RuntimeGitCheckoutResponse,
@@ -186,6 +187,8 @@ export interface RuntimeTrpcContext {
 		getModelPerformanceStats: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 		) => Promise<RuntimeModelPerformanceStatsResponse>;
+		/** §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + failing-LLM projection. */
+		getFitnessTable: () => Promise<RuntimeFitnessTableResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */

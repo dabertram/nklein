@@ -14,6 +14,7 @@ import {
 	runtimeExpandNKleinPlanTaskRequestSchema,
 	runtimeExpandNKleinPlanTaskResponseSchema,
 	runtimeFeaturebaseTokenResponseSchema,
+	runtimeFitnessTableResponseSchema,
 	runtimeFleetStatusResponseSchema,
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
@@ -129,6 +130,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getModelPerformanceStats(ctx.workspaceScope);
 			}),
+		// §5.AL fitness browser: global fitness cells + failing-LLM projection (not workspace-scoped — the store is global).
+		getFitnessTable: t.procedure
+			.output(runtimeFitnessTableResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getFitnessTable()),
 		// §5.AX fleet-strip live status (machine names + warmth).
 		getFleetStatus: workspaceProcedure.output(runtimeFleetStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getFleetStatus(ctx.workspaceScope);
