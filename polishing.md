@@ -395,12 +395,12 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **53 slices so far (31 §5.U extractions + 22 §5.V coverage batches), ~329 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4178 this run
->   (−708, ~14.5%) — 8 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
->   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest], ContextBudgetController 53 [−87]) + wrapper cleanup (46). All
->   three entangled splits (Park, Timeout, SandboxReview) proved autonomously safe when the boundary is clear; the Timeout split
->   even IMPROVED coverage.**
+> - **54 slices so far (32 §5.U extractions + 22 §5.V coverage batches), ~332 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4106 this run
+>   (−780, ~16%) — 9 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
+>   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest], ContextBudgetController 53 [−87], TaskFailureEmitter 54 [−69])
+>   + wrapper cleanup (46). All three entangled splits (Park, Timeout, SandboxReview) proved autonomously safe when the boundary is
+>   clear; the Timeout split even IMPROVED coverage.**
 >   Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
@@ -473,9 +473,16 @@
 > `createContextBudgetController(deps)`; the controller OWNS the TaskContextWindowStore + exposes resolve/resolveKnown/
 > prepareMessages + forget/clear. Deps are 3 lazy accessors (getModelIdForTask/getQualityBudget/recordObservation). The entangled
 > compaction ORCHESTRATION (maybeCompactBeforeContextOverflow — reads persisted session + triggers restart) stays and delegates
-> its pure step. Verbatim move, ~11 call sites rewired, +7 tests. **All three entangled orchestration clusters + the context-budget
-> resolver/guard are now extracted; the obvious cohesive-cluster vein in task-session-service is largely mined (4886 → 4178).
-> Further reduction needs finer-grained / more-ambiguous boundaries (David's steer) or a shift to runtime-server / provider-service.**
+> its pure step. Verbatim move, ~11 call sites rewired, +7 tests.
+> **`TaskFailureEmitter` — ✅ DONE slice 54 (−69; ninth split).** Moved emitTaskFailure (~85 lines) into
+> `createTaskFailureEmitter(deps)`: classify an SDK start/send failure (credit-limit vs local-model-unavailable vs generic),
+> apply the consecutive-failure backoff (park vs await-review), emit observation + system message + summary. 9 narrow lazy-accessor
+> deps (backoff tracker + active-tool set stay service-owned — both cross-cutting). 4 direct callers + 2 collaborator dep wirings
+> rewired; +3 tests (first-failure→awaiting_review, threshold→failed, already-parked→no-op); the failure path was previously
+> only integration-tested. **All three entangled orchestration clusters + context-budget resolver/guard + failure-emitter are now
+> extracted; the obvious cohesive-cluster vein in task-session-service is largely mined (4886 → 4106, −16%). Further reduction gets
+> into finer-grained / more-ambiguous boundaries (the ~670-line review/critique-session cluster needs David's steer) or a shift to
+> runtime-server (closure-state reshaping) / provider-service.**
 > — extracted the pause/park cluster (parkActiveTasksForOperatorPause / parkTaskForPause / parkTaskForAutonomyBudget /
 > resetGuardsForPark / pushParkSystemMessage / enforceAutonomyBudgets) into `createParkController(deps)`. Deps (~10):
 > getTaskEntry, listSummaries, emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog (or check/resetTask),
