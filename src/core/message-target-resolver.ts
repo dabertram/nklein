@@ -73,6 +73,23 @@ function slugify(text: string): string {
 
 const HANDLE_RE = /@(card|stream):([\w-]+)|@([a-z0-9][a-z0-9-]*)/i;
 
+/**
+ * §5.AU item 9 — strip the explicit `@card:`/`@stream:`/`@<slug>` handle from a message so a RELAYED message reaches the
+ * card's agent clean (without the addressing token). Removes the first handle (the one the resolver matched — an explicit
+ * handle always wins rung 1, so a handle present IS the resolved target) + collapses the surrounding whitespace. Returns
+ * the message unchanged when no handle is present (a focus-resolved message has none). Pure.
+ */
+export function stripAddressingHandle(text: string): string {
+	// Word-boundary-aware (start-of-text or after whitespace) — mirrors the composer's mention rule, so an `@` that isn't
+	// a handle (e.g. `user@host` in an email) is never stripped. Removes the boundary whitespace + the handle, then
+	// collapses the leftover whitespace.
+	const match = /(?:^|\s)@(?:(?:card|stream):[\w-]+|[a-z0-9][a-z0-9-]*)/i.exec(text);
+	if (!match) {
+		return text;
+	}
+	return `${text.slice(0, match.index)}${text.slice(match.index + match[0].length)}`.replace(/\s{2,}/g, " ").trim();
+}
+
 function label(prefix: string, title: string): string {
 	return `${prefix}${title}`;
 }

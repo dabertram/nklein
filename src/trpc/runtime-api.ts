@@ -44,6 +44,7 @@ import { toStreamOverviewRows } from "../core/board-streams-summary";
 import { isTruthyEnv } from "../core/env-flag";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
+import { stripAddressingHandle } from "../core/message-target-resolver";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { deriveStreams } from "../core/stream-derivation";
@@ -333,7 +334,9 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						board,
 						activeSessionTaskIds,
 						target.id,
-						message,
+						// Deliver a CLEAN message to the card — strip the `@card:…` addressing handle the user typed (the chat
+						// transcript keeps the original; only the relayed text is stripped).
+						stripAddressingHandle(message),
 						target.kind === "answer" ? "answer" : null,
 						{
 							deliverLive: async (taskId, text) =>

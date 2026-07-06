@@ -5,6 +5,7 @@ import {
 	type ResolveMessageTargetInput,
 	renderMessageTargetNote,
 	resolveMessageTarget,
+	stripAddressingHandle,
 } from "../../../src/core/message-target-resolver";
 
 const index: MessageTargetIndex = {
@@ -200,5 +201,22 @@ describe("renderMessageTargetNote (§5.AU — the note that leads the chat turn)
 		});
 		expect(clarify).toContain('ambiguously addresses one of: "Which DB?", "Which port?"');
 		expect(clarify).toMatch(/Ask which one they mean before acting/);
+	});
+
+	describe("stripAddressingHandle (§5.AU item 9 — clean the relayed message)", () => {
+		it("strips a leading @card:/@stream: handle and trims", () => {
+			expect(stripAddressingHandle("@card:card-1 use bcrypt")).toBe("use bcrypt");
+			expect(stripAddressingHandle("@stream:s1 ship it")).toBe("ship it");
+		});
+		it("strips a @<slug> handle", () => {
+			expect(stripAddressingHandle("@auth-login please add rate limiting")).toBe("please add rate limiting");
+		});
+		it("strips a mid-message handle and collapses the surrounding whitespace", () => {
+			expect(stripAddressingHandle("prioritize @card:card-1 the login")).toBe("prioritize the login");
+		});
+		it("returns the message unchanged when there is no handle (a focus-resolved message)", () => {
+			expect(stripAddressingHandle("how is it going?")).toBe("how is it going?");
+			expect(stripAddressingHandle("email me at user@host later")).toBe("email me at user@host later");
+		});
 	});
 });
