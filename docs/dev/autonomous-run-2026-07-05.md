@@ -922,15 +922,28 @@ the disabled message, and the `SdkTransport`/`AuthCapableTransport` type aliases
 them back; biome dropped the now-unused SDK transport-class imports. Behavior-preserving (existing test still green); was
 previously UNTESTED, now +7 unit tests. Full gate green. **Progress:** mcp-runtime-service 843 → **777** (−172 from 949).
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 14) — for David
+### ▶ §5.U slice 15 (2026-07-06, df61b6af) — extracted nklein-agent-sandbox-predicates
+Into agent-sandbox.ts (1090). Moved the four PURE, cycle-free predicates — `isContainerMissingError`, `escapeRegExp`,
+`isAgentSandboxWorkspaceVolumeName`, and the `isAgentSandboxExecResult` structural guard — into their own module; the two
+error-BUILDING helpers (`toSandboxUnavailableError` / `assertSandboxExecOk`, which construct the sandbox error classes)
+stay with the service, which imports the predicates back. The `AgentSandboxExecResult` dep is `import type` only, so the
+new module has NO runtime edge back to the service — no import cycle (the deliberate split line: pure predicates out,
+error-factories stay). Behavior-preserving (56-test agent-sandbox suite still green); previously UNTESTED, now +4 unit
+tests (12 assertions). **Progress:** agent-sandbox 1090 → **1071**.
+Coverage-landscape note from this iteration's survey: `task-board-mutations.ts` (764) is ALREADY fully tested; the
+large-file cursor helpers are entangled with a heavy `LargeFileState` fixture + a partly-tested sibling; the agent-sandbox
+error CLASSES have wider importer ripple (task-session-helpers + 5 test files) so re-homing them is a separate, larger slice.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 15) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **14 §5.U slices this run, ~94 new unit tests, 14 focused modules extracted, zero behavior changes** (the pre-commit fast
+- **15 §5.U slices this run, ~98 new unit tests, 15 focused modules extracted, zero behavior changes** (the pre-commit fast
   suite gates every commit; extractions delegate).
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
   `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
   `nklein-mcp-runtime-service.ts` 949 → **777** (oauth-settings-store, transport-factory — both were untested);
+  `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
   `nklein-task-session-service.ts` still **4886** (the hardest — class-heavy, instance-stateful; earlier slices nibbled it,
   next needs the responsibility-split not just pure-fn lifts).
 - **PRODUCTIVE VEIN (corrected):** the big-3 pure-fn seams are done, but the NEXT-TIER large files (mcp-runtime-service,
