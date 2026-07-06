@@ -1275,6 +1275,16 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > The light-flow §5.Z matrix is now comprehensively covered on the current roster; remaining are HEAVY flows (decompose,
 > autonomous-run, multi-card, strict-isolation, restart-resume) that need a full runtime boot + workspace (minutes/model).
 
+> **★ §5.U REVIEW-CLUSTER SEAM — EXECUTING (2026-07-06, David-approved, integration-pass-per-commit).** The per-commit
+> integration gate is VIABLE + FAST: `swarm-deterministic-pass.integration.test.ts` (mock LLM → decompose → write → review
+> approval → acceptance → merge → completed) runs green in ~8s with Docker up. Commits landed, each gated by
+> tsc + biome + fast + that integration test: **1/6 AcceptanceVerifier** (thin delegating runner, +5 tests, −18);
+> **2/6 pickDiverseReviewerModel** (the shared reviewer/escalation/critique model selector — 3 call sites — de-tangled first,
+> +3 tests, −74). task-session-service **4040 → 3948** (under 4000). REMAINING 4 commits (the intricate part, fresh careful
+> work): 3/6 the second-opinion review runner (~170 lines, ~15 session-machinery deps — the SecondarySessionHarness exemplar),
+> then 4–6 PlanCritique / SpeculativeMirror / MergeResolution (factor the shared harness once ≥2 runners are out — rule of
+> three). Not rushed at a long turn's tail (no fast-net; behavior must stay byte-identical — verified per commit by the gate).
+
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
