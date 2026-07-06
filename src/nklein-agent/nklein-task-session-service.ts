@@ -44,7 +44,6 @@ import {
 import { isTruthyEnv } from "../core/env-flag";
 import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { probeModelResidency, type ResidencyHeartbeatHandle, startResidencyHeartbeat } from "../core/lmstudio-liveness";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
@@ -130,6 +129,7 @@ import {
 	extractNKleinModelRegistryObservationFromEvent,
 	getDefaultNKleinModelRegistry,
 } from "./nklein-model-registry";
+import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
 import { NKleinPauseController } from "./nklein-pause-controller";
 import {
 	buildPlanCritiqueSeedPrompt,
@@ -533,7 +533,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
 	/** §5.AN opt-in residency heartbeats, one per running task (auto-cleaned on session end). */
-	private readonly residencyHeartbeatByTaskId = new Map<string, ResidencyHeartbeatHandle>();
+	private readonly modelResidencyWatcher = createModelResidencyWatcher({
+		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId),
+		getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId),
+		clearTaskTimeouts: (taskId) => this.clearTaskTimeouts(taskId),
+		abortTaskSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
+		recordObservation: (event) => this.recordObservationWithModel(event),
+		emitTaskFailure: (taskId, entry, context, error) => this.emitTaskFailure(taskId, entry, context, error),
+	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
@@ -1298,7 +1305,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private clearTaskTimeouts(taskId: string): void {
 		this.timeoutScheduler.clearAll(taskId);
 		this.activeToolTaskIds.delete(taskId);
-		this.stopModelResidencyWatch(taskId);
+		this.modelResidencyWatcher.stop(taskId);
 	}
 
 	/**
@@ -1307,65 +1314,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * by default (flag off) and auto-detected (a non-LM-Studio host reports `unobservable`, so it never aborts). The
 	 * heartbeat self-cleans when the task leaves `running`; `stopModelResidencyWatch` in `clearTaskTimeouts` is a backstop.
 	 */
-	private beginModelResidencyWatch(taskId: string): void {
-		if (!isTruthyEnv(process.env.NKLEIN_RESIDENCY_HEARTBEAT) || this.residencyHeartbeatByTaskId.has(taskId)) {
-			return;
-		}
-		const launchConfig = this.launchConfigByTaskId.get(taskId);
-		const baseUrl = launchConfig?.baseUrl?.trim();
-		const modelId = launchConfig?.modelId?.trim();
-		if (!baseUrl || !modelId) {
-			return; // nothing to observe
-		}
-		const handle = startResidencyHeartbeat({
-			probe: () => probeModelResidency(baseUrl, modelId),
-			policy: { absentConfirmations: 3 },
-			intervalMs: 15_000,
-			shouldContinue: () => this.messageRepository.getTaskEntry(taskId)?.summary.state === "running",
-			onModelLost: () => {
-				void this.handleModelResidencyLost(taskId);
-			},
-		});
-		this.residencyHeartbeatByTaskId.set(taskId, handle);
-	}
-
-	private stopModelResidencyWatch(taskId: string): void {
-		const handle = this.residencyHeartbeatByTaskId.get(taskId);
-		if (handle) {
-			handle.stop();
-			this.residencyHeartbeatByTaskId.delete(taskId);
-		}
-	}
-
-	/** The model crashed/unloaded mid-run — abort + surface a diagnosable failure (mirrors the timeout path). */
-	private async handleModelResidencyLost(taskId: string): Promise<void> {
-		this.stopModelResidencyWatch(taskId);
-		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (entry?.summary.state !== "running") {
-			return;
-		}
-		this.clearTaskTimeouts(taskId);
-		await this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
-		this.recordObservationWithModel({
-			signal: "model_stalled",
-			severity: "warning",
-			message: "Model is no longer resident in LM Studio (crashed or unloaded) — aborted to fail fast.",
-			taskId,
-			workspacePath: entry.summary.workspacePath ?? null,
-			metadata: { category: "model_lost_residency" },
-			// §5.AL runtime-verdict precision (approved follow-up, 2026-07-05): stamp a per-run id (mirroring the ledger's
-			// `${taskId}:${startedAt}` attempt identity) so assessRuntimeModelVerdict can DEDUP this stall to its run
-			// instead of falling back to a raw capped event count when multiple stalls land on the same run.
-			...(entry.summary.startedAt ? { runId: `${taskId}:${entry.summary.startedAt}` } : {}),
-		});
-		this.emitTaskFailure(
-			taskId,
-			entry,
-			"send",
-			new Error("Model is no longer resident in LM Studio (crashed or unloaded)."),
-		);
-	}
-
 	private clearDecompositionChatNudge(taskId: string): void {
 		this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 	}
@@ -2134,7 +2082,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				if (entry.summary.state === "running") {
 					this.scheduleStreamTimeout(request.taskId);
 					this.scheduleConversationTimeout(request.taskId);
-					this.beginModelResidencyWatch(request.taskId);
+					this.modelResidencyWatcher.begin(request.taskId);
 				}
 				await this.waitUntilTaskResumed(request.taskId);
 				this.requestTimer.markStarted(request.taskId);
