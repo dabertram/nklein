@@ -389,9 +389,10 @@
 > - `nklein-mcp-runtime-service.ts`: 949 → **777** — extracted `nklein-mcp-oauth-settings-store` + `nklein-mcp-transport-factory`
 >   (both were untested → +19 tests).
 > - `nklein-agent-sandbox.ts`: 1090 → **1071** — extracted `nklein-agent-sandbox-predicates` (was untested → +4 tests).
+> - `nklein-event-adapter.ts`: 806 → **768** — extracted `nklein-event-adapter-tool-activity` (was untested → +3 tests).
 > - `nklein-task-session-service.ts`: still **4886** — the hardest (class-heavy, instance-stateful); needs the
 >   responsibility-split (review-loop / plan-critique / mailbox as collaborators), not just pure-fn lifts.
-> - **15 slices so far, ~98 new unit tests, 15 focused modules, zero behavior changes** (pre-commit fast suite gates each).
+> - **16 slices so far, ~101 new unit tests, 16 focused modules, zero behavior changes** (pre-commit fast suite gates each).
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,

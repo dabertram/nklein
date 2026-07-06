@@ -934,16 +934,26 @@ Coverage-landscape note from this iteration's survey: `task-board-mutations.ts` 
 large-file cursor helpers are entangled with a heavy `LargeFileState` fixture + a partly-tested sibling; the agent-sandbox
 error CLASSES have wider importer ripple (task-session-helpers + 5 test files) so re-homing them is a separate, larger slice.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 15) — for David
+### ▶ §5.U slice 16 (2026-07-06, d3e728d7) — extracted nklein-event-adapter-tool-activity
+Into event-adapter.ts (806). Moved the three pure tool-activity classifiers — `getRetainedNKleinToolActivity`,
+`isReviewableAbortedToolCompletion` (aborted turn ended on a mutating tool result?), and `isRecoverableToolCallFailure`
+(the SDK "tool call(s) failed" marker) — into their own module. Deps come from the lower-level `nklein-session-state`
+(no cycle); the adapter imports the trio back. Behavior-preserving (47-test event-adapter suite still green); these sit on
+a critical path (SDK events → session summaries) and were previously UNTESTED, now +3 tests (11 assertions).
+**Progress:** event-adapter 806 → **768**.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 16) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **15 §5.U slices this run, ~98 new unit tests, 15 focused modules extracted, zero behavior changes** (the pre-commit fast
-  suite gates every commit; extractions delegate).
+- **16 §5.U slices this run, ~101 new unit tests, 16 focused modules extracted, zero behavior changes** (the pre-commit fast
+  suite gates every commit; extractions delegate). Note the vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+  agent-sandbox, event-adapter) yield extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED.
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
   `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
   `nklein-mcp-runtime-service.ts` 949 → **777** (oauth-settings-store, transport-factory — both were untested);
   `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
+  `nklein-event-adapter.ts` 806 → **768** (tool-activity classifiers — was untested);
   `nklein-task-session-service.ts` still **4886** (the hardest — class-heavy, instance-stateful; earlier slices nibbled it,
   next needs the responsibility-split not just pure-fn lifts).
 - **PRODUCTIVE VEIN (corrected):** the big-3 pure-fn seams are done, but the NEXT-TIER large files (mcp-runtime-service,
