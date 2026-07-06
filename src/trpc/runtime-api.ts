@@ -9,6 +9,7 @@ import { cpus, homedir, totalmem } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
+import { applyCardMessageRelay } from "../chat/chat-board-tools";
 import { type ChatService, createChatService } from "../chat/chat-service";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
@@ -64,6 +65,7 @@ import { createNKleinProviderService } from "../nklein-agent/nklein-provider-ser
 import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { openInBrowser } from "../server/browser";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
+import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
 import { readMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -297,6 +299,53 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							? board.streams.map((stream) => ({ id: stream.id, title: stream.title }))
 							: derived.streams.map((stream) => ({ id: stream.id, title: stream.title }));
 					return { cards, streams };
+				} catch {
+					return null;
+				}
+			},
+			// §5.AU item 9 — deterministic relay: a message the addressing resolves to a specific CARD (or an `answer` to a
+			// card's question) is relayed straight to that card (deliver live / queue mailbox / suggest-unblock / answer
+			// from state) via the SAME applyCardMessageRelay path send_to_card uses, returning the confirmation to post as
+			// the assistant reply. Other kinds (goal / stream / needs_clarify) ⇒ null ⇒ the normal model turn answers in
+			// chat. Best-effort: any load failure ⇒ null (falls through to the model turn). Communication is always
+			// possible; execution stays readiness-gated (a blocked/ready card is never started — the note is queued).
+			relayAddressedMessage: async (target, message) => {
+				if ((target.kind !== "card" && target.kind !== "answer") || !target.id) {
+					return null;
+				}
+				const workspacePath = deps.getActiveWorkspacePath();
+				const workspaceId = deps.getActiveWorkspaceId();
+				if (!workspacePath || !workspaceId) {
+					return null;
+				}
+				try {
+					const board = (await loadWorkspaceState(workspacePath)).board;
+					const service = deps.getLoadedScopedNKleinTaskSessionService?.({ workspaceId, workspacePath }) ?? null;
+					const activeSessionTaskIds = service
+						? new Set(
+								service
+									.listSummaries()
+									.filter((summary) => summary.state === "running" || summary.state === "queued")
+									.map((summary) => summary.taskId),
+							)
+						: new Set<string>();
+					return await applyCardMessageRelay(
+						board,
+						activeSessionTaskIds,
+						target.id,
+						message,
+						target.kind === "answer" ? "answer" : null,
+						{
+							deliverLive: async (taskId, text) =>
+								service
+									? (await service.sendTaskSessionInput(taskId, `${text}\n`).catch(() => null)) !== null
+									: false,
+							queueMailbox: async (taskId, text) => {
+								await appendCardMailboxNote({ taskId, text, source: "chat" });
+								return countPendingCardMailbox(taskId);
+							},
+						},
+					);
 				} catch {
 					return null;
 				}
