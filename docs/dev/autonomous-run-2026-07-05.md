@@ -1263,6 +1263,12 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > — every model injects the leading `<current_date>` block and overrides its training prior (places a current-year past
 > month correctly in the PAST). Commit 7e92b32f. **Pattern: each §5.Z sweep this run found a real issue** (egress →
 > phi-4-reasoning-plus reasoning-runaway data point; temporal → a harness bug) — §5.Z verification is earning its keep.
+> **§5.Z CURRENT-ROSTER COVERAGE (2026-07-06) — 4 flows swept, all healthy:** egress/web_search (7/8, 1 reasoning-runaway),
+> temporal/knows-today (7/7, +harness fix), chat read_file (3✅/2◑/1⚠️), chat run_command (3✅/1◑). **Consistent pattern:**
+> capable models (qwen3-8b, qwen2.5-coder-14b, gpt-oss-120b) PASS every flow; the 2B gemma-4-e2b reliably EXECUTES tools but
+> weak-synthesizes (doesn't echo markers — a documented ◑ model-quality trait, not a bug); a few models have specific
+> tool-selection/reasoning quirks (mistral picks list_dir for read_file; phi-4-reasoning-plus reasons-runaway). No !Klein
+> bugs found in flows 3–4 (only the temporal harness fix). Remaining light flows to sweep: browse_url, chat write.
 
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
