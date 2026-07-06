@@ -164,6 +164,14 @@ export const runtimeChatSendMessageRequestSchema = z.object({
 });
 export type RuntimeChatSendMessageRequest = z.infer<typeof runtimeChatSendMessageRequestSchema>;
 
+/** §5.AU item 9: a disambiguation candidate the composer offers when a message's target is ambiguous (needs_clarify). */
+export const runtimeChatClarifyCandidateSchema = z.object({
+	kind: z.enum(["card", "stream", "answer"]),
+	id: z.string(),
+	label: z.string(),
+});
+export type RuntimeChatClarifyCandidate = z.infer<typeof runtimeChatClarifyCandidateSchema>;
+
 export const runtimeChatSendMessageResponseSchema = z.object({
 	/** Null when the session no longer exists; otherwise the persisted user + assistant messages. */
 	userMessage: runtimeChatMessageSchema.nullable(),
@@ -172,6 +180,8 @@ export const runtimeChatSendMessageResponseSchema = z.object({
 	capabilityNotice: z.string().nullable().optional(),
 	/** §5.AU: the resolved target's "talking to X" label (card/stream/answer), null/absent for a goal-routed turn. */
 	targetLabel: z.string().nullable().optional(),
+	/** §5.AU item 9: when addressing was AMBIGUOUS, the candidate targets for the composer's picker (the model didn't run). */
+	clarifyCandidates: z.array(runtimeChatClarifyCandidateSchema).optional(),
 });
 export type RuntimeChatSendMessageResponse = z.infer<typeof runtimeChatSendMessageResponseSchema>;
 
@@ -185,6 +195,8 @@ export const runtimeChatStreamEventSchema = z.discriminatedUnion("type", [
 		capabilityNotice: z.string().nullable().optional(),
 		/** §5.AU: the resolved target's "talking to X" label, null/absent for a goal-routed turn. */
 		targetLabel: z.string().nullable().optional(),
+		/** §5.AU item 9: ambiguous-addressing candidates for the composer's picker (the model didn't run). */
+		clarifyCandidates: z.array(runtimeChatClarifyCandidateSchema).optional(),
 	}),
 ]);
 export type RuntimeChatStreamEvent = z.infer<typeof runtimeChatStreamEventSchema>;

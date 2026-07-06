@@ -802,6 +802,18 @@ function ChatPanel({
 		requestAnimationFrame(() => composerRef.current?.focus());
 	};
 
+	// §5.AU item 9 — the needs_clarify picker: the user picks one of the ambiguous candidates; insert its explicit handle
+	// (`@card:`/`@stream:` — an `answer` candidate is a card) into the draft so the re-send resolves unambiguously.
+	const selectClarifyCandidate = (candidate: { kind: "card" | "stream" | "answer"; id: string }): void => {
+		const prefix = candidate.kind === "stream" ? "@stream:" : "@card:";
+		setDraft((prev) => {
+			const separator = prev.length === 0 || /\s$/.test(prev) ? "" : " ";
+			return `${prev}${separator}${prefix}${candidate.id} `;
+		});
+		chat.dismissClarify();
+		requestAnimationFrame(() => composerRef.current?.focus());
+	};
+
 	const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
 		// While the @-mention popover is open it owns the keyboard: arrows move, Enter/Tab pick, Esc closes.
 		if (mention && mentionMatches.length > 0) {
@@ -1008,6 +1020,39 @@ function ChatPanel({
 									>
 										✕
 									</button>
+								</div>
+							) : null}
+							{/* §5.AU item 9 needs_clarify picker: the message addressed >1 target; pick one (inserts its @handle). */}
+							{chat.clarifyCandidates && chat.clarifyCandidates.length > 0 ? (
+								<div
+									data-testid="chat-clarify-picker"
+									className="flex flex-col gap-1.5 border-t border-border bg-surface-1 px-3 py-2 shrink-0"
+								>
+									<div className="flex items-center gap-1.5 text-[11px] text-text-tertiary">
+										<span>Which did you mean?</span>
+										<button
+											type="button"
+											aria-label="Dismiss"
+											data-testid="chat-clarify-dismiss"
+											onClick={() => chat.dismissClarify()}
+											className="ml-auto rounded px-1 hover:bg-surface-3 hover:text-text-primary"
+										>
+											✕
+										</button>
+									</div>
+									<div className="flex flex-wrap gap-1.5">
+										{chat.clarifyCandidates.map((candidate) => (
+											<button
+												type="button"
+												key={`${candidate.kind}:${candidate.id}`}
+												data-testid={`chat-clarify-candidate-${candidate.id}`}
+												onClick={() => selectClarifyCandidate(candidate)}
+												className="rounded border border-border bg-surface-2 px-1.5 py-0.5 text-[11.5px] text-text-primary hover:border-border-bright hover:bg-surface-3"
+											>
+												{candidate.label}
+											</button>
+										))}
+									</div>
 								</div>
 							) : null}
 							<form

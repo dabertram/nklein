@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeChatAutonomousRunStatus,
+	RuntimeChatClarifyCandidate,
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatMessage,
 	RuntimeChatSession,
@@ -30,6 +31,10 @@ export interface UseChatDataResult {
 	streamingText: string | null;
 	/** §5.AL/§5.AG: a model-capability caveat from the last turn (warn/unknown model that still ran); null when none. */
 	capabilityNotice: string | null;
+	/** §5.AU item 9: when the last message's target was ambiguous, the candidates for the composer's picker; null otherwise. */
+	clarifyCandidates: RuntimeChatClarifyCandidate[] | null;
+	/** Dismiss the clarify picker (e.g. after the user picks one or edits the draft). */
+	dismissClarify: () => void;
 	error: string | null;
 	createSession: (input: RuntimeChatCreateSessionRequest) => Promise<RuntimeChatSession | null>;
 	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<void>;
@@ -49,6 +54,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
 	const [streamingText, setStreamingText] = useState<string | null>(null);
 	const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
+	const [clarifyCandidates, setClarifyCandidates] = useState<RuntimeChatClarifyCandidate[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [autonomousStatus, setAutonomousStatus] = useState<RuntimeChatAutonomousRunStatus | null>(null);
 	// A cancellation token for the active status-poll loop; flipped when a new run starts or the hook unmounts.
@@ -162,6 +168,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			setPendingUserText(trimmed);
 			setStreamingText("");
 			setCapabilityNotice(null);
+			setClarifyCandidates(null);
 			// Stream the reply token-by-token over the SSE subscription; resolve when the terminal `done` arrives.
 			await new Promise<void>((resolve) => {
 				client.chat.streamMessage.subscribe(
@@ -173,6 +180,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 							} else if (event.type === "done") {
 								// §5.AL/§5.AG: surface a model-capability caveat (the model is flagged warn/unknown but ran).
 								setCapabilityNotice(event.capabilityNotice ?? null);
+								// §5.AU item 9: an ambiguous target came back with candidates for the composer's picker.
+								setClarifyCandidates(event.clarifyCandidates ?? null);
 							}
 						},
 						onError: (caught: unknown) => {
@@ -253,6 +262,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		pendingUserText,
 		streamingText,
 		capabilityNotice,
+		clarifyCandidates,
+		dismissClarify: () => setClarifyCandidates(null),
 		error,
 		createSession,
 		updateSession,

@@ -263,6 +263,39 @@ describe("createChatService", () => {
 		expect(relayed).toEqual([{ targetId: "card-1", message: "@card:card-1 use bcrypt" }]);
 	});
 
+	it("§5.AU item 9: surfaces clarifyCandidates when addressing is AMBIGUOUS (no model turn)", async () => {
+		const modelCalls: string[] = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async () => {
+					modelCalls.push("called");
+					return { text: "MODEL REPLY", toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+			// Two cards with the same title ⇒ `@fix-parser` matches both ⇒ needs_clarify.
+			resolveMessageTargetIndex: async () => ({
+				cards: [
+					{ id: "card-1", title: "Fix parser" },
+					{ id: "card-2", title: "Fix parser" },
+				],
+				streams: [],
+			}),
+		});
+		const session = await service.createSession({ title: "Ambiguous", scope: "chat_only" });
+		const result = await service.sendMessage({ sessionId: session.id, message: "@fix-parser prioritize" });
+		// The picker is deterministic — the model never runs; the candidates come back for the composer.
+		expect(modelCalls).toHaveLength(0);
+		expect(result?.clarifyCandidates).toEqual([
+			{ kind: "card", id: "card-1", label: "card Fix parser" },
+			{ kind: "card", id: "card-2", label: "card Fix parser" },
+		]);
+		expect(result?.assistantMessage.content).toContain("Which did you mean?");
+	});
+
 	it("§5.AL gate: refuses a catalog-`reject` model on the tool-using path (modelId known)", async () => {
 		const service = createChatService({
 			rootDir,

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import type {
+	RuntimeChatClarifyCandidate,
 	RuntimeChatCreateSessionRequest,
 	RuntimeChatMessage,
 	RuntimeChatSession,
@@ -7,8 +8,8 @@ import type {
 } from "../core/chat-api-contract";
 import {
 	type MessageTargetIndex,
-	renderMessageTargetNote,
 	type ResolvedMessageTarget,
+	renderMessageTargetNote,
 	resolveMessageTarget,
 } from "../core/message-target-resolver";
 import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
@@ -102,6 +103,8 @@ export interface ChatSendResult {
 	capabilityNotice?: string | null;
 	/** §5.AU: the resolved target's "talking to X" label (card/stream/answer), or null for a goal-routed turn. */
 	targetLabel?: string | null;
+	/** §5.AU item 9: when the message's target was AMBIGUOUS, the candidates for the composer's picker (model didn't run). */
+	clarifyCandidates?: RuntimeChatClarifyCandidate[];
 }
 
 function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
@@ -345,6 +348,36 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 										...(targetLabel ? { targetLabel } : {}),
 									};
 								}
+							}
+							// §5.AU item 9 — needs_clarify PICKER: addressing was ambiguous (>1 slug/ASK match). Surface the
+							// candidates for the composer's picker instead of guessing or spending a model turn: post a
+							// deterministic clarify prompt + return the candidates. The user picks one (inserts its @handle) and
+							// re-sends. No model turn.
+							if (target.kind === "needs_clarify" && target.candidates && target.candidates.length > 0) {
+								const clarifyCandidates: RuntimeChatClarifyCandidate[] = target.candidates.map((candidate) => ({
+									kind: candidate.kind,
+									id: candidate.id,
+									label: candidate.label,
+								}));
+								const options_ = clarifyCandidates.map((candidate) => `"${candidate.label}"`).join(", ");
+								const userMsg = await appendChatMessage(
+									session.id,
+									{ role: "user", content: input.message },
+									transcriptOptions,
+								);
+								const assistantMsg = await appendChatMessage(
+									session.id,
+									{
+										role: "assistant",
+										content: `Your message could address more than one target (${options_}). Which did you mean? Pick one below, or rephrase with an @handle.`,
+									},
+									transcriptOptions,
+								);
+								return {
+									userMessage: toRuntimeChatMessage(userMsg),
+									assistantMessage: toRuntimeChatMessage(assistantMsg),
+									clarifyCandidates,
+								};
 							}
 						}
 					}

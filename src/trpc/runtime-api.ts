@@ -982,6 +982,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				userMessage: result?.userMessage ?? null,
 				assistantMessage: result?.assistantMessage ?? null,
 				capabilityNotice: result?.capabilityNotice ?? null,
+				targetLabel: result?.targetLabel ?? null,
+				...(result?.clarifyCandidates ? { clarifyCandidates: result.clarifyCandidates } : {}),
 			};
 		},
 		startAutonomousChatRun: (input) => autonomousChatRun.start(input),
