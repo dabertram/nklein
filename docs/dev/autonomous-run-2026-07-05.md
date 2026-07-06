@@ -1304,9 +1304,10 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
   api-validation tRPC parsers, many untested despite real trim/emptiness logic — a low-risk coverage backlog when lifts run dry.**
-- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1291** (11 clusters pulled: settings-summary, litellm-model-list,
+- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1073** (12 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy, custom-provider-manager
-  [slice 56, +security test], model-discovery-api [slice 57, +tests] — plus 3 earlier);
+  [slice 56, +security test], model-discovery-api [slice 57, +tests], provider-settings-writer [slice 58, saveProviderSettings
+  −218, David-selected, +6 tests incl. fail-closed] — plus 3 earlier);
   `runtime-server.ts` 2527 → **2451** (bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result, and now
   runtime-server-http lifted from INSIDE the createRuntimeServer closure);
   `nklein-mcp-runtime-service.ts` 949 → **762** (oauth-settings-store, transport-factory, oauth-callback — all were untested);
