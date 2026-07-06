@@ -1158,13 +1158,27 @@ focus-chain helper imports. Behavior-preserving (118-test suite green); +4 focus
 orchestration moved; the win is cohesion + isolated coverage). **3 collaborator splits landed (residency, lease-cache,
 focus-chain) — all the single-Map + small-deps shape.**
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 48) — for David
+### ▶ §5.U slice 49 (2026-07-06, c02ff43e) — team-progress pub/sub collaborator (fourth split)
+Fourth clean collaborator split. The team-progress pub/sub (listeners Set + subscribe/unsubscribe + the emit that PROJECTS
+the raw SDK event before fanning out) → `createTeamProgressEmitter`. `onTeamProgress` delegates to `.subscribe`; the private
+`emitTeamProgress` is gone (6 callers → `this.teamProgressEmitter.emit(...)`); dispose `.clear()`s; biome dropped 3 now-unused
+imports. Behavior-preserving (118-test suite green). task-session-service 4762 → **4744**. +3 focused tests.
+**Survey of the remaining single-collection fields (recorded so future iterations don't re-hunt):** `explicitDecompositionTaskIds`
+= a bare membership Set (has/add/delete/clear, NO owned logic) → extracting = pointless indirection; `lastRecordedRunStateByTaskId`
+= a 3-use dedup, too small; `adaptiveRetryStateByTaskId` = cross-concern (its method calls sendTaskSessionInput); `timeoutSettingsByTaskId`
+= entangled with the timeout scheduler; the warmth ledger (`lastAssembledSystemPromptByModelId`/`lastShellKeyByModelId`) is
+cross-cutting (WRITTEN at prompt-assembly, READ at model-selection). **The clean single-Map-with-owned-lifecycle concerns in
+task-session-service are now largely mined (4 splits done).** Further big reduction needs either the entangled clusters (David's
+boundary steer) or a different file.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 49) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **48 slices this run (26 §5.U extractions + 22 §5.V coverage batches), ~307 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). The collaborator-split path is flowing: task-session-service
-  4886 → **4762** this run (3 clean splits — residency watcher, runtime-setup lease cache, focus-chain store — + wrapper
-  cleanup), all proven by the existing suites. §5.V high-value pure-logic coverage is SATURATED
+- **49 slices this run (27 §5.U extractions + 22 §5.V coverage batches), ~310 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4744** this run (4 clean
+  collaborator splits — residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter — + wrapper
+  cleanup), all proven by the existing suites. The clean single-Map concerns there are now largely mined (see slice-49 survey).
+  §5.V high-value pure-logic coverage is SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
   + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, plan-task-routing resolvers,

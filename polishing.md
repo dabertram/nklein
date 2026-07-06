@@ -395,10 +395,10 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **48 slices so far (26 §5.U extractions + 22 §5.V coverage batches), ~307 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **Collaborator-split path flowing:
->   task-session-service 4886 → 4762 this run — 3 clean splits (residency 45, lease-cache 47, focus-chain 48) + wrapper
->   cleanup (46), all proven by existing suites.** Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
+> - **49 slices so far (27 §5.U extractions + 22 §5.V coverage batches), ~310 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4744 this run
+>   — 4 clean collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49) + wrapper cleanup (46); the
+>   clean single-Map concerns there are now largely mined.** Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
 >
@@ -448,7 +448,13 @@
 > cluster of methods + its DEDICATED state) out of the class into a `createXWatcher(deps)` collaborator with a small deps
 > interface; the service instantiates it + delegates. Residency watcher was the first (−52 lines, 134 tests green). Do it
 > when state is cleanly separable (ideal: a single Map/field) + the deps interface is clear. DONE so far: residency watcher (45),
-> runtime-setup lease cache (47), focus-chain store (48); decomposition-nudge wrappers inlined (46, was already a collaborator).
+> runtime-setup lease cache (47), focus-chain store (48), team-progress emitter (49); decomposition-nudge wrappers inlined (46).
+> **The clean single-Map-with-owned-lifecycle concerns in task-session-service are now largely mined (4 splits).** Remaining
+> single-collection fields are NOT good candidates: `explicitDecompositionTaskIds` (bare Set, no logic), `lastRecordedRunStateByTaskId`
+> (tiny dedup), `adaptiveRetryStateByTaskId` (cross-concern), `timeoutSettingsByTaskId` (entangled w/ timeout scheduler), warmth
+> ledger (cross-cutting: written at prompt-assembly, read at model-selection). Next big reduction: the ENTANGLED clusters need
+> David's boundary steer, OR pivot to a different file — but runtime-server's state lives in the createRuntimeServer CLOSURE (not
+> class fields), and provider-service is already at 1463. Consider whether the flagship's remaining size is now "acceptable".
 > **CAVEAT on candidates:** verify state is genuinely SEPARABLE first. `timeout scheduling` is NOT clean —
 > `clearTaskTimeouts` coordinates the residency watcher + `activeToolTaskIds` (cross-concern), and `handleTaskTimeout`
 > orchestrates abort+fail; leave it (or needs David's boundary steer). `sandbox-review finalization` similarly touches
