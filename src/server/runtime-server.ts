@@ -84,12 +84,7 @@ import {
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { recordMergeHistory } from "../state/merge-history-store";
-import {
-	isWorkspaceStateLockError,
-	loadWorkspaceContextById,
-	loadWorkspaceState,
-	mutateWorkspaceState,
-} from "../state/workspace-state";
+import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
 import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
 import { persistModelBehaviorOutcome } from "../telemetry/model-behavior-profile-store";
@@ -124,6 +119,7 @@ import type { RuntimeStateHub } from "./runtime-state-hub";
 import { applyCardReviewToBoard, runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
+import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
 
 interface DisposeTrackedWorkspaceResult {
 	terminalManager: TerminalSessionManager | null;
@@ -157,7 +153,6 @@ export interface RuntimeServer {
 	close: () => Promise<void>;
 }
 
-const WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000] as const;
 const SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS = [100, 250, 500, 1_000, 2_000] as const;
 /** Head of a failed plan-gate's output persisted on the surfaced card / in the self-observation (§5.0.5). */
 const PLAN_GATE_OUTPUT_HEAD_BUDGET = 400;
@@ -171,23 +166,6 @@ const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
 // re-run gets a fresh startedAt; a re-emit of the same run does not). The sibling model-performance store dedups on READ
 // via a stable id; these two stores fold on WRITE, so they dedup here. Bounded (FIFO-evicted) against unbounded growth.
 const recordedTerminalRuns = createBoundedDedupSet(5000);
-
-async function retryWorkspaceStateLock<T>(operation: () => Promise<T>): Promise<T> {
-	let lastError: unknown = null;
-	for (let attempt = 0; attempt <= WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS.length; attempt += 1) {
-		try {
-			return await operation();
-		} catch (error) {
-			lastError = error;
-			const delayMs = WORKSPACE_STATE_LOCK_RETRY_DELAYS_MS[attempt];
-			if (!isWorkspaceStateLockError(error) || delayMs === undefined) {
-				throw error;
-			}
-			await new Promise((resolve) => setTimeout(resolve, delayMs));
-		}
-	}
-	throw lastError;
-}
 
 function isEmptySandboxPatchSummary(summary: RuntimeTaskSessionSummary | null): boolean {
 	return summary?.latestHookActivity?.hookEventName === "sandbox_patch_empty";
