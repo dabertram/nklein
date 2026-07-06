@@ -1,6 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
 import type { OAuthClientProvider, OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -12,7 +10,6 @@ import type {
 	OAuthClientMetadata,
 	OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { z } from "zod";
 import type { RuntimeNKleinMcpServer } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
 import { toErrorMessage } from "../core/error-message";
@@ -23,8 +20,14 @@ import {
 	type SandboxExecTarget,
 	selectSandboxMcpServersForModel,
 } from "../core/sandbox-mcp-catalog";
-import { lockedFileSystem } from "../fs/locked-file-system";
-import { createNKleinMcpSettingsService, resolveMcpSettingsPath } from "./nklein-mcp-settings-service";
+import {
+	hasAccessToken,
+	type NKleinMcpOauthServerState,
+	parseOauthSettings,
+	resolveMcpOauthSettingsPath,
+	updateOauthServerState,
+} from "./nklein-mcp-oauth-settings-store";
+import { createNKleinMcpSettingsService } from "./nklein-mcp-settings-service";
 import {
 	createSdkInMemoryMcpManager,
 	createSdkMcpTools,
@@ -66,23 +69,6 @@ const completedOauthCallbacksByRequestId = new Map<
 		timeoutHandle: NodeJS.Timeout;
 	}
 >();
-
-const oauthServerStateSchema = z.object({
-	clientInformation: z.record(z.string(), z.unknown()).optional(),
-	tokens: z.record(z.string(), z.unknown()).optional(),
-	codeVerifier: z.string().optional(),
-	discoveryState: z.record(z.string(), z.unknown()).optional(),
-	redirectUrl: z.string().url().optional(),
-	lastError: z.string().optional(),
-	lastAuthenticatedAt: z.number().int().positive().optional(),
-});
-
-const oauthSettingsSchema = z.object({
-	servers: z.record(z.string(), oauthServerStateSchema).default({}),
-});
-
-type NKleinMcpOauthServerState = z.infer<typeof oauthServerStateSchema>;
-type NKleinMcpOauthSettings = z.infer<typeof oauthSettingsSchema>;
 
 type AuthCapableTransport = SSEClientTransport | StreamableHTTPClientTransport;
 type SdkTransport = StdioClientTransport | AuthCapableTransport;
@@ -142,98 +128,6 @@ export interface NKleinMcpOauthCallbackResponse {
 
 export interface CreateNKleinMcpRuntimeServiceOptions {
 	onAuthStatusesChanged?: (statuses: NKleinMcpServerAuthStatus[]) => void | Promise<void>;
-}
-
-function resolveMcpOauthSettingsPath(): string {
-	const configuredPath = process.env.NKLEIN_MCP_OAUTH_SETTINGS_PATH?.trim();
-	if (configuredPath) {
-		return resolve(configuredPath);
-	}
-	return join(dirname(resolveMcpSettingsPath()), "nklein_mcp_oauth_settings.json");
-}
-
-function normalizeOauthServerState(value: NKleinMcpOauthServerState): NKleinMcpOauthServerState {
-	return {
-		...(value.clientInformation ? { clientInformation: value.clientInformation } : {}),
-		...(value.tokens ? { tokens: value.tokens } : {}),
-		...(value.codeVerifier ? { codeVerifier: value.codeVerifier } : {}),
-		...(value.discoveryState ? { discoveryState: value.discoveryState } : {}),
-		...(value.redirectUrl ? { redirectUrl: value.redirectUrl } : {}),
-		...(value.lastError ? { lastError: value.lastError } : {}),
-		...(value.lastAuthenticatedAt ? { lastAuthenticatedAt: value.lastAuthenticatedAt } : {}),
-	};
-}
-
-function isEmptyOauthServerState(value: NKleinMcpOauthServerState): boolean {
-	return Object.keys(value).length === 0;
-}
-
-function parseOauthSettings(path: string): NKleinMcpOauthSettings {
-	if (!existsSync(path)) {
-		return {
-			servers: {},
-		};
-	}
-
-	let parsedJson: unknown;
-	try {
-		parsedJson = JSON.parse(readFileSync(path, "utf8"));
-	} catch (error) {
-		throw new Error(`Failed to parse MCP OAuth settings JSON at "${path}": ${toErrorMessage(error)}`);
-	}
-
-	const parsed = oauthSettingsSchema.safeParse(parsedJson);
-	if (!parsed.success) {
-		const details = parsed.error.issues
-			.map((issue) => {
-				const issuePath = issue.path.join(".");
-				return issuePath.length > 0 ? `${issuePath}: ${issue.message}` : issue.message;
-			})
-			.join("; ");
-		throw new Error(`Invalid MCP OAuth settings at "${path}": ${details}`);
-	}
-
-	return {
-		servers: Object.fromEntries(
-			Object.entries(parsed.data.servers).map(([name, state]) => [name, normalizeOauthServerState(state)]),
-		),
-	};
-}
-
-async function writeOauthSettings(path: string, settings: NKleinMcpOauthSettings): Promise<void> {
-	await lockedFileSystem.writeJsonFileAtomic(path, settings, {
-		lock: {
-			path,
-			type: "file",
-		},
-	});
-}
-
-async function updateOauthServerState(input: {
-	path: string;
-	serverName: string;
-	updater: (current: NKleinMcpOauthServerState) => NKleinMcpOauthServerState;
-}): Promise<NKleinMcpOauthServerState> {
-	const settings = parseOauthSettings(input.path);
-	const current = settings.servers[input.serverName] ?? {};
-	const updated = normalizeOauthServerState(input.updater(current));
-
-	if (isEmptyOauthServerState(updated)) {
-		delete settings.servers[input.serverName];
-	} else {
-		settings.servers[input.serverName] = updated;
-	}
-
-	await writeOauthSettings(input.path, settings);
-	return updated;
-}
-
-function hasAccessToken(tokens: Record<string, unknown> | undefined): boolean {
-	if (!tokens) {
-		return false;
-	}
-	const accessToken = tokens.access_token;
-	return typeof accessToken === "string" && accessToken.trim().length > 0;
 }
 
 function toMcpRegistration(server: RuntimeNKleinMcpServer): SdkMcpServerRegistration {
