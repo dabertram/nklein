@@ -669,3 +669,17 @@ handle noise; strip the leading handle before delivery for a clean message. (b) 
 send_to_stream's broadcast extracted like applyCardMessageRelay). (c) needs_clarify candidate-picker + rung-5
 disambiguator. (d) live-verify the relay in the running app (a hot-path change; deterministic tests cover the logic).
 The loop stays interactive (David is engaged); cron NOT re-armed.
+
+### ▶ 2026-07-06 (David: "1 turn on / 2 go on / rearm the loop")
+1. **EGRESS TURNED ON — LIVE + VERIFIED.** `~/.nklein/config.json` already had `retrievalEgressEnabled:true` +
+   `retrievalSearchBackendUrl:http://localhost:18888`. Launched Docker Desktop, brought up the bundled SearXNG
+   (`docker compose -f docker/searxng/docker-compose.yml up -d` → container `nklein-searxng` Up on 127.0.0.1:18888),
+   and CONFIRMED live results (`/search?q=…&format=json` → 6 real hits: claude.ai, anthropic.com, …). The
+   §5.AC/§5.AB/§5.M online-retrieval cluster is now UNBLOCKED + running. (NOTE: SearXNG must be re-`up`'d after a Docker
+   restart; `docker compose … down` to stop.)
+2. **"go on" — shipped item-9 follow-up (a): handle-strip (8ec78461).** Pure `stripAddressingHandle` (word-boundary-aware
+   so `user@host` is safe; focus-resolved messages pass through) — the card's agent now receives "use bcrypt" instead of
+   "@card:card-1 use bcrypt"; the chat transcript keeps the user's original. 5 tests. Remaining item-9 follow-ups: stream
+   relay from the front door, needs_clarify candidate-picker, rung-5 disambiguator, live-verify.
+3. **RE-ARMED the loop** — recurring cron `e0042a87` (every 2 min, session-only, 7-day expiry); its prompt notes egress
+   is live + the item-9 follow-ups. The autonomous grind resumes.
