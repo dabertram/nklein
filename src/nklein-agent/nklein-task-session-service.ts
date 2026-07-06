@@ -29,11 +29,7 @@ import type {
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
-import {
-	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
-	normalizeRuntimeSwarmGuardrails,
-	RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS,
-} from "../core/api-contract";
+import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import {
 	applyWarmthPreference,
 	buildPromptShellKey,
@@ -90,7 +86,7 @@ import {
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { createContextBudgetController } from "./nklein-context-budget-controller";
-import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS, planContextBudget } from "./nklein-context-budget-plan";
+import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS } from "./nklein-context-budget-plan";
 import {
 	buildContextBudgetBreakdown,
 	estimateKanbanToolSchemaTokens,
@@ -164,7 +160,6 @@ import {
 	createMessageWithMeta,
 	createSessionId,
 	isCreditLimitError,
-	isLocalModelRuntimeUnavailableError,
 	type NKleinTaskMessage,
 	type NKleinTaskSessionEntry,
 	now,
@@ -174,6 +169,7 @@ import {
 import { buildSessionSystemPrompt } from "./nklein-session-system-prompt";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
 import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker";
+import { createTaskFailureEmitter } from "./nklein-task-failure-emitter";
 import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
 import { appendSystemPrompt, buildNKleinStartPromptParts } from "./nklein-task-prompt-builders";
@@ -522,7 +518,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		clearTaskTimeouts: (taskId) => this.clearTaskTimeouts(taskId),
 		abortTaskSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
 		recordObservation: (event) => this.recordObservationWithModel(event),
-		emitTaskFailure: (taskId, entry, context, error) => this.emitTaskFailure(taskId, entry, context, error),
+		emitTaskFailure: (taskId, entry, context, error) => this.taskFailureEmitter.emit(taskId, entry, context, error),
 	});
 	private readonly sandboxReviewFinalizer = createSandboxReviewFinalizer({
 		getSandboxState: () => this.sandboxState,
@@ -535,6 +531,24 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
+	/** Classifies + emits a failed SDK start/send (backoff, park-or-review, observation + message + summary). */
+	private readonly taskFailureEmitter = createTaskFailureEmitter({
+		clearRunTimeouts: (taskId) => {
+			this.clearTaskTimeout(taskId, "stream");
+			this.clearTaskTimeout(taskId, "tool");
+			this.clearTaskTimeout(taskId, "conversation");
+		},
+		clearActiveToolFlag: (taskId) => {
+			this.activeToolTaskIds.delete(taskId);
+		},
+		resolveProviderId: (taskId) => this.resolveProviderIdForTask(taskId),
+		getModelId: (taskId) => this.modelEndpoint.getModelId(taskId),
+		getEndpoint: (taskId) => this.modelEndpoint.getEndpoint(taskId),
+		getPreviousFailure: (taskId) => this.failureBackoff.getPrevious(taskId),
+		recordFailure: (taskId, state) => this.failureBackoff.record(taskId, state),
+		emitMessage: (taskId, message) => this.emitMessage(taskId, message),
+		emitSummary: (summary) => this.emitSummary(summary),
+	});
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
 	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
@@ -599,7 +613,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		recordTimeout: (taskId, reason, source) => this.pendingTimeout.record(taskId, reason, source),
 		canRestartTaskSession: (taskId) => this.sessionRuntime.canRestartTaskSession(taskId),
 		recordObservation: (event) => this.recordObservationWithModel(event),
-		emitTaskFailure: (taskId, entry, context, error) => this.emitTaskFailure(taskId, entry, context, error),
+		emitTaskFailure: (taskId, entry, context, error) => this.taskFailureEmitter.emit(taskId, entry, context, error),
 	});
 
 	constructor(options: CreateInMemoryNKleinTaskSessionServiceOptions) {
@@ -1187,92 +1201,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return this.resolveProviderIdForTask(taskId) === "nklein";
 	}
 
-	private emitTaskFailure(
-		taskId: string,
-		entry: NKleinTaskSessionEntry,
-		context: "start" | "send",
-		error: unknown,
-	): void {
-		this.clearTaskTimeout(taskId, "stream");
-		this.clearTaskTimeout(taskId, "tool");
-		this.clearTaskTimeout(taskId, "conversation");
-		this.activeToolTaskIds.delete(taskId);
-		const errorMessage = toErrorMessage(error);
-		const creditLimitError = this.isNKleinProviderForTask(taskId) && isCreditLimitError(errorMessage);
-		const providerId = this.resolveProviderIdForTask(taskId);
-		const modelId = this.modelEndpoint.getModelId(taskId);
-		const endpoint = this.modelEndpoint.getEndpoint(taskId);
-		// A local model host (LM Studio/Ollama) that crashed or unloaded its model won't recover by retrying the
-		// dead endpoint; classify it so the task parks fast with reload guidance instead of storming a gone model.
-		const localModelUnavailable =
-			!creditLimitError &&
-			isLocalProvider(providerId, endpoint) &&
-			isLocalModelRuntimeUnavailableError(errorMessage);
-		const backoff = computeNKleinFailureBackoff({
-			context,
-			errorMessage,
-			previousFailure: this.failureBackoff.getPrevious(taskId),
-			localModelUnavailable,
-		});
-		if (backoff.alreadyParked) {
-			return;
-		}
-		const { consecutiveFailures, shouldPark } = backoff;
-		const localModelUnavailableGuidance = localModelUnavailable
-			? `Local model "${modelId}" on ${endpoint ?? "its endpoint"} became unavailable mid-run (crashed or unloaded — local hosts like LM Studio drop a model under memory pressure, which a reasoning model at a large context window on limited hardware can trigger). Reload the model in your local host, or pick a smaller / non-reasoning model or a smaller context window, then resume this task.`
-			: null;
-		this.failureBackoff.record(taskId, backoff.nextState);
-		recordSelfObservation({
-			signal: creditLimitError ? "provider_error" : localModelUnavailable ? "provider_error" : "runtime_error",
-			severity: "error",
-			message: shouldPark
-				? `NKlein SDK ${context} failed ${consecutiveFailures} consecutive times; parking task: ${errorMessage}`
-				: `NKlein SDK ${context} failed: ${errorMessage}`,
-			taskId,
-			providerId,
-			modelId,
-			metadata: {
-				context,
-				creditLimitError,
-				localModelUnavailable,
-				consecutiveFailures,
-				parked: shouldPark,
-			},
-		});
-		if (!creditLimitError) {
-			const baseMessage = shouldPark
-				? `NKlein SDK ${context} failed ${consecutiveFailures} consecutive times with the same error, so !Klein parked this task to avoid retry storms: ${errorMessage}. Send a new message after fixing the cause to try again.`
-				: `NKlein SDK ${context} failed: ${errorMessage}. You can send another message to continue the conversation.`;
-			const systemMessage = createMessage(
-				taskId,
-				"system",
-				localModelUnavailableGuidance ? `${localModelUnavailableGuidance}\n\n${baseMessage}` : baseMessage,
-			);
-			entry.messages.push(systemMessage);
-			this.emitMessage(taskId, systemMessage);
-		}
-		clearActiveTurnState(entry);
-		const errorSummary = updateSummary(entry, {
-			state: shouldPark ? "failed" : "awaiting_review",
-			reviewReason: "error",
-			lastOutputAt: now(),
-			lastHookAt: now(),
-			warningMessage: creditLimitError ? null : (localModelUnavailableGuidance ?? errorMessage),
-			latestHookActivity: {
-				activityText: shouldPark
-					? `${context === "start" ? "Start" : "Send"} parked after repeated failures: ${errorMessage}`
-					: `${context === "start" ? "Start" : "Send"} failed: ${errorMessage}`,
-				toolName: null,
-				toolInputSummary: null,
-				finalMessage: errorMessage,
-				hookEventName: "agent_error",
-				notificationType: creditLimitError ? "credit_limit" : null,
-				source: "nklein-sdk",
-			},
-		});
-		this.emitSummary(errorSummary);
-	}
-
 	private recordSessionRecoveryFailure(input: {
 		taskId: string;
 		operation: "reload_task_session" | "rebind_persisted_task_session";
@@ -1755,7 +1683,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			});
 		} catch (error) {
 			if (queuedForSandboxCapacity) {
-				this.emitTaskFailure(request.taskId, entry, "start", error);
+				this.taskFailureEmitter.emit(request.taskId, entry, "start", error);
 			}
 			throw error;
 		}
@@ -1999,7 +1927,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			} catch (error) {
 				this.clearTaskTimeouts(request.taskId);
 				await sandboxWorkspace?.manager.disposeWorkspace(request.taskId).catch(() => null);
-				this.emitTaskFailure(request.taskId, entry, "start", error);
+				this.taskFailureEmitter.emit(request.taskId, entry, "start", error);
 			}
 		})();
 
@@ -2358,7 +2286,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					if (!live || live !== entry) {
 						return;
 					}
-					this.emitTaskFailure(taskId, live, "send", error);
+					this.taskFailureEmitter.emit(taskId, live, "send", error);
 				});
 		}
 		const summary = updateSummary(entry, {
@@ -2436,7 +2364,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					error,
 				});
 			}
-			this.emitTaskFailure(taskId, entry, "start", error);
+			this.taskFailureEmitter.emit(taskId, entry, "start", error);
 			return cloneSummary(entry.summary);
 		}
 	}
