@@ -1860,6 +1860,20 @@ consistency (7952 green). **KEPT** the harmless, tested scaffolding as the found
   best-effort re-key-on-load for existing runtime-keyed rows. This is a larger hot-path + persisted-data change; flagged
   for David rather than continued piecemeal.
 
+### 2026-07-07 (Opus) · §5.V — vein exhausted (verified via a precise name-based sweep)
+
+Ran a precise coverage sweep (is each `export function`'s NAME referenced in ANY test file? — catches functions the
+basename-heuristic misses, e.g. pure fns inside `use-*`/`.tsx` files). It surfaced + closed the last real gaps over the
+prior ticks (git-history clamps, use-theme, diff-renderer patch-parse, app-utils routing, provider-helpers,
+command-display, code-embedding-fields, activeBoardChatAskKinds, guardrail normalizers, …). This tick's fresh sweep
+returned ONLY non-targets: trivial 3-line getters (`columnCanHaveLiveTaskSession`, `acceptanceFailureCategoryLabel`,
+`getKanbanRuntimeTls`, `createShortTaskId`), the `api-validation` `parse*SaveRequest`/advisor passthroughs (intentional
+`schema.parse` — the schema IS the contract), I/O factories/installers (`createDefaultLmsRunner`,
+`installKanbanFetchTimeoutPolicy` — the slice-36-skipped low-value pair), thin wrappers over already-tested logic
+(`resolveEffectiveEndpointConcurrency` → `resolveKeyCap`, `summarizeWorkspaceBoardStreams` → `summarizeBoardStreams`),
+and false positives (`candidateGateScore` IS tested in repair-kernel.test.ts). **§5.V pure-logic coverage is saturated**
+— further additions would be padding, which the working standard explicitly says NOT to add.
+
 ### 2026-07-07 (Opus) · §5.BG — netted the routing coupling + flipped the SAFE (display) cluster
 
 David: "do it as one coordinated change." Executing the netted plan. Deeper read-side tracing settled the coupling map:
