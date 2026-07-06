@@ -1728,3 +1728,15 @@ LICENSE + README). Metadata-only, machine-facing (same category as the repo-URL 
   secret (1 tool step, no iteration-limit hit). Also **`User + assistant persisted: YES`** — a live regression check of
   the Fable-session W3.1 change (persist the user turn BEFORE the tool loop), confirmed intact on a real model. Logged
   to cross-model-verification.md. Resident roster: `qwen3.5-122b-a10b`, `qwen/qwen2.5-coder-14b` (no force-load).
+
+### 2026-07-06 (Opus) · §5.V (web-ui) — pin the git-history 3-panel fit constraint (+8 tests)
+
+Swept the WEB-UI for §5.V gaps (a surface the prior server-side sweeps didn't cover). Most web-ui logic is React-coupled
+hooks that delegate to already-tested pure models; the one genuinely-pure, logic-bearing, UNTESTED pair was the
+git-history layout clamps in `web-ui/src/resize/use-git-history-layout.ts` — `clampGitRefsPanelWidth` /
+`clampGitCommitsPanelWidth`. The shared `clampWidthToContainer` primitive is covered (resize-persistence.test.ts), but
+the git-history-SPECIFIC composition — the reserved-width math that keeps refs + commits + diff-min + the 2 separators
+fitting the container — was not. New `use-git-history-layout.test.ts` (+8) pins: min-width floor, in-range rounding,
+the cap that reserves room for the other two panels, min-wins-over-a-sub-min-ceiling when the container is too small,
+and the exact-reservation invariant (`maxRefs + commits + DIFF_MIN + separators === container`). Web gate: `web-ui` tsc
+✓, web-ui vitest 8/8 ✓. Pure coverage, zero source change.
