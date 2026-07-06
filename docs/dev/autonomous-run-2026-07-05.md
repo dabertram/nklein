@@ -962,20 +962,27 @@ so the handler's registry logic no longer inlines the URL protocol. Behavior-pre
 `get(param)?.trim() || null` is identical under the `if (!requestId)` guard; existing test still green); previously
 UNTESTED, now +7 tests. **Progress:** mcp-runtime-service 777 → **762** (−187 from 949).
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 18) — for David
+### ▶ §5.U slice 19 (2026-07-06, ee02578e) — extracted nklein-large-file-workflow-helpers
+Into large-file-workflow.ts (781). Moved the five pure stateless helpers — `sanitizePathSegment`, `filterToolsByName`,
+`hasSynthesisText`, `formatOutputHeader`, `createRailMessage` — into their own module; the workflow imports them back (the
+staying `formatStitchingAreaContent` now imports `formatOutputHeader` from there). biome dropped the now-unused
+AgentMessage / AgentToolDefinition type imports. Behavior-preserving (12-test workflow suite still green); previously
+UNTESTED, now +10 tests. **Progress:** large-file-workflow 781 → **740**.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 19) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **18 §5.U slices this run, ~113 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
-  extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service, agent-sandbox, event-adapter) yield
-  extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED. Slice 17 opened a flagship pattern: lifting
-  PURE private methods (no `this`) into the core guard modules. mcp-runtime-service alone is now down to THREE cohesive
-  extracted modules (oauth-settings-store, transport-factory, oauth-callback).
+- **19 §5.U slices this run, ~123 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
+  extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service, agent-sandbox, event-adapter,
+  large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED. Slice 17 opened a
+  flagship pattern: lifting PURE private methods (no `this`) into the core guard modules.
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
   `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
   `nklein-mcp-runtime-service.ts` 949 → **762** (oauth-settings-store, transport-factory, oauth-callback — all were untested);
   `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
   `nklein-event-adapter.ts` 806 → **768** (tool-activity classifiers — was untested);
+  `nklein-large-file-workflow.ts` 781 → **740** (workflow helpers — was untested);
   `nklein-task-session-service.ts` 4886 → **4873** (shouldCaptureReviewCheckpoint lifted to task-session-guards — first
   flagship cut this run; class-heavy, the bulk still needs the collaborator responsibility-split).
 - **PRODUCTIVE VEIN (corrected):** the big-3 pure-fn seams are done, but the NEXT-TIER large files (mcp-runtime-service,

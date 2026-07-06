@@ -390,10 +390,11 @@
 >   + `nklein-mcp-oauth-callback` (all were untested → +26 tests).
 > - `nklein-agent-sandbox.ts`: 1090 → **1071** — extracted `nklein-agent-sandbox-predicates` (was untested → +4 tests).
 > - `nklein-event-adapter.ts`: 806 → **768** — extracted `nklein-event-adapter-tool-activity` (was untested → +3 tests).
+> - `nklein-large-file-workflow.ts`: 781 → **740** — extracted `nklein-large-file-workflow-helpers` (was untested → +10 tests).
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **18 slices so far, ~113 new unit tests, zero behavior changes** (pre-commit fast suite gates each).
+> - **19 slices so far, ~123 new unit tests, zero behavior changes** (pre-commit fast suite gates each).
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,
