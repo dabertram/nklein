@@ -853,3 +853,31 @@ provider-selection-store, bounded-dedup-set). Next runtime-server candidates: `r
 schedule; a general retry-on-lock-error util used in 4 places) and `resolveReviewSandboxResult` / `isEmptySandboxPatchSummary`
 (sandbox-result polling). The bulk of runtime-server is the ~2300-line `createRuntimeServer` closure — inner pure helpers
 there are the deeper target once the free-function seams are exhausted.
+
+### ▶ §5.U slice 9 (2026-07-06, a67982d5) — extracted workspace-state-lock-retry from runtime-server
+Second cut into runtime-server. Moved `retryWorkspaceStateLock` + its backoff schedule into a dedicated module, adding an
+injectable `sleep` (defaults to real `setTimeout`) so the retry control flow is testable without real timers or real lock
+contention. The service imports it back (4 call sites) and biome dropped the now-unused `isWorkspaceStateLockError`
+import. Behavior-preserving (same schedule; "retry only lock errors, propagate everything else, rethrow after exhaustion");
++4 unit tests (first-try success = no sleeps, retry-then-recover along the schedule, immediate non-lock propagation,
+rethrow after exhaustion). Full gate green. **Progress:** runtime-server 2518 → 2496.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 9) — for David
+**Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
+test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
+- **9 §5.U slices this run, ~56 new unit tests, 9 focused modules extracted, zero behavior changes** (the pre-commit fast
+  suite gates every commit; extractions delegate).
+- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1502** (7 clusters pulled: settings-summary, litellm-model-list,
+  managed-provider-credentials, provider-selection-store — plus 3 earlier); `runtime-server.ts` 2527 → **2496** (2 clusters:
+  bounded-dedup-set, workspace-state-lock-retry); `nklein-task-session-service.ts` still **4886** (the hardest — class-heavy,
+  instance-stateful; earlier slices nibbled it, next needs the responsibility-split not just pure-fn lifts).
+- **New modules (all under `src/nklein-agent/` unless noted):** nklein-session-system-prompt, nklein-launch-config,
+  nklein-retrieval-tools-gate, nklein-provider-settings-summary, nklein-litellm-model-list,
+  nklein-managed-provider-credentials, nklein-provider-selection-store, `src/server/bounded-dedup-set`,
+  `src/server/workspace-state-lock-retry`.
+- **Next targets (in order):** (1) more runtime-server free-function seams — `resolveReviewSandboxResult` +
+  `isEmptySandboxPatchSummary` (sandbox-result polling, injectable sleep like the lock-retry); (2) the last pure-ish
+  provider-service bits (remote-config parse, `resolveModelListSettings` with `listSdkProviderCatalog` injected); (3) the
+  deeper, higher-value work — decomposing the ~2300-line `createRuntimeServer` closure and the task-session-service class
+  by responsibility (review-loop / plan-critique / mailbox as collaborators), which is where the "no large monolith"
+  directive really bites. §5.V coverage + §5.Z cross-model verification remain open; §5.AX visual overhaul is Fable-only.
