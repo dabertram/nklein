@@ -1248,6 +1248,15 @@ orchestration splits are autonomously safe whenever the boundary is clear. The o
 task-session-service is now largely mined (4886 → 4265); further reduction gets into finer-grained / more-ambiguous
 boundaries that warrant David's steer, or a shift to the other two monoliths.
 
+> **★ §5.Z EGRESS VERIFICATION (2026-07-06, egress LIVE at 127.0.0.1:18888) — the directive's unblocked track, DONE for the
+> loaded roster.** Ran the two egress harnesses. Infra (`verify-egress-live.mts`) ✅ all pass (real SearXNG results, fail-closed
+> gate fires with no request when egress off, no_backend, contract field mapping). Cross-model e2e
+> (`verify-egress-model-e2e.mts`: model → web_search tool-call → live SearXNG → grounded answer) **7/8 PASS across 2B→120B**
+> (qwen3-8b, qwen2.5-coder-14b, gemma-4-e2b, phi-4-mini-reasoning, mistral-small-3.2, gpt-oss-120b, nemotron-3-nano-4b). The one
+> ⚠️ CANT is **phi-4-reasoning-plus** — reasoning runaway (burns the whole budget on reasoning_content, truncates finish=length
+> at ≥6144 tokens, never emits the tool call): a model-quality trait / §5.AA adaptive-retry target, NOT an egress bug. Full
+> detail in [cross-model-verification.md](cross-model-verification.md) + polishing.md §5.Z. Commit f627948c.
+
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
