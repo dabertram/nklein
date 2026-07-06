@@ -1740,3 +1740,13 @@ fitting the container — was not. New `use-git-history-layout.test.ts` (+8) pin
 the cap that reserves room for the other two panels, min-wins-over-a-sub-min-ceiling when the container is too small,
 and the exact-reservation invariant (`maxRefs + commits + DIFF_MIN + separators === container`). Web gate: `web-ui` tsc
 ✓, web-ui vitest 8/8 ✓. Pure coverage, zero source change.
+
+The web-ui coverage heuristic (does `<basename>.test.ts` exist?) MISSES pure functions that live inside `use-*` hook
+files — so a targeted sweep for `export function <lowercase>` inside every web-ui `use-*.ts` surfaced a second gap:
+**`use-theme.ts` (410 lines) had NO test** despite exporting pure `isThemeId` / `readStoredThemeId` /
+`getTerminalThemeColors`. New `use-theme.test.ts` (+7) pins: `isThemeId` accepts every registry id + rejects
+null/empty/unknown/wrong-case; `readStoredThemeId` **validates untrusted localStorage** — falls back to the `klein`
+default on empty OR garbage (and the default is itself a valid id), returns a valid stored id verbatim; and
+`getTerminalThemeColors` resolves a defined palette for EVERY registered theme (guards a registry↔palette desync).
+Web gate: web-ui tsc ✓, web-ui vitest 7/7 ✓. All other web-ui `utils/` + `use-*` pure fns were already tested — the
+web-ui §5.V vein is now saturated too.
