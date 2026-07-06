@@ -792,3 +792,15 @@ nklein-task-session-service.ts now **4886 lines** (from 4944); THREE cohesive co
 (prompt assembly, launch config, retrieval-tools gate). Next: `resolvePersistedLaunchConfig` merge logic, the
 plan-critique / review-loop budget helpers, then the harder responsibility-split (review-loop/plan-critique/mailbox as
 collaborators). Then runtime-server.ts (2527) + nklein-provider-service.ts (1651).
+
+### ▶ §5.U slice 4 (2026-07-06, b684bff3) — extracted nklein-provider-settings-summary
+Pivoted to `nklein-provider-service.ts` (1651 lines) — which, unlike the class-heavy task-session-service, is mostly PURE
+module-level functions (much cleaner cut seams). Extracted the cohesive "SDK settings → `RuntimeNKleinProviderSettings`
+summary" mapper cluster (`toProviderSettingsSummary` + `createEmptyProviderSettingsSummary` + `toRuntimeReasoningEffort`)
+into its own module — all deps are shared-module imports (credential-helpers / id-classification), so no ripple. Service
+imports them back + dropped the now-unused `SdkReasoningEffort` alias + 2 credential-helper imports. Behavior-preserving;
+the projection (trimming, reasoning mapping, and the security property "report credential PRESENCE, never the values") now
+has 6 unit tests. Full gate green. **Progress:** provider-service 1651 → 1601. **Run total: 4 §5.U slices, ~24 new unit
+tests, 4 focused modules extracted** (session-system-prompt, launch-config, retrieval-tools-gate, provider-settings-summary).
+provider-service has MANY more pure clusters (LiteLLM/LM Studio model-list discovery, provider-selection persistence,
+remote-config parsing) — the cleanest ongoing target. Next.
