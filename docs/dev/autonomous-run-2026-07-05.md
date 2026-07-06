@@ -1139,13 +1139,23 @@ candidates with the same shape: timeout scheduling (`timeoutScheduler` + schedul
 nudge (`decompositionStallNudger` + the chat-nudge methods), sandbox-review finalization. David's steer is only needed for
 concerns whose state is NOT cleanly separable / whose boundary is genuinely ambiguous.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 45) — for David
+### ▶ §5.U slices 46–47 (2026-07-06, 4e828018 + 7db68f79) — more collaborator work on the flagship
+Slice 46: the decomposition-stall-nudge concern was ALREADY a collaborator (`DecompositionStallNudger`); the service's
+three `*DecompositionChatNudge` / `maybeContinueStalledDecomposition` methods were pure pass-through wrappers — removed all
+three, pointed their 6 call sites straight at `this.decompositionStallNudger.<same>`, and dropped a stale orphaned §5.AN
+residency doc-comment slice 45 left behind. 4811 → 4787. Slice 47: SECOND clean collaborator split — the per-workspace
+runtime-setup lease cache (the `Map<workspace, Promise<lease>>` + `ensureRuntimeSetup` de-dup + the dispose release-loop)
+→ `createRuntimeSetupLeaseCache({ acquire })`; the 4 callers + dispose delegate. +3 focused tests (concurrent-caller
+de-dup, per-workspace separation, disposeAll tolerating a release failure). 4787 → 4768. Both behavior-preserving
+(118-test suite green). **task-session-service this run: 4886 → 4768 (−118); 2 clean collaborator splits + wrapper cleanup.**
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 47) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **45 slices this run (23 §5.U extractions + 22 §5.V coverage batches), ~300 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). Slice 45 landed the FIRST collaborator responsibility-split
-  (model-residency watcher, flagship −52) — proven safe by 134 existing tests; the reduction path is now unblocked. §5.V
-  high-value pure-logic coverage is now SATURATED
+- **47 slices this run (25 §5.U extractions + 22 §5.V coverage batches), ~303 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). The collaborator-split path is now flowing:
+  task-session-service 4886 → **4768** this run (2 clean splits — residency watcher, runtime-setup lease cache — + wrapper
+  cleanup), all proven by the existing suites. §5.V high-value pure-logic coverage is SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
   + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, plan-task-routing resolvers,

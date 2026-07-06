@@ -395,10 +395,10 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **45 slices so far (23 §5.U extractions + 22 §5.V coverage batches), ~300 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42); §5.U flagship progress reopened via the
->   third pattern (43-44); **slice 45 landed the FIRST collaborator split (residency watcher, −52 lines, 134 tests green) —
->   flagship reduction is now unblocked + autonomous for cleanly-separable concerns.** Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
+> - **47 slices so far (25 §5.U extractions + 22 §5.V coverage batches), ~303 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **Collaborator-split path flowing:
+>   task-session-service 4886 → 4768 this run — 2 clean splits (residency watcher slice 45, runtime-setup lease cache slice 47)
+>   + wrapper cleanup (46), all proven by existing suites.** Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
 >
@@ -447,10 +447,13 @@
 > **§5.U FOURTH (biggest) PATTERN — COLLABORATOR SPLIT, proven autonomous+safe (slice 45):** move a cohesive concern (a
 > cluster of methods + its DEDICATED state) out of the class into a `createXWatcher(deps)` collaborator with a small deps
 > interface; the service instantiates it + delegates. Residency watcher was the first (−52 lines, 134 tests green). Do it
-> when state is cleanly separable (ideal: a single Map/field) + the deps interface is clear. Next candidates in
-> task-session-service: **timeout scheduling** (`timeoutScheduler` + scheduleTaskTimeout/clearTaskTimeouts/handleTaskTimeout),
-> **decomposition-stall nudge** (`decompositionStallNudger` + clear/schedule/maybeContinue), **sandbox-review finalization**
-> (shouldFinalize/finalizeSandboxReview + sandboxState). Verify each with the existing task-session-service suite.
+> when state is cleanly separable (ideal: a single Map/field) + the deps interface is clear. DONE so far: residency watcher (slice 45),
+> runtime-setup lease cache (slice 47); decomposition-nudge wrappers inlined (slice 46, was already a collaborator).
+> **CAVEAT on candidates:** verify state is genuinely SEPARABLE first. `timeout scheduling` is NOT clean —
+> `clearTaskTimeouts` coordinates the residency watcher + `activeToolTaskIds` (cross-concern), and `handleTaskTimeout`
+> orchestrates abort+fail; leave it (or needs David's boundary steer). `sandbox-review finalization` similarly touches
+> `sandboxState` + review runner + emits — likely entangled. **Look for the residency/lease shape: a single dedicated
+> Map/field + a lifecycle that only calls OUT via a small deps interface.** Verify each with the task-session-service suite.
 > Also keep: chunky pure sub-computation lifts. **CAVEAT (slice 44):** the small-pure-lift (third) pattern only shrinks when the
 > third pattern only REDUCES line count when the lifted computation is CHUNKY relative to its call site — a SMALL lift
 > (e.g. adaptive-retry policy, +4 lines net) is a cohesion+coverage win but not a size win. Target chunky inline
