@@ -683,3 +683,22 @@ The loop stays interactive (David is engaged); cron NOT re-armed.
    relay from the front door, needs_clarify candidate-picker, rung-5 disambiguator, live-verify.
 3. **RE-ARMED the loop** — recurring cron `e0042a87` (every 2 min, session-only, 7-day expiry); its prompt notes egress
    is live + the item-9 follow-ups. The autonomous grind resumes.
+
+### ▶ 2026-07-06 (loop resumed) — item-9 stream relay + egress live-validated
+- **§5.AU item 9 STREAM relay from the front door DONE (de30b26f):** extracted `applyStreamMessageBroadcast` (shared
+  broadcast path, mirrors applyCardMessageRelay; send_to_stream now delegates — 31 tests unchanged) + `relayAddressedMessage`
+  dispatches `stream` targets to it. An @stream-addressed chat message now broadcasts to the epic's cards (deliver
+  live / queue) + confirms, no model turn; both card + stream relays handle-strip. **Item 9's core is complete:** card
+  relay + stream relay + handle-strip all shipped. Remaining: needs_clarify candidate-picker + rung-5 disambiguator only.
+- **EGRESS LIVE-VALIDATED end-to-end (`scripts/verify-egress-live.mts`):** real client → the running SearXNG → real
+  internet = 8 results ("Claude Opus \ Anthropic" …); egress-OFF ⇒ `blocked_by_egress`, null-backend ⇒ `no_backend`
+  (fail-closed gates hold); title+url mapping correct. `EGRESS LIVE-VALIDATED ✓`. The online-retrieval SEARCH path is
+  confirmed working live. (Fuller end-to-end — a live model driving the `research` LOOP search→rank→fetch→synthesize — is
+  a heavier live-run, not done here; the search client + gates are proven.)
+
+### ★ NEXT — item-9 candidate-picker (a clean 3-layer slice for a fresh iteration)
+The needs_clarify candidate-picker: when addressing is ambiguous (>1 slug/ASK match), surface the target's `candidates`
+to the USER as clickable chips (reusing the stream-click → @handle-insert pattern) instead of the model guessing/asking.
+= contract (add `clarifyCandidates` to the sendMessage response) + chat-service (needs_clarify ⇒ return a deterministic
+clarify prompt + candidates, skip the model turn) + a UI picker in the chat composer. Then the rung-5 LLM disambiguator
+(a model call — lower priority). After those, item 9 is fully done and §5.AU is complete end to end.
