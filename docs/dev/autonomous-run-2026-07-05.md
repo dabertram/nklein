@@ -1398,3 +1398,11 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   from launch config / else throw" tail — now a single `restartOrStartWithMessages` helper (DRY win). The onTeamEvent wiring
   stays service-side on the restartTaskSession dep. 6 characterization tests. **task-session-service 3293 → 3157.** Run total:
   4886 → 3157 (−35%).
+
+- **runtime-server: terminal-telemetry recorders lift** (`9e5fc03d`) — lifted the two terminal-summary telemetry closures
+  (recordNKleinModelPerformance + recordNKleinKnowledgeToolUsage) + the module-level `recordedTerminalRuns` dedup set out of
+  the ~2300-line createRuntimeServer closure into `createRuntimeTerminalTelemetryRecorders({ warn })`. Tiny capture surface
+  (only `deps.warn`); their identical "load state+config, find card" head collapsed into one `loadScopeCard` helper (DRY win);
+  the dedup set stays a process-wide singleton. 4 tests. **runtime-server.ts 2451 → 2385.**
+- **This continuation's tally:** 3 clean §5.U increments — adaptive-budget controller + context-overflow controller (task-
+  session-service 3392 → 3157) and the runtime-server telemetry lift (2451 → 2385). All gated tsc+biome+fast+integration.
