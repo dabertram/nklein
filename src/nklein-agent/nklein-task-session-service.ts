@@ -3,7 +3,7 @@ import {
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
 	type ModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
-import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./nklein-sdk-event-readers";
+import { readAgentResultText, readSdkSessionEvent } from "./nklein-sdk-event-readers";
 
 // Task-oriented facade for native NKlein sessions.
 // runtime-api.ts uses this service to start sessions, send messages, load
@@ -75,7 +75,7 @@ import {
 } from "./nklein-launch-config";
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
-import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
+import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
 import {
 	createMergeResolutionRunner,
 	type NKleinMergeResolutionSessionOutcome,
@@ -85,11 +85,7 @@ import {
 	createTaskEntryFromPersistedSession,
 	type NKleinMessageRepository,
 } from "./nklein-message-repository";
-import {
-	buildSharedLocalEndpointId,
-	extractNKleinModelRegistryObservationFromEvent,
-	getDefaultNKleinModelRegistry,
-} from "./nklein-model-registry";
+import { buildSharedLocalEndpointId } from "./nklein-model-registry";
 import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
 import { createParkController } from "./nklein-park-controller";
 import { NKleinPauseController } from "./nklein-pause-controller";
@@ -100,6 +96,7 @@ import { createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
+import { createRuntimeObservationRecorder } from "./nklein-runtime-observation-recorder";
 import type {
 	RuntimeTaskSessionStartResult,
 	StartRuntimeTaskSessionFromLaunchConfigInput,
@@ -125,7 +122,6 @@ import {
 	createMessage,
 	createMessageWithMeta,
 	createSessionId,
-	isCreditLimitError,
 	type NKleinTaskMessage,
 	type NKleinTaskSessionEntry,
 	now,
@@ -155,7 +151,6 @@ import type { AgentTool } from "./sdk-agent-types";
 import {
 	listNKleinSdkWorkflowSlashCommands,
 	type NKleinSdkPersistedMessage,
-	type NKleinSdkSessionEvent,
 	type NKleinSdkSlashCommand,
 	resolveNKleinSdkSystemPromptParts,
 } from "./sdk-runtime-boundary.js";
@@ -664,6 +659,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		canRestartTaskSession: (taskId) => this.sessionRuntime.canRestartTaskSession(taskId),
 		recordObservation: (event) => this.recordObservationWithModel(event),
 		emitTaskFailure: (taskId, entry, context, error) => this.taskFailureEmitter.emit(taskId, entry, context, error),
+	});
+	/** §5.U: routes SDK session events + launch metadata into the model registry / self-observation sink. */
+	private readonly runtimeObservationRecorder = createRuntimeObservationRecorder({
+		resolveTaskModelIdentity: (taskId) => this.resolveTaskModelIdentity(taskId),
+		getEndpoint: (taskId) => this.modelEndpoint.getEndpoint(taskId),
+		resolveKnownContextWindow: (taskId) =>
+			this.contextBudgetController.resolveKnownContextWindowForTask(taskId, null),
+		elapsedMs: (taskId, at) => this.requestTimer.elapsedMs(taskId, at),
+		forgetTimer: (taskId) => this.requestTimer.forget(taskId),
+		recordObservationWithModel: (event) => this.recordObservationWithModel(event),
+		isNKleinProviderForTask: (taskId) => this.isNKleinProviderForTask(taskId),
 	});
 
 	constructor(options: CreateInMemoryNKleinTaskSessionServiceOptions) {
@@ -1300,7 +1306,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const endpoint = request.baseUrl?.trim() || null;
 		const sharedEndpointId = buildSharedLocalEndpointId({ providerId, modelId, endpoint });
 		this.modelEndpoint.set(request.taskId, modelId, endpoint);
-		this.recordLaunchContextWindow({
+		this.runtimeObservationRecorder.recordLaunchContextWindow({
 			providerId,
 			modelId,
 			endpoint,
@@ -2683,9 +2689,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private handleTaskEvent(taskId: string, event: unknown): void {
 		const sdkEvent = readSdkSessionEvent(event);
 		if (sdkEvent) {
-			this.recordModelRegistryObservation(taskId, sdkEvent);
+			this.runtimeObservationRecorder.recordModelRegistryObservation(taskId, sdkEvent);
 		}
-		this.recordSdkEventObservation(taskId, event);
+		this.runtimeObservationRecorder.recordSdkEventObservation(taskId, event);
 		const entry = this.messageRepository.getTaskEntry(taskId);
 		if (!entry) {
 			return;
@@ -2757,74 +2763,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (shouldAbortForCreditLimit) {
 			void this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
 		}
-	}
-
-	private recordModelRegistryObservation(taskId: string, event: NKleinSdkSessionEvent): void {
-		const observedAt = now();
-		const observation = extractNKleinModelRegistryObservationFromEvent(
-			event,
-			{
-				...this.resolveTaskModelIdentity(taskId),
-				endpoint: this.modelEndpoint.getEndpoint(taskId),
-				contextWindow: this.contextBudgetController.resolveKnownContextWindowForTask(taskId, null),
-			},
-			observedAt,
-			this.requestTimer.elapsedMs(taskId, observedAt),
-		);
-		if (!observation) {
-			return;
-		}
-		this.requestTimer.forget(taskId);
-		void getDefaultNKleinModelRegistry()
-			.recordRequest(observation)
-			.catch(() => undefined);
-	}
-
-	private recordLaunchContextWindow(input: {
-		providerId: string;
-		modelId: string;
-		endpoint: string | null;
-		contextWindow: number | null;
-	}): void {
-		if (!isLocalProvider(input.providerId, input.endpoint)) {
-			return;
-		}
-		if (
-			typeof input.contextWindow !== "number" ||
-			!Number.isFinite(input.contextWindow) ||
-			input.contextWindow <= 0
-		) {
-			return;
-		}
-		void getDefaultNKleinModelRegistry()
-			.recordContextWindow({
-				providerId: input.providerId,
-				modelId: input.modelId,
-				endpoint: input.endpoint,
-				advertisedContextWindow: input.contextWindow,
-			})
-			.catch(() => undefined);
-	}
-
-	private recordSdkEventObservation(taskId: string, event: unknown): void {
-		const agentEvent = readSdkAgentEvent(event);
-		if (!agentEvent || (agentEvent.type !== "error" && agentEvent.type !== "run-failed")) {
-			return;
-		}
-		const rawMessage = typeof agentEvent.message === "string" ? agentEvent.message : null;
-		const errorMessage = toErrorMessage(agentEvent.error ?? rawMessage);
-		this.recordObservationWithModel({
-			signal:
-				this.isNKleinProviderForTask(taskId) && isCreditLimitError(errorMessage)
-					? "provider_error"
-					: "runtime_error",
-			severity: "error",
-			message: errorMessage,
-			taskId,
-			metadata: {
-				eventType: agentEvent.type,
-			},
-		});
 	}
 }
 
