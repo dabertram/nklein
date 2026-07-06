@@ -403,9 +403,17 @@
 > - `nklein-agent-sandbox.ts`: 1090 → **1071** — extracted `nklein-agent-sandbox-predicates` (was untested → +4 tests).
 > - `nklein-event-adapter.ts`: 806 → **768** — extracted `nklein-event-adapter-tool-activity` (was untested → +3 tests).
 > - `nklein-large-file-workflow.ts`: 781 → **740** — extracted `nklein-large-file-workflow-helpers` (was untested → +10 tests).
-> - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
->   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
->   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
+> - `nklein-task-session-service.ts`: 4886 → **2773** (−43% across the run) — the flagship. After the pure-fn lifts +
+>   ~13 collaborator splits (residency/lease/focus-chain/team-progress/park/timeout/sandbox-review/context-budget/
+>   failure-emitter/retrieval), the AUXILIARY-SECONDARY-SESSION seam (acceptance/reviewer-selection/harness/mirror/merge/
+>   second-opinion/plan-critique runners), the adaptive-budget + context-overflow controllers, the §5.AQ prompt-warmth
+>   ledger, and the runtime observation recorders. **Remainder = the entangled PRIMARY lifecycle** (startTaskSession /
+>   sendTaskSessionInput / dispatchResolvedTaskInput / handleTaskEvent) — a David-gated boundary (approve the seam first,
+>   as with the review-cluster).
+> - **Post-Fable additive slices (Opus):** `fitness-table-view` (§5.AL read endpoint + pure view builder, +5 tests) ·
+>   `board-dag-model` (§5.U/§5.V web — extracted the DAG view's cycle-detection/layout, +10 tests). §5.Z (live env,
+>   heavy roster + egress live): egress e2e 6/6 · chat-agent-tools 6/6 (+W3.1 regression) · command-exec + decompose-
+>   isolation re-confirmed — all logged in cross-model-verification.md.
 > - **57 slices so far (35 §5.U extractions + 22 §5.V coverage batches), ~350 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **Slices 56–57 diversified to provider-service
 >   1463 → 1291 (−172): CustomProviderManager (custom-provider CRUD) + ModelDiscoveryApi (catalog/models/endpoint-discovery), each

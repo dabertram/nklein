@@ -1547,3 +1547,10 @@ qwen2.5-coder-14b, coder-gpu, qwen3-8b) + egress live at 18888. Ran two bounded,
   8B→122B after the renderer/transcript rework.
 - Re-confirmed the /v1/models-vs-`state=loaded` caveat (gpt-oss-120b registered-but-not-resident → JIT-load hit the
   memory ceiling); only loaded ids were swept (never force a giant to load — operator's call).
+- **decompose-isolation (§5.A) on qwen3.6-27b@q4:** isolation invariant HELD ✓ (zero host-path leaks, clean container
+  teardown); decompose capability inconclusive (model went `interrupted` without a decompose_project call under 240s).
+- **chat-command-exec (§5.M G2) re-confirmed** on qwen2.5-coder-14b: agent used run_command, the marker echoed back
+  (command executed + output flowed into context) — the confirmed-host-command path holds on the current roster.
+- **§5.U/§5.V (non-LLM, foreground while the sweeps ran):** extracted the board dependency-graph's pure model
+  (`board-dag-model.ts` — cycle-guarded longest-path layering + DFS back-edge cycle detection, previously inline +
+  untested in the Fable-built DAG view) with 10 tests pinning the correctness-critical cycle detection (`99a86eeb`).
