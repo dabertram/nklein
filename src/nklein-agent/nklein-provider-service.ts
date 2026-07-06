@@ -26,6 +26,7 @@ import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { openInBrowser } from "../server/browser";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
+import { computeKanbanEnabled, parseNKleinRemoteConfigValue } from "./nklein-kanban-access-policy";
 import {
 	appendMissingModels,
 	LITELLM_MODEL_LIST_PATHNAMES,
@@ -81,9 +82,6 @@ import {
 } from "./sdk-provider-boundary";
 
 const DEFAULT_NKLEIN_API_BASE_URL = "https://api.nklein.bot";
-const NKLEIN_REMOTE_CONFIG_SCHEMA = z.object({
-	kanbanEnabled: z.boolean().optional(),
-});
 const LMSTUDIO_MODELS_RESPONSE_SCHEMA = z
 	.object({
 		data: z.array(z.unknown()).optional(),
@@ -95,8 +93,6 @@ const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const LOGGER = createKanbanNKleinLogger({ component: "nklein-provider-service" });
-
-type NKleinRemoteConfig = z.infer<typeof NKLEIN_REMOTE_CONFIG_SCHEMA>;
 
 function isLocalProviderSettings(settings: Pick<SdkProviderSettings, "provider" | "baseUrl"> | null): boolean {
 	if (!settings) {
@@ -142,11 +138,6 @@ export interface UpdateCustomNKleinProviderInput {
 
 function toErrorMessage(error: unknown): string {
 	return formatErrorMessage(error, "An unexpected error occurred.");
-}
-
-function parseNKleinRemoteConfigValue(value: string): NKleinRemoteConfig {
-	const parsed = JSON.parse(value) as unknown;
-	return NKLEIN_REMOTE_CONFIG_SCHEMA.parse(parsed);
 }
 
 function logLiteLlmModelListWarning(message: string, metadata?: Record<string, unknown>): void {
@@ -692,7 +683,7 @@ export function createNKleinProviderService() {
 				const parsedRemoteConfig = parseNKleinRemoteConfigValue(remoteConfigResponse.value);
 				const isEnterpriseCustomer = !!orgData?.externalOrganizationId;
 				return {
-					enabled: !parsedRemoteConfig || !isEnterpriseCustomer || parsedRemoteConfig.kanbanEnabled === true,
+					enabled: computeKanbanEnabled(parsedRemoteConfig, isEnterpriseCustomer),
 				};
 			} catch (error) {
 				return {
