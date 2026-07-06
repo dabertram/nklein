@@ -3,88 +3,19 @@ import { X } from "lucide-react";
 import type React from "react";
 import { useMemo, useRef, useState } from "react";
 
+import { buildDagGraph, DAG_LAYOUT, type DagNode } from "@/components/board-dag-model";
 import { cn } from "@/components/ui/cn";
-import type { BoardColumnId, BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
+import type { BoardColumn as BoardColumnModel, BoardDependency } from "@/types";
 
 /**
  * W3.4 — the dedicated, comprehensive DAG view over the WHOLE board: status-colored nodes (column × live session),
  * dependency edges in build order (from → to), pan (drag) + zoom (wheel), and CYCLE edges marked loud (red, dashed) —
  * a cycle is a planning bug the operator should see, not a line to hide. The kanban board keeps the LEAN treatment
- * (§5.BC overlay toggle); this is the complete picture, opened from the zoom bar at any zoom level.
- *
- * Layout mirrors the decomposition preview (longest-path layers, no library): roots left, flowing right — build
- * order reads left→right like a pipeline.
+ * (§5.BC overlay toggle); this is the complete picture, opened from the zoom bar at any zoom level. The pure layout +
+ * cycle-detection model lives in `board-dag-model.ts` (unit-tested); this file is the SVG view + pan/zoom over it.
  */
 
-interface DagNode {
-	id: string;
-	title: string;
-	columnId: BoardColumnId;
-	running: boolean;
-	failed: boolean;
-}
-
-const NODE_W = 168;
-const NODE_H = 44;
-const GAP_X = 64;
-const GAP_Y = 18;
-const PAD = 28;
-
-/** Longest-path depth per node over the dependency edges (cycle-guarded — cycles get depth 0 at the re-entry). */
-function computeDepths(ids: readonly string[], dependsOn: Map<string, string[]>): Map<string, number> {
-	const depthById = new Map<string, number>();
-	const inProgress = new Set<string>();
-	const known = new Set(ids);
-	const depthOf = (id: string): number => {
-		const cached = depthById.get(id);
-		if (cached !== undefined) {
-			return cached;
-		}
-		if (inProgress.has(id)) {
-			return 0; // cycle guard
-		}
-		inProgress.add(id);
-		const deps = (dependsOn.get(id) ?? []).filter((dep) => dep !== id && known.has(dep));
-		const depth = deps.length === 0 ? 0 : 1 + Math.max(...deps.map(depthOf));
-		inProgress.delete(id);
-		depthById.set(id, depth);
-		return depth;
-	};
-	for (const id of ids) {
-		depthOf(id);
-	}
-	return depthById;
-}
-
-/** Edges participating in a dependency cycle (DFS back-edge detection) — drawn loud. */
-function findCycleEdgeIds(ids: readonly string[], edges: readonly BoardDependency[]): Set<string> {
-	const out = new Map<string, BoardDependency[]>();
-	for (const edge of edges) {
-		out.set(edge.fromTaskId, [...(out.get(edge.fromTaskId) ?? []), edge]);
-	}
-	const cycleEdges = new Set<string>();
-	const visiting = new Set<string>();
-	const done = new Set<string>();
-	const visit = (id: string): void => {
-		if (done.has(id) || visiting.has(id)) {
-			return;
-		}
-		visiting.add(id);
-		for (const edge of out.get(id) ?? []) {
-			if (visiting.has(edge.toTaskId)) {
-				cycleEdges.add(edge.id); // back edge = part of a cycle
-			} else {
-				visit(edge.toTaskId);
-			}
-		}
-		visiting.delete(id);
-		done.add(id);
-	};
-	for (const id of ids) {
-		visit(id);
-	}
-	return cycleEdges;
-}
+const { nodeW: NODE_W, nodeH: NODE_H } = DAG_LAYOUT;
 
 function nodeStyle(node: DagNode): { fill: string; stroke: string } {
 	if (node.failed) {
@@ -124,48 +55,7 @@ export function BoardDagView({
 	const [view, setView] = useState({ x: 0, y: 0, scale: 1 });
 	const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
 
-	const graph = useMemo(() => {
-		const nodes: DagNode[] = columns.flatMap((column) =>
-			column.id === "trash"
-				? []
-				: column.cards.map((card) => ({
-						id: card.id,
-						title: card.title,
-						columnId: column.id,
-						running: sessions[card.id]?.state === "running",
-						failed: sessions[card.id]?.state === "failed" || card.blockedKind != null,
-					})),
-		);
-		const ids = nodes.map((node) => node.id);
-		const idSet = new Set(ids);
-		const edges = dependencies.filter((edge) => idSet.has(edge.fromTaskId) && idSet.has(edge.toTaskId));
-		const dependsOn = new Map<string, string[]>();
-		for (const edge of edges) {
-			// `to` depends on `from` (from must land first) — depth flows along build order.
-			dependsOn.set(edge.toTaskId, [...(dependsOn.get(edge.toTaskId) ?? []), edge.fromTaskId]);
-		}
-		const depths = computeDepths(ids, dependsOn);
-		const cycleEdgeIds = findCycleEdgeIds(ids, edges);
-		// Column-per-depth layout: x = depth, y = index within the depth.
-		const byDepth = new Map<number, DagNode[]>();
-		for (const node of nodes) {
-			const depth = depths.get(node.id) ?? 0;
-			byDepth.set(depth, [...(byDepth.get(depth) ?? []), node]);
-		}
-		const positions = new Map<string, { x: number; y: number }>();
-		for (const [depth, layer] of byDepth) {
-			layer.forEach((node, index) => {
-				positions.set(node.id, {
-					x: PAD + depth * (NODE_W + GAP_X),
-					y: PAD + index * (NODE_H + GAP_Y),
-				});
-			});
-		}
-		const width = PAD * 2 + (Math.max(0, ...byDepth.keys()) + 1) * (NODE_W + GAP_X) - GAP_X;
-		const height =
-			PAD * 2 + Math.max(0, ...[...byDepth.values()].map((layer) => layer.length)) * (NODE_H + GAP_Y) - GAP_Y;
-		return { nodes, edges, positions, cycleEdgeIds, width: Math.max(width, 320), height: Math.max(height, 200) };
-	}, [columns, dependencies, sessions]);
+	const graph = useMemo(() => buildDagGraph(columns, dependencies, sessions), [columns, dependencies, sessions]);
 
 	if (!open) {
 		return null;

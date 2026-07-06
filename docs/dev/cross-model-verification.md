@@ -683,6 +683,17 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `gpt-oss-20b-mlx` · 39s · INCOMPLETE — see above.
   - matrix row: gpt-oss-20b-mlx=❌
 
+### 2026-07-06 (Opus polishing) · §5.Z §5.A decompose host-path isolation on qwen3.6-27b@q4 — isolation ✓ / capability inconclusive
+`verify-decompose-isolation.mts` (real sandboxed NKlein task-session → read a spec + decompose; asserts NOTHING the
+agent emits contains the host mount path). On `qwen3.6-27b@q4_k_m` (ctx 40000, 240s budget): **ISOLATION INVARIANT
+HELD ✓** — sandbox container observed, no host worktree created, **zero host-path leaks** across 10 captured agent
+activities, containers cleaned up on dispose. **But the decompose CAPABILITY was inconclusive:** the model did NOT emit
+`decompose_project` and the session ended `interrupted` (ran out its budget / stalled mid-plan before the tool call).
+The isolation prime-directive (#2) is the assertion here and it's robust; whether the 27B@q4 can complete a decompose
+within a 240s budget is a separate capability/latency question (the heavier resident models are slower than the prior
+sweeps' lighter roster — not re-run across the roster since each is a slow Docker multi-turn with an inconclusive
+capability signal). Recorded as: isolation ✓ on the 27B; decompose-under-budget = open capability data point.
+
 ### 2026-07-06 (Opus polishing) · §5.Z §5.M chat-agent-tools on the heavy resident roster — 6/6 + W3.1 regression check
 `verify-chat-agent-tools.mts` (real model → `runChatAgentTurn` with the read-only workspace tools + gated/audited
 executor on a tiny on-disk workspace; asks a question answerable only by reading a file, asserts the model CALLED
