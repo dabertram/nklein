@@ -782,3 +782,13 @@ gate green. **Progress:** nklein-task-session-service.ts 4944 → 4893 lines; tw
 config) now live in focused, tested modules. Pattern holds — keep pulling pure sub-computations before the harder
 responsibility-split. Next candidates: `buildRetrievalExtraTools`'s egress-gate decision, the `resolvePersistedLaunchConfig`
 merge logic, the plan-critique/review-loop budget helpers.
+
+### ▶ §5.U slice 3 (2026-07-06, b55aa498) — extracted shouldAttachRetrievalTools (the fail-closed egress gate)
+Pulled `buildRetrievalExtraTools`'s 4-condition attach gate (synthetic-session ⇒ no egress · egress literally `true` ·
+§5.L role gate · a search backend configured) into the pure `shouldAttachRetrievalTools`
+(`nklein-retrieval-tools-gate.ts`). Method delegates + builds the tool only on `true`. Behavior-preserving (byte-identical
+to the return-`[]` guards); this **security-relevant** gate now has 5 unit tests. Full gate green. **Progress:**
+nklein-task-session-service.ts now **4886 lines** (from 4944); THREE cohesive concepts extracted + tested this run
+(prompt assembly, launch config, retrieval-tools gate). Next: `resolvePersistedLaunchConfig` merge logic, the
+plan-critique / review-loop budget helpers, then the harder responsibility-split (review-loop/plan-critique/mailbox as
+collaborators). Then runtime-server.ts (2527) + nklein-provider-service.ts (1651).
