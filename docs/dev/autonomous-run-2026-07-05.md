@@ -754,3 +754,20 @@ a product-DIRECTION call** (what's the next big capability to build) — the fea
 is essentially drained; the deferred work (extended sweeps, §5.AX visual overhaul, architecture refactor, comprehensive
 coverage) all lives in polishing.md for the post-implementation phase, per §5.0.6. All work committed + pushed to
 `feat/nklein-upcoming`; tree green.
+
+### ▶ POLISHING PHASE STARTED (2026-07-06, David: "start polishing and rearm loop")
+Recorded the phase transition (todo §5.0.7): Opus takes code-quality/coverage/verification (§5.U refactor, §5.V, §5.Z,
+§5.AZ); the §5.AX visual overhaul is for a FABLE session. Re-armed the cron (`4e9ebe88`, polishing prompt). **First
+§5.U slice shipped (3bff404c):** the flagship monolith is `nklein-task-session-service.ts` at **4944 lines**. Extracted
+the pure byte-stability-critical core of `assembleSessionSystemPrompt` → `buildSessionSystemPrompt`
+(`nklein-session-system-prompt.ts`, ~50 lines): the churn-ordered fragment build + skill-dedup + assembly (§5.AQ shells).
+The method delegates + keeps only the stateful warmth-ledger bookkeeping. Behavior-preserving; the previously-UNTESTED
+§5.AQ ordering/dedup logic now has 6 unit tests. Full gate green.
+
+**§5.U decomposition plan (for the grind):** the file is ~90% the `InMemoryNKleinTaskSessionService` CLASS (~4400 lines).
+The class is heavily instance-stateful, so the pattern is: (1) extract PURE sub-computations embedded in methods →
+tested pure modules (like this one — assembleSessionSystemPrompt, resolveTaskModelIdentity/resolveProviderIdForTask,
+buildRetrievalExtraTools's gate logic are candidates); (2) once the pure logic is out, do the harder responsibility-split
+(review-loop, plan-critique, speculative-mirror, mailbox as collaborator modules owning their sub-state). Each slice
+behavior-preserving + test-gated + one commit. Also targets: runtime-server.ts (2527), nklein-provider-service.ts (1651).
+Migrate §5.U/§5.V progress notes to polishing.md as the grind proceeds.
