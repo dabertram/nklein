@@ -1446,3 +1446,20 @@ integration, one cluster per commit). Flagship monolith state now:
   runtime-server 2451 → 2230, provider-service 1073 → 933. All gated tsc+biome+fast+swarm-deterministic-pass, one cluster/commit.
   **Available-next (now unblocked, low-risk):** the two base-URL fetchers can be consolidated into one parameterized
   template-method fetcher now that direct coverage exists — a pure DRY win (~40 lines), no longer a behavior risk.
+
+### Iteration (2026-07-06 later) — the clean vein was NOT exhausted: 3 more §5.U increments
+
+A fresh survey found clean, bounded clusters the prior checkpoint missed:
+- **Prompt-warmth ledger** (`ad57d82b`) — `createPromptWarmthLedger()` owns the two §5.AQ per-model prompt-state maps
+  (full-bytes reuse telemetry + shell-key routing) + `assembleAndRecord` around the pure `buildSessionSystemPrompt`.
+  ZERO service-collaborator deps → fully self-contained. 4 tests. task-session-service 3157 → 3064.
+- **Second-opinion review runner** (`5ec0f3aa`) — `createSecondOpinionReviewRunner(deps)`, a standalone harness-based runner
+  (sibling of mirror/merge); owns the `inFlightSecondOpinionReviewTaskIds` single-flight guard; drives the shared harness via
+  a `getHarness()` dep. 5 tests. 3064 → 2952.
+- **Plan-critique runner** (`1e858df7`) — `createPlanCritiqueRunner(deps)`, the sibling of the above; owns the W4.3 per-run
+  critique budget; exposes `buildRequestHandler` (the decompose-tool executor factory) + `runPlanCritiqueSession`. 7 tests.
+  2952 → 2835.
+- **The review-session cluster is now fully extracted** from the service (acceptance/reviewer-selection/harness/mirror/merge
+  earlier, + second-opinion + plan-critique now). **task-session-service 4886 → 2835 across the whole run (−42%).**
+- Pattern confirmed: harness-based runners take the harness via `getHarness()` (preserving `runBracketed`'s generic) and pass
+  consts shared with a sibling (timeout default, max nudges) as deps rather than forcing a shared-consts module.
