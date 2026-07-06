@@ -17,15 +17,36 @@ export const UNCONFIGURED_MODEL_ID = "unconfigured";
 export class TaskModelEndpointStore {
 	private readonly modelIdByTaskId = new Map<string, string>();
 	private readonly endpointByTaskId = new Map<string, string | null>();
+	/**
+	 * §5.BG: the STABLE publisher model key (`descriptor.modelKey`) for the task, when it could be resolved at start.
+	 * Distinct from `modelId` (the runtime/LM Studio id used to CALL the endpoint, which a user renames): this is the
+	 * identity telemetry/observations key off, so a renamed instance doesn't fragment its measured history. Absent for
+	 * cloud/not-locally-loaded models and on the restart path ⇒ callers fall back to `getModelId`.
+	 */
+	private readonly stableModelKeyByTaskId = new Map<string, string>();
 
-	set(taskId: string, modelId: string, endpoint: string | null): void {
+	set(taskId: string, modelId: string, endpoint: string | null, stableModelKey?: string | null): void {
 		this.modelIdByTaskId.set(taskId, modelId);
 		this.endpointByTaskId.set(taskId, endpoint);
+		const stable = stableModelKey?.trim();
+		if (stable && stable.length > 0) {
+			this.stableModelKeyByTaskId.set(taskId, stable);
+		} else {
+			this.stableModelKeyByTaskId.delete(taskId);
+		}
 	}
 
 	/** The task's model id, or {@link UNCONFIGURED_MODEL_ID} if none was recorded. */
 	getModelId(taskId: string): string {
 		return this.modelIdByTaskId.get(taskId) ?? UNCONFIGURED_MODEL_ID;
+	}
+
+	/**
+	 * The task's STABLE model key (`descriptor.modelKey`), or null when it wasn't resolvable (cloud / not-loaded /
+	 * restart). Telemetry stamps this in preference to {@link getModelId} so a runtime-id rename can't fragment history.
+	 */
+	getStableModelKey(taskId: string): string | null {
+		return this.stableModelKeyByTaskId.get(taskId) ?? null;
 	}
 
 	/** The raw recorded model id (undefined if none) — for callers that chain their own fallback. */
@@ -42,14 +63,16 @@ export class TaskModelEndpointStore {
 		return this.endpointByTaskId.get(taskId) ?? null;
 	}
 
-	/** Drops both the model id and endpoint for the task (always cleaned together). */
+	/** Drops the model id, endpoint, and stable key for the task (always cleaned together). */
 	forget(taskId: string): void {
 		this.modelIdByTaskId.delete(taskId);
 		this.endpointByTaskId.delete(taskId);
+		this.stableModelKeyByTaskId.delete(taskId);
 	}
 
 	clear(): void {
 		this.modelIdByTaskId.clear();
 		this.endpointByTaskId.clear();
+		this.stableModelKeyByTaskId.clear();
 	}
 }

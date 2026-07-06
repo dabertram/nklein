@@ -1820,3 +1820,12 @@ persisted / looked-up by **stable model metadata + the real model name**, never 
   modelKey per task (the launch config/request carries only the runtime id today, so this threads from the start
   handler's already-resolved descriptors), stamp it in `resolveTaskModelIdentity`/observations, key fitness by it, and
   re-key on load.
+- **Increment 2 shipped — self-observations now key off the stable key (primary local start path):** the start handler
+  already fetches loaded descriptors, so it now builds a `runtimeId → descriptor.modelKey` map and passes the chosen
+  model's `stableModelKey` into `startTaskSession`. `TaskModelEndpointStore` gained a stable-key slot + `getStableModelKey`
+  (kept SEPARATE from `getModelId` — the runtime id is still what calls the endpoint / builds prompts), and
+  `resolveTaskModelIdentity` (telemetry-only: recordSelfObservation + the observation recorder) now stamps
+  `getStableModelKey ?? getModelId`. Fallback-safe: cloud / not-loaded / restart-path / test-runner (residency off ⇒ no
+  descriptors) all yield null → the runtime id, so every existing test is unchanged (7952 green; +12 store tests).
+  **Remaining:** fitness (`deriveTaskFitnessRecord` builds its key from `summary.modelId`, so the summary needs the
+  stable key — a persisted-contract change) + the restart path + re-key-on-load.

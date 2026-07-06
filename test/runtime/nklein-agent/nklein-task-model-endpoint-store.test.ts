@@ -73,4 +73,40 @@ describe("TaskModelEndpointStore", () => {
 		store.clear();
 		expect(store.peekModelId("t2")).toBeUndefined();
 	});
+
+	describe("stable model key (§5.BG)", () => {
+		it("stores + reads the stable key separately from the runtime model id", () => {
+			const store = new TaskModelEndpointStore();
+			// runtime id = the renamable LM Studio alias; stable key = the publisher key telemetry should use.
+			store.set("t1", "qwen3-8b-m5max", "http://e", "qwen3-8b");
+			expect(store.getModelId("t1")).toBe("qwen3-8b-m5max"); // still the runtime id (used to call the endpoint)
+			expect(store.getStableModelKey("t1")).toBe("qwen3-8b");
+		});
+
+		it("returns null when no stable key was recorded (absent, omitted, or blank) — caller falls back to the runtime id", () => {
+			const store = new TaskModelEndpointStore();
+			expect(store.getStableModelKey("missing")).toBeNull();
+			store.set("cloud", "openai/gpt-5", null); // omitted (cloud model)
+			expect(store.getStableModelKey("cloud")).toBeNull();
+			store.set("blank", "m", null, "   "); // blank ⇒ treated as absent
+			expect(store.getStableModelKey("blank")).toBeNull();
+		});
+
+		it("a re-set without a stable key clears a previously-recorded one (no stale key survives)", () => {
+			const store = new TaskModelEndpointStore();
+			store.set("t1", "m", null, "qwen3-8b");
+			store.set("t1", "m", null); // e.g. a restart path that couldn't resolve the descriptor
+			expect(store.getStableModelKey("t1")).toBeNull();
+		});
+
+		it("forget and clear drop the stable key too", () => {
+			const store = new TaskModelEndpointStore();
+			store.set("t1", "m", null, "qwen3-8b");
+			store.forget("t1");
+			expect(store.getStableModelKey("t1")).toBeNull();
+			store.set("t2", "m", null, "qwen2.5-coder");
+			store.clear();
+			expect(store.getStableModelKey("t2")).toBeNull();
+		});
+	});
 });

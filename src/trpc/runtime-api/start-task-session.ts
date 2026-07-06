@@ -342,11 +342,15 @@ export async function handleStartTaskSession(
 		// Best-effort + local-only + no-load (descriptors ARE the already-loaded set); any failure degrades to the configured
 		// candidates. Skipped under the test runner (residency disabled ⇒ no live endpoint ⇒ empty), so tests are unchanged.
 		const loadedModelProfilesByRuntimeId = new Map<string, LoadedModelRoutingProfile>();
+		// §5.BG: runtime id → STABLE publisher key for the loaded set, so the chosen model's telemetry keys off the
+		// stable key (not the renamable runtime id). Populated only when descriptors are fetched (local + residency on).
+		const stableModelKeyByRuntimeId = new Map<string, string>();
 		if (residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)) {
 			try {
 				for (const descriptor of await fetchLoadedModelDescriptors(residencyBaseUrl)) {
 					const profile = resolveLoadedModelProfile(descriptor);
 					loadedModelProfilesByRuntimeId.set(descriptor.runtimeId, profile);
+					stableModelKeyByRuntimeId.set(descriptor.runtimeId, descriptor.modelKey);
 					if (profile.isEmbedding) {
 						continue; // an embedding model is not an agentic candidate
 					}
@@ -896,6 +900,11 @@ export async function handleStartTaskSession(
 			resumeFromTrash: body.resumeFromTrash,
 			providerId: nkleinLaunchConfig.providerId,
 			modelId: nkleinLaunchConfig.modelId,
+			// §5.BG: the stable publisher key for the chosen (loaded) model — telemetry keys off this, not the runtime id.
+			// null for cloud / not-loaded models ⇒ the service falls back to the runtime id.
+			stableModelKey: nkleinLaunchConfig.modelId
+				? (stableModelKeyByRuntimeId.get(nkleinLaunchConfig.modelId) ?? null)
+				: null,
 			mode: requestedNKleinTaskMode,
 			startInPlanMode: body.startInPlanMode,
 			apiKey: nkleinLaunchConfig.apiKey,

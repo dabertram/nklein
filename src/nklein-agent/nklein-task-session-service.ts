@@ -198,6 +198,12 @@ export interface StartNKleinTaskSessionRequest {
 	resumeFromPersistence?: boolean;
 	providerId?: string | null;
 	modelId?: string | null;
+	/**
+	 * §5.BG: the STABLE publisher model key (`descriptor.modelKey`) the caller resolved for this model, when it's a
+	 * locally-loaded model. Telemetry/observations key off THIS (not the renamable runtime `modelId`). Absent for
+	 * cloud / not-loaded models ⇒ telemetry falls back to `modelId`.
+	 */
+	stableModelKey?: string | null;
 	mode?: RuntimeTaskSessionMode;
 	apiKey?: string | null;
 	baseUrl?: string | null;
@@ -819,7 +825,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private resolveTaskModelIdentity(taskId: string): { providerId: string; modelId: string } {
 		return {
 			providerId: this.resolveProviderIdForTask(taskId),
-			modelId: this.modelEndpoint.getModelId(taskId),
+			// §5.BG: stamp the STABLE publisher key on telemetry when resolved (a renamed LM Studio instance must not
+			// fragment its measured history); fall back to the runtime id for cloud / not-loaded / restart-path tasks.
+			modelId: this.modelEndpoint.getStableModelKey(taskId) ?? this.modelEndpoint.getModelId(taskId),
 		};
 	}
 
@@ -1343,7 +1351,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		const endpoint = request.baseUrl?.trim() || null;
 		const sharedEndpointId = buildSharedLocalEndpointId({ providerId, modelId, endpoint });
-		this.modelEndpoint.set(request.taskId, modelId, endpoint);
+		this.modelEndpoint.set(request.taskId, modelId, endpoint, request.stableModelKey);
 		this.runtimeObservationRecorder.recordLaunchContextWindow({
 			providerId,
 			modelId,
