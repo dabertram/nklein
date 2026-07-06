@@ -1027,12 +1027,18 @@ clamp-to-cap / default-on-invalid), `normalizeRetrievalEgressEnabled` (**FAIL-CL
 egress — a security-relevant property now locked), `normalizeRetrievalSearchBackendUrl` (trim / blank+non-string → default,
 asserted relative to the default so it's not brittle), and `isSelfObservationSeverity` (four-literal enum guard). No source change.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 28) — for David
+### ▶ §5.V slice 29 (2026-07-06, 8a0bd1cc) — server helper coverage (normalizeRequestPath + getAllowedHostHeaders)
++5 tests: `normalizeRequestPath` (root → /index.html, query-string strip, percent-decode, plain passthrough — the
+static-serve path normalization) and `getAllowedHostHeaders` (host allow-list: every entry is host:<runtime-port>; loopback
+hosts allowed on a local bind). Left the I/O-bound `handleHttpRequest` (its pure sub-decisions evaluateHost/evaluateCors
+are already tested) and the fs-probing `getWebUiDir`. No source change.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 29) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **28 slices this run (20 §5.U extractions + 8 §5.V coverage batches), ~207 new unit tests, zero behavior changes** (the
+- **29 slices this run (20 §5.U extractions + 9 §5.V coverage batches), ~212 new unit tests, zero behavior changes** (the
   pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed: the whole api-validation parser
-  boundary, the runtime-config-normalizers gaps, and the speculative/retrieval resolver normalizers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+  boundary, the runtime-config-normalizers gaps, the speculative/retrieval resolver normalizers, and the server path/host helpers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
