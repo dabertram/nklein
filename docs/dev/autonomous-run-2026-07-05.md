@@ -804,3 +804,14 @@ has 6 unit tests. Full gate green. **Progress:** provider-service 1651 → 1601.
 tests, 4 focused modules extracted** (session-system-prompt, launch-config, retrieval-tools-gate, provider-settings-summary).
 provider-service has MANY more pure clusters (LiteLLM/LM Studio model-list discovery, provider-selection persistence,
 remote-config parsing) — the cleanest ongoing target. Next.
+
+### ▶ §5.U slice 5 (2026-07-06, 4c710789) — extracted nklein-litellm-model-list
+Continued on provider-service. Moved the cohesive LiteLLM `/models` protocol cluster — the response schema, the candidate
+pathnames + their derived types, and the pure header/item-id/roster-merge helpers (`hasAuthorizationHeader`,
+`resolveLiteLlmModelListHeaders`, `resolveLiteLlmModelListItemId`, `appendMissingModels`) — into its own module. All deps
+are shared-module imports, so no ripple; the two fetchers stay in the service and import the helpers back.
+Behavior-preserving; +9 unit tests (case-insensitive auth-header detection, Bearer injection without clobbering,
+`/model/info` vs `/models` id resolution, dedup-backfill merge). Full gate green. **Progress:** provider-service 1601 → 1576.
+**Run total: 5 §5.U slices, ~33 new unit tests, 5 focused modules extracted.** Next candidate: the LM Studio + generic
+`discoverModelsFromEndpoint` fetchers are I/O-bound (harder), but `resolveModelListSettings` (catalog base-URL resolution)
+is nearly pure and testable — a good next cut once its `listSdkProviderCatalog` dep is injectable.
