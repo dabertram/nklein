@@ -705,3 +705,9 @@ contract. The egress feature is live-validated end-to-end.
   tool-call-under-reasoning axis; a model that reasons 26K chars without acting is a §5.AB fitness signal.
   - matrix rows (egress-e2e): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gemma-4-e2b=✅ · phi-4-mini-reasoning=✅ ·
     mistral-small-3.2=✅ · gpt-oss-120b=✅ · nemotron-3-nano-4b=✅ · phi-4-reasoning-plus=⚠️(reasoning-runaway)
+- **Sweep bound (not a bug):** attempting 4 more (deepseek-r1, ornith-1.0-9b-mlx, qwopus3.5-9b-coder, qwq-32b) all
+  returned `HTTP 400: Model loading was stopped due to insufficient system resources` — LM Studio is at its memory
+  ceiling with big models resident (gpt-oss-120b, qwen3.5-122b). `/v1/models` lists *registered* models but JIT-load
+  fails under memory pressure. An LM Studio resource/JIT-load constraint, NOT a !Klein/egress issue; the egress sweep
+  is complete for the currently-loadable set. (Didn't force-unload resident models — that's the operator's LM Studio
+  session.)
