@@ -751,3 +751,17 @@ flow back into the model's context and appear in the reply), 4 models. Runtime c
 - ◑ **weak-synthesis (1): gemma-4-e2b (2B)** — USED run_command (the command executed) but didn't echo the marker in
   its reply. The same weak-synthesis ◑ trait seen on read_file — model quality, not a bug (the execution path works).
   - matrix rows (chat run_command): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gpt-oss-120b=✅ · gemma-4-e2b=◑
+
+### 2026-07-06 · §5.Z §5.M chat-agent-write (CONFIRM gate + audit for a mutating tool) — current-roster sweep
+`verify-chat-agent-write.mts` (real model → write_file → the `isolated_readonly` confirm gate must invoke the approval
+callback, the file must actually land in the workspace, and the audit must record a confirmed+executed sandbox_write),
+6 models. **6/6 PASS across 2B→120B:** qwen3-8b, qwen2.5-coder-14b, gemma-4-e2b (2B!), gpt-oss-120b, mistral-small-3.2,
+nemotron-3-nano-4b — every model called write_file, the confirm gate fired, the content landed, and the write was
+audited. **Notable: this flow passes UNIVERSALLY** — including the 2B/mistral/nemotron models that showed ◑/⚠️ on
+read_file/run_command — because it asserts on the DURABLE SIDE EFFECT + audit (file written, confirmed sandbox_write),
+NOT on the model echoing a marker in its reply. So the weak-synthesis ◑ trait (don't-echo-the-marker) can't fail it,
+and the security-relevant confirm-gate + audit path is robust across the entire capability range. (Also: mistral
+called write_file fine here — its read_file `list_dir` mis-selection was scenario-specific, not a general tool-calling
+defect.)
+  - matrix rows (chat write_file): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gemma-4-e2b=✅ · gpt-oss-120b=✅ ·
+    mistral-small-3.2=✅ · nemotron-3-nano-4b=✅
