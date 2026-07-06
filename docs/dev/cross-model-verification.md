@@ -712,6 +712,19 @@ contract. The egress feature is live-validated end-to-end.
   is complete for the currently-loadable set. (Didn't force-unload resident models — that's the operator's LM Studio
   session.)
 
+**RE-VERIFICATION on the updated resident roster (2026-07-06 later, Opus polishing session):** egress re-confirmed
+GREEN end-to-end on the CURRENTLY-loaded set (`/api/v0/models` `state=loaded` — the 6 truly-resident models, NOT the
+downloaded `/v1/models` list). `verify-egress-live.mts` ✅ (8 real results, fail-closed gate, no_backend, payload
+mapping). `verify-egress-model-e2e.mts` **6/6 PASS across the resident roster**, extending the matrix with NEW heavier
+data points (the 122B MoE + a 27B + devstral were not in the prior sweep):
+  - matrix rows (egress-e2e): **qwen3.5-122b-a10b=✅ (NEW — 122B-A10B MoE)** · **qwen3.6-27b@q4_k_m=✅ (NEW)** ·
+    **mistralai/devstral-small-2-2512=✅ (NEW, coder)** · **coder-gpu=✅ (NEW)** · qwen3-8b=✅ (re-confirmed) ·
+    qwen2.5-coder-14b=✅ (re-confirmed) — each emitted the web_search tool call, executed against live SearXNG (8 real
+    results), and grounded its answer on `anthropic.com/claude/opus`. Egress now proven across 8B → 122B on this roster.
+  - Same `/v1/models`-vs-loaded caveat re-observed: `openai/gpt-oss-120b` (registered but NOT resident) returned
+    `HTTP 400: Model loading was stopped due to insufficient system resources` when its id was passed — an LM Studio
+    JIT-load ceiling, not an egress issue. Only `state=loaded` ids were swept thereafter (never force a giant to load).
+
 ### 2026-07-06 · §5.Z §5.AC temporal-awareness ("knows today") — HARNESS BUG FIXED + cross-model sweep
 **Harness bug found + fixed:** `verify-temporal-awareness-live.mts` was failing its own assertions on EVERY model —
 root cause: the §5.AC "knows today" block is OFF BY DEFAULT (`knowsTodayEnabled ?? isTruthyEnv(NKLEIN_KNOWS_TODAY)`),
