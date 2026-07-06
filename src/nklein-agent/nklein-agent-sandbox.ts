@@ -30,6 +30,11 @@ import {
 } from "./nklein-agent-sandbox-docker";
 import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
 import {
+	isAgentSandboxExecResult,
+	isAgentSandboxWorkspaceVolumeName,
+	isContainerMissingError,
+} from "./nklein-agent-sandbox-predicates";
+import {
 	type AgentSandboxShellTarget,
 	buildAgentSandboxInteractiveShellArgs,
 	buildTaskShellSpawnSpec,
@@ -1043,19 +1048,6 @@ export function resolveNKleinAgentPerceivedCwd(taskId: string, hostCwd: string):
  * as opposed to an inconclusive daemon error. Only a genuinely-missing container is safe to treat as DEAD and
  * recreate; every other failure keeps the container (see {@link AgentSandboxManager.isCachedContainerLive}).
  */
-function isContainerMissingError(output: string): boolean {
-	const normalized = output.toLowerCase();
-	return normalized.includes("no such container") || normalized.includes("no such object");
-}
-
-function isAgentSandboxWorkspaceVolumeName(volumeName: string): boolean {
-	return new RegExp(`^${escapeRegExp(AGENT_SANDBOX_VOLUME_PREFIX)}-\\d+$`).test(volumeName);
-}
-
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function toSandboxUnavailableError(error: unknown, image: string): AgentSandboxUnavailableError {
 	if (error instanceof AgentSandboxUnavailableError) {
 		return error;
@@ -1068,17 +1060,6 @@ function toSandboxUnavailableError(error: unknown, image: string): AgentSandboxU
 		? "Docker is required for !Klein agent isolation, but it is unavailable. Start Docker, build the sandbox image, then retry."
 		: `Docker agent sandbox image ${image} is unavailable. Run npm run sandbox:build, then retry.`;
 	return new AgentSandboxUnavailableError(message, { cause: error });
-}
-
-function isAgentSandboxExecResult(value: unknown): value is AgentSandboxExecResult {
-	return (
-		Boolean(value) &&
-		value !== null &&
-		typeof value === "object" &&
-		"exitCode" in value &&
-		"stdout" in value &&
-		"stderr" in value
-	);
 }
 
 function assertSandboxExecOk(result: AgentSandboxExecResult, operation: string): void {
