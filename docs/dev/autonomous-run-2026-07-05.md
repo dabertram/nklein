@@ -23,6 +23,14 @@ David reviewed all seven via AskUserQuestion. Decisions 1-2 applied (code + test
 > if dev/grind server starts use a different launcher, worth confirming they also carry the hook (or a ppid-watchdog) — I
 > offered that as an option and it's available if the leak recurs.
 
+> **🔥 CPU-SPIKE FOLLOW-UP (2026-07-06, David re-checked) — all good.** David still saw occasional spikes. Re-investigated:
+> the original 8 orphaned runtimes are gone and have NOT recurred (the hardened shutdown hook held). Found + killed ONE more
+> stale orphan of the same class — a pre-rename `core-py` backend (`klein_core --port 3585`) running from the deleted
+> `GIT/kanban` path, orphaned to launchd for 7 days. The remaining spikes are (a) the grind's OWN gate runs (tsc + the full
+> 7822-test vitest suite across 18 cores + biome, sometimes 2–3×/iteration) — the expected verification cost — and (b) unrelated
+> macOS/Claude-app AV daemons (avconferenced ~29%, VTEncoderXPCService ~15%, WindowServer, kernel_task thermal). David's call:
+> **all good, keep the current gate cadence** (max safety margin). No nklein-leaked processes remain driving CPU.
+
 > **⚠ PROCESS FINDING (2026-07-06, slice 53 verification) — for David.** A full `test:fast` run at the tail caught a RED
 > guard test that had been shipped on the branch: `nklein-local-only-policy.test.ts` ("cloud-provider literals confined to
 > documented boundary files") was failing because the earlier §5.U extraction commit **d494ddf7** (nklein-managed-provider-credentials)
