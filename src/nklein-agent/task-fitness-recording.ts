@@ -43,7 +43,9 @@ export function deriveTaskFitnessRecord(input: {
 
 	const modelKey = buildNKleinModelRegistryKey({
 		providerId: summary.providerId ?? "",
-		modelId: summary.modelId ?? "",
+		// §5.BG: key fitness off the STABLE publisher key when present (a renamed LM Studio instance must not fragment
+		// its measured history); fall back to the runtime `modelId` for cloud / not-loaded / restart / legacy summaries.
+		modelId: summary.modelKey ?? summary.modelId ?? "",
 		endpoint: summary.endpoint,
 	});
 	const role = resolveNKleinTaskRole(summary.taskId, card?.generatedFromPlan?.artifactKind === "decomposition");

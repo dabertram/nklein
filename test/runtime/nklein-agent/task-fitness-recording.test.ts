@@ -29,6 +29,26 @@ describe("deriveTaskFitnessRecord (§5.AB write side)", () => {
 		expect(r?.outcome.failureMode).toBeUndefined();
 	});
 
+	it("§5.BG: keys off the STABLE modelKey when present, ignoring the renamable runtime modelId", () => {
+		// The same model measured under a renamed instance (`coder` → `coder-gpu`) must land in ONE cell — keyed by the
+		// stable publisher key, not the runtime id.
+		const a = deriveTaskFitnessRecord({
+			summary: summary({ modelId: "coder", modelKey: "qwen2.5-coder-14b" }),
+			card: card(),
+		});
+		const b = deriveTaskFitnessRecord({
+			summary: summary({ modelId: "coder-gpu", modelKey: "qwen2.5-coder-14b" }),
+			card: card(),
+		});
+		expect(a?.key.modelKey).toBe("lmstudio:qwen2.5-coder-14b:default");
+		expect(b?.key.modelKey).toBe(a?.key.modelKey); // same stable cell despite different runtime ids
+	});
+
+	it("§5.BG: falls back to the runtime modelId when no stable modelKey (cloud / legacy summary)", () => {
+		const r = deriveTaskFitnessRecord({ summary: summary({ modelId: "coder", modelKey: null }), card: card() });
+		expect(r?.key.modelKey).toBe("lmstudio:coder:default");
+	});
+
 	it("failed ⇒ a failure record with a failure mode", () => {
 		const r = deriveTaskFitnessRecord({ summary: summary({ state: "failed" }), card: card() });
 		expect(r?.outcome.success).toBe(false);

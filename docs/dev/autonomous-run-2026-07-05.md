@@ -1829,3 +1829,12 @@ persisted / looked-up by **stable model metadata + the real model name**, never 
   descriptors) all yield null → the runtime id, so every existing test is unchanged (7952 green; +12 store tests).
   **Remaining:** fitness (`deriveTaskFitnessRecord` builds its key from `summary.modelId`, so the summary needs the
   stable key — a persisted-contract change) + the restart path + re-key-on-load.
+- **Increment 3 shipped — fitness + model-behavior now key off the stable key:** added `modelKey` to the (persisted)
+  `runtimeTaskSessionSummarySchema` (optional ⇒ legacy summaries parse fine). Enriched it CENTRALLY in `emitSummary` —
+  the one choke point every summary flows through to reach the telemetry listeners — from `modelEndpoint.getStableModelKey`
+  (populated in increment 2). `deriveTaskFitnessRecord` now builds its registry key from `summary.modelKey ?? summary.modelId`,
+  so a model measured under two renamed instances lands in ONE fitness cell (and `persistModelBehaviorOutcome`, which
+  keys off `fitnessRecord.key.modelKey`, follows). +2 fitness tests (stable-key cell-merge + runtime-id fallback).
+  Fallback-safe: no modelKey ⇒ the runtime id, so existing tests + cloud/legacy summaries are unchanged (7954 green).
+  **Remaining:** the restart path (resolve the stable key on rebind-from-persistence) + best-effort re-key-on-load (via
+  the increment-1 `rekeyTableToStableModelKeys` primitive) for fitness/observation rows already keyed by a runtime id.

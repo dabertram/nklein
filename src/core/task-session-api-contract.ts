@@ -94,6 +94,13 @@ export const runtimeTaskSessionSummarySchema = z.object({
 	heartbeatStatus: z.enum(["healthy", "stale", "lost"]).nullable().optional(),
 	providerId: z.string().nullable().optional(),
 	modelId: z.string().nullable().optional(),
+	/**
+	 * §5.BG: the STABLE publisher model key (`descriptor.modelKey`) for the task, stamped when it's a locally-loaded
+	 * model. Distinct from `modelId` (the renamable LM Studio runtime id used to CALL the endpoint). Telemetry (fitness,
+	 * model behavior) keys off this so renaming an instance can't fragment its measured history. Absent (⇒ fall back to
+	 * `modelId`) for cloud / not-loaded models and on legacy persisted summaries.
+	 */
+	modelKey: z.string().nullable().optional(),
 	endpoint: z.string().nullable().optional(),
 	sharedEndpointId: z.string().nullable().optional(),
 	reviewReason: runtimeTaskSessionReviewReasonSchema,

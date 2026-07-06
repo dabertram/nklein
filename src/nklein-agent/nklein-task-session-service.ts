@@ -2561,8 +2561,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	private emitSummary(summary: RuntimeTaskSessionSummary): void {
 		const guardedSummary = this.repeatedToolCallGuard.check(summary) ?? summary;
-		this.captureTerminalRunSummary(guardedSummary);
-		this.messageRepository.emitSummary(guardedSummary);
+		// §5.BG: stamp the STABLE publisher key (when resolved at start) on every emitted summary — this is the central
+		// choke point through which telemetry consumers (fitness, model-behavior) receive summaries, so keying off it
+		// here means a renamed LM Studio instance can't fragment its measured history. Absent ⇒ consumers fall back to
+		// the runtime `modelId` (cloud / not-loaded / restart / legacy).
+		const stableModelKey = this.modelEndpoint.getStableModelKey(guardedSummary.taskId);
+		const keyedSummary = stableModelKey ? { ...guardedSummary, modelKey: stableModelKey } : guardedSummary;
+		this.captureTerminalRunSummary(keyedSummary);
+		this.messageRepository.emitSummary(keyedSummary);
 	}
 
 	/**
