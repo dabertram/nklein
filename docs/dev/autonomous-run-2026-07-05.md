@@ -1240,13 +1240,13 @@ orchestration splits are autonomously safe whenever the boundary is clear. The o
 task-session-service is now largely mined (4886 → 4265); further reduction gets into finer-grained / more-ambiguous
 boundaries that warrant David's steer, or a shift to the other two monoliths.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 56) — for David
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **56 slices this run (34 §5.U extractions + 22 §5.V coverage batches), ~343 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). Slice 56 (David-selected) diversified to **provider-service
-  1463 → 1379** (−84): extracted CustomProviderManager (custom-provider CRUD) with a security test proving add-cloud-provider
-  fails closed before persistence. task-session-service 4886 → **4040** this run (−846, ~17%) via
+- **57 slices this run (35 §5.U extractions + 22 §5.V coverage batches), ~350 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). Slices 56–57 diversified to **provider-service 1463 → 1291**
+  (−172): CustomProviderManager (custom-provider CRUD) + ModelDiscoveryApi (catalog/models/endpoint-discovery), each with a
+  fail-closed-on-cloud security test. task-session-service 4886 → **4040** this run (−846, ~17%) via
   TEN collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, the three
   ENTANGLED clusters: ParkController pause/park + TimeoutController scheduling/firing + SandboxReviewFinalizer sandbox-review
   finalization [biggest, −286], ContextBudgetController context-window resolution + pre-send guard [−87], TaskFailureEmitter
@@ -1269,9 +1269,9 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
   api-validation tRPC parsers, many untested despite real trim/emptiness logic — a low-risk coverage backlog when lifts run dry.**
-- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1379** (10 clusters pulled: settings-summary, litellm-model-list,
+- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1291** (11 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy, custom-provider-manager
-  [slice 56, +security test] — plus 3 earlier);
+  [slice 56, +security test], model-discovery-api [slice 57, +tests] — plus 3 earlier);
   `runtime-server.ts` 2527 → **2451** (bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result, and now
   runtime-server-http lifted from INSIDE the createRuntimeServer closure);
   `nklein-mcp-runtime-service.ts` 949 → **762** (oauth-settings-store, transport-factory, oauth-callback — all were untested);
