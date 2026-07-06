@@ -1554,3 +1554,18 @@ qwen2.5-coder-14b, coder-gpu, qwen3-8b) + egress live at 18888. Ran two bounded,
 - **§5.U/§5.V (non-LLM, foreground while the sweeps ran):** extracted the board dependency-graph's pure model
   (`board-dag-model.ts` — cycle-guarded longest-path layering + DFS back-edge cycle detection, previously inline +
   untested in the Fable-built DAG view) with 10 tests pinning the correctness-critical cycle detection (`99a86eeb`).
+
+### 2026-07-06 (Opus) · §5.AZ CI-hygiene + a SILENT pre-commit-gate outage found & fixed
+
+Two release-prep (§5.AZ) items this iteration:
+- **Fork-drift guard shipped (`731e7b61`):** `.husky/pre-commit` now runs `npm run test:vendor` (the 4 forked Cline-SDK
+  suites, 1814 tests) ONLY when a commit stages a `vendor/**` file — catching silent fork rot at the source without the
+  ~30s cost on ordinary commits. Closes the §5.AZ "wire test:vendor" TODO (a hosted-CI mirror remains for later).
+- **★ Found the pre-commit gate was SILENTLY OFF.** `git config core.hooksPath` was `/Users/david/GIT/kanban/.husky/_`
+  — a stale ABSOLUTE path from before the kanban→nklein rename; that dir no longer exists, so husky fired NO hook and
+  every commit since the rename skipped tsc+biome+test:fast with zero warning. (My own gate discipline caught nothing
+  bad — I run the checks manually each commit — but the automated safety net was dead.) **Fixed** locally:
+  `git config core.hooksPath .husky/_` (repo-relative → survives future moves); verified the hook now fires
+  (`Running biome…` → `Pre-commit checks passed`). Recorded the gotcha in todo.md §4A next to the sibling `core.bare`
+  incident (it's worse — silent, and the hook's own self-heal can't help since the hook never runs). No committable
+  fix (it's untracked local `.git/config`); `npm install` re-sets it via the `prepare: husky` script.
