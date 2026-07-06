@@ -390,11 +390,14 @@
 > the probe functions so the control flow is deterministically testable without real timers or live services.
 >
 > **Live tally (see [docs/dev/autonomous-run-2026-07-05.md](docs/dev/autonomous-run-2026-07-05.md) for the per-slice log):**
-> - `nklein-provider-service.ts`: 1651 → **1463** — extracted `nklein-provider-settings-summary`, `nklein-litellm-model-list`,
+> - `nklein-provider-service.ts`: 1651 → **933** — extracted `nklein-provider-settings-summary`, `nklein-litellm-model-list`,
 >   `nklein-managed-provider-credentials`, `nklein-provider-selection-store`, `nklein-model-list-settings`,
->   `nklein-kanban-access-policy` (+ 3 earlier).
-> - `runtime-server.ts`: 2527 → **2451** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`,
->   and `runtime-server-http` (readRequestBody + getRemoteIp lifted from INSIDE the createRuntimeServer closure).
+>   `nklein-kanban-access-policy`, and `nklein-baseurl-model-discovery` (the two base-URL fetchers + direct fetch-mocked
+>   coverage — §5.U+§5.V) (+ 3 earlier).
+> - `runtime-server.ts`: 2527 → **2230** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`,
+>   `runtime-server-http` (readRequestBody + getRemoteIp), `nklein-runtime-terminal-telemetry` (the two terminal-summary
+>   telemetry recorders), and `nklein-plan-integration-gate-runner` (the server-side plan gate) — the last two lifted from
+>   INSIDE the createRuntimeServer closure.
 > - `nklein-mcp-runtime-service.ts`: 949 → **762** — extracted `nklein-mcp-oauth-settings-store` + `nklein-mcp-transport-factory`
 >   + `nklein-mcp-oauth-callback` (all were untested → +26 tests).
 > - `nklein-agent-sandbox.ts`: 1090 → **1071** — extracted `nklein-agent-sandbox-predicates` (was untested → +4 tests).
