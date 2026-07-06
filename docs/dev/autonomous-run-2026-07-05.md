@@ -1280,10 +1280,13 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > approval → acceptance → merge → completed) runs green in ~8s with Docker up. Commits landed, each gated by
 > tsc + biome + fast + that integration test: **1/6 AcceptanceVerifier** (thin delegating runner, +5 tests, −18);
 > **2/6 pickDiverseReviewerModel** (the shared reviewer/escalation/critique model selector — 3 call sites — de-tangled first,
-> +3 tests, −74). task-session-service **4040 → 3948** (under 4000). REMAINING 4 commits (the intricate part, fresh careful
-> work): 3/6 the second-opinion review runner (~170 lines, ~15 session-machinery deps — the SecondarySessionHarness exemplar),
-> then 4–6 PlanCritique / SpeculativeMirror / MergeResolution (factor the shared harness once ≥2 runners are out — rule of
-> three). Not rushed at a long turn's tail (no fast-net; behavior must stay byte-identical — verified per commit by the gate).
+> +3 tests, −74). task-session-service **4040 → 3922**. **3/6 SecondarySessionHarness** (the shared skeleton, lifted from the review runner —
+> the CRUX/riskiest commit: `runBracketed(config, drive)` owns sandbox setup + deadline-bounded runBoundedTurn + always-teardown;
+> the review runner rewired onto it with the drive closure; `deadlineMs` threaded to the drive so the nudge-loop guard is
+> byte-preserved. +5 characterization tests + the integration gate green — restructure confirmed behavior-preserving). REMAINING
+> 3 commits (now more mechanical — the harness pattern is established): **4–6 PlanCritique / SpeculativeMirror / MergeResolution**
+> onto the harness (plan-critique is the biggest, ~600 lines w/ buildPlanCritiqueRequestHandler). Each gated by
+> tsc + biome + fast + swarm-deterministic-pass. Not rushed (no fast-net; behavior must stay byte-identical).
 
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
