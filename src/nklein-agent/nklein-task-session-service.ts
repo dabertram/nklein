@@ -825,9 +825,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private resolveTaskModelIdentity(taskId: string): { providerId: string; modelId: string } {
 		return {
 			providerId: this.resolveProviderIdForTask(taskId),
-			// §5.BG: stamp the STABLE publisher key on telemetry when resolved (a renamed LM Studio instance must not
-			// fragment its measured history); fall back to the runtime id for cloud / not-loaded / restart-path tasks.
-			modelId: this.modelEndpoint.getStableModelKey(taskId) ?? this.modelEndpoint.getModelId(taskId),
+			// NOTE (§5.BG): telemetry must stay keyed by the RUNTIME id here for now — the READ side (routing candidates,
+			// runtime-verdict, ledger evidence) all key off the runtime id (`candidate.entry.key` is built from
+			// `descriptor.runtimeId`, and the verdict matches events against `entry.modelId`). Stamping the stable key on
+			// the WRITE alone silently misaligns writes vs reads (breaks the stall penalty). The stable-key migration must
+			// switch the candidate/registry KEY SOURCE (`d.runtimeId` → `d.modelKey`) and all reads TOGETHER — see §5.BG.
+			modelId: this.modelEndpoint.getModelId(taskId),
 		};
 	}
 

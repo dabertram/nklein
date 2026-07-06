@@ -1838,3 +1838,24 @@ persisted / looked-up by **stable model metadata + the real model name**, never 
   Fallback-safe: no modelKey ⇒ the runtime id, so existing tests + cloud/legacy summaries are unchanged (7954 green).
   **Remaining:** the restart path (resolve the stable key on rebind-from-persistence) + best-effort re-key-on-load (via
   the increment-1 `rekeyTableToStableModelKeys` primitive) for fitness/observation rows already keyed by a runtime id.
+
+### 2026-07-07 (Opus) · ★ CORRECTION — reverted the increment-2/3 WRITE-keying (write/read mismatch)
+
+While extending stable-keying to the agent ledger, I traced the READ side and found the whole model-telemetry system
+keys off the **runtime id**, NOT the stable key: routing candidates are built from `descriptors.map(d => d.runtimeId)`
+(`build-decomposition-routing-candidates.ts`), so `candidate.entry.key` is a runtime-id registry key, and the routing
+reads use it — `blendedCapabilityForKey(candidate.entry.key, …, candidate.entry.modelId)` looks up ledger evidence by
+`entry.key` (runtime) and the runtime-verdict by `entry.modelId` (runtime). **So increments 2–3 stamped the WRITE with
+the stable key while every READ still matched by the runtime id — a silent write/read mismatch** that would break the
+stall/verdict penalty + model-behavior lookup for local models (the unit tests passed because they only exercise the
+write functions in isolation, never the read alignment). **Reverted the two consumer changes** — `resolveTaskModelIdentity`
+(observations) and `deriveTaskFitnessRecord` (fitness + model-behavior) — back to the runtime id, restoring full read/write
+consistency (7952 green). **KEPT** the harmless, tested scaffolding as the foundation for the correct fix: the store's
+`getStableModelKey` slot (populated at start), the summary `modelKey` field + `emitSummary` enrichment, the
+`stable-model-identity` primitive, and the `deriveModelFamily` fix (all inert unless read).
+- **The CORRECT design (§5.BG, David-facing):** stable-keying can't be done write-by-write — it's a HOLISTIC change.
+  The candidate/registry KEY SOURCE must switch (`d.runtimeId` → `d.modelKey`) so `entry.key`/`entry.modelId`-based reads
+  key stably, and every write already stamps the stable key (the scaffolding provides it) — flipped together in one
+  coordinated, test-verified change (with the read-side alignment explicitly tested, not just the writers). Plus the
+  best-effort re-key-on-load for existing runtime-keyed rows. This is a larger hot-path + persisted-data change; flagged
+  for David rather than continued piecemeal.
