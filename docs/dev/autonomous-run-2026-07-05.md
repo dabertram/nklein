@@ -7,6 +7,22 @@ Living log of the autonomous grind + **the collected items that need David's gui
 David reviewed all seven via AskUserQuestion. Decisions 1-2 applied (code + tests flipped, gate green); 3 deferred;
 4/5/6 approved to build now (see below for progress).
 
+> **🔥 CPU-SPIKE INVESTIGATION (2026-07-06, David-requested) — RESOLVED.** David reported occasional CPU spikes on the M5.
+> Root cause: **8 orphaned `cli.ts --no-open` runtime servers** accumulated over 2–4 days, all reparented to launchd
+> (PPID 1), launched from the pre-rename `GIT/kanban` path (now deleted on disk), each holding a listening port + 700–890 MB
+> RSS (~4.1 GB total) and still firing the runtime's periodic timers (board-liveness 30s / speculative-mirror 45s /
+> opportunistic-idle 60s / retry-sweep / durable-scheduler). Overlapping tick bursts across 8 servers = the "occasional
+> spikes" (idle between ticks — low accumulated cputime confirmed it's periodic, not a hot loop). Leak mechanism: they were
+> spawned with `--require test/integration/shutdown-ipc-hook.cjs`, which only reacted to the explicit `kanban.shutdown` IPC
+> message; when a parent test/dev process died abnormally the message never arrived and the child lingered.
+> **Actions:** (1) killed all 8 orphans + their esbuild/tsx helpers (SIGTERM was ignored — graceful shutdown wedged — needed
+> SIGKILL; freed ~4.1 GB + 8 ports, machine calm). (2) Hardened the hook (David chose disconnect + hard-exit fallback):
+> `process.on("disconnect")` self-terminates the child on parent death (every spawn uses `stdio:[...,"ipc"]` so `disconnect`
+> always fires), plus an unref'd hard-exit fallback timer (`KANBAN_SHUTDOWN_HARD_EXIT_MS`, default 5s) for the wedged-graceful
+> case. +3 tests. Commit a6c4b0f6. **Note for David:** the fix prevents FUTURE leaks from the test/contract harness spawns;
+> if dev/grind server starts use a different launcher, worth confirming they also carry the hook (or a ppid-watchdog) — I
+> offered that as an option and it's available if the leak recurs.
+
 > **⚠ PROCESS FINDING (2026-07-06, slice 53 verification) — for David.** A full `test:fast` run at the tail caught a RED
 > guard test that had been shipped on the branch: `nklein-local-only-policy.test.ts` ("cloud-provider literals confined to
 > documented boundary files") was failing because the earlier §5.U extraction commit **d494ddf7** (nklein-managed-provider-credentials)
