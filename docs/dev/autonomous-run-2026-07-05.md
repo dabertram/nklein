@@ -1256,6 +1256,13 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > ⚠️ CANT is **phi-4-reasoning-plus** — reasoning runaway (burns the whole budget on reasoning_content, truncates finish=length
 > at ≥6144 tokens, never emits the tool call): a model-quality trait / §5.AA adaptive-retry target, NOT an egress bug. Full
 > detail in [cross-model-verification.md](cross-model-verification.md) + polishing.md §5.Z. Commit f627948c.
+> **§5.Z §5.AC TEMPORAL-AWARENESS (2026-07-06): harness bug fixed + 7/7 cross-model PASS.** Sweeping the "knows today"
+> lighthouse surfaced a HARNESS BUG (`verify-temporal-awareness-live.mts` failed its own assertions on every model — it
+> never enabled the off-by-default feature it verifies; the model answered "current year is 2023" from its training
+> prior). Fixed (pass `knowsTodayEnabled: true` in the harness deps). Feature confirmed working: 7/7 PASS across 2B→120B
+> — every model injects the leading `<current_date>` block and overrides its training prior (places a current-year past
+> month correctly in the PAST). Commit 7e92b32f. **Pattern: each §5.Z sweep this run found a real issue** (egress →
+> phi-4-reasoning-plus reasoning-runaway data point; temporal → a harness bug) — §5.Z verification is earning its keep.
 
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
