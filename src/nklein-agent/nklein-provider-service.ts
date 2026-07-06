@@ -2,7 +2,6 @@
 // It resolves provider settings, model catalogs, OAuth flows, and launch
 // config without leaking SDK details into runtime-api.ts or the UI.
 
-import { z } from "zod";
 import type {
 	RuntimeNKleinAccountBalanceResponse,
 	RuntimeNKleinAccountOrganizationsResponse,
@@ -23,6 +22,7 @@ import type {
 import { toErrorMessage as formatErrorMessage } from "../core/error-message";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { openInBrowser } from "../server/browser";
+import { fetchLiteLlmBaseUrlModels, fetchLmStudioBaseUrlModels } from "./nklein-baseurl-model-discovery";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
 import {
@@ -31,20 +31,13 @@ import {
 	type UpdateCustomNKleinProviderInput,
 } from "./nklein-custom-provider-manager";
 import { computeKanbanEnabled, parseNKleinRemoteConfigValue } from "./nklein-kanban-access-policy";
-import {
-	appendMissingModels,
-	LITELLM_MODEL_LIST_PATHNAMES,
-	LITELLM_MODELS_RESPONSE_SCHEMA,
-	resolveLiteLlmModelListHeaders,
-	resolveLiteLlmModelListItemId,
-} from "./nklein-litellm-model-list";
+import { appendMissingModels } from "./nklein-litellm-model-list";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { resolveManagedProviderLaunchApiKey } from "./nklein-managed-provider-credentials";
 import { createModelDiscoveryApi } from "./nklein-model-discovery-api";
-import { resolveModelListSettings } from "./nklein-model-list-settings";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { normalizeEpochMs, resolveVisibleApiKey } from "./nklein-provider-credential-helpers";
-import { buildDiscoveredModelSourceUrls, normalizeLmStudioModelListBaseUrl } from "./nklein-provider-discovery-urls";
+import { buildDiscoveredModelSourceUrls } from "./nklein-provider-discovery-urls";
 import { isLiveOnlyProviderId, isManagedOauthProviderId } from "./nklein-provider-id-classification";
 import {
 	extractDiscoveredModelsFromPayload,
@@ -52,14 +45,12 @@ import {
 	mergeProviderModelsWithModelRegistry,
 	normalizeContextWindow,
 	sortDiscoveredProviderModels,
-	toLmStudioModels,
 	toRuntimeProviderModel,
 } from "./nklein-provider-model-parsing";
 import { readKanbanSelectedProviderId, writeKanbanSelectedProviderId } from "./nklein-provider-selection-store";
 import { createProviderSettingsWriter, type SaveProviderSettingsInput } from "./nklein-provider-settings-save";
 import { toProviderSettingsSummary, toRuntimeReasoningEffort } from "./nklein-provider-settings-summary";
 import { ensureWorkosPrefix, stripWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-token.js";
-import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 
 // Re-exported for API compatibility — the custom-provider input types now live with their manager (§5.U).
 export type { AddCustomNKleinProviderInput, UpdateCustomNKleinProviderInput } from "./nklein-custom-provider-manager";
@@ -87,17 +78,7 @@ import {
 } from "./sdk-provider-boundary";
 
 const DEFAULT_NKLEIN_API_BASE_URL = "https://api.nklein.bot";
-const LMSTUDIO_MODELS_RESPONSE_SCHEMA = z
-	.object({
-		data: z.array(z.unknown()).optional(),
-		models: z.array(z.unknown()).optional(),
-	})
-	.passthrough();
-const LMSTUDIO_MODEL_LIST_PATHNAMES = ["/api/v0/models", "/api/v1/models", "/v1/models"] as const;
-const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
-const DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
-const LOGGER = createKanbanNKleinLogger({ component: "nklein-provider-service" });
 
 function isLocalProviderSettings(settings: Pick<SdkProviderSettings, "provider" | "baseUrl"> | null): boolean {
 	if (!settings) {
@@ -117,14 +98,6 @@ export interface ResolvedNKleinLaunchConfig {
 
 function toErrorMessage(error: unknown): string {
 	return formatErrorMessage(error, "An unexpected error occurred.");
-}
-
-function logLiteLlmModelListWarning(message: string, metadata?: Record<string, unknown>): void {
-	LOGGER.log(message, {
-		severity: "warn",
-		providerId: "litellm",
-		...(metadata ?? {}),
-	});
 }
 
 async function discoverModelsFromEndpoint(input: {
@@ -176,119 +149,6 @@ async function discoverModelsFromEndpoint(input: {
 		`Could not discover models from ${input.modelsSourceUrl?.trim() || input.baseUrl.trim()}. Ensure the local endpoint is reachable and exposes a compatible /models route.`,
 	);
 }
-
-async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): Promise<RuntimeNKleinProviderModel[]> {
-	const resolvedSettings = await resolveModelListSettings("litellm", settings, listSdkProviderCatalog);
-	const baseUrl = resolvedSettings?.baseUrl?.trim() ?? "";
-	if (!resolvedSettings || !baseUrl) {
-		return [];
-	}
-
-	const headers = resolveLiteLlmModelListHeaders(resolvedSettings);
-	const timeoutMs =
-		typeof resolvedSettings.timeout === "number" && resolvedSettings.timeout >= 0
-			? Math.trunc(resolvedSettings.timeout)
-			: DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS;
-	const signal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs);
-	const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
-	for (const pathname of LITELLM_MODEL_LIST_PATHNAMES) {
-		const url = `${normalizedBaseUrl}${pathname}`;
-		try {
-			const response = await globalThis.fetch(url, {
-				method: "GET",
-				headers,
-				...(signal ? { signal } : {}),
-			});
-			if (!response.ok) {
-				logLiteLlmModelListWarning("LiteLLM model list request returned an unsuccessful response.", {
-					url,
-					status: response.status,
-				});
-				continue;
-			}
-
-			const parsed = LITELLM_MODELS_RESPONSE_SCHEMA.safeParse((await response.json()) as unknown);
-			if (!parsed.success) {
-				logLiteLlmModelListWarning("LiteLLM model list request returned an unexpected response.", { url });
-				continue;
-			}
-
-			const modelIds =
-				parsed.data.data
-					?.map((item) => resolveLiteLlmModelListItemId(item, pathname))
-					.filter((modelId) => modelId.length > 0) ?? [];
-			if (modelIds.length > 0) {
-				return [...new Set(modelIds)].map((id) => ({ id, name: id }));
-			}
-		} catch (error) {
-			logLiteLlmModelListWarning("LiteLLM model list request failed.", {
-				url,
-				errorMessage: toErrorMessage(error),
-			});
-		}
-	}
-	return [];
-}
-
-async function fetchLmStudioBaseUrlModels(settings: SdkProviderSettings | null): Promise<RuntimeNKleinProviderModel[]> {
-	const resolvedSettings = await resolveModelListSettings("lmstudio", settings, listSdkProviderCatalog);
-	const baseUrl = resolvedSettings?.baseUrl?.trim() ?? "";
-	if (!resolvedSettings || !baseUrl) {
-		return [];
-	}
-
-	const headers = resolveLiteLlmModelListHeaders(resolvedSettings);
-	const timeoutMs =
-		typeof resolvedSettings.timeout === "number" && resolvedSettings.timeout >= 0
-			? Math.trunc(resolvedSettings.timeout)
-			: DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS;
-	const signal = timeoutMs === 0 ? undefined : AbortSignal.timeout(timeoutMs);
-	const normalizedBaseUrl = normalizeLmStudioModelListBaseUrl(baseUrl);
-	for (const pathname of LMSTUDIO_MODEL_LIST_PATHNAMES) {
-		const url = `${normalizedBaseUrl}${pathname}`;
-		try {
-			const response = await globalThis.fetch(url, {
-				method: "GET",
-				headers,
-				...(signal ? { signal } : {}),
-			});
-			if (!response.ok) {
-				LOGGER.log("LM Studio model list request returned an unsuccessful response.", {
-					severity: "warn",
-					providerId: "lmstudio",
-					url,
-					status: response.status,
-				});
-				continue;
-			}
-
-			const parsed = LMSTUDIO_MODELS_RESPONSE_SCHEMA.safeParse((await response.json()) as unknown);
-			if (!parsed.success) {
-				LOGGER.log("LM Studio model list request returned an unexpected response.", {
-					severity: "warn",
-					providerId: "lmstudio",
-					url,
-				});
-				continue;
-			}
-
-			const items = parsed.data.data ?? parsed.data.models ?? [];
-			const models = items.flatMap((item) => toLmStudioModels(item, pathname));
-			if (models.length > 0) {
-				return models;
-			}
-		} catch (error) {
-			LOGGER.log("LM Studio model list request failed.", {
-				severity: "warn",
-				providerId: "lmstudio",
-				url,
-				errorMessage: toErrorMessage(error),
-			});
-		}
-	}
-	return [];
-}
-
 /**
  * Roster discovery is throttled by a short TTL cache so the live `/models` (LM Studio `/api/v0/models`) catalog endpoint
  * isn't hammered — the roster only needs to be ~fresh (30 s default; `NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS` overrides, `0`
