@@ -480,7 +480,13 @@
 > mocked deps per runner (asserts: respects the in-flight/cancel/budget guards; fails closed when no sandbox; wires the right
 > synthetic taskId + launch config), with the contract/integration suite as the behavioral backstop. **Three decisions for
 > David:** (a) confirm "auxiliary secondary-session" is the seam; (b) granularity — the 2-layer 6-commit split (rec) vs one big
-> AuxiliarySessionOrchestrator commit; (c) OK to use characterization tests as the net for this tier. **NOT started — awaiting sign-off.**
+> AuxiliarySessionOrchestrator commit; (c) OK to use characterization tests as the net for this tier.
+> **✅ APPROVED BY DAVID (2026-07-06):** (a) YES — "auxiliary secondary-session" is the seam; (b) the 2-layer, ~6 bounded-commit
+> split (shared `SecondarySessionHarness` → then ReviewRunner / PlanCritiqueRunner / SpeculativeMirror / MergeResolution /
+> AcceptanceVerifier, each its own commit); (c) **STRONGER than characterization-only — David requires a FULL INTEGRATION PASS
+> PER COMMIT**: each runner extraction gets new characterization unit tests AND the relevant heavy contract/integration tests
+> (runtime boot) run + green before moving to the next. **READY TO EXECUTE** (verify the integration-suite infra is available
+> first — earlier the swarm-bounce integration test needed a backend). Sequenced after / alongside SWARM recovery increments 2–3.
 >
 > **§5.U FOURTH (biggest) PATTERN — COLLABORATOR SPLIT, proven autonomous+safe (slice 45):** move a cohesive concern (a
 > cluster of methods + its DEDICATED state) out of the class into a `createXWatcher(deps)` collaborator with a small deps
