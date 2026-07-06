@@ -7,6 +7,16 @@ Living log of the autonomous grind + **the collected items that need David's gui
 David reviewed all seven via AskUserQuestion. Decisions 1-2 applied (code + tests flipped, gate green); 3 deferred;
 4/5/6 approved to build now (see below for progress).
 
+> **⚠ PROCESS FINDING (2026-07-06, slice 53 verification) — for David.** A full `test:fast` run at the tail caught a RED
+> guard test that had been shipped on the branch: `nklein-local-only-policy.test.ts` ("cloud-provider literals confined to
+> documented boundary files") was failing because the earlier §5.U extraction commit **d494ddf7** (nklein-managed-provider-credentials)
+> moved the `openai-codex` managed-provider literal into a new file without registering it in the policy allowlist. Since
+> `test:precommit` === `test:fast` (the full `test/runtime` + `test/utilities` suite, which INCLUDES this test), that commit's
+> pre-commit gate should have blocked it — so d494ddf7 must have **bypassed the hook** (`--no-verify`) or the hook didn't fire.
+> Fixed forward in commit 28081179 (registered the file as a documented boundary — invariant preserved, not weakened). **Worth a
+> spot-check that other autonomous slices this run didn't also bypass the gate.** My own slices 45–53 each ran tsc + the relevant
+> suite explicitly and I confirmed the full fast suite green (7801 passing) at this tail before stopping.
+
 1. **✅ RESOLVED — fill-only.** `defaultAcceptanceCommand` now fills in only when a task omits its own
    `acceptanceCommand`; the task's own command always wins. Flipped `normalizeTaskAcceptanceCommand` +
    the 2 deliberate tests that asserted override (`plan-task-validation-graph.test.ts`,
