@@ -1783,3 +1783,11 @@ complementary characterization tests (never touched the existing ones):
   exceed a tiny maxLength.
 Considered but DEFERRED the full `.ts`-model extraction (board-dag-model style) — test-in-place is lower-risk in an
 otherwise-untested component and the tests now protect any later extraction. Web gate: web-ui tsc ✓, vitest 21/21 ✓.
+
+**`app-utils.tsx` project-routing helpers (+6):** its existing test covers `parseDetailTaskIdFromSearch`/
+`buildDetailTaskUrl` but not `parseProjectIdFromPathname` / `buildProjectPathname` / `normalizeStoredTaskAutoReviewMode`.
+Appended: the parse reads the first path segment URL-decoded (null on root/empty, **null-never-throws on a malformed
+`%`-encoding**), build percent-encodes a single segment, and they **round-trip** — even for ids containing a slash
+(encoded to `%2F` so `split("/")` can't lose it) or unicode; `normalizeStoredTaskAutoReviewMode` accepts only
+`commit`/`pr` and rejects blanks/case-variants/legacy values (untrusted stored input). Web gate: web-ui tsc ✓, vitest
+10/10 ✓. Remaining named-untested `.tsx` pure fns: `code-embedding-fields.tsx`, `countTasksByColumn` (needs a board fixture).
