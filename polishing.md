@@ -386,14 +386,14 @@
 >   `nklein-managed-provider-credentials`, `nklein-provider-selection-store`, `nklein-model-list-settings`,
 >   `nklein-kanban-access-policy` (+ 3 earlier).
 > - `runtime-server.ts`: 2527 → **2468** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`.
-> - `nklein-mcp-runtime-service.ts`: 949 → **777** — extracted `nklein-mcp-oauth-settings-store` + `nklein-mcp-transport-factory`
->   (both were untested → +19 tests).
+> - `nklein-mcp-runtime-service.ts`: 949 → **762** — extracted `nklein-mcp-oauth-settings-store` + `nklein-mcp-transport-factory`
+>   + `nklein-mcp-oauth-callback` (all were untested → +26 tests).
 > - `nklein-agent-sandbox.ts`: 1090 → **1071** — extracted `nklein-agent-sandbox-predicates` (was untested → +4 tests).
 > - `nklein-event-adapter.ts`: 806 → **768** — extracted `nklein-event-adapter-tool-activity` (was untested → +3 tests).
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **17 slices so far, ~106 new unit tests, zero behavior changes** (pre-commit fast suite gates each).
+> - **18 slices so far, ~113 new unit tests, zero behavior changes** (pre-commit fast suite gates each).
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,

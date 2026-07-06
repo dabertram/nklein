@@ -954,17 +954,26 @@ guards suite. **Progress:** task-session-service 4886 → **4873**. **Pattern fo
 just `Math.trunc` (not worth it) and the neighboring context-window resolvers touch `this` stores (not pure); the bigger
 reduction still needs the collaborator responsibility-split.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 17) — for David
+### ▶ §5.U slice 18 (2026-07-06, 4416365c) — extracted nklein-mcp-oauth-callback
+Third cut into mcp-runtime-service. Moved the MCP OAuth callback-URL protocol — the callback path + requestId param
+consts, `buildMcpOauthCallbackUrl`, and `createOauthClientMetadata` — into their own module, and replaced the handler's
+inline path-check + requestId-parse with two pure reads (`matchesMcpOauthCallbackPath` + `readMcpOauthCallbackRequestId`)
+so the handler's registry logic no longer inlines the URL protocol. Behavior-preserving (the reader's
+`get(param)?.trim() || null` is identical under the `if (!requestId)` guard; existing test still green); previously
+UNTESTED, now +7 tests. **Progress:** mcp-runtime-service 777 → **762** (−187 from 949).
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 18) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **17 §5.U slices this run, ~106 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
+- **18 §5.U slices this run, ~113 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
   extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service, agent-sandbox, event-adapter) yield
   extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED. Slice 17 opened a flagship pattern: lifting
-  PURE private methods (no `this`) into the core guard modules.
+  PURE private methods (no `this`) into the core guard modules. mcp-runtime-service alone is now down to THREE cohesive
+  extracted modules (oauth-settings-store, transport-factory, oauth-callback).
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
   `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
-  `nklein-mcp-runtime-service.ts` 949 → **777** (oauth-settings-store, transport-factory — both were untested);
+  `nklein-mcp-runtime-service.ts` 949 → **762** (oauth-settings-store, transport-factory, oauth-callback — all were untested);
   `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
   `nklein-event-adapter.ts` 806 → **768** (tool-activity classifiers — was untested);
   `nklein-task-session-service.ts` 4886 → **4873** (shouldCaptureReviewCheckpoint lifted to task-session-guards — first
