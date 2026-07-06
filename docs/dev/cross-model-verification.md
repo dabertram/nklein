@@ -765,3 +765,21 @@ called write_file fine here — its read_file `list_dir` mis-selection was scena
 defect.)
   - matrix rows (chat write_file): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gemma-4-e2b=✅ · gpt-oss-120b=✅ ·
     mistral-small-3.2=✅ · nemotron-3-nano-4b=✅
+
+### 2026-07-06 · §5.Z §5.M chat-browse (browse_url → headless Chromium render) — current-roster sweep
+`verify-chat-browse.mts` (real `nklein chat --browser` CLI agent → browse_url a tiny local page → the page text must
+flow back; instruction: *"reply with the exact text of the page's main heading"* — the `<h1>` marker
+`BROWSE-MARKER-4242-XYZ`; the page `<title>` is a DIFFERENT string `NKLEIN-BROWSE-TITLE-4242`), 4 models. **The
+browse_url tool is verified working** (all 4 USED it; Playwright/Chromium rendered the page; qwen3-8b returned the h1
+marker, proving the body text flows back into context):
+- ✅ **PASS (1):** qwen3-8b — returned the `<h1>` marker exactly.
+- ⚠️ **comprehension/ambiguity (3): qwen2.5-coder-14b, gpt-oss-120b, gemma-4-e2b** — each USED browse_url and rendered
+  the page, but replied with the page `<title>` (`NKLEIN-BROWSE-TITLE-4242`) instead of the `<h1>` "main heading". A
+  model-comprehension trait — "the page's main heading" read as the page title, not the body `<h1>` — hitting even the
+  capable gpt-oss-120b. **NOT a browse_url bug** (the tool surfaces the body text, per qwen3-8b) and NOT a harness bug
+  (the instruction is defensible: h1 IS the main heading; kept the strict body-marker assertion — did not weaken it to
+  accept the title). Note for a future harness: the "main heading" phrasing is genuinely ambiguous vs `<title>`; an
+  unambiguous instruction ("the text inside the page's large body marker") would isolate browse-comprehension from the
+  title/h1 naming trap. Recorded as a cross-model data point, not actioned.
+  - matrix rows (chat browse_url): qwen3-8b=✅ · qwen2.5-coder-14b=⚠️(title-vs-h1) · gpt-oss-120b=⚠️(title-vs-h1) ·
+    gemma-4-e2b=⚠️(title-vs-h1)
