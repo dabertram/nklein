@@ -1748,5 +1748,19 @@ files — so a targeted sweep for `export function <lowercase>` inside every web
 null/empty/unknown/wrong-case; `readStoredThemeId` **validates untrusted localStorage** — falls back to the `klein`
 default on empty OR garbage (and the default is itself a valid id), returns a valid stored id verbatim; and
 `getTerminalThemeColors` resolves a defined palette for EVERY registered theme (guards a registry↔palette desync).
-Web gate: web-ui tsc ✓, web-ui vitest 7/7 ✓. All other web-ui `utils/` + `use-*` pure fns were already tested — the
-web-ui §5.V vein is now saturated too.
+Web gate: web-ui tsc ✓, web-ui vitest 7/7 ✓. All other web-ui `utils/` + `use-*` pure fns were already tested.
+
+### 2026-07-06 (Opus) · §5.V (web-ui) — a SHARPER coverage heuristic finds more hidden pure logic
+
+The "does `<basename>.test.ts` exist?" heuristic is too coarse. Switched to: for every `export function <lowercase>`
+in web-ui, is its NAME referenced in ANY test file? That surfaced a whole vein of untested pure logic hiding in
+component files (`.tsx`) and helper `.ts` modules. Working the cleanest, security-relevant `.ts` module first:
+- **`runtime-settings-command-display.ts` (+8):** `quoteCommandPartForDisplay` + `buildDisplayedAgentCommand` render the
+  exact agent launch command shown in Settings — INCLUDING the dangerous autonomous flags (`--dangerously-bypass-…`), so
+  correct display matters for user awareness. Pins: the shell-safe charset stays unquoted (flags/paths/`a=b,c`/`@`/`%`/…),
+  anything outside it is JSON-quoted (space, `;`, `$(…)`, embedded `"` escaped), empty → `""`; and the command build —
+  `nklein` shows nothing, autonomous-OFF shows binary-only, autonomous-ON appends the catalog's auto-args (codex's single
+  dangerous flag, droid's two-arg `--auto high`, opencode's empty → binary-only). Web gate: web-ui tsc ✓, vitest 8/8 ✓.
+- Remaining named-untested pure fns (a follow-up vein): `runtime-settings-provider-helpers.ts`, `diff-renderer.tsx`
+  (patch parsing), `app-utils.tsx` (pathname/counting), `code-embedding-fields.tsx` — the `.tsx` ones pull component
+  deps, so the clean `.ts` helpers go first.
