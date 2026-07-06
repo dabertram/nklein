@@ -1171,6 +1171,22 @@ cross-cutting (WRITTEN at prompt-assembly, READ at model-selection). **The clean
 task-session-service are now largely mined (4 splits done).** Further big reduction needs either the entangled clusters (David's
 boundary steer) or a different file.
 
+### ▶ §5.U INVESTIGATION (2026-07-06, after slice 49) — the clean vein is mined; what's actionable next
+Thorough probe of every large file this iteration confirms: the codebase is WELL-FACTORED — the big functions already
+delegate their pure logic to helper modules (e.g. session-runtime's 220-line `createKanbanContextFocusExtension` calls
+`decideTaskReanchorForRequest`/`reanchorFocusChainMessages`/`recoverNarratedToolCalls`/… — no chunky inline pure block to
+lift). runtime-server's remaining state lives in the `createRuntimeServer` CLOSURE (not class fields). So the remaining §5.U
+reduction is **moving ORCHESTRATION into collaborators** — the entangled cross-concern clusters:
+- **pause/park** (`parkActiveTasksForOperatorPause`, `parkTaskForPause`, `parkTaskForAutonomyBudget`, `resetGuardsForPark`,
+  `pushParkSystemMessage`, `enforceAutonomyBudgets`): a CLEAR boundary ("the pause/park concern") but a large deps interface —
+  it touches messageRepository (getTaskEntry/listSummaries), emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog,
+  repeatedToolCallGuard, pauseController, sessionRuntime.abortTaskSession, recordObservationWithModel + createMessage/clearActiveTurnState.
+  Extractable as a `ParkController(deps)` collaborator (~10-method deps), gated by the pause tests. **This is the recommended next
+  §5.U slice — bounded but larger; best started with a FRESH context budget (subtle pause/abort/emit behavior).**
+- timeout scheduling + sandbox-review finalization: similar entangled orchestration.
+These ARE actionable without David (the test suite is the safety net); they're just larger/riskier than the 4 clean splits,
+so they warrant fresh context + extra care rather than being rushed at a long-context tail.
+
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 49) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.

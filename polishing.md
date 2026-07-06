@@ -452,9 +452,15 @@
 > **The clean single-Map-with-owned-lifecycle concerns in task-session-service are now largely mined (4 splits).** Remaining
 > single-collection fields are NOT good candidates: `explicitDecompositionTaskIds` (bare Set, no logic), `lastRecordedRunStateByTaskId`
 > (tiny dedup), `adaptiveRetryStateByTaskId` (cross-concern), `timeoutSettingsByTaskId` (entangled w/ timeout scheduler), warmth
-> ledger (cross-cutting: written at prompt-assembly, read at model-selection). Next big reduction: the ENTANGLED clusters need
-> David's boundary steer, OR pivot to a different file — but runtime-server's state lives in the createRuntimeServer CLOSURE (not
-> class fields), and provider-service is already at 1463. Consider whether the flagship's remaining size is now "acceptable".
+> ledger (cross-cutting: written at prompt-assembly, read at model-selection). Next big reduction = the ENTANGLED
+> orchestration clusters. These ARE actionable autonomously (test suite = safety net); they're just larger/riskier (big deps
+> interfaces, subtle behavior) so START THEM WITH FRESH CONTEXT, not at a long-session tail. **Recommended next: `ParkController`**
+> — extract the pause/park cluster (parkActiveTasksForOperatorPause / parkTaskForPause / parkTaskForAutonomyBudget /
+> resetGuardsForPark / pushParkSystemMessage / enforceAutonomyBudgets) into `createParkController(deps)`. Deps (~10):
+> getTaskEntry, listSummaries, emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog (or check/resetTask),
+> repeatedToolCallGuard.resetTask, pauseController.markTaskParked, abortTaskSession, recordObservation. Boundary is CLEAR (the
+> pause/park concern); gate with the existing pause tests. Then timeout-scheduling + sandbox-review finalization similarly.
+> Note: runtime-server's state is in the createRuntimeServer CLOSURE (not fields) — harder; provider-service already 1463.
 > **CAVEAT on candidates:** verify state is genuinely SEPARABLE first. `timeout scheduling` is NOT clean —
 > `clearTaskTimeouts` coordinates the residency watcher + `activeToolTaskIds` (cross-concern), and `handleTaskTimeout`
 > orchestrates abort+fail; leave it (or needs David's boundary steer). `sandbox-review finalization` similarly touches
