@@ -1810,3 +1810,13 @@ persisted / looked-up by **stable model metadata + the real model name**, never 
   FRAGMENTS its measured fitness/observation history. Recommended fix (David-gated — it re-keys persisted telemetry, so
   it needs a migration decision): resolve `descriptor.modelKey` for a running task and stamp THAT (stable) as the model
   identity on observations/fitness, keeping the runtime id only as a display alias. Captured as a polishing.md item.
+- **David's approach decisions (AskUserQuestion):** key by **`descriptor.modelKey` alone** (runtime id → display alias);
+  **best-effort re-key on load** (map resolvable runtime ids → modelKey, merge collapsed rows, unmatched decay).
+- **Increment 1 shipped — the shared PURE primitive `stable-model-identity.ts` (+7 tests):** `resolveStableModelKey`
+  (runtime id → descriptor's modelKey; falls back to the trimmed runtime id for cloud/not-loaded — never empty) and
+  `rekeyTableToStableModelKeys` (best-effort re-key of a runtime-id-keyed table, MERGING rows that collapse to one stable
+  key via an injected merge fn — heals rename fragmentation — and keeping unresolvable rows under their key to decay).
+  Encodes David's exact decisions; not yet wired (zero risk). WIRING TO FOLLOW (next increments): resolve+store the
+  modelKey per task (the launch config/request carries only the runtime id today, so this threads from the start
+  handler's already-resolved descriptors), stamp it in `resolveTaskModelIdentity`/observations, key fitness by it, and
+  re-key on load.

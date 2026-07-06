@@ -790,7 +790,9 @@
 > **DONE (bounded, non-wired flow):** `deriveModelFamily` (model-online-lookup.ts) no longer hardcodes machine tokens
 > (`m5max|m4mini`); `buildProvisionalCatalogEntry` now prefers the stable `descriptor.modelKey`. (commit — see run log.)
 >
-> **OPEN (David-gated — re-keys PERSISTED telemetry, needs a migration decision):** the live keying is SPLIT. Capability/
+> **David decided (AskUserQuestion 2026-07-06):** key by `descriptor.modelKey` alone (runtime id → display alias); best-effort re-key on load (merge collapsed rows, unmatched decay). **Increment 1 DONE:** the pure `stable-model-identity.ts` primitive (resolveStableModelKey + rekeyTableToStableModelKeys, +7 tests) encodes both.
+>
+> **OPEN (wiring — re-keys PERSISTED telemetry):** the live keying is SPLIT. Capability/
 > routing (`resolveLoadedModelProfile`) + lineage/diverse-escalation already key off the stable `descriptor.modelKey` ✓.
 > But **self-observations + fitness key off the UNSTABLE runtime id** — `resolveTaskModelIdentity` →
 > `modelEndpoint.getModelId(taskId)` (the launch/endpoint id), stamped by `recordObservationWithModel` on every telemetry
