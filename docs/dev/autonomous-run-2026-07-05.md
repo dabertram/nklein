@@ -1587,3 +1587,23 @@ are David's to curate separately, out of scope here):
   pattern consistent with the sibling examples `m5max`/`m4mini` (generic Apple product names, left as-is; `swarm-roster`'s
   `machine: "m5max"` is a **functional** per-machine routing key, also left as-is). Shipped source now carries no
   personal identifiers.
+
+### 2026-07-06 (Opus) · §5.U — extract the `kanban-context-focus` extension out of `nklein-session-runtime.ts`
+
+The big-3 flagships are mined; **`nklein-session-runtime.ts` (1487)** was the next-largest non-gated monolith. Its
+biggest self-contained cluster was the **`kanban-context-focus` SDK runtime extension** — the beforeModel/afterModel/
+afterTool hooks (compact repo-map orientation, §5.N focus-chain re-anchor, §5.AD immutable-goal re-anchor, §5.O
+two-phase tool narrowing, narrated-tool-call recovery + stall/truncation self-observation, large-file workflow) plus
+its per-session re-anchor state. Lifted **verbatim** into a new `nklein-context-focus-extension.ts` (`fn` bodies moved
+byte-for-byte via `sed`, only the module header + accessors hand-written).
+
+- **`nklein-session-runtime.ts` 1487 → 1228 (−259).** New module 309 lines.
+- The two previously module-**global** mutable maps (`focusChainBySessionId`, `goalReanchorLastTurnBySessionId`) moved
+  into the extension module behind 3 small accessors the runtime calls — a net **encapsulation** win (the monolith no
+  longer reaches into extension state): `recordSessionFocusChain` (on `update_focus_chain`), `forgetSessionFocusState`
+  (session end/reset — clears BOTH maps), `clearAllSessionFocusState` (dispose). `REPO_MAP_INVALIDATING_TOOL_NAMES` is
+  exported for the runtime's approval-path use (line preserved verbatim).
+- **Test net unweakened:** `doesNKleinToolInvalidateRepoMap` is **re-exported** from `nklein-session-runtime.ts`, so
+  the existing `nklein-session-runtime.test.ts` import + assertions pass untouched; `task-reanchor-before-model.test.ts`
+  and `nklein-focus-chain-rail.test.ts` (the hooks' behavioral coverage) also green. Full gate: tsc ✓, biome ✓,
+  **7910/7910 tests ✓**. Behavior-preserving by construction (verbatim relocation; only map access wrapped in accessors).

@@ -410,6 +410,11 @@
 >   ledger, and the runtime observation recorders. **Remainder = the entangled PRIMARY lifecycle** (startTaskSession /
 >   sendTaskSessionInput / dispatchResolvedTaskInput / handleTaskEvent) — a David-gated boundary (approve the seam first,
 >   as with the review-cluster).
+> - `nklein-session-runtime.ts`: 1487 → **1228** (−259) — extracted the whole `kanban-context-focus` SDK runtime extension
+>   into `nklein-context-focus-extension.ts` (beforeModel/afterModel/afterTool hooks: repo-map orientation, §5.N focus-chain +
+>   §5.AD goal re-anchor, §5.O two-phase narrowing, narrated-call recovery, stall self-observation, large-file workflow). Moved
+>   the two module-**global** re-anchor maps into the new module behind 3 accessors (record/forget/clearAll) — net encapsulation
+>   win. `doesNKleinToolInvalidateRepoMap` re-exported so the existing test is untouched (test net unweakened). Verbatim move.
 > - **Post-Fable additive slices (Opus):** `fitness-table-view` (§5.AL read endpoint + pure view builder, +5 tests) ·
 >   `board-dag-model` (§5.U/§5.V web — extracted the DAG view's cycle-detection/layout, +10 tests). §5.Z (live env,
 >   heavy roster + egress live): egress e2e 6/6 · chat-agent-tools 6/6 (+W3.1 regression) · command-exec + decompose-

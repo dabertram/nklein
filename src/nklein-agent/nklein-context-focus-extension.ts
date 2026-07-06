@@ -1,0 +1,309 @@
+// The "kanban-context-focus" SDK runtime extension: the beforeModel/afterModel/afterTool hooks that keep a small
+// local model oriented and on-plan across turns — compact repo-map orientation (host-side, workspace-relative), the
+// agent's own focus-chain re-anchor (§5.N), the opt-in immutable-GOAL re-anchor (§5.AD), the opt-in two-phase tool
+// narrowing (§5.O), narrated-tool-call recovery + stall/truncation self-observation, and the large-file workflow.
+// Extracted verbatim from nklein-session-runtime.ts (§5.U decomposition) so the runtime module owns lifecycle, not
+// the extension's mechanics. The per-session re-anchor state lives here behind small accessors the runtime calls on
+// focus-chain update / session end / dispose.
+
+import { deriveTruncationSignal } from "../core/completion-stop-reason";
+import { isTruthyEnv } from "../core/env-flag";
+import type { FocusChain } from "../core/focus-chain";
+import { recordSelfObservation } from "../telemetry/self-observation-sink";
+import { getWorkspaceChanges } from "../workspace/get-workspace-changes";
+import { buildKanbanContextPressurePolicy } from "./nklein-context-budgets";
+import { focusKanbanReadFilesForNextRequest } from "./nklein-context-focus-policy";
+import { reanchorFocusChainMessages } from "./nklein-focus-chain-rail";
+import { getNKleinLargeFileWorkflow } from "./nklein-large-file-workflow";
+import { recoverNarratedToolCalls } from "./nklein-narrated-tool-call";
+import { buildNKleinRepoMap } from "./nklein-repo-map";
+import {
+	collectRepoMapPersonalizationText,
+	createRepoMapRailMessage,
+	REPO_MAP_RAIL_MESSAGE_KIND,
+} from "./nklein-repo-map-rail-messages";
+import { reviewNKleinAfterModelCompletion } from "./nklein-self-review-hook";
+import type { AgentAfterToolContext, AgentBeforeModelContext, AgentBeforeModelResult } from "./sdk-agent-types";
+import type { NKleinSdkStartSessionInput } from "./sdk-runtime-boundary";
+import { decideTaskReanchorForRequest } from "./task-reanchor-before-model";
+import { latestStepText, narrowToolsForStep } from "./two-phase-before-model";
+import type { TwoPhasePickModelCaller } from "./two-phase-tool-runner";
+
+type NKleinSdkLocalRuntimeOptions = NonNullable<NKleinSdkStartSessionInput["localRuntime"]>;
+export type NKleinSdkRuntimeExtension = NonNullable<NKleinSdkLocalRuntimeOptions["extensions"]>[number];
+
+export const REPO_MAP_INVALIDATING_TOOL_NAMES = new Set([
+	"apply_patch",
+	"bash",
+	"edit_file",
+	"editor",
+	"execute_command",
+	"replace_in_file",
+	"terminal",
+	"write_file",
+	"write_files",
+	"write_to_file",
+]);
+
+/**
+ * Latest focus chain (todo §5.N) per live session, captured when the agent calls `update_focus_chain`. The
+ * beforeModel hook re-anchors it into each request so a small model stays on its own plan across turns and after
+ * context compaction (the chain is otherwise only present as the tool call/result, which compaction can drop).
+ */
+const focusChainBySessionId = new Map<string, FocusChain>();
+
+/**
+ * §5.AD opt-in GOAL re-anchor (gated by NKLEIN_GOAL_REANCHOR): the turn at which the immutable top-level goal was last
+ * re-injected, per session, so the cadence gate fires every N turns. Untouched (and this whole feature inert) when the
+ * flag is off ⇒ byte-identical default. Cleared alongside the focus chain on session end/reset.
+ */
+const goalReanchorLastTurnBySessionId = new Map<string, number>();
+
+/** Env-gated (NKLEIN_GOAL_REANCHOR) turn cadence for the opt-in immutable-goal re-anchor; sane default when unset. */
+const GOAL_REANCHOR_EVERY_N_TURNS = 6;
+
+export function doesNKleinToolInvalidateRepoMap(context: AgentAfterToolContext): boolean {
+	if (context.result.isError === true) {
+		return false;
+	}
+	return REPO_MAP_INVALIDATING_TOOL_NAMES.has(context.toolCall.toolName.trim().toLowerCase());
+}
+
+async function appendRepoMapBeforeModel(
+	context: AgentBeforeModelContext,
+	_workspacePath: string,
+	contextWindow: number | null | undefined,
+	baseResult: AgentBeforeModelResult | null | undefined,
+	getCachedRepoMap: (personalizationText: string) => Promise<string | null>,
+): Promise<AgentBeforeModelResult | undefined> {
+	if (baseResult?.stop) {
+		return baseResult;
+	}
+	const messages = baseResult?.messages ?? context.request.messages;
+	const repoMap = await getCachedRepoMap(collectRepoMapPersonalizationText(messages));
+	if (!repoMap) {
+		return baseResult ?? undefined;
+	}
+	const alreadyInjected = messages.some((message) => message.metadata?.kind === REPO_MAP_RAIL_MESSAGE_KIND);
+	if (alreadyInjected) {
+		return baseResult ?? undefined;
+	}
+	return {
+		...baseResult,
+		messages: [
+			createRepoMapRailMessage(
+				[
+					"[!Klein repo map: compact codebase orientation]",
+					"Workspace root: .",
+					"Use workspace-relative paths for file tools; host absolute paths are not valid inside the agent sandbox.",
+					`Context window: ${contextWindow ?? "unknown"} tokens`,
+					repoMap,
+					"Use this map to choose focused read_files calls; prefer symbol-level navigation over whole-file reading.",
+				].join("\n"),
+			),
+			...messages,
+		],
+	};
+}
+
+export function createKanbanContextFocusExtension(
+	sessionId: string,
+	// The agent-perceived (sandbox) cwd. Used only for the large-file workflow's per-session state key; under
+	// strict isolation that workflow is inert anyway (the agent's real read_large_file is the sandbox-proxied tool).
+	agentPerceivedCwd: string,
+	// The HOST project root, used for the trusted-runtime *orientation* reads (repo map + git changes) that the
+	// runtime builds host-side and injects as context. These render WORKSPACE-RELATIVE paths only (no host leak).
+	// It must be the host path, not the sandbox cwd (`/workspaces/<taskId>` does not exist on the host, which left
+	// the repo map silently empty under isolation). It reflects the live project, not the sandbox baseRef checkout —
+	// acceptable for codebase orientation.
+	orientationWorkspacePath: string,
+	contextWindow?: number | null,
+	// §5.O opt-in two-phase tool narrowing: when supplied (only when NKLEIN_TWO_PHASE_TOOL_PICK is set), beforeModel runs a
+	// phase-1 pick over the offered tools and narrows the request's tools to it. Undefined ⇒ inert (byte-identical default).
+	twoPhasePickCaller?: TwoPhasePickModelCaller,
+): NKleinSdkRuntimeExtension {
+	const largeFileWorkflow = getNKleinLargeFileWorkflow(sessionId, agentPerceivedCwd);
+	let cachedRepoMap: { key: string; value: Promise<string | null> } | null = null;
+	const contextPressure = buildKanbanContextPressurePolicy({ contextWindow });
+	const getCachedRepoMap = async (personalizationText: string) => {
+		const cacheKey = personalizationText;
+		if (cachedRepoMap?.key !== cacheKey) {
+			cachedRepoMap = {
+				key: cacheKey,
+				value: buildNKleinRepoMap({
+					workspacePath: orientationWorkspacePath,
+					tokenBudget: contextPressure.repoMapTokenBudget,
+					personalizationText,
+				})
+					.then((repoMap) => (repoMap.symbols.length > 0 ? repoMap.rendered : null))
+					.catch(() => null),
+			};
+		}
+		return await cachedRepoMap.value;
+	};
+	const hasChangedFiles = async (): Promise<boolean | null> => {
+		try {
+			const changes = await getWorkspaceChanges(orientationWorkspacePath);
+			return changes.files.length > 0;
+		} catch {
+			return null;
+		}
+	};
+	return {
+		name: "kanban-context-focus",
+		manifest: {
+			capabilities: ["messageBuilders", "hooks"],
+		},
+		hooks: {
+			async beforeModel(context) {
+				const result = await appendRepoMapBeforeModel(
+					context,
+					agentPerceivedCwd,
+					contextWindow,
+					await largeFileWorkflow.beforeModel(context),
+					getCachedRepoMap,
+				);
+				if (result?.stop) {
+					return result;
+				}
+				// Re-anchor the agent's own focus chain (todo §5.N) into this request so a small model stays on its
+				// plan across turns and after compaction. No-op when there is no chain (and no stale rail to strip).
+				const baseMessages = result?.messages ?? context.request.messages;
+				const messages = reanchorFocusChainMessages(baseMessages, focusChainBySessionId.get(sessionId) ?? null);
+				let finalResult = messages === baseMessages ? result : { ...result, messages };
+				// Section 5.AD opt-in immutable-GOAL re-anchor (gated by NKLEIN_GOAL_REANCHOR; default OFF = byte-identical):
+				// every N turns, re-inject the ORIGINAL top-level task near the end of the context so a drifting model is
+				// reminded of the goal. Distinct from the focus-chain re-anchor above (which re-projects the agent's OWN
+				// plan). Pure decision over the current messages; only appends when the cadence gate fires AND a goal exists.
+				if (isTruthyEnv(process.env.NKLEIN_GOAL_REANCHOR)) {
+					const currentMessages = finalResult?.messages ?? baseMessages;
+					const reanchor = decideTaskReanchorForRequest({
+						messages: currentMessages,
+						turnCount: context.snapshot.iteration,
+						lastReanchorTurn: goalReanchorLastTurnBySessionId.get(sessionId) ?? null,
+						everyNTurns: GOAL_REANCHOR_EVERY_N_TURNS,
+					});
+					if (reanchor.appended) {
+						goalReanchorLastTurnBySessionId.set(
+							sessionId,
+							reanchor.nextLastReanchorTurn ?? context.snapshot.iteration,
+						);
+						finalResult = { ...(finalResult ?? {}), messages: reanchor.messages };
+					}
+				}
+				// §5.O opt-in two-phase tool narrowing (inert without a caller ⇒ byte-identical default): run a phase-1 pick
+				// over the offered tools and narrow the request's tools to it. Catch-guarded — any failure leaves the turn
+				// unchanged, so the ON path can only help (a narrowed set) or no-op, never break the turn.
+				if (twoPhasePickCaller) {
+					const offeredTools = (context.request as unknown as { tools?: { name: string }[] }).tools ?? [];
+					const step = latestStepText(
+						context.request.messages as unknown as { role?: string; content?: unknown }[],
+					);
+					if (offeredTools.length >= 2 && step) {
+						const narrowed = await narrowToolsForStep({
+							tools: offeredTools,
+							step,
+							callModel: twoPhasePickCaller,
+						}).catch(() => offeredTools);
+						if (narrowed.length !== offeredTools.length) {
+							finalResult = { ...(finalResult ?? {}), tools: narrowed } as typeof finalResult;
+						}
+					}
+				}
+				return finalResult;
+			},
+			async afterModel(context) {
+				// Robustness over teaching: if a weak model narrated its tool call as `<tool_call>` text instead of a
+				// structured call, parse it and append a real tool-call part so the loop executes it (this hook runs
+				// before the loop extracts tool calls from the message). A recovered call means the turn is NOT a
+				// completion, so skip the synthesis/self-review completion hooks and let the loop dispatch the tool.
+				const recoveredToolCalls = recoverNarratedToolCalls(context.assistantMessage);
+				if (recoveredToolCalls.length > 0) {
+					recordSelfObservation({
+						signal: "tool_argument_error",
+						severity: "info",
+						message: `!Klein recovered ${recoveredToolCalls.length} tool call(s) the model emitted as <tool_call> text instead of a structured tool call.`,
+						workspacePath: agentPerceivedCwd,
+						metadata: {
+							category: "narrated_tool_call_recovered",
+							toolNames: recoveredToolCalls.map((part) => part.toolName),
+							sessionId,
+						},
+					});
+					return undefined;
+				}
+				// §5.AA/§5.AN: surface a STALLED turn — neither a (recovered) tool call NOR any text — on the swarm path,
+				// where it was previously invisible (the SDK abstracts the truncation finishReason away, so detect by
+				// content-shape instead). A reasoning model that burns its budget on reasoning_content emits exactly this
+				// (live-grounded). Observational only (returns nothing); makes stalls countable so the §5.AA recovery
+				// (proactive thinking-control / budget bump) can be decided + measured on real swarm evidence.
+				{
+					const hasToolCallPart = context.assistantMessage.content.some((part) => part.type === "tool-call");
+					const assistantTextLength = context.assistantMessage.content
+						.filter((part) => part.type === "text")
+						.reduce((total, part) => total + ((part as { text?: string }).text?.trim().length ?? 0), 0);
+					if (!hasToolCallPart && assistantTextLength === 0) {
+						// §5.AA classification (was "content-shape only"): the SDK DOES surface a finishReason on the
+						// afterModel context, so classify the empty turn via the SAME centralized `deriveTruncationSignal`
+						// the chat ladder uses — a `max-tokens` stop (or a starved reasoning budget) is a TRUNCATION (fixed by a
+						// bigger budget), distinct from a genuine empty stall. Recording the raw finishReason + the derived
+						// outcome makes the swarm-path truth MEASURABLE (resolving whether the finishReason is reliable here)
+						// and gives the future turn-level recovery a real `truncated` signal to act on. Still observation-only.
+						const truncation = deriveTruncationSignal({ rawReason: context.finishReason });
+						recordSelfObservation({
+							signal: "model_stalled",
+							severity: "warning",
+							message: truncation.truncatedByStopReason
+								? `Model turn truncated (${context.finishReason}) with no tool call and no text — raise the token budget.`
+								: "Model turn produced no tool call and no text (stall/truncation) — likely budget exhausted on reasoning.",
+							workspacePath: agentPerceivedCwd,
+							metadata: {
+								category: "model_stalled",
+								sessionId,
+								finishReason: context.finishReason,
+								outcome: truncation.outcome,
+								truncatedByStopReason: truncation.truncatedByStopReason,
+							},
+						});
+					}
+				}
+				const largeFileControl = await largeFileWorkflow.afterModel(context);
+				return (
+					largeFileControl ??
+					reviewNKleinAfterModelCompletion(context, { hasChangedFiles: await hasChangedFiles() })
+				);
+			},
+			afterTool(context) {
+				if (doesNKleinToolInvalidateRepoMap(context)) {
+					cachedRepoMap = null;
+				}
+				return undefined;
+			},
+		},
+		setup(api) {
+			api.registerMessageBuilder({
+				name: "kanban-read-files-focus",
+				build(messages) {
+					return focusKanbanReadFilesForNextRequest(messages) ?? messages;
+				},
+			});
+		},
+	};
+}
+
+/** Runtime hook: capture the agent's latest focus chain for beforeModel re-anchoring (called on `update_focus_chain`). */
+export function recordSessionFocusChain(sessionId: string, chain: FocusChain): void {
+	focusChainBySessionId.set(sessionId, chain);
+}
+
+/** Runtime hook: forget one session's re-anchor state (focus chain + goal cadence) on session end/reset. */
+export function forgetSessionFocusState(sessionId: string): void {
+	focusChainBySessionId.delete(sessionId);
+	goalReanchorLastTurnBySessionId.delete(sessionId);
+}
+
+/** Runtime hook: drop all sessions' re-anchor state on runtime dispose. */
+export function clearAllSessionFocusState(): void {
+	focusChainBySessionId.clear();
+	goalReanchorLastTurnBySessionId.clear();
+}
