@@ -81,6 +81,7 @@ import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
 import type { DecompositionStallNudgerCallbacks } from "./decomposition-stall-nudger";
 import { DecompositionStallNudger, isChatOnlyDecompositionActivity } from "./decomposition-stall-nudger";
 import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
+import { hasStallEvidence, shouldAttemptAdaptiveBudgetRetry } from "./nklein-adaptive-retry-policy";
 import {
 	type AgentSandboxManager,
 	type AgentSandboxPoolConfig,
@@ -4316,16 +4317,23 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * 2 attempts; every fire is recorded as a self-observation so the scoreboard can measure recovery rate.
 	 */
 	private maybeAdaptiveBudgetRetry(taskId: string, summary: RuntimeTaskSessionSummary): void {
-		if (!isTruthyEnv(process.env.NKLEIN_ADAPTIVE_RETRY) || summary.state !== "awaiting_review") {
-			return;
-		}
 		const providerId = summary.providerId ?? null;
 		const modelId = summary.modelId ?? null;
-		if (!providerId || !modelId || isHomeAgentSessionId(taskId)) {
+		const state = this.adaptiveRetryStateByTaskId.get(taskId) ?? { attempt: 0, lastBudget: 1024 };
+		if (
+			!shouldAttemptAdaptiveBudgetRetry({
+				adaptiveRetryEnabled: isTruthyEnv(process.env.NKLEIN_ADAPTIVE_RETRY),
+				summaryState: summary.state,
+				providerId,
+				modelId,
+				isHomeAgentSession: isHomeAgentSessionId(taskId),
+				attempt: state.attempt,
+			})
+		) {
 			return;
 		}
-		const state = this.adaptiveRetryStateByTaskId.get(taskId) ?? { attempt: 0, lastBudget: 1024 };
-		if (state.attempt >= 2) {
+		// The eligibility gate already guarantees provider+model are set; narrow for the async re-send below.
+		if (!providerId || !modelId) {
 			return;
 		}
 		void (async () => {
@@ -4333,11 +4341,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				// Stall evidence: a model_stalled observation recorded during THIS run (since the session started).
 				const since = summary.startedAt ?? 0;
 				const events = await readSelfObservationEvents({ taskId, limit: 25 }).catch(() => []);
-				const stalled = events.some(
-					(event) =>
-						event.createdAt >= since &&
-						(event.signal === "model_stalled" || event.metadata?.category === "model_stalled"),
-				);
+				const stalled = hasStallEvidence(events, since);
 				// Only a stall WITHOUT delivered work qualifies — a captured result branch means the turn produced
 				// something despite the stall observation (leave it to the normal review flow).
 				if (!stalled || this.sandboxState.getResultBranch(taskId)) {
