@@ -9068,3 +9068,4 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
 
 ## 10. manually added todos
 - [ ] replace the cli argument parsing in start.sh and start.bat with a proper arg parsing library (for example python argparse or similar). details to be propesed by agent and decided by user guidance
+- [ ] make !Klein a full blown desktop app (macos first, but also windows and linux), with a desktop UI (can use existing UI by wrapping it into "a window") and also with serving the UI via a webserver, so that it can be accessed from LAN or if "external setup exists" also for external networks. !Klein shall also have a daemon running, with a menu bar icon on macos, windows and linux, that allows to see basic activity + start/pause controls and also allow to open the desktop UI
