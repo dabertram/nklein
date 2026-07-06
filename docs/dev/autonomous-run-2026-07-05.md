@@ -815,3 +815,14 @@ Behavior-preserving; +9 unit tests (case-insensitive auth-header detection, Bear
 **Run total: 5 §5.U slices, ~33 new unit tests, 5 focused modules extracted.** Next candidate: the LM Studio + generic
 `discoverModelsFromEndpoint` fetchers are I/O-bound (harder), but `resolveModelListSettings` (catalog base-URL resolution)
 is nearly pure and testable — a good next cut once its `listSdkProviderCatalog` dep is injectable.
+
+### ▶ §5.U slice 6 (2026-07-06, d494ddf7) — extracted nklein-managed-provider-credentials
+Moved the cohesive managed-provider (nklein / oca / openai-codex) credential-resolution cluster — the
+`MANAGED_PROVIDER_ENV_KEYS` table, `readEnvApiKey`, `resolveManagedProviderEnvApiKey`, and
+`resolveManagedProviderLaunchApiKey` (the oauth→settings→env precedence + the "sign in from Settings" error) — into its
+own module. All deps are shared-module imports, so no ripple; the service imports the launch-key resolver back and drops
+the now-unused `formatManagedProviderDisplayName` import. Behavior-preserving; +8 unit tests (env trim/blank, the
+oauth>settings>env precedence, both error branches with/without an env-var hint). Full gate green. **Progress:**
+provider-service 1576 → 1535 (down 116 from the 1651 run-start). **Run total: 6 §5.U slices, ~41 new unit tests, 6 focused
+modules extracted.** Remaining provider-service clusters: provider-selection persistence (file I/O, ~4 fns), remote-config
+parsing, and `resolveModelListSettings`. After that, runtime-server.ts (2527) is the next monolith.
