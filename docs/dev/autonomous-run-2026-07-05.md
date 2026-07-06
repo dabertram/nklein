@@ -1607,3 +1607,20 @@ byte-for-byte via `sed`, only the module header + accessors hand-written).
   the existing `nklein-session-runtime.test.ts` import + assertions pass untouched; `task-reanchor-before-model.test.ts`
   and `nklein-focus-chain-rail.test.ts` (the hooks' behavioral coverage) also green. Full gate: tsc ✓, biome ✓,
   **7910/7910 tests ✓**. Behavior-preserving by construction (verbatim relocation; only map access wrapped in accessors).
+
+### 2026-07-06 (Opus) · §5.U — de-dup the byte-critical prompt assembly (David-approved: byte-pin test → dedup)
+
+David approved the previously-gated dedup of the two `assembleAndRecord` sites in `nklein-task-session-service.ts`
+(`startTaskSession` primary + `startRuntimeTaskSessionFromLaunchConfig` restart), explicitly **"byte-pin test, then
+dedup."** Done in that order:
+1. **Pinned the byte-invariant first (+4 tests, `nklein-session-system-prompt.test.ts`).** The pure assembler resolves
+   every divergent optional field via `?? ""` / `?? []`, so **absent ≡ null ≡ `""` ≡ `[]`** — proven for `planningPrompt`,
+   `skillFragments`, `homeAgentAppend`/`sessionEnv`, plus a "restart-shape ≡ primary-shape-with-extras-nulled" convergence
+   test. This is exactly the missing safety net: a future edit swapping `?? ""` for an `if present` branch now goes RED
+   instead of silently shifting §5.AQ prefix-cache bytes fleet-wide.
+2. **Extracted one shared `buildSessionSystemPromptInput(args)` helper** both paths call. It resolves the shared inputs
+   (session kind, home-agent append, temporal block) and defaults the primary-only extras to null/[]; the genuinely
+   per-path pieces stay explicit args — `efficiencyRules` (restart bakes the `NKLEIN_LEAN_SYSPROMPT` lean/full level,
+   primary doesn't), `planningPrompt` + `skillFragments` (primary-only). The two call sites can no longer drift a prompt
+   byte apart. Gate: tsc ✓, biome ✓, **7914/7914 ✓** (7910 + the 4 byte-pins). This closes the last David-gated seam in
+   the flagship's prompt path; the remaining task-session-service bulk is the lifecycle dispatch, not the prompt build.

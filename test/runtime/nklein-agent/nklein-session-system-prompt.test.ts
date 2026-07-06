@@ -58,3 +58,57 @@ describe("buildSessionSystemPrompt (§5.AQ / §5.U extraction)", () => {
 		expect(staticText).toBe(customText);
 	});
 });
+
+/**
+ * §5.U byte-stability invariants that GATE the two-call-site prompt-assembly dedup (startTaskSession vs
+ * startRuntimeTaskSessionFromLaunchConfig). The restart path OMITS `planningPrompt` + `skillFragments`; the primary
+ * path passes them. A single shared input-builder can only serve both if an ABSENT optional field assembles
+ * byte-identically to `null` / `""` / `[]` — which it does, because the assembler resolves each via `?? ""` / `?? []`.
+ * These tests pin that so a future edit (e.g. swapping `?? ""` for an `if present` branch) can't silently shift the
+ * §5.AQ cache-critical bytes and break the dedup without a red test.
+ */
+describe("buildSessionSystemPrompt — absent ≡ null ≡ empty (the dedup byte-invariant)", () => {
+	const common: SessionSystemPromptInput = {
+		basePrompt: "BASE",
+		baseIsStaticShell: true,
+		efficiencyRules: "RULES",
+		temporalBlock: "TODAY",
+		homeAgentAppend: "HOME",
+		sessionEnv: "ENV",
+	};
+
+	it("planningPrompt: absent ≡ null ≡ empty-string", () => {
+		const absent = buildSessionSystemPrompt(common).text;
+		expect(buildSessionSystemPrompt({ ...common, planningPrompt: null }).text).toBe(absent);
+		expect(buildSessionSystemPrompt({ ...common, planningPrompt: "" }).text).toBe(absent);
+	});
+
+	it("skillFragments: absent ≡ empty array", () => {
+		const absent = buildSessionSystemPrompt(common).text;
+		expect(buildSessionSystemPrompt({ ...common, skillFragments: [] }).text).toBe(absent);
+	});
+
+	it("homeAgentAppend / sessionEnv: absent ≡ null", () => {
+		const bare: SessionSystemPromptInput = {
+			basePrompt: "BASE",
+			baseIsStaticShell: true,
+			efficiencyRules: "RULES",
+			temporalBlock: "TODAY",
+		};
+		expect(buildSessionSystemPrompt({ ...bare, homeAgentAppend: null, sessionEnv: null }).text).toBe(
+			buildSessionSystemPrompt(bare).text,
+		);
+	});
+
+	it("the two call-site shapes converge: restart-shape ≡ primary-shape with its extras nulled", () => {
+		// restart omits planningPrompt + skillFragments; primary passes them. Same shared fields + null/[] extras ⇒
+		// byte-identical, so one shared builder serves both paths without moving a single §5.AQ prefix byte.
+		const restartShape = buildSessionSystemPrompt(common).text;
+		const primaryShapeExtrasNulled = buildSessionSystemPrompt({
+			...common,
+			planningPrompt: null,
+			skillFragments: [],
+		}).text;
+		expect(primaryShapeExtrasNulled).toBe(restartShape);
+	});
+});

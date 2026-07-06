@@ -32,6 +32,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { applyThinkingDisable } from "../core/model-thinking-control";
+import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import { shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
@@ -92,7 +93,7 @@ import { NKleinPauseController } from "./nklein-pause-controller";
 import { createPlanCritiqueRunner } from "./nklein-plan-critique-runner";
 import type { NKleinPlanCritiqueResult } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
-import { createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
+import { type AssembleSessionSystemPromptInput, createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
@@ -899,6 +900,49 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return [...(sandboxExtraTools ?? []), ...retrievalExtraTools];
 	}
 
+	/**
+	 * §5.U/§5.AQ — the SINGLE builder for a session's system-prompt assembly input, shared by both start paths
+	 * (`startTaskSession` + `startRuntimeTaskSessionFromLaunchConfig`) so they can never drift a §5.AQ prefix byte
+	 * apart. The genuinely per-path pieces stay explicit args: `efficiencyRules` (the restart path bakes the lean/full
+	 * level, the primary path doesn't), and `planningPrompt` + `skillFragments` (primary-only — the restart path passes
+	 * neither, which the pure `buildSessionSystemPrompt` treats byte-identically to the null/[] this defaults them to;
+	 * pinned by nklein-session-system-prompt.test.ts). The volatility-ordered fragment assembly itself lives in that
+	 * pure, unit-tested function; this only resolves the shared inputs (session kind, home-agent append, temporal block).
+	 */
+	private buildSessionSystemPromptInput(args: {
+		taskId: string;
+		prompt: string;
+		modelId: string | null | undefined;
+		workspacePath: string | null;
+		basePrompt: string;
+		baseIsStaticShell: boolean;
+		sessionEnv: string | null;
+		efficiencyRules: string;
+		planningPrompt?: string | null;
+		skillFragments?: readonly PromptFragment[];
+	}): AssembleSessionSystemPromptInput {
+		return {
+			taskId: args.taskId,
+			modelId: args.modelId,
+			sessionKind: derivePromptSessionKind(args.taskId, {
+				isExplicitDecomposition: this.explicitDecompositionTaskIds.has(args.taskId),
+			}),
+			workspacePath: args.workspacePath,
+			basePrompt: args.basePrompt,
+			baseIsStaticShell: args.baseIsStaticShell,
+			homeAgentAppend: resolveHomeAgentAppendSystemPrompt(args.taskId),
+			sessionEnv: args.sessionEnv,
+			planningPrompt: args.planningPrompt ?? null,
+			efficiencyRules: args.efficiencyRules,
+			temporalBlock: decideTemporalContextInjection({
+				enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
+				text: args.prompt,
+				now: new Date(),
+			}).block,
+			skillFragments: args.skillFragments ?? [],
+		};
+	}
+
 	private async startRuntimeTaskSessionFromLaunchConfig(
 		input: StartRuntimeTaskSessionFromLaunchConfigInput,
 	): Promise<RuntimeTaskSessionStartResult> {
@@ -945,44 +989,38 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					providerId: launchConfig.providerId,
 					rules: runtimeSetup.loadRules(),
 				});
-		// W2.3b (§5.AQ): VOLATILITY-ORDERED fragment assembly replaces raw concat — base (head-pinned; a byte-stable
-		// static shell since the §5.AQ(e) restructure moved its cwd/date out) → efficiency rules (config) → knows-
-		// today date (daily; empty unless enabled+relevant, §5.AC/§5.AE) → home-agent append (task) → session-env
-		// (the extracted cwd/date `<session>` trailer, LAST — the true task-volatile suffix).
-		const systemPrompt = this.promptWarmthLedger.assembleAndRecord({
-			taskId: input.taskId,
-			modelId: launchConfig.modelId,
-			// §5.AQ warmth ledger: this seam builds the SYNTHETIC sessions too (`::review`/`::plan-critique`/
-			// `::merge` launch configs carry their kind in the task-id suffix) — derive the shell kind from the id.
-			sessionKind: derivePromptSessionKind(input.taskId, {
-				isExplicitDecomposition: this.explicitDecompositionTaskIds.has(input.taskId),
+		// §5.U/§5.AQ: both start paths build their assembly input through the shared `buildSessionSystemPromptInput`
+		// (the byte-stable, volatility-ordered fragment assembly lives in the pure `buildSessionSystemPrompt`). This
+		// restart seam also builds the SYNTHETIC sessions (`::review`/`::plan-critique`/`::merge` — kind derived from
+		// the task-id suffix) and bakes the lean/full efficiency-rules level; it carries no planning/skill fragments.
+		const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
+			this.buildSessionSystemPromptInput({
+				taskId: input.taskId,
+				prompt: input.prompt,
+				modelId: launchConfig.modelId,
+				workspacePath: hostWorkspaceRoot,
+				basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
+				baseIsStaticShell: !customSystemPrompt,
+				sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
+				efficiencyRules: buildKanbanEfficiencyRules({
+					contextScope: input.contextScope ?? "smart",
+					contextWindow: requestContextWindow,
+					timeoutMode: input.timeoutMode ?? "normal",
+					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+					// W2.4a: small (quality-effective) windows get the LEAN rules. FLAG-GATED OFF after live A/B evidence
+					// (run9 2026-07-02): the first lean run showed coder-gpu ping-ponging read_files/get_file_size for 14min
+					// with zero writes — the dropped "never re-read covered ranges" lines plausibly serve as anti-loop rails
+					// for small models. Enable with NKLEIN_LEAN_SYSPROMPT=1 to measure; default full until the scoreboard
+					// proves lean safe (research: measure-first).
+					level:
+						isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) &&
+						requestContextWindow &&
+						requestContextWindow <= 40_000
+							? "lean"
+							: "full",
+				}),
 			}),
-			workspacePath: hostWorkspaceRoot,
-			basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
-			baseIsStaticShell: !customSystemPrompt,
-			homeAgentAppend: resolveHomeAgentAppendSystemPrompt(input.taskId),
-			sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
-			efficiencyRules: buildKanbanEfficiencyRules({
-				contextScope: input.contextScope ?? "smart",
-				contextWindow: requestContextWindow,
-				timeoutMode: input.timeoutMode ?? "normal",
-				maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-				// W2.4a: small (quality-effective) windows get the LEAN rules. FLAG-GATED OFF after live A/B evidence
-				// (run9 2026-07-02): the first lean run showed coder-gpu ping-ponging read_files/get_file_size for 14min
-				// with zero writes — the dropped "never re-read covered ranges" lines plausibly serve as anti-loop rails
-				// for small models. Enable with NKLEIN_LEAN_SYSPROMPT=1 to measure; default full until the scoreboard
-				// proves lean safe (research: measure-first).
-				level:
-					isTruthyEnv(process.env.NKLEIN_LEAN_SYSPROMPT) && requestContextWindow && requestContextWindow <= 40_000
-						? "lean"
-						: "full",
-			}),
-			temporalBlock: decideTemporalContextInjection({
-				enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
-				text: input.prompt,
-				now: new Date(),
-			}).block,
-		});
+		);
 
 		await this.waitUntilTaskResumed(input.taskId);
 		this.requestTimer.markStarted(input.taskId);
@@ -1512,33 +1550,25 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// §5.AE honor the user's skill-dynamics level so the fragment resolution matches the affinity-tag one.
 					...(request.skillDynamicsLevel ? { dynamicsLevel: request.skillDynamicsLevel } : {}),
 				});
-				const systemPrompt = this.promptWarmthLedger.assembleAndRecord({
-					taskId: request.taskId,
-					modelId,
-					// §5.AQ warmth ledger: the primary seam is worker/architect (same signal as the summary's role
-					// stamp above) or the home-agent "chat" — synthetic `::` kinds never start here.
-					sessionKind: derivePromptSessionKind(request.taskId, {
-						isExplicitDecomposition: this.explicitDecompositionTaskIds.has(request.taskId),
+				const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
+					this.buildSessionSystemPromptInput({
+						taskId: request.taskId,
+						prompt: request.prompt,
+						modelId,
+						workspacePath: request.workspaceRoot?.trim() || request.cwd,
+						basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
+						baseIsStaticShell: !customSystemPrompt,
+						sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
+						planningPrompt: planningSystemPrompt,
+						efficiencyRules: buildKanbanEfficiencyRules({
+							contextScope: request.contextScope ?? "smart",
+							contextWindow: requestContextWindow,
+							timeoutMode: request.timeoutMode ?? "normal",
+							maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
+						}),
+						skillFragments: sessionSkillFragments,
 					}),
-					workspacePath: request.workspaceRoot?.trim() || request.cwd,
-					basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
-					baseIsStaticShell: !customSystemPrompt,
-					homeAgentAppend: resolveHomeAgentAppendSystemPrompt(request.taskId),
-					sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
-					planningPrompt: planningSystemPrompt,
-					efficiencyRules: buildKanbanEfficiencyRules({
-						contextScope: request.contextScope ?? "smart",
-						contextWindow: requestContextWindow,
-						timeoutMode: request.timeoutMode ?? "normal",
-						maxAgentWritableFileLines: request.maxAgentWritableFileLines ?? null,
-					}),
-					temporalBlock: decideTemporalContextInjection({
-						enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
-						text: request.prompt,
-						now: new Date(),
-					}).block,
-					skillFragments: sessionSkillFragments,
-				});
+				);
 				const toolSchemaTokens = estimateKanbanToolSchemaTokens(runtimeSetup.toolPolicies);
 				this.contextBudgetInputs.record(request.taskId, systemPrompt, toolSchemaTokens);
 
