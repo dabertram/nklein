@@ -802,3 +802,15 @@
 > fitness/observation history. **Proposed:** resolve `descriptor.modelKey` for a running task and stamp THAT as the model
 > identity on observations + fitness (keep the runtime id only as a display alias); decide migration for existing rows
 > (re-key vs. let them decay). Needs David's sign-off on approach (persisted-data change) before implementing.
+
+> **★ ROUTING-CLUSTER SCOPE CONFIRMED (2026-07-07) — recommend a dedicated, reviewed, integration-tested effort, NOT the grind.**
+> The remaining routing flip is a REGISTRY-IDENTITY REFACTOR, not a value swap: `NKleinModelRegistryEntry` has only
+> `modelId` (used for BOTH the evidence key AND launch), and `nklein-model-registry-deserialize` RE-DERIVES `entry.key`
+> from `entry.modelId` — so the stable-key switch needs a persisted SCHEMA change (add `entry.modelKey`), a migration,
+> and breaking the `entry.key = f(modelId)` invariant across ~12 sites (candidate builder, deserialize, registry,
+> ledger write, residency set, verdict). The **residency flip carries a double-start hazard** (if `runningModelKeys` and
+> `candidate.entry.key` diverge, a running model looks "free" → the same model starts twice → resource exhaustion), and
+> there are **no integration tests for the routing/residency path** — the unit guards catch key-derivation mismatches but
+> not selection/residency behavior. **Delivered safely in the grind:** the `deriveModelFamily` fix, the fitness/display
+> heal-on-rename, the candidate↔ledger alignment guard, and the inert scaffolding (store `getStableModelKey`, summary
+> `modelKey`, the primitive). The routing cluster is left consistent + green (runtime-keyed) pending a focused effort.
