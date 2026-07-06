@@ -67,10 +67,10 @@ describe("parkTaskForAutonomyBudget (§5.U extraction)", () => {
 describe("parkActiveTasksForOperatorPause (§5.U extraction)", () => {
 	it("parks only running/queued tasks, emitting a summary for each", () => {
 		const running = summary({ taskId: "run", state: "running" });
-		const done = summary({ taskId: "done", state: "completed" });
+		const done = summary({ taskId: "done", state: "failed" }); // non-running/queued → skipped
 		const d = deps({
 			listSummaries: vi.fn(() => [running, done]),
-			getTaskEntry: vi.fn((id: string) => (id === "run" ? entry() : entry("completed"))),
+			getTaskEntry: vi.fn((id: string) => (id === "run" ? entry() : entry("failed"))),
 		});
 		createParkController(d).parkActiveTasksForOperatorPause();
 		expect(d.emitSummary).toHaveBeenCalledTimes(1); // only the running task

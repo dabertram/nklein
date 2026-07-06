@@ -188,15 +188,9 @@ import {
 	toErrorMessage,
 } from "./nklein-task-session-helpers";
 import { shouldDisableSwarmThinking } from "./nklein-task-start-guard";
-import {
-	formatTaskTimeoutFailureMessage,
-	formatTaskTimeoutLabel,
-	formatTaskTimeoutMessage,
-	formatTaskTimeoutReason,
-} from "./nklein-task-timeout-diagnostics";
 import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
-import { TaskTimeoutScheduler } from "./nklein-task-timeout-scheduler";
 import { createTeamProgressEmitter } from "./nklein-team-progress-emitter";
+import { createTimeoutController } from "./nklein-timeout-controller";
 import { createNKleinWatcherRegistry, type NKleinWatcherRegistry } from "./nklein-watcher-registry";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
 import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
@@ -236,15 +230,6 @@ const MAX_MERGE_RESOLUTION_FILE_BYTES = 1024 * 1024;
 const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
 const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
-
-interface NKleinTaskTimeoutSettings {
-	streamTimeoutMs: number | null;
-	toolTimeoutMs: number | null;
-	conversationTimeoutMs: number | null;
-	streamTimeoutSource: TaskRunTimeoutSource;
-	toolTimeoutSource: TaskRunTimeoutSource;
-	conversationTimeoutSource: TaskRunTimeoutSource;
-}
 
 export interface StartNKleinTaskSessionRequest {
 	taskId: string;
@@ -546,8 +531,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
 	private readonly pendingTimeout = new TaskPendingTimeoutStore();
 	private readonly autonomyBudgetWatchdog: AutonomyBudgetWatchdog;
-	private readonly timeoutSettingsByTaskId = new Map<string, NKleinTaskTimeoutSettings>();
-	private readonly timeoutScheduler = new TaskTimeoutScheduler();
 	private readonly explicitDecompositionTaskIds = new Set<string>();
 	private readonly decompositionStallNudger: DecompositionStallNudger;
 	private readonly repeatedToolCallGuard: RepeatedToolCallGuard;
@@ -598,6 +581,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		markTaskParked: (taskId) => this.pauseController.markTaskParked(taskId),
 		abortTaskSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
 		recordObservation: (event) => this.recordObservationWithModel(event),
+	});
+	private readonly timeoutController = createTimeoutController({
+		isToolActive: (taskId) => this.activeToolTaskIds.has(taskId),
+		getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId),
+		clearTaskRunTeardown: (taskId) => this.clearTaskTimeouts(taskId),
+		abortTaskSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
+		recordTimeout: (taskId, reason, source) => this.pendingTimeout.record(taskId, reason, source),
+		canRestartTaskSession: (taskId) => this.sessionRuntime.canRestartTaskSession(taskId),
+		recordObservation: (event) => this.recordObservationWithModel(event),
+		emitTaskFailure: (taskId, entry, context, error) => this.emitTaskFailure(taskId, entry, context, error),
 	});
 
 	constructor(options: CreateInMemoryNKleinTaskSessionServiceOptions) {
@@ -1308,92 +1301,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	private clearTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind): void {
-		this.timeoutScheduler.clearKind(taskId, kind);
+		this.timeoutController.clearKind(taskId, kind);
 	}
 
 	private clearTaskTimeouts(taskId: string): void {
-		this.timeoutScheduler.clearAll(taskId);
+		this.timeoutController.clearAll(taskId);
 		this.activeToolTaskIds.delete(taskId);
 		this.modelResidencyWatcher.stop(taskId);
-	}
-
-	private scheduleTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind, timeoutMs: number | null): void {
-		this.timeoutScheduler.schedule(taskId, kind, timeoutMs, (firedTimeoutMs) => {
-			void this.handleTaskTimeout(taskId, kind, firedTimeoutMs);
-		});
-	}
-
-	private scheduleStreamTimeout(taskId: string): void {
-		const settings = this.timeoutSettingsByTaskId.get(taskId);
-		if (!settings || this.activeToolTaskIds.has(taskId)) {
-			return;
-		}
-		this.scheduleTaskTimeout(taskId, "stream", settings.streamTimeoutMs);
-	}
-
-	private scheduleConversationTimeout(taskId: string): void {
-		const settings = this.timeoutSettingsByTaskId.get(taskId);
-		if (!settings) {
-			return;
-		}
-		this.scheduleTaskTimeout(taskId, "conversation", settings.conversationTimeoutMs);
-	}
-
-	private async handleTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind, timeoutMs: number): Promise<void> {
-		this.clearTaskTimeout(taskId, kind);
-		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (entry?.summary.state !== "running") {
-			return;
-		}
-		this.clearTaskTimeouts(taskId);
-		await this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
-		const timeoutLabel = formatTaskTimeoutLabel(kind);
-		const timeoutSettings = this.timeoutSettingsByTaskId.get(taskId);
-		const timeoutSource =
-			kind === "stream"
-				? timeoutSettings?.streamTimeoutSource
-				: kind === "tool"
-					? timeoutSettings?.toolTimeoutSource
-					: timeoutSettings?.conversationTimeoutSource;
-		this.pendingTimeout.record(taskId, formatTaskTimeoutReason(timeoutLabel, timeoutMs), timeoutSource ?? null);
-		// follow-up-6 §3.5: a stream/tool inactivity timeout should leave a structured note on the card —
-		// what the model was last doing, the last tool, whether any work was captured, and whether resuming is
-		// safe — so a review caused by a stall is diagnosable instead of just "timeout after N seconds".
-		const lastActivity = entry.summary.latestHookActivity?.activityText ?? null;
-		const lastTool = entry.summary.latestHookActivity?.toolName ?? null;
-		const changesCaptured = Boolean(entry.summary.latestTurnCheckpoint);
-		const restartSafe = this.sessionRuntime.canRestartTaskSession(taskId);
-		this.recordObservationWithModel({
-			signal: "budget_wall",
-			severity: "warning",
-			message: formatTaskTimeoutMessage(timeoutLabel, timeoutMs),
-			taskId,
-			workspacePath: entry.summary.workspacePath ?? null,
-			metadata: {
-				category: "stream_inactivity_timeout",
-				timeoutKind: kind,
-				timeoutMs,
-				lastActivity,
-				lastTool,
-				lastOutputAt: entry.summary.lastOutputAt ?? null,
-				lastTokenAt: entry.summary.lastTokenAt ?? null,
-				changesCaptured,
-				restartSafe,
-			},
-		});
-		this.emitTaskFailure(
-			taskId,
-			entry,
-			"send",
-			new Error(
-				formatTaskTimeoutFailureMessage(timeoutLabel, timeoutMs, {
-					lastActivity,
-					lastTool,
-					changesCaptured,
-					restartSafe,
-				}),
-			),
-		);
 	}
 
 	private async dispatchResolvedTaskInput(input: {
@@ -1885,7 +1799,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.messageRepository.setTaskEntry(request.taskId, entry);
 		this.pendingTurnCancelTaskIds.delete(request.taskId);
 		this.clearTaskTimeouts(request.taskId);
-		this.timeoutSettingsByTaskId.set(request.taskId, {
+		this.timeoutController.setSettings(request.taskId, {
 			streamTimeoutMs: request.streamTimeoutMs ?? null,
 			toolTimeoutMs: request.toolTimeoutMs ?? null,
 			conversationTimeoutMs: request.conversationTimeoutMs ?? null,
@@ -2065,8 +1979,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					}),
 				);
 				if (entry.summary.state === "running") {
-					this.scheduleStreamTimeout(request.taskId);
-					this.scheduleConversationTimeout(request.taskId);
+					this.timeoutController.scheduleStreamTimeout(request.taskId);
+					this.timeoutController.scheduleConversationTimeout(request.taskId);
 					this.modelResidencyWatcher.begin(request.taskId);
 				}
 				await this.waitUntilTaskResumed(request.taskId);
@@ -2421,8 +2335,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				},
 			});
 			this.emitSummary(waitingSummary);
-			this.scheduleStreamTimeout(taskId);
-			this.scheduleConversationTimeout(taskId);
+			this.timeoutController.scheduleStreamTimeout(taskId);
+			this.timeoutController.scheduleConversationTimeout(taskId);
 			const assistantCountBeforeSend = entry.messages.filter((message) => message.role === "assistant").length;
 			const runtimeSetupWorkspacePath = this.sandboxState.getRepoPath(taskId) ?? entry.summary.workspacePath ?? "";
 			void this.runtimeSetupLeaseCache
@@ -2633,7 +2547,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.clearTaskTimeouts(taskId);
 		this.decompositionStallNudger.resetTask(taskId);
 		this.explicitDecompositionTaskIds.delete(taskId);
-		this.timeoutSettingsByTaskId.delete(taskId);
+		this.timeoutController.deleteSettings(taskId);
 	}
 
 	async clearTaskSession(taskId: string): Promise<RuntimeTaskSessionSummary | null> {
@@ -2649,7 +2563,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.autonomyBudgetWatchdog.resetTask(taskId);
 		this.repeatedToolCallGuard.resetTask(taskId);
 		this.clearTaskTimeouts(taskId);
-		this.timeoutSettingsByTaskId.delete(taskId);
+		this.timeoutController.deleteSettings(taskId);
 		await this.sessionRuntime.clearTaskSessions(taskId).catch(() => undefined);
 		await this.agentSandboxManager?.disposeWorkspace(taskId).catch(() => null);
 		this.forgetSandboxTask(taskId);
@@ -3912,13 +3826,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async dispose(): Promise<void> {
-		for (const taskId of this.timeoutScheduler.taskIds()) {
+		for (const taskId of this.timeoutController.taskIds()) {
 			this.clearTaskTimeouts(taskId);
 		}
 		this.decompositionStallNudger.dispose();
 		this.repeatedToolCallGuard.dispose();
 		this.autonomyBudgetWatchdog.dispose();
-		this.timeoutSettingsByTaskId.clear();
+		this.timeoutController.clearSettings();
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
 		this.providerIdStore.clear();
@@ -4542,19 +4456,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}
 			this.activeToolTaskIds.add(taskId);
 			this.clearTaskTimeout(taskId, "stream");
-			this.scheduleTaskTimeout(taskId, "tool", this.timeoutSettingsByTaskId.get(taskId)?.toolTimeoutMs ?? null);
+			this.timeoutController.scheduleToolTimeout(taskId);
 		} else if (hookEventName === "tool_result") {
 			if (entry.summary.latestHookActivity?.toolName?.trim().toLowerCase() === "decompose_project") {
 				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}
 			this.activeToolTaskIds.delete(taskId);
 			this.clearTaskTimeout(taskId, "tool");
-			this.scheduleStreamTimeout(taskId);
+			this.timeoutController.scheduleStreamTimeout(taskId);
 		} else if (entry.summary.state === "running" && !this.activeToolTaskIds.has(taskId)) {
 			if (isChatOnlyDecompositionActivity(entry.summary)) {
 				this.decompositionStallNudger.scheduleDecompositionChatNudge(taskId);
 			}
-			this.scheduleStreamTimeout(taskId);
+			this.timeoutController.scheduleStreamTimeout(taskId);
 		}
 		if (shouldAbortForCreditLimit) {
 			void this.sessionRuntime.abortTaskSession(taskId).catch(() => undefined);
