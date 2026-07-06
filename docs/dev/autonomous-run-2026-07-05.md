@@ -1510,3 +1510,25 @@ question rounds, then executed autonomously. Shipped (each commit gated tsc×2 +
   biome now 0 warnings.
 - **HELD (recorded in todo §5.BB):** the four env-only flag panels (need server config-threading first) + the
   fitness-table browser (needs an endpoint). Egress/searchBackend/speculative settings verified already present.
+
+### Post-Fable resume (2026-07-06, back on Opus) — held-item triage + fitness endpoint
+
+Back on the §5.0.7 polishing grind after the Fable UI/UX pass. David greenlit the two held UI follow-ups as OPTIONAL
+server-side polishing slices. Triaged both:
+- **Fitness-table read endpoint — SHIPPED (`a5e5c3d5`).** The clean, non-dark half: a TESTED pure view builder
+  (`core/fitness-table-view.ts` — flattens the (model × role × difficulty) fitness rows, derives successRate, sets the
+  `belowBar` failing-LLM flag, worst-first sort; 5 tests) + a thin read-only `runtime.getFitnessTable` adapter + client
+  fetch. Purely additive, zero behavior change. Unblocks the future Fable fitness-browser panel (one query away).
+- **Dark-flag config-threading — DEFERRED (recorded, not ground).** The four still-env-only flags (NKLEIN_REVIEW_LENSES,
+  NKLEIN_CHAT_ADAPTIVE_TRUNCATION, NKLEIN_REASONING_BUDGET, NKLEIN_BASIC_MEMORY) each need the FULL first-class-config
+  treatment to round-trip: **~21 sites across 9 files per flag** (contract, types×3, state-factory, update-merge,
+  global-payload×3, change-detection, runtime-config×5, + the consumer). That's heavy, delicate plumbing with near-zero
+  IMMEDIATE value (no UI to set them) — genuinely better bundled with the Fable panels so field+read-path+UI land as one
+  coherent, immediately-valuable, gated unit. **`NKLEIN_BASIC_MEMORY` additionally is sandbox-mount/ISOLATION-sensitive →
+  David-gated** (making mount policy config-driven risks the strict-isolation prime directive if misconfigured). Not a
+  clean autonomous slice; flagged for the bundled UI slice.
+
+**Vein re-confirmation:** §5.V high-value coverage is saturated (the two remaining `runtime-endpoint.ts` untested exports
+are the TLS getter + fetch-timeout installer that slice 36 explicitly skipped as low-value; `summarizeWorkspaceBoardStreams`
+is thin glue over the already-tested `summarizeBoardStreams` core — testing it = padding). §5.U big-3 is mined
+(task-session-service **4886 → 2773** across the run; remainder = the entangled primary lifecycle, David-gated boundary).
