@@ -395,6 +395,8 @@
 >   `nklein-kanban-access-policy`, and `nklein-baseurl-model-discovery` (the two base-URL fetchers + direct fetch-mocked
 >   coverage — §5.U+§5.V) (+ 3 earlier).
 > - `runtime-server.ts`: 2527 → **2230** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`,
+> - `runtime-server.ts` (cont.): also lifted `terminal-retry-sweep-policy` — the pure debounce/redrive-bypass gate out of
+>   `retryWaitingCardsAfterTerminal` (the redrive-BYPASSES-debounce invariant was inline + untested; +4 tests).
 >   `runtime-server-http` (readRequestBody + getRemoteIp), `nklein-runtime-terminal-telemetry` (the two terminal-summary
 >   telemetry recorders), and `nklein-plan-integration-gate-runner` (the server-side plan gate) — the last two lifted from
 >   INSIDE the createRuntimeServer closure.
