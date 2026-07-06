@@ -2,11 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { OAuthClientProvider, OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import type {
-	OAuthClientInformationMixed,
-	OAuthClientMetadata,
-	OAuthTokens,
-} from "@modelcontextprotocol/sdk/shared/auth.js";
+import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { RuntimeNKleinMcpServer } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
 import { toErrorMessage } from "../core/error-message";
@@ -17,6 +13,13 @@ import {
 	type SandboxExecTarget,
 	selectSandboxMcpServersForModel,
 } from "../core/sandbox-mcp-catalog";
+import {
+	buildMcpOauthCallbackUrl,
+	createOauthClientMetadata,
+	MCP_OAUTH_CALLBACK_PATH,
+	matchesMcpOauthCallbackPath,
+	readMcpOauthCallbackRequestId,
+} from "./nklein-mcp-oauth-callback";
 import {
 	hasAccessToken,
 	type NKleinMcpOauthServerState,
@@ -42,8 +45,6 @@ import {
 
 const DEFAULT_AUTH_TIMEOUT_MS = 3 * 60 * 1000;
 const COMPLETED_CALLBACK_RETENTION_MS = 5 * 60 * 1000;
-const OAUTH_CALLBACK_PATH = "/kanban-mcp/mcp-oauth-callback";
-const OAUTH_CALLBACK_REQUEST_ID_PARAM = "requestId";
 
 const CALLBACK_RESPONSE_HTML = {
 	success:
@@ -127,16 +128,6 @@ export interface NKleinMcpOauthCallbackResponse {
 
 export interface CreateNKleinMcpRuntimeServiceOptions {
 	onAuthStatusesChanged?: (statuses: NKleinMcpServerAuthStatus[]) => void | Promise<void>;
-}
-
-function createOauthClientMetadata(redirectUrl: string): OAuthClientMetadata {
-	return {
-		client_name: "!Klein",
-		redirect_uris: [redirectUrl],
-		grant_types: ["authorization_code", "refresh_token"],
-		response_types: ["code"],
-		token_endpoint_auth_method: "none",
-	};
 }
 
 async function createOauthProviderContext(input: {
@@ -288,7 +279,7 @@ class RuntimeMcpServerClient implements SdkMcpServerClient {
 			serverName: this.server.name,
 			redirectUrl:
 				parseOauthSettings(this.oauthSettingsPath).servers[this.server.name]?.redirectUrl ??
-				buildKanbanRuntimeUrl(OAUTH_CALLBACK_PATH),
+				buildKanbanRuntimeUrl(MCP_OAUTH_CALLBACK_PATH),
 		});
 	}
 
@@ -393,12 +384,6 @@ class RuntimeMcpServerClient implements SdkMcpServerClient {
 	}
 }
 
-function buildMcpOauthCallbackUrl(requestId: string): string {
-	const callbackUrl = new URL(buildKanbanRuntimeUrl(OAUTH_CALLBACK_PATH));
-	callbackUrl.searchParams.set(OAUTH_CALLBACK_REQUEST_ID_PARAM, requestId);
-	return callbackUrl.toString();
-}
-
 function rememberCompletedOauthCallback(requestId: string, response: NKleinMcpOauthCallbackResponse): void {
 	const existing = completedOauthCallbacksByRequestId.get(requestId);
 	if (existing) {
@@ -416,11 +401,11 @@ function rememberCompletedOauthCallback(requestId: string, response: NKleinMcpOa
 }
 
 export async function handleNKleinMcpOauthCallback(requestUrl: URL): Promise<NKleinMcpOauthCallbackResponse | null> {
-	if (requestUrl.pathname !== OAUTH_CALLBACK_PATH) {
+	if (!matchesMcpOauthCallbackPath(requestUrl)) {
 		return null;
 	}
 
-	const requestId = requestUrl.searchParams.get(OAUTH_CALLBACK_REQUEST_ID_PARAM)?.trim();
+	const requestId = readMcpOauthCallbackRequestId(requestUrl);
 	if (!requestId) {
 		return {
 			statusCode: 400,
