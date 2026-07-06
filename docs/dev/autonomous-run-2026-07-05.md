@@ -1411,3 +1411,27 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   createRuntimeServer into `createPlanIntegrationGateRunner({ warn })` (service passed per-call). 5 tests. **runtime-server.ts
   2385 → 2230.** Continuation tally now 4 clean §5.U increments; runtime-server 2451 → 2230 (−221), task-session-service
   3392 → 3157.
+
+### Checkpoint (2026-07-06) — clean §5.U vein assessment
+
+Four clean, bounded, test-gated §5.U extractions landed this continuation (all green: tsc+biome+fast+swarm-deterministic-pass
+integration, one cluster per commit). Flagship monolith state now:
+- `nklein-task-session-service.ts` **4886 → 3157** (−35% across the run): adaptive-budget controller + context-overflow controller
+  this continuation, on top of the review-cluster seam (6/6).
+- `runtime-server.ts` **2527 → 2230**: terminal-telemetry recorders + plan-integration-gate runner lifted out of the
+  ~2300-line createRuntimeServer closure this continuation.
+- `nklein-provider-service.ts` 1073 (unchanged this continuation).
+
+**What remains is NOT clean-autonomous — it needs David or carries risk beyond the current safety net:**
+1. **createRuntimeServer core** — the big remaining closures (headless-auto-review finalize ~430 lines with several mutable
+   in-flight sets; the ~500-line scoped-service factory; the task-start/drain scheduler) capture large amounts of closure
+   scope. These are single large clusters with ambiguous module boundaries → **David decision on boundary before extracting.**
+2. **task-session-service core** — startTaskSession (~400 lines), sendTaskSessionInput, dispatchResolvedTaskInput, handleTaskEvent
+   are the entangled primary lifecycle. Decomposing them is the hard core; boundary is genuinely ambiguous → **David.**
+3. **provider-service model-discovery fetchers** (fetchLiteLlmBaseUrlModels / fetchLmStudioBaseUrlModels) are a real DRY/template
+   candidate, BUT they do live `globalThis.fetch` and the fetch-LOOP internals are not directly covered (only the throttle/cache
+   around them is). Consolidating two subtly-divergent network fetchers without a loop-level test net is a behavior-risk the
+   prime directive warns against. **Owed first: fetch-mocked characterization tests (a §5.V increment) to establish the net,
+   THEN consolidate.** That §5.V test-first step IS autonomous and is the natural next action if the grind resumes.
+
+§5.Z heavy flows (need a live workspace) and §5.AZ release prep (David-gated, on hold) also remain per prior entries.
