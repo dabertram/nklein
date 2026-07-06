@@ -1,0 +1,41 @@
+import { describe, expect, it } from "vitest";
+import { getKanbanRuntimePort, isKanbanRemoteHost } from "../../../src/core/runtime-endpoint";
+import { normalizeRequestPath } from "../../../src/server/assets";
+import { getAllowedHostHeaders } from "../../../src/server/middleware";
+
+describe("normalizeRequestPath (§5.V coverage)", () => {
+	it("maps the root to /index.html", () => {
+		expect(normalizeRequestPath("/")).toBe("/index.html");
+	});
+
+	it("strips a query string and decodes percent-encoding", () => {
+		expect(normalizeRequestPath("/assets/app.js?v=123")).toBe("/assets/app.js");
+		expect(normalizeRequestPath("/a%20b/c.txt")).toBe("/a b/c.txt");
+	});
+
+	it("passes a plain path through unchanged", () => {
+		expect(normalizeRequestPath("/index.html")).toBe("/index.html");
+		expect(normalizeRequestPath("/favicon.ico")).toBe("/favicon.ico");
+	});
+});
+
+describe("getAllowedHostHeaders (§5.V coverage)", () => {
+	it("returns a non-empty allow-list whose every entry is host:<runtime-port>", () => {
+		const port = getKanbanRuntimePort();
+		const allowed = getAllowedHostHeaders();
+		expect(allowed.size).toBeGreaterThan(0);
+		for (const entry of allowed) {
+			expect(entry.endsWith(`:${port}`)).toBe(true);
+		}
+	});
+
+	it("allows the loopback hosts on the runtime port when bound locally", () => {
+		if (isKanbanRemoteHost()) {
+			return; // remote bind uses a single explicit host — the loopback entries don't apply
+		}
+		const port = getKanbanRuntimePort();
+		const allowed = getAllowedHostHeaders();
+		expect(allowed.has(`localhost:${port}`)).toBe(true);
+		expect(allowed.has(`127.0.0.1:${port}`)).toBe(true);
+	});
+});
