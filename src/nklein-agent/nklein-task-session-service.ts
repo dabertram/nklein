@@ -51,11 +51,7 @@ import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
 import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
-import {
-	assemblePromptFragments,
-	computeSharedPrefixRatio,
-	type PromptFragment,
-} from "../core/prompt-fragment-assembly";
+import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
 import { browserFetchAdapter } from "../core/retrieval-fetch-adapter";
 import { runRetrievalLoop } from "../core/retrieval-loop-driver";
 import { searchHitsAdapter } from "../core/retrieval-search-adapter";
@@ -163,6 +159,7 @@ import {
 	setOrCreateAssistantMessage,
 	updateSummary,
 } from "./nklein-session-state";
+import { buildSessionSystemPrompt } from "./nklein-session-system-prompt";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
 import { TaskContextWindowStore } from "./nklein-task-context-window-store";
 import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker";
@@ -855,27 +852,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		 */
 		skillFragments?: readonly PromptFragment[];
 	}): string {
-		const baseFragments: PromptFragment[] = [
-			{
-				key: "base",
-				volatility: input.baseIsStaticShell ? "static" : "task",
-				text: input.basePrompt,
-				pinned: "head",
-			},
-			{ key: "efficiency-rules", volatility: "config", text: input.efficiencyRules },
-			{ key: "temporal-context", volatility: "daily", text: input.temporalBlock },
-			// Task-tier fragments keep input order, so ORDER BY CHURN across session starts: the planning workflow
-			// and the home-agent append are per-card/per-session-kind, while session-env diverges for EVERY task
-			// (cwd = /workspaces/<taskId>) and every day (date). session-env goes LAST so it is the true suffix:
-			// identical-card restarts share every byte up to it, and same-workspace tasks share everything before
-			// their cwd/date trailer (§5.AQ(e) byte-stable prompt shells).
-			{ key: "planning-workflow", volatility: "task", text: input.planningPrompt ?? "" },
-			{ key: "home-agent-append", volatility: "task", text: input.homeAgentAppend ?? "" },
-			{ key: "session-env", volatility: "task", text: input.sessionEnv ?? "" },
-		];
-		const fixedKeys = new Set(baseFragments.map((fragment) => fragment.key));
-		const extraSkillFragments = (input.skillFragments ?? []).filter((fragment) => !fixedKeys.has(fragment.key));
-		const assembled = assemblePromptFragments([...baseFragments, ...extraSkillFragments]);
+		// §5.U: the byte-stability-critical fragment ordering + assembly is the pure `buildSessionSystemPrompt`
+		// (extracted + unit-tested); this method keeps only the instance-stateful warmth-ledger bookkeeping below.
+		const assembled = buildSessionSystemPrompt(input);
 		const modelKey = input.modelId?.trim() || "(unconfigured)";
 		const previous = this.lastAssembledSystemPromptByModelId.get(modelKey);
 		this.lastAssembledSystemPromptByModelId.set(modelKey, assembled.text);
