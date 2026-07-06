@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildDisplayItems,
+	buildUnifiedDiffRows,
 	CONTEXT_RADIUS,
 	INCREMENTAL_EXPAND_STEP,
 	INCREMENTAL_EXPAND_THRESHOLD,
 	MIN_COLLAPSE_LINES,
+	parsePatchToRows,
+	truncatePathMiddle,
 	type UnifiedDiffRow,
 } from "@/components/shared/diff-renderer";
 
@@ -190,5 +193,91 @@ describe("buildDisplayItems", () => {
 			expect(INCREMENTAL_EXPAND_STEP).toBe(20);
 			expect(INCREMENTAL_EXPAND_THRESHOLD).toBe(40);
 		});
+	});
+});
+
+describe("parsePatchToRows", () => {
+	it("returns nothing for an empty patch or a patch with no hunk", () => {
+		expect(parsePatchToRows("")).toEqual([]);
+		expect(parsePatchToRows("diff --git a/f b/f\n--- a/f\n+++ b/f\n")).toEqual([]);
+	});
+
+	it("parses a hunk into context/removed/added rows with hunk-anchored line numbers, prefix stripped", () => {
+		const patch = [
+			"diff --git a/f b/f",
+			"--- a/f",
+			"+++ b/f",
+			"@@ -1,3 +1,3 @@",
+			" line1",
+			"-old2",
+			"+new2",
+			" line3",
+		].join("\n");
+		const rows = parsePatchToRows(patch);
+		// The `--- a/f` / `+++ b/f` headers precede the @@ hunk, so they are NOT mistaken for removed/added lines.
+		expect(rows).toHaveLength(4);
+		expect(rows.map((r) => ({ variant: r.variant, lineNumber: r.lineNumber, text: r.text }))).toEqual([
+			{ variant: "context", lineNumber: 1, text: "line1" },
+			{ variant: "removed", lineNumber: 2, text: "old2" },
+			{ variant: "added", lineNumber: 2, text: "new2" },
+			{ variant: "context", lineNumber: 3, text: "line3" },
+		]);
+	});
+
+	it("honors the hunk header's starting line numbers", () => {
+		const patch = ["@@ -10,1 +20,2 @@", "-gone", "+kept", "+extra"].join("\n");
+		const rows = parsePatchToRows(patch);
+		expect(rows.map((r) => [r.variant, r.lineNumber])).toEqual([
+			["removed", 10],
+			["added", 20],
+			["added", 21],
+		]);
+	});
+});
+
+describe("buildUnifiedDiffRows", () => {
+	it("treats a null old text as an all-added file", () => {
+		const rows = buildUnifiedDiffRows(null, "a\nb");
+		expect(rows.map((r) => [r.variant, r.lineNumber, r.text])).toEqual([
+			["added", 1, "a"],
+			["added", 2, "b"],
+		]);
+	});
+
+	it("emits only context rows when old and new are identical", () => {
+		const rows = buildUnifiedDiffRows("a\nb\nc", "a\nb\nc");
+		expect(rows.every((r) => r.variant === "context")).toBe(true);
+		expect(rows.map((r) => r.text)).toEqual(["a", "b", "c"]);
+	});
+
+	it("pairs a single changed line as removed+added with word-level inline segments", () => {
+		const rows = buildUnifiedDiffRows("a\nbob\nc", "a\nbet\nc");
+		const removed = rows.find((r) => r.variant === "removed");
+		const added = rows.find((r) => r.variant === "added");
+		expect(removed?.text).toBe("bob");
+		expect(added?.text).toBe("bet");
+		// the modified pair carries inline segments so the UI can highlight the changed characters
+		expect(removed?.segments && removed.segments.length > 0).toBe(true);
+		expect(added?.segments && added.segments.length > 0).toBe(true);
+	});
+});
+
+describe("truncatePathMiddle", () => {
+	it("leaves a path at or under the limit unchanged", () => {
+		expect(truncatePathMiddle("src/a/b.ts", 64)).toBe("src/a/b.ts");
+	});
+
+	it("elides the middle with `...`, keeping head + tail, for a long path", () => {
+		const path = `src/${"x".repeat(80)}/file.ts`;
+		const result = truncatePathMiddle(path, 64);
+		expect(result).toHaveLength(64);
+		expect(result).toContain("...");
+		expect(result.startsWith("src/")).toBe(true);
+		expect(result.endsWith("file.ts")).toBe(true);
+	});
+
+	it("keeps at least 8 chars even when maxLength is tiny (the floor can exceed maxLength)", () => {
+		// keep = max(8, 5-3) = 8 → head 4 + '...' + tail 4 = 11 chars
+		expect(truncatePathMiddle("abcdefghijklmnop", 5)).toBe("abcd...mnop");
 	});
 });

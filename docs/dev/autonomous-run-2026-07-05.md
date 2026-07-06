@@ -1765,5 +1765,21 @@ component files (`.tsx`) and helper `.ts` modules. Working the cleanest, securit
   `findProviderCatalogItem` (case-insensitive + whitespace-tolerant lookup, null when absent / empty catalog),
   `formatProviderOptionLabel` (`name (id)` when informative; collapses to just `id` when the name is blank or duplicates
   the id case-insensitively; trims both). Web gate: web-ui tsc ✓, vitest 7/7 ✓.
-- Remaining named-untested pure fns (a follow-up vein, `.tsx` — pull component deps so deferred): `diff-renderer.tsx`
-  (patch parsing), `app-utils.tsx` (pathname/counting), `code-embedding-fields.tsx` (settings build/compare/format).
+- Remaining named-untested pure fns (a follow-up vein, `.tsx` — pull component deps): `app-utils.tsx`
+  (pathname/counting), `code-embedding-fields.tsx` (settings build/compare/format).
+
+### 2026-07-06 (Opus) · §5.V (web-ui) — cover diff-renderer's patch-parsing + diff-computation (+8)
+
+`diff-renderer.tsx` (715 lines) DID have a test — but it only covers `buildDisplayItems` (the collapse logic) +
+constants; the name-based scan correctly flagged `parsePatchToRows` / `buildUnifiedDiffRows` / `truncatePathMiddle` as
+untested. Importing the (Prism-heavy) module in web-ui vitest works (the existing test already does), so **appended**
+complementary characterization tests (never touched the existing ones):
+- `parsePatchToRows`: empty/no-hunk → []; a hunk parses to context/removed/added rows with hunk-anchored line numbers +
+  prefix stripped; the `--- a/f`/`+++ b/f` headers (which start with `-`/`+`) are correctly NOT mistaken for diff lines
+  because they precede the `@@`; honors the hunk header's start line numbers.
+- `buildUnifiedDiffRows`: null old → all-added; identical → all-context; a single changed line pairs as removed+added
+  WITH word-level inline segments (the highlight data).
+- `truncatePathMiddle`: under-limit unchanged; long path → head+`...`+tail at exactly maxLength; the 8-char floor can
+  exceed a tiny maxLength.
+Considered but DEFERRED the full `.ts`-model extraction (board-dag-model style) — test-in-place is lower-risk in an
+otherwise-untested component and the tests now protect any later extraction. Web gate: web-ui tsc ✓, vitest 21/21 ✓.
