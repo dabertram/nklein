@@ -395,8 +395,10 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **55 slices so far (33 §5.U extractions + 22 §5.V coverage batches), ~336 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4040 this run
+> - **56 slices so far (34 §5.U extractions + 22 §5.V coverage batches), ~343 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **Slice 56 (David-selected) diversified to
+>   provider-service 1463 → 1379 (−84): CustomProviderManager (custom-provider CRUD) + a security test proving add-cloud-provider
+>   fails closed before persistence. task-session-service 4886 → 4040 this run
 >   (−846, ~17%) — 10 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
 >   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest], ContextBudgetController 53 [−87], TaskFailureEmitter 54 [−69],
 >   RetrievalToolsBuilder 55 [−66, +live fail-closed test]) + wrapper cleanup (46). All three entangled splits (Park, Timeout,
