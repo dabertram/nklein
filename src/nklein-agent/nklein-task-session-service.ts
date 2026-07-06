@@ -143,6 +143,7 @@ import { shouldAttachRetrievalTools } from "./nklein-retrieval-tools-gate";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
+import { createRuntimeSetupLeaseCache } from "./nklein-runtime-setup-lease-cache";
 import {
 	type CreateInMemoryNKleinSessionRuntimeOptions,
 	createInMemoryNKleinSessionRuntime,
@@ -194,11 +195,7 @@ import {
 import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
 import { TaskTimeoutScheduler } from "./nklein-task-timeout-scheduler";
 import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
-import {
-	createNKleinWatcherRegistry,
-	type NKleinRuntimeSetupLease,
-	type NKleinWatcherRegistry,
-} from "./nklein-watcher-registry";
+import { createNKleinWatcherRegistry, type NKleinWatcherRegistry } from "./nklein-watcher-registry";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
 import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
 import type { AgentTool } from "./sdk-agent-types";
@@ -581,7 +578,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
 	private readonly focusChainByTaskId = new Map<string, FocusChain>();
-	private readonly runtimeSetupLeaseByWorkspacePath = new Map<string, Promise<NKleinRuntimeSetupLease>>();
+	private readonly runtimeSetupLeaseCache = createRuntimeSetupLeaseCache({
+		acquire: (workspacePath) => this.watcherRegistry.acquire(workspacePath),
+	});
 	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeNKleinTeamProgressEvent) => void>();
 
 	constructor(options: CreateInMemoryNKleinTaskSessionServiceOptions) {
@@ -1019,7 +1018,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						resumeFromTrash: true,
 					});
 		const agentPerceivedCwd = sandboxWorkspace?.workdir ?? input.cwd;
-		const runtimeSetup = await this.ensureRuntimeSetup(hostWorkspaceRoot);
+		const runtimeSetup = await this.runtimeSetupLeaseCache.ensure(hostWorkspaceRoot);
 		const requestContextWindow = this.resolveKnownContextWindowForTask(input.taskId, launchConfig.contextWindow);
 		const customSystemPrompt = input.systemPrompt?.trim() || null;
 		const sdkPromptParts = customSystemPrompt
@@ -1968,7 +1967,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		void (async () => {
 			const assistantCountBeforeStart = entry.messages.filter((message) => message.role === "assistant").length;
 			try {
-				const runtimeSetup = await this.ensureRuntimeSetup(request.cwd);
+				const runtimeSetup = await this.runtimeSetupLeaseCache.ensure(request.cwd);
 				const runtimePrompt = runtimeSetup.resolvePrompt(startPromptParts.userPrompt);
 				const planningWorkflowPrompt = startPromptParts.systemWorkflowCommand
 					? runtimeSetup.resolvePrompt(startPromptParts.systemWorkflowCommand)
@@ -2420,7 +2419,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.scheduleConversationTimeout(taskId);
 			const assistantCountBeforeSend = entry.messages.filter((message) => message.role === "assistant").length;
 			const runtimeSetupWorkspacePath = this.sandboxState.getRepoPath(taskId) ?? entry.summary.workspacePath ?? "";
-			void this.ensureRuntimeSetup(runtimeSetupWorkspacePath)
+			void this.runtimeSetupLeaseCache
+				.ensure(runtimeSetupWorkspacePath)
 				.then(async (runtimeSetup) => {
 					// A bounced/escalated card's workspace may have been disposed at capture — restore it BEFORE
 					// the turn so the session's sandbox tools work again (see the helper's run20 story).
@@ -3907,7 +3907,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	async listSlashCommands(workspacePath: string): Promise<NKleinSdkSlashCommand[]> {
-		const runtimeSetup = await this.ensureRuntimeSetup(workspacePath);
+		const runtimeSetup = await this.runtimeSetupLeaseCache.ensure(workspacePath);
 		await Promise.all([
 			runtimeSetup.userInstructionService.refreshType("skill"),
 			runtimeSetup.userInstructionService.refreshType("workflow"),
@@ -4046,15 +4046,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.focusChainByTaskId.clear();
 		this.teamProgressListeners.clear();
 		await this.agentSandboxManager?.stopNow().catch(() => null);
-		for (const leasePromise of this.runtimeSetupLeaseByWorkspacePath.values()) {
-			try {
-				const lease = await leasePromise;
-				await lease.release();
-			} catch {
-				// Ignore runtime setup disposal failures.
-			}
-		}
-		this.runtimeSetupLeaseByWorkspacePath.clear();
+		await this.runtimeSetupLeaseCache.disposeAll();
 		this.messageRepository.dispose();
 	}
 
@@ -4619,17 +4611,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			.catch(() => {
 				// Best effort checkpointing only.
 			});
-	}
-
-	private async ensureRuntimeSetup(workspacePath: string): Promise<NKleinRuntimeSetup> {
-		const normalizedWorkspacePath = workspacePath.trim();
-		let leasePromise = this.runtimeSetupLeaseByWorkspacePath.get(normalizedWorkspacePath);
-		if (!leasePromise) {
-			leasePromise = this.watcherRegistry.acquire(normalizedWorkspacePath);
-			this.runtimeSetupLeaseByWorkspacePath.set(normalizedWorkspacePath, leasePromise);
-		}
-		const lease = await leasePromise;
-		return lease.setup;
 	}
 
 	private handleTaskEvent(taskId: string, event: unknown): void {
