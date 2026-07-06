@@ -1114,10 +1114,21 @@ the big methods contain more pure sub-computations that can be lifted+tested one
 state-threading of a full collaborator split. Worth a systematic pass over the large methods for these. (The full
 responsibility-split of the ~2300-line createRuntimeServer closure + the class still benefits from David's steer.)
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 43) — for David
+### ▶ §5.U slice 44 (2026-07-06, c8d9dcca) — adaptive-retry policy lifted from the flagship + a THIRD-PATTERN CAVEAT
+Lifted `maybeAdaptiveBudgetRetry`'s two pure decision steps into `nklein-adaptive-retry-policy`:
+`shouldAttemptAdaptiveBudgetRetry` (eligibility gate) + `hasStallEvidence` (a `model_stalled` observation this run, by
+signal or metadata.category). Method delegates; a redundant provider/model narrowing guard restores the type narrowing the
+old inline check gave (can't trigger — the gate already ensures non-null). Behavior-preserving; +7 tests. **CAVEAT (learned
+here):** task-session-service 4859 → **4863 (+4 lines)** — the lifted logic was SMALL, so the object-arg delegation call +
+guard slightly OUTWEIGHED the removed inline code. The third pattern reliably adds cohesion + coverage, but it only REDUCES
+line count when the lifted computation is CHUNKY relative to its call site (slice 43's reviewer-candidate lift was −14; this
+one +4). **For the flagship's "reduce lines" goal, target chunky inline computations; for small ones the win is coverage,
+not size.** Real line-reduction at scale still needs the collaborator split (David-gated for boundaries).
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 44) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **43 slices this run (21 §5.U extractions + 22 §5.V coverage batches), ~290 new unit tests, zero behavior changes** (the
+- **44 slices this run (22 §5.U extractions + 22 §5.V coverage batches), ~297 new unit tests, zero behavior changes** (the
   pre-commit fast suite gates every commit; extractions delegate). §5.V high-value pure-logic coverage is now SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter

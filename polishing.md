@@ -395,9 +395,9 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **43 slices so far (21 §5.U extractions + 22 §5.V coverage batches), ~290 new unit tests, zero behavior changes** (pre-commit
+> - **44 slices so far (22 §5.U extractions + 22 §5.V coverage batches), ~297 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42); §5.U flagship progress reopened via the
->   third pattern (slice 43). THREE flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
+>   third pattern (slices 43-44). THREE flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
 >
@@ -443,7 +443,10 @@
 > delegates the pure step to a new tested module. Reviewer-candidate selection (`resolveWorkerRealId`/`buildReviewerCandidates`)
 > came out of `pickDiverseReviewerModel` this way (+5 tests, service 4873→4859). This reopens safe, bounded flagship progress:
 > do a systematic pass over the large methods (dispatchResolvedTaskInput, runSecondOpinionReviewSessionInner,
-> buildPlanCritiqueRequestHandler, maybeAdaptiveBudgetRetry, …) for liftable pure steps, one bounded+tested commit each.
+> buildPlanCritiqueRequestHandler, …) for liftable pure steps, one bounded+tested commit each. **CAVEAT (slice 44):** the
+> third pattern only REDUCES line count when the lifted computation is CHUNKY relative to its call site — a SMALL lift
+> (e.g. adaptive-retry policy, +4 lines net) is a cohesion+coverage win but not a size win. Target chunky inline
+> computations for actual flagship shrinkage; real line-reduction at scale still needs the collaborator split.
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,
