@@ -116,6 +116,7 @@ import { createBoundedDedupSet } from "./bounded-dedup-set";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { resolveReviewSandboxResult } from "./review-sandbox-result";
+import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { applyCardReviewToBoard, runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
@@ -2140,24 +2141,6 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		router: runtimeAppRouter,
 		createContext: async ({ req }) => await createTrpcContext(req),
 	});
-
-	const readRequestBody = (req: IncomingMessage, maxBytes = 4096): Promise<string> =>
-		new Promise((resolve, reject) => {
-			let body = "";
-			let size = 0;
-			req.on("data", (chunk: Buffer) => {
-				size += chunk.length;
-				if (size > maxBytes) {
-					reject(new Error("Request body too large"));
-					return;
-				}
-				body += chunk.toString("utf8");
-			});
-			req.on("end", () => resolve(body));
-			req.on("error", reject);
-		});
-
-	const getRemoteIp = (req: IncomingMessage): string => req.socket.remoteAddress ?? "unknown";
 
 	const tlsConfig = getKanbanRuntimeTls();
 	// HSTS on the served app + auth responses exactly when TLS is on (§5.Y #7).
