@@ -132,4 +132,27 @@ describe("SetupWizardDialog", () => {
 		});
 		expect(hasText("Re-run from this project's settings.")).toBe(true);
 	});
+
+	it("§5.BB zoom onboarding: appends the 'How much do you want to see?' step and picks live", () => {
+		const onPick = vi.fn();
+		const { onComplete } = render({ zoomChooser: { zoom: 1, onPick } });
+		// One extra step rides after the plan steps.
+		expect(hasText("Step 1 of 4")).toBe(true);
+		click(findButton("Next"));
+		click(findButton("Next"));
+		click(findButton("Next"));
+		expect(hasText("How much do you want to see?")).toBe(true);
+		expect(hasText("Step 4 of 4")).toBe(true);
+
+		// Picking a level fires immediately (live preview); Finish completes as usual.
+		const chatOption = document.body.querySelector('[data-testid="setup-wizard-zoom-0"]');
+		expect(chatOption).not.toBeNull();
+		act(() => {
+			(chatOption as HTMLButtonElement).click();
+		});
+		expect(onPick).toHaveBeenCalledWith(0);
+
+		click(findButton("Finish"));
+		expect(onComplete).toHaveBeenCalledTimes(1);
+	});
 });

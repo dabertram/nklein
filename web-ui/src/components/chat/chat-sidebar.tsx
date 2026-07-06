@@ -682,6 +682,7 @@ function AutonomousRunBar({
 function ChatPanel({
 	enabled,
 	onCollapse,
+	hideCollapse = false,
 	boardCards = [],
 	onOpenCard,
 	activityTicks = [],
@@ -689,6 +690,8 @@ function ChatPanel({
 }: {
 	enabled: boolean;
 	onCollapse: () => void;
+	/** §5.BB zoom 0: the chat IS the main surface — there is nothing to collapse into. */
+	hideCollapse?: boolean;
 	boardCards?: readonly ChatCardCandidate[];
 	onOpenCard?: (cardId: string) => void;
 	/** §5.BB: live board-activity ticks interleaved into the transcript (chronological with the messages). */
@@ -849,16 +852,18 @@ function ChatPanel({
 					<MessageSquare size={16} className="text-text-secondary shrink-0" />
 					<span className="truncate">Chat</span>
 				</div>
-				<button
-					type="button"
-					aria-label="Collapse chat"
-					title="Collapse chat"
-					data-testid="chat-collapse-button"
-					onClick={onCollapse}
-					className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-3 shrink-0"
-				>
-					<PanelRightClose size={16} />
-				</button>
+				{hideCollapse ? null : (
+					<button
+						type="button"
+						aria-label="Collapse chat"
+						title="Collapse chat"
+						data-testid="chat-collapse-button"
+						onClick={onCollapse}
+						className="p-1 rounded-md text-text-tertiary hover:text-text-primary hover:bg-surface-3 shrink-0"
+					>
+						<PanelRightClose size={16} />
+					</button>
+				)}
 			</div>
 
 			{/* Body: session list + transcript */}
@@ -1177,6 +1182,36 @@ function ChatPanel({
  * Collapsed by default to a thin bar (expand button); when open it shows the full chat and can be dragged wider via
  * the handle on its left edge. Width + collapsed state persist (`useChatSidebarLayout`). Replaces the old modal.
  */
+/**
+ * §5.BB zoom 0 (chat-only): the chat as THE main surface — full width, no resize handle, no collapse. The right
+ * chat rail hides itself at this zoom (App renders this instead), so there is exactly one conversation on screen.
+ */
+export function ChatPrimaryPane({
+	boardCards,
+	onOpenCard,
+	activityTicks,
+	boardStreams,
+}: {
+	boardCards?: readonly ChatCardCandidate[];
+	onOpenCard?: (cardId: string) => void;
+	activityTicks?: readonly ActivityTick[];
+	boardStreams?: readonly { id: string; title: string }[];
+} = {}): React.ReactElement {
+	return (
+		<div className="flex h-full min-h-0 w-full min-w-0 overflow-hidden" data-testid="chat-primary-pane">
+			<ChatPanel
+				enabled
+				onCollapse={() => {}}
+				hideCollapse
+				boardCards={boardCards}
+				onOpenCard={onOpenCard}
+				activityTicks={activityTicks}
+				boardStreams={boardStreams}
+			/>
+		</div>
+	);
+}
+
 export function ChatSidebar({
 	boardCards,
 	onOpenCard,

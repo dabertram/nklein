@@ -9,7 +9,7 @@ import { ActivityMapView } from "@/components/activity-map-view";
 import { AddProjectDialog } from "@/components/add-project-dialog";
 import { notifyError, showAppToast } from "@/components/app-toaster";
 import { CardDetailView } from "@/components/card-detail-view";
-import { ChatSidebar } from "@/components/chat/chat-sidebar";
+import { ChatPrimaryPane, ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
 import { CommandPalette } from "@/components/command-palette";
 import { DebugDialog } from "@/components/debug-dialog";
@@ -100,12 +100,35 @@ import type { BoardData } from "@/types";
 export default function App(): ReactElement {
 	const terminalThemeColors = useTerminalThemeColors();
 	const [board, setBoard] = useState<BoardData>(() => createInitialBoardData());
-	// §5.BB: the zoom-level surface (0 overview · 1 lean · 2 expert · 3 professional), chat as the constant rail.
+	// §5.BB: the zoom-level surface (0 chat · 1 overview · 2 lean · 3 expert · 4 professional).
 	const { zoom, setZoom, streamFilter, zoomToStream } = useZoomLevel();
 	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>({});
 	// §5.BB: live board-activity ticks (pure snapshot diff) interleaved into the chat transcript.
 	const activityTicks = useBoardActivityTicks(
 		useMemo(() => ({ columns: board.columns, sessions }), [board.columns, sessions]),
+	);
+	// §5.BB: the chat surfaces' board context (card chips + @-mention candidates), shared by the right rail
+	// (zoom ≥ 1) and the zoom-0 chat-primary pane.
+	const chatBoardCards = useMemo(
+		() =>
+			board.columns.flatMap((column) =>
+				column.id === "trash" ? [] : column.cards.map((card) => ({ id: card.id, title: card.title })),
+			),
+		[board.columns],
+	);
+	const chatBoardStreams = useMemo(
+		() =>
+			[
+				...new Set(
+					board.columns.flatMap((column) =>
+						column.id === "trash"
+							? []
+							: column.cards.flatMap((card) => card.generatedFromPlan?.planSlug?.trim() || []),
+					),
+				),
+				// `stream-<slug>` matches the server's deriveStreams ids, so an inserted @stream:<id> resolves (§5.AU).
+			].map((slug) => ({ id: `stream-${slug}`, title: slug.replaceAll(/[-_]+/g, " ") })),
+		[board.columns],
 	);
 	const [canPersistWorkspaceState, setCanPersistWorkspaceState] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -1079,6 +1102,10 @@ export default function App(): ReactElement {
 											</div>
 											{zoom === 0 ? (
 												<span className="text-[11px] text-text-tertiary">
+													just talk to !Klein — zoom in anytime for the board behind it
+												</span>
+											) : zoom === 1 ? (
+												<span className="text-[11px] text-text-tertiary">
 													click a cluster to zoom in · chat on the right steers the swarm
 												</span>
 											) : null}
@@ -1098,6 +1125,13 @@ export default function App(): ReactElement {
 												isDiscardWorkingChangesPending={isDiscardingHomeWorkingChanges}
 											/>
 										) : zoom === 0 ? (
+											<ChatPrimaryPane
+												boardCards={chatBoardCards}
+												boardStreams={chatBoardStreams}
+												onOpenCard={handleCardSelect}
+												activityTicks={activityTicks}
+											/>
+										) : zoom === 1 ? (
 											<ActivityMapView
 												map={composeActivityMap({
 													columns: board.columns,
@@ -1108,17 +1142,17 @@ export default function App(): ReactElement {
 												onSelectCard={handleCardSelect}
 												onZoomToStream={zoomToStream}
 											/>
-										) : zoom === 1 ? (
+										) : zoom === 2 ? (
 											<LeanBoardView
 												columns={board.columns}
 												sessions={sessions}
 												streamFilter={streamFilter}
 												onSelectCard={handleCardSelect}
-												onBackToOverview={() => setZoom(0)}
+												onBackToOverview={() => setZoom(1)}
 											/>
 										) : (
 											<KanbanBoard
-												forceFleetExpanded={zoom === 3}
+												forceFleetExpanded={zoom === 4}
 												data={board}
 												taskSessions={sessions}
 												workspacePath={workspacePath}
@@ -1288,24 +1322,16 @@ export default function App(): ReactElement {
 						) : null}
 					</div>
 				</div>
-				{/* Board-independent chat as a resizeable right sidebar (todo §5.M), replacing the old modal. */}
-				<ChatSidebar
-					boardCards={board.columns.flatMap((column) =>
-						column.id === "trash" ? [] : column.cards.map((card) => ({ id: card.id, title: card.title })),
-					)}
-					boardStreams={[
-						...new Set(
-							board.columns.flatMap((column) =>
-								column.id === "trash"
-									? []
-									: column.cards.flatMap((card) => card.generatedFromPlan?.planSlug?.trim() || []),
-							),
-						),
-						// `stream-<slug>` matches the server's deriveStreams ids, so an inserted @stream:<id> resolves (§5.AU).
-					].map((slug) => ({ id: `stream-${slug}`, title: slug.replaceAll(/[-_]+/g, " ") }))}
-					onOpenCard={handleCardSelect}
-					activityTicks={activityTicks}
-				/>
+				{/* Board-independent chat as a resizeable right sidebar (todo §5.M), replacing the old modal.
+				    Hidden at zoom 0 — there the chat IS the main panel (ChatPrimaryPane), never two chats at once. */}
+				{zoom !== 0 ? (
+					<ChatSidebar
+						boardCards={chatBoardCards}
+						boardStreams={chatBoardStreams}
+						onOpenCard={handleCardSelect}
+						activityTicks={activityTicks}
+					/>
+				) : null}
 				<RuntimeSettingsDialog
 					open={isSettingsOpen}
 					workspaceId={settingsWorkspaceId}
@@ -1436,6 +1462,8 @@ export default function App(): ReactElement {
 					completedAt={globalSetupWizard.completedAt}
 					onComplete={() => void globalSetupWizard.complete()}
 					onSkip={globalSetupWizard.skip}
+					// §5.BB zoom onboarding: "How much do you want to see?" — picks the starting zoom level live.
+					zoomChooser={{ zoom, onPick: setZoom }}
 				/>
 				<SetupWizardDialog
 					open={projectSetupWizard.isOpen}
