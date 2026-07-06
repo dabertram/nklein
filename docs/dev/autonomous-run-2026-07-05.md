@@ -1263,12 +1263,17 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > — every model injects the leading `<current_date>` block and overrides its training prior (places a current-year past
 > month correctly in the PAST). Commit 7e92b32f. **Pattern: each §5.Z sweep this run found a real issue** (egress →
 > phi-4-reasoning-plus reasoning-runaway data point; temporal → a harness bug) — §5.Z verification is earning its keep.
-> **§5.Z CURRENT-ROSTER COVERAGE (2026-07-06) — 4 flows swept, all healthy:** egress/web_search (7/8, 1 reasoning-runaway),
-> temporal/knows-today (7/7, +harness fix), chat read_file (3✅/2◑/1⚠️), chat run_command (3✅/1◑). **Consistent pattern:**
-> capable models (qwen3-8b, qwen2.5-coder-14b, gpt-oss-120b) PASS every flow; the 2B gemma-4-e2b reliably EXECUTES tools but
-> weak-synthesizes (doesn't echo markers — a documented ◑ model-quality trait, not a bug); a few models have specific
-> tool-selection/reasoning quirks (mistral picks list_dir for read_file; phi-4-reasoning-plus reasons-runaway). No !Klein
-> bugs found in flows 3–4 (only the temporal harness fix). Remaining light flows to sweep: browse_url, chat write.
+> **§5.Z CURRENT-ROSTER COVERAGE (2026-07-06) — ALL 6 light flows swept, all healthy:** egress/web_search (7/8, 1
+> reasoning-runaway), temporal/knows-today (7/7, +harness fix), chat read_file (3✅/2◑/1⚠️), chat run_command (3✅/1◑), chat
+> write_file/confirm-gate (6/6 ✅ — universal, incl. all the ◑/⚠️ models, because it asserts on the durable side-effect+audit
+> not reply-echo), chat browse_url (1✅/3⚠️ — tool VERIFIED working; 3/4 incl. gpt-oss-120b return the <title> not the <h1>
+> "main heading", a comprehension/ambiguity trait). **Consistent pattern:** capable models (qwen3-8b, qwen2.5-coder-14b,
+> gpt-oss-120b) PASS the reply-echo flows; the 2B gemma-4-e2b reliably EXECUTES tools but weak-synthesizes on marker-echo (a
+> documented ◑ trait); side-effect/audit-asserted flows (write) pass universally; a few model-specific quirks (mistral
+> list_dir on read_file; phi-4-reasoning-plus reasoning-runaway; the browse title/h1 comprehension spread). **Only ONE !Klein
+> action across all 6 flows: the temporal harness fix** — the rest are model-quality data points on a healthy feature set.
+> The light-flow §5.Z matrix is now comprehensively covered on the current roster; remaining are HEAVY flows (decompose,
+> autonomous-run, multi-card, strict-isolation, restart-resume) that need a full runtime boot + workspace (minutes/model).
 
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
