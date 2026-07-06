@@ -1624,3 +1624,23 @@ dedup."** Done in that order:
    primary doesn't), `planningPrompt` + `skillFragments` (primary-only). The two call sites can no longer drift a prompt
    byte apart. Gate: tsc ✓, biome ✓, **7914/7914 ✓** (7910 + the 4 byte-pins). This closes the last David-gated seam in
    the flagship's prompt path; the remaining task-session-service bulk is the lifecycle dispatch, not the prompt build.
+
+### 2026-07-06 (Opus) · move the swarm roster + machine budgets to USER config (David-approved: "move roster+budgets to user config")
+
+David's ruling: **host/machine names must not ship in `src/`** (model tracking in docs/stats is fine). `swarm-roster.ts`
+baked his personal fleet in as functional reference data — `ROSTER_Q`/`ROSTER_M` keyed to `m5max`/`m4mini`/`legion` +
+`USER_MACHINE_BUDGETS_GB = {m5max:128,m4mini:24,legion:8}`. It feeds only the `dev rosters` diagnostic, and the fleet is
+already authoritative in `docs/dev/model-catalog-recommendations.md` (docs are fine), so genericizing `src` loses nothing.
+- **`swarm-roster.ts` now ships GENERIC EXAMPLE presets** — illustrative hardware CLASSES `workstation`/`desktop`/`laptop`,
+  `USER_MACHINE_BUDGETS_GB` → `EXAMPLE_MACHINE_BUDGETS_GB`. Types + pure fit/report functions unchanged.
+- **New `swarm-roster-config.ts`** — a user drops `~/.nklein/swarm-rosters.json` (`{machineBudgetsGb?, rosters?}`, Zod-
+  validated, fail-soft to the examples on absent/malformed). `parseUserSwarmConfig` (pure) + `resolveEffectiveRosters/
+  Budgets` + `loadUserSwarmConfig` (thin async read). `dev rosters` now prefers the user file, falls back to examples.
+- **Tests:** `swarm-roster.test.ts` updated to the generic defaults (same invariants — fit/overcommit/unknown-machine/
+  primary-per-machine — plus a "ships no personal host names" guard and user-supplied override cases); new
+  `swarm-roster-config.test.ts` (+11 tests: schema accept/reject fail-soft, fallback-to-examples, file load). The real
+  fleet + the config-file format are documented in model-catalog-recommendations.md. Gate: tsc ✓, biome ✓, **7925/7925 ✓**.
+- **Remaining machine-name refs are a follow-up:** cosmetic JSDoc examples (`lms-*.ts`, `model-pool.ts` comments,
+  `config-api-contract.ts`) and the model-id SUFFIX parsers (`model-online-lookup.ts`, `model-attributes.ts` strip
+  `-m5max`/`-legion5pro` tails) + `model-capability-catalog.ts` provenance notes — the parsers are behavior-bearing, so
+  they get their own careful pass, not folded into this data-move.

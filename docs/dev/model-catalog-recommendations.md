@@ -91,6 +91,13 @@ than dense models of the same nominal size. Avoid dense >70B (heavy swap).
 > Two named rosters for the §5.AB per-machine pools. Each assigns a SUITABLE model per role to a machine that can run
 > it FAST (fully in memory/VRAM, no heavy CPU offload). All picks are tool-capable per the §5.AL catalog (avoid the
 > reasoning-only tool traps) and honor the ≥32k floor (keep loaded context modest on the small machines for speed).
+>
+> **Where this lives (2026-07-06):** `src/core/swarm-roster.ts` ships only GENERIC EXAMPLE presets (machine classes
+> `workstation`/`desktop`/`laptop`) — no real host names or hardware budgets in the repo. The real fleet below is a
+> USER config: drop it in `~/.nklein/swarm-rosters.json` as `{ "machineBudgetsGb": { … }, "rosters": [ … ] }` and
+> `dev rosters` (and the Settings panel) load it over the examples. Schema + loader: `src/core/swarm-roster-config.ts`.
+> Example file: this machine's fleet is `{ "machineBudgetsGb": { "m5max": 128, "m4mini": 24, "legion": 8 } }` plus the
+> Roster Q / Roster M assignments tabled below.
 
 ### Roster Q — quality-leaning (from a 2026-06-29 GPT suggestion, analyzed + lightly adapted)
 | Machine | Role | Model (GGUF Q4_K_M unless noted) | Fit |

@@ -40,7 +40,8 @@ import {
 	type RuntimeRunOutcome,
 } from "../core/runtime-model-verdict";
 import { buildStuckTaskAnalysisRequest } from "../core/stuck-task-analysis";
-import { assessRosterFit, formatSwarmRosterReport, SWARM_ROSTERS } from "../core/swarm-roster";
+import { assessRosterFit, formatSwarmRosterReport } from "../core/swarm-roster";
+import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../core/swarm-roster-config";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { countActiveAgentSessions } from "../core/task-session-api-contract";
 import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
@@ -981,13 +982,17 @@ async function runDevRailEvidenceCommand(options: { json?: boolean; advisor?: bo
 }
 
 async function runDevRostersCommand(options: { json?: boolean } = {}): Promise<void> {
+	// Prefer the user's real fleet (~/.nklein/swarm-rosters.json) when present; else the shipped example presets.
+	const userConfig = await loadUserSwarmConfig();
+	const rosters = resolveEffectiveRosters(userConfig);
+	const budgets = resolveEffectiveBudgets(userConfig);
 	if (options.json) {
-		const payload = SWARM_ROSTERS.map((roster) => ({ roster, fit: assessRosterFit(roster) }));
+		const payload = rosters.map((roster) => ({ roster, fit: assessRosterFit(roster, budgets) }));
 		process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 		return;
 	}
-	for (const roster of SWARM_ROSTERS) {
-		process.stdout.write(`${formatSwarmRosterReport(roster)}\n\n`);
+	for (const roster of rosters) {
+		process.stdout.write(`${formatSwarmRosterReport(roster, budgets)}\n\n`);
 	}
 }
 

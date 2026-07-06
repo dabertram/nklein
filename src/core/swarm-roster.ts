@@ -1,20 +1,19 @@
 /**
  * Named swarm rosters (todo §5.AB per-machine pools, user 2026-06-29).
  *
- * Encodes the two operator-approved per-machine model assignments from
- * [docs/dev/model-catalog-recommendations.md](../../docs/dev/model-catalog-recommendations.md) ("Swarm rosters") as
- * typed data, so the pool config can name a roster and a swarm spins up from one preset (the §5.AB pools leaf). This is
- * pure reference data + a resolver — the EFFECTFUL loading across machines (LM Link) is the deferred remote-control
- * cluster; this module just declares "which model, which role, which machine, which quant" so that orchestration (and
- * the docs/UI) read from ONE source.
+ * Ships GENERIC EXAMPLE presets — "which model, which role, which machine-class, which quant" as typed data — so the
+ * pool config can name a roster and a swarm spins up from one preset (the §5.AB pools leaf), and the docs/UI read from
+ * ONE source. The machine ids here (`workstation` | `desktop` | `laptop`) are ILLUSTRATIVE hardware CLASSES, not any
+ * real host: a user's actual fleet (their machine budgets + assignments) lives in their own config file and overrides
+ * these — see {@link loadUserSwarmConfig} in `swarm-roster-config.ts`. This module is pure reference data + resolvers;
+ * the EFFECTFUL loading across machines (LM Link) is the deferred remote-control cluster.
  *
- *  - **Roster Q** — quality-leaning (a 2026-06-29 GPT suggestion, analyzed + adapted).
- *  - **Roster M** — absolute-minimum size, still role-capable (user-requested); leans on the §5.AA recovery ladder to
- *    carry the sub-8B models over the tool-call-chaining bar our §5.O/§5.Z sweeps flagged.
+ *  - **Roster Q** — quality-leaning (a bigger model per class).
+ *  - **Roster M** — absolute-minimum size, still role-capable; leans on the §5.AA recovery ladder to carry the smaller
+ *    (≤7B) models over the tool-call-chaining bar our §5.O/§5.Z sweeps flagged.
  *
- * Machine ids match the user's hardware (`m5max`, `m4mini`, `legion`); roles are the §5.AB {@link SwarmRole}s plus a
- * non-swarm `general` slot (a reasoning/critic/summarizer alternate). Models are HuggingFace GGUF repo refs at the
- * noted quant — all tool-capable per the §5.AL catalog (avoid the reasoning-only tool traps).
+ * Roles are the §5.AB {@link SwarmRole}s plus a non-swarm `general` slot (a reasoning/critic/summarizer alternate).
+ * Models are HuggingFace GGUF repo refs at the noted quant — all tool-capable per the §5.AL catalog.
  */
 
 import type { SwarmRole } from "./role-model-class";
@@ -23,7 +22,7 @@ import type { SwarmRole } from "./role-model-class";
 export type RosterRole = SwarmRole | "general";
 
 export interface RosterAssignment {
-	/** Machine id (the pool): `m5max` | `m4mini` | `legion`. */
+	/** Machine-class id (the pool): an illustrative `workstation` | `desktop` | `laptop`, or a user-config machine id. */
 	machine: string;
 	/** What this model does in the swarm. */
 	role: RosterRole;
@@ -45,37 +44,37 @@ export interface SwarmRoster {
 	assignments: readonly RosterAssignment[];
 }
 
-/** Roster Q — quality-leaning (analyzed/adapted from a 2026-06-29 GPT suggestion). */
+/** Roster Q — quality-leaning (bigger model per hardware class). Example preset; a user config can override it. */
 export const ROSTER_Q: SwarmRoster = {
 	id: "quality",
 	label: "Roster Q — quality-leaning",
 	assignments: [
 		{
-			machine: "m5max",
+			machine: "workstation",
 			role: "architect",
 			model: "unsloth/Qwen3-Coder-Next-GGUF",
 			quant: "UD-Q4_K_M",
 			approxSizeGb: 48,
-			note: "80B/3B-active agentic coder, 256k ctx — the big-brain architect/planner/final reviewer; fits 128 GB.",
+			note: "80B/3B-active agentic coder, 256k ctx — the big-brain architect/planner/final reviewer; fits ~128 GB.",
 		},
 		{
-			machine: "m4mini",
+			machine: "desktop",
 			role: "worker",
 			model: "Qwen/Qwen2.5-Coder-14B-Instruct-GGUF",
 			quant: "Q4_K_M",
 			approxSizeGb: 9,
-			note: "Mid coder / reviewer / design critic; keep ctx 8-16k for speed in 24 GB.",
+			note: "Mid coder / reviewer / design critic; keep ctx 8-16k for speed in a ~24 GB box.",
 		},
 		{
-			machine: "legion",
+			machine: "laptop",
 			role: "worker",
 			model: "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
 			quant: "Q4_K_M",
 			approxSizeGb: 4.7,
-			note: "Fast implementer / test+lint fixer; fully on the 4070m 8 GB with KV room at modest ctx.",
+			note: "Fast implementer / test+lint fixer; fully on an 8 GB GPU with KV room at modest ctx.",
 		},
 		{
-			machine: "legion",
+			machine: "laptop",
 			role: "general",
 			model: "Qwen/Qwen3-8B-GGUF",
 			quant: "Q4_K_M",
@@ -86,13 +85,13 @@ export const ROSTER_Q: SwarmRoster = {
 	],
 };
 
-/** Roster M — absolute-minimum size, still role-capable (user-requested); leans on the §5.AA ladder for ≤7B models. */
+/** Roster M — absolute-minimum size, still role-capable; leans on the §5.AA ladder for ≤7B models. Example preset. */
 export const ROSTER_M: SwarmRoster = {
 	id: "minimum",
 	label: "Roster M — absolute-minimum size",
 	assignments: [
 		{
-			machine: "m5max",
+			machine: "workstation",
 			role: "architect",
 			model: "Qwen/Qwen3-8B-GGUF",
 			quant: "Q4_K_M",
@@ -100,7 +99,7 @@ export const ROSTER_M: SwarmRoster = {
 			note: "Smallest with solid reasoning + thinking-mode + TOOL_NATIVE; below this, planning quality drops sharply.",
 		},
 		{
-			machine: "m4mini",
+			machine: "desktop",
 			role: "worker",
 			model: "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF",
 			quant: "Q4_K_M",
@@ -108,7 +107,7 @@ export const ROSTER_M: SwarmRoster = {
 			note: "Smallest reliably-tool-calling code model (3B is borderline on multi-tool chaining).",
 		},
 		{
-			machine: "legion",
+			machine: "laptop",
 			role: "worker",
 			model: "Qwen/Qwen2.5-Coder-3B-Instruct-GGUF",
 			quant: "Q4_K_M",
@@ -118,12 +117,13 @@ export const ROSTER_M: SwarmRoster = {
 	],
 };
 
+/** The shipped EXAMPLE presets. A user config's rosters override these (see `resolveEffectiveRosters`). */
 export const SWARM_ROSTERS: readonly SwarmRoster[] = [ROSTER_Q, ROSTER_M];
 
-/** Resolve a roster by id (case-insensitive); null when unknown. */
-export function resolveSwarmRoster(id: string): SwarmRoster | null {
+/** Resolve a roster by id (case-insensitive); null when unknown. Pass the effective (user-or-example) roster list. */
+export function resolveSwarmRoster(id: string, rosters: readonly SwarmRoster[] = SWARM_ROSTERS): SwarmRoster | null {
 	const key = id.trim().toLowerCase();
-	return SWARM_ROSTERS.find((roster) => roster.id === key) ?? null;
+	return rosters.find((roster) => roster.id === key) ?? null;
 }
 
 /** The PRIMARY (non-alternate) assignment for each machine in a roster — what the orchestrator loads by default. */
@@ -141,10 +141,15 @@ export function primaryAssignmentsByMachine(roster: SwarmRoster): Map<string, Ro
 }
 
 /**
- * The user's hardware budgets in GB — the FAST-RESIDENT constraint per machine (the m5max/m4mini are unified memory;
- * the legion's binding limit is its RTX 4070m's 8 GB VRAM, since a model must fit fully on the GPU to stay fast).
+ * The shipped EXAMPLE per-machine-class budgets in GB — the FAST-RESIDENT constraint per machine (a unified-memory box
+ * counts its RAM; a discrete-GPU box's binding limit is its VRAM, since a model must fit fully on the GPU to stay fast).
+ * Illustrative only — a user's real hardware budgets live in their config and override this (see `resolveEffectiveBudgets`).
  */
-export const USER_MACHINE_BUDGETS_GB: Readonly<Record<string, number>> = { m5max: 128, m4mini: 24, legion: 8 };
+export const EXAMPLE_MACHINE_BUDGETS_GB: Readonly<Record<string, number>> = {
+	workstation: 128,
+	desktop: 24,
+	laptop: 8,
+};
 
 export interface MachineFit {
 	machine: string;
@@ -168,7 +173,7 @@ export interface RosterFit {
  */
 export function assessRosterFit(
 	roster: SwarmRoster,
-	budgetsGb: Readonly<Record<string, number>> = USER_MACHINE_BUDGETS_GB,
+	budgetsGb: Readonly<Record<string, number>> = EXAMPLE_MACHINE_BUDGETS_GB,
 	headroomFraction = 0.1,
 ): RosterFit {
 	const usedByMachine = new Map<string, number>();
@@ -191,7 +196,7 @@ export function assessRosterFit(
  */
 export function formatSwarmRosterReport(
 	roster: SwarmRoster,
-	budgetsGb: Readonly<Record<string, number>> = USER_MACHINE_BUDGETS_GB,
+	budgetsGb: Readonly<Record<string, number>> = EXAMPLE_MACHINE_BUDGETS_GB,
 ): string {
 	const fit = assessRosterFit(roster, budgetsGb);
 	const fitByMachine = new Map(fit.machines.map((m) => [m.machine, m]));
