@@ -30,6 +30,13 @@ import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { openInBrowser } from "../server/browser";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
+import {
+	appendMissingModels,
+	LITELLM_MODEL_LIST_PATHNAMES,
+	LITELLM_MODELS_RESPONSE_SCHEMA,
+	resolveLiteLlmModelListHeaders,
+	resolveLiteLlmModelListItemId,
+} from "./nklein-litellm-model-list";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { hasOauthAccessToken, normalizeEpochMs, resolveVisibleApiKey } from "./nklein-provider-credential-helpers";
@@ -87,16 +94,12 @@ const MANAGED_PROVIDER_ENV_KEYS: Record<ManagedNKleinOauthProviderId, readonly s
 const NKLEIN_REMOTE_CONFIG_SCHEMA = z.object({
 	kanbanEnabled: z.boolean().optional(),
 });
-const LITELLM_MODELS_RESPONSE_SCHEMA = z.object({
-	data: z.array(z.object({ id: z.string().optional(), model_name: z.string().optional() }).passthrough()).optional(),
-});
 const LMSTUDIO_MODELS_RESPONSE_SCHEMA = z
 	.object({
 		data: z.array(z.unknown()).optional(),
 		models: z.array(z.unknown()).optional(),
 	})
 	.passthrough();
-const LITELLM_MODEL_LIST_PATHNAMES = ["/models", "/model/info"] as const;
 const LMSTUDIO_MODEL_LIST_PATHNAMES = ["/api/v0/models", "/api/v1/models", "/v1/models"] as const;
 const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
@@ -107,8 +110,6 @@ const KANBAN_PROVIDER_SELECTION_SCHEMA = z.object({
 });
 
 type NKleinRemoteConfig = z.infer<typeof NKLEIN_REMOTE_CONFIG_SCHEMA>;
-type LiteLlmModelListPathname = (typeof LITELLM_MODEL_LIST_PATHNAMES)[number];
-type LiteLlmModelListItem = NonNullable<z.infer<typeof LITELLM_MODELS_RESPONSE_SCHEMA>["data"]>[number];
 
 function getKanbanProviderSelectionPath(): string {
 	return (
@@ -229,24 +230,6 @@ function logLiteLlmModelListWarning(message: string, metadata?: Record<string, u
 	});
 }
 
-function hasAuthorizationHeader(headers: Record<string, string>): boolean {
-	return Object.keys(headers).some((key) => key.toLowerCase() === "authorization");
-}
-
-function resolveLiteLlmModelListHeaders(settings: SdkProviderSettings): Record<string, string> {
-	const headers = { ...(settings.headers ?? {}) };
-	const apiKey = resolveVisibleApiKey(settings);
-	if (apiKey && !hasAuthorizationHeader(headers)) {
-		headers.Authorization = `Bearer ${apiKey}`;
-	}
-	return headers;
-}
-
-function resolveLiteLlmModelListItemId(item: LiteLlmModelListItem, pathname: LiteLlmModelListPathname): string {
-	const modelId = pathname === "/model/info" ? (item.model_name ?? item.id) : item.id;
-	return modelId?.trim() ?? "";
-}
-
 async function discoverModelsFromEndpoint(input: {
 	baseUrl: string;
 	apiKey?: string | null;
@@ -295,14 +278,6 @@ async function discoverModelsFromEndpoint(input: {
 	throw new Error(
 		`Could not discover models from ${input.modelsSourceUrl?.trim() || input.baseUrl.trim()}. Ensure the local endpoint is reachable and exposes a compatible /models route.`,
 	);
-}
-
-function appendMissingModels(
-	models: RuntimeNKleinProviderModel[],
-	fallbackModels: RuntimeNKleinProviderModel[],
-): RuntimeNKleinProviderModel[] {
-	const existingModelIds = new Set(models.map((model) => model.id));
-	return [...models, ...fallbackModels.filter((model) => !existingModelIds.has(model.id))];
 }
 
 async function resolveModelListSettings(
