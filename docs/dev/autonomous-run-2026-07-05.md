@@ -902,25 +902,39 @@ undertaking (mutable state to thread through DI, larger blast radius) that shoul
 behavior-preservation and the "never weaken a test" rule stay reliable — NOT continued at the tail of this long session. This
 is the recommended entry point for the next Opus polishing iteration.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 12) — for David
+### ▶ §5.U slice 13 (2026-07-06, c349bdbf) — extracted nklein-mcp-oauth-settings-store + CORRECTION to the exhaustion finding
+**The "clean-seam exhaustion" finding above was too narrow — it only surveyed the big-3 + session-runtime.** The
+NEXT TIER of large files (mcp-runtime-service 949, workspace-state 1046, agent-sandbox 1090, projects-api 1001,
+task-board-mutations 764, dev.ts 1230) has plenty of clean cohesive seams — and some are UNTESTED, so extracting them
+is §5.U (monolith reduction) AND §5.V (coverage) at once. That's the productive vein; the risky big-3 class-splits can wait.
+Slice 13 proves it: moved the cohesive **MCP OAuth settings store** out of `nklein-mcp-runtime-service.ts` — the
+oauthServerState/settings schemas + types, path resolution (env override / sibling of the MCP settings file), the
+normalize / isEmpty / parse (validate + path-scoped errors) / atomic-locked write / transactional `updateOauthServerState`
+(read→apply→normalize→prune→write), and `hasAccessToken`. The service imports the pieces back; biome dropped the now-unused
+`node:fs` / `node:path` / `resolveMcpSettingsPath` imports. Behavior-preserving (existing mcp-runtime-service test still
+green); this cluster was **previously untested** and now has +12 unit tests over a temp file. Full gate green.
+**Progress:** mcp-runtime-service 949 → **843**.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 13) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **12 §5.U slices this run, ~75 new unit tests, 12 focused modules extracted, zero behavior changes** (the pre-commit fast
+- **13 §5.U slices this run, ~87 new unit tests, 13 focused modules extracted, zero behavior changes** (the pre-commit fast
   suite gates every commit; extractions delegate).
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
   `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
-  `nklein-task-session-service.ts` still **4886** (the hardest — class-heavy, instance-stateful; earlier slices nibbled it,
-  next needs the responsibility-split not just pure-fn lifts).
-- **CLEAN-SEAM EXHAUSTION (see finding above):** the safe pure-fn seams are done; what's left is the harder responsibility-split
-  — recommended to start fresh, not at a long-context tail.
+  `nklein-mcp-runtime-service.ts` 949 → **843** (oauth-settings-store); `nklein-task-session-service.ts` still **4886** (the
+  hardest — class-heavy, instance-stateful; earlier slices nibbled it, next needs the responsibility-split not just pure-fn lifts).
+- **PRODUCTIVE VEIN (corrected):** the big-3 pure-fn seams are done, but the NEXT-TIER large files (mcp-runtime-service,
+  workspace-state, agent-sandbox, projects-api, task-board-mutations, dev.ts) have clean cohesive seams, several UNTESTED
+  → each is §5.U + §5.V at once. Keep mining these before the risky big-3 class-splits.
 - **New modules (all under `src/nklein-agent/` unless noted):** nklein-session-system-prompt, nklein-launch-config,
   nklein-retrieval-tools-gate, nklein-provider-settings-summary, nklein-litellm-model-list,
-  nklein-managed-provider-credentials, nklein-provider-selection-store, nklein-model-list-settings,
-  `src/server/bounded-dedup-set`, `src/server/workspace-state-lock-retry`, `src/server/review-sandbox-result`.
-- **Next targets (in order):** (1) the last pure-ish provider-service bits (remote-config parse); (2) more runtime-server
-  free-function seams; (3) the deeper, higher-value work — decomposing the ~2300-line `createRuntimeServer` closure and the
-  task-session-service class by responsibility (review-loop / plan-critique / mailbox as collaborators), which is where the
-  "no large monolith" directive really bites. §5.V coverage + §5.Z cross-model verification remain open; §5.AX visual
-  overhaul is Fable-only.
-- **polishing.md:** §5.U section now migrated in (per the phase directive), with the same tally + next targets.
+  nklein-managed-provider-credentials, nklein-provider-selection-store, nklein-model-list-settings, nklein-kanban-access-policy,
+  nklein-mcp-oauth-settings-store, `src/server/bounded-dedup-set`, `src/server/workspace-state-lock-retry`,
+  `src/server/review-sandbox-result`.
+- **Next targets (in order):** (1) more next-tier clusters (mcp-runtime-service transport/oauth-provider-context;
+  workspace-state path helpers; agent-sandbox pure helpers); (2) the deeper, higher-value work — decomposing the ~2300-line
+  `createRuntimeServer` closure and the task-session-service class by responsibility. §5.Z cross-model verification + §5.AZ
+  release prep remain open; §5.AX visual overhaul is Fable-only.
+- **polishing.md:** §5.U section migrated in (per the phase directive), with the same tally + next targets.
