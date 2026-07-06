@@ -683,6 +683,19 @@ After creating a dev-test project (→ current project + active workspace) and p
 - ❌ **FAIL** · `gpt-oss-20b-mlx` · 39s · INCOMPLETE — see above.
   - matrix row: gpt-oss-20b-mlx=❌
 
+### 2026-07-06 (Opus polishing) · §5.Z §5.M chat-agent-tools on the heavy resident roster — 6/6 + W3.1 regression check
+`verify-chat-agent-tools.mts` (real model → `runChatAgentTurn` with the read-only workspace tools + gated/audited
+executor on a tiny on-disk workspace; asks a question answerable only by reading a file, asserts the model CALLED
+read_file, the executor audited it, the tool ran in the workspace, and the answer reflects the file secret). Swept the
+CURRENTLY-resident roster (state=loaded). **6/6 PASS:** qwen3.5-122b-a10b · qwen3.6-27b@q4_k_m · qwen3-8b ·
+mistralai/devstral-small-2-2512 · qwen2.5-coder-14b · coder-gpu — each called the tool through the gate, was audited,
+and answered from the file. **Doubles as a LIVE regression check of the Fable W3.1 change** (`chat-agent-turn.ts` now
+persists the user message BEFORE the tool loop so per-tool transcript rows interleave user→tool…→assistant): every run
+reported `User + assistant persisted: YES ✓` with the correct ordering + a clean `Tool steps: 1`. The chat tool-loop
+composes end-to-end on the full 8B→122B resident range after the W3.1 renderer/transcript rework.
+  - matrix rows (chat-agent-tools): qwen3.5-122b-a10b=✅ · qwen3.6-27b=✅ · qwen3-8b=✅ · devstral-small=✅ ·
+    qwen2.5-coder-14b=✅ · coder-gpu=✅
+
 ### 2026-07-06 · §5.Z EGRESS verification (egress LIVE at 127.0.0.1:18888) — infra + cross-model e2e
 **Infrastructure — `verify-egress-live.mts` ✅ ALL PASS:** real SearXNG search returns 8 real internet results
 (`"Claude Opus \ Anthropic" — anthropic.com/claude/opus`); the fail-closed gate blocks with `blocked_by_egress`

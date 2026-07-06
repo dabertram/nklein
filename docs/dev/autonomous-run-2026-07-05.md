@@ -1532,3 +1532,18 @@ server-side polishing slices. Triaged both:
 are the TLS getter + fetch-timeout installer that slice 36 explicitly skipped as low-value; `summarizeWorkspaceBoardStreams`
 is thin glue over the already-tested `summarizeBoardStreams` core — testing it = padding). §5.U big-3 is mined
 (task-session-service **4886 → 2773** across the run; remainder = the entangled primary lifecycle, David-gated boundary).
+
+### §5.Z sweep (2026-07-06, Opus polishing, live env: heavy roster + egress LIVE)
+
+David's machine had a HEAVIER resident roster than prior §5.Z sweeps (qwen3.5-122b-a10b, qwen3.6-27b@q4_k_m, devstral,
+qwen2.5-coder-14b, coder-gpu, qwen3-8b) + egress live at 18888. Ran two bounded, high-value §5.Z verifications on it
+(direct-model harnesses — no runtime/Docker beyond the SearXNG container):
+- **Egress (§5.AC) re-verified — 6/6 e2e (`8b70c97f`).** verify-egress-live ✅ (real results, fail-closed gate,
+  no_backend, payload map) + verify-egress-model-e2e 6/6 (model → web_search → live SearXNG → grounded answer). NEW
+  data points: the 122B MoE + 27B + devstral weren't in the prior (lighter) sweep. Egress proven 8B→122B.
+- **chat-agent-tools (§5.M) — 6/6 + W3.1 regression check.** verify-chat-agent-tools 6/6 across the resident roster;
+  doubles as a LIVE regression check of the Fable W3.1 `chat-agent-turn.ts` change (persist user BEFORE the tool loop) —
+  every run confirmed `User + assistant persisted: YES` with correct ordering. The chat tool-loop composes end-to-end on
+  8B→122B after the renderer/transcript rework.
+- Re-confirmed the /v1/models-vs-`state=loaded` caveat (gpt-oss-120b registered-but-not-resident → JIT-load hit the
+  memory ceiling); only loaded ids were swept (never force a giant to load — operator's call).
