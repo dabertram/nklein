@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/task-session-api-contract";
-import { isEnteringAwaitingReview, isReviewableNKleinSummary } from "../../../src/core/task-session-guards";
+import {
+	isEnteringAwaitingReview,
+	isReviewableNKleinSummary,
+	shouldCaptureReviewCheckpoint,
+} from "../../../src/core/task-session-guards";
 
 function summary(over: Partial<RuntimeTaskSessionSummary>): RuntimeTaskSessionSummary {
 	return {
@@ -52,5 +56,43 @@ describe("isEnteringAwaitingReview", () => {
 	it("is false when the next summary is null or not awaiting_review", () => {
 		expect(isEnteringAwaitingReview(summary({ state: "running" }), null)).toBe(false);
 		expect(isEnteringAwaitingReview(summary({ state: "running" }), summary({ state: "running" }))).toBe(false);
+	});
+});
+
+describe("shouldCaptureReviewCheckpoint", () => {
+	const running = summary({ state: "running", workspacePath: "/repo" });
+
+	it("is true for a workspace-backed task entering awaiting_review", () => {
+		expect(
+			shouldCaptureReviewCheckpoint(running, summary({ state: "awaiting_review", workspacePath: "/repo" })),
+		).toBe(true);
+	});
+
+	it("is false when it was already awaiting_review (not a fresh transition)", () => {
+		expect(
+			shouldCaptureReviewCheckpoint(
+				summary({ state: "awaiting_review", workspacePath: "/repo" }),
+				summary({ state: "awaiting_review", workspacePath: "/repo" }),
+			),
+		).toBe(false);
+	});
+
+	it("is false without a workspace path (nothing to checkpoint)", () => {
+		expect(shouldCaptureReviewCheckpoint(running, summary({ state: "awaiting_review", workspacePath: null }))).toBe(
+			false,
+		);
+	});
+
+	it("is false for a home-agent session", () => {
+		expect(
+			shouldCaptureReviewCheckpoint(
+				running,
+				summary({ taskId: "__home_agent__:ws:nklein", state: "awaiting_review", workspacePath: "/repo" }),
+			),
+		).toBe(false);
+	});
+
+	it("is false when the next summary is null", () => {
+		expect(shouldCaptureReviewCheckpoint(running, null)).toBe(false);
 	});
 });

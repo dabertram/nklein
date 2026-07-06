@@ -58,7 +58,7 @@ import { searchHitsAdapter } from "../core/retrieval-search-adapter";
 import { citedSynthesisAdapter } from "../core/retrieval-synthesis-adapter";
 import { raisedTokenBudget } from "../core/retry-policy";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
-import { isEnteringAwaitingReview } from "../core/task-session-guards";
+import { isEnteringAwaitingReview, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { createSearxngWebSearchClient } from "../server/web-search-searxng";
@@ -4286,19 +4286,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 	}
 
-	private shouldCaptureReviewCheckpoint(
-		previousSummary: RuntimeTaskSessionSummary,
-		nextSummary: RuntimeTaskSessionSummary | null,
-	): nextSummary is RuntimeTaskSessionSummary {
-		if (!nextSummary) {
-			return false;
-		}
-		if (isHomeAgentSessionId(nextSummary.taskId) || !nextSummary.workspacePath) {
-			return false;
-		}
-		return previousSummary.state !== "awaiting_review" && nextSummary.state === "awaiting_review";
-	}
-
 	/**
 	 * W2.3a (audit 2026-07-02, §5.AD/§5.AQ): LEARNED quality-effective context budgets per model, from the ledger's
 	 * qualityOk knee (`learnedQualityEffectiveBudget`) — the derate that was previously only printed to a dev
@@ -4774,7 +4761,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			previousSummary?.latestHookActivity?.notificationType !== "credit_limit";
 		if (this.shouldFinalizeSandboxReview(previousSummary, latestSummary)) {
 			this.finalizeSandboxReview(taskId);
-		} else if (this.shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
+		} else if (shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {
 			this.captureReviewCheckpoint(taskId, latestSummary);
 		}
 		const hookEventName = entry.summary.latestHookActivity?.hookEventName;

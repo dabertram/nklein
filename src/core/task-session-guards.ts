@@ -1,4 +1,5 @@
 import type { RuntimeTaskSessionSummary } from "./api-contract";
+import { isHomeAgentSessionId } from "./home-agent-session";
 
 /**
  * A task session summary that is awaiting review for a reason the runtime should act on: an agent hook handoff, a
@@ -30,4 +31,23 @@ export function isEnteringAwaitingReview(
 	return (
 		nextSummary !== null && previousSummary.state !== "awaiting_review" && nextSummary.state === "awaiting_review"
 	);
+}
+
+/**
+ * Should a summary update capture a review checkpoint? The pure decision half — a real workspace-backed (non home-agent)
+ * task entering awaiting-review — extracted from `nklein-task-session-service`'s `shouldCaptureReviewCheckpoint`. It
+ * shares the entering-awaiting-review transition rule with {@link isEnteringAwaitingReview} (no duplicated state check).
+ * A type guard so callers narrow `next` to non-null.
+ */
+export function shouldCaptureReviewCheckpoint(
+	previousSummary: RuntimeTaskSessionSummary,
+	nextSummary: RuntimeTaskSessionSummary | null,
+): nextSummary is RuntimeTaskSessionSummary {
+	if (!nextSummary) {
+		return false;
+	}
+	if (isHomeAgentSessionId(nextSummary.taskId) || !nextSummary.workspacePath) {
+		return false;
+	}
+	return isEnteringAwaitingReview(previousSummary, nextSummary);
 }
