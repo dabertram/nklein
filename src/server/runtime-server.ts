@@ -115,6 +115,7 @@ import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { createBoundedDedupSet } from "./bounded-dedup-set";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
+import { resolveReviewSandboxResult } from "./review-sandbox-result";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { applyCardReviewToBoard, runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
@@ -153,7 +154,6 @@ export interface RuntimeServer {
 	close: () => Promise<void>;
 }
 
-const SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS = [100, 250, 500, 1_000, 2_000] as const;
 /** Head of a failed plan-gate's output persisted on the surfaced card / in the self-observation (§5.0.5). */
 const PLAN_GATE_OUTPUT_HEAD_BUDGET = 400;
 /** Project-level build+test budget: 3× the per-card acceptance default — it checks the whole merged tree. */
@@ -166,33 +166,6 @@ const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
 // re-run gets a fresh startedAt; a re-emit of the same run does not). The sibling model-performance store dedups on READ
 // via a stable id; these two stores fold on WRITE, so they dedup here. Bounded (FIFO-evicted) against unbounded growth.
 const recordedTerminalRuns = createBoundedDedupSet(5000);
-
-function isEmptySandboxPatchSummary(summary: RuntimeTaskSessionSummary | null): boolean {
-	return summary?.latestHookActivity?.hookEventName === "sandbox_patch_empty";
-}
-
-async function resolveReviewSandboxResult(options: {
-	repoPath: string;
-	service: NKleinTaskSessionService;
-	taskId: string;
-}): Promise<"result_branch" | "empty_patch" | "unknown"> {
-	for (const delayMs of [0, ...SANDBOX_REVIEW_RESULT_POLL_DELAYS_MS]) {
-		if (delayMs > 0) {
-			await new Promise((resolve) => setTimeout(resolve, delayMs));
-		}
-		if (isEmptySandboxPatchSummary(options.service.getSummary(options.taskId))) {
-			return "empty_patch";
-		}
-		const resultCommit = await resolveTaskResultBranchCommit({
-			repoPath: options.repoPath,
-			taskId: options.taskId,
-		});
-		if (resultCommit) {
-			return "result_branch";
-		}
-	}
-	return "unknown";
-}
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
 	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
@@ -1043,11 +1016,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						return;
 					}
 					const reviewState = await loadWorkspaceState(scope.workspacePath);
-					const sandboxResult = await resolveReviewSandboxResult({
-						repoPath: scope.workspacePath,
-						service,
-						taskId,
-					});
+					const sandboxResult = await resolveReviewSandboxResult(
+						{ repoPath: scope.workspacePath, taskId },
+						{ getSummary: (id) => service.getSummary(id), resolveResultCommit: resolveTaskResultBranchCommit },
+					);
 					// Second-opinion review gate (todo §5.K). Runs for EVERY reviewable result — including an
 					// `empty_patch` (no file changes), since a no-op is usually a red flag (bad planning / mis-processed
 					// task) that deserves judgment, not a silent auto-complete. The result branch (when there is one) is
