@@ -719,3 +719,20 @@ surfaces candidates to the USER (deterministic, user-in-control), so an LLM gues
 context with no user to click. Needs a model call; leave it unless a headless-disambiguation need arises. **§5.AU/§5.AT are
 now essentially complete end to end** (feedback bridge + mute + relay + streams + picker), and the online-retrieval cluster
 is live + search-validated. The high-value backlog that's actionable-without-David is, again, essentially worked through.
+
+### ▶ 2026-07-06 (loop resumed) — ★ ONLINE-RETRIEVAL CLUSTER VALIDATED END-TO-END WITH A LIVE MODEL
+Ran `scripts/verify-egress-model-e2e.mts` against the loaded **gpt-oss-120b** + the live SearXNG. The WHOLE egress feature
+is proven: the model **emitted a `web_search` tool call** (finish=tool_calls) → its query hit live SearXNG → **8 real
+results** → the model **used them** in its answer (correctly returned `https://www.anthropic.com/claude/opus`). This is
+`model → tool-call → egress → real results → answer` working live — the §5.AC/§5.AB/§5.M cluster is no longer just "built +
+dormant", it's **built + LIVE + validated end-to-end**. (Loaded set: gpt-oss-120b + coder-gpu; SearXNG up on :18888.)
+
+**Newly UNBLOCKED by live egress (now exercisable, previously egress-gated + dark):** the swarm `research` tool +
+freshness→online-refetch (§5.M/§5.AC), online model research (§5.AB), and the **llmfit catalog-freshness check** (§5.AL /
+integrations.md — periodically check HF for a newer model DB + user-triggered update; the one clearly-scoped owed slice
+egress unblocks). These are BUILD items (not just validation), the freshness-check being the most bounded.
+
+**Milestone:** the two biggest things David unblocked this run (item-9 UX + egress) are both DONE — item 9 feature-complete,
+egress live + E2E-validated. The high-value actionable-without-David surface is again worked through; the remaining
+egress-enabled items are real BUILD slices (catalog-freshness check being the cleanest) a next iteration can take, else
+surface to David.
