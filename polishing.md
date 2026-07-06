@@ -459,7 +459,12 @@
 > resetGuardsForPark / pushParkSystemMessage / enforceAutonomyBudgets) into `createParkController(deps)`. Deps (~10):
 > getTaskEntry, listSummaries, emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog (or check/resetTask),
 > repeatedToolCallGuard.resetTask, pauseController.markTaskParked, abortTaskSession, recordObservation. Boundary is CLEAR (the
-> pause/park concern); gate with the existing pause tests. Then timeout-scheduling + sandbox-review finalization similarly.
+> pause/park concern); gate with the existing pause tests. **Fully scoped (slice-49 iteration): 6 call sites to rewire —
+> pause handler ×2 (~2747/2754), applyTurnCheckpoint (enforceAutonomyBudgets), and watchdog+nudger callback wirings ×3
+> (~631/639/640). TYPE-MATCH: parkTaskFor{Pause,AutonomyBudget}'s input `{taskId, entry, message, metadata}` is referenced by
+> AutonomyBudgetWatchdogCallbacks + the nudger callbacks — keep the ParkController input type compatible (or share a type).
+> Pure imports needed: createMessage, clearActiveTurnState, updateSummary, now (nklein-session-state).** Then
+> timeout-scheduling + sandbox-review finalization similarly.
 > Note: runtime-server's state is in the createRuntimeServer CLOSURE (not fields) — harder; provider-service already 1463.
 > **CAVEAT on candidates:** verify state is genuinely SEPARABLE first. `timeout scheduling` is NOT clean —
 > `clearTaskTimeouts` coordinates the residency watcher + `activeToolTaskIds` (cross-concern), and `handleTaskTimeout`
