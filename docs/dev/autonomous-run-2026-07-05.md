@@ -1033,12 +1033,21 @@ static-serve path normalization) and `getAllowedHostHeaders` (host allow-list: e
 hosts allowed on a local bind). Left the I/O-bound `handleHttpRequest` (its pure sub-decisions evaluateHost/evaluateCors
 are already tested) and the fs-probing `getWebUiDir`. No source change.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 29) — for David
+### ▶ §5.V slices 30–31 (2026-07-06, fb182551 + 40f62da1) — SECURITY coverage: passcode rate-limiter + windows-cmd escaping
+Slice 30 (+6 tests): the passcode-auth rate-limiter (5 attempts → 30s lockout) was untested — locked the fresh-IP allow,
+the attempt countdown, lockout after the 5th failure, `clearRateLimit` reset, the auto-unlock after the window (fake
+timers), and `revokeAndRegeneratePasscode` (fresh passcode + clears lockouts); unique IP per test so the module-global map
+doesn't leak. Slice 31 (+5 tests): windows-cmd launch — `resolveWindowsComSpec` (case-insensitive/trimmed, cmd.exe
+fallback) and `buildWindowsCmdArgs{Array,CommandLine}` (the `/d /s /c` wrapping, the two forms kept consistent, and the
+injection-safety property that a cmd meta char `&` is caret-escaped to `^&`). No source change.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 31) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **29 slices this run (20 §5.U extractions + 9 §5.V coverage batches), ~212 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed: the whole api-validation parser
-  boundary, the runtime-config-normalizers gaps, the speculative/retrieval resolver normalizers, and the server path/host helpers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+- **31 slices this run (20 §5.U extractions + 11 §5.V coverage batches), ~223 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed: the api-validation parser boundary,
+  runtime-config-normalizers gaps, speculative/retrieval resolver normalizers, server path/host helpers, and — highest value —
+  two SECURITY modules: the passcode rate-limiter and the windows-cmd escaping/launch builders. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
