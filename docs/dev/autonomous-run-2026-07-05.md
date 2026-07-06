@@ -1292,6 +1292,16 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > runBoundedTurn; a git-merge reproduction/verify before the turn; `mainRef` baseRef). Each a wide-dep verbatim collaborator,
 > gated by tsc + biome + fast + swarm-deterministic-pass. So: review + plan-critique share the harness; mirror + merge become
 > their own modules (all four out of the monolith). Not rushed (no fast-net; behavior byte-identical).
+> **5/6 SpeculativeMirror DONE (David chose full standalone).** Extracted verbatim into
+> createSpeculativeMirrorRunner (owns its cancel-flag set; boolean return; own settled/timeout runBoundedTurn; residency
+> re-check + workspace-patch capture). Prep: named the big startRuntimeTaskSessionFromLaunchConfig param type into a shared
+> `nklein-runtime-session-input` module so a runner can type the injected `startRuntimeSession` dep without a service cycle
+> (this also unblocks merge). Shared teardown-forgets are now a service method `forgetSyntheticSessionState`. +5 tests +
+> integration gate. task-session-service **3887 → 3722**. **REMAINING: 6/6 MergeResolution** — the biggest+most-intricate
+> (~325 lines: git-merge REPRODUCTION in-sandbox → verify the unmerged set matches the host conflict EXACTLY → binary/size
+> gates → the model turn with a boolean+TOCTOU runBoundedTurn → capture). Most behavior-sensitive (a bug ⇒ a semantically-wrong
+> merge), so extracted carefully with characterization tests + the gate, on a fresh turn. task-session-service 4886 → 3722 so
+> far (−24%).
 
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
