@@ -1297,11 +1297,17 @@ boundaries that warrant David's steer, or a shift to the other two monoliths.
 > re-check + workspace-patch capture). Prep: named the big startRuntimeTaskSessionFromLaunchConfig param type into a shared
 > `nklein-runtime-session-input` module so a runner can type the injected `startRuntimeSession` dep without a service cycle
 > (this also unblocks merge). Shared teardown-forgets are now a service method `forgetSyntheticSessionState`. +5 tests +
-> integration gate. task-session-service **3887 → 3722**. **REMAINING: 6/6 MergeResolution** — the biggest+most-intricate
-> (~325 lines: git-merge REPRODUCTION in-sandbox → verify the unmerged set matches the host conflict EXACTLY → binary/size
-> gates → the model turn with a boolean+TOCTOU runBoundedTurn → capture). Most behavior-sensitive (a bug ⇒ a semantically-wrong
-> merge), so extracted carefully with characterization tests + the gate, on a fresh turn. task-session-service 4886 → 3722 so
-> far (−24%).
+> integration gate. task-session-service **3887 → 3722**. **6/6 MergeResolution DONE — ★ SEAM COMPLETE.**
+> The biggest+most-intricate runner (~325 lines: git-merge REPRODUCTION in-sandbox → verify the unmerged set matches the host
+> conflict EXACTLY → binary/size/text gates → the model turn with a boolean+TOCTOU runBoundedTurn → trust-but-verify → capture)
+> extracted verbatim into createMergeResolutionRunner. +8 characterization tests (command-routing exec mock: clean/divergent/
+> resolve-e2e/leftover-markers/over-cap/symlink) + the integration gate. task-session-service 3722 → 3392.
+> **★ REVIEW-CLUSTER SEAM COMPLETE (6/6): all auxiliary secondary-session runners are out of the monolith** —
+> AcceptanceVerifier, pickDiverseReviewerModel, SecondarySessionHarness+review, PlanCritique(on-harness), SpeculativeMirror,
+> MergeResolution. **task-session-service 4886 → 3392 across the run (−1494, −31%).** New modules: nklein-acceptance-verifier,
+> nklein-reviewer-model-selection, nklein-secondary-session-harness, nklein-speculative-mirror-runner,
+> nklein-merge-resolution-runner, nklein-runtime-session-input (shared start-input type). Every commit gated by
+> tsc + biome + fast + swarm-deterministic-pass; behavior byte-identical.
 
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 57) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +

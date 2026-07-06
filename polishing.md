@@ -481,6 +481,14 @@
 > synthetic taskId + launch config), with the contract/integration suite as the behavioral backstop. **Three decisions for
 > David:** (a) confirm "auxiliary secondary-session" is the seam; (b) granularity — the 2-layer 6-commit split (rec) vs one big
 > AuxiliarySessionOrchestrator commit; (c) OK to use characterization tests as the net for this tier.
+> **★ SEAM COMPLETE (2026-07-06, 6/6):** all auxiliary secondary-session runners extracted, each gated by
+> tsc+biome+fast+swarm-deterministic-pass, behavior byte-identical. 1 AcceptanceVerifier · 2 pickDiverseReviewerModel ·
+> 3 SecondarySessionHarness (+review) · 4 PlanCritique(on-harness) · 5 SpeculativeMirror(standalone) · 6 MergeResolution
+> (standalone). **task-session-service 4886 → 3392 this run (−31%).** Learnings: review + plan-critique share the harness
+> (void runBoundedTurn, additive primaryTaskId-optional baseRef); mirror + merge diverge (own boolean/settled-timeout
+> runBoundedTurn, cancel-state / git-merge reproduction) → standalone via the named StartRuntimeTaskSessionFromLaunchConfigInput
+> dep-type (shared nklein-runtime-session-input module). The original approval below.
+>
 > **✅ APPROVED BY DAVID (2026-07-06):** (a) YES — "auxiliary secondary-session" is the seam; (b) the 2-layer, ~6 bounded-commit
 > split (shared `SecondarySessionHarness` → then ReviewRunner / PlanCritiqueRunner / SpeculativeMirror / MergeResolution /
 > AcceptanceVerifier, each its own commit); (c) **STRONGER than characterization-only — David requires a FULL INTEGRATION PASS
