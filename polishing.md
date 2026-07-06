@@ -373,6 +373,27 @@
 > their live-verify step, that step means **all loaded models**, recorded in the matrix — not a single-model proof.
 
 
+### 5.U — Deep architecture refactor: no large monolith files *(migrated from todo.md 2026-07-06; ACTIVE — Opus polishing flagship)*
+> **Goal:** decompose the large monolith files into cohesive, single-responsibility modules — **behavior-preserving +
+> test-gated**, one bounded cluster per commit, the existing tests as the safety net (NEVER weaken a test to pass a
+> refactor). **The extraction pattern (§4A tribal knowledge):** pull a PURE sub-computation (or a DI-injectable I/O helper)
+> out of a monolith into a new focused module + its own unit test; the original imports it back and delegates. No ripple
+> when the moved cluster's deps are all shared-module imports. For I/O helpers (retry loops, poll loops), inject `sleep` /
+> the probe functions so the control flow is deterministically testable without real timers or live services.
+>
+> **Live tally (see [docs/dev/autonomous-run-2026-07-05.md](docs/dev/autonomous-run-2026-07-05.md) for the per-slice log):**
+> - `nklein-provider-service.ts`: 1651 → **1502** — extracted `nklein-provider-settings-summary`, `nklein-litellm-model-list`,
+>   `nklein-managed-provider-credentials`, `nklein-provider-selection-store` (+ 3 earlier).
+> - `runtime-server.ts`: 2527 → **2468** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`.
+> - `nklein-task-session-service.ts`: still **4886** — the hardest (class-heavy, instance-stateful); needs the
+>   responsibility-split (review-loop / plan-critique / mailbox as collaborators), not just pure-fn lifts. Deferred until the
+>   easier free-function seams are exhausted.
+> - **10 slices so far, ~61 new unit tests, 10 focused modules, zero behavior changes** (pre-commit fast suite gates each).
+>
+> **Next (in order):** the last pure-ish provider-service bits (remote-config parse; `resolveModelListSettings` with
+> `listSdkProviderCatalog` injected) → more runtime-server free-function seams → then the deep responsibility-split of the
+> `createRuntimeServer` closure and the task-session-service class, which is where the "no large monolith" directive bites.
+
 ### 5.AO — DEFERRED: extensive model-attribute A/B hardening sessions *(2026-06-29, user — PARKED until "first proven workflow paths" land)*
 > **User steer (2026-06-29):** do **extensive A/B testing across ALL available model attributes / characteristics** at a
 > LATER point. **For now we keep punching through !Klein's basic core implementation** to reach confidence in the **"first
