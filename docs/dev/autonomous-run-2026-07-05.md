@@ -1125,22 +1125,38 @@ line count when the lifted computation is CHUNKY relative to its call site (slic
 one +4). **For the flagship's "reduce lines" goal, target chunky inline computations; for small ones the win is coverage,
 not size.** Real line-reduction at scale still needs the collaborator split (David-gated for boundaries).
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 44) — for David
+### ▶ §5.U slice 45 (2026-07-06, 6a1591f9) — FIRST COLLABORATOR SPLIT: model-residency watcher
+The first genuine responsibility-split of the flagship (not a pure-fn lift). Moved the model-residency-watch concern (the
+per-task heartbeat-handle Map + begin/stop/on-lost lifecycle) out of the service into a bounded `createModelResidencyWatcher`
+collaborator; everything it needs from the service is supplied via a 6-method `ModelResidencyWatcherDeps` interface, so the
+concern is self-contained. The service instantiates it once; the 4 call sites became `this.modelResidencyWatcher.begin/stop`;
+biome dropped the now-unused liveness imports. **Behavior-preserving — proven by the FULL task-session-service suite +
+lmstudio-liveness test (134 tests) still green.** task-session-service 4863 → **4811 (−52)**. +3 focused watcher tests.
+**CORRECTION to my earlier "the split needs David's steer" framing:** a collaborator split CAN be done autonomously + safely
+when (1) the concern is cohesive with cleanly-separable state (here: a single Map), (2) the deps interface is clear/small,
+(3) the existing test suite covers the behavior. This is the TEMPLATE + it unlocks the flagship's real reduction path. Next
+candidates with the same shape: timeout scheduling (`timeoutScheduler` + schedule/clear/handle methods), decomposition-stall
+nudge (`decompositionStallNudger` + the chat-nudge methods), sandbox-review finalization. David's steer is only needed for
+concerns whose state is NOT cleanly separable / whose boundary is genuinely ambiguous.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 45) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **44 slices this run (22 §5.U extractions + 22 §5.V coverage batches), ~297 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). §5.V high-value pure-logic coverage is now SATURATED
+- **45 slices this run (23 §5.U extractions + 22 §5.V coverage batches), ~300 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). Slice 45 landed the FIRST collaborator responsibility-split
+  (model-residency watcher, flagship −52) — proven safe by 134 existing tests; the reduction path is now unblocked. §5.V
+  high-value pure-logic coverage is now SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
   + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, plan-task-routing resolvers,
   task-start-guard helpers, the nklein-session-state core module (all 17 exports), provider-model-parsing, operator-board-health.
 - **Actionable WITHOUT David:** (a) §5.V is a low-value tail (Zod schema decls — transitively tested; trivial path-joins;
-  I/O fns; SDK passthroughs) — don't pad. (b) **BUT §5.U flagship progress is NOT blocked** — the third pattern (lift pure
-  sub-computations out of stateful methods, slice 43) reopens safe, bounded, test-gated shrinking of the big files; a
-  systematic pass over the large methods for liftable pure steps is the productive continuation. **Benefits from David:** the
-  full stateful responsibility-split (moving a cohesive cluster of methods + their dedicated state into a collaborator class)
-  — steer on intended module boundaries avoids an autonomous guess. §5.Z cross-model verification (needs live models driven
-  through flows) and §5.AZ release prep (POST-MATURITY, David-gated) also remain. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+  I/O fns; SDK passthroughs) — don't pad. (b) **§5.U flagship reduction is UNBLOCKED and autonomous** — slice 45 proved a
+  COLLABORATOR SPLIT can be done safely (residency watcher, −52, 134 tests green). Continue splitting the cohesive,
+  cleanly-separable concerns (timeout scheduling, decomposition-stall nudge, sandbox-review finalization, …), one bounded +
+  test-gated collaborator per commit, plus chunky pure sub-computation lifts. **Benefits from David only for:** concerns whose
+  state is NOT cleanly separable / whose module boundary is genuinely ambiguous. §5.Z cross-model verification (needs live
+  models driven through flows) and §5.AZ release prep (POST-MATURITY, David-gated) also remain. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44

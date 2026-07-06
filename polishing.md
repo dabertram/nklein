@@ -395,9 +395,10 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **44 slices so far (22 §5.U extractions + 22 §5.V coverage batches), ~297 new unit tests, zero behavior changes** (pre-commit
+> - **45 slices so far (23 §5.U extractions + 22 §5.V coverage batches), ~300 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42); §5.U flagship progress reopened via the
->   third pattern (slices 43-44). THREE flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
+>   third pattern (43-44); **slice 45 landed the FIRST collaborator split (residency watcher, −52 lines, 134 tests green) —
+>   flagship reduction is now unblocked + autonomous for cleanly-separable concerns.** Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
 >
@@ -441,9 +442,16 @@
 > **§5.U THIRD PATTERN (2026-07-06, slice 43):** beyond (1) lifting pure `this`-free methods and (2) lifting state-free inner
 > closures, there's (3) **lifting a PURE sub-computation OUT of a stateful method** — the method keeps its IO/orchestration and
 > delegates the pure step to a new tested module. Reviewer-candidate selection (`resolveWorkerRealId`/`buildReviewerCandidates`)
-> came out of `pickDiverseReviewerModel` this way (+5 tests, service 4873→4859). This reopens safe, bounded flagship progress:
-> do a systematic pass over the large methods (dispatchResolvedTaskInput, runSecondOpinionReviewSessionInner,
-> buildPlanCritiqueRequestHandler, …) for liftable pure steps, one bounded+tested commit each. **CAVEAT (slice 44):** the
+> came out of `pickDiverseReviewerModel` this way (+5 tests, service 4873→4859). This reopens safe, bounded flagship progress.
+>
+> **§5.U FOURTH (biggest) PATTERN — COLLABORATOR SPLIT, proven autonomous+safe (slice 45):** move a cohesive concern (a
+> cluster of methods + its DEDICATED state) out of the class into a `createXWatcher(deps)` collaborator with a small deps
+> interface; the service instantiates it + delegates. Residency watcher was the first (−52 lines, 134 tests green). Do it
+> when state is cleanly separable (ideal: a single Map/field) + the deps interface is clear. Next candidates in
+> task-session-service: **timeout scheduling** (`timeoutScheduler` + scheduleTaskTimeout/clearTaskTimeouts/handleTaskTimeout),
+> **decomposition-stall nudge** (`decompositionStallNudger` + clear/schedule/maybeContinue), **sandbox-review finalization**
+> (shouldFinalize/finalizeSandboxReview + sandboxState). Verify each with the existing task-session-service suite.
+> Also keep: chunky pure sub-computation lifts. **CAVEAT (slice 44):** the small-pure-lift (third) pattern only shrinks when the
 > third pattern only REDUCES line count when the lifted computation is CHUNKY relative to its call site — a SMALL lift
 > (e.g. adaptive-retry policy, +4 lines net) is a cohesion+coverage win but not a size win. Target chunky inline
 > computations for actual flagship shrinkage; real line-reduction at scale still needs the collaborator split.
