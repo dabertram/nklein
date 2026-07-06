@@ -1406,3 +1406,8 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   the dedup set stays a process-wide singleton. 4 tests. **runtime-server.ts 2451 → 2385.**
 - **This continuation's tally:** 3 clean §5.U increments — adaptive-budget controller + context-overflow controller (task-
   session-service 3392 → 3157) and the runtime-server telemetry lift (2451 → 2385). All gated tsc+biome+fast+integration.
+- **runtime-server: plan-integration-gate runner lift** (`e2ee6687`) — lifted the server-side plan-level integration gate
+  (§5.0.5): the two closures + the per-server `completedPlanGateRunKeys` dedup set + the PLAN_GATE_* constants out of
+  createRuntimeServer into `createPlanIntegrationGateRunner({ warn })` (service passed per-call). 5 tests. **runtime-server.ts
+  2385 → 2230.** Continuation tally now 4 clean §5.U increments; runtime-server 2451 → 2230 (−221), task-session-service
+  3392 → 3157.
