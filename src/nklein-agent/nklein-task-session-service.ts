@@ -1308,30 +1308,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.modelResidencyWatcher.stop(taskId);
 	}
 
-	/**
-	 * §5.AN residency heartbeat (OPT-IN via `NKLEIN_RESIDENCY_HEARTBEAT`): while a task runs, poll the model's residency
-	 * and — if it crashes / is unloaded (memory pressure) — fail FAST instead of waiting out the ultra-long timeout. Inert
-	 * by default (flag off) and auto-detected (a non-LM-Studio host reports `unobservable`, so it never aborts). The
-	 * heartbeat self-cleans when the task leaves `running`; `stopModelResidencyWatch` in `clearTaskTimeouts` is a backstop.
-	 */
-	private clearDecompositionChatNudge(taskId: string): void {
-		this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
-	}
-
-	private scheduleDecompositionChatNudge(taskId: string): void {
-		this.decompositionStallNudger.scheduleDecompositionChatNudge(taskId);
-	}
-
-	/**
-	 * When an explicit decomposition turn ends without a `decompose_project` tool call the planning card would
-	 * otherwise sit in Review having never decomposed (and a planning card has no reviewer to pick it up).
-	 * Delegates to {@link DecompositionStallNudger.maybeContinueStalledDecomposition} which classifies the two
-	 * stall shapes (`decompose` / `continue_read`) and re-prompts within the nudge budget.
-	 */
-	private maybeContinueStalledDecomposition(taskId: string): void {
-		this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
-	}
-
 	private scheduleTaskTimeout(taskId: string, kind: NKleinTaskTimeoutKind, timeoutMs: number | null): void {
 		this.timeoutScheduler.schedule(taskId, kind, timeoutMs, (firedTimeoutMs) => {
 			void this.handleTaskTimeout(taskId, kind, firedTimeoutMs);
@@ -2304,7 +2280,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.pendingTurnCancelTaskIds.add(taskId);
 		this.clearTaskTimeout(taskId, "stream");
 		this.clearTaskTimeout(taskId, "tool");
-		this.clearDecompositionChatNudge(taskId);
+		this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 		this.activeToolTaskIds.delete(taskId);
 		await this.sessionRuntime.abortTaskSession(taskId).catch(() => null);
 		clearActiveTurnState(entry);
@@ -4707,26 +4683,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.clearTaskTimeout(taskId, "stream");
 			this.clearTaskTimeout(taskId, "tool");
 			this.clearTaskTimeout(taskId, "conversation");
-			this.clearDecompositionChatNudge(taskId);
+			this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			this.activeToolTaskIds.delete(taskId);
-			this.maybeContinueStalledDecomposition(taskId);
+			this.decompositionStallNudger.maybeContinueStalledDecomposition(taskId);
 		} else if (hookEventName === "tool_call" && !this.activeToolTaskIds.has(taskId)) {
 			if (entry.summary.latestHookActivity?.toolName?.trim().toLowerCase() === "decompose_project") {
-				this.clearDecompositionChatNudge(taskId);
+				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}
 			this.activeToolTaskIds.add(taskId);
 			this.clearTaskTimeout(taskId, "stream");
 			this.scheduleTaskTimeout(taskId, "tool", this.timeoutSettingsByTaskId.get(taskId)?.toolTimeoutMs ?? null);
 		} else if (hookEventName === "tool_result") {
 			if (entry.summary.latestHookActivity?.toolName?.trim().toLowerCase() === "decompose_project") {
-				this.clearDecompositionChatNudge(taskId);
+				this.decompositionStallNudger.clearDecompositionChatNudge(taskId);
 			}
 			this.activeToolTaskIds.delete(taskId);
 			this.clearTaskTimeout(taskId, "tool");
 			this.scheduleStreamTimeout(taskId);
 		} else if (entry.summary.state === "running" && !this.activeToolTaskIds.has(taskId)) {
 			if (isChatOnlyDecompositionActivity(entry.summary)) {
-				this.scheduleDecompositionChatNudge(taskId);
+				this.decompositionStallNudger.scheduleDecompositionChatNudge(taskId);
 			}
 			this.scheduleStreamTimeout(taskId);
 		}
