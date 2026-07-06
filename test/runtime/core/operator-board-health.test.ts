@@ -1,11 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
 	RuntimeBoardCard,
 	RuntimeBoardData,
 	RuntimeTaskSessionSummary,
 	RuntimeWorkspaceStateResponse,
 } from "../../../src/core/api-contract";
-import { summarizeWorkspaceBoardHealth } from "../../../src/core/operator-board-health";
+import {
+	type BoardHealthBoardView,
+	summarizeBoardHealth,
+	summarizeWorkspaceBoardHealth,
+} from "../../../src/core/operator-board-health";
 
 function card(id: string, blockedKind?: RuntimeBoardCard["blockedKind"]): RuntimeBoardCard {
 	return {
@@ -131,5 +135,33 @@ describe("summarizeWorkspaceBoardHealth", () => {
 		);
 		expect(summary.counts.risky).toBe(2);
 		expect(summary.inbox.escalatedToOperator.sort()).toEqual(["escalated", "parked"]);
+	});
+});
+
+// §5.V — direct coverage of the lower-level summarizeBoardHealth (the higher-level workspace variant above wraps it, so it
+// was only transitively covered). Locks its own contract: trash exclusion + the per-card resolveOverrides callback.
+describe("summarizeBoardHealth (§5.V coverage)", () => {
+	const view = (columns: Array<{ id: string; cards: Array<Record<string, unknown>> }>): BoardHealthBoardView =>
+		({ columns }) as unknown as BoardHealthBoardView;
+
+	it("counts non-trash cards and excludes the trash column", () => {
+		const summary = summarizeBoardHealth(
+			view([
+				{ id: "backlog", cards: [{ id: "c1" }, { id: "c2" }] },
+				{ id: "trash", cards: [{ id: "gone" }] },
+			]),
+			{},
+		);
+		expect(summary.total).toBe(2);
+		const allIds = Object.values(summary.byState).flat();
+		expect(allIds).toContain("c1");
+		expect(allIds).not.toContain("gone");
+	});
+
+	it("consults resolveOverrides for each non-trash card id", () => {
+		const resolveOverrides = vi.fn(() => ({}));
+		summarizeBoardHealth(view([{ id: "backlog", cards: [{ id: "c1" }, { id: "c2" }] }]), {}, resolveOverrides);
+		expect(resolveOverrides).toHaveBeenCalledWith("c1");
+		expect(resolveOverrides).toHaveBeenCalledWith("c2");
 	});
 });
