@@ -67,7 +67,7 @@ import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog
 import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
 import type { DecompositionStallNudgerCallbacks } from "./decomposition-stall-nudger";
 import { DecompositionStallNudger, isChatOnlyDecompositionActivity } from "./decomposition-stall-nudger";
-import { runNKleinAcceptanceGateInSandbox } from "./nklein-acceptance-gate";
+import { createAcceptanceVerifier } from "./nklein-acceptance-verifier";
 import { hasStallEvidence, shouldAttemptAdaptiveBudgetRetry } from "./nklein-adaptive-retry-policy";
 import {
 	type AgentSandboxManager,
@@ -519,6 +519,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		emitMessage: (taskId, message) => this.emitMessage(taskId, message),
 		isExplicitDecomposition: (taskId) => this.explicitDecompositionTaskIds.has(taskId),
 		getDiagnosticStoreRoot: () => this.diagnosticStoreRoot,
+	});
+	/** §5.U auxiliary secondary-session runner: acceptance verification against the delivered tree in a sandbox. */
+	private readonly acceptanceVerifier = createAcceptanceVerifier({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getPauseController: () => this.pauseController,
 	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
@@ -2519,30 +2524,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		resultBranchTaskId?: string;
 		useBaseTree?: boolean;
 	}): Promise<RuntimeTaskAcceptanceResult> {
-		if (!this.agentSandboxManager) {
-			throw new Error("!Klein acceptance verification requires the configured agent sandbox manager.");
-		}
-		// Test the DELIVERED tree: acceptance evidence must run against the task's result branch, not the base
-		// ref the callers hold (run19 autopsy: base-tree acceptance is false evidence in both directions — a
-		// base-green repo rubber-stamps a no-op, a base-red repo fail-holds perfect work). No result branch yet
-		// (e.g. empty patch) falls back to the base ref, where the empty-patch hold already governs.
-		// §5.AW: when the reviewer preferred the speculative candidate, the DELIVERED tree is the ::spec
-		// branch — acceptance evidence must run against what actually ships.
-		const resultCommit = input.useBaseTree
-			? null
-			: await resolveTaskResultBranchCommit({
-					repoPath: input.projectRepoPath,
-					taskId: input.resultBranchTaskId ?? input.taskId,
-				}).catch(() => null);
-		return await runNKleinAcceptanceGateInSandbox({
-			taskId: input.taskId,
-			projectRepoPath: input.projectRepoPath,
-			baseRef: resultCommit ?? input.baseRef,
-			taskPrompt: input.taskPrompt,
-			timeoutMs: input.timeoutMs,
-			sandboxManager: this.agentSandboxManager,
-			pauseController: this.pauseController,
-		});
+		return this.acceptanceVerifier.verify(input);
 	}
 
 	/**
