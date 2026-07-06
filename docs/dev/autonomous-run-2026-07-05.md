@@ -1911,3 +1911,36 @@ David: "do it as one coordinated change." Executing the netted plan. Deeper read
   `d.modelKey`) + the ledger write + the residency set (`runningModelKeys`) + the verdict (add a stable field to the
   candidate; observations write stable) TOGETHER, guard verifying, then re-key-on-load the ledger/registry. Endpoint
   scheduler stays runtime (invocation). This is the high-risk step — next, with the guard now covering it.
+
+### 2026-07-07 (Opus) · §5.BG — ATTEMPTED the routing flip; reverted on a hazard discovery → needs David
+
+Attempted the coordinated routing flip (David: "attempt it now autonomously"). Wired the additive foundation
+(registry `entry.key` from `modelKey ?? modelId`; deserialize reads persisted `modelKey`; candidate builder accepts a
+`stableModelKeyByRuntimeId` map; `listModelEndpointSessions` exposes the session stable key; residency `runningModelKeys`
+keys by `session.modelKey`) tsc-green. **Then, mid-flip, tracing the READ side surfaced two facts the guard-first plan
+had not captured — reverted the whole WIP to the consistent all-runtime state (working tree clean at the guard commit):**
+
+1. **The main routing candidates are NOT built by the single builder I threaded.** `buildLoadedModelRoutingCandidates`
+   has ONE non-test caller (decomposition). The hot path's `candidate.entry` comes from `guardCandidates` (a Map in
+   `start-task-session.ts`) populated from THREE independent sources — the selected candidate, role candidates, and the
+   loaded-descriptor candidates. All `NKleinModelRegistryEntry`s do funnel through the ONE constructor
+   (`createNKleinModelRegistryEntry`), so the constructor is a clean single flip-point — **but only if every source can
+   supply the stable key.**
+2. **The stable `modelKey` is only knowable for LOADED models** (it comes from the live LM Studio `/api/v1/models`
+   descriptor). A config/role candidate for a model that is NOT currently loaded has no descriptor → no stable key →
+   must fall back to the runtime id. So a flip yields a **MIXED keyspace**: the same model is keyed STABLE when it was
+   loaded at decision time and RUNTIME when it was not — and its ledger/residency rows would then split across two keys
+   depending on load state at write time. That defeats the very rename-robustness the flip is for, and worse, my
+   half-wired WIP had residency already STABLE while the main-path candidate stayed RUNTIME → `isModelFree` sees a
+   running model as FREE → **double-start / resource exhaustion on David's LIVE machine.** Exactly the hazard the
+   guard-first sequencing existed to prevent — caught here before commit, as intended.
+
+**★ DECISION OWED — David (§5.BG routing flip, mixed-keyspace):** the flip is safe to finish only once we decide how to
+key a model whose stable key is *sometimes* unavailable at write time. Options: (a) **persist a runtimeId→modelKey map**
+(learned whenever a model IS loaded) and resolve the stable key from it even when the model is cold — makes the keyspace
+uniformly stable; (b) **re-key on load** — keep writing runtime keys, migrate rows to stable when the descriptor is next
+seen (eventual convergence, transient split); (c) **scope the flip to loaded-only** and accept cold config candidates
+stay runtime (partial). (a) is the only one that fully delivers the intent. This is a design choice on a LIVE machine, so
+I am NOT guessing it autonomously. **The guard (`model-telemetry-key-alignment.test.ts`) stays committed and will fail
+loudly on any one-sided flip, so the tree is safe to leave here.** The SAFE display cluster (fitness/model-behavior) is
+already flipped + shipped; only the hot routing cluster waits on this decision.

@@ -818,3 +818,16 @@
 > not selection/residency behavior. **Delivered safely in the grind:** the `deriveModelFamily` fix, the fitness/display
 > heal-on-rename, the candidate↔ledger alignment guard, and the inert scaffolding (store `getStableModelKey`, summary
 > `modelKey`, the primitive). The routing cluster is left consistent + green (runtime-keyed) pending a focused effort.
+>
+> **★ FLIP ATTEMPTED 2026-07-07 (Opus) → reverted on the design blocker below. ★ DECISION OWED — David.** Wired the
+> additive foundation tsc-green, then a READ-side trace revealed the one fact that makes this a design choice, not a
+> mechanical flip: **the stable `modelKey` is only knowable for LOADED models** (it comes from the live LM Studio
+> descriptor). A config/role candidate for a COLD model has no descriptor → no stable key → must fall back to the runtime
+> id. So a naive flip yields a **MIXED keyspace** — the same model keys STABLE when it was loaded at decision time and
+> RUNTIME when it was not, splitting its ledger/residency rows across two keys by load-state-at-write. That defeats the
+> rename-robustness the flip is for. **Pick the keying model before finishing:** (a) **persist a `runtimeId to modelKey`
+> map** (learned whenever a model loads) so the stable key resolves even for a cold model → uniformly stable [recommended
+> — the only option that fully delivers intent]; (b) **re-key on load** (write runtime, migrate rows when the descriptor
+> reappears — eventual convergence, transient split); (c) **loaded-only** (cold candidates stay runtime — partial). The
+> WIP was reverted to the consistent all-runtime tree; the alignment guard remains committed and fails loudly on any
+> one-sided flip, so it is safe to resume from here once (a)/(b)/(c) is chosen. See run log 2026-07-07 for the full trace.
