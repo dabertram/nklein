@@ -711,3 +711,20 @@ contract. The egress feature is live-validated end-to-end.
   fails under memory pressure. An LM Studio resource/JIT-load constraint, NOT a !Klein/egress issue; the egress sweep
   is complete for the currently-loadable set. (Didn't force-unload resident models — that's the operator's LM Studio
   session.)
+
+### 2026-07-06 · §5.Z §5.AC temporal-awareness ("knows today") — HARNESS BUG FIXED + cross-model sweep
+**Harness bug found + fixed:** `verify-temporal-awareness-live.mts` was failing its own assertions on EVERY model —
+root cause: the §5.AC "knows today" block is OFF BY DEFAULT (`knowsTodayEnabled ?? isTruthyEnv(NKLEIN_KNOWS_TODAY)`),
+and the harness passed neither the dep nor the env flag, so it drove `runChatTurn` with the feature DISABLED (no
+`<current_date>` block ⇒ the model answered "the current year is 2023" from its training prior ⇒ the temporal-block
+assertions correctly reported NO). The feature is fine; the harness wasn't enabling what it verifies. Fixed by passing
+`knowsTodayEnabled: true` in the harness's runChatTurn deps (verifying the feature ENABLED is the script's whole
+purpose). Confirmed the feature works: with it enabled, qwen3-8b overrode its prior → "current year is 2026, and
+2026-03-01 is in the past relative to today's date of 2026-07-06."
+**Cross-model sweep (fixed harness), 7/7 PASS across 2B→120B:** qwen3-8b, qwen2.5-coder-14b, gemma-4-e2b (2B!),
+mistral-small-3.2, gpt-oss-120b (120B), nemotron-3-nano-4b, phi-4-mini-reasoning — every model injected the leading
+`<current_date>` block carrying today's ISO date AND correctly placed a current-year past month in the PAST (the
+strong override signal: training-prior overridden by the injected clock). The §5.AC temporal lighthouse holds across
+the capability range.
+  - matrix rows (temporal): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gemma-4-e2b=✅ · mistral-small-3.2=✅ · gpt-oss-120b=✅ ·
+    nemotron-3-nano-4b=✅ · phi-4-mini-reasoning=✅

@@ -93,6 +93,10 @@ async function main(): Promise<void> {
 				summarize: async () => "",
 				estimateTokens: (text) => Math.ceil(text.length / 4),
 				now: () => now,
+				// The §5.AC "knows today" block is OFF BY DEFAULT (env NKLEIN_KNOWS_TODAY). Verifying it IS this harness's
+				// whole purpose, so enable it explicitly — otherwise the script tests the feature in its disabled state and
+				// its own temporal-block assertions fail (the model answers from its stale training prior).
+				knowsTodayEnabled: true,
 			},
 		);
 
