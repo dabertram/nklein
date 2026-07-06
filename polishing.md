@@ -395,7 +395,7 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **31 slices so far (20 §5.U extractions + 11 §5.V coverage batches), ~223 new unit tests, zero behavior changes** (pre-commit
+> - **33 slices so far (20 §5.U extractions + 13 §5.V coverage batches), ~234 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
 >   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
@@ -412,9 +412,9 @@
 > by untested-export count, prioritizing security-relevant + pure:
 > - ~~`security/passcode-manager.ts` (4) — SECURITY~~ DONE slice 30 (rate-limiter, +6 tests).
 > - ~~`core/windows-cmd-launch.ts` (3) — SECURITY-adjacent~~ DONE slice 31 (escaping/launch builders, +5 tests).
-> - `commands/task/task-plan-gap-prompts.ts` (4) — pure prompt builders (string composition). **← next**
-> - `nklein-agent/nklein-task-start-guard.ts` (3), `nklein-context-window-policy.ts` (3),
->   `decomposition/plan-task-routing.ts` (3) — pure policy/routing logic.
+> - ~~`commands/task/task-plan-gap-prompts.ts` (4)~~ DONE slice 32 (+8 tests). ~~`nklein-context-window-policy.ts` (3)~~ DONE
+>   slice 33 (+3 tests).
+> - `nklein-agent/nklein-task-start-guard.ts` (3), `decomposition/plan-task-routing.ts` (3) — pure policy/routing logic. **← next**
 > - `core/runtime-endpoint.ts` (4) — url/endpoint builders (some already tested; check the gaps).
 > - `nklein-agent/nklein-session-state.ts` (17) — LARGE but mixed: many are stateful mutators (createMessage/updateSummary)
 >   — triage for the genuinely pure ones only.

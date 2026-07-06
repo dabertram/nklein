@@ -1041,13 +1041,22 @@ doesn't leak. Slice 31 (+5 tests): windows-cmd launch — `resolveWindowsComSpec
 fallback) and `buildWindowsCmdArgs{Array,CommandLine}` (the `/d /s /c` wrapping, the two forms kept consistent, and the
 injection-safety property that a cmd meta char `&` is caret-escaped to `^&`). No source change.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 31) — for David
+### ▶ §5.V slices 32–33 (2026-07-06, f50ce449 + dac8e296) — plan-gap prompt builders + context-window-policy helpers
+Slice 32 (+8 tests): the plan-gap / merge-integration card prompt builders (pure string composition, themselves a §5.U
+extraction from the oversized task.ts) — `buildIntegrationCardPrompt` (bulleted paths vs no-paths fallback),
+`buildPlanGapIntegrationCardPrompt`, `buildPlanGapDecisionCardPrompt` (contradiction vs missing-decision label by kind),
+`buildPlanGapScopeCardPrompt` (evidence-appended-only-when-present, blank-description defaults). Slice 33 (+3 tests): the
+context-window-policy helpers — `isNKleinContextWindowPolicyError` (instanceof guard), `normalizeNKleinContextWindow`
+(Math.trunc / null on non-positive/non-finite/non-number), `formatNKleinContextWindowTokens` (locale-grouped, asserted via
+delegation so it isn't locale-brittle). No source change.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 33) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **31 slices this run (20 §5.U extractions + 11 §5.V coverage batches), ~223 new unit tests, zero behavior changes** (the
+- **33 slices this run (20 §5.U extractions + 13 §5.V coverage batches), ~234 new unit tests, zero behavior changes** (the
   pre-commit fast suite gates every commit; extractions delegate). §5.V veins closed: the api-validation parser boundary,
-  runtime-config-normalizers gaps, speculative/retrieval resolver normalizers, server path/host helpers, and — highest value —
-  two SECURITY modules: the passcode rate-limiter and the windows-cmd escaping/launch builders. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+  runtime-config-normalizers gaps, speculative/retrieval resolver normalizers, server path/host helpers, two SECURITY modules
+  (passcode rate-limiter + windows-cmd escaping), plan-gap prompt builders, and context-window-policy helpers. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
