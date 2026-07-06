@@ -105,6 +105,11 @@ import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-t
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
 import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
 import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
+import {
+	type NKleinTaskLaunchConfigOverrides,
+	type NKleinTaskRestartLaunchConfig,
+	normalizeLaunchConfig,
+} from "./nklein-launch-config";
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
 import { LocalLlmClient } from "./nklein-local-llm-client";
@@ -288,25 +293,6 @@ export interface StartNKleinTaskSessionRequest {
 	 * resolution already uses. Absent ⇒ the resolver's own default (`fully_dynamic`).
 	 */
 	skillDynamicsLevel?: SkillDynamicsLevel | null;
-}
-
-export interface NKleinTaskLaunchConfigOverrides {
-	providerId: string;
-	modelId: string;
-	workspaceRoot?: string | null;
-	filesLikelyTouched?: readonly string[] | null;
-	apiKey?: string | null;
-	baseUrl?: string | null;
-	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
-	contextWindow?: number | null;
-	apiTimeoutMs?: number | null;
-	turnTimeoutMs?: number | null;
-	/** W1.1: per-turn output-token budget override (the §5.AA budget-raise retry lever); absent ⇒ unchanged. */
-	maxTokensPerTurn?: number | null;
-}
-
-interface NKleinTaskRestartLaunchConfig extends NKleinTaskLaunchConfigOverrides {
-	maxAgentWritableFileLines?: number | null;
 }
 
 /** One conflicted file's agent-resolved contents, captured from the `::merge` sandbox (§5.AK Phase B). */
@@ -754,25 +740,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		taskId: string,
 		launchConfig: NKleinTaskRestartLaunchConfig,
 	): NKleinTaskRestartLaunchConfig {
-		const normalized: NKleinTaskRestartLaunchConfig = {
-			providerId: launchConfig.providerId.trim().toLowerCase(),
-			modelId: launchConfig.modelId.trim(),
-			...(Object.hasOwn(launchConfig, "workspaceRoot")
-				? { workspaceRoot: launchConfig.workspaceRoot?.trim() || null }
-				: {}),
-			...(Object.hasOwn(launchConfig, "filesLikelyTouched")
-				? { filesLikelyTouched: launchConfig.filesLikelyTouched ?? null }
-				: {}),
-			...(Object.hasOwn(launchConfig, "apiKey") ? { apiKey: launchConfig.apiKey } : {}),
-			...(Object.hasOwn(launchConfig, "baseUrl") ? { baseUrl: launchConfig.baseUrl?.trim() || null } : {}),
-			...(Object.hasOwn(launchConfig, "reasoningEffort") ? { reasoningEffort: launchConfig.reasoningEffort } : {}),
-			...(Object.hasOwn(launchConfig, "contextWindow") ? { contextWindow: launchConfig.contextWindow } : {}),
-			...(Object.hasOwn(launchConfig, "maxAgentWritableFileLines")
-				? { maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines }
-				: {}),
-			...(Object.hasOwn(launchConfig, "apiTimeoutMs") ? { apiTimeoutMs: launchConfig.apiTimeoutMs } : {}),
-			...(Object.hasOwn(launchConfig, "turnTimeoutMs") ? { turnTimeoutMs: launchConfig.turnTimeoutMs } : {}),
-		};
+		// §5.U: the subtle present-vs-absent field normalization is the pure `normalizeLaunchConfig` (unit-tested); this
+		// method keeps only the store writes below.
+		const normalized = normalizeLaunchConfig(launchConfig);
 		this.launchConfigByTaskId.set(taskId, normalized);
 		this.providerIdStore.set(taskId, normalized.providerId);
 		this.modelEndpoint.set(taskId, normalized.modelId, normalized.baseUrl ?? null);

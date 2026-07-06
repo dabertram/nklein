@@ -2,7 +2,8 @@ import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { buildNKleinAcceptanceRepairPlan } from "./nklein-acceptance-repair";
-import type { NKleinTaskLaunchConfigOverrides, NKleinTaskSessionService } from "./nklein-task-session-service";
+import type { NKleinTaskLaunchConfigOverrides } from "./nklein-launch-config";
+import type { NKleinTaskSessionService } from "./nklein-task-session-service";
 
 const DEFAULT_AUTO_REPAIR_MAX_ATTEMPTS = 2;
 
