@@ -1171,6 +1171,19 @@ cross-cutting (WRITTEN at prompt-assembly, READ at model-selection). **The clean
 task-session-service are now largely mined (4 splits done).** Further big reduction needs either the entangled clusters (David's
 boundary steer) or a different file.
 
+### ▶ §5.U slice 51 (2026-07-06, 3537c66b) — TimeoutController: second entangled split (the hardest one)
+Executed the timeout-scheduling extraction I'd flagged as the largest/riskiest. `createTimeoutController(deps)` OWNS the
+`TaskTimeoutScheduler` + the per-task settings map (the `NKleinTaskTimeoutSettings` type moved here), the stream/
+conversation/tool schedule methods (settings-gated; stream skips while a tool is active), and — moved VERBATIM —
+`handleTaskTimeout` (on fire: abort + record a diagnosable stall failure). 9 cross-concern touchpoints via
+`TimeoutControllerDeps`; the service keeps its thin `clearTaskTimeout(s)` wrappers (clearTaskTimeouts is a cross-concern
+teardown) and delegates the timeout part; ~12 call sites rewired. Controller↔service teardown circular ref safe (lazy
+arrows). Behavior-preserving (verbatim move; 139 tests green). task-session-service 4637 → **4551 (−86)**.
+**Key: the split IMPROVED coverage** — +4 TimeoutController tests including the FIRE path (fake timers) where before it was
+only exercised indirectly. Also fixed a latent type bug in the slice-50 park test (`state:"completed"` isn't valid — vitest
+doesn't type-check so it slipped; the full tsc caught it). **How I de-risked the hardest split (thinner fire-path net):
+verbatim logic move + remove-methods-so-tsc-catches-missed-callers + a new fire-path test.**
+
 ### ▶ §5.U slice 50 (2026-07-06, fda084c0) — ParkController: the FIRST entangled-cluster split (biggest reduction)
 Executed the fully-scoped (slice-49) pause/park extraction → `createParkController(deps)`: the shared teardown, the two
 terminal shapes (operator PAUSE → `paused`, reversible; autonomy-budget PARK → `awaiting_review`/`attention`),
@@ -1202,11 +1215,12 @@ so they warrant fresh context + extra care rather than being rushed at a long-co
 ### ▶ CONSOLIDATED STATE (2026-07-06, after slice 49) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **50 slices this run (28 §5.U extractions + 22 §5.V coverage batches), ~314 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4637** this run (−249) via
-  FIVE collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, and the
-  ParkController pause/park orchestration) + wrapper cleanup — all proven by the existing suites. The ParkController proved
-  entangled orchestration splits are autonomously safe when the boundary is clear. §5.V high-value pure-logic coverage is SATURATED
+- **51 slices this run (29 §5.U extractions + 22 §5.V coverage batches), ~318 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4551** this run (−335) via
+  SIX collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, and the two
+  ENTANGLED clusters: ParkController pause/park + TimeoutController scheduling/firing) + wrapper cleanup — all proven by the
+  existing suites. Entangled orchestration splits are autonomously safe when the boundary is clear (both proved it). §5.V
+  high-value pure-logic coverage is SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
   + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, plan-task-routing resolvers,
