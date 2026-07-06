@@ -829,3 +829,11 @@ Resident (state=loaded, no force-load): `qwen3.5-122b-a10b`, `qwen/qwen2.5-coder
   used them → answered the correct URL (anthropic.com/claude/opus). Full model→tool→egress→results→answer chain.
 - matrix rows (egress e2e): qwen2.5-coder-14b=✅ (repeat-confirmed on the current roster). 122B skipped (already proven
   8B→122B in the prior sweep; slow re-run not worth the wall-time).
+
+## 2026-07-06 (Opus) — chat-agent tool loop (§5.M) re-verify on the current roster
+Resident (state=loaded, no force-load): `qwen3.5-122b-a10b`, `qwen/qwen2.5-coder-14b`.
+- **`verify-chat-agent-tools.mts` [qwen/qwen2.5-coder-14b] ✓** — model CALLED `read_file` → policy-gated executor AUDITED
+  the executed read → tool ran in-workspace → final answer contained the file secret (1 tool step, no iteration limit).
+  `User + assistant persisted: YES` (live regression check of the W3.1 persist-user-before-loop change). Full §5.M
+  tool-using chat loop composes end-to-end through the gated/audited executor on a real model.
+- matrix row (chat-agent-tools): qwen2.5-coder-14b=✅ (repeat-confirmed post recent chat/prompt refactors).

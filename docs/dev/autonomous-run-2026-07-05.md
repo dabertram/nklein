@@ -1716,3 +1716,15 @@ would NOT ship in the published npm package. Apache-2.0 §4(d) requires a deriva
 propagate a readable copy — publishing without it is an attribution-compliance gap (and the README would link to a file
 absent from the package). Added `"NOTICE"` to `files`; `npm pack --dry-run` confirms it now ships (506B, alongside
 LICENSE + README). Metadata-only, machine-facing (same category as the repo-URL fix). Gate: tsc ✓, biome ✓, tests ✓.
+
+### 2026-07-06 (Opus) · §5.Z — chat-agent tool loop re-verified live + a CI-hygiene sweep (clean)
+
+- **CI-hygiene sweep (clean, no fix needed):** no `describe/it.only` anywhere (would silently skip sibling tests), no
+  accidental `.skip` (the one `describe.skip` is the correct `else`-branch of a Docker-availability gate), no stray
+  `debugger`/`console.log` in shipped src. Machine-facing §5.AZ surface confirmed clean.
+- **`verify-chat-agent-tools.mts` [qwen/qwen2.5-coder-14b] ✓** — a DISTINCT §5.Z surface from last iteration's egress:
+  the full §5.M chat-agent tool loop through the **policy-gated + audited executor**. The model CALLED `read_file` → the
+  executor AUDITED the executed read (security path) → the tool ran in-workspace → the final answer contained the file's
+  secret (1 tool step, no iteration-limit hit). Also **`User + assistant persisted: YES`** — a live regression check of
+  the Fable-session W3.1 change (persist the user turn BEFORE the tool loop), confirmed intact on a real model. Logged
+  to cross-model-verification.md. Resident roster: `qwen3.5-122b-a10b`, `qwen/qwen2.5-coder-14b` (no force-load).
