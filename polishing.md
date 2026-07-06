@@ -395,12 +395,12 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **54 slices so far (32 §5.U extractions + 22 §5.V coverage batches), ~332 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4106 this run
->   (−780, ~16%) — 9 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
->   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest], ContextBudgetController 53 [−87], TaskFailureEmitter 54 [−69])
->   + wrapper cleanup (46). All three entangled splits (Park, Timeout, SandboxReview) proved autonomously safe when the boundary is
->   clear; the Timeout split even IMPROVED coverage.**
+> - **55 slices so far (33 §5.U extractions + 22 §5.V coverage batches), ~336 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4040 this run
+>   (−846, ~17%) — 10 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
+>   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest], ContextBudgetController 53 [−87], TaskFailureEmitter 54 [−69],
+>   RetrievalToolsBuilder 55 [−66, +live fail-closed test]) + wrapper cleanup (46). All three entangled splits (Park, Timeout,
+>   SandboxReview) proved autonomously safe when the boundary is clear; the Timeout split even IMPROVED coverage.**
 >   Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
@@ -479,10 +479,19 @@
 > apply the consecutive-failure backoff (park vs await-review), emit observation + system message + summary. 9 narrow lazy-accessor
 > deps (backoff tracker + active-tool set stay service-owned — both cross-cutting). 4 direct callers + 2 collaborator dep wirings
 > rewired; +3 tests (first-failure→awaiting_review, threshold→failed, already-parked→no-op); the failure path was previously
-> only integration-tested. **All three entangled orchestration clusters + context-budget resolver/guard + failure-emitter are now
-> extracted; the obvious cohesive-cluster vein in task-session-service is largely mined (4886 → 4106, −16%). Further reduction gets
-> into finer-grained / more-ambiguous boundaries (the ~670-line review/critique-session cluster needs David's steer) or a shift to
-> runtime-server (closure-state reshaping) / provider-service.**
+> only integration-tested.
+> **`RetrievalToolsBuilder` — ✅ DONE slice 55 (−66; tenth split).** Moved buildRetrievalExtraTools into
+> `createRetrievalToolsBuilder(deps)`: the fail-closed §5.AC egress attach gate + SearXNG search / SSRF-guarded browse fetch /
+> cited local-model synthesis adapters. 4 lazy deps (getRetrievalConfig read LIVE per build, resolveProviderId, getModelId,
+> getEndpoint). Deferred in the prior iteration for a thin test net → extracted THIS time WITH the previously-missing security
+> regression: +4 tests incl. the LIVE fail-closed (flip egressEnabled off on the shared config → next build() returns [], proving
+> no stale capture) + synthetic-session-gets-no-egress + off/disallowed/no-backend. Building the tool never hits the network
+> (adapters run only on invocation) so it tests cheaply. 9 dead retrieval imports removed from the service.
+> **All entangled orchestration clusters + context-budget resolver/guard + failure-emitter + retrieval-egress builder are now
+> extracted; the obvious cohesive-cluster vein in task-session-service is largely mined (4886 → 4040, −17%). Further reduction gets
+> into finer-grained / more-ambiguous boundaries (the ~670-line review/critique-session cluster needs David's steer; the
+> adaptive-retry cluster calls back into sendTaskSessionInput) or a shift to runtime-server (closure-state reshaping) /
+> provider-service.**
 > — extracted the pause/park cluster (parkActiveTasksForOperatorPause / parkTaskForPause / parkTaskForAutonomyBudget /
 > resetGuardsForPark / pushParkSystemMessage / enforceAutonomyBudgets) into `createParkController(deps)`. Deps (~10):
 > getTaskEntry, listSummaries, emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog (or check/resetTask),

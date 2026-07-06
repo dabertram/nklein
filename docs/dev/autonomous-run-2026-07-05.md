@@ -1240,16 +1240,17 @@ orchestration splits are autonomously safe whenever the boundary is clear. The o
 task-session-service is now largely mined (4886 → 4265); further reduction gets into finer-grained / more-ambiguous
 boundaries that warrant David's steer, or a shift to the other two monoliths.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 54) — for David
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 55) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **54 slices this run (32 §5.U extractions + 22 §5.V coverage batches), ~332 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4106** this run (−780, ~16%) via
-  NINE collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, the three
+- **55 slices this run (33 §5.U extractions + 22 §5.V coverage batches), ~336 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4040** this run (−846, ~17%) via
+  TEN collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, the three
   ENTANGLED clusters: ParkController pause/park + TimeoutController scheduling/firing + SandboxReviewFinalizer sandbox-review
-  finalization [biggest, −286], ContextBudgetController context-window resolution + pre-send guard [−87], and TaskFailureEmitter
-  SDK start/send failure classification + emission [−69]) + wrapper cleanup — all proven by the existing suites. Entangled
-  orchestration splits are autonomously safe when the boundary is clear. §5.V
+  finalization [biggest, −286], ContextBudgetController context-window resolution + pre-send guard [−87], TaskFailureEmitter
+  SDK start/send failure classification + emission [−69], and RetrievalToolsBuilder §5.AC egress tools [−66, extracted WITH a new
+  live fail-closed security regression test]) + wrapper cleanup — all proven by the existing suites. Entangled orchestration
+  splits are autonomously safe when the boundary is clear. §5.V
   high-value pure-logic coverage is SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
@@ -1274,10 +1275,11 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
   `nklein-event-adapter.ts` 806 → **768** (tool-activity classifiers — was untested);
   `nklein-large-file-workflow.ts` 781 → **740** (workflow helpers — was untested);
-  `nklein-task-session-service.ts` 4886 → **4106** (−780 this run: 9 collaborator splits — residency watcher, runtime-setup
+  `nklein-task-session-service.ts` 4886 → **4040** (−846 this run: 10 collaborator splits — residency watcher, runtime-setup
   lease cache, focus-chain store, team-progress emitter, ParkController, TimeoutController, SandboxReviewFinalizer,
-  ContextBudgetController, TaskFailureEmitter — plus the shouldCaptureReviewCheckpoint guard lift + wrapper cleanup; the three
-  entangled orchestration clusters + context-budget resolver/guard + failure-emitter are now all extracted).
+  ContextBudgetController, TaskFailureEmitter, RetrievalToolsBuilder — plus the shouldCaptureReviewCheckpoint guard lift +
+  wrapper cleanup; the entangled orchestration clusters + context-budget resolver/guard + failure-emitter + retrieval-egress
+  builder are now all extracted).
 - **PRODUCTIVE VEIN (corrected):** the big-3 pure-fn seams are done, but the NEXT-TIER large files (mcp-runtime-service,
   workspace-state, agent-sandbox, projects-api, task-board-mutations, dev.ts) have clean cohesive seams, several UNTESTED
   → each is §5.U + §5.V at once. Keep mining these before the risky big-3 class-splits.
