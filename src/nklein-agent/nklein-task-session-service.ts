@@ -10,8 +10,6 @@ import { readAgentResultText, readSdkAgentEvent, readSdkSessionEvent } from "./n
 // history, and subscribe to summaries and chat events without knowing SDK
 // host, repository, or event-adapter details.
 
-import { buildSsrfGuardedPageFetcher } from "../chat/chat-browser-tool";
-import { DEFAULT_LOCAL_CHAT_BASE_URL } from "../chat/local-chat-model";
 import { DEFAULT_KNOWS_TODAY_ENABLED, DEFAULT_SANDBOX_MCP_SERVERS_ENABLED } from "../config/runtime-config-defaults";
 import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
@@ -47,16 +45,11 @@ import { applyDiversityPreference } from "../core/model-diversity";
 import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
-import { browserFetchAdapter } from "../core/retrieval-fetch-adapter";
-import { runRetrievalLoop } from "../core/retrieval-loop-driver";
-import { searchHitsAdapter } from "../core/retrieval-search-adapter";
-import { citedSynthesisAdapter } from "../core/retrieval-synthesis-adapter";
 import { raisedTokenBudget } from "../core/retry-policy";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import { shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
-import { createSearxngWebSearchClient } from "../server/web-search-searxng";
 import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import {
 	recordTaskRunSummary,
@@ -109,7 +102,6 @@ import {
 } from "./nklein-launch-config";
 import { buildTerminalAttemptEvent } from "./nklein-ledger-attempt";
 import { extractTerminalToolCalls } from "./nklein-ledger-tool-calls";
-import { LocalLlmClient } from "./nklein-local-llm-client";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import {
 	buildMergeResolutionSeedPrompt,
@@ -136,8 +128,7 @@ import {
 	type NKleinPlanCritiqueSubmittedHandler,
 } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
-import { createNKleinResearchTool } from "./nklein-research-tool";
-import { shouldAttachRetrievalTools } from "./nklein-retrieval-tools-gate";
+import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
@@ -549,6 +540,17 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		emitMessage: (taskId, message) => this.emitMessage(taskId, message),
 		emitSummary: (summary) => this.emitSummary(summary),
 	});
+	/** Builds the §5.AC retrieval tools per task (reads retrieval config LIVE so a mid-session config-off fails closed). */
+	private readonly retrievalToolsBuilder = createRetrievalToolsBuilder({
+		getRetrievalConfig: () => ({
+			egressEnabled: this.retrievalEgressEnabled,
+			agentWebResearchAllowed: this.agentWebResearchAllowed,
+			searchBackendUrl: this.retrievalSearchBackendUrl,
+		}),
+		resolveProviderId: (taskId) => this.resolveProviderIdForTask(taskId),
+		getModelId: (taskId) => this.modelEndpoint.getModelId(taskId),
+		getEndpoint: (taskId) => this.modelEndpoint.getEndpoint(taskId),
+	});
 	/** Last terminal state already persisted to the durable run-summary store, to dedupe repeated emits. */
 	private readonly lastRecordedRunStateByTaskId = new Map<string, TaskRunTerminalState>();
 	/** Structured timeout reason for the next terminal run summary, set when a task is aborted on timeout. */
@@ -919,74 +921,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * sandboxed agent must never reach the operator's LAN/loopback, whatever the host mode — the egress switch is the
 	 * on-switch, SSRF-always is the safety floor.
 	 */
-	private buildRetrievalExtraTools(taskId: string): AgentTool[] {
-		// §5.U: the fail-closed attach decision (synthetic ⇒ no egress; egress literally true; §5.L role gate; a search
-		// backend is configured) is the pure `shouldAttachRetrievalTools` (unit-tested). Read the LIVE service fields so a
-		// config-off mid-session fails closed on the very next call. The egress itself lives entirely in the injected
-		// adapters (SearXNG search + SSRF-guarded browse fetch) constructed below.
-		if (
-			!shouldAttachRetrievalTools({
-				taskId,
-				egressEnabled: this.retrievalEgressEnabled,
-				agentWebResearchAllowed: this.agentWebResearchAllowed,
-				searchBackendUrl: this.retrievalSearchBackendUrl,
-			})
-		) {
-			return [];
-		}
-		return [
-			createNKleinResearchTool({
-				runLoop: (input) =>
-					runRetrievalLoop(
-						input.question,
-						{
-							// §5.AC: enable lexical query-relevance ranking in the live loop — hits that actually match the
-							// query terms are folded above ones that are merely fresh/authoritative.
-							search: searchHitsAdapter(
-								(query) =>
-									createSearxngWebSearchClient({
-										backendBaseUrl: this.retrievalSearchBackendUrl,
-										egressEnabled: this.retrievalEgressEnabled,
-									}).search(query),
-								{ rerankByRelevance: true },
-							),
-							// PRIME DIRECTIVE #1: the retrieval loop fetches untrusted, backend/SEO-controllable result URLs,
-							// so the egress MUST be SSRF-guarded. buildSsrfGuardedPageFetcher enforces the same floor as
-							// browse_url (http/https only + pre-fetch DNS-resolve-all-IPs private/reserved refusal +
-							// post-redirect re-check); a blocked URL throws and the driver skips that hit (fail-closed).
-							fetch: browserFetchAdapter(buildSsrfGuardedPageFetcher()),
-							// §5.AC: synthesize the gathered evidence into a CITED answer via the task's own local model
-							// (validated 2026-07-04: a capable local model reliably emits the {claim,cite[]} contract). The
-							// model call is fail-soft — any error / no model ⇒ "" ⇒ the loop returns evidence only (its prior
-							// behavior), so enabling synthesis never degrades the result below evidence-only.
-							synthesize: citedSynthesisAdapter(async (prompt) => {
-								const modelId = this.modelEndpoint.getModelId(taskId);
-								if (!modelId) {
-									return "";
-								}
-								try {
-									const client = new LocalLlmClient({
-										providerId: this.resolveProviderIdForTask(taskId),
-										modelId,
-										baseUrl: this.modelEndpoint.getEndpoint(taskId) ?? DEFAULT_LOCAL_CHAT_BASE_URL,
-									});
-									const res = await client.complete({
-										messages: [{ role: "user", content: prompt }],
-										sampling: { temperature: 0.2, maxTokens: 1500 },
-									});
-									return res.content;
-								} catch {
-									return ""; // fail-soft → evidence-only (unchanged from before synthesis was wired)
-								}
-							}),
-							now: () => Date.now(),
-						},
-						{ ...(input.knowledgeDebt ? { knowledgeDebt: [...input.knowledgeDebt] } : {}) },
-					),
-			}),
-		];
-	}
-
 	/** Sandbox-proxied extra tools ⊕ the §5.AC retrieval tools, or undefined when there is nothing to attach. */
 	private static combineExtraTools(
 		sandboxExtraTools: AgentTool[] | undefined,
@@ -1122,11 +1056,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					})
 				: undefined);
 		// §5.AC step 3: append the egress-gated web_search tool AFTER the sandbox tools (never mutate what
-		// createAgentSandboxExtraTools returns). buildRetrievalExtraTools fails closed (default-off config, blank
+		// createAgentSandboxExtraTools returns). retrievalToolsBuilder.build fails closed (default-off config, blank
 		// backend) and returns [] for synthetic `::` sessions, so reviewers/critics rebuilt here get no egress.
 		const combinedExtraTools = InMemoryNKleinTaskSessionService.combineExtraTools(
 			sandboxExtraTools,
-			this.buildRetrievalExtraTools(input.taskId),
+			this.retrievalToolsBuilder.build(input.taskId),
 		);
 		const startResult = await this.sessionRuntime
 			.startTaskSession({
@@ -1883,7 +1817,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 									maxFileLines: request.maxAgentWritableFileLines ?? null,
 								})
 							: undefined,
-						this.buildRetrievalExtraTools(request.taskId),
+						this.retrievalToolsBuilder.build(request.taskId),
 					),
 					// §5.AR: a RESTARTED isolated task gets the curated sandbox MCP servers too (consistent with the main
 					// start path) — gated by the config setting (on by default) OR the env override, and only when a sandbox
