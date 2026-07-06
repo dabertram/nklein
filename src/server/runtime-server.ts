@@ -108,6 +108,7 @@ import { resolveReviewSandboxResult } from "./review-sandbox-result";
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
 import { runSecondOpinionReviewForTask } from "./second-opinion-review-runner";
+import { shouldRunTerminalRetrySweep } from "./terminal-retry-sweep-policy";
 import { readWorkspaceIdFromRequest } from "./workspace-id-from-request";
 import type { WorkspaceRegistry } from "./workspace-registry";
 import { retryWorkspaceStateLock } from "./workspace-state-lock-retry";
@@ -555,7 +556,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		const redrivePending =
 			terminalTaskId !== undefined &&
 			!terminalRedriveAttemptedTaskKeys.has(`${scope.workspaceId}:${terminalTaskId}`);
-		if (!redrivePending && now - last < TERMINAL_RETRY_SWEEP_DEBOUNCE_MS) {
+		if (
+			!shouldRunTerminalRetrySweep({
+				now,
+				lastSweepAt: last,
+				debounceMs: TERMINAL_RETRY_SWEEP_DEBOUNCE_MS,
+				redrivePending,
+			})
+		) {
 			return;
 		}
 		lastTerminalRetrySweepAtByWorkspaceId.set(scope.workspaceId, now);
