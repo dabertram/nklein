@@ -36,6 +36,14 @@
 > Full per-cell grid + run log: [docs/dev/cross-model-verification.md](docs/dev/cross-model-verification.md). **Remaining:**
 > the 3 not-currently-loaded roster models (gemma-e4b, phi4-plus, deepseek), the ~25-min multi-card sweep, and autonomous-run
 > across the roster (needs a project + active workspace in the session scope, not just a pinned model — root-caused above).
+>
+> **★ EGRESS §5.Z DONE (2026-07-06, egress LIVE at 127.0.0.1:18888):** the newly-live egress verified end-to-end. Infra
+> (`verify-egress-live.mts`) ✅ all pass (real SearXNG results + fail-closed gate + no_backend + field mapping). Cross-model e2e
+> (`verify-egress-model-e2e.mts`, model → web_search tool-call → live search → grounded answer): **7/8 PASS** across 2B→120B
+> (qwen3-8b, qwen2.5-coder-14b, gemma-4-e2b, phi-4-mini-reasoning, mistral-small-3.2, gpt-oss-120b, nemotron-3-nano-4b).
+> **1 ⚠️ CANT: phi-4-reasoning-plus** — reasoning runaway (spends the whole token budget on reasoning_content, truncates
+> `finish=length` at ≥6144 tokens, never emits the tool call). Model-quality trait → the §5.AA adaptive-retry/recovery-ladder
+> target, NOT an egress bug. Full detail in the matrix run log.
 > **Standing requirement (do NOT re-litigate):** every task involving *real LLM interactivity* — the agent driving a
 > live local model through a tool loop / decompose / chat / autonomous run / review — must be **verified across ALL
 > loaded local models**, not just the north-star model it was first proven on. This is a **retro-verification**

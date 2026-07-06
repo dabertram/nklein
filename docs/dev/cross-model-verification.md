@@ -682,3 +682,26 @@ After creating a dev-test project (→ current project + active workspace) and p
 ### 2026-07-01 15:52:04 · verify-chat-agent-e2e
 - ❌ **FAIL** · `gpt-oss-20b-mlx` · 39s · INCOMPLETE — see above.
   - matrix row: gpt-oss-20b-mlx=❌
+
+### 2026-07-06 · §5.Z EGRESS verification (egress LIVE at 127.0.0.1:18888) — infra + cross-model e2e
+**Infrastructure — `verify-egress-live.mts` ✅ ALL PASS:** real SearXNG search returns 8 real internet results
+(`"Claude Opus \ Anthropic" — anthropic.com/claude/opus`); the fail-closed gate blocks with `blocked_by_egress`
+when egress is OFF (no request fired); a null backend yields `no_backend`; SearXNG payload fields map onto the
+contract. The egress feature is live-validated end-to-end.
+
+**Cross-model e2e — `verify-egress-model-e2e.mts` (model → web_search tool-call → live SearXNG → grounded answer),
+8 models, 7/8 PASS:**
+- ✅ **PASS (7):** `qwen/qwen3-8b` (north-star), `qwen/qwen2.5-coder-14b`, `google/gemma-4-e2b` (2B weak!),
+  `microsoft/phi-4-mini-reasoning`, `mistralai/mistral-small-3.2`, `openai/gpt-oss-120b` (120B MoE),
+  `nvidia/nemotron-3-nano-4b` — each emitted the web_search tool call (`finish=tool_calls`), executed the query
+  against live SearXNG (8 real results), and used them to answer with the correct `anthropic.com/claude/opus` URL.
+  Egress works across the full capability range 2B → 120B, including a reasoning model (phi-4-mini-reasoning).
+- ⚠️ **CANT (1): `microsoft/phi-4-reasoning-plus`** — REASONING RUNAWAY. It never emits the tool call: at
+  max_tokens 2048 AND at 6144 it truncates (`finish=length`) having spent the ENTIRE budget on `reasoning_content`
+  (25,972 chars / 6143 completion tokens of deliberation about *whether/how* to call web_search) with empty
+  `content` and NO `tool_calls`. This is a **model-quality trait** (the exact reasoning-runaway pattern the §5.AA
+  adaptive-retry / `recovery-ladder-model` + `NKLEIN_ADAPTIVE_RETRY` target), **not an egress bug** — the egress
+  path itself is proven by the 7 passes + the infra validation. Recorded as a capability-floor data point for the
+  tool-call-under-reasoning axis; a model that reasons 26K chars without acting is a §5.AB fitness signal.
+  - matrix rows (egress-e2e): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gemma-4-e2b=✅ · phi-4-mini-reasoning=✅ ·
+    mistral-small-3.2=✅ · gpt-oss-120b=✅ · nemotron-3-nano-4b=✅ · phi-4-reasoning-plus=⚠️(reasoning-runaway)
