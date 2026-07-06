@@ -872,22 +872,30 @@ loop is deterministically testable without real timers, git, or a live service. 
 + all four loop outcomes incl. poll-until-appears with counted sleeps). Full gate green. **Progress:** runtime-server
 2496 → 2468. Also migrated a §5.U section into `polishing.md` (per the phase directive) with the live tally + next targets.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 10) — for David
+### ▶ §5.U slice 11 (2026-07-06, 12eb29e6) — extracted nklein-model-list-settings
+Back on provider-service. Moved `resolveModelListSettings` (the "which settings do we call the model-list endpoint
+with?" resolver — prefer caller settings when they already point at the right provider with a base URL, else fill the base
+URL from the SDK provider catalog) into its own module, injecting the catalog lister so its branching is testable without
+the real SDK. Both fetchers pass `listSdkProviderCatalog`. Behavior-preserving; +7 unit tests (all six branches +
+catalog-rejects-is-empty tolerance). Full gate green. **Progress:** provider-service 1502 → 1472.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 11) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **10 §5.U slices this run, ~61 new unit tests, 10 focused modules extracted, zero behavior changes** (the pre-commit fast
+- **11 §5.U slices this run, ~68 new unit tests, 11 focused modules extracted, zero behavior changes** (the pre-commit fast
   suite gates every commit; extractions delegate).
-- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1502** (7 clusters pulled: settings-summary, litellm-model-list,
-  managed-provider-credentials, provider-selection-store — plus 3 earlier); `runtime-server.ts` 2527 → **2468** (3 clusters:
-  bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result); `nklein-task-session-service.ts` still **4886** (the
-  hardest — class-heavy, instance-stateful; earlier slices nibbled it, next needs the responsibility-split not just pure-fn lifts).
+- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1472** (8 clusters pulled: settings-summary, litellm-model-list,
+  managed-provider-credentials, provider-selection-store, model-list-settings — plus 3 earlier); `runtime-server.ts`
+  2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
+  `nklein-task-session-service.ts` still **4886** (the hardest — class-heavy, instance-stateful; earlier slices nibbled it,
+  next needs the responsibility-split not just pure-fn lifts).
 - **New modules (all under `src/nklein-agent/` unless noted):** nklein-session-system-prompt, nklein-launch-config,
   nklein-retrieval-tools-gate, nklein-provider-settings-summary, nklein-litellm-model-list,
-  nklein-managed-provider-credentials, nklein-provider-selection-store, `src/server/bounded-dedup-set`,
-  `src/server/workspace-state-lock-retry`, `src/server/review-sandbox-result`.
-- **Next targets (in order):** (1) the last pure-ish provider-service bits (remote-config parse, `resolveModelListSettings`
-  with `listSdkProviderCatalog` injected); (2) more runtime-server free-function seams; (3) the deeper, higher-value work —
-  decomposing the ~2300-line `createRuntimeServer` closure and the task-session-service class by responsibility (review-loop /
-  plan-critique / mailbox as collaborators), which is where the "no large monolith" directive really bites. §5.V coverage +
-  §5.Z cross-model verification remain open; §5.AX visual overhaul is Fable-only.
+  nklein-managed-provider-credentials, nklein-provider-selection-store, nklein-model-list-settings,
+  `src/server/bounded-dedup-set`, `src/server/workspace-state-lock-retry`, `src/server/review-sandbox-result`.
+- **Next targets (in order):** (1) the last pure-ish provider-service bits (remote-config parse); (2) more runtime-server
+  free-function seams; (3) the deeper, higher-value work — decomposing the ~2300-line `createRuntimeServer` closure and the
+  task-session-service class by responsibility (review-loop / plan-critique / mailbox as collaborators), which is where the
+  "no large monolith" directive really bites. §5.V coverage + §5.Z cross-model verification remain open; §5.AX visual
+  overhaul is Fable-only.
 - **polishing.md:** §5.U section now migrated in (per the phase directive), with the same tally + next targets.
