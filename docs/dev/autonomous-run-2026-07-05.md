@@ -1491,3 +1491,22 @@ observation recorders), all green (tsc+biome+fast+integration), one cluster/comm
   (now covered, so unblocked, but low-value / log-shape risk).
 
 §5.Z heavy flows (need a live workspace) + §5.AZ release prep (David-gated) remain per prior entries.
+
+### Fable UI/UX pass (2026-07-06, user-directed interrupt of the polishing grind)
+
+David switched the session to Fable for the FULL UI/UX double-check + build-out. All decisions gathered up front via
+question rounds, then executed autonomously. Shipped (each commit gated tsc×2 + biome + web suite + test:fast):
+- **`36025af3` W3.1** — main chat gets the SHARED renderer (tool/reasoning/status blocks, markdown, card-chip row,
+  collapsed+live-expand per the user pick); tool exchanges persist as transcript rows; display roles never enter the
+  model prompt; live tool SSE events → activity chips.
+- **`77534fb6` zoom ladder** — FIVE levels (user pick): Z0 Chat-only (new) · Z1 Overview (default) · Z2 Lean · Z3 Expert ·
+  Z4 Professional; v1→v2 persisted-zoom migration; §5.BA wizard gains the "How much do you want to see?" step.
+- **`d7c6ba75` W3.2 + chat surfaces** — Stop button + 180s stalled-SSE watchdog; focus-chain plan strip
+  (chat.getFocusChain); map hover-spotlight (chat chip hover → Z1 bubble ring).
+- **`327b8516` W3.4** — BoardDagView (comprehensive DAG: status nodes, pan/zoom, cycle edges loud, any-zoom entry);
+  needs-you badge in the zoom bar; mailbox "N pending notes" card badge (new getCardMailboxCounts); context-truncation
+  indicator in the main chat.
+- **`13023bb6`** — §5.BC verified-as-decided (toggle + de-emphasis already shipped); carousel cyan confirmed; web-ui
+  biome now 0 warnings.
+- **HELD (recorded in todo §5.BB):** the four env-only flag panels (need server config-threading first) + the
+  fitness-table browser (needs an endpoint). Egress/searchBackend/speculative settings verified already present.

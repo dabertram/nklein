@@ -8935,9 +8935,29 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       renders as the system note leading the turn (directive for explicit/reply-bind, soft context for sticky
 >       focus, ask-don't-guess for clarify; goal adds NOTHING — §5.AQ byte-stable prompt); explicit handles persist
 >       as session focus; `targetLabel` rides the contract + SSE done event.
-> - [ ] **Remaining polish:** render the `targetLabel` "talking to X" chip at the composer (with an ✕ = clear
->       focus); map highlight on chat card-mention hover (Z0); zoom onboarding via §5.BA wizard ("how much do you
->       want to see").
+> - [x] **Remaining polish — SHIPPED (Fable session 2026-07-06):** the "talking to X" chip + ✕ already existed
+>       (verified); map highlight on chat card-mention hover (`highlightCardId` ring on the Z1 activity map);
+>       zoom onboarding via the §5.BA global wizard ("How much do you want to see?" — live-preview level cards).
+> - [x] **Fable session 2026-07-06 — the UI/UX pass (user-decided, all shipped + gated):**
+>       **W3.1** shared renderer: main chat renders tool/reasoning/status blocks via NKleinChatMessageItem
+>       (markdown replies + card-chip row; collapsed chips, streaming block live-expands; per-message timestamps
+>       share the per-card preference); tool exchanges persist as `role:"tool"` transcript rows (Tool:/Input:/Output:
+>       protocol; display roles filtered from the model prompt); live `{type:"tool"}` SSE events → violet activity
+>       chips. **Zoom ladder → FIVE levels** (user pick): Z0 Chat-only (NEW; ChatPrimaryPane, rail hidden) · Z1
+>       Overview (DEFAULT) · Z2 Lean · Z3 Expert · Z4 Professional; v1→v2 storage migration (+1 shift).
+>       **W3.2** Stop button (detach) + 180s stalled-SSE watchdog — the composer can never wedge. **Focus-chain
+>       strip** ("Plan 2/5 · current step", expandable) via new chat.getFocusChain. **W3.4**: BoardDagView (full
+>       dependency graph — status-colored nodes, pan/zoom, CYCLE edges red-dashed, zoom-bar "DAG" button at any
+>       zoom) · needs-you badge in the zoom bar (every zoom; summarizeBoardHealth) · mailbox "N pending notes"
+>       card badge (getCardMailboxCounts, 15s poll) · context-truncation indicator in main chat (contextTruncated
+>       on the done event). **§5.BC**: verified the shipped toggle IS the user's pick (all-edges de-emphasized +
+>       hover). **§5.AX carousel**: CYAN confirmed (user pick — agent selection = user action; already cyan).
+> - [ ] **HELD for a follow-up slice (needs server config-threading first, not a UI-only change):** settings
+>       panels for the four still-env-only flags (NKLEIN_BASIC_MEMORY + audit cadence, NKLEIN_CHAT_ADAPTIVE_TRUNCATION,
+>       NKLEIN_REASONING_BUDGET, NKLEIN_REVIEW_LENSES) — each reads env at a deep seam (sandbox constructor field,
+>       adapter module consts, review runner) so the config||env composition must be threaded server-side before a
+>       panel is honest. Likewise the **fitness-table browser** (read-only §5.AL verdicts view) — no tRPC endpoint
+>       exists yet. Egress + searchBackendUrl + speculative best-of-N settings were verified ALREADY in the dialog.
 > - [x] Mechanics (shipped): zoom = per-user persisted UI state, gates VISIBILITY not capability; default = Z0.
 
 *(Original 4-discrete-modes sketch (2026-07-02) superseded by the zoom-level framing above.)*
