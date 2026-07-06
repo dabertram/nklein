@@ -11,7 +11,6 @@ import type {
 	RuntimeTaskWorktreeMergeResponse,
 } from "@/runtime/types";
 import { LocalStorageKey } from "@/storage/local-storage-store";
-import { TERMINAL_THEME_COLORS } from "@/terminal/theme-colors";
 import type { BoardCard, BoardColumn, CardSelection } from "@/types";
 
 const mockUseRuntimeWorkspaceChanges = vi.fn();

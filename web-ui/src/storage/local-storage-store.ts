@@ -29,7 +29,7 @@ export enum LocalStorageKey {
 	ChatSidebarWidth = "nklein.chat-sidebar-width",
 	ChatSidebarCollapsed = "nklein.chat-sidebar-collapsed",
 	Theme = "nklein.theme",
-	/** §5.BC (user pick: treatment C): the board dependency-edge overlay toggle. */
+	/** §5.BC (user pick 2026-07-06: the all-edges toggle): the board dependency-edge overlay toggle. */
 	BoardDependencyEdgesVisible = "nklein.board-dependency-edges-visible",
 	/** §5.BB: the persisted UI zoom level (LEGACY four-level scale: 0 overview … 3 professional). Superseded by
 	 *  {@link UiZoomLevelV2} (chat-only inserted at 0); kept only as the migration source (old value + 1). */

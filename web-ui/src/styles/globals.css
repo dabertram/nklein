@@ -413,7 +413,7 @@ body,
 
 .kb-dependency-path {
 	fill: none;
-	/* §5.BC treatment C (user pick): the all-edges view is opt-in AND de-emphasized — thin, translucent
+	/* §5.BC (user pick 2026-07-06: the all-edges TOGGLE): opt-in AND de-emphasized — thin, translucent
 	   accent lines that read as structure, not noise; hover keeps the full-strength delete affordance. */
 	stroke: var(--color-accent);
 	stroke-width: 1.25;

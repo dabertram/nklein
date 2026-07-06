@@ -58,7 +58,6 @@ export function useStickyTranscript(input: {
 	}, [isAtBottom]);
 
 	// New session ⇒ jump to the latest and re-attach.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: resetKey IS the trigger; follow is stable.
 	useEffect(() => {
 		follow();
 	}, [input.resetKey, follow]);
