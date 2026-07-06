@@ -487,6 +487,16 @@
 > PER COMMIT**: each runner extraction gets new characterization unit tests AND the relevant heavy contract/integration tests
 > (runtime boot) run + green before moving to the next. **READY TO EXECUTE** (verify the integration-suite infra is available
 > first — earlier the swarm-bounce integration test needed a backend). Sequenced after / alongside SWARM recovery increments 2–3.
+> **DESIGN REFINEMENT (2026-07-06, read the runners):** the 5 runners are HETEROGENEOUS, so sequence the 6 commits by ascending
+> intricacy: (1) `verifyTaskAcceptanceInSandbox` is already THIN — resolves the result commit + delegates to the already-extracted
+> `runNKleinAcceptanceGateInSandbox(sandboxManager, pauseController)`; a ~33-line trivial wrapper move (do it FIRST, low-risk
+> warm-up + harness-dep shakeout). (2) The real `SecondarySessionHarness` skeleton lives in the review/critique/mirror runners
+> (check sandboxManager → resolve diverse model → build `::`-launch-config → prepareWorkspace [bounded 180s queue wait] →
+> setSandbox → runBoundedTurn via startRuntimeSession with an `onXSubmitted` callback → collect verdict → teardown) — extract the
+> harness from `runSecondOpinionReviewSessionInner` (the cleanest exemplar) SECOND, then move PlanCritique / SpeculativeMirror /
+> MergeResolution onto it. Order: acceptance-verifier → harness(from review) → the other 3. Each commit: verbatim move +
+> characterization tests + a full integration pass (Docker confirmed UP here → the gate is viable). Large multi-turn effort;
+> NOT to be rushed at a long turn's tail (no fast-suite net; behavior must stay byte-identical).
 >
 > **§5.U FOURTH (biggest) PATTERN — COLLABORATOR SPLIT, proven autonomous+safe (slice 45):** move a cohesive concern (a
 > cluster of methods + its DEDICATED state) out of the class into a `createXWatcher(deps)` collaborator with a small deps
