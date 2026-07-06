@@ -27,6 +27,10 @@ const CLOUD_LITERAL_ALLOWLIST = new Map<string, string>([
 		"Classifies provider ids (managed-OAuth vs live-only) and maps managed ids to display names; the provider-id boundary helpers extracted from nklein-provider-service.",
 	],
 	[
+		"src/nklein-agent/nklein-managed-provider-credentials.ts",
+		"Owns managed-provider (nklein/oca/openai-codex) credential resolution — the env-key map is a Record over the managed-OAuth provider-id union, so it must enumerate those ids; extracted from nklein-provider-service (§5.U).",
+	],
+	[
 		"src/nklein-agent/sdk-provider-boundary.ts",
 		"The SDK boundary maps managed NKlein OAuth provider settings into SDK-owned shapes.",
 	],
