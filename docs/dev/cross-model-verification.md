@@ -742,3 +742,12 @@ models. The loop is healthy — every non-PASS is a MODEL-QUALITY trait, not a !
   for egress web_search + temporal, just mis-selects here) — not a !Klein bug; read_file works for the other 5.
   - matrix rows (chat read_file): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gpt-oss-120b=✅ · gemma-4-e2b=◑ ·
     nemotron-3-nano-4b=◑ · mistral-small-3.2=⚠️(picks list_dir)
+
+### 2026-07-06 · §5.Z §5.M-G2 chat-command-exec (run_command at runtime) — current-roster sweep
+`verify-chat-command-exec.mts` (real `nklein chat --allow-commands` CLI agent → run_command → the shell output must
+flow back into the model's context and appear in the reply), 4 models. Runtime command execution is healthy:
+- ✅ **PASS (3):** qwen3-8b, qwen2.5-coder-14b, gpt-oss-120b — used run_command and echoed the marker (proving the
+  command genuinely executed and its output flowed back into context).
+- ◑ **weak-synthesis (1): gemma-4-e2b (2B)** — USED run_command (the command executed) but didn't echo the marker in
+  its reply. The same weak-synthesis ◑ trait seen on read_file — model quality, not a bug (the execution path works).
+  - matrix rows (chat run_command): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gpt-oss-120b=✅ · gemma-4-e2b=◑
