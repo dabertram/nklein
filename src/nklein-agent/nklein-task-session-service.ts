@@ -42,7 +42,7 @@ import {
 	type PromptWarmthLedgerEntry,
 } from "../core/cache-warmth";
 import { isTruthyEnv } from "../core/env-flag";
-import { applyFocusChainStepTiming, type FocusChain, summarizeFocusChain } from "../core/focus-chain";
+import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
@@ -104,6 +104,7 @@ import {
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
 import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
+import { createFocusChainStore } from "./nklein-focus-chain-store";
 import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
 import {
 	type NKleinTaskLaunchConfigOverrides,
@@ -577,7 +578,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** Temp root for diagnostic stores in tests; undefined in production (→ the real `~/.nklein` home). */
 	private readonly diagnosticStoreRoot: string | undefined;
 	/** Latest focus chain each task emitted (todo §5.N), captured into the terminal run summary. */
-	private readonly focusChainByTaskId = new Map<string, FocusChain>();
+	private readonly focusChainStore = createFocusChainStore({
+		now,
+		onUpdated: (taskId, chain) => this.onFocusChainUpdated?.(taskId, chain),
+	});
 	private readonly runtimeSetupLeaseCache = createRuntimeSetupLeaseCache({
 		acquire: (workspacePath) => this.watcherRegistry.acquire(workspacePath),
 	});
@@ -1148,11 +1152,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				onReviewSubmitted: input.onReviewSubmitted,
 				onPlanCritiqueSubmitted: input.onPlanCritiqueSubmitted,
 				onMergeResolutionSubmitted: input.onMergeResolutionSubmitted,
-				onFocusChainUpdated: (chain) => {
-					const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(input.taskId), chain, now());
-					this.focusChainByTaskId.set(input.taskId, timed);
-					void this.onFocusChainUpdated?.(input.taskId, timed);
-				},
+				onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(input.taskId, chain),
 				onTeamEvent: (event, teamName) => {
 					this.emitTeamProgress(input.taskId, event, teamName);
 				},
@@ -2129,11 +2129,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					onDecompositionApplied: this.onDecompositionApplied,
 					requestPlanCritique: this.buildPlanCritiqueRequestHandler(request.taskId, request.cwd),
 					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
-					onFocusChainUpdated: (chain) => {
-						const timed = applyFocusChainStepTiming(this.focusChainByTaskId.get(request.taskId), chain, now());
-						this.focusChainByTaskId.set(request.taskId, timed);
-						void this.onFocusChainUpdated?.(request.taskId, timed);
-					},
+					onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(request.taskId, chain),
 					onTeamEvent: (event, teamName) => {
 						this.emitTeamProgress(request.taskId, event, teamName);
 					},
@@ -4043,7 +4039,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.requestTimer.clear();
 		this.explicitDecompositionTaskIds.clear();
 		this.sandboxState.clear();
-		this.focusChainByTaskId.clear();
+		this.focusChainStore.clear();
 		this.teamProgressListeners.clear();
 		await this.agentSandboxManager?.stopNow().catch(() => null);
 		await this.runtimeSetupLeaseCache.disposeAll();
@@ -4125,9 +4121,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				timeoutSource,
 				role,
 				scenario,
-				focusChain: this.focusChainByTaskId.has(taskId)
-					? summarizeFocusChain(this.focusChainByTaskId.get(taskId))
-					: null,
+				focusChain: this.focusChainStore.summarize(taskId),
 				patchCaptureStatus: null,
 			},
 			{ rootDir: this.diagnosticStoreRoot },
@@ -4168,7 +4162,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private forgetSandboxTask(taskId: string): void {
 		this.sandboxState.deleteSandbox(taskId);
 		this.sandboxState.unmarkFinalizing(taskId);
-		this.focusChainByTaskId.delete(taskId);
+		this.focusChainStore.delete(taskId);
 	}
 
 	private emitMessage(taskId: string, message: NKleinTaskMessage): void {
