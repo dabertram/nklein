@@ -318,6 +318,77 @@ function describeCardState(
 	return `Card [${cardId}] "${title}" is READY to start${waitingNote}.`;
 }
 
+/** The effect-execution deps a relay needs (a subset of CardRelayDeps): live delivery + durable mailbox queue. */
+export type CardMessageRelayDeps = Pick<CardRelayDeps, "deliverLive" | "queueMailbox">;
+
+/**
+ * §5.AU — apply a message to a card by the pure `(card state × intent)` effect, returning the human-facing confirmation.
+ * The ONE relay path shared by the `send_to_card` tool AND the chat front door (item 9 deterministic relay), so an
+ * addressed message behaves identically whether the model calls the tool or the addressing resolves it. Communication is
+ * always possible; execution stays readiness-gated (a blocked/ready card is NEVER started — the note is queued). A
+ * question is answered from board state. Pure over its injected effect deps.
+ */
+export async function applyCardMessageRelay(
+	board: RuntimeBoardData,
+	activeSessionTaskIds: ReadonlySet<string>,
+	cardId: string,
+	message: string,
+	intent: CardMessageIntent | null,
+	deps: CardMessageRelayDeps,
+): Promise<string> {
+	const state = resolveCardExecutionState(board, activeSessionTaskIds, cardId);
+	if (state === null) {
+		return `No card with id "${cardId}" on the board (use get_board to list cards).`;
+	}
+	const resolvedIntent = intent ?? classifyCardMessageIntent(message);
+	const verdict = resolveCardMessageEffect({ cardState: state, intent: resolvedIntent });
+	switch (verdict.effect) {
+		case "deliver_live": {
+			const delivered = await deps.deliverLive(cardId, message).catch(() => false);
+			if (delivered) {
+				return `Delivered to the agent working [${cardId}] (live).`;
+			}
+			// The session ended between the state read and the delivery — fall back to the durable mailbox.
+			const pending = await deps.queueMailbox(cardId, message);
+			return `The card's session just ended — queued to its mailbox instead (${pending} pending note(s)).`;
+		}
+		case "queue_mailbox": {
+			const pending = await deps.queueMailbox(cardId, message);
+			return `Queued on [${cardId}]'s mailbox (${pending} pending note(s)) — it will be read when the card starts. The card was NOT started (${state === "blocked" ? "it is blocked" : "starting stays a separate, gated action"}).`;
+		}
+		case "request_start": {
+			// v1: no start path from chat — the message is preserved and the READY state surfaced; starting
+			// remains the user's (or the swarm's) gated action. Never silently drops the guidance.
+			const pending = await deps.queueMailbox(cardId, message);
+			return `Card [${cardId}] is READY. Your note is queued (${pending} pending) and will open its run — ask the user to start the card (or the swarm will pick it up); chat cannot start cards yet.`;
+		}
+		case "suggest_unblock": {
+			const unmet = listUnmetDependencyTaskIds(board, cardId);
+			const pending = await deps.queueMailbox(cardId, message);
+			if (unmet.length > 0) {
+				const blockers = unmet.map((id) => `[${id}]`).join(", ");
+				return `Card [${cardId}] is BLOCKED by ${blockers} — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: reprioritize ${blockers}, or drop the dependency.`;
+			}
+			// No unmet dependency edge — the card is blocked by an explicit blockedKind
+			// (needs_decomposition, local_model_required, agent_sandbox_unavailable, …). Surface the REAL
+			// cause instead of pointing at a nonexistent dependency the user cannot reprioritize/drop.
+			const card = board.columns.flatMap((column) => column.cards).find((candidate) => candidate.id === cardId);
+			const cause = card?.blockedKind
+				? `${card.blockedKind}${card.blockedReason ? `: ${card.blockedReason}` : ""}`
+				: "an unknown blocker";
+			return `Card [${cardId}] is BLOCKED (${cause}) — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: resolve the blocker above.`;
+		}
+		case "append_followup": {
+			const pending = await deps.queueMailbox(cardId, message);
+			return `Card [${cardId}] is already completed — your note is recorded as a follow-up (${pending} pending note(s)).`;
+		}
+		default:
+			// answer_from_state / consult_response — both answer ABOUT the card from board state (consult's
+			// dedicated read-only model turn is a later §5.AU rung; the state answer is the honest v1).
+			return describeCardState(board, cardId, state, activeSessionTaskIds);
+	}
+}
+
 export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): ChatToolSet {
 	const tools: ChatTool[] = [
 		{
@@ -328,67 +399,14 @@ export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): 
 				if ("error" in parsed) {
 					return parsed.error;
 				}
-				const { cardId, message } = parsed;
+				const { cardId, message, intent } = parsed;
 				let board: RuntimeBoardData;
 				try {
 					board = await deps.loadBoard(projectPath);
 				} catch {
 					return "Could not read the project board.";
 				}
-				const activeSessionTaskIds = deps.listActiveSessionTaskIds();
-				const state = resolveCardExecutionState(board, activeSessionTaskIds, cardId);
-				if (state === null) {
-					return `No card with id "${cardId}" on the board (use get_board to list cards).`;
-				}
-				const intent = parsed.intent ?? classifyCardMessageIntent(message);
-				const verdict = resolveCardMessageEffect({ cardState: state, intent });
-				switch (verdict.effect) {
-					case "deliver_live": {
-						const delivered = await deps.deliverLive(cardId, message).catch(() => false);
-						if (delivered) {
-							return `Delivered to the agent working [${cardId}] (live).`;
-						}
-						// The session ended between the state read and the delivery — fall back to the durable mailbox.
-						const pending = await deps.queueMailbox(cardId, message);
-						return `The card's session just ended — queued to its mailbox instead (${pending} pending note(s)).`;
-					}
-					case "queue_mailbox": {
-						const pending = await deps.queueMailbox(cardId, message);
-						return `Queued on [${cardId}]'s mailbox (${pending} pending note(s)) — it will be read when the card starts. The card was NOT started (${state === "blocked" ? "it is blocked" : "starting stays a separate, gated action"}).`;
-					}
-					case "request_start": {
-						// v1: no start path from chat — the message is preserved and the READY state surfaced; starting
-						// remains the user's (or the swarm's) gated action. Never silently drops the guidance.
-						const pending = await deps.queueMailbox(cardId, message);
-						return `Card [${cardId}] is READY. Your note is queued (${pending} pending) and will open its run — ask the user to start the card (or the swarm will pick it up); chat cannot start cards yet.`;
-					}
-					case "suggest_unblock": {
-						const unmet = listUnmetDependencyTaskIds(board, cardId);
-						const pending = await deps.queueMailbox(cardId, message);
-						if (unmet.length > 0) {
-							const blockers = unmet.map((id) => `[${id}]`).join(", ");
-							return `Card [${cardId}] is BLOCKED by ${blockers} — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: reprioritize ${blockers}, or drop the dependency.`;
-						}
-						// No unmet dependency edge — the card is blocked by an explicit blockedKind
-						// (needs_decomposition, local_model_required, agent_sandbox_unavailable, …). Surface the REAL
-						// cause instead of pointing at a nonexistent dependency the user cannot reprioritize/drop.
-						const card = board.columns
-							.flatMap((column) => column.cards)
-							.find((candidate) => candidate.id === cardId);
-						const cause = card?.blockedKind
-							? `${card.blockedKind}${card.blockedReason ? `: ${card.blockedReason}` : ""}`
-							: "an unknown blocker";
-						return `Card [${cardId}] is BLOCKED (${cause}) — it was NOT started. Your note is queued (${pending} pending). To act now, suggest to the user: resolve the blocker above.`;
-					}
-					case "append_followup": {
-						const pending = await deps.queueMailbox(cardId, message);
-						return `Card [${cardId}] is already completed — your note is recorded as a follow-up (${pending} pending note(s)).`;
-					}
-					default:
-						// answer_from_state / consult_response — both answer ABOUT the card from board state (consult's
-						// dedicated read-only model turn is a later §5.AU rung; the state answer is the honest v1).
-						return describeCardState(board, cardId, state, activeSessionTaskIds);
-				}
+				return applyCardMessageRelay(board, deps.listActiveSessionTaskIds(), cardId, message, intent, deps);
 			},
 		},
 		{
