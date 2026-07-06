@@ -736,3 +736,21 @@ egress unblocks). These are BUILD items (not just validation), the freshness-che
 egress live + E2E-validated. The high-value actionable-without-David surface is again worked through; the remaining
 egress-enabled items are real BUILD slices (catalog-freshness check being the cleanest) a next iteration can take, else
 surface to David.
+
+### ⏸ LOOP PAUSED (2026-07-06) — boundary re-confirmed rigorously; cron `e0042a87` deleted
+Scanned the egress-enabled surface to be sure before stopping: the freshness/retrieval/online-research cores
+(`isKnowledgeStale`, `judgeRetrievedFreshness`, the retrieval loop, `buildNKleinModelFreshnessAdvisorRequest`) are ALL
+already wired to the hot path — live egress just makes them work (now E2E-validated). No dark core to light up. The two
+nominally-remaining items don't survive scrutiny:
+- **rung-5 LLM disambiguator** — would be a DARK CORE with no consumer (the interactive needs_clarify path uses the
+  deterministic picker just shipped; no headless caller uses addressing). Building it = the exact "built-not-running"
+  anti-pattern §5.0.5 warns against. Skip until a headless-addressing consumer exists.
+- **llmfit catalog-freshness check** — research-dependent (needs llmfit's internal DB-version mechanism + the HF dataset)
+  on a `partial`, off-by-default integration. Not a clean slice; David-priority + a research spike.
+
+**Conclusion:** no high-value slice remains actionable without David. Paused the cron (re-firing every 2 min to
+re-confirm this burns tokens — the anti-pattern the loop contract warns against). Instantly re-armable. **The next move is
+a product-DIRECTION call** (what's the next big capability to build) — the feature-complete backlog for the current phase
+is essentially drained; the deferred work (extended sweeps, §5.AX visual overhaul, architecture refactor, comprehensive
+coverage) all lives in polishing.md for the post-implementation phase, per §5.0.6. All work committed + pushed to
+`feat/nklein-upcoming`; tree green.
