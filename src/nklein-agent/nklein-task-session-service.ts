@@ -110,6 +110,7 @@ import type {
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import { createRuntimeSetupLeaseCache } from "./nklein-runtime-setup-lease-cache";
 import { createSandboxReviewFinalizer } from "./nklein-sandbox-review-finalizer";
+import { createSecondOpinionReviewRunner } from "./nklein-second-opinion-review-runner";
 import { createSecondarySessionHarness } from "./nklein-secondary-session-harness";
 import {
 	type CreateInMemoryNKleinSessionRuntimeOptions,
@@ -179,8 +180,6 @@ const DEBUG_STREAM_EVENTS = isTruthyEnv(process.env.NKLEIN_DEBUG_STREAM_EVENTS);
 const debugStreamEventLastAtByTaskId = new Map<string, number>();
 /** Re-prompt budget when a reviewer turn ends without calling `submit_review` (small models often forget). */
 const MAX_SECOND_OPINION_REVIEW_NUDGES = 2;
-const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
-	"You ended your turn without calling `submit_review`, so no review was recorded. Your verdict is delivered ONLY by that tool. Call `submit_review` now: `approve`, or `request_changes` with concrete, actionable feedback. Do not answer in prose.";
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 
 export interface StartNKleinTaskSessionRequest {
@@ -515,6 +514,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
 		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
 		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
+	});
+	/** §5.U auxiliary secondary-session runner: the §5.AB second-opinion reviewer session (owns its single-flight guard). */
+	private readonly secondOpinionReviewRunner = createSecondOpinionReviewRunner({
+		getAgentSandboxManager: () => this.agentSandboxManager,
+		getLaunchConfig: (taskId) => this.launchConfigByTaskId.get(taskId) ?? null,
+		getShellKeyByModelId: () => this.promptWarmthLedger.shellKeyByModelId,
+		getPauseController: () => this.pauseController,
+		getHarness: () => this.secondarySessionHarness,
+		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
+		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
+		defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
+		maxNudges: MAX_SECOND_OPINION_REVIEW_NUDGES,
 	});
 	/** W2.3a/W1.1b: learned quality-effective budgets (read by the ContextBudgetController) + the stall-signature
 	 * adaptive retry (re-sends the card on a raised per-turn budget). Owns its three state maps/flags. */
@@ -2321,9 +2332,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}).catch(() => null);
 	}
 
-	/** #31: `::review` sessions share one workspace path per task — two concurrent rounds destroy each other. */
-	private readonly inFlightSecondOpinionReviewTaskIds = new Set<string>();
-
 	async runSecondOpinionReviewSession(input: {
 		taskId: string;
 		projectRepoPath: string;
@@ -2332,127 +2340,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		reviewer?: { providerId: string; modelId: string } | null;
 		timeoutMs?: number;
 	}): Promise<NKleinReviewResult | null> {
-		if (!this.agentSandboxManager) {
-			return null;
-		}
-		// #31 (run32 live): a second concurrent review for the same task would prepare the SAME
-		// `<taskId>::review` workspace and the first round's teardown would destroy it mid-turn (the grinding
-		// blocked-read loop + no verdict). Single-flight: the caller treats null as "skipped" (fail-closed
-		// hold), and the in-flight round concludes normally.
-		if (this.inFlightSecondOpinionReviewTaskIds.has(input.taskId)) {
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: `Second-opinion review already in flight for ${input.taskId}; skipping the concurrent round.`,
-				taskId: `${input.taskId}::review`,
-				workspacePath: input.projectRepoPath,
-				metadata: { category: "second_opinion_review_single_flight" },
-			});
-			return null;
-		}
-		this.inFlightSecondOpinionReviewTaskIds.add(input.taskId);
-		try {
-			return await this.runSecondOpinionReviewSessionInner(input);
-		} finally {
-			this.inFlightSecondOpinionReviewTaskIds.delete(input.taskId);
-		}
-	}
-
-	/** The body of {@link runSecondOpinionReviewSession}; the wrapper owns ONLY the single-flight flag, so no
-	 * early return or pre-`try` throw (sandbox unavailable, prepareWorkspace queue rejection, unresolvable
-	 * reviewer) can leak it and permanently wedge the card's reviews (adversarial finding, 2026-07-02). */
-	private async runSecondOpinionReviewSessionInner(input: {
-		taskId: string;
-		projectRepoPath: string;
-		baseRef: string;
-		seedPrompt: string;
-		reviewer?: { providerId: string; modelId: string } | null;
-		timeoutMs?: number;
-	}): Promise<NKleinReviewResult | null> {
-		const sandboxManager = this.agentSandboxManager;
-		if (!sandboxManager) {
-			return null;
-		}
-		const workerLaunch = this.launchConfigByTaskId.get(input.taskId) ?? null;
-		// W2.5a (audit 2026-07-02, §5.AB): with NO configured reviewer this previously fell back to the WORKER's
-		// own model — the model reviewing its own work, the worst monoculture form. Auto-pick a lineage-DIVERSE
-		// loaded model instead (best-effort; when nothing diverse is loaded the waiver is recorded and the old
-		// fallback stands, so behavior only ever improves).
-		const autoReviewer =
-			!input.reviewer && workerLaunch?.providerId && workerLaunch.modelId
-				? await pickDiverseReviewerModel(workerLaunch, input.taskId, "review", {
-						lastShellKeyByModel: this.promptWarmthLedger.shellKeyByModelId,
-					}).catch(() => null)
-				: null;
-		const providerId = (
-			input.reviewer?.providerId ??
-			autoReviewer?.providerId ??
-			workerLaunch?.providerId ??
-			""
-		).trim();
-		const modelId = (input.reviewer?.modelId ?? autoReviewer?.modelId ?? workerLaunch?.modelId ?? "").trim();
-		if (!providerId || !modelId) {
-			return null;
-		}
-		const launchConfig: NKleinTaskRestartLaunchConfig = {
-			...(workerLaunch ?? {}),
-			providerId,
-			modelId,
-			workspaceRoot: input.projectRepoPath,
-		};
-		const reviewTaskId = `${input.taskId}::review`;
-		return this.secondarySessionHarness.runBracketed(
-			{
-				primaryTaskId: input.taskId,
-				syntheticTaskId: reviewTaskId,
-				projectRepoPath: input.projectRepoPath,
-				baseRef: input.baseRef,
-				timeoutMs: input.timeoutMs,
-				defaultTimeoutMs: DEFAULT_SECOND_OPINION_REVIEW_TIMEOUT_MS,
-				errorLabel: "Second-opinion reviewer session",
-			},
-			async ({ workspace, deadlineMs, runBoundedTurn }) => {
-				let verdict: NKleinReviewResult | null = null;
-				// First turn: seed prompt + the submit_review tool. startRuntimeTaskSessionFromLaunchConfig awaits the
-				// turn, so the tool's verdict (if emitted) is captured by the time it settles.
-				await runBoundedTurn(
-					this.startRuntimeTaskSessionFromLaunchConfig({
-						taskId: reviewTaskId,
-						cwd: workspace.workdir,
-						workspaceRoot: input.projectRepoPath,
-						prompt: input.seedPrompt,
-						launchConfig,
-						contextScope: "minimal",
-						onReviewSubmitted: (result) => {
-							verdict = result;
-						},
-						// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
-						// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
-						toolExecutors: createAgentSandboxToolExecutors(sandboxManager, reviewTaskId, {
-							pauseController: this.pauseController,
-						}),
-						extraTools: createAgentSandboxExtraTools(sandboxManager, reviewTaskId, {
-							sessionId: createSessionId(reviewTaskId),
-							contextWindow: launchConfig.contextWindow ?? undefined,
-							maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-						}),
-					}),
-				);
-				// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
-				// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
-				// small budget and the overall deadline.
-				for (
-					let nudge = 0;
-					verdict === null && nudge < MAX_SECOND_OPINION_REVIEW_NUDGES && Date.now() < deadlineMs;
-					nudge += 1
-				) {
-					await runBoundedTurn(
-						this.sessionRuntime.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT),
-					);
-				}
-				return verdict;
-			},
-		);
+		return this.secondOpinionReviewRunner.runSecondOpinionReviewSession(input);
 	}
 
 	async rescueInterruptedTaskWithPriorWork(taskId: string): Promise<boolean> {
