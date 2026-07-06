@@ -4,7 +4,7 @@
 
 The main driver for this fork is making agentic coding usable with small local LLMs on limited hardware. Early work started with practical blockers such as long local-model turns hitting HTTP body timeout errors, then continued into local-only model routing, larger effective context windows, task decomposition, guardrails, and recovery flows that make smaller models easier to use productively.
 
-The repository name remains `kanban` for now, but when docs or UI refer to the product they should say `!Klein`, and when they refer to the CLI they should say `nklein`.
+Naming, for consistency across docs, UI, and tooling: the **product** is `!Klein`, the **CLI / command** is `nklein`, and the **repository and npm package** are `nklein`. The word "kanban" is retained only where it refers to the board concept itself (columns, cards, WIP) — not to this product, which is `!Klein`.
 
 ### Install and Run
 
