@@ -1102,20 +1102,34 @@ parsers and every runtime consumer; a direct test would only re-assert Zod. The 
 **Net: over 42 slices this run I've closed every substantial vein of untested PURE LOGIC** — input boundary, core
 session-state, security (passcode + cmd escaping), config normalizers/resolvers/projection, routing/prompt/model-parsing/policy.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 42) — for David
+### ▶ §5.U slice 43 (2026-07-06, 4294bfc6) — reviewer-candidate selection lifted from the flagship (THIRD safe pattern)
+A real §5.U cut into `nklein-task-session-service.ts` via a pattern I'd under-used: **lift a PURE sub-computation out of a
+stateful method** (the method keeps its IO/orchestration; the pure step moves + gets tested). `pickDiverseReviewerModel`'s
+two pure steps — `resolveWorkerRealId` (served alias → real publisher key when loaded) and `buildReviewerCandidates`
+(loaded descriptors → reviewer candidates, excluding embeddings + the worker's own model by served alias OR real key) —
+moved to `nklein-reviewer-candidate-selection`; the method delegates. Behavior-preserving (identical find/filter/map);
++5 focused unit tests where before they were only exercised end-to-end. task-session-service 4873 → **4859**.
+**Correction to the slice-42 "high-value work is David-gated" framing:** this third pattern reopens safe flagship progress —
+the big methods contain more pure sub-computations that can be lifted+tested one bounded commit at a time WITHOUT the risky
+state-threading of a full collaborator split. Worth a systematic pass over the large methods for these. (The full
+responsibility-split of the ~2300-line createRuntimeServer closure + the class still benefits from David's steer.)
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 43) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **42 slices this run (20 §5.U extractions + 22 §5.V coverage batches), ~285 new unit tests, zero behavior changes** (the
+- **43 slices this run (21 §5.U extractions + 22 §5.V coverage batches), ~290 new unit tests, zero behavior changes** (the
   pre-commit fast suite gates every commit; extractions delegate). §5.V high-value pure-logic coverage is now SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
   + windows-cmd escaping), plan-gap prompt builders, context-window-policy helpers, plan-task-routing resolvers,
   task-start-guard helpers, the nklein-session-state core module (all 17 exports), provider-model-parsing, operator-board-health.
-- **What remains actionable WITHOUT David is now low-value tail** (Zod schema declarations — transitively tested; trivial
-  path-joins; I/O-bound registry/sentry; vendored SDK passthroughs). **The one HIGH-VALUE item left is the big-3 stateful
-  responsibility-split** (task-session-service class + createRuntimeServer closure) — a multi-commit DI-threading undertaking
-  that genuinely benefits from David's steer on intended module boundaries, not an autonomous guess. §5.Z cross-model
-  verification (needs live models driven through flows) and §5.AZ release prep (POST-MATURITY, David-gated) also remain. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+- **Actionable WITHOUT David:** (a) §5.V is a low-value tail (Zod schema decls — transitively tested; trivial path-joins;
+  I/O fns; SDK passthroughs) — don't pad. (b) **BUT §5.U flagship progress is NOT blocked** — the third pattern (lift pure
+  sub-computations out of stateful methods, slice 43) reopens safe, bounded, test-gated shrinking of the big files; a
+  systematic pass over the large methods for liftable pure steps is the productive continuation. **Benefits from David:** the
+  full stateful responsibility-split (moving a cohesive cluster of methods + their dedicated state into a collaborator class)
+  — steer on intended module boundaries avoids an autonomous guess. §5.Z cross-model verification (needs live models driven
+  through flows) and §5.AZ release prep (POST-MATURITY, David-gated) also remain. Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44

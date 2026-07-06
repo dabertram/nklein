@@ -395,9 +395,11 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **42 slices so far (20 §5.U extractions + 22 §5.V coverage batches), ~285 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42 finding). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
->   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
+> - **43 slices so far (21 §5.U extractions + 22 §5.V coverage batches), ~290 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42); §5.U flagship progress reopened via the
+>   third pattern (slice 43). THREE flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
+>   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
+>   stateful methods — all safe, behavior-preserving + coverage-adding.
 >
 > **§5.V api-validation coverage — COMPLETE (slices 21–26, +57 tests):** all ~35 `src/core/api-validation.ts` parsers with
 > real post-schema logic (trim / emptiness / normalization / dedup / tolerant-null) are now characterized. The remaining ~5
@@ -435,6 +437,13 @@
 >
 > Method unchanged: `grep -w` untested exported fns → read body → characterization tests, no source change; skip
 > `schema.parse` passthroughs, singleton getters, I/O handlers, and SDK wrappers.
+>
+> **§5.U THIRD PATTERN (2026-07-06, slice 43):** beyond (1) lifting pure `this`-free methods and (2) lifting state-free inner
+> closures, there's (3) **lifting a PURE sub-computation OUT of a stateful method** — the method keeps its IO/orchestration and
+> delegates the pure step to a new tested module. Reviewer-candidate selection (`resolveWorkerRealId`/`buildReviewerCandidates`)
+> came out of `pickDiverseReviewerModel` this way (+5 tests, service 4873→4859). This reopens safe, bounded flagship progress:
+> do a systematic pass over the large methods (dispatchResolvedTaskInput, runSecondOpinionReviewSessionInner,
+> buildPlanCritiqueRequestHandler, maybeAdaptiveBudgetRetry, …) for liftable pure steps, one bounded+tested commit each.
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,
