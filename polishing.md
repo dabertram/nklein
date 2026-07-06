@@ -395,14 +395,17 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **25 slices so far (20 §5.U extractions + 5 §5.V coverage batches), ~184 new unit tests, zero behavior changes** (pre-commit
+> - **26 slices so far (20 §5.U extractions + 6 §5.V coverage batches), ~192 new unit tests, zero behavior changes** (pre-commit
 >   fast suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
 >   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
-> **§5.V coverage backlog (opened slice 21):** `src/core/api-validation.ts` has ~44 tRPC boundary parsers; many are untested
-> despite real post-schema logic (trim + emptiness + normalization, stricter than the Zod schema). **~30 now characterized
-> across 5 batches (+49 tests); ~14 remain** (mostly large passthrough schemas — provider-settings-save, config-save,
-> workspace-state-save, update-provider — or pure passthroughs like advisor/dogfood). A steady, zero-risk coverage backlog.
+> **§5.V api-validation coverage — COMPLETE (slices 21–26, +57 tests):** all ~35 `src/core/api-validation.ts` parsers with
+> real post-schema logic (trim / emptiness / normalization / dedup / tolerant-null) are now characterized. The remaining ~5
+> (advisor build/send, dogfood, config-save, workspace-state-save) are PURE `schema.parse` passthroughs — intentionally left
+> (a test would only re-assert Zod; the schema IS the contract). The untrusted tRPC input boundary is now covered.
+>
+> **Next §5.V veins** (run a coverage-gap scan — exported fns never named in any test — to pick the next module):
+> candidates beyond api-validation still to survey for untested post-schema/pure logic.
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,

@@ -1005,11 +1005,20 @@ Batch 5 (+6 tests): `parseNKleinMcpOAuthRequest`, `parseNKleinOauthLoginRequest`
 change. **~30 of 44 api-validation parsers now covered; the ~14 remaining are mostly large passthrough schemas
 (provider-settings-save, config-save, workspace-state-save, update-provider) or pure passthroughs (advisor/dogfood).**
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 25) — for David
+### ▶ §5.V slice 26 (2026-07-06, 618d1efd) — api-validation coverage batch 6 (backlog COMPLETE)
++8 tests for the heaviest-normalization parsers: `parseNKleinUpdateProviderRequest` (providerId slugify, empty-header
+filtering, model trim+dedup, headers:null passthrough), `parseNKleinProviderSettingsSaveRequest` (nested aws/gcp blank→null),
+`parseTerminalWsClientMessage` (the one parser that returns NULL tolerantly instead of throwing), + the last two simple
+trimmers. **api-validation §5.V backlog DONE: ~35/44 parsers characterized; the remaining ~5 (advisor build/send, dogfood,
+config-save, workspace-state-save) are PURE schema passthroughs with no post-schema logic — intentionally left (a test would
+only re-assert Zod).** Net: every api-validation parser that does anything beyond `schema.parse` is now covered.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 26) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **25 slices this run (20 §5.U extractions + 5 §5.V coverage batches), ~184 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+- **26 slices this run (20 §5.U extractions + 6 §5.V coverage batches), ~192 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). The api-validation §5.V backlog is now COMPLETE (every
+  parser with post-schema logic covered). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
   agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
   were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
   state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
