@@ -395,11 +395,12 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **52 slices so far (30 §5.U extractions + 22 §5.V coverage batches), ~322 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4265 this run
->   (−621, ~13%) — 7 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
->   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest]) + wrapper cleanup (46). All three entangled splits (Park,
->   Timeout, SandboxReview) proved autonomously safe when the boundary is clear; the Timeout split even IMPROVED coverage.**
+> - **53 slices so far (31 §5.U extractions + 22 §5.V coverage batches), ~329 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4178 this run
+>   (−708, ~14.5%) — 8 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
+>   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest], ContextBudgetController 53 [−87]) + wrapper cleanup (46). All
+>   three entangled splits (Park, Timeout, SandboxReview) proved autonomously safe when the boundary is clear; the Timeout split
+>   even IMPROVED coverage.**
 >   Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
@@ -466,9 +467,15 @@
 > `createSandboxReviewFinalizer(deps)` (7-method deps: getSandboxState/getAgentSandboxManager/getTaskEntry/emitSummary/
 > emitMessage/isExplicitDecomposition/getDiagnosticStoreRoot; state deps are LAZY getters for field-init-order safety). Mechanical
 > `this.X → deps.X` transform (zero leftover this.*), 3 call sites rewired, +4 focused tests (shouldFinalize gate truth-table +
-> finalize early-return guards). 136 tests green. **All three entangled orchestration clusters in task-session-service are now
-> extracted; the obvious cohesive-cluster vein is largely mined (4886 → 4265). Further reduction needs finer-grained / more-
-> ambiguous boundaries (David's steer) or a shift to runtime-server / provider-service.**
+> finalize early-return guards). 136 tests green.
+> **`ContextBudgetController` — ✅ DONE slice 53 (−87; eighth split, a CLEAN cluster).** Moved context-window resolution
+> (advertised → learned-quality-derated → normalized) + the pre-send context-budget guard into
+> `createContextBudgetController(deps)`; the controller OWNS the TaskContextWindowStore + exposes resolve/resolveKnown/
+> prepareMessages + forget/clear. Deps are 3 lazy accessors (getModelIdForTask/getQualityBudget/recordObservation). The entangled
+> compaction ORCHESTRATION (maybeCompactBeforeContextOverflow — reads persisted session + triggers restart) stays and delegates
+> its pure step. Verbatim move, ~11 call sites rewired, +7 tests. **All three entangled orchestration clusters + the context-budget
+> resolver/guard are now extracted; the obvious cohesive-cluster vein in task-session-service is largely mined (4886 → 4178).
+> Further reduction needs finer-grained / more-ambiguous boundaries (David's steer) or a shift to runtime-server / provider-service.**
 > — extracted the pause/park cluster (parkActiveTasksForOperatorPause / parkTaskForPause / parkTaskForAutonomyBudget /
 > resetGuardsForPark / pushParkSystemMessage / enforceAutonomyBudgets) into `createParkController(deps)`. Deps (~10):
 > getTaskEntry, listSummaries, emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog (or check/resetTask),
