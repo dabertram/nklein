@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { ElementTooltip } from "@/components/ui/element-tooltip";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchFleetStatus } from "@/runtime/queries/config";
+import { fetchCardMailboxCounts, fetchFleetStatus } from "@/runtime/queries/config";
 import { fetchNKleinModelRegistry } from "@/runtime/queries/model-registry";
 import {
 	collectTaskEvidence,
@@ -465,6 +465,45 @@ export function KanbanBoard({
 			window.clearInterval(intervalId);
 		};
 	}, [currentProjectId, fleetStripExpanded]);
+
+	// W3.4 mailbox badge: pending §5.AU note counts per card, polled on the fleet cadence (15s, board visible).
+	const [mailboxCountByTaskId, setMailboxCountByTaskId] = useState<Record<string, number>>({});
+	const boardTaskIds = useMemo(
+		() => data.columns.flatMap((column) => (column.id === "trash" ? [] : column.cards.map((card) => card.id))),
+		[data.columns],
+	);
+	const boardTaskIdsRef = useRef(boardTaskIds);
+	boardTaskIdsRef.current = boardTaskIds;
+	useEffect(() => {
+		if (!currentProjectId) {
+			setMailboxCountByTaskId({});
+			return;
+		}
+		let cancelled = false;
+		const loadCounts = () => {
+			const taskIds = boardTaskIdsRef.current;
+			if (taskIds.length === 0) {
+				setMailboxCountByTaskId({});
+				return;
+			}
+			void fetchCardMailboxCounts(currentProjectId, taskIds).then(
+				(response) => {
+					if (!cancelled) {
+						setMailboxCountByTaskId(response.counts);
+					}
+				},
+				() => {
+					// Fail soft — a missing count just hides the badge.
+				},
+			);
+		};
+		loadCounts();
+		const intervalId = window.setInterval(loadCounts, 15_000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(intervalId);
+		};
+	}, [currentProjectId]);
 
 	const cardTitleByTaskId = useMemo(() => {
 		const titles = new Map<string, string>();
@@ -938,6 +977,7 @@ export function KanbanBoard({
 			workspacePath={workspacePath}
 			replayCardsEnabled={replayCardsEnabled}
 			defaultNKleinModelId={defaultNKleinModelId}
+			mailboxCountByTaskId={mailboxCountByTaskId}
 			onCardClick={(card) => {
 				if (!dragOccurredRef.current) {
 					onCardSelect(card.id);

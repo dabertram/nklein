@@ -4,6 +4,8 @@
 
 import { taskEscalationReportRequestSchema, taskEscalationReportSchema } from "../../core/agent-attempt-ledger.js";
 import {
+	runtimeCardMailboxCountsRequestSchema,
+	runtimeCardMailboxCountsResponseSchema,
 	runtimeCommandRunRequestSchema,
 	runtimeCommandRunResponseSchema,
 	runtimeConfigResponseSchema,
@@ -131,6 +133,11 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 		getFleetStatus: workspaceProcedure.output(runtimeFleetStatusResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getFleetStatus(ctx.workspaceScope);
 		}),
+		// W3.4 mailbox badge: pending mailbox-note counts for the board's cards.
+		getCardMailboxCounts: t.procedure
+			.input(runtimeCardMailboxCountsRequestSchema)
+			.output(runtimeCardMailboxCountsResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getCardMailboxCounts(input)),
 		// §5.BA guided setup wizards.
 		getGlobalSetupPlan: t.procedure.output(runtimeSetupPlanResponseSchema).query(async ({ ctx }) => {
 			return await ctx.runtimeApi.getGlobalSetupPlan();

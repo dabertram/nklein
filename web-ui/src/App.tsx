@@ -1,13 +1,16 @@
 // Main React composition root for the browser app.
 // Keep this file focused on wiring top-level hooks and surfaces together, and
 // push runtime-specific orchestration down into hooks and service modules.
-import { FolderOpen } from "lucide-react";
+
+import { summarizeBoardHealth } from "@runtime-operator-board-health";
+import { FolderOpen, GitFork } from "lucide-react";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { composeActivityMap } from "@/components/activity-map-model";
 import { ActivityMapView } from "@/components/activity-map-view";
 import { AddProjectDialog } from "@/components/add-project-dialog";
 import { notifyError, showAppToast } from "@/components/app-toaster";
+import { BoardDagView } from "@/components/board-dag-view";
 import { CardDetailView } from "@/components/card-detail-view";
 import { ChatPrimaryPane, ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
@@ -107,8 +110,27 @@ export default function App(): ReactElement {
 	const activityTicks = useBoardActivityTicks(
 		useMemo(() => ({ columns: board.columns, sessions }), [board.columns, sessions]),
 	);
+	// W3.4 needs-you badge: cards needing the operator (blocked / parked / attention-held), computed with the same
+	// rollup the board-health summary uses so both tell one story. Rendered next to the zoom control at EVERY zoom
+	// (the whole point: at chat/overview zooms the board's own summary is hidden).
+	const needsYouCount = useMemo(() => {
+		const health = summarizeBoardHealth(
+			{ columns: board.columns.map((column) => ({ id: column.id, cards: column.cards })) },
+			sessions,
+			(taskId) => {
+				const card = board.columns.flatMap((column) => column.cards).find((entry) => entry.id === taskId);
+				return {
+					blockedKind: card?.blockedKind ?? null,
+					deliveryGateHeld: sessions[taskId]?.reviewReason === "attention",
+				};
+			},
+		);
+		return health.inbox.total;
+	}, [board.columns, sessions]);
 	// §5.BB map spotlight: the card whose chat chip is hovered — its bubble gets a ring on the activity map (Z1).
 	const [chatHoverCardId, setChatHoverCardId] = useState<string | null>(null);
+	// W3.4: the dedicated full-board dependency-graph view (pan/zoom, cycle edges marked).
+	const [isDagViewOpen, setIsDagViewOpen] = useState(false);
 	// §5.BB: the chat surfaces' board context (card chips + @-mention candidates), shared by the right rail
 	// (zoom ≥ 1) and the zoom-0 chat-primary pane.
 	const chatBoardCards = useMemo(
@@ -1102,6 +1124,29 @@ export default function App(): ReactElement {
 													</button>
 												))}
 											</div>
+											<button
+												type="button"
+												data-testid="open-dag-view"
+												title="Open the full dependency graph (pan/zoom, cycles marked)"
+												onClick={() => setIsDagViewOpen(true)}
+												className="inline-flex items-center gap-1 rounded-lg border border-border-bright bg-surface-2 px-2.5 py-1 text-[12px] text-text-tertiary hover:text-text-primary"
+											>
+												<GitFork size={13} />
+												DAG
+											</button>
+											{needsYouCount > 0 ? (
+												// W3.4: the needs-you badge — visible at every zoom; click = jump to the full board.
+												<button
+													type="button"
+													data-testid="needs-you-badge"
+													title={`${needsYouCount} card${needsYouCount === 1 ? "" : "s"} need${needsYouCount === 1 ? "s" : ""} your input — open the full board`}
+													onClick={() => setZoom(3)}
+													className="inline-flex items-center gap-1.5 rounded-full border border-status-gold/40 bg-status-gold/10 px-2.5 py-0.5 text-[11.5px] text-status-gold hover:bg-status-gold/20"
+												>
+													<span aria-hidden>●</span>
+													{needsYouCount} need{needsYouCount === 1 ? "s" : ""} you
+												</button>
+											) : null}
 											{zoom === 0 ? (
 												<span className="text-[11px] text-text-tertiary">
 													just talk to !Klein — zoom in anytime for the board behind it
@@ -1457,6 +1502,18 @@ export default function App(): ReactElement {
 					onNKleinSetupSaved={handleOnboardingNKleinSetupSaved}
 				/>
 
+				{/* W3.4: the dedicated dependency-graph view (any zoom). */}
+				<BoardDagView
+					open={isDagViewOpen}
+					columns={board.columns}
+					dependencies={board.dependencies ?? []}
+					sessions={sessions}
+					onClose={() => setIsDagViewOpen(false)}
+					onSelectCard={(cardId) => {
+						setIsDagViewOpen(false);
+						handleCardSelect(cardId);
+					}}
+				/>
 				{/* §5.BA guided-setup wizards. Global takes precedence; project is suppressed while global is open. */}
 				<SetupWizardDialog
 					open={globalSetupWizard.isOpen}

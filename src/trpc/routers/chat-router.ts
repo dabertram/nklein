@@ -110,6 +110,7 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 						capabilityNotice: result.capabilityNotice ?? null,
 						targetLabel: result.targetLabel ?? null,
 						...(result.clarifyCandidates ? { clarifyCandidates: result.clarifyCandidates } : {}),
+						...(result.contextTruncated ? { contextTruncated: true } : {}),
 					});
 					queue.close();
 				})

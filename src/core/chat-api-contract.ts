@@ -211,6 +211,8 @@ export const runtimeChatSendMessageResponseSchema = z.object({
 	targetLabel: z.string().nullable().optional(),
 	/** §5.AU item 9: when addressing was AMBIGUOUS, the candidate targets for the composer's picker (the model didn't run). */
 	clarifyCandidates: z.array(runtimeChatClarifyCandidateSchema).optional(),
+	/** W3.4: TRUE when this turn's context window overflowed and older messages were rolled into a summary. */
+	contextTruncated: z.boolean().optional(),
 });
 export type RuntimeChatSendMessageResponse = z.infer<typeof runtimeChatSendMessageResponseSchema>;
 
@@ -229,6 +231,8 @@ export const runtimeChatStreamEventSchema = z.discriminatedUnion("type", [
 		targetLabel: z.string().nullable().optional(),
 		/** §5.AU item 9: ambiguous-addressing candidates for the composer's picker (the model didn't run). */
 		clarifyCandidates: z.array(runtimeChatClarifyCandidateSchema).optional(),
+		/** W3.4: TRUE when the turn's context overflowed (older messages summarized) — the truncation indicator. */
+		contextTruncated: z.boolean().optional(),
 	}),
 ]);
 export type RuntimeChatStreamEvent = z.infer<typeof runtimeChatStreamEventSchema>;

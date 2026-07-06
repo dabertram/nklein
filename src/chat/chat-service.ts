@@ -105,6 +105,8 @@ export interface ChatSendResult {
 	targetLabel?: string | null;
 	/** §5.AU item 9: when the message's target was AMBIGUOUS, the candidates for the composer's picker (model didn't run). */
 	clarifyCandidates?: RuntimeChatClarifyCandidate[];
+	/** W3.4: TRUE when this turn's context window overflowed and older messages were rolled into a summary. */
+	contextTruncated?: boolean;
 }
 
 function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
@@ -487,6 +489,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
 						...(capabilityNotice ? { capabilityNotice } : {}),
 						...(targetLabel ? { targetLabel } : {}),
+						// W3.4 truncation indicator: the lean window rolled older messages into a summary this turn.
+						...(agentResult.context.summary !== null ? { contextTruncated: true } : {}),
 					};
 				}
 

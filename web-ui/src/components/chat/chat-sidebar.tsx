@@ -1091,6 +1091,16 @@ function ChatPanel({
 									</button>
 								</div>
 							) : null}
+							{/* W3.4 truncation indicator: the last turn rolled older messages into a summary. */}
+							{chat.contextTruncated ? (
+								<div
+									data-testid="chat-context-truncated"
+									className="flex items-center gap-1.5 border-t border-border bg-surface-1 px-3 py-1 text-[11px] text-text-tertiary shrink-0"
+									title="The conversation no longer fits the model's context window in full — !Klein keeps a rolling summary of the older part and the recent messages verbatim."
+								>
+									<span aria-hidden>⧗</span> older messages summarized to fit the context window
+								</div>
+							) : null}
 							{/* §5.BB: the agent's live plan checklist (compact; expands to the full list). */}
 							<FocusChainStrip chain={chat.focusChain} />
 							<AutonomousRunBar

@@ -50,9 +50,12 @@ export function BoardColumn({
 	workspacePath,
 	replayCardsEnabled = false,
 	defaultNKleinModelId,
+	mailboxCountByTaskId,
 }: {
 	column: BoardColumnModel;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
+	/** W3.4: pending §5.AU mailbox-note counts (taskId → n); absent/0 = no badge. */
+	mailboxCountByTaskId?: Record<string, number>;
 	onCreateTask?: () => void;
 	onStartTask?: (taskId: string) => void;
 	onPauseTask?: (taskId: string) => void;
@@ -195,6 +198,7 @@ export function BoardColumn({
 											index={draggableIndex}
 											columnId={column.id}
 											sessionSummary={taskSessions[card.id]}
+											pendingMailboxCount={mailboxCountByTaskId?.[card.id] ?? 0}
 											onStart={onStartTask}
 											onPauseTask={onPauseTask}
 											onResumeTask={onResumeTask}

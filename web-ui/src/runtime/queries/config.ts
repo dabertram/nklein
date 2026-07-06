@@ -2,6 +2,7 @@
 // Keep tRPC transport plumbing here so components and controller hooks focus on state orchestration.
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeCardMailboxCountsResponse,
 	RuntimeConfigResponse,
 	RuntimeConfigSaveRequest,
 	RuntimeDebugResetAllStateResponse,
@@ -39,6 +40,15 @@ export async function fetchModelPerformanceStats(
 export async function fetchFleetStatus(workspaceId: string | null): Promise<RuntimeFleetStatusResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getFleetStatus.query();
+}
+
+/** W3.4 mailbox badge: pending mailbox-note counts for the board's cards (non-zero entries only). */
+export async function fetchCardMailboxCounts(
+	workspaceId: string | null,
+	taskIds: string[],
+): Promise<RuntimeCardMailboxCountsResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getCardMailboxCounts.query({ taskIds });
 }
 
 export async function fetchGlobalSetupPlan(workspaceId: string | null): Promise<RuntimeSetupPlanResponse> {

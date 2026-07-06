@@ -427,6 +427,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					deps.getLoadedScopedNKleinTaskSessionService?.(workspaceScope)?.getPromptWarmthLedger() ?? null,
 			});
 		},
+		// W3.4 mailbox badge: pending mailbox-note counts for the board's cards (only non-zero entries returned).
+		getCardMailboxCounts: async (input) => {
+			const counts: Record<string, number> = {};
+			await Promise.all(
+				input.taskIds.map(async (taskId) => {
+					const count = await countPendingCardMailbox(taskId).catch(() => 0);
+					if (count > 0) {
+						counts[taskId] = count;
+					}
+				}),
+			);
+			return { counts };
+		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();
 			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? "http://localhost:1234/v1";
@@ -998,6 +1011,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				capabilityNotice: result?.capabilityNotice ?? null,
 				targetLabel: result?.targetLabel ?? null,
 				...(result?.clarifyCandidates ? { clarifyCandidates: result.clarifyCandidates } : {}),
+				...(result?.contextTruncated ? { contextTruncated: true } : {}),
 			};
 		},
 		startAutonomousChatRun: (input) => autonomousChatRun.start(input),

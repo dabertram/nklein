@@ -1,19 +1,19 @@
 # Third-party notices & attribution
 
 !Klein is licensed under **Apache-2.0** (see `LICENSE`). This file records (1) the deliberate decision to grow
-!Klein beyond a NKlein-SDK-only runtime into its own native agent core, and (2) every external agent/tool whose
+!Klein beyond a Cline-SDK-only runtime into its own native agent core, and (2) every external agent/tool whose
 **ideas or code** influenced !Klein, with each project's license and how it was used. We respect every
 upstream license; where a license is incompatible with Apache-2.0 redistribution we take **no code** from it.
 
 ## Architectural decision (2026-06-21)
 
-!Klein began as a thin layer over the NKlein SDK (`@nkleinbot/*`). Live dev-test runs surfaced limits of that
+!Klein began as a thin layer over the Cline SDK (`@clinebot/*`). Live dev-test runs surfaced limits of that
 boundary for small/quantized local models — most importantly that the SDK's LLM layer forwards only
 `temperature`/`max_tokens`/`stop` and cannot send grammar / JSON-schema constrained decoding or `min_p` /
 `top_k` / `repetition_penalty`. Rather than fork the SDK (which the upstream-clean invariant forbids), we
 decided to build **!Klein's own agent core** (`src/agent-core/`) on top of our own local model client
 (`src/nklein-agent/nklein-local-llm-client.ts`), and to adopt the best implementations from the wider local-agent
-ecosystem directly into our codebase. The NKlein SDK remains supported as one runtime; it is no longer the only
+ecosystem directly into our codebase. The Cline SDK remains supported as one runtime; it is no longer the only
 one.
 
 How we adopt third-party work:
@@ -25,7 +25,7 @@ How we adopt third-party work:
 
 | Project | License | Compatible with Apache-2.0 distribution? | Used |
 | --- | --- | --- | --- |
-| NKlein (`@nkleinbot/core`, `@nkleinbot/llms`, `@nkleinbot/shared`, `@nkleinbot/agents`) | Apache-2.0 | Yes | Yes — bundled SDK + one supported runtime |
+| NKlein (`@clinebot/core`, `@clinebot/llms`, `@clinebot/shared`, `@clinebot/agents`) | Apache-2.0 | Yes | Yes — bundled SDK + one supported runtime |
 | aider (`Aider-AI/aider`) | Apache-2.0 | Yes | Yes — concepts re-implemented in TS |
 | Roo Code (`RooCodeInc/Roo-Code`) | Apache-2.0 | Yes | Concepts |
 | Continue (`continuedev/continue`) | Apache-2.0 | Yes | Concepts |

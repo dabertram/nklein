@@ -8,6 +8,7 @@ import {
 	Bot,
 	Clipboard,
 	GitBranch,
+	Inbox,
 	Link2,
 	Pause,
 	Pencil,
@@ -538,11 +539,14 @@ export function BoardCard({
 	onManageDependencies,
 	workspacePath,
 	defaultNKleinModelId = null,
+	pendingMailboxCount = 0,
 }: {
 	card: BoardCardModel;
 	index: number;
 	columnId: BoardColumnId;
 	sessionSummary?: RuntimeTaskSessionSummary;
+	/** W3.4: pending §5.AU mailbox notes for this card (chat guidance waiting for its next start). 0 = no badge. */
+	pendingMailboxCount?: number;
 	selected?: boolean;
 	onClick?: () => void;
 	onStart?: (taskId: string) => void;
@@ -1142,6 +1146,16 @@ export function BoardCard({
 											◈
 										</span>
 										<span className="truncate">{shortenModelIdForBadge(sessionModelId)}</span>
+									</span>
+								) : null}
+								{pendingMailboxCount > 0 ? (
+									<span
+										title={`${pendingMailboxCount} pending note${pendingMailboxCount === 1 ? "" : "s"} from chat — delivered when this card next starts`}
+										data-testid="card-mailbox-badge"
+										className="inline-flex items-center gap-1 rounded-md border border-accent/30 bg-accent/10 px-1.5 py-0.5 text-xs text-accent"
+									>
+										<Inbox size={12} className="shrink-0" />
+										<span className="tabular-nums">{pendingMailboxCount}</span>
 									</span>
 								) : null}
 							</div>

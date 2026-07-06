@@ -40,6 +40,8 @@ export interface UseChatDataResult {
 	stopTurn: () => void;
 	/** §5.BB: the agent's live plan checklist for the selected session (null = none drafted). */
 	focusChain: RuntimeChatFocusChainResponse["chain"];
+	/** W3.4: the last turn overflowed its context window (older messages were summarized). */
+	contextTruncated: boolean;
 	/** §5.AL/§5.AG: a model-capability caveat from the last turn (warn/unknown model that still ran); null when none. */
 	capabilityNotice: string | null;
 	/** §5.AU item 9: when the last message's target was ambiguous, the candidates for the composer's picker; null otherwise. */
@@ -65,6 +67,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
 	const [streamingText, setStreamingText] = useState<string | null>(null);
 	const [activeToolNames, setActiveToolNames] = useState<string[]>([]);
+	const [contextTruncated, setContextTruncated] = useState(false);
 	// W3.2: detaches the active streamMessage subscription (Stop button / stall watchdog); null when idle.
 	const stopTurnRef = useRef<(() => void) | null>(null);
 	const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
@@ -231,6 +234,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 								setCapabilityNotice(event.capabilityNotice ?? null);
 								// §5.AU item 9: an ambiguous target came back with candidates for the composer's picker.
 								setClarifyCandidates(event.clarifyCandidates ?? null);
+								// W3.4 truncation indicator: this turn rolled older messages into a summary.
+								setContextTruncated(event.contextTruncated ?? false);
 							}
 						},
 						onError: (caught: unknown) => {
@@ -355,6 +360,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		activeToolNames,
 		stopTurn,
 		focusChain: focusChainQuery.data ?? null,
+		contextTruncated,
 		capabilityNotice,
 		clarifyCandidates,
 		dismissClarify: () => setClarifyCandidates(null),

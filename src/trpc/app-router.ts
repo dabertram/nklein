@@ -5,6 +5,8 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import type { TaskEscalationReport, TaskEscalationReportRequest } from "../core/agent-attempt-ledger.js";
 import type {
+	RuntimeCardMailboxCountsRequest,
+	RuntimeCardMailboxCountsResponse,
 	RuntimeCommandRunRequest,
 	RuntimeCommandRunResponse,
 	RuntimeConfigResponse,
@@ -186,6 +188,8 @@ export interface RuntimeTrpcContext {
 		) => Promise<RuntimeModelPerformanceStatsResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
+		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */
+		getCardMailboxCounts: (input: RuntimeCardMailboxCountsRequest) => Promise<RuntimeCardMailboxCountsResponse>;
 		/** §5.BA: the resolved GLOBAL setup-wizard plan (gathered facts → steps) + completion stamp. */
 		getGlobalSetupPlan: () => Promise<RuntimeSetupPlanResponse>;
 		/** §5.BA: the resolved PROJECT setup-wizard plan for a workspace + completion stamp. */

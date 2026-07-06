@@ -229,3 +229,16 @@ export const runtimeFleetStatusResponseSchema = z.object({
 	),
 });
 export type RuntimeFleetStatusResponse = z.infer<typeof runtimeFleetStatusResponseSchema>;
+
+/** W3.4 mailbox badge: pending §5.AU mailbox-note counts per card (only non-zero entries ride the wire). */
+export const runtimeCardMailboxCountsRequestSchema = z.object({
+	/** The board's card ids to check (bounded — a board is at most a few hundred cards). */
+	taskIds: z.array(z.string()).max(500),
+});
+export type RuntimeCardMailboxCountsRequest = z.infer<typeof runtimeCardMailboxCountsRequestSchema>;
+
+export const runtimeCardMailboxCountsResponseSchema = z.object({
+	/** taskId → pending-note count; absent = zero. */
+	counts: z.record(z.string(), z.number().int().nonnegative()),
+});
+export type RuntimeCardMailboxCountsResponse = z.infer<typeof runtimeCardMailboxCountsResponseSchema>;

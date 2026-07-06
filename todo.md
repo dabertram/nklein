@@ -9044,3 +9044,7 @@ back-compat burden). Record only **features / user-facing behavior changes** sin
 bugs that already existed on `main`** — derived from the real diff, within the same change. Do **NOT** log bugs we
 introduce *and* fix during this pre-version phase (they never shipped); fix them with a test only. Resume normal
 "every fix" discipline once a version is released. Only open a PR / cut a release when the user asks.
+
+
+## 10. manually added todo
+- [ ] replace the cli argument parsing in start.sh and start.bat with a proper arg parsing library (for example python argparse or similar). details to be propesed by agent and decided by user guidance
