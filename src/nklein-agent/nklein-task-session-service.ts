@@ -89,6 +89,7 @@ import {
 } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
+import { createContextBudgetController } from "./nklein-context-budget-controller";
 import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS, planContextBudget } from "./nklein-context-budget-plan";
 import {
 	buildContextBudgetBreakdown,
@@ -172,7 +173,6 @@ import {
 } from "./nklein-session-state";
 import { buildSessionSystemPrompt } from "./nklein-session-system-prompt";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
-import { TaskContextWindowStore } from "./nklein-task-context-window-store";
 import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker";
 import { TaskModelEndpointStore, UNCONFIGURED_MODEL_ID } from "./nklein-task-model-endpoint-store";
 import { TaskPendingTimeoutStore } from "./nklein-task-pending-timeout-store";
@@ -507,7 +507,12 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly pendingTurnCancelTaskIds = new Set<string>();
 	private readonly providerIdStore = new TaskProviderIdStore();
 	private readonly modelEndpoint = new TaskModelEndpointStore();
-	private readonly contextWindowStore = new TaskContextWindowStore();
+	/** Owns per-task context-window resolution + the pre-send context-budget guard (deps are lazy → field-init safe). */
+	private readonly contextBudgetController = createContextBudgetController({
+		getModelIdForTask: (taskId) => this.launchConfigByTaskId.get(taskId)?.modelId ?? null,
+		getQualityBudget: (modelId) => this.qualityBudgetByModelId.get(modelId) ?? null,
+		recordObservation: (event) => this.recordObservationWithModel(event),
+	});
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
 	private readonly launchConfigByTaskId = new Map<string, NKleinTaskRestartLaunchConfig>();
 	/** §5.AN opt-in residency heartbeats, one per running task (auto-cleaned on session end). */
@@ -767,7 +772,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.providerIdStore.set(taskId, normalized.providerId);
 		this.modelEndpoint.set(taskId, normalized.modelId, normalized.baseUrl ?? null);
 		if (Object.hasOwn(normalized, "contextWindow")) {
-			this.resolveContextWindowForTask(taskId, normalized.contextWindow);
+			this.contextBudgetController.resolveContextWindowForTask(taskId, normalized.contextWindow);
 		}
 		return normalized;
 	}
@@ -1030,7 +1035,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					});
 		const agentPerceivedCwd = sandboxWorkspace?.workdir ?? input.cwd;
 		const runtimeSetup = await this.runtimeSetupLeaseCache.ensure(hostWorkspaceRoot);
-		const requestContextWindow = this.resolveKnownContextWindowForTask(input.taskId, launchConfig.contextWindow);
+		const requestContextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
+			input.taskId,
+			launchConfig.contextWindow,
+		);
 		const customSystemPrompt = input.systemPrompt?.trim() || null;
 		const sdkPromptParts = customSystemPrompt
 			? null
@@ -1351,8 +1359,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					taskId: input.taskId,
 					persistedSnapshot,
 				});
-			const contextWindow = this.resolveKnownContextWindowForTask(input.taskId, restartLaunchConfig?.contextWindow);
-			const initialMessages = this.prepareMessagesForKnownContextWindow({
+			const contextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
+				input.taskId,
+				restartLaunchConfig?.contextWindow,
+			);
+			const initialMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
 				taskId: input.taskId,
 				messages: persistedSnapshot?.messages,
 				prompt: input.prompt,
@@ -1407,8 +1418,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				taskId: input.taskId,
 				persistedSnapshot,
 			});
-		const contextWindow = this.resolveKnownContextWindowForTask(input.taskId, restartLaunchConfig?.contextWindow);
-		const initialMessages = this.prepareMessagesForKnownContextWindow({
+		const contextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
+			input.taskId,
+			restartLaunchConfig?.contextWindow,
+		);
+		const initialMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
 			taskId: input.taskId,
 			messages: persistedSnapshot?.messages,
 			prompt: input.prompt,
@@ -1515,110 +1529,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
 	}
 
-	private normalizeEffectiveContextWindow(contextWindow: number): number {
-		return Math.trunc(contextWindow);
-	}
-
-	private resolveContextWindowForTask(taskId: string, launchContextWindow?: number | null): number | null {
-		if (typeof launchContextWindow === "number" && Number.isFinite(launchContextWindow) && launchContextWindow > 0) {
-			const normalized = this.normalizeEffectiveContextWindow(launchContextWindow);
-			this.contextWindowStore.set(taskId, normalized);
-			return normalized;
-		}
-		return this.contextWindowStore.get(taskId);
-	}
-
-	private resolveKnownContextWindowForTask(taskId: string, launchContextWindow?: number | null): number {
-		const contextWindow =
-			this.resolveContextWindowForTask(taskId, launchContextWindow) ?? RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS;
-		// W2.3a: cap by the LEARNED quality-effective budget for this task's model when the ledger has observed a
-		// quality knee below the advertised window (never below the 32k floor — the budget itself enforces it).
-		const modelId = this.launchConfigByTaskId.get(taskId)?.modelId ?? null;
-		const qualityBudget = modelId ? (this.qualityBudgetByModelId.get(modelId) ?? null) : null;
-		const derated = qualityBudget !== null ? Math.min(contextWindow, qualityBudget) : contextWindow;
-		return this.normalizeEffectiveContextWindow(derated);
-	}
-
-	private recordContextBudgetGuard(input: {
-		taskId: string;
-		action: "compacted" | "blocked";
-		contextWindow: number;
-		originalProjectedTokens: number;
-		projectedTokens: number;
-		originalHistoryTokens: number;
-		compactedHistoryTokens: number;
-		nextPromptTokens: number;
-	}): void {
-		this.recordObservationWithModel({
-			signal: "context_overflow",
-			severity: input.action === "blocked" ? "error" : "warning",
-			message:
-				input.action === "blocked"
-					? `Pre-send context guard blocked an oversized prompt before provider dispatch (~${input.projectedTokens.toLocaleString()} projected tokens for ${input.contextWindow.toLocaleString()} available).`
-					: `Pre-send context guard compacted history before provider dispatch (~${input.originalProjectedTokens.toLocaleString()} → ~${input.projectedTokens.toLocaleString()} projected tokens).`,
-			taskId: input.taskId,
-			metadata: {
-				action: input.action,
-				contextWindow: input.contextWindow,
-				originalProjectedTokens: input.originalProjectedTokens,
-				projectedTokens: input.projectedTokens,
-				originalHistoryTokens: input.originalHistoryTokens,
-				compactedHistoryTokens: input.compactedHistoryTokens,
-				nextPromptTokens: input.nextPromptTokens,
-				sendReserveTokens: CONTEXT_BUDGET_SEND_RESERVE_TOKENS,
-				effectiveContextWindow: input.contextWindow,
-			},
-		});
-	}
-
-	private prepareMessagesForKnownContextWindow(input: {
-		taskId: string;
-		messages?: NKleinSdkPersistedMessage[] | null;
-		prompt: string;
-		images?: RuntimeTaskImage[];
-		contextWindow: number;
-	}): NKleinSdkPersistedMessage[] | undefined {
-		const plan = planContextBudget({
-			messages: input.messages,
-			prompt: input.prompt,
-			images: input.images,
-			contextWindow: input.contextWindow,
-		});
-		if (plan.outcome === "blocked") {
-			this.recordContextBudgetGuard({
-				taskId: input.taskId,
-				action: "blocked",
-				contextWindow: input.contextWindow,
-				originalProjectedTokens: plan.originalProjectedTokens,
-				projectedTokens: plan.projectedTokens,
-				originalHistoryTokens: plan.originalHistoryTokens,
-				compactedHistoryTokens: plan.compactedHistoryTokens,
-				nextPromptTokens: plan.nextPromptTokens,
-			});
-			if (plan.promptAloneOverflows) {
-				throw new Error(
-					`Your message (~${plan.nextPromptTokens.toLocaleString()} tokens) is larger than this model's ~${input.contextWindow.toLocaleString()} token working budget after reserving ${CONTEXT_BUDGET_SEND_RESERVE_TOKENS.toLocaleString()} tokens for the response. Shorten the message, ask !Klein to summarize pasted content first, or pick a larger-window local model.`,
-				);
-			}
-			throw new Error(
-				`Context would overflow the known ${input.contextWindow.toLocaleString()} token window after !Klein compaction (~${plan.projectedTokens.toLocaleString()} projected tokens). Old read_files tool output was omitted; clear or summarize the task history before sending more input.`,
-			);
-		}
-		if (plan.outcome === "compacted") {
-			this.recordContextBudgetGuard({
-				taskId: input.taskId,
-				action: "compacted",
-				contextWindow: input.contextWindow,
-				originalProjectedTokens: plan.originalProjectedTokens,
-				projectedTokens: plan.projectedTokens,
-				originalHistoryTokens: plan.originalHistoryTokens,
-				compactedHistoryTokens: plan.compactedHistoryTokens,
-				nextPromptTokens: plan.nextPromptTokens,
-			});
-		}
-		return plan.compactedMessages.length > 0 ? plan.compactedMessages : undefined;
-	}
-
 	private async maybeCompactBeforeContextOverflow(input: {
 		taskId: string;
 		entry: NKleinTaskSessionEntry;
@@ -1630,7 +1540,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}): Promise<{ result: unknown; warnings?: string[] } | null> {
 		const nextPromptTokens = estimateNextPromptTokens(input.prompt, input.images);
 		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
-		const compactedMessages = this.prepareMessagesForKnownContextWindow({
+		const compactedMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
 			taskId: input.taskId,
 			messages: persistedSnapshot?.messages,
 			prompt: input.prompt,
@@ -1722,7 +1632,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		} else {
 			this.explicitDecompositionTaskIds.delete(request.taskId);
 		}
-		const requestContextWindow = this.resolveKnownContextWindowForTask(request.taskId, request.contextWindow ?? null);
+		const requestContextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
+			request.taskId,
+			request.contextWindow ?? null,
+		);
 		const modelId = request.modelId?.trim() || UNCONFIGURED_MODEL_ID;
 		const endpoint = request.baseUrl?.trim() || null;
 		const sharedEndpointId = buildSharedLocalEndpointId({ providerId, modelId, endpoint });
@@ -1963,7 +1876,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				const toolSchemaTokens = estimateKanbanToolSchemaTokens(runtimeSetup.toolPolicies);
 				this.contextBudgetInputs.record(request.taskId, systemPrompt, toolSchemaTokens);
 
-				const initialMessages = this.prepareMessagesForKnownContextWindow({
+				const initialMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
 					taskId: request.taskId,
 					messages: persistedResumeSnapshot?.messages ?? request.initialMessages,
 					prompt: runtimePrompt,
@@ -2350,7 +2263,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// the turn so the session's sandbox tools work again (see the helper's run20 story).
 					await this.restoreDisposedSandboxWorkspaceForRedrive(taskId);
 					const resolvedPrompt = runtimeSetup.resolvePrompt(normalized);
-					const resolvedContextWindow = this.resolveKnownContextWindowForTask(
+					const resolvedContextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(
 						taskId,
 						launchConfigOverrides?.contextWindow,
 					);
@@ -2538,7 +2451,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 */
 	private resetInterruptedTaskState(taskId: string): void {
 		this.pendingTurnCancelTaskIds.delete(taskId);
-		this.contextWindowStore.forget(taskId);
+		this.contextBudgetController.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.requestTimer.forget(taskId);
@@ -2558,7 +2471,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const existingEntry = this.messageRepository.getTaskEntry(taskId);
 		this.pendingTurnCancelTaskIds.delete(taskId);
 		this.providerIdStore.forget(taskId);
-		this.contextWindowStore.forget(taskId);
+		this.contextBudgetController.forget(taskId);
 		this.modelEndpoint.forget(taskId);
 		this.contextBudgetInputs.forget(taskId);
 		this.launchConfigByTaskId.delete(taskId);
@@ -3840,7 +3753,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		await this.sessionRuntime.dispose();
 		this.pendingTurnCancelTaskIds.clear();
 		this.providerIdStore.clear();
-		this.contextWindowStore.clear();
+		this.contextBudgetController.clear();
 		this.modelEndpoint.clear();
 		this.contextBudgetInputs.clear();
 		this.requestTimer.clear();
@@ -4050,7 +3963,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				if (!stalled || this.sandboxState.getResultBranch(taskId)) {
 					return;
 				}
-				const contextWindow = this.resolveKnownContextWindowForTask(taskId, null) ?? 32_000;
+				const contextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(taskId, null) ?? 32_000;
 				const raised = raisedTokenBudget({
 					current: state.lastBudget,
 					attempt: state.attempt + 1,
@@ -4196,7 +4109,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			{
 				...this.resolveTaskModelIdentity(taskId),
 				endpoint: this.modelEndpoint.getEndpoint(taskId),
-				contextWindow: this.resolveKnownContextWindowForTask(taskId, null),
+				contextWindow: this.contextBudgetController.resolveKnownContextWindowForTask(taskId, null),
 			},
 			observedAt,
 			this.requestTimer.elapsedMs(taskId, observedAt),
