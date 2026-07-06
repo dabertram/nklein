@@ -3,7 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { shouldUseWindowsCmdLaunch } from "../../../src/core/windows-cmd-launch";
+import {
+	buildWindowsCmdArgsArray,
+	buildWindowsCmdArgsCommandLine,
+	resolveWindowsComSpec,
+	shouldUseWindowsCmdLaunch,
+} from "../../../src/core/windows-cmd-launch";
+
+const env = (o: Record<string, string>): NodeJS.ProcessEnv => o as NodeJS.ProcessEnv;
 
 function createWindowsBinary(directory: string, fileName: string): string {
 	const filePath = join(directory, fileName);
@@ -98,5 +105,42 @@ describe("shouldUseWindowsCmdLaunch", () => {
 				ComSpec: "C:\\Windows\\System32\\cmd.exe",
 			}),
 		).toBe(true);
+	});
+});
+
+describe("resolveWindowsComSpec (§5.V coverage)", () => {
+	it("returns the ComSpec value when set (case-insensitively), trimmed", () => {
+		expect(resolveWindowsComSpec(env({ ComSpec: "C:\\Windows\\System32\\cmd.exe" }))).toBe(
+			"C:\\Windows\\System32\\cmd.exe",
+		);
+		expect(resolveWindowsComSpec(env({ comspec: "  custom.exe  " }))).toBe("custom.exe");
+	});
+
+	it("falls back to cmd.exe when ComSpec is absent or blank", () => {
+		expect(resolveWindowsComSpec(env({}))).toBe("cmd.exe");
+		expect(resolveWindowsComSpec(env({ ComSpec: "   " }))).toBe("cmd.exe");
+	});
+});
+
+describe("buildWindowsCmdArgs{Array,CommandLine} (§5.V coverage)", () => {
+	it("wraps the command in the cmd.exe /d /s /c form", () => {
+		const arr = buildWindowsCmdArgsArray("node", ["script.js"]);
+		expect(arr.slice(0, 3)).toEqual(["/d", "/s", "/c"]);
+		expect(arr[3]?.startsWith('"')).toBe(true);
+		expect(arr[3]?.endsWith('"')).toBe(true);
+	});
+
+	it("keeps the array and command-line forms consistent (same wrapped command)", () => {
+		const binary = "node";
+		const args = ["a.js", "b.js"];
+		const arr = buildWindowsCmdArgsArray(binary, args);
+		expect(buildWindowsCmdArgsCommandLine(binary, args)).toBe(`/d /s /c ${arr[3]}`);
+	});
+
+	it("caret-escapes cmd.exe meta characters in the command (injection safety)", () => {
+		// '&' is a cmd meta char → escaped to '^&' so it can't chain a second command.
+		const line = buildWindowsCmdArgsCommandLine("a&b", []);
+		expect(line).toBe('/d /s /c "a^&b"');
+		expect(line).toContain("^&");
 	});
 });
