@@ -27,17 +27,11 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
-import {
-	buildPromptShellKey,
-	derivePromptSessionKind,
-	type PromptSessionKind,
-	type PromptWarmthLedgerEntry,
-} from "../core/cache-warmth";
+import { derivePromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { applyThinkingDisable } from "../core/model-thinking-control";
-import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import { shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
@@ -105,6 +99,7 @@ import {
 	type NKleinPlanCritiqueResult,
 } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
+import { createPromptWarmthLedger } from "./nklein-prompt-warmth-ledger";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult } from "./nklein-review-tool";
 import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
@@ -139,7 +134,6 @@ import {
 	setOrCreateAssistantMessage,
 	updateSummary,
 } from "./nklein-session-state";
-import { buildSessionSystemPrompt } from "./nklein-session-system-prompt";
 import { createSpeculativeMirrorRunner } from "./nklein-speculative-mirror-runner";
 import { TaskContextBudgetInputs } from "./nklein-task-context-budget-inputs";
 import { TaskFailureBackoffTracker } from "./nklein-task-failure-backoff-tracker";
@@ -278,7 +272,7 @@ export interface NKleinTaskSessionService {
 	}>;
 	/**
 	 * §5.AQ (a)+(d) cache-warmth ledger: the last assembled prompt-SHELL key per model id (+ when), tracked by
-	 * `assembleSessionSystemPrompt`. Read-only view for warmth-aware routing (`applyWarmthPreference`) — exposed
+	 * the `promptWarmthLedger`. Read-only view for warmth-aware routing (`applyWarmthPreference`) — exposed
 	 * the same way `listModelEndpointSessions` is, so the start-selection seam can consult live session state.
 	 */
 	getPromptWarmthLedger(): ReadonlyMap<string, PromptWarmthLedgerEntry>;
@@ -841,98 +835,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return this.cacheLaunchConfig(input.taskId, persisted);
 	}
 
-	/** W2.3b: last assembled system prompt per model — the baseline for the prefix reuseRatio observation. */
-	private lastAssembledSystemPromptByModelId = new Map<string, string>();
-
 	/**
-	 * §5.AQ (a)+(d): last prompt-SHELL key per model id (+ when) — the cache-warmth ledger. Where the map above
-	 * holds the full prompt BYTES (reuse telemetry), this holds the shell IDENTITY (kind + workspace + model) the
-	 * model last prefilled, which is what warmth-aware routing compares prospective starts against. Deterministic —
-	 * we know every prompt we send, so no server probing is needed (see `src/core/cache-warmth.ts`).
+	 * §5.AQ prompt-warmth ledger: owns the per-model prompt-state maps (full-bytes for reuse telemetry + shell-key
+	 * for warmth-aware routing) and assembles the session system prompt around the pure `buildSessionSystemPrompt`.
 	 */
-	private readonly lastShellKeyByModelId = new Map<string, PromptWarmthLedgerEntry>();
-
-	/**
-	 * W2.3b (§5.AQ): assemble the session system prompt from VOLATILITY-ORDERED fragments instead of raw concat —
-	 * static/config content first, the daily date next, per-task content last — so the byte-prefix shared across
-	 * session starts is maximal by construction (local endpoints cache by longest byte-stable prefix). The SDK base
-	 * prompt must open the message (hard contract), so it is head-pinned; since the §5.AQ(e) shell restructure it is
-	 * genuinely static per model+workspace (its cwd/date arrive separately as the `session-env` trailer), so only a
-	 * caller-supplied CUSTOM base still shows up as the visible cache cost (`headPinnedVolatileKeys`). Also records
-	 * the measured `reuseRatio` vs the previous start on the same model — the telemetry that tells us whether the
-	 * cache design works on real traffic.
-	 */
-	private assembleSessionSystemPrompt(input: {
-		taskId: string;
-		modelId: string | null | undefined;
-		/**
-		 * §5.AQ warmth ledger: which prompt SHELL this assembly builds. Derived at the call sites (they know the
-		 * task-id shape + the explicit-decomposition set) via `derivePromptSessionKind`; recorded per model so
-		 * warmth-aware routing can match prospective starts against the shell each model last prefilled.
-		 */
-		sessionKind: PromptSessionKind;
-		/** The HOST workspace root of the session — the workspace part of the recorded shell key. */
-		workspacePath: string | null;
-		basePrompt: string;
-		/**
-		 * True when `basePrompt` is the restructured SDK shell (cwd/date extracted into `sessionEnv`) — byte-stable
-		 * per model+workspace. False for caller-supplied custom prompts, which still embed per-task content.
-		 */
-		baseIsStaticShell: boolean;
-		planningPrompt?: string | null;
-		efficiencyRules: string;
-		temporalBlock: string;
-		/** The home-agent sidebar append (per-session-kind, task-tier) — folded in here instead of raw concat. */
-		homeAgentAppend?: string | null;
-		/** The `<session>` cwd+date trailer extracted from the SDK base — see the fragment ordering note below. */
-		sessionEnv?: string | null;
-		/**
-		 * §5.AE: skill-driven fragments (from the approved skill→fragment bridge — {@link buildSessionSkillFragments}).
-		 * Appended and DEDUPED against the fixed keys below, so a skill declaring an already-injected fragment
-		 * (efficiency_rules/temporal) never doubles it; today this only ever adds a `repo-map`. The assembler re-sorts
-		 * by volatility, so these land in their correct churn bucket regardless of append position.
-		 */
-		skillFragments?: readonly PromptFragment[];
-	}): string {
-		// §5.U: the byte-stability-critical fragment ordering + assembly is the pure `buildSessionSystemPrompt`
-		// (extracted + unit-tested); this method keeps only the instance-stateful warmth-ledger bookkeeping below.
-		const assembled = buildSessionSystemPrompt(input);
-		const modelKey = input.modelId?.trim() || "(unconfigured)";
-		const previous = this.lastAssembledSystemPromptByModelId.get(modelKey);
-		this.lastAssembledSystemPromptByModelId.set(modelKey, assembled.text);
-		// §5.AQ warmth ledger: record the shell identity this model is about to prefill (same modelKey normalization
-		// as the byte map above, so the routing lookup and this record can never drift apart).
-		this.lastShellKeyByModelId.set(modelKey, {
-			shellKey: buildPromptShellKey({
-				sessionKind: input.sessionKind,
-				workspacePath: input.workspacePath?.trim() ?? "",
-				modelId: modelKey,
-			}),
-			at: now(),
-		});
-		if (previous !== undefined) {
-			// run42 (§5.BE) lesson: an IDENTICAL reassembly — the perfect cache hit, exactly what per-alias warm
-			// rails produce card after card — was previously SILENT, making the best outcome invisible on the
-			// scoreboard. Log both cases with the same category so reuse is measurable per model/alias.
-			const identical = previous === assembled.text;
-			const reuseRatio = identical ? 1 : computeSharedPrefixRatio(previous, assembled.text);
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: identical
-					? `Prompt prefix reuse for ${modelKey}: 100% — byte-identical shell (perfect prefix-cache hit).`
-					: `Prompt prefix reuse for ${modelKey}: ${(reuseRatio * 100).toFixed(0)}% of the new system prompt is byte-shared with the previous start.`,
-				taskId: input.taskId,
-				metadata: {
-					category: "prompt_prefix_reuse",
-					reuseRatio: Number(reuseRatio.toFixed(4)),
-					identical,
-					headPinnedVolatileKeys: assembled.headPinnedVolatileKeys,
-				},
-			});
-		}
-		return assembled.text;
-	}
+	private readonly promptWarmthLedger = createPromptWarmthLedger();
 
 	/**
 	 * §5.AC steps 3+4 — the egress-gated retrieval extra tools for one session (`web_search` + `browse_url`), or `[]`
@@ -1013,7 +920,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// static shell since the §5.AQ(e) restructure moved its cwd/date out) → efficiency rules (config) → knows-
 		// today date (daily; empty unless enabled+relevant, §5.AC/§5.AE) → home-agent append (task) → session-env
 		// (the extracted cwd/date `<session>` trailer, LAST — the true task-volatile suffix).
-		const systemPrompt = this.assembleSessionSystemPrompt({
+		const systemPrompt = this.promptWarmthLedger.assembleAndRecord({
 			taskId: input.taskId,
 			modelId: launchConfig.modelId,
 			// §5.AQ warmth ledger: this seam builds the SYNTHETIC sessions too (`::review`/`::plan-critique`/
@@ -1576,7 +1483,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// §5.AE honor the user's skill-dynamics level so the fragment resolution matches the affinity-tag one.
 					...(request.skillDynamicsLevel ? { dynamicsLevel: request.skillDynamicsLevel } : {}),
 				});
-				const systemPrompt = this.assembleSessionSystemPrompt({
+				const systemPrompt = this.promptWarmthLedger.assembleAndRecord({
 					taskId: request.taskId,
 					modelId,
 					// §5.AQ warmth ledger: the primary seam is worker/architect (same signal as the summary's role
@@ -2309,7 +2216,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	getPromptWarmthLedger(): ReadonlyMap<string, PromptWarmthLedgerEntry> {
-		return this.lastShellKeyByModelId;
+		return this.promptWarmthLedger.shellKeyByModelId;
 	}
 
 	listMessages(taskId: string): NKleinTaskMessage[] {
@@ -2410,7 +2317,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		}
 		// The escalated session is the card's WORKER session on a stronger model — batch toward worker shells.
 		return await pickDiverseReviewerModel(launch, taskId, "worker", {
-			lastShellKeyByModel: this.lastShellKeyByModelId,
+			lastShellKeyByModel: this.promptWarmthLedger.shellKeyByModelId,
 		}).catch(() => null);
 	}
 
@@ -2474,7 +2381,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const autoReviewer =
 			!input.reviewer && workerLaunch?.providerId && workerLaunch.modelId
 				? await pickDiverseReviewerModel(workerLaunch, input.taskId, "review", {
-						lastShellKeyByModel: this.lastShellKeyByModelId,
+						lastShellKeyByModel: this.promptWarmthLedger.shellKeyByModelId,
 					}).catch(() => null)
 				: null;
 		const providerId = (
@@ -2687,7 +2594,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		const critic =
 			input.critic ??
 			(await pickDiverseReviewerModel(architectLaunch, input.taskId, "plan-critique", {
-				lastShellKeyByModel: this.lastShellKeyByModelId,
+				lastShellKeyByModel: this.promptWarmthLedger.shellKeyByModelId,
 			}).catch(() => null));
 		if (!critic) {
 			return null;
