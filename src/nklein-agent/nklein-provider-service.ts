@@ -38,14 +38,11 @@ import {
 	resolveLiteLlmModelListItemId,
 } from "./nklein-litellm-model-list";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
+import { resolveManagedProviderLaunchApiKey } from "./nklein-managed-provider-credentials";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { hasOauthAccessToken, normalizeEpochMs, resolveVisibleApiKey } from "./nklein-provider-credential-helpers";
 import { buildDiscoveredModelSourceUrls, normalizeLmStudioModelListBaseUrl } from "./nklein-provider-discovery-urls";
-import {
-	formatManagedProviderDisplayName,
-	isLiveOnlyProviderId,
-	isManagedOauthProviderId,
-} from "./nklein-provider-id-classification";
+import { isLiveOnlyProviderId, isManagedOauthProviderId } from "./nklein-provider-id-classification";
 import {
 	extractDiscoveredModelsFromPayload,
 	mergeProviderModelsWithContextWindowFallback,
@@ -86,11 +83,6 @@ import {
 } from "./sdk-provider-boundary";
 
 const DEFAULT_NKLEIN_API_BASE_URL = "https://api.nklein.bot";
-const MANAGED_PROVIDER_ENV_KEYS: Record<ManagedNKleinOauthProviderId, readonly string[]> = {
-	nklein: ["NKLEIN_API_KEY"],
-	oca: ["OCA_API_KEY"],
-	"openai-codex": [],
-};
 const NKLEIN_REMOTE_CONFIG_SCHEMA = z.object({
 	kanbanEnabled: z.boolean().optional(),
 });
@@ -187,39 +179,6 @@ function toErrorMessage(error: unknown): string {
 function parseNKleinRemoteConfigValue(value: string): NKleinRemoteConfig {
 	const parsed = JSON.parse(value) as unknown;
 	return NKLEIN_REMOTE_CONFIG_SCHEMA.parse(parsed);
-}
-
-function readEnvApiKey(envKey: string): string | null {
-	const apiKey = process.env[envKey]?.trim() ?? "";
-	return apiKey.length > 0 ? apiKey : null;
-}
-
-function resolveManagedProviderEnvApiKey(providerId: ManagedNKleinOauthProviderId): string | null {
-	for (const envKey of MANAGED_PROVIDER_ENV_KEYS[providerId]) {
-		const apiKey = readEnvApiKey(envKey);
-		if (apiKey) {
-			return apiKey;
-		}
-	}
-	return null;
-}
-
-function resolveManagedProviderLaunchApiKey(input: {
-	providerId: ManagedNKleinOauthProviderId;
-	settings: SdkProviderSettings;
-	oauthApiKey: string | null;
-}): string {
-	const resolvedApiKey =
-		input.oauthApiKey ?? resolveVisibleApiKey(input.settings) ?? resolveManagedProviderEnvApiKey(input.providerId);
-	if (resolvedApiKey) {
-		return resolvedApiKey;
-	}
-
-	const envKeys = MANAGED_PROVIDER_ENV_KEYS[input.providerId];
-	const envHelp = envKeys.length > 0 ? ` or set ${envKeys.join(" or ")}` : "";
-	throw new Error(
-		`${formatManagedProviderDisplayName(input.providerId)} provider is selected but no ${formatManagedProviderDisplayName(input.providerId)} credentials are configured. Sign in from Settings${envHelp} before starting a native !Klein task.`,
-	);
 }
 
 function logLiteLlmModelListWarning(message: string, metadata?: Record<string, unknown>): void {
