@@ -168,6 +168,11 @@ export async function runChatAgentTurn(
 					return requiredTools.every((tool) => used.has(tool));
 				}
 			: undefined;
+	// W3.1: persist the user message BEFORE the loop (not paired with the assistant at the end) so per-tool
+	// transcript rows appended DURING the loop (the service's executeTool wrapper) land between user and reply —
+	// the order the transcript reader renders. The turn context was composed above, so this append never feeds
+	// back into this turn's own prompt.
+	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const loop = await runChatAgentLoop(
 		{
 			messages,
@@ -193,7 +198,6 @@ export async function runChatAgentTurn(
 			: loop.steps.length > 0
 				? `Done. (used: ${summarizeToolsUsed(loop.steps)})`
 				: NARRATION_ONLY_FALLBACK;
-	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: finalText });
 	return {
 		userMessage,

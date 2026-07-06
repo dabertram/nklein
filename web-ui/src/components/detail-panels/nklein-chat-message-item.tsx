@@ -270,16 +270,68 @@ function SystemPromptMessageBlock({ message }: { message: NKleinChatMessage }): 
 	);
 }
 
+/** W3.1 (main chat): board-card candidates for the referenced-cards chip row under an assistant reply. */
+export interface ChatMessageCardReferences {
+	candidates: readonly { id: string; title: string }[];
+	onOpenCard: (cardId: string) => void;
+	/** Extract the referenced card ids+labels from a message's text (the main chat's segmentation core). */
+	extractReferences: (content: string) => readonly { cardId: string; label: string }[];
+}
+
+/** The clickable "referenced cards" chip row under an assistant reply (main chat, W3.1). */
+function CardReferenceRow({
+	content,
+	references,
+}: {
+	content: string;
+	references: ChatMessageCardReferences;
+}): ReactElement | null {
+	const chips = useMemo(() => {
+		const seen = new Map<string, string>();
+		for (const reference of references.extractReferences(content)) {
+			if (!seen.has(reference.cardId)) {
+				seen.set(reference.cardId, reference.label);
+			}
+		}
+		return [...seen.entries()];
+	}, [content, references]);
+	if (chips.length === 0) {
+		return null;
+	}
+	return (
+		<div className="mt-1.5 flex flex-wrap gap-1">
+			{chips.map(([cardId, label]) => (
+				<button
+					key={cardId}
+					type="button"
+					data-testid="chat-card-chip"
+					title="Open this card in the main panel"
+					onClick={() => references.onOpenCard(cardId)}
+					className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent hover:bg-accent/20"
+				>
+					{label}
+					<span aria-hidden className="text-[10px] opacity-70">
+						↗
+					</span>
+				</button>
+			))}
+		</div>
+	);
+}
+
 export function NKleinChatMessageItem({
 	message,
 	durationMs,
 	timestampsCollapsed,
 	onToggleTimestampsCollapsed,
+	cardReferences,
 }: {
 	message: NKleinChatMessage;
 	durationMs: number;
 	timestampsCollapsed: boolean;
 	onToggleTimestampsCollapsed: () => void;
+	/** W3.1 (main chat): when provided, assistant replies get a clickable "referenced cards" chip row. */
+	cardReferences?: ChatMessageCardReferences;
 }): ReactElement {
 	const timestamp = (
 		<MessageTimestampControl
@@ -332,6 +384,9 @@ export function NKleinChatMessageItem({
 			<div className="relative min-w-0 w-full px-1.5 pr-12 text-sm text-text-primary">
 				{timestamp}
 				<NKleinMarkdownContent content={normalizedAssistantContent} />
+				{cardReferences ? (
+					<CardReferenceRow content={normalizedAssistantContent} references={cardReferences} />
+				) : null}
 			</div>
 		);
 	}

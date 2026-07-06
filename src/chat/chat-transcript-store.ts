@@ -13,7 +13,9 @@ import { parseValidatedJsonl } from "../state/jsonl-store";
  * mid-write never corrupts earlier turns. The lean live window + long-term memory (§5.M) read from here.
  */
 
-export type ChatMessageRole = "user" | "assistant" | "system";
+/** W3.1: `tool`/`reasoning`/`status` are DISPLAY roles (expandable transcript detail); the prompt composer
+ *  filters them out (`composeChatTurnContext`) so only user/assistant/system ever reach the model. */
+export type ChatMessageRole = "user" | "assistant" | "system" | "tool" | "reasoning" | "status";
 
 export interface ChatMessage {
 	schemaVersion: 1;
@@ -21,14 +23,24 @@ export interface ChatMessage {
 	role: ChatMessageRole;
 	content: string;
 	createdAt: number;
+	/** W3.1 display metadata for the shared renderer (tool name etc.). Absent on pre-W3.1 rows. */
+	meta?: { toolName?: string | null; hookEventName?: string | null; messageKind?: string | null } | null;
 }
 
 export const chatMessageSchema = z.object({
 	schemaVersion: z.literal(1),
 	id: z.string(),
-	role: z.enum(["user", "assistant", "system"]),
+	role: z.enum(["user", "assistant", "system", "tool", "reasoning", "status"]),
 	content: z.string(),
 	createdAt: z.number(),
+	meta: z
+		.object({
+			toolName: z.string().nullable().optional(),
+			hookEventName: z.string().nullable().optional(),
+			messageKind: z.string().nullable().optional(),
+		})
+		.nullable()
+		.optional(),
 }) satisfies z.ZodType<ChatMessage>;
 
 export interface ChatTranscriptStoreOptions {
@@ -46,7 +58,13 @@ function resolveTranscriptPath(sessionId: string, rootDir?: string): string {
 
 export async function appendChatMessage(
 	sessionId: string,
-	input: { role: ChatMessageRole; content: string; id?: string; createdAt?: number },
+	input: {
+		role: ChatMessageRole;
+		content: string;
+		id?: string;
+		createdAt?: number;
+		meta?: ChatMessage["meta"];
+	},
 	options: ChatTranscriptStoreOptions = {},
 ): Promise<ChatMessage> {
 	const message: ChatMessage = {
@@ -55,6 +73,7 @@ export async function appendChatMessage(
 		role: input.role,
 		content: input.content,
 		createdAt: input.createdAt ?? (options.now ?? Date.now)(),
+		...(input.meta ? { meta: input.meta } : {}),
 	};
 	const root = options.rootDir ?? DEFAULT_ROOT;
 	await mkdir(root, { recursive: true });

@@ -127,7 +127,38 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 }
 
 function toRuntimeChatMessage(message: ChatMessage): RuntimeChatMessage {
-	return { id: message.id, role: message.role, content: message.content, createdAt: message.createdAt };
+	return {
+		id: message.id,
+		role: message.role,
+		content: message.content,
+		createdAt: message.createdAt,
+		...(message.meta ? { meta: message.meta } : {}),
+	};
+}
+
+/** W3.1: a live tool-activity event streamed to the composer while the turn runs. */
+export interface ChatToolActivityEvent {
+	phase: "start" | "end";
+	toolName: string;
+}
+
+/**
+ * W3.1: render one tool exchange as the transcript's `role:"tool"` message body — the exact `Tool:/Input:/Output:`
+ * text protocol the shared renderer's `parseToolMessageContent` reads (mirrors the per-card event adapter).
+ */
+function renderToolTranscriptContent(
+	call: { name: string; arguments: Record<string, unknown> },
+	output: string,
+): string {
+	const sections = [`Tool: ${call.name}`];
+	const args = Object.keys(call.arguments).length > 0 ? JSON.stringify(call.arguments, null, 2) : "";
+	if (args) {
+		sections.push("Input:", args);
+	}
+	if (output.trim().length > 0) {
+		sections.push("Output:", output);
+	}
+	return sections.join("\n");
 }
 
 export interface ChatService {
@@ -148,6 +179,8 @@ export interface ChatService {
 			memoryLimit?: number;
 		},
 		onToken?: (delta: string) => void,
+		/** W3.1 (server-side only): live tool start/end activity while the turn runs, for the composer's chips. */
+		onToolEvent?: (event: ChatToolActivityEvent) => void,
 	) => Promise<ChatSendResult | null>;
 	/** Drive an autonomous run (todo §5.0.1): the agent works the goal turn-by-turn (plan via the focus chain, use the
 	 *  gated tools + the control tools) until the goal is done, it needs the user, or a budget/stall guard trips.
@@ -191,6 +224,39 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			settled.catch(() => undefined),
 		);
 		return settled;
+	}
+
+	/**
+	 * W3.1: wrap the injected tool executor so every tool call ALSO (a) emits a live start/end activity event for
+	 * the composer and (b) persists a `role:"tool"` transcript row (the shared renderer's expandable block).
+	 * Persisting is best-effort — a transcript-write failure never breaks the tool call it records.
+	 */
+	function withToolTranscript(
+		agentToolDeps: ChatAgentToolDeps,
+		sessionId: string,
+		onToolEvent?: (event: ChatToolActivityEvent) => void,
+	): ChatAgentToolDeps {
+		return {
+			...agentToolDeps,
+			executeTool: async (call) => {
+				onToolEvent?.({ phase: "start", toolName: call.name });
+				try {
+					const result = await agentToolDeps.executeTool(call);
+					await appendChatMessage(
+						sessionId,
+						{
+							role: "tool",
+							content: renderToolTranscriptContent(call, result.content),
+							meta: { toolName: call.name },
+						},
+						transcriptOptions,
+					).catch(() => undefined);
+					return result;
+				} finally {
+					onToolEvent?.({ phase: "end", toolName: call.name });
+				}
+			},
+		};
 	}
 
 	return {
@@ -246,7 +312,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 			});
 			return messages.map(toRuntimeChatMessage);
 		},
-		sendMessage: (input, onToken) =>
+		sendMessage: (input, onToken, onToolEvent) =>
 			serializeSessionTurn(input.sessionId, async () => {
 				if (!options.resolveModelDeps) {
 					throw new Error("This chat service is read-only: no model is configured for sending messages.");
@@ -391,7 +457,11 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							...(onToken ? { onToken } : {}),
 							...(targetNote ? { targetNote } : {}),
 						},
-						{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
+						{
+							...storeDeps,
+							summarize: modelDeps.summarize,
+							...withToolTranscript(agentToolDeps, session.id, onToolEvent),
+						},
 					);
 					// §5.AF: best-effort append a `chat`-flow attempt event to the ledger (observational; never throws into
 					// the turn — the sink swallows its own errors). Only when the model id is known.
@@ -467,7 +537,11 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						const turnStartedAt = Date.now();
 						const turn = await runChatAgentTurn(
 							{ session, userMessage, tokenBudget, memoryLimit, ...(maxIterations ? { maxIterations } : {}) },
-							{ ...storeDeps, summarize: modelDeps.summarize, ...agentToolDeps },
+							{
+								...storeDeps,
+								summarize: modelDeps.summarize,
+								...withToolTranscript(agentToolDeps, session.id),
+							},
 						);
 						// §5.AF: best-effort `autonomous`-flow ledger attempt per autonomous turn (observational; never throws).
 						if (options.recordChatAttempt && modelDeps.modelId) {

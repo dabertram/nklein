@@ -1,5 +1,5 @@
 import { Bot, MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import type { ActivityTick } from "@/components/chat/board-activity-ticker";
 import { type ChatCardCandidate, segmentChatMessage } from "@/components/chat/chat-card-references";
 import {
@@ -10,6 +10,10 @@ import {
 	type MentionCandidate,
 } from "@/components/chat/composer-mention";
 import { StreamOverviewPanel } from "@/components/chat/stream-overview-panel";
+import {
+	type ChatMessageCardReferences,
+	NKleinChatMessageItem,
+} from "@/components/detail-panels/nklein-chat-message-item";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import {
@@ -38,6 +42,7 @@ import type {
 	RuntimeChatSessionRole,
 	RuntimeChatSessionScope,
 } from "@/runtime/types";
+import { LocalStorageKey, readLocalStorageItem, writeLocalStorageItem } from "@/storage/local-storage-store";
 import { useChatData } from "./use-chat-data";
 
 const ROLE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionRole; label: string }> = [
@@ -487,55 +492,26 @@ function SessionRow({
 
 // ─── MessageBubble ─────────────────────────────────────────────────────────────
 
-function MessageContent({
-	content,
-	boardCards,
-	onOpenCard,
-}: {
-	content: string;
-	boardCards: readonly ChatCardCandidate[];
-	onOpenCard: ((cardId: string) => void) | undefined;
-}): React.ReactElement {
-	// §5.BB phase 2: card references become OPENABLE chips — click one to open that card in the main panel.
-	if (!onOpenCard || boardCards.length === 0) {
-		return <>{content}</>;
-	}
-	const segments = segmentChatMessage(content, boardCards);
-	return (
-		<>
-			{segments.map((segment, index) =>
-				segment.kind === "text" ? (
-					// biome-ignore lint/suspicious/noArrayIndexKey: segments are positional fragments of one message.
-					<span key={index}>{segment.text}</span>
-				) : (
-					<button
-						// biome-ignore lint/suspicious/noArrayIndexKey: the same card may be referenced twice.
-						key={index}
-						type="button"
-						data-testid="chat-card-chip"
-						title="Open this card in the main panel"
-						onClick={() => onOpenCard(segment.cardId)}
-						className="mx-0.5 inline-flex max-w-full items-center gap-1 truncate rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent align-baseline hover:bg-accent/20"
-					>
-						{segment.label}
-						<span aria-hidden className="text-[10px] opacity-70">
-							↗
-						</span>
-					</button>
-				),
-			)}
-		</>
-	);
-}
-
+/**
+ * W3.1: one main-chat transcript row rendered through the SHARED per-card renderer (`NKleinChatMessageItem`) —
+ * markdown replies, collapsible tool/reasoning blocks (collapsed chips; the streaming block live-expands), and a
+ * clickable "referenced cards" chip row under assistant replies. Board→chat bridge notes (`system`) keep the main
+ * chat's slim centered line (they're frequent and read better as ambient ticks than boxed messages).
+ */
 function MessageBubble({
 	message,
 	boardCards = [],
 	onOpenCard,
+	durationMs = 0,
+	timestampsCollapsed = true,
+	onToggleTimestampsCollapsed = () => {},
 }: {
 	message: RuntimeChatMessage;
 	boardCards?: readonly ChatCardCandidate[];
 	onOpenCard?: (cardId: string) => void;
+	durationMs?: number;
+	timestampsCollapsed?: boolean;
+	onToggleTimestampsCollapsed?: () => void;
 }): React.ReactElement {
 	if (message.role === "system") {
 		return (
@@ -544,25 +520,26 @@ function MessageBubble({
 			</div>
 		);
 	}
-	const isUser = message.role === "user";
+	const cardReferences: ChatMessageCardReferences | undefined =
+		onOpenCard && boardCards.length > 0
+			? {
+					candidates: boardCards,
+					onOpenCard,
+					extractReferences: (content) =>
+						segmentChatMessage(content, boardCards)
+							.filter((segment): segment is Extract<typeof segment, { kind: "card" }> => segment.kind === "card")
+							.map((segment) => ({ cardId: segment.cardId, label: segment.label })),
+				}
+			: undefined;
 	return (
-		<div
-			data-testid="chat-message"
-			data-role={message.role}
-			className={cn("flex min-w-0", isUser ? "justify-end" : "justify-start")}
-		>
-			<div
-				className={cn(
-					"max-w-[80%] min-w-0 rounded-lg px-3 py-2 text-[13px] whitespace-pre-wrap break-words",
-					isUser ? "bg-accent text-white" : "bg-surface-2 text-text-primary border border-border",
-				)}
-			>
-				{isUser ? (
-					message.content
-				) : (
-					<MessageContent content={message.content} boardCards={boardCards} onOpenCard={onOpenCard} />
-				)}
-			</div>
+		<div data-testid="chat-message" data-role={message.role} className="min-w-0">
+			<NKleinChatMessageItem
+				message={message}
+				durationMs={durationMs}
+				timestampsCollapsed={timestampsCollapsed}
+				onToggleTimestampsCollapsed={onToggleTimestampsCollapsed}
+				{...(cardReferences ? { cardReferences } : {})}
+			/>
 		</div>
 	);
 }
@@ -721,6 +698,18 @@ function ChatPanel({
 }): React.ReactElement {
 	const chat = useChatData(enabled);
 	const [draft, setDraft] = useState("");
+	// W3.1: per-message timestamp affordance — the SAME persisted preference as the per-card panel (one key,
+	// both surfaces), so collapsing it in one place collapses it everywhere.
+	const [timestampsCollapsed, setTimestampsCollapsed] = useState(
+		() => readLocalStorageItem(LocalStorageKey.NKleinChatTimestampsCollapsed) === "true",
+	);
+	const toggleTimestampsCollapsed = (): void => {
+		setTimestampsCollapsed((current) => {
+			const next = !current;
+			writeLocalStorageItem(LocalStorageKey.NKleinChatTimestampsCollapsed, String(next));
+			return next;
+		});
+	};
 	// §5.BB @-mention popover state: the token being typed (null = closed) + the highlighted row.
 	const [mention, setMention] = useState<ActiveMention | null>(null);
 	const [mentionIndex, setMentionIndex] = useState(0);
@@ -748,6 +737,15 @@ function ChatPanel({
 		...activityTicks.map((tick) => ({ at: tick.at, tick })),
 	];
 	timelineItems.sort((left, right) => left.at - right.at || (left.message ? -1 : 1));
+	// W3.1 per-message duration (the timestamp tooltip's "took Xs"): the gap to the NEXT persisted message.
+	const durationByMessageId = new Map<string, number>();
+	for (let index = 0; index < chat.transcript.length; index += 1) {
+		const current = chat.transcript[index];
+		const next = chat.transcript[index + 1];
+		if (current) {
+			durationByMessageId.set(current.id, Math.max(0, (next?.createdAt ?? Date.now()) - current.createdAt));
+		}
+	}
 
 	// §5.BB @-mentions: cards + streams the popover offers, filtered by what's typed after the "@".
 	const mentionCandidates: MentionCandidate[] = [
@@ -933,6 +931,9 @@ function ChatPanel({
 											message={item.message}
 											boardCards={boardCards}
 											onOpenCard={onOpenCard}
+											durationMs={durationByMessageId.get(item.message.id) ?? 0}
+											timestampsCollapsed={timestampsCollapsed}
+											onToggleTimestampsCollapsed={toggleTimestampsCollapsed}
 										/>
 									) : item.tick ? (
 										<ActivityTickLine key={item.tick.id} tick={item.tick} onOpenCard={onOpenCard} />
@@ -949,16 +950,30 @@ function ChatPanel({
 										}}
 									/>
 								) : null}
+								{/* W3.1 live tool activity: what the agent is doing RIGHT NOW, while the turn runs. */}
+								{chat.activeToolNames.length > 0 ? (
+									<div className="flex flex-wrap items-center gap-1.5" data-testid="chat-active-tools">
+										{chat.activeToolNames.map((toolName, index) => (
+											<span
+												key={`${toolName}-${index}`}
+												className="inline-flex items-center gap-1.5 rounded-full border border-accent-2/35 bg-accent-2/10 px-2 py-0.5 text-[11px] text-accent-2"
+											>
+												<Spinner size={11} />
+												{toolName}
+											</span>
+										))}
+									</div>
+								) : null}
 								{/* The assistant reply as it streams; show a spinner until the first token lands. */}
 								{chat.streamingText !== null ? (
-									chat.streamingText.length === 0 ? (
+									chat.streamingText.length === 0 && chat.activeToolNames.length === 0 ? (
 										<div
 											className="flex items-center gap-2 text-[12px] text-text-tertiary"
 											data-testid="chat-streaming"
 										>
 											<Spinner size={14} /> Thinking…
 										</div>
-									) : (
+									) : chat.streamingText.length > 0 ? (
 										<MessageBubble
 											message={{
 												id: "streaming",
@@ -969,7 +984,7 @@ function ChatPanel({
 											boardCards={boardCards}
 											onOpenCard={onOpenCard}
 										/>
-									)
+									) : null
 								) : null}
 								<div ref={transcriptEndRef} />
 							</div>

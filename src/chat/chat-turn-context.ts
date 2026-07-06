@@ -1,7 +1,7 @@
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { consolidateChatContextWindow, splitChatContextWindow } from "./chat-context-window";
 import { type ChatMemory, type ChatMemoryRecall, recallChatMemories } from "./chat-memory-store";
-import type { ChatMessage, ChatMessageRole } from "./chat-transcript-store";
+import type { ChatMessage } from "./chat-transcript-store";
 
 /**
  * Compose one chat turn's context (todo §5.M) — the pure heart of the chat agent runtime's memory management.
@@ -43,8 +43,12 @@ export async function composeChatTurnContext(
 		summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	},
 ): Promise<ChatTurnContext> {
+	// W3.1: `tool`/`reasoning`/`status` transcript rows are DISPLAY-only (the UI's expandable detail blocks) —
+	// they never enter the model prompt. Tool exchanges already ride the in-loop `appendToolExchange`; replaying
+	// them here would duplicate them (and hand the model roles its provider contract doesn't accept).
+	const promptTranscript = input.transcript.filter(isPromptRole);
 	const window = splitChatContextWindow({
-		messages: input.transcript,
+		messages: promptTranscript,
 		tokenBudget: input.tokenBudget,
 		estimateTokens: input.estimateTokens,
 	});
@@ -61,9 +65,17 @@ export async function composeChatTurnContext(
 	return { goal: input.goal ?? null, summary, recalledMemories, recentMessages: window.recent };
 }
 
+/** The roles that may enter the model prompt (the provider message contract). */
+export type ChatPromptRole = "user" | "assistant" | "system";
+
+/** W3.1: display-only transcript roles (tool/reasoning/status) never reach the model. */
+function isPromptRole(message: ChatMessage): message is ChatMessage & { role: ChatPromptRole } {
+	return message.role === "user" || message.role === "assistant" || message.role === "system";
+}
+
 /** An ephemeral prompt message for the model call — role + content only (not persisted; see the transcript store). */
 export interface ChatPromptMessage {
-	role: ChatMessageRole;
+	role: ChatPromptRole;
 	content: string;
 }
 
@@ -106,7 +118,8 @@ export function renderChatTurnPrompt(
 	if (temporal?.inject) {
 		messages.push({ role: "system", content: temporal.block });
 	}
-	for (const message of context.recentMessages) {
+	// Defensive re-filter: a hand-built context could carry display-only roles; the prompt never accepts them.
+	for (const message of context.recentMessages.filter(isPromptRole)) {
 		messages.push({ role: message.role, content: message.content });
 	}
 	messages.push({ role: "user", content: newUserMessage });

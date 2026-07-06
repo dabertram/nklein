@@ -168,8 +168,13 @@ describe("createChatService", () => {
 		// The tool ran (proving the tool-using loop, not plain completion) and the final answer persisted.
 		expect(executed).toEqual(["read_file"]);
 		expect(result?.assistantMessage.content).toBe("The README documents the project.");
+		// W3.1: the tool exchange persists as a display row BETWEEN user and reply (the shared renderer's block).
 		const transcript = await service.readTranscript(session.id);
-		expect(transcript.map((m) => m.role)).toEqual(["user", "assistant"]);
+		expect(transcript.map((m) => m.role)).toEqual(["user", "tool", "assistant"]);
+		const toolRow = transcript[1];
+		expect(toolRow?.meta?.toolName).toBe("read_file");
+		expect(toolRow?.content).toContain("Tool: read_file");
+		expect(toolRow?.content).toContain("# Project");
 	});
 
 	it("§5.AU: resolves an @card handle — target note leads the turn, focus persists, targetLabel returns", async () => {

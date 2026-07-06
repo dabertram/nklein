@@ -29,6 +29,8 @@ export interface UseChatDataResult {
 	pendingUserText: string | null;
 	/** The assistant reply as it streams in (token by token); null when not streaming. */
 	streamingText: string | null;
+	/** W3.1: names of the tools the agent is running RIGHT NOW (live activity chips while the turn streams). */
+	activeToolNames: string[];
 	/** §5.AL/§5.AG: a model-capability caveat from the last turn (warn/unknown model that still ran); null when none. */
 	capabilityNotice: string | null;
 	/** §5.AU item 9: when the last message's target was ambiguous, the candidates for the composer's picker; null otherwise. */
@@ -53,6 +55,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const [sending, setSending] = useState(false);
 	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
 	const [streamingText, setStreamingText] = useState<string | null>(null);
+	const [activeToolNames, setActiveToolNames] = useState<string[]>([]);
 	const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
 	const [clarifyCandidates, setClarifyCandidates] = useState<RuntimeChatClarifyCandidate[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -177,6 +180,19 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 						onData: (event) => {
 							if (event.type === "token") {
 								setStreamingText((current) => (current ?? "") + event.delta);
+							} else if (event.type === "tool") {
+								// W3.1 live activity: track which tools are running for the composer's chips.
+								setActiveToolNames((current) => {
+									if (event.phase === "start") {
+										return [...current, event.toolName];
+									}
+									const next = [...current];
+									const index = next.indexOf(event.toolName);
+									if (index >= 0) {
+										next.splice(index, 1);
+									}
+									return next;
+								});
 							} else if (event.type === "done") {
 								// §5.AL/§5.AG: surface a model-capability caveat (the model is flagged warn/unknown but ran).
 								setCapabilityNotice(event.capabilityNotice ?? null);
@@ -197,6 +213,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			await sessionsQuery.refetch();
 			setPendingUserText(null);
 			setStreamingText(null);
+			setActiveToolNames([]);
 			setSending(false);
 		},
 		[client, selectedSessionId, transcriptQuery, sessionsQuery],
@@ -261,6 +278,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		sending,
 		pendingUserText,
 		streamingText,
+		activeToolNames,
 		capabilityNotice,
 		clarifyCandidates,
 		dismissClarify: () => setClarifyCandidates(null),

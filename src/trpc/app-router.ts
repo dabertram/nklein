@@ -406,6 +406,8 @@ export interface RuntimeTrpcContext {
 		sendChatMessage: (
 			input: RuntimeChatSendMessageRequest,
 			onToken?: (delta: string) => void,
+			/** W3.1 (server-side only): live tool start/end activity for the composer's chips. */
+			onToolEvent?: (event: { phase: "start" | "end"; toolName: string }) => void,
 		) => Promise<RuntimeChatSendMessageResponse>;
 		startAutonomousChatRun: (input: RuntimeChatStartAutonomousRequest) => Promise<RuntimeChatStartAutonomousResponse>;
 		getAutonomousChatRunStatus: (input: RuntimeChatAutonomousStatusRequest) => RuntimeChatAutonomousRunStatus;

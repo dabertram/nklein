@@ -112,7 +112,9 @@ export type RuntimeChatDeleteSessionRequest = z.infer<typeof runtimeChatDeleteSe
 export const runtimeChatDeleteSessionResponseSchema = z.object({ deleted: z.boolean() });
 export type RuntimeChatDeleteSessionResponse = z.infer<typeof runtimeChatDeleteSessionResponseSchema>;
 
-export const runtimeChatMessageRoleSchema = z.enum(["user", "assistant", "system"]);
+/** W3.1: `tool`/`reasoning`/`status` are DISPLAY roles (the transcript's expandable detail blocks — mirrors the
+ *  per-card `runtimeTaskChatMessageSchema`); they never enter the model prompt (see `composeChatTurnContext`). */
+export const runtimeChatMessageRoleSchema = z.enum(["user", "assistant", "system", "tool", "reasoning", "status"]);
 export type RuntimeChatMessageRole = z.infer<typeof runtimeChatMessageRoleSchema>;
 
 export const runtimeChatMessageSchema = z.object({
@@ -120,6 +122,15 @@ export const runtimeChatMessageSchema = z.object({
 	role: runtimeChatMessageRoleSchema,
 	content: z.string(),
 	createdAt: z.number(),
+	/** W3.1 display metadata (mirrors the per-card message meta the shared renderer keys on). */
+	meta: z
+		.object({
+			toolName: z.string().nullable().optional(),
+			hookEventName: z.string().nullable().optional(),
+			messageKind: z.string().nullable().optional(),
+		})
+		.nullable()
+		.optional(),
 });
 export type RuntimeChatMessage = z.infer<typeof runtimeChatMessageSchema>;
 
@@ -185,9 +196,12 @@ export const runtimeChatSendMessageResponseSchema = z.object({
 });
 export type RuntimeChatSendMessageResponse = z.infer<typeof runtimeChatSendMessageResponseSchema>;
 
-/** Events emitted by the `chat.streamMessage` subscription: incremental tokens, then a terminal `done`. */
+/** Events emitted by the `chat.streamMessage` subscription: incremental tokens, live tool activity, then a
+ *  terminal `done`. The `tool` events let the composer show WHAT the agent is doing while the turn runs (W3.1);
+ *  the persisted `role:"tool"` transcript messages arrive with the post-turn refetch. */
 export const runtimeChatStreamEventSchema = z.discriminatedUnion("type", [
 	z.object({ type: z.literal("token"), delta: z.string() }),
+	z.object({ type: z.literal("tool"), phase: z.enum(["start", "end"]), toolName: z.string() }),
 	z.object({
 		type: z.literal("done"),
 		userMessage: runtimeChatMessageSchema.nullable(),

@@ -976,8 +976,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				return { streams: [], ungroupedCardCount: 0 };
 			}
 		},
-		sendChatMessage: async (input, onToken) => {
-			const result = await chatService.sendMessage(input, onToken);
+		sendChatMessage: async (input, onToken, onToolEvent) => {
+			const result = await chatService.sendMessage(input, onToken, onToolEvent);
 			return {
 				userMessage: result?.userMessage ?? null,
 				assistantMessage: result?.assistantMessage ?? null,

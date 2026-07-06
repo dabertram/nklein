@@ -168,4 +168,20 @@ describe("composeChatTurnContext", () => {
 		);
 		expect(prompt).toEqual([{ role: "user", content: "hi" }]);
 	});
+
+	it("W3.1: display-only roles (tool/reasoning/status) never enter the window or the prompt", async () => {
+		const transcript: ChatMessage[] = [
+			message("1", "user asks"),
+			{ schemaVersion: 1, id: "2", role: "tool", content: "Tool: read_file", createdAt: 2 },
+			{ schemaVersion: 1, id: "3", role: "status", content: "relayed", createdAt: 3 },
+			{ ...message("4", "the reply"), role: "assistant" },
+		];
+		const context = await composeChatTurnContext(
+			{ sessionId: "s1", query: "next", transcript, memories: [], tokenBudget: 1000, estimateTokens },
+			{ summarize: async () => "never" },
+		);
+		expect(context.recentMessages.map((m) => m.id)).toEqual(["1", "4"]);
+		const prompt = renderChatTurnPrompt(context, "next");
+		expect(prompt.map((m) => m.role)).toEqual(["user", "assistant", "user"]);
+	});
 });

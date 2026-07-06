@@ -90,7 +90,12 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 			// stream to the client as SSE while the turn runs; the terminal `done` carries the persisted messages.
 			const queue = createAsyncQueue<RuntimeChatStreamEvent>();
 			void ctx.runtimeApi
-				.sendChatMessage(input, (delta) => queue.push({ type: "token", delta }))
+				.sendChatMessage(
+					input,
+					(delta) => queue.push({ type: "token", delta }),
+					// W3.1: live tool activity — the composer shows what the agent is doing while the turn runs.
+					(event) => queue.push({ type: "tool", phase: event.phase, toolName: event.toolName }),
+				)
 				.then((result) => {
 					queue.push({
 						type: "done",
