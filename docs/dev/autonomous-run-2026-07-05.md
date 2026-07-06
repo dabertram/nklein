@@ -702,3 +702,20 @@ to the USER as clickable chips (reusing the stream-click → @handle-insert patt
 = contract (add `clarifyCandidates` to the sendMessage response) + chat-service (needs_clarify ⇒ return a deterministic
 clarify prompt + candidates, skip the model turn) + a UI picker in the chat composer. Then the rung-5 LLM disambiguator
 (a model call — lower priority). After those, item 9 is fully done and §5.AU is complete end to end.
+
+### ▶ 2026-07-06 (loop resumed) — needs_clarify candidate-picker SHIPPED (f8b13073)
+Built the picker end-to-end, all 3 layers, full gate green (root fast + web tsc + 887 vitest + build):
+- **Contract:** `runtimeChatClarifyCandidateSchema` + `clarifyCandidates` on the sendMessage response AND the `done` event.
+- **chat-service:** needs_clarify (>1 slug/ASK match) ⇒ post a deterministic "Which did you mean? (labels)" + return the
+  candidates, NO model turn. 1 test (duplicate-title cards ⇒ `@slug` ⇒ candidates, model never runs).
+- **Wiring:** runtime-api.sendChatMessage forwards `clarifyCandidates` (+ fixed a latent `targetLabel` drop) → chat-router
+  `done` event → `use-chat-data` captures it + exposes `clarifyCandidates`/`dismissClarify`.
+- **UI:** the composer renders a `chat-clarify-picker` — one chip per candidate; click inserts its `@card:`/`@stream:`
+  handle into the draft + dismisses, so the re-send resolves unambiguously (reuses the stream-click pattern).
+
+**§5.AU item 9 is now feature-complete for the interactive path:** card relay + stream relay + handle-strip + picker all
+shipped. The ONLY remaining piece is the **rung-5 LLM disambiguator** — and it's genuinely low-value now: the picker
+surfaces candidates to the USER (deterministic, user-in-control), so an LLM guess is only relevant in a HEADLESS/autonomous
+context with no user to click. Needs a model call; leave it unless a headless-disambiguation need arises. **§5.AU/§5.AT are
+now essentially complete end to end** (feedback bridge + mute + relay + streams + picker), and the online-retrieval cluster
+is live + search-validated. The high-value backlog that's actionable-without-David is, again, essentially worked through.
