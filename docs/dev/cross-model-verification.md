@@ -728,3 +728,17 @@ strong override signal: training-prior overridden by the injected clock). The §
 the capability range.
   - matrix rows (temporal): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gemma-4-e2b=✅ · mistral-small-3.2=✅ · gpt-oss-120b=✅ ·
     nemotron-3-nano-4b=✅ · phi-4-mini-reasoning=✅
+
+### 2026-07-06 · §5.Z §5.M chat-agent-tools (read_file loop) — current-roster sweep
+`verify-chat-agent-tools.mts` (real model → read_file tool → gated+audited executor → answer from file content), 6
+models. The loop is healthy — every non-PASS is a MODEL-QUALITY trait, not a !Klein bug (the tool + executor work):
+- ✅ **PASS (3):** qwen3-8b, qwen2.5-coder-14b, gpt-oss-120b — called read_file, executor audited it, final answer
+  echoed the file's secret (`hunter2-fjord-lantern`).
+- ◑ **weak-synthesis (2):** gemma-4-e2b (2B), nemotron-3-nano-4b — CALLED read_file + executed it, but didn't echo the
+  secret in the final answer. The known weak-synthesis ◑ trait (execute the tool + side effects, don't echo the
+  marker) — model quality, not a bug.
+- ⚠️ **tool-selection (1): mistral-small-3.2** — consistently (2/2 runs) picks `list_dir` and replies "Done" instead of
+  calling read_file, so it never reads the content. A model tool-selection/premature-stop trait (it calls tools fine
+  for egress web_search + temporal, just mis-selects here) — not a !Klein bug; read_file works for the other 5.
+  - matrix rows (chat read_file): qwen3-8b=✅ · qwen2.5-coder-14b=✅ · gpt-oss-120b=✅ · gemma-4-e2b=◑ ·
+    nemotron-3-nano-4b=◑ · mistral-small-3.2=⚠️(picks list_dir)
