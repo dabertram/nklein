@@ -138,6 +138,7 @@ import {
 } from "./nklein-plan-critique-tool";
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { createNKleinResearchTool } from "./nklein-research-tool";
+import { shouldAttachRetrievalTools } from "./nklein-retrieval-tools-gate";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import {
@@ -881,26 +882,18 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * on-switch, SSRF-always is the safety floor.
 	 */
 	private buildRetrievalExtraTools(taskId: string): AgentTool[] {
-		// Gate 0: no egress for synthetic sessions, and only when the switch is literally on.
-		if (taskId.includes("::")) {
-			return [];
-		}
-		if (this.retrievalEgressEnabled !== true) {
-			return [];
-		}
-		// §5.L capability gate: even with egress on, a restricted role's ruleset can DENY web-research — withhold the
-		// research tool then (default fully_open ⇒ allowed ⇒ byte-identical). ANDed ON TOP of the global egress switch.
-		if (!this.agentWebResearchAllowed) {
-			return [];
-		}
-		// §5.AC (user decision 2026-07-03): the retrieval LOOP is the single online-retrieval path — the manual
-		// web_search + browse_url chaining is retired in favor of one `research` tool that drives the whole
-		// bounded loop (search → rank → fetch → sufficiency). It REQUIRES a configured search backend (the loop
-		// searches); egress-on WITHOUT a backend attaches nothing (there is no online retrieval without search).
-		// The egress lives entirely in the injected adapters (SearXNG search + SSRF-guarded browse fetch),
-		// re-read from the LIVE service fields per call so a config-off mid-session fails closed on the next call.
-		const backendUrl = this.retrievalSearchBackendUrl?.trim();
-		if (!backendUrl) {
+		// §5.U: the fail-closed attach decision (synthetic ⇒ no egress; egress literally true; §5.L role gate; a search
+		// backend is configured) is the pure `shouldAttachRetrievalTools` (unit-tested). Read the LIVE service fields so a
+		// config-off mid-session fails closed on the very next call. The egress itself lives entirely in the injected
+		// adapters (SearXNG search + SSRF-guarded browse fetch) constructed below.
+		if (
+			!shouldAttachRetrievalTools({
+				taskId,
+				egressEnabled: this.retrievalEgressEnabled,
+				agentWebResearchAllowed: this.agentWebResearchAllowed,
+				searchBackendUrl: this.retrievalSearchBackendUrl,
+			})
+		) {
 			return [];
 		}
 		return [
