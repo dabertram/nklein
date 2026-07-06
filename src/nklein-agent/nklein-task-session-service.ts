@@ -195,7 +195,7 @@ import {
 } from "./nklein-task-timeout-diagnostics";
 import type { NKleinTaskTimeoutKind } from "./nklein-task-timeout-handles";
 import { TaskTimeoutScheduler } from "./nklein-task-timeout-scheduler";
-import { projectNKleinTeamProgressEvent } from "./nklein-team-progress";
+import { createTeamProgressEmitter } from "./nklein-team-progress-emitter";
 import { createNKleinWatcherRegistry, type NKleinWatcherRegistry } from "./nklein-watcher-registry";
 import type { RepeatedToolCallGuardCallbacks } from "./repeated-tool-call-guard";
 import { RepeatedToolCallGuard } from "./repeated-tool-call-guard";
@@ -205,7 +205,6 @@ import {
 	type NKleinSdkPersistedMessage,
 	type NKleinSdkSessionEvent,
 	type NKleinSdkSlashCommand,
-	type NKleinSdkTeamEvent,
 	resolveNKleinSdkSystemPromptParts,
 } from "./sdk-runtime-boundary.js";
 
@@ -585,7 +584,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	private readonly runtimeSetupLeaseCache = createRuntimeSetupLeaseCache({
 		acquire: (workspacePath) => this.watcherRegistry.acquire(workspacePath),
 	});
-	private readonly teamProgressListeners = new Set<(taskId: string, event: RuntimeNKleinTeamProgressEvent) => void>();
+	private readonly teamProgressEmitter = createTeamProgressEmitter();
 
 	constructor(options: CreateInMemoryNKleinTaskSessionServiceOptions) {
 		if (!options.agentSandboxManager && options.allowUnisolatedTestRuntime !== true) {
@@ -707,10 +706,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	}
 
 	onTeamProgress(listener: (taskId: string, event: RuntimeNKleinTeamProgressEvent) => void): () => void {
-		this.teamProgressListeners.add(listener);
-		return () => {
-			this.teamProgressListeners.delete(listener);
-		};
+		return this.teamProgressEmitter.subscribe(listener);
 	}
 
 	private resolveProviderIdForTask(taskId: string): string {
@@ -1154,7 +1150,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				onMergeResolutionSubmitted: input.onMergeResolutionSubmitted,
 				onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(input.taskId, chain),
 				onTeamEvent: (event, teamName) => {
-					this.emitTeamProgress(input.taskId, event, teamName);
+					this.teamProgressEmitter.emit(input.taskId, event, teamName);
 				},
 			})
 			.catch(async (error: unknown): Promise<never> => {
@@ -1443,7 +1439,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					initialMessages,
 					launchConfigOverrides: restartLaunchConfig ?? undefined,
 					onTeamEvent: (event, teamName) => {
-						this.emitTeamProgress(input.taskId, event, teamName);
+						this.teamProgressEmitter.emit(input.taskId, event, teamName);
 					},
 				});
 				if (restartLaunchConfig) {
@@ -1498,7 +1494,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				initialMessages,
 				launchConfigOverrides: restartLaunchConfig ?? undefined,
 				onTeamEvent: (event, teamName) => {
-					this.emitTeamProgress(input.taskId, event, teamName);
+					this.teamProgressEmitter.emit(input.taskId, event, teamName);
 				},
 			});
 			if (restartLaunchConfig) {
@@ -1565,7 +1561,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				initialMessages: compactedMessages,
 				launchConfigOverrides: restartLaunchConfig ?? undefined,
 				onTeamEvent: (event, teamName) => {
-					this.emitTeamProgress(input.taskId, event, teamName);
+					this.teamProgressEmitter.emit(input.taskId, event, teamName);
 				},
 			});
 			return {
@@ -1750,7 +1746,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				initialMessages: compactedMessages,
 				launchConfigOverrides: restartLaunchConfig ?? undefined,
 				onTeamEvent: (event, teamName) => {
-					this.emitTeamProgress(input.taskId, event, teamName);
+					this.teamProgressEmitter.emit(input.taskId, event, teamName);
 				},
 			});
 			return {
@@ -2131,7 +2127,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
 					onFocusChainUpdated: (chain) => this.focusChainStore.applyStep(request.taskId, chain),
 					onTeamEvent: (event, teamName) => {
-						this.emitTeamProgress(request.taskId, event, teamName);
+						this.teamProgressEmitter.emit(request.taskId, event, teamName);
 					},
 				});
 				const warningMessage = formatStartWarnings(startResult.warnings);
@@ -4040,7 +4036,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		this.explicitDecompositionTaskIds.clear();
 		this.sandboxState.clear();
 		this.focusChainStore.clear();
-		this.teamProgressListeners.clear();
+		this.teamProgressEmitter.clear();
 		await this.agentSandboxManager?.stopNow().catch(() => null);
 		await this.runtimeSetupLeaseCache.disposeAll();
 		this.messageRepository.dispose();
@@ -4167,20 +4163,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	private emitMessage(taskId: string, message: NKleinTaskMessage): void {
 		this.messageRepository.emitMessage(taskId, message);
-	}
-
-	private emitTeamProgress(taskId: string, event: NKleinSdkTeamEvent, teamName: string | null): void {
-		if (this.teamProgressListeners.size === 0) {
-			return;
-		}
-		const progressEvent = projectNKleinTeamProgressEvent({
-			taskId,
-			teamName,
-			event,
-		});
-		for (const listener of this.teamProgressListeners) {
-			listener(taskId, progressEvent);
-		}
 	}
 
 	/**
