@@ -221,6 +221,48 @@ describe("createChatService", () => {
 		expect(backToGoal?.targetLabel).toBeUndefined();
 	});
 
+	it("§5.AU item 9: RELAYS an @card message via relayAddressedMessage instead of a model turn", async () => {
+		const modelCalls: string[] = [];
+		const relayed: { targetId?: string; message: string }[] = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async () => {
+					modelCalls.push("called");
+					return { text: "MODEL REPLY", toolCalls: [] };
+				},
+				executeTool: async (call) => ({ callId: call.id, content: "" }),
+				appendToolExchange: (messages) => [...messages],
+			}),
+			resolveMessageTargetIndex: async () => ({
+				cards: [{ id: "card-1", title: "Fix parser" }],
+				streams: [],
+			}),
+			relayAddressedMessage: async (target, message) => {
+				if (target.kind === "card" && target.id) {
+					relayed.push({ targetId: target.id, message });
+					return `Delivered to [${target.id}].`;
+				}
+				return null; // goal / other ⇒ fall through to the model turn
+			},
+		});
+		const session = await service.createSession({ title: "Relay", scope: "chat_only" });
+
+		// A GOAL message (no focus/handle) — relay returns null ⇒ the model turn runs as before.
+		const goalResult = await service.sendMessage({ sessionId: session.id, message: "hello" });
+		expect(goalResult?.assistantMessage.content).toBe("MODEL REPLY");
+		expect(modelCalls).toHaveLength(1);
+
+		// An @card message is RELAYED: the assistant reply is the deterministic confirmation, and the model is NOT called.
+		const result = await service.sendMessage({ sessionId: session.id, message: "@card:card-1 use bcrypt" });
+		expect(result?.assistantMessage.content).toBe("Delivered to [card-1].");
+		expect(result?.userMessage.content).toBe("@card:card-1 use bcrypt");
+		expect(result?.targetLabel).toBe("card Fix parser");
+		expect(modelCalls).toHaveLength(1); // unchanged — no model turn for the relayed message
+		expect(relayed).toEqual([{ targetId: "card-1", message: "@card:card-1 use bcrypt" }]);
+	});
+
 	it("§5.AL gate: refuses a catalog-`reject` model on the tool-using path (modelId known)", async () => {
 		const service = createChatService({
 			rootDir,

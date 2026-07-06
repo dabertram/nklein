@@ -8,6 +8,7 @@ import type {
 import {
 	type MessageTargetIndex,
 	renderMessageTargetNote,
+	type ResolvedMessageTarget,
 	resolveMessageTarget,
 } from "../core/message-target-resolver";
 import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
@@ -84,6 +85,14 @@ export interface ChatServiceOptions {
 	/** §5.AU: the card/stream index of the session's board, for message-target resolution (the addressing ladder).
 	 *  Called per tool-using turn; null (or omitted) ⇒ every message routes to the goal (today's behavior). */
 	resolveMessageTargetIndex?: (session: ChatSession) => Promise<MessageTargetIndex | null>;
+	/**
+	 * §5.AU item 9 (deterministic relay): when the resolved target addresses a specific card (`card`, or `answer` = a
+	 * reply to a card's question), RELAY the message straight to that card via the shared relay path and return the
+	 * confirmation to post as the assistant reply — instead of answering it in the chat with a model turn. Returns null to
+	 * fall through to the normal model turn (goal / needs_clarify / stream, or when the caller declines). Injected by the
+	 * runtime (which holds the board + task-session + mailbox deps); omitted ⇒ today's answer-in-chat behavior.
+	 */
+	relayAddressedMessage?: (target: ResolvedMessageTarget, message: string) => Promise<string | null>;
 }
 
 export interface ChatSendResult {
@@ -312,6 +321,30 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 									{ focus: { kind: target.kind, id: target.id, at: (options.now ?? Date.now)() } },
 									sessionOptions,
 								);
+							}
+							// §5.AU item 9 — deterministic relay: a message addressed to a CARD (or an `answer` to a card's
+							// question) is RELAYED straight to that card + confirmed, NOT re-answered by a model turn. The
+							// runtime's relay decides the effect (deliver live / queue mailbox / suggest-unblock / answer from
+							// state) and returns the confirmation; null ⇒ fall through to the model turn (goal/stream/clarify).
+							if (options.relayAddressedMessage) {
+								const confirmation = await options.relayAddressedMessage(target, input.message);
+								if (confirmation !== null) {
+									const userMsg = await appendChatMessage(
+										session.id,
+										{ role: "user", content: input.message },
+										transcriptOptions,
+									);
+									const assistantMsg = await appendChatMessage(
+										session.id,
+										{ role: "assistant", content: confirmation },
+										transcriptOptions,
+									);
+									return {
+										userMessage: toRuntimeChatMessage(userMsg),
+										assistantMessage: toRuntimeChatMessage(assistantMsg),
+										...(targetLabel ? { targetLabel } : {}),
+									};
+								}
 							}
 						}
 					}
