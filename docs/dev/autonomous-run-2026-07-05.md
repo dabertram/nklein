@@ -1707,3 +1707,12 @@ Deliberately LEFT: CHANGELOG's `~/.nklein/kanban` entries (accurate *filesystem-
 the `parseGitHubContextTarget` test fixtures (`nklein/app` — arbitrary parser inputs), the `kanban` keyword (the board
 concept was deliberately kept), and todo.md notes. If David intends to publish under a dedicated `nklein` GitHub org,
 these retarget together then — for now they point at the one repo that actually exists. Gate: tsc ✓, biome ✓, tests ✓.
+
+### 2026-07-06 (Opus) · §5.AZ — ship the NOTICE file (Apache-2.0 §4(d) attribution compliance)
+
+Release-hygiene follow-up: the root `NOTICE` (the Apache-2.0 upstream attribution for the Cline Kanban fork — README:50
+explicitly points users to it) was **tracked but not in `package.json` `files`** (`["dist","README.md","LICENSE"]`), so it
+would NOT ship in the published npm package. Apache-2.0 §4(d) requires a derivative work that carries a NOTICE to
+propagate a readable copy — publishing without it is an attribution-compliance gap (and the README would link to a file
+absent from the package). Added `"NOTICE"` to `files`; `npm pack --dry-run` confirms it now ships (506B, alongside
+LICENSE + README). Metadata-only, machine-facing (same category as the repo-URL fix). Gate: tsc ✓, biome ✓, tests ✓.
