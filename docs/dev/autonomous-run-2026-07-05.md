@@ -1761,6 +1761,9 @@ component files (`.tsx`) and helper `.ts` modules. Working the cleanest, securit
   anything outside it is JSON-quoted (space, `;`, `$(…)`, embedded `"` escaped), empty → `""`; and the command build —
   `nklein` shows nothing, autonomous-OFF shows binary-only, autonomous-ON appends the catalog's auto-args (codex's single
   dangerous flag, droid's two-arg `--auto high`, opencode's empty → binary-only). Web gate: web-ui tsc ✓, vitest 8/8 ✓.
-- Remaining named-untested pure fns (a follow-up vein): `runtime-settings-provider-helpers.ts`, `diff-renderer.tsx`
-  (patch parsing), `app-utils.tsx` (pathname/counting), `code-embedding-fields.tsx` — the `.tsx` ones pull component
-  deps, so the clean `.ts` helpers go first.
+- **`runtime-settings-provider-helpers.ts` (+7):** `normalizeProviderId` (trim+lowercase, null/undefined/blank → ""),
+  `findProviderCatalogItem` (case-insensitive + whitespace-tolerant lookup, null when absent / empty catalog),
+  `formatProviderOptionLabel` (`name (id)` when informative; collapses to just `id` when the name is blank or duplicates
+  the id case-insensitively; trims both). Web gate: web-ui tsc ✓, vitest 7/7 ✓.
+- Remaining named-untested pure fns (a follow-up vein, `.tsx` — pull component deps so deferred): `diff-renderer.tsx`
+  (patch parsing), `app-utils.tsx` (pathname/counting), `code-embedding-fields.tsx` (settings build/compare/format).
