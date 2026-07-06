@@ -1,4 +1,15 @@
-import { Bot, MessageSquare, MessageSquarePlus, PanelRightClose, Send, Trash2 } from "lucide-react";
+import {
+	Bot,
+	ChevronDown,
+	ChevronRight,
+	ListChecks,
+	MessageSquare,
+	MessageSquarePlus,
+	PanelRightClose,
+	Send,
+	Square,
+	Trash2,
+} from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useRef, useState } from "react";
 import type { ActivityTick } from "@/components/chat/board-activity-ticker";
 import { type ChatCardCandidate, segmentChatMessage } from "@/components/chat/chat-card-references";
@@ -502,6 +513,7 @@ function MessageBubble({
 	message,
 	boardCards = [],
 	onOpenCard,
+	onHoverCard,
 	durationMs = 0,
 	timestampsCollapsed = true,
 	onToggleTimestampsCollapsed = () => {},
@@ -509,6 +521,8 @@ function MessageBubble({
 	message: RuntimeChatMessage;
 	boardCards?: readonly ChatCardCandidate[];
 	onOpenCard?: (cardId: string) => void;
+	/** §5.BB map spotlight: hovering a card chip highlights that bubble on the activity map. */
+	onHoverCard?: (cardId: string | null) => void;
 	durationMs?: number;
 	timestampsCollapsed?: boolean;
 	onToggleTimestampsCollapsed?: () => void;
@@ -525,6 +539,7 @@ function MessageBubble({
 			? {
 					candidates: boardCards,
 					onOpenCard,
+					...(onHoverCard ? { onHoverCard } : {}),
 					extractReferences: (content) =>
 						segmentChatMessage(content, boardCards)
 							.filter((segment): segment is Extract<typeof segment, { kind: "card" }> => segment.kind === "card")
@@ -540,6 +555,73 @@ function MessageBubble({
 				onToggleTimestampsCollapsed={onToggleTimestampsCollapsed}
 				{...(cardReferences ? { cardReferences } : {})}
 			/>
+		</div>
+	);
+}
+
+/**
+ * §5.BB focus-chain surface: the agent's live plan checklist as a compact strip — the CURRENT step headlined with
+ * done/total progress, expandable to the full checklist. Hidden entirely when the agent has no chain (most turns).
+ */
+function FocusChainStrip({
+	chain,
+}: {
+	chain: { steps: readonly { text: string; status: "pending" | "in_progress" | "done" | "skipped" }[] } | null;
+}): React.ReactElement | null {
+	const [expanded, setExpanded] = useState(false);
+	if (!chain || chain.steps.length === 0) {
+		return null;
+	}
+	const done = chain.steps.filter((step) => step.status === "done" || step.status === "skipped").length;
+	const current =
+		chain.steps.find((step) => step.status === "in_progress") ??
+		chain.steps.find((step) => step.status === "pending");
+	const allDone = done === chain.steps.length;
+	return (
+		<div className="border-t border-border bg-surface-1 shrink-0" data-testid="chat-focus-chain">
+			<button
+				type="button"
+				onClick={() => setExpanded((value) => !value)}
+				className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11.5px] hover:bg-surface-2"
+				title={expanded ? "Collapse the plan" : "Show the full plan"}
+			>
+				<ListChecks size={13} className="shrink-0 text-accent-2" />
+				<span className="shrink-0 text-text-tertiary">
+					Plan {done}/{chain.steps.length}
+				</span>
+				<span className="min-w-0 truncate text-text-secondary">
+					{allDone ? "✓ all steps done" : (current?.text ?? "")}
+				</span>
+				<span className="ml-auto shrink-0 text-text-tertiary">
+					{expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+				</span>
+			</button>
+			{expanded ? (
+				<ol className="m-0 flex list-none flex-col gap-1 px-3 pb-2" data-testid="chat-focus-chain-steps">
+					{chain.steps.map((step, index) => (
+						<li
+							key={index}
+							className={cn(
+								"flex items-start gap-1.5 text-[11.5px]",
+								step.status === "in_progress" ? "text-text-primary" : "text-text-tertiary",
+							)}
+						>
+							<span className="shrink-0" aria-hidden>
+								{step.status === "done"
+									? "✓"
+									: step.status === "skipped"
+										? "–"
+										: step.status === "in_progress"
+											? "→"
+											: "○"}
+							</span>
+							<span className={cn("min-w-0 break-words", step.status === "done" && "line-through opacity-70")}>
+								{step.text}
+							</span>
+						</li>
+					))}
+				</ol>
+			) : null}
 		</div>
 	);
 }
@@ -685,6 +767,7 @@ function ChatPanel({
 	hideCollapse = false,
 	boardCards = [],
 	onOpenCard,
+	onHoverCard,
 	activityTicks = [],
 	boardStreams = [],
 }: {
@@ -694,6 +777,8 @@ function ChatPanel({
 	hideCollapse?: boolean;
 	boardCards?: readonly ChatCardCandidate[];
 	onOpenCard?: (cardId: string) => void;
+	/** §5.BB map spotlight: hovering a card chip highlights that bubble on the activity map (zoom 1). */
+	onHoverCard?: (cardId: string | null) => void;
 	/** §5.BB: live board-activity ticks interleaved into the transcript (chronological with the messages). */
 	activityTicks?: readonly ActivityTick[];
 	/** §5.BB: plan streams (id + display title) offered by the composer's @-mention popover. */
@@ -936,6 +1021,7 @@ function ChatPanel({
 											message={item.message}
 											boardCards={boardCards}
 											onOpenCard={onOpenCard}
+											onHoverCard={onHoverCard}
 											durationMs={durationByMessageId.get(item.message.id) ?? 0}
 											timestampsCollapsed={timestampsCollapsed}
 											onToggleTimestampsCollapsed={toggleTimestampsCollapsed}
@@ -1005,6 +1091,8 @@ function ChatPanel({
 									</button>
 								</div>
 							) : null}
+							{/* §5.BB: the agent's live plan checklist (compact; expands to the full list). */}
+							<FocusChainStrip chain={chat.focusChain} />
 							<AutonomousRunBar
 								status={chat.autonomousStatus}
 								disabled={!chat.selectedSessionId}
@@ -1138,16 +1226,31 @@ function ChatPanel({
 									}}
 									onKeyDown={handleKeyDown}
 								/>
-								<Button
-									type="submit"
-									variant="primary"
-									size="md"
-									icon={<Send size={14} />}
-									data-testid="chat-send-button"
-									disabled={chat.sending || draft.trim().length === 0}
-								>
-									Send
-								</Button>
+								{chat.sending ? (
+									/* W3.2: stop/detach the in-flight turn — frees the composer; the reply still lands
+									   via the transcript poll when the server turn finishes. */
+									<Button
+										type="button"
+										variant="default"
+										size="md"
+										icon={<Square size={13} />}
+										data-testid="chat-stop-button"
+										onClick={chat.stopTurn}
+									>
+										Stop
+									</Button>
+								) : (
+									<Button
+										type="submit"
+										variant="primary"
+										size="md"
+										icon={<Send size={14} />}
+										data-testid="chat-send-button"
+										disabled={draft.trim().length === 0}
+									>
+										Send
+									</Button>
+								)}
 							</form>
 						</>
 					)}
@@ -1215,6 +1318,7 @@ export function ChatPrimaryPane({
 export function ChatSidebar({
 	boardCards,
 	onOpenCard,
+	onHoverCard,
 	activityTicks,
 	boardStreams,
 }: {
@@ -1222,6 +1326,8 @@ export function ChatSidebar({
 	boardCards?: readonly ChatCardCandidate[];
 	/** Opens a referenced card in the MAIN PANEL (the chat is the steering wheel, the panel shows the detail). */
 	onOpenCard?: (cardId: string) => void;
+	/** §5.BB map spotlight: hovering a card chip highlights that bubble on the activity map (zoom 1). */
+	onHoverCard?: (cardId: string | null) => void;
 	/** §5.BB: live board-activity ticks to interleave into the transcript. */
 	activityTicks?: readonly ActivityTick[];
 	/** §5.BB: plan streams offered by the composer's @-mention popover. */
@@ -1273,6 +1379,7 @@ export function ChatSidebar({
 					onCollapse={() => setCollapsed(true)}
 					boardCards={boardCards}
 					onOpenCard={onOpenCard}
+					onHoverCard={onHoverCard}
 					activityTicks={activityTicks}
 					boardStreams={boardStreams}
 				/>

@@ -4,6 +4,7 @@ import type {
 	RuntimeChatAutonomousRunStatus,
 	RuntimeChatClarifyCandidate,
 	RuntimeChatCreateSessionRequest,
+	RuntimeChatFocusChainResponse,
 	RuntimeChatMessage,
 	RuntimeChatSession,
 	RuntimeChatUpdateSessionRequest,
@@ -16,6 +17,10 @@ import { useTrpcQuery } from "@/runtime/use-trpc-query";
  * the selected session's transcript, and the create/delete/send mutations in one hook the dialog drives. Mutations
  * refetch the affected query so the UI stays consistent without a cache layer (matching the app's `useTrpcQuery`).
  */
+
+/** W3.2 stall watchdog: with no SSE event for this long, detach so a dropped socket can't wedge the composer.
+ *  Generous — local models can legitimately think for minutes between tool events. */
+const STALL_TIMEOUT_MS = 180_000;
 
 export interface UseChatDataResult {
 	sessions: RuntimeChatSession[];
@@ -31,6 +36,10 @@ export interface UseChatDataResult {
 	streamingText: string | null;
 	/** W3.1: names of the tools the agent is running RIGHT NOW (live activity chips while the turn streams). */
 	activeToolNames: string[];
+	/** W3.2: detach from the in-flight turn — frees the composer; the reply arrives via the transcript poll. */
+	stopTurn: () => void;
+	/** §5.BB: the agent's live plan checklist for the selected session (null = none drafted). */
+	focusChain: RuntimeChatFocusChainResponse["chain"];
 	/** §5.AL/§5.AG: a model-capability caveat from the last turn (warn/unknown model that still ran); null when none. */
 	capabilityNotice: string | null;
 	/** §5.AU item 9: when the last message's target was ambiguous, the candidates for the composer's picker; null otherwise. */
@@ -56,6 +65,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
 	const [streamingText, setStreamingText] = useState<string | null>(null);
 	const [activeToolNames, setActiveToolNames] = useState<string[]>([]);
+	// W3.2: detaches the active streamMessage subscription (Stop button / stall watchdog); null when idle.
+	const stopTurnRef = useRef<(() => void) | null>(null);
 	const [capabilityNotice, setCapabilityNotice] = useState<string | null>(null);
 	const [clarifyCandidates, setClarifyCandidates] = useState<RuntimeChatClarifyCandidate[] | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -93,6 +104,19 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		retainDataOnError: true,
 	});
 
+	// §5.BB focus-chain surface: the agent's live plan checklist, refreshed on the same cadence as the transcript.
+	const focusChainQueryFn = useCallback(async () => {
+		if (!selectedSessionId) {
+			return null;
+		}
+		return (await client.chat.getFocusChain.query({ sessionId: selectedSessionId })).chain;
+	}, [client, selectedSessionId]);
+	const focusChainQuery = useTrpcQuery({
+		enabled: enabled && selectedSessionId !== null,
+		queryFn: focusChainQueryFn,
+		retainDataOnError: true,
+	});
+
 	// §5.AT/§5.AU: the board→chat feedback bridge appends messages SERVER-side (terminal card outcomes / ASKs to the
 	// project's owning chat), so poll the selected transcript to surface pushed messages without a user turn. Only
 	// while the sidebar is open (`enabled`) with a session selected, and paused during a streaming turn (the send path
@@ -101,6 +125,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	sendingRef.current = sending;
 	const refetchTranscriptRef = useRef(transcriptQuery.refetch);
 	refetchTranscriptRef.current = transcriptQuery.refetch;
+	const refetchFocusChainRef = useRef(focusChainQuery.refetch);
+	refetchFocusChainRef.current = focusChainQuery.refetch;
 	useEffect(() => {
 		if (!enabled || selectedSessionId === null) {
 			return;
@@ -108,6 +134,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		const interval = setInterval(() => {
 			if (!sendingRef.current) {
 				void refetchTranscriptRef.current();
+				void refetchFocusChainRef.current();
 			}
 		}, 4000);
 		return () => clearInterval(interval);
@@ -173,11 +200,17 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			setCapabilityNotice(null);
 			setClarifyCandidates(null);
 			// Stream the reply token-by-token over the SSE subscription; resolve when the terminal `done` arrives.
+			// W3.2: `stopTurnRef` detaches the stream (Stop button); the stall watchdog auto-detaches when NO event
+			// arrives for STALL_TIMEOUT_MS (a dropped socket previously wedged the composer forever). Detaching frees
+			// the composer — the server turn finishes on its own and the transcript poll picks the reply up.
 			await new Promise<void>((resolve) => {
-				client.chat.streamMessage.subscribe(
+				let settled = false;
+				let stallTimer: ReturnType<typeof setTimeout> | null = null;
+				const subscription = client.chat.streamMessage.subscribe(
 					{ sessionId: selectedSessionId, message: trimmed },
 					{
 						onData: (event) => {
+							armStallWatchdog();
 							if (event.type === "token") {
 								setStreamingText((current) => (current ?? "") + event.delta);
 							} else if (event.type === "tool") {
@@ -202,22 +235,63 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 						},
 						onError: (caught: unknown) => {
 							setError(caught instanceof Error ? caught.message : String(caught));
-							resolve();
+							finish();
 						},
-						onComplete: () => resolve(),
+						onComplete: () => finish(),
 					},
 				);
+				const finish = (): void => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (stallTimer) {
+						clearTimeout(stallTimer);
+					}
+					stopTurnRef.current = null;
+					resolve();
+				};
+				const detach = (notice: string | null): void => {
+					if (settled) {
+						return;
+					}
+					if (notice) {
+						setError(notice);
+					}
+					subscription.unsubscribe();
+					finish();
+				};
+				const armStallWatchdog = (): void => {
+					if (stallTimer) {
+						clearTimeout(stallTimer);
+					}
+					stallTimer = setTimeout(
+						() =>
+							detach(
+								"The stream went quiet — detached. The agent may still be finishing; the reply will appear here when it does.",
+							),
+						STALL_TIMEOUT_MS,
+					);
+				};
+				stopTurnRef.current = () => detach(null);
+				armStallWatchdog();
 			});
-			// The turn is persisted; refresh the transcript + list, then drop the optimistic placeholders.
+			// The turn is persisted; refresh the transcript + list (+ the plan strip), then drop the placeholders.
 			await transcriptQuery.refetch();
 			await sessionsQuery.refetch();
+			void focusChainQuery.refetch();
 			setPendingUserText(null);
 			setStreamingText(null);
 			setActiveToolNames([]);
 			setSending(false);
 		},
-		[client, selectedSessionId, transcriptQuery, sessionsQuery],
+		[client, selectedSessionId, transcriptQuery, sessionsQuery, focusChainQuery],
 	);
+
+	/** W3.2: detach from the in-flight turn (frees the composer; the server finishes + the poll fetches the reply). */
+	const stopTurn = useCallback(() => {
+		stopTurnRef.current?.();
+	}, []);
 
 	const startAutonomousRun = useCallback(
 		async (goal: string) => {
@@ -279,6 +353,8 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		pendingUserText,
 		streamingText,
 		activeToolNames,
+		stopTurn,
+		focusChain: focusChainQuery.data ?? null,
 		capabilityNotice,
 		clarifyCandidates,
 		dismissClarify: () => setClarifyCandidates(null),

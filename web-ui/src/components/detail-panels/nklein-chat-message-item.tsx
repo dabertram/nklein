@@ -276,6 +276,8 @@ export interface ChatMessageCardReferences {
 	onOpenCard: (cardId: string) => void;
 	/** Extract the referenced card ids+labels from a message's text (the main chat's segmentation core). */
 	extractReferences: (content: string) => readonly { cardId: string; label: string }[];
+	/** §5.BB map spotlight: hover a chip → highlight that card's bubble on the activity map (null = hover end). */
+	onHoverCard?: (cardId: string | null) => void;
 }
 
 /** The clickable "referenced cards" chip row under an assistant reply (main chat, W3.1). */
@@ -307,6 +309,8 @@ function CardReferenceRow({
 					data-testid="chat-card-chip"
 					title="Open this card in the main panel"
 					onClick={() => references.onOpenCard(cardId)}
+					onMouseEnter={() => references.onHoverCard?.(cardId)}
+					onMouseLeave={() => references.onHoverCard?.(null)}
 					className="inline-flex max-w-full items-center gap-1 truncate rounded-md border border-accent/35 bg-accent/10 px-1.5 text-[12px] leading-5 text-accent hover:bg-accent/20"
 				>
 					{label}

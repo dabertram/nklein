@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
+import { readChatFocusChain } from "../chat/chat-focus-chain";
 import { type ChatService, createChatService } from "../chat/chat-service";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
@@ -957,6 +958,19 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		updateChatSession: (input) => chatService.updateSession(input),
 		deleteChatSession: (id) => chatService.deleteSession(id),
 		readChatTranscript: (sessionId, limit) => chatService.readTranscript(sessionId, limit),
+		// §5.BB focus-chain surface: read-only projection of the session's live plan checklist (default store root —
+		// the same place the agent-turn's readFocusChain dep reads).
+		getChatFocusChain: async (sessionId) => {
+			const chain = await readChatFocusChain(sessionId);
+			return {
+				chain: chain
+					? {
+							steps: chain.steps.map((step) => ({ text: step.text, status: step.status })),
+							updatedAt: chain.updatedAt,
+						}
+					: null,
+			};
+		},
 		getChatBoardStreams: async () => {
 			// §5.AU: the main chat's stream-overview surface. Roll up the ACTIVE workspace's streams server-side (the
 			// board-independent chat client has no per-card session signals to do it itself), flattened to the lean DTO.

@@ -146,6 +146,24 @@ export const runtimeChatTranscriptResponseSchema = z.object({
 });
 export type RuntimeChatTranscriptResponse = z.infer<typeof runtimeChatTranscriptResponseSchema>;
 
+// §5.BB focus-chain surface: the agent's live plan checklist for a chat session (the `update_focus_chain` tool's
+// state), read-only for the transcript's plan strip. Null chain = the agent hasn't drafted one.
+export const runtimeChatFocusChainStepSchema = z.object({
+	text: z.string(),
+	status: z.enum(["pending", "in_progress", "done", "skipped"]),
+});
+export type RuntimeChatFocusChainStep = z.infer<typeof runtimeChatFocusChainStepSchema>;
+
+export const runtimeChatFocusChainResponseSchema = z.object({
+	chain: z
+		.object({
+			steps: z.array(runtimeChatFocusChainStepSchema),
+			updatedAt: z.number(),
+		})
+		.nullable(),
+});
+export type RuntimeChatFocusChainResponse = z.infer<typeof runtimeChatFocusChainResponseSchema>;
+
 // §5.AU: the stream-overview surface — one lean row per stream (health/progress/frontier) for the owning workspace's
 // board, plus the count of cards in no stream. A flattened, serializable projection of `BoardStreamsSummary` (the client
 // can't roll streams up itself — it has no per-card session signals), fetched by the main chat's stream panel.

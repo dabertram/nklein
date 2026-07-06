@@ -41,10 +41,13 @@ export function ActivityMapView({
 	map,
 	onSelectCard,
 	onZoomToStream,
+	highlightCardId = null,
 }: {
 	map: ActivityMap;
 	onSelectCard: (cardId: string) => void;
 	onZoomToStream: (clusterId: string) => void;
+	/** §5.BB: the card to spotlight (hovering its chat mention) — a bright ring on its bubble. */
+	highlightCardId?: string | null;
 }): ReactElement {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [size, setSize] = useState({ width: 860, height: 640 });
@@ -146,11 +149,13 @@ export function ActivityMapView({
 							return null;
 						}
 						const style = STATE_STYLE[bubble.state];
+						const highlighted = highlightCardId === bubble.id;
 						return (
 							<g
 								key={bubble.id}
 								data-testid={`bubble-${bubble.id}`}
 								data-state={bubble.state}
+								data-highlighted={highlighted || undefined}
 								className="cursor-pointer"
 								opacity={1 - bubble.fade * 0.8}
 								onClick={(event) => {
@@ -158,6 +163,18 @@ export function ActivityMapView({
 									onSelectCard(bubble.id);
 								}}
 							>
+								{highlighted ? (
+									// §5.BB hover-spotlight: a bright cyan ring while the chat mention is hovered.
+									<circle
+										cx={position.x}
+										cy={position.y}
+										r={bubble.radius + 6}
+										fill="none"
+										stroke="var(--color-accent)"
+										strokeWidth={2}
+										strokeOpacity={0.9}
+									/>
+								) : null}
 								<circle
 									cx={position.x}
 									cy={position.y}

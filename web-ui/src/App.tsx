@@ -107,6 +107,8 @@ export default function App(): ReactElement {
 	const activityTicks = useBoardActivityTicks(
 		useMemo(() => ({ columns: board.columns, sessions }), [board.columns, sessions]),
 	);
+	// §5.BB map spotlight: the card whose chat chip is hovered — its bubble gets a ring on the activity map (Z1).
+	const [chatHoverCardId, setChatHoverCardId] = useState<string | null>(null);
 	// §5.BB: the chat surfaces' board context (card chips + @-mention candidates), shared by the right rail
 	// (zoom ≥ 1) and the zoom-0 chat-primary pane.
 	const chatBoardCards = useMemo(
@@ -1141,6 +1143,7 @@ export default function App(): ReactElement {
 												})}
 												onSelectCard={handleCardSelect}
 												onZoomToStream={zoomToStream}
+												highlightCardId={chatHoverCardId}
 											/>
 										) : zoom === 2 ? (
 											<LeanBoardView
@@ -1329,6 +1332,7 @@ export default function App(): ReactElement {
 						boardCards={chatBoardCards}
 						boardStreams={chatBoardStreams}
 						onOpenCard={handleCardSelect}
+						onHoverCard={setChatHoverCardId}
 						activityTicks={activityTicks}
 					/>
 				) : null}

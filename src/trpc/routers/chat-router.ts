@@ -11,6 +11,7 @@ import {
 	runtimeChatCreateSessionRequestSchema,
 	runtimeChatDeleteSessionRequestSchema,
 	runtimeChatDeleteSessionResponseSchema,
+	runtimeChatFocusChainResponseSchema,
 	runtimeChatSendMessageRequestSchema,
 	runtimeChatSendMessageResponseSchema,
 	runtimeChatSessionResponseSchema,
@@ -64,6 +65,11 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 		getBoardStreams: t.procedure
 			.output(runtimeChatBoardStreamsResponseSchema)
 			.query(async ({ ctx }) => ctx.runtimeApi.getChatBoardStreams()),
+		// §5.BB focus-chain surface: the agent's live plan checklist for the transcript's plan strip.
+		getFocusChain: t.procedure
+			.input(z.object({ sessionId: z.string() }))
+			.output(runtimeChatFocusChainResponseSchema)
+			.query(async ({ ctx, input }) => ctx.runtimeApi.getChatFocusChain(input.sessionId)),
 		sendMessage: t.procedure
 			.input(runtimeChatSendMessageRequestSchema)
 			.output(runtimeChatSendMessageResponseSchema)
