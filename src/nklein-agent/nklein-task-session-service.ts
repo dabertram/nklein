@@ -15,7 +15,6 @@ import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
-import { buildModelBehaviorProfilesFromLedger } from "../core/agent-ledger-projections";
 import type { McpAccess, SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type {
 	RuntimeNKleinReasoningEffort,
@@ -37,25 +36,19 @@ import {
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
-import { raisedTokenBudget } from "../core/retry-policy";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
 import { shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
-import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import {
 	recordTaskRunSummary,
 	type TaskRunTerminalState,
 	type TaskRunTimeoutSource,
 } from "../state/task-run-summary-store";
-import {
-	readSelfObservationEvents,
-	recordSelfObservation,
-	type SelfObservationEventInput,
-} from "../telemetry/self-observation-sink";
+import { recordSelfObservation, type SelfObservationEventInput } from "../telemetry/self-observation-sink";
 import { resolveTaskResultBranchCommit } from "../workspace/task-result-branches";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints";
 import type { AutonomyBudgetWatchdogCallbacks } from "./autonomy-budget-watchdog";
@@ -63,7 +56,7 @@ import { AutonomyBudgetWatchdog } from "./autonomy-budget-watchdog";
 import type { DecompositionStallNudgerCallbacks } from "./decomposition-stall-nudger";
 import { DecompositionStallNudger, isChatOnlyDecompositionActivity } from "./decomposition-stall-nudger";
 import { createAcceptanceVerifier } from "./nklein-acceptance-verifier";
-import { hasStallEvidence, shouldAttemptAdaptiveBudgetRetry } from "./nklein-adaptive-retry-policy";
+import { createAdaptiveBudgetController } from "./nklein-adaptive-budget-controller";
 import {
 	type AgentSandboxManager,
 	type AgentSandboxPoolConfig,
@@ -479,7 +472,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	/** Owns per-task context-window resolution + the pre-send context-budget guard (deps are lazy → field-init safe). */
 	private readonly contextBudgetController = createContextBudgetController({
 		getModelIdForTask: (taskId) => this.launchConfigByTaskId.get(taskId)?.modelId ?? null,
-		getQualityBudget: (modelId) => this.qualityBudgetByModelId.get(modelId) ?? null,
+		getQualityBudget: (modelId) => this.adaptiveBudgetController.getQualityBudget(modelId),
 		recordObservation: (event) => this.recordObservationWithModel(event),
 	});
 	private readonly contextBudgetInputs = new TaskContextBudgetInputs();
@@ -539,6 +532,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		sendTaskSessionInput: (taskId, prompt) => this.sessionRuntime.sendTaskSessionInput(taskId, prompt),
 		clearTaskSessions: (taskId) => this.sessionRuntime.clearTaskSessions(taskId),
 		forgetSyntheticState: (taskId) => this.forgetSyntheticSessionState(taskId),
+	});
+	/** W2.3a/W1.1b: learned quality-effective budgets (read by the ContextBudgetController) + the stall-signature
+	 * adaptive retry (re-sends the card on a raised per-turn budget). Owns its three state maps/flags. */
+	private readonly adaptiveBudgetController = createAdaptiveBudgetController({
+		hasResultBranch: (taskId) => Boolean(this.sandboxState.getResultBranch(taskId)),
+		resolveKnownContextWindow: (taskId) =>
+			this.contextBudgetController.resolveKnownContextWindowForTask(taskId, null),
+		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
+			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
 	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
@@ -1039,7 +1041,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 		await this.waitUntilTaskResumed(input.taskId);
 		this.requestTimer.markStarted(input.taskId);
-		this.refreshLearnedQualityBudgets();
+		this.adaptiveBudgetController.refreshLearnedQualityBudgets();
 		// Sandbox-proxied tool executors / extra tools for the rebuilt session (or the caller's, if supplied).
 		const sandboxToolExecutors =
 			input.toolExecutors ??
@@ -2992,8 +2994,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return;
 		}
 		this.lastRecordedRunStateByTaskId.set(taskId, state);
-		// W1.1b: flag-gated adaptive budget retry on the stall signature (see maybeAdaptiveBudgetRetry).
-		this.maybeAdaptiveBudgetRetry(taskId, summary);
+		// W1.1b: flag-gated adaptive budget retry on the stall signature (see adaptiveBudgetController).
+		this.adaptiveBudgetController.maybeAdaptiveBudgetRetry(taskId, summary);
 		// W0.2 (run16: t4 died `interrupted` MID-WRITE and its partial work was lost): a dying terminal still
 		// salvages its sandbox work. error→awaiting_review already captures via the finalize hook (run10 proved
 		// it live); interrupted/failed did NOT — no capture, and the sandbox leaked until pool exhaustion.
@@ -3101,107 +3103,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 
 	private emitMessage(taskId: string, message: NKleinTaskMessage): void {
 		this.messageRepository.emitMessage(taskId, message);
-	}
-
-	/**
-	 * W2.3a (audit 2026-07-02, §5.AD/§5.AQ): LEARNED quality-effective context budgets per model, from the ledger's
-	 * qualityOk knee (`learnedQualityEffectiveBudget`) — the derate that was previously only printed to a dev
-	 * console while live budgeting used the ADVERTISED window (the exact small-model semantic-collapse case: a 4B
-	 * advertising 32k was budgeted as if all 32k were usable). Refreshed lazily+async at session start (sync reads
-	 * from the cache; empty ledger ⇒ no entry ⇒ advertised window unchanged). Floor 32k (PRIME DIRECTIVE #3).
-	 */
-	private readonly qualityBudgetByModelId = new Map<string, number>();
-	private qualityBudgetRefreshInFlight = false;
-
-	private refreshLearnedQualityBudgets(): void {
-		if (this.qualityBudgetRefreshInFlight) {
-			return;
-		}
-		this.qualityBudgetRefreshInFlight = true;
-		void (async () => {
-			try {
-				const events = await readAllAgentLedger();
-				for (const profile of buildModelBehaviorProfilesFromLedger(events)) {
-					const budget = learnedQualityEffectiveBudget(profile);
-					if (budget !== null) {
-						this.qualityBudgetByModelId.set(profile.modelId, budget);
-					}
-				}
-			} catch {
-				// Best-effort — an unreadable ledger leaves the advertised-window behavior unchanged.
-			} finally {
-				this.qualityBudgetRefreshInFlight = false;
-			}
-		})();
-	}
-
-	/** W1.1b adaptive-retry state: attempts + last budget per task (bounded by MAX_ADAPTIVE_RETRY_ATTEMPTS). */
-	private readonly adaptiveRetryStateByTaskId = new Map<string, { attempt: number; lastBudget: number }>();
-
-	/**
-	 * W1.1b (audit 2026-07-02, §5.AA): the STALL-signature adaptive retry — flag-gated via `NKLEIN_ADAPTIVE_RETRY`
-	 * (default OFF until the W1.4 scoreboard proves the win). A reasoning model that burns its whole output budget
-	 * on reasoning_content terminates as awaiting_review with NO delivered work and a `model_stalled` observation;
-	 * at temp 0 a plain re-run re-truncates identically, so the ROOT-cause recovery is a re-send with a RAISED
-	 * per-turn budget (`raisedTokenBudget`, ceiling-clamped) through the W1.1a maxTokensPerTurn thread. Bounded to
-	 * 2 attempts; every fire is recorded as a self-observation so the scoreboard can measure recovery rate.
-	 */
-	private maybeAdaptiveBudgetRetry(taskId: string, summary: RuntimeTaskSessionSummary): void {
-		const providerId = summary.providerId ?? null;
-		const modelId = summary.modelId ?? null;
-		const state = this.adaptiveRetryStateByTaskId.get(taskId) ?? { attempt: 0, lastBudget: 1024 };
-		if (
-			!shouldAttemptAdaptiveBudgetRetry({
-				adaptiveRetryEnabled: isTruthyEnv(process.env.NKLEIN_ADAPTIVE_RETRY),
-				summaryState: summary.state,
-				providerId,
-				modelId,
-				isHomeAgentSession: isHomeAgentSessionId(taskId),
-				attempt: state.attempt,
-			})
-		) {
-			return;
-		}
-		// The eligibility gate already guarantees provider+model are set; narrow for the async re-send below.
-		if (!providerId || !modelId) {
-			return;
-		}
-		void (async () => {
-			try {
-				// Stall evidence: a model_stalled observation recorded during THIS run (since the session started).
-				const since = summary.startedAt ?? 0;
-				const events = await readSelfObservationEvents({ taskId, limit: 25 }).catch(() => []);
-				const stalled = hasStallEvidence(events, since);
-				// Only a stall WITHOUT delivered work qualifies — a captured result branch means the turn produced
-				// something despite the stall observation (leave it to the normal review flow).
-				if (!stalled || this.sandboxState.getResultBranch(taskId)) {
-					return;
-				}
-				const contextWindow = this.contextBudgetController.resolveKnownContextWindowForTask(taskId, null) ?? 32_000;
-				const raised = raisedTokenBudget({
-					current: state.lastBudget,
-					attempt: state.attempt + 1,
-					ceiling: Math.max(2_048, contextWindow - 8_192),
-				});
-				this.adaptiveRetryStateByTaskId.set(taskId, { attempt: state.attempt + 1, lastBudget: raised });
-				recordSelfObservation({
-					signal: "custom",
-					severity: "info",
-					message: `Adaptive budget retry ${state.attempt + 1}/2 for ${taskId}: re-sending with maxTokensPerTurn=${raised} after a stalled (likely truncated-mid-reasoning) turn.`,
-					taskId,
-					metadata: { category: "adaptive_budget_retry", attempt: state.attempt + 1, raisedBudget: raised },
-				});
-				await this.sendTaskSessionInput(
-					taskId,
-					"Your previous turn produced no output (it likely exhausted the token budget mid-reasoning). Continue the task and complete it — the output budget has been raised.",
-					"act",
-					undefined,
-					{ providerId, modelId, maxTokensPerTurn: raised },
-				);
-			} catch {
-				// Best-effort recovery — a failed retry leaves the card held in Review exactly as before (fail-closed).
-			}
-		})();
 	}
 
 	/**
