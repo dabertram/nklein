@@ -35,6 +35,7 @@ import {
 } from "./nklein-litellm-model-list";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { resolveManagedProviderLaunchApiKey } from "./nklein-managed-provider-credentials";
+import { resolveModelListSettings } from "./nklein-model-list-settings";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { hasOauthAccessToken, normalizeEpochMs, resolveVisibleApiKey } from "./nklein-provider-credential-helpers";
 import { buildDiscoveredModelSourceUrls, normalizeLmStudioModelListBaseUrl } from "./nklein-provider-discovery-urls";
@@ -206,39 +207,8 @@ async function discoverModelsFromEndpoint(input: {
 	);
 }
 
-async function resolveModelListSettings(
-	providerId: string,
-	settings: SdkProviderSettings | null,
-): Promise<SdkProviderSettings | null> {
-	const normalizedProviderId = providerId.trim().toLowerCase();
-	if (!normalizedProviderId) {
-		return null;
-	}
-
-	const normalizedSettingsProviderId = settings?.provider?.trim().toLowerCase() ?? "";
-	if (normalizedSettingsProviderId === normalizedProviderId && settings?.baseUrl?.trim()) {
-		return settings;
-	}
-
-	const catalogProvider = (await listSdkProviderCatalog().catch(() => [])).find(
-		(provider) => provider.id.trim().toLowerCase() === normalizedProviderId,
-	);
-	const catalogBaseUrl = catalogProvider?.baseUrl?.trim() ?? "";
-	if (!catalogBaseUrl) {
-		return normalizedSettingsProviderId === normalizedProviderId ? settings : null;
-	}
-
-	const nextSettings: SdkProviderSettings =
-		normalizedSettingsProviderId === normalizedProviderId && settings
-			? { ...settings }
-			: { provider: normalizedProviderId };
-	nextSettings.provider = normalizedProviderId;
-	nextSettings.baseUrl = catalogBaseUrl;
-	return nextSettings;
-}
-
 async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): Promise<RuntimeNKleinProviderModel[]> {
-	const resolvedSettings = await resolveModelListSettings("litellm", settings);
+	const resolvedSettings = await resolveModelListSettings("litellm", settings, listSdkProviderCatalog);
 	const baseUrl = resolvedSettings?.baseUrl?.trim() ?? "";
 	if (!resolvedSettings || !baseUrl) {
 		return [];
@@ -291,7 +261,7 @@ async function fetchLiteLlmBaseUrlModels(settings: SdkProviderSettings | null): 
 }
 
 async function fetchLmStudioBaseUrlModels(settings: SdkProviderSettings | null): Promise<RuntimeNKleinProviderModel[]> {
-	const resolvedSettings = await resolveModelListSettings("lmstudio", settings);
+	const resolvedSettings = await resolveModelListSettings("lmstudio", settings, listSdkProviderCatalog);
 	const baseUrl = resolvedSettings?.baseUrl?.trim() ?? "";
 	if (!resolvedSettings || !baseUrl) {
 		return [];
