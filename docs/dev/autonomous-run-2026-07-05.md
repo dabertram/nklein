@@ -879,16 +879,41 @@ URL from the SDK provider catalog) into its own module, injecting the catalog li
 the real SDK. Both fetchers pass `listSdkProviderCatalog`. Behavior-preserving; +7 unit tests (all six branches +
 catalog-rejects-is-empty tolerance). Full gate green. **Progress:** provider-service 1502 → 1472.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 11) — for David
+### ▶ §5.U slice 12 (2026-07-06, 36bde787) — extracted nklein-kanban-access-policy
+Last clean pure seam in provider-service. Moved the kanban-access policy — the remote-config schema/type/parser plus a new
+pure `computeKanbanEnabled()` capturing the enterprise-gating decision that was an inline boolean at the call site (kanban
+open by default; gated shut only for an enterprise customer whose remote config doesn't explicitly set `kanbanEnabled:true`)
+— into its own module. Behavior-preserving; +7 unit tests (parse: valid / unknown-field / malformed / wrong-type;
+computeKanbanEnabled: the full truth table). Full gate green. **Progress:** provider-service 1472 → 1463.
+
+### ▶ CLEAN-SEAM EXHAUSTION FINDING (2026-07-06, after slice 12) — the easy §5.U work is done; what's left is the hard split
+Surveyed all four largest files after slice 12. **The safe, behavior-preserving pure-function seams are now exhausted:**
+- `nklein-provider-service.ts` (**1463**): remaining functions are I/O-bound and coupled to the `createNKleinProviderService`
+  factory (the fetchers, `loadProviderModels*`, `refreshManagedOauthSettings`) — not clean pure lifts.
+- `runtime-server.ts` (**2468**): the only top-level function left is the ~2300-line `createRuntimeServer` closure itself.
+- `nklein-session-runtime.ts` (**1487**): its pure functions (`buildNKleinContextCompactionConfig`,
+  `readKanbanLaunchConfigFromSessionRecord`, `doesNKleinToolInvalidateRepoMap`) are ALREADY well-tested in
+  `test/runtime/nklein-agent/nklein-session-runtime.test.ts` — moving them is low-value churn with cross-file (and type-cycle)
+  ripple; the rest is the `InMemoryNKleinSessionRuntime` class.
+- `nklein-task-session-service.ts` (**4886**): ~90% one class (`InMemoryNKleinTaskSessionService`), only 2 top-level functions.
+**What remains is the responsibility-split** — extracting collaborator classes (review-loop / plan-critique / mailbox) from
+the task-session-service class, and decomposing the `createRuntimeServer` closure. That is a multi-commit, higher-risk
+undertaking (mutable state to thread through DI, larger blast radius) that should be started with a FRESH context budget so
+behavior-preservation and the "never weaken a test" rule stay reliable — NOT continued at the tail of this long session. This
+is the recommended entry point for the next Opus polishing iteration.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 12) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **11 §5.U slices this run, ~68 new unit tests, 11 focused modules extracted, zero behavior changes** (the pre-commit fast
+- **12 §5.U slices this run, ~75 new unit tests, 12 focused modules extracted, zero behavior changes** (the pre-commit fast
   suite gates every commit; extractions delegate).
-- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1472** (8 clusters pulled: settings-summary, litellm-model-list,
-  managed-provider-credentials, provider-selection-store, model-list-settings — plus 3 earlier); `runtime-server.ts`
-  2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
+- **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
+  managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
+  `runtime-server.ts` 2527 → **2468** (3 clusters: bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result);
   `nklein-task-session-service.ts` still **4886** (the hardest — class-heavy, instance-stateful; earlier slices nibbled it,
   next needs the responsibility-split not just pure-fn lifts).
+- **CLEAN-SEAM EXHAUSTION (see finding above):** the safe pure-fn seams are done; what's left is the harder responsibility-split
+  — recommended to start fresh, not at a long-context tail.
 - **New modules (all under `src/nklein-agent/` unless noted):** nklein-session-system-prompt, nklein-launch-config,
   nklein-retrieval-tools-gate, nklein-provider-settings-summary, nklein-litellm-model-list,
   nklein-managed-provider-credentials, nklein-provider-selection-store, nklein-model-list-settings,

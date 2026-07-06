@@ -382,17 +382,21 @@
 > the probe functions so the control flow is deterministically testable without real timers or live services.
 >
 > **Live tally (see [docs/dev/autonomous-run-2026-07-05.md](docs/dev/autonomous-run-2026-07-05.md) for the per-slice log):**
-> - `nklein-provider-service.ts`: 1651 → **1472** — extracted `nklein-provider-settings-summary`, `nklein-litellm-model-list`,
->   `nklein-managed-provider-credentials`, `nklein-provider-selection-store`, `nklein-model-list-settings` (+ 3 earlier).
+> - `nklein-provider-service.ts`: 1651 → **1463** — extracted `nklein-provider-settings-summary`, `nklein-litellm-model-list`,
+>   `nklein-managed-provider-credentials`, `nklein-provider-selection-store`, `nklein-model-list-settings`,
+>   `nklein-kanban-access-policy` (+ 3 earlier).
 > - `runtime-server.ts`: 2527 → **2468** — extracted `bounded-dedup-set`, `workspace-state-lock-retry`, `review-sandbox-result`.
 > - `nklein-task-session-service.ts`: still **4886** — the hardest (class-heavy, instance-stateful); needs the
->   responsibility-split (review-loop / plan-critique / mailbox as collaborators), not just pure-fn lifts. Deferred until the
->   easier free-function seams are exhausted.
-> - **11 slices so far, ~68 new unit tests, 11 focused modules, zero behavior changes** (pre-commit fast suite gates each).
+>   responsibility-split (review-loop / plan-critique / mailbox as collaborators), not just pure-fn lifts.
+> - **12 slices so far, ~75 new unit tests, 12 focused modules, zero behavior changes** (pre-commit fast suite gates each).
 >
-> **Next (in order):** the last pure-ish provider-service bits (remote-config parse) → more runtime-server free-function
-> seams → then the deep responsibility-split of the `createRuntimeServer` closure and the task-session-service class, which
-> is where the "no large monolith" directive bites.
+> **PHASE BOUNDARY (2026-07-06):** the safe, behavior-preserving **pure-function seams are now exhausted** across
+> provider-service / runtime-server / session-runtime (session-runtime's pure fns are already well-tested; the big-3
+> remainders are the task-session-service class body + the `createRuntimeServer` closure). **What remains is the
+> responsibility-split** — extracting collaborator classes (review-loop / plan-critique / mailbox) and decomposing the
+> server closure: a multi-commit, higher-risk, DI-threading undertaking best **started with a fresh context budget**, not
+> continued at a long-session tail (to keep behavior-preservation + the "never weaken a test" rule reliable). That is the
+> entry point for the next iteration.
 
 ### 5.AO — DEFERRED: extensive model-attribute A/B hardening sessions *(2026-06-29, user — PARKED until "first proven workflow paths" land)*
 > **User steer (2026-06-29):** do **extensive A/B testing across ALL available model attributes / characteristics** at a
