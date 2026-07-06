@@ -1679,3 +1679,16 @@ their clamp boundaries are safety-critical. New `runtime-config-api-contract.tes
   UNCHANGED — so a future edit pushing any field out of bounds (silently weakening a guardrail) breaks the test.
 - `areRuntimeSwarmGuardrailsEqual`: identical → true, one-field-diff → false.
 Gate: tsc ✓, biome ✓, **7939/7939 ✓** (7925 + 14). Zero source change — pure coverage.
+
+### 2026-07-06 (Opus) · §5.Z — live egress re-verified on the current resident roster
+
+Egress LIVE at `localhost:18888`; resident roster this session = `qwen3.5-122b-a10b`, `qwen/qwen2.5-coder-14b`,
+`coder-gpu` (3 loaded, no force-load). Ran two bounded, zero-code-risk §5.Z checks:
+- **`verify-egress-live.mts` ✓ (model-independent).** Real search → 8 real internet results; the **fail-closed egress
+  gate** blocks when `egressEnabled:false` (never fetches → `blocked_by_egress`); null backend → `no_backend`; SearXNG
+  payload → contract title+url mapping. The security-critical fail-closed posture holds against the live backend.
+- **`verify-egress-model-e2e.mts` on `qwen/qwen2.5-coder-14b` ✓ (full chain).** Model EMITTED a `web_search` tool call
+  → query executed against live SearXNG (8 real results) → model USED them → answered with the correct URL
+  (`https://www.anthropic.com/claude/opus`). Proves model → tool-call → egress → real results → grounded answer end-to-end.
+- The 122B was already proven in prior sweeps (egress 8B→122B), so its slow re-run was skipped. Logged to
+  cross-model-verification.md.

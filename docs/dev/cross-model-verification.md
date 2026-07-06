@@ -820,3 +820,12 @@ marker, proving the body text flows back into context):
   title/h1 naming trap. Recorded as a cross-model data point, not actioned.
   - matrix rows (chat browse_url): qwen3-8b=✅ · qwen2.5-coder-14b=⚠️(title-vs-h1) · gpt-oss-120b=⚠️(title-vs-h1) ·
     gemma-4-e2b=⚠️(title-vs-h1)
+
+## 2026-07-06 (Opus) — live egress re-verify on the current resident roster
+Resident (state=loaded, no force-load): `qwen3.5-122b-a10b`, `qwen/qwen2.5-coder-14b`, `coder-gpu`. Egress LIVE at 18888.
+- **`verify-egress-live.mts` ✓** — real search (8 results); fail-closed gate blocks when egress off (`blocked_by_egress`,
+  no fetch); null backend → `no_backend`; SearXNG payload → contract title+url mapping. Security posture holds live.
+- **`verify-egress-model-e2e.mts` [qwen/qwen2.5-coder-14b] ✓** — emitted `web_search` tool call → 8 real SearXNG results →
+  used them → answered the correct URL (anthropic.com/claude/opus). Full model→tool→egress→results→answer chain.
+- matrix rows (egress e2e): qwen2.5-coder-14b=✅ (repeat-confirmed on the current roster). 122B skipped (already proven
+  8B→122B in the prior sweep; slow re-run not worth the wall-time).
