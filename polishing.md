@@ -497,6 +497,15 @@
 > MergeResolution onto it. Order: acceptance-verifier → harness(from review) → the other 3. Each commit: verbatim move +
 > characterization tests + a full integration pass (Docker confirmed UP here → the gate is viable). Large multi-turn effort;
 > NOT to be rushed at a long turn's tail (no fast-suite net; behavior must stay byte-identical).
+> **PROGRESS + HETEROGENEITY FINDING (2026-07-06):** commits 1–3 landed (AcceptanceVerifier, pickDiverseReviewerModel,
+> SecondarySessionHarness — the review runner rewired onto it; each gated by tsc+biome+fast+swarm-deterministic-pass;
+> task-session-service 4040 → 3922). ⚠ The remaining runners are NOT identical to review: the **speculative-mirror** runner
+> (~2749–2921) has a `runBoundedTurn` that returns **`"settled" | "timeout"`** (the review one returns `void`). So moving the
+> mirror onto the harness needs a FORWARD-COMPATIBLE harness tweak — make `runBoundedTurn` return the turn outcome (`void`
+> callers like review simply ignore it). Check plan-critique + merge for the same. Sequence remaining: 4 PlanCritique (also
+> extract/keep the ~500-line buildPlanCritiqueRequestHandler separately — it's a request handler, not session skeleton),
+> 5 SpeculativeMirror (needs the outcome-returning runBoundedTurn), 6 MergeResolution. Each still one bounded commit +
+> characterization tests + the integration gate.
 >
 > **§5.U FOURTH (biggest) PATTERN — COLLABORATOR SPLIT, proven autonomous+safe (slice 45):** move a cohesive concern (a
 > cluster of methods + its DEDICATED state) out of the class into a `createXWatcher(deps)` collaborator with a small deps
