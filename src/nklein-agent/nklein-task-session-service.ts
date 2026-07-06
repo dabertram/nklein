@@ -67,17 +67,8 @@ import {
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { createContextBudgetController } from "./nklein-context-budget-controller";
-import { CONTEXT_BUDGET_SEND_RESERVE_TOKENS } from "./nklein-context-budget-plan";
-import {
-	buildContextBudgetBreakdown,
-	estimateKanbanToolSchemaTokens,
-	estimateNextPromptTokens,
-} from "./nklein-context-budget-tokens";
-import { countKanbanPersistedMessagesTokens } from "./nklein-context-focus-policy";
-import {
-	compactPersistedMessagesForContextOverflow,
-	isContextOverflowError,
-} from "./nklein-context-overflow-compaction";
+import { buildContextBudgetBreakdown, estimateKanbanToolSchemaTokens } from "./nklein-context-budget-tokens";
+import { createContextOverflowController } from "./nklein-context-overflow-controller";
 import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-tool";
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
 import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
@@ -196,8 +187,6 @@ const debugStreamEventLastAtByTaskId = new Map<string, number>();
 const MAX_SECOND_OPINION_REVIEW_NUDGES = 2;
 const SECOND_OPINION_REVIEW_NUDGE_PROMPT =
 	"You ended your turn without calling `submit_review`, so no review was recorded. Your verdict is delivered ONLY by that tool. Call `submit_review` now: `approve`, or `request_changes` with concrete, actionable feedback. Do not answer in prose.";
-const CONTEXT_BUDGET_WARNING_RATIO = 0.8;
-const CONTEXT_BUDGET_COMPACT_RATIO = 0.92;
 const UNCONFIGURED_PROVIDER_ID = "unconfigured";
 
 export interface StartNKleinTaskSessionRequest {
@@ -541,6 +530,26 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			this.contextBudgetController.resolveKnownContextWindowForTask(taskId, null),
 		resendTaskInput: (taskId, text, mode, images, launchConfigOverrides) =>
 			this.sendTaskSessionInput(taskId, text, mode, images, launchConfigOverrides),
+	});
+	/** §5.U: the context-overflow recovery pair (reactive retry-after + proactive compact-before). Session-lifecycle
+	 * accessors are supplied lazily so field-init order is irrelevant. */
+	private readonly contextOverflowController = createContextOverflowController({
+		recordObservationWithModel: (event) => this.recordObservationWithModel(event),
+		readPersistedTaskSession: (taskId) => this.sessionRuntime.readPersistedTaskSession(taskId),
+		resolvePersistedLaunchConfig: (input) => this.resolvePersistedLaunchConfig(input),
+		stopTaskSession: (taskId) => this.sessionRuntime.stopTaskSession(taskId),
+		canRestartTaskSession: (taskId) => this.sessionRuntime.canRestartTaskSession(taskId),
+		waitUntilTaskResumed: (taskId) => this.waitUntilTaskResumed(taskId),
+		markStarted: (taskId) => this.requestTimer.markStarted(taskId),
+		restartTaskSession: (input) =>
+			this.sessionRuntime.restartTaskSession({
+				...input,
+				onTeamEvent: (event, teamName) => this.teamProgressEmitter.emit(input.taskId, event, teamName),
+			}),
+		startRuntimeSession: (input) => this.startRuntimeTaskSessionFromLaunchConfig(input),
+		prepareMessagesForKnownContextWindow: (input) =>
+			this.contextBudgetController.prepareMessagesForKnownContextWindow(input),
+		emitSummary: (summary) => this.emitSummary(summary),
 	});
 	private readonly requestTimer = new TaskRequestTimer(now);
 	private readonly failureBackoff = new TaskFailureBackoffTracker();
@@ -1331,151 +1340,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
 	}
 
-	private async retryAfterContextOverflow(input: {
-		taskId: string;
-		prompt: string;
-		mode: RuntimeTaskSessionMode;
-		images?: RuntimeTaskImage[];
-		error: unknown;
-	}): Promise<{ result: unknown; warnings?: string[] } | null> {
-		if (!isContextOverflowError(input.error)) {
-			return null;
-		}
-		this.recordObservationWithModel({
-			signal: "context_overflow",
-			severity: "warning",
-			message: toErrorMessage(input.error),
-			taskId: input.taskId,
-			metadata: {
-				mode: input.mode,
-			},
-		});
-
-		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
-		const compactedMessages = compactPersistedMessagesForContextOverflow(persistedSnapshot?.messages ?? []);
-		if (!compactedMessages) {
-			return null;
-		}
-		const restartLaunchConfig = this.resolvePersistedLaunchConfig({
-			taskId: input.taskId,
-			persistedSnapshot,
-		});
-
-		await this.sessionRuntime.stopTaskSession(input.taskId).catch(() => null);
-		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
-			await this.waitUntilTaskResumed(input.taskId);
-			this.requestTimer.markStarted(input.taskId);
-			const restartedSession = await this.sessionRuntime.restartTaskSession({
-				taskId: input.taskId,
-				prompt: input.prompt,
-				mode: input.mode,
-				images: input.images,
-				initialMessages: compactedMessages,
-				launchConfigOverrides: restartLaunchConfig ?? undefined,
-				onTeamEvent: (event, teamName) => {
-					this.teamProgressEmitter.emit(input.taskId, event, teamName);
-				},
-			});
-			return {
-				result: restartedSession.result,
-				warnings: restartedSession.warnings,
-			};
-		}
-		if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
-			return await this.startRuntimeTaskSessionFromLaunchConfig({
-				taskId: input.taskId,
-				cwd: persistedSnapshot.record.cwd,
-				prompt: input.prompt,
-				mode: input.mode,
-				images: input.images,
-				initialMessages: compactedMessages,
-				launchConfig: restartLaunchConfig,
-			});
-		}
-		throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
-	}
-
-	private async maybeCompactBeforeContextOverflow(input: {
-		taskId: string;
-		entry: NKleinTaskSessionEntry;
-		prompt: string;
-		mode: RuntimeTaskSessionMode;
-		images?: RuntimeTaskImage[];
-		launchConfigOverrides?: NKleinTaskLaunchConfigOverrides;
-		contextWindow: number;
-	}): Promise<{ result: unknown; warnings?: string[] } | null> {
-		const nextPromptTokens = estimateNextPromptTokens(input.prompt, input.images);
-		const persistedSnapshot = await this.sessionRuntime.readPersistedTaskSession(input.taskId).catch(() => null);
-		const compactedMessages = this.contextBudgetController.prepareMessagesForKnownContextWindow({
-			taskId: input.taskId,
-			messages: persistedSnapshot?.messages,
-			prompt: input.prompt,
-			images: input.images,
-			contextWindow: input.contextWindow,
-		});
-		const projectedTokens =
-			(compactedMessages ? countKanbanPersistedMessagesTokens(compactedMessages) : 0) +
-			nextPromptTokens +
-			CONTEXT_BUDGET_SEND_RESERVE_TOKENS;
-		const usageRatio = projectedTokens / input.contextWindow;
-
-		if (usageRatio >= CONTEXT_BUDGET_WARNING_RATIO) {
-			this.emitSummary(
-				updateSummary(input.entry, {
-					warningMessage: `Context budget high (~${Math.round(usageRatio * 100)}%). Consider summarizing chat or narrowing scope.`,
-				}),
-			);
-		}
-
-		if (!compactedMessages) {
-			return null;
-		}
-
-		const originalMessages = persistedSnapshot?.messages ?? [];
-		if (compactedMessages === originalMessages && usageRatio < CONTEXT_BUDGET_COMPACT_RATIO) {
-			return null;
-		}
-
-		await this.sessionRuntime.stopTaskSession(input.taskId).catch(() => null);
-		const restartLaunchConfig =
-			input.launchConfigOverrides ??
-			this.resolvePersistedLaunchConfig({
-				taskId: input.taskId,
-				persistedSnapshot,
-			});
-		if (this.sessionRuntime.canRestartTaskSession(input.taskId)) {
-			await this.waitUntilTaskResumed(input.taskId);
-			this.requestTimer.markStarted(input.taskId);
-			const restartedSession = await this.sessionRuntime.restartTaskSession({
-				taskId: input.taskId,
-				prompt: input.prompt,
-				mode: input.mode,
-				images: input.images,
-				initialMessages: compactedMessages,
-				launchConfigOverrides: restartLaunchConfig ?? undefined,
-				onTeamEvent: (event, teamName) => {
-					this.teamProgressEmitter.emit(input.taskId, event, teamName);
-				},
-			});
-			return {
-				result: restartedSession.result,
-				warnings: restartedSession.warnings,
-			};
-		}
-		if (restartLaunchConfig && persistedSnapshot?.record.cwd) {
-			return await this.startRuntimeTaskSessionFromLaunchConfig({
-				taskId: input.taskId,
-				cwd: persistedSnapshot.record.cwd,
-				prompt: input.prompt,
-				mode: input.mode,
-				images: input.images,
-				initialMessages: compactedMessages,
-				launchConfig: restartLaunchConfig,
-			});
-		}
-		throw new Error(`No previous NKlein session config is available for task ${input.taskId}.`);
-	}
-
 	async startTaskSession(request: StartNKleinTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
 		const existing = this.messageRepository.getTaskEntry(request.taskId);
 		if (
@@ -2150,7 +2014,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							}),
 						);
 						if (!queueDelivery) {
-							const proactiveCompaction = await this.maybeCompactBeforeContextOverflow({
+							const proactiveCompaction = await this.contextOverflowController.compactBeforeOverflow({
 								taskId,
 								entry,
 								prompt: resolvedPrompt,
@@ -2172,7 +2036,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 							launchConfigOverrides,
 						});
 					} catch (error) {
-						const recovered = await this.retryAfterContextOverflow({
+						const recovered = await this.contextOverflowController.recoverAfterOverflow({
 							taskId,
 							prompt: resolvedPrompt,
 							mode: effectiveMode,
