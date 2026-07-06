@@ -764,9 +764,12 @@
 >       user-instruction-config-loader) + 3 more in `@cline/shared` storage paths (same rebrand). **All 8 now FIXED
 >       (commits 2da7e50d, 7ed422fb, 485e2fb8). Every runnable vendored package is GREEN: core 1224 · shared 205 ·
 >       llms 334 · agents 46 (sdk has no vitest config).** **`npm run test:vendor` ADDED (scripts/test-vendor.mjs) —
->       runs all 4 vendored suites (1814 tests green).** STILL TODO: wire `test:vendor` into the release gate / CI
->       (not pre-commit — it adds ~30s/commit; consider a staged-vendored-files guard instead) so fork drift is caught
->       automatically. (Rebrand caveat
+>       runs all 4 vendored suites (1814 tests green).** **DONE — the STAGED-VENDORED-FILES GUARD shipped in
+>       `.husky/pre-commit`:** when a commit stages any `vendor/**` file, the hook runs `npm run test:vendor` and blocks
+>       the commit on failure — catching fork drift at the source WITHOUT the ~30s cost on ordinary (non-vendored)
+>       commits (the `^vendor/`-anchored `$STAGED_FILES` grep skips otherwise). Confirmed green (agents 46 · core 1224 ·
+>       shared 205 · llms 334 = 1814) before wiring. Remaining (later, if a hosted CI is stood up): a CI job mirror.
+>       (Rebrand caveat
 >       learned: NOT every `.cline` is stale — home-scoped `CLINE_DIR`, an EXPLICITLY-set CLINE_DIR path,
 >       `resolvePluginConfigSearchPaths[0]` legacy-first, and `.cline/skills` back-compat subdirs are intentional; fix
 >       per failing assertion against the SOURCE, never a blanket replace — a blanket flip wrongly changed

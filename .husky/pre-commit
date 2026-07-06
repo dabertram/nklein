@@ -49,6 +49,19 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
+# §5.AZ fork-drift guard: the repo test suites EXCLUDE vendor/**, so an edit to the forked Cline SDK can silently
+# rot its OWN tests and never be caught. Run the vendored suites ONLY when this commit stages a vendor/** file, so
+# fork drift is caught at the source without adding ~30s to every ordinary commit.
+VENDOR_STAGED=$(printf '%s\n' "$STAGED_FILES" | grep '^vendor/' || true)
+if [ -n "$VENDOR_STAGED" ]; then
+	echo "Staged vendor/** changes detected — running the vendored SDK suites (test:vendor)..."
+	npm run test:vendor
+	if [ $? -ne 0 ]; then
+		echo "Vendored SDK tests failed — a fork edit rotted the SDK's own tests. Fix them (or run 'npm run test:vendor')."
+		exit 1
+	fi
+fi
+
 # Re-stage any formatter touch-ups. Skip paths that are now git-ignored: a file can be staged as a deletion
 # (e.g. `git rm --cached`) while still present on disk and newly ignored — re-adding it would fail with
 # "paths are ignored ... Use -f" and wedge the commit.
