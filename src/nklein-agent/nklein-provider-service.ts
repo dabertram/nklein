@@ -2,11 +2,7 @@
 // It resolves provider settings, model catalogs, OAuth flows, and launch
 // config without leaking SDK details into runtime-api.ts or the UI.
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
 import { z } from "zod";
-import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import type {
 	RuntimeNKleinAccountBalanceResponse,
 	RuntimeNKleinAccountOrganizationsResponse,
@@ -52,6 +48,7 @@ import {
 	toLmStudioModels,
 	toRuntimeProviderModel,
 } from "./nklein-provider-model-parsing";
+import { readKanbanSelectedProviderId, writeKanbanSelectedProviderId } from "./nklein-provider-selection-store";
 import { toProviderSettingsSummary, toRuntimeReasoningEffort } from "./nklein-provider-settings-summary";
 import { ensureWorkosPrefix, stripWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-token.js";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
@@ -97,44 +94,14 @@ const DEFAULT_LITELLM_MODEL_LIST_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_LMSTUDIO_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 const LOGGER = createKanbanNKleinLogger({ component: "nklein-provider-service" });
-const KANBAN_PROVIDER_SELECTION_SCHEMA = z.object({
-	providerId: z.string().min(1),
-});
 
 type NKleinRemoteConfig = z.infer<typeof NKLEIN_REMOTE_CONFIG_SCHEMA>;
-
-function getKanbanProviderSelectionPath(): string {
-	return (
-		process.env.KANBAN_NKLEIN_PROVIDER_SELECTION_PATH?.trim() ||
-		join(resolveNkleinRuntimeHomePath(homedir()), "nklein-provider-selection.json")
-	);
-}
-
-function readKanbanSelectedProviderId(): string | null {
-	try {
-		const parsedJson = JSON.parse(readFileSync(getKanbanProviderSelectionPath(), "utf8")) as unknown;
-		const parsed = KANBAN_PROVIDER_SELECTION_SCHEMA.safeParse(parsedJson);
-		if (!parsed.success) {
-			return null;
-		}
-		const providerId = parsed.data.providerId.trim().toLowerCase();
-		return providerId.length > 0 ? providerId : null;
-	} catch {
-		return null;
-	}
-}
 
 function isLocalProviderSettings(settings: Pick<SdkProviderSettings, "provider" | "baseUrl"> | null): boolean {
 	if (!settings) {
 		return false;
 	}
 	return isLocalProvider(settings.provider, settings.baseUrl);
-}
-
-function writeKanbanSelectedProviderId(providerId: string): void {
-	const selectionPath = getKanbanProviderSelectionPath();
-	mkdirSync(dirname(selectionPath), { recursive: true });
-	writeFileSync(selectionPath, `${JSON.stringify({ providerId }, null, 2)}\n`, "utf8");
 }
 
 export interface ResolvedNKleinLaunchConfig {
