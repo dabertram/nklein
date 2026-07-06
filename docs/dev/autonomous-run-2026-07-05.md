@@ -1860,6 +1860,26 @@ consistency (7952 green). **KEPT** the harmless, tested scaffolding as the found
   best-effort re-key-on-load for existing runtime-keyed rows. This is a larger hot-path + persisted-data change; flagged
   for David rather than continued piecemeal.
 
+### 2026-07-07 (Opus) · §5.BG — David decisions + guard-first for the routing flip
+
+Consolidated open questions (AskUserQuestion). David: **attempt the routing flip now** (accepting the risk),
+**monoliths are acceptable as-is** (stop §5.U structural work — no more pure-lifts), **rewrite the README naming note**
+(done — repo/package are `nklein`; "kanban" kept only for the board concept). For the flip he chose **guard-first, then
+land it next tick** (over doing it all this tick or an env-flag), to keep the double-start hazard off his LIVE runtime.
+- **Guard-first DONE:** extended `model-telemetry-key-alignment.test.ts` to net the two remaining routing couplings —
+  (a) **RESIDENCY**: `candidate.entry.key` == the `runningModelKeys` residency key (if these diverge, a running model
+  looks FREE → double-starts → resource exhaustion); (b) **VERDICT** coupling documented (the verdict matches
+  observations by `entry.modelId`, which must STAY the runtime id for invocation → the flip must add a stable
+  `entry.modelKey` for the verdict to match by). Now candidate ↔ ledger ↔ residency are all pinned; a one-sided flip
+  goes red here.
+- **NEXT-TICK atomic flip plan (guards verifying, commit only when green):** (1) add `entry.modelKey` to the persisted
+  registry schema + serialize/deserialize round-trip + `createNKleinModelRegistryEntry`; (2) `entry.key` from
+  `modelKey ?? modelId`, `entry.modelId` stays runtime; (3) candidate builder takes per-model `modelKey` (handler passes
+  its `stableModelKeyByRuntimeId` map); (4) `listModelEndpointSessions` exposes the session's stable key →
+  `runningModelKeys` keys by it; (5) verdict matches by `entry.modelKey`; (6) ledger write + observations stamp the
+  stable key; (7) migration: entries without `modelKey` key by `modelId` (decay). Endpoint scheduler stays runtime.
+  Update this guard's assertions to the stable key as each pair flips.
+
 ### 2026-07-07 (Opus) · §5.V — vein exhausted (verified via a precise name-based sweep)
 
 Ran a precise coverage sweep (is each `export function`'s NAME referenced in ANY test file? — catches functions the

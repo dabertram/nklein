@@ -17,20 +17,16 @@ import { buildNKleinModelRegistryKey } from "../../../src/nklein-agent/nklein-mo
  * of this coupling and may key stably on their own. When the ROUTING cluster's stable-key switch lands, the ledger write
  * and the candidate read move together and this test is UPDATED (not deleted) to assert they agree on the stable key.
  */
-describe("model-telemetry ROUTING key alignment (§5.BG): candidate READ key == ledger WRITE key", () => {
+describe("model-telemetry ROUTING key alignment (§5.BG): candidate READ key == ledger WRITE key == residency key", () => {
 	const providerId = "lmstudio";
 	const modelId = "coder-gpu"; // a runtime id (an LM Studio per-instance alias)
 	const endpoint = "http://localhost:1234/v1";
 
-	it("a routing candidate's entry.key equals the terminal-attempt ledger event's modelId for the same coordinates", () => {
-		const candidate = buildLoadedModelRoutingCandidates({
-			loadedModelIds: [modelId],
-			registryEntries: [],
-			providerId,
-			endpoint,
-			now: 0,
-		})[0];
+	const candidateFor = (id: string) =>
+		buildLoadedModelRoutingCandidates({ loadedModelIds: [id], registryEntries: [], providerId, endpoint, now: 0 })[0];
 
+	it("candidate.entry.key == the terminal-attempt ledger event's modelId (the routing evidence loop)", () => {
+		const candidate = candidateFor(modelId);
 		const ledgerEvent = buildTerminalAttemptEvent({
 			taskId: "t1",
 			workspacePath: null,
@@ -49,7 +45,26 @@ describe("model-telemetry ROUTING key alignment (§5.BG): candidate READ key == 
 		expect(candidate?.entry.key).toBeDefined();
 		// THE INVARIANT: routing read identity (candidate.entry.key) == routing write identity (ledger event modelId).
 		expect(candidate?.entry.key).toBe(ledgerEvent.modelId);
-		// …and both are the canonical registry key for these coordinates (runtime-keyed today, pre-§5.BG routing flip).
 		expect(candidate?.entry.key).toBe(buildNKleinModelRegistryKey({ providerId, modelId, endpoint }));
+	});
+
+	it("★ candidate.entry.key == the RESIDENCY key (or a running model looks FREE → double-start)", () => {
+		// `runningModelKeys` (start-task-session) is built from each RUNNING session's coords via the SAME
+		// buildNKleinModelRegistryKey, and `isModelFree` compares it to candidate.entry.key. If these diverge — the
+		// candidate flips to the stable key while the residency set stays runtime-keyed — a currently-running model is
+		// NOT found in the set, is treated as FREE, and gets STARTED AGAIN. This guards that coupling: when §5.BG flips
+		// candidate.entry.key to the stable key, the residency-key construction MUST flip in the same commit (this
+		// assertion goes red otherwise).
+		const candidate = candidateFor(modelId);
+		const residencyKey = buildNKleinModelRegistryKey({ providerId, modelId, endpoint });
+		expect(residencyKey).toBe(candidate?.entry.key);
+	});
+
+	it("VERDICT coupling note: entry.modelId is BOTH the invocation id and (today) the verdict-match id", () => {
+		// The runtime-verdict (assessRuntimeModelVerdict) filters self-observations by `candidate.entry.modelId`, and
+		// observations are stamped with the same raw modelId. entry.modelId is ALSO the id used to LAUNCH the model, so
+		// it must stay the RUNTIME id. When §5.BG lands, observations stamp the STABLE key → the verdict must match by a
+		// NEW stable field on the candidate (entry.modelKey), NOT entry.modelId. Pins the current runtime coupling.
+		expect(candidateFor(modelId)?.entry.modelId).toBe(modelId);
 	});
 });
