@@ -771,3 +771,14 @@ buildRetrievalExtraTools's gate logic are candidates); (2) once the pure logic i
 (review-loop, plan-critique, speculative-mirror, mailbox as collaborator modules owning their sub-state). Each slice
 behavior-preserving + test-gated + one commit. Also targets: runtime-server.ts (2527), nklein-provider-service.ts (1651).
 Migrate §5.U/§5.V progress notes to polishing.md as the grind proceeds.
+
+### ▶ §5.U slice 2 (2026-07-06, bae64aa4) — extracted nklein-launch-config
+Moved the launch-config concept out of the monolith into `nklein-launch-config.ts` (53 lines): the two types
+(`NKleinTaskLaunchConfigOverrides` + `NKleinTaskRestartLaunchConfig`) + the pure `normalizeLaunchConfig` (the subtle
+`Object.hasOwn` present-vs-absent field normalization from `cacheLaunchConfig`). Service + acceptance-auto-repair import
+from the new module; `cacheLaunchConfig` delegates + keeps only its store writes. Behavior-preserving; the
+leave-unchanged-vs-clear-on-restart contract now has 6 unit tests (incl. the present-but-undefined `?? null` edge). Full
+gate green. **Progress:** nklein-task-session-service.ts 4944 → 4893 lines; two cohesive concepts (prompt assembly, launch
+config) now live in focused, tested modules. Pattern holds — keep pulling pure sub-computations before the harder
+responsibility-split. Next candidates: `buildRetrievalExtraTools`'s egress-gate decision, the `resolvePersistedLaunchConfig`
+merge logic, the plan-critique/review-loop budget helpers.
