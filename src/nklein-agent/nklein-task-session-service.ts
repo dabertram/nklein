@@ -140,6 +140,7 @@ import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { createNKleinResearchTool } from "./nklein-research-tool";
 import { shouldAttachRetrievalTools } from "./nklein-retrieval-tools-gate";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
+import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import {
 	type CreateInMemoryNKleinSessionRuntimeOptions,
@@ -2947,23 +2948,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			return null;
 		}
 		// The worker's launch modelId is usually the SERVED alias — resolve its REAL key for lineage when loaded.
-		const workerDescriptor = descriptors.find(
-			(descriptor) => descriptor.runtimeId === workerLaunch.modelId || descriptor.modelKey === workerLaunch.modelId,
-		);
-		const workerRealId = workerDescriptor?.modelKey ?? workerLaunch.modelId ?? "";
-		const candidates = descriptors
-			.filter(
-				(descriptor) =>
-					!descriptor.isEmbedding &&
-					descriptor.runtimeId !== workerLaunch.modelId &&
-					descriptor.modelKey !== workerRealId,
-			)
-			.map((descriptor) => ({
-				// modelKey = the SERVABLE id (what the launch config needs); modelId = the REAL key (lineage).
-				modelKey: descriptor.runtimeId,
-				modelId: descriptor.modelKey,
-				score: 50,
-			}));
+		const workerRealId = resolveWorkerRealId(descriptors, workerLaunch.modelId);
+		const candidates = buildReviewerCandidates(descriptors, workerLaunch.modelId, workerRealId);
 		if (candidates.length === 0) {
 			return null;
 		}
