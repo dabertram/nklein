@@ -505,6 +505,20 @@
 > Pure imports needed: createMessage, clearActiveTurnState, updateSummary, now (nklein-session-state).** Then
 > timeout-scheduling + sandbox-review finalization similarly.
 > Note: runtime-server's state is in the createRuntimeServer CLOSURE (not fields) — harder; provider-service already 1463.
+>
+> **§5.U RUNTIME-SERVER SURVEY (2026-07-06) — the safe vein is worked out; remaining clusters are the higher-risk tier.**
+> `createRuntimeServer` is a single ~2280-line closure. The clean state-free lifts are done (bounded-dedup-set,
+> workspace-state-lock-retry, review-sandbox-result, runtime-server-http). The ~24 remaining inner closures capture the dense
+> shared workspace state (scope Maps, merge chains, dedup sets, speculative-mirror/idle ticks) — no clean chunky PURE lift left.
+> The meatier cohesive clusters are deep orchestration: plan-integration-gate (surface+run, ~140 lines), and the big
+> headless-auto-review finalization (finalizeHeadlessAutoReviewTask ~436 lines + reconcile). CRITICAL: **`createRuntimeServer`
+> itself is NOT covered by the fast suite** — the test/runtime files that mention runtime-server test the ALREADY-EXTRACTED
+> helpers (runtime-server-http, ws-upgrade-passcode) + work-package modules; the closure's orchestration is only
+> contract/integration-tested (NOT in test:fast). So a runtime-server closure-cluster extraction has the SAME profile as the
+> provider-service cloud clusters + the task-session-service review cluster: large-deps + NO independent fast-net → I'd rely on
+> tsc + my own characterization tests (weaker assurance). This is David's-steer / careful-effort tier, not a safe autonomous
+> bounded commit. **Verdict: the safe, well-net-covered §5.U vein is now worked out across ALL THREE monoliths
+> (task-session-service 4886→4040 −17%, provider-service 1651→1291 −360, runtime-server clean lifts done).**
 > **CAVEAT on candidates:** verify state is genuinely SEPARABLE first. `timeout scheduling` is NOT clean —
 > `clearTaskTimeouts` coordinates the residency watcher + `activeToolTaskIds` (cross-concern), and `handleTaskTimeout`
 > orchestrates abort+fail; leave it (or needs David's boundary steer). `sandbox-review finalization` similarly touches
