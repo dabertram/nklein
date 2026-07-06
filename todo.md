@@ -736,7 +736,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >    (e) **Cache-awareness** — a spec start is a legitimate WARM use of an idle rail (the idle model's shell stays warm for its kind); never evict a warm rail that a QUEUED real card will need (check the queued-start queue before mirroring — real work outranks speculation).
 > 5. **Online retrieval egress — ANSWERED (2026-07-02): GREENLIT as OPT-IN, default-OFF.** **⇒ RETRIEVAL LOOP SHIPPED as the single online path 2026-07-03 (user decision): one `research` tool drives runRetrievalLoop (search→rank→fetch→sufficiency); the manual web_search/browse_url split is RETIRED; requires egress + a configured SearXNG backend; synthetic sessions never get egress.** ⇒ wire the §5.AC retrieval loop + SearXNG fetch adapter behind the egress gate: default OFF, per-project opt-in toggle, all fetches through the SSRF-safe adapter; the sandbox's strict isolation is untouched (only the gated retrieval path gets egress when the user enables it). ALL FIVE user questions are now decided — nothing awaits user input in §5.0.5.
 
-### 5.0.6 — CURRENT-PHASE SCOPE: drive to feature-complete first *(2026-07-05, user — operating directive for the current autonomous grind)*
+### 5.0.7 — ★ PHASE TRANSITION: POLISHING PHASE NOW ACTIVE *(2026-07-06, David: "start polishing")*
+> **The implementation backlog for the active epics is DRAINED** (§5.AU/§5.AT feature-complete end-to-end; egress live +
+> E2E-validated; item 9 done). David has started the **polishing phase** → work [polishing.md](polishing.md) now, per its
+> preamble ("worked once the implementation backlog is drained"). §5.0.6 below is SUPERSEDED for phase-scoping: we are no
+> longer "feature-complete-first, defer polish" — we ARE in polish.
+> - **Opus (this session) takes the CODE-QUALITY / VERIFICATION / COVERAGE polishing:** **§5.U** deep architecture
+>   refactor (the flagship — **no large monolith files**; `nklein-task-session-service.ts` is 4944 lines, `runtime-server.ts`
+>   2527, `nklein-provider-service.ts` 1651 — decompose into cohesive modules, BEHAVIOR-PRESERVING + test-gated, one
+>   bounded cluster per commit), **§5.V** comprehensive coverage, **§5.Z** cross-model verification (egress now live →
+>   fuller), **§5.AZ** public-release prep. §5.U/§5.V/§5.AI still live in todo.md (migrate to polishing.md as worked).
+> - **The §5.AX VISUAL OVERHAUL is for a FABLE session (user's UI superpowers), NOT this Opus session** — leave the
+>   design-system/restyle work for when David runs Fable; Opus does the non-visual polishing.
+> - **Discipline unchanged:** every commit green (tsc + biome + test:fast; web gate for web-ui), small units, pushed. A
+>   refactor MUST be behavior-preserving — the existing tests are the safety net; never weaken a test to make a refactor pass.
+
+### 5.0.6 — CURRENT-PHASE SCOPE: drive to feature-complete first *(2026-07-05, user — operating directive; SUPERSEDED for phase-scoping by §5.0.7 above, 2026-07-06 — the feature-complete phase is done; we are now in polishing)*
 > Re-affirms + sharpens the [polishing.md](polishing.md) phase split for the current run. **This phase = get !Klein
 > FEATURE-COMPLETE. Do what is necessary for the task at hand — no more.** Concretely:
 > - **Implement to feature-complete.** Each item: build the capability + the wiring that makes it live (the §5.0.5
