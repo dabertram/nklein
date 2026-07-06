@@ -457,6 +457,31 @@
 > delegates the pure step to a new tested module. Reviewer-candidate selection (`resolveWorkerRealId`/`buildReviewerCandidates`)
 > came out of `pickDiverseReviewerModel` this way (+5 tests, service 4873→4859). This reopens safe, bounded flagship progress.
 >
+> **★ §5.U REVIEW-CLUSTER SEAM PROPOSAL (2026-07-06, awaiting David's approval — he chose "propose a seam, I approve first").**
+> The cluster is bigger than first estimated: **~1100 lines** (task-session-service 2513→~3630), 7 public methods + 3 helpers +
+> 3 state fields: `verifyTaskAcceptanceInSandbox`, `pickDiverseEscalationModel`, `runSecondOpinionReviewSession`(+Inner) +
+> `pickDiverseReviewerModel` + `inFlightSecondOpinionReviewTaskIds`, `runSpeculativeMirrorSession`+`cancelSpeculativeMirror` +
+> `canceledSpeculativeMirrorTaskIds`, `runPlanCritiqueSession`+`buildPlanCritiqueRequestHandler` + `planCritiqueRuns` budget,
+> `runMergeResolutionSession`.
+> **The boundary IS clear once named (resolves the "ambiguous" worry):** this is the **AUXILIARY SECONDARY-SESSION** concern —
+> every method spins up a bounded, sandboxed, `::`-suffixed SYNTHETIC session (`::review` / `::plan-critique` / `::acceptance`
+> / mirror) to EVALUATE/ASSIST the primary task, then collects a typed verdict and tears down. They share one machinery:
+> resolve a diverse model → build a launch config → `prepareWorkspace` (bounded queue wait) → `setSandbox` → run ONE bounded
+> turn via `startRuntimeTaskSessionFromLaunchConfig` with an `onXSubmitted` callback → collect verdict → dispose. Crucially they
+> DEPEND ON the core session-spawn (one dep) but DO NOT touch the primary start/stop/send/abort lifecycle — a clean dependency
+> DIRECTION, not entanglement. That is the seam.
+> **Recommended shape (2 layers, ~6 bounded commits):** (1) extract a shared `SecondarySessionHarness(deps)` — the spawn/wait/
+> collect/teardown skeleton; (2) then move each runner onto it as its own commit: ReviewRunner (+diverse-model pick + inFlight
+> guard), PlanCritiqueRunner (+budget), SpeculativeMirror (+cancel guard), MergeResolutionRunner, AcceptanceVerifier. Net: the
+> single biggest reduction (~1100 lines; task-session-service 4040 → ~2950). Deps (~10 accessors): getAgentSandboxManager,
+> getLaunchConfig, getSandboxState, startRuntimeSession, recordObservation, getPauseController, modelEndpoint/providerId
+> accessors (for the diverse-model pick), emit pipeline.
+> **Risk + test strategy:** no fast-suite net (contract/integration only) → verbatim moves + NEW characterization tests with
+> mocked deps per runner (asserts: respects the in-flight/cancel/budget guards; fails closed when no sandbox; wires the right
+> synthetic taskId + launch config), with the contract/integration suite as the behavioral backstop. **Three decisions for
+> David:** (a) confirm "auxiliary secondary-session" is the seam; (b) granularity — the 2-layer 6-commit split (rec) vs one big
+> AuxiliarySessionOrchestrator commit; (c) OK to use characterization tests as the net for this tier. **NOT started — awaiting sign-off.**
+>
 > **§5.U FOURTH (biggest) PATTERN — COLLABORATOR SPLIT, proven autonomous+safe (slice 45):** move a cohesive concern (a
 > cluster of methods + its DEDICATED state) out of the class into a `createXWatcher(deps)` collaborator with a small deps
 > interface; the service instantiates it + delegates. Residency watcher was the first (−52 lines, 134 tests green). Do it
