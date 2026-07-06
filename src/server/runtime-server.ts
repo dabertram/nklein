@@ -37,6 +37,7 @@ import {
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
+import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
@@ -836,10 +837,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					const persistedPreferred = reviewState.board.columns
 						.flatMap((column) => column.cards)
 						.find((c) => c.id === taskId)?.review?.preferredCandidate;
-					let preferredSpeculative =
-						reviewOutcome.type === "delivered" &&
-						(reviewOutcome.preferred ?? persistedPreferred ?? null) === "speculative";
-					let deliveredBranchTaskId = preferredSpeculative ? `${taskId}::spec` : taskId;
+					const initialDeliveryTarget = resolveSpeculativeDeliveryTarget({
+						reviewDelivered: reviewOutcome.type === "delivered",
+						reviewPreferred: reviewOutcome.type === "delivered" ? reviewOutcome.preferred : null,
+						persistedPreferred,
+						taskId,
+					});
+					let preferredSpeculative = initialDeliveryTarget.preferredSpeculative;
+					let deliveredBranchTaskId = initialDeliveryTarget.deliveredBranchTaskId;
 					if (reviewOutcome.type === "delivered" && (reviewOutcome.preferred ?? null) !== null) {
 						recordSelfObservation({
 							signal: "custom",
