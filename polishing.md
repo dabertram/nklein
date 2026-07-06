@@ -395,13 +395,13 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **21 slices so far (20 §5.U extractions + 1 §5.V coverage), ~141 new unit tests, zero behavior changes** (pre-commit fast
->   suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
+> - **23 slices so far (20 §5.U extractions + 3 §5.V coverage batches), ~161 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). Two flagship patterns proven: lift pure `this`-free private methods into core guard modules, and lift
 >   state-free INNER closures out of the big createRuntimeServer / class bodies — both safe + coverage-adding.
 >
 > **§5.V coverage backlog (opened slice 21):** `src/core/api-validation.ts` has ~44 tRPC boundary parsers; many are untested
-> despite real post-schema logic (trim + emptiness + normalization, stricter than the Zod schema). Four now characterized
-> (+12 tests); ~40 remain — a steady, zero-risk coverage backlog to mine when the pure-lift vein runs dry.
+> despite real post-schema logic (trim + emptiness + normalization, stricter than the Zod schema). **~20 now characterized
+> across 3 batches (+32 tests); ~24 remain** — a steady, zero-risk coverage backlog to mine when the pure-lift vein runs dry.
 >
 > **STRATEGY NOTE (2026-07-06, corrected):** the big-3's pure-function seams are done, but "no large monolith files" spans
 > the whole tree — the **next tier** of large files (mcp-runtime-service, workspace-state 1046, agent-sandbox 1090,
