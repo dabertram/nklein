@@ -838,3 +838,18 @@ normalization, missing / malformed / blank ⇒ null). Full gate green. **Progres
 (down 149 from the 1651 run-start). **Run total: 7 §5.U slices, ~47 new unit tests, 7 focused modules extracted.**
 Remaining pure-ish provider-service clusters: remote-config parsing (`parseNKleinRemoteConfigValue` + schema) and
 `resolveModelListSettings` (needs `listSdkProviderCatalog` injected to test). Then runtime-server.ts (2527).
+
+### ▶ §5.U slice 8 (2026-07-06, 5c3f122b) — extracted bounded-dedup-set from runtime-server
+First cut into runtime-server.ts (2527). The terminal-outcome dedup was a module-global `Set` + a cap constant + a free
+`rememberRecordedTerminalRun()` function — mutable process-global state living in the server module. Generalized it into a
+reusable `createBoundedDedupSet(capacity)` factory (insertion-ordered, FIFO-evicting, `has`/`remember`/`size`), so
+runtime-server just holds an instance and no longer owns the eviction logic or a bare global `Set`. Behavior-preserving
+(same 5000 cap, same fold-once-per-run semantics at the §5.AA/§5.AB call site); +5 unit tests (membership, idempotent
+remember, FIFO eviction, Set re-insert ordering, capacity guard). Full gate green. **Progress:** runtime-server 2527 →
+2518 (modest lines, but the mutable global is gone and the eviction rule is now deterministically tested). **Run total:
+8 §5.U slices, ~52 new unit tests, 8 focused modules extracted** (session-system-prompt, launch-config,
+retrieval-tools-gate, provider-settings-summary, litellm-model-list, managed-provider-credentials,
+provider-selection-store, bounded-dedup-set). Next runtime-server candidates: `retryWorkspaceStateLock` (+ its backoff
+schedule; a general retry-on-lock-error util used in 4 places) and `resolveReviewSandboxResult` / `isEmptySandboxPatchSummary`
+(sandbox-result polling). The bulk of runtime-server is the ~2300-line `createRuntimeServer` closure — inner pure helpers
+there are the deeper target once the free-function seams are exhausted.
