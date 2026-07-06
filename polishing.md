@@ -395,11 +395,12 @@
 > - `nklein-task-session-service.ts`: 4886 → **4873** — lifted the pure `shouldCaptureReviewCheckpoint` into
 >   `task-session-guards` (de-duplicated vs `isEnteringAwaitingReview`; was untested → +5 tests). First flagship cut; the
 >   bulk still needs the collaborator responsibility-split (review-loop / plan-critique / mailbox), not pure-fn lifts.
-> - **51 slices so far (29 §5.U extractions + 22 §5.V coverage batches), ~318 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4551 this run
->   (−335) — 6 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
->   TimeoutController 51) + wrapper cleanup (46). Both entangled splits (Park, Timeout) proved autonomously safe when the
->   boundary is clear; the Timeout split even IMPROVED coverage.** Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
+> - **52 slices so far (30 §5.U extractions + 22 §5.V coverage batches), ~322 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **task-session-service 4886 → 4265 this run
+>   (−621, ~13%) — 7 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,
+>   TimeoutController 51, SandboxReviewFinalizer 52 [−286, biggest]) + wrapper cleanup (46). All three entangled splits (Park,
+>   Timeout, SandboxReview) proved autonomously safe when the boundary is clear; the Timeout split even IMPROVED coverage.**
+>   Flagship patterns proven: (1) lift pure `this`-free private methods into core guard modules,
 >   (2) lift state-free INNER closures out of the big createRuntimeServer / class bodies, (3) lift pure sub-computations out of
 >   stateful methods — all safe, behavior-preserving + coverage-adding.
 >
@@ -459,8 +460,15 @@
 > **`ParkController` — ✅ DONE slice 50 (−107 lines, biggest single reduction; first ENTANGLED split, 145 tests green). Proved
 > entangled orchestration splits are autonomously safe when the boundary is CLEAR. Recipe below applies to the next ones.**
 > **`TimeoutController` — ✅ DONE slice 51 (−86; second entangled split; the split IMPROVED coverage via a new fire-path
-> test with fake timers; verbatim handleTaskTimeout move). Next: sandbox-review finalization (bigger — the 181-line
-> finalizeSandboxReview + shouldFinalizeSandboxReview + sandboxState/review-runner/emits; scope it like these two first).**
+> test with fake timers; verbatim handleTaskTimeout move).**
+> **`SandboxReviewFinalizer` — ✅ DONE slice 52 (−286, the BIGGEST single reduction; third/largest entangled split).**
+> Extracted recordPatchCaptureStatus + shouldFinalizeSandboxReview + finalizeSandboxReview (~287 lines) verbatim into
+> `createSandboxReviewFinalizer(deps)` (7-method deps: getSandboxState/getAgentSandboxManager/getTaskEntry/emitSummary/
+> emitMessage/isExplicitDecomposition/getDiagnosticStoreRoot; state deps are LAZY getters for field-init-order safety). Mechanical
+> `this.X → deps.X` transform (zero leftover this.*), 3 call sites rewired, +4 focused tests (shouldFinalize gate truth-table +
+> finalize early-return guards). 136 tests green. **All three entangled orchestration clusters in task-session-service are now
+> extracted; the obvious cohesive-cluster vein is largely mined (4886 → 4265). Further reduction needs finer-grained / more-
+> ambiguous boundaries (David's steer) or a shift to runtime-server / provider-service.**
 > — extracted the pause/park cluster (parkActiveTasksForOperatorPause / parkTaskForPause / parkTaskForAutonomyBudget /
 > resetGuardsForPark / pushParkSystemMessage / enforceAutonomyBudgets) into `createParkController(deps)`. Deps (~10):
 > getTaskEntry, listSummaries, emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog (or check/resetTask),

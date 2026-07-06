@@ -1206,20 +1206,23 @@ reduction is **moving ORCHESTRATION into collaborators** — the entangled cross
   `pushParkSystemMessage`, `enforceAutonomyBudgets`): a CLEAR boundary ("the pause/park concern") but a large deps interface —
   it touches messageRepository (getTaskEntry/listSummaries), emitSummary, emitMessage, clearTaskTimeouts, autonomyBudgetWatchdog,
   repeatedToolCallGuard, pauseController, sessionRuntime.abortTaskSession, recordObservationWithModel + createMessage/clearActiveTurnState.
-  Extractable as a `ParkController(deps)` collaborator (~10-method deps), gated by the pause tests. **This is the recommended next
-  §5.U slice — bounded but larger; best started with a FRESH context budget (subtle pause/abort/emit behavior).**
-- timeout scheduling + sandbox-review finalization: similar entangled orchestration.
-These ARE actionable without David (the test suite is the safety net); they're just larger/riskier than the 4 clean splits,
-so they warrant fresh context + extra care rather than being rushed at a long-context tail.
+  Extractable as a `ParkController(deps)` collaborator (~10-method deps), gated by the pause tests. **DONE (slice 50).**
+- timeout scheduling (**DONE, slice 51 → TimeoutController**) + sandbox-review finalization (**DONE, slice 52 →
+  SandboxReviewFinalizer, the biggest at −286**): similar entangled orchestration, all now extracted.
+These WERE actionable without David (the test suite is the safety net) and all three landed green — proving entangled
+orchestration splits are autonomously safe whenever the boundary is clear. The obvious cohesive-cluster vein in
+task-session-service is now largely mined (4886 → 4265); further reduction gets into finer-grained / more-ambiguous
+boundaries that warrant David's steer, or a shift to the other two monoliths.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 49) — for David
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 52) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **51 slices this run (29 §5.U extractions + 22 §5.V coverage batches), ~318 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4551** this run (−335) via
-  SIX collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, and the two
-  ENTANGLED clusters: ParkController pause/park + TimeoutController scheduling/firing) + wrapper cleanup — all proven by the
-  existing suites. Entangled orchestration splits are autonomously safe when the boundary is clear (both proved it). §5.V
+- **52 slices this run (30 §5.U extractions + 22 §5.V coverage batches), ~322 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). task-session-service 4886 → **4265** this run (−621, ~13%) via
+  SEVEN collaborator splits (residency watcher, runtime-setup lease cache, focus-chain store, team-progress emitter, and the three
+  ENTANGLED clusters: ParkController pause/park + TimeoutController scheduling/firing + SandboxReviewFinalizer sandbox-review
+  finalization, the last being the biggest at −286) + wrapper cleanup — all proven by the existing suites. Entangled orchestration
+  splits are autonomously safe when the boundary is clear (all three proved it). §5.V
   high-value pure-logic coverage is SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
@@ -1244,8 +1247,9 @@ test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tr
   `nklein-agent-sandbox.ts` 1090 → **1071** (sandbox-predicates — was untested);
   `nklein-event-adapter.ts` 806 → **768** (tool-activity classifiers — was untested);
   `nklein-large-file-workflow.ts` 781 → **740** (workflow helpers — was untested);
-  `nklein-task-session-service.ts` 4886 → **4873** (shouldCaptureReviewCheckpoint lifted to task-session-guards — first
-  flagship cut this run; class-heavy, the bulk still needs the collaborator responsibility-split).
+  `nklein-task-session-service.ts` 4886 → **4265** (−621 this run: 7 collaborator splits — residency watcher, runtime-setup
+  lease cache, focus-chain store, team-progress emitter, ParkController, TimeoutController, SandboxReviewFinalizer — plus the
+  shouldCaptureReviewCheckpoint guard lift + wrapper cleanup; the three entangled orchestration clusters are now all extracted).
 - **PRODUCTIVE VEIN (corrected):** the big-3 pure-fn seams are done, but the NEXT-TIER large files (mcp-runtime-service,
   workspace-state, agent-sandbox, projects-api, task-board-mutations, dev.ts) have clean cohesive seams, several UNTESTED
   → each is §5.U + §5.V at once. Keep mining these before the risky big-3 class-splits.
