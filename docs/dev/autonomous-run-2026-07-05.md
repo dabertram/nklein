@@ -1663,3 +1663,19 @@ Follow-up to the roster move — finished David's "hostnames out of shipped code
   machine ids from swarm-rosters.json (clean, no regression, but threads the config into a sync deriver); (b) drop the
   two tokens (low real impact — David's own models are already catalogued, so the provisional path rarely runs for them);
   (c) leave it. Flagged, not guessed. Gate for the scrub: tsc ✓, biome ✓, **7925/7925 ✓**.
+
+### 2026-07-06 (Opus) · §5.V — characterize the runaway-agent guardrail normalizers (+14 tests)
+
+A src-wide scan found only two logic-bearing untested core modules left; `runtime-config-api-contract.ts`'s three
+guardrail functions were the higher-value one (the rest of §5.V's pure-logic vein stays saturated). These are the
+**runaway-agent guardrails** — they bound autonomous turns / wall-time / no-diff checkpoints / repeated-tool-calls, so
+their clamp boundaries are safety-critical. New `runtime-config-api-contract.test.ts` pins:
+- `clampRuntimeSwarmCardStartBatchSize`: non-finite/≤0 → 0, truncation, cap at the max, in-range passthrough.
+- `normalizeRuntimeSwarmGuardrails`: null/undefined/`{}` → full defaults; a missing/non-numeric field → that field's
+  default (a typo can't disable a guardrail); below-min/above-max clamps; the **`maxRepeatedToolCallsPerTask` hard floor
+  of 2** (a limit of 1 would park every task on its first tool use — the documented invariant); fractional truncation;
+  valid-config passthrough + idempotence.
+- **Profile-safety guard:** every shipped profile (default / background-eval / parallel-swarm) survives normalization
+  UNCHANGED — so a future edit pushing any field out of bounds (silently weakening a guardrail) breaks the test.
+- `areRuntimeSwarmGuardrailsEqual`: identical → true, one-field-diff → false.
+Gate: tsc ✓, biome ✓, **7939/7939 ✓** (7925 + 14). Zero source change — pure coverage.
