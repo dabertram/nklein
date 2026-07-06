@@ -826,3 +826,15 @@ oauth>settings>env precedence, both error branches with/without an env-var hint)
 provider-service 1576 → 1535 (down 116 from the 1651 run-start). **Run total: 6 §5.U slices, ~41 new unit tests, 6 focused
 modules extracted.** Remaining provider-service clusters: provider-selection persistence (file I/O, ~4 fns), remote-config
 parsing, and `resolveModelListSettings`. After that, runtime-server.ts (2527) is the next monolith.
+
+### ▶ §5.U slice 7 (2026-07-06, 14815baa) — extracted nklein-provider-selection-store
+Moved the provider-selection persistence cluster — `KANBAN_PROVIDER_SELECTION_SCHEMA` + `getKanbanProviderSelectionPath`
+(env override / runtime-home path) + `readKanbanSelectedProviderId` (tolerant read) + `writeKanbanSelectedProviderId`
+(mkdir -p + write) — into its own module. The service imports the read/write pair back; biome then dropped the
+now-unused `node:fs` / `node:os` / `node:path` / `runtime-paths` imports from the service (a nice knock-on: the
+persistence concern was the service's only remaining direct filesystem dependency). Behavior-preserving; +6 unit tests
+over a temp file via the `KANBAN_NKLEIN_PROVIDER_SELECTION_PATH` override (round-trip + dir creation, trimmed-lowercase
+normalization, missing / malformed / blank ⇒ null). Full gate green. **Progress:** provider-service 1535 → 1502
+(down 149 from the 1651 run-start). **Run total: 7 §5.U slices, ~47 new unit tests, 7 focused modules extracted.**
+Remaining pure-ish provider-service clusters: remote-config parsing (`parseNKleinRemoteConfigValue` + schema) and
+`resolveModelListSettings` (needs `listSdkProviderCatalog` injected to test). Then runtime-server.ts (2527).
