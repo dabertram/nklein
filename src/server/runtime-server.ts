@@ -20,7 +20,6 @@ import type {
 	RuntimeCardReview,
 	RuntimeCommandRunResponse,
 	RuntimeRunUpdateResponse,
-	RuntimeTaskSessionSummary,
 	RuntimeUpdateStatusResponse,
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
@@ -67,7 +66,6 @@ import {
 } from "../nklein-agent/nklein-task-session-service";
 import { isTrustedAutoMergeProtectedPath } from "../nklein-agent/nklein-trusted-auto-merge";
 import { createNKleinWatcherRegistry } from "../nklein-agent/nklein-watcher-registry";
-import { deriveTaskFitnessRecord } from "../nklein-agent/task-fitness-recording";
 import {
 	buildSessionCookieHeader,
 	checkRateLimit,
@@ -85,10 +83,6 @@ import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../securi
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { recordMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
-import { recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
-import { recordKnowledgeToolUsageObservation } from "../telemetry/knowledge-tool-usage-stats";
-import { persistModelBehaviorOutcome } from "../telemetry/model-behavior-profile-store";
-import { recordModelPerformanceObservation } from "../telemetry/model-performance-stats";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server";
@@ -112,9 +106,9 @@ import {
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
-import { createBoundedDedupSet } from "./bounded-dedup-set";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
+import { createRuntimeTerminalTelemetryRecorders } from "./nklein-runtime-terminal-telemetry";
 import { resolveReviewSandboxResult } from "./review-sandbox-result";
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
@@ -162,11 +156,6 @@ const PLAN_GATE_TIMEOUT_MS = 15 * 60 * 1000;
 // C3 (§5.AF): how often the durable-run reclaim/dispatch timer fires. Long enough not to busy-loop, short enough to
 // re-dispatch a reclaimed orphan (30s backoff) promptly. Only armed when NKLEIN_DURABLE_SCHEDULER is set.
 const DURABLE_RUN_TICK_INTERVAL_MS = 15_000;
-// Dedup terminal-outcome recording (§5.AA/§5.AB): a terminal summary RE-EMITS for one run (salvage-rebound, resume,
-// review rounds), so its fitness + behavior outcome must be folded ONCE per run — keyed by taskId + startedAt (a genuine
-// re-run gets a fresh startedAt; a re-emit of the same run does not). The sibling model-performance store dedups on READ
-// via a stable id; these two stores fold on WRITE, so they dedup here. Bounded (FIFO-evicted) against unbounded growth.
-const recordedTerminalRuns = createBoundedDedupSet(5000);
 
 export async function createRuntimeServer(deps: CreateRuntimeServerDependencies): Promise<RuntimeServer> {
 	// Silence the external `ai` package's per-call "system messages in the prompt" warning (we pass them by
@@ -769,65 +758,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			);
 		}
 	};
-	const recordNKleinModelPerformance = (
-		scope: RuntimeTrpcWorkspaceScope,
-		summary: RuntimeTaskSessionSummary,
-	): void => {
-		void (async () => {
-			const [workspaceState, runtimeConfig] = await Promise.all([
-				loadWorkspaceState(scope.workspacePath).catch(() => null),
-				loadRuntimeConfig(scope.workspacePath).catch(() => null),
-			]);
-			const cards = workspaceState?.board.columns.flatMap((column) => column.cards) ?? [];
-			const card = cards.find((candidate) => candidate.id === summary.taskId) ?? null;
-			await recordModelPerformanceObservation({
-				workspaceId: scope.workspaceId,
-				workspacePath: scope.workspacePath,
-				card,
-				runtimeConfig,
-				summary,
-			});
-			// §5.AB fitness store: fold this terminal outcome into its (model × role × difficulty) cell (best-effort,
-			// serialized write). Returns null + skips for synthetic / non-terminal / model-less sessions.
-			const fitnessRecord = deriveTaskFitnessRecord({ summary, card });
-			const terminalRunKey = `${summary.taskId}|${summary.startedAt ?? 0}`;
-			if (fitnessRecord && !recordedTerminalRuns.has(terminalRunKey)) {
-				recordedTerminalRuns.remember(terminalRunKey);
-				await recordTaskFitnessOutcome(fitnessRecord.key, fitnessRecord.outcome).catch(() => {});
-				// §5.AA ModelBehaviorProfile: also fold the coarse terminal outcome into the model's cross-session
-				// reliability profile (successRate + retry budget). Append-only ⇒ concurrency-safe. Best-effort.
-				await persistModelBehaviorOutcome(fitnessRecord.key.modelKey, {
-					kind: fitnessRecord.outcome.success ? "success" : "other_failure",
-				}).catch(() => {});
-			}
-		})().catch((error) => {
-			const message = error instanceof Error ? error.message : String(error);
-			deps.warn(`Could not record model performance for ${summary.taskId}: ${message}`);
-		});
-	};
-	const recordNKleinKnowledgeToolUsage = (
-		scope: RuntimeTrpcWorkspaceScope,
-		summary: RuntimeTaskSessionSummary,
-	): void => {
-		void (async () => {
-			const [workspaceState, runtimeConfig] = await Promise.all([
-				loadWorkspaceState(scope.workspacePath).catch(() => null),
-				loadRuntimeConfig(scope.workspacePath).catch(() => null),
-			]);
-			const cards = workspaceState?.board.columns.flatMap((column) => column.cards) ?? [];
-			const card = cards.find((candidate) => candidate.id === summary.taskId) ?? null;
-			await recordKnowledgeToolUsageObservation({
-				workspaceId: scope.workspaceId,
-				workspacePath: scope.workspacePath,
-				card,
-				runtimeConfig,
-				summary,
-			});
-		})().catch((error) => {
-			const message = error instanceof Error ? error.message : String(error);
-			deps.warn(`Could not record knowledge tool usage for ${summary.taskId}: ${message}`);
-		});
-	};
+	const {
+		recordModelPerformance: recordNKleinModelPerformance,
+		recordKnowledgeToolUsage: recordNKleinKnowledgeToolUsage,
+	} = createRuntimeTerminalTelemetryRecorders({ warn: deps.warn });
 	/**
 	 * Surface a plan-gate FAILURE on the board (§5.0.5): move the plan's SOURCE card (or, when it is gone, the
 	 * plan's first member) into the Review lane with a parked review note carrying the command, exit code and
