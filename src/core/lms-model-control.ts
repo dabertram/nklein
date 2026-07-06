@@ -18,7 +18,7 @@ export interface ResidentModel {
 	contextLength: number | null;
 	/**
 	 * The LM Link device the model is resident on (the `lms ps` DEVICE column: "Local" | a linked device name like
-	 * "m4mini"/"davidlegion5pro"); null when the column is absent (older `lms`). Lets the guard scope "unload others" to
+	 * "m4mini"/"legion5pro"); null when the column is absent (older `lms`). Lets the guard scope "unload others" to
 	 * the SAME machine (todo §5.AB per-machine concurrency — an m5 load must never evict a model on another linked box).
 	 */
 	device: string | null;

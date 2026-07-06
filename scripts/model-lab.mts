@@ -14,7 +14,7 @@
  * Usage: tsx scripts/model-lab.mts <subcommand> …
  * Env:   NKLEIN_LMS_BIN (default ~/.lmstudio/bin/lms), NKLEIN_LOAD_RESERVE_FRACTION (default 0.25),
  *        NKLEIN_LOAD_GPU (max|off|auto|0..1 offload ratio — the small-VRAM linked-box lever), NKLEIN_LOAD_DEVICE
- *        (scope the one-at-a-time unload to a single LM Link device, e.g. davidlegion5pro/m4mini).
+ *        (scope the one-at-a-time unload to a single LM Link device, e.g. legion5pro/m4mini).
  */
 
 import { spawn } from "node:child_process";

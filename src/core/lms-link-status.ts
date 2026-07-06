@@ -1,7 +1,7 @@
 /**
  * Parse `lms link status --json` — the LM Link device roster: this host's name + every linked PEER's device id → name.
  * `lms ps` identifies the machine serving each model by a hex `deviceIdentifier` (null = local); this maps those hex ids
- * to the friendly names the user set (`m5max`, `m4mini`, `davidlegion5pro`), so the swarm view reads in machine names,
+ * to the friendly names the user set (`m5max`, `m4mini`, `legion5pro`), so the swarm view reads in machine names,
  * not opaque hashes. PURE parser + injectable fetch over the existing {@link LmsRunner}; any failure ⇒ an empty roster.
  */
 

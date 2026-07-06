@@ -1569,3 +1569,21 @@ Two release-prep (§5.AZ) items this iteration:
   (`Running biome…` → `Pre-commit checks passed`). Recorded the gotcha in todo.md §4A next to the sibling `core.bare`
   incident (it's worse — silent, and the hook's own self-heal can't help since the hook never runs). No committable
   fix (it's untracked local `.git/config`); `npm install` re-sets it via the `prepare: husky` script.
+
+### 2026-07-06 (Opus) · §5.AZ content audit — shipped source is secret- & identity-clean; personal hostname scrubbed
+
+Release-prep content/secret sweep over the **tracked, shipped tree** (source/config/scripts — the `docs/` working notes
+are David's to curate separately, out of scope here):
+- **Secrets: CLEAN.** No scanner installed (`gitleaks`/`trufflehog` absent → a full-history scan with a real scanner
+  stays a David-gated release step), so a targeted pattern sweep over tracked source (API keys `sk-…`, `ghp_…`, `xox…`,
+  `AKIA…`, `BEGIN PRIVATE KEY`, hardcoded `password=`/`api_key=`) — filtered for example/placeholder/test/mock — returned
+  **empty**. No hardcoded secrets/tokens/keys in shipped source.
+- **Identity: CLEAN of paths & email.** No `/Users/david`, `davidbertram`, or the user's email anywhere in shipped
+  source/config (only in the working-notes `docs/`, which are out of scope for this pass).
+- **Personal hostname scrubbed (this commit).** The only personal identifier in shipped source was the LM Link device
+  friendly-name **`davidlegion5pro`** (9 sites across 6 files — all comments / JSDoc examples / `model-capability-catalog`
+  provenance `note:` strings; **zero logic**, the real device name comes from LM Studio at runtime). Renamed
+  `davidlegion5pro → legion5pro` — drops the personal `david` prefix while keeping the hardware-model friendly-name
+  pattern consistent with the sibling examples `m5max`/`m4mini` (generic Apple product names, left as-is; `swarm-roster`'s
+  `machine: "m5max"` is a **functional** per-machine routing key, also left as-is). Shipped source now carries no
+  personal identifiers.

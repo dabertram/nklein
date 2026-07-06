@@ -74,7 +74,7 @@ export interface LoadExclusiveInput {
 	 */
 	suitabilityPolicy?: ModelSuitabilityPolicy;
 	/**
-	 * The LM Link device the target loads on (its `lms ps`/`lms ls` DEVICE — "Local"/"m4mini"/"davidlegion5pro"). When
+	 * The LM Link device the target loads on (its `lms ps`/`lms ls` DEVICE — "Local"/"m4mini"/"legion5pro"). When
 	 * set, the one-at-a-time unload is SCOPED to this device: residents on OTHER linked machines are left untouched
 	 * (todo §5.AB per-machine concurrency — an m5 load must never evict a model the user is running on the Legion). When
 	 * omitted, the legacy machine-union behavior is kept (unload every non-pinned, non-embedding resident).
