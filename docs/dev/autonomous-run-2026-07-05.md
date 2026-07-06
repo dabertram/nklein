@@ -977,14 +977,24 @@ Behavior-preserving (identical bodies, 4 KiB default cap preserved); previously 
 stream. **Establishes the pattern for chipping at the big closure: lift state-free inner helpers out.** **Progress:**
 runtime-server 2468 → **2451**.
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 20) — for David
+### ▶ §5.V slice 21 (2026-07-06, f934cabd) — coverage for untested api-validation request parsers
+Pivot to pure §5.V coverage now that the safe pure-LIFT vein in the big files is largely mined. A coverage-gap scan
+(exported fns never named in any test) surfaced `src/core/api-validation.ts` — ~44 tRPC boundary parsers, MANY untested
+despite real post-schema logic (trim + emptiness + normalization, deliberately STRICTER than the Zod schema: a whitespace
+value passes the schema but is rejected by the parser's `.trim()` check). Locked four — `parseCommandRunRequest`,
+`parseTaskChatSendRequest`, `parseNKleinModelContextWindowOverrideRequest`, `parseWorktreeDeleteRequest` — with +12
+characterization tests. NO source change → zero refactor risk, pure safety-net hardening on untrusted input. **New §5.V
+vein: ~40 more api-validation parsers with real logic remain uncovered** — a steady low-risk coverage backlog.
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 21) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **20 §5.U slices this run, ~129 new unit tests, zero behavior changes** (the pre-commit fast suite gates every commit;
-  extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service, agent-sandbox, event-adapter,
-  large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters were UNTESTED. TWO flagship
-  patterns now proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift state-free INNER
-  closures out of the big `createRuntimeServer` / class bodies. Both are safe, behavior-preserving, and add coverage.
+- **21 slices this run (20 §5.U extractions + 1 §5.V coverage), ~141 new unit tests, zero behavior changes** (the pre-commit
+  fast suite gates every commit; extractions delegate). Vein since slice 13: the NEXT-TIER files (mcp-runtime-service,
+  agent-sandbox, event-adapter, large-file-workflow) yield extractions that are §5.U + §5.V at once — the moved clusters
+  were UNTESTED. TWO flagship patterns proven: (17) lift PURE private methods (no `this`) into core guard modules; (20) lift
+  state-free INNER closures out of the big `createRuntimeServer` / class bodies. **Slice 21 opened a pure-§5.V vein: the ~44
+  api-validation tRPC parsers, many untested despite real trim/emptiness logic — a low-risk coverage backlog when lifts run dry.**
 - **Monolith progress:** `nklein-provider-service.ts` 1651 → **1463** (9 clusters pulled: settings-summary, litellm-model-list,
   managed-provider-credentials, provider-selection-store, model-list-settings, kanban-access-policy — plus 3 earlier);
   `runtime-server.ts` 2527 → **2451** (bounded-dedup-set, workspace-state-lock-retry, review-sandbox-result, and now
