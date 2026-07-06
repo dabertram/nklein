@@ -13,7 +13,6 @@ import type {
 	RuntimeNKleinEndpointModelDiscoveryResponse,
 	RuntimeNKleinKanbanAccessResponse,
 	RuntimeNKleinOauthLoginResponse,
-	RuntimeNKleinProviderCatalogItem,
 	RuntimeNKleinProviderCatalogResponse,
 	RuntimeNKleinProviderModel,
 	RuntimeNKleinProviderModelsResponse,
@@ -41,6 +40,7 @@ import {
 } from "./nklein-litellm-model-list";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { resolveManagedProviderLaunchApiKey } from "./nklein-managed-provider-credentials";
+import { createModelDiscoveryApi } from "./nklein-model-discovery-api";
 import { resolveModelListSettings } from "./nklein-model-list-settings";
 import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { hasOauthAccessToken, normalizeEpochMs, resolveVisibleApiKey } from "./nklein-provider-credential-helpers";
@@ -559,6 +559,11 @@ export function createNKleinProviderService() {
 	}
 
 	const customProviderManager = createCustomProviderManager({ getProviderSettingsSummary });
+	const modelDiscoveryApi = createModelDiscoveryApi({
+		getProviderSettingsSummary,
+		loadProviderModelsWithMeasuredWindows,
+		discoverModelsFromEndpoint,
+	});
 
 	return {
 		getProviderSettingsSummary(): RuntimeNKleinProviderSettings {
@@ -928,114 +933,21 @@ export function createNKleinProviderService() {
 			};
 		},
 
-		async getProviderCatalog(): Promise<RuntimeNKleinProviderCatalogResponse> {
-			const selectedProviderId = getProviderSettingsSummary().providerId?.trim().toLowerCase() ?? "";
-			const providers: RuntimeNKleinProviderCatalogItem[] = await listSdkProviderCatalog()
-				.then((sdkProviders) =>
-					sdkProviders
-						.filter((provider) =>
-							isLocalProvider(provider.id, provider.baseUrl ?? getSdkProviderSettings(provider.id)?.baseUrl),
-						)
-						.map((provider) => ({
-							id: provider.id,
-							name: provider.name,
-							oauthSupported: (provider.capabilities ?? []).includes("oauth"),
-							enabled: selectedProviderId.length > 0 && selectedProviderId === provider.id,
-							defaultModelId: isLiveOnlyProviderId(provider.id) ? null : (provider.defaultModelId ?? null),
-							baseUrl: provider.baseUrl?.trim() || null,
-							supportsBaseUrl: (provider.baseUrl?.trim().length ?? 0) > 0,
-							env: provider.env,
-						}))
-						.sort((left, right) => {
-							if (left.id === "lmstudio") {
-								return -1;
-							}
-							if (right.id === "lmstudio") {
-								return 1;
-							}
-							return left.name.localeCompare(right.name);
-						}),
-				)
-				.catch(() => []);
-
-			const selectedSettings = getSdkProviderSettings(selectedProviderId);
-			if (
-				selectedProviderId.length > 0 &&
-				isLocalProvider(selectedProviderId, selectedSettings?.baseUrl) &&
-				!providers.some((provider) => provider.id === selectedProviderId)
-			) {
-				providers.unshift({
-					id: selectedProviderId,
-					name: selectedProviderId,
-					oauthSupported: false,
-					enabled: true,
-					defaultModelId: isLiveOnlyProviderId(selectedProviderId) ? null : getProviderSettingsSummary().modelId,
-					baseUrl: getProviderSettingsSummary().baseUrl,
-					supportsBaseUrl: (getProviderSettingsSummary().baseUrl?.trim().length ?? 0) > 0,
-					env: undefined,
-				});
-			}
-
-			return {
-				providers,
-			};
+		getProviderCatalog(): Promise<RuntimeNKleinProviderCatalogResponse> {
+			return modelDiscoveryApi.getProviderCatalog();
 		},
 
-		async getProviderModels(providerId: string): Promise<RuntimeNKleinProviderModelsResponse> {
-			const normalizedProviderId = providerId.trim().toLowerCase();
-			const providerSettings = getSdkProviderSettings(normalizedProviderId);
-			if (normalizedProviderId.length > 0 && !isLocalProvider(normalizedProviderId, providerSettings?.baseUrl)) {
-				return {
-					providerId: normalizedProviderId || providerId,
-					models: [],
-				};
-			}
-			const providerModels =
-				normalizedProviderId.length > 0
-					? (await loadProviderModelsWithMeasuredWindows(normalizedProviderId))
-							.map((model) => toRuntimeProviderModel(model))
-							.sort((left, right) => left.name.localeCompare(right.name))
-					: [];
-
-			if (providerModels.length > 0) {
-				return {
-					providerId: normalizedProviderId,
-					models: providerModels,
-				};
-			}
-
-			if (isLiveOnlyProviderId(normalizedProviderId)) {
-				return {
-					providerId: normalizedProviderId || providerId,
-					models: [],
-				};
-			}
-
-			const configuredModel = providerSettings?.model?.trim() ?? "";
-			if (configuredModel.length > 0) {
-				return {
-					providerId: normalizedProviderId || providerId,
-					models: [{ id: configuredModel, name: configuredModel }],
-				};
-			}
-
-			return {
-				providerId: normalizedProviderId || providerId,
-				models: [],
-			};
+		getProviderModels(providerId: string): Promise<RuntimeNKleinProviderModelsResponse> {
+			return modelDiscoveryApi.getProviderModels(providerId);
 		},
 
-		async discoverEndpointModels(input: {
+		discoverEndpointModels(input: {
 			baseUrl: string;
 			apiKey?: string | null;
 			modelsSourceUrl?: string | null;
 			timeoutMs?: number | null;
 		}): Promise<RuntimeNKleinEndpointModelDiscoveryResponse> {
-			assertLocalProviderAllowed({
-				providerId: "openai-compatible",
-				baseUrl: input.baseUrl,
-			});
-			return await discoverModelsFromEndpoint(input);
+			return modelDiscoveryApi.discoverEndpointModels(input);
 		},
 
 		addCustomProvider(input: AddCustomNKleinProviderInput): Promise<RuntimeNKleinProviderSettings> {
