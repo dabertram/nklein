@@ -131,6 +131,7 @@ import {
 	getDefaultNKleinModelRegistry,
 } from "./nklein-model-registry";
 import { createModelResidencyWatcher } from "./nklein-model-residency-watcher";
+import { createParkController } from "./nklein-park-controller";
 import { NKleinPauseController } from "./nklein-pause-controller";
 import {
 	buildPlanCritiqueSeedPrompt,
@@ -585,6 +586,19 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		acquire: (workspacePath) => this.watcherRegistry.acquire(workspacePath),
 	});
 	private readonly teamProgressEmitter = createTeamProgressEmitter();
+	private readonly parkController = createParkController({
+		getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId),
+		listSummaries: () => this.messageRepository.listSummaries(),
+		emitSummary: (summary) => this.emitSummary(summary),
+		emitMessage: (taskId, message) => this.emitMessage(taskId, message),
+		clearTaskTimeouts: (taskId) => this.clearTaskTimeouts(taskId),
+		checkAutonomyBudget: (taskId, checkpoint, entry) => this.autonomyBudgetWatchdog.check(taskId, checkpoint, entry),
+		resetAutonomyBudget: (taskId) => this.autonomyBudgetWatchdog.resetTask(taskId),
+		resetRepeatedToolCallGuard: (taskId) => this.repeatedToolCallGuard.resetTask(taskId),
+		markTaskParked: (taskId) => this.pauseController.markTaskParked(taskId),
+		abortTaskSession: (taskId) => this.sessionRuntime.abortTaskSession(taskId),
+		recordObservation: (event) => this.recordObservationWithModel(event),
+	});
 
 	constructor(options: CreateInMemoryNKleinTaskSessionServiceOptions) {
 		if (!options.agentSandboxManager && options.allowUnisolatedTestRuntime !== true) {
@@ -628,7 +642,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return {
 			getMaxRepeatedToolCallsPerTask: () => this.swarmGuardrails.maxRepeatedToolCallsPerTask,
 			getTaskEntry: (taskId) => this.messageRepository.getTaskEntry(taskId) ?? null,
-			parkTaskForAutonomyBudget: (input) => this.parkTaskForAutonomyBudget(input),
+			parkTaskForAutonomyBudget: (input) => this.parkController.parkTaskForAutonomyBudget(input),
 		};
 	}
 
@@ -636,8 +650,8 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return {
 			getSwarmGuardrails: () => this.swarmGuardrails,
 			isTaskPaused: (taskId) => this.pauseController.isPaused(taskId),
-			parkTaskForPause: (input) => this.parkTaskForPause(input),
-			parkTaskForAutonomyBudget: (input) => this.parkTaskForAutonomyBudget(input),
+			parkTaskForPause: (input) => this.parkController.parkTaskForPause(input),
+			parkTaskForAutonomyBudget: (input) => this.parkController.parkTaskForAutonomyBudget(input),
 		};
 	}
 
@@ -2744,14 +2758,14 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	setBoardPaused(paused: boolean): void {
 		this.pauseController.setBoardPaused(paused);
 		if (paused) {
-			this.parkActiveTasksForOperatorPause();
+			this.parkController.parkActiveTasksForOperatorPause();
 		}
 	}
 
 	setCardPaused(taskId: string, paused: boolean): void {
 		this.pauseController.setCardPaused(taskId, paused);
 		if (paused) {
-			this.parkActiveTasksForOperatorPause(taskId);
+			this.parkController.parkActiveTasksForOperatorPause(taskId);
 		}
 	}
 
@@ -3872,32 +3886,6 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		return resumed;
 	}
 
-	private parkActiveTasksForOperatorPause(taskId?: string): void {
-		const summaries = taskId
-			? [this.messageRepository.getTaskEntry(taskId)?.summary].filter(Boolean)
-			: this.messageRepository.listSummaries();
-		for (const summary of summaries) {
-			if (!summary || (summary.state !== "running" && summary.state !== "queued")) {
-				continue;
-			}
-			const entry = this.messageRepository.getTaskEntry(summary.taskId);
-			if (!entry) {
-				continue;
-			}
-			this.emitSummary(
-				this.parkTaskForPause({
-					taskId: summary.taskId,
-					entry,
-					message: "Paused — will resume when the board/card is resumed.",
-					metadata: {
-						guardrail: "operator_pause",
-						source: taskId ? "card_pause" : "board_pause",
-					},
-				}),
-			);
-		}
-	}
-
 	async listSlashCommands(workspacePath: string): Promise<NKleinSdkSlashCommand[]> {
 		const runtimeSetup = await this.runtimeSetupLeaseCache.ensure(workspacePath);
 		await Promise.all([
@@ -3918,104 +3906,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		if (!summary) {
 			return null;
 		}
-		const guardedSummary = this.enforceAutonomyBudgets(taskId, checkpoint) ?? summary;
+		const guardedSummary = this.parkController.enforceAutonomyBudgets(taskId, checkpoint) ?? summary;
 		this.emitSummary(guardedSummary);
 		return guardedSummary;
-	}
-
-	private enforceAutonomyBudgets(
-		taskId: string,
-		checkpoint: RuntimeTaskTurnCheckpoint,
-	): RuntimeTaskSessionSummary | null {
-		const entry = this.messageRepository.getTaskEntry(taskId);
-		if (!entry) {
-			return null;
-		}
-		return this.autonomyBudgetWatchdog.check(taskId, checkpoint, entry);
-	}
-
-	/** Shared park teardown: stop the task's timers and reset its per-task guards (before the abort). */
-	private resetGuardsForPark(taskId: string): void {
-		this.clearTaskTimeouts(taskId);
-		this.autonomyBudgetWatchdog.resetTask(taskId);
-		this.repeatedToolCallGuard.resetTask(taskId);
-	}
-
-	/** Appends a park system message to the task transcript, emits it, and clears the active-turn state. */
-	private pushParkSystemMessage(taskId: string, entry: NKleinTaskSessionEntry, message: string): void {
-		const systemMessage = createMessage(taskId, "system", message);
-		entry.messages.push(systemMessage);
-		this.emitMessage(taskId, systemMessage);
-		clearActiveTurnState(entry);
-	}
-
-	private parkTaskForPause(input: {
-		taskId: string;
-		entry: NKleinTaskSessionEntry;
-		message: string;
-		metadata: Record<string, unknown>;
-	}): RuntimeTaskSessionSummary {
-		this.resetGuardsForPark(input.taskId);
-		this.pauseController.markTaskParked(input.taskId);
-		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
-		this.recordObservationWithModel({
-			signal: "custom",
-			severity: "info",
-			message: input.message,
-			taskId: input.taskId,
-			metadata: input.metadata,
-		});
-		this.pushParkSystemMessage(input.taskId, input.entry, input.message);
-		return updateSummary(input.entry, {
-			state: "paused",
-			reviewReason: null,
-			lastOutputAt: now(),
-			lastHookAt: now(),
-			warningMessage: null,
-			latestHookActivity: {
-				activityText: input.message,
-				toolName: null,
-				toolInputSummary: null,
-				finalMessage: input.message,
-				hookEventName: "operator_pause",
-				notificationType: null,
-				source: "kanban",
-			},
-		});
-	}
-
-	private parkTaskForAutonomyBudget(input: {
-		taskId: string;
-		entry: NKleinTaskSessionEntry;
-		message: string;
-		metadata: Record<string, unknown>;
-	}): RuntimeTaskSessionSummary {
-		this.resetGuardsForPark(input.taskId);
-		void this.sessionRuntime.abortTaskSession(input.taskId).catch(() => undefined);
-		this.recordObservationWithModel({
-			signal: "budget_wall",
-			severity: "warning",
-			message: input.message,
-			taskId: input.taskId,
-			metadata: input.metadata,
-		});
-		this.pushParkSystemMessage(input.taskId, input.entry, input.message);
-		return updateSummary(input.entry, {
-			state: "awaiting_review",
-			reviewReason: "attention",
-			lastOutputAt: now(),
-			lastHookAt: now(),
-			warningMessage: input.message,
-			latestHookActivity: {
-				activityText: input.message,
-				toolName: null,
-				toolInputSummary: null,
-				finalMessage: input.message,
-				hookEventName: "guardrail",
-				notificationType: "warning",
-				source: "kanban",
-			},
-		});
 	}
 
 	async dispose(): Promise<void> {
