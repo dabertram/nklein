@@ -790,7 +790,7 @@
 > **DONE (bounded, non-wired flow):** `deriveModelFamily` (model-online-lookup.ts) no longer hardcodes machine tokens
 > (`m5max|m4mini`); `buildProvisionalCatalogEntry` now prefers the stable `descriptor.modelKey`. (commit — see run log.)
 >
-> **David decided (AskUserQuestion 2026-07-06):** key by `descriptor.modelKey` alone (runtime id → display alias); best-effort re-key on load (merge collapsed rows, unmatched decay). **Increment 1 DONE:** the pure `stable-model-identity.ts` primitive (resolveStableModelKey + rekeyTableToStableModelKeys, +7 tests) encodes both.
+> **David decided (AskUserQuestion 2026-07-06):** key by `descriptor.modelKey` alone (runtime id → display alias); best-effort re-key on load (merge collapsed rows, unmatched decay). **Increment 1 DONE:** pure `stable-model-identity.ts` primitive (+7). **Increment 2 DONE:** self-observations now key off the stable key on the primary local-start path (handler threads descriptor.modelKey → TaskModelEndpointStore.getStableModelKey → resolveTaskModelIdentity; fallback-safe). **Remaining:** fitness (needs modelKey on the PERSISTED summary schema — deriveTaskFitnessRecord runs server-side with only the summary in scope) + restart path + re-key-on-load.
 >
 > **OPEN (wiring — re-keys PERSISTED telemetry):** the live keying is SPLIT. Capability/
 > routing (`resolveLoadedModelProfile`) + lineage/diverse-escalation already key off the stable `descriptor.modelKey` ✓.
