@@ -389,6 +389,50 @@ export async function applyCardMessageRelay(
 	}
 }
 
+/**
+ * §5.AU — broadcast a message to EVERY card in a stream (epic), returning the confirmation. The ONE stream-broadcast path
+ * shared by the `send_to_stream` tool AND the chat front door (item 9). Guidance for the whole group: delivered live to
+ * any running member, queued to the durable mailbox of the rest; NEVER starts a card. Excludes the trash column (a
+ * trashed card keeps its streamId but is not a live member). Pure over its injected effect deps.
+ */
+export async function applyStreamMessageBroadcast(
+	board: RuntimeBoardData,
+	activeSessionTaskIds: ReadonlySet<string>,
+	streamId: string,
+	message: string,
+	deps: CardMessageRelayDeps,
+): Promise<string> {
+	const stream = (board.streams ?? []).find((candidate) => candidate.id === streamId);
+	if (!stream) {
+		return `No stream with id "${streamId}" on the board (use get_streams to list streams).`;
+	}
+	const memberCards = board.columns
+		.filter((column) => column.id !== "trash")
+		.flatMap((column) => column.cards)
+		.filter((card) => card.streamId === streamId);
+	if (memberCards.length === 0) {
+		return `Stream "${stream.title}" has no cards — nothing to send to.`;
+	}
+	let deliveredLive = 0;
+	let queued = 0;
+	for (const card of memberCards) {
+		if (activeSessionTaskIds.has(card.id) && (await deps.deliverLive(card.id, message).catch(() => false))) {
+			deliveredLive += 1;
+		} else {
+			await deps.queueMailbox(card.id, message);
+			queued += 1;
+		}
+	}
+	const parts: string[] = [];
+	if (deliveredLive > 0) {
+		parts.push(`${deliveredLive} delivered live`);
+	}
+	if (queued > 0) {
+		parts.push(`${queued} queued to mailbox(es)`);
+	}
+	return `Sent to stream "${stream.title}" (${memberCards.length} card(s)): ${parts.join(", ")}. No cards were started (starting stays a separate, gated action).`;
+}
+
 export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): ChatToolSet {
 	const tools: ChatTool[] = [
 		{
@@ -429,42 +473,7 @@ export function createCardRelayTools(projectPath: string, deps: CardRelayDeps): 
 				} catch {
 					return "Could not read the project board.";
 				}
-				const stream = (board.streams ?? []).find((candidate) => candidate.id === streamId);
-				if (!stream) {
-					return `No stream with id "${streamId}" on the board (use get_streams to list streams).`;
-				}
-				// Exclude the trash column: a trashed card keeps its streamId (moveTaskToColumn doesn't clear it), but it is
-				// not a live stream member — broadcasting to it would queue notes on a discarded card and inflate the count.
-				// Mirrors summarizeWorkspaceBoardStreams, which also skips trash.
-				const memberCards = board.columns
-					.filter((column) => column.id !== "trash")
-					.flatMap((column) => column.cards)
-					.filter((card) => card.streamId === streamId);
-				if (memberCards.length === 0) {
-					return `Stream "${stream.title}" has no cards — nothing to send to.`;
-				}
-				// A stream broadcast is guidance for the WHOLE epic: deliver live to any running member, queue the rest to
-				// their durable mailboxes (read when the card starts). Never starts a card (starting stays gated). Composes
-				// the same deliverLive/queueMailbox deps as send_to_card, per-card.
-				const activeSessionTaskIds = deps.listActiveSessionTaskIds();
-				let deliveredLive = 0;
-				let queued = 0;
-				for (const card of memberCards) {
-					if (activeSessionTaskIds.has(card.id) && (await deps.deliverLive(card.id, message).catch(() => false))) {
-						deliveredLive += 1;
-					} else {
-						await deps.queueMailbox(card.id, message);
-						queued += 1;
-					}
-				}
-				const parts: string[] = [];
-				if (deliveredLive > 0) {
-					parts.push(`${deliveredLive} delivered live`);
-				}
-				if (queued > 0) {
-					parts.push(`${queued} queued to mailbox(es)`);
-				}
-				return `Sent to stream "${stream.title}" (${memberCards.length} card(s)): ${parts.join(", ")}. No cards were started (starting stays a separate, gated action).`;
+				return applyStreamMessageBroadcast(board, deps.listActiveSessionTaskIds(), streamId, message, deps);
 			},
 		},
 	];

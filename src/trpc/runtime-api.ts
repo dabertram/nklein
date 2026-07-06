@@ -9,7 +9,7 @@ import { cpus, homedir, totalmem } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
-import { applyCardMessageRelay } from "../chat/chat-board-tools";
+import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
 import { type ChatService, createChatService } from "../chat/chat-service";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
@@ -311,7 +311,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			// chat. Best-effort: any load failure ⇒ null (falls through to the model turn). Communication is always
 			// possible; execution stays readiness-gated (a blocked/ready card is never started — the note is queued).
 			relayAddressedMessage: async (target, message) => {
-				if ((target.kind !== "card" && target.kind !== "answer") || !target.id) {
+				if ((target.kind !== "card" && target.kind !== "answer" && target.kind !== "stream") || !target.id) {
 					return null;
 				}
 				const workspacePath = deps.getActiveWorkspacePath();
@@ -330,24 +330,29 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 									.map((summary) => summary.taskId),
 							)
 						: new Set<string>();
+					const relayDeps = {
+						deliverLive: async (taskId: string, text: string) =>
+							service
+								? (await service.sendTaskSessionInput(taskId, `${text}\n`).catch(() => null)) !== null
+								: false,
+						queueMailbox: async (taskId: string, text: string) => {
+							await appendCardMailboxNote({ taskId, text, source: "chat" });
+							return countPendingCardMailbox(taskId);
+						},
+					};
+					// Deliver a CLEAN message — strip the `@card:…`/`@stream:…` addressing handle the user typed (the chat
+					// transcript keeps the original; only the relayed text is stripped).
+					const clean = stripAddressingHandle(message);
+					if (target.kind === "stream") {
+						return await applyStreamMessageBroadcast(board, activeSessionTaskIds, target.id, clean, relayDeps);
+					}
 					return await applyCardMessageRelay(
 						board,
 						activeSessionTaskIds,
 						target.id,
-						// Deliver a CLEAN message to the card — strip the `@card:…` addressing handle the user typed (the chat
-						// transcript keeps the original; only the relayed text is stripped).
-						stripAddressingHandle(message),
+						clean,
 						target.kind === "answer" ? "answer" : null,
-						{
-							deliverLive: async (taskId, text) =>
-								service
-									? (await service.sendTaskSessionInput(taskId, `${text}\n`).catch(() => null)) !== null
-									: false,
-							queueMailbox: async (taskId, text) => {
-								await appendCardMailboxNote({ taskId, text, source: "chat" });
-								return countPendingCardMailbox(taskId);
-							},
-						},
+						relayDeps,
 					);
 				} catch {
 					return null;
