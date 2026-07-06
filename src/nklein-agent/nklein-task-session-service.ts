@@ -29,7 +29,6 @@ import type {
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import {
-	applyWarmthPreference,
 	buildPromptShellKey,
 	derivePromptSessionKind,
 	type PromptSessionKind,
@@ -38,11 +37,8 @@ import {
 import { isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
-import { applyDiversityPreference } from "../core/model-diversity";
-import { resolveLineage } from "../core/model-lineage";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import { computeSharedPrefixRatio, type PromptFragment } from "../core/prompt-fragment-assembly";
 import { raisedTokenBudget } from "../core/retry-policy";
@@ -130,7 +126,7 @@ import {
 import type { NKleinCardPromotedHandler } from "./nklein-promotion-tool";
 import { createRetrievalToolsBuilder } from "./nklein-retrieval-tools-builder";
 import type { NKleinReviewResult, NKleinReviewSubmittedHandler } from "./nklein-review-tool";
-import { buildReviewerCandidates, resolveWorkerRealId } from "./nklein-reviewer-candidate-selection";
+import { pickDiverseReviewerModel } from "./nklein-reviewer-model-selection";
 import { createNKleinRuntimeSetup, type NKleinRuntimeSetup } from "./nklein-runtime-setup";
 import { createRuntimeSetupLeaseCache } from "./nklein-runtime-setup-lease-cache";
 import { createSandboxReviewFinalizer } from "./nklein-sandbox-review-finalizer";
@@ -2540,89 +2536,15 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 	 * loaded non-embedding models, preferred diverse-first via applyDiversityPreference. Null ⇒ caller falls back to
 	 * the worker model (today's behavior), with the waiver surfaced as a self-observation.
 	 */
-	private async pickDiverseReviewerModel(
-		workerLaunch: NKleinTaskRestartLaunchConfig,
-		taskId: string,
-		/** §5.AQ (d): the shell KIND the picked model will assemble — the same-kind warmth batching signal. */
-		sessionKind: PromptSessionKind = "review",
-	): Promise<{ providerId: string; modelId: string } | null> {
-		const baseUrl = workerLaunch.baseUrl?.trim() || "http://127.0.0.1:1234/v1";
-		const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(
-			() => [] as Awaited<ReturnType<typeof fetchLoadedModelDescriptors>>,
-		);
-		if (descriptors.length === 0) {
-			return null;
-		}
-		// The worker's launch modelId is usually the SERVED alias — resolve its REAL key for lineage when loaded.
-		const workerRealId = resolveWorkerRealId(descriptors, workerLaunch.modelId);
-		const candidates = buildReviewerCandidates(descriptors, workerLaunch.modelId, workerRealId);
-		if (candidates.length === 0) {
-			return null;
-		}
-		const preferred = applyDiversityPreference({
-			ranked: candidates,
-			avoidLineages: [resolveLineage(workerRealId)],
-		});
-		if (!preferred.diversityAchieved || !preferred.ranked[0]) {
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: `Reviewer diversity waived for ${taskId}: ${preferred.diversityWaivedReason ?? "no diverse loaded model"} — the worker model reviews its own work.`,
-				taskId,
-				metadata: { category: "reviewer_diversity_waived", reason: preferred.diversityWaivedReason ?? null },
-			});
-			return null;
-		}
-		// §5.AQ (d) session-KIND batching: among the candidates DIVERSITY allows (its result above is authoritative
-		// — never weakened here), prefer the one whose last prompt shell is the SAME KIND (review→review etc.), so
-		// back-to-back decision turns land on an already-warm shell instead of interleaving kinds across models.
-		// The warmth ledger is keyed by the SERVED id (what the launch config gets) — candidate.modelKey here.
-		const workerLineage = resolveLineage(workerRealId);
-		const diverseCandidates = preferred.ranked.filter((candidate) => {
-			const lineage = resolveLineage(candidate.modelId);
-			return lineage !== "unknown" && lineage !== workerLineage;
-		});
-		const warmth = applyWarmthPreference({
-			ranked: diverseCandidates.map((candidate) => ({
-				modelKey: candidate.modelKey,
-				modelId: candidate.modelKey,
-				score: candidate.score,
-			})),
-			sessionKind,
-			workspacePath: workerLaunch.workspaceRoot?.trim() ?? "",
-			lastShellKeyByModel: this.lastShellKeyByModelId,
-			now: now(),
-		});
-		const warmthPick = warmth.warmthApplied
-			? (diverseCandidates.find((candidate) => candidate.modelKey === warmth.ranked[0]?.modelKey) ?? null)
-			: null;
-		if (warmthPick && warmth.warmthReason) {
-			recordSelfObservation({
-				signal: "custom",
-				severity: "info",
-				message: `Cache-warmth kind-batching for ${taskId}: ${warmth.warmthReason} (within the lineage-diverse set).`,
-				taskId,
-				metadata: { category: "reviewer_warmth_batched", reason: warmth.warmthReason },
-			});
-		}
-		const pick = warmthPick ?? preferred.ranked[0];
-		recordSelfObservation({
-			signal: "custom",
-			severity: "info",
-			message: `Auto-picked lineage-diverse reviewer ${pick.modelKey} (${resolveLineage(pick.modelId)}) for ${taskId} — worker is ${workerRealId} (${resolveLineage(workerRealId)}).`,
-			taskId,
-			metadata: { category: "reviewer_auto_diverse", reviewer: pick.modelKey, worker: workerRealId },
-		});
-		return { providerId: workerLaunch.providerId, modelId: pick.modelKey };
-	}
-
 	async pickDiverseEscalationModel(taskId: string): Promise<{ providerId: string; modelId: string } | null> {
 		const launch = this.launchConfigByTaskId.get(taskId) ?? null;
 		if (!launch?.providerId || !launch.modelId) {
 			return null;
 		}
 		// The escalated session is the card's WORKER session on a stronger model — batch toward worker shells.
-		return await this.pickDiverseReviewerModel(launch, taskId, "worker").catch(() => null);
+		return await pickDiverseReviewerModel(launch, taskId, "worker", {
+			lastShellKeyByModel: this.lastShellKeyByModelId,
+		}).catch(() => null);
 	}
 
 	/** #31: `::review` sessions share one workspace path per task — two concurrent rounds destroy each other. */
@@ -2683,7 +2605,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// fallback stands, so behavior only ever improves).
 		const autoReviewer =
 			!input.reviewer && workerLaunch?.providerId && workerLaunch.modelId
-				? await this.pickDiverseReviewerModel(workerLaunch, input.taskId, "review").catch(() => null)
+				? await pickDiverseReviewerModel(workerLaunch, input.taskId, "review", {
+						lastShellKeyByModel: this.lastShellKeyByModelId,
+					}).catch(() => null)
 				: null;
 		const providerId = (
 			input.reviewer?.providerId ??
@@ -3096,7 +3020,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// The whole point is a DIVERSE second perspective — degrade to null (proceed) without one.
 		const critic =
 			input.critic ??
-			(await this.pickDiverseReviewerModel(architectLaunch, input.taskId, "plan-critique").catch(() => null));
+			(await pickDiverseReviewerModel(architectLaunch, input.taskId, "plan-critique", {
+				lastShellKeyByModel: this.lastShellKeyByModelId,
+			}).catch(() => null));
 		if (!critic) {
 			return null;
 		}

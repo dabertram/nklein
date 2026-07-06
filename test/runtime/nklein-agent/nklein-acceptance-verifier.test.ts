@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	resolveTaskResultBranchCommit: vi.fn(async () => "result-commit-abc" as string | null),
-	runNKleinAcceptanceGateInSandbox: vi.fn(async () => ({ accepted: true }) as unknown),
+	runNKleinAcceptanceGateInSandbox: vi.fn(async (_input: Record<string, unknown>) => ({ accepted: true }) as unknown),
 }));
 vi.mock("../../../src/workspace/task-result-branches", () => ({
 	resolveTaskResultBranchCommit: mocks.resolveTaskResultBranchCommit,
