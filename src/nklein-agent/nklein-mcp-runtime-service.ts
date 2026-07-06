@@ -2,9 +2,6 @@ import { randomUUID } from "node:crypto";
 import type { OAuthClientProvider, OAuthDiscoveryState } from "@modelcontextprotocol/sdk/client/auth.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type {
 	OAuthClientInformationMixed,
 	OAuthClientMetadata,
@@ -29,6 +26,12 @@ import {
 } from "./nklein-mcp-oauth-settings-store";
 import { createNKleinMcpSettingsService } from "./nklein-mcp-settings-service";
 import {
+	createTransport,
+	formatLocalMcpExecutionDisabledWarning,
+	isAuthCapableTransport,
+	toMcpRegistration,
+} from "./nklein-mcp-transport-factory";
+import {
 	createSdkInMemoryMcpManager,
 	createSdkMcpTools,
 	type SdkMcpManager,
@@ -41,7 +44,6 @@ const DEFAULT_AUTH_TIMEOUT_MS = 3 * 60 * 1000;
 const COMPLETED_CALLBACK_RETENTION_MS = 5 * 60 * 1000;
 const OAUTH_CALLBACK_PATH = "/kanban-mcp/mcp-oauth-callback";
 const OAUTH_CALLBACK_REQUEST_ID_PARAM = "requestId";
-const MCP_LOCAL_EXECUTION_DISABLED_MESSAGE = "MCP local execution is disabled under strict isolation.";
 
 const CALLBACK_RESPONSE_HTML = {
 	success:
@@ -69,9 +71,6 @@ const completedOauthCallbacksByRequestId = new Map<
 		timeoutHandle: NodeJS.Timeout;
 	}
 >();
-
-type AuthCapableTransport = SSEClientTransport | StreamableHTTPClientTransport;
-type SdkTransport = StdioClientTransport | AuthCapableTransport;
 
 export interface NKleinMcpServerAuthStatus {
 	serverName: string;
@@ -128,71 +127,6 @@ export interface NKleinMcpOauthCallbackResponse {
 
 export interface CreateNKleinMcpRuntimeServiceOptions {
 	onAuthStatusesChanged?: (statuses: NKleinMcpServerAuthStatus[]) => void | Promise<void>;
-}
-
-function toMcpRegistration(server: RuntimeNKleinMcpServer): SdkMcpServerRegistration {
-	if (server.type === "stdio") {
-		return {
-			name: server.name,
-			disabled: server.disabled,
-			transport: {
-				type: "stdio",
-				command: server.command,
-				args: server.args,
-				cwd: server.cwd,
-				env: server.env,
-			},
-		};
-	}
-	return {
-		name: server.name,
-		disabled: server.disabled,
-		transport: {
-			type: server.type,
-			url: server.url,
-			headers: server.headers,
-		},
-	};
-}
-
-function formatLocalMcpExecutionDisabledWarning(serverName: string): string {
-	return `${MCP_LOCAL_EXECUTION_DISABLED_MESSAGE} Skipped stdio MCP server "${serverName}".`;
-}
-
-function createTransport(input: { server: RuntimeNKleinMcpServer; oauthProvider?: OAuthClientProvider }): SdkTransport {
-	if (input.server.type === "stdio") {
-		return new StdioClientTransport({
-			command: input.server.command,
-			...(input.server.args ? { args: input.server.args } : {}),
-			...(input.server.cwd ? { cwd: input.server.cwd } : {}),
-			...(input.server.env ? { env: input.server.env } : {}),
-			stderr: "ignore",
-		});
-	}
-
-	if (input.server.type === "sse") {
-		return new SSEClientTransport(new URL(input.server.url), {
-			authProvider: input.oauthProvider,
-			requestInit: input.server.headers
-				? {
-						headers: input.server.headers,
-					}
-				: undefined,
-		});
-	}
-
-	return new StreamableHTTPClientTransport(new URL(input.server.url), {
-		authProvider: input.oauthProvider,
-		requestInit: input.server.headers
-			? {
-					headers: input.server.headers,
-				}
-			: undefined,
-	});
-}
-
-function isAuthCapableTransport(transport: SdkTransport): transport is AuthCapableTransport {
-	return transport instanceof SSEClientTransport || transport instanceof StreamableHTTPClientTransport;
 }
 
 function createOauthClientMetadata(redirectUrl: string): OAuthClientMetadata {
