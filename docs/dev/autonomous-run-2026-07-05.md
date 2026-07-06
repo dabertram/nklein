@@ -1149,12 +1149,21 @@ runtime-setup lease cache (the `Map<workspace, Promise<lease>>` + `ensureRuntime
 de-dup, per-workspace separation, disposeAll tolerating a release failure). 4787 → 4768. Both behavior-preserving
 (118-test suite green). **task-session-service this run: 4886 → 4768 (−118); 2 clean collaborator splits + wrapper cleanup.**
 
-### ▶ CONSOLIDATED STATE (2026-07-06, after slice 47) — for David
+### ▶ §5.U slice 48 (2026-07-06, 116086bb) — focus-chain store collaborator (third split)
+Third clean collaborator split. The per-task focus-chain state (the `taskId → FocusChain` map + apply-step-timing /
+summarize / delete / clear, inlined across ~6 sites) → `createFocusChainStore({ now, onUpdated })`. The two update
+callbacks collapse to `this.focusChainStore.applyStep(taskId, chain)`; the rest delegate; biome dropped the now-unused
+focus-chain helper imports. Behavior-preserving (118-test suite green); +4 focused tests. task-session-service 4768 →
+**4762** (small reduction — its pure timing/summary logic was already in `core/focus-chain` helpers, so only the map +
+orchestration moved; the win is cohesion + isolated coverage). **3 collaborator splits landed (residency, lease-cache,
+focus-chain) — all the single-Map + small-deps shape.**
+
+### ▶ CONSOLIDATED STATE (2026-07-06, after slice 48) — for David
 **Polishing phase, §5.U flagship (deep architecture refactor), THIS Opus session.** All work behavior-preserving +
 test-gated, one bounded cluster per commit, pushed to `feat/nklein-upcoming`, tree clean.
-- **47 slices this run (25 §5.U extractions + 22 §5.V coverage batches), ~303 new unit tests, zero behavior changes** (the
-  pre-commit fast suite gates every commit; extractions delegate). The collaborator-split path is now flowing:
-  task-session-service 4886 → **4768** this run (2 clean splits — residency watcher, runtime-setup lease cache — + wrapper
+- **48 slices this run (26 §5.U extractions + 22 §5.V coverage batches), ~307 new unit tests, zero behavior changes** (the
+  pre-commit fast suite gates every commit; extractions delegate). The collaborator-split path is flowing: task-session-service
+  4886 → **4762** this run (3 clean splits — residency watcher, runtime-setup lease cache, focus-chain store — + wrapper
   cleanup), all proven by the existing suites. §5.V high-value pure-logic coverage is SATURATED
   (see the finding above) — every substantial vein closed: the api-validation parser boundary, runtime-config
   normalizers/resolvers/projection, server path/host + endpoint-origin helpers, two SECURITY modules (passcode rate-limiter
