@@ -1944,3 +1944,37 @@ stay runtime (partial). (a) is the only one that fully delivers the intent. This
 I am NOT guessing it autonomously. **The guard (`model-telemetry-key-alignment.test.ts`) stays committed and will fail
 loudly on any one-sided flip, so the tree is safe to leave here.** The SAFE display cluster (fitness/model-behavior) is
 already flipped + shipped; only the hot routing cluster waits on this decision.
+
+### 2026-07-07 (Opus) · Model-advisory excellence (David directive) — integrated + first fix + precise gap map
+
+David shared a model-swarm write-up and asked !Klein to be "excellent" about model suggestions, auto-selection, and
+multi-model involvement. Clarified 4 decisions (data-driven+external catalog / broad panel-of-judges DEFAULT / fold into
+§5.AB+§5.AL / user-declared hardware tiers). Web-verified the landscape (Qwen3.6-27B, Qwen3-Coder-Next, Ornith-1.0,
+Qwable, Qwopus — all REAL mid-2026, post-cutoff; churn validates the data-driven call). An Explore agent mapped the
+(mature) existing infra. Delivered:
+- **todo.md integration** (§5.AB gap matrix + §5.AL checklist items) — the 4 decisions + 6 gaps, sequenced. [committed]
+- **Lineage monoculture fix** [committed+pushed b877d4bb]: `qwable` was missing from `resolveLineage` → resolved to
+  `unknown`, so a qwable-authored card wouldn't be recognized as Qwen-correlated when picking a "diverse" reviewer. Added
+  it to the qwen matcher (+2 tests). This is David's flagged make-or-break: diversity keys off BASE lineage, not label.
+
+**PRECISE GAP LOCI (mapped, execution-ready — NOT yet implemented; several are cross-layer hot-path):**
+- **Gap 3 (depth in JUDGE selection):** reviewer candidates are FLAT-scored — `buildReviewerCandidates`
+  (nklein-reviewer-candidate-selection.ts:49) sets every `score: 50`, so `pickDiverseReviewerModel` picks the judge on
+  diversity + warmth ALONE; capability/depth NEVER enters → among lineage-diverse candidates a shallow model can out-rank
+  a deep one. FIX = score candidates by capability so diversity/warmth (margin-bounded) re-order a CAPABILITY-first list.
+  **COST:** the session service (`nklein-task-session-service.ts:2389`) has NO registry access by design (SDK boundary) —
+  capability must be threaded from the runtime layer across that boundary. Real multi-layer effort, not a quick win.
+  **NOTE:** do NOT change architect/worker weighting in start-task-session (`efficient` is a DELIBERATE generation-role
+  throughput choice — `SWARM_DECISION_ROLES`={reviewer,critic,merge} excludes architect by design, Self-MoA). My initial
+  gap-3 target (that weighting) was WRONG; corrected in todo.md.
+- **Gap 2 (broad panel default):** review is single-reviewer today (`review-lenses` = orthogonal eyes on ONE reviewer).
+  N-reviewer parallel panel is the headline want + largest/riskiest; needs orchestration + verdict combination + resource
+  bounds. Not started.
+- **Gap 1 (external catalog):** `model-capability-catalog.ts` is hardcoded TS; add a file overlay (Zod schema) merged over
+  defaults. Gap 5 (suggestion surface) + Gap 6 (hardware-tier config the router reads) similarly scoped in todo.md.
+- **Gap 4 (family diversity):** DONE for decision roles (`model-diversity`+`diversity-reachability`+`swarm-role-selection`,
+  hard margin-bounded, waivers surfaced) ✓; only ESCALATION lacks diversity steering (small follow-up).
+
+**CHECKPOINT:** delivered the highest-value bounded correctness fix (lineage) + full integration + a precise map. The
+remaining 5 gaps are substantial (several cross-layer/hot-path). Reporting to David before making multi-layer review-path
+behavior changes unsupervised (the §5.BG lesson).

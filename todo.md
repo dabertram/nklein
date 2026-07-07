@@ -4924,10 +4924,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > 2. **Broad panel-of-judges default** *(NEW — §5.AB/§5.K)*: review is SINGLE-reviewer today (lenses = orthogonal eyes on
 >    ONE reviewer, `review-lenses.ts`). Implement N-reviewer PARALLEL panel as the default (diverse team, combine verdicts
 >    — majority/consensus), bounded by endpoint-resource limits + tunable count. This is the headline want; largest/riskiest.
-> 3. **Depth-vs-speed in judge selection** *(NEW — §5.AB)*: the catalog HAS `speed`/`sizeGb`/`selfScaffolding` but the
->    router IGNORES them — a fast MoE can win a JUDGE seat on the `predictedWallTimeMs` tiebreaker. Wire a depth-vs-speed
->    signal so speed NEVER outranks reasoning-fit for a decision/judge role (workers still pick on speed — §5.AB diversity
->    constraint already says this). Bounded, pure-core testable → good FIRST increment.
+> 3. **Depth in JUDGE selection** *(NEW — reviewer path; PRECISE LOCUS found 2026-07-07)*: reviewer candidates are
+>    **flat-scored** — `buildReviewerCandidates` (nklein-reviewer-candidate-selection.ts:49) sets every candidate
+>    `score: 50`, so `pickDiverseReviewerModel` chooses the judge on **diversity + warmth ALONE — capability/depth never
+>    enters**. A shallow-but-diverse model can out-rank a deep dense reasoner for a review. FIX: plumb the registry/ledger
+>    capability into `buildReviewerCandidates` as the base score, so diversity/warmth (both margin-bounded) re-order a
+>    CAPABILITY-first ranking instead of a flat one → the deepest reasoner judges unless a diverse/warm peer is within
+>    margin. Moderate (touches the stateful `pickDiverseReviewerModel` orchestrator in the session service).
+>    **DO NOT** change architect/worker weighting in `start-task-session.ts` (`efficient` there is a DELIBERATE
+>    generation-role throughput choice — architect is a GENERATION role, NOT a judge: `SWARM_DECISION_ROLES` =
+>    {reviewer,critic,merge} excludes it by design, Self-MoA; verified 2026-07-07). The catalog `speed`/`sizeGb` fields
+>    stay a LATER refinement (dense-vs-MoE tiebreak within equal capability).
 > 4. **Family diversity is DONE for decision roles ✓** (`model-diversity.ts` + `diversity-reachability.ts` +
 >    `swarm-role-selection.ts` — hard constraint, waivers surfaced) — BUT **not steered at ESCALATION**: when a task
 >    fails/stalls and a more-capable model is offered, prefer a DIFFERENT base-family. Extend `escalation-suggestions.ts` /
