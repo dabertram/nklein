@@ -2713,3 +2713,25 @@ model, not an egress bug (the egress path never fired). Cleaned up: unloaded the
 Corrected the matrix (ceaf6683's ceiling note was now stale). **Egress is proven 8B→70B across ~10 families + MoE + MTP
 + reasoning models — comprehensive; the only non-pass is llama-70b's local tool-call adherence (a model trait, logged
 as a §5.AB fitness data point).** NEXT: B.5 §5.BG routing re-key (READ-side integration tests first).
+
+### 2026-07-07 (Opus) - Phase B.5 §5.BG: found ALREADY LANDED (stale note reconciled) + full-suite VERIFICATION
+Went to build the "READ-side integration tests first" for the §5.BG routing re-key — and discovered the flip had
+ALREADY LANDED after the polishing.md note was written. The whole a/b/c decision the note flagged as "OWED — David" was
+resolved: **(b)** persisted `runtimeId→modelKey` map (`src/state/runtime-id-model-key-map-store.ts`, 76b6cd60) so cold
+models resolve their stable key (kills the MIXED-keyspace blocker that reverted the first attempt); **(c)** coordinated
+flip behind `NKLEIN_STABLE_ROUTING_KEY` (f7fbcb7d, **default OFF ⇒ byte-identical**); and the exact safety net the note
+said was MISSING now exists — 20 green tests pinning the **double-start invariant** (residency key == re-keyed candidate
+key), write==read==residency alignment, and rename-heal (alias collapse), across both flag states. Reconciled the stale
+note (commit 5b3d74ca): the only thing still owed is a ROLLOUT decision (flip the default ON?), not code.
+**Then ran the suites the pre-commit gate SKIPS** (the exact blind spot that hid the P0s): **contract 275/275 ✓**;
+**integration 40/42** — both reds PRE-EXISTING + already-tracked, NO new regressions: (1) the stale
+`runtime-state-stream` trash-on-shutdown test (§5.V, reconcile-don't-destroy supersedes it; David wants it fixed
+controlled), (2) `swarm-deterministic-bounce` — the known Docker-host-gated `::acceptance`-not-prepared delivery
+failure (todo:6478, fails at HEAD default-OFF, needs a Docker-healthy host). Corrected the §5.V entry (it claimed "sole
+failure / 41/42"; a loaded re-run is 40/42 — the bounce test is load/Docker-sensitive). **B.6 swarm-recovery inc 2-3 is
+correctly deferred** — it's a multi-PACKAGE `@cline/shared` core-type change + 2 vendored-engine rebuilds David flagged
+for a deliberate pass, not grind work. **Release hygiene confirmed clean:** no personal paths in shipped src/scripts/
+README/docs; package.json identity post-rename correct; LICENSE (Apache-2.0) + NOTICE (Cline fork attribution, §4)
+present + committed. NET: the substantive remaining tracks are now all David-owed or deliberate-with-David (default-flip
+rollout, the two integration reds, the fresh-root release branch, the vendored swarm-recovery); the autonomous-safe
+grind work for this cycle is essentially complete + the branch is verified at its known-good state.

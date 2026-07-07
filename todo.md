@@ -3164,11 +3164,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > focused arc best started on a fresh context.
 - [ ] **★ FIX the one stale integration test — `runtime-state-stream` "moves stale completed review cards to trash on
       shutdown"** *(surfaced 2026-07-07 Opus full-suite verification; David 2026-07-07: "do it HERE in a controlled way,
-      when + how it fits — NOT in parallel").* This is the sole failure in the integration suite (integration 41/42;
-      contract 275/275 green) and it is **DETERMINISTIC + PRE-EXISTING** (fails 3× in isolation on a quiet machine; also
-      fails at commit `e2fc333e` deep in the branch → not this session's refactoring, not environmental). It went
-      unnoticed because the pre-commit gate (`test:fast`) runs only `test/runtime` + `test/utilities`, NEVER
+      when + how it fits — NOT in parallel").* It is **DETERMINISTIC + PRE-EXISTING** (fails 3× in isolation on a quiet
+      machine; also fails at commit `e2fc333e` deep in the branch → not this session's refactoring, not environmental). It
+      went unnoticed because the pre-commit gate (`test:fast`) runs only `test/runtime` + `test/utilities`, NEVER
       `test/integration`.
+      - **★ CORRECTION (2026-07-07 Opus re-verification): the integration suite has TWO known reds, not one.** A repeat
+        full run under concurrent load got **40/42** (not the earlier quiet-machine 41/42): this stale test PLUS
+        `swarm-deterministic-bounce` (`a bounced worker re-works in a RESTORED workspace and the second round approves to
+        completed`), which hit its ~275s deadline with `det-bounce-gamma` stuck in `review`/`interrupted`. That second red
+        is a SEPARATE, already-tracked, **Docker-environment-dependent** failure (see the `★ FOLLOW-UP (2026-07-04)` entry
+        near §5.K/durable: the `::acceptance` sandbox is never prepared for a re-worked card → delivery held; it fails at
+        HEAD under default-OFF too, and its own TODO is "re-run on a Docker-HEALTHY host" — NOT fixable blind on this
+        7.7 GiB VM). So the two integration reds are DISTINCT: this one = a stale test (fix the assertions, controlled);
+        the bounce one = a real Docker-host-gated delivery-path question. Both sit outside the pre-commit gate — same root
+        process gap.
       - **It is a STALE TEST, not a product bug — verified.** The test (`test/integration/runtime-state-stream.integration.test.ts`)
         seeds a session `{ state: "awaiting_review", reviewReason: "exit", exitCode: 0 }` with its card in the REVIEW
         column, restarts the server, and asserts the card is moved OUT of review INTO trash (lines ~527–528) + the session
