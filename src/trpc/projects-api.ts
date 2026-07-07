@@ -3,16 +3,12 @@ import { cp, mkdir, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import type {
-	RuntimeBoardData,
 	RuntimeDevTestCleanupResponse,
 	RuntimeDevTestProjectRegistryResponse,
 	RuntimeDevTestProjectRequest,
 	RuntimeDevTestProjectResponse,
 	RuntimeProjectAddResponse,
 	RuntimeProjectArtifactMigrationResponse,
-	RuntimeProjectHealthIssue,
-	RuntimeProjectSummary,
-	RuntimeProjectTaskCounts,
 	RuntimeSelfImprovementProjectRequest,
 	RuntimeSelfImprovementProjectResponse,
 } from "../core/api-contract";
@@ -41,7 +37,6 @@ import {
 	saveWorkspaceState,
 } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
-import type { TerminalSessionManager } from "../terminal/session-manager";
 import { cloneGitRepository } from "../workspace/git-clone";
 import {
 	ensureInitialCommit,
@@ -70,63 +65,10 @@ import {
 // Re-exported so existing importers (cli.ts, workspace-registry.ts, tests) keep resolving it from here.
 export { resolveKleinSourceRepoPath } from "./projects-api-helpers";
 
+import type { CreateProjectsApiDependencies } from "./projects-api-types";
 import { buildSelfImprovementTaskPrompt } from "./self-improvement-task-prompt";
 
-interface DisposeWorkspaceOptions {
-	stopTerminalSessions?: boolean;
-}
-
-export interface CreateProjectsApiDependencies {
-	getActiveWorkspacePath: () => string | null;
-	getActiveWorkspaceId: () => string | null;
-	rememberWorkspace: (workspaceId: string, repoPath: string) => void;
-	setActiveWorkspace: (workspaceId: string, repoPath: string) => Promise<void>;
-	clearActiveWorkspace: () => void;
-	resolveProjectInputPath: (inputPath: string, cwd: string) => string;
-	assertPathIsDirectory: (path: string) => Promise<void>;
-	hasGitRepository: (path: string) => boolean;
-	summarizeProjectTaskCounts: (workspaceId: string, repoPath: string) => Promise<RuntimeProjectTaskCounts>;
-	createProjectSummary: (project: {
-		workspaceId: string;
-		repoPath: string;
-		taskCounts: RuntimeProjectTaskCounts;
-		gitRepositoryCreatedByKanban: boolean;
-		displayName?: string | null;
-		healthIssues?: RuntimeProjectHealthIssue[];
-	}) => RuntimeProjectSummary;
-	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void> | void;
-	getTerminalManagerForWorkspace: (workspaceId: string) => TerminalSessionManager | null;
-	disposeWorkspace: (
-		workspaceId: string,
-		options?: DisposeWorkspaceOptions,
-	) => { terminalManager: TerminalSessionManager | null; workspacePath: string | null };
-	collectProjectWorktreeTaskIdsForRemoval: (board: RuntimeBoardData) => Set<string>;
-	warn: (message: string) => void;
-	buildProjectsPayload: (preferredCurrentProjectId: string | null) => Promise<{
-		currentProjectId: string | null;
-		projects: RuntimeProjectSummary[];
-	}>;
-	pickDirectoryPathFromSystemDialog: () => string | null;
-	serverCwd: string;
-	/**
-	 * Resolve the git root of !Klein's OWN source checkout for the self-improvement guard — defaults to the install
-	 * location (where this module's code lives, via `import.meta.url`), independent of `serverCwd`. Injectable so tests
-	 * can point it at a fixture repo. Returns null for a packaged (non-git) install — nothing to guard.
-	 */
-	resolveKleinSourceRepoPath?: () => Promise<string | null>;
-	/**
-	 * When true the server is bound to a non-loopback interface (--host mode)
-	 * and path access must be confined to `allowedBrowseRoots`.
-	 */
-	isRemoteMode: boolean;
-	/**
-	 * The ordered set of allowed filesystem roots for remote-mode browsing and
-	 * project creation.  Computed by `resolveRemoteBrowseRoots` in
-	 * `runtime-server.ts` and passed in so the API layer stays pure/testable.
-	 * Ignored when `isRemoteMode` is false.
-	 */
-	allowedBrowseRoots: readonly string[];
-}
+export type { CreateProjectsApiDependencies } from "./projects-api-types";
 
 export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeTrpcContext["projectsApi"] {
 	// In remote mode the filesystem root is narrowed to the first allowed root
