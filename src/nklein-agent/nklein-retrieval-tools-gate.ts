@@ -9,6 +9,8 @@
  *   3. §5.L per-role capability gate allows web research (default `fully_open` ⇒ allowed).
  *   4. A non-blank search backend URL is configured — the retrieval loop searches; no backend ⇒ no online retrieval.
  */
+import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
+
 export interface RetrievalToolsGateInput {
 	/** The task session id — a synthetic session (`<taskId>::<suffix>`) never gets egress. */
 	taskId: string;
@@ -21,7 +23,7 @@ export interface RetrievalToolsGateInput {
 }
 
 export function shouldAttachRetrievalTools(input: RetrievalToolsGateInput): boolean {
-	if (input.taskId.includes("::")) {
+	if (isDerivedTaskSessionId(input.taskId)) {
 		return false;
 	}
 	if (input.egressEnabled !== true) {

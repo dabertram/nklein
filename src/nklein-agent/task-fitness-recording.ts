@@ -10,6 +10,7 @@
  */
 import type { RuntimeBoardCard, RuntimeTaskSessionSummary } from "../core/api-contract";
 import type { FitnessKey, FitnessOutcome } from "../core/fitness-table-schema";
+import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { estimateTaskDifficulty } from "../core/task-difficulty-estimate";
 import { buildNKleinModelRegistryKey } from "./nklein-model-registry-key";
 import { resolveNKleinTaskRole } from "./nklein-task-session-helpers";
@@ -29,7 +30,7 @@ export function deriveTaskFitnessRecord(input: {
 	card: RuntimeBoardCard | null;
 }): TaskFitnessRecord | null {
 	const { summary, card } = input;
-	if (summary.taskId.includes("::")) {
+	if (isDerivedTaskSessionId(summary.taskId)) {
 		return null; // synthetic (::review / ::plan-critique / ::acceptance)
 	}
 	if (!summary.providerId && !summary.modelId) {

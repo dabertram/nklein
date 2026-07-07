@@ -25,6 +25,7 @@ import { appendChatMessage } from "../chat/chat-transcript-store";
 import type { RuntimeTaskSessionState, RuntimeTaskSessionSummary } from "../core/api-contract";
 import type { OperatorColumnId, OperatorSignalOverrides } from "../core/operator-task-state";
 import { assessRunAttention, type RunBudgetCeiling } from "../core/run-attention-signals";
+import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { loadWorkspaceState } from "../state/workspace-state";
 
 /** The card's session state → the board lane that matters for feedback. `awaiting_review` = the actionable moment. */
@@ -164,7 +165,7 @@ export function createBoardChatFeedbackWiring(overrides?: {
 		workspacePathById.set(input.workspaceId, input.workspacePath);
 		// Synthetic sessions (::review / ::acceptance / ::spec / ::merge / ::plan-critique) are auxiliary — feedback is
 		// about the CARD, not its judges. Skip them.
-		if (input.summary.taskId.includes("::")) {
+		if (isDerivedTaskSessionId(input.summary.taskId)) {
 			return;
 		}
 		// §5.AG: fold time/budget-aware attention signals derived from the summary's telemetry into the transition. This

@@ -1,5 +1,6 @@
 import type { PromptWarmthLedgerEntry } from "../core/cache-warmth";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { isDerivedTaskSessionId } from "../core/synthetic-task-id";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { type AgentSandboxManager, createAgentSandboxToolExecutors } from "./nklein-agent-sandbox";
 import { createAgentSandboxExtraTools } from "./nklein-agent-sandbox-extra-tools";
@@ -68,7 +69,7 @@ export function createPlanCritiqueRunner(deps: PlanCritiqueRunnerDeps): PlanCrit
 	let planCritiqueRunsUsed = 0;
 
 	function buildRequestHandler(taskId: string, projectRepoPath: string): NKleinPlanCritiqueRequestHandler | undefined {
-		if (taskId.includes("::") || isHomeAgentSessionId(taskId)) {
+		if (isDerivedTaskSessionId(taskId) || isHomeAgentSessionId(taskId)) {
 			return undefined;
 		}
 		return async (request) => {

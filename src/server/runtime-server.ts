@@ -3,7 +3,6 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createServer as createHttpsServer } from "node:https";
 import { homedir } from "node:os";
 import { join } from "node:path";
-
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
@@ -43,6 +42,11 @@ import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-t
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
 import { readSwarmStopSignal } from "../core/swarm-guardrails";
+import {
+	isDerivedTaskSessionId,
+	isSpeculativeMirrorTaskId,
+	primaryTaskIdOfSpeculativeMirror,
+} from "../core/synthetic-task-id";
 import {
 	completeTaskAndGetReadyLinkedTaskIds,
 	getTaskColumnId,
@@ -1465,7 +1469,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								(summary) =>
 									// §5.AW: a speculative mirror is auxiliary by definition — it must never
 									// mask a frozen board (real cards waiting while only a ::spec runs).
-									!summary.taskId.endsWith("::spec") &&
+									!isSpeculativeMirrorTaskId(summary.taskId) &&
 									(summary.state === "running" ||
 										summary.state === "queued" ||
 										summary.state === "paused" ||
@@ -1568,7 +1572,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const sessions = trackedService.listModelEndpointSessions();
 							const busyStates = new Set(["running", "queued"]);
 							const runningSpecSessions = sessions.filter(
-								(session) => session.taskId.endsWith("::spec") && busyStates.has(session.state),
+								(session) => isSpeculativeMirrorTaskId(session.taskId) && busyStates.has(session.state),
 							);
 							// PREEMPTION (adversarial finding): "real work outranks speculation" must also hold for
 							// specs ALREADY running — a mirror occupying a per-model slot for its full bound would
@@ -1579,7 +1583,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								(deferredOverlapTaskIdsByWorkspaceId.get(scope.workspaceId)?.size ?? 0) > 0;
 							if (realWorkWaiting && runningSpecSessions.length > 0) {
 								for (const spec of runningSpecSessions) {
-									const primaryTaskId = spec.taskId.slice(0, -"::spec".length);
+									const primaryTaskId = primaryTaskIdOfSpeculativeMirror(spec.taskId);
 									deps.warn(
 										`Preempting speculative mirror ${spec.taskId}: real card(s) are waiting for capacity.`,
 									);
@@ -1593,7 +1597,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const runningWorkerSessions = sessions.filter(
 								(session) =>
 									session.state === "running" &&
-									!session.taskId.includes("::") &&
+									!isDerivedTaskSessionId(session.taskId) &&
 									!isHomeAgentSessionId(session.taskId),
 							);
 							if (runningWorkerSessions.length === 0) {
@@ -1749,7 +1753,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							const runningWorkerSessions = sessions.filter(
 								(session) =>
 									session.state === "running" &&
-									!session.taskId.includes("::") &&
+									!isDerivedTaskSessionId(session.taskId) &&
 									!isHomeAgentSessionId(session.taskId),
 							);
 							const realWorkWaiting =
