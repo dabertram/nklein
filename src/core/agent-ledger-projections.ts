@@ -8,6 +8,7 @@
  * adaptive retry engine reads, so "what works per model" is derived from the durable record, not a second store.
  */
 
+import type { SelfObservationEventRecord } from "../telemetry/self-observation-sink";
 import {
 	type AgentAttemptEvent,
 	type AgentLedgerEvent,
@@ -30,8 +31,14 @@ import {
 	type ModelOutcomeKind,
 	recordModelBehaviorOutcome,
 } from "./model-behavior-profile";
+import type { ToolUseVerdict } from "./model-capability-catalog";
 import { computeModelFitness, type FitnessWeights, type ModelFitnessRecord } from "./model-fitness";
 import type { RetryStrategy } from "./retry-policy";
+import {
+	assessRuntimeModelVerdict,
+	penalizeFitnessByRuntimeVerdict,
+	type RuntimeRunOutcome,
+} from "./runtime-model-verdict";
 
 /**
  * Derive a `ModelBehaviorProfile` per model by folding that model's ledger attempts (chronologically) through the
@@ -263,6 +270,48 @@ export function rankModelsByLedgerFitness(
 				left.modelId.localeCompare(right.modelId) ||
 				left.role.localeCompare(right.role),
 		);
+}
+
+/**
+ * Rank models by ledger fitness AND apply the runtime-verdict penalty the START PATH actually routes on (§5.AB/§5.AL) —
+ * so an operator-facing "routing recommendation" (e.g. `nklein dev ledger`) ranks the same way selection does, instead
+ * of by raw fitness that ignores chronic stalls. The penalty mirrors `createCapabilityBlender`'s inline multiplier
+ * exactly (`TOOL_UNSUITABLE` ×0.1, `TOOL_WEAK` ×0.5, else ×1), sourced from the SAME evidence: self-observation events
+ * (failures) + the ledger's total-run list (the denominator). Pure; a model with no verdict evidence is unchanged, so
+ * with an empty `selfObservationEvents`/`verdictRuns` this is byte-identical to {@link rankModelsByLedgerFitness}.
+ */
+export function rankModelsByLedgerFitnessWithVerdict(
+	events: readonly AgentLedgerEvent[],
+	options: {
+		selfObservationEvents: readonly SelfObservationEventRecord[];
+		verdictRuns: readonly RuntimeRunOutcome[];
+		role?: string;
+		weights?: FitnessWeights;
+	},
+): RankedModelFitness[] {
+	const rankOptions = {
+		...(options.role !== undefined ? { role: options.role } : {}),
+		...(options.weights !== undefined ? { weights: options.weights } : {}),
+	};
+	const ranked = rankModelsByLedgerFitness(events, rankOptions);
+	if (options.selfObservationEvents.length === 0 && options.verdictRuns.length === 0) {
+		return ranked; // no verdict evidence ⇒ nothing to penalize; identical ordering to the base rank.
+	}
+	// Memoize per distinct modelId — the same model can appear across several roles.
+	const verdictByModelId = new Map<string, ToolUseVerdict>();
+	for (const row of ranked) {
+		if (!verdictByModelId.has(row.modelId)) {
+			verdictByModelId.set(
+				row.modelId,
+				assessRuntimeModelVerdict({
+					modelId: row.modelId,
+					events: options.selfObservationEvents,
+					runs: options.verdictRuns,
+				}).verdict,
+			);
+		}
+	}
+	return penalizeFitnessByRuntimeVerdict(ranked, verdictByModelId);
 }
 
 /**

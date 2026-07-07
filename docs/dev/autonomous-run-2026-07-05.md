@@ -3576,3 +3576,16 @@ test-infra that belongs with the Opus test pass (§5.AK boot-smoke/mock helper �
 to OPUS and work the opus-code list in docs/dev/backlog-audit-2026-07-07.md — top of the queue is the WIRING cluster
 (retry-policy engine adoption · escalation hot-path · test-driven splice · fitness-verdict blending), then §5.M memory
 wiring, delivery actions, §5.AC retrieval telemetry/freshness, CI dogfood gate, §5.AN native clients, §5.AQ load knobs.
+
+### 2026-07-07 (Opus) - opus queue #4 (fitness-verdict blending): audit finding was STALE — resolved + dead fn revived
+Started the Opus wiring queue. Item #4 investigation found the audit STALE: the runtime-verdict penalty ALREADY steers
+routing via createCapabilityBlender's inline verdictMultiplier (W2.6b 2026-07-02, TOOL_UNSUITABLE ×0.1 / TOOL_WEAK ×0.5,
+applied to blended capability at start-task-session). The named fn `penalizeFitnessByRuntimeVerdict` was genuinely DEAD
+(0 non-comment callers, 0 tests). Rather than delete it, gave it a real caller that closes a real consistency gap: the
+`nklein dev ledger` "§5.AB routing recommendation" ranking was sorting by RAW fitness — disagreeing with what selection
+actually routes on. New pure `rankModelsByLedgerFitnessWithVerdict` (agent-ledger-projections) composes rank + the same
+verdict penalty from the same evidence (self-observation failures + ledger run denominator); wired into the display.
+3 unit tests (raw→penalized order flip, empty-evidence byte-identity, <3-run UNKNOWN-unpenalized). Gate green: tsc +
+biome + the projections suite 26/26. Method note: spot-verifying "core exists, wire it" audit items against the CODE
+first keeps catching stale verdicts (this one + the earlier pin/prefer/weight one) — the wiring was already done, the
+gap was elsewhere. Next: the retry-policy engine (#1) — the big one; will characterize before touching.

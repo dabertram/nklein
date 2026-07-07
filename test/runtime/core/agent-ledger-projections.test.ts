@@ -7,12 +7,15 @@ import {
 	buildModelBehaviorProfilesFromLedger,
 	buildModelFitnessFromLedger,
 	rankModelsByLedgerFitness,
+	rankModelsByLedgerFitnessWithVerdict,
 	summarizeLedgerForDisplay,
 	summarizeModelOutcomesByFlow,
 	summarizeModelOutcomesByRole,
 } from "../../../src/core/agent-ledger-projections";
 import type { ModelOutcomeKind } from "../../../src/core/model-behavior-profile";
 import { computeModelFitness } from "../../../src/core/model-fitness";
+import type { RuntimeRunOutcome } from "../../../src/core/runtime-model-verdict";
+import type { SelfObservationEventRecord } from "../../../src/telemetry/self-observation-sink";
 
 const base = { workflowId: "wf", taskId: "t", workspacePathHash: "ws" };
 
@@ -331,6 +334,77 @@ describe("rankModelsByLedgerFitness", () => {
 		const events = [fitAttempt("m", "worker", "success", 500), fitAttempt("m", "reviewer", "success", 500)];
 		expect(rankModelsByLedgerFitness(events, { role: "reviewer" }).map((r) => r.role)).toEqual(["reviewer"]);
 		expect(rankModelsByLedgerFitness([])).toEqual([]);
+	});
+});
+
+describe("rankModelsByLedgerFitnessWithVerdict", () => {
+	const fitAttempt = (modelId: string, role: string, outcome: ModelOutcomeKind, latencyMs: number) =>
+		buildAttemptEvent({
+			...base,
+			attemptId: `${modelId}-${role}-${outcome}-${latencyMs}-${Math.random()}`,
+			modelId,
+			role,
+			outcome,
+			startedAt: 0,
+			completedAt: latencyMs,
+		});
+
+	const stall = (modelId: string, runId: string): SelfObservationEventRecord => ({
+		schemaVersion: 1,
+		signal: "model_stalled",
+		severity: "warning",
+		message: "empty turn",
+		modelId,
+		runId,
+		createdAt: 0,
+	});
+
+	// "chronic" wins on RAW fitness (perfect + fast) but stalls on 2/3 runs ⇒ TOOL_UNSUITABLE; "steady" is a hair
+	// behind on raw fitness but never stalls. The runtime-verdict penalty must sink chronic below steady.
+	const events = [
+		fitAttempt("chronic", "worker", "success", 400),
+		fitAttempt("chronic", "worker", "success", 400),
+		fitAttempt("chronic", "worker", "success", 400),
+		fitAttempt("steady", "worker", "success", 900),
+		fitAttempt("steady", "worker", "success", 900),
+		fitAttempt("steady", "worker", "other_failure", 900),
+	];
+	const verdictRuns: RuntimeRunOutcome[] = [
+		{ runId: "c1", modelId: "chronic" },
+		{ runId: "c2", modelId: "chronic" },
+		{ runId: "c3", modelId: "chronic" },
+	];
+	const selfObservationEvents = [stall("chronic", "c1"), stall("chronic", "c2")]; // 2/3 stalls ⇒ ≥0.5 ⇒ UNSUITABLE
+
+	it("with NO verdict evidence, is byte-identical to the base ranking", () => {
+		const base = rankModelsByLedgerFitness(events);
+		const withVerdict = rankModelsByLedgerFitnessWithVerdict(events, {
+			selfObservationEvents: [],
+			verdictRuns: [],
+		});
+		expect(withVerdict).toEqual(base);
+	});
+
+	it("sinks a TOOL_UNSUITABLE model below a steadier one it out-ranks on raw fitness", () => {
+		const raw = rankModelsByLedgerFitness(events);
+		expect(raw[0]?.modelId).toBe("chronic"); // raw fitness puts the staller first
+
+		const penalized = rankModelsByLedgerFitnessWithVerdict(events, { selfObservationEvents, verdictRuns });
+		expect(penalized[0]?.modelId).toBe("steady"); // the ×0.1 UNSUITABLE penalty flips the order
+		const chronicRow = penalized.find((r) => r.modelId === "chronic");
+		const steadyRow = penalized.find((r) => r.modelId === "steady");
+		// chronic's score is scaled to 10% of its raw value; steady is untouched.
+		expect(chronicRow?.fitnessScore).toBeCloseTo((raw.find((r) => r.modelId === "chronic")?.fitnessScore ?? 0) * 0.1);
+		expect(steadyRow?.fitnessScore).toBe(raw.find((r) => r.modelId === "steady")?.fitnessScore);
+	});
+
+	it("leaves models with too little evidence (<3 runs) unpenalized", () => {
+		// Only 1 run of verdict evidence ⇒ UNKNOWN ⇒ multiplier 1 ⇒ same order as raw.
+		const penalized = rankModelsByLedgerFitnessWithVerdict(events, {
+			selfObservationEvents: [stall("chronic", "c1")],
+			verdictRuns: [{ runId: "c1", modelId: "chronic" }],
+		});
+		expect(penalized[0]?.modelId).toBe("chronic");
 	});
 });
 

@@ -46,8 +46,13 @@ Highest-leverage first (repeat finding: **pure cores exist + tested, wiring is t
    ledger events (L5806-5808).
 3. **Test-driven mode splice** (§5.AI L7550): `test-driven-delivery.ts` core done, 0 callers; seam identified
    at the delivery gate.
-4. **Fitness verdict blending** (§5.AL/§5.AB): `penalizeFitnessByRuntimeVerdict` + `combineSuitabilityVerdicts`
-   tested but display-only — wire into selection.
+4. **Fitness verdict blending** (§5.AL/§5.AB): ✅ **RESOLVED 2026-07-07 (Opus) — the audit finding was STALE.** The
+   runtime-verdict penalty already steers ROUTING via `createCapabilityBlender`'s inline `verdictMultiplier`
+   (W2.6b, 2026-07-02: TOOL_UNSUITABLE ×0.1 / TOOL_WEAK ×0.5). `penalizeFitnessByRuntimeVerdict` itself was genuinely
+   DEAD (0 callers, 0 tests) — now given a real caller: `nklein dev ledger`'s "routing recommendation" ranking
+   (`rankModelsByLedgerFitnessWithVerdict`) applies the SAME penalty so the display matches routing instead of ranking
+   by raw fitness. Unit-tested (raw→penalized flip, empty-evidence identity, <3-run UNKNOWN). `combineSuitabilityVerdicts`
+   remains a dev-display helper by design.
 5. **§5.M memory wiring cluster**: summarizer into `consolidateChatContextWindow` (L2097), embedder dedup
    (L2109), extractor (L2110), persistence (L2111).
 6. **Delivery actions** (§5.L): commit (L1676) + open_pr (L1677) automation; sandbox pool by network policy

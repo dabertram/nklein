@@ -3,11 +3,12 @@ import { renderSwarmEfficiencyReport, summarizeSwarmEfficiency } from "../core/a
 import {
 	buildModelCapabilityAdvice,
 	buildStucknessSignalsFromLedger,
-	rankModelsByLedgerFitness,
+	rankModelsByLedgerFitnessWithVerdict,
 	summarizeLedgerForDisplay,
 } from "../core/agent-ledger-projections";
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
+import { buildLedgerEvidence } from "../core/ledger-evidence";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
@@ -37,7 +38,12 @@ import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 export async function runDevLedgerCommand(options: { json?: boolean }): Promise<void> {
 	const events = await readAllAgentLedger();
 	const summary = summarizeLedgerForDisplay(events);
-	const ranked = rankModelsByLedgerFitness(events);
+	// Rank the SAME way the start path routes: fitness penalized by the runtime verdict (chronic stallers sink), not
+	// raw fitness — otherwise this "routing recommendation" disagrees with what selection actually does. Evidence is
+	// the same as the router's blend: self-observation failures + the ledger's total-run denominator (best-effort).
+	const selfObservationEvents = await readSelfObservationEvents({ limit: 500 }).catch(() => []);
+	const { verdictRuns } = await buildLedgerEvidence(async () => events);
+	const ranked = rankModelsByLedgerFitnessWithVerdict(events, { selfObservationEvents, verdictRuns });
 	if (options.json) {
 		process.stdout.write(`${JSON.stringify({ ...summary, fitnessRanking: ranked }, null, 2)}\n`);
 		return;
