@@ -34,7 +34,7 @@ import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { applyThinkingDisable } from "../core/model-thinking-control";
 import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import type { SkillDynamicsLevel } from "../core/skill-resolver";
-import { shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
+import { didCreditLimitJustTrigger, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
@@ -2781,9 +2781,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				this.emitMessage(taskIdFromEvent, message);
 			},
 		});
-		const shouldAbortForCreditLimit =
-			entry.summary.latestHookActivity?.notificationType === "credit_limit" &&
-			previousSummary?.latestHookActivity?.notificationType !== "credit_limit";
+		const shouldAbortForCreditLimit = didCreditLimitJustTrigger(previousSummary, entry.summary);
 		if (this.sandboxReviewFinalizer.shouldFinalizeSandboxReview(previousSummary, latestSummary)) {
 			this.sandboxReviewFinalizer.finalizeSandboxReview(taskId);
 		} else if (shouldCaptureReviewCheckpoint(previousSummary, latestSummary)) {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RuntimeTaskSessionSummary } from "../../../src/core/task-session-api-contract";
 import {
+	didCreditLimitJustTrigger,
 	isEnteringAwaitingReview,
 	isReviewableNKleinSummary,
 	shouldCaptureReviewCheckpoint,
@@ -94,5 +95,40 @@ describe("shouldCaptureReviewCheckpoint", () => {
 
 	it("is false when the next summary is null", () => {
 		expect(shouldCaptureReviewCheckpoint(running, null)).toBe(false);
+	});
+});
+
+describe("didCreditLimitJustTrigger", () => {
+	const hook = (notificationType: string | null) =>
+		({ notificationType }) as NonNullable<RuntimeTaskSessionSummary["latestHookActivity"]>;
+
+	it("fires ONLY on the edge into credit_limit (present now, absent before)", () => {
+		expect(
+			didCreditLimitJustTrigger(
+				summary({ latestHookActivity: hook(null) }),
+				summary({ latestHookActivity: hook("credit_limit") }),
+			),
+		).toBe(true);
+		// From no hook activity at all (null default) into credit_limit is still the edge.
+		expect(didCreditLimitJustTrigger(summary({}), summary({ latestHookActivity: hook("credit_limit") }))).toBe(true);
+	});
+
+	it("does NOT re-fire while credit_limit persists (prevents re-aborting an already-limited session)", () => {
+		expect(
+			didCreditLimitJustTrigger(
+				summary({ latestHookActivity: hook("credit_limit") }),
+				summary({ latestHookActivity: hook("credit_limit") }),
+			),
+		).toBe(false);
+	});
+
+	it("does NOT fire when the current notification is not credit_limit", () => {
+		expect(
+			didCreditLimitJustTrigger(
+				summary({ latestHookActivity: hook(null) }),
+				summary({ latestHookActivity: hook("some_other") }),
+			),
+		).toBe(false);
+		expect(didCreditLimitJustTrigger(summary({ latestHookActivity: hook("credit_limit") }), summary({}))).toBe(false);
 	});
 });

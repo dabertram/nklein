@@ -51,3 +51,19 @@ export function shouldCaptureReviewCheckpoint(
 	}
 	return isEnteringAwaitingReview(previousSummary, nextSummary);
 }
+
+/**
+ * Detect the EDGE where a session's latest hook activity just became a `credit_limit` notification — true only on the
+ * transition INTO credit_limit (present now, absent on the previous summary), never on a repeat. The handler aborts the
+ * run when this fires; keying on the edge (not the level) prevents re-aborting an already-credit-limited session on
+ * every subsequent event. (todo §5.U — lifted from `handleTaskEvent` in nklein-task-session-service.ts.)
+ */
+export function didCreditLimitJustTrigger(
+	previousSummary: RuntimeTaskSessionSummary,
+	currentSummary: RuntimeTaskSessionSummary,
+): boolean {
+	return (
+		currentSummary.latestHookActivity?.notificationType === "credit_limit" &&
+		previousSummary.latestHookActivity?.notificationType !== "credit_limit"
+	);
+}
