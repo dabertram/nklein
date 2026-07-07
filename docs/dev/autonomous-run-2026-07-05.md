@@ -1978,3 +1978,10 @@ Qwable, Qwopus — all REAL mid-2026, post-cutoff; churn validates the data-driv
 **CHECKPOINT:** delivered the highest-value bounded correctness fix (lineage) + full integration + a precise map. The
 remaining 5 gaps are substantial (several cross-layer/hot-path). Reporting to David before making multi-layer review-path
 behavior changes unsupervised (the §5.BG lesson).
+
+**UPDATE (same day):** Gap 3 reviewer-DEPTH part LANDED [38bea5a5] purely — `buildReviewerCandidates` now scores by
+catalog reviewer-class fit + returns best-first, so the deepest lineage-diverse model judges and
+`applyDiversityPreference`'s margin (which was inert under flat scores) works as designed. No SDK-boundary crossing
+(catalog lookup, not the runtime registry — that path was the false-start cost). Follow-up noted in-commit: warmth
+batching should become capability-margin-bounded. Remaining model-advisory gaps (external catalog / parallel panel /
+hardware-tier config / escalation diversity / suggestion surface) are each larger features — checkpointing with David.
