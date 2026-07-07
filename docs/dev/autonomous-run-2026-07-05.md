@@ -2175,3 +2175,17 @@ the panel wiring / escalation-threading / overlay→gate tests from prior ticks,
 default-on features now have coverage of their WIRING and PURPOSE, not just their cores — a live §5.Z flip has a very
 small unverified surface. **Coverage vein genuinely closed** — remaining untested bits are one-line delegations (against
 the no-padding standard). Frontier unchanged: §5.U entangled lifecycle (David seam) + live §5.Z run.
+
+### 2026-07-07 (Opus) - 5.U candidate evaluated + correctly declined: ledger-evidence extraction
+Re-scanned start-task-session for a 3rd clear-boundary lift. buildLedgerEvidence (the block ~449-477: read the
+agent-attempt ledger ONCE, project into successByKey + roleSuccessByKey + verdictRuns, best-effort empty-on-error) IS a
+genuine clear-boundary DI-injectable I/O helper -- a good 5.U + 5.V (best-effort behavior untested) target. BUT it is NOT
+a safe autonomous mechanical edit: the role key uses a NUL separator that MUST stay identical between the builder and the
+lookup site (blendedCapabilityForKey), and the block is on the hot evidence path where a separator drift silently breaks
+per-role routing evidence. The edit tooling can't reliably match the null-char + em-dash-dense block, so forcing it risks
+exactly that silent break. DECLINED + reverted cleanly (no half-done state). CAPTURED for a careful manual pass: extract
+buildLedgerEvidence(readLedger) + a shared roleEvidenceKey(modelKey, role) helper used by BOTH the builder and the lookup
+(so the separator can't drift), inject readAllAgentLedger, add best-effort + roundtrip tests. Unlike the re-key /
+residency-set lifts (simple Map/Set transforms, done), this one wants human review of the seam. This exhausts the SAFE
+autonomous 5.U clear-boundary surface: the remaining lifts are either entangled (David-gated lifecycle) or risky to
+mechanize (this one).
