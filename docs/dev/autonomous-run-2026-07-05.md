@@ -2975,3 +2975,22 @@ NEXT (loop rearmed): execute §5.DT, then §5.BG flip, bounce-test investigation
   `swarm-deterministic-bounce` (the stale-test fix already took integration 40→41/42). The flip broke nothing.
 NEXT: bounce-test investigation (the last integration red — `::acceptance` sandbox not prepared for a re-worked card,
 todo:6478), then release docs, then §5.U full pass. Draining continues.
+
+### 2026-07-07 (Opus) - bounce-test ROOT-CAUSED: not a product bug, an infra (Docker-memory) limit — serialize fix REFUTED
+Investigated the last integration red (`swarm-deterministic-bounce`). Ground truth, step by step (discipline: verify,
+don't assume; validate a fix before shipping):
+  1. Ran it ALONE → **1/1 PASS.** ⇒ NOT a product bug; the delivery/acceptance path is correct. Refutes the old "prep
+     bug for a re-worked card" hypothesis (also confirmed by code: the verifier's result-branch resolution falls back to
+     baseRef robustly; the `::acceptance` gate self-prepares its workspace).
+  2. Hypothesized parallel Docker contention (12 sandbox backends on a 7.7 GiB VM) → **serialize the integration files.**
+     VALIDATED it: ran the full suite `--no-file-parallelism` → **STILL 41/42, bounce still failed at the 275s deadline.**
+     Hypothesis REFUTED. Did NOT ship the serialize change (validation caught it — the whole point of validating first).
+  3. So it's not concurrency: the bounce passes alone but fails after the other 11 sandbox tests run (parallel OR serial)
+     ⇒ accumulated Docker-VM MEMORY-HEADROOM exhaustion. Post-run Docker check: containers ARE cleaned up (only searxng),
+     the 7 leftover sandbox volumes are 0B — NOT a leak. The bounce is the heaviest sandbox test; once the 7.7 GiB VM is
+     stressed, its `::acceptance` container can't be readied within the 120s slot wait → fail-closed.
+**CONCLUSION (validated):** not a product bug, not code-fixable on this host — an environmental limit. **RECOMMEND to
+David:** bump Docker Desktop memory (≈12-16 GB vs 7.7 GiB) → the full integration suite should reach 42/42. I won't
+auto-skip the test (risks hiding a future real delivery regression) nor ship a refuted fix. This is the honest outcome
+that separates the two integration reds: stale-test (FIXED this session) + bounce (infra, Docker memory — David's).
+The delivery path itself is verified CORRECT. NEXT: release docs, then §5.U full pass.

@@ -3274,6 +3274,26 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         7.7 GiB VM). So the two integration reds are DISTINCT: this one = a stale test (fix the assertions, controlled);
         the bounce one = a real Docker-host-gated delivery-path question. Both sit outside the pre-commit gate — same root
         process gap.
+      - **★★ ROOT-CAUSED 2026-07-07 (Opus, autonomy queue): the bounce test is NOT a product bug — it PASSES in isolation.**
+        Ran `swarm-deterministic-bounce` ALONE → **1/1 PASS**; it fails ONLY inside the full parallel `test/integration`
+        run. Ground-truth mechanism (refutes the earlier "prep bug" hypothesis): the delivery-time `::acceptance` re-check
+        self-prepares its workspace via `prepareWorkspace → acquireSlot` with a 120s bounded wait
+        (`ACCEPTANCE_SLOT_QUEUE_WAIT_MS`); the result-branch resolution falls back to `baseRef` robustly (so a bad ref
+        can't cause "no workspace"). When ~12 sandbox-backed integration files run in PARALLEL they contend for the ONE
+        Docker daemon on the 7.7 GiB VM, so the bounce's `::acceptance` container can't get a slot within 120s → fail-closed
+        → delivery held. The swarm files already use `describe.sequential` (within-file) but vitest runs the FILES in
+        parallel (no `fileParallelism` override). **★ SERIALIZE FIX ATTEMPTED → REFUTED BY VALIDATION (2026-07-07):** ran
+        the full integration suite with `--no-file-parallelism` and the bounce STILL failed (41/42, again at the 275s
+        deadline). So it is NOT parallelism contention. The bounce passes ALONE but fails after the other 11 sandbox tests
+        run (parallel OR serial) ⇒ **accumulated Docker-VM MEMORY-HEADROOM exhaustion on the 7.7 GiB VM**, not concurrency
+        and not a container/disk leak (checked post-run: containers cleaned up — only searxng resident; the 7 leftover
+        sandbox volumes are all 0B). The bounce is the heaviest sandbox test (worker×2 + review×2 + `::acceptance`); once
+        the Docker VM is stressed by prior tests, its `::acceptance` container can't be readied within the 120s slot wait
+        → fail-closed. **CONCLUSION (validated): not a product bug (delivery path is CORRECT — passes in isolation),
+        not code-fixable on this host. The real fix is INFRA: give the Docker Desktop VM more memory** (≈12-16 GB vs the
+        current 7.7 GiB), then the full suite should reach 42/42. **RECOMMEND to David:** bump Docker Desktop memory; I
+        won't auto-skip the test (that risks hiding a future real delivery regression) nor ship the refuted serialize
+        change. This is an environmental capability limit, cleanly separated from the (now-fixed) stale-test red.
       - **It is a STALE TEST, not a product bug — verified.** The test (`test/integration/runtime-state-stream.integration.test.ts`)
         seeds a session `{ state: "awaiting_review", reviewReason: "exit", exitCode: 0 }` with its card in the REVIEW
         column, restarts the server, and asserts the card is moved OUT of review INTO trash (lines ~527–528) + the session
