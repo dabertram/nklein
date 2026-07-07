@@ -1269,10 +1269,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `SubtaskDagReport` shape + the quality assessment + a coverage signal) and act on the verdict.
 - **Audio dev-test rubric** — score the audio-VST fixture against a domain rubric (preset + harness shipped; this is the
       *scoring*; umbrella — the 4 scoring axes below are the counted work):
-  - [ ] DSP correctness + measured phase alignment
-  - [ ] groove invariants + effect-guardrail sweeps
-  - [ ] full UI control coverage
-  - [ ] prototype-vs-real-VST docs
+  - [x] DSP correctness + measured phase alignment *(✅ DONE 2026-07-07 — scoreAudioVstRubric axis 1: bounded buffers · deterministic render · kick transient-is-peak · decay-to-silence · phase-alignment offset (tolerance-scored); src/core/audio-vst-rubric.ts, 9 tests)*
+  - [x] groove invariants + effect-guardrail sweeps *(✅ DONE 2026-07-07 — axis 2: four-on-the-floor timing + effect-guardrail sweep (held-peak≤1 fraction); src/core/audio-vst-rubric.ts, 9 tests)*
+  - [x] full UI control coverage *(✅ DONE 2026-07-07 — axis 3: fully-specced-control fraction (id/label/min/max/default/unit); src/core/audio-vst-rubric.ts, 9 tests)*
+  - [x] prototype-vs-real-VST docs *(✅ DONE 2026-07-07 — axis 4: docs mark portable-prototype (no deps/no DAW) + cover controls; src/core/audio-vst-rubric.ts, 9 tests)*
 - [~] **DETERMINISTIC REPAIR KERNEL for bugfix/regression cards + richer per-card contracts (2026-06-27, small-LLM
       research pass).** For bug/repair work, constrain the pipeline instead of giving the small model general agency:
       **`reproduce → localize → generate N patch candidates → validate → rank → refine`**.
