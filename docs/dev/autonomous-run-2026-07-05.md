@@ -2359,3 +2359,21 @@ workspace-state's persistence-I/O cluster (readJsonFile + readWorkspace{Board,Se
 {StateFiles,Index}) -- more coupled (locking + parsing + the now-imported path helpers), so a more careful lift; assess
 whether it's a clean boundary or leave workspace-state (~884, no longer a monolith) and move to the next-largest file
 (cli.ts 812, sdk-provider-boundary.ts 719).
+
+### 2026-07-07 (Opus) - §5.U 5th lift (cli.ts port cluster, +tests) + honest coupling assessment
+First assessed the teed-up workspace-state persistence-I/O cluster and correctly REJECTED it as NOT a clean boundary:
+the read/write fns are entangled with the local zod schemas + WorkspaceIndexFile/StateMeta/LocalIdentity types (used by
+the rest of the file) and the *ForContext variants are woven into the locking orchestration -- extracting would need a
+wide shared-type surface, higher risk, not behavior-preserving-by-construction. workspace-state at 884 is no longer a
+monolith, so I did NOT force it. Pivoted to a clean cluster in the next-tier file: cli.ts's port-resolution cluster
+(isPortAvailable + findAvailableRuntimePort + isAddressInUseError) -> cli-runtime-port.ts, keeping applyRuntimePortOption
+(CliOptions + global-config glue) in cli.ts. cli.ts 812 -> 779. COMBINED with §5.V: the port logic was untested -> +4
+real-socket tests. **§5.U ARC: 5 lifts (OAuth, discovery, git-detection, layout/paths, port) across provider-service
+933->684, workspace-state 1046->884, cli.ts 812->779.** **HONEST STATE:** the two BIG NAMED monoliths
+(task-session-service 2830, runtime-server 2260) remain the David-gated entangled seam (single class / single factory,
+no module-level clusters, no clean nested-helper lifts) -- they are where the flagship's biggest wins are and they need
+seam approval. The clean cohesive-module work has moved to mid-sized files (cli.ts/update.ts/sdk-provider-boundary have
+a few more small clusters each) -- legitimate 'no large monolith files' but DIMINISHING marginal value vs the blocked
+big two. Next candidates exist (cli shutdown-indicator/path-dir helpers; sdk-provider model-transform cluster; update.ts
+auto-update-detection) but each is ~40-80 lines. Continuing one clean cluster per tick; flagging that the high-value
+§5.U frontier is David-gated.
