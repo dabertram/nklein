@@ -2037,3 +2037,14 @@ Worked through the model-advisory gaps as test-gated commits (David: full trust 
    `swarm-roster-config` (`resolveEffectiveBudgets`); the gap is the selector reading them at pick time.
 
 NEXT: start §5.BG increment (a) — the persisted runtimeId→modelKey map primitive (foundational, bounded, de-risks the flip).
+
+**UPDATE 2026-07-07 — §5.BG (a)+(b) landed:** (a) persisted-map primitive [24c3cf1e]; (b) the store + learn-on-descriptor-
+fetch + map-aware read [76b6cd60] — a COLD model now resolves its stable key from the persisted map at the session's
+stableModelKey resolution (enriching the already-stable, display/inert fitness/summary keying), WITHOUT touching the
+routing/ledger/residency keys. Non-inert: learned → persisted → read. Foundation for the flip is complete + tested.
+REMAINING §5.BG: (c) the coordinated routing flip — candidate.entry.key + terminal-attempt ledger write + residency
+(runningModelKeys) ALL move to the stable key TOGETHER, the `model-telemetry-key-alignment` guard verifying they stay
+aligned (this is the change reverted once for the mixed-keyspace hazard — now unblocked by the persisted map, since
+`resolveStableModelKeyWithMap` gives every candidate a stable key even when cold); (d) re-key existing ledger/registry
+rows on load (`rekeyTableToStableModelKeys`, already built). (c) is the single riskiest edit (distributed across the hot
+routing path) — a focused, guard-verified pass, then a §5.Z roster re-verify.
