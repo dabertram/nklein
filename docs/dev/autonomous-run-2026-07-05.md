@@ -3441,3 +3441,20 @@ the result — give the final answer / write the deliverable") could harden this
 cross-model validation, not a turn-tail lift. Everything else needs David (MLX vision-MoE arch support; 120B+ ceiling
 confirmation) or is Fable (§5.AX visual). Absent a new directive, the productive autonomous surface is now the §5.AA
 design task or holding.
+
+### 2026-07-07 (Opus) - §5.AA synthesis-variance nudge: INVESTIGATED → not worth a speculative hardening
+Traced the chat-agent turn loop (`src/chat/chat-agent-turn.ts`) to judge whether the residual synthesis-variance is a
+clean, safe fix or a model trait. Finding: !Klein ALREADY has the two safe, high-value synthesis-completion gates —
+(1) the `requiredTools` evidence-gate (lines 151-168: when the instruction names ≥2 offered tools, `assessCompletion`
+won't let the loop accept "done" until every named tool has actually run — the fix for the ≤4B prose-done-after-one-tool
+failure; single-/no-named-tool turns get NO gate so it never forces a fabricated call on ordinary chat); and (2) the
+narration-strip + fallback (lines 189-200: a final answer that is only narrated tool-call markup is stripped and replaced
+with a `Done. (used: …)` confirmation). The residual variance (model calls a tool, gets a result, then doesn't ECHO the
+result marker in the final answer) is a genuinely harder, different case: detecting "the final answer doesn't USE the tool
+result" is semantic, and a blunt "you ran a tool but didn't mention its output — retry" gate would false-positive on many
+legitimate turns (e.g. a model that ran `update_focus_chain` then answered fine). It is rare, retry-recoverable, and the
+tool side-effects already happened. Conclusion: a hardening nudge here is SPECULATIVE + RISKY (false positives) + LOW-VALUE
+relative to the existing gates; it needs deliberate design + live cross-model validation, which David has not asked for.
+Per the standing directive ("if nothing remains actionable without David, say so plainly and stop"), recording the finding
+and HOLDING rather than shipping a speculative gate. **The Opus-domain polishing surface is now comprehensively worked; no
+actionable item remains that does not need a new David directive.**

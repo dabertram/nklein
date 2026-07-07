@@ -376,6 +376,15 @@
       model-robustness arc. **DONE (2026-07-07 verify):** `stripNarratedToolCallMarkup` already handles plain-prose
       `Tool call: name(args)` (via `PLAIN_PROSE_TOOL_CALL`) — both strip (display) and recover (execute, via
       `parsePlainProseToolCalls`) paths ship with unit coverage in `nklein-narrated-tool-call.test.ts`.
+>     - **Synthesis-echo nudge — INVESTIGATED, HELD (2026-07-07 Opus):** the narrow "model called a tool, got the
+>       result, but didn't ECHO it in the final answer" variance is NOT worth a dedicated gate. `chat-agent-turn.ts`
+>       already ships the two safe/high-value synthesis-completion gates — the `requiredTools` evidence-gate (won't accept
+>       "done" until every ≥2 named tool has run; no gate on ordinary chat so it never forces a fabricated call) and the
+>       narration-strip fallback (`Done. (used: …)` when the answer is only narrated markup). Detecting "the answer didn't
+>       USE the result" is semantic; a blunt retry-gate would false-positive on legitimate turns (e.g. ran
+>       `update_focus_chain` then answered fine). Rare + retry-recoverable + side-effects already applied ⇒ speculative,
+>       risky, low-value. Needs deliberate design + live cross-model validation, not a turn-tail lift — held pending a
+>       David directive.
 >
 > **Open LLM-interactive tasks inherit this requirement automatically** — when §5.0.1 (autonomous agent), §5.S
 > (auto-clarify), §5.V (pipeline / chat e2e), §5.H (native-core integration), §5.B (audio rubric scoring), etc. reach
