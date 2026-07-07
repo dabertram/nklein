@@ -1130,3 +1130,17 @@ it, then unloaded it to restore the state found. Results — all invariants held
 - matrix row: ornith-1.0-9b → egress ✅ · chat-tools ✅ · single-card ✅ · decompose-isolation ✅. A clean 2nd fully-verified
   model this session. **Key takeaway:** the §5.O delivery fix + the isolation invariants generalize beyond qwopus3.5 —
   running a fresh model surfaced no new deterministic gap, which is itself a robustness data point.
+
+## 2026-07-07 (Opus) — §5.Z breadth #2: devstral-small (Mistral 24B) — 4 flows clean, cross-FAMILY robustness
+Continued the model-load loop with a DIFFERENT family than qwen (Mistral's tool-call format differs — most likely to
+surface a novel parse/format failure). Loaded `mistralai/devstral-small-2-2512` (24B coding) alongside qwopus3.5, verified,
+unloaded. All clean — NO deterministic !Klein failure:
+- ✅ egress-e2e (web_search → 8 SearXNG results → grounded answer)
+- ✅ chat-agent-tools (§5.M read_file through the gated+audited executor → answered → persisted)
+- ✅ single-card delivery (hello.txt content matches — §5.O path-recovery holds on Mistral too)
+- ✅ decompose-isolation (§5.A: decompose_project CALLED, zero host-path leaks, clean teardown)
+- matrix row: mistralai/devstral-small-2-2512 → egress ✅ · chat-tools ✅ · single-card ✅ · decompose-isolation ✅.
+**Cross-family takeaway (2 fresh models this session — ornith/qwen3.5, devstral/mistral, both 4/4 clean):** !Klein's
+tool-loop, the §5.O delivery recovery, and the §5.A isolation guarantees generalize across model FAMILIES with distinct
+tool-call formats — no family-specific parse gap surfaced. The verify→harden loop is now running autonomously via the
+granted model-load skill; it keeps confirming robustness (and would catch a deterministic gap to harden, as §5.O did).

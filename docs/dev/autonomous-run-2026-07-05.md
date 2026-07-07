@@ -3360,3 +3360,15 @@ isolation guarantees generalize to a different model lineage (a robustness data 
 widen coverage + hunt deterministic failure modes to harden (the pattern that produced the §5.O win) — no longer gated on
 David. Next candidates: a different FAMILY (mistral devstral/magistral 24B, gpt-oss-20b) is most likely to surface a novel
 format/parse failure mode; the larger ones cost more load+run time so one per turn.
+
+### 2026-07-07 (Opus) - file-size reduction REJECTED-FOR-NOW (documented) + §5.Z model-load loop continues (devstral)
+- **§5.U file-size reduction STOPPED (David 2026-07-07):** stop dedicated file-size reduction below 5000 lines — near-zero
+  gain now (would matter only for future small-model self-hosting). All files are already <3400, so ALL such work is
+  rejected-for-now. Crossed off every related task (polishing.md §5.U header + rationale + the withdrawn seam proposal;
+  todo.md phase note + the 2 pointers) — no open file-size `- [ ]` remains. Target stays aspirational; split only when a
+  real cohesion win is hit while touching a file anyway. Commit `bb059329`.
+- **§5.Z model-load loop, model #2:** `devstral-small` (Mistral 24B) loaded/verified/unloaded → 4 flows clean (egress,
+  chat-tools, single-card, decompose-isolation-with-actual-decompose). Combined with ornith (qwen3.5) last step, that's
+  2 fresh models this session, both 4/4, across DIFFERENT families/tool-formats — !Klein's tool-loop + §5.O delivery + §5.A
+  isolation generalize cross-family; no new deterministic gap. Loop continues autonomously; next a different family again
+  (gpt-oss harmony format, or a reasoning model — magistral/phi-4-reasoning) to keep widening the format coverage.
