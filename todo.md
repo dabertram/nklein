@@ -1369,7 +1369,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         validator results · refinement deltas · final ranking rationale.
   - [ ] **Enrich generated card specs** (one leaf per field group): add `preconditions/inputs/expectedOutputs` ·
         `acceptanceChecks/nonGoals` · `dependencyOutputsConsumed` · `rollbackOrRepairHints/downstreamInvalidationRules`
-        to the card schema, populate them in decomposition, and consume them node-locally.
+        to the card schema, populate them in decomposition, and consume them node-locally. *(✅ DONE 2026-07-08: 8 optional contract fields added to nkleinPlanTaskSchema (preconditions/inputs/expectedOutputs · acceptanceChecks/nonGoals · dependencyOutputsConsumed · rollbackOrRepairHints/downstreamInvalidationRules); renderCardContractBrief consumes them node-locally into buildTaskPrompt; population is model-driven via the decompose schema. 14 tests.)*
   - [x] **Controller repair semantics** (one leaf each): retry-node · refine-spec · split-node · add-dependency · *(2026-07-04: pure `decideRepairAction` escalation ladder in repair-controller-decision.ts; 9 tests)*
         invalidate-downstream · re-review · global-re-decompose (last resort only).
 

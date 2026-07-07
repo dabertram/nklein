@@ -27,6 +27,18 @@ export const nkleinPlanTaskSchema = z.object({
 	testFirst: z.boolean().default(false),
 	acceptanceTestPrompt: z.string().nullable().default(null),
 	knowledgeDebt: z.string().nullable().optional(),
+	// §5.AK/§5.B richer per-card CONTRACT — all OPTIONAL enrichment (absent ⇒ not provided, fully backward-compatible;
+	// a card decomposed without them is unchanged). A decomposition can populate them so a worker executes against an
+	// explicit contract instead of re-deriving it, and downstream nodes know what a card produces + what invalidates
+	// them. Consumed node-locally via `renderCardContractBrief`, which normalizes absence to an empty brief.
+	preconditions: z.array(z.string()).optional(),
+	inputs: z.array(z.string()).optional(),
+	expectedOutputs: z.array(z.string()).optional(),
+	acceptanceChecks: z.array(z.string()).optional(),
+	nonGoals: z.array(z.string()).optional(),
+	dependencyOutputsConsumed: z.array(z.string()).optional(),
+	rollbackOrRepairHints: z.array(z.string()).optional(),
+	downstreamInvalidationRules: z.array(z.string()).optional(),
 });
 export type NKleinPlanTask = z.infer<typeof nkleinPlanTaskSchema>;
 

@@ -1,3 +1,4 @@
+import { renderCardContractBrief } from "../card-contract-brief";
 import type { NKleinPlanTaskSharedContext } from "../nklein-decomposition-tool";
 import { resolveNKleinGuidanceSkillCommand, resolveNKleinGuidanceSkillTopic } from "../nklein-guidance-skills";
 import type { NKleinPlanTask } from "../nklein-plan-artifacts";
@@ -49,6 +50,12 @@ export function buildTaskPrompt(
 	});
 	if (guidanceTopic) {
 		sections.unshift(`/${resolveNKleinGuidanceSkillCommand(guidanceTopic)}\n\nGuidance topic: ${guidanceTopic}`);
+	}
+	// §5.AK/§5.B: consume the card's explicit contract node-locally — the worker executes against stated
+	// preconditions/inputs/outputs/acceptance/non-goals/coupling instead of re-deriving them. Empty ⇒ nothing added.
+	const contractBrief = renderCardContractBrief(task);
+	if (contractBrief) {
+		sections.push(contractBrief);
 	}
 	const sharedPlanContext = formatSharedPlanContext(sharedContext);
 	if (sharedPlanContext) {

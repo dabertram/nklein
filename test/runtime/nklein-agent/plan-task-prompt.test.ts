@@ -91,5 +91,20 @@ describe("buildTaskPrompt", () => {
 		expect(minimal).not.toContain("Acceptance check:");
 		expect(minimal).not.toContain("Test-first:");
 		expect(minimal).not.toContain("Suggested role:");
+		expect(minimal).not.toContain("Card contract"); // §5.AK: no contract fields ⇒ no contract block
+	});
+
+	it("§5.AK: folds the card's explicit contract into the worker prompt when populated", () => {
+		const withContract = buildTaskPrompt(
+			task({
+				preconditions: ["the schema migration is applied"],
+				expectedOutputs: ["a POST /orders route returning 201"],
+				nonGoals: ["do not modify auth"],
+			}),
+		);
+		expect(withContract).toContain("## Card contract");
+		expect(withContract).toContain("- the schema migration is applied");
+		expect(withContract).toContain("- a POST /orders route returning 201");
+		expect(withContract).toContain("- do not modify auth");
 	});
 });
