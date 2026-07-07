@@ -2265,3 +2265,14 @@ force redundant writes. Exported (additive, pure) + 5 tests incl. a per-field lo
 credential fields breaks equality. Both green through the full gate. Pattern holds: remaining monolith bulk is the
 David-gated entangled seam; value now comes from targeted coverage of security/correctness-critical pure helpers +
 verification hygiene, not more forced extraction.
+
+### 2026-07-07 (Opus) - §5.Z live-egress regression verification (fresh track this tick)
+After confirming the coverage/refactor veins are worked out (probed web-ui too: 132 test files, only trivial untested
+utils; backend+frontend both thorough), turned to §5.Z, which the grind explicitly flags as live. Ran a bounded,
+no-heavy-sweep regression check against the live egress (127.0.0.1:18888, confirmed reachable HTTP 200): (1) infra
+`verify-egress-live.mts` -> ALL PASS (8 real SearXNG results, fail-closed gate, no_backend, payload mapping); (2)
+SMOKE-tier `verify-egress-model-e2e.mts` on north-star qwen/qwen3-8b -> 3/3 (tool call -> 8 real results -> grounded
+answer on anthropic.com/claude/opus). Confirms the full egress path is intact after the week's commits. Recorded in
+docs/dev/cross-model-verification.md (dated regression entry). This is the highest-signal §5.Z work that's bounded +
+non-David: the FULL roster sweep (all resident models, ~25-min multi-card, autonomous-run-across-roster) is the
+periodic-cadence obligation and a heavier live operation, not a single-commit grind unit.

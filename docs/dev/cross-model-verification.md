@@ -749,6 +749,15 @@ data points (the 122B MoE + a 27B + devstral were not in the prior sweep):
     `HTTP 400: Model loading was stopped due to insufficient system resources` when its id was passed — an LM Studio
     JIT-load ceiling, not an egress issue. Only `state=loaded` ids were swept thereafter (never force a giant to load).
 
+### 2026-07-07 · §5.Z egress REGRESSION re-check (Opus polishing) — still GREEN after the week's commits
+Bounded no-sweep regression pass confirming the live egress (127.0.0.1:18888) still holds after all the intervening
+`feat/nklein-upcoming` commits. **Infra `verify-egress-live.mts` ✅ ALL PASS** (8 real SearXNG results —
+`"Claude Opus \ Anthropic" — anthropic.com/claude/opus`; fail-closed `blocked_by_egress` gate; `no_backend`; payload
+field mapping). **SMOKE-tier model e2e `verify-egress-model-e2e.mts` on the north-star `qwen/qwen3-8b` ✅ 3/3** —
+emitted the `web_search` tool call (`finish=tool_calls`) → executed against live SearXNG (8 real results) → grounded
+its answer on `anthropic.com/claude/opus`. No regression; the full model→tool-call→egress→real-results→answer path is
+intact. (SMOKE tier per the §5.Z done-bar tiering — the FULL roster sweep remains the periodic-cadence obligation.)
+
 ### 2026-07-06 · §5.Z §5.AC temporal-awareness ("knows today") — HARNESS BUG FIXED + cross-model sweep
 **Harness bug found + fixed:** `verify-temporal-awareness-live.mts` was failing its own assertions on EVERY model —
 root cause: the §5.AC "knows today" block is OFF BY DEFAULT (`knowsTodayEnabled ?? isTruthyEnv(NKLEIN_KNOWS_TODAY)`),
