@@ -753,10 +753,11 @@ data points (the 122B MoE + a 27B + devstral were not in the prior sweep):
 Bounded no-sweep regression pass confirming the live egress (127.0.0.1:18888) still holds after all the intervening
 `feat/nklein-upcoming` commits. **Infra `verify-egress-live.mts` ✅ ALL PASS** (8 real SearXNG results —
 `"Claude Opus \ Anthropic" — anthropic.com/claude/opus`; fail-closed `blocked_by_egress` gate; `no_backend`; payload
-field mapping). **SMOKE-tier model e2e `verify-egress-model-e2e.mts` on the north-star `qwen/qwen3-8b` ✅ 3/3** —
-emitted the `web_search` tool call (`finish=tool_calls`) → executed against live SearXNG (8 real results) → grounded
-its answer on `anthropic.com/claude/opus`. No regression; the full model→tool-call→egress→real-results→answer path is
-intact. (SMOKE tier per the §5.Z done-bar tiering — the FULL roster sweep remains the periodic-cadence obligation.)
+field mapping). **SMOKE-tier model e2e `verify-egress-model-e2e.mts` ✅ — the full SMOKE pair (north-star + one weak model) each 3/3:**
+`qwen/qwen3-8b` and `google/gemma-4-e2b` (2B) both emitted the `web_search` tool call (`finish=tool_calls`) → executed
+against live SearXNG (8 real results each) → grounded their answer on `anthropic.com/claude/opus`. No regression; the
+full model→tool-call→egress→real-results→answer path is intact at both the capable and the weak end. (SMOKE tier per
+the §5.Z done-bar tiering — the FULL resident-roster sweep remains the periodic-cadence obligation.)
 
 ### 2026-07-06 · §5.Z §5.AC temporal-awareness ("knows today") — HARNESS BUG FIXED + cross-model sweep
 **Harness bug found + fixed:** `verify-temporal-awareness-live.mts` was failing its own assertions on EVERY model —
