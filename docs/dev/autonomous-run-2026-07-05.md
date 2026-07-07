@@ -2786,3 +2786,18 @@ All 3 called read_file → gated/audited executor ran it → final answer echoed
 proven across an even wider span (reasoning families + GLM); no !Klein-side defects — every non-clean note is a model
 formatting/quality trait.** Matrix + rows updated in cross-model-verification.md. This is the right shape for future ticks
 while code-refactor work is David-gated: pick flow-unproven models and extend the fitness matrix, one bounded sweep per tick.
+
+### 2026-07-07 (Opus) - §5.Z NORTH-STAR pipeline flows on qwen2.5-coder-14b
+Escalated from chat flows to the higher-value north-star pipeline (the real project workflow, far less covered). Docker
+healthy + sandbox image present; coder-14b resident (no load). TWO flows:
+  - **verify-task-completion (single-card C0 DELIVERY) → PASS ✓** — card ran in the sandbox, wrote hello.txt, reached
+    awaiting_review, DELIVERED the result branch. The resident workhorse coder proven for actual delivery (not just the
+    earlier format sweep). ~90s, 0 narration leaks.
+  - **verify-decompose-isolation → isolation ✅ / decompose PARTIAL** — the security prime-directive is robust (360
+    activities, ZERO host-path leaks, containers cleaned up). Capability: decompose_project WAS emitted (a step up from
+    the 27B@q4 that didn't emit it) but the session ended `interrupted` (the known decompose-under-budget completion gap,
+    §5.AA stall-nudger territory — a model/budget data point, not a !Klein bug).
+**Harness gotcha for future ticks:** the north-star harnesses guard `HOME` — it must CONTAIN the substring
+"nklein-verify" (or set `NKLEIN_VERIFY_ALLOW_REAL_HOME=1`). A scratchpad path like `<scratch>/nklein-verify-home` works;
+a bare `<scratch>/verify-home` is REJECTED. Matrix + rows updated. Cross-model decompose signal: isolation holds
+everywhere; the completion-under-budget gap recurs across models (capability/§5.AA territory, David-steer — logged only).

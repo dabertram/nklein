@@ -905,3 +905,23 @@ the "unload as needed, don't overload" guidance.
   **Net: the §5.M tool loop now proven across an even wider span — reasoning models (qwq, magistral, deepseek-r1 earlier)
   and the GLM family all compose the gated/audited tool loop end-to-end.** No !Klein-side defects; every non-clean note
   is a model formatting/quality trait.
+
+## 2026-07-07 (Opus) — §5.Z NORTH-STAR pipeline flows on qwen2.5-coder-14b (single-card delivery + decompose)
+Moved up from the chat flows to the higher-value north-star pipeline (the actual project workflow, far less
+matrix-covered). Live LM Studio + Docker (healthy, 7.7 GiB VM; `nklein/agent-sandbox:0.0.1` present). qwen2.5-coder-14b
+was resident (no load).
+- ✅ **`verify-task-completion.mts` [qwen/qwen2.5-coder-14b] — PASS (single-card C0 DELIVERY).** Ran the card in the
+  sandbox → wrote `hello.txt` → reached `awaiting_review` → **delivered the correct result branch**
+  (`nklein/tasks/verify-completion-1-…`), 0 narration leaks, power=high×1, ~90s. The resident workhorse coder is now
+  proven for actual single-card delivery (previously only FORMAT-swept). Matrix (single-card C0): qwen2.5-coder-14b=✅.
+- ◑ **`verify-decompose-isolation.mts` [qwen/qwen2.5-coder-14b] — ISOLATION ✅ / decompose capability PARTIAL.** The
+  security prime-directive (#2) is ROBUST: **NONE of the 360 captured agent activities leaked a host path**, no host
+  worktree was created, the sandbox container was observed + cleaned up on dispose. Capability: **`decompose_project`
+  WAS called** (a step UP from the earlier 27B@q4 row, which did NOT emit the tool at all) — but the session then ended
+  `interrupted` (stalled/ran out its budget after the call before a clean planning finish). So coder-14b has the
+  decompose TOOL-CALL capability; the completion-under-budget gap is the same known pattern the DecompositionStallNudger
+  (§5.AA) targets — a model-capability/budget data point, NOT a !Klein or isolation bug. Matrix (decompose): qwen2.5-
+  coder-14b=isolation✅ / decompose-complete◑(emits the tool, interrupts before finish).
+- **Cross-model decompose signal so far:** the decompose-under-budget COMPLETION gap recurs (27B@q4 didn't emit;
+  coder-14b emits but interrupts). Isolation holds on every model tested. The completion gap is capability/budget
+  territory (§5.AA retry-ladder / stall-nudger), a David-steer capability item — logged, not actioned in the grind.
