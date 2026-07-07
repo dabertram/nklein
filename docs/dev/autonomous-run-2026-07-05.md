@@ -3387,3 +3387,16 @@ token-vs-benefit SWEET SPOT, not by prompt bloat. Shipped (`dd58b312`, test:fast
 - **Documented** as a standing target in goal.md (the quality-mandate section). The design deliberately balances prompt
   content vs. benefit per David's "find the sweet spot" — static guidance is one line each; the per-write detector is the
   only conditional cost and it fires solely for genuinely-large writes.
+
+### 2026-07-07 (Opus) - write line limit made SMART: soft target + high hard backstop (David)
+The 1000-line write limit was a hard FAIL — good early measure, but sometimes too harsh (a single larger file is
+occasionally genuinely more cohesive than splitting). Made it smart (`207bb4f5`, test:fast 8180):
+- `maxAgentWritableFileLines` (default 1000) is now a SOFT target, not a hard wall — a write over it is ALLOWED with a
+  STRONG non-blocking split nudge; keep the larger file only when truly more cohesive than splitting.
+- New HARD backstop = soft × HARD_WRITE_BACKSTOP_MULTIPLIER (4 = 4000 default) is the only hard block, catching
+  runaway/accidental huge writes (a model dumping tens of thousands of lines is almost never intended).
+- buildLargeFileWriteNudge is two-tier (gentle "getting large" >=60% of soft; STRONG "OVER the target" past it); the
+  efficiency-rules prompt reworded from "hard guard rail: never above N" to the soft-target framing.
+- Tests updated for the new behavior (allow over-soft/block-at-backstop; two-tier nudge; resolveHardWriteBackstopLines).
+Combined with the prior small-files-target commit, !Klein now pushes hard for small files on user projects but no longer
+fails on a legitimately-larger cohesive file — the smart balance David asked for.
