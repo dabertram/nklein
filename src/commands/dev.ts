@@ -1,6 +1,5 @@
 import { execFile } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
@@ -18,7 +17,6 @@ import {
 import { classifyAgentStuckness, isHardStuck } from "../core/agent-stuckness";
 import type { RuntimeTaskNKleinSettings } from "../core/api-contract";
 import { runtimeAgentIdSchema } from "../core/api-contract";
-import { summarizeDevTestCleanup } from "../core/dev-test-cleanup";
 import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } from "../core/dev-test-sweep";
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
@@ -51,16 +49,11 @@ import { buildWorkspaceScopeHeaders } from "../core/workspace-scope";
 import { buildNKleinAdvisorRequest, type NKleinAdvisorKind } from "../nklein-agent/nklein-advisor";
 import { runDevTestProject } from "../nklein-agent/nklein-dev-test-harness";
 import {
-	NKLEIN_DEV_TEST_PROJECT_MARKER_PATH,
 	type NKleinDevTestProjectPreset,
 	resolveNKleinDevTestProjectScenario,
 	scaffoldNKleinDevTestProject,
 } from "../nklein-agent/nklein-dev-test-project";
-import {
-	createDevTestStateReader,
-	type DevTestCleanupCandidate,
-	discoverDevTestCleanupEntries,
-} from "../nklein-agent/nklein-dev-test-runner";
+import { createDevTestStateReader } from "../nklein-agent/nklein-dev-test-runner";
 import { writeNKleinDogfoodBacklog } from "../nklein-agent/nklein-dogfood-engine";
 import { runNKleinDevSmokeEval } from "../nklein-agent/nklein-eval-harness";
 import { assertLocalProviderAllowed } from "../nklein-agent/nklein-local-only-policy";
@@ -74,6 +67,7 @@ import { readRailEvidenceReports } from "../state/rail-evidence-store";
 import { loadWorkspaceBoardById, loadWorkspaceContext } from "../state/workspace-state";
 import { readSelfObservationEvents } from "../telemetry/self-observation-sink";
 import type { RuntimeAppRouter } from "../trpc/app-router";
+import { type DevCleanupReportOptions, runDevCleanupReportCommand } from "./dev-cleanup-commands";
 import { parseDevTestPreset, parseDevTestSweepPresets } from "./dev-test-preset-parsing";
 
 interface DevSmokeEvalOptions {
@@ -467,92 +461,6 @@ export async function runDevTestSweepCommand(options: DevTestSweepOptions = {}):
 		return;
 	}
 	write(formatDevTestSweepReport(summary));
-}
-
-interface DevCleanupReportOptions {
-	scanDir?: string;
-	activeWorkspacePath?: string;
-	json?: boolean;
-	cwd?: string;
-	write?: (text: string) => void;
-}
-
-/** Directory size in bytes via `du -sk`; best-effort, returns 0 when `du` is unavailable. */
-async function directorySizeBytes(path: string): Promise<number> {
-	try {
-		const { stdout } = await execFileAsync("du", ["-sk", path]);
-		const kib = Number.parseInt(stdout.trim().split(/\s+/)[0] ?? "0", 10);
-		return Number.isFinite(kib) ? kib * 1024 : 0;
-	} catch {
-		return 0;
-	}
-}
-
-/** Scan a parent directory for scaffolded dev-test project workspaces (identified by their marker file). */
-async function discoverDevTestWorkspacesInDir(scanDir: string): Promise<DevTestCleanupCandidate[]> {
-	let entries: string[];
-	try {
-		entries = await readdir(scanDir);
-	} catch {
-		return [];
-	}
-	const candidates: DevTestCleanupCandidate[] = [];
-	for (const entry of entries) {
-		const workspacePath = join(scanDir, entry);
-		try {
-			const markerStat = await stat(join(workspacePath, NKLEIN_DEV_TEST_PROJECT_MARKER_PATH));
-			if (!markerStat.isFile()) {
-				continue;
-			}
-		} catch {
-			continue;
-		}
-		candidates.push({
-			path: workspacePath,
-			kind: "dev_test_workspace",
-			sizeBytes: await directorySizeBytes(workspacePath),
-		});
-	}
-	return candidates;
-}
-
-/** Docker sandbox named volumes created for agent isolation (`nklein`-prefixed); size is best-effort. */
-async function discoverSandboxVolumes(): Promise<DevTestCleanupCandidate[]> {
-	try {
-		const { stdout } = await execFileAsync("docker", ["volume", "ls", "--format", "{{.Name}}"]);
-		return stdout
-			.split("\n")
-			.map((name) => name.trim())
-			.filter((name) => name.startsWith("nklein"))
-			.map((name) => ({ path: name, kind: "sandbox_volume" as const, sizeBytes: 0 }));
-	} catch {
-		return [];
-	}
-}
-
-export async function runDevCleanupReportCommand(options: DevCleanupReportOptions = {}): Promise<void> {
-	const write = options.write ?? ((text: string) => process.stdout.write(text));
-	const scanDir = options.scanDir ?? tmpdir();
-	const activeWorkspacePath = options.activeWorkspacePath
-		? resolveProjectInputPath(options.activeWorkspacePath, options.cwd ?? process.cwd())
-		: null;
-
-	const entries = await discoverDevTestCleanupEntries({
-		listDevTestWorkspaces: () => discoverDevTestWorkspacesInDir(scanDir),
-		listSandboxVolumes: discoverSandboxVolumes,
-		activeWorkspacePath,
-	});
-	const report = summarizeDevTestCleanup(entries);
-
-	if (options.json) {
-		write(`${JSON.stringify(report, null, 2)}\n`);
-		return;
-	}
-	write(`Scanned dev-test workspaces under: ${scanDir}\n`);
-	write(`${report.summary}\n`);
-	for (const entry of report.reclaimable) {
-		write(`  reclaimable [${entry.kind}] ${entry.path}\n`);
-	}
 }
 
 interface DevModelSpeedOptions {
