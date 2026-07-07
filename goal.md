@@ -23,6 +23,33 @@ next step even for things that will only be *adapted later with low effort*).
 > detects an unsuitable model *at runtime* (not only the pre-flight §5.AL gate) and **collects persistent data** about
 > it, so the catalog/ledger keep learning while we focus elsewhere.
 
+## ★ AUTONOMY LEVEL RAISED (David, 2026-07-07 — "increase your autonomy level; rearm the loop")
+
+**The bar for stopping is now GENUINE CONTRADICTION, not "a decision is needed."** For any decision the work needs:
+**research it (deep online research when the topic isn't yet settled), compare the options against the fork's steering
+trajectory so far, and DECIDE autonomously — then act.** The !Klein vision is clear; bring it to maturity as much as
+possible. Work carefully + holistically, in clean always-green increments.
+
+- **Escalate to David ONLY when directions genuinely CONTRADICT each other** (a real fork in intent that I cannot
+  resolve from the vision + trajectory). Everything else — decide and proceed. Do NOT stop at "this needs your call,"
+  do NOT ask permission for a sensible next step, do NOT idle waiting for a lever. The previous "say so plainly and
+  stop" posture is SUPERSEDED by this: research + decide + keep going.
+- **Drain the ENTIRE backlog to empty.** Every open point in `todo.md`, `polishing.md`, `done.md` follow-ups, or ANY
+  file that carries potential tasks — work it to closure. The expected end state is an empty backlog with only hard
+  contradiction-decisions left for David.
+- **Sweep where it helps. Research generously.** For any upcoming/not-yet-researched topic, do real online research to
+  reasonable limits before deciding (browser skills are available). Prefer proven approaches; compare with our trajectory.
+- **Use every capability:** browser, model load/unload (fleet-aware, don't overload), and the **dev-test-projects** — use
+  them to CHALLENGE !Klein and improve its robustness + efficiency (run flows, find limits, harden).
+- **Keep the loop running** ("turn on and rearm the loop"): after each increment, pick the next backlog item and continue.
+- **Concrete task captured here (David):** the dev-test-projects currently render in **2 different presentation styles** →
+  UNIFY them so all dev-test-projects look uniform to the user (no confusion about why selecting one looks different from
+  another group). See the backlog for where this is tracked.
+
+*(Discipline unchanged: every increment green — tsc + biome + test:fast, web gate for web-ui; small commits pushed to
+`feat/nklein-upcoming`; behavior-preserving refactors; never weaken a test to pass a refactor; the §4A root-cause +
+precision rules always apply — research/decide does NOT mean rush or pattern-match.)*
+
 ## Prime directives (never traded away — see todo.md §4A / §5 for the canonical text)
 
 1. **LOCAL MODELS ONLY** (`CLOUD_ENABLED=false`). Re-enabling cloud is a single deliberate, reviewed code change — never
