@@ -2314,3 +2314,19 @@ loadProviderModelsWithMeasuredWindows + clearProviderModelDiscoveryCache, ~140 l
 nklein-provider-model-discovery.ts sibling. Larger (more imports to thread + it owns the cache Map as module state),
 so a careful dedicated lift next tick. The monoliths likely have several more such module-level clusters; this is the
 repeatable §5.U pattern going forward, one bounded cluster per commit.
+
+### 2026-07-07 (Opus) - §5.U 2nd cohesive-module lift: model-discovery cluster (provider-service 851 -> 684)
+Executed the candidate teed up last tick. Extracted the roster-discovery cluster (discoverModelsFromEndpoint +
+providerModelDiscoveryCache TTL Map + clearProviderModelDiscoveryCache + loadProviderModelsWithFallback[ForSettings] +
+loadProviderModelsWithMeasuredWindows + the cluster-only DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS const) to
+nklein-provider-model-discovery.ts. Key point: the cluster owns its cache Map as MODULE STATE, which travels WITH it --
+so it's still a clean behavior-preserving move (the state isn't shared with the rest of the file). Factory imports the
+2 entry points it calls; service re-exports the 2 public helpers for API compat (co-located test imports them). Removed
+6 orphaned imports. 24 tests green. **provider-service TRAJECTORY: 933 -> 851 -> 684 (-27% over two ticks)** via the
+OAuth + discovery lifts -- it's no longer a monolith (the grind flagged it at ~1651; the remaining 684 is the facade
+helpers + the createNKleinProviderService factory closure, which is the injected-manager composition root, healthily
+sized). **NEXT FRONTIER:** the two BIG monoliths (nklein-task-session-service 2830, runtime-server 2260). Both are
+dominated by ONE big construct (the InMemory...Service class / the createRuntimeServer factory) whose internals are the
+David-gated entangled seam -- so the question for next tick is whether they have MODULE-LEVEL cohesive clusters
+(functions OUTSIDE the class/factory, coupling = imports) like provider-service did. If yes, same clean pattern; if
+they're pure class/factory, the seam is genuinely all that's left there.
