@@ -1,10 +1,10 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import { parseCliPortValue, shouldAutoOpenBrowserTabForInvocation } from "./cli-invocation-parsing";
+import { assertPathIsDirectory, hasGitRepository, pathIsDirectory } from "./cli-path-checks";
 import { findAvailableRuntimePort, isAddressInUseError } from "./cli-runtime-port";
 import { createShutdownIndicator } from "./cli-shutdown-indicator";
 import { registerChatCommand } from "./commands/chat";
@@ -13,7 +13,6 @@ import { registerTaskCommand } from "./commands/task";
 import { runLegacyNameMigration } from "./config/legacy-name-migration";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "./config/runtime-config";
 import type { RuntimeCommandRunResponse } from "./core/api-contract";
-import { createGitProcessEnv } from "./core/git-process-env";
 import {
 	installGracefulShutdownHandlers,
 	shouldSuppressImmediateDuplicateShutdownSignals,
@@ -101,32 +100,6 @@ async function resolveRuntimeTls(options: CliOptions): Promise<TlsResult> {
 	// disabling certificate validation for unrelated HTTPS endpoints.
 	setKanbanRuntimeTls({ cert, key, ca: cert });
 	return { enabled: true };
-}
-
-async function assertPathIsDirectory(path: string): Promise<void> {
-	const info = await stat(path);
-	if (!info.isDirectory()) {
-		throw new Error(`Project path is not a directory: ${path}`);
-	}
-}
-
-async function pathIsDirectory(path: string): Promise<boolean> {
-	try {
-		const info = await stat(path);
-		return info.isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-function hasGitRepository(path: string): boolean {
-	const result = spawnSync("git", ["rev-parse", "--is-inside-work-tree"], {
-		cwd: path,
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-		env: createGitProcessEnv(),
-	});
-	return result.status === 0 && result.stdout.trim() === "true";
 }
 
 async function canReachKanbanServer(workspaceId: string | null): Promise<boolean> {
