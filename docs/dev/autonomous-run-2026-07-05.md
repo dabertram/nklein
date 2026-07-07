@@ -3134,3 +3134,18 @@ VERIFYING — the filename heuristic mis-flagged two already-covered modules, ca
     fetch-reject / empty-roster-skip error paths. 5 tests.
 test:fast 8131→8141, all green. NEXT: more §5.V gaps (nklein-code-search 277L/0-cov is a candidate; provider-model-
 discovery's cache/fallback still uncovered) interleaved with any careful §5.U big-file split when a fresh full turn allows.
+
+### 2026-07-07 (Opus) - §5.V: nklein-code-search ranking core covered; §5.U hard-tier reconfirmed
+- **nklein-code-search ranking coverage** (`beac1d43`): the 277-line search module had 0 direct tests. Exported its three
+  pure ranking helpers (tokenizeQuery, scoreLine, rankHybridMatches — behavior-preserving) and pinned the deterministic
+  algorithm with 9 property-based tests (tokenization rules; query-present/substring>token/declaration-bonus scoring;
+  hybrid normalize→sort→range-dedup(lexical wins ties)→truncate). Property assertions, not magic-number pins, so a
+  re-weighting stays green but a structural break fails. Also dropped a pre-existing dead `join` import. test:fast 8141→8150.
+- **§5.U survey (reconfirmed hard tier):** session-runtime's remaining startTaskSession (329 L) is entangled orchestration
+  (11 `this.` refs, config-build + bind + MCP + session-host) — no clean state-local sub-block left after the tool-approval
+  lift. runtime-api/agent-sandbox/task-session-service/runtime-server remain the coordinator/closure/DI tier. The clean and
+  layer-peel veins across nklein-agent + config are worked out; the remaining flagship reduction needs the careful
+  DI-threading / responsibility-split David flagged for review (a fresh full-turn, not a turn-tail move).
+- **§5.V gap note:** most remaining src/core `*-api-contract` 0-cov hits are zod SCHEMAS (declarative, imported as types —
+  low value to unit-test); projects-api-helpers is mostly git/fs I/O. The clean pure-logic §5.V veins are also thinning;
+  next candidates need fs/git/time mocking (provider-discovery cache/fallback TTL) — higher setup, do when a turn allows.
