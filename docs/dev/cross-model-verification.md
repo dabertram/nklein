@@ -1101,3 +1101,17 @@ BOTH runs** (unlike chat-command-exec, which passed on retry — so this is cons
 - matrix row: qwopus3.5-9b-coder-mtp → chat-browse=◑ (content-JSON tool call; marker never returned). Model emits
   content-JSON tool calls (a weak-model trait); whether !Klein should loop-and-synthesize after a parse-recovered call is
   the open §5.O/§5.AA question. NOT recorded as a confirmed bug — a characterized lead for a dedicated investigation.
+
+### CORRECTION (same session) — chat-browse hypothesis REFUTED by investigation
+Followed the methodology (confirm/refute, don't leave a hypothesis on record). Traced the chat loop:
+- `appendChatToolExchange` (chat-local-llm-adapter.ts) FOLDS each tool result back into the message list as a `system`
+  note for the next turn — so the loop DOES feed results back and continue; a parse-recovered content-JSON call is NOT
+  starved of its result. My "content-JSON calls don't loop back" hypothesis is **UNSUPPORTED**.
+- `browse_url` returns the rendered `document.body.innerText` (with the marker), and the matrix shows browse WORKS on
+  this same 127.0.0.1 test page for capable models. So the browse tool + loop are fine.
+- ⇒ **Reclassified: chat-browse ◑ on qwopus3.5 is the SAME model-synthesis weakness as chat-command-exec** — the model
+  receives the browse result (folded back) but doesn't echo the marker in a final answer; it's just more CONSISTENT for
+  browse than command-exec (which passed on retry). A §5.AB model-fitness trait (weak post-tool synthesis), **NOT a !Klein
+  bug and NOT a §5.O loop gap.** No code change warranted. (The §5.AA nudger — prompt a synthesis turn after a tool result
+  — is the EXISTING mechanism for this class of weakness; whether it fires for this flow is a separate §5.AA tuning
+  question, not a bug.) Net: qwopus3.5 chat-browse = ◑ model-synthesis trait; the earlier loop-gap hypothesis is withdrawn.
