@@ -2199,7 +2199,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ([chat-turn-context.ts](src/chat/chat-turn-context.ts)) carries it into **every** turn's context so it stays
         in focus across turns. Unit-tested (goal create/update/clear/preserve + goal in the composed turn context).
         Surfaced + editable in the chat UI's session header (2026-06-24); over the bridge LATER with the bridge.
-- [ ] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling, decomposed:
+- [x] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling, decomposed: *(◐ PARTIAL — HALF-SHIPPED: steering a running TASK agent exists (§5.AU send_to_card relays into the live turn; the mailbox holds it otherwise; sendTaskSessionInput re-drives). Mid-turn steering of an in-flight CHAT turn (fold-in without cancel) remains open — turns are serialized per session by design (the 2026-07-05 transcript-interleave fix), so a fold-in needs a deliberate injection seam)*
   - [ ] backend: accept a mid-turn `steer` message and fold it into the active turn (reuse the runtime's
         `"queue" | "steer"` delivery mode) without cancelling.
   - [ ] UI: a composer affordance to send a steering message during an in-flight turn.
@@ -2243,7 +2243,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] optional re-prompt nudge when a task runs without a focus chain. *(2026-07-05: `decideFocusChainNudge` in focus-chain-nudge.ts — nudge a non-trivial, tools-offered, chain-less task; quiet otherwise; the re-prompt emission is the call-site's; 4 tests)*
 - [~] **Visual representation (todo list)** — checklist UI with done/in-progress/pending
   - [x] board: `FocusChainPanel` in card detail (✓/▸/○/– + x/total), threaded through `BoardCard` + normalizer
-  - [ ] chat surface (§5.M)
+  - [x] chat surface (§5.M) *(✅ SHIPPED — FocusChainStrip in chat-sidebar (§5.BB): live plan checklist, current step headlined, expandable (chat-focus-chain testids), fed by chat.getFocusChain)*
 - [~] **More ideas**
   - [x] reviewer checks the worker followed/owned its chain (seed prompt includes it; flags unfinished/mismatched steps)
   - [x] re-anchor the chain into context on long runs/after compaction (`reanchorFocusChainMessages`, `beforeModel` hook)
