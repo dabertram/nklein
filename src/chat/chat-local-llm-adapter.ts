@@ -47,8 +47,53 @@ export interface ChatModelDeps {
 	/** Completes the prompt; when `onToken` is given and the client streams, tokens arrive incrementally. */
 	complete: (prompt: ChatPromptMessage[], onToken?: (delta: string) => void) => Promise<string>;
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
+	/** §5.M memory WRITE: extract 0-5 durable long-term facts from a rolling session summary (a model call).
+	 *  Optional so lightweight/test deps stay valid; the live `createChatModelDeps` always supplies it. */
+	extractMemories?: (summary: string) => Promise<string[]>;
 	/** The resolved model id (§5.AL) — lets the chat service apply the capability gate when tools are in play. */
 	modelId?: string;
+}
+
+/** §5.M the extractor system prompt — pull DURABLE facts a future session should know, not transient chatter. */
+const MEMORY_EXTRACTION_PROMPT =
+	"From the conversation summary below, extract the DURABLE facts worth remembering in future sessions: decisions " +
+	"made, stable user preferences, and project facts. Ignore transient chit-chat, questions, and anything already " +
+	"obvious. Reply with ONE fact per line, terse (no bullets, no numbering, no preamble). If nothing is worth " +
+	"remembering, reply with an empty response.";
+
+/** Max memories extracted per summary — a durable-fact list should be short; caps a runaway extractor. */
+const MAX_EXTRACTED_MEMORIES = 5;
+
+/**
+ * Parse the extractor model's reply into clean memory lines (§5.M): split on newlines, strip common list markup
+ * (bullets `-`/`*`/`•`, `1.`/`1)` numbering, surrounding quotes), drop blanks and a "nothing to remember" sentinel,
+ * and cap the count. Pure + exported for tests — model output is messy, so the normalization is the interesting part.
+ */
+export function parseExtractedMemories(raw: string): string[] {
+	const out: string[] = [];
+	for (const line of raw.split(/\r?\n/)) {
+		let text = line.trim();
+		if (text.length === 0) {
+			continue;
+		}
+		text = text
+			.replace(/^[-*•]\s+/, "") // bullet
+			.replace(/^\d+[.)]\s+/, "") // "1." / "1)"
+			.replace(/^["'`]|["'`]$/g, "") // surrounding quotes
+			.trim();
+		if (text.length === 0) {
+			continue;
+		}
+		// A model with nothing to remember often still emits a sentence; drop the common "none" phrasings.
+		if (/^(none|nothing( to remember)?|no durable facts|n\/a)\.?$/i.test(text)) {
+			continue;
+		}
+		out.push(text);
+		if (out.length >= MAX_EXTRACTED_MEMORIES) {
+			break;
+		}
+	}
+	return out;
 }
 
 /**
@@ -174,6 +219,17 @@ export function createChatModelDeps(
 				return cleanModelReply(content);
 			}
 			return completePlainWithTruncationLadder(client, messages, sampling);
+		},
+		extractMemories: async (summary) => {
+			const raw = await completePlainWithTruncationLadder(
+				client,
+				[
+					{ role: "system", content: MEMORY_EXTRACTION_PROMPT },
+					{ role: "user", content: summary },
+				],
+				sampling,
+			);
+			return parseExtractedMemories(raw);
 		},
 		summarize: async (overflow) => {
 			const transcript = overflow.map((message) => `${message.role}: ${message.content}`).join("\n");

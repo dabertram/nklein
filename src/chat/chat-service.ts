@@ -17,7 +17,7 @@ import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./cha
 import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
-import { readChatMemories } from "./chat-memory-store";
+import { appendChatMemory, readChatMemories, writeConsolidatedMemories } from "./chat-memory-store";
 import { runChatTurn } from "./chat-runtime";
 import type { ChatSession } from "./chat-session-store";
 import {
@@ -209,6 +209,36 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 	};
 	const memoryOptions = { ...(rootDir ? { rootDir: join(rootDir, "memories") } : {}), ...(now ? { now } : {}) };
 	const estimateTokens = options.estimateTokens ?? ((text: string) => Math.ceil(text.length / 4));
+
+	/**
+	 * §5.M short→long memory WRITE: when a turn rolled its overflow into a `summary`, extract the durable facts from it
+	 * and persist the genuinely-new ones (recall reads them on later turns). OFF by default behind NKLEIN_CHAT_MEMORY_WRITE
+	 * (the extractor's output quality is model-dependent, so it's opt-in until validated per model). Fully best-effort —
+	 * a failed extraction/persist never touches the turn's result. Covers BOTH turn paths (tool-using + plain).
+	 */
+	const maybeConsolidateSessionMemories = async (
+		sessionId: string,
+		summary: string | null,
+		modelDeps: ChatModelDeps,
+	): Promise<void> => {
+		if (!summary || !modelDeps.extractMemories || process.env.NKLEIN_CHAT_MEMORY_WRITE !== "1") {
+			return;
+		}
+		try {
+			const existingMemories = await readChatMemories(memoryOptions);
+			await writeConsolidatedMemories(
+				{ sessionId, summary, existingMemories },
+				{
+					extract: modelDeps.extractMemories,
+					persist: async (memory) => {
+						await appendChatMemory({ sessionId, text: memory.text, embedding: memory.embedding }, memoryOptions);
+					},
+				},
+			);
+		} catch {
+			// Best-effort — memory consolidation must never break or delay a chat turn.
+		}
+	};
 
 	// Bug-hunt fix (2026-07-05): serialize whole TURNS per session id. sendMessage/runAutonomous each append a user
 	// message, run the (potentially long) model+tool loop, then append the assistant reply — two separate awaited
@@ -484,6 +514,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					if (agentResult.totalTokens > 0) {
 						await updateChatSession(session.id, { addTokensUsed: agentResult.totalTokens }, sessionOptions);
 					}
+					// §5.M: consolidate this turn's rolled-up summary into durable long-term memory (best-effort, flag-gated).
+					await maybeConsolidateSessionMemories(session.id, agentResult.context.summary, modelDeps);
 					return {
 						userMessage: toRuntimeChatMessage(agentResult.userMessage),
 						assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
@@ -504,6 +536,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					},
 					{ ...storeDeps, ...modelDeps },
 				);
+				// §5.M: same best-effort memory consolidation for the plain (non-tool) turn path.
+				await maybeConsolidateSessionMemories(session.id, result.context.summary, modelDeps);
 				return {
 					userMessage: toRuntimeChatMessage(result.userMessage),
 					assistantMessage: toRuntimeChatMessage(result.assistantMessage),
@@ -564,6 +598,8 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						if (turn.totalTokens > 0) {
 							await updateChatSession(session.id, { addTokensUsed: turn.totalTokens }, sessionOptions);
 						}
+						// §5.M: consolidate each autonomous turn's rolled-up summary into durable memory (best-effort, flag-gated).
+						await maybeConsolidateSessionMemories(session.id, turn.context.summary, modelDeps);
 						return { finalText: turn.assistantMessage.content, steps: turn.steps };
 					},
 					readPlanProgress: () => readAutonomousChatPlanProgress(session.id),

@@ -6,6 +6,7 @@ import {
 	type ChatCompletionClient,
 	createChatAgentModel,
 	createChatModelDeps,
+	parseExtractedMemories,
 } from "../../../src/chat/chat-local-llm-adapter";
 import type { ChatMessage } from "../../../src/chat/chat-transcript-store";
 import type { ChatPromptMessage } from "../../../src/chat/chat-turn-context";
@@ -1132,5 +1133,41 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 			]);
 			expect(toolChoices.every((c) => c === undefined)).toBe(true);
 		});
+	});
+});
+
+describe("parseExtractedMemories (§5.M memory extractor output normalization)", () => {
+	it("splits lines and strips bullets, numbering, and surrounding quotes", () => {
+		const raw = [
+			"- ships on Friday",
+			"* prefers Vitest",
+			"1. uses zustand",
+			"2) TypeScript strict",
+			'"quoted fact"',
+		].join("\n");
+		expect(parseExtractedMemories(raw)).toEqual([
+			"ships on Friday",
+			"prefers Vitest",
+			"uses zustand",
+			"TypeScript strict",
+			"quoted fact",
+		]);
+	});
+
+	it("drops blank lines and common 'nothing to remember' sentinels", () => {
+		expect(parseExtractedMemories("")).toEqual([]);
+		expect(parseExtractedMemories("\n\n  \n")).toEqual([]);
+		expect(parseExtractedMemories("None")).toEqual([]);
+		expect(parseExtractedMemories("nothing to remember.")).toEqual([]);
+		expect(parseExtractedMemories("N/A")).toEqual([]);
+	});
+
+	it("caps the number of extracted memories at 5", () => {
+		const raw = Array.from({ length: 9 }, (_, i) => `fact ${i}`).join("\n");
+		expect(parseExtractedMemories(raw)).toHaveLength(5);
+	});
+
+	it("keeps real facts that merely CONTAIN a sentinel word", () => {
+		expect(parseExtractedMemories("none of the tests use mocks")).toEqual(["none of the tests use mocks"]);
 	});
 });
