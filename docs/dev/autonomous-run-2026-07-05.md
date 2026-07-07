@@ -3516,3 +3516,16 @@ SCHEDULED: the long-horizon model-lift epics (§5.AB 48 · §5.AA 43 · §5.AI 2
 standing plan routes work to the other ~380 boxes: no trigger, no owner, no order. Surfaced to David with a proposed
 follow-up: a full staleness-reconciliation audit (tick/annotate every box against shipped reality, evidence per box) +
 an Opus-actionable-NOW shortlist for him to schedule the next implementation wave.
+
+### 2026-07-07 (Fable) - FULL BACKLOG AUDIT executed (David directive) + README screenshots shipped
+David picked "audit all boxes → finish started Fable tasks → work fable-territory boxes → stop for the Opus switch".
+Executed the audit with 8 parallel read-only agents (one re-dispatch after cluster 1 undercounted — lesson: force
+mechanical enumeration in the prompt). Every unchecked box verified against code/done.md/CHANGELOG/git. RESULT:
+25 boxes flipped in-place with per-box evidence (23 [x] stale-done incl. the whole §5.BC trio, fitness-table core,
+reasoning capture, liveness heartbeat, web_search umbrella; 5 [-] superseded incl. MCF cloud Phase B). Genuinely-open
+remainder CLASSIFIED: ~160 opus-code · ~40 fleet-time · ~35 fable-ui · ~19 needs-david (full lists incl. line numbers
+in docs/dev/backlog-audit-2026-07-07.md). §5.0.7 now carries the ROUTING note (fable-now → opus-next → parked queues) —
+the "431 boxes have no owner" gap is closed. RECURRING FINDING across sections: pure cores shipped + tested but never
+wired (retry engine · escalation hot-path · test-driven splice · fitness blending) — that wiring cluster is the top of
+the Opus queue. ALSO: README screenshots shipped per David's trust-your-pick (board-expert + overview into
+docs/assets/, embedded under a new Screenshots section) — the §5.AZ screenshots box is now DONE.

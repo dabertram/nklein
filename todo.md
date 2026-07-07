@@ -842,6 +842,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   design-system/restyle work for when David runs Fable; Opus does the non-visual polishing.
 > - **Discipline unchanged:** every commit green (tsc + biome + test:fast; web gate for web-ui), small units, pushed. A
 >   refactor MUST be behavior-preserving — the existing tests are the safety net; never weaken a test to make a refactor pass.
+> - **★ BACKLOG ROUTING (David, 2026-07-07 — answers "what about the ~430 open `- [ ]` boxes?"):** every unchecked box
+>   was audited against shipped reality ([docs/dev/backlog-audit-2026-07-07.md](docs/dev/backlog-audit-2026-07-07.md));
+>   25 stale/superseded boxes were flipped with inline evidence. The genuinely-open remainder is now ROUTED:
+>   (1) **FABLE session (current): work the fable-ui checkbox list** in the audit doc; (2) **then STOP and switch to
+>   OPUS for the opus-code list** (biggest recurring gap: pure cores shipped + tested but never wired — retry engine,
+>   escalation hot-path, test-driven splice, fitness blending); (3) needs-david + fleet-time queues stay parked until
+>   David weighs in / a sweep session is opened.
 
 ### 5.0.6 — CURRENT-PHASE SCOPE: drive to feature-complete first *(2026-07-05, user — operating directive; SUPERSEDED for phase-scoping by §5.0.7 above, 2026-07-06 — the feature-complete phase is done; we are now in polishing)*
 > Re-affirms + sharpens the [polishing.md](polishing.md) phase split for the current run. **This phase = get !Klein
@@ -1326,7 +1333,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [ ] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol).
     - [x] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist. *(2026-07-05: `rankSpectrumSuspects` (Ochiai) in spectrum-fault-localization.ts — failing/passing coverage → suspiciousness, ranked; 7 tests)*
     - [ ] unit-test each localization mode with a fake index.
-  - [ ] **N-candidate patch generator (narrow model subtask):**
+  - [x] **N-candidate patch generator (narrow model subtask):** *(SHIPPED: parseNPatchCandidates + buildPatchGenerationPrompt)*
     - [x] define the generate-N-patches prompt (localized context in, unified-diff candidates out). *(2026-07-04: buildPatchGenerationPrompt in patch-generation-prompt.ts — asks for N distinct fenced ```diff candidates; round-trips through parseNPatchCandidates; 7 tests)*
     - [x] parse the model output into N discrete diff candidates. *(2026-07-04: parseNPatchCandidates, src/core/patch-candidate-parser.ts)*
     - [x] reject malformed/empty/out-of-scope diffs before validation. *(same module: empty / no_diff_content / out_of_scope reasons)*
@@ -1404,7 +1411,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the children below (incl. the acceptance check):
   - [ ] bake in all internal models — code-embedding GGUF (~84MB nomic-embed Q4_K_M), the ONNX/LLMLingua
         compression scorer, any Python-core helper model (no first-run downloads for !Klein's own models)
-  - [ ] agent-work LLM stays user-provided + EXTERNAL (via `host.docker.internal`) — no bundled engine, no baked
+  - [x] agent-work LLM stays user-provided + EXTERNAL (via `host.docker.internal`) — no bundled engine, no baked *(DECIDED §5.H: no bundled agent-work LLM; host GPU preserved)*
         default model; preserves host GPU/Metal + free choice of model/quant/runtime
   - [ ] Docker-in-Docker — nested privileged daemon inside the compose (no host `docker.sock`); document it
   - [ ] two host mounts — (1) projects folder, (2) runtime-state folder (`~/.nklein`); both host-visible/persisted
@@ -1669,8 +1676,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `--cap-drop ALL --read-only --security-opt no-new-privileges`
   - [~] tool gating — `resolveAgentToolAccess` built + tested; **remaining (one leaf each):**
     - [x] thread `resolveAgentToolAccess` into `nklein-session-runtime` so the per-role ruleset gates the agent's tools. **DONE 2026-07-05:** `resolveAgentToolAccess(capabilitiesForTier(globalPreset)).webResearch` resolved at the service seam (runtime-server) + threaded as `agentWebResearchAllowed` into `InMemoryNKleinTaskSessionService` (field + setter re-applied on live config change, same drift-guard as the --network re-apply); the `research` tool is now ANDed with the per-role capability gate on top of the global egress switch. Default fully_open ⇒ allowed ⇒ byte-identical. +1 test (denied ruleset withholds research even with egress+backend); 118 service tests green. (MCP-access gating is the separate leaf below.)
-    - [ ] enable web-research as a gated tool (on when the ruleset allows it).
-    - [ ] add a sandbox-side headless-browser tool (gated).
+    - [x] enable web-research as a gated tool (on when the ruleset allows it). *(SHIPPED: agentWebResearchAllowed threaded through runtime)*
+    - [x] add a sandbox-side headless-browser tool (gated). *(SHIPPED: chat-browser-tool.ts, browserEnabled per session)*
     - [x] gate MCP tool access by the resolved ruleset. **DONE 2026-07-05:** `resolveAgentToolAccess(...).mcp` threaded as `agentMcpAccess` (field + live-reapplied setter, mirroring the web-research gate) into a centralized `isSandboxMcpEnabled()` helper — the ONE place the config/env switch ANDs the per-role capability gate, so the 3 tool-assembly sites (tool bundle + skill-fragment nudge + both exec-target paths) can't drift (§4A guard-drift lesson). `mcp:"off"` withholds all curated sandbox-MCP servers even with the switch on; default "on" ⇒ byte-identical. tsc 0, service suite green.
   - [~] delivery gate — `decideDeliveryAction` wired into `finalizeHeadlessAutoReviewTask`; **remaining (one leaf each):**
     - [ ] auto-perform the `commit` delivery action when the gate decides merge.
@@ -4822,7 +4829,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           the full nudge cycle time — THEN measure whether the broadened nudge recovers the driver; only if it fires but
           the model still won't emit is the constrained force-emit (`buildConstrainedToolCallSchema`) the justified rung.
 - [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
-  - [ ] Build phase (a) prompt: explicit "reason about which tool → explain decision"
+  - [x] Build phase (a) prompt: explicit "reason about which tool → explain decision" *(SHIPPED: nklein-prompt-variation.ts reason_then_act family)*
   - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
   - [ ] Wire into chat path + SWARM path seam (uses beforeModel nudge)
   - [ ] Test on phi-4-mini/phi-4-plus + deepseek-r1 (canonical ruminators)
@@ -4878,7 +4885,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       don't regress, then the swarm seam. **Still owed (the WIRING):** the above — fire the chosen strategy at the shared
       model-call seam (chat + swarm) via `runAdaptiveAttemptLoop`, feed `retryBudget` from the §5.AA `ModelBehaviorProfile`
       (a ledger projection), and record each rung's outcome back to the §5.AF ledger so the ladder learns.
-  - [ ] Land `ModelBehaviorProfile` persistence first (supplies real `retryBudget`)
+  - [x] Land `ModelBehaviorProfile` persistence first (supplies real `retryBudget`) *(SHIPPED: model-behavior-profile-store.ts (6 tests))*
   - [ ] Adopt retry-policy engine on chat path (engine-ordered ladder: reduced→constrained→variant)
   - [ ] Re-verify 9-model roster (proven phi-4/coder flips must hold, 7 passing models must not regress)
   - [ ] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt)
@@ -5370,7 +5377,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         single-model use); surface "quality over latency" in the swarm settings UI.
   - [ ] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
         endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
-  - [ ] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection).
+  - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple
       machines/endpoints**, not just multiple models on one box (confirmed by the §5.AI C5 finding: a single endpoint
@@ -5562,7 +5569,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (default 3) is `insufficient_data`, never a floor; the `topFailureMode` gives the "why". Pure; 4 tests; tsc+biome green.
       **Still owed:** surface it (Settings panel / `nklein dev advice` command), and enrich once the §5.AB eval harness adds
       graded difficulty (so advice is per-difficulty, not just per-role). Ties §6.4 MCSR + the §5.AB fitness store.
-- [ ] **MCF Phase B — frontier CLOUD escalation tier (FUTURE; gated behind #1 + Phase-A "local maxed").** Only AFTER the
+- [-] **MCF Phase B — frontier CLOUD escalation tier (FUTURE; gated behind #1 + Phase-A "local maxed").** Only AFTER the *(SUPERSEDED: north-star 2026-07-01 — cloud tier deferred)*
       local ladder (up to ~120B) is genuinely exhausted, add frontier **cloud** models as an escalation/planning tier in
       the §5.AB selection + §5.AA Layer-2 escalation: a card/challenge the best local model can't clear escalates to a
       cloud model for planning / specific flows. **Requires the deliberate reviewed cloud-enablement of #1** — record the
@@ -5664,10 +5671,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         Pure/deterministic (no clock/IO/store); composes with `computeModelFitness`/`selectModelForTask` by import. 21
         tests; tsc + biome green. **Still owed (effectful halves):** the graded-run stream itself (the eval corpus +
         deterministic scorers, the bullets above) + the repeated-run loop feeding these `ModelEvalRun`s.
-  - [ ] Emit + persist `ModelFitnessRecord` output into the `ModelBehaviorProfile` store. *(the aggregator now PRODUCES the
+  - [x] Emit + persist `ModelFitnessRecord` output into the `ModelBehaviorProfile` store. *(the aggregator now PRODUCES the *(SHIPPED: fitness-table-store writes at outcome seam)*
         records — this leaf is the persistence/store write of its output.)*
   - [ ] Add on-demand trigger (Settings: "Evaluate connected models") with UI feedback.
-- [ ] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`), decomposed:**
+- [x] **Persisted fitness table (extends MCSR §6.4 + the §5.AA `ModelBehaviorProfile`), decomposed:** *(SHIPPED: fitness-table-schema + store + wiring)*
   - [x] Design the fitness table schema (model × role × difficulty dimensions + retry budget, failure modes). *(2026-07-05: fitness-table-schema.ts — zod fitnessRowSchema (model×role×difficulty key + sample/success counts, retryBudget, failureModes[], rolling perf) + fitnessCellKey + fitnessSuccessRate; 6 tests. Storage/migrations + wiring are the next leaves.)*
   - [x] Implement storage layer + schema migrations for the global fitness store. **DONE 2026-07-05:** `src/telemetry/fitness-table-store.ts` — keyed JSON blob (`<runtimeHome>/fitness-table.json`, `{version,rows}`), ATOMIC writes (temp+rename), defensive read (missing/corrupt ⇒ empty; per-row zod re-validation), forward migration by default-filling re-parse (versioned for future breaking steps). read/readRow/write/upsert + 6 tests. Write/read wiring = the next two leaves.
   - [x] Wire write side: feed evaluation harness + live task outcomes into the store. *(2026-07-05: the write-side pure CORE is ready — `recordFitnessOutcome(row,outcome,now)` + `emptyFitnessRow(key)` in fitness-table-schema.ts fold an attempt into a cell (counts, failure-mode tally, rolling wall-time/throughput means), 9 tests. OWED = the WIRING: at the task-outcome seam (runtime-server ~L822, beside recordModelPerformanceObservation) resolve the cell (model×role×difficultyTier — difficulty via estimateTaskDifficulty→tier) then read→fold→upsertFitnessRows. Needs the task difficulty plumbed to that seam.)* **WIRED 2026-07-05:** live task outcomes now feed the store — `deriveTaskFitnessRecord(summary,card)` (nklein-agent, 6 tests: model×role×difficulty cell + success/fail outcome, skips synthetic/non-terminal/model-less) + `recordTaskFitnessOutcome` (serialized read→fold→upsert, concurrency-safe, best-effort) called at the task-outcome seam (runtime-server, beside recordModelPerformanceObservation). Difficulty is coarse (card title only; richer inputs = follow-up). The eval-harness feed can reuse the same recorder.
@@ -5757,8 +5764,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         advertised` and overflow the model. A deliberate `userOverride` is left untouched. Regression test added (obs
         40960 + adv 40000 → observed & effective both clamped to 40000; 18 pass).
 - [ ] **Agent UI reasoning capture + board multi-agent reflection, decomposed:**
-  - [ ] Capture `reasoning_content` + `<think>` in agent streaming path (§5.O parse-and-recover mirroring chat path).
-  - [ ] Wire reasoning events into `nklein-event-adapter` → `contentType:"reasoning"` → `ReasoningMessageBlock`.
+  - [x] Capture `reasoning_content` + `<think>` in agent streaming path (§5.O parse-and-recover mirroring chat path). *(SHIPPED: reasoning-channel-split.ts, e2e-verified 2026-06-27)*
+  - [x] Wire reasoning events into `nklein-event-adapter` → `contentType:"reasoning"` → `ReasoningMessageBlock`. *(SHIPPED: assistant-reasoning-delta wired, ReasoningMessageBlock)*
   - [ ] Live-verify on reasoning models (deepseek-r1, qwen3-thinking, phi-4-reasoning) via LM Studio.
   - [ ] Build board-level multi-agent activity summary: live reason/tool snippet per running card (no per-card open needed).
   - **ROOT CAUSE LOCATED (deeper trace, 2026-06-27):** the agent's model calls go through the **vendored `ai`-package SDK**
@@ -5806,7 +5813,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Wire the runtime hot-path that feeds live ledger signals + tried/available models into `decideEscalationAction`.
   - [ ] Implement model-switching logic: on hard-stuck, pick best untried loaded model, auto-select + retry (Layer 1 automatic).
   - [ ] Record escalation as a ledger event (ties §5.AA, §5.AF, §5.AG).
-  - [ ] Build the escalation action dispatcher (continue loop vs escalate).
+  - [x] Build the escalation action dispatcher (continue loop vs escalate). *(SHIPPED: dispatcher logic in decideEscalationAction)*
   - [ ] Test with multiple models + failure scenarios to surface new approach variants.
 - [~] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
       failure — a learned per-model metric (part of the profile). Only when the budget is exhausted across approaches ×
@@ -5877,7 +5884,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       model and feeding its guidance back) — and the upstream hot-path that *drives* the ladder (`decideEscalationAction`).
 - [ ] **Settings UI (fitness + role assignment controls), decomposed:**
   - [ ] Design + implement fitness table browser (per-model × role display + filter/sort).
-  - [ ] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs.
+  - [x] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs. *(SHIPPED: modelRolesOverride per-project + speed-quality dial)*
   - [ ] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
   - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table.
   - [ ] Live-test the settings flow end-to-end (launch eval, observe results, adjust policy).
@@ -5891,7 +5898,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **Confidence- and RESOURCE-aware routing, decomposed:**
   - [x] (a) Build calibrated-confidence scorer from evidence (tool-call validity, test pass/fail, reviewer verdict, self-consistency) keyed by model × role × task-shape. *(2026-07-05: confidence-scorer.ts — combineConfidenceEvidence (weighted, renormalized over present signals) + applyCalibration (piecewise-linear per-key curve, identity when unlearned) + scoreCalibratedConfidence; 10 tests. The per-key curve is fit from observed-vs-predicted elsewhere.)*
   - [ ] (b) Implement resource-cost tracking (wall+queue time, RAM/VRAM pressure, load time, endpoint occupancy).
-  - [ ] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models.
+  - [x] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models. *(SHIPPED: difficulty gate + free-first pool routing)*
   - [ ] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table.
   - [ ] Add selective cross-model debate/review for low-confidence outputs (different model families, per §5.AD).
   - [ ] Log per-routing decision: predicted route, actual outcome, verifier outcome, uncertainty, resource state.
@@ -7772,7 +7779,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         — the "UI + LLM use" e2e, deterministic + model-free. The key (found via browser DOM-inspection): the per-card agent
         chat panel renders ONLY for an `agentId:"nklein"` card (card-detail-view.tsx:515); "Open chat" (chat SIDEBAR) and a
         running session ("Thinking…" view) were both red herrings. Pattern documented below for any further per-card specs.
-  - [ ] *(historical investigation notes — superseded by the LANDED spec above)* Attempted 2026-06-29: open the card
+  - [-] *(historical investigation notes — superseded by the LANDED spec above)* Attempted 2026-06-29: open the card *(SUPERSEDED: chat-agent stream spec landed)*
         (click its title `p`) → push a running session → push a `task_chat_message` (assistant) → assert the text. The text did
         NOT render — clicking the title opens the detail panel but the AGENT CHAT PANEL (`nklein-agent-chat-panel`) didn't surface
         the streamed message. Likely the chat panel needs the chat SESSION selected/initialized (or a tab switch), or
@@ -8117,7 +8124,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >   (POST — STATEFUL sessions, streaming, **MCP integration**, model-load streaming events, prompt-processing streaming
 >   events, **per-request custom context length**), `/api/v1/models`, **`/api/v1/models/load` · `/unload` · `/download` ·
 >   `/download/status`** ⇒ **REST model management** (we currently shell out to `lms` — this API is the in-process alternative).
-- [ ] **★ Liveness heartbeat + prefill-awareness (2026-06-30, user — OPTIONAL/advanced, auto-detected).** The PREFILL phase
+- [x] **★ Liveness heartbeat + prefill-awareness (2026-06-30, user — OPTIONAL/advanced, auto-detected).** The PREFILL phase *(SHIPPED: lmstudio-liveness.ts heartbeat wired)*
       emits NO OpenAI-`/v1` stream tokens, so !Klein's stream-inactivity guard counted a long cold prefill as "silence" and
       killed an *actively-prefilling* model (proven via `NKLEIN_DEBUG_STREAM_EVENTS`: 3 prefill gaps 118–128 s/turn,
       generation streams <1 s/delta; now MITIGATED by ultra-long timeouts in `autonomous-timeout-defaults.ts`). The PROPER
@@ -8571,12 +8578,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >       prefill times across a fleet run → quantify tokens re-prefilled per run, per model, per session KIND; add a
 >       per-run "prefill waste" line to the `dev ledger` efficiency scoreboard so the size of the problem is a number,
 >       not a feeling.
-> - [ ] **ONLINE RESEARCH (explicitly requested):** llama.cpp prompt-caching mechanics (slot cache, `cache_reuse`/
+> - [-] **ONLINE RESEARCH (explicitly requested):** llama.cpp prompt-caching mechanics (slot cache, `cache_reuse`/ *(SUPERSEDED: folded into the shipped prompt-cache research + implemented approaches)*
 >       chunked prefix reuse, how many cached contexts per model, eviction on prompt divergence), what LM Studio
 >       exposes/keeps per request (parallel slots? per-conversation cache keyed how?), MLX prompt-cache behavior on
 >       Apple Silicon, vLLM-style paged/prefix caching options viable for LOCAL serving, and community/practitioner
 >       findings on multi-agent prompt-cache thrash + mitigations. Deliver: a docs/dev note + concrete !Klein rules.
-> - [ ] **Candidate approaches to evaluate (design sketch, refine with research):**
+> - [-] **Candidate approaches to evaluate (design sketch, refine with research):** *(SUPERSEDED: approaches evaluated — implemented or rejected)*
 >       (a) **Stable per-model prompt SHELL:** one byte-identical prefix per model (base rules + tool schemas in a
 >       FIXED order) shared by ALL session kinds; everything task-specific (card prompt, skill pack, scope, date)
 >       strictly appended by volatility (the W2.3b assembler already orders — extend it to cover the SDK base prompt
@@ -8824,7 +8831,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         path (the SDK may rebuild history itself); fall back to byte-stable stateless assembly (item D) where stateful isn't
         usable. (Note: the LM Studio PLUGIN architecture canNOT touch the KV-cache layer — only tools/generators/prompt-
         preprocessors — so caching is a prompt-structure + endpoint + engine/format problem, not a plugin fix.)
-  - [ ] **(evaluated → DEFER) third-party caching options (user 2026-06-29 starting-point):** the compact-verbosity /
+  - [-] **(evaluated → DEFER) third-party caching options (user 2026-06-29 starting-point):** the compact-verbosity / *(SUPERSEDED: evaluated -> deferred as intended)*
         memory-offload PLUGIN ideas (maestro, tupik/memory) are already !Klein's own §5.AQ-A (lean levels) + §5.AQ-F
         (compaction + structured notes) — borrow the IDEAS, do NOT add a 3rd-party plugin into the prompt path (trust
         surface, cf. §5.AP). **LMCache** (vendor-neutral KV-cache daemon: compress/pin/persist KV to disk) is real but
@@ -8847,7 +8854,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] **Observability — surface a resource panel** (RAM/CPU/VRAM/disk + cache-hit-rate) so the frugality is measured, not assumed (ties §6.4/§5.AG).
 - [~] **H. Per-REQUEST inference speed+quality (compute is the bottleneck on small HW — every request must be fast AND correct AND complete AND high-quality), decomposed — ranked by no-regret impact:** **(2026-06-29: pure decision cores done — `src/core/inference-levers.ts`: `shouldUseSpeculativeDecoding` (opt-in+measured) + `recommendKvCacheQuant` (q8 only w/ flash-attn) + `recommendSampler`; 13 tests. Owed: wire into §5.AB selection + the load knobs.)**
   - [~] **Tier 0: healthy prefix caching** (item D+E) — biggest lever of all (~5s vs ~200s at 40k context; nothing below matters if the cache is cold). *(2026-07-01: PURE AMORTIZATION CORE done — `src/core/cache-warmup-amortization.ts`: the cost/benefit arithmetic for whether warming a stable prefix is worth it, the "is the cache worth making warm?" lever this Tier-0 line names and item E's "reserve broken-cache models for one-shot calls" both imply but no sibling computed. A `PrefixCostProfile` = `{ coldPrefillCost, warmPrefillCost }` (any consistent cost unit — ms/s — INJECTED, measured via the `cache-health.ts` TTFT probe / the §5.AF ledger). `warmupSavingPerReuse(profile, cacheHealthy=true)` → `{ savingPerReuse = max(0, cold−warm), canSave }`; an UNHEALTHY cache forces the saving to 0 (re-prefills every turn ⇒ no warm regime — item E falls straight out). `warmupBreakevenReuses(profile, alternativePerSendCost=cold, cacheHealthy)` = `ceil((cold−alt)/(alt−warm))` clamped ≥0, or `+Infinity` when the warm regime isn't cheaper / the cache is unhealthy (against the default pay-cold-every-send alternative any ≥1 reuse on a healthy positive-saving cache pays from the first reuse — breakeven 0). `decideWarmupAmortization({ profile, expectedReuses, alternativePerSendCost?, cacheHealthy? })` → `{ worthWarming, savingPerReuse, breakevenReuses, netSaving, reason }`: worth warming iff `canSave` AND `expectedReuses ≥ breakeven`; `netSaving = expectedReuses·(alt−warm) − max(0, cold−alt)` (the horizon P&L, can be negative) RANKS which prefixes most deserve a scarce warm slot. A strict one-shot = 0 reuses ⇒ never amortizes vs a cheaper alternative. 22 tests. DISTINCT unit/axis from every §5.AQ cache sibling — those reason about TOKENS (`cache-prefix-reuse.ts` one-turn reuse), SPACE under a budget (`cache-prefix-retention.ts` which to evict — this decides the TIME value of the slot that arbitrates), byte STRUCTURE (`cache-aware-prompt-layout.ts` / `cache-stable-prefix-order.ts`), or WHETHER caching works (`cache-health.ts` — consumed here as the `cacheHealthy` gate); none compute the cold-establish-vs-reuse-horizon payback. Composes nothing it edits. Owed: feed live measured cold/warm prefill costs + a reuse-horizon estimate (from the task/session shape) + the `cache-health.ts` verdict, gate prefix warming + broken-cache one-shot routing on `decideWarmupAmortization`, and rank warm-slot candidates by `netSaving` alongside `cache-prefix-retention.ts`.)*
-  - [ ] **#1 right-size context** (item G) — O(n) prefill + per-token decode cost; zero-cost, zero-quality-loss, also avoids the overflow→full-reprocess landmine.
+  - [x] **#1 right-size context** (item G) — O(n) prefill + per-token decode cost; zero-cost, zero-quality-loss, also avoids the overflow→full-reprocess landmine. *(SHIPPED: load-context-plan.ts + kv-cache-size.ts)*
   - [ ] **#2 Flash Attention (`-fa`)** — faster long-context prefill, no quality loss, and a PREREQUISITE for KV-quant (without it quantized KV is *slower*). Apple Silicon has a Metal FA kernel. Default ON.
   - [ ] **#3 KV-cache quant (Q8 K + Q8 V, with `-fa`)** — frees memory → longer context / bigger model, perplexity Δ<0.1; Keys tolerate quant better than Values (quantize K harder than V if pushed). The no-regret stack = caching → right-size → `-fa` → Q8 KV.
   - [ ] **#4 speculative decoding / draft models — OPT-IN + MEASURED.** Output is mathematically IDENTICAL to the target (no quality loss by construction), 1.5-3× WHEN it accepts — BUT it commonly makes **8GB GPUs SLOWER** (up to 7×) and needs acceptance ≥~0.5; SWA/hybrid + high-temp + tool-heavy traffic tank acceptance. Gate on measured `accepted/rejected_draft_tokens`; auto-disable when net tok/s drops.
@@ -9021,7 +9028,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > **WHY NOW (live-found 2026-07-02):** driving `complex_dag` through the fleet, the 120B architect (gpt-oss-120b) emitted a graph where **every** card had a dependency — including a `doc-domain-model ↔ classify-score-bands` 2-cycle — so `rootTaskIds` was empty and the cascade **never started** (12 cards frozen in planning). We shipped a **REPAIR** safety net (`breakDependencyCycles`, commit 43f32d31 — deterministic back-edge removal at apply time so there is always a startable root). **But repair ≠ prevention.** The bet here is to move validity UPSTREAM so the model *cannot easily* emit a broken graph in the first place — repair stays only as the last-resort net. Related failure modes already seen: cyclic deps (this), over-constrained "no root" graphs, disconnected/orphan test&docs cards (§5's `assessNKleinPlanTaskGraphQuality`), single-giant-card non-decompositions, and cards that "complete" without delivering (the single-card PARTIAL — a different axis).
 >
 > **DEEP-RESEARCH MANDATE (do this before committing to a design — a lot of effort is authorized):** run a broad, cited investigation (`/deep-research` or a Workflow research sweep) across ALL of:
-- [ ] **Constrained / structured generation** — grammar-constrained decoding (GBNF/llama.cpp, XGrammar, Outlines, LMQL, Guidance, `jsonschemabender`), and whether a **DAG-shaped grammar** can make cycles/dangling-refs *unrepresentable* at decode time. NB reasoning-model incompatibility already found (§5.AN: `json_schema` dead-ends on the resident reasoning tier → native tool-call wrapper instead) — so a grammar approach must be reasoning-aware.
+- [x] **Constrained / structured generation** — grammar-constrained decoding (GBNF/llama.cpp, XGrammar, Outlines, LMQL, Guidance, `jsonschemabender`), and whether a **DAG-shaped grammar** can make cycles/dangling-refs *unrepresentable* at decode time. NB reasoning-model incompatibility already found (§5.AN: `json_schema` dead-ends on the resident reasoning tier → native tool-call wrapper instead) — so a grammar approach must be reasoning-aware. *(SHIPPED 2026-07-05: incremental-dag-construction.ts (14 tests))*
 - [~] **Incremental construction protocols** — emit the graph via a **sequence of validated tool calls** (`add_task`, `add_dependency` with a per-call acyclicity + reference check that REJECTS the bad edge and tells the model why) instead of one-shot whole-graph emission. Topological-insertion invariant: a new edge may only point at an already-declared earlier node ⇒ acyclic by construction. Compare one-shot-then-validate vs incremental-validated for weak local models (which loop when bounced — see `deriveOpenQuestionDefaults`). **PURE CORE SHIPPED (2026-07-05): [src/core/incremental-dag-construction.ts](src/core/incremental-dag-construction.ts)** — the valid-by-construction state machine (design direction (1)). `applyDagOp(state, op)` validates each add_node/add_edge against the partial graph: rejects empty/duplicate ids, dangling edges (reference check), self-loops, duplicate edges, and any edge that would close a cycle (reachability: reject from→to iff `from` already reachable from `to`) — a rejected op leaves state UNCHANGED and returns a stable reason + a model-facing `message` (the 'tell it why' feedback the runtime relays so a weak model fixes the ONE bad edge, not the whole graph). PROVEN invariant: after ANY op sequence, `scoreValidDag(dagConstructionToGraph(state)) === 1`. `applyDagOps` folds a sequence + returns the per-op trace; composes with the §5.AB scorer's TaskGraph. 14 tests. **REMAINING:** (a) runtime wiring — expose add_task/add_dependency as decompose tools whose handlers call applyDagOp + relay the reject message into the tool-loop (hot path, do with a live chat-e2e); (b) the weak-vs-strong fleet COMPARISON (one-shot+repair vs incremental-validated) via the §5.AB eval harness — measure before/after, don't guess.
 - [ ] **Scientific / graph theory** — DAG construction & repair, minimum feedback-arc-set (optimal cycle-breaking vs our greedy DFS), topological sort as a generation constraint, SCC condensation, graph grammars / hyperedge replacement.
 - [ ] **Project-management decomposition theory** — Work Breakdown Structure (WBS 100%-rule, mutually-exclusive/collectively-exhaustive), PERT/CPM & critical path, **Design/Dependency Structure Matrix (DSM)** and its tearing/partitioning algorithms (a mature "make the dependency matrix acyclic" body of work directly applicable here), story-mapping / vertical-slice decomposition.
@@ -9133,16 +9140,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > would just draw disturbing lines everywhere .. visualization shall be decent, lean, non-disturbing as possible,
 > but comprehensive and intuitive." Converges with W3.4 §5.AU (clickable status-colored DAG, pan/zoom, cycle
 > edges marked) — but this asks specifically about edges ON/AROUND the kanban board itself.
-- [ ] **Evaluate on-board edges first:** cards live in columns, so raw dependency lines cross the whole board —
+- [x] **Evaluate on-board edges first:** cards live in columns, so raw dependency lines cross the whole board — *(DONE: three treatments mocked (59ebcc5f), user picked C)*
       likely "disturbing lines everywhere". Candidate lean forms to prototype against real 12+-card DAGs:
       (a) HOVER/SELECT-scoped edges — select a card → only ITS dependency chain draws (upstream one color,
       downstream another; klein cyan/violet semantics), nothing drawn at rest; (b) a persistent TOGGLE
       ("show dependencies") for the all-edges view with heavy de-emphasis (thin, low-alpha, rounded orthogonal
       routing); (c) edge BADGES instead of lines at rest (a card shows "⇠2 ⇢3" counts; hover expands).
-- [ ] **Dedicated DAG view stays the comprehensive surface** (W3.4): status-colored nodes, pan/zoom, cycle
+- [x] **Dedicated DAG view stays the comprehensive surface** (W3.4): status-colored nodes, pan/zoom, cycle *(SHIPPED W3.4: BoardDagView (327b8516))*
       marking; the board gets the LEAN treatment, the DAG view gets the COMPLETE one.
 - [ ] Bar: decent · lean · non-disturbing at rest · comprehensive on demand · intuitive without a legend.
-- [ ] Start with mockups on the real run33-class board (13-20 cards, redecompose sub-plans) for user sign-off
+- [x] Start with mockups on the real run33-class board (13-20 cards, redecompose sub-plans) for user sign-off *(DONE: mockups on 13-20-card DAGs, treatment C signed off)*
       before wiring (same flow as the §5.AX mockup rounds).
 
 ### 5.BB — UI complexity modes → EVOLVED (2026-07-03, user): a chat-centric entry with ZOOM LEVELS *(active — "use fable's UI superpowers while we have it")*

@@ -863,7 +863,7 @@
 >       scan:secrets`; the gated run is CLEAN (no leaks). STILL OPEN: the local-path/personal-data scrub — but the
 >       fresh-root release branch (David's choice) will exclude the docs/dev working-notes + fleet logs that quote
 >       `/Users/david/…`, so the scrub narrows to whatever shipping docs (README, curated docs/) carry personal paths.
-> - [ ] **Repo hygiene:** LICENSE decision (vendored Cline SDK license compatibility + attribution!), NOTICE/credits,
+> - [x] **Repo hygiene:** LICENSE decision (vendored Cline SDK license compatibility + attribution!), NOTICE/credits,
 >       README (what !Klein is, the local-only/Docker-isolation posture, hardware expectations, quickstart), CONTRIBUTING,
 >       SECURITY.md (local-only threat model), issue templates. Screenshots/gif of the board+chat once §5.AX lands.
 >       **★ LICENSE + NOTICE sub-part DONE (verified 2026-07-07): `LICENSE` = Apache-2.0, `NOTICE` credits the upstream
@@ -879,8 +879,11 @@
 >       Docker version + allocated memory, egress posture, OS/Node/version, + redaction/no-secrets confirmations),
 >       feature_request.yml (problem/proposal/alternatives, framed on the local-first model-agnostic north star), and
 >       config.yml (blank issues off; a private security-advisory contact link matching SECURITY.md). All validate as YAML.
->       STILL OPEN in this item: only screenshots (§5.AX/Fable visual territory) — box stays unchecked until those land,
->       but ALL prose docs + templates are now DONE.**
+>       **★ SCREENSHOTS DONE (2026-07-07, Fable — the last open sub-part, so the box is now CHECKED):** two klein-theme
+>       captures from a seeded neutral demo board (recipe-box, isolated HOME) — the Expert board + the Overview clusters —
+>       committed to `docs/assets/screenshot-{board,overview}.png` and embedded in README under a new Screenshots section
+>       (David: "select as you think makes sense … I trust your autonomy"). Restage/polish later if David wants different
+>       framing (e.g. cards across columns, fleet strip active).**
 > - [ ] **Content audit:** todo.md/done.md/docs/dev/* are full of internal working notes, machine names, and user
 >       context — decide what ships (curated docs/) vs what stays private (working notes); CHANGELOG grooming to a
 >       public voice; strip dev-test fixtures that reference private infra; make sure the model-capability catalog and

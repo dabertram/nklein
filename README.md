@@ -27,6 +27,16 @@ Run `nklein` from a git repository to open that project, or launch it without a 
 - Surfaces runtime state, diffs, review actions, merge actions, and recovery controls in a local web UI.
 - Prioritizes local NKlein-compatible model providers and small-hardware workflows.
 
+### Screenshots
+
+The board at the Expert zoom level — columns, cards, the swarm status strip, and the five-level zoom ladder (Chat → Overview → Lean → Expert → Professional):
+
+![The !Klein board (Expert zoom, dark "klein" theme)](docs/assets/screenshot-board.png)
+
+The Overview zoom — cards rolled up into status clusters, built for a quick "what needs me?" read:
+
+![The !Klein overview clusters](docs/assets/screenshot-overview.png)
+
 ### Fork Direction
 
 !Klein may periodically check whether upstream Cline Kanban changes are worth integrating. It does not treat upstream parity as a primary goal. This codebase is moving forward around the needs that prompted the fork: local LLM reliability, limited-hardware usability, and practical small-model orchestration.
