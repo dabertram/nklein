@@ -326,6 +326,19 @@ source repo went private — so if it vanishes the buildable source still lives 
 >   I read Local/m5max's LM Studio config and floated its JIT-TTL as a cause for a model that was on m4mini — where JIT
 >   was actually OFF, refuting the hypothesis. Convenient nearby data masquerading as the real data, one level below the
 >   first TTL miss.)
+> - **GATE a hypothesis on CONSISTENCY with ALL the facts you ALREADY hold, BEFORE you entertain / rank / investigate it —
+>   check the MECHANISM and the MAGNITUDES, not just surface plausibility.** Ask two questions of every candidate cause:
+>   (1) *does the proposed mechanism even apply to the observed conditions?* (2) *do the numbers/timeline fit?* A
+>   hypothesis that contradicts a fact in hand is DEAD ON ARRIVAL — killing it needs zero investigation. This is the
+>   cheapest, earliest filter and it catches the worst misses (the ones you then spend days half-defending). **Reason
+>   about ALL the details of basically everything — the mechanism's actual definition, the quantities, the timeline — not
+>   the vibe of a label.** (Recorded miss 2026-07-07, user-caught: I entertained AND RANKED a JIT *idle*-TTL as a cause
+>   for a model that vanished during ACTIVE, REPEATED use — but (a) an *idle* timeout by definition never unloads a model
+>   that is processing, and (b) that TTL was **1 hour** while the model was being called **every few minutes**, so a
+>   continuous 60-min idle window never remotely existed and it COULD NOT have fired. Two independent disqualifiers, both
+>   derivable from facts I had on the FIRST tick, needing zero investigation — I carried the dead hypothesis through two
+>   more corrections instead of killing it on sight. The upfront wrong-steering came from pattern-matching "model gone →
+>   TTL" without checking whether the TTL mechanism could physically produce THIS observation.)
 > - **When the true cause is genuinely UNKNOWABLE with current evidence, SAY SO — and add the instrumentation to catch
 >   it next time.** "I can't determine this because X (remote node / logging was off / event already passed); here's the
 >   monitoring that would answer it" is a correct, honest deliverable. Inventing a clean answer to avoid "I don't know"
@@ -428,6 +441,15 @@ source repo went private — so if it vanishes the buildable source still lives 
   "convenient data standing in for the real data" error, one level deeper. ALWAYS scope a finding to the exact machine/
   file/source you read it from, and name that scope explicitly ("m5max's settings.json says X; m4mini's is unknown to
   me"). Never let evidence from one host silently generalize to the fleet.**
+  **★ DEEPER STILL (2026-07-07, David #3): the JIT-TTL hypothesis was DEAD ON ARRIVAL — refutable on tick 1 with ZERO
+  investigation, on MECHANISM + MAGNITUDE alone.** `jitModelTTL` is an *IDLE* timeout of **3600s (1 h)**. coder-14b
+  vanished during an ACTIVE decompose experiment — multiple 200-320s runs back-to-back, called every few minutes over
+  ~20-30 min. (a) an idle-timeout by definition never unloads a model that is processing; (b) a 1-h idle window never
+  came close to existing under that use frequency. So the hypothesis could NOT physically have produced the observation —
+  I should have killed it on sight, before the per-host-config detour AND before David's first correction. This is the
+  cheapest filter (does the mechanism physically fit? do the numbers fit?) and I skipped it. See the §4A root-cause rule's
+  new "GATE a hypothesis on CONSISTENCY … BEFORE you entertain it" bullet — that filter, applied first, kills this on
+  tick 1. Cause remains crash / eviction / external-unload, undetermined without m4mini's logs.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user

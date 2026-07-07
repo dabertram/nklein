@@ -2894,3 +2894,21 @@ tick doesn't repeat it): the vendored suites are green + guard-gated since 2026-
 speculatively re-run them; the `.husky` guard already runs `test:vendor` whenever `vendor/**` is staged.** The precision
 lesson generalizes past config-scoping: verify your PREMISE with the same rigor as your conclusion — "is this actually an
 open gap?" deserved the date-check BEFORE the test run, not after.
+
+### 2026-07-07 (Opus) - USER PRECISION POINT #3: the JIT-TTL hypothesis was DEAD ON ARRIVAL
+David's third methodology point on the same event, and the sharpest: if LM Studio's JIT handling isn't itself buggy, an
+IDLE timeout can't unload a model that's actively processing — so the JIT-idle-TTL hypothesis was unreasonable from the
+outset for a model that vanished mid-experiment. Checked it — VALID, and even stronger than stated: `jitModelTTL` is a
+**1-hour IDLE** timeout, but coder-14b was in active repeated use (200-320s decompose runs back-to-back, called every
+few minutes over ~20-30 min), so (a) mechanism — idle-timeout never fires on an active model, and (b) magnitude — a
+continuous 60-min idle window never remotely existed. TWO independent disqualifiers, both derivable from facts I had on
+tick 1, needing ZERO investigation. I carried a physically-impossible hypothesis through two prior corrections instead
+of killing it on sight. **Root fix (new §4A rule bullet): GATE a hypothesis on CONSISTENCY with the facts you already
+hold BEFORE entertaining it — check the mechanism (does it even apply here?) and the magnitudes (do the numbers fit?);
+a hypothesis that contradicts a fact in hand is dead on arrival, no investigation needed. "Reason about ALL the details
+of basically everything" — the mechanism's real definition + the quantities, not the vibe of a label.** Updated the §4A
+MODEL RESIDENCY note with this decisive tick-1 disqualifier. Cause still crash/eviction/external-unload (undetermined
+without m4mini logs) — but the point isn't the cause, it's that "model gone → TTL" was pattern-matching, not reasoning.
+Three corrections, three deepening filters now codified: (1) don't accept the quick label; (2) scope evidence to its
+exact source; (3) consistency-gate the mechanism + magnitude before entertaining. The through-line: reason, don't
+pattern-match.
