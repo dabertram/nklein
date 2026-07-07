@@ -2127,3 +2127,20 @@ Panel is feature-complete + flag-gated (NKLEIN_REVIEW_PANEL). Remaining panel re
 parallel judges (cache/stream trade-off), multi-machine judge endpoints, configurable size. **All 4 of David's items now
 addressed:** §5.BG (c) flip DONE (flag-gated); hardware hard-block already existed; §5.BG (d) low-priority self-healing;
 panel DONE (flag-gated). Both flags await a live §5.Z roster re-verify before default-on.
+
+### 2026-07-07 (Opus) · Autonomous load/unload — planner core built; the DRIVER + flag flips need live verification
+David authorized load/unload as-needed. Finding: `loadModelExclusive` (the guarded loader) + `decideModelLoad` exist but
+have NO live driver — autonomous loading isn't wired, so the user-budget-cap refinement is moot until a driver exists.
+Built the missing DECISION CORE: `planResidencyForModel` [eecf717b] — given a needed model + resident set (size/in-use/
+last-used) + machine budget, keeps it if it fits, else evicts the COLDEST NOT-in-use residents to fit, else REFUSES
+(never overload; never evict a mid-task model). Pure, 6 tests. This is the safe foundation for the load driver.
+
+**Honest checkpoint — the remaining valuable work needs LIVE verification I can't self-perform:**
+- **Autonomous load DRIVER** (wire routing → planResidencyForModel → loadModelExclusive + unload cold): a substantial
+  hot-path runtime-behavior change (models load/unload during operation). Shippable flag-gated (default OFF = today's
+  no-load), but proving it doesn't overload the 3 systems needs a LIVE run — a §5.Z-style verification on real machines.
+- **§5.BG (c) flip flag + panel flag**: both built + flag-gated + unit-green; flipping them ON wants a live §5.Z roster
+  re-verify (models loaded, behavior observed) — the process step for a routing/review behavior change.
+Live §5.Z verification requires the runtime running with models loaded + behavior observed — not performable from the
+code sandbox. So the frontier is now live-verification-gated, not code-gated. Low-value code-only leftovers: §5.BG (d)
+re-key (fiddly composite-key merge), panel PARALLEL judges (risks endpoint overload — needs endpoint-grouping).
