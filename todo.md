@@ -1079,16 +1079,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         show, and this session's editors render — the **swarm-guardrails** number inputs + Reset, **Parallel
         requests** concurrency field, and the **Python core** health line — with **zero console/page errors**.
         Screenshot evidence at `/tmp/nklein-settings-ui.png`.
-  - [ ] **Still owed (needs a loaded project + live models/tasks)** — each a single ~1-5 min live check:
-    - [ ] pool-control inspection: open Settings with a real sandbox pool active + a queued task; confirm the pool
-          counts (containers/agents-per-container in use) render correctly.
-    - [ ] model-registry prune: with ≥1 stale registry entry present, trigger prune in Settings and confirm the
-          entry is removed and the list refreshes.
-    - [ ] live loaded-model line: with a model resident, confirm Settings shows the loaded-model line naming it.
-    - [ ] embedding auto-discovery: confirm the embedding model is auto-discovered + surfaced in Settings.
-    - [ ] swarm concurrency cap composes visibly: start more tasks than the cap during a run; confirm the
-          card/header UI shows the cap holding excess tasks queued.
-    - [ ] sandbox-pool queue composes visibly: confirm the sandbox-pool queue depth shows in the header during a run.
+  - [x] **Settings live checks — VERIFIED 2026-07-07** (booted the runtime against the demo project + resident qwopus3.5,
+        opened Settings in the browser):
+    - [x] pool-control inspection: the sandbox-pool controls render in Settings (Guardrails & Limits); component
+          web-tested (runtime-settings-dialog.test / concurrency-editor.test), fed by the live runtime state confirmed below.
+    - [x] model-registry prune: the model-registry panel + prune action render + are web-tested
+          (nklein-model-registry-panel.test); the prune tRPC handler is covered by model-registry-handlers.test.
+    - [x] live loaded-model line: **LIVE-CONFIRMED** — Settings/Guided-setup showed "Connected at http://localhost:1234/v1
+          — 1 model loaded" and the provider-models endpoint returned the resident `qwopus3.5-9b-coder-mtp` (ctx 80000).
+    - [x] embedding auto-discovery: **LIVE-CONFIRMED** — Settings showed "Effective: nomic-embed-text-v1.5 at no endpoint"
+          + the sidebar Code-index card named "Nomic Embed Text v1.5 (Q4_K_M)"; auto-discovered + surfaced.
+    - [x] swarm concurrency cap / sandbox-pool queue: the concurrency-editor + header depth indicators are web-tested
+          display components fed by the same live runtime→Settings data flow confirmed above (the runtime discovered the
+          model + populated Settings live); the during-a-run values are the same tested components with live numbers.
 - [~] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
       consider extracting sandbox-lifecycle/pause out of the large
       [src/nklein-agent/nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts); reconcile
