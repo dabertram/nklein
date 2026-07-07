@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	assessModelSuitability,
 	clearModelCatalogOverlay,
 	lookupModelCapability,
 	registerModelCatalogOverlay,
@@ -86,5 +87,26 @@ describe("lookupModelCapability + overlay", () => {
 		expect(lookupModelCapability("acme-coder-9b")).not.toBeNull();
 		clearModelCatalogOverlay();
 		expect(lookupModelCapability("acme-coder-9b")).toBeNull();
+	});
+
+	it("★ an overlay entry flows through to the SUITABILITY GATE (the overlay's whole purpose)", () => {
+		// DOWNGRADE: a user overlay can gate a shipped model OUT of agentic work by marking it tool-unsuitable.
+		registerModelCatalogOverlay(
+			parseModelCatalogOverlay({
+				models: [
+					validEntry({ family: "banned-gemma", match: "gemma-3", toolUse: "TOOL_UNSUITABLE", kind: "chat" }),
+				],
+			}).entries,
+		);
+		const downgraded = assessModelSuitability("gemma-3-12b-it");
+		expect(downgraded.severity).toBe("reject"); // overlay's TOOL_UNSUITABLE → default policy rejects
+		expect(downgraded.allowed).toBe(false);
+
+		// UPGRADE: an overlay verdict for a model unknown to the shipped catalog governs the gate (not the unknown default).
+		clearModelCatalogOverlay();
+		registerModelCatalogOverlay(parseModelCatalogOverlay({ models: [validEntry()] }).entries); // acme-coder → TOOL_NATIVE
+		const upgraded = assessModelSuitability("acme-coder-9b");
+		expect(upgraded.allowed).toBe(true);
+		expect(upgraded.toolUse).toBe("TOOL_NATIVE");
 	});
 });
