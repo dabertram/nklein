@@ -3603,3 +3603,15 @@ sequencing (align engine ladder to the live order first, then wire + re-validate
 corrected the STALE "owed wiring" note in retry-policy.ts (the raise_token_budget rung is already in the aborted ladder
 AND applied at the chat seam — done, not owed). Method holds: characterize live-tuned code before rewiring it. Moving
 to a genuinely-deterministic opus item next.
+
+### 2026-07-07 (Opus) - §5.V coverage: model-capability-catalog data-integrity guard (the edited routing table)
+Pivoted to the explicit §5.V coverage mandate for a guaranteed-safe increment (the retry rewire is fleet-gated; core is
+otherwise well-covered — only 2 untested core modules, and plan-gap-kind is a bare zod enum). Covered the one that
+matters: MODEL_CAPABILITY_CATALOG (29 hand-edited entries that silently steer model routing). New
+model-capability-catalog-data.test.ts (6 cases) — keystone check reuses the SAME parseModelCatalogOverlay schema
+external overlays must pass (built-in data + user overlays held to one contract), so a bad enum / positive-sizeGb
+violation is caught automatically; plus structural invariants the schema can't express: unique family slugs,
+lowercase-only regex sources (uppercase can never hit the lowercased id), non-empty notes, and ≥1 source on every
+verified research verdict. Probed all invariants against the live data first (only assert what holds — no false red).
+Gate green: tsc + biome + the suite. This turn's opus increments: fitness-blend wiring (81e6630c) · retry reclassify
+(dd054eb8) · catalog integrity (this).
