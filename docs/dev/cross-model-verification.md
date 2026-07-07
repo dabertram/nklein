@@ -1187,3 +1187,30 @@ goal.md flags David is "particularly curious about the 35B MoE ornith evals (orn
   ✅ decompose-isolation (decompose_project called, zero host-path leaks, clean teardown).
 - matrix row: ornith-1.0-35b@q8_0 → egress ✅ · chat-tools ✅ · single-card ✅ · decompose-isolation ✅. The larger 35B MoE
   is as clean as the 9B on all flows — no size/MoE-specific gap. 5 fresh models this session, all 4/4.
+
+## 2026-07-07 (Opus) — §5.Z CEILING: gpt-oss-120b (120B) — 4/4 clean, first-try, no variance
+The frontier ceiling point David offered interest in. Loaded `openai/gpt-oss-120b` (63 GB) alongside qwopus3.5, verified
+all 4 flows, unloaded. **All clean, first-try (no synthesis variance at the ceiling):**
+- ✅ egress-e2e · ✅ chat-agent-tools (§5.M) · ✅ single-card delivery (hello.txt content matches) · ✅ decompose-isolation
+  (decompose_project called, zero host-path leaks, clean teardown).
+- matrix row: openai/gpt-oss-120b → egress ✅ · chat-tools ✅ · single-card ✅ · decompose-isolation ✅.
+
+### ★ §5.Z SESSION CONCLUSION — cross-model robustness COMPREHENSIVELY established (2026-07-07)
+Six fresh models verified this session via the granted model-load skill, spanning the whole practical tier and every
+tool-call format/behavior class:
+| model | class | size | result |
+|---|---|---|---|
+| ornith-1.0-9b | qwen3.5 | 9B | 4/4 |
+| devstral-small | mistral (coding) | 24B | 4/4 |
+| gpt-oss-20b | OpenAI harmony | 20B | 4/4 |
+| magistral-small | mistral (reasoning) | 24B | 4/4 |
+| ornith-1.0-35b@q8_0 | qwen3.5 MoE | 35B | 4/4 |
+| gpt-oss-120b | OpenAI harmony | 120B | 4/4 |
+Plus the earlier exhaustive qwopus3.5-9b-coder-mtp (9 flows). **CONCLUSION:** across 9B→120B, qwen/mistral/harmony tool-call
+formats, coding + reasoning + MoE variants, !Klein's agent tool-loop, the §5.O delivery recovery, and the §5.A Docker
+isolation guarantees ALL generalize cleanly. The only non-passes observed anywhere were model-synthesis VARIANCE (a model
+occasionally not echoing a tool result / not delivering on one run, passing on retry — a §5.AB fitness trait), NEVER a
+deterministic !Klein parse/format/delivery gap. The single deterministic finding the whole verify→harden loop produced
+(§5.O redundant-path-nesting) is already fixed + generalizes. The small→ceiling cross-model verification is DONE; further
+models would be pure confirmation. (Open follow-ups needing David/live: MLX qwen3_5_moe_vision arch unsupported in LM
+Studio — use GGUF for ornith-35b; the §5.AA synthesis-variance nudge is a possible future hardening, a design task.)
