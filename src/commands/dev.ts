@@ -23,6 +23,7 @@ import { type DevTestSweepEntry, formatDevTestSweepReport, runDevTestSweep } fro
 import { buildEscalationSuggestions } from "../core/escalation-suggestions";
 import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
 import {
 	dominantFailureMode,
@@ -31,6 +32,7 @@ import {
 	preferredToolCallFormat,
 } from "../core/model-behavior-profile";
 import { lookupModelCapability } from "../core/model-capability-catalog";
+import { adviseModelFleet } from "../core/model-fleet-advisor";
 import { aggregateRailEvidence, buildRailEvidenceAnalysisPrompt } from "../core/rail-evidence";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { buildKanbanRuntimeUrl, getRuntimeFetch } from "../core/runtime-endpoint";
@@ -775,6 +777,28 @@ async function runDevSwarmCommand(options: { json?: boolean } = {}): Promise<voi
 	process.stdout.write(formatSwarmMachineView(view, label));
 }
 
+async function runDevFleetAdviceCommand(options: { json?: boolean; endpoint?: string } = {}): Promise<void> {
+	// §5.AB gap 5 / §5.AL: advise what to ADD to the loaded fleet (family diversity + reasoning depth) so reviews and
+	// escalations get an uncorrelated, deep second opinion. Reads the loaded descriptors (real keys → lineage/catalog);
+	// best-effort — an unreachable endpoint yields the "no agentic model" advice, never a throw.
+	const base = options.endpoint?.trim() || "http://localhost:1234/v1";
+	const descriptors = await fetchLoadedModelDescriptors(base).catch(() => []);
+	const suggestions = adviseModelFleet(descriptors);
+	if (options.json) {
+		process.stdout.write(`${JSON.stringify({ loadedModels: descriptors.length, suggestions }, null, 2)}\n`);
+		return;
+	}
+	process.stdout.write("!Klein fleet advice — what to add to strengthen the loaded model set (§5.AB/§5.AL):\n\n");
+	if (suggestions.length === 0) {
+		process.stdout.write("  ✓ The loaded fleet is family-diverse and has reasoning depth — nothing to suggest.\n");
+		return;
+	}
+	for (const suggestion of suggestions) {
+		const mark = suggestion.severity === "warn" ? "⚠" : "•";
+		process.stdout.write(`  ${mark} ${suggestion.title}\n    ${suggestion.detail}\n\n`);
+	}
+}
+
 async function runDevToolMenuCommand(options: { json?: boolean } = {}): Promise<void> {
 	// §5.O inspection: render the phase-1 tool menu a SMALL model is shown (short cards, not verbose schemas) so an
 	// operator can review the card text + its token footprint. Pure/offline — no model, no live agent loop.
@@ -1133,6 +1157,16 @@ export function registerDevCommand(program: Command): void {
 		.option("--json", "Print machine-readable JSON.")
 		.action(async (options: { json?: boolean }) => {
 			await runDevSwarmCommand(options);
+		});
+
+	dev.command("fleet-advice")
+		.description(
+			"Suggest what to ADD to the loaded model fleet (base-family diversity + reasoning depth) to strengthen review + escalation (§5.AB/§5.AL).",
+		)
+		.option("--json", "Print machine-readable JSON.")
+		.option("--endpoint <url>", "LM Studio base URL (default http://localhost:1234/v1).")
+		.action(async (options: { json?: boolean; endpoint?: string }) => {
+			await runDevFleetAdviceCommand(options);
 		});
 
 	dev.command("tool-menu")
