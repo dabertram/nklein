@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest an improvement or new capability for !Klein.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. !Klein's north star is a **local-first, model-agnostic** agentic kanban that keeps
+        the user in control — proposals that fit that posture (privacy, Docker isolation, working with weaker local
+        models) are the easiest to land.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and where does !Klein get in the way today?
+      placeholder: When I …, I have to … because !Klein doesn't …
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen? Describe the behavior, not necessarily the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you've tried, or other approaches you weighed.
+    validations:
+      required: false
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you be willing to help implement this?
+      options:
+        - "Yes, I'd like to open a PR"
+        - "Maybe, with guidance"
+        - "No, just proposing"
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmations
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
