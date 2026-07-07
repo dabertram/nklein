@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { relative } from "node:path";
 import type { NKleinCodeEmbeddingProvider } from "./nklein-code-embeddings";
 import { searchNKleinCodeIndex } from "./nklein-code-index";
 import { buildNKleinRepoMap, type NKleinRepoMapSymbol } from "./nklein-repo-map";
@@ -50,7 +50,7 @@ function normalizeQuery(query: string): string {
 	return query.trim();
 }
 
-function tokenizeQuery(query: string): string[] {
+export function tokenizeQuery(query: string): string[] {
 	return Array.from(
 		new Set(
 			query
@@ -61,7 +61,7 @@ function tokenizeQuery(query: string): string[] {
 	);
 }
 
-function scoreLine(line: string, query: string, queryTokens: readonly string[]): number {
+export function scoreLine(line: string, query: string, queryTokens: readonly string[]): number {
 	const lowerLine = line.toLowerCase();
 	const lowerQuery = query.toLowerCase();
 	let score = 0;
@@ -177,7 +177,7 @@ function normalizeMatches(
 	}));
 }
 
-function rankHybridMatches(input: {
+export function rankHybridMatches(input: {
 	lexicalMatches: readonly NKleinCodeSearchMatch[];
 	repoMapMatches: readonly NKleinCodeSearchMatch[];
 	indexMatches: readonly NKleinCodeSearchMatch[];
