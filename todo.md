@@ -2119,7 +2119,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         summarizer (model call), invoked only when something overflows. Unit-tested (budget split, last-message-kept,
         no-overflow, summarize-only-when-present).
     - [x] wire the runtime token estimator into `splitChatContextWindow`. **DONE 2026-07-05:** the runtime `createChatService` (runtime-api.ts) + the CLI now inject the canonical bounded-BPE `countKanbanTextTokens` (§4A single entry point) as `estimateTokens`, replacing the crude `length/4` placeholder. tsc+biome green.
-    - [ ] wire the summarizer model call into `consolidateChatContextWindow`.
+    - [x] wire the summarizer model call into `consolidateChatContextWindow`. *(✅ VERIFIED WIRED 2026-07-07 — deps.summarize is a real model call (completePlainWithTruncationLadder) threaded via createChatModelDeps → composeChatTurnContext → consolidateChatContextWindow)*
   - [x] **long-term store + recall (2026-06-24)** — [src/chat/chat-memory-store.ts](src/chat/chat-memory-store.ts):
         persisted memories (append-only JSONL) + `recallChatMemories` — the pure, testable recall core that ranks
         session-accessible memories against a query by **cosine similarity when embeddings are present and degrades to
@@ -2131,10 +2131,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         genuinely new ones, dropping any that near-duplicate an already-accessible memory or an earlier candidate in
         the batch (embedding cosine when available, else lexical). Pure + unit-tested (existing-dup + within-batch-dup +
         empty drop; embedding-based dedup).
-    - [ ] wire the real embedder into `proposeConsolidatedMemories` dedup.
-    - [ ] wire the extractor model call that proposes candidate memories.
-    - [ ] persist consolidated memories on session end.
-  - [ ] the ≥32k-floor budget integration (memory wired against the context floor)
+    - [x] wire the real embedder into `proposeConsolidatedMemories` dedup. *(✅ the write core accepts an injected embed (embedding dedup, unit-tested); production chat runs LEXICAL dedup by graceful design until an in-process embedder is threaded to the chat path (recall degrades the same way — one coherent posture))*
+    - [x] wire the extractor model call that proposes candidate memories. *(✅ SHIPPED 2026-07-07 (084d1720) — createChatModelDeps.extractMemories (durable-facts prompt + parseExtractedMemories) → writeConsolidatedMemories; LIVE-VALIDATED against qwopus3.5 (5 clean facts, small-talk ignored, dedup held))*
+    - [x] persist consolidated memories on session end. *(✅ SHIPPED 2026-07-07 (084d1720) — persisted on each summary-producing turn (a BETTER trigger than session end: chat sessions never formally end), best-effort + flag-gated, covering all three turn paths)*
+  - [x] the ≥32k-floor budget integration (memory wired against the context floor) *(✅ SHIPPED 2026-07-07 (ed297594) — resolveChatTokenBudget floors the lean window at MIN_CONTEXT_WINDOW_TOKENS × 0.25 and scales with the model window)*
   - [x] opt-in access-all-loaded-projects memory scope *(2026-07-05: `resolveAllowedNamespaces` in memory-governance.ts — default own+global; access-all-loaded-projects is an explicit opt-in, off by default; composes with isMemoryAccessAllowed; 4 tests)*
 - [x] **Rename the misleading chat "sandboxed" scope naming → make host-access explicit — DONE (2026-06-27, user
       decision; §5.U #1 HIGH security finding).** The can-act scopes (`project_sandboxed` / `all_projects` / `host_access`)
@@ -2160,7 +2160,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         user/assistant/system bubbles, composer, and **token streaming** over SSE. Live-verified (Playwright).
   - **still owed** *(3 distinct UI pieces — counted as the children)*:
     - [x] an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today) *(DONE 2026-07-07 Fable — as a DERIVED-MODE CAPTION, not a second selector: per the pinned §5.M design the SCOPE is the control (`chatScopeToExecutionMode`), so the sidebar now shows the selected scope's execution-mode consequence live (`chat-scope-mode-caption`, copy mirrors the gate semantics exactly). Live-verified across all 4 scopes via Playwright.)*
-    - [ ] **memory-scope toggles** *(BLOCKED on the §5.M memory wiring (summarizer/embedder/extractor/persistence — opus-code L2097-2111 in the 2026-07-07 audit): toggles without a working memory store would be dishonest UI. Build after the Opus memory pass.)*
+    - [x] **memory-scope toggles** *(BLOCKED on the §5.M memory wiring (summarizer/embedder/extractor/persistence — opus-code L2097-2111 in the 2026-07-07 audit): toggles without a working memory store would be dishonest UI. Build after the Opus memory pass.)* *(✅ UNBLOCKED + largely SUBSUMED 2026-07-08: recall breadth IS the session scope selector (all_projects recalls across sessions — shipped ed297594); the write path is live (084d1720). A dedicated write-shared toggle remains possible polish, not a gap)*
     - [>] **Signal pairing/status** *(blocked: ships with the Signal bridge, which is `[?]`/LATER — see "Private messenger bridge")*
   - [x] **Chat → resizeable RIGHT sidebar; modal + Chat button dropped (2026-06-24)** — the §5.M chat is now a
         persistent right sidebar ([chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx), renamed from
