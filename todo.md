@@ -4898,6 +4898,54 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > `selectModelForTask`/`routeNKleinTask`; the §5.AL catalog; cross-machine fan-out validated 2026-07-01), not greenfield.
 > See memory `auto-model-selection-vision`.
 >
+> **★★ MODEL-ADVISORY EXCELLENCE (David directive, 2026-07-07) — "!Klein must be EXCELLENT about model suggestions,
+> auto-selection/-assignment, AND involving >1 model on decisions/reviews/escalations/failures."** Prompted by a
+> user-shared model-swarm write-up (Qwen3.6-27B dense / Qwen3-Coder-Next 80B-A3B / Ornith-1.0 / Qwable / Qwopus /
+> Devstral-2507 / Gemma 4 / GLM-4.7-Flash — all **web-verified real, mid-2026, POST-cutoff**; the write-up's specific
+> names are volatile, the PRINCIPLES are durable). **David's 4 decisions (AskUserQuestion):** (1) **advisory grounding =
+> data-driven + EXTERNAL catalog** — recommend from the live registry/ledger + a maintained catalog FILE (editable
+> without a code change); **no model names hardcoded in src/** (same lesson as §5.BG); (2) **multi-model policy = broad
+> panel-of-judges as the shipped DEFAULT** (multiple diverse models on most reviews/decisions; still tunable
+> thresholds/count/diversity; MUST respect local-only + endpoint-resource limits); (3) **fold into existing model work**
+> (§5.AB / §5.AL / §5.Z), NOT a new phase; (4) **hardware-aware via USER-DECLARED tiers** (config or runtime-detected
+> RAM/VRAM/role per host; place models per tier + warn on over-provision; **no hostnames in src/** — tiers are config).
+>
+> **★ CRITICAL CORRECTNESS (David 2026-07-07): model "family" for diversity = BASE-MODEL LINEAGE, not the display label.**
+> Ornith⊃(Gemma4+Qwen3.5); Qwable/Qwopus⊃Qwen. A panel of `Qwen3.6-27B + Qwable + Qwopus` LOOKS diverse but is a Qwen
+> monoculture → zero uncorrelated-judgment Mehrwert. `resolveLineage` (model-lineage.ts) must collapse a fine-tune to its
+> BASE family (verify: does it map `qwable`/`qwopus`/`ornith`→base, or treat them as unknown/self?). This is the make-or-
+> break for the whole diversity story.
+>
+> **★ GAP MATRIX (2026-07-07 infra map — what EXISTS vs the NEW work; each folds into §5.AB or §5.AL, test-gated, small commits):**
+> 1. **External editable catalog** *(NEW — §5.AL)*: catalog is HARDCODED TS today (`model-capability-catalog.ts`). Add a
+>    file-based overlay (JSON/YAML, type-safe schema) merged over the shipped defaults so a user adds/edits a model
+>    without rebuilding. Seed the overlay-format docs with the web-verified mid-2026 entries. Never hardcode a name in
+>    routing logic (already true ✓ — routing reads the catalog, not literals).
+> 2. **Broad panel-of-judges default** *(NEW — §5.AB/§5.K)*: review is SINGLE-reviewer today (lenses = orthogonal eyes on
+>    ONE reviewer, `review-lenses.ts`). Implement N-reviewer PARALLEL panel as the default (diverse team, combine verdicts
+>    — majority/consensus), bounded by endpoint-resource limits + tunable count. This is the headline want; largest/riskiest.
+> 3. **Depth-vs-speed in judge selection** *(NEW — §5.AB)*: the catalog HAS `speed`/`sizeGb`/`selfScaffolding` but the
+>    router IGNORES them — a fast MoE can win a JUDGE seat on the `predictedWallTimeMs` tiebreaker. Wire a depth-vs-speed
+>    signal so speed NEVER outranks reasoning-fit for a decision/judge role (workers still pick on speed — §5.AB diversity
+>    constraint already says this). Bounded, pure-core testable → good FIRST increment.
+> 4. **Family diversity is DONE for decision roles ✓** (`model-diversity.ts` + `diversity-reachability.ts` +
+>    `swarm-role-selection.ts` — hard constraint, waivers surfaced) — BUT **not steered at ESCALATION**: when a task
+>    fails/stalls and a more-capable model is offered, prefer a DIFFERENT base-family. Extend `escalation-suggestions.ts` /
+>    `hard-stuck-escalation.ts`. Small.
+> 5. **User-facing model SUGGESTIONS** *(NEW — §5.AL)*: no "download/adopt this model/roster" surface exists (the
+>    online-lookup core `model-online-lookup.ts` + `llmfit-roster`/`swarm-roster` presets are internal/unwired). Add an
+>    advisory: given the loaded set + declared hardware tiers + the card mix, suggest what to fetch to strengthen the fleet
+>    (esp. "your decision layer is a Qwen monoculture — add a Mistral/Gemma/Z.ai-family judge"). Ties gap 1 + the online lookup.
+> 6. **Hardware-tier placement the ROUTER reads** *(existing scope §5.AB(C) — machine envelopes ALREADY captured for
+>    m5max/legion5pro/m4mini)*: promote the EXAMPLE budgets (`EXAMPLE_MACHINE_BUDGETS_GB`, `assessRosterFit`) to
+>    user-declared config the selector consults at pick time (check catalog `sizeGb` vs machine headroom; warn on
+>    over-provision). Reuse the per-machine pooling from §5.AB(A)/(C).
+>
+> **Sequence (David: "work through rather soon", then resume the loop):** gap 3 (depth-vs-speed, most bounded) → gap 4
+> (escalation diversity) → gap 1 (external catalog overlay) → gap 6 (hardware config) → gap 2 (parallel panel, largest) →
+> gap 5 (suggestion surface). Verify the lineage caveat FIRST (it gates 2/4/5). Scratchpad design note:
+> `model-advisory-design.md` (web-verified landscape + rationale).
+>
 > **★ REASONING-DIVERSITY CONSTRAINT (user 2026-07-02) — diversity belongs in the DECISION layer, not the workers.** *"worker diversity is not the point .. reasoning diversity is."* The value of model-family diversity in a swarm is **uncorrelated judgment**: a different-family reviewer/verifier catches the architect's blind spots (ensemble / second-opinion effect), because same-lineage models share failure modes + biases. WORKERS just implement against tests — correctness is checked mechanically, so worker family is IRRELEVANT; select workers purely on fit/speed/capability. ⇒ Auto-selection MUST, when feasible from the loaded/available set, make the **reasoning/decision roles family-DIVERSE**: `architect (decompose) ≠ reviewer/verifier` family (and prefer a distinct verifier family for a 2nd-opinion pass). Encode **family/lineage** as a model attribute in the §5.AL catalog (gpt-oss · qwen/qwopus · phi · gemma · mistral · nemotron · llama · deepseek) and add a **diversity term** to `routeNKleinTask`/`selectModelForTask` for decision-stage cards (soft preference: strongest-fit reviewer whose family ≠ the architect's; fall back to same-family only if no diverse candidate is feasible). Ties §5.AL (family attribute) · the §5.AA verify / second-opinion rungs · §5.AV (a diverse critic strengthens decompose validation). **LIVE-NOTE 2026-07-02:** a completion run had architect=reviewer=gpt-oss-120b (a decision-layer monoculture) — the selector should flag/avoid that. See [[fleet-throughput-sweet-spots]].
 >
 > **USER FOLLOW-UPS (2026-07-01) — from the model-sweep session:**
@@ -7724,6 +7772,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       TOOL_WEAK / TOOL_UNSUITABLE / UNKNOWN`. **Gate wired** into `loadModelExclusive` (refuses a `reject` BEFORE any
       unload/spawn — a known-bad model never costs the resident good model; `warn`/`unknown` proceed with the caveat on
       the result) + a `model-lab check <id>` subcommand (the CLI seed of the "check model" button; exit 0/1/2). 23 tests.
+- [ ] **EXTERNAL editable catalog overlay (David 2026-07-07, decision #1 — "data-driven, no hardcoded names in src/").**
+      The shipped `MODEL_CAPABILITY_CATALOG` is TS today; add a FILE-based overlay (JSON/YAML with a type-safe Zod schema)
+      loaded from the runtime home + merged OVER the shipped defaults (user entries win; new fine-tunes added without a
+      rebuild). Reuse the `ProvisionalCatalogEntry` shape from `model-online-lookup.ts`. Document the format seeded with
+      the web-verified mid-2026 entries (see scratchpad `model-advisory-design.md`). See §5.AB "MODEL-ADVISORY EXCELLENCE".
+- [ ] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
+      hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
+      single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup
+      core + surface `llmfit`/`swarm-roster` recommendations. Family = BASE lineage, not label (see §5.AB critical note).
 - [x] **Live-use gate: `nklein chat` (2026-06-29).** `decideChatModelGate` (pure, in [local-chat-model.ts](src/chat/local-chat-model.ts))
       refuses a catalog-`reject` model for the TOOL-using chat agent (`--workspace`) up front — override
       `NKLEIN_ALLOW_UNSUITABLE_MODEL=1` — and only WARNS on the plain-completion path (a reasoning/chat model is fine
