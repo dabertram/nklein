@@ -2546,3 +2546,19 @@ copied 2-9x -- which I'm paying down into documented, tested single-sources-of-t
 than the earlier line-shaving lifts (it removes drift risk: N inline copies that could diverge -> one). More such
 groupings likely remain (terminal states interrupted||failed at 2 sites; the +awaiting_review / +idle busy variants;
 the real-worker-session filter). One per tick.
+
+### 2026-07-07 (Opus) - §5.U lift #8: consolidate isTerminalFailureSessionState (4th consecutive DRY win)
+The "session ended UNSUCCESSFULLY" grouping (state === "failed" || state === "interrupted") was inline across 4 sites
+in 4 files (board-chat-feedback, runtime-server, task-session-service, sandbox-review-finalizer). Added
+isTerminalFailureSessionState beside isBusySessionState in core/session-state-predicates.ts -- the recovery/feedback/
+finalize "did not finish successfully" grouping (errored / aborted-torn-down), distinct from active/awaiting-review/
+done. Made it a TYPE GUARD (state is "failed"|"interrupted") so the sandbox-review-finalizer ternary that preserves the
+failure state still narrows -- tsc caught the plain-boolean version losing it (same lesson as the acceptance-waiver
+guard). +2 tests. test:fast 8123 green; integration 41/pass-1-known-stale. **PROCESS LESSON:** my python
+"insert-import-after-first-import-line" heuristic BROKE a MULTI-LINE import in task-session-service (its file opens with
+`import {\n...` so idx+1 landed INSIDE the block; biome then mangled the broken syntax into 10 garbage lines). tsc caught
+it immediately; restored by hand. Going forward: for files whose first import is multi-line, insert AFTER the closing
+`} from "...";`, or just add the import via an Edit anchored on an existing single-line import. ARC TALLY: EIGHT lifts,
+the last FOUR all DRY consolidations of drifted state/convention checks (auto-completable, :: convention, busy-state,
+terminal-failure) into tested single-sources-of-truth in core/. Session-state-predicates.ts now houses 2 of the
+groupings; more remain (the +awaiting_review / +idle busy variants; the real-worker-session filter).
