@@ -1,154 +1,155 @@
 {
-  "name": "nklein",
-  "version": "0.0.1",
-  "description": "!Klein: a local-first orchestration board for coding agents",
-  "publishConfig": {
-    "access": "public",
-    "provenance": true
-  },
-  "keywords": [
-    "nklein",
-    "!klein",
-    "kanban",
-    "agents",
-    "cli",
-    "task-management",
-    "typescript"
-  ],
-  "homepage": "https://github.com/dabertram/nklein",
-  "bugs": {
-    "url": "https://github.com/dabertram/nklein/issues"
-  },
-  "author": "NKlein",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/dabertram/nklein"
-  },
-  "type": "module",
-  "bin": {
-    "nklein": "dist/cli.js"
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "NOTICE"
-  ],
-  "engines": {
-    "node": ">=22"
-  },
-  "scripts": {
-    "clean": "shx rm -rf dist coverage",
-    "build:sdk": "npm install --prefix vendor/cline-sdk --no-audit --no-fund && node scripts/build-cline-sdk.mjs",
-    "install:all": "npm install && npm run build:sdk && npm --prefix web-ui install && npm --prefix packages/desktop install",
-    "build": "npm run clean && npm run build:sdk && npm run web:build && node scripts/build.mjs && node scripts/build-agent-sandbox.mjs && shx mkdir -p dist/web-ui && shx cp -r web-ui/dist/* dist/web-ui && node scripts/upload-sentry-sourcemaps.mjs && shx chmod +x dist/cli.js",
-    "sandbox:build": "node scripts/build-agent-sandbox.mjs",
-    "dogfood": "node scripts/dogfood.mjs",
-    "link": "npm run build && npm link",
-    "unlink": "npm unlink -g nklein",
-    "dev": "NODE_ENV=development tsx src/cli.ts",
-    "dev:full": "node scripts/dev-full.mjs",
-    "web:dev": "npm --prefix web-ui run dev",
-    "web:build": "npm --prefix web-ui run build",
-    "web:typecheck": "npm --prefix web-ui run typecheck",
-    "web:test": "npm --prefix web-ui run test",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "npx @biomejs/biome lint src test web-ui/src web-ui/tests vitest.config.ts web-ui/vite.config.ts web-ui/vitest.config.ts web-ui/playwright.config.ts",
-    "format": "npx @biomejs/biome check --write .",
-    "check": "npx @biomejs/biome check . && npm run typecheck && npm run test",
-    "test": "vitest run",
-    "test:fast": "vitest run test/runtime test/utilities",
-    "test:contract": "vitest run test/contract",
-    "test:integration": "vitest run test/integration",
-    "test:protected": "vitest run --config vitest.protected.config.ts",
-    "test:vendor": "node scripts/test-vendor.mjs",
-    "test:precommit": "npm run test:fast",
-    "test:watch": "vitest",
-    "prepare": "husky",
-    "prepublishOnly": "npm run build && npm run check"
-  },
-  "license": "Apache-2.0",
-  "devDependencies": {
-    "@biomejs/biome": "^2.5.0",
-    "@sentry/cli": "^3.3.3",
-    "@types/node": "^22.10.5",
-    "@types/proper-lockfile": "^4.1.4",
-    "@types/ws": "^8.18.1",
-    "esbuild": "^0.27.4",
-    "husky": "^9.1.7",
-    "shx": "^0.4.0",
-    "tsx": "^4.20.3",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.0"
-  },
-  "optionalDependencies": {
-    "@biomejs/cli-linux-arm64": "2.3.5",
-    "@biomejs/cli-linux-arm64-musl": "2.3.5",
-    "@biomejs/cli-linux-x64": "2.3.5",
-    "@biomejs/cli-linux-x64-musl": "2.3.5",
-    "@rolldown/binding-linux-x64-gnu": "1.0.0-rc.9"
-  },
-  "dependencies": {
-    "@ai-sdk/amazon-bedrock": "^4.0.89",
-    "@ai-sdk/anthropic": "^3.0.68",
-    "@ai-sdk/google": "^3.0.60",
-    "@ai-sdk/google-vertex": "^4.0.100",
-    "@ai-sdk/mistral": "^3.0.28",
-    "@ai-sdk/openai": "^3.0.52",
-    "@ai-sdk/openai-compatible": "^2.0.38",
-    "@ai-sdk/provider": "^3.0.8",
-    "@aws-sdk/credential-providers": "^3.922.0",
-    "@langfuse/otel": "^4.0.0",
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/api-logs": "^0.214.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
-    "@opentelemetry/resources": "^2.6.1",
-    "@opentelemetry/sdk-logs": "^0.214.0",
-    "@opentelemetry/sdk-metrics": "^2.6.1",
-    "@opentelemetry/sdk-trace-base": "^2.6.1",
-    "@opentelemetry/sdk-trace-node": "^2.6.1",
-    "@opentelemetry/semantic-conventions": "^1.40.0",
-    "@sentry/node": "^10.45.0",
-    "@streamparser/json": "^0.0.21",
-    "@trpc/client": "^11.11.0",
-    "@trpc/server": "^11.11.0",
-    "@xterm/addon-serialize": "^0.14.0",
-    "@xterm/headless": "^6.0.0",
-    "ai": "^6.0.144",
-    "ai-sdk-provider-claude-code": "^3.4.3",
-    "ai-sdk-provider-codex-cli": "^1.1.0",
-    "ai-sdk-provider-opencode-sdk": "^3.0.1",
-    "commander": "^14.0.3",
-    "dify-ai-provider": "^1.1.0",
-    "gpt-tokenizer": "^3.4.0",
-    "jiti": "^1.21.7",
-    "jsonrepair": "^3.13.2",
-    "nanoid": "^5.1.7",
-    "node-machine-id": "^1.1.12",
-    "node-pty": "^1.2.0-beta.11",
-    "open": "^11.0.0",
-    "ora": "^9.3.0",
-    "playwright": "^1.55.1",
-    "proper-lockfile": "^4.1.2",
-    "simple-git": "^3.32.3",
-    "tree-kill": "^1.2.2",
-    "ws": "^8.18.0",
-    "yaml": "^2.8.2",
-    "zod": "^4.3.6",
-    "zod-to-json-schema": "^3.25.1"
-  },
-  "overrides": {
-    "protobufjs": "7.5.8"
-  }
+	"name": "nklein",
+	"version": "0.0.1",
+	"description": "!Klein: a local-first orchestration board for coding agents",
+	"publishConfig": {
+		"access": "public",
+		"provenance": true
+	},
+	"keywords": [
+		"nklein",
+		"!klein",
+		"kanban",
+		"agents",
+		"cli",
+		"task-management",
+		"typescript"
+	],
+	"homepage": "https://github.com/dabertram/nklein",
+	"bugs": {
+		"url": "https://github.com/dabertram/nklein/issues"
+	},
+	"author": "NKlein",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/dabertram/nklein"
+	},
+	"type": "module",
+	"bin": {
+		"nklein": "dist/cli.js"
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"engines": {
+		"node": ">=22"
+	},
+	"scripts": {
+		"clean": "shx rm -rf dist coverage",
+		"build:sdk": "npm install --prefix vendor/cline-sdk --no-audit --no-fund && node scripts/build-cline-sdk.mjs",
+		"install:all": "npm install && npm run build:sdk && npm --prefix web-ui install && npm --prefix packages/desktop install",
+		"build": "npm run clean && npm run build:sdk && npm run web:build && node scripts/build.mjs && node scripts/build-agent-sandbox.mjs && shx mkdir -p dist/web-ui && shx cp -r web-ui/dist/* dist/web-ui && node scripts/upload-sentry-sourcemaps.mjs && shx chmod +x dist/cli.js",
+		"smoke:build": "tsx scripts/verify-built-artifact.mts",
+		"sandbox:build": "node scripts/build-agent-sandbox.mjs",
+		"dogfood": "node scripts/dogfood.mjs",
+		"link": "npm run build && npm link",
+		"unlink": "npm unlink -g nklein",
+		"dev": "NODE_ENV=development tsx src/cli.ts",
+		"dev:full": "node scripts/dev-full.mjs",
+		"web:dev": "npm --prefix web-ui run dev",
+		"web:build": "npm --prefix web-ui run build",
+		"web:typecheck": "npm --prefix web-ui run typecheck",
+		"web:test": "npm --prefix web-ui run test",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"lint": "npx @biomejs/biome lint src test web-ui/src web-ui/tests vitest.config.ts web-ui/vite.config.ts web-ui/vitest.config.ts web-ui/playwright.config.ts",
+		"format": "npx @biomejs/biome check --write .",
+		"check": "npx @biomejs/biome check . && npm run typecheck && npm run test",
+		"test": "vitest run",
+		"test:fast": "vitest run test/runtime test/utilities",
+		"test:contract": "vitest run test/contract",
+		"test:integration": "vitest run test/integration",
+		"test:protected": "vitest run --config vitest.protected.config.ts",
+		"test:vendor": "node scripts/test-vendor.mjs",
+		"test:precommit": "npm run test:fast",
+		"test:watch": "vitest",
+		"prepare": "husky",
+		"prepublishOnly": "npm run build && npm run check"
+	},
+	"license": "Apache-2.0",
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.0",
+		"@sentry/cli": "^3.3.3",
+		"@types/node": "^22.10.5",
+		"@types/proper-lockfile": "^4.1.4",
+		"@types/ws": "^8.18.1",
+		"esbuild": "^0.27.4",
+		"husky": "^9.1.7",
+		"shx": "^0.4.0",
+		"tsx": "^4.20.3",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.0"
+	},
+	"optionalDependencies": {
+		"@biomejs/cli-linux-arm64": "2.3.5",
+		"@biomejs/cli-linux-arm64-musl": "2.3.5",
+		"@biomejs/cli-linux-x64": "2.3.5",
+		"@biomejs/cli-linux-x64-musl": "2.3.5",
+		"@rolldown/binding-linux-x64-gnu": "1.0.0-rc.9"
+	},
+	"dependencies": {
+		"@ai-sdk/amazon-bedrock": "^4.0.89",
+		"@ai-sdk/anthropic": "^3.0.68",
+		"@ai-sdk/google": "^3.0.60",
+		"@ai-sdk/google-vertex": "^4.0.100",
+		"@ai-sdk/mistral": "^3.0.28",
+		"@ai-sdk/openai": "^3.0.52",
+		"@ai-sdk/openai-compatible": "^2.0.38",
+		"@ai-sdk/provider": "^3.0.8",
+		"@aws-sdk/credential-providers": "^3.922.0",
+		"@langfuse/otel": "^4.0.0",
+		"@modelcontextprotocol/sdk": "^1.27.1",
+		"@opentelemetry/api": "^1.9.0",
+		"@opentelemetry/api-logs": "^0.214.0",
+		"@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
+		"@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
+		"@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
+		"@opentelemetry/resources": "^2.6.1",
+		"@opentelemetry/sdk-logs": "^0.214.0",
+		"@opentelemetry/sdk-metrics": "^2.6.1",
+		"@opentelemetry/sdk-trace-base": "^2.6.1",
+		"@opentelemetry/sdk-trace-node": "^2.6.1",
+		"@opentelemetry/semantic-conventions": "^1.40.0",
+		"@sentry/node": "^10.45.0",
+		"@streamparser/json": "^0.0.21",
+		"@trpc/client": "^11.11.0",
+		"@trpc/server": "^11.11.0",
+		"@xterm/addon-serialize": "^0.14.0",
+		"@xterm/headless": "^6.0.0",
+		"ai": "^6.0.144",
+		"ai-sdk-provider-claude-code": "^3.4.3",
+		"ai-sdk-provider-codex-cli": "^1.1.0",
+		"ai-sdk-provider-opencode-sdk": "^3.0.1",
+		"commander": "^14.0.3",
+		"dify-ai-provider": "^1.1.0",
+		"gpt-tokenizer": "^3.4.0",
+		"jiti": "^1.21.7",
+		"jsonrepair": "^3.13.2",
+		"nanoid": "^5.1.7",
+		"node-machine-id": "^1.1.12",
+		"node-pty": "^1.2.0-beta.11",
+		"open": "^11.0.0",
+		"ora": "^9.3.0",
+		"playwright": "^1.55.1",
+		"proper-lockfile": "^4.1.2",
+		"simple-git": "^3.32.3",
+		"tree-kill": "^1.2.2",
+		"ws": "^8.18.0",
+		"yaml": "^2.8.2",
+		"zod": "^4.3.6",
+		"zod-to-json-schema": "^3.25.1"
+	},
+	"overrides": {
+		"protobufjs": "7.5.8"
+	}
 }
