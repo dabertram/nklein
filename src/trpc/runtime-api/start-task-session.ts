@@ -1,11 +1,11 @@
-import { selectAttempts, summarizeModelOutcomes } from "../../core/agent-attempt-ledger";
-import { blendCapabilityWithLedgerEvidence, summarizeModelOutcomesByRole } from "../../core/agent-ledger-projections";
+import { blendCapabilityWithLedgerEvidence } from "../../core/agent-ledger-projections";
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isTruthyEnv } from "../../core/env-flag";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
+import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
@@ -17,7 +17,7 @@ import { explainModelSelection, renderModelSelectionReason } from "../../core/mo
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
 import { selectRoleModel } from "../../core/role-model-selection";
-import { assessRuntimeModelVerdict, type RuntimeRunOutcome } from "../../core/runtime-model-verdict";
+import { assessRuntimeModelVerdict } from "../../core/runtime-model-verdict";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
@@ -446,35 +446,15 @@ export async function handleStartTaskSession(
 		// routing follows real-run evidence. Best-effort — an unreadable/empty ledger (e.g. first run, or test) yields no
 		// rows, the blend returns the registry score unchanged, and routing behaves exactly as before. Read once here and
 		// reuse for both the swarm free-pick (`selectRoleModel`) and the main router (`routeNKleinTask`).
-		const ledgerSuccessByKey = new Map<string, { successRate: number; samples: number }>();
-		// W2.6 (audit 2026-07-02): PER-ROLE ledger evidence — a 90%-worker/30%-architect model must not have its
-		// architect score inflated by its global success. Keyed `${modelId}\u0000${role}`; used when it has enough
-		// samples, else the global per-model rollup below stays the evidence.
-		const ledgerRoleSuccessByKey = new Map<string, { successRate: number; samples: number }>();
-		// §5.AL runtime-verdict denominator: the ledger per-attempt records are the authoritative TOTAL-run count the
-		// verdict needs (self-observation events fire only on FAILURES, so events alone give no denominator => UNKNOWN).
-		// Built from the SAME ledger read below (no extra I/O) and fed to assessRuntimeModelVerdict so the stall RATE is
-		// stalls / total-runs, not stalls / failure-events — this is what makes the runtime-verdict penalty actually fire.
-		const runtimeVerdictRuns: RuntimeRunOutcome[] = [];
-		try {
-			const ledgerEvents = await readAllAgentLedger();
-			for (const outcome of summarizeModelOutcomes(ledgerEvents)) {
-				ledgerSuccessByKey.set(outcome.modelId, { successRate: outcome.successRate, samples: outcome.samples });
-			}
-			for (const outcome of summarizeModelOutcomesByRole(ledgerEvents)) {
-				ledgerRoleSuccessByKey.set(`${outcome.modelId}\u0000${outcome.role}`, {
-					successRate: outcome.successRate,
-					samples: outcome.samples,
-				});
-			}
-			for (const attempt of selectAttempts(ledgerEvents)) {
-				if (attempt.modelId) {
-					runtimeVerdictRuns.push({ runId: attempt.attemptId, modelId: attempt.modelId });
-				}
-			}
-		} catch {
-			// best-effort: any ledger read failure leaves the map empty ⇒ registry capability used unchanged.
-		}
+		// routing evidence (5.AF/5.AL): read the ledger ONCE and project it into the three evidence structures the
+		// router blends into capability (global rollup, per-role rollup, verdict-run denominator). Best-effort (empty
+		// on error). Extracted to ledger-evidence.ts (5.U DI-injectable I/O helper); the per-role lookup below keys by
+		// the same NUL separator, so it can never drift between the write and the read.
+		const {
+			successByKey: ledgerSuccessByKey,
+			roleSuccessByKey: ledgerRoleSuccessByKey,
+			verdictRuns: runtimeVerdictRuns,
+		} = await buildLedgerEvidence(readAllAgentLedger);
 		// W2.6b (audit 2026-07-02): runtime-VERDICT penalty — penalizeFitnessByRuntimeVerdict was display-only, so
 		// the strongest unsuitability signal (chronic stalls observed in real runs) never steered selection. Read the
 		// self-observation evidence once per start (best-effort; empty ⇒ UNKNOWN ⇒ multiplier 1 ⇒ unchanged) and scale
