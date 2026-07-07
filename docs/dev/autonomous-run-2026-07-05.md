@@ -2994,3 +2994,13 @@ David:** bump Docker Desktop memory (≈12-16 GB vs 7.7 GiB) → the full integr
 auto-skip the test (risks hiding a future real delivery regression) nor ship a refuted fix. This is the honest outcome
 that separates the two integration reds: stale-test (FIXED this session) + bounce (infra, Docker memory — David's).
 The delivery path itself is verified CORRECT. NEXT: release docs, then §5.U full pass.
+
+### 2026-07-07 (Opus) - release docs: SECURITY.md CREATED (README+CONTRIBUTING already existed)
+Queue item "draft all three release docs" — verified the premise: README.md + CONTRIBUTING.md ALREADY exist and are
+release-quality (reviewed both). The real gap was SECURITY.md. Wrote it (7900bd7c) as a grounded local-only threat
+model — every security claim VERIFIED against code before writing (local-models default, mandatory fail-closed Docker
+isolation with no host-access tier, fail-closed egress gate `blocked_by_egress`, confirm-gate + audit for mutating
+tools, secret redaction, 127.0.0.1 loopback bind default, review-gated result branches) + operator-responsibilities +
+scope + private vuln reporting via GitHub advisories (same channel CONTRIBUTING points to). §5.AZ repo-hygiene prose
+docs are now DONE; only issue-templates + screenshots (Fable visual) remain. NEXT: §5.U full pass (David chose "full
+autonomous pass") — a careful multi-commit undertaking, best started fresh next loop.
