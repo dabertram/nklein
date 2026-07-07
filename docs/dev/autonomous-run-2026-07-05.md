@@ -2344,3 +2344,18 @@ detection end-to-end = behavior preserved. Removed 3 orphaned imports. THREE mod
 lines ~222-305: getRuntimeHomePath / getWorkspace*Path / getWorkspaceLocal*Path + the lock-request helpers) -> a
 workspace-state-paths.ts sibling. Larger fn count but each trivial (join/homedir), very low risk; several are exported
 (re-export for API compat). The pattern: mine cohesive module-level clusters from the largest files, one per commit.
+
+### 2026-07-07 (Opus) - §5.U 4th module lift: on-disk-layout/path cluster out of workspace-state
+Executed the teed-up candidate. Extracted the workspace on-disk LAYOUT cluster (10 layout constants + 17 path/
+lock-request resolver functions) from workspace-state.ts to workspace-state-paths.ts. Key design call: the constants
+travel WITH the functions that own them (the module becomes the single source of truth for 'where !Klein state lives on
+disk'), keeping it one-directional (no cycle). WIDER interface than the prior 3 lifts (path helpers are used throughout
+the file), so workspace-state imports 16 fns + 6 filename constants back + re-exports the 5 public path fns for API
+compat -- still a clean cohesive module, just a broader public surface (normal for a 'paths' utility). Removed orphaned
+imports (homedir, join, the config-constant block, unused LockRequest type). workspace-state 951 -> 884 (1046 -> 884
+over two ticks); 44 tests green incl. integration + on-disk-formats = behavior preserved. FOUR module lifts now landed
+(OAuth, discovery, git-detection, layout/paths) across provider-service + workspace-state. **NEXT CANDIDATE:**
+workspace-state's persistence-I/O cluster (readJsonFile + readWorkspace{Board,Sessions,Meta,Index} + writeWorkspace
+{StateFiles,Index}) -- more coupled (locking + parsing + the now-imported path helpers), so a more careful lift; assess
+whether it's a clean boundary or leave workspace-state (~884, no longer a monolith) and move to the next-largest file
+(cli.ts 812, sdk-provider-boundary.ts 719).
