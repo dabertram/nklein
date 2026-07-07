@@ -1,4 +1,5 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { isBusySessionState } from "../core/session-state-predicates";
 import type { RuntimeTaskTurnCheckpoint } from "../core/task-session-api-contract";
 import type { SelfObservationEventInput } from "../telemetry/self-observation-sink";
 import {
@@ -132,7 +133,7 @@ export function createParkController(deps: ParkControllerDeps): ParkController {
 		parkActiveTasksForOperatorPause(taskId) {
 			const summaries = taskId ? [deps.getTaskEntry(taskId)?.summary].filter(Boolean) : deps.listSummaries();
 			for (const summary of summaries) {
-				if (!summary || (summary.state !== "running" && summary.state !== "queued")) {
+				if (!summary || !isBusySessionState(summary.state)) {
 					continue;
 				}
 				const entry = deps.getTaskEntry(summary.taskId);

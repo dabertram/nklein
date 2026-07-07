@@ -38,6 +38,7 @@ import {
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
+import { isBusySessionState } from "../core/session-state-predicates";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
@@ -1570,9 +1571,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								return;
 							}
 							const sessions = trackedService.listModelEndpointSessions();
-							const busyStates = new Set(["running", "queued"]);
 							const runningSpecSessions = sessions.filter(
-								(session) => isSpeculativeMirrorTaskId(session.taskId) && busyStates.has(session.state),
+								(session) => isSpeculativeMirrorTaskId(session.taskId) && isBusySessionState(session.state),
 							);
 							// PREEMPTION (adversarial finding): "real work outranks speculation" must also hold for
 							// specs ALREADY running — a mirror occupying a per-model slot for its full bound would
@@ -1645,7 +1645,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 										descriptor.runtimeId === servedOrReal || descriptor.modelKey === servedOrReal,
 								)?.modelKey ?? servedOrReal;
 							const busyModelIds = new Set(
-								sessions.filter((session) => busyStates.has(session.state)).map((session) => session.modelId),
+								sessions
+									.filter((session) => isBusySessionState(session.state))
+									.map((session) => session.modelId),
 							);
 							const idleDescriptors = descriptors.filter(
 								(descriptor) =>

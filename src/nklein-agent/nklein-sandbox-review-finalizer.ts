@@ -1,6 +1,7 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { toErrorMessage } from "../core/error-message";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { isBusySessionState } from "../core/session-state-predicates";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { recordTaskRunSummary } from "../state/task-run-summary-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -238,7 +239,7 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 				// while the card is still parked; a session back in flight owns its workspace, and the NEXT
 				// handoff re-finalizes (and disposes) as usual.
 				const stateAfterCapture = deps.getTaskEntry(taskId)?.summary.state;
-				if (stateAfterCapture !== "running" && stateAfterCapture !== "queued") {
+				if (!isBusySessionState(stateAfterCapture)) {
 					await manager.disposeWorkspace(taskId);
 				}
 				// Keep the sandbox STATE (repoPath/baseRef): the card is only AWAITING REVIEW — a bounce or

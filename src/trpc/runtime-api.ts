@@ -49,6 +49,7 @@ import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { stripAddressingHandle } from "../core/message-target-resolver";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
+import { isBusySessionState } from "../core/session-state-predicates";
 import { deriveStreams } from "../core/stream-derivation";
 import { buildNKleinAdvisorRequest } from "../nklein-agent/nklein-advisor";
 import { buildTaskShellSpawnSpec } from "../nklein-agent/nklein-agent-sandbox";
@@ -256,7 +257,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 							new Set(
 								service
 									.listSummaries()
-									.filter((summary) => summary.state === "running" || summary.state === "queued")
+									.filter((summary) => isBusySessionState(summary.state))
 									.map((summary) => summary.taskId),
 							),
 						sendInput: async (taskId, text) =>
@@ -329,7 +330,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						? new Set(
 								service
 									.listSummaries()
-									.filter((summary) => summary.state === "running" || summary.state === "queued")
+									.filter((summary) => isBusySessionState(summary.state))
 									.map((summary) => summary.taskId),
 							)
 						: new Set<string>();
