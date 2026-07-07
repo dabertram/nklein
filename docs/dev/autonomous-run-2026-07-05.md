@@ -3458,3 +3458,15 @@ relative to the existing gates; it needs deliberate design + live cross-model va
 Per the standing directive ("if nothing remains actionable without David, say so plainly and stop"), recording the finding
 and HOLDING rather than shipping a speculative gate. **The Opus-domain polishing surface is now comprehensively worked; no
 actionable item remains that does not need a new David directive.**
+
+### 2026-07-07 (Opus) - §5.V coverage: projects-api-helpers (6 untested fs helpers → 14 tests, real temp dirs)
+Scanned src for logic-bearing modules with zero test references; most untested files are I/O orchestrators / wiring
+factories / api-contract shells (their pure collaborators are already covered) — but `src/trpc/projects-api-helpers.ts`
+had SIX cleanly-testable helpers with real branch logic and NO coverage anywhere. Added
+`test/runtime/trpc/projects-api/projects-api-helpers.test.ts` (14 cases, real `mkdtemp` temp dirs, no mocking): `isJsonRecord`
+(record vs null/array/primitive), `pathExists`, `readEvidenceBundleBaseCommit` (blank-path short-circuit · valid hex sha ·
+rejects non-sha/too-short/too-long/non-string · missing/unparseable file), `isMarkedDevTestWorkspaceEntry` (created-by-kanban
+short-circuit · exact `nklein-dev-test` sentinel · foreign/missing/unparseable marker → false), `listPlanArtifactDirectoryNames`
+(dirs-only, sorted, ignores files; missing dir → []), and `updateMigratedArtifactMetadata` (rebinds workspace fields + stamps
+updatedAt while preserving others · keeps an already-set sourceTaskId · no-op on missing/non-record metadata, writes nothing).
+Locks down the self-improvement/dev-test guard + the evidence-bundle sha validation regex. Green: tsc + biome + test:fast.
