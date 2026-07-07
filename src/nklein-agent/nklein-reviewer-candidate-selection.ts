@@ -1,4 +1,6 @@
 import type { LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors";
+import { lookupModelCapability } from "../core/model-capability-catalog";
+import { scoreModelClassFitForRole } from "../core/role-model-class";
 
 /**
  * §5.U — the PURE candidate-building sub-computations lifted out of `InMemoryNKleinTaskSessionService.pickDiverseReviewerModel`
@@ -28,9 +30,23 @@ export function resolveWorkerRealId(
 	return workerDescriptor?.modelKey ?? workerModelId ?? "";
 }
 
+/** Reviewer-class fit (0–100) from the §5.AL catalog for a model's REAL key — a reasoning model scores far above a
+ * chat/roleplay one; an uncatalogued id resolves to the neutral `unknown`/`UNKNOWN` fallback. This is the JUDGE-DEPTH
+ * signal the picker was missing: with a flat score, `applyDiversityPreference`'s margin logic (never force a badly-unfit
+ * diverse reviewer) is inert and its `top = ranked[0]` is arbitrary descriptor order. */
+function reviewerFitScore(realModelId: string): number {
+	const entry = lookupModelCapability(realModelId);
+	const facts = entry
+		? { kind: entry.kind, toolUse: entry.toolUse }
+		: ({ kind: "unknown", toolUse: "UNKNOWN" } as const);
+	return scoreModelClassFitForRole("reviewer", facts).score;
+}
+
 /**
  * Build the reviewer candidate list from the loaded descriptors: drop embeddings and the worker's own model (by either
- * its served alias or its real key), and project each to a candidate with a flat base score.
+ * its served alias or its real key), score each by its catalog REVIEWER-class fit, and return best-first (stable by
+ * modelKey) so `applyDiversityPreference` (which trusts a pre-sorted list + its margin) prefers the DEEPEST diverse judge
+ * — not an arbitrary-order one. Equal-fit candidates keep their relative order (stable), matching the pre-scoring behavior.
  */
 export function buildReviewerCandidates(
 	descriptors: readonly LoadedModelDescriptor[],
@@ -43,9 +59,10 @@ export function buildReviewerCandidates(
 				!descriptor.isEmbedding && descriptor.runtimeId !== workerModelId && descriptor.modelKey !== workerRealId,
 		)
 		.map((descriptor) => ({
-			// modelKey = the SERVABLE id (what the launch config needs); modelId = the REAL key (lineage).
+			// modelKey = the SERVABLE id (what the launch config needs); modelId = the REAL key (lineage + catalog match).
 			modelKey: descriptor.runtimeId,
 			modelId: descriptor.modelKey,
-			score: 50,
-		}));
+			score: reviewerFitScore(descriptor.modelKey),
+		}))
+		.sort((a, b) => b.score - a.score || a.modelKey.localeCompare(b.modelKey));
 }
