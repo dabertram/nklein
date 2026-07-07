@@ -2222,3 +2222,17 @@ is now      944 lines (was ~1008 before this run of extractions). FOUR 5.U clear
 re-key, residency-set, ledger-evidence, capability-blend -- all behavior-preserving + test-gated, ~19 new unit tests.
 The self-contained clusters around the entangled lifecycle are extractable one per tick; the primary lifecycle state
 machines (startTaskSession phases / handleTaskEvent dispatch) remain the David-gated seam.
+
+### 2026-07-07 (Opus) - honest scope read + 5.V guardrail coverage
+Scanned for the next 5.U clean-boundary lift and found the low-risk hot-path clusters largely drained:
+start-task-session's pure clusters are extracted (4 lifts landed); task-session-service is already heavily
+delegated to injected controllers; runtime-server.ts is one big createRuntimeServer factory whose inner helpers
+close over workspace-scoped Maps -- extracting them means threading many params, which INCREASES coupling (that's
+the David-gated primary-lifecycle seam, not a clean lift). Rather than manufacture a risky entangled-closure
+extraction that would violate behavior-preserving cohesion, spent the tick on 5.V. Found two genuinely uncovered
+plan-QUALITY guardrail branches in normalizeDecomposeProjectToolInput (the decomposition guardrail): the empty-task
+rejection (assertUsable accepts [], the empty-plan gate lives in normalize) and the minimumTaskCount leaf floor --
+both gate too-thin plans AFTER schema validation, both regressions would pass silently. +recovery-layer edge cases
+(non-object/slug-less/blank-slug pass through untouched) + blank-command->null trim. 4 tests, green. HONEST STATE:
+the safe, David-independent 5.U runway is now genuinely thin -- remaining monolith bulk is the entangled lifecycle
+that needs seam approval. Continuing to mine 5.V coverage of pure branches is the productive, non-risky track.
