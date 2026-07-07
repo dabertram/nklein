@@ -925,3 +925,22 @@ was resident (no load).
 - **Cross-model decompose signal so far:** the decompose-under-budget COMPLETION gap recurs (27B@q4 didn't emit;
   coder-14b emits but interrupts). Isolation holds on every model tested. The completion gap is capability/budget
   territory (§5.AA retry-ladder / stall-nudger), a David-steer capability item — logged, not actioned in the grind.
+
+## 2026-07-07 (Opus) — §5.AA nudger-efficacy probe on decompose → the flow is HIGH-VARIANCE (single-run comparisons unreliable)
+Tried to measure whether ARMING the production `DecompositionStallNudger` (via the harness's `NKLEIN_VERIFY_PLAN_MODE=1`,
+which starts the task in PLAN mode + registers it as an explicit-decomposition task) rescues the decompose-under-budget
+stall that interrupted the default-off coder-14b run above. Result: **inconclusive — because the decompose flow is
+HIGH-VARIANCE run-to-run**, which is itself the finding:
+- default-OFF (prior entry): `decompose_project` EMITTED, **360** agent activities, interrupted.
+- plan-mode RUN 1 (nudger armed): `decompose_project` NOT emitted, **4** activities, interrupted — a very EARLY stall.
+- plan-mode RUN 2: could not complete — qwen2.5-coder-14b had been AUTO-UNLOADED (LM Studio TTL) between runs, and the
+  harness refuses to load models (user directive). Not retried — see the methodological call below.
+**A 90× activity-count split (360 vs 4) on the SAME model + harness** means a single run cannot separate a plan-mode
+effect from ordinary run-to-run variance. So: (a) **no nudger-efficacy conclusion** from single runs — measuring it
+needs a CONTROLLED MULTI-RUN protocol (≥5 runs/arm, same residency, compare terminal-state + emit rates), which is a
+dedicated experiment, heavier than a grind tick → flagged for David / a focused session; (b) **the matrix's single-run
+decompose CAPABILITY rows should be read as noisy** (emit/complete is not reproducible run-to-run at this budget);
+(c) **isolation stayed PASS in EVERY run** (no host-path leaks, containers cleaned up) — the security prime-directive is
+the reliable, reproducible signal here, re-confirmed a 2nd time under plan-mode. Also confirms the chat flows (§5.M
+read_file / run_command / write_file) are the more DETERMINISTIC verification surface; the decompose/single-card
+capability signal is inherently noisier and better measured in batches than one-off.

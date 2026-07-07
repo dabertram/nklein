@@ -2801,3 +2801,19 @@ healthy + sandbox image present; coder-14b resident (no load). TWO flows:
 "nklein-verify" (or set `NKLEIN_VERIFY_ALLOW_REAL_HOME=1`). A scratchpad path like `<scratch>/nklein-verify-home` works;
 a bare `<scratch>/verify-home` is REJECTED. Matrix + rows updated. Cross-model decompose signal: isolation holds
 everywhere; the completion-under-budget gap recurs across models (capability/§5.AA territory, David-steer — logged only).
+
+### 2026-07-07 (Opus) - §5.AA nudger-efficacy probe → decompose flow is HIGH-VARIANCE (honest inconclusive)
+Tried the higher-value thread: does ARMING the shipped DecompositionStallNudger (harness `NKLEIN_VERIFY_PLAN_MODE=1`)
+rescue the decompose stall that interrupted last tick's default-off coder-14b run? Ran it, and the honest result is a
+methodological finding, not an efficacy verdict:
+  - default-off (last tick): decompose_project EMITTED, 360 activities, interrupted.
+  - plan-mode run 1 (nudger armed): decompose_project NOT emitted, 4 activities, interrupted (early stall).
+  - plan-mode run 2: FAILED — coder-14b was auto-unloaded (LM Studio TTL) between runs; the harness won't load models.
+A 90× activity split (360 vs 4) on the SAME model/harness ⇒ the decompose flow is HIGH-VARIANCE run-to-run, so a single
+run can't separate a plan-mode effect from noise. **Conclusions:** (a) nudger efficacy needs a CONTROLLED MULTI-RUN
+protocol (≥5 runs/arm) — a dedicated experiment, heavier than a grind tick, FLAGGED for David/a focused session; (b) the
+matrix's single-run decompose CAPABILITY rows are noisy (emit/complete not reproducible at this budget); (c) ISOLATION
+stayed PASS every run (re-confirmed under plan-mode) — the reliable signal. **Cadence lesson:** the chat flows (§5.M) are
+the more DETERMINISTIC verification surface for per-model sweeps; decompose/single-card capability is noisier and better
+measured in batches, not one-off — future §5.Z ticks should favor the deterministic chat/isolation assertions for
+matrix breadth and treat decompose-completion as a batch experiment, not a per-tick data point.
