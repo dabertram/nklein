@@ -43,6 +43,11 @@ export interface HardStuckEscalationInput {
 	operatorSignals: OperatorTaskSignals;
 	/** Optional non-default stuckness thresholds (min failures / min approaches) forwarded to the classifier. */
 	thresholds?: AgentStucknessThresholds;
+	/**
+	 * The REAL id of the model that just failed this task, when known — steers the `provide_more_capable_model`
+	 * suggestion toward a DIFFERENT base-family (loading a stronger SAME-family model tends to hit the same blind spot).
+	 */
+	stuckModelId?: string | null;
 }
 
 export interface HardStuckEscalationResult {
@@ -72,7 +77,10 @@ export function assessHardStuckEscalation(input: HardStuckEscalationInput): Hard
 	// The gate: suggestions ONLY when hard-stuck. Context is read solely on this branch, so `progressing` / `transient`
 	// never touches the operator signals — the empty array is the "stay on automatic recovery" answer.
 	const suggestions = hardStuck
-		? buildEscalationSuggestions(buildEscalationSuggestionContext(input.operatorSignals))
+		? buildEscalationSuggestions({
+				...buildEscalationSuggestionContext(input.operatorSignals),
+				stuckModelId: input.stuckModelId ?? null,
+			})
 		: [];
 	return { stuckness, hardStuck, suggestions };
 }

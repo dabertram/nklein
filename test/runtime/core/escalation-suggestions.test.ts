@@ -80,6 +80,29 @@ describe("buildEscalationSuggestions", () => {
 			expect(suggestion.detail.length).toBeGreaterThan(0);
 		}
 	});
+
+	const moreCapableDetail = (context: Parameters<typeof buildEscalationSuggestions>[0] = {}): string =>
+		buildEscalationSuggestions(context).find((s) => s.kind === "provide_more_capable_model")?.detail ?? "";
+
+	it("steers the more-capable-model suggestion toward a DIFFERENT family (generic hint with no stuck model)", () => {
+		expect(moreCapableDetail()).toMatch(/different model family/i);
+	});
+
+	it("names the stuck model's family to avoid when the failed model id is known (§5.AB diversity)", () => {
+		// qwen3.6-27b → qwen lineage: steer away from qwen for an uncorrelated retry.
+		const detail = moreCapableDetail({ stuckModelId: "qwen3.6-27b" });
+		expect(detail).toMatch(/different model family than qwen/i);
+		expect(detail).toMatch(/blind spots/i);
+	});
+
+	it("falls back to the generic family hint when the stuck model's lineage is unknown", () => {
+		const detail = moreCapableDetail({ stuckModelId: "some-custom-alias" });
+		expect(detail).toMatch(/different model family than the ones that just failed/i);
+	});
+
+	it("keeps the more-capable-model option LAST even when a stuck model is named", () => {
+		expect(kinds({ stuckModelId: "qwen3.6-27b" }).at(-1)).toBe("provide_more_capable_model");
+	});
 });
 
 describe("buildEscalationSuggestionContext", () => {

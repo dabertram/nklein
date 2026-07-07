@@ -8,6 +8,7 @@
 // last; the simple decisions lead. Pure + deterministic; the surface (§5.AG panel) renders these and resumes the agent
 // with whatever the user provides.
 
+import { resolveLineage } from "./model-lineage";
 import type { OperatorTaskSignals } from "./operator-task-state";
 
 /** A user action that might unblock a hard-stuck task. Ordered conceptually simplest → heaviest. */
@@ -38,6 +39,29 @@ export interface EscalationSuggestionContext {
 	blockedActionPending?: boolean;
 	/** An environment / setup / dependency blocker was detected (e.g. missing tool, sandbox issue, §5.A). */
 	environmentBlocked?: boolean;
+	/**
+	 * The REAL model id that just failed the task (the worker/primary), when known. Used to steer the
+	 * `provide_more_capable_model` suggestion toward a DIFFERENT base-family (§5.AB reasoning-diversity) — loading a
+	 * stronger SAME-family model tends to hit the same blind spot (~60% correlated failures). Absent ⇒ a generic hint.
+	 */
+	stuckModelId?: string | null;
+}
+
+const MORE_CAPABLE_MODEL_BASE =
+	"Load or enable a stronger model. You can also let it analyze what was tried and produce detailed rectification guidance for the agent — local-first; cloud only if you have lifted the cloud lockdown.";
+
+/**
+ * The `provide_more_capable_model` detail, steered toward an UNCORRELATED family: same-lineage models share blind spots,
+ * so a different base-family is likelier to break through where the stuck one failed. Names the family to avoid when the
+ * stuck model's lineage is known; otherwise a generic diversity hint.
+ */
+function moreCapableModelDetail(stuckModelId?: string | null): string {
+	const lineage = stuckModelId ? resolveLineage(stuckModelId) : "unknown";
+	const diversity =
+		lineage !== "unknown"
+			? `Prefer a DIFFERENT model family than ${lineage} — same-family models share blind spots (~60% correlated failures), so an uncorrelated base architecture is likelier to break through.`
+			: "Prefer a DIFFERENT model family than the ones that just failed — same-family models share blind spots, so an uncorrelated family is likelier to break through.";
+	return `${MORE_CAPABLE_MODEL_BASE} ${diversity}`;
 }
 
 /** The canonical suggestion set, in default order (simplest user decision first; more-capable-model always last). */
@@ -76,8 +100,9 @@ const ESCALATION_SUGGESTIONS: readonly EscalationSuggestion[] = [
 	{
 		kind: "provide_more_capable_model",
 		title: "Make a more capable model available",
-		detail:
-			"Load or enable a stronger model. You can also let it analyze what was tried and produce detailed rectification guidance for the agent — local-first; cloud only if you have lifted the cloud lockdown.",
+		// Detail is filled in per-call by moreCapableModelDetail() so it can steer toward a diverse family; this default
+		// is the generic (no stuck-lineage) form.
+		detail: moreCapableModelDetail(),
 	},
 ];
 
@@ -101,6 +126,14 @@ export function buildEscalationSuggestions(context: EscalationSuggestionContext 
 		}
 	}
 	const byKind = new Map(ESCALATION_SUGGESTIONS.map((suggestion) => [suggestion.kind, suggestion]));
+	// Steer the more-capable-model suggestion toward a diverse family when we know which model just failed.
+	if (context.stuckModelId) {
+		byKind.set("provide_more_capable_model", {
+			kind: "provide_more_capable_model",
+			title: "Make a more capable model available",
+			detail: moreCapableModelDetail(context.stuckModelId),
+		});
+	}
 	const ordered: EscalationSuggestion[] = [];
 	const seen = new Set<EscalationSuggestionKind>();
 	for (const kind of promoted) {
@@ -110,10 +143,11 @@ export function buildEscalationSuggestions(context: EscalationSuggestionContext 
 			seen.add(kind);
 		}
 	}
-	for (const suggestion of ESCALATION_SUGGESTIONS) {
-		if (!seen.has(suggestion.kind)) {
+	for (const { kind } of ESCALATION_SUGGESTIONS) {
+		const suggestion = byKind.get(kind);
+		if (suggestion && !seen.has(kind)) {
 			ordered.push(suggestion);
-			seen.add(suggestion.kind);
+			seen.add(kind);
 		}
 	}
 	return ordered;
