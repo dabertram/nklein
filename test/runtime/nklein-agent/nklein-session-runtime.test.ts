@@ -995,6 +995,15 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		expect(doesNKleinToolInvalidateRepoMap(createToolContext("read_files"))).toBe(false);
 	});
 
+	it("normalizes the tool name (trim + case-fold) before matching the invalidating set", () => {
+		// The predicate lower-cases and trims toolName before the set lookup. Provider/model casing varies, so a
+		// mutating tool reported as " WRITE_FILE " must still invalidate the repo map -- else edits go stale-blind.
+		expect(doesNKleinToolInvalidateRepoMap(createToolContext(" WRITE_FILE "))).toBe(true);
+		expect(doesNKleinToolInvalidateRepoMap(createToolContext("Edit_File"))).toBe(true);
+		// A non-mutating tool with odd casing must still NOT invalidate.
+		expect(doesNKleinToolInvalidateRepoMap(createToolContext("  Read_Files  "))).toBe(false);
+	});
+
 	it("disables SDK MCP settings auto-load when !Klein injects MCP tools", async () => {
 		const fakeHost = {
 			start: vi.fn(async (input: { config?: { sessionId?: string } }) => ({
