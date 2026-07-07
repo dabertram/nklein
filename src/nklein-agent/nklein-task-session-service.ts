@@ -30,7 +30,7 @@ import type {
 } from "../core/api-contract";
 import { DEFAULT_RUNTIME_SWARM_GUARDRAILS, normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import { derivePromptSessionKind, type PromptWarmthLedgerEntry } from "../core/cache-warmth";
-import { isTruthyEnv } from "../core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv } from "../core/env-flag";
 import type { FocusChain } from "../core/focus-chain";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { applyThinkingDisable } from "../core/model-thinking-control";
@@ -2667,13 +2667,13 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						state,
 						role,
 						providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
-						// §5.BG (c) routing-key flip (OPT-IN NKLEIN_STABLE_ROUTING_KEY; default OFF ⇒ the runtime id, byte-
-						// identical). The terminal-attempt ledger is the ROUTING EVIDENCE the start path looks up by the
-						// candidate's re-keyed stable key — so the WRITE must resolve the SAME stable id (via the same shared
-						// map) the READ does, or evidence written under one key is never found under the other.
+						// §5.BG (c) routing-key flip — DEFAULT-ON (David 2026-07-07 rollout; opt out NKLEIN_STABLE_ROUTING_KEY=0).
+						// The terminal-attempt ledger is the ROUTING EVIDENCE the start path looks up by the candidate's
+						// re-keyed stable key — so the WRITE must resolve the SAME stable id (via the same shared map) the READ
+						// does, or evidence written under one key is never found under the other.
 						modelId: (() => {
 							const runtimeModelId = summary.modelId ?? this.modelEndpoint.peekModelId(taskId) ?? null;
-							return runtimeModelId && isTruthyEnv(process.env.NKLEIN_STABLE_ROUTING_KEY)
+							return runtimeModelId && isEnabledByDefaultEnv(process.env.NKLEIN_STABLE_ROUTING_KEY)
 								? resolveStableRoutingModelId(runtimeModelId)
 								: runtimeModelId;
 						})(),

@@ -3,7 +3,7 @@ import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
-import { isTruthyEnv } from "../../core/env-flag";
+import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
@@ -397,14 +397,14 @@ export async function handleStartTaskSession(
 				// Best-effort discovery — a missing/unreadable endpoint just leaves the configured candidates in place.
 			}
 		}
-		// §5.BG (c) routing-key flip (OPT-IN via NKLEIN_STABLE_ROUTING_KEY; default OFF ⇒ byte-identical). Now that the
-		// runtimeId→stable-key map is fully learned (the descriptor loop above fed this request's loaded set into it),
-		// re-key EVERY routing candidate's `entry.key` to the STABLE routing key in ONE pass — so the ledger-evidence
-		// lookup, the residency set, and the ledger WRITE all agree on the stable identity (all resolve the same runtime
-		// id through the same map: map hit ⇒ all stable, miss ⇒ all runtime — no mismatch / double-start by construction).
-		// `entry.modelId` stays the RUNTIME id (the launch + verdict identity, per the alignment guard). Doing it here (one
-		// pass, after the map is populated and BEFORE residency/ledger read) is what makes the earlier-reverted flip safe.
-		const stableRoutingEnabled = isTruthyEnv(process.env.NKLEIN_STABLE_ROUTING_KEY);
+		// §5.BG (c) routing-key flip — DEFAULT-ON (David 2026-07-07 rollout; opt out with NKLEIN_STABLE_ROUTING_KEY=0).
+		// Now that the runtimeId→stable-key map is fully learned (the descriptor loop above fed this request's loaded set
+		// into it), re-key EVERY routing candidate's `entry.key` to the STABLE routing key in ONE pass — so the
+		// ledger-evidence lookup, the residency set, and the ledger WRITE all agree on the stable identity (all resolve the
+		// same runtime id through the same map: map hit ⇒ all stable, miss ⇒ all runtime — no mismatch / double-start by
+		// construction). `entry.modelId` stays the RUNTIME id (the launch + verdict identity, per the alignment guard).
+		// Doing it here (one pass, after the map is populated and BEFORE residency/ledger read) is what makes the flip safe.
+		const stableRoutingEnabled = isEnabledByDefaultEnv(process.env.NKLEIN_STABLE_ROUTING_KEY);
 		if (stableRoutingEnabled) {
 			applyStableRoutingKeysToCandidates(guardCandidates, resolveStableRoutingModelId);
 		}

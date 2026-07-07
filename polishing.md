@@ -900,9 +900,13 @@ for LOADED models) that reverted the first attempt was solved the recommended wa
 >   and residency sides, for both flag states; `model-telemetry-key-alignment.test.ts` pins candidate-READ == ledger-WRITE
 >   == residency key; `runtime-id-model-key-map-store.test.ts` pins the map learn/resolve + alias collapse.
 >
-> **The ONLY thing still owed to David is a ROLLOUT decision, not code:** whether/when to flip
-> `NKLEIN_STABLE_ROUTING_KEY` to **default ON**. The infra + coverage are complete and the OFF default is
-> byte-identical, so this is purely "turn on rename-robust routing when you're ready to bless a persisted-keyspace
-> change." No further implementation is blocked. **Deferred sub-item (independent, still open):** re-keying the INERT
+> **✅ ROLLOUT DONE 2026-07-07 (David green-lit "Flip §5.BG default ON"):** both read sites
+> (`start-task-session.ts` candidate re-key + `nklein-task-session-service.ts` ledger WRITE) now use
+> `isEnabledByDefaultEnv(process.env.NKLEIN_STABLE_ROUTING_KEY)` — **default ON, opt out with `NKLEIN_STABLE_ROUTING_KEY=0`**.
+> Rename-robust stable routing is now the shipped default. Note: under the test runner the residency descriptor-fetch is
+> disabled ⇒ the runtimeId→modelKey map is empty ⇒ `resolveStableRoutingModelId` falls back to the runtime id, so ON is
+> byte-identical to OFF IN TESTS (the stable keying only diverges with a live-learned map in production) — which is why
+> the flip needed no test-behavior changes; only the alignment-test comment was updated. tsc 0, §5.BG suite 20/20 +
+> full gate green. **Deferred sub-item (independent, still open):** re-keying the INERT
 > display/fitness telemetry (`ModelFitnessFingerprint`, model-behavior store) off the stable key — these are NOT read for
 > routing (so not part of the double-start coupling) and can key stably on their own migration whenever desired.
