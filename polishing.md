@@ -424,8 +424,12 @@
 >   `board-dag-model` (§5.U/§5.V web — extracted the DAG view's cycle-detection/layout, +10 tests). §5.Z (live env,
 >   heavy roster + egress live): egress e2e 6/6 · chat-agent-tools 6/6 (+W3.1 regression) · command-exec + decompose-
 >   isolation re-confirmed — all logged in cross-model-verification.md.
-> - **57 slices so far (35 §5.U extractions + 22 §5.V coverage batches), ~350 new unit tests, zero behavior changes** (pre-commit
->   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **Slices 56–57 diversified to provider-service
+> - **58 slices so far (36 §5.U extractions + 22 §5.V coverage batches), ~350 new unit tests, zero behavior changes** (pre-commit
+>   fast suite gates each). §5.V high-value pure-logic coverage SATURATED (slice 42). **Slice 58 (2026-07-07): DATA/LOGIC split
+>   of `model-capability-catalog.ts` — the ~455-line `MODEL_CAPABILITY_CATALOG` pure-data literal moved to a sibling
+>   `model-capability-catalog-data.ts` (logic 860→411, data 459). A NEW clean pattern for the next tier: a large file that is
+>   mostly one data literal splits trivially + safely (data module imports only the TYPE ⇒ runtime-acyclic; logic re-exports the
+>   value ⇒ importers unaffected). Commit 83fff5aa, tsc 0, 41 catalog tests green.** **Slices 56–57 diversified to provider-service
 >   1463 → 1291 (−172): CustomProviderManager (custom-provider CRUD) + ModelDiscoveryApi (catalog/models/endpoint-discovery), each
 >   with a fail-closed-on-cloud security test. task-session-service 4886 → 4040 this run
 >   (−846, ~17%) — 10 collaborator splits (residency 45, lease-cache 47, focus-chain 48, team-progress 49, ParkController 50,

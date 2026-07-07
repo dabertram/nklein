@@ -2735,3 +2735,19 @@ README/docs; package.json identity post-rename correct; LICENSE (Apache-2.0) + N
 present + committed. NET: the substantive remaining tracks are now all David-owed or deliberate-with-David (default-flip
 rollout, the two integration reds, the fresh-root release branch, the vendored swarm-recovery); the autonomous-safe
 grind work for this cycle is essentially complete + the branch is verified at its known-good state.
+
+### 2026-07-07 (Opus) - §5.U slice 58: model-capability-catalog DATA/LOGIC split
+Re-grounded on a fresh tick (the cron prompt's flagship line counts are STALE — the refactor already shrank the big-3:
+task-session-service 4944→2830, provider-service 1651→**684**, runtime-server 2527→2262). The polishing.md §5.U
+strategy note (630-635) explicitly steers the NEXT TIER of large files as the remaining safe autonomous vein ("Mine
+these first") — so "nothing actionable" last cycle was too hasty for §5.U specifically. Found + shipped a clean one:
+**`model-capability-catalog.ts` (860 lines) was 53% a single ~455-line pure-data literal** (`MODEL_CAPABILITY_CATALOG`).
+Split it into a sibling `model-capability-catalog-data.ts` (commit 83fff5aa): **logic 860→411, data 459 (pure data)**.
+Behavior-preserving — the data module imports only the `ModelCapabilityEntry` TYPE (erased ⇒ runtime-acyclic, logic→data
+only), the logic module re-exports the value so all importers (llmfit-adapter, runtime-model-verdict, model-online-lookup,
+tests) are untouched. tsc 0; full test:fast 8125 green. **New reusable pattern for the next tier: a large file that is
+mostly ONE data literal splits trivially + safely** (unlike the entangled logic-cluster splits which need a shared-internals
+module or DI-threading — e.g. task-board-mutations' dependency cluster shares private helpers, so it's NOT a clean single
+lift). Other big files scanned (runtime-config, api-validation, event-adapter, projects-api) have no comparable standalone
+data literal; their remaining seams are the higher-risk logic-cluster tier (often outside test:fast's net) — David's-steer
+territory, not a quiet grind commit. NEXT: the §5.U safe vein is thin now; the substantive remaining work stays David-gated.
