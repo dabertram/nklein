@@ -2,8 +2,9 @@
  * Suite 5 — chat HTTP + streaming contract (todo §5.V)
  *
  * Drives the board-independent chat (`chat.*` tRPC sub-router) over REAL HTTP against a spawned server and asserts
- * contract shape + persistence. Covers session CRUD + `sendMessage` against a deterministic mock-LLM; `streamMessage`
- * is the one `it.todo` (it needs an SSE/WS subscription test client).
+ * contract shape + persistence. Covers session CRUD + `sendMessage` AND `streamMessage` against a deterministic
+ * mock-LLM — the streaming path (Suite 5C) is driven by a real tRPC SSE subscription client
+ * (`createChatSubscriptionClient`), the exact subscription wire the web-ui uses.
  *
  * MOCK-LLM WIRING: the chat resolves its endpoint from the SELECTED local provider via runtime-api's
  * `nkleinProviderService.getLocalChatBaseUrl()` (the chat-endpoint fix — previously it hardcoded
