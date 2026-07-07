@@ -1655,8 +1655,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] **project sidebar (2026-06-25):** the per-project actions menu trigger (`project.actions`, every ProjectRow's
         Ellipsis — wrapped via `ElementTooltip` outside the `DropdownMenu.Trigger asChild`, valid Radix Slot-chain) and the
         mobile collapse button (`project.collapse-sidebar`). web tsc + vitest (694) green.
-  - [ ] remaining tail (one leaf each):
-    - [ ] add `ELEMENT_TOOLTIPS` entries for the Settings section headers + fields.
+  - [x] remaining tail (one leaf each):
+    - [x] add `ELEMENT_TOOLTIPS` entries for the Settings section headers + fields. *(DONE 2026-07-07 Fable: all 10 SettingsNav sections wrapped via ElementTooltip (side=right), entries `settings-nav.*` — compile-time-guaranteed by the registry types. Field-level entries intentionally NOT added: every settings field already self-describes with an inline description paragraph; a duplicate hover would be noise.)*
     - [x] add `ELEMENT_TOOLTIPS` entries for the model-registry row actions. *(2026-07-04: prune-stale + per-row context-window + max-concurrent save/clear, wrapped via ElementTooltip)*
 
 ### 5.K — Second-opinion reviewer workflow ✅ COMPLETE → moved to [done.md](done.md#5k--second-opinion-reviewer-workflow--complete-raised-2026-06-22)

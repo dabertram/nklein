@@ -3529,3 +3529,12 @@ the "431 boxes have no owner" gap is closed. RECURRING FINDING across sections: 
 wired (retry engine · escalation hot-path · test-driven splice · fitness blending) — that wiring cluster is the top of
 the Opus queue. ALSO: README screenshots shipped per David's trust-your-pick (board-expert + overview into
 docs/assets/, embedded under a new Screenshots section) — the §5.AZ screenshots box is now DONE.
+
+### 2026-07-07 (Fable) - fable-list item 2: Settings-nav tooltips (the §5.L registry tail is now CLOSED)
+All 10 SettingsNav sections wrapped via ElementTooltip (side=right) with new `settings-nav.*` registry entries —
+hovering a section now says what lives inside it before clicking through. Field-level entries deliberately NOT added
+(every settings field already self-describes with an inline description paragraph; a duplicating hover would be noise
+— the sweet-spot judgment recorded on the ticked box). The registry's typed-id design gives compile-time proof each
+nav id has an entry (tsc gates it). With this + the 2026-07-04 model-registry-row entries, the §5.L "remaining tail"
+parent box is fully closed. Web gate green: tsc + biome + 953/953. Fable-list progress: paused-chip ✓ · settings-nav
+tooltips ✓ · next: execution-mode selector + memory-scope toggles (needs a backend-surface check first).

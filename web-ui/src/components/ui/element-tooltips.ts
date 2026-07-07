@@ -140,6 +140,49 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Clear concurrency cap",
 		description: "Remove the max-concurrent-requests cap for this model.",
 	},
+	// Settings section nav (§5.L tooltip registry — the "Settings section headers" leaf). One entry per
+	// SettingsNavId. Individual settings FIELDS self-describe with inline description paragraphs next to
+	// each control, so field-level registry entries are intentionally not duplicated here.
+	"settings-nav.general": {
+		name: "General",
+		description: "Developer mode, guided setup, and advanced runtime options.",
+	},
+	"settings-nav.agents": {
+		name: "Agents",
+		description: "Agent catalog, capabilities, and per-role rulesets.",
+	},
+	"settings-nav.tasks": {
+		name: "Tasks",
+		description: "Task defaults: plan mode, review, delivery, and timeouts.",
+	},
+	"settings-nav.guardrails": {
+		name: "Guardrails & Limits",
+		description: "Swarm safety rails: isolation, budgets, and concurrency caps.",
+	},
+	"settings-nav.nklein": {
+		name: "!Klein Provider & Models",
+		description: "Local model providers, model roles, and the model registry.",
+	},
+	"settings-nav.code-intelligence": {
+		name: "Code Intelligence",
+		description: "Repo map and code index: embedding model and indexing status.",
+	},
+	"settings-nav.git-prompts": {
+		name: "Git",
+		description: "Git behavior and the prompt templates agents use for git actions.",
+	},
+	"settings-nav.notifications": {
+		name: "Notifications",
+		description: "Desktop notifications for review-ready and attention-needed cards.",
+	},
+	"settings-nav.appearance": {
+		name: "Appearance",
+		description: "Theme and visual preferences for the board and chat.",
+	},
+	"settings-nav.project": {
+		name: "Project",
+		description: "Per-project overrides that take precedence over global settings.",
+	},
 } as const satisfies Record<string, ElementTooltipCopy>;
 
 export type ElementTooltipId = keyof typeof ELEMENT_TOOLTIPS;
