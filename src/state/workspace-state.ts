@@ -1,8 +1,6 @@
-import { execFile } from "node:child_process";
 import { readFile, realpath, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
 import { z } from "zod";
 import {
 	NKLEIN_HOME_DIR_NAME,
@@ -19,7 +17,6 @@ import {
 	runtimeTaskSessionSummarySchema,
 	runtimeWorkspaceStateSaveRequestSchema,
 } from "../core/api-contract";
-import { createGitProcessEnv } from "../core/git-process-env";
 import { updateTaskDependencies } from "../core/task-board-mutations";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -28,6 +25,7 @@ import { parsePersistedStateFile } from "./persisted-state-file";
 import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
 import { createEmptyBoard, normalizeRuntimeBoardData } from "./runtime-board-normalization";
 import { formatSchemaIssues } from "./schema-issue-formatting";
+import { detectGitRepositoryInfo, detectGitRootAsync } from "./workspace-git-detection";
 import { createWorkspaceIdCollisionSuffix, toWorkspaceIdBase } from "./workspace-id-generation";
 
 const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
@@ -626,99 +624,6 @@ function findWorkspaceEntry(index: WorkspaceIndexFile, repoPath: string): Worksp
 		return null;
 	}
 	return entry;
-}
-
-const execFileAsync = promisify(execFile);
-
-/**
- * Capture `git <args>` stdout (trimmed; null on empty / non-zero exit / spawn failure) WITHOUT blocking the event loop.
- * The previous synchronous `spawnSync` version blocked Node's loop the entire time git ran — fine for one-off CLI calls,
- * but catastrophic on hot server paths: `resolveWorkspacePath` AND `detectGitRepositoryInfo` both run inside
- * `loadWorkspaceContext`, i.e. on every `loadWorkspaceState`/`saveWorkspaceState` (including every board write an agent
- * makes). Under heavy parallel agent load (the agent flooding its own git + `docker exec` subprocesses) each sync git
- * spawn stalled the whole runtime for tens of seconds (the §5.AI "sluggish with 2 projects" hang — a `--cpu-prof` showed
- * the thread idle-but-blocked in the child process). Async git keeps the loop responsive.
- */
-async function runGitCaptureAsync(cwd: string, args: string[]): Promise<string | null> {
-	try {
-		const { stdout } = await execFileAsync("git", args, {
-			cwd,
-			encoding: "utf8",
-			env: createGitProcessEnv(),
-		});
-		const value = typeof stdout === "string" ? stdout.trim() : "";
-		return value.length > 0 ? value : null;
-	} catch {
-		// Non-zero exit / spawn failure → null, same as the old sync path's `status !== 0` branch.
-		return null;
-	}
-}
-
-async function detectGitRootAsync(cwd: string): Promise<string | null> {
-	return runGitCaptureAsync(cwd, ["rev-parse", "--show-toplevel"]);
-}
-
-async function detectGitCurrentBranch(repoPath: string): Promise<string | null> {
-	return runGitCaptureAsync(repoPath, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
-}
-
-async function detectGitBranches(repoPath: string): Promise<string[]> {
-	// TODO: support showing remote branches again once worktree creation can safely fetch/pull
-	// and resolve missing local tracking branches automatically.
-	const output = await runGitCaptureAsync(repoPath, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]);
-	if (!output) {
-		return [];
-	}
-
-	const unique = new Set<string>();
-	for (const line of output.split("\n")) {
-		const trimmed = line.trim();
-		if (!trimmed || trimmed === "HEAD") {
-			continue;
-		}
-		unique.add(trimmed);
-	}
-	return Array.from(unique).sort((left, right) => left.localeCompare(right));
-}
-
-async function detectGitDefaultBranch(repoPath: string, branches: string[]): Promise<string | null> {
-	const remoteHead = await runGitCaptureAsync(repoPath, [
-		"symbolic-ref",
-		"--quiet",
-		"--short",
-		"refs/remotes/origin/HEAD",
-	]);
-	if (remoteHead) {
-		const normalized = remoteHead.startsWith("origin/") ? remoteHead.slice("origin/".length) : remoteHead;
-		if (normalized) {
-			return normalized;
-		}
-	}
-	if (branches.includes("main")) {
-		return "main";
-	}
-	if (branches.includes("master")) {
-		return "master";
-	}
-	return branches[0] ?? null;
-}
-
-async function detectGitRepositoryInfo(repoPath: string): Promise<RuntimeGitRepositoryInfo> {
-	const gitRoot = await detectGitRootAsync(repoPath);
-	if (!gitRoot) {
-		throw new Error(`No git repository detected at ${repoPath}`);
-	}
-
-	// currentBranch + branches are independent — run them concurrently to cut the number of serial git spawns.
-	const [currentBranch, branches] = await Promise.all([detectGitCurrentBranch(repoPath), detectGitBranches(repoPath)]);
-	const orderedBranches = currentBranch && !branches.includes(currentBranch) ? [currentBranch, ...branches] : branches;
-	const defaultBranch = await detectGitDefaultBranch(repoPath, orderedBranches);
-
-	return {
-		currentBranch,
-		defaultBranch,
-		branches: orderedBranches,
-	};
 }
 
 export async function resolveWorkspacePath(cwd: string): Promise<string> {
