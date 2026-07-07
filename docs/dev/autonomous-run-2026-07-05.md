@@ -3664,3 +3664,14 @@ model, the exact thing that was "unvalidatable without live models." Temp harnes
 (81e6630c) · retry reclassify+correct (dd054eb8) · catalog-integrity (ecbe460f) · memory-audit+sdk-cov (3a89a763) ·
 RETRY ENGINE task-level adoption + live-validated (356ad927/17777d35) · MEMORY write core (ddb75961) + wiring +
 live-validated (084d1720). The two flagship "fleet-gated" wiring items — retry engine + memory write — are DONE + live.
+
+### 2026-07-08 (Fable, /goal grind) - top-to-bottom todo sweep: 465 → 339 open, ~15 features shipped
+Working David's /goal (all boxes, top-to-bottom, tests-first, no stopping). SHIPPED this run: §5.M memory floor+scope
+(ed297594) · §5.B audio rubric (a85d4f3f) + repair validator gates (3cb2135e) · §5.AK card contracts (0194ea21) ·
+§5.H core-py loaded-models health (aec57ba5) · §5.I recall@k harness (8384e42b) · §5.I#4 speed-vs-capability dial
+(f1015a6c) · §5.L measured regression delta un-deadening more_open (74827a84). VERIFIED+CROSSED with evidence:
+§5.0.1 cluster, WAVE-3, §5.A live checks (browser-confirmed), delivery overrides, broker seam + action audit,
+memory duplicates, focus-chain surface. CLASSIFIED honestly: needs-David-env (2-machine reconcile, Docker delivery,
+egress proxy, core-py packaging), fleet-runs (sweeps), UX-design (per-action consent), gated-on-intake (chat
+modalities). RESUME POINT: next open boxes are L2563+ (grammar-IR), L2645-2648 (propose/review/similarity gate
+connections), then the §5.AA/§5.AB program umbrellas. Method held: characterize→test→implement→cross with evidence.
