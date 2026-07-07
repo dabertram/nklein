@@ -402,6 +402,12 @@ source repo went private — so if it vanishes the buildable source still lives 
   `assertModelLoaded` (refuse-to-load) so a vanish becomes a hard, visible failure — good, but pre-load explicitly for
   long multi-run experiments. Until (a)-(c) exist, do NOT assert a specific cause for a model vanishing — say "undetermined
   (logging was off / remote node)" per the root-cause rule above.
+  **DECISION (David, 2026-07-07 AskUserQuestion): "Stabilize loading" + "I'll handle the config."** ⇒ (i) David owns the
+  LM Studio settings (file logging + raising/disabling `jitModelTTL`) — do NOT modify `~/.lmstudio/settings.json`
+  autonomously. (ii) !Klein's harness convention: **always EXPLICIT-load** (`lms load <key>`, no `--ttl`) before a
+  multi-run experiment so the model can't JIT-TTL out mid-run, and treat any mid-run vanish as a hard failure whose cause
+  stays "undetermined" unless David's file-logging is on to prove it. The discipline (don't guess a cause) is the durable
+  takeaway.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user
