@@ -79,6 +79,10 @@ import {
 import { APP_CONTENT_SECURITY_POLICY, buildTlsHardeningHeaders } from "../security/remote-security-policy";
 import { appendAgentLedgerEvent, readAgentLedger } from "../state/agent-attempt-ledger-store";
 import { recordMergeHistory } from "../state/merge-history-store";
+import {
+	defaultRuntimeIdModelKeyMapPath,
+	initSharedRuntimeIdModelKeyMap,
+} from "../state/runtime-id-model-key-map-store";
 import { loadWorkspaceContextById, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import type { TerminalSessionManager } from "../terminal/session-manager";
@@ -167,6 +171,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	for (const overlayError of catalogOverlay.errors) {
 		deps.warn(overlayError);
 	}
+	// §5.BG (David 2026-07-07): load the persisted runtimeId→stable-modelKey map so a COLD model still resolves to its
+	// stable key (learned from live descriptors on the routing path). Best-effort — a missing/corrupt file re-learns.
+	await initSharedRuntimeIdModelKeyMap(defaultRuntimeIdModelKeyMapPath(homedir())).catch(() => {});
 	const allowedBrowseRoots = resolveRemoteBrowseRoots({
 		configuredWorkspaceBaseDir: globalConfig.workspaceBaseDir,
 	});

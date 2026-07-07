@@ -56,6 +56,7 @@ import {
 	listPendingCardMailbox,
 	markCardMailboxConsumedUpTo,
 } from "../../state/card-mailbox-store";
+import { learnSharedLoadedDescriptors, sharedRuntimeIdModelKeyMap } from "../../state/runtime-id-model-key-map-store";
 import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
@@ -347,7 +348,10 @@ export async function handleStartTaskSession(
 		const stableModelKeyByRuntimeId = new Map<string, string>();
 		if (residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)) {
 			try {
-				for (const descriptor of await fetchLoadedModelDescriptors(residencyBaseUrl)) {
+				const loadedDescriptors = await fetchLoadedModelDescriptors(residencyBaseUrl);
+				// §5.BG: learn each loaded runtime id's stable key into the persisted map so a COLD model still resolves.
+				learnSharedLoadedDescriptors(loadedDescriptors);
+				for (const descriptor of loadedDescriptors) {
 					const profile = resolveLoadedModelProfile(descriptor);
 					loadedModelProfilesByRuntimeId.set(descriptor.runtimeId, profile);
 					stableModelKeyByRuntimeId.set(descriptor.runtimeId, descriptor.modelKey);
@@ -900,10 +904,13 @@ export async function handleStartTaskSession(
 			resumeFromTrash: body.resumeFromTrash,
 			providerId: nkleinLaunchConfig.providerId,
 			modelId: nkleinLaunchConfig.modelId,
-			// §5.BG: the stable publisher key for the chosen (loaded) model — telemetry keys off this, not the runtime id.
-			// null for cloud / not-loaded models ⇒ the service falls back to the runtime id.
+			// §5.BG: the stable publisher key for the chosen model — telemetry keys off this, not the runtime id. Prefer
+			// the LIVE descriptor, then the PERSISTED map (so a COLD/not-currently-loaded model still resolves), else null
+			// (cloud/unknown ⇒ the service falls back to the runtime id).
 			stableModelKey: nkleinLaunchConfig.modelId
-				? (stableModelKeyByRuntimeId.get(nkleinLaunchConfig.modelId) ?? null)
+				? (stableModelKeyByRuntimeId.get(nkleinLaunchConfig.modelId) ??
+					sharedRuntimeIdModelKeyMap()[nkleinLaunchConfig.modelId] ??
+					null)
 				: null,
 			mode: requestedNKleinTaskMode,
 			startInPlanMode: body.startInPlanMode,
