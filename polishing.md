@@ -382,8 +382,20 @@
 > their live-verify step, that step means **all loaded models**, recorded in the matrix — not a single-model proof.
 
 
-### 5.U — Deep architecture refactor: no large monolith files *(migrated from todo.md 2026-07-06; ACTIVE — Opus polishing flagship)*
-> **Goal:** decompose the large monolith files into cohesive, single-responsibility modules — **behavior-preserving +
+### 5.U — Deep architecture refactor: no large monolith files *(❌ REJECTED FOR NOW — David 2026-07-07; do not invest dedicated effort)*
+> **★ STOP / REJECTED FOR NOW (David, 2026-07-07):** *"stop reducing file sizes when file size is < 5000 lines. smaller is
+> better, but the gain we get from it is basically zero at the moment. it would matter more when !Klein works on its own
+> codebase using small models and small context size — but that is not a task for now."* **Current state: every source
+> file is already WELL under 5000 lines (largest first-party: runtime-settings-dialog.tsx 3337, nklein-task-session-service.ts
+> 2581).** ⇒ there is NO file at/over the 5000-line threshold, so **ALL dedicated file-size-reduction work is now REJECTED
+> FOR NOW.** Do NOT split a file for the SOLE reason of reducing line count. **The target stays aspirational** (small files
+> are better, and would matter if !Klein self-hosts on small-context models later — a FUTURE topic, not a current task).
+> **Exception (still fine):** if a file genuinely *should* be split as part of touching it for another reason (a real
+> cohesion/maintainability win encountered during normal work), do it then — but never as standalone size-reduction effort.
+> Everything below is the ARCHIVED record of the decomposition already done (the big-3 are all <2600 and heavily
+> collaborator-extracted — see the 2026-07-07 run-log "§5.U REFRAME"); kept for history, not as open work.
+>
+> **Goal (archived / aspirational only):** decompose the large monolith files into cohesive, single-responsibility modules — **behavior-preserving +
 > test-gated**, one bounded cluster per commit, the existing tests as the safety net (NEVER weaken a test to pass a
 > refactor). **The extraction pattern (§4A tribal knowledge):** pull a PURE sub-computation (or a DI-injectable I/O helper)
 > out of a monolith into a new focused module + its own unit test; the original imports it back and delegates. No ripple
@@ -482,7 +494,7 @@
 > delegates the pure step to a new tested module. Reviewer-candidate selection (`resolveWorkerRealId`/`buildReviewerCandidates`)
 > came out of `pickDiverseReviewerModel` this way (+5 tests, service 4873→4859). This reopens safe, bounded flagship progress.
 >
-> **★ §5.U REVIEW-CLUSTER SEAM PROPOSAL (2026-07-06, awaiting David's approval — he chose "propose a seam, I approve first").**
+> **★ §5.U REVIEW-CLUSTER SEAM PROPOSAL — ❌ WITHDRAWN / REJECTED FOR NOW (David 2026-07-07: stop file-size reduction <5000 lines). No longer awaiting approval; kept for history only.**
 > The cluster is bigger than first estimated: **~1100 lines** (task-session-service 2513→~3630), 7 public methods + 3 helpers +
 > 3 state fields: `verifyTaskAcceptanceInSandbox`, `pickDiverseEscalationModel`, `runSecondOpinionReviewSession`(+Inner) +
 > `pickDiverseReviewerModel` + `inFlightSecondOpinionReviewTaskIds`, `runSpeculativeMirrorSession`+`cancelSpeculativeMirror` +
