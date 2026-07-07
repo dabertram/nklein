@@ -3227,3 +3227,15 @@ before acting), and the 2-turn investigation is now fully recorded in the matrix
 qwopus3.5-9b-coder-mtp is now well-characterized: ✅ egress · ✅ chat-tools · ✅ decompose-isolation · ◑ single-card
 (sandbox path trait) · ✅ chat-agent-write. NEXT: not-yet-loaded roster models when loaded; the §5.O sandbox path-recovery
 as a dedicated turn (approach decided: sandbox-exec normalization or wrapper reject-with-guidance — David to pick).
+
+### 2026-07-07 (Opus) - §5.O path-nesting recovery: IMPLEMENTED + live-validated (a real product win)
+Took the deferred §5.O candidate as the dedicated turn and, per raised autonomy, DECIDED (auto-correct at the sandbox
+boundary, over reject-with-guidance which risks a weak-model retry loop) and SHIPPED it (`ab63a8fc`). New pure helper
+`stripRedundantSandboxWorkdirPrefix` + a guard in `AgentSandboxManager.runTool`. The methodology mandate paid off twice:
+(1) live-validation caught my FIRST attempt (guarded only the SDK editor/readFile) as ineffective — the file was still
+nested; (2) tracing the real path revealed !Klein's write_file is proxied via `kanbanExtraTool` (path at input.input.path).
+The corrected guard covers both shapes. Live re-run: qwopus3.5 single-card ◑ PARTIAL → **✅ PASS (delivered, content
+matches)**. 8 unit tests (absolute/lookalike/other-task untouched) + test:fast 8163. This is a durable weak-model
+delivery win (helps any model that emits the redundant `workspaces/<taskId>/` prefix), not a one-off — squarely the
+"work with weaker local models" north star. NEXT: not-yet-loaded roster models; the array-input write tools
+(write_files/read_files, input.input.files[].path) are a small follow-up the singular-path guard doesn't yet cover.

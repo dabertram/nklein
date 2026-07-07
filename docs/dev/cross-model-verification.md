@@ -1035,3 +1035,18 @@ details, don't accept "the agent declared done without producing it"):
   exec layer (or a reject-with-guidance guard in the tool-approval wrapper, which relies on the weak model retrying).
   Cross-layer + a design tradeoff (silent auto-correct vs. reject-and-teach) + needs cross-model validation ⇒ a dedicated
   §5.O turn / David's steer, deliberately not rushed at turn-tail.
+
+## 2026-07-07 (Opus) — §5.O path-nesting recovery IMPLEMENTED + validated → qwopus3.5 single-card ◑→✅
+The hardening candidate from the prior turns is DONE (`ab63a8fc`). Recovery lives at the sandbox tool boundary
+(`AgentSandboxManager.runTool`): strip a redundant task-scoped relative `workspaces/<taskId>/` prefix from the tool
+input path, so a model that mistakes its cwd (the sandbox workdir) for the repo root still lands the file correctly.
+- **Two-attempt story (methodology win — live-validate before claiming success):** the FIRST attempt guarded only the SDK
+  `editor`/`readFile` executors and FAILED the live re-run (file still nested). Tracing the actual path showed !Klein's
+  own `write_file` is proxied through `proxySandboxTool` → `runTool(taskId, "kanbanExtraTool", { toolName, input })`, so
+  the path is at `input.input.path`, not `input.path`. The corrected guard covers BOTH proxy shapes.
+- **Validated:** `verify-task-completion [qwopus3.5-9b-coder-mtp]` re-run → **PASS ✓ delivered=YES, content matches** (was
+  ◑ PARTIAL). Behavior-preserving otherwise: 8 unit tests on the pure helper (absolute/lookalike/other-task/bare-prefix
+  all untouched) + test:fast 8163.
+- **Updated matrix row:** qwopus3.5-9b-coder-mtp → egress ✅ · chat-tools ✅ · decompose-isolation ✅ · **single-card ✅
+  (was ◑, fixed by §5.O recovery)** · chat-agent-write ✅. Now clean on all 5 fast flows. This recovery benefits EVERY
+  model that emits the redundant-prefix mistake, not just this one — a durable weak-model-delivery win (north star).
