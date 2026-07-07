@@ -2771,3 +2771,18 @@ all ruled out, so the next tick needn't re-investigate them:
 catalog split drained it. What remains is the higher-risk logic-cluster/collaborator-split tier on tightly-integrated
 files with thin/no fast-net (David's-steer), plus the standing David-gated items. Stopping this tick rather than forcing
 a marginal coverage batch or a risky extraction against the behavior-preserving/safety-net discipline.
+
+### 2026-07-07 (Opus) - §5.Z broader-flow obligation: chat-agent-tools on 3 flow-unproven models
+With the clean code-refactor vein worked out, pivoted to the one actionable non-David-gated track I'd been deferring as
+"heavy": the §5.Z "broader FLOWS across the roster" periodic obligation. Infra was up (egress :18888 HTTP 200, Docker
+healthy, the whole 60+ fleet reachable at 127.0.0.1:1234 via LM Studio proxy). Picked the genuine gap: 3 models that were
+EGRESS-verified in recent sweeps but NEVER chat-tools-verified. Ran `verify-chat-agent-tools.mts` (in-process, no Docker)
+on each — JIT-loaded on Local, ran, unloaded (light baseline restored):
+  - **qwq-32b (32B reasoning) ✅ PASS, 1 step** — reasoning model composes the tool loop cleanly.
+  - **glm-4.7-flash (GLM family) ✅ PASS, 2 steps** — one model-quality caveat: leaked a `<|user|>` chat-template token +
+    spurious continuation in the reply (glm-flash template quirk, NOT a !Klein bug; assertion passed). §5.AB trait.
+  - **magistral-small-2509 (24B Mistral reasoning) ✅ PASS, 1 step** — clean.
+All 3 called read_file → gated/audited executor ran it → final answer echoed the secret. **The §5.M tool loop is now
+proven across an even wider span (reasoning families + GLM); no !Klein-side defects — every non-clean note is a model
+formatting/quality trait.** Matrix + rows updated in cross-model-verification.md. This is the right shape for future ticks
+while code-refactor work is David-gated: pick flow-unproven models and extend the fitness matrix, one bounded sweep per tick.

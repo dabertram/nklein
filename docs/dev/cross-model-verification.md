@@ -885,3 +885,23 @@ Resident (state=loaded, no force-load): `qwen3.5-122b-a10b`, `qwen/qwen2.5-coder
   `User + assistant persisted: YES` (live regression check of the W3.1 persist-user-before-loop change). Full §5.M
   tool-using chat loop composes end-to-end through the gated/audited executor on a real model.
 - matrix row (chat-agent-tools): qwen2.5-coder-14b=✅ (repeat-confirmed post recent chat/prompt refactors).
+
+## 2026-07-07 (Opus) — §5.Z broader-flow obligation: chat-agent-tools on 3 egress-proven-but-flow-UNPROVEN models
+The periodic "broader FLOWS across the roster" obligation. These 3 models were egress-verified in the recent sweeps but
+had NOT been chat-tools-verified — so this closes a genuine matrix gap (reasoning models + a new family on the §5.M
+tool loop). `verify-chat-agent-tools.mts` (real model → read_file → gated+audited executor → answer from file), all
+in-process (no Docker). Fleet: JIT-loaded each on Local (128GB), ran, then unloaded (back to the light baseline) per
+the "unload as needed, don't overload" guidance.
+- ✅ **`qwen/qwq-32b` (32B reasoning) — PASS, 1 tool step.** Called read_file → audited → final answer echoed the secret
+  (`hunter2-fjord-lantern`). A reasoning model composing the tool loop cleanly in ONE step is a strong signal (reasoning
+  models often over-think or stall on tool selection; qwq did not).
+- ✅ **`zai-org/glm-4.7-flash` (GLM family) — PASS, 2 tool steps.** Called read_file → audited → echoed the secret. ONE
+  model-quality caveat (NOT a !Klein bug): its reply leaked a `<|user|>` chat-template delimiter + a spurious "the file
+  appears to be empty" continuation after the correct answer — a glm-flash template-formatting quirk (it emits its turn
+  delimiter into content). The assertion passed (secret present); logged as a §5.AB fitness trait for GLM-flash.
+- ✅ **`mistralai/magistral-small-2509` (24B Mistral reasoning) — PASS, 1 tool step.** Clean: read_file → audited →
+  echoed the secret, no artifacts.
+- matrix rows (chat-agent-tools): qwq-32b=✅ · glm-4.7-flash=✅(template-token leak trait) · magistral-small-2509=✅.
+  **Net: the §5.M tool loop now proven across an even wider span — reasoning models (qwq, magistral, deepseek-r1 earlier)
+  and the GLM family all compose the gated/audited tool loop end-to-end.** No !Klein-side defects; every non-clean note
+  is a model formatting/quality trait.
