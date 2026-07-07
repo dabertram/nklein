@@ -2441,3 +2441,19 @@ a clean release-gate health snapshot. Surfaced a structural finding in polishing
 gate) covers only test/runtime + test/utilities, so contract/integration/protected/web-ui regressions land SILENTLY
 until a full run -- a CI job running ALL suites is the real release gate (the stale test proves the gap is real). No
 code change this tick -- the deliverable is the verified-healthy branch + the release-gate coverage-gap finding.
+
+### 2026-07-07 (Opus) - §5.U REOPENED on a big named monolith: pure-decision lift from runtime-server
+Corrected an over-absolute prior conclusion. I'd been saying the two big NAMED monoliths (runtime-server 2260,
+task-session-service 2830) are "entirely David-gated." More precise: the ENTANGLED LIFECYCLE STATE MACHINE is
+David-gated, but PURE DECISIONS buried inside the factory/class closures CAN be lifted safely + test-gated -- and I'd
+already done 2 this session (terminal-retry-sweep-policy, speculative-delivery-target). Did a 3rd: the auto-review card
+classification inside finalizeHeadlessAutoReviewTask's mutateWorkspaceState closure (skip / move-to-review /
+auto-complete from column + auto-review flags) -> auto-review-card-decision.ts (decideAutoReviewCardAction). The closure
+calls the pure fn + applies its result; branch-for-branch identical. runtime-server 2260 -> 2252. +7 tests for the
+previously-untested classification. test:fast 8090 green; review-integration green bar the known stale test. **KEY
+INSIGHT for future ticks: the flagship's big two are NOT fully blocked -- the recurring liftable unit is a PURE
+SUB-DECISION embedded in a closure/method (a boolean/enum computed from inputs, no state mutation, no I/O). Extract it +
+test it WITHOUT touching the state machine. Candidates remain in finalizeHeadlessAutoReviewTask (the acceptance/empty-
+patch/delivery-gate decisions), retryWaitingCardsAfterTerminal (the redrive-eligibility gate), and task-session-service
+methods (verdict/outcome classifications). One pure decision per tick.** This is genuine flagship progress that does NOT
+need David's seam approval (only the entangled state-machine RESTRUCTURING does).
