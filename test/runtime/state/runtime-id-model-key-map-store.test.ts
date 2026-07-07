@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildNKleinModelRegistryKey } from "../../../src/nklein-agent/nklein-model-registry-key";
 import {
 	initSharedRuntimeIdModelKeyMap,
@@ -46,8 +46,11 @@ describe("RuntimeIdModelKeyMapStore", () => {
 		const store = new RuntimeIdModelKeyMapStore(path, 0);
 		store.learn([{ runtimeId: "coder-gpu", modelKey: "qwen2.5-coder-14b" }]);
 		expect(store.current()).toEqual({ "coder-gpu": "qwen2.5-coder-14b" });
-		await new Promise((r) => setTimeout(r, 5));
-		expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ "coder-gpu": "qwen2.5-coder-14b" });
+		// Poll for the debounced+async persist instead of racing a fixed sleep — the 5ms wait flaked under a saturated
+		// parallel test run (ENOENT: the write hadn't flushed yet). vi.waitFor retries until the file matches (or 1s).
+		await vi.waitFor(async () => {
+			expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ "coder-gpu": "qwen2.5-coder-14b" });
+		});
 	});
 
 	it("retains cold ids across loads (a not-currently-loaded model still resolves)", async () => {
