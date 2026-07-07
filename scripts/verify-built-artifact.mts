@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = join(repoRoot, "dist", "cli.js");
+const libEntry = join(repoRoot, "dist", "index.js");
 const webUiIndex = join(repoRoot, "dist", "web-ui", "index.html");
 
 function fail(message: string, log?: string): never {
@@ -37,6 +38,22 @@ if (!existsSync(cliPath)) {
 }
 if (!existsSync(webUiIndex)) {
 	fail(`Missing ${webUiIndex} (web UI assets). Run the full \`npm run build\` (it packages web-ui/dist).`);
+}
+if (!existsSync(libEntry)) {
+	fail(`Missing ${libEntry} (the programmatic/library entry). Run \`npm run build\`.`);
+}
+
+// The library entry (`dist/index.js`, imported by Agent-SDK consumers) must load without side-effect crashes — the same
+// class of bundle bug that broke `dist/cli.js` would break it too. Importing it exercises its module-init chain.
+try {
+	const lib = (await import(libEntry)) as Record<string, unknown>;
+	const exportCount = Object.keys(lib).length;
+	if (exportCount === 0) {
+		fail(`Library entry ${libEntry} loaded but exported nothing.`);
+	}
+	console.log(`✓ Library entry dist/index.js loads (${exportCount} exports).`);
+} catch (error) {
+	fail(`Library entry ${libEntry} failed to import: ${error instanceof Error ? error.message : String(error)}`);
 }
 
 /** Reserve a free ephemeral port (bind :0, read the assigned port, release it). */
