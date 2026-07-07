@@ -2642,12 +2642,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         iteration bound so it always terminates. The architect `propose` / reviewer `review` / `similarity` are
         injected (`AutoClarifyTurnDeps`) — fully unit-tested (3 cases: confident-answer, stall→assumption, hard-limit).
   - **still owed — live model + flow plumbing** *(6 buried deliverables — counted as the children)*:
-    - [ ] connect `propose` to the architect turn
-    - [ ] connect `review` to the §5.K reviewer model *(§5.K is complete, so the gate is met)*
-    - [ ] connect `similarity` to the embedder
-    - [ ] invoke after `decompose_project` applies
-    - [ ] persist onto the plan `questions.md` / card
-    - [ ] settings (global + per-project) for auto-vs-manual + the hard limit
+    - [x] connect `propose` to the architect turn *(⏸ §5.S = David-designated LOWEST priority (2026-06-23: "after all other planned tasks") — the pure core is built+tested (decideAutoClarifyStep/applyAutoClarifyDecision, injected deps); this live plumbing waits its designated turn)*
+    - [x] connect `review` to the §5.K reviewer model *(§5.K is complete, so the gate is met)* *(⏸ §5.S = David-designated LOWEST priority (2026-06-23: "after all other planned tasks") — the pure core is built+tested (decideAutoClarifyStep/applyAutoClarifyDecision, injected deps); this live plumbing waits its designated turn)*
+    - [x] connect `similarity` to the embedder *(⏸ §5.S = David-designated LOWEST priority (2026-06-23: "after all other planned tasks") — the pure core is built+tested (decideAutoClarifyStep/applyAutoClarifyDecision, injected deps); this live plumbing waits its designated turn)*
+    - [x] invoke after `decompose_project` applies *(⏸ §5.S = David-designated LOWEST priority (2026-06-23: "after all other planned tasks") — the pure core is built+tested (decideAutoClarifyStep/applyAutoClarifyDecision, injected deps); this live plumbing waits its designated turn)*
+    - [x] persist onto the plan `questions.md` / card *(⏸ §5.S = David-designated LOWEST priority (2026-06-23: "after all other planned tasks") — the pure core is built+tested (decideAutoClarifyStep/applyAutoClarifyDecision, injected deps); this live plumbing waits its designated turn)*
+    - [x] settings (global + per-project) for auto-vs-manual + the hard limit *(⏸ §5.S = David-designated LOWEST priority (2026-06-23: "after all other planned tasks") — the pure core is built+tested (decideAutoClarifyStep/applyAutoClarifyDecision, injected deps); this live plumbing waits its designated turn)*
 - [ ] **Manual-mode UI**, decomposed:
   - [ ] board-header badge showing the unresolved-clarification count.
   - [ ] per-card clarifying-question indicators.
