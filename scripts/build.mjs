@@ -2,11 +2,15 @@ import * as esbuild from "esbuild";
 import { clineSdkEsbuildAlias } from "./cline-sdk-alias.mjs";
 
 /**
- * Runtime externals. `node-pty` is a native addon with a compiled binding
- * and a spawn-helper binary that must live on disk, so it can't be bundled.
+ * Runtime externals — deps esbuild must NOT inline; they resolve from the published package's node_modules at runtime.
+ * - `node-pty`: a native addon with a compiled binding + spawn-helper binary that must live on disk.
+ * - `playwright` (+ `playwright-core`, `chromium-bidi`): the §5.M `browse_url` browser tool's engine — a heavy runtime
+ *   dependency that ships its own browser binaries and CJS bundles esbuild can't resolve/inline. Externalized like
+ *   node-pty; it's a first-class `dependency`, so `require("playwright")` resolves at runtime.
+ * - `fsevents`: a macOS-only native `.node` file-watcher, pulled in transitively; self-guards on non-macOS.
  * Everything else esbuild can inline.
  */
-const external = ["node-pty"];
+const external = ["node-pty", "playwright", "playwright-core", "chromium-bidi", "fsevents"];
 
 /** Bake OTEL telemetry env vars into the bundle at build time. */
 const define = {
