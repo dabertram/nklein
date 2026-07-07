@@ -621,10 +621,15 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		getKleinCorePyHealth: async () => {
 			const config = resolveKleinCorePyConfig();
 			if (!config.enabled) {
-				return { enabled: false, reachable: false, sidecarUrl: config.sidecarUrl };
+				return { enabled: false, reachable: false, sidecarUrl: config.sidecarUrl, loadedModels: [] };
 			}
 			const health = await probeKleinCorePyHealth({ config });
-			return { enabled: true, reachable: health.reachable, sidecarUrl: health.sidecarUrl };
+			return {
+				enabled: true,
+				reachable: health.reachable,
+				sidecarUrl: health.sidecarUrl,
+				loadedModels: health.loadedModels,
+			};
 		},
 		getMergeHistory: async (workspaceScope) => {
 			const records = workspaceScope

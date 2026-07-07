@@ -79,6 +79,9 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     contract_version: int = CONTRACT_VERSION
     service: str = "klein-core"
+    # The GGUF embedding models resident in-process right now (absolute paths). Empty until the first index batch
+    # loads one. Lets the host surface a "core model loaded" detail without a separate probe.
+    loaded_models: list[str] = []
 
 
 class CompressRequest(BaseModel):

@@ -11,6 +11,8 @@ export const runtimeKleinCorePyHealthResponseSchema = z.object({
 	enabled: z.boolean(),
 	reachable: z.boolean(),
 	sidecarUrl: z.string(),
+	/** GGUF embedding models resident in the core (absolute paths; [] until an index batch loads one / core is down). */
+	loadedModels: z.array(z.string()).default([]),
 });
 export type RuntimeKleinCorePyHealthResponse = z.infer<typeof runtimeKleinCorePyHealthResponseSchema>;
 

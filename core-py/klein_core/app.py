@@ -34,7 +34,7 @@ from .contract import (
     SelectGraphResponse,
 )
 from .decomposition import PlanTask, select_best_graph
-from .embeddings import embed_texts, unload_gguf_embedding
+from .embeddings import embed_texts, loaded_embedding_models, unload_gguf_embedding
 from .generation import ChatMessage, GenerationBackend, ProxyBackend, StructuredFormat
 from .local_only import CloudProviderDisabledError
 from .repomap import RepoFile, rank_symbols, render_repo_map
@@ -75,7 +75,7 @@ def _messages_from(request: GenerateRequest) -> list[ChatMessage]:
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(status="ok")
+    return HealthResponse(status="ok", loaded_models=loaded_embedding_models())
 
 
 @app.post("/v1/generate", response_model=GenerateResponse)

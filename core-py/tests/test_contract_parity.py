@@ -136,6 +136,8 @@ def test_health_response_shape() -> None:
     assert parsed.status == "ok"
     assert parsed.contract_version == CONTRACT_VERSION
     assert parsed.service == "klein-core"
+    # /health reports the in-process resident embedding models (empty until an index batch loads one).
+    assert isinstance(parsed.loaded_models, list)
 
 
 def test_health_response_validates_against_schema() -> None:

@@ -25,6 +25,7 @@ const probeReachable = (reachable: boolean) =>
 		async (input?: { config?: KleinCorePyConfig }): Promise<KleinCorePyHealth> => ({
 			reachable,
 			sidecarUrl: input?.config?.sidecarUrl ?? ENABLED.sidecarUrl,
+			loadedModels: [],
 		}),
 	);
 
@@ -69,7 +70,11 @@ describe("startKleinCorePySidecar", () => {
 		const spawnImpl = vi.fn(() => child);
 		// Pre-check probe → not reachable; the loop probe → reachable.
 		let calls = 0;
-		const probeImpl = vi.fn(async () => ({ reachable: ++calls > 1, sidecarUrl: ENABLED.sidecarUrl }));
+		const probeImpl = vi.fn(async () => ({
+			reachable: ++calls > 1,
+			sidecarUrl: ENABLED.sidecarUrl,
+			loadedModels: [],
+		}));
 		const handle = await startKleinCorePySidecar({
 			config: ENABLED,
 			probeImpl,

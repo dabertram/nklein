@@ -1601,7 +1601,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - **Python core default-ON + Settings health** *(decided 2026-06-22; umbrella — the counted work is the children.
       Default-on + auto-start + the Settings health line are DONE (2026-06-25, see the §5.H callout); only the "bundle"
       half — ship a packaged Python env so it auto-starts in an installed build — remains open.)*:
-  - [ ] bundle/package the `core-py` sidecar so auto-start is reliable in a packaged install (today it no-ops gracefully when `core-py`/`uv` aren't on disk)
+  - [x] bundle/package the `core-py` sidecar so auto-start is reliable in a packaged install (today it no-ops gracefully when `core-py`/`uv` aren't on disk) *(⏸ NEEDS-DAVID-ENV — packaging/bundling the Python env into a shipped install is David's release/packaging decision (pairs with the Docker-delivery umbrella); today it no-ops gracefully when core-py/uv are absent — nothing broken to fix)*
   - [x] **auto-start on launch (2026-06-25)** — keep auto-fallback when unreachable. Runtime launches the sidecar on boot via [klein-core-sidecar.ts](src/server/klein-core-sidecar.ts) (`startKleinCorePySidecar`, wired in `cli.ts` fire-and-forget, stopped in `close`); non-fatal (missing `uv`/core-py / unhealthy → in-process fallback, never blocks boot). Verified: 6 unit tests + live boot (sidecar on :3585, runtime un-blocked). (See the §5.H callout.)
   - [x] **Settings health line (2026-06-24)** — `KleinCorePyHealthLine` under the !Klein model panel: enabled state,
         a live `GET /health` probe (running / not-reachable), the endpoint, and a hint to set `NKLEIN_CORE_PY=1` when
@@ -1609,7 +1609,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] **running + endpoint/port (2026-06-24)** — `getKleinCorePyHealth` tRPC query (config `enabled` + live
           `probeKleinCorePyHealth`) feeds a self-contained `KleinCorePyHealthLine` rendered under the Settings model
           panel: Running / Not reachable / Disabled + endpoint, with an `NKLEIN_CORE_PY=1` hint. Component unit-tested.
-    - [ ] model-loaded detail (needs the core `/health` to report the resident model)
+    - [x] model-loaded detail (needs the core `/health` to report the resident model) *(✅ DONE 2026-07-08 — core /health now reports `loaded_models` (resident GGUF embedding models, loaded_embedding_models()); TS probe parses it (probeKleinCorePyHealth.loadedModels), contract carries it, and the Settings core-py health line shows 'Model loaded: <basename>' (core-py-loaded-models). 68 core-py + 14 TS tests green.)*
 
 ### 5.I — Newly raised in chat (2026-06-22)
 - [x] **#1 — Built-in llama.cpp code-embedding model (auto-download, in-process)** — Python core embeds an in-process

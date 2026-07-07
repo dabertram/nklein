@@ -32,7 +32,7 @@ describe("probeKleinCorePyHealth", () => {
 			config: { enabled: true, sidecarUrl: "http://127.0.0.1:3585" },
 			fetchImpl,
 		});
-		expect(result).toEqual({ reachable: true, sidecarUrl: "http://127.0.0.1:3585" });
+		expect(result).toEqual({ reachable: true, sidecarUrl: "http://127.0.0.1:3585", loadedModels: [] });
 		expect(fetchImpl).toHaveBeenCalledWith("http://127.0.0.1:3585/health", expect.anything());
 	});
 
@@ -45,5 +45,30 @@ describe("probeKleinCorePyHealth", () => {
 			fetchImpl,
 		});
 		expect(result.reachable).toBe(false);
+		expect(result.loadedModels).toEqual([]);
+	});
+
+	it("parses the core's resident embedding models from the /health body (§5.H model-loaded detail)", async () => {
+		const body = JSON.stringify({
+			status: "ok",
+			loaded_models: ["/models/nomic-embed-q4.gguf", 42, "/models/x.gguf"],
+		});
+		const fetchImpl = vi.fn(async () => new Response(body, { status: 200 })) as unknown as typeof fetch;
+		const result = await probeKleinCorePyHealth({
+			config: { enabled: true, sidecarUrl: "http://127.0.0.1:3585" },
+			fetchImpl,
+		});
+		// non-string entries are dropped defensively; reachability is the status code, not the body.
+		expect(result.loadedModels).toEqual(["/models/nomic-embed-q4.gguf", "/models/x.gguf"]);
+		expect(result.reachable).toBe(true);
+	});
+
+	it("keeps loadedModels empty on a non-JSON body without affecting reachability", async () => {
+		const fetchImpl = vi.fn(async () => new Response("plain-text", { status: 200 })) as unknown as typeof fetch;
+		const result = await probeKleinCorePyHealth({
+			config: { enabled: true, sidecarUrl: "http://127.0.0.1:3585" },
+			fetchImpl,
+		});
+		expect(result).toEqual({ reachable: true, sidecarUrl: "http://127.0.0.1:3585", loadedModels: [] });
 	});
 });

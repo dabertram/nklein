@@ -81,6 +81,11 @@ def gguf_embedding(
     return [list(map(float, row["embedding"])) for row in payload["data"]]
 
 
+def loaded_embedding_models() -> list[str]:
+    """The absolute paths of the GGUF embedding models currently resident in-process (sorted for determinism)."""
+    return sorted(_GGUF_EMBED_CACHE.keys())
+
+
 def unload_gguf_embedding(gguf_path: str | None = None) -> int:
     """Drop loaded GGUF embedding model(s) to free memory when idle. Returns how many were unloaded."""
     if gguf_path is None:

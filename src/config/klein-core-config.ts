@@ -33,6 +33,8 @@ export function resolveKleinCorePyConfig(env: NodeJS.ProcessEnv = process.env): 
 export interface KleinCorePyHealth {
 	reachable: boolean;
 	sidecarUrl: string;
+	/** GGUF embedding models resident in the core right now (absolute paths; [] until an index batch loads one). */
+	loadedModels: string[];
 }
 
 /**
@@ -51,9 +53,22 @@ export async function probeKleinCorePyHealth(input?: {
 	const timeout = setTimeout(() => controller.abort(), input?.timeoutMs ?? 1_500);
 	try {
 		const response = await fetchImpl(url, { signal: controller.signal });
-		return { reachable: response.ok, sidecarUrl: config.sidecarUrl };
+		// Best-effort body parse: the core reports its resident embedding models as `loaded_models` (older cores /
+		// malformed bodies simply yield [] — reachability never depends on the body shape).
+		let loadedModels: string[] = [];
+		if (response.ok) {
+			try {
+				const body = (await response.json()) as { loaded_models?: unknown };
+				if (Array.isArray(body.loaded_models)) {
+					loadedModels = body.loaded_models.filter((entry): entry is string => typeof entry === "string");
+				}
+			} catch {
+				// non-JSON body — keep [] (reachable is still what the status code says).
+			}
+		}
+		return { reachable: response.ok, sidecarUrl: config.sidecarUrl, loadedModels };
 	} catch {
-		return { reachable: false, sidecarUrl: config.sidecarUrl };
+		return { reachable: false, sidecarUrl: config.sidecarUrl, loadedModels: [] };
 	} finally {
 		clearTimeout(timeout);
 	}
