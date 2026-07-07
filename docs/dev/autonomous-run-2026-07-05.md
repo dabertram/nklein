@@ -2594,3 +2594,27 @@ bodies, which is what would actually move the flagship's line-count needle) + th
 task_5f7170d9; localhost/127.0.0.1 endpoint unify; the §5.BG routing re-key; live §5.Z full-roster sweep; the 3 manual
 todos). Future ticks will increasingly hit 2-site marginal DRY or need David -- flagging that the clean runway is
 thinning again.
+
+### 2026-07-07 (Opus) - §5.AZ: RELEASE-BUILD verification caught TWO real release blockers
+Varied from DRY-lifts to a §5.AZ release-engineering check (verify the actual build artifact) -- and it paid off big.
+Ran the src bundle (scripts/build.mjs) + web build, which NONE of the per-commit or full-suite gates exercise (~9400
+tests all green, but they run source, not the production BUNDLE). Two genuine blockers surfaced:
+
+  1. **BUILD BROKEN (FIXED, commit f1b5562b):** esbuild tried to inline `playwright` (top-level import in the §5.M
+     browse_url tool, chat/chat-browser-tool.ts, since 15748d3d) and choked on chromium-bidi (x2) + fsevents (.node).
+     `build.mjs` external list was just ["node-pty"]. Added playwright/playwright-core/chromium-bidi/fsevents (all
+     runtime/native deps; playwright is a first-class dependency). VERIFIED: build.mjs now exits 0, emits dist/cli.js
+     (33.5MB) + dist/index.js. Broken silently since the browser tool landed -- no gate catches bundle-time resolution.
+
+  2. **BUILT CLI CRASHES ON STARTUP (surfaced, task_5b4c9d76):** `node dist/cli.js --version` throws
+     DevTestProjectRegistryError -- nklein-dev-test-project.ts loads ~10 scenarios EAGERLY at module-init
+     (top-level `export const X = loadDevTestProjectScenario("id")`) reading dev-test-projects/<id>/project.json from
+     disk; that dir isn't shipped in the published package -> crash on every invocation. Reached via commands/dev.ts +
+     projects-api.ts in the cli bundle. NOT a personal-path literal (repoRoot is computed via import.meta.url, so my
+     earlier hostname audit correctly missed it) -- it's an eager-module-init-disk-read bug. Recommended fix: lazy-load
+     the scenarios (accessor fns) so import is side-effect-free; surfaced with full diagnosis + verify steps.
+
+KEY LESSON: the test surface (unit/contract/integration/protected/web -- ~9400 green) does NOT cover the production
+bundle; only running the actual build does. This is exactly the §5.AZ release-engineering gate ("npm run build
+reproducible on a clean machine"). Worth running the build periodically -- it found what 9400 tests couldn't. This tick
+delivered FAR more value than another 2-site DRY would have.
