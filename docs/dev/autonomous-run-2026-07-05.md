@@ -3646,3 +3646,21 @@ qwopus3.5 §5.AB synthesis-variance/weak-synthesis trait (the catalog records re
 NOT a regression — my change is in the TASK path, the harness exercises the CHAT path; the runtime booted + ran the
 agent + executed the tool chain + mutated the board cleanly with the change present. David's model state untouched
 (qwopus3.5 stayed resident; nothing loaded/unloaded this run). Next: the §5.M memory WRITE path (extractor→dedup→persist).
+
+### 2026-07-07 (Fable) - §5.M memory WRITE path wired + LIVE-VALIDATED (extractor quality confirmed against qwopus3.5)
+"Everything else too" — the memory write path (the other genuinely-unwired item). The store was READ (recall) but never
+WRITTEN, so recall read an empty store. Wired the short→long path in disciplined green commits: (ddb75961) the pure
+writeConsolidatedMemories core (propose→persist, injected sink); (084d1720) the runtime wiring — an extractor model call
+(createChatModelDeps.extractMemories: a durable-facts prompt + parseExtractedMemories to normalize messy output) + a
+best-effort post-turn hook in chat-service covering ALL THREE turn paths (tool-using / plain / autonomous), flag-gated
+OFF behind NKLEIN_CHAT_MEMORY_WRITE (extractor quality is model-dependent → opt-in until validated). Unit-tested: write
+core (persists only non-dups) + parser (bullet/number/quote strip, sentinel drop, 5-cap, substring safety). LIVE
+VALIDATION against resident qwopus3.5-9b (no model load needed): ran extractMemories on a realistic session summary →
+produced 5 clean durable facts (recipe-box app · ship Friday · Vitest-not-Jest · Zustand · tabs-over-spaces) and
+CORRECTLY IGNORED the weather small-talk; the full write path then deduped the seeded "Vitest" memory and persisted 4
+new ones (store: 1 seeded + 4 = 5). PASS ✓ — the extractor quality + dedup + persist all work end-to-end against a real
+model, the exact thing that was "unvalidatable without live models." Temp harness removed; David's model state untouched
+(qwopus3.5 stayed resident, nothing loaded/unloaded). THIS SESSION (Opus queue, no procrastination): fitness-blend
+(81e6630c) · retry reclassify+correct (dd054eb8) · catalog-integrity (ecbe460f) · memory-audit+sdk-cov (3a89a763) ·
+RETRY ENGINE task-level adoption + live-validated (356ad927/17777d35) · MEMORY write core (ddb75961) + wiring +
+live-validated (084d1720). The two flagship "fleet-gated" wiring items — retry engine + memory write — are DONE + live.
