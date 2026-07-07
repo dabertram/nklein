@@ -38,6 +38,7 @@ import type {
 	createNKleinProviderService,
 	ResolvedNKleinLaunchConfig,
 } from "../../nklein-agent/nklein-provider-service";
+import { applyStableRoutingKeysToCandidates } from "../../nklein-agent/nklein-stable-routing-candidates";
 import { isExplicitDecompositionPrompt } from "../../nklein-agent/nklein-task-prompt-parsing";
 import { routeNKleinTask } from "../../nklein-agent/nklein-task-router";
 import {
@@ -402,21 +403,7 @@ export async function handleStartTaskSession(
 		// pass, after the map is populated and BEFORE residency/ledger read) is what makes the earlier-reverted flip safe.
 		const stableRoutingEnabled = isTruthyEnv(process.env.NKLEIN_STABLE_ROUTING_KEY);
 		if (stableRoutingEnabled) {
-			for (const [oldKey, candidate] of [...guardCandidates]) {
-				const stableModelId = resolveStableRoutingModelId(candidate.entry.modelId);
-				if (stableModelId === candidate.entry.modelId) {
-					continue; // no stable mapping known ⇒ the runtime-derived key stands (consistent with a runtime ledger write)
-				}
-				const stableKey = buildNKleinModelRegistryKey({
-					providerId: candidate.entry.providerId,
-					modelId: stableModelId,
-					endpoint: candidate.entry.endpoint,
-				});
-				if (stableKey !== oldKey) {
-					guardCandidates.delete(oldKey);
-					guardCandidates.set(stableKey, { ...candidate, entry: { ...candidate.entry, key: stableKey } });
-				}
-			}
+			applyStableRoutingKeysToCandidates(guardCandidates, resolveStableRoutingModelId);
 		}
 		// Best-fit affinity tags for a candidate, matched by its runtime model id against the loaded descriptors (undefined
 		// when the model isn't in the loaded set — e.g. a configured cloud role — so it simply carries no affinity).
