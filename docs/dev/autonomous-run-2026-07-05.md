@@ -2161,3 +2161,17 @@ exhausted — the flag-gated features had untested wiring):
   unmapped-untouched, alias-collapse, shallow-clone, identity no-op). Shrinks the start handler; de-risks the flip.
 The flag-gated features (`NKLEIN_REVIEW_PANEL`, `NKLEIN_STABLE_ROUTING_KEY`) now have unit/integration coverage of their
 wiring, not just their cores — so a live §5.Z flip has a much smaller unverified surface. Coverage vein now largely closed.
+
+### 2026-07-07 (Opus) · §5.BG flip — double-start hazard now FULLY covered (+ 2nd clear-boundary §5.U lift)
+Continued the code-verification vein. The §5.BG (c) flip's SEVERE hazard is double-start (a running model looks FREE →
+started twice → resource exhaustion — the exact bug that forced the original revert). Now fully covered at the code level:
+- `applyStableRoutingKeysToCandidates` [0b191844] — the candidate re-key side, extracted + 5 tests.
+- `buildResidencyModelKeySet` [04b25db0] — the residency-set side, extracted (2nd clear-boundary §5.U lift) + 3 tests,
+  INCLUDING the direct alignment test: for the same running model, residency key EQUALS the re-keyed candidate key ⇒
+  isModelFree recognizes it ⇒ no double-start.
+So both sides of the alignment + their equality are pinned; the resolver's rename-heal is pinned in the store test. The
+flip is now maximally de-risked at the code level (the live ledger write applies the same tested resolver). Combined with
+the panel wiring / escalation-threading / overlay→gate tests from prior ticks, the two flag-gated features + the shipped
+default-on features now have coverage of their WIRING and PURPOSE, not just their cores — a live §5.Z flip has a very
+small unverified surface. **Coverage vein genuinely closed** — remaining untested bits are one-line delegations (against
+the no-padding standard). Frontier unchanged: §5.U entangled lifecycle (David seam) + live §5.Z run.
