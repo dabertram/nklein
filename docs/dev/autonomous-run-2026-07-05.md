@@ -3372,3 +3372,18 @@ format/parse failure mode; the larger ones cost more load+run time so one per tu
   2 fresh models this session, both 4/4, across DIFFERENT families/tool-formats — !Klein's tool-loop + §5.O delivery + §5.A
   isolation generalize cross-family; no new deterministic gap. Loop continues autonomously; next a different family again
   (gpt-oss harmony format, or a reasoning model — magistral/phi-4-reasoning) to keep widening the format coverage.
+
+### 2026-07-07 (Opus) - PRODUCT feature: small-files discipline for the projects !Klein works on
+David set "small files" as a standing PRODUCT target (distinct from the rejected-for-now reduction of !Klein's OWN code):
+agents must keep files small/single-responsibility, decompose growing files EARLY, never grow monoliths — guided at a
+token-vs-benefit SWEET SPOT, not by prompt bloat. Shipped (`dd58b312`, test:fast 8176):
+- **Agent efficiency-rules prompt (+1 always-on line):** proactive "keep files small, split cohesive pieces early, never a
+  monolith" alongside the existing hard write-cap guard rail.
+- **Second-opinion reviewer prompt (+1 line):** be critical about file size/structure — PROPORTIONATELY (a brief pointed
+  note, not a size audit).
+- **Dynamic detector (cost only when relevant):** `buildLargeFileWriteNudge` (core/agent-write-guard.ts) appends a split
+  nudge to a write_file/write_files result ONLY when a just-written file crosses ~60% of the hard line cap (default
+  600/1000); ordinary small writes pay zero extra tokens. Hard cap stays the backstop. +6 unit tests.
+- **Documented** as a standing target in goal.md (the quality-mandate section). The design deliberately balances prompt
+  content vs. benefit per David's "find the sweet spot" — static guidance is one line each; the per-write detector is the
+  only conditional cost and it fires solely for genuinely-large writes.
