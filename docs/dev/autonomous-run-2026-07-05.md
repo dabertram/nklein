@@ -2562,3 +2562,18 @@ it immediately; restored by hand. Going forward: for files whose first import is
 the last FOUR all DRY consolidations of drifted state/convention checks (auto-completable, :: convention, busy-state,
 terminal-failure) into tested single-sources-of-truth in core/. Session-state-predicates.ts now houses 2 of the
 groupings; more remain (the +awaiting_review / +idle busy variants; the real-worker-session filter).
+
+### 2026-07-07 (Opus) - §5.U lift #9: centralize the default local-model endpoint (5th consecutive DRY, magic-URL)
+Shifted from state-grouping DRY to a magic-URL DRY. The default LM Studio endpoint "http://127.0.0.1:1234/v1" was
+hardcoded at 7 non-chat sites (start-task-session x2, second-opinion-review-runner x2, runtime-server worker fallback,
+speculative-mirror-runner, reviewer-model-selection) -- while a DEFAULT_LOCAL_CHAT_BASE_URL constant with the SAME value
+already existed but was only used in chat contexts (so the value lived in 8+ places). Introduced
+core/local-model-endpoint.ts (DEFAULT_LOCAL_MODEL_BASE_URL) as the single source of truth; repointed
+DEFAULT_LOCAL_CHAT_BASE_URL at it (compat alias, chat importers untouched); replaced all 7 literals. Byte-identical.
++2 tests incl. a drift-guard (the chat alias still resolves to the shared constant). DELIBERATELY SCOPED to the
+127.0.0.1 form -- ~4 `localhost:1234/v1` sites remain (runtime-api x2, local-advisor-completion, dev.ts); whether to
+UNIFY localhost vs 127.0.0.1 is a config/behavior decision (DNS-vs-direct-IP) surfaced for David in the module doc +
+here, NOT unilaterally folded in. test:fast 8125 green; integration 41/pass-1-known-stale. Also relevant to §5.AZ
+(a scattered hardcoded default endpoint reads better as one named constant for a public repo). ARC TALLY: NINE lifts;
+last FIVE all DRY consolidations (auto-completable, ::-convention, busy-state, terminal-failure, endpoint) into tested
+single-sources-of-truth. FOLLOW-UP for David: the localhost/127.0.0.1 unification (a small config decision).
