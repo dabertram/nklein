@@ -3276,3 +3276,21 @@ loaded (I do not auto-load per the harness convention). The §5.U big-3 remain D
 qwopus3.5-9b-coder-mtp: 9 fast flows ✅ + chat-browse ◑ (model-synthesis trait). Only reasoning-display + the 25-min
 multi-card remain unrun; both low-priority. STATUS unchanged: the high-leverage unblocks are David's (big-3 DI seams;
 loading other roster models for §5.Z breadth).
+
+### 2026-07-07 (Opus) - §5.U BREAKTHROUGH: first big-3 flagship reduction via safe types-only extraction
+Challenged the "big-3 are fully gated" conclusion and found a clean, SAFE avenue I'd overlooked by fixating on the hard
+collaborator-split: **types-only extraction**. A big file's interface/type declarations are behavior-preserving to move
+(types erase at runtime), tsc-gated, and re-exportable so importers are unchanged.
+- **`c09240a5` — extracted the task-session PUBLIC TYPE CONTRACT** (StartNKleinTaskSessionRequest + the ~125-line
+  NKleinTaskSessionService interface + the create-options types) from nklein-task-session-service.ts (2830) into a
+  cohesive nklein-task-session-service-types.ts. The impl imports the 3 externally-used types back (type-only) + re-exports
+  them, so all ~10 external importers are unchanged. **2830 → 2581** (the first time a big-3 monolith has been reduced).
+  tsc + biome clean; test:fast 8171.
+- **The vein, for continuation:** measured every large file's type footprint. session-runtime (1023, 8 type decls incl.
+  the ~72-line StartNKleinSessionRuntimeRequest) is the next-best target BUT more entangled — 2 non-contiguous blocks
+  (a kept `buildNKleinContextCompactionConfig` sits between them), impl-bound types (HostBoundary, the NKleinSessionRuntime
+  the class implements), a CreateInMemory-options→HostBoundary cross-ref, and the nklein-task-tool-approval sibling's
+  type-only back-import of StartNKleinSessionRuntimeRequest to repoint — so it needs careful boundary work, not a turn-tail
+  rush. runtime-server (3 decls) / runtime-api (1) have tiny type footprints; agent-sandbox's 13 decls are mostly
+  class-INTERNAL data structures (ContainerState/TaskPlacement/QueueEntry) — its ~30 lines of PUBLIC types are the only
+  clean subset. NEXT §5.U: the session-runtime public-contract extraction (careful, one contiguous block at a time).
