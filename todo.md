@@ -4958,10 +4958,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >    online-lookup core `model-online-lookup.ts` + `llmfit-roster`/`swarm-roster` presets are internal/unwired). Add an
 >    advisory: given the loaded set + declared hardware tiers + the card mix, suggest what to fetch to strengthen the fleet
 >    (esp. "your decision layer is a Qwen monoculture — add a Mistral/Gemma/Z.ai-family judge"). Ties gap 1 + the online lookup.
-> 6. **Hardware-tier placement the ROUTER reads** *(existing scope §5.AB(C) — machine envelopes ALREADY captured for
->    m5max/legion5pro/m4mini)*: promote the EXAMPLE budgets (`EXAMPLE_MACHINE_BUDGETS_GB`, `assessRosterFit`) to
->    user-declared config the selector consults at pick time (check catalog `sizeGb` vs machine headroom; warn on
->    over-provision). Reuse the per-machine pooling from §5.AB(A)/(C).
+> 6. **Hardware-tier placement — CORE ALREADY EXISTS + WIRED (finding 2026-07-07).** `decideModelLoad`
+>    (model-load-headroom.ts) is a pure headroom hard-block ALREADY wired into the LOAD paths (`lms-model-runner:157`,
+>    `lms-model-control:128`): it REFUSES a model that can't prove RAM headroom (freeAfter ≥ reserve). So David's decided
+>    "hard-block over-headroom" is essentially LIVE via DETECTED total RAM. **REMAINING refinement only:** the
+>    USER-DECLARED per-machine budgets (`resolveEffectiveBudgets`, swarm-roster-config) are wired ONLY into `dev rosters`
+>    today — not into the live guard. To honor a user cap BELOW physical RAM (e.g. "use ≤100GB of my 128"), thread the
+>    per-machine budget into `decideModelLoad`'s `totalRamBytes` as `min(detectedRam, userBudget)` at the two call sites
+>    (needs the machine id → budget lookup + config threading). Bounded config-wire; the hard-block itself is done.
 >
 > **Sequence (David: "work through rather soon", then resume the loop):** gap 3 (depth-vs-speed, most bounded) → gap 4
 > (escalation diversity) → gap 1 (external catalog overlay) → gap 6 (hardware config) → gap 2 (parallel panel, largest) →

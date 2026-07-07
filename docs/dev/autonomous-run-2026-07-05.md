@@ -2095,3 +2095,11 @@ residency/ledger. Alignment + rename-heal (two aliases → ONE key) pinned in th
 flag-OFF default. **Owed before David flips it on: a live §5.Z roster re-verify.**
 Remaining of the 4: hardware hard-block (next) · panel orchestration · §5.BG (d) [LOW priority — the flag-gated flip
 SELF-HEALS as stable rows accumulate; (d) only heals legacy rows faster, and needs registry-key parsing + merge].
+
+### 2026-07-07 (Opus) · Hardware hard-block — CORE FOUND ALREADY WIRED (gap 6 largely done)
+`decideModelLoad` (pure headroom guard, model-load-headroom.ts) is ALREADY wired into the model-LOAD paths
+(lms-model-runner:157, lms-model-control:128) and REFUSES a load that can't prove RAM headroom. So David's "hard-block
+over-headroom" decision is essentially LIVE (via detected total RAM). The only remaining piece is a refinement: the
+user-declared per-machine budgets (`resolveEffectiveBudgets`) are wired only into `dev rosters`, not the live guard —
+threading `min(detectedRam, userBudget)` into `decideModelLoad` at its two call sites would honor a user cap below
+physical RAM. Bounded config-wire; deprioritized (the safety hard-block already exists). Updated §5.AB gap 6.
