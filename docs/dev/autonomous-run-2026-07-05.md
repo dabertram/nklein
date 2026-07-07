@@ -3004,3 +3004,15 @@ tools, secret redaction, 127.0.0.1 loopback bind default, review-gated result br
 scope + private vuln reporting via GitHub advisories (same channel CONTRIBUTING points to). §5.AZ repo-hygiene prose
 docs are now DONE; only issue-templates + screenshots (Fable visual) remain. NEXT: §5.U full pass (David chose "full
 autonomous pass") — a careful multi-commit undertaking, best started fresh next loop.
+
+
+### 2026-07-07 (Opus) - §5.U full pass, increment 1: session launch-config extraction
+David chose "full autonomous pass" for §5.U. Confirmed the big-3 clean seams are extracted (task-session-service is a
+27-collaborator coordinator), so worked the next-tier: found a clean cohesive cluster in nklein-session-runtime.ts (1215)
+— the "session launch-config persist/read" concern (KANBAN_SESSION_METADATA_KEY, NKleinPersistedLaunchConfig,
+readKanbanLaunchConfigFromSessionRecord, toPersistedLaunchConfig). Its record-reader helpers already live in shared
+sibling modules ⇒ imports-only coupling; the one back-reference is type-only (runtime-acyclic). Extracted to
+nklein-session-launch-config.ts (81 lines), re-exported the 2 externally-used symbols so importers are unchanged.
+session-runtime 1215→1148. Behavior-preserving: tsc 0, biome clean (incl. a follow-up removing 2 now-unused imports),
+session-runtime suite 36/36, full gate 8125. Commits 1a6f5217 + 0767ed04. NEXT: continue §5.U (more next-tier cohesive
+clusters) — the big-3 orchestration-method decomposition remains the delicate careful tier.
