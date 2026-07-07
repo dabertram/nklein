@@ -319,6 +319,13 @@ source repo went private — so if it vanishes the buildable source still lives 
 > - **Chase the evidence to ground truth**, even across systems: config files, actual logs, OS crash reports, live probes
 >   (`lms ps`, `lms log stream`), the source. Follow it until it either CONFIRMS or REFUTES the hypothesis. Multiple
 >   competing hypotheses? Enumerate them and find the observation that discriminates.
+> - **SCOPE every piece of evidence to its EXACT source, and name the scope out loud.** Evidence gathered from one place
+>   does not silently generalize to another. "`m5max`'s settings.json says JIT is on" is NOT "JIT is on for the model on
+>   `m4mini`" — per-host / per-node / per-env config differs. State what you actually inspected ("I read X on host A;
+>   host B's is unknown to me") and never let a reading from one system stand in for another. (Recorded miss 2026-07-07:
+>   I read Local/m5max's LM Studio config and floated its JIT-TTL as a cause for a model that was on m4mini — where JIT
+>   was actually OFF, refuting the hypothesis. Convenient nearby data masquerading as the real data, one level below the
+>   first TTL miss.)
 > - **When the true cause is genuinely UNKNOWABLE with current evidence, SAY SO — and add the instrumentation to catch
 >   it next time.** "I can't determine this because X (remote node / logging was off / event already passed); here's the
 >   monitoring that would answer it" is a correct, honest deliverable. Inventing a clean answer to avoid "I don't know"
@@ -408,6 +415,19 @@ source repo went private — so if it vanishes the buildable source still lives 
   multi-run experiment so the model can't JIT-TTL out mid-run, and treat any mid-run vanish as a hard failure whose cause
   stays "undetermined" unless David's file-logging is on to prove it. The discipline (don't guess a cause) is the durable
   takeaway.
+  **★ CORRECTED 2026-07-07 (David checked the LM Studio config on ALL 3 hosts — a 2ND precision failure on my part, one
+  level deeper than the first).** The `settings.json` I read above was **m5max's (Local) ONLY** — I never read m4mini's,
+  yet I floated m5max's `justInTimeModelLoading:true` / `jitModelTTL:3600` as a hypothesis for a model that lived on
+  **m4mini**. David confirms: **JIT was ON on m5max but OFF on m4mini.** ⇒ the **JIT-1h-TTL hypothesis is REFUTED** for
+  coder-14b's disappearance — a host with JIT OFF has no JIT model + no `jitModelTTL` to expire, so a model there is
+  expected STABLE and its vanishing is genuinely anomalous. Remaining space narrows to **CRASH or memory-eviction (or an
+  external unload)** — David's original CRASH concern is now the leading candidate — still not confirmable without
+  m4mini's OWN logs. **David has now DISABLED JIT on all 3 hosts**, so JIT-auto-unload is eliminated fleet-wide; any
+  future vanish is attributable to crash/eviction by elimination. **Precision lesson (sharpens the root-cause rule): a
+  multi-host fleet has PER-HOST config — reading ONE node's settings and reasoning about ANOTHER node's model is the same
+  "convenient data standing in for the real data" error, one level deeper. ALWAYS scope a finding to the exact machine/
+  file/source you read it from, and name that scope explicitly ("m5max's settings.json says X; m4mini's is unknown to
+  me"). Never let evidence from one host silently generalize to the fleet.**
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user

@@ -2864,3 +2864,19 @@ agent-sandbox Docker image → sentry skipped no-token) completed clean, then `n
 both traced (verify-don't-assume) to `vendor/cline-sdk/packages/llms/dist/index.js` — a genuine upstream bug
 (`!e instanceof Array` always parses false) in the VENDORED engine's dist, zero first-party `!x instanceof` in src, so
 benign for us + not first-party-actionable (an upstream Cline-SDK fix if ever). Release-readiness re-confirmed.
+
+### 2026-07-07 (Opus) - USER PRECISION CORRECTION #2: JIT-TTL hypothesis REFUTED (wrong host's config)
+David checked the LM Studio config on all 3 hosts and corrected me a 2nd time, asking for even MORE precision. My last
+investigation read `~/.lmstudio/settings.json` — but that is **m5max's (Local) config ONLY** — and I floated its
+`justInTimeModelLoading:true` / `jitModelTTL:3600` as a hypothesis for coder-14b, which was on **m4mini**. David
+confirms **JIT was ON on m5max but OFF on m4mini** ⇒ **the JIT-1h-TTL hypothesis is REFUTED** for that disappearance (a
+JIT-off host has no jitModelTTL to expire; a model there is expected STABLE, so its vanishing is genuinely anomalous).
+The space narrows to **CRASH / memory-eviction / external-unload** — David's original crash concern is now leading —
+still unconfirmable without m4mini's own logs. David has now DISABLED JIT on all 3 hosts (JIT-auto-unload eliminated
+fleet-wide; future vanishes attributable by elimination). **The deeper lesson (now a corollary on the §4A root-cause
+rule): SCOPE evidence to its EXACT source and name the scope — a multi-host fleet has per-host config; reading one
+node's settings and reasoning about another node's model is "convenient nearby data masquerading as the real data," one
+level below the first TTL miss.** Corrected the §4A MODEL RESIDENCY note + added the precision corollary to the rule.
+Meta: two corrections in two ticks on the same event — the pattern I'm drilling out is reaching for the nearest
+plausible explanation instead of the precisely-scoped one; the fix is to state exactly what I inspected and refuse to
+generalize past it.
