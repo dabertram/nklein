@@ -38,6 +38,7 @@ import { shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
+import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import {
 	recordTaskRunSummary,
 	type TaskRunTerminalState,
@@ -2664,7 +2665,16 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						state,
 						role,
 						providerId: summary.providerId ?? this.resolveProviderIdForTask(taskId),
-						modelId: summary.modelId ?? this.modelEndpoint.peekModelId(taskId) ?? null,
+						// §5.BG (c) routing-key flip (OPT-IN NKLEIN_STABLE_ROUTING_KEY; default OFF ⇒ the runtime id, byte-
+						// identical). The terminal-attempt ledger is the ROUTING EVIDENCE the start path looks up by the
+						// candidate's re-keyed stable key — so the WRITE must resolve the SAME stable id (via the same shared
+						// map) the READ does, or evidence written under one key is never found under the other.
+						modelId: (() => {
+							const runtimeModelId = summary.modelId ?? this.modelEndpoint.peekModelId(taskId) ?? null;
+							return runtimeModelId && isTruthyEnv(process.env.NKLEIN_STABLE_ROUTING_KEY)
+								? resolveStableRoutingModelId(runtimeModelId)
+								: runtimeModelId;
+						})(),
 						endpoint: summary.endpoint ?? this.modelEndpoint.getEndpoint(taskId),
 						startedAt: summary.startedAt ?? null,
 						endedAt: summary.updatedAt,

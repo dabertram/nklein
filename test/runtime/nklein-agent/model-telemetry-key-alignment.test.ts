@@ -14,8 +14,14 @@ import { buildNKleinModelRegistryKey } from "../../../src/nklein-agent/nklein-mo
  * it (that is exactly the bug that shipped once). This pins that the two derive the SAME key for the same coordinates.
  *
  * NOTE: fitness + the model-behavior store are DISPLAY/inert (not read for routing), so they are intentionally NOT part
- * of this coupling and may key stably on their own. When the ROUTING cluster's stable-key switch lands, the ledger write
- * and the candidate read move together and this test is UPDATED (not deleted) to assert they agree on the stable key.
+ * of this coupling and may key stably on their own.
+ *
+ * §5.BG (c) UPDATE (2026-07-07): the stable-key flip LANDED, flag-gated behind `NKLEIN_STABLE_ROUTING_KEY` (default OFF).
+ * With the flag OFF the routing keys are the RUNTIME-derived keys this test pins (byte-identical) — so these assertions
+ * stay valid as the default-behavior guard. With the flag ON, the candidate READ (guardCandidates re-key), the ledger
+ * WRITE (service), and the residency set all resolve the SAME stable id via `resolveStableRoutingModelId` (one shared
+ * map) — their alignment (and the rename-heal that two aliases collapse to ONE key) is pinned in
+ * `test/runtime/state/runtime-id-model-key-map-store.test.ts`.
  */
 describe("model-telemetry ROUTING key alignment (§5.BG): candidate READ key == ledger WRITE key == residency key", () => {
 	const providerId = "lmstudio";

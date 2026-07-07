@@ -126,6 +126,16 @@ export function learnSharedLoadedDescriptors(descriptors: readonly { runtimeId: 
 	sharedStore?.learn(descriptors);
 }
 
+/**
+ * Resolve a runtime model id → its STABLE routing key via the shared persisted map (a cold model resolves from what was
+ * learned when it was last loaded); falls back to the runtime id itself when unknown. The uniform resolver the §5.BG
+ * routing flip keys evidence/residency by — using it at the ledger WRITE, ledger READ, and residency sites guarantees
+ * they always agree (map hit ⇒ all stable; miss ⇒ all runtime), so there is no mismatch/double-start by construction.
+ */
+export function resolveStableRoutingModelId(runtimeModelId: string): string {
+	return sharedRuntimeIdModelKeyMap()[runtimeModelId]?.trim() || runtimeModelId;
+}
+
 /** Test-only: drop the shared store so a test starts from a clean, uninitialized state. */
 export function resetSharedRuntimeIdModelKeyMapForTest(): void {
 	sharedStore = null;

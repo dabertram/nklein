@@ -56,7 +56,11 @@ import {
 	listPendingCardMailbox,
 	markCardMailboxConsumedUpTo,
 } from "../../state/card-mailbox-store";
-import { learnSharedLoadedDescriptors, sharedRuntimeIdModelKeyMap } from "../../state/runtime-id-model-key-map-store";
+import {
+	learnSharedLoadedDescriptors,
+	resolveStableRoutingModelId,
+	sharedRuntimeIdModelKeyMap,
+} from "../../state/runtime-id-model-key-map-store";
 import { readSelfObservationEvents } from "../../telemetry/self-observation-sink";
 import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 // Type-only import of the factory's deps interface to reuse its exact member types (erased at runtime → no cycle).
@@ -389,6 +393,31 @@ export async function handleStartTaskSession(
 				// Best-effort discovery — a missing/unreadable endpoint just leaves the configured candidates in place.
 			}
 		}
+		// §5.BG (c) routing-key flip (OPT-IN via NKLEIN_STABLE_ROUTING_KEY; default OFF ⇒ byte-identical). Now that the
+		// runtimeId→stable-key map is fully learned (the descriptor loop above fed this request's loaded set into it),
+		// re-key EVERY routing candidate's `entry.key` to the STABLE routing key in ONE pass — so the ledger-evidence
+		// lookup, the residency set, and the ledger WRITE all agree on the stable identity (all resolve the same runtime
+		// id through the same map: map hit ⇒ all stable, miss ⇒ all runtime — no mismatch / double-start by construction).
+		// `entry.modelId` stays the RUNTIME id (the launch + verdict identity, per the alignment guard). Doing it here (one
+		// pass, after the map is populated and BEFORE residency/ledger read) is what makes the earlier-reverted flip safe.
+		const stableRoutingEnabled = isTruthyEnv(process.env.NKLEIN_STABLE_ROUTING_KEY);
+		if (stableRoutingEnabled) {
+			for (const [oldKey, candidate] of [...guardCandidates]) {
+				const stableModelId = resolveStableRoutingModelId(candidate.entry.modelId);
+				if (stableModelId === candidate.entry.modelId) {
+					continue; // no stable mapping known ⇒ the runtime-derived key stands (consistent with a runtime ledger write)
+				}
+				const stableKey = buildNKleinModelRegistryKey({
+					providerId: candidate.entry.providerId,
+					modelId: stableModelId,
+					endpoint: candidate.entry.endpoint,
+				});
+				if (stableKey !== oldKey) {
+					guardCandidates.delete(oldKey);
+					guardCandidates.set(stableKey, { ...candidate, entry: { ...candidate.entry, key: stableKey } });
+				}
+			}
+		}
 		// Best-fit affinity tags for a candidate, matched by its runtime model id against the loaded descriptors (undefined
 		// when the model isn't in the loaded set — e.g. a configured cloud role — so it simply carries no affinity).
 		const affinityTagsForCandidateModel = (modelId: string): readonly string[] | undefined => {
@@ -503,9 +532,12 @@ export async function handleStartTaskSession(
 				.listModelEndpointSessions()
 				.filter((session) => session.state === "running")
 				.map((session) =>
+					// §5.BG (c): the residency key must resolve the STABLE id the SAME way the re-keyed candidates do (both
+					// via `resolveStableRoutingModelId`), so a running model is recognized as running (never looks FREE →
+					// double-start). Flag OFF ⇒ the runtime id ⇒ byte-identical to before.
 					buildNKleinModelRegistryKey({
 						providerId: session.providerId,
-						modelId: session.modelId,
+						modelId: stableRoutingEnabled ? resolveStableRoutingModelId(session.modelId) : session.modelId,
 						endpoint: session.endpoint,
 					}),
 				),
