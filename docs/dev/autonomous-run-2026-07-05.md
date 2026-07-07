@@ -2019,3 +2019,21 @@ Worked through the model-advisory gaps as test-gated commits (David: full trust 
 - **Parallel panel-of-judges (gap 2):** N-reviewer parallel review as the default, with the cache×stream trade-off
   (prefer warm/stream-coherent models, spend a cold prefill on a fresh diverse model only when its value clears the cost).
   Changes live review behavior on David's setup — deliberate, its own effort.
+
+### 2026-07-07 (Opus) · ★ DECISIONS (David, AskUserQuestion) — unblock the remaining hot-path work
+1. **§5.BG telemetry-identity keying = PERSIST a `runtimeId→modelKey` map.** Learn the mapping whenever a model is
+   loaded (from its live descriptor), persist it, and resolve the stable key even for a COLD candidate from that map →
+   ONE uniform stable keyspace. Resolves the mixed-keyspace hazard that forced the earlier revert → the flip is now safe
+   to complete. Build order: (a) the persisted map primitive (learn-on-load + lookup, pure+store, testable) → (b) resolve
+   stable key from it at every candidate/ledger/residency write → (c) flip candidate.entry.key + ledger + residency
+   together, guard verifying → (d) re-key existing rows on load. Endpoint scheduler stays runtime (invocation identity).
+2. **Parallel panel default = 3 diverse judges, MAJORITY + security VETO.** Merge when the majority of 3 base-family-
+   diverse reviewers pass, BUT any single judge's high-severity security/correctness finding blocks. Carries the
+   cache×stream trade-off (prefer warm/stream-coherent; cold prefill on a fresh diverse judge only when its value clears it).
+3. **Panel rollout = DEFAULT-ON immediately** (not flag-gated). Changes live review from single-reviewer to the 3-judge
+   panel now; do a §5.Z roster re-verify after landing. (David accepted the live-behavior change.)
+4. **Hardware headroom = HARD-BLOCK over-headroom.** The selector refuses to route a model whose `sizeGb` exceeds the
+   declared machine headroom (like the existing sub-32k-context reject). Declared budgets come from the existing
+   `swarm-roster-config` (`resolveEffectiveBudgets`); the gap is the selector reading them at pick time.
+
+NEXT: start §5.BG increment (a) — the persisted runtimeId→modelKey map primitive (foundational, bounded, de-risks the flip).
