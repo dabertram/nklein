@@ -33,3 +33,25 @@ export function applyStableRoutingKeysToCandidates<
 		}
 	}
 }
+
+/**
+ * §5.BG (c) — build the RESIDENCY key set (the "which models are running" set that `isModelFree` checks) from the
+ * running sessions, resolving each session's runtime `modelId` through the SAME `resolveRoutingModelId` the candidate
+ * re-key uses. That shared resolution is the double-start guarantee: a running model's residency key EQUALS the routing
+ * candidate's key, so it is recognized as running (never looks FREE → started again). Pass an identity resolver for the
+ * flag-OFF path (runtime keys, byte-identical). Aliases of the same model collapse to one key, matching the candidate side.
+ */
+export function buildResidencyModelKeySet(
+	runningSessions: readonly { providerId: string; modelId: string; endpoint: string | null }[],
+	resolveRoutingModelId: (runtimeModelId: string) => string,
+): Set<string> {
+	return new Set(
+		runningSessions.map((session) =>
+			buildNKleinModelRegistryKey({
+				providerId: session.providerId,
+				modelId: resolveRoutingModelId(session.modelId),
+				endpoint: session.endpoint,
+			}),
+		),
+	);
+}

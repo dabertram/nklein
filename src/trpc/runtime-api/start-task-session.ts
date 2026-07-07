@@ -38,7 +38,10 @@ import type {
 	createNKleinProviderService,
 	ResolvedNKleinLaunchConfig,
 } from "../../nklein-agent/nklein-provider-service";
-import { applyStableRoutingKeysToCandidates } from "../../nklein-agent/nklein-stable-routing-candidates";
+import {
+	applyStableRoutingKeysToCandidates,
+	buildResidencyModelKeySet,
+} from "../../nklein-agent/nklein-stable-routing-candidates";
 import { isExplicitDecompositionPrompt } from "../../nklein-agent/nklein-task-prompt-parsing";
 import { routeNKleinTask } from "../../nklein-agent/nklein-task-router";
 import {
@@ -514,20 +517,12 @@ export async function handleStartTaskSession(
 			);
 			return modelId ? blended * runtimeVerdictMultiplier(modelId) : blended;
 		};
-		const runningModelKeys = new Set(
-			nkleinTaskSessionService
-				.listModelEndpointSessions()
-				.filter((session) => session.state === "running")
-				.map((session) =>
-					// §5.BG (c): the residency key must resolve the STABLE id the SAME way the re-keyed candidates do (both
-					// via `resolveStableRoutingModelId`), so a running model is recognized as running (never looks FREE →
-					// double-start). Flag OFF ⇒ the runtime id ⇒ byte-identical to before.
-					buildNKleinModelRegistryKey({
-						providerId: session.providerId,
-						modelId: stableRoutingEnabled ? resolveStableRoutingModelId(session.modelId) : session.modelId,
-						endpoint: session.endpoint,
-					}),
-				),
+		// §5.BG (c): the residency key resolves the STABLE id the SAME way the re-keyed candidates do (both via
+		// `resolveStableRoutingModelId`), so a running model is recognized as running (never looks FREE → double-start).
+		// Flag OFF ⇒ the identity resolver ⇒ runtime keys, byte-identical to before.
+		const runningModelKeys = buildResidencyModelKeySet(
+			nkleinTaskSessionService.listModelEndpointSessions().filter((session) => session.state === "running"),
+			stableRoutingEnabled ? resolveStableRoutingModelId : (modelId) => modelId,
 		);
 		// W1.2 (audit 2026-07-02): blend content signals into difficulty — plan cards + planning skill raise the
 		// floor, hard/easy task text nudges — so trivial-verbose stops over-provisioning and terse-hard stops
