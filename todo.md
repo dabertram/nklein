@@ -1103,8 +1103,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         is `blocked`, so a new/empty board explains itself instead of showing six blank columns. Web-tested (renders +
         CTA fires + hidden once any card exists).
   - [ ] still TODO (each a bounded leaf):
-    - [ ] paused-card UX polish: a clear paused-state visual on the card + a resume affordance (verify it renders
-          for a paused card and resume re-queues it).
+    - [x] paused-card UX polish (DONE 2026-07-07, `5adaa3e3`): an amber "Paused" chip (`card-paused-badge`) beside the
+          role badge + the always-visible resume button (`onResumeTask`); unit-tested (renders for paused sessions, absent
+          for running; resume handler fires). Live re-queue is exercised by the resume button's `onResumeTask` path.
     - [x] ❌ REJECTED FOR NOW (David 2026-07-07) — (coupled, larger — see §5.U) extract the sandbox-lifecycle/pause logic
           out of `nklein-task-session-service.ts` into a focused module. **Not open work:** dedicated file-size reduction is
           stopped below 5000 lines (§5.U rejected-for-now); task-session-service is 2581 and already heavily
