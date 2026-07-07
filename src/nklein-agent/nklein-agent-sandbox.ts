@@ -28,6 +28,7 @@ import {
 	normalizeAgentSandboxPoolConfig,
 	resolveAgentSandboxImageName,
 } from "./nklein-agent-sandbox-docker";
+import { AGENT_SANDBOX_EXTRA_TOOL_RUNNER } from "./nklein-agent-sandbox-extra-tools";
 import { bufferOrStringToString, joinDockerOutput, parseDockerOutputLines } from "./nklein-agent-sandbox-output";
 import {
 	isAgentSandboxExecResult,
@@ -41,7 +42,7 @@ import {
 	DEFAULT_AGENT_SANDBOX_SHELL,
 	type TaskShellSpawnSpec,
 } from "./nklein-agent-sandbox-shell";
-import { normalizeTaskIdForSandboxPath } from "./nklein-agent-sandbox-task-path";
+import { normalizeTaskIdForSandboxPath, stripRedundantSandboxWorkdirPrefix } from "./nklein-agent-sandbox-task-path";
 import { formatSandboxToolFailure, parseToolRunnerResult } from "./nklein-agent-sandbox-tool-result";
 import type { NKleinPauseController } from "./nklein-pause-controller";
 
@@ -196,6 +197,41 @@ export function createAgentSandboxToolExecutors(
 		webFetch: async () =>
 			"Agent web fetch is disabled because !Klein runs agent tools in a no-network Docker sandbox.",
 	};
+}
+
+/** Rewrite a `{ path }` field with the §5.O redundant-prefix recovery, cloning only when the path actually changes. */
+function recoverPathField(input: unknown, taskId: string): unknown {
+	if (input === null || typeof input !== "object" || !("path" in input)) {
+		return input;
+	}
+	const rawPath = (input as { path: unknown }).path;
+	if (typeof rawPath !== "string") {
+		return input;
+	}
+	const corrected = stripRedundantSandboxWorkdirPrefix(rawPath, taskId);
+	return corrected === rawPath ? input : { ...input, path: corrected };
+}
+
+/**
+ * §5.O parse-and-recover applied at the sandbox tool boundary: strip a redundant `workspaces/<taskId>/` relative prefix
+ * from a path-bearing tool's input so a model that mistakes its cwd (the sandbox workdir) for the repo root still lands
+ * the file at the intended location. Covers BOTH proxy shapes — the SDK `editor`/`readFile` executors (path at
+ * `input.path`) and !Klein's own tools proxied through the extra-tool runner (path at `input.input.path`, e.g. the
+ * single-file `write_file` / `edit_file` / `read_large_file`). Anything without a string path passes through untouched.
+ */
+function recoverRedundantSandboxToolPath(tool: string, input: unknown, taskId: string): unknown {
+	if (tool === "editor" || tool === "readFile") {
+		return recoverPathField(input, taskId);
+	}
+	if (tool === AGENT_SANDBOX_EXTRA_TOOL_RUNNER) {
+		if (input === null || typeof input !== "object" || !("input" in input)) {
+			return input;
+		}
+		const inner = (input as { input: unknown }).input;
+		const recoveredInner = recoverPathField(inner, taskId);
+		return recoveredInner === inner ? input : { ...input, input: recoveredInner };
+	}
+	return input;
 }
 
 export class AgentSandboxManager {
@@ -462,9 +498,12 @@ export class AgentSandboxManager {
 
 	async runTool(taskId: string, tool: string, input: unknown): Promise<string> {
 		const placement = this.requirePlacement(taskId);
+		// §5.O: recover a redundant `workspaces/<taskId>/` prefix a model emits when it mistakes its cwd (the sandbox
+		// workdir) for the repo root — otherwise the container nests the file and the write lands off the deliverable path.
+		const effectiveInput = recoverRedundantSandboxToolPath(tool, input, taskId);
 		const result = await this.execAsTaskUser(
 			placement,
-			["node", "/opt/nklein/tool-runner.cjs", tool, JSON.stringify(input), placement.projectRepoPath],
+			["node", "/opt/nklein/tool-runner.cjs", tool, JSON.stringify(effectiveInput), placement.projectRepoPath],
 			{
 				timeoutMs: DEFAULT_EXEC_TIMEOUT_MS,
 			},
