@@ -177,6 +177,33 @@ export async function proposeConsolidatedMemories(
 	return kept;
 }
 
+export interface WriteConsolidatedMemoriesDeps extends ConsolidateChatMemoriesDeps {
+	/** Persist one kept memory (the runtime supplies `appendChatMemory`). */
+	persist: (memory: ConsolidatedChatMemory) => Promise<void>;
+}
+
+/**
+ * The §5.M short→long WRITE path (todo §5.M): extract candidate memories from a session's rolling summary, keep only
+ * the genuinely-new ones ({@link proposeConsolidatedMemories}), and persist each via the injected sink. Returns the
+ * kept memories (for logging/tests). Pure orchestration — the extractor + embedder + persist sink are all injected,
+ * so the runtime wires `deps.extract` (a model call), the in-process embedder, and `appendChatMemory`. Best-effort is
+ * the CALLER's concern: this surfaces an extractor/persist rejection so the caller can swallow it off the turn path.
+ */
+export async function writeConsolidatedMemories(
+	input: { sessionId: string; summary: string; existingMemories: readonly ChatMemory[] },
+	deps: WriteConsolidatedMemoriesDeps,
+): Promise<ConsolidatedChatMemory[]> {
+	const proposed = await proposeConsolidatedMemories(input, {
+		extract: deps.extract,
+		...(deps.embed ? { embed: deps.embed } : {}),
+		...(deps.similarityThreshold !== undefined ? { similarityThreshold: deps.similarityThreshold } : {}),
+	});
+	for (const memory of proposed) {
+		await deps.persist(memory);
+	}
+	return proposed;
+}
+
 export interface ChatMemoryRecallDeps {
 	/** The in-process embedder; returns null when unavailable so recall falls back to lexical overlap. */
 	embed?: (text: string) => Promise<number[] | null>;

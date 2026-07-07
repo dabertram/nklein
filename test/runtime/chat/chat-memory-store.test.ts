@@ -11,6 +11,7 @@ import {
 	proposeConsolidatedMemories,
 	readChatMemories,
 	recallChatMemories,
+	writeConsolidatedMemories,
 } from "../../../src/chat/chat-memory-store";
 
 function memory(overrides: Partial<ChatMemory> = {}): ChatMemory {
@@ -114,5 +115,42 @@ describe("chat-memory-store", () => {
 		);
 		expect(kept.map((m) => m.text)).toEqual(["beta-distinct"]);
 		expect(kept[0]?.embedding).toEqual([0, 1]);
+	});
+
+	it("writeConsolidatedMemories persists each kept memory via the injected sink", async () => {
+		const persisted: { text: string; embedding: number[] | null }[] = [];
+		const kept = await writeConsolidatedMemories(
+			{
+				sessionId: "s1",
+				summary: "the user decided to ship on Friday and prefers Vitest",
+				existingMemories: [memory({ id: "e", text: "prefers Vitest" })],
+			},
+			{
+				extract: async () => ["prefers Vitest", "shipping on Friday"], // first is a near-dup of existing → dropped
+				similarityThreshold: 0.7,
+				persist: async (m) => {
+					persisted.push({ text: m.text, embedding: m.embedding });
+				},
+			},
+		);
+		// Only the genuinely-new memory is kept AND persisted (the dup never reaches the sink).
+		expect(kept.map((m) => m.text)).toEqual(["shipping on Friday"]);
+		expect(persisted).toEqual([{ text: "shipping on Friday", embedding: null }]);
+	});
+
+	it("writeConsolidatedMemories persists nothing when the extractor proposes only duplicates", async () => {
+		const persisted: string[] = [];
+		const kept = await writeConsolidatedMemories(
+			{ sessionId: "s1", summary: "...", existingMemories: [memory({ id: "e", text: "known fact" })] },
+			{
+				extract: async () => ["known fact"],
+				similarityThreshold: 0.7,
+				persist: async (m) => {
+					persisted.push(m.text);
+				},
+			},
+		);
+		expect(kept).toEqual([]);
+		expect(persisted).toEqual([]);
 	});
 });
