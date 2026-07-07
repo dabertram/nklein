@@ -3503,3 +3503,16 @@ settings all coherent); the suspected card-title truncation bug REFUTED by DOM i
 FAILED CLOSED ("No native !Klein provider is configured") — no model call left the isolated HOME; runtime killed after
 capture. Screenshots handed to David as §5.AZ README candidates (his pick before anything ships into the repo).
 Web gate GREEN: web-ui tsc + biome + 952/952.
+
+### 2026-07-07 (Fable) - David probe: "what about the 431 open '- [ ]' boxes in todo.md?" — analyzed + first fixes
+Full classification (grep/awk over all §5 sections; 431 real checkbox lines, 29 sections): (1) STALE done-but-unticked
+(e.g. §5.AC web_search backend + egress gating — shipped AND live-verified; now ticked with evidence). (2) REJECTED-BUT-
+UNANNOTATED: the OLD §5.U section (~25 boxes: read passes, R1/R2 seam extractions, settings-dialog decompose residue) is
+exactly the dedicated-architecture/file-size effort David killed 2026-07-07 but its inner boxes still read as open — now
+carries a SECTION-WIDE ❌ STOP callout per his "no related tasks stay as todo" directive. (3) GENUINELY OPEN BUT NEVER
+SCHEDULED: the long-horizon model-lift epics (§5.AB 48 · §5.AA 43 · §5.AI 27 · §5.AD/§5.AE/§5.AL/§5.AN/§5.AQ/§5.AF ~100)
++ unfinished features (§5.M bridge 20 · §5.AK 23 · §5.AV/§5.AP/§5.S/§5.F/§5.G). KEY FINDING: §5.0.7 scoped polishing to
+§5.V/§5.Z/§5.AZ/§5.AX and its "backlog drained" claim covers only the ACTIVE epics (§5.AT/§5.AU arc) — nothing in the
+standing plan routes work to the other ~380 boxes: no trigger, no owner, no order. Surfaced to David with a proposed
+follow-up: a full staleness-reconciliation audit (tick/annotate every box against shipped reality, evidence per box) +
+an Opus-actionable-NOW shortlist for him to schedule the next implementation wave.

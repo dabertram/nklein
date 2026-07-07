@@ -2641,7 +2641,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 
 ### 5.T — Settings/UI polish ✅ COMPLETE → moved to [done.md](done.md#5t--settingsui-polish-raised-2026-06-23-from-a-swarmsettings-review)
 
-### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24; re-affirmed by the user 2026-06-24 — emphasis: **no large monolith files**, SOTA architecture/structure, efficiency in **both development and runtime**)*
+### 5.U — Deep architecture & code-quality review → populate the backlog *(raised 2026-06-24; ❌ REJECTED FOR NOW — David 2026-07-07)*
+> **❌ SECTION-WIDE STOP (David, 2026-07-07 — applies to EVERY unchecked box below):** *"stop reducing file sizes when
+> file size is < 5000 lines … the gain we get from it is basically zero at the moment"* + stop dedicated architecture-
+> review/refactor effort. Every source file is already well under 5000 lines. **ALL open boxes in this section (read
+> passes, the R1/R2 risky seam extractions, the settings-dialog/App decompose residue) are REJECTED FOR NOW — do not
+> pick them up as backlog.** The small-files target stays aspirational; split a file ONLY when a genuine cohesion win
+> appears while touching it for another reason. Current record + the product-side small-files target live in
+> [polishing.md §5.U](polishing.md) and goal.md. The text below is kept as the historical record.
 > **✅ DONE BAR (2026-06-30, user — FINAL; supersedes the unbounded "implement every safe improvement" completion
 > criterion).** §5.U is **DONE** when BOTH hold:
 > 1. **No non-test source file exceeds ~1000 lines** (`src/` + `web-ui/src/`, excluding `*.test.*`/`*.spec.*` and vendored
@@ -6146,8 +6153,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the rerank `score` as `relevance`) so the synthesis/citation step consumes best-grounded-first evidence.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
-  - [ ] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation).
-  - [ ] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed).
+  - [x] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation). *(SHIPPED: `retrievalSearchBackendUrl` setting + SSRF-guarded SearXNG client; live at localhost:18888.)*
+  - [x] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed). *(SHIPPED + LIVE-VERIFIED: fail-closed `blocked_by_egress` default; egress-e2e flow validated across 7 models in the 2026-07-07 §5.Z sweep.)*
   - [ ] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow.
 - [ ] **Retrieval loop (query → search → fetch → extract → synthesize → CITE), decomposed:**
   *(REFERENCE 2026-06-29: `llmaker` (Apache-2.0, https://github.com/raiyanyahya/llmaker) runs the explicit
