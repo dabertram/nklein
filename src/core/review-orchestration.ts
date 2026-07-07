@@ -179,6 +179,7 @@ export function buildReviewSeedPrompt(input: ReviewSeedPromptInput): string {
 	const lines: string[] = [
 		`You are the second-opinion reviewer for the card "${input.taskTitle}" (review round ${input.round}).`,
 		"A different agent implemented this card. Give it a real peer review, like a good senior engineer on a dev team: confirm it actually meets the objective and is sound, or request concrete changes. A clean approval from a second perspective is itself valuable — do not invent problems.",
+		"Be critical about file size and structure: flag any file this change makes large or monolithic, or that should have been decomposed into cohesive modules — the codebase must not accumulate large monolith files, and growing files should be split early. Keep it proportionate: a brief, pointed note when it matters, not a line-by-line size audit.",
 		"",
 		"## Card objective",
 		input.taskObjective.trim() || "(no objective recorded)",

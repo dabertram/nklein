@@ -143,6 +143,16 @@ precision rules always apply — research/decide does NOT mean rush or pattern-m
   punching through the backlog**; cross-checks are opportunistic, not a detour.
 - **Quality is a standing mandate with a widening horizon.** Always strive for clean code, design, structure,
   maintainability, extendability — a slightly-moving target you keep raising, not a one-time bar.
+- **★ SMALL FILES are a standing PRODUCT target for the projects !Klein works on (David, 2026-07-07).** !Klein's agents
+  must keep the files they write small and single-responsibility, decompose a growing code file into cohesive modules
+  EARLY (as long as reasonable), and **MUST NOT grow large monolith files.** This is guided at a token-efficient sweet
+  spot, NOT by bloating every prompt: (a) the agent efficiency-rules prompt carries one proactive "keep files small,
+  split early" line; (b) the second-opinion reviewer is told to be critical about file size/structure (proportionately —
+  a brief pointed note, not a size audit); (c) a **dynamic detector** — `buildLargeFileWriteNudge` (core/agent-write-guard.ts)
+  appends a split nudge to a `write_file`/`write_files` result ONLY when a just-written file crosses ~60% of the hard
+  line cap, so ordinary small writes pay zero extra tokens. The existing hard write cap stays as the backstop. (Note:
+  file-size reduction of !Klein's OWN codebase is separately REJECTED-FOR-NOW below 5000 lines — see polishing.md §5.U;
+  this target is about the code !Klein PRODUCES, which matters more, especially once !Klein self-hosts on small models.)
 
 ## Every-increment discipline (non-negotiable)
 

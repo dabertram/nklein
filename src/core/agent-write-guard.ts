@@ -14,6 +14,36 @@ export function countTextLines(text: string): number {
 	return text.split("\n").length;
 }
 
+/**
+ * Soft "getting large" threshold as a fraction of the hard write cap. The hard cap only BLOCKS; this fires a
+ * proactive split nudge well before it so the agent decomposes a growing file EARLY (the file-size discipline
+ * David set as a standing !Klein target). At 0.6× the default 1000-line cap that's 600 lines — high enough not to
+ * nag ordinary files, low enough to catch a file that is genuinely becoming a monolith.
+ */
+export const LARGE_FILE_WRITE_NUDGE_RATIO = 0.6;
+
+/**
+ * Build a proactive "keep files small — split this early" nudge to append to a successful write result, but ONLY
+ * when a just-written file crosses the soft threshold. Returns null otherwise, so ordinary small writes pay zero
+ * extra tokens (the sweet spot: the detector extends the prompt only when it actually matters). Pure.
+ */
+export function buildLargeFileWriteNudge(
+	written: ReadonlyArray<{ path: string; lines: number }>,
+	maxFileLines: number,
+): string | null {
+	const cap = normalizeMaxAgentWritableFileLines(maxFileLines);
+	const threshold = Math.max(1, Math.round(cap * LARGE_FILE_WRITE_NUDGE_RATIO));
+	const large = written.filter((file) => file.lines >= threshold).sort((a, b) => b.lines - a.lines);
+	if (large.length === 0) {
+		return null;
+	}
+	const list = large.map((file) => `${file.path} (${file.lines} lines)`).join(", ");
+	return (
+		`Keep files small: ${list} ${large.length === 1 ? "is" : "are"} getting large (>= ${threshold} of the ${cap}-line cap). ` +
+		"Before it grows further, split a cohesive piece (a class, a related helper group, a config or type block) into its own module so no file becomes a large monolith."
+	);
+}
+
 export interface AgentWriteSecretFinding {
 	label: string;
 }

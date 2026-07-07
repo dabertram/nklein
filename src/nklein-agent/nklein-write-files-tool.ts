@@ -1,4 +1,5 @@
 import {
+	buildLargeFileWriteNudge,
 	countTextLines,
 	findPotentialSecretInText,
 	findProtectedTestPath,
@@ -154,9 +155,12 @@ function createWriteTool(options: {
 				await lockedFileSystem.writeTextFileAtomic(request.absolutePath, request.content);
 				written.push({ path: request.path, lines: request.lines });
 			}
+			const largeFileNudge = buildLargeFileWriteNudge(written, maxFileLines);
 			return {
 				written,
-				instruction: `Wrote ${written.length} file${written.length === 1 ? "" : "s"}. Continue from these files instead of repeating the same ${options.name} call.`,
+				instruction:
+					`Wrote ${written.length} file${written.length === 1 ? "" : "s"}. Continue from these files instead of repeating the same ${options.name} call.` +
+					(largeFileNudge ? `\n\n${largeFileNudge}` : ""),
 			};
 		},
 	};
