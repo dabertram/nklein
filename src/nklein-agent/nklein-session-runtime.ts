@@ -5,9 +5,14 @@ import {
 	REPO_MAP_INVALIDATING_TOOL_NAMES,
 	recordSessionFocusChain,
 } from "./nklein-context-focus-extension";
+import { KANBAN_SESSION_METADATA_KEY, toPersistedLaunchConfig } from "./nklein-session-launch-config";
 import { asRecord } from "./nklein-value-guards";
 
 export { doesNKleinToolInvalidateRepoMap } from "./nklein-context-focus-extension";
+export {
+	type NKleinPersistedLaunchConfig,
+	readKanbanLaunchConfigFromSessionRecord,
+} from "./nklein-session-launch-config";
 
 // Owns the live SDK session host plus taskId to sessionId bindings.
 // This is the runtime-facing layer for starting, looking up, resuming, and
@@ -92,60 +97,6 @@ const NKLEIN_CONTEXT_COMPACTION_RESERVE_RATIO = 0.2;
 const NKLEIN_CONTEXT_COMPACTION_PRESERVE_RECENT_RATIO = 0.25;
 
 type NKleinSdkContextCompactionConfig = NonNullable<NKleinSdkStartSessionInput["config"]["compaction"]>;
-const KANBAN_SESSION_METADATA_KEY = "kanban";
-
-export interface NKleinPersistedLaunchConfig {
-	providerId: string;
-	modelId: string;
-	workspaceRoot?: string | null;
-	baseUrl?: string | null;
-	reasoningEffort?: RuntimeNKleinReasoningEffort | null;
-	contextWindow?: number | null;
-	maxAgentWritableFileLines?: number | null;
-	apiTimeoutMs?: number | null;
-	turnTimeoutMs?: number | null;
-}
-
-export function readKanbanLaunchConfigFromSessionRecord(
-	record: NKleinSdkSessionRecord,
-): NKleinPersistedLaunchConfig | null {
-	const metadata = asRecord(record.metadata);
-	const kanban = asRecord(metadata?.[KANBAN_SESSION_METADATA_KEY]);
-	const launchConfig = asRecord(kanban?.launchConfig);
-	if (!launchConfig) {
-		return null;
-	}
-	const providerId = readOptionalString(launchConfig, "providerId")?.trim().toLowerCase();
-	const modelId = readOptionalString(launchConfig, "modelId")?.trim();
-	if (!providerId || !modelId) {
-		return null;
-	}
-	return {
-		providerId,
-		modelId,
-		...(readOptionalString(launchConfig, "workspaceRoot") !== undefined
-			? { workspaceRoot: readOptionalString(launchConfig, "workspaceRoot") }
-			: {}),
-		...(readOptionalString(launchConfig, "baseUrl") !== undefined
-			? { baseUrl: readOptionalString(launchConfig, "baseUrl") }
-			: {}),
-		...(readOptionalReasoningEffort(launchConfig, "reasoningEffort") !== undefined
-			? { reasoningEffort: readOptionalReasoningEffort(launchConfig, "reasoningEffort") }
-			: {}),
-		...(readOptionalNumber(launchConfig, "contextWindow") !== undefined
-			? { contextWindow: readOptionalNumber(launchConfig, "contextWindow") }
-			: {}),
-		...(readOptionalNumber(launchConfig, "maxAgentWritableFileLines") !== undefined
-			? { maxAgentWritableFileLines: readOptionalNumber(launchConfig, "maxAgentWritableFileLines") }
-			: {}),
-		...(readOptionalNumber(launchConfig, "apiTimeoutMs") !== undefined
-			? { apiTimeoutMs: readOptionalNumber(launchConfig, "apiTimeoutMs") }
-			: {}),
-		...(readOptionalNumber(launchConfig, "turnTimeoutMs") !== undefined
-			? { turnTimeoutMs: readOptionalNumber(launchConfig, "turnTimeoutMs") }
-			: {}),
-	};
-}
 
 type NKleinSessionLaunchConfigOverrides = {
 	providerId: string;
@@ -345,22 +296,6 @@ async function persistKanbanTitleToNKleinSessionMetadata(
 	} catch {
 		// Best-effort only — !Klein board title remains canonical regardless.
 	}
-}
-
-function toPersistedLaunchConfig(request: StartNKleinSessionRuntimeRequest): NKleinPersistedLaunchConfig {
-	return {
-		providerId: request.providerId.trim().toLowerCase(),
-		modelId: request.modelId.trim(),
-		...(request.workspaceRoot !== undefined ? { workspaceRoot: request.workspaceRoot?.trim() || null } : {}),
-		...(request.baseUrl !== undefined ? { baseUrl: request.baseUrl?.trim() || null } : {}),
-		...(request.reasoningEffort !== undefined ? { reasoningEffort: request.reasoningEffort } : {}),
-		...(request.contextWindow !== undefined ? { contextWindow: request.contextWindow } : {}),
-		...(request.maxAgentWritableFileLines !== undefined
-			? { maxAgentWritableFileLines: request.maxAgentWritableFileLines }
-			: {}),
-		...(request.apiTimeoutMs !== undefined ? { apiTimeoutMs: request.apiTimeoutMs } : {}),
-		...(request.turnTimeoutMs !== undefined ? { turnTimeoutMs: request.turnTimeoutMs } : {}),
-	};
 }
 
 async function persistKanbanLaunchConfigToNKleinSessionMetadata(
