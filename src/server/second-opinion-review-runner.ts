@@ -12,6 +12,7 @@
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
+import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
@@ -20,6 +21,9 @@ import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { classifyTaskComplexity } from "../core/task-complexity";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
+import { type PanelJudge, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
+import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
+import { selectReviewerPanel } from "../nklein-agent/nklein-reviewer-panel-selection";
 import {
 	type NKleinSecondOpinionReviewOutcome,
 	runNKleinSecondOpinionReview,
@@ -243,12 +247,35 @@ export async function runSecondOpinionReviewForTask(
 	// CORRELATED second opinion (same-family models agree on wrong answers ~60% — research 2026-07-02). Surfaced,
 	// not blocked — an explicit pin is the user's call (the W2.5 auto path prefers a diverse reviewer via
 	// applyDiversityPreference), so the waiver must at least be visible instead of silently monocultural.
-	const workerModelId = input.service.getSummary(input.taskId)?.modelId ?? null;
+	const workerSummary = input.service.getSummary(input.taskId);
+	const workerModelId = workerSummary?.modelId ?? null;
 	if (reviewer && workerModelId && modelsShareLineage(workerModelId, reviewer.modelId)) {
 		input.warn?.(
 			`Reviewer ${reviewer.modelId} shares the ${resolveLineage(reviewer.modelId)} lineage with worker ` +
 				`${workerModelId} on ${input.taskId} — correlated second opinion (diversity waived).`,
 		);
+	}
+
+	// §5.AB parallel panel-of-judges (OPT-IN via NKLEIN_REVIEW_PANEL; default OFF ⇒ the single-reviewer path, byte-
+	// identical). Assemble up to 3 base-family-DIVERSE judges from the loaded set (David 2026-07-07: "3 diverse judges,
+	// majority + security veto"). Each judge reviews the SAME seed; their verdicts combine into ONE effective submission
+	// that drives the UNCHANGED deliver/bounce lifecycle. Best-effort: an unreachable endpoint / <2 diverse judges ⇒ the
+	// single reviewer. The probe is skipped under the test runner (no live endpoint) unless a fetch is injected.
+	const panelEnabled = config.secondOpinionReviewEnabled && isTruthyEnv(process.env.NKLEIN_REVIEW_PANEL);
+	let panelJudges: PanelJudge[] = [];
+	if (panelEnabled && !(process.env.VITEST || process.env.NODE_ENV === "test")) {
+		const reviewerProviderId = reviewer?.providerId ?? workerSummary?.providerId ?? "lmstudio";
+		const baseUrl = workerSummary?.endpoint?.trim() || "http://127.0.0.1:1234/v1";
+		const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(() => []);
+		const workerRealId = resolveWorkerRealId(descriptors, workerModelId);
+		panelJudges = selectReviewerPanel({
+			candidates: buildReviewerCandidates(descriptors, workerModelId, workerRealId),
+			workerLineage: resolveLineage(workerRealId),
+			size: 3,
+		}).map((candidate) => ({
+			judgeModelKey: candidate.modelId,
+			reviewer: { providerId: reviewerProviderId, modelId: candidate.modelKey },
+		}));
 	}
 
 	// §5.AW (adversarial finding 2026-07-02): a review round that concludes WITHOUT delivering the speculative
@@ -345,14 +372,34 @@ export async function runSecondOpinionReviewForTask(
 				workerReasoning: input.service.getSummary(input.taskId)?.latestHookActivity?.finalMessage?.trim() || null,
 				boardContext: buildReviewBoardContext(state.board, card),
 			}),
-			runReviewSession: async ({ seedPrompt }) =>
-				input.service.runSecondOpinionReviewSession({
+			runReviewSession: async ({ seedPrompt }) => {
+				// §5.AB panel: ≥2 diverse judges ⇒ run each over the SAME seed and combine (majority + veto) into one
+				// submission; a null panel result (no judge produced a verdict) falls through to the single reviewer.
+				if (panelJudges.length > 1) {
+					const panelResult = await runReviewPanel({
+						judges: panelJudges,
+						runJudgeSession: (judge) =>
+							input.service.runSecondOpinionReviewSession({
+								taskId: input.taskId,
+								projectRepoPath: input.workspacePath,
+								baseRef: card.baseRef,
+								seedPrompt,
+								reviewer: judge.reviewer,
+							}),
+					});
+					if (panelResult) {
+						input.warn?.(`Review panel for ${input.taskId}: ${panelResult.decision.reason}`);
+						return panelResult.submission;
+					}
+				}
+				return input.service.runSecondOpinionReviewSession({
 					taskId: input.taskId,
 					projectRepoPath: input.workspacePath,
 					baseRef: card.baseRef,
 					seedPrompt,
 					reviewer,
-				}),
+				});
+			},
 			onDeliver: async ({ review }) => {
 				await persistReview(review);
 			},
