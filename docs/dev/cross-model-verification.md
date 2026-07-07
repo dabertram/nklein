@@ -1115,3 +1115,18 @@ Followed the methodology (confirm/refute, don't leave a hypothesis on record). T
   bug and NOT a §5.O loop gap.** No code change warranted. (The §5.AA nudger — prompt a synthesis turn after a tool result
   — is the EXISTING mechanism for this class of weakness; whether it fires for this flow is a separate §5.AA tuning
   question, not a bug.) Net: qwopus3.5 chat-browse = ◑ model-synthesis trait; the earlier loop-gap hypothesis is withdrawn.
+
+## 2026-07-07 (Opus) — §5.Z BREADTH: loaded a fresh model (ornith-1.0-9b) via the granted load skill → 4 flows clean
+Per the raised-autonomy mandate (model load/unload skills granted to challenge !Klein "until no open points"), loaded
+`ornith-1.0-9b` (a qwen3.5-lineage 9B not in the matrix) ALONGSIDE the resident qwopus3.5 (128 GB, no eviction), verified
+it, then unloaded it to restore the state found. Results — all invariants held, NO deterministic !Klein failure surfaced:
+- ✅ **egress-e2e** — web_search tool call → 8 real SearXNG results → grounded answer (correct URL).
+- ✅ **chat-agent-tools (§5.M)** — read_file through the gated+audited executor → answered from file → user+assistant persisted.
+- ✅ **single-card delivery** — reached awaiting_review, delivered hello.txt (content matches). NB: this exercises the §5.O
+  path-recovery on a DIFFERENT model lineage — it delivered correctly (either wrote the right path or the recovery caught it).
+- ✅ **decompose-isolation (§5.A)** — zero host-path leaks, no host worktree, clean container teardown. (Model note: it did
+  NOT call decompose_project on this run — a §5.AB capability observation, not an isolation failure; the security invariant
+  is what this harness asserts, and it held.)
+- matrix row: ornith-1.0-9b → egress ✅ · chat-tools ✅ · single-card ✅ · decompose-isolation ✅. A clean 2nd fully-verified
+  model this session. **Key takeaway:** the §5.O delivery fix + the isolation invariants generalize beyond qwopus3.5 —
+  running a fresh model surfaced no new deterministic gap, which is itself a robustness data point.
