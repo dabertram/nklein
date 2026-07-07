@@ -775,6 +775,10 @@
 > - [ ] **Repo hygiene:** LICENSE decision (vendored Cline SDK license compatibility + attribution!), NOTICE/credits,
 >       README (what !Klein is, the local-only/Docker-isolation posture, hardware expectations, quickstart), CONTRIBUTING,
 >       SECURITY.md (local-only threat model), issue templates. Screenshots/gif of the board+chat once §5.AX lands.
+>       **★ LICENSE + NOTICE sub-part DONE (verified 2026-07-07): `LICENSE` = Apache-2.0, `NOTICE` credits the upstream
+>       Cline Kanban fork under Apache §4 — both committed + tracked (see commits `9d418bfa` NOTICE, `80b15f4d`/`86ebb8a1`
+>       attribution). The vendored-SDK license-compat + attribution concern is thus satisfied. STILL OPEN in this item:
+>       README, CONTRIBUTING, SECURITY.md, issue templates, screenshots — box stays unchecked until those land.**
 > - [ ] **Content audit:** todo.md/done.md/docs/dev/* are full of internal working notes, machine names, and user
 >       context — decide what ships (curated docs/) vs what stays private (working notes); CHANGELOG grooming to a
 >       public voice; strip dev-test fixtures that reference private infra; make sure the model-capability catalog and
@@ -812,7 +816,10 @@
 >       · `GET /` + `projects.list` → 200 · clean shutdown. Only 2 esbuild warnings, both in the VENDORED cline-sdk llms
 >       dist (`!e instanceof Array` upstream bug), zero first-party — release artifact healthy after the catalog split +
 >       all accumulated branch changes.
-> - [ ] **★ Gate the VENDORED SDK suite (finding 2026-07-03).** Repo `test:fast`/`vitest` EXCLUDE `vendor/**`, so the
+> - [x] **★ Gate the VENDORED SDK suite (finding 2026-07-03) — DONE.** (Deliverable = a local gate so fork edits can't
+>       silently rot the vendored suite; shipped. The only "remaining" is a conditional hosted-CI mirror — not open work
+>       here, there is no hosted CI. Guard re-confirmed present 2026-07-07: `.husky/pre-commit` lines 52-60 run
+>       `test:vendor` on any staged `vendor/**`; shipped commit `731e7b61`.) Repo `test:fast`/`vitest` EXCLUDE `vendor/**`, so the
 >       forked SDK's own tests never run in CI — and our fork edits silently rot them. Live proof: `cd
 >       vendor/cline-sdk/packages/core && npx vitest run` had **5 pre-existing failures** — 1 read_files schema test
 >       stale after §5.BD boundary fix #40, and 4 from the `.cline`→`.nklein` workspace-dir rebrand (plugin-install +

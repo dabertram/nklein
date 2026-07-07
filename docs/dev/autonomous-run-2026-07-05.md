@@ -2912,3 +2912,15 @@ without m4mini logs) — but the point isn't the cause, it's that "model gone �
 Three corrections, three deepening filters now codified: (1) don't accept the quick label; (2) scope evidence to its
 exact source; (3) consistency-gate the mechanism + magnitude before entertaining. The through-line: reason, don't
 pattern-match.
+
+### 2026-07-07 (Opus) - §5.AZ checklist reconciliation (verified, precise — no re-doing done work)
+With the autonomous-safe §5.U/§5.V/§5.Z vein worked out and heavy model experiments ill-advised on unstable residency
+(David reconfiguring hosts), did a precise, non-model §5.AZ increment: reconcile stale release-checklist boxes with
+VERIFIED reality (each verified before marking, per the discipline). (1) "Gate the VENDORED SDK suite" → marked DONE:
+the deliverable (a local gate so fork edits can't rot the vendored suite) shipped as the `.husky/pre-commit`
+`test:vendor` guard (`731e7b61`, re-confirmed present); the only "remaining" is a conditional hosted-CI mirror (no
+hosted CI exists → not open work). (2) Repo-hygiene item: added a verified LICENSE+NOTICE-done sub-note (Apache-2.0
+LICENSE + Cline-attribution NOTICE both committed/tracked — the vendored-SDK license-compat concern is satisfied); box
+stays open for README/CONTRIBUTING/SECURITY/screenshots. Net: the release checklist now accurately reflects what's done
+vs open, so David doesn't re-audit closed items. Honest scope: minor doc-hygiene; the substantive release work
+(fresh-root branch, README/docs, working-notes scrub) remains David-with-me.
