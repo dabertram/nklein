@@ -2189,3 +2189,12 @@ buildLedgerEvidence(readLedger) + a shared roleEvidenceKey(modelKey, role) helpe
 residency-set lifts (simple Map/Set transforms, done), this one wants human review of the seam. This exhausts the SAFE
 autonomous 5.U clear-boundary surface: the remaining lifts are either entangled (David-gated lifecycle) or risky to
 mechanize (this one).
+
+### 2026-07-07 (Opus) - ledger-evidence extraction: CONFIRMED tooling-blocked (do NOT re-attempt via automated edit)
+Re-attempted the buildLedgerEvidence lift with the drift-risk eliminated (shared roleEvidenceKey helper for builder +
+lookup). Confirmed the block replacement is NOT executable by the automated edit tool: the inline block contains a
+literal NUL (U+0000) separator that the edit matcher cannot reliably match (fails cleanly, even with escape-swapping).
+This is a HARD tooling block, not caution -- the helper design is correct and safe, but the mechanical wiring needs a
+human editor (or byte-level tooling). Captured; future autonomous ticks should NOT re-attempt this edit. This was the
+last safe-autonomous 5.U clear-boundary candidate; with it confirmed blocked, the safe autonomous 5.U surface is
+exhausted (remaining: David-gated entangled lifecycle + this human-editor seam).
