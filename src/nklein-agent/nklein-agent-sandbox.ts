@@ -199,27 +199,48 @@ export function createAgentSandboxToolExecutors(
 	};
 }
 
-/** Rewrite a `{ path }` field with the §5.O redundant-prefix recovery, cloning only when the path actually changes. */
+/**
+ * Rewrite a tool input's path field(s) with the §5.O redundant-prefix recovery, cloning only when a path actually
+ * changes. Handles both the single-path shape (`{ path }` — write_file / edit_file / read_large_file / editor / readFile)
+ * and the multi-path shape (`{ files: [{ path }, …] }` — write_files); anything else passes through untouched.
+ */
 function recoverPathField(input: unknown, taskId: string): unknown {
-	if (input === null || typeof input !== "object" || !("path" in input)) {
+	if (input === null || typeof input !== "object") {
 		return input;
 	}
-	const rawPath = (input as { path: unknown }).path;
-	if (typeof rawPath !== "string") {
-		return input;
+	if ("path" in input && typeof (input as { path: unknown }).path === "string") {
+		const rawPath = (input as { path: string }).path;
+		const corrected = stripRedundantSandboxWorkdirPrefix(rawPath, taskId);
+		return corrected === rawPath ? input : { ...input, path: corrected };
 	}
-	const corrected = stripRedundantSandboxWorkdirPrefix(rawPath, taskId);
-	return corrected === rawPath ? input : { ...input, path: corrected };
+	if ("files" in input && Array.isArray((input as { files: unknown }).files)) {
+		const files = (input as { files: unknown[] }).files;
+		let changed = false;
+		const recovered = files.map((file) => {
+			if (file !== null && typeof file === "object" && typeof (file as { path: unknown }).path === "string") {
+				const rawPath = (file as { path: string }).path;
+				const corrected = stripRedundantSandboxWorkdirPrefix(rawPath, taskId);
+				if (corrected !== rawPath) {
+					changed = true;
+					return { ...file, path: corrected };
+				}
+			}
+			return file;
+		});
+		return changed ? { ...input, files: recovered } : input;
+	}
+	return input;
 }
 
 /**
  * §5.O parse-and-recover applied at the sandbox tool boundary: strip a redundant `workspaces/<taskId>/` relative prefix
  * from a path-bearing tool's input so a model that mistakes its cwd (the sandbox workdir) for the repo root still lands
  * the file at the intended location. Covers BOTH proxy shapes — the SDK `editor`/`readFile` executors (path at
- * `input.path`) and !Klein's own tools proxied through the extra-tool runner (path at `input.input.path`, e.g. the
- * single-file `write_file` / `edit_file` / `read_large_file`). Anything without a string path passes through untouched.
+ * `input.path`) and !Klein's own tools proxied through the extra-tool runner (path at `input.input.path` / `.files[].path`,
+ * e.g. `write_file` / `edit_file` / `write_files`). Anything without a string path passes through untouched. Exported
+ * for unit tests; the runtime caller is `runTool`.
  */
-function recoverRedundantSandboxToolPath(tool: string, input: unknown, taskId: string): unknown {
+export function recoverRedundantSandboxToolPath(tool: string, input: unknown, taskId: string): unknown {
 	if (tool === "editor" || tool === "readFile") {
 		return recoverPathField(input, taskId);
 	}
