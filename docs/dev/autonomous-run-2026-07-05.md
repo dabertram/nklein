@@ -2924,3 +2924,22 @@ LICENSE + Cline-attribution NOTICE both committed/tracked — the vendored-SDK l
 stays open for README/CONTRIBUTING/SECURITY/screenshots. Net: the release checklist now accurately reflects what's done
 vs open, so David doesn't re-audit closed items. Honest scope: minor doc-hygiene; the substantive release work
 (fresh-root branch, README/docs, working-notes scrub) remains David-with-me.
+
+### 2026-07-07 (Opus) - §5.U flagship: VERIFIED worked-out by structure (not an inherited label), then STOP
+Applied the precision discipline to my OWN recurring "vein worked out" claim — I'd been inheriting it from the slice-57
+notes without re-checking this session. Read `nklein-task-session-service.ts` (2830) directly: the class is a COORDINATOR
+already delegating to ~27 extracted collaborators (providerIdStore, modelEndpoint, contextBudgetController,
+modelResidencyWatcher, sandboxReviewFinalizer, acceptanceVerifier, speculativeMirrorRunner, mergeResolutionRunner,
+secondOpinionReviewRunner, planCritiqueRunner, adaptiveBudgetController, contextOverflowController, taskFailureEmitter,
+retrievalToolsBuilder, decompositionStallNudger, repeatedToolCallGuard, …). The remainder is irreducible orchestration
+glue + small coordinator Sets/Maps; the only clean candidates left (launchConfigByTaskId / lastRecordedRunStateByTaskId →
+tiny stores) are the "cohesion-not-size" micro-lifts the caveat says not to chase. So "worked out" is now EVIDENCE-BACKED
+(not a label): no clean high-value autonomous §5.U seam remains — further shrinkage needs the coordinator
+responsibility-split, a David's-steer/fresh-context multi-commit job. Upgraded the polishing.md §5.U verdict with this
+structural evidence.
+**HONEST STOP for this tick:** with §5.U verified worked-out, §5.V saturated, §5.Z paused on unstable residency (David
+reconfiguring; a mid-run vanish would be undiagnosable with logging off), and §5.AZ green + its remainder David-with-me —
+there is no clean, high-value, autonomous-safe increment left to make right now. Per the goal's "say so plainly and stop"
+clause, stopping rather than manufacturing marginal work. The levers that unblock real work are David's: residency
+stabilizing (resumes §5.Z model runs), or steering a gated item (§5.BG default-flip · the 2 integration reds · vendored
+swarm-recovery · fresh-root release branch · decompose nudger-efficacy multi-run).

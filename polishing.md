@@ -621,6 +621,17 @@
 > tsc + my own characterization tests (weaker assurance). This is David's-steer / careful-effort tier, not a safe autonomous
 > bounded commit. **Verdict: the safe, well-net-covered §5.U vein is now worked out across ALL THREE monoliths
 > (task-session-service 4886→4040 −17%, provider-service 1651→1291 −360, runtime-server clean lifts done).**
+> **★ STRUCTURALLY RE-VERIFIED 2026-07-07 (Opus — evidence, not an inherited label):** a direct read of
+> `nklein-task-session-service.ts` (now 2830) confirms the class is a COORDINATOR already delegating to **~27 extracted
+> collaborators** (providerIdStore · modelEndpoint · contextBudgetController · modelResidencyWatcher · sandboxReviewFinalizer
+> · acceptanceVerifier · secondarySessionHarness · speculativeMirrorRunner · mergeResolutionRunner · secondOpinionReviewRunner
+> · planCritiqueRunner · adaptiveBudgetController · contextOverflowController · taskFailureEmitter · retrievalToolsBuilder ·
+> decompositionStallNudger · repeatedToolCallGuard · sandboxState · pendingTimeout · …). The remaining lines are the
+> irreducible orchestration glue + a few coordinator-level Sets/Maps; the only clean candidates left
+> (`launchConfigByTaskId` / `lastRecordedRunStateByTaskId` → tiny store classes) are the "cohesion-not-size" micro-lifts
+> the caveat below says NOT to chase. So "worked out" is now evidence-backed: no clean high-value autonomous seam remains;
+> further shrinkage needs the coordinator responsibility-split — a David's-steer / fresh-context multi-commit undertaking,
+> not a bounded autonomous commit.
 > **CAVEAT on candidates:** verify state is genuinely SEPARABLE first. `timeout scheduling` is NOT clean —
 > `clearTaskTimeouts` coordinates the residency watcher + `activeToolTaskIds` (cross-concern), and `handleTaskTimeout`
 > orchestrates abort+fail; leave it (or needs David's boundary steer). `sandbox-review finalization` similarly touches
