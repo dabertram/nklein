@@ -832,40 +832,25 @@
 > **DONE (bounded, non-wired flow):** `deriveModelFamily` (model-online-lookup.ts) no longer hardcodes machine tokens
 > (`m5max|m4mini`); `buildProvisionalCatalogEntry` now prefers the stable `descriptor.modelKey`. (commit — see run log.)
 >
-> **David decided (AskUserQuestion 2026-07-06):** key by `descriptor.modelKey` alone (runtime id → display alias); best-effort re-key on load (merge collapsed rows, unmatched decay). **Increment 1 DONE:** pure `stable-model-identity.ts` primitive (+7). **Increment 2 DONE:** self-observations now key off the stable key on the primary local-start path (handler threads descriptor.modelKey → TaskModelEndpointStore.getStableModelKey → resolveTaskModelIdentity; fallback-safe). **★ CORRECTION (2026-07-07):** increments 2/3 stamped the stable key on the WRITE, but the whole telemetry READ/routing side keys off the RUNTIME id (candidates from `d.runtimeId` → `entry.key`; verdict matches `entry.modelId`) — a silent write/read MISMATCH that breaks the stall penalty + model-behavior lookup. REVERTED the two consumer changes (resolveTaskModelIdentity, deriveTaskFitnessRecord) to the runtime id; KEPT the harmless scaffolding (store getStableModelKey slot, summary.modelKey field + emitSummary enrichment, the primitive). **CORRECT design:** switch the candidate/registry KEY SOURCE (d.runtimeId → d.modelKey) + all reads TOGETHER in one coordinated, READ-side-tested change — larger hot-path/persisted-data change, flag for David.
+> **David decided (AskUserQuestion 2026-07-06):** key by `descriptor.modelKey` alone (runtime id → display alias); best-effort re-key on load (merge collapsed rows, unmatched decay). **Increment 1 DONE:** pure `stable-model-identity.ts` primitive (+7). **Increment 2 DONE:** self-observations now key off the stable key on the primary local-start path (handler threads descriptor.modelKey → TaskModelEndpointStore.getStableModelKey → resolveTaskModelIdentity; fallback-safe). **★ LANDED — flag-gated, default OFF, fully tested (2026-07-07, Opus). The design blocker below was RESOLVED; the
+a/b/c decision is no longer owed — (b)+(c) were both built.** The MIXED-keyspace problem (stable key only knowable
+for LOADED models) that reverted the first attempt was solved the recommended way:
+> - **(b) persisted `runtimeId→modelKey` map** — `src/state/runtime-id-model-key-map-store.ts` (commit 76b6cd60):
+>   learned whenever a model loads, so even a COLD candidate resolves its stable key → uniformly stable, no split by
+>   load-state-at-write. `resolveStableRoutingModelId(runtimeId)` is the one shared resolver.
+> - **(c) coordinated flip, ONE opt-in gate** `NKLEIN_STABLE_ROUTING_KEY` (commit f7fbcb7d, **default OFF ⇒
+>   byte-identical to the runtime-keyed tree**). When ON, the candidate READ re-key (`applyStableRoutingKeysToCandidates`),
+>   the ledger WRITE (`nklein-task-session-service` line ~2676), and the residency set (`buildResidencyModelKeySet`) ALL
+>   resolve through `resolveStableRoutingModelId` — one keyspace, no write/read mismatch, no double-start by construction.
+> - **The exact safety net the old note said was MISSING now exists** (commits 0b191844 + 04b25db0, 20 tests green):
+>   `nklein-stable-routing-candidates.test.ts` pins the **double-start invariant** ("the residency key EQUALS the
+>   re-keyed candidate key for the same running model") + rename-heal (two aliases collapse to one) on BOTH the candidate
+>   and residency sides, for both flag states; `model-telemetry-key-alignment.test.ts` pins candidate-READ == ledger-WRITE
+>   == residency key; `runtime-id-model-key-map-store.test.ts` pins the map learn/resolve + alias collapse.
 >
-> **Superseded increments (kept scaffolding only):**
->
-> **OPEN (wiring — re-keys PERSISTED telemetry):** the live keying is SPLIT. Capability/
-> routing (`resolveLoadedModelProfile`) + lineage/diverse-escalation already key off the stable `descriptor.modelKey` ✓.
-> But **self-observations + fitness key off the UNSTABLE runtime id** — `resolveTaskModelIdentity` →
-> `modelEndpoint.getModelId(taskId)` (the launch/endpoint id), stamped by `recordObservationWithModel` on every telemetry
-> row, and `ModelFitnessFingerprint` keys by it. **Effect:** renaming an LM Studio instance FRAGMENTS its measured
-> fitness/observation history. **Proposed:** resolve `descriptor.modelKey` for a running task and stamp THAT as the model
-> identity on observations + fitness (keep the runtime id only as a display alias); decide migration for existing rows
-> (re-key vs. let them decay). Needs David's sign-off on approach (persisted-data change) before implementing.
-
-> **★ ROUTING-CLUSTER SCOPE CONFIRMED (2026-07-07) — recommend a dedicated, reviewed, integration-tested effort, NOT the grind.**
-> The remaining routing flip is a REGISTRY-IDENTITY REFACTOR, not a value swap: `NKleinModelRegistryEntry` has only
-> `modelId` (used for BOTH the evidence key AND launch), and `nklein-model-registry-deserialize` RE-DERIVES `entry.key`
-> from `entry.modelId` — so the stable-key switch needs a persisted SCHEMA change (add `entry.modelKey`), a migration,
-> and breaking the `entry.key = f(modelId)` invariant across ~12 sites (candidate builder, deserialize, registry,
-> ledger write, residency set, verdict). The **residency flip carries a double-start hazard** (if `runningModelKeys` and
-> `candidate.entry.key` diverge, a running model looks "free" → the same model starts twice → resource exhaustion), and
-> there are **no integration tests for the routing/residency path** — the unit guards catch key-derivation mismatches but
-> not selection/residency behavior. **Delivered safely in the grind:** the `deriveModelFamily` fix, the fitness/display
-> heal-on-rename, the candidate↔ledger alignment guard, and the inert scaffolding (store `getStableModelKey`, summary
-> `modelKey`, the primitive). The routing cluster is left consistent + green (runtime-keyed) pending a focused effort.
->
-> **★ FLIP ATTEMPTED 2026-07-07 (Opus) → reverted on the design blocker below. ★ DECISION OWED — David.** Wired the
-> additive foundation tsc-green, then a READ-side trace revealed the one fact that makes this a design choice, not a
-> mechanical flip: **the stable `modelKey` is only knowable for LOADED models** (it comes from the live LM Studio
-> descriptor). A config/role candidate for a COLD model has no descriptor → no stable key → must fall back to the runtime
-> id. So a naive flip yields a **MIXED keyspace** — the same model keys STABLE when it was loaded at decision time and
-> RUNTIME when it was not, splitting its ledger/residency rows across two keys by load-state-at-write. That defeats the
-> rename-robustness the flip is for. **Pick the keying model before finishing:** (a) **persist a `runtimeId to modelKey`
-> map** (learned whenever a model loads) so the stable key resolves even for a cold model → uniformly stable [recommended
-> — the only option that fully delivers intent]; (b) **re-key on load** (write runtime, migrate rows when the descriptor
-> reappears — eventual convergence, transient split); (c) **loaded-only** (cold candidates stay runtime — partial). The
-> WIP was reverted to the consistent all-runtime tree; the alignment guard remains committed and fails loudly on any
-> one-sided flip, so it is safe to resume from here once (a)/(b)/(c) is chosen. See run log 2026-07-07 for the full trace.
+> **The ONLY thing still owed to David is a ROLLOUT decision, not code:** whether/when to flip
+> `NKLEIN_STABLE_ROUTING_KEY` to **default ON**. The infra + coverage are complete and the OFF default is
+> byte-identical, so this is purely "turn on rename-robust routing when you're ready to bless a persisted-keyspace
+> change." No further implementation is blocked. **Deferred sub-item (independent, still open):** re-keying the INERT
+> display/fitness telemetry (`ModelFitnessFingerprint`, model-behavior store) off the stable key — these are NOT read for
+> routing (so not part of the double-start coupling) and can key stably on their own migration whenever desired.
