@@ -3194,3 +3194,19 @@ tsc/biome):
     crash the sweep mid-flow.
 This is the §5.Z frontier paying off twice: a new fully-verified model column AND a latent harness crash removed from the
 whole cross-model sweep. NEXT §5.Z: single-card delivery on qwopus3.5; the not-yet-loaded roster models when loaded.
+
+### 2026-07-07 (Opus) - §5.Z single-card on qwopus3.5 → a textbook "reason about ALL details" triage
+Ran verify-task-completion (single-card delivery) on the resident model → PARTIAL: reached awaiting_review but hello.txt
+wasn't at the deliverable root. The harness ALSO printed a result-branch name while its verdict said "no result branch" —
+a contradiction. Instead of accepting "the model declared done without delivering", chased it:
+  1. Activity dump: the agent DID write_file + read_files hello.txt with the correct content and declared done.
+  2. Added a branch-tree diagnostic to the harness (`01294dea`) → the file WAS on the branch, at the NESTED path
+     `workspaces/<taskId>/hello.txt`, not root.
+  3. Mechanism (confirmed): sandbox cwd = `/workspaces/<taskId>`; the model used the absolute path minus the leading
+     slash as its "relative" path, so the container nested it. **A model relative-vs-cwd path trait, NOT a !Klein
+     delivery bug** (delivery is proven on 8 other models). Also fixed the harness's misleading "no result branch" message.
+qwopus3.5-9b-coder-mtp matrix: ✅ egress · ✅ chat-tools · ✅ decompose-isolation · ◑ single-card (path trait; content correct).
+Recorded a §5.O/§5.AB HARDENING CANDIDATE (the redundant `workspaces/<taskId>/` prefix is a recognizable, unambiguous
+weak-model failure) with two candidate recoveries + tradeoffs (sandbox path-strip vs. prompt clarification) — a design
+call left to David / a dedicated §5.O turn, NOT rushed at turn-tail. The branch-tree diagnostic is permanent triage value
+for the ongoing sweep. NEXT §5.Z: the not-yet-loaded roster models as they're loaded; the §5.O path-recovery when steered.
