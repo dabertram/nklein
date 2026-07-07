@@ -63,8 +63,14 @@ Highest-leverage first (repeat finding: **pure cores exist + tested, wiring is t
    (`rankModelsByLedgerFitnessWithVerdict`) applies the SAME penalty so the display matches routing instead of ranking
    by raw fitness. Unit-tested (raw→penalized flip, empty-evidence identity, <3-run UNKNOWN). `combineSuitabilityVerdicts`
    remains a dev-display helper by design.
-5. **§5.M memory wiring cluster**: summarizer into `consolidateChatContextWindow` (L2097), embedder dedup
-   (L2109), extractor (L2110), persistence (L2111).
+5. **§5.M memory wiring cluster** — ⚠️ **PARTIALLY STALE + write-path FLEET-GATED (2026-07-07 Opus, characterized).**
+   The summarizer (L2097) is DONE — a real wired model call (`deps.summarize` → `consolidateChatContextWindow`). The
+   RECALL/read side is DONE too — `recallChatMemories` is wired into `chat-turn-context` (memories injected per turn).
+   The genuine gap is the WRITE path: `proposeConsolidatedMemories` + `appendChatMemory` (extract→dedup→persist) have
+   ZERO callers, so the store is never populated (recall reads an empty store). Wiring it needs a NEW extractor
+   model-call prompt whose VALUE is unvalidatable without live models — a FLEET-TIME feature, not safe deterministic
+   polish. Cores are pure + injected-deps + already unit-tested. **Owner: a fleet-time session** (or a deliberate
+   flag-OFF dark ship like the §5.AF durable scheduler, if David wants the wiring landed ahead of validation).
 6. **Delivery actions** (§5.L): commit (L1676) + open_pr (L1677) automation; sandbox pool by network policy
    (L1681/L1683).
 7. **§5.AC**: retrieval telemetry into the ledger, freshness gate into decompose roles (L6175), online-retrieval

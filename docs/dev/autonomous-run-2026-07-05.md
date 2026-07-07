@@ -3615,3 +3615,17 @@ lowercase-only regex sources (uppercase can never hit the lowercased id), non-em
 verified research verdict. Probed all invariants against the live data first (only assert what holds — no false red).
 Gate green: tsc + biome + the suite. This turn's opus increments: fitness-blend wiring (81e6630c) · retry reclassify
 (dd054eb8) · catalog integrity (this).
+
+### 2026-07-07 (Opus) - queue #5 (§5.M memory) characterized: summarizer+recall DONE, write-path fleet-gated + coverage
+Continued the queue. Item #5 (memory wiring) precisely characterized: the SUMMARIZER (L2097) is DONE — a real wired
+model call (deps.summarize → consolidateChatContextWindow via completePlainWithTruncationLadder); the RECALL/read side
+is DONE — recallChatMemories wired into chat-turn-context (memories injected per turn). The genuine gap is the WRITE
+path (proposeConsolidatedMemories + appendChatMemory: extract→dedup→persist) — ZERO callers, so the store is never
+populated (recall reads empty). Wiring needs a NEW extractor model-call prompt whose VALUE is unvalidatable without live
+models ⇒ fleet-gated (cores are pure + injected + already tested). Audit doc corrected. Also this turn: covered the one
+piece of real logic at the SDK boundary — listNKleinSdkWorkflowSlashCommands merge/dedup (sdk-runtime-boundary.test.ts,
+4 cases: built-in-wins-collision, kind→description mapping, runtime dedup). META-STATUS: across queue items #1/#4/#5 the
+"wiring cluster" is now confirmed either STALE (already wired: fitness penalty, summarizer, recall) or FLEET-GATED
+(model-call features whose value needs live validation: retry-engine rewire, memory write-path). The deterministic Opus
+lane = coverage/integrity/audit-correction; the wiring cluster wants a fleet-validation session. This session's opus
+commits: 81e6630c fitness-blend · dd054eb8 retry-reclassify · ecbe460f catalog-integrity · (this) memory-correct+sdk-cov.
