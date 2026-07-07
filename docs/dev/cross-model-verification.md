@@ -1015,3 +1015,23 @@ details, don't accept "the agent declared done without producing it"):
   agent-sandbox code); (b) clarify in the system prompt / repo-map rail that the cwd IS the workspace root so `hello.txt`
   is the correct form (lower code risk, but a prompt change needs cross-model re-validation to avoid regressing others).
   Decision on which belongs to David / a dedicated §5.O turn.
+
+## 2026-07-07 (Opus) — §5.Z chat-agent-write (security confirm-gate) on qwopus3.5 + §5.O layering finding
+- ✅ **verify-chat-agent-write [qwopus3.5-9b-coder-mtp] — PASS (§5.M security seam), 1 step.** The model drove a
+  `write_file` through the CONFIRM gate — it ran only after approval and was audited. The security confirm-gate + audit
+  path holds on this coder model.
+- **Reinforces the §5.O finding:** in THIS (in-process, plain-workspace) flow the model wrote `path: "notes.txt"` —
+  CORRECT root-relative, NO redundant prefix. So the `workspaces/<taskId>/…` nesting seen in single-card is **specific to
+  the Docker-sandbox context** (cwd `/workspaces/<taskId>`), not a general path defect of the model — it writes correct
+  paths when the working dir is an ordinary root.
+- qwopus3.5-9b-coder-mtp matrix: ✅ egress · ✅ chat-tools · ✅ decompose-isolation · ◑ single-card (sandbox path trait) ·
+  ✅ chat-agent-write. 4 clean + 1 partial across 5 fast flows.
+- **§5.O HARDENING CANDIDATE — deeper layering (2 turns of investigation, recorded so the effort isn't lost):** the
+  write-LOCATION fix for the isolated case is NOT where the scope machinery lives. `normalizeScopePath`
+  (nklein-write-scope.ts) already strips an ABSOLUTE `/workspaces/<taskId>/` prefix but leaves a RELATIVE
+  `workspaces/<taskId>/` (no leading slash) unchanged — and that function is only the scope-COMPARISON key, not the write
+  target. Under isolation the write is proxied to the sandbox (`createAgentSandboxToolExecutors` → `manager.runTool`), so
+  the container resolves the relative path and does the nesting — the actual-location fix belongs in the hard-tier sandbox
+  exec layer (or a reject-with-guidance guard in the tool-approval wrapper, which relies on the weak model retrying).
+  Cross-layer + a design tradeoff (silent auto-correct vs. reject-and-teach) + needs cross-model validation ⇒ a dedicated
+  §5.O turn / David's steer, deliberately not rushed at turn-tail.
