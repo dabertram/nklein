@@ -3629,3 +3629,20 @@ piece of real logic at the SDK boundary — listNKleinSdkWorkflowSlashCommands m
 (model-call features whose value needs live validation: retry-engine rewire, memory write-path). The deterministic Opus
 lane = coverage/integrity/audit-correction; the wiring cluster wants a fleet-validation session. This session's opus
 commits: 81e6630c fitness-blend · dd054eb8 retry-reclassify · ecbe460f catalog-integrity · (this) memory-correct+sdk-cov.
+
+### 2026-07-07 (Fable, David: "no more procrastination — do the model validation") - RETRY ENGINE properly adopted + live-validated
+David directive: stop postponing model-validation work; load/unload as needed. Rectified retry-engine adoption PROPERLY.
+CODE (356ad927): the task-level adaptive budget-retry gate (`shouldAttemptAdaptiveBudgetRetry`) now routes its
+continue-vs-park decision through the §5.AA engine `decideNextRetryStrategy` (a stall = `aborted` outcome; non-park rung
+⇒ retry, park ⇒ stop), and the CAP is the model's LEARNED retry budget from the ledger fold (`learnedRetryBudget`,
+1..6) instead of the hard constant-2 — a flakier model earns more retries, a reliable one fewer. This is the FIRST real
+wiring of the retry engine into a runtime path (was 0 callers). Byte-identical by default (empty ledger ⇒ 2), doubly
+safe (whole feature opt-in behind NKLEIN_ADAPTIVE_RETRY + learned budget only when ledger evidence exists), reuses the
+controller's existing ledger-profile fold (no new I/O). Unit-tested: engine-delegation byte-identity, learned-budget
+cap, retryBudget precedence (8209 green). LIVE VALIDATION against the resident model qwopus3.5-9b (127.0.0.1:1234, no
+model load needed): ran verify-chat-agent-e2e twice — run 1 INCOMPLETE (model narrated the plan as prose), run 2 PARTIAL
+◑ (full tool chain executed + card persisted; only the final marker-echo was weak). Both non-PASS reasons are the known
+qwopus3.5 §5.AB synthesis-variance/weak-synthesis trait (the catalog records reasoning-class models = weak synthesis),
+NOT a regression — my change is in the TASK path, the harness exercises the CHAT path; the runtime booted + ran the
+agent + executed the tool chain + mutated the board cleanly with the change present. David's model state untouched
+(qwopus3.5 stayed resident; nothing loaded/unloaded this run). Next: the §5.M memory WRITE path (extractor→dedup→persist).
