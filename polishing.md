@@ -672,7 +672,18 @@
 > started with a fresh context budget.
 
 ### 5.DT — Unify the dev-test-project presentation (the "2 styles / 2 groups" David flagged) — ✅ DONE 2026-07-07
-> **DONE:** added `tier` + `tags` to all 9 legacy scenarios' `project.json` (6 `habit-*` → "Swarm shapes"; `small-model-smoke`
+> **DONE (dimension 2 — the literal "2 STYLES", 2026-07-07 `ff03930c`):** a second root cause the tier/tags pass below
+> missed (methodology: don't stop at the first explanation). The sidebar dev-test card rendered the SAME scenarios in
+> two visual styles at once — a stack of 8 hardcoded full-width "Create <X> project" **preset buttons** AND the
+> data-driven, searchable, tier-grouped **registry picker**. Confirmed pure duplication: `DEV_TEST_SCENARIO_ID_BY_PRESET`
+> (`nklein-dev-test-project.ts:85`) maps each preset to a registry scenario id and `resolveNKleinDevTestProjectScenario`
+> loads via the same `loadDevTestProjectScenario`, so every preset button launched a scenario already in the picker.
+> **Fix:** removed `DEV_TEST_PRESET_BUTTONS` + the button block + the near-duplicate `onRun`(preset) launch handler
+> (~54 lines mirroring `onRunById`); the registry picker is now the single always-visible launch surface (`showRegistry`
+> defaults open, tier groups default-collapsed for compactness, search force-expands matches). Server + CLI `{preset}`
+> API path untouched (still used by `nklein dev`). Replaced the 5 preset-button tests with a registry-by-id launch test
+> + a guard the buttons stay gone. web typecheck/lint/suite (952) green; `test:fast` 8125 green.
+> **DONE (dimension 1 — the "2 GROUPS" / tier divergence):** added `tier` + `tags` to all 9 legacy scenarios' `project.json` (6 `habit-*` → "Swarm shapes"; `small-model-smoke`
 > → "Smoke"; `audio-vst-psytrance`+`daw-foundation-platform` → "Audio & DAW"), kept legacy `complexity`. Verified via a live
 > registry load: **0 of 45 entries now lack a tier** → the picker's anonymous "Other" bucket is EMPTY; all projects present
 > uniformly as named tier groups with tag-chips. Registry/preset/api unit tests (22) + the legacy/enhanced contract test (4)

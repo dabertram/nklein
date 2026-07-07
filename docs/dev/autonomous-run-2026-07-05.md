@@ -3075,3 +3075,29 @@ workspace-state 884→728 (3 layers). The remaining flagship reduction requires 
 splits — the DI-threading David flagged for review. David chose 'full autonomous pass', so the NEXT §5.U step is a
 FOCUSED careful big-3 split (fresh full-budget turn), NOT a turn-tail move; alternatively David steers the DI seams. The
 sustainable non-§5.U continuation is the §5.Z fitness-matrix extension.
+
+### 2026-07-07 (Opus) - §5.U increment 8: session-runtime tool-approval wrapper (the careful method-decomposition move)
+Executed the "focused careful method-decomposition" flagged as the next §5.U step. `startTaskSession` (447 lines) carried
+a ~125-line inline `requestToolApproval` wrapper — the read-serialization + read-dedup guards (§2.6) plus the §5.B
+auto-promote-on-first-repo-write recovery. Verified it's a self-contained collaborator BEFORE lifting (discipline): all
+its state (fileReadToolByTurn, the 2 success Sets, the fingerprint Set, autoPromoteSettled) is written ONLY inside the
+wrapper and has ZERO uses after it, and it references no `this`. So it lifts cleanly into a factory —
+`createTaskToolApprovalWrapper({ baseRequestToolApproval, largeFileWorkflow, taskId, hostWorkspaceRoot, onCardPromoted })`
+in the new `nklein-task-tool-approval.ts`. Verbatim move (only `request.taskId`/`onCardPromoted` rebound to deps);
+type-only back-import of `StartNKleinSessionRuntimeRequest` keeps the runtime acyclic. **session-runtime 1148→1023.**
+Behavior-preserving: tsc 0, biome clean, runtime suite 8124, test:fast 8125. Commit `75264293`. This proves the
+method-decomposition tier IS tractable when a sub-block is state-local — no DI-threading needed. NEXT: more such
+state-local sub-block lifts across the big-3 orchestration methods (each verified self-contained first).
+
+### 2026-07-07 (Opus) - §5.DT dimension 2: the LITERAL "2 styles" (preset buttons vs registry picker) — root-caused + fixed
+Revisiting David's named concern under the "don't stop at the first explanation" rule paid off: the earlier §5.DT pass
+fixed the "2 GROUPS" reading (tier/tags divergence → "Other" bucket), but a SECOND, more literal "2 styles" cause
+remained that pass never considered. The sidebar dev-test card rendered the SAME scenarios twice at once — a stack of 8
+hardcoded "Create <X> project" **preset buttons** AND the data-driven, searchable, tier-grouped **registry picker**.
+Verified pure duplication (not two mechanisms): `DEV_TEST_SCENARIO_ID_BY_PRESET` maps each preset to a registry scenario
+id, and `resolveNKleinDevTestProjectScenario` loads via the same `loadDevTestProjectScenario` the registry uses — every
+preset button launched a scenario already in the picker. **Fix** (`ff03930c`): removed the button stack + the ~54-line
+near-duplicate `onRun`(preset) handler; the registry picker is now the single always-visible launch surface (tiers
+default-collapsed for compactness, search force-expands). Server/CLI `{preset}` API path untouched (still used by
+`nklein dev`). Replaced 5 preset-button tests with a registry-by-id launch test + a stays-gone guard. web
+typecheck/lint/suite (952) + test:fast (8125) green. David's "unify the 2 styles" is now resolved on BOTH axes.
