@@ -775,6 +775,14 @@
 > - [ ] **Release engineering:** version scheme, `npm run build` + sandbox image build reproducible on a clean machine,
 >       install/run docs verified on a fresh user profile, smoke-test checklist (the deterministic harness suite is the
 >       release gate: v1 HOLD + v2 PASS + v3 bounce must be green).
+>       **★ FULL-SUITE HEALTH SNAPSHOT (2026-07-07, Opus) — entire test surface GREEN except 1 diagnosed stale test:**
+>       test:fast 8090/8090 (750 files) · contract 275/275 · integration 41/42 · protected 123/123 · web-ui 956/956
+>       (≈9445 tests). The ONE integration failure (runtime-state-stream "stale review cards to trash on shutdown") is a
+>       PRE-EXISTING stale test asserting the pre-W2.2 trash-everything behavior that reconcile-don't-destroy
+>       deliberately superseded — surfaced as `task_5f7170d9`, NOT a product bug (see run log). Also validates the 7-lift
+>       §5.U refactoring arc end-to-end (provider-service / workspace-state / cli.ts). NOTE the coverage gap this exposed:
+>       `test:fast` (the pre-commit gate) runs only test/runtime + test/utilities, so contract/integration/protected/
+>       web-ui regressions land silently until a full run — a CI job that runs ALL suites is the real release gate.
 > - [ ] **★ Gate the VENDORED SDK suite (finding 2026-07-03).** Repo `test:fast`/`vitest` EXCLUDE `vendor/**`, so the
 >       forked SDK's own tests never run in CI — and our fork edits silently rot them. Live proof: `cd
 >       vendor/cline-sdk/packages/core && npx vitest run` had **5 pre-existing failures** — 1 read_files schema test
