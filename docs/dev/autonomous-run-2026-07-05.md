@@ -2577,3 +2577,20 @@ here, NOT unilaterally folded in. test:fast 8125 green; integration 41/pass-1-kn
 (a scattered hardcoded default endpoint reads better as one named constant for a public repo). ARC TALLY: NINE lifts;
 last FIVE all DRY consolidations (auto-completable, ::-convention, busy-state, terminal-failure, endpoint) into tested
 single-sources-of-truth. FOLLOW-UP for David: the localhost/127.0.0.1 unification (a small config decision).
+
+### 2026-07-07 (Opus) - full-suite re-verification of the 9-lift DRY arc + honest status
+Instead of forcing another marginal DRY (the remaining duplications are 2-site cases -- real-worker-session filter,
+embed-exclusion -- after the significant ones were consolidated), ran the suites the per-commit gate does NOT cover, to
+confirm the whole 9-lift decomposition/DRY arc is safe end-to-end: **contract 275/275 · protected 123/123 · web-ui
+956/956** (+ test:fast 8125 from the last commit + integration 41/42 run per-commit). ~9400 tests, ALL GREEN except the
+one known pre-existing stale test (task_5f7170d9). This is a §5.AZ release-gate snapshot AND validates every DRY
+consolidation across the full surface (contract/protected/web-ui regressions would otherwise land silently -- the
+test:fast-only pre-commit gap flagged earlier). HONEST STATUS: the high-value clean non-seam §5.U vein is now largely
+worked out over this session -- SEVEN cohesive-module lifts (provider-service 933->684, workspace-state 1046->884,
+cli.ts 812->671) + NINE pure-decision/DRY lifts from the big monoliths (auto-review, waiver, #28, credit-limit,
+reconcile-query, and 5 DRY consolidations: auto-completable, :: convention, busy-state, terminal-failure, endpoint).
+What remains at high value is the DAVID-GATED SEAM (the structural decomposition of the 2260/2830-line class/factory
+bodies, which is what would actually move the flagship's line-count needle) + the surfaced decisions (stale test
+task_5f7170d9; localhost/127.0.0.1 endpoint unify; the §5.BG routing re-key; live §5.Z full-roster sweep; the 3 manual
+todos). Future ticks will increasingly hit 2-site marginal DRY or need David -- flagging that the clean runway is
+thinning again.
