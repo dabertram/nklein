@@ -2751,3 +2751,23 @@ module or DI-threading — e.g. task-board-mutations' dependency cluster shares 
 lift). Other big files scanned (runtime-config, api-validation, event-adapter, projects-api) have no comparable standalone
 data literal; their remaining seams are the higher-risk logic-cluster tier (often outside test:fast's net) — David's-steer
 territory, not a quiet grind commit. NEXT: the §5.U safe vein is thin now; the substantive remaining work stays David-gated.
+
+### 2026-07-07 (Opus) - §5.U/§5.V vein confirmed WORKED OUT (investigation, no code — negative result recorded)
+Actively hunted for another clean safe increment (didn't trust "nothing left" — re-scanned). Three concrete candidates,
+all ruled out, so the next tick needn't re-investigate them:
+  1. **Data-literal split vein EXHAUSTED** — a full scan for `const X = [/{ … ]/}` literals ≥40 lines in files ≥500
+     lines found NONE besides the already-split catalog. That clean pattern is done.
+  2. **`nklein-context-focus-policy.ts` (676 lines, thinnest net at 8 cases) — NOT cleanly extractable.** Read it: the
+     "read-reference / tool-result" cluster (collectToolResults pairing, stringifyToolResultContent, the read-files
+     summaries, isMissingFileReadError) is TIGHTLY interwoven with the staying focus-brief/compaction code — they share
+     the ToolResultReference/ReadFilesLedgerEntry types, the MAX_FOCUS_BRIEF_* constants, and low-level helpers. A split
+     yields a large bidirectional shared surface on a thin net = the careful-effort/David's-steer tier, not a safe
+     autonomous bounded commit. Its 8 tests are solid BEHAVIORAL coverage of the main flows; the pure logic is private
+     (only edge-testable via elaborate fixtures — marginal value). Left as-is.
+  3. **`task-board-mutations.ts` (764 lines, 2 test FILES) — actually THOROUGHLY covered** (a 530-line/33-case dedicated
+     suite + a 1975-line/44-case decomposition suite; all 25 exports referenced). The "2 files" heuristic undercounted —
+     same false-positive as skill-bundled-file-manifest last session. No gap.
+**Conclusion:** the clean, safe, autonomous §5.U (decompose) + §5.V (coverage) vein is worked out — 58 slices + the
+catalog split drained it. What remains is the higher-risk logic-cluster/collaborator-split tier on tightly-integrated
+files with thin/no fast-net (David's-steer), plus the standing David-gated items. Stopping this tick rather than forcing
+a marginal coverage batch or a risky extraction against the behavior-preserving/safety-net discipline.
