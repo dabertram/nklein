@@ -24,7 +24,9 @@ export function DevTestRegistryPicker({
 	onStart: (id: string) => Promise<void>;
 }): React.ReactElement {
 	const [query, setQuery] = useState("");
-	const [collapsedTiers, setCollapsedTiers] = useState<Set<string>>(new Set());
+	// Tiers start collapsed: the picker is the always-visible dev-test launch surface, so show compact tier headers
+	// (expand the one you want) rather than a wall of 47 rows. A search query force-expands matches (below).
+	const [expandedTiers, setExpandedTiers] = useState<Set<string>>(new Set());
 
 	const filtered = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -63,8 +65,9 @@ export function DevTestRegistryPicker({
 		});
 	}, [filtered]);
 
+	const isSearching = query.trim().length > 0;
 	const toggleTier = (tier: string) => {
-		setCollapsedTiers((prev) => {
+		setExpandedTiers((prev) => {
 			const next = new Set(prev);
 			if (next.has(tier)) {
 				next.delete(tier);
@@ -102,7 +105,7 @@ export function DevTestRegistryPicker({
 			) : (
 				<div className="flex flex-col gap-1">
 					{groups.map(([tier, groupEntries]) => {
-						const isCollapsed = collapsedTiers.has(tier);
+						const isCollapsed = isSearching ? false : !expandedTiers.has(tier);
 						return (
 							<div key={tier} className="rounded-md border border-border bg-surface-1">
 								{/* Tier header */}

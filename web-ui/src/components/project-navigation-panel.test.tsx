@@ -384,51 +384,21 @@ describe("ProjectNavigationPanel width persistence", () => {
 		renderPanel({ developerModeEnabled: true });
 
 		expect(container.textContent).toContain("Create fixture projects");
-		expect(container.textContent).toContain("Create mid task project");
-		expect(container.textContent).toContain("Create complex product project");
-		expect(container.textContent).toContain("Create audio VST project");
-		expect(container.textContent).toContain("Create DAW foundation project");
 		expect(container.textContent).toContain("Create self-improvement project");
+		// Scenarios launch through the single registry picker. The old per-preset button stack was a duplicate
+		// presentation of the same scenarios (each preset was just an alias for a registry id) and was removed
+		// (David: "unify the 2 styles"). Guard against it coming back.
+		expect(container.querySelector('input[placeholder^="Search registry projects"]')).not.toBeNull();
+		expect(container.textContent).not.toContain("Create mid task project");
+		expect(container.textContent).not.toContain("Create audio VST project");
+		expect(container.textContent).not.toContain("Create DAW foundation project");
 	});
 
-	it("requires confirmation before creating dev-test projects", () => {
-		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-		try {
-			renderPanel({ developerModeEnabled: true });
-
-			act(() => {
-				getButtonByText(container, "Create mid task project").click();
-			});
-
-			expect(confirmSpy).toHaveBeenCalledWith(
-				"Create a marked !Klein mid task dev-test project and make it the active project?",
-			);
-			expect(createDevTestProjectMock).not.toHaveBeenCalled();
-		} finally {
-			confirmSpy.mockRestore();
-		}
-	});
-
-	it("requires confirmation before creating audio VST dev-test projects", () => {
-		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-		try {
-			renderPanel({ developerModeEnabled: true });
-
-			act(() => {
-				getButtonByText(container, "Create audio VST project").click();
-			});
-
-			expect(confirmSpy).toHaveBeenCalledWith(
-				"Create a marked !Klein audio VST dev-test project and make it the active project?",
-			);
-			expect(createDevTestProjectMock).not.toHaveBeenCalled();
-		} finally {
-			confirmSpy.mockRestore();
-		}
-	});
-
-	it("creates audio VST dev-test projects with the audio preset", async () => {
+	it("creates dev-test projects from the registry by id", async () => {
 		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		listDevTestProjectsMock.mockResolvedValueOnce({
+			entries: [{ id: "audio-vst-psytrance", title: "Audio VST Psytrance", tier: "Audio & DAW" }],
+		});
 		createDevTestProjectMock.mockResolvedValue({
 			ok: false,
 			error: "stop after mutation for test",
@@ -440,56 +410,26 @@ describe("ProjectNavigationPanel width persistence", () => {
 		});
 		try {
 			renderPanel({ developerModeEnabled: true });
-
+			// The registry loads asynchronously; flush the listDevTestProjects promise + its setState.
 			await act(async () => {
-				getButtonByText(container, "Create audio VST project").click();
+				await Promise.resolve();
 				await Promise.resolve();
 			});
-
-			expect(createDevTestProjectMock).toHaveBeenCalledWith("project-1", { preset: "audio_vst" });
-		} finally {
-			confirmSpy.mockRestore();
-		}
-	});
-
-	it("requires confirmation before creating DAW foundation dev-test projects", () => {
-		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
-		try {
-			renderPanel({ developerModeEnabled: true });
-
-			act(() => {
-				getButtonByText(container, "Create DAW foundation project").click();
-			});
-
-			expect(confirmSpy).toHaveBeenCalledWith(
-				"Create a marked !Klein DAW foundation dev-test project and make it the active project?",
+			// Tiers start collapsed — expand the seeded scenario's tier to reveal its Start button (the tier header
+			// carries a count suffix, so match by substring rather than the exact-text helper).
+			const tierHeader = Array.from(container.querySelectorAll("button")).find((b) =>
+				b.textContent?.includes("Audio & DAW"),
 			);
-			expect(createDevTestProjectMock).not.toHaveBeenCalled();
-		} finally {
-			confirmSpy.mockRestore();
-		}
-	});
-
-	it("creates DAW foundation dev-test projects with the DAW preset", async () => {
-		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
-		createDevTestProjectMock.mockResolvedValue({
-			ok: false,
-			error: "stop after mutation for test",
-			project: null,
-			task: null,
-			workspacePath: null,
-			scenario: null,
-			evidenceRootPath: null,
-		});
-		try {
-			renderPanel({ developerModeEnabled: true });
-
+			expect(tierHeader).toBeInstanceOf(HTMLButtonElement);
+			act(() => {
+				tierHeader?.click();
+			});
 			await act(async () => {
-				getButtonByText(container, "Create DAW foundation project").click();
+				getButtonByText(container, "Start").click();
 				await Promise.resolve();
 			});
 
-			expect(createDevTestProjectMock).toHaveBeenCalledWith("project-1", { preset: "daw_foundation" });
+			expect(createDevTestProjectMock).toHaveBeenCalledWith("project-1", { registryId: "audio-vst-psytrance" });
 		} finally {
 			confirmSpy.mockRestore();
 		}

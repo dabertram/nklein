@@ -1,35 +1,20 @@
-import { ChevronDown, ChevronRight, Clipboard, FlaskConical, Lightbulb, Play, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Clipboard, FlaskConical, Lightbulb, Trash2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { DevTestRegistryPicker } from "@/components/project-nav/dev-test-registry-picker";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import type { RuntimeDevTestProjectPreset, RuntimeDevTestRegistryEntry } from "@/runtime/types";
+import type { RuntimeDevTestRegistryEntry } from "@/runtime/types";
 
 /**
  * The developer dev-test-scenarios card for the project navigation sidebar, extracted from the oversized
  * `project-navigation-panel.tsx` (todo §5.U). Seeds a self-improvement project from the running checkout (with optional
- * notes) and the fixture preset projects, plus copy-evidence and cleanup actions. Also exposes the full folder-based
- * registry (45+ projects) via a searchable grouped picker. Fully props-driven — all state + handlers are passed in.
+ * notes), plus copy-evidence and cleanup actions. All fixture scenarios launch through the single folder-based registry
+ * picker (searchable, tier-grouped) — the former hardcoded per-preset button stack was a duplicate presentation of the
+ * same scenarios (each preset was just an alias for a registry id) and was removed. Fully props-driven.
  */
-
-/**
- * The quick-launch preset buttons — kept in lock-step with `runtimeDevTestProjectPresetSchema` (all 8 presets are
- * runnable via the API, §5.AF). `mid_task` is a single card; the rest seed a decompose card that fans out into a DAG.
- */
-const DEV_TEST_PRESET_BUTTONS: { preset: RuntimeDevTestProjectPreset; label: string }[] = [
-	{ preset: "mid_task", label: "mid task" },
-	{ preset: "complex_dag", label: "complex product" },
-	{ preset: "audio_vst", label: "audio VST" },
-	{ preset: "daw_foundation", label: "DAW foundation" },
-	{ preset: "wide_fanout", label: "wide fan-out" },
-	{ preset: "deep_chain", label: "deep chain" },
-	{ preset: "mixed_dag", label: "mixed DAG" },
-	{ preset: "many_small", label: "many small cards" },
-];
 export function DevTestProjectCard({
 	disabled,
-	runningPreset,
 	isCleaningUp,
 	isCreatingSelfImprovementProject,
 	evidencePath,
@@ -38,14 +23,12 @@ export function DevTestProjectCard({
 	isRegistryLoading,
 	startingRegistryId,
 	onSelfImprovementNotesChange,
-	onRun,
 	onRunById,
 	onCopyEvidence,
 	onCleanup,
 	onCreateSelfImprovementProject,
 }: {
 	disabled: boolean;
-	runningPreset: RuntimeDevTestProjectPreset | null;
 	isCleaningUp: boolean;
 	isCreatingSelfImprovementProject: boolean;
 	evidencePath: string | null;
@@ -54,15 +37,13 @@ export function DevTestProjectCard({
 	isRegistryLoading: boolean;
 	startingRegistryId: string | null;
 	onSelfImprovementNotesChange: (value: string) => void;
-	onRun: (preset: RuntimeDevTestProjectPreset) => Promise<void>;
 	onRunById: (id: string) => Promise<void>;
 	onCopyEvidence: () => Promise<void>;
 	onCleanup: () => Promise<void>;
 	onCreateSelfImprovementProject: () => Promise<void>;
 }): React.ReactElement {
-	const [showRegistry, setShowRegistry] = useState(false);
+	const [showRegistry, setShowRegistry] = useState(true);
 	const isBusy = disabled || isCreatingSelfImprovementProject;
-	const isAnyPresetRunning = runningPreset !== null;
 
 	return (
 		<div className="mt-2 rounded-md border border-border bg-surface-2 px-3 py-2.5">
@@ -131,52 +112,18 @@ export function DevTestProjectCard({
 							entries={registryEntries}
 							isLoading={isRegistryLoading}
 							startingId={startingRegistryId}
-							disabled={isBusy || isAnyPresetRunning || isCleaningUp}
+							disabled={isBusy || isCleaningUp}
 							onStart={onRunById}
 						/>
 					) : null}
 				</div>
 
-				{/* Quick-launch preset buttons (data-driven — all 8 presets, §5.AF) */}
-				{DEV_TEST_PRESET_BUTTONS.map(({ preset, label }) => {
-					const isRunning = runningPreset === preset;
-					return (
-						<Button
-							key={preset}
-							size="sm"
-							variant="default"
-							icon={
-								isRunning ? (
-									<Spinner size={14} />
-								) : preset === "mid_task" ? (
-									<Play size={14} />
-								) : (
-									<FlaskConical size={14} />
-								)
-							}
-							disabled={isBusy}
-							onClick={() => {
-								if (
-									!window.confirm(
-										`Create a marked !Klein ${label} dev-test project and make it the active project?`,
-									)
-								) {
-									return;
-								}
-								void onRun(preset);
-							}}
-							fill
-						>
-							{isRunning ? "Creating..." : `Create ${label} project`}
-						</Button>
-					);
-				})}
 				{evidencePath ? (
 					<Button
 						size="sm"
 						variant="ghost"
 						icon={<Clipboard size={14} />}
-						disabled={isBusy || isAnyPresetRunning}
+						disabled={isBusy}
 						onClick={() => {
 							void onCopyEvidence();
 						}}

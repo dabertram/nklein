@@ -36,7 +36,6 @@ import {
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeAgentId,
-	RuntimeDevTestProjectPreset,
 	RuntimeDevTestRegistryEntry,
 	RuntimeNKleinProviderSettings,
 	RuntimeProjectSummary,
@@ -97,10 +96,9 @@ export function ProjectNavigationPanel({
 	const [settingsProject, setSettingsProject] = useState<RuntimeProjectSummary | null>(null);
 	const [deleteGitRepository, setDeleteGitRepository] = useState(false);
 	const [devTestProjectState, setDevTestProjectState] = useState<{
-		runningPreset: RuntimeDevTestProjectPreset | null;
 		isCleaningUp: boolean;
 		evidencePath: string | null;
-	}>({ runningPreset: null, isCleaningUp: false, evidencePath: null });
+	}>({ isCleaningUp: false, evidencePath: null });
 	const [selfImprovementNotes, setSelfImprovementNotes] = useState("");
 	const [isCreatingSelfImprovementProject, setIsCreatingSelfImprovementProject] = useState(false);
 	const [registryEntries, setRegistryEntries] = useState<RuntimeDevTestRegistryEntry[]>([]);
@@ -474,12 +472,7 @@ export function ProjectNavigationPanel({
 					{/* dev source tree required -> DEV build AND developer mode */}
 					{import.meta.env.DEV && developerModeEnabled ? (
 						<DevTestProjectCard
-							disabled={
-								removingProjectId !== null ||
-								devTestProjectState.runningPreset !== null ||
-								devTestProjectState.isCleaningUp
-							}
-							runningPreset={devTestProjectState.runningPreset}
+							disabled={removingProjectId !== null || devTestProjectState.isCleaningUp}
 							isCleaningUp={devTestProjectState.isCleaningUp}
 							isCreatingSelfImprovementProject={isCreatingSelfImprovementProject}
 							evidencePath={devTestProjectState.evidencePath}
@@ -541,61 +534,6 @@ export function ProjectNavigationPanel({
 									setStartingRegistryId(null);
 								}
 							}}
-							onRun={async (preset) => {
-								setDevTestProjectState((current) => ({ ...current, runningPreset: preset }));
-								try {
-									const created = await createDevTestProject(currentProjectId, { preset });
-									if (!created.ok || !created.project) {
-										throw new Error(created.error ?? "Could not create the dev test project.");
-									}
-									setDevTestProjectState({
-										runningPreset: preset,
-										isCleaningUp: false,
-										evidencePath: created.evidenceRootPath,
-									});
-									onSelectProject(created.project.id);
-									// Every preset returns a startable seed task (multi-card presets seed a decompose card); start it.
-									if (created.task) {
-										const trpcClient = getRuntimeTrpcClient(created.project.id);
-										const started = await trpcClient.runtime.startTaskSession.mutate({
-											taskId: created.task.id,
-											prompt: created.task.prompt,
-											taskTitle: created.task.title,
-											filesLikelyTouched: created.task.filesLikelyTouched,
-											startInPlanMode: created.task.startInPlanMode,
-											baseRef: created.task.baseRef,
-											agentId: created.task.agentId,
-											nkleinSettings: created.task.nkleinSettings,
-										});
-										if (!started.ok) {
-											throw new Error(started.error ?? "Dev test task could not be started.");
-										}
-										const workspaceState = await fetchWorkspaceState(created.project.id);
-										const targetColumnId = created.task.startInPlanMode ? "planning" : "in_progress";
-										const moved = moveTaskToColumn(workspaceState.board, created.task.id, targetColumnId, {
-											insertAtTop: true,
-										});
-										if (moved.moved) {
-											await saveWorkspaceState(created.project.id, {
-												board: moved.board,
-												expectedRevision: workspaceState.revision,
-											});
-											await trpcClient.workspace.notifyStateUpdated.mutate();
-										}
-									}
-									showAppToast({
-										intent: "success",
-										icon: "check",
-										message: `Dev-test project (${preset}) created${created.task ? " and its seed task started" : ""}.`,
-										timeout: 5000,
-									});
-								} catch (error) {
-									const message = error instanceof Error ? error.message : String(error);
-									showAppToast({ intent: "danger", icon: "warning-sign", message, timeout: 8000 });
-								} finally {
-									setDevTestProjectState((current) => ({ ...current, runningPreset: null }));
-								}
-							}}
 							onCopyEvidence={async () => {
 								if (!devTestProjectState.evidencePath) {
 									return;
@@ -616,7 +554,6 @@ export function ProjectNavigationPanel({
 										throw new Error(cleaned.error ?? "Could not clean up dev test projects.");
 									}
 									setDevTestProjectState({
-										runningPreset: null,
 										isCleaningUp: false,
 										evidencePath: null,
 									});
