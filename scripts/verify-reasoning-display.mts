@@ -24,6 +24,23 @@ function log(line: string): void {
 	process.stdout.write(`${line}\n`);
 }
 
+// Resilience: tolerate the vendored SDK's stray `session_stop` rejection from a session stopped mid-run (see
+// src/server/runtime-process-guards.ts) — this harness drives + stops sessions directly, so without this the stray
+// rejection can crash the process before the result prints. Swallow ONLY that benign abort; fail loudly on anything else.
+process.on("unhandledRejection", (reason) => {
+	const err = reason as { name?: string; reason?: string; message?: string } | undefined;
+	if (
+		err?.reason === "session_stop" ||
+		err?.name === "AgentRuntimeAbortError" ||
+		String(err?.message ?? reason).includes("session_stop")
+	) {
+		log(`(tolerated stray session_stop rejection: ${err?.message ?? String(reason)})`);
+		return;
+	}
+	log(`FATAL unhandled rejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
+	process.exit(2);
+});
+
 async function main(): Promise<void> {
 	// Never load models — only test already-loaded ones (user directive 2026-06-28). Refuse a specified non-resident model.
 	if (MODEL_ID) {
