@@ -3162,6 +3162,33 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > remaining §5.V piece:** a FULL-RUNTIME multi-card pipeline e2e (decompose → dependency-ordered/parallel runs → review →
 > merge → deliver) — needs the full server + board/lane orchestration (not the stripped in-memory harness), so it is a
 > focused arc best started on a fresh context.
+- [ ] **★ FIX the one stale integration test — `runtime-state-stream` "moves stale completed review cards to trash on
+      shutdown"** *(surfaced 2026-07-07 Opus full-suite verification; David 2026-07-07: "do it HERE in a controlled way,
+      when + how it fits — NOT in parallel").* This is the sole failure in the integration suite (integration 41/42;
+      contract 275/275 green) and it is **DETERMINISTIC + PRE-EXISTING** (fails 3× in isolation on a quiet machine; also
+      fails at commit `e2fc333e` deep in the branch → not this session's refactoring, not environmental). It went
+      unnoticed because the pre-commit gate (`test:fast`) runs only `test/runtime` + `test/utilities`, NEVER
+      `test/integration`.
+      - **It is a STALE TEST, not a product bug — verified.** The test (`test/integration/runtime-state-stream.integration.test.ts`)
+        seeds a session `{ state: "awaiting_review", reviewReason: "exit", exitCode: 0 }` with its card in the REVIEW
+        column, restarts the server, and asserts the card is moved OUT of review INTO trash (lines ~527–528) + the session
+        becomes `interrupted` (~529–530). But `src/server/shutdown-coordinator.ts:61–88` documents a **deliberate 2026-07-02
+        W2.2 "RECONCILE-DON'T-DESTROY" design** that *supersedes* the old trash-everything shutdown: `parkInterruptedTasks
+        ForShutdown` explicitly leaves **planning/review cards in place**. So the current product correctly (a) marks the
+        session `interrupted` [529–530 still PASS] but (b) LEAVES the card in review [527–528 now FAIL]. The test simply
+        wasn't updated when reconcile-don't-destroy landed.
+      - **Fix (do NOT touch product behavior):** update only the card-LOCATION assertions to the reconcile-don't-destroy
+        design — the stale `awaiting_review` card must REMAIN in review (assert `reviewCards` CONTAINS the taskId; remove/
+        invert the trash expectation); KEEP the `state`/`reviewReason === "interrupted"` assertions (still valid). This is
+        aligning a stale test to an *intentional, documented* behavior change — legitimate, NOT the forbidden "weaken a test
+        to pass a refactor" (the reconcile-don't-destroy behavior is correct + shipped; the test lagged). **Re-read
+        shutdown-coordinator.ts:61–88 to confirm the design before editing.**
+      - **Verify:** `npx vitest run test/integration/runtime-state-stream.integration.test.ts` → all 8 green; then the full
+        `npx vitest run test/integration` → 42/42. (Cross-ref: this is the "1 known stale test" the run log cites across
+        every full-suite pass this session.) **Related process gap (own item / §5.AZ):** `test:fast` skipping
+        contract/integration/protected/web-ui is why this + the 3 built-artifact P0s went silently red — a CI job (or a
+        `test:all`) running EVERY suite is the real gate; the built-artifact smoke (`npm run smoke:build`) + secret gate
+        (`npm run scan:secrets`) were added, but the all-suites gate is still owed.
 - [~] **Untested-pure-core unit sweep** *(parallel fast-regression layer — TS-internal, not the port oracle, but genuine
       "control the whole complexity" coverage of shipping logic that had zero tests; prioritize security/correctness-
       critical modules)*. **Started 2026-06-27:** `agent-write-guard` (129 lines, security-relevant: protected-test-path
