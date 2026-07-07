@@ -3486,3 +3486,20 @@ pre-blended-color SVG (no gradients/opacity/CSS funcs) and browser-render perfec
 klein-favicon.svg, + apple-touch-icon, theme-color → #0F1319; manifest background/theme → klein palette. Also added
 .claude/launch.json (web-ui dev server on 127.0.0.1:4173) for browser-verified UI work. Web gate GREEN: web-ui tsc +
 biome (407 files) + vitest 952/952. §5.AX remaining: the component polish pass + §5.AZ screenshots (now unblocked).
+
+### 2026-07-07 (Fable) - §5.AX polish pass: branded disconnected screen, TRUE settings copy, live board audit rig
+Component-polish increment, browser-verified end to end. (1) **Disconnected screen branded** (`runtime-disconnected-fallback.tsx`):
+the generic AlertCircle → dimmed constellation-K (no live pulse — the swarm is down), accent "!" in the title, + a Reload
+button (§5.AX "error states designed, not default"). (2) **Stale settings copy fixed** (`runtime-settings-dialog.tsx`): the
+"Max writable file lines" setting still described the OLD hard-wall semantics; now "File-size soft target (lines)" with the
+true behavior (nudge under target · over allowed when cohesive · 4× hard-blocks) — found by AUDITING THE LIVE UI, exactly
+the drift the smart-soft-limit change (Opus, same day) could leave behind. (3) **Reusable audit/screenshot rig**: isolated
+runtime (HOME=/tmp/nklein-verify-fable-ui, NODE_ENV=development for the 4173 dev-origin CORS/WS allowance, tsx --tsconfig
+for the vendored @cline/sdk alias, --no-open) + a seeded neutral demo project (recipe-box) + a Playwright harness
+(scratchpad fable-board-shots.mts) that zooms Z3, creates 4 demo cards via the real composer, and captures board/overview/
+DAG/chat/settings. Audit verdict: klein token language holds across all captured surfaces (zoom ladder, swarm strip, DAG,
+settings all coherent); the suspected card-title truncation bug REFUTED by DOM inspection (kb-line-clamp-1 with the full
+80-char title present — a downscaled-screenshot misread). SAFETY note: the sandbox board's auto-start swept correctly and
+FAILED CLOSED ("No native !Klein provider is configured") — no model call left the isolated HOME; runtime killed after
+capture. Screenshots handed to David as §5.AZ README candidates (his pick before anything ships into the repo).
+Web gate GREEN: web-ui tsc + biome + 952/952.

@@ -1397,12 +1397,12 @@ export function RuntimeSettingsDialog({
 			parsedSandboxIdleTimeoutMinutes === null
 		) {
 			setSaveError(
-				"Timeout values must be integers >= 0; max writable file lines, concurrency, and sandbox pool settings must be within their allowed ranges.",
+				"Timeout values must be integers >= 0; the file-size soft target, concurrency, and sandbox pool settings must be within their allowed ranges.",
 			);
 			return;
 		}
 		if (parsedMaxAgentWritableFileLines < 1) {
-			setSaveError("Max writable file lines must be an integer >= 1.");
+			setSaveError("The file-size soft target must be an integer >= 1.");
 			return;
 		}
 		if (parsedMaxConcurrentTasks < 1) {
@@ -1676,7 +1676,7 @@ export function RuntimeSettingsDialog({
 										htmlFor={maxAgentWritableFileLinesId}
 										className="block text-[13px] text-text-primary mb-1"
 									>
-										Max writable file lines
+										File-size soft target (lines)
 									</label>
 									<input
 										id={maxAgentWritableFileLinesId}
@@ -1689,7 +1689,9 @@ export function RuntimeSettingsDialog({
 										className="h-8 w-full max-w-[160px] rounded-md border border-border bg-surface-2 px-2 text-[12px] text-text-primary disabled:opacity-40"
 									/>
 									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
-										Maximum lines an agent write tool may create in a single file (must be &ge; 1).
+										Agents are nudged to keep any written file under this many lines (must be &ge; 1). A write
+										may exceed it when one file is genuinely more cohesive; only 4&times; this value
+										hard-blocks a write.
 									</p>
 									{(() => {
 										const v = Number.parseInt(maxAgentWritableFileLines, 10);
