@@ -2377,3 +2377,18 @@ a few more small clusters each) -- legitimate 'no large monolith files' but DIMI
 big two. Next candidates exist (cli shutdown-indicator/path-dir helpers; sdk-provider model-transform cluster; update.ts
 auto-update-detection) but each is ~40-80 lines. Continuing one clean cluster per tick; flagging that the high-value
 §5.U frontier is David-gated.
+
+### 2026-07-07 (Opus) - §5.U 6th lift: CLI shutdown-indicator cluster (+tests); rejected a type-coupled cluster
+Assessed the sdk-provider-boundary model-transform cluster (toSdkProviderModel/FromCatalog/mergeSdkProviderModels) and
+REJECTED extracting it: its input types (SdkLocalProviderModel/SdkResolvedProviderModel) are SDK-derived local aliases
+(Awaited<ReturnType<typeof getLocalProviderModels>> etc.), so moving the transforms would drag SDK type-plumbing into
+the new module -- not a clean lift. Pivoted to the cli.ts shutdown-indicator cluster (isTerminalTeardownError +
+safeShutdownIndicatorWrite + createShutdownIndicator + 2 local types) -> cli-shutdown-indicator.ts. Fully self-contained
+(coupling = ora + stream); ora left cli.ts entirely. cli.ts 779 -> 698. +5 tests for the previously-untested
+graceful-terminal-teardown logic (EIO/setRawMode matrix; non-TTY plain-text path; EIO-swallow-but-rethrow-real). **ARC:
+6 lifts -- provider-service 933->684, workspace-state 1046->884, cli.ts 812->698.** Still combining §5.U extraction with
+§5.V coverage where the extracted logic was untested (port cluster, shutdown-indicator). The two big NAMED monoliths
+remain David-gated (entangled seam). Remaining clean mid-file candidates: cli.ts path/dir helpers (assertPathIsDirectory/
+pathIsDirectory/hasGitRepository -- fs/git glue, modest); update.ts auto-update-detection cluster (detectAutoUpdate
+Installation + looksLikeTransientCachePath + isAutoUpdateDisabled -- pure-ish, testable, likely the next-best combined
+target). Continuing one clean cluster per tick.
