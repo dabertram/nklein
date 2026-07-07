@@ -964,3 +964,15 @@ mutating-tool security seam — approval callback must fire, content must land, 
 - matrix rows (chat write_file): qwq-32b=✅ · glm-4.7-flash=⏱️(turn-termination/template trait, inconclusive).
   **Net: the security confirm-gate + audit path is now proven on a reasoning model too; every write-flow non-pass to
   date is a model turn-termination/synthesis trait, never a gap in the gate itself.**
+
+## 2026-07-07 (Opus) — §5.Z new-model verify: `qwopus3.5-9b-coder-mtp` (egress e2e + chat-agent-tools)
+A model resident this session but NOT yet in the matrix — added two fast high-value data points against the LIVE stack
+(SearXNG egress up at 127.0.0.1:18888; LM Studio at :1234). Both self-contained harnesses, model pinned via env.
+- ✅ **`verify-egress-model-e2e.mts` [qwopus3.5-9b-coder-mtp] — PASS (§5.AC).** Emitted a `web_search` tool call
+  (finish=tool_calls) → query hit LIVE SearXNG for 8 real results → grounded its answer in them (correct anthropic.com
+  URL). Full model→tool→egress→results→answer chain clean on the first run.
+- ✅ **`verify-chat-agent-tools.mts` [qwopus3.5-9b-coder-mtp] — PASS (§5.M), 1 tool step.** Called `read_file` through
+  the gated executor → executor audited the executed read → final answer reflected the file's secret
+  (`hunter2-fjord-lantern`) → user+assistant both persisted (the W3.1 persist-before-loop invariant). No iteration-limit hit.
+- matrix rows: qwopus3.5-9b-coder-mtp → egress-e2e=✅ · chat-agent-tools=✅. A capable 9B coder model, clean on both the
+  egress tool-loop and the read-tool loop. Baseline model left loaded (was already the resident selection).
