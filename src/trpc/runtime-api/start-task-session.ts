@@ -1,7 +1,7 @@
-import { blendCapabilityWithLedgerEvidence } from "../../core/agent-ledger-projections";
 import type { RuntimeTaskSessionStartRequest, RuntimeTaskSessionStartResponse } from "../../core/api-contract";
 import { parseTaskSessionStartRequest } from "../../core/api-validation";
 import { applyWarmthPreference } from "../../core/cache-warmth";
+import { createCapabilityBlender } from "../../core/capability-blend";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isTruthyEnv } from "../../core/env-flag";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
@@ -17,7 +17,6 @@ import { explainModelSelection, renderModelSelectionReason } from "../../core/mo
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
 import { selectRoleModel } from "../../core/role-model-selection";
-import { assessRuntimeModelVerdict } from "../../core/runtime-model-verdict";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
@@ -462,41 +461,16 @@ export async function handleStartTaskSession(
 		const selfObservationEvents = await readSelfObservationEvents({ limit: 500 }).catch(
 			() => [] as Awaited<ReturnType<typeof readSelfObservationEvents>>,
 		);
-		const verdictMultiplierByModelId = new Map<string, number>();
-		const runtimeVerdictMultiplier = (modelId: string): number => {
-			const cached = verdictMultiplierByModelId.get(modelId);
-			if (cached !== undefined) {
-				return cached;
-			}
-			const verdict =
-				selfObservationEvents.length > 0 || runtimeVerdictRuns.length > 0
-					? assessRuntimeModelVerdict({ modelId, events: selfObservationEvents, runs: runtimeVerdictRuns }).verdict
-					: "UNKNOWN";
-			const multiplier = verdict === "TOOL_UNSUITABLE" ? 0.1 : verdict === "TOOL_WEAK" ? 0.5 : 1;
-			verdictMultiplierByModelId.set(modelId, multiplier);
-			return multiplier;
-		};
-		// Minimum per-(model,role) samples before role evidence outranks the global rollup (thin role evidence is
-		// noisier than a well-sampled global rate).
-		const MIN_ROLE_EVIDENCE_SAMPLES = 3;
-		const blendedCapabilityForKey = (
-			modelKey: string,
-			baseCapability: number,
-			role?: string | null,
-			modelId?: string,
-		): number => {
-			const roleObserved = role ? ledgerRoleSuccessByKey.get(`${modelKey}\u0000${role}`) : undefined;
-			const observed =
-				roleObserved && roleObserved.samples >= MIN_ROLE_EVIDENCE_SAMPLES
-					? roleObserved
-					: ledgerSuccessByKey.get(modelKey);
-			const blended = blendCapabilityWithLedgerEvidence(
-				baseCapability,
-				observed?.successRate ?? null,
-				observed?.samples ?? 0,
-			);
-			return modelId ? blended * runtimeVerdictMultiplier(modelId) : blended;
-		};
+		// 5.AF/5.AB capability blender (extracted to core/capability-blend.ts, 5.U): given the ledger evidence + the
+		// self-observation events it returns the verdict-multiplier + blended-capability functions the router uses
+		// (per-model verdict memo + role-outranks-global preference encapsulated; role evidence keyed by the shared
+		// roleEvidenceKey, so the write and read keys can never drift).
+		const { blendedCapabilityForKey } = createCapabilityBlender({
+			successByKey: ledgerSuccessByKey,
+			roleSuccessByKey: ledgerRoleSuccessByKey,
+			verdictRuns: runtimeVerdictRuns,
+			selfObservationEvents,
+		});
 		// §5.BG (c): the residency key resolves the STABLE id the SAME way the re-keyed candidates do (both via
 		// `resolveStableRoutingModelId`), so a running model is recognized as running (never looks FREE → double-start).
 		// Flag OFF ⇒ the identity resolver ⇒ runtime keys, byte-identical to before.
