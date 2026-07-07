@@ -4924,6 +4924,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > 2. **Broad panel-of-judges default** *(NEW — §5.AB/§5.K)*: review is SINGLE-reviewer today (lenses = orthogonal eyes on
 >    ONE reviewer, `review-lenses.ts`). Implement N-reviewer PARALLEL panel as the default (diverse team, combine verdicts
 >    — majority/consensus), bounded by endpoint-resource limits + tunable count. This is the headline want; largest/riskiest.
+>    **★ CACHING × STREAM TRADE-OFF (David 2026-07-07) — the panel MUST be prompt-cache-aware, not naively diverse.**
+>    Fanning a decision across N diverse models means N COLD prefills (each model re-reads the whole context from scratch);
+>    a model that already holds the context in its KV cache pays only the (cheap) incremental prefill. So the panel/multi-
+>    model selection weighs **§5.AQ cache-warmth** (prefer a model that already has this context/shell cached — reuse KV,
+>    save prefill) AND **§5.AU task-stream coherence** (keep a stream's turns on a stable model set so we're not "wildly
+>    switching context contents" and thrashing every model's cache) AGAINST family diversity — and takes the best trade-off.
+>    Principle: when the ONLY cost is prefill and the KV cache mitigates it, PREFER re-using already-warm models; spend a
+>    cold prefill on a fresh diverse model only when the uncorrelated-judgment value clears that cost. This is exactly the
+>    `applyWarmthPreference` margin contract (warmth authoritative-but-margin-bounded, within what diversity allows) —
+>    EXTEND it to the N-model panel (not just the single reviewer). Ties my noted follow-up: make warmth
+>    capability-margin-bounded so a warm-but-shallow model can't displace a deep judge. Reuse `cache-warmth.ts` +
+>    per-endpoint warmth score (§5.AQ) + `card.streamId` (§5.AU). Measure: if the delta is prefill-time only (KV covers the
+>    rest), lean cache-reuse; if a cold model changes the VERDICT quality materially, pay the prefill. Best trade-off, not dogma.
 > 3. **Depth in JUDGE selection** *(NEW — reviewer path; PRECISE LOCUS found 2026-07-07)*: reviewer candidates are
 >    **flat-scored** — `buildReviewerCandidates` (nklein-reviewer-candidate-selection.ts:49) sets every candidate
 >    `score: 50`, so `pickDiverseReviewerModel` chooses the judge on **diversity + warmth ALONE — capability/depth never
@@ -7784,6 +7797,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       loaded from the runtime home + merged OVER the shipped defaults (user entries win; new fine-tunes added without a
       rebuild). Reuse the `ProvisionalCatalogEntry` shape from `model-online-lookup.ts`. Document the format seeded with
       the web-verified mid-2026 entries (see scratchpad `model-advisory-design.md`). See §5.AB "MODEL-ADVISORY EXCELLENCE".
+- [ ] **Auto-check llmfit's GitHub catalog for updates (David 2026-07-07 — "we had looked at llmfit for this purpose").**
+      llmfit (MIT, https://github.com/AlexsJones/llmfit — already scoped in §5.AB's llmfit item) ships a model DB/catalog
+      updated as new models land. Make llmfit's remote catalog a first-class SOURCE feeding the external overlay (above):
+      (1) **check GitHub for a newer catalog** at runtime OR on a user-triggered "update models" (compare local vs remote
+      version/etag/commit); (2) **detect** an available update and **SUGGEST** updating the local copy, **opt-out allowed**
+      (setting: off / notify / auto — default NOTIFY; never silently auto-pull); (3) merge pulled llmfit rows into the
+      overlay (llmfit = fit/speed/hardware; our catalog = tool-use verdict — they compose, per the §5.AB llmfit item).
+      Local-only #1 holds: a user-initiated/opt-in fetch of a PUBLIC repo, never automatic background egress. This is the
+      concrete realization of decision #1's "data-driven + EXTERNAL, updatable catalog" — the catalog stays fresh without
+      a code change or rebuild.
 - [ ] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
       hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
       single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup
