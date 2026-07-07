@@ -1367,7 +1367,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] wire learned priors (from the §5.AF ledger) into the rank inputs; unit-test the combined order. *(injectable `learnedPrior`; tiebreaks apply after the hard gates + before smaller-diff; 4 tests)*
   - [x] **Ledger the kernel run (§5.AF):** record (one leaf each) localization candidates · patch candidates · *(2026-07-04: pure `summarizeRepairKernelRun` projection in repair-kernel-ledger.ts — all 5 leaves: localization/patch-candidates-by-round/validator-results/refinement-deltas/final-ranking-rationale; 9 tests)*
         validator results · refinement deltas · final ranking rationale.
-  - [ ] **Enrich generated card specs** (one leaf per field group): add `preconditions/inputs/expectedOutputs` ·
+  - [x] **Enrich generated card specs** (one leaf per field group): add `preconditions/inputs/expectedOutputs` ·
         `acceptanceChecks/nonGoals` · `dependencyOutputsConsumed` · `rollbackOrRepairHints/downstreamInvalidationRules`
         to the card schema, populate them in decomposition, and consume them node-locally. *(✅ DONE 2026-07-08: 8 optional contract fields added to nkleinPlanTaskSchema (preconditions/inputs/expectedOutputs · acceptanceChecks/nonGoals · dependencyOutputsConsumed · rollbackOrRepairHints/downstreamInvalidationRules); renderCardContractBrief consumes them node-locally into buildTaskPrompt; population is model-driven via the decompose schema. 14 tests.)*
   - [x] **Controller repair semantics** (one leaf each): retry-node · refine-spec · split-node · add-dependency · *(2026-07-04: pure `decideRepairAction` escalation ladder in repair-controller-decision.ts; 9 tests)*
