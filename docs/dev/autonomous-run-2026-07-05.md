@@ -2048,3 +2048,14 @@ aligned (this is the change reverted once for the mixed-keyspace hazard — now 
 `resolveStableModelKeyWithMap` gives every candidate a stable key even when cold); (d) re-key existing ledger/registry
 rows on load (`rekeyTableToStableModelKeys`, already built). (c) is the single riskiest edit (distributed across the hot
 routing path) — a focused, guard-verified pass, then a §5.Z roster re-verify.
+
+**UPDATE 2026-07-07 — panel decision core [5613d117]:** `combinePanelVerdicts` encodes David's "3 judges, majority +
+security veto" (majority passes; any single high/critical security/correctness finding vetoes even a passing majority;
+empty/tie → block). Pure, 10 tests. Complements `review-panel-plan` (per-reviewer lenses). The pure cores for BOTH
+remaining big features are now in place — panel: `combinePanelVerdicts`; §5.BG: the map primitive + store. What's left
+for each is purely the HOT-PATH orchestration/flip:
+- Panel ORCHESTRATION: spawn N base-family-diverse judges (reuse `pickDiverseReviewerModel`, now depth-aware),
+  cache/stream-aware (prefer warm/coherent, cold prefill on a fresh diverse judge only when its value clears it), collect
+  verdicts → `combinePanelVerdicts`, default-on. Changes live review behavior → focused pass + §5.Z re-verify.
+- §5.BG (c) coordinated key flip + (d) re-key-on-load (subtle per-table merge semantics).
+- Hardware hard-block: selector rejects over-headroom (needs live resident-size state).
