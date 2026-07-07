@@ -46,6 +46,18 @@ describe("submit_review tool", () => {
 		expect(nulled.result?.preferred).toBeNull();
 	});
 
+	it("§5.AB panel: records a `blocking` request_changes (defaults false when omitted)", async () => {
+		const blocked = await run({
+			verdict: "request_changes",
+			summary: "Security defect.",
+			feedback: "SQL injection in the query builder.",
+			blocking: true,
+		});
+		expect(blocked.result?.blocking).toBe(true);
+		const ordinary = await run({ verdict: "request_changes", summary: "Nit.", feedback: "Rename x." });
+		expect(ordinary.result?.blocking).toBe(false);
+	});
+
 	it("#32 (run34): tolerates off-vocabulary preferred values instead of pre-rejecting the verdict", async () => {
 		// A reviewer on an ORDINARY review filled the field anyway; the strict enum rejected the whole verdict
 		// 4x and the abandoned reviewer's no-verdict hold froze a 1-wide rail. Junk now means "no preference".

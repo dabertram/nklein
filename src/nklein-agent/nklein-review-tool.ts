@@ -43,6 +43,12 @@ export const nkleinReviewSubmissionSchema = z
 			}
 			return null;
 		}, z.enum(["primary", "speculative"]).nullable().optional()),
+		/**
+		 * §5.AB panel: set true ONLY when `request_changes` flags a SERIOUS security/correctness defect that must block
+		 * a merge even if other reviewers approve (a hard stop, not a nit). In the parallel panel a single `blocking`
+		 * request_changes VETOES the merge; a single reviewer treats it the same as any request_changes.
+		 */
+		blocking: z.boolean().optional(),
 	})
 	.refine((value) => value.verdict === "approve" || Boolean(value.feedback?.trim()), {
 		message: "feedback is required when verdict is request_changes",
@@ -58,6 +64,8 @@ export interface NKleinReviewResult {
 	insight: string | null;
 	/** §5.AW: the candidate the reviewer picked in an A/B best-of-N review; null outside arbitration. */
 	preferred: "primary" | "speculative" | null;
+	/** §5.AB panel: the reviewer flagged a blocking security/correctness defect (vetoes the merge in a panel). */
+	blocking: boolean;
 }
 
 export type NKleinReviewSubmittedHandler = (result: NKleinReviewResult) => void | Promise<void>;
@@ -105,6 +113,11 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 					description:
 						"ONLY when this review compares candidate A (primary) and candidate B (speculative): the candidate to deliver — `primary` for A, `speculative` for B. Omit on ordinary single-candidate reviews.",
 				},
+				blocking: {
+					type: ["boolean", "null"],
+					description:
+						"Set true ONLY when `request_changes` flags a SERIOUS security or correctness defect that must block a merge even if other reviewers approve (a hard stop, not a style nit). Omit/false for ordinary change requests.",
+				},
 			},
 			// §5.BD sweep: `required` is advisory, not enforced at the boundary — a missing field returns an
 			// actionable ok:false below instead of a raw Zod pre-rejection that loops the reviewer.
@@ -127,6 +140,7 @@ export function createNKleinReviewTool(options: { onSubmitted?: NKleinReviewSubm
 				feedback: parsed.feedback?.trim() || null,
 				insight: parsed.insight?.trim() || null,
 				preferred: parsed.preferred ?? null,
+				blocking: parsed.blocking === true,
 			};
 			await options.onSubmitted?.(result);
 			return {
