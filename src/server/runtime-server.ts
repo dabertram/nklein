@@ -107,6 +107,7 @@ import {
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
+import { decideAutoReviewCardAction } from "./auto-review-card-decision";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
@@ -797,18 +798,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						const record = latestState.board.columns
 							.flatMap((column) => column.cards.map((card) => ({ columnId: column.id, card })))
 							.find((candidate) => candidate.card.id === taskId);
-						if (!record) {
-							return { board: latestState.board, save: false, value: null };
-						}
-						if (record.columnId === "completed") {
-							return { board: latestState.board, save: false, value: null };
-						}
-						if (record.card.startInPlanMode) {
-							return { board: latestState.board, save: false, value: null };
-						}
-						shouldAutoComplete =
-							record.card.autoReviewEnabled === true && (record.card.autoReviewMode ?? "commit") === "commit";
-						if (record.columnId === "review") {
+						const action = decideAutoReviewCardAction(record);
+						shouldAutoComplete = action.shouldAutoComplete;
+						if (!action.moveToReview) {
 							return { board: latestState.board, save: false, value: null };
 						}
 						const movement = moveTaskToColumn(latestState.board, taskId, "review");
