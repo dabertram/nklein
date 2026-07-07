@@ -6,10 +6,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RuntimeProjectTaskCounts } from "../../../src/core/api-contract";
 import { AUTONOMOUS_NKLEIN_TIMEOUT_SETTINGS } from "../../../src/core/autonomous-timeout-defaults";
-import {
-	AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO,
-	COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO,
-} from "../../../src/nklein-agent/nklein-dev-test-project";
+import { resolveNKleinDevTestProjectScenario } from "../../../src/nklein-agent/nklein-dev-test-project";
 import { writeNKleinPlanArtifacts } from "../../../src/nklein-agent/nklein-plan-artifacts";
 import {
 	getTaskWorktreesHomePath,
@@ -169,19 +166,21 @@ function createDefaultDeps(serverCwd: string): CreateProjectsApiDependencies {
 
 describe("createDevTestBoard", () => {
 	it("builds scenario-specific seed task ids", () => {
-		expect(buildDevTestTaskId(COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.id)).toBe(
+		expect(buildDevTestTaskId(resolveNKleinDevTestProjectScenario("complex_dag").id)).toBe(
 			"dev-habit-product-nklein-complex-decompose",
 		);
-		expect(buildDevTestTaskId(AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO.id)).toBe("dev-audio-vst-psytrance-decompose");
+		expect(buildDevTestTaskId(resolveNKleinDevTestProjectScenario("audio_vst").id)).toBe(
+			"dev-audio-vst-psytrance-decompose",
+		);
 		expect(buildDevTestTaskId("  Weird Scenario! ")).toBe("dev-weird-scenario-decompose");
 	});
 
 	it("seeds one NKlein-only decomposition task without prebuilt dependencies", () => {
 		const board = createDevTestBoard({
 			taskId: "dev-initial-decompose",
-			title: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.title,
-			prompt: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.prompt,
-			acceptanceCommand: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.acceptanceCommand,
+			title: resolveNKleinDevTestProjectScenario("complex_dag").title,
+			prompt: resolveNKleinDevTestProjectScenario("complex_dag").prompt,
+			acceptanceCommand: resolveNKleinDevTestProjectScenario("complex_dag").acceptanceCommand,
 			now: 123,
 		});
 		const backlog = board.columns.find((column) => column.id === "backlog")?.cards ?? [];
@@ -208,9 +207,9 @@ describe("createDevTestBoard", () => {
 	it("seeds plan-mode dev-test cards with the architect role model when configured", () => {
 		const board = createDevTestBoard({
 			taskId: "dev-initial-decompose",
-			title: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.title,
-			prompt: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.prompt,
-			acceptanceCommand: COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO.acceptanceCommand,
+			title: resolveNKleinDevTestProjectScenario("complex_dag").title,
+			prompt: resolveNKleinDevTestProjectScenario("complex_dag").prompt,
+			acceptanceCommand: resolveNKleinDevTestProjectScenario("complex_dag").acceptanceCommand,
 			modelRoles: {
 				architect: {
 					providerId: "lmstudio",

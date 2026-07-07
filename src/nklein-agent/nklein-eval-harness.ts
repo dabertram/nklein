@@ -6,7 +6,7 @@ import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import type { SelfObservationEventRecord, SelfObservationSignal } from "../telemetry/self-observation-sink";
 import { isSelfObservationSeverity } from "../telemetry/self-observation-sink";
 import {
-	DEFAULT_NKLEIN_DEV_TEST_SCENARIO,
+	getDefaultNKleinDevTestScenario,
 	type NKleinDevTestProjectScenario,
 	scaffoldNKleinDevTestProject,
 } from "./nklein-dev-test-project";
@@ -185,7 +185,7 @@ function countTimeoutSignals(events: readonly SelfObservationEventRecord[]): num
 }
 
 export async function runNKleinDevSmokeEval(options: NKleinEvalHarnessOptions = {}): Promise<NKleinEvalHarnessResult> {
-	const scenario = options.scenario ?? DEFAULT_NKLEIN_DEV_TEST_SCENARIO;
+	const scenario = options.scenario ?? getDefaultNKleinDevTestScenario();
 	const project = await scaffoldNKleinDevTestProject({
 		scenario,
 		parentDir: options.parentDir,

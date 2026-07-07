@@ -74,67 +74,48 @@ export interface NKleinDevTestProjectMarker {
 	createdAt: number;
 }
 
-// The dev-test scenario definitions now live as folders under the repo-root `dev-test-projects/` registry
-// (each is `project.json` + `specification.md` + `user-prompt.txt`); see `dev-test-project-registry.ts`. These
-// named constants are the stable public API the runner/UI/tests consume — they are sourced from their registry
-// folder by id, so the exact `prompt`/`specification`/`complexity`/`templateName` values are unchanged.
+// The dev-test scenario definitions live as folders under the repo-root `dev-test-projects/` registry (each is
+// `project.json` + `specification.md` + `user-prompt.txt`); see `dev-test-project-registry.ts`. They are loaded
+// LAZILY and memoized on first use — NEVER at module-init — so merely importing this module (which the CLI does via
+// `nklein dev` and the projects API) performs no disk I/O and cannot crash when the registry is absent (e.g. the
+// published npm package, which does not ship `dev-test-projects/`). Accessors are the stable API the runner/UI/tests
+// consume; each resolves to the same registry-sourced `prompt`/`specification`/`complexity`/`templateName` values.
 
-export const DEFAULT_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("small-model-smoke");
+/** The registry id backing each preset. §5.O DAG-shape presets (wide_fanout … many_small) stress parallel fan-out. */
+const DEV_TEST_SCENARIO_ID_BY_PRESET: Record<NKleinDevTestProjectPreset, string> = {
+	mid_task: "habit-insights-mid",
+	complex_dag: "habit-product-nklein-complex",
+	audio_vst: "audio-vst-psytrance",
+	daw_foundation: "daw-foundation-platform",
+	wide_fanout: "habit-wide-fanout",
+	deep_chain: "habit-deep-chain",
+	mixed_dag: "habit-mixed-dag",
+	many_small: "habit-many-small",
+};
+const DEFAULT_DEV_TEST_SCENARIO_ID = "small-model-smoke";
 
-export const MID_COMPLEXITY_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("habit-insights-mid");
+const devTestScenarioCache = new Map<string, NKleinDevTestProjectScenario>();
 
-export const COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("habit-product-nklein-complex");
+/** Load a dev-test scenario by registry id, memoized so each is read from disk at most once (never at import). */
+function loadDevTestScenarioCached(id: string): NKleinDevTestProjectScenario {
+	const cached = devTestScenarioCache.get(id);
+	if (cached) {
+		return cached;
+	}
+	const scenario = loadDevTestProjectScenario(id);
+	devTestScenarioCache.set(id, scenario);
+	return scenario;
+}
 
-export const AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("audio-vst-psytrance");
-
-export const DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("daw-foundation-platform");
-
-// §5.O parallel-fan-out dev-test projects: DAG-shape stress presets that exercise + benefit from parallel
-// multi-agent execution (the swarm executor, sandbox pool, result-branch merges, review/delivery). They reuse
-// the small TS CLI template and steer the decomposition toward a specific shape via the prompt.
-
-export const WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("habit-wide-fanout");
-
-export const DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("habit-deep-chain");
-
-export const MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("habit-mixed-dag");
-
-export const MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO: NKleinDevTestProjectScenario =
-	loadDevTestProjectScenario("habit-many-small");
+/** The default dev-test scenario (`small-model-smoke`), loaded lazily on first call — never at module import. */
+export function getDefaultNKleinDevTestScenario(): NKleinDevTestProjectScenario {
+	return loadDevTestScenarioCached(DEFAULT_DEV_TEST_SCENARIO_ID);
+}
 
 export function resolveNKleinDevTestProjectScenario(
 	preset: NKleinDevTestProjectPreset = "mid_task",
 ): NKleinDevTestProjectScenario {
-	if (preset === "complex_dag") {
-		return COMPLEX_DAG_NKLEIN_DEV_TEST_SCENARIO;
-	}
-	if (preset === "audio_vst") {
-		return AUDIO_VST_NKLEIN_DEV_TEST_SCENARIO;
-	}
-	if (preset === "daw_foundation") {
-		return DAW_FOUNDATION_NKLEIN_DEV_TEST_SCENARIO;
-	}
-	if (preset === "wide_fanout") {
-		return WIDE_FANOUT_NKLEIN_DEV_TEST_SCENARIO;
-	}
-	if (preset === "deep_chain") {
-		return DEEP_CHAIN_NKLEIN_DEV_TEST_SCENARIO;
-	}
-	if (preset === "mixed_dag") {
-		return MIXED_DAG_NKLEIN_DEV_TEST_SCENARIO;
-	}
-	if (preset === "many_small") {
-		return MANY_SMALL_NKLEIN_DEV_TEST_SCENARIO;
-	}
-	return MID_COMPLEXITY_NKLEIN_DEV_TEST_SCENARIO;
+	return loadDevTestScenarioCached(DEV_TEST_SCENARIO_ID_BY_PRESET[preset]);
 }
 
 function getRepoRootFromCurrentModule(): string {
@@ -177,7 +158,7 @@ async function initializeGitRepository(workspacePath: string): Promise<void> {
 export async function scaffoldNKleinDevTestProject(
 	options: ScaffoldNKleinDevTestProjectOptions = {},
 ): Promise<ScaffoldedNKleinDevTestProject> {
-	const scenario = options.scenario ?? DEFAULT_NKLEIN_DEV_TEST_SCENARIO;
+	const scenario = options.scenario ?? getDefaultNKleinDevTestScenario();
 	// SAFETY (isolation invariant): a created workspace must never live at/below !Klein's parent folder, or its
 	// git init/commit pollutes the dev repo + sibling worktrees. Honor a safe requested/configured path, else fall
 	// back to the home-default safe base (and ensure it exists, since it may not on first use).
