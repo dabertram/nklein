@@ -27,6 +27,7 @@ import {
 	listChatSessions,
 	updateChatSession,
 } from "./chat-session-store";
+import { resolveChatTokenBudget } from "./chat-token-budget";
 import type { ChatMessage } from "./chat-transcript-store";
 import { appendChatMessage, readChatTranscript } from "./chat-transcript-store";
 import { decideChatModelGate } from "./local-chat-model";
@@ -94,6 +95,9 @@ export interface ChatServiceOptions {
 	 * runtime (which holds the board + task-session + mailbox deps); omitted ⇒ today's answer-in-chat behavior.
 	 */
 	relayAddressedMessage?: (target: ResolvedMessageTarget, message: string) => Promise<string | null>;
+	/** §5.M ≥32k-floor budget integration: the active model's effective context window (tokens), used to size the chat
+	 *  lean window against the ≥32k floor. Omit/null ⇒ the ≥32k-floor default (8k lean window, byte-identical to before). */
+	resolveContextWindowTokens?: () => number | null;
 }
 
 export interface ChatSendResult {
@@ -196,7 +200,6 @@ export interface ChatService {
 	}) => Promise<AutonomousChatAgentResult | null>;
 }
 
-const DEFAULT_CHAT_TOKEN_BUDGET = 8000;
 const DEFAULT_CHAT_MEMORY_LIMIT = 5;
 
 export function createChatService(options: ChatServiceOptions = {}): ChatService {
@@ -354,7 +357,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					return null;
 				}
 				const modelDeps = await options.resolveModelDeps();
-				const tokenBudget = input.tokenBudget ?? DEFAULT_CHAT_TOKEN_BUDGET;
+				const tokenBudget = input.tokenBudget ?? resolveChatTokenBudget(options.resolveContextWindowTokens?.());
 				const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
 				// §5.AC: resolve the "knows today" switch per turn (config || env, off by default) so a live config change
 				// applies immediately; undefined ⇒ the renderer's env fallback decides. Threaded into the turn deps below.
@@ -553,7 +556,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					return null;
 				}
 				const modelDeps = await options.resolveModelDeps();
-				const tokenBudget = DEFAULT_CHAT_TOKEN_BUDGET;
+				const tokenBudget = resolveChatTokenBudget(options.resolveContextWindowTokens?.());
 				const memoryLimit = DEFAULT_CHAT_MEMORY_LIMIT;
 				// §5.AC: same per-turn "knows today" resolution as the interactive path (config || env, off by default).
 				const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();

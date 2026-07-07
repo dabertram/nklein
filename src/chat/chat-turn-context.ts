@@ -37,6 +37,8 @@ export async function composeChatTurnContext(
 		tokenBudget: number;
 		estimateTokens: (text: string) => number;
 		memoryLimit?: number;
+		/** §5.M: an `all_projects`-scoped session recalls memory across ALL sessions, not just its own + shared. */
+		allProjects?: boolean;
 	},
 	deps: {
 		embed?: (text: string) => Promise<number[] | null>;
@@ -59,6 +61,7 @@ export async function composeChatTurnContext(
 			sessionId: input.sessionId,
 			memories: input.memories,
 			limit: input.memoryLimit ?? 5,
+			...(input.allProjects ? { allProjects: true } : {}),
 		},
 		{ embed: deps.embed },
 	);

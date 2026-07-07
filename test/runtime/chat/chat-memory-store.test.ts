@@ -138,6 +138,32 @@ describe("chat-memory-store", () => {
 		expect(persisted).toEqual([{ text: "shipping on Friday", embedding: null }]);
 	});
 
+	it("accessibleChatMemories: own + shared by default, but ALL sessions under the all_projects scope (§5.M)", () => {
+		const all = [
+			memory({ id: "a", text: "mine" }), // sessionId s1 (own)
+			{ ...memory({ id: "b", text: "other-private" }), sessionId: "s2", shared: false },
+			{ ...memory({ id: "c", text: "other-shared" }), sessionId: "s2", shared: true },
+		];
+		expect(accessibleChatMemories(all, "s1").map((m) => m.id)).toEqual(["a", "c"]); // own + shared
+		expect(accessibleChatMemories(all, "s1", { allProjects: true }).map((m) => m.id)).toEqual(["a", "b", "c"]);
+	});
+
+	it("recallChatMemories honors allProjects — an all_projects driver recalls another session's private memory", async () => {
+		const memories = [
+			{ ...memory({ id: "x", text: "the deploy target is fly.io" }), sessionId: "other", shared: false },
+		];
+		// Default scope: another session's private memory is NOT recalled.
+		expect(await recallChatMemories({ query: "deploy target", sessionId: "driver", memories })).toEqual([]);
+		// all_projects scope: it IS recalled.
+		const recalled = await recallChatMemories({
+			query: "deploy target",
+			sessionId: "driver",
+			memories,
+			allProjects: true,
+		});
+		expect(recalled.map((m) => m.id)).toEqual(["x"]);
+	});
+
 	it("writeConsolidatedMemories persists nothing when the extractor proposes only duplicates", async () => {
 		const persisted: string[] = [];
 		const kept = await writeConsolidatedMemories(

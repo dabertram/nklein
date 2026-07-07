@@ -109,6 +109,8 @@ export async function runChatAgentTurn(
 			tokenBudget: input.tokenBudget,
 			estimateTokens: deps.estimateTokens,
 			...(typeof input.memoryLimit === "number" ? { memoryLimit: input.memoryLimit } : {}),
+			// §5.M: an all_projects-scoped session recalls memory across all sessions (durable working memory).
+			...(input.session.scope === "all_projects" ? { allProjects: true } : {}),
 		},
 		{ summarize: deps.summarize, ...(deps.embed ? { embed: deps.embed } : {}) },
 	);

@@ -81,8 +81,19 @@ export async function readChatMemories(options: ChatMemoryStoreOptions = {}): Pr
 	return parseValidatedJsonl(raw, chatMemorySchema, "chat-memory-store");
 }
 
-/** Memories a session may recall: its own + any shared. */
-export function accessibleChatMemories(memories: readonly ChatMemory[], sessionId: string): ChatMemory[] {
+/**
+ * Memories a session may recall: its own + any shared. §5.M: with `allProjects` (an `all_projects`-scoped driver
+ * session), recall ACROSS all sessions — the driver's durable working memory spans every project it has touched, not
+ * just this session's own + shared entries.
+ */
+export function accessibleChatMemories(
+	memories: readonly ChatMemory[],
+	sessionId: string,
+	options: { allProjects?: boolean } = {},
+): ChatMemory[] {
+	if (options.allProjects) {
+		return [...memories];
+	}
 	return memories.filter((memory) => memory.shared || memory.sessionId === sessionId);
 }
 
@@ -219,10 +230,12 @@ export interface ChatMemoryRecall extends ChatMemory {
  * Zero-score memories are dropped so an unrelated query recalls nothing.
  */
 export async function recallChatMemories(
-	input: { query: string; sessionId: string; memories: readonly ChatMemory[]; limit?: number },
+	input: { query: string; sessionId: string; memories: readonly ChatMemory[]; limit?: number; allProjects?: boolean },
 	deps: ChatMemoryRecallDeps = {},
 ): Promise<ChatMemoryRecall[]> {
-	const accessible = accessibleChatMemories(input.memories, input.sessionId);
+	const accessible = accessibleChatMemories(input.memories, input.sessionId, {
+		...(input.allProjects ? { allProjects: true } : {}),
+	});
 	const queryEmbedding = deps.embed ? await deps.embed(input.query) : null;
 	const scored: ChatMemoryRecall[] = accessible.map((memory) => {
 		const score =

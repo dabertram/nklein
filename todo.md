@@ -682,9 +682,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] **Goal intake + "go autonomous" affordance (DONE 2026-06-26)** — the `AutonomousRunBar` (goal field + Auto button +
         live focus-chain/stop-reason status). *(A mid-run Stop control is a future enhancement — would need a backend
         cancel signal; the run is budget-bounded so it always terminates.)*
-  - [ ] **Background project/card work** — let the driver operate the board via the existing `chat-board-tools`: pick up
-        an existing project's cards or create a project + seed cards, then start/monitor them (bridge to the swarm). Decide
-        the boundary: the chat agent *orchestrates* board cards vs. *does* the work itself.
+  - [x] **Background project/card work (DONE — verified 2026-07-07)** — the autonomous driver operates the board via the
+        gated tool set the chat-agent-tool-deps-resolver assembles: `get_board`/`get_board_status`/`get_streams` (monitor),
+        `create_card` (seed, can-act scopes), and `send_to_card`/`send_to_stream` (relay/orchestrate). Boundary DECIDED:
+        the chat agent **orchestrates** — it seeds + relays cards, and the swarm's auto-start executes the work (the card's
+        own task session does it). All board tools covered by `chat-board-tools.test.ts` (31 cases).
   - [x] **Knowledge fetching wired into the driver (DONE 2026-06-26)** — each autonomous turn assembles the session's full
         gated tool set (the runtime-api resolver builds read_file/list_dir/get_board + browse_url for browser-enabled
         sessions, per scope) and the goal directive tells the agent to "use your tools to do real work", so the loop can
