@@ -3,8 +3,7 @@
 // shortcuts, and prompt templates, not SDK-owned NKlein secrets or OAuth data.
 
 import { copyFile, readFile, rm } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname } from "node:path";
 import { getRuntimeAgentCatalogEntry } from "../core/agent-catalog";
 import { normalizeMaxAgentWritableFileLines } from "../core/agent-write-guard";
 import type {
@@ -28,12 +27,8 @@ import {
 	DEFAULT_CONCURRENCY_CONFIG,
 	normalizeConcurrencyOverride,
 } from "../core/concurrency-config";
-import {
-	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
-	type ModelStatsTrackingLevel,
-	normalizeModelStatsTrackingLevel,
-} from "../core/model-stats-tracking-level";
-import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
+import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
+import { lockedFileSystem } from "../fs/locked-file-system";
 import {
 	DEFAULT_AGENT_SANDBOX_AGENTS_PER_CONTAINER,
 	DEFAULT_AGENT_SANDBOX_CPUS_PER_CONTAINER,
@@ -99,6 +94,11 @@ import {
 	resolveRuntimeFileOverlapConfig,
 } from "./runtime-config-overlap-resolver";
 import {
+	getRuntimeConfigLockRequests,
+	getRuntimeGlobalConfigPath,
+	resolveRuntimeConfigPaths,
+} from "./runtime-config-paths";
+import {
 	DEFAULT_COMMIT_PROMPT_TEMPLATE,
 	DEFAULT_OPEN_PR_PROMPT_TEMPLATE,
 	LEGACY_HOST_WORKTREE_COMMIT_PROMPT_TEMPLATE,
@@ -138,22 +138,11 @@ import {
 	buildRuntimeGlobalConfigFilePayload,
 	type RuntimeGlobalConfigFileWriteInput,
 } from "./runtime-global-config-file-payload";
-import {
-	NKLEIN_HOME_DIR_NAME,
-	NKLEIN_PROJECT_CONFIG_DIR_NAME,
-	NKLEIN_RUNTIME_DIR_NAME,
-} from "./runtime-path-constants";
 
+export { getRuntimeGlobalConfigPath, getRuntimeProjectConfigPath } from "./runtime-config-paths";
 // Re-exported from their dedicated types module (§5.AK runtime-config facade slice) so existing importers of this
 // path (`./runtime-config`) keep resolving RuntimeConfigState / RuntimeConfigUpdateInput unchanged.
 export type { RuntimeConfigState, RuntimeConfigUpdateInput };
-
-const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
-const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
-const CONFIG_FILENAME = "config.json";
-const PROJECT_CONFIG_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
-const PROJECT_CONFIG_DIR = NKLEIN_PROJECT_CONFIG_DIR_NAME;
-const PROJECT_CONFIG_FILENAME = "config.json";
 
 export function pickBestInstalledAgentIdFromDetected(detectedCommands: readonly string[]): RuntimeAgentId | null {
 	const detected = new Set(detectedCommands);
@@ -167,71 +156,8 @@ export function pickBestInstalledAgentIdFromDetected(detectedCommands: readonly 
 	return null;
 }
 
-function getRuntimeHomePath(): string {
-	return join(homedir(), RUNTIME_HOME_PARENT_DIR, RUNTIME_HOME_DIR);
-}
-
 function pickBestInstalledAgentId(): RuntimeAgentId | null {
 	return pickBestInstalledAgentIdFromDetected(detectInstalledCommands());
-}
-
-export function getRuntimeGlobalConfigPath(): string {
-	return join(getRuntimeHomePath(), CONFIG_FILENAME);
-}
-
-export function getRuntimeProjectConfigPath(cwd: string): string {
-	return join(resolve(cwd), PROJECT_CONFIG_PARENT_DIR, PROJECT_CONFIG_DIR, PROJECT_CONFIG_FILENAME);
-}
-
-interface RuntimeConfigPaths {
-	globalConfigPath: string;
-	projectConfigPath: string | null;
-}
-
-function normalizePathForComparison(path: string): string {
-	const normalized = resolve(path).replaceAll("\\", "/");
-	return process.platform === "win32" ? normalized.toLowerCase() : normalized;
-}
-
-function resolveRuntimeConfigPaths(cwd: string | null): RuntimeConfigPaths {
-	const globalConfigPath = getRuntimeGlobalConfigPath();
-	if (cwd === null) {
-		return {
-			globalConfigPath,
-			projectConfigPath: null,
-		};
-	}
-
-	const normalizedCwd = normalizePathForComparison(cwd);
-	const normalizedHome = normalizePathForComparison(homedir());
-	if (normalizedCwd === normalizedHome) {
-		return {
-			globalConfigPath,
-			projectConfigPath: null,
-		};
-	}
-
-	return {
-		globalConfigPath,
-		projectConfigPath: getRuntimeProjectConfigPath(cwd),
-	};
-}
-
-function getRuntimeConfigLockRequests(cwd: string | null): LockRequest[] {
-	const paths = resolveRuntimeConfigPaths(cwd);
-	const requests: LockRequest[] = [
-		{
-			path: paths.globalConfigPath,
-			type: "file",
-		},
-	];
-	if (paths.projectConfigPath) {
-		requests.push({
-			path: paths.projectConfigPath,
-			type: "file",
-		});
-	}
-	return requests;
 }
 
 function toRuntimeConfigState({
