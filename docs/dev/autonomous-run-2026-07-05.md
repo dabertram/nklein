@@ -2963,3 +2963,15 @@ Then worked the green-lit queue:
     the next loop fire (fresh context — a careful 9-file + test + web-gate change shouldn't be rushed at the tail of a
     long turn; all decisions are made, so this is sequencing, not stopping-at-a-decision).
 NEXT (loop rearmed): execute §5.DT, then §5.BG flip, bounce-test investigation, release docs, §5.U full pass — draining.
+
+### 2026-07-07 (Opus) - queue: §5.DT SHIPPED + §5.BG default-flip SHIPPED (both verified)
+- **§5.DT dev-test-project unification SHIPPED** (5da743a2): added tier+tags to the 9 legacy scenarios; live registry
+  load confirms 0/45 entries lack a tier → the picker's anonymous "Other" bucket is gone, all present uniformly. David's
+  named concern resolved. Data-only, all tests green.
+- **§5.BG stable-routing-key DEFAULT-FLIP SHIPPED** (a3717343): both read sites now use `isEnabledByDefaultEnv` (default
+  ON, opt out `=0`). Test-safe by construction (under VITEST the residency fetch is off → empty map → resolveStable falls
+  back to runtime id → ON≡OFF in tests; only diverges with a live map in production). Verified: tsc 0, §5.BG suite 20/20,
+  **test:fast 8125, contract 275/275, integration 41/42** — the ONLY integration red is now the known Docker-gated
+  `swarm-deterministic-bounce` (the stale-test fix already took integration 40→41/42). The flip broke nothing.
+NEXT: bounce-test investigation (the last integration red — `::acceptance` sandbox not prepared for a re-worked card,
+todo:6478), then release docs, then §5.U full pass. Draining continues.
