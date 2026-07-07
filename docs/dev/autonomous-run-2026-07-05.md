@@ -1994,3 +1994,28 @@ selection now takes the correct cache trade-off: reuse a warm model to save pref
 of a materially deeper judge. Integrated David's two new asks into todos: (1) llmfit GitHub catalog auto-update (§5.AL,
 opt-out, notify-default); (2) panel cache×stream trade-off (§5.AB gap 2 — prefer warm/cached + stream-coherent models,
 spend a cold prefill on a fresh diverse model only when its uncorrelated-judgment value clears the cost).
+
+### 2026-07-07 (Opus) · Model-advisory arc — increments shipped (David's "work through everything" directive)
+
+Worked through the model-advisory gaps as test-gated commits (David: full trust on ordering). Shipped this arc:
+- **Lineage monoculture fix** [b877d4bb]: `qwable` → qwen lineage (base-lineage diversity, not label).
+- **Depth-aware judge** [38bea5a5]: reviewer candidates scored by catalog reviewer-fit (was flat 50) → deepest diverse
+  model judges + `applyDiversityPreference`/warmth margins now work as designed.
+- **Warmth cache trade-off** [8fd558ed]: proved (regression test) a warm-but-shallow model can't displace a deep judge
+  (60-pt gap > 10-pt margin) — David's prompt-cache trade-off, correctly realized for the single reviewer.
+- **Escalation diversity** [30f44261]: the Layer-2 "load a more capable model" suggestion steers toward a DIFFERENT
+  base-family (Layer-1 auto-escalation already routes through the depth-aware diverse picker).
+- **External catalog overlay — DECISION #1** [17e411a7]: `model-catalog-overlay.ts` + `lookupModelCapability` consults a
+  user-editable JSON overlay BEFORE the shipped catalog → add/override a model without a rebuild. Startup-wired, doc'd,
+  8 tests. Llmfit GitHub auto-update (§5.AL) feeds this.
+- **Fleet advisor — GAP 5** [5b4f9fee]: `adviseModelFleet` suggests what to ADD (base-family monoculture / no reasoning
+  depth / no agentic model) → `dev fleet-advice` CLI. 5 tests. Names FAMILIES, not SKUs.
+- **todo integration** (both David asks: llmfit GitHub auto-update, panel cache×stream trade-off) + the 3 manually-added
+  §10 todos cross-referenced + tracked.
+
+**REMAINING (the two biggest, both HOT-PATH — best as focused efforts, not marathon-tail rushes):**
+- **Hardware-tier placement (gap 6):** the user-declared budgets exist (`swarm-roster-config` `resolveEffectiveBudgets`);
+  the gap is the SELECTOR reading catalog `sizeGb` vs declared headroom + warning on over-provision — a hot-path change.
+- **Parallel panel-of-judges (gap 2):** N-reviewer parallel review as the default, with the cache×stream trade-off
+  (prefer warm/stream-coherent models, spend a cold prefill on a fresh diverse model only when its value clears the cost).
+  Changes live review behavior on David's setup — deliberate, its own effort.
