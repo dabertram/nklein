@@ -2649,3 +2649,16 @@ tree, AND serves the board end-to-end. The ~9400-test surface caught NONE of the
 bundle). Recorded a RELEASE-GATE PROCEDURE in polishing.md §5.AZ: `npm run build && start-built-server-and-curl` as a
 built-artifact smoke. This build-verification detour has been the single highest-value work of the session by a wide
 margin -- three release-blocking bugs that would have shipped a completely non-functional binary.
+
+### 2026-07-07 (Opus) - §5.AZ: codified the built-artifact smoke as a repeatable release gate
+Durable close to the build-verification arc (3 P0 blockers fixed the last 2 ticks). The root gap was structural: the
+whole test surface runs SOURCE, never the production BUNDLE, so bundle-only failures ship silently. Wrote
+scripts/verify-built-artifact.mts (`npm run smoke:build`): assumes `npm run build` produced dist/, starts the BUILT
+dist/cli.js in an isolated temp HOME on a free ephemeral port, asserts the board serves (GET / + tRPC projects.list ->
+HTTP 200) with a clean shutdown, and fails loudly (exit 1 + server log) on die-on-start / no-response / non-200 --
+catching exactly the 3 blockers just fixed + future bundle regressions. Preconditions guard a missing dist/cli.js or
+dist/web-ui. VERIFIED green against the current build. commit fa06e0fe. This turns the manual check that found the P0s
+into a one-command gate for CI/release. ARC SUMMARY (build verification, ~4 ticks): found + fixed 3 P0 release blockers
+(playwright externals, eager dev-test disk-read crash, __filename ESM shim) that ~9400 tests never caught, then codified
+the smoke so they can't regress silently. The built CLI now loads, registers its command tree, serves the board, and
+shuts down cleanly -- and there's a repeatable gate proving it. Highest-value work of the session.
