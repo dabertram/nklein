@@ -11,19 +11,15 @@ import { promisify } from "node:util";
 import { TRPCError } from "@trpc/server";
 import { applyCardMessageRelay, applyStreamMessageBroadcast } from "../chat/chat-board-tools";
 import { readChatFocusChain } from "../chat/chat-focus-chain";
-import { type ChatService, createChatService } from "../chat/chat-service";
+import { createChatService } from "../chat/chat-service";
 import { DEFAULT_LOCAL_CHAT_PROVIDER_ID, resolveLocalChatModelDeps } from "../chat/local-chat-model";
 import { probeKleinCorePyHealth, resolveKleinCorePyConfig } from "../config/klein-core-config";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import { loadGlobalRuntimeConfig } from "../config/runtime-config";
 import type {
-	RuntimeAgentSandboxStatus,
-	RuntimeCommandRunResponse,
 	RuntimeProtectedTestApprovalGrantResponse,
-	RuntimeRunUpdateResponse,
 	RuntimeTaskContextImportResponse,
 	RuntimeTaskEvidenceResponse,
-	RuntimeUpdateStatusResponse,
 } from "../core/api-contract";
 import {
 	parseCommandRunRequest,
@@ -67,7 +63,6 @@ import {
 	type NKleinPlanArtifactSummary,
 } from "../nklein-agent/nklein-plan-artifacts";
 import { createNKleinProviderService } from "../nklein-agent/nklein-provider-service";
-import type { NKleinTaskSessionService } from "../nklein-agent/nklein-task-session-service";
 import { openInBrowser } from "../server/browser";
 import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-mailbox-store";
@@ -76,8 +71,7 @@ import { loadWorkspaceState } from "../state/workspace-state";
 import { readFitnessTable } from "../telemetry/fitness-table-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
-import type { TerminalSessionManager } from "../terminal/session-manager";
-import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
+import type { RuntimeTrpcContext } from "./app-router";
 import { createAutonomousChatRunController } from "./runtime-api/autonomous-chat-run.js";
 import { buildChatAgentToolDepsResolver } from "./runtime-api/chat-agent-tool-deps-resolver.js";
 import { handleGetNKleinCodeIntelligenceStatus } from "./runtime-api/code-intelligence-status.js";
@@ -125,7 +119,6 @@ import {
 	handleRunUpdateNow,
 } from "./runtime-api/update-status.js";
 import { handleVerifyTaskAcceptance } from "./runtime-api/verify-task-acceptance.js";
-import type { RuntimeTaskStartQueue } from "./runtime-task-start-queue";
 
 const execFileAsync = promisify(execFile);
 
@@ -146,44 +139,9 @@ async function probeDockerVmMemoryMb(): Promise<number | null> {
 	}
 }
 
-export interface CreateRuntimeApiDependencies {
-	getActiveWorkspaceId: () => string | null;
-	/** The active workspace's repo root, or null when no project is active. Drives the chat agent's read-only tools
-	 *  (todo §5.M G3a): with an active workspace the chat routes through the tool-using loop; without one it stays
-	 *  plain. */
-	getActiveWorkspacePath: () => string | null;
-	getActiveRuntimeConfig?: () => RuntimeConfigState;
-	loadScopedRuntimeConfig: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeConfigState>;
-	setActiveRuntimeConfig: (config: RuntimeConfigState) => void;
-	getScopedTerminalManager: (scope: RuntimeTrpcWorkspaceScope) => Promise<TerminalSessionManager>;
-	getScopedNKleinTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<NKleinTaskSessionService>;
-	getLoadedScopedNKleinTaskSessionService?: (scope: RuntimeTrpcWorkspaceScope) => NKleinTaskSessionService | null;
-	resolveInteractiveShellCommand: () => { binary: string; args: string[] };
-	runCommand: (command: string, cwd: string) => Promise<RuntimeCommandRunResponse>;
-	broadcastNKleinMcpAuthStatusesUpdated?: (
-		statuses: Awaited<ReturnType<ReturnType<typeof createNKleinMcpRuntimeService>["getAuthStatuses"]>>,
-	) => void;
-	broadcastTaskChatCleared?: (workspaceId: string, taskId: string) => void;
-	bumpNKleinSessionContextVersion?: () => void;
-	prepareForStateReset?: () => Promise<void>;
-	taskStartQueue?: RuntimeTaskStartQueue;
-	getDogfoodTelemetryRoot?: () => string;
-	getEvidenceBundleRoot?: () => string;
-	getUpdateStatus: () => RuntimeUpdateStatusResponse;
-	runUpdateNow: () => Promise<RuntimeRunUpdateResponse>;
-	getAgentSandboxStatus?: () => RuntimeAgentSandboxStatus;
-	refreshAgentSandboxStatus?: () => Promise<RuntimeAgentSandboxStatus>;
-	/** Board-independent chat service (todo §5.M); defaults to the real runtime home. Injected in tests. */
-	chatService?: ChatService;
-	/**
-	 * True when the runtime is bound to a non-loopback host (remote/`--host` mode).
-	 * Both `runCommand` and `openFile` refuse in remote mode because they execute
-	 * host-local actions that only make sense on the server host, not on a remote
-	 * browser client's machine. Defaults to `false` (local mode) when omitted so
-	 * test helpers that do not set it continue to work.
-	 */
-	isRemoteMode?: boolean;
-}
+import type { CreateRuntimeApiDependencies } from "./runtime-api-types";
+
+export type { CreateRuntimeApiDependencies } from "./runtime-api-types";
 
 function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKleinPlanArtifactSummary {
 	return summary;
