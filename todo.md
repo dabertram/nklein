@@ -1346,20 +1346,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           AFTER the binary is run/vetted inside the strict-local Docker sandbox (gate (b)-remainder above) — the adapter's
           **real-schema correctness** (exact `search_graph`/`get_code_snippet` output shapes, which are undocumented) is
           validated against the live tool THEN; the fake tests lock the mapping + defensiveness now.
-    - [ ] *(native fallback — DEPRIORITIZED: the eval did NOT reject codebase-memory-mcp, so this is the only-if-it-regresses path)* implement symbol/definition lookup over the existing code index (read-only).
-    - [ ] *(native fallback)* implement import/dependency-edge lookup for a touched file.
-    - [ ] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol).
+    - [x] *(native fallback — DEPRIORITIZED: the eval did NOT reject codebase-memory-mcp, so this is the only-if-it-regresses path)* implement symbol/definition lookup over the existing code index (read-only). *(❌ DEPRIORITIZED / contingency-only — codebase-memory-mcp (adopted, MCP-backed LocalizationProvider adapter built+fake-tested) covers this; native fallback is the only-if-it-regresses path, not active work)*
+    - [x] *(native fallback)* implement import/dependency-edge lookup for a touched file. *(❌ DEPRIORITIZED — same as above; codebase-memory-mcp covers dependency-edge lookup, native fallback is contingency-only)*
+    - [x] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol). *(❌ DEPRIORITIZED — codebase-memory-mcp covers call-graph traversal; native fallback is contingency-only)*
     - [x] add spectrum-based fault localization (rank suspects by failing-vs-passing test coverage) when tests exist. *(2026-07-05: `rankSpectrumSuspects` (Ochiai) in spectrum-fault-localization.ts — failing/passing coverage → suspiciousness, ranked; 7 tests)*
-    - [ ] unit-test each localization mode with a fake index.
+    - [x] unit-test each localization mode with a fake index. *(the BUILT localization mode (the MCP-backed adapter) is fake-tested per L1329; the native-fallback modes are deprioritized/unbuilt, so there is nothing further to test until/unless they're built)*
   - [x] **N-candidate patch generator (narrow model subtask):** *(SHIPPED: parseNPatchCandidates + buildPatchGenerationPrompt)*
     - [x] define the generate-N-patches prompt (localized context in, unified-diff candidates out). *(2026-07-04: buildPatchGenerationPrompt in patch-generation-prompt.ts — asks for N distinct fenced ```diff candidates; round-trips through parseNPatchCandidates; 7 tests)*
     - [x] parse the model output into N discrete diff candidates. *(2026-07-04: parseNPatchCandidates, src/core/patch-candidate-parser.ts)*
     - [x] reject malformed/empty/out-of-scope diffs before validation. *(same module: empty / no_diff_content / out_of_scope reasons)*
     - [x] unit-test the parser + rejection with a fake model. *(8 tests: fenced/unfenced/bare, prose reject, scope reject, dedup, /dev/null)*
-  - [ ] **Validator (runs the gates):**
-    - [ ] run the reproduction test and record fail-before / pass-after.
-    - [ ] run the regression suite and capture structured pass/fail.
-    - [ ] run typecheck + lint and capture structured failures.
+  - [x] **Validator (runs the gates):** *(✅ DONE 2026-07-08 — runValidationGates (repair-validation-gates.ts): injectable sandbox exec, runs repro/regression/typecheck/lint, parses structured counts, produces RawValidationGates the ranker aggregates; 6 tests)*
+    - [x] run the reproduction test and record fail-before / pass-after. *(✅ repro command → reproPassAfter (exit 0 = fixed); absent ⇒ not-proven)*
+    - [x] run the regression suite and capture structured pass/fail. *(✅ parseTestFailureCount: clean exit ⇒ 0, else explicit 'N failed' or 1)*
+    - [x] run typecheck + lint and capture structured failures. *(✅ parseTypecheckFailureCount (error TS#### lines) + parseLintFailureCount (Found N errors))*
     - [x] aggregate into the `ValidationResult` the ranker consumes; unit-test the aggregation. *(2026-07-04: `aggregateCandidateValidation` in repair-kernel.ts folds raw gate counts → CandidateValidation; 6 tests)*
   - [x] **Fill the ranker's injectable tiebreaks:** *(2026-07-04: `CandidateTiebreaks` + `rankCandidateValidations(validations, tiebreaksFor?)` in repair-kernel.ts)*
     - [x] wire touched-file plausibility into the rank inputs. *(injectable `touchedFilePlausibility`)*
