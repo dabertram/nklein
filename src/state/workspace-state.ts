@@ -1,12 +1,6 @@
 import { readFile, realpath, rm } from "node:fs/promises";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { z } from "zod";
-import {
-	NKLEIN_HOME_DIR_NAME,
-	NKLEIN_RUNTIME_DIR_NAME,
-	TASK_WORKTREES_DIR_NAME,
-} from "../config/runtime-path-constants";
 import {
 	type RuntimeBoardData,
 	type RuntimeGitRepositoryInfo,
@@ -18,7 +12,7 @@ import {
 	runtimeWorkspaceStateSaveRequestSchema,
 } from "../core/api-contract";
 import { updateTaskDependencies } from "../core/task-board-mutations";
-import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
+import { lockedFileSystem } from "../fs/locked-file-system";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import { parsePersistedStateFile } from "./persisted-state-file";
@@ -27,17 +21,40 @@ import { createEmptyBoard, normalizeRuntimeBoardData } from "./runtime-board-nor
 import { formatSchemaIssues } from "./schema-issue-formatting";
 import { detectGitRepositoryInfo, detectGitRootAsync } from "./workspace-git-detection";
 import { createWorkspaceIdCollisionSuffix, toWorkspaceIdBase } from "./workspace-id-generation";
+import {
+	BOARD_FILENAME,
+	getCanonicalTaskWorktreesHomePath,
+	getRuntimeHomePath,
+	getTaskWorktreesHomePath,
+	getWorkspaceBoardPath,
+	getWorkspaceDirectoryLockRequest,
+	getWorkspaceDirectoryPath,
+	getWorkspaceIndexLockRequest,
+	getWorkspaceIndexPath,
+	getWorkspaceLocalBoardPath,
+	getWorkspaceLocalIdentityPath,
+	getWorkspaceLocalMetaPath,
+	getWorkspaceLocalSessionsPath,
+	getWorkspaceMetaPath,
+	getWorkspaceSessionsPath,
+	getWorkspacesRootLockRequest,
+	getWorkspacesRootPath,
+	INDEX_FILENAME,
+	META_FILENAME,
+	SESSIONS_FILENAME,
+	WORKSPACE_IDENTITY_FILENAME,
+	WORKSPACE_LOCAL_STATE_DIR,
+} from "./workspace-state-paths";
 
-const RUNTIME_HOME_PARENT_DIR = NKLEIN_HOME_DIR_NAME;
-const RUNTIME_HOME_DIR = NKLEIN_RUNTIME_DIR_NAME;
-const RUNTIME_WORKTREES_DIR = TASK_WORKTREES_DIR_NAME;
-const WORKSPACES_DIR = "workspaces";
-const INDEX_FILENAME = "index.json";
-const BOARD_FILENAME = "board.json";
-const SESSIONS_FILENAME = "sessions.json";
-const META_FILENAME = "meta.json";
-const WORKSPACE_LOCAL_STATE_DIR = "workspace";
-const WORKSPACE_IDENTITY_FILENAME = "identity.json";
+// Re-exported for API compatibility — the workspace on-disk layout + path helpers now live in their own module (§5.U).
+export {
+	getCanonicalTaskWorktreesHomePath,
+	getRuntimeHomePath,
+	getTaskWorktreesHomePath,
+	getWorkspaceDirectoryPath,
+	getWorkspacesRootPath,
+};
+
 const INDEX_VERSION = 1;
 const WORKSPACE_ID_COLLISION_SUFFIX_LENGTH = 4;
 
@@ -214,90 +231,6 @@ function createEmptyWorkspaceIndex(): WorkspaceIndexFile {
 		version: INDEX_VERSION,
 		entries: {},
 		repoPathToId: {},
-	};
-}
-
-export function getRuntimeHomePath(): string {
-	return join(homedir(), RUNTIME_HOME_PARENT_DIR, RUNTIME_HOME_DIR);
-}
-
-export function getTaskWorktreesHomePath(): string {
-	return join(homedir(), RUNTIME_HOME_PARENT_DIR, RUNTIME_WORKTREES_DIR);
-}
-
-export async function getCanonicalTaskWorktreesHomePath(): Promise<string> {
-	const taskWorktreesHomePath = getTaskWorktreesHomePath();
-	try {
-		return await realpath(taskWorktreesHomePath);
-	} catch {
-		return taskWorktreesHomePath;
-	}
-}
-
-export function getWorkspacesRootPath(): string {
-	return join(getRuntimeHomePath(), WORKSPACES_DIR);
-}
-
-function getWorkspaceIndexPath(): string {
-	return join(getWorkspacesRootPath(), INDEX_FILENAME);
-}
-
-export function getWorkspaceDirectoryPath(workspaceId: string): string {
-	return join(getWorkspacesRootPath(), workspaceId);
-}
-
-function getWorkspaceBoardPath(workspaceId: string): string {
-	return join(getWorkspaceDirectoryPath(workspaceId), BOARD_FILENAME);
-}
-
-function getWorkspaceSessionsPath(workspaceId: string): string {
-	return join(getWorkspaceDirectoryPath(workspaceId), SESSIONS_FILENAME);
-}
-
-function getWorkspaceMetaPath(workspaceId: string): string {
-	return join(getWorkspaceDirectoryPath(workspaceId), META_FILENAME);
-}
-
-function getWorkspaceLocalStateDirectoryPath(repoPath: string): string {
-	return join(repoPath, ".nklein", RUNTIME_HOME_DIR, WORKSPACE_LOCAL_STATE_DIR);
-}
-
-function getWorkspaceLocalBoardPath(repoPath: string): string {
-	return join(getWorkspaceLocalStateDirectoryPath(repoPath), BOARD_FILENAME);
-}
-
-function getWorkspaceLocalSessionsPath(repoPath: string): string {
-	return join(getWorkspaceLocalStateDirectoryPath(repoPath), SESSIONS_FILENAME);
-}
-
-function getWorkspaceLocalMetaPath(repoPath: string): string {
-	return join(getWorkspaceLocalStateDirectoryPath(repoPath), META_FILENAME);
-}
-
-function getWorkspaceLocalIdentityPath(repoPath: string): string {
-	return join(getWorkspaceLocalStateDirectoryPath(repoPath), WORKSPACE_IDENTITY_FILENAME);
-}
-
-function getWorkspaceIndexLockRequest(): LockRequest {
-	return {
-		path: getWorkspaceIndexPath(),
-		type: "file",
-	};
-}
-
-function getWorkspaceDirectoryLockRequest(workspaceId: string): LockRequest {
-	return {
-		path: getWorkspaceDirectoryPath(workspaceId),
-		type: "directory",
-		lockfilePath: join(getWorkspacesRootPath(), `${workspaceId}.lock`),
-	};
-}
-
-function getWorkspacesRootLockRequest(): LockRequest {
-	return {
-		path: getWorkspacesRootPath(),
-		type: "directory",
-		lockfileName: ".workspaces.lock",
 	};
 }
 
