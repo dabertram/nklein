@@ -12,7 +12,7 @@
 import { loadRuntimeConfig } from "../config/runtime-config";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
-import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
@@ -98,6 +98,12 @@ export interface RunSecondOpinionReviewForTaskInput {
 	 * never wedge a review).
 	 */
 	fetchLoadedModelIds?: () => Promise<readonly string[]>;
+	/**
+	 * §5.AB panel: the loaded descriptors the panel judges are assembled from (injectable for tests — the real fetch is
+	 * skipped under the test runner exactly like the pin probe, so the panel path is only exercised when a fetch is
+	 * injected or a live endpoint is present).
+	 */
+	fetchLoadedModelDescriptors?: (baseUrl: string) => Promise<readonly LoadedModelDescriptor[]>;
 }
 
 const REVIEW_PLAN_OBJECTIVE_BUDGET = 2_000;
@@ -263,22 +269,32 @@ export async function runSecondOpinionReviewForTask(
 	// single reviewer. The probe is skipped under the test runner (no live endpoint) unless a fetch is injected.
 	const panelEnabled = config.secondOpinionReviewEnabled && isTruthyEnv(process.env.NKLEIN_REVIEW_PANEL);
 	let panelJudges: PanelJudge[] = [];
-	if (panelEnabled && !(process.env.VITEST || process.env.NODE_ENV === "test")) {
-		const reviewerProviderId = reviewer?.providerId ?? workerSummary?.providerId ?? "lmstudio";
-		const baseUrl = workerSummary?.endpoint?.trim() || "http://127.0.0.1:1234/v1";
-		const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(() => []);
-		const workerRealId = resolveWorkerRealId(descriptors, workerModelId);
-		// Panel size: David's default is 3 (decision #2); tunable via NKLEIN_REVIEW_PANEL_SIZE, clamped to [2, 5] (a panel
-		// needs ≥2 to have a second opinion; capped so a large loaded fleet can't spawn an endpoint-overloading panel).
-		const panelSize = Math.min(5, Math.max(2, Number.parseInt(process.env.NKLEIN_REVIEW_PANEL_SIZE ?? "3", 10) || 3));
-		panelJudges = selectReviewerPanel({
-			candidates: buildReviewerCandidates(descriptors, workerModelId, workerRealId),
-			workerLineage: resolveLineage(workerRealId),
-			size: panelSize,
-		}).map((candidate) => ({
-			judgeModelKey: candidate.modelId,
-			reviewer: { providerId: reviewerProviderId, modelId: candidate.modelKey },
-		}));
+	if (panelEnabled) {
+		// The live descriptor fetch is skipped under the test runner (no endpoint) exactly like the pin probe — but an
+		// INJECTED fetch is honored, so the panel-assembly wiring is unit-testable without a live LM Studio.
+		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
+		const fetchDescriptors =
+			input.fetchLoadedModelDescriptors ?? (residencyCheckEnabled ? fetchLoadedModelDescriptors : null);
+		if (fetchDescriptors) {
+			const reviewerProviderId = reviewer?.providerId ?? workerSummary?.providerId ?? "lmstudio";
+			const baseUrl = workerSummary?.endpoint?.trim() || "http://127.0.0.1:1234/v1";
+			const descriptors = await fetchDescriptors(baseUrl).catch(() => []);
+			const workerRealId = resolveWorkerRealId(descriptors, workerModelId);
+			// Panel size: David's default is 3 (decision #2); tunable via NKLEIN_REVIEW_PANEL_SIZE, clamped to [2, 5] (a panel
+			// needs ≥2 to have a second opinion; capped so a large loaded fleet can't spawn an endpoint-overloading panel).
+			const panelSize = Math.min(
+				5,
+				Math.max(2, Number.parseInt(process.env.NKLEIN_REVIEW_PANEL_SIZE ?? "3", 10) || 3),
+			);
+			panelJudges = selectReviewerPanel({
+				candidates: buildReviewerCandidates(descriptors, workerModelId, workerRealId),
+				workerLineage: resolveLineage(workerRealId),
+				size: panelSize,
+			}).map((candidate) => ({
+				judgeModelKey: candidate.modelId,
+				reviewer: { providerId: reviewerProviderId, modelId: candidate.modelKey },
+			}));
+		}
 	}
 
 	// §5.AW (adversarial finding 2026-07-02): a review round that concludes WITHOUT delivering the speculative

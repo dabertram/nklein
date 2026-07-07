@@ -213,6 +213,53 @@ describe("runSecondOpinionReviewForTask", () => {
 		);
 	});
 
+	it("§5.AB panel (opt-in NKLEIN_REVIEW_PANEL): runs N base-family-diverse judges and combines majority → delivered", async () => {
+		const previous = process.env.NKLEIN_REVIEW_PANEL;
+		process.env.NKLEIN_REVIEW_PANEL = "1";
+		try {
+			const deps = makeDeps({});
+			// Per-judge verdicts keyed by the judge's reviewer modelId: mistral + gemma approve, phi requests changes → 2/3.
+			const runSession = vi.fn(async (input: { reviewer?: { modelId?: string } }) =>
+				input.reviewer?.modelId === "phi-rt"
+					? ({
+							verdict: "request_changes",
+							summary: "nit",
+							feedback: "rename x",
+							insight: null,
+						} satisfies ReviewSubmissionInput)
+					: ({ verdict: "approve", summary: "ok", feedback: null, insight: null } satisfies ReviewSubmissionInput),
+			);
+			const panelService = {
+				runSecondOpinionReviewSession: runSession,
+				sendTaskSessionInput: deps.sendTaskSessionInput,
+				// Worker is a qwen model → the panel picks non-qwen diverse judges.
+				getSummary: () => ({ modelId: "qwen3-8b", providerId: "lmstudio", endpoint: "http://x/v1" }),
+				cancelTaskTurn: deps.cancelTaskTurn,
+			} as unknown as never;
+			const outcome = await runSecondOpinionReviewForTask({
+				workspacePath: "/repo",
+				taskId: "task-1",
+				service: panelService,
+				loadRuntimeConfig: deps.loadRuntimeConfig,
+				loadWorkspaceState: deps.loadWorkspaceState,
+				mutateWorkspaceState: deps.mutateWorkspaceState,
+				getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
+				// Injected loaded set: 3 distinct non-qwen families + the worker (excluded) → a 3-judge diverse panel.
+				fetchLoadedModelDescriptors: async () => [
+					{ runtimeId: "qwen3-8b", modelKey: "qwen3-8b", isEmbedding: false },
+					{ runtimeId: "devstral-rt", modelKey: "mistralai/devstral-small", isEmbedding: false },
+					{ runtimeId: "gemma-rt", modelKey: "gemma-3-12b", isEmbedding: false },
+					{ runtimeId: "phi-rt", modelKey: "phi-4-reasoning-plus", isEmbedding: false },
+				],
+			});
+			// One review session per diverse judge (not a single reviewer), and the 2/3 approving majority delivered.
+			expect(runSession).toHaveBeenCalledTimes(3);
+			expect(outcome.type).toBe("delivered");
+		} finally {
+			process.env.NKLEIN_REVIEW_PANEL = previous;
+		}
+	});
+
 	it("waives a configured reviewer that is NOT loaded to the service's diverse auto-pick (W2.5 pin-miss)", async () => {
 		const deps = makeDeps({ submission: { verdict: "approve", summary: "Good", feedback: null, insight: null } });
 		const warn = vi.fn();
