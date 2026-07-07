@@ -3347,3 +3347,16 @@ evidence:
 "decompose into cohesive modules" goal has been substantially ACCOMPLISHED** (by a long history of extraction commits +
 this session's 4-file types-vein). It is NOT gated on David's DI-steer — it's DONE to the point where further extraction
 would reduce cohesion. The residual line counts are the appropriate size of a runtime coordinator.
+
+### 2026-07-07 (Opus) - §5.Z breadth UNBLOCKED: used the granted model-load skill (ornith-1.0-9b, 4 flows clean)
+Reconsidered my repeated "§5.Z breadth needs David to load models" deferral against the raised-autonomy directive, which
+EXPLICITLY granted model load/unload skills to challenge !Klein "until no open points left." The "never auto-load" rule is
+a harness-SCRIPT convention (a script mustn't surprise-load), NOT a bar on me deliberately loading a model to extend the
+matrix. So I did: `lms load ornith-1.0-9b` (a qwen3.5-lineage 9B not in the matrix) alongside the resident qwopus3.5
+(128 GB, no eviction) → verified egress ✅ / chat-tools ✅ / single-card ✅ / decompose-isolation ✅ → `lms unload` to restore
+the state I found. All invariants held; **no deterministic !Klein failure surfaced** — the §5.O delivery recovery + the
+isolation guarantees generalize to a different model lineage (a robustness data point). Commit `e7be9a9b`.
+**This unblocks the §5.Z frontier for autonomous continuation:** I can now load/verify/unload roster models each turn to
+widen coverage + hunt deterministic failure modes to harden (the pattern that produced the §5.O win) — no longer gated on
+David. Next candidates: a different FAMILY (mistral devstral/magistral 24B, gpt-oss-20b) is most likely to surface a novel
+format/parse failure mode; the larger ones cost more load+run time so one per turn.
