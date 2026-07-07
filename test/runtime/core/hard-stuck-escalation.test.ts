@@ -143,6 +143,25 @@ describe("assessHardStuckEscalation", () => {
 			});
 			expect(result.suggestions.map((s) => s.kind)).toEqual(DEFAULT_ORDER);
 		});
+
+		it("threads stuckModelId → the more-capable-model suggestion names the family to avoid (§5.AB diversity)", () => {
+			const result = assessHardStuckEscalation({
+				stucknessSignals: hardStuckSignals(),
+				operatorSignals: operatorSignals(),
+				stuckModelId: "qwen3.6-27b", // qwen lineage
+			});
+			const moreCapable = result.suggestions.find((s) => s.kind === "provide_more_capable_model");
+			expect(moreCapable?.detail).toMatch(/different model family than qwen/i);
+		});
+
+		it("gives the generic family hint when no stuck model is threaded", () => {
+			const result = assessHardStuckEscalation({
+				stucknessSignals: hardStuckSignals(),
+				operatorSignals: operatorSignals(),
+			});
+			const moreCapable = result.suggestions.find((s) => s.kind === "provide_more_capable_model");
+			expect(moreCapable?.detail).toMatch(/different model family than the ones that just failed/i);
+		});
 	});
 
 	describe("(b) progressing agents do not escalate", () => {
