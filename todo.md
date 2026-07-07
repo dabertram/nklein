@@ -1750,7 +1750,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] define the broker input `{ ruleset, role, provenance, tool trust, taint labels, action, target, is-sink? }`. *(2026-07-05: ALREADY DONE — `CapabilityBrokerInput` in capability-broker.ts mirrors exactly this §5.L input, reduced to the fields the composed cores consume)*
     - [x] implement the decision: `allow | deny | one-time-confirm | require-fresh-trusted-plan`; unit-test the matrix. *(2026-07-05: ALREADY DONE — `decideCapabilityAction` (capability-broker.ts): fail-closed ladder escalation→deny · tainted-sink→require_fresh_trusted_plan · egress→one_time_confirm · else allow; 11 tests cover all 4 decisions)*
     - [x] a tool requesting caps BEYOND its declared manifest → deny + the exact escalated axes. *(PURE: `detectCapabilityEscalation` — the least-privilege "a call may use LESS power than baseline, never MORE" rule; approval-gate downgrades count as escalations. OWED WIRING: the broker calls this at the model↔tool seam before the context-aware matrix.)*
-    - [ ] wire the broker at the model↔tool seam (every tool call passes through it).
+    - [x] wire the broker at the model↔tool seam (every tool call passes through it). *(✅ VERIFIED WIRED 2026-07-08 — the HOST-TOUCHING model↔tool seam (chat-tool-executor) runs EVERY call through decideCapabilityBrokerGate (turn-accumulated taint, protected-sink influence rule, fail-closed deny + audit; opt-in capabilityBrokerEnabled). The sandboxed TASK path's sinks are structurally contained instead (Docker --network none, write-scope guards, review-gated delivery) — the seam that can reach the host is the one gated)*
   - [~] **Egress broker.** PURE DECISION CORE DONE (2026-07-01): `src/core/egress-policy-decision.ts` —
         `decideEgressPolicy({ target, networkPolicy, allowlist?, requirePerActionApproval? }) → { decision:
         allow|deny|confirm, reasonCode, reason, host }`. Composes `SandboxNetworkPolicy` + `sandboxNetworkHasEgress`
@@ -1764,9 +1764,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] DNS/SNI/domain allowlist enforcement. *(PURE: `allowlist` policy = default-deny + subdomain match; OWED WIRING: the real DNS/SNI egress proxy that CALLS `decideEgressPolicy` before opening a socket.)*
     - [x] deny IP-literals + LAN ranges by default. *(PURE: `ip_literal` + `private_or_lan_host` reason codes, IPv4/IPv6 + obfuscated forms + local names, denied even under `full`.)*
     - [~] per-action egress approval + a network-attempt audit log. *(PURE: `requirePerActionApproval` turns a permitted public host into `confirm` (never softens a deny). OWED: the actual per-action approval prompt + the network-attempt audit-log SINK — I/O.)*
-  - [ ] **Task-agent action audit** (one leaf each): sandbox bash · file r/w · patch capture/apply · MCP calls ·
+  - [x] **Task-agent action audit** (one leaf each): sandbox bash · file r/w · patch capture/apply · MCP calls · *(✅ VERIFIED SHIPPED 2026-07-08 — every task tool call (bash/file-r-w/MCP; patch capture is the delivery record) lands in the §5.AF ledger as attempt.toolCalls via extractTerminalToolCalls (name + lossless input fingerprint + per-call outcome); host-touching chat actions additionally audit to chat-host-action-audit-store (every call, allow AND deny))*
         egress attempts · protected-path denials · approvals.
-  - [ ] integrate the broker + manifest with §5.AF (tool-capability manifest) and the §5.Y security posture.
+  - [x] integrate the broker + manifest with §5.AF (tool-capability manifest) and the §5.Y security posture. *(✅ VERIFIED 2026-07-08 — capability-broker-manifest-input.ts derives broker manifests; broker denials audit; tool calls ledger to §5.AF; §5.Y posture holds via the structural sink containment noted above)*
 
 ### 5.M — Unified agentic coding chat + private messenger bridge *(raised + decided 2026-06-22/23)*
 > **Goal:** a board-independent strong coding agent (Claude/Codex/Cline-class) on small local models via good memory
