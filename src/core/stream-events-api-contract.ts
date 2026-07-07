@@ -38,6 +38,10 @@ export type RuntimeNKleinTeamProgressEvent = z.infer<typeof runtimeNKleinTeamPro
 export const runtimeStateStreamSnapshotMessageSchema = z.object({
 	type: z.literal("snapshot"),
 	currentProjectId: z.string().nullable(),
+	/** The RESOLVED workspace this stream serves — what per-workspace update filters must key on. Distinct from
+	 *  `currentProjectId` (the GLOBAL selection, which lags a project switch — the switch-stall root cause: conflating
+	 *  the two made the client filter away the new workspace's updates). Nullable for older payloads. */
+	workspaceId: z.string().nullable().default(null),
 	projects: z.array(runtimeProjectSummarySchema),
 	workspaceState: runtimeWorkspaceStateResponseSchema.nullable(),
 	workspaceMetadata: runtimeWorkspaceMetadataSchema.nullable(),

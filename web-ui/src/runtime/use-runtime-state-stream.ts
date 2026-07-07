@@ -57,6 +57,24 @@ function getRuntimeStreamUrl(workspaceId: string | null): string {
 	return url.toString();
 }
 
+/**
+ * The project-switch stall root cause (bug, handoff 2026-06-28; mechanism confirmed 2026-07-08): on a switch-reconnect
+ * the server's snapshot can still carry the OLD `currentProjectId` (the selectProject mutation racing the WS
+ * reconnect). Adopting that stale id as `activeWorkspaceId` makes the `payload.workspaceId !== activeWorkspaceId`
+ * filters DROP every update for the NEW workspace — the board sits empty until the next snapshot pokes it. This pure
+ * decision pins the rule: adopt a snapshot only when it matches the requested workspace (or nothing specific was
+ * requested); a mismatched one is STALE — skip it and refetch (the reconnect backoff bounds the retries).
+ */
+export function decideSnapshotAdoption(
+	requestedWorkspaceId: string | null,
+	snapshotProjectId: string | null,
+): "adopt" | "refetch_stale" {
+	if (requestedWorkspaceId === null || snapshotProjectId === null || requestedWorkspaceId === snapshotProjectId) {
+		return "adopt";
+	}
+	return "refetch_stale";
+}
+
 export interface UseRuntimeStateStreamResult {
 	currentProjectId: string | null;
 	projects: RuntimeProjectSummary[];
@@ -434,7 +452,18 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 				try {
 					const payload = JSON.parse(String(event.data)) as RuntimeStateStreamMessage;
 					if (payload.type === "snapshot") {
-						activeWorkspaceId = payload.currentProjectId;
+						// Switch-stall root-cause fix: filter on the stream's RESOLVED workspace (payload.workspaceId),
+						// not the GLOBAL currentProjectId (which lags a project switch and made these filters drop the
+						// new workspace's updates). Older payloads without workspaceId fall back to currentProjectId —
+						// and the stale-snapshot guard refetches (backoff-bounded) rather than adopting a mismatched id.
+						const resolvedWorkspaceId = payload.workspaceId ?? payload.currentProjectId;
+						if (
+							decideSnapshotAdoption(requestedWorkspaceForConnection, resolvedWorkspaceId) === "refetch_stale"
+						) {
+							scheduleReconnect();
+							return;
+						}
+						activeWorkspaceId = resolvedWorkspaceId;
 						enqueueDispatch({ type: "snapshot", payload });
 						return;
 					}

@@ -542,6 +542,10 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				sendRuntimeStateMessage(client, {
 					type: "snapshot",
 					currentProjectId: projectsPayload.currentProjectId,
+					// The stream's RESOLVED workspace — the client's per-workspace filter key. currentProjectId (the
+					// GLOBAL selection) can lag a project switch; stamping the resolved id keeps the client filtering
+					// on what this stream actually serves (the switch-stall root-cause fix).
+					workspaceId: workspace.workspaceId ?? null,
 					projects: projectsPayload.projects,
 					workspaceState,
 					workspaceMetadata,

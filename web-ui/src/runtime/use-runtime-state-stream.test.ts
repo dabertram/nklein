@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createInitialRuntimeStateStreamStore, runtimeStateStreamReducer } from "./use-runtime-state-stream";
+import {
+	createInitialRuntimeStateStreamStore,
+	decideSnapshotAdoption,
+	runtimeStateStreamReducer,
+} from "./use-runtime-state-stream";
 
 // The "batch" action coalesces many high-frequency WS frames into ONE reducer transition (one re-render). Its
 // correctness contract: folding a batch must be IDENTICAL to applying the same actions individually, and it must drop
@@ -51,5 +55,19 @@ describe("runtimeStateStreamReducer batch coalescing", () => {
 		const initial = createInitialRuntimeStateStreamStore("ws-1");
 		const result = runtimeStateStreamReducer(initial, chatMessageAction("t-9", "only", "hi"));
 		expect(result.taskChatMessagesByTaskId["t-9"]).toHaveLength(1);
+	});
+});
+
+describe("decideSnapshotAdoption (the project-switch stall root-cause rule)", () => {
+	it("adopts when nothing specific was requested, or the snapshot serves the requested workspace", () => {
+		expect(decideSnapshotAdoption(null, "p1")).toBe("adopt");
+		expect(decideSnapshotAdoption("p1", "p1")).toBe("adopt");
+		expect(decideSnapshotAdoption("p1", null)).toBe("adopt"); // no id to disagree with — adopt (older payloads)
+	});
+
+	it("refetches a STALE snapshot (a different workspace than requested) instead of adopting its id", () => {
+		// Adopting the mismatched id made the per-workspace filters drop every update for the NEW workspace —
+		// the board sat empty until the next snapshot. The rule: skip + refetch (backoff-bounded).
+		expect(decideSnapshotAdoption("new-project", "old-project")).toBe("refetch_stale");
 	});
 });
