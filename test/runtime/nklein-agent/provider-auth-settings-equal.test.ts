@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authSettingsEqual } from "../../../src/nklein-agent/nklein-provider-service";
+import { authSettingsEqual } from "../../../src/nklein-agent/nklein-provider-oauth";
 
 // authSettingsEqual compares only the four credential-bearing fields with `?? null` normalization. The test
 // exercises that contract directly; a cast keeps it focused on those four without coupling to the full upstream

@@ -21,7 +21,6 @@ import type {
 } from "../core/api-contract";
 import { toErrorMessage as formatErrorMessage } from "../core/error-message";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
-import { openInBrowser } from "../server/browser";
 import { fetchLiteLlmBaseUrlModels, fetchLmStudioBaseUrlModels } from "./nklein-baseurl-model-discovery";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
 import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
@@ -47,10 +46,11 @@ import {
 	sortDiscoveredProviderModels,
 	toRuntimeProviderModel,
 } from "./nklein-provider-model-parsing";
+import { createRuntimeOauthCallbacks, refreshManagedOauthSettings } from "./nklein-provider-oauth";
 import { readKanbanSelectedProviderId, writeKanbanSelectedProviderId } from "./nklein-provider-selection-store";
 import { createProviderSettingsWriter, type SaveProviderSettingsInput } from "./nklein-provider-settings-save";
 import { toProviderSettingsSummary, toRuntimeReasoningEffort } from "./nklein-provider-settings-summary";
-import { ensureWorkosPrefix, stripWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-token.js";
+import { ensureWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-token.js";
 
 // Re-exported for API compatibility — the custom-provider input types now live with their manager (§5.U).
 export type { AddCustomNKleinProviderInput, UpdateCustomNKleinProviderInput } from "./nklein-custom-provider-manager";
@@ -68,7 +68,6 @@ import {
 	listSdkProviderModels,
 	loginManagedOauthProvider,
 	type ManagedNKleinOauthProviderId,
-	refreshManagedOauthCredentials,
 	SDK_DEFAULT_MODEL_ID,
 	SDK_DEFAULT_PROVIDER_ID,
 	type SdkProviderSettings,
@@ -282,89 +281,6 @@ async function resolveDefaultModelIdForProvider(providerId: string): Promise<str
 		// Fall through to the stable built-in defaults.
 	}
 	return normalizedProviderId === SDK_DEFAULT_PROVIDER_ID ? SDK_DEFAULT_MODEL_ID : null;
-}
-
-function createRuntimeOauthCallbacks(providerId: ManagedNKleinOauthProviderId) {
-	let authUrl: string | null = null;
-	return {
-		onAuth: ({ url }: { url: string; instructions?: string }) => {
-			authUrl = url;
-			openInBrowser(url);
-		},
-		onPrompt: async () => {
-			throw new Error(
-				authUrl
-					? `Browser callback did not complete. Open this URL and complete sign in: ${authUrl}`
-					: `Browser callback did not complete for ${providerId}.`,
-			);
-		},
-		onProgress: () => {},
-	};
-}
-
-// Exported for unit tests: this is the OAuth-token-change gate — its correctness decides whether refreshed
-// credentials get persisted, so a dropped field would silently keep stale tokens. Pure; tested directly.
-export function authSettingsEqual(left: SdkProviderSettings["auth"], right: SdkProviderSettings["auth"]): boolean {
-	return (
-		(left?.accessToken ?? null) === (right?.accessToken ?? null) &&
-		(left?.refreshToken ?? null) === (right?.refreshToken ?? null) &&
-		(left?.accountId ?? null) === (right?.accountId ?? null) &&
-		(left?.expiresAt ?? null) === (right?.expiresAt ?? null)
-	);
-}
-
-async function refreshManagedOauthSettings(
-	settings: SdkProviderSettings,
-): Promise<{ settings: SdkProviderSettings; apiKey: string } | null> {
-	const providerId = settings.provider.trim().toLowerCase();
-	if (!isManagedOauthProviderId(providerId)) {
-		return null;
-	}
-
-	const accessToken = settings.auth?.accessToken?.trim() ?? "";
-	const refreshToken = settings.auth?.refreshToken?.trim() ?? "";
-	if (!accessToken || !refreshToken) {
-		return null;
-	}
-
-	const nextCredentials = await refreshManagedOauthCredentials({
-		providerId,
-		currentCredentials: {
-			access: providerId === "nklein" ? stripWorkosPrefix(accessToken) : accessToken,
-			refresh: refreshToken,
-			expires: normalizeEpochMs(settings.auth?.expiresAt),
-			accountId: settings.auth?.accountId ?? undefined,
-		},
-		baseUrl: settings.baseUrl?.trim() || null,
-		oauthProvider: providerId,
-	});
-	if (!nextCredentials) {
-		throw new Error(`OAuth credentials for provider "${providerId}" are invalid. Re-run OAuth login.`);
-	}
-
-	const nextSettings: SdkProviderSettings = {
-		...settings,
-		auth: {
-			...(settings.auth ?? {}),
-			accessToken: toProviderApiKey(providerId, nextCredentials.access),
-			refreshToken: nextCredentials.refresh,
-			accountId: nextCredentials.accountId ?? undefined,
-			expiresAt: normalizeEpochMs(nextCredentials.expires),
-		},
-	};
-
-	if (!authSettingsEqual(settings.auth, nextSettings.auth)) {
-		saveSdkProviderSettings({
-			settings: nextSettings,
-			tokenSource: "oauth",
-			setLastUsed: true,
-		});
-	}
-
-	return {
-		settings: nextSettings,
-		apiKey: toProviderApiKey(providerId, nextCredentials.access),
-	};
 }
 
 export function createNKleinProviderService() {
