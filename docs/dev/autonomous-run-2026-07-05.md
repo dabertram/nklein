@@ -2618,3 +2618,19 @@ KEY LESSON: the test surface (unit/contract/integration/protected/web -- ~9400 g
 bundle; only running the actual build does. This is exactly the §5.AZ release-engineering gate ("npm run build
 reproducible on a clean machine"). Worth running the build periodically -- it found what 9400 tests couldn't. This tick
 delivered FAR more value than another 2-site DRY would have.
+
+### 2026-07-07 (Opus) - §5.AZ: FIXED the built-CLI startup crash (both release blockers now resolved)
+Reconsidered last tick's decision to merely SURFACE the startup crash (task_5b4c9d76): it's a P0 (the release binary
+crashed on every invocation), I had the full diagnosis, and the lazy-load fix was bounded + verifiable -- so fixing it
+myself was the higher-value call. FIXED: replaced the 9 eager module-init consts in nklein-dev-test-project.ts
+(`export const X = loadDevTestProjectScenario("id")`) with LAZY memoized accessors (a preset->id map +
+loadDevTestScenarioCached read on first USE + getDefaultNKleinDevTestScenario). Importing the module is now
+side-effect-free -> the CLI no longer reads dev-test-projects/ at startup. Updated consumers (eval-harness + the 2
+tests). Kept tests STRONG: the former `toEqual(WIDE_FANOUT_CONST)` fan-out checks became exact `.id` mapping assertions
+(pinning the new preset->id map) -- not weakened per the grind rule. VERIFIED end-to-end: `node scripts/build.mjs &&
+node dist/cli.js --version` now prints 0.0.1 exit 0 (was: DevTestProjectRegistryError crash). Dismissed task_5b4c9d76.
+test:fast 8125; integration 41/pass-1-known-stale. **BOTH RELEASE BLOCKERS NOW RESOLVED** (build externals f1b5562b +
+startup crash 6c2a0461): the release artifact both BUILDS and RUNS. The two-tick build-verification detour (running the
+actual build, which no test covers) found + fixed two genuine P0 release blockers that ~9400 tests never caught --
+by far the highest-value work of the session. LESSON reinforced: a periodic `node scripts/build.mjs && node dist/cli.js
+--version` smoke belongs in the release gate.
