@@ -3675,3 +3675,15 @@ memory duplicates, focus-chain surface. CLASSIFIED honestly: needs-David-env (2-
 egress proxy, core-py packaging), fleet-runs (sweeps), UX-design (per-action consent), gated-on-intake (chat
 modalities). RESUME POINT: next open boxes are L2563+ (grammar-IR), L2645-2648 (propose/review/similarity gate
 connections), then the §5.AA/§5.AB program umbrellas. Method held: characterize→test→implement→cross with evidence.
+
+### 2026-07-08 (Fable, /goal grind cont.) - 465 → 304 open; resume point updated
+Continued top-to-bottom: §5.S clusters deferred per DAVID'S standing lowest-priority ordering (cores built+tested);
+old-§5.U boxes individually marked under the section-wide rejection; sweep-run boxes = fleet operations (orchestrator
+shipped); narrow-tools umbrella = partial (ladder/schema/repair live-tuned); steering half-shipped (card relay live);
+chat modality gating = gated on the nonexistent intake path; host-escape consent = fail-closed session model shipped,
+per-action dialog is UX design. NEXT REAL WORK UNITS (fresh-context jobs, both fully specified in their boxes):
+(1) L3679 BUG project-switch stall — reproduce on the mock harness + live 2-project rail, fix at the
+use-runtime-state-stream workspace-reset seam, Playwright regression. (2) L3688 reasoning-phase snippet on the board
+card — trace the reasoning-delta event path (NOT latestHookActivity; grep the event adapter + runtime-state-hub),
+wire the card line, live-verify with the resident reasoning-capable qwopus3.5. Then L3736 (diagnostic oracles),
+L3845 (promote-half harness), and the §5.AA/§5.AB umbrellas.
