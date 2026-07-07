@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Command, Option } from "commander";
-import ora, { type Ora } from "ora";
 import packageJson from "../package.json" with { type: "json" };
 import { parseCliPortValue, shouldAutoOpenBrowserTabForInvocation } from "./cli-invocation-parsing";
 import { findAvailableRuntimePort, isAddressInUseError } from "./cli-runtime-port";
+import { createShutdownIndicator } from "./cli-shutdown-indicator";
 import { registerChatCommand } from "./commands/chat";
 import { registerDevCommand } from "./commands/dev";
 import { registerTaskCommand } from "./commands/task";
@@ -69,87 +69,6 @@ interface RootCommandOptions {
 	noPasscode?: boolean;
 	insecureRemoteHttp?: boolean;
 	dangerouslyDisableRemoteAuth?: boolean;
-}
-
-type ShutdownIndicatorResult = "done" | "interrupted" | "failed";
-
-interface ShutdownIndicator {
-	start: () => void;
-	stop: (result?: ShutdownIndicatorResult) => void;
-}
-
-function isTerminalTeardownError(error: unknown): boolean {
-	if (!(error instanceof Error)) {
-		return false;
-	}
-	const code = "code" in error && typeof error.code === "string" ? error.code : null;
-	return code === "EIO" || /setRawMode\s+EIO/i.test(error.message);
-}
-
-function safeShutdownIndicatorWrite(stream: NodeJS.WriteStream, text: string): void {
-	try {
-		stream.write(text);
-	} catch (error) {
-		if (!isTerminalTeardownError(error)) {
-			throw error;
-		}
-	}
-}
-
-function createShutdownIndicator(stream: NodeJS.WriteStream = process.stderr): ShutdownIndicator {
-	let spinner: Ora | null = null;
-	let running = false;
-
-	return {
-		start() {
-			if (running) {
-				return;
-			}
-			running = true;
-			if (!stream.isTTY) {
-				safeShutdownIndicatorWrite(stream, "Cleaning up...\n");
-				return;
-			}
-			try {
-				spinner = ora({
-					text: "Cleaning up...",
-					stream,
-				}).start();
-			} catch (error) {
-				if (!isTerminalTeardownError(error)) {
-					throw error;
-				}
-				spinner = null;
-				safeShutdownIndicatorWrite(stream, "Cleaning up...\n");
-			}
-		},
-		stop(result = "done") {
-			if (!running) {
-				return;
-			}
-			running = false;
-			if (spinner) {
-				try {
-					if (result === "done") {
-						spinner.succeed("Cleaning up... done");
-					} else if (result === "failed") {
-						spinner.fail("Cleaning up... failed");
-					} else {
-						spinner.warn("Cleaning up... interrupted");
-					}
-				} catch (error) {
-					if (!isTerminalTeardownError(error)) {
-						throw error;
-					}
-				}
-				spinner = null;
-				return;
-			}
-
-			const suffix = result === "done" ? "done" : result === "interrupted" ? "interrupted" : "failed";
-			safeShutdownIndicatorWrite(stream, `Cleanup ${suffix}.\n`);
-		},
-	};
 }
 
 async function applyRuntimePortOption(portOption: CliOptions["port"]): Promise<number | null> {
