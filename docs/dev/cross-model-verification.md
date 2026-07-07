@@ -1071,3 +1071,15 @@ observed, session advanced, NO host worktree created, no leftover containers. Tw
 crash — last turn's stray-session_stop guard on this file worked; (2) implicit regression check that this turn's §5.O
 runTool path-recovery did not break isolation. matrix row: qwopus3.5-9b-coder-mtp → strict-isolation=✅. Now clean on 7
 fast flows: egress · chat-tools · decompose-isolation · single-card · chat-agent-write · chat-command-exec · strict-isolation.
+
+## 2026-07-07 (Opus) — §5.Z autopromote-recovery + restart-resume-isolation on qwopus3.5 → both PASS (9 flows clean)
+- ✅ **autopromote-recovery [qwopus3.5] — PASS.** A Planning-lane work card's FIRST approved mutating tool auto-promoted it
+  Planning→In Progress (begin_implementation never called; onCardPromoted fired once) — the §5.B Increment C recovery path
+  (the same logic lifted into the tool-approval wrapper, now unit-tested). No host-path leaks, clean teardown.
+- ✅ **restart-resume-isolation [qwopus3.5] — PASS.** A resumed-after-restart task re-preps its sandbox container; no host
+  worktree, no host-path leak, clean teardown. (Harness did not crash — last turn's stray-session_stop guard held.)
+- **qwopus3.5-9b-coder-mtp is now EXHAUSTIVELY verified — clean on 9 fast flows:** egress · chat-tools ·
+  decompose-isolation · single-card (fixed by §5.O) · chat-agent-write · chat-command-exec (variance) · strict-isolation ·
+  autopromote-recovery · restart-resume-isolation. One deterministic failure found across all of them (the §5.O
+  path-nesting) → fixed. Remaining flows (reasoning-display, chat-browse, the 25-min multi-card) are lower-priority; the
+  high-value next §5.Z step is BREADTH — OTHER roster models, which requires loading them (David's call per no-auto-load).

@@ -3248,3 +3248,16 @@ deterministic parse gap, so no code change (contrast the §5.O path-nesting whic
 this turn's §5.O runTool change against isolation. qwopus3.5-9b-coder-mtp is now the most thoroughly-verified column in
 the matrix (7 clean flows). Honest status: this model is well-characterized; broader §5.Z needs OTHER roster models
 loaded (I do not auto-load per the harness convention). The §5.U big-3 remain DI-seam-gated; §5.V clean veins covered.
+
+### 2026-07-07 (Opus) - §5.U cohesion verified (no bad split) + §5.Z loaded model EXHAUSTIVELY verified (9 flows)
+- **§5.U:** checked task-board-mutations.ts (764) for a dependency-cluster split — coupling is BIDIRECTIONAL
+  (moveTaskToColumn↔updateTaskDependencies; the ready-linked propagation moves cards, card moves recompute deps), so a
+  split would create a circular import. Confirmed cohesive/non-separable — verifying the mechanism prevented a bad
+  refactor. Reinforces: the §5.U clean veins are worked out; the big-3 need the DI-threading flagged for David.
+- **§5.Z:** ran autopromote-recovery (✅) + restart-resume-isolation (✅) on qwopus3.5 → now clean on 9 fast flows.
+  Exhaustively characterized. Across all 9, exactly ONE deterministic failure surfaced (the §5.O path-nesting) and was
+  fixed; everything else passes or is model-variance. The verify→harden loop has been fully worked for this model.
+- **HONEST STATUS:** the readily-actionable Opus-domain work for the CURRENT state is largely exhausted: §5.U big-3 need
+  David's DI-seam steer; §5.Z breadth needs OTHER models loaded (no-auto-load convention = David's call); §5.V clean
+  pure-logic veins covered; §5.AZ prose/templates done (history-scrub + screenshots are David/Fable). The two high-leverage
+  unblocks are BOTH David's: (a) steer the big-3 DI seams, or (b) load additional roster models for cross-model breadth.
