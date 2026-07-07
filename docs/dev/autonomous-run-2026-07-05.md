@@ -3058,3 +3058,20 @@ converted the analysis into a precise polishing.md §5.U scoping so a FOCUSED ca
 David-steered) executes without re-surveying. This turn's deliverable = that scoping + the honest 'clean vein worked
 out' conclusion. NEXT: a focused workspace-state persistence-layer peel (strong net, bottom-up) is the best-value safe
 careful-tier target; the big-3 coordinator/closure splits remain David's-steer / deliberate-fresh-context.
+
+### 2026-07-07 (Opus) - §5.U increment 7: workspace-state IO layer + DEFINITIVE clean-vein conclusion
+Extracted the workspace-state JSON-IO/parse layer → workspace-state-io.ts (779→728); the persistence layering is now
+complete (paths → schema → io → orchestration). 300/300, full gate green (6166d48e).
+**DEFINITIVE §5.U CONCLUSION (all large files surveyed across this session):** the clean function-heavy vein + the
+careful-LAYER-peel vein are WORKED OUT. Every remaining large file (>800) is uniformly the DELIBERATE/coordinator tier,
+each verified this session:
+  - task-session-service (2830): 27-collaborator COORDINATOR, irreducible remainder → responsibility-split only.
+  - runtime-server (2262): ONE 2095-line closure, 0 module-scope helpers → DI-threading split.
+  - runtime-api (1033): factory closure; its 20 handler modules are ALREADY extracted → closure tier.
+  - agent-sandbox (1071): 42-method class; tail helpers couple to local error classes → method/class-split tier.
+  - session-runtime (1148): big orchestration methods (startTaskSession ~449) → method-decomposition tier.
+**§5.U session total: 7 extractions** — dev.ts 1270→731 · session-runtime 1215→1148 · projects-api 1001→901 ·
+workspace-state 884→728 (3 layers). The remaining flagship reduction requires the coordinator/closure/class/method
+splits — the DI-threading David flagged for review. David chose 'full autonomous pass', so the NEXT §5.U step is a
+FOCUSED careful big-3 split (fresh full-budget turn), NOT a turn-tail move; alternatively David steers the DI seams. The
+sustainable non-§5.U continuation is the §5.Z fitness-matrix extension.
