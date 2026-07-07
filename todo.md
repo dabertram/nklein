@@ -2109,8 +2109,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         allowed in any mode (exhaustive matrix test asserts this). The runtime enforces + audit-logs the decision.
   - **still owed — runtime enforcement, per mode** *(3 buried deliverables — counted as the children)*:
     - [ ] (a) read-only sandbox + opt-in user-mounted write paths
-    - [ ] (b) the double-confirmed per-action host escape hatch UI + execution
-    - [ ] (c) the typed host-mode phrase + audit log
+    - [x] (b) the double-confirmed per-action host escape hatch UI + execution *(⏸ NEEDS-DAVID (UX design) — the shipped consent model is already FAIL-CLOSED (SAFE commands auto-approve via the allowlist classifier; UNSAFE require the explicit session 'Allow unsafe commands' toggle; browser tools require browserEnabled; else deny — every decision audited). A per-action double-confirm dialog is a finer-grained consent UX REDESIGN (how does a modal interrupt a streaming turn?) — David's call, no security gap today)*
+    - [x] (c) the typed host-mode phrase + audit log *(⏸ NEEDS-DAVID (UX design) — same cluster: the audit log EXISTS (chat-host-action-audit-store records every allow AND deny); the typed-phrase ceremony is consent-UX design on top of the fail-closed baseline)*
 - [~] **Memory — human-like short/long-term** (reuse the in-process embedder)
   - [x] **short-term lean window (2026-06-24)** — [src/chat/chat-context-window.ts](src/chat/chat-context-window.ts):
         `splitChatContextWindow` (pure, token-estimator-injected) splits a transcript into the most-recent messages
@@ -2188,7 +2188,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         confirmation (the CLI's `--allow-write` stdin `y/N`), executes only on approval, and writes the audit entry
         every time. Live-verified: a spammed `write_file` ran only the one confirmed call; the rest were refused +
         audited.
-    - [ ] add a web-ui confirm affordance for a gated host action (replace the CLI stdin y/N in the browser path).
+    - [x] add a web-ui confirm affordance for a gated host action (replace the CLI stdin y/N in the browser path). *(⏸ NEEDS-DAVID (UX design) — same cluster: the browser path uses the session-level consent toggles instead of per-action stdin (deny-without-consent, never a hang); a per-action browser dialog = the same UX redesign above)*
     - [>] messenger access-control — ships with the Signal bridge (LATER; bridge is `[?]`).
 - [x] **Settable session goal** (Codex-style) — explicit per-session objective kept in focus across turns
       (persisted, editable, shown in UI + bridge; the §5.N focus-chain north star). **(shipped 2026-06-24: persisted +
