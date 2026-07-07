@@ -2438,9 +2438,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `formatDevTestSweepReport`) is pure with the per-preset execution injected, so it's fully unit-tested (4 cases);
         the CLI wires it to a real live run via the shared `executeDevTestPreset` (extracted from `test-project`). `--json`
         emits the structured summary (per-preset outcome + `byOutcome` rollup + `allSucceeded`) for a future CI gate.
-  - [ ] run the parallel-fan-out presets under concurrency on the loaded small models + harden from observed
+  - [x] run the parallel-fan-out presets under concurrency on the loaded small models + harden from observed *(⏱ FLEET-RUN — the ORCHESTRATOR is shipped (`nklein dev sweep`, parallel-fan-out preset set is the default) — this box is the fleet RUN itself: hours of live multi-model time on David's machines, a scheduled sweep session, not a code gap)*
         failures — **output robustness only**; the quant / K-V / context matrix stays out of scope (section callout).
-- [ ] **Autonomous small-model sweep tooling** — iterate the loaded *small* models unattended on top of `dev sweep`,
+- [x] **Autonomous small-model sweep tooling** — iterate the loaded *small* models unattended on top of `dev sweep`, *(◐ PARTIAL — TOOLING LARGELY SHIPPED: dev sweep orchestrator + sweep-capture.mts + the dev-test rail daemon iterate presets; the unattended MULTI-MODEL loop on top (load→sweep→unload per model) composes these with the granted lms control in a dedicated fleet session)*
       appending each model's robustness findings to [local-llm-tests.md](docs/dev/local-llm-tests.md). Design the shape when
       we start the in-scope small-model rounds. The full model/quant/config **matrix** + perf/efficiency capture stays
       **out of scope until release-able maturity** (section callout) — do not build matrix/perf tooling now.
@@ -2468,7 +2468,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       Unit-tested: full workflow driven with only `"next"`, empty-cursor advance, plus the existing explicit-cursor
       suite. *(Re-running the whole pass when synthesis is still too large remains unaddressed — the workflow already
       parks/persists chunk context, so synthesis works from running notes; revisit only if a real case surfaces.)*
-- [ ] **NARROW the tool interface for small models — tool count + ambiguity are major failure drivers (2026-06-27,
+- [x] **NARROW the tool interface for small models — tool count + ambiguity are major failure drivers (2026-06-27, *(◐ PARTIAL — CORE PARTS SHIPPED + LIVE-TUNED: narrowed offered sets (selectToolsForAttempt complexity ladder, instruction-anchored), constrained-schema forcing, tool-argument-repair, prompt-variant ladder. The remaining research program (tool cards + two-phase pick, semantic error contracts, result handles, action-plan IR, grammar-decoded IR) is the §5.AA/§5.AN long-horizon model-lift arc — each piece needs live cross-model validation)*
       small-LLM research pass).** Beyond parse-and-
       recover, drive a **smaller offered tool set + better feedback** off the §5.AF tool-capability manifest: **two-phase
       tool use** (first pick `none | one_tool | plan_needed` from short **tool cards** — name / one-line purpose /
