@@ -3261,3 +3261,18 @@ loaded (I do not auto-load per the harness convention). The §5.U big-3 remain D
   David's DI-seam steer; §5.Z breadth needs OTHER models loaded (no-auto-load convention = David's call); §5.V clean
   pure-logic veins covered; §5.AZ prose/templates done (history-scrub + screenshots are David/Fable). The two high-leverage
   unblocks are BOTH David's: (a) steer the big-3 DI seams, or (b) load additional roster models for cross-model breadth.
+
+### 2026-07-07 (Opus) - §5.U exhaustion rigorously confirmed + §5.Z chat-browse investigated to ground truth
+- **§5.U (evidence-backed exhaustion):** scanned task-session-service's 114 methods for `this`-free (hoistable) ones —
+  exactly ONE real implementation qualifies (combineExtraTools, 19 lines); the rest genuinely use `this`. runtime-server's
+  2095-line closure has ~0 inner helper decls. So the clean-extraction avenues (pure hoist / inner-helper lift) are
+  rigorously exhausted, not just asserted — the big-3 reduction needs the DI-threading / collaborator-split flagged for David.
+- **§5.Z chat-browse [qwopus3.5]: ◑ 2/2 → investigated to ground truth.** Formed a specific hypothesis (parse-recovered
+  content-JSON tool calls may not loop back), then REFUTED it: appendChatToolExchange folds tool results back as system
+  notes (the loop continues), browse_url returns the page innerText, and browse works for capable models on the same page.
+  ⇒ reclassified as the SAME model-synthesis weakness as chat-command-exec (model gets the result, doesn't echo it) — a
+  §5.AB fitness trait, NOT a !Klein bug. Corrected the recorded finding (methodology: confirm/refute, don't leave a wrong
+  hypothesis standing). No code change warranted.
+qwopus3.5-9b-coder-mtp: 9 fast flows ✅ + chat-browse ◑ (model-synthesis trait). Only reasoning-display + the 25-min
+multi-card remain unrun; both low-priority. STATUS unchanged: the high-leverage unblocks are David's (big-3 DI seams;
+loading other roster models for §5.Z breadth).
