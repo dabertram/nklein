@@ -2409,3 +2409,22 @@ small predicates). The remaining HIGH-VALUE §5.U is the two big NAMED monoliths
 runtime-server 2260) = the David-gated entangled seam. Next tick I'll either find a genuine remaining clean cluster or,
 if the search keeps yielding only coupled/tested/tiny candidates, shift primary effort to the §5.Z/§5.AZ verification
 tracks and flag that the clean §5.U frontier is done pending David's seam decision.
+
+### 2026-07-07 (Opus) - VERIFICATION tick: full contract+integration suite; found+diagnosed a stale test
+Pivoted from §5.U (clean mid-file vein assessed dry: the task-session-service type block is coupled/cosmetic, not a
+clean lift) to a full-suite verification pass -- the 7 module lifts this arc were only gated by test:fast (pre-commit);
+the contract + integration suites (which exercise the refactored provider-service/workspace-state/cli heavily) had not
+run as a whole since. RESULTS: **contract 275/275 GREEN; integration 41/42** -- the 7 lifts are confirmed behavior-safe
+end-to-end (every integration test touching the refactored modules -- workspace-state.integration, on-disk-formats,
+shutdown-coordinator, projects-api-removal -- passed). The ONE failure: runtime-state-stream.integration.test.ts
+"moves stale completed review cards to trash on shutdown". INVESTIGATED to a confident root cause: it is PRE-EXISTING
+(fails at e2fc333e deep in the branch; also 3x deterministic in isolation on a quiet machine -> not environmental, not
+my refactoring -- my commits never touch runtime-server/task-session boot-reconcile) and it is a STALE TEST, not a
+product bug. The test asserts the OLD trash-everything-on-shutdown behavior, but shutdown-coordinator.ts:61-65 documents
+a deliberate 2026-07-02 W2.2 'RECONCILE-DON'T-DESTROY' change ("supersedes the trash-everything shutdown ... REVIEW
+cards stay where they are"). Current product correctly marks the session interrupted [assertions 529-530 pass] but
+leaves the card in review [527-528 fail]. Per the guidance (found something contradicting its description that I didn't
+write -> SURFACE, don't proceed) + the grind's 'NEVER weaken a test' rule, I did NOT unilaterally edit the integration
+test; spawned task task_5f7170d9 for David with the full diagnosis + recommended assertion update. NET: verification
+validated the refactoring arc AND caught a pre-existing red test the fast gate misses -- exactly why the full suite was
+worth running.
