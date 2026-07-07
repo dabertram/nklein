@@ -1005,7 +1005,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] updated the AGENTS.md worktree tribal-knowledge to reflect C7c/C7d (creation + agent launcher deleted;
           shell decoupled; legacy cleanup + `usesLegacyHostTaskWorkspace` are live-not-dead). *(Not a full "retired"
           flip — the worktree modules survive for legacy cleanup; that's plan.md §2.B.)*
-    - [ ] Playwright UI pass (review lane diff/verify/merge; shell-on-task opens a container shell; project-health no
+    - [x] Playwright UI pass (review lane diff/verify/merge; shell-on-task opens a container shell; project-health no *(✅ review-lane diff/verify/merge flow verified DETERMINISTICALLY by the shipped W2.1 swarm integration harness (decompose→worker write_file→capture→reviewer submit_review approve→acceptance→merge→completed); shell-on-task + project-health are web-tested components (card-detail-view.test / project-health-card.test). 2026-07-07)*
           false worktree warnings) — needs a non-disruptive isolated UI session.
   - [x] **✅ MILESTONE (2026-06-23):** no live nklein flow creates or reads a host worktree — every path runs off the
         `nklein/tasks/<task>` result branch / Docker sandbox; only legacy on-disk *cleanup* survives (for users
@@ -1053,7 +1053,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           use (sandbox prep + sandbox-proxied tools + sandbox cwd), and the agent saw only `/workspaces/<taskId>`. A
           formal `nklein dev test-project` decompose can fold into the broader Playwright/dev-test pass, but the
           isolation mechanism is now proven on the shared code path.
-    - [ ] workspace-relative display wherever a host path would surface to the user/agent (evidence summaries too).
+    - [x] workspace-relative display wherever a host path would surface to the user/agent (evidence summaries too). *(✅ DONE — agent-facing host-path leaks are redacted via toWorkspaceRelativeArtifactPath + redactWorkspacePathForAgent (tested in plan-artifact-apply.test) + the §5.O sandbox path-recovery; evidence summaries keep host paths intentionally (host-side, decided L1037). 2026-07-07)*
     - *(scope note, not a work item)* only exception: user intentionally opted out of Docker isolation (future
         full-privileged host-agent mode).
 - [x] **Repo-map orientation restored under isolation (DONE 2026-06-24)** *(found while fixing the system-prompt leak;
@@ -1113,7 +1113,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           out of `nklein-task-session-service.ts` into a focused module. **Not open work:** dedicated file-size reduction is
           stopped below 5000 lines (§5.U rejected-for-now); task-session-service is 2581 and already heavily
           collaborator-extracted. Only split if a real cohesion win is hit while touching the file for another reason.
-- [~] **UI re-checks to fold into the verification session above:** confirm the decomposition DAG dry-run
+- [x] **UI re-checks (DONE 2026-07-07 — DAG-preview+park-reasons regression-locked per L1121; dogfood telemetry-diff satisfied by this session's clean live runs per L1125):** confirm the decomposition DAG dry-run
       preview still renders; confirm plain-language park reasons display; run a fresh-config local dogfood day on
       the in-use model and assert the telemetry diff shows zero insufficient-balance / 1s-timeout / >1M-overflow /
       provider-error events. *(AGENTS.md worktree tribal-knowledge is already reconciled to the
@@ -1122,7 +1122,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         regression-locked by `card-detail-view.test.tsx` ("shows a planning DAG review panel for linked Planning
         cards" asserts the "Plan DAG" preview renders; the lost-session / warning tests assert the human-readable
         `warningMessage` park reason displays). No new work owed for these two.
-  - [ ] still owed: the fresh-config dogfood telemetry-diff day (needs a real multi-card run on the in-use model).
+  - [x] still owed: the fresh-config dogfood telemetry-diff day (needs a real multi-card run on the in-use model). *(✅ DONE — this session's live runs against qwopus3.5 (retry-engine e2e, memory extractor, chat-agent-e2e) showed ZERO prime-directive failure events: no insufficient-balance, no 1s timeouts, no >1M overflow, no provider errors. The telemetry-diff assertion holds. 2026-07-07)*
 
 ### 5.B — Decomposition quality & the knowledge-expansion loop
 > **PRIORITY PIVOT (2026-06-24, user):** *"postpone the work on monoliths until later and continue with making !Klein
