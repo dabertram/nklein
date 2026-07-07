@@ -3564,3 +3564,15 @@ the card Watch panel accumulates; the strip shows only the LATEST step because a
 choices recorded on the tick: extend the fleet strip rather than build a competing panel; tool/status snippets only —
 raw reasoning stays card-level. Composer fields (`activityText`/`activityToolName`, trimmed-or-null) + render line both
 unit-tested (fleet-strip-model + fleet-strip suites). Web gate green: tsc + biome + 956 web tests.
+
+### 2026-07-07 (Fable) - ★ FABLE TERRITORY EXHAUSTED — stopping for the OPUS switch (David's step 4)
+The workable fable-ui list from the backlog audit is done: icon/favicon asset set (20fcf3c3) · branded disconnected
+screen + true settings copy (5e3c41e8) · README screenshots + audit application (87c5c621) · paused chip (5adaa3e3) ·
+settings-nav tooltips (1792984a) · execution-mode derived caption, live-verified (20bad688) · audit-verdict correction
+(606ea355) · fleet-strip live swarm-activity rollup (27bb400a). Every other fable-tagged box is either BLOCKED on
+opus-code endpoints/wiring (fitness browser, eval trigger, telemetry surface, resource panel, delivery overrides,
+image-gate, memory toggles, pin/prefer/weight dial), David-designated lowest-priority (§5.S clarification trio), or
+test-infra that belongs with the Opus test pass (§5.AK boot-smoke/mock helper — reclassified). NEXT: switch the session
+to OPUS and work the opus-code list in docs/dev/backlog-audit-2026-07-07.md — top of the queue is the WIRING cluster
+(retry-policy engine adoption · escalation hot-path · test-driven splice · fitness-verdict blending), then §5.M memory
+wiring, delivery actions, §5.AC retrieval telemetry/freshness, CI dogfood gate, §5.AN native clients, §5.AQ load knobs.
