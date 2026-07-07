@@ -3210,3 +3210,20 @@ Recorded a §5.O/§5.AB HARDENING CANDIDATE (the redundant `workspaces/<taskId>/
 weak-model failure) with two candidate recoveries + tradeoffs (sandbox path-strip vs. prompt clarification) — a design
 call left to David / a dedicated §5.O turn, NOT rushed at turn-tail. The branch-tree diagnostic is permanent triage value
 for the ongoing sweep. NEXT §5.Z: the not-yet-loaded roster models as they're loaded; the §5.O path-recovery when steered.
+
+### 2026-07-07 (Opus) - §5.O path-nesting: decided approach + deep layering; §5.Z chat-write PASS
+Per raised autonomy, revisited the §5.O path-nesting hardening to DECIDE+act rather than defer. Reconsidered and found a
+cleaner 3rd approach (reject-with-guidance in the already-extracted tool-approval wrapper, matching the §5.O parse-and-
+recover pattern). BUT investigating the write path revealed the real layering: `normalizeScopePath` already strips an
+ABSOLUTE `/workspaces/<taskId>/` but leaves the RELATIVE form, and it's only the scope-COMPARISON key — under isolation
+the write is proxied to the sandbox (`createAgentSandboxToolExecutors`→`manager.runTool`) so the CONTAINER does the
+nesting. ⇒ the write-LOCATION fix lives in the hard-tier sandbox exec layer (or reject-in-wrapper, relying on weak-model
+retry). Cross-layer + a silent-autocorrect-vs-reject-and-teach design tradeoff + needs cross-model validation ⇒ genuinely
+a dedicated §5.O turn / David's steer, NOT a turn-tail rush. This is disciplined scoping (methodology: full understanding
+before acting), and the 2-turn investigation is now fully recorded in the matrix so it's execution-ready.
+- ✅ **§5.Z verify-chat-agent-write [qwopus3.5] PASS** (`cbadd844`): security confirm-gate + audit hold on the coder
+  model. It wrote a CORRECT root-relative path in-process — confirming the single-card nesting is Docker-sandbox-cwd-
+  specific, not a general model path defect.
+qwopus3.5-9b-coder-mtp is now well-characterized: ✅ egress · ✅ chat-tools · ✅ decompose-isolation · ◑ single-card
+(sandbox path trait) · ✅ chat-agent-write. NEXT: not-yet-loaded roster models when loaded; the §5.O sandbox path-recovery
+as a dedicated turn (approach decided: sandbox-exec normalization or wrapper reject-with-guidance — David to pick).
