@@ -3029,3 +3029,15 @@ dev.ts is now 1079 (down 191, ~15%); remaining clean groups: the telemetry/analy
 roster/swarm/advice/escalation, ~10 fns) + the dev-test-run commands (share createDevRuntimeClient). NEXT: continue the
 dev.ts vein, then session-runtime + other next-tier. Pattern proven: move a cohesive group, wire imports back, biome
 --unsafe cleans the now-unused imports, tsc+diff confirm structural-only.
+
+### 2026-07-07 (Opus) - §5.U increment 5: projects-api helpers extraction
+Extracted the 8 standalone helper functions from trpc/projects-api.ts (git-root/source-repo resolution, evidence-bundle
+base-commit, dev-test-workspace marker, plan-artifact listing + migrated-metadata, JSON/path utils) → trpc/projects-api-
+helpers.ts. Verified zero tRPC-ctx/deps coupling; a two-range extraction around the kept CreateProjectsApiDependencies
+interface. resolveKleinSourceRepoPath re-exported for external importers. projects-api 1001→901, module 115. tsc 0,
+57/57. (6e61f6b1) — caught + fixed: an external cli.ts importer of the moved export → re-export; and a biome import-org
+nit on the re-export placement.
+**§5.U session tally:** dev.ts 1270→731 (3 groups) · session-runtime 1215→1148 · projects-api 1001→901. Pattern for
+function-heavy files (verify no local refs → copy-imports → prune → tsc/diff) proven; class-heavy files (agent-sandbox,
+the big-3 coordinators) remain the harder careful tier. NEXT: continue next-tier (runtime-api factory helpers, workspace-
+state clusters) then reassess the big-3.
