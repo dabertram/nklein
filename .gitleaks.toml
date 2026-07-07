@@ -1,0 +1,18 @@
+# gitleaks config for the !Klein repo (§5.AZ release gate). Extends the built-in ruleset and allowlists paths that are
+# NOT first-party authored source: build artifacts, third-party vendored code, dependency installs, dev-test fixtures,
+# and test files (which deliberately carry FAKE/example keys to exercise secret-detection + redaction). A 2026-07-07
+# scan of the shipping surface found 58 hits — ALL in these categories; zero in first-party src. Run: `npm run scan:secrets`.
+title = "nklein-gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Non-first-party or fixture paths: build output, vendored upstream, deps, dev-test + test fixtures."
+paths = [
+  '''(^|/)node_modules/''',
+  '''(^|/)dist/''',
+  '''(^|/)vendor/''',
+  '''(^|/)dev-test-projects/''',
+  '''\.test\.(ts|tsx|mts|mjs)$''',
+]

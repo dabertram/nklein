@@ -2675,3 +2675,16 @@ vendored SDK's AWS docs example AKIAIOSFODNN7EXAMPLE; a sequential fake ghp_1234
 build-verification + release-hygiene veins are now largely worked through; what remains high-value is DAVID-GATED (the
 §5.U structural seam; LICENSE/history-shape/localhost-unify decisions; installing a secret scanner; the live §5.Z full
 sweep) or the diagnosed stale test task_5f7170d9. The clean, non-David, non-tooling runway is genuinely thin now.
+
+### 2026-07-07 (Opus) - post-clarification plan: Phase A.1 (localhost unify) + A.3 (gitleaks) done
+David answered the open questions: TREAT THE BIG TWO MONOLITHS AS DONE (no seam surgery -> shift §5.U effort to
+§5.V/§5.Z/§5.AZ); all release-prep actions + all gated tracks greenlit ("order as you suggest"); FRESH-ROOT release
+branch. Executed the ordered plan's Phase A: (A.1) unified the 4 remaining localhost:1234/v1 fallbacks onto
+DEFAULT_LOCAL_MODEL_BASE_URL (127.0.0.1) -- the pre-commit gate caught a test pinning the old value, updated the 2
+fallback assertions to the approved new value (explicit-baseUrl + ollama cases unchanged); commit 7156fae5. (A.3)
+installed gitleaks 8.30.1, scanned the shipping surface -> 58 hits ALL benign (dist artifacts / vendored Cline SDK /
+test fixtures), ZERO in first-party src; added .gitleaks.toml + `npm run scan:secrets` gate (runs CLEAN). REFINED
+understanding: fresh-root makes A.2 (path scrub) narrow -- the docs/dev working-notes + fleet logs that quote
+/Users/david/ won't be in a fresh root, so the scrub targets only shipping docs (README, curated docs/). NEXT (per the
+plan): finish A.2 (scan README + docs/ maintained refs for personal paths), then Phase B (§5.Z full sweep -> §5.BG
+re-key -> swarm-recovery), then Phase C (fresh-root branch + surface the LICENSE/NOTICE decision).

@@ -51,6 +51,7 @@
 		"install:all": "npm install && npm run build:sdk && npm --prefix web-ui install && npm --prefix packages/desktop install",
 		"build": "npm run clean && npm run build:sdk && npm run web:build && node scripts/build.mjs && node scripts/build-agent-sandbox.mjs && shx mkdir -p dist/web-ui && shx cp -r web-ui/dist/* dist/web-ui && node scripts/upload-sentry-sourcemaps.mjs && shx chmod +x dist/cli.js",
 		"smoke:build": "tsx scripts/verify-built-artifact.mts",
+		"scan:secrets": "gitleaks dir . --config .gitleaks.toml --no-banner",
 		"sandbox:build": "node scripts/build-agent-sandbox.mjs",
 		"dogfood": "node scripts/dogfood.mjs",
 		"link": "npm run build && npm link",

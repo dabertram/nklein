@@ -762,8 +762,12 @@
 >       Google `AIza…` → **zero real secrets**. The 3 pattern hits are all benign test fixtures: a `-----BEGIN … PRIVATE
 >       KEY-----` LITERAL in agent-write-guard.test.ts (testing the secret-DETECTOR, no key material); the vendored
 >       SDK's `AKIAIOSFODNN7EXAMPLE` (AWS's own docs example); a sequential fake `ghp_1234567890…` in a token-redaction
->       test. STILL OPEN: gitleaks/trufflehog needs installing for the exhaustive sweep (broader entropy + more token
->       classes), and the local-path/personal-data scrub (the fleet logs + docs working-notes quote `/Users/david/…`).
+>       test. **★ GITLEAKS SCAN DONE + GATED (2026-07-07, Opus):** installed gitleaks 8.30.1, scanned the shipping
+>       surface → 58 hits, ALL benign (27 in `dist/` build artifacts, 16 vendored Cline SDK, ~15 test fixtures) — ZERO
+>       in first-party src. Added `.gitleaks.toml` (allowlists build/vendor/deps/dev-test/`.test.` paths) + `npm run
+>       scan:secrets`; the gated run is CLEAN (no leaks). STILL OPEN: the local-path/personal-data scrub — but the
+>       fresh-root release branch (David's choice) will exclude the docs/dev working-notes + fleet logs that quote
+>       `/Users/david/…`, so the scrub narrows to whatever shipping docs (README, curated docs/) carry personal paths.
 > - [ ] **Repo hygiene:** LICENSE decision (vendored Cline SDK license compatibility + attribution!), NOTICE/credits,
 >       README (what !Klein is, the local-only/Docker-isolation posture, hardware expectations, quickstart), CONTRIBUTING,
 >       SECURITY.md (local-only threat model), issue templates. Screenshots/gif of the board+chat once §5.AX lands.
