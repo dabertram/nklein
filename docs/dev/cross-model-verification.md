@@ -1064,3 +1064,10 @@ methodology (don't accept a single-run verdict):
   path-nesting, which reproduced every run and warranted a code fix). No hardening — recorded as a §5.AB fitness signal.
 - matrix row: qwopus3.5-9b-coder-mtp → chat-command-exec=✅ (variance). Now: egress ✅ · chat-tools ✅ ·
   decompose-isolation ✅ · single-card ✅ (fixed by §5.O) · chat-agent-write ✅ · chat-command-exec ✅. Clean on 6 flows.
+
+## 2026-07-07 (Opus) — §5.Z strict-isolation on qwopus3.5 → PASS
+`verify-strict-isolation.mts` (host-path isolation during a real Docker-sandboxed task): **PASS ✓** — sandbox container
+observed, session advanced, NO host worktree created, no leftover containers. Two side-benefits: (1) the harness did NOT
+crash — last turn's stray-session_stop guard on this file worked; (2) implicit regression check that this turn's §5.O
+runTool path-recovery did not break isolation. matrix row: qwopus3.5-9b-coder-mtp → strict-isolation=✅. Now clean on 7
+fast flows: egress · chat-tools · decompose-isolation · single-card · chat-agent-write · chat-command-exec · strict-isolation.

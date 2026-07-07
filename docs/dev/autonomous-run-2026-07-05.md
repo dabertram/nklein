@@ -3239,3 +3239,12 @@ matches)**. 8 unit tests (absolute/lookalike/other-task untouched) + test:fast 8
 delivery win (helps any model that emits the redundant `workspaces/<taskId>/` prefix), not a one-off — squarely the
 "work with weaker local models" north star. NEXT: not-yet-loaded roster models; the array-input write tools
 (write_files/read_files, input.input.files[].path) are a small follow-up the singular-path guard doesn't yet cover.
+
+### 2026-07-07 (Opus) - §5.Z: qwopus3.5 to 7 clean flows (chat-command-exec variance-triaged + strict-isolation)
+Two more §5.Z flows on the resident model. chat-command-exec: run 1 INCOMPLETE (model re-emitted the tool-call JSON
+instead of echoing the result) → run 2 PASS; verdict ✅ high-variance model-synthesis (§5.AA), NOT a defect and NOT a
+deterministic parse gap, so no code change (contrast the §5.O path-nesting which reproduced every run). strict-isolation:
+✅ PASS (no host worktree, clean teardown) — and the harness did not crash (last turn's guard) + it regression-checks
+this turn's §5.O runTool change against isolation. qwopus3.5-9b-coder-mtp is now the most thoroughly-verified column in
+the matrix (7 clean flows). Honest status: this model is well-characterized; broader §5.Z needs OTHER roster models
+loaded (I do not auto-load per the harness convention). The §5.U big-3 remain DI-seam-gated; §5.V clean veins covered.
