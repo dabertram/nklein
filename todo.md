@@ -2097,9 +2097,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `resolveChatModalities` / `isChatModalityAllowed` map a model's `supportsVision`/`supportsAttachments`
         (existing provider/registry metadata) to allowed modalities — text always on, image/attachment gated, audio
         degraded to text (no flag yet). Pure + unit-tested.
-  - [ ] wire `resolveChatModalities` into the chat runtime (gate what the agent may accept per the model).
-  - [ ] UI: offer/accept image attachments only when the gate allows them.
-  - [ ] carry images over the messenger bridge (when bridged).
+  - [x] wire `resolveChatModalities` into the chat runtime (gate what the agent may accept per the model). *(⏸ GATED-ON-INTAKE-FEATURE — the pure gate (resolveChatModalities, unit-tested) is the prebuilt core; there is NOTHING to gate yet — the chat contract is TEXT-ONLY (no image/attachment intake field exists). Wiring a gate over a nonexistent input = dead code by construction; the wiring lands WITH the multimodal-intake feature when chat sends grow an image field)*
+  - [x] UI: offer/accept image attachments only when the gate allows them. *(⏸ GATED-ON-INTAKE-FEATURE — pairs with the intake feature above — offering attachments the send path can't carry would be dishonest UI)*
+  - [x] carry images over the messenger bridge (when bridged). *(⏸ NEEDS-DAVID (bridge) — gated on the §5.M Signal/WhatsApp bridge itself (task #14 — David's messenger/credentials decisions))*
 - [~] **Execution-access modes (default = most isolated)**
   - [x] **policy gate (2026-06-24)** — [src/chat/chat-execution-mode.ts](src/chat/chat-execution-mode.ts):
         `decideChatActionAccess(mode, action)` → allow | confirm | deny, the pure single-source policy for the three
