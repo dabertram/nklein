@@ -2502,3 +2502,17 @@ mangling.) ARC TALLY: FOUR pure-decision lifts across BOTH big named monoliths -
 base-red waiver, #28 re-drive gate (runtime-server) + credit-limit edge (task-session-service) -- each safe, test-gated,
 verified behavior-preserving, no seam approval. The pattern generalizes across the entangled files; both big monoliths
 have more inline pure decisions minable one-per-tick.
+
+### 2026-07-07 (Opus) - §5.U pure-decision lift #5: auto-review reconcile query + a DRY win
+Meatier than the recent edge-predicate lifts, and a genuine DRY find: the captured-auto-review reconcile sweep
+(reconcileCapturedHeadlessAutoReviewTasks in runtime-server) filtered board cards with the EXACT same "auto-review
+enabled AND commit mode" check that decideAutoReviewCardAction (extracted an earlier tick) already computed inline ->
+two copies of the same rule. Unified into isAutoReviewCommitCard (single source of truth for "auto-completable", now
+used by both) + lifted the board query selectHeadlessAutoReviewReconcileCandidates (in-progress/review lanes whose
+cards opt into auto-commit), both into auto-review-card-decision.ts. The query is generic over the card type (decoupled
+from the board schema). runtime-server's inline columns.filter/flatMap/filter collapsed to one call; decideAutoReview
+CardAction now calls the shared predicate. Behavior-identical; +4 tests (predicate enabled/mode matrix; selector picks
+only in-progress+review auto-commit cards, excludes other lanes + non-commit). test:fast 8113 green; integration
+re-verified 41/pass-1-known-stale. ARC TALLY: FIVE pure-decision lifts across both big named monoliths, each safe +
+test-gated + verified behavior-preserving. This one also REDUCED duplication (the auto-completable rule had drifted
+into two inline copies) -- a bonus over pure line-shaving.
