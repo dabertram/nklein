@@ -2276,3 +2276,13 @@ answer on anthropic.com/claude/opus). Confirms the full egress path is intact af
 docs/dev/cross-model-verification.md (dated regression entry). This is the highest-signal §5.Z work that's bounded +
 non-David: the FULL roster sweep (all resident models, ~25-min multi-card, autonomous-run-across-roster) is the
 periodic-cadence obligation and a heavier live operation, not a single-commit grind unit.
+
+### 2026-07-07 (Opus) - §5.Z egress matrix extended to a NEW resident model (bounded, zero extra load)
+Confirmed §5.U seam once more from a fresh angle (dispatchResolvedTaskInput's pure sub-computations --
+buildSharedLocalEndpointId, buildNKleinStartPromptParts, isExplicitDecompositionPrompt -- are ALREADY extracted; the
+rest is orchestration entangled with this.sessionRuntime/contextBudgetController = the David-gated seam). Turned to a
+bounded §5.Z win: queried /api/v0/models for state=loaded and found qwopus3.5-9b-coder-mtp resident but NOT in the
+egress matrix. Ran the egress e2e on it (no new load -> no overload risk) -> 3/3 PASS (web_search tool call -> live
+SearXNG 8 results -> grounded answer). Notable: it's a multi-token-prediction (MTP) model, and MTP decoding does NOT
+disrupt the tool-call/egress path. Recorded as a new matrix data point. Resident egress coverage now: qwen3-8b,
+gemma-4-e2b, qwopus3.5-9b-coder-mtp (NEW) this pass + qwen2.5-coder-14b/122B-MoE from the 2026-07-06 rows.

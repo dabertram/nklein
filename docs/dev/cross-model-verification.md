@@ -759,6 +759,13 @@ against live SearXNG (8 real results each) → grounded their answer on `anthrop
 full model→tool-call→egress→real-results→answer path is intact at both the capable and the weak end. (SMOKE tier per
 the §5.Z done-bar tiering — the FULL resident-roster sweep remains the periodic-cadence obligation.)
 
+**NEW matrix data point (same run, zero extra load — already resident): `qwopus3.5-9b-coder-mtp` ✅ 3/3.** A 9B
+coder model with **multi-token prediction (MTP)** — not previously in the egress matrix. It emitted the `web_search`
+tool call (`finish=tool_calls`), executed against live SearXNG (8 real results), and grounded its answer on the real
+Anthropic URL. Confirms MTP decoding doesn't disrupt the tool-call → egress → grounded-answer path. Resident egress
+coverage this pass: qwen3-8b ✅ · gemma-4-e2b ✅ · qwopus3.5-9b-coder-mtp ✅ (NEW) — the three non-giant resident models
+(qwen2.5-coder-14b + the 122B MoE already ✅ in the 2026-07-06 rows; not force-reloaded).
+
 ### 2026-07-06 · §5.Z §5.AC temporal-awareness ("knows today") — HARNESS BUG FIXED + cross-model sweep
 **Harness bug found + fixed:** `verify-temporal-awareness-live.mts` was failing its own assertions on EVERY model —
 root cause: the §5.AC "knows today" block is OFF BY DEFAULT (`knowsTodayEnabled ?? isTruthyEnv(NKLEIN_KNOWS_TODAY)`),
