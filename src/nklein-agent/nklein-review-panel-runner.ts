@@ -13,9 +13,15 @@ import {
  * ladder / speculative arbitration) is UNCHANGED — the panel only changes HOW the one verdict is formed.
  *
  * Each judge's review session is run via the injected `runJudgeSession` (kept pure of the live task-session service, so
- * this is unit-testable with fakes). Judges run SEQUENTIALLY in v1 — safe on shared local endpoints (no N-way concurrent
- * load); a judge that yields no verdict (unreachable / stalled) is dropped, not fatal. Returns null when NO judge
- * produced a verdict (the caller then falls back to the single-reviewer path).
+ * this is unit-testable with fakes). A judge that yields no verdict (unreachable / stalled) is dropped, not fatal;
+ * returns null when NO judge produced a verdict (the caller then falls back to the single-reviewer path).
+ *
+ * ⚠ Judges MUST run SEQUENTIALLY (this loop awaits each). Two reasons: (1) no N-way concurrent load on a shared local
+ * endpoint; (2) CORRECTNESS — the live reviewer session id is fixed per task (`<taskId>::review`) and its workspace is
+ * shared, so `nklein-second-opinion-review-runner` warns "two concurrent rounds destroy each other" (one round's
+ * teardown would nuke another's workspace mid-turn). Sequential judges are safe (each fully completes setup→review→
+ * teardown before the next, exactly like sequential review ROUNDS). **A future PARALLEL refinement MUST first give each
+ * judge a UNIQUE reviewer session id** (e.g. `<taskId>::review::<judgeIdx>`) — do not parallelize this loop as-is.
  */
 
 export interface PanelJudge {
