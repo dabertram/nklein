@@ -28,6 +28,12 @@ export interface ReviewSubmissionInput {
 	insight: string | null;
 	/** §5.AW: the reviewer's A/B pick when the seed presented two candidates; absent/null otherwise. */
 	preferred?: "primary" | "speculative" | null;
+	/**
+	 * §5.AB panel (2026-07-07): the reviewer marks a `request_changes` as a BLOCKING security/correctness concern (vs an
+	 * advisory nit). In the parallel panel this VETOES a merge even against a passing majority; a single reviewer treats
+	 * it the same as any `request_changes`. Optional/absent ⇒ non-blocking (advisory), so existing submissions are unchanged.
+	 */
+	blocking?: boolean;
 }
 
 /**

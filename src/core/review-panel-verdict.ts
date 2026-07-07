@@ -12,6 +12,8 @@
  * Pure + deterministic (no I/O, no clock): the orchestration spawns the diverse judges and feeds their verdicts here.
  */
 
+import type { ReviewSubmissionInput } from "./review-orchestration";
+
 export type PanelVerdictSeverity = "low" | "medium" | "high" | "critical";
 
 export interface PanelJudgeFinding {
@@ -43,6 +45,27 @@ export interface PanelVerdictOptions {
 	securityVeto?: boolean;
 	/** Categories whose HIGH/CRITICAL findings veto (default security + correctness). Case-insensitive. */
 	vetoCategories?: readonly string[];
+}
+
+/**
+ * Map ONE judge's review submission to a panel verdict. `approve` ⇒ pass (no findings). A `request_changes` becomes a
+ * finding against the majority; when the reviewer flagged it `blocking` (a security/correctness hard-stop) it is HIGH
+ * severity and VETOES, otherwise MEDIUM (counts against the majority but never vetoes an approving majority). The pure
+ * bridge from the existing review contract to {@link combinePanelVerdicts} — so the panel reuses the same reviewer
+ * sessions, one per diverse judge.
+ */
+export function mapReviewSubmissionToPanelVerdict(
+	judgeModelKey: string,
+	submission: Pick<ReviewSubmissionInput, "verdict" | "blocking">,
+): PanelJudgeVerdict {
+	if (submission.verdict === "approve") {
+		return { judgeModelKey, pass: true };
+	}
+	return {
+		judgeModelKey,
+		pass: false,
+		findings: [{ severity: submission.blocking ? "high" : "medium", category: "correctness" }],
+	};
 }
 
 const VETO_SEVERITIES: ReadonlySet<PanelVerdictSeverity> = new Set<PanelVerdictSeverity>(["high", "critical"]);

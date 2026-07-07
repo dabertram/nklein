@@ -1,8 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { combinePanelVerdicts, type PanelJudgeVerdict } from "../../../src/core/review-panel-verdict";
+import {
+	combinePanelVerdicts,
+	mapReviewSubmissionToPanelVerdict,
+	type PanelJudgeVerdict,
+} from "../../../src/core/review-panel-verdict";
 
 const pass = (judgeModelKey: string): PanelJudgeVerdict => ({ judgeModelKey, pass: true });
 const fail = (judgeModelKey: string): PanelJudgeVerdict => ({ judgeModelKey, pass: false });
+
+describe("mapReviewSubmissionToPanelVerdict", () => {
+	it("approve → a passing verdict with no findings", () => {
+		expect(mapReviewSubmissionToPanelVerdict("qwen", { verdict: "approve" })).toEqual({
+			judgeModelKey: "qwen",
+			pass: true,
+		});
+	});
+
+	it("advisory request_changes → fail + a MEDIUM finding (counts against majority, does NOT veto)", () => {
+		const verdict = mapReviewSubmissionToPanelVerdict("mistral", { verdict: "request_changes" });
+		expect(verdict.pass).toBe(false);
+		expect(verdict.findings).toEqual([{ severity: "medium", category: "correctness" }]);
+		// A medium finding never vetoes: a 2/3 approving majority still merges alongside it.
+		expect(combinePanelVerdicts([pass("a"), pass("b"), verdict]).decision).toBe("merge");
+	});
+
+	it("blocking request_changes → fail + a HIGH finding that VETOES even a passing majority", () => {
+		const verdict = mapReviewSubmissionToPanelVerdict("gemma", { verdict: "request_changes", blocking: true });
+		expect(verdict.findings).toEqual([{ severity: "high", category: "correctness" }]);
+		expect(combinePanelVerdicts([pass("a"), pass("b"), verdict]).decision).toBe("block");
+		expect(combinePanelVerdicts([pass("a"), pass("b"), verdict]).vetoedBy).toBe("gemma");
+	});
+});
 
 describe("combinePanelVerdicts", () => {
 	it("merges on a passing majority with no vetoing finding (3 judges, 2 pass)", () => {
