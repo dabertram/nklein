@@ -225,9 +225,14 @@ export type RuntimeTaskNKleinSettings = z.infer<typeof runtimeTaskNKleinSettings
 // Absent ⇒ uncapped (today's behavior). Drives a deterministic candidate filter at task-start.
 export const runtimeModelClassCapSchema = z.enum(["small_only", "any_local", "any"]);
 export type RuntimeModelClassCap = z.infer<typeof runtimeModelClassCapSchema>;
+/** §5.I#4 speed-vs-capability dial: bias this role's auto-selection toward the fastest fit vs the most capable. */
+export const runtimeSpeedVsCapabilitySchema = z.enum(["capability", "balanced", "speed"]);
+export type RuntimeSpeedVsCapability = z.infer<typeof runtimeSpeedVsCapabilitySchema>;
 export const runtimeRoleModelSettingsSchema = runtimeTaskNKleinSettingsSchema.extend({
 	additionalModels: z.array(runtimeTaskNKleinSettingsSchema).optional(),
 	modelClassCap: runtimeModelClassCapSchema.optional(),
+	/** Omitted ⇒ "capability" (today's behavior: most-capable-first; speed only as an implicit tiebreak). */
+	speedVsCapability: runtimeSpeedVsCapabilitySchema.optional(),
 });
 export type RuntimeRoleModelSettings = z.infer<typeof runtimeRoleModelSettingsSchema>;
 export const runtimeModelRolesSchema = z.record(z.string().min(1), runtimeRoleModelSettingsSchema);

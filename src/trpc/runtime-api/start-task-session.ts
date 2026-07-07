@@ -19,6 +19,7 @@ import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
 import { selectRoleModel } from "../../core/role-model-selection";
 import { resolveActiveSkills } from "../../core/skill-resolver";
+import { applySpeedCapabilityDial } from "../../core/speed-capability-dial";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
 import { resolveSwarmRoleModel } from "../../core/swarm-role-selection";
 import { reconcileStartedTaskBoardLane } from "../../core/task-board-lane-reconcile";
@@ -706,12 +707,27 @@ export async function handleStartTaskSession(
 			now: Date.now(),
 		});
 		const warmthPreferredKey = warmthPreference.warmthApplied ? (warmthPreference.ranked[0]?.modelKey ?? null) : null;
+		// §5.I#4 speed-vs-capability dial: the USER'S explicit per-role bias, applied margin-bounded to the same
+		// score-ranked list (baseline anchored at rank 0, mirroring warmth). It outranks warmth (an optimization)
+		// but composes the same way — expressed as the router's preferred key, with routeNKleinTask's feasibility
+		// guards authoritative. Omitted dial ⇒ "capability" ⇒ no-op ⇒ byte-identical routing.
+		const dialPreference = applySpeedCapabilityDial({
+			ranked: [
+				...warmthRanked.map((candidate) => ({
+					modelKey: candidate.modelKey,
+					fitScore: candidate.score,
+					tokensPerSecond: guardCandidates.get(candidate.modelKey)?.entry.speed.decodeTokensPerSecondEwma ?? null,
+				})),
+			],
+			dial: cardRoleSettings?.speedVsCapability,
+		});
+		const dialPreferredKey = dialPreference.reordered ? (dialPreference.ranked[0]?.modelKey ?? null) : null;
 		const routingDecision = routeNKleinTask({
 			difficulty: taskDifficulty,
 			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
 			outputTokens: 1_000,
-			preferredModelKey: warmthPreferredKey ?? baselinePreferredKey,
+			preferredModelKey: dialPreferredKey ?? warmthPreferredKey ?? baselinePreferredKey,
 			candidates: [...guardCandidates.values()].map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
 				return {

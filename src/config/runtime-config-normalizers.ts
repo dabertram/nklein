@@ -195,6 +195,11 @@ export function normalizeModelRoles(value: unknown): RuntimeModelRoles {
 			...pickNKleinSettingsFields(settings),
 			...(settings.modelClassCap ? { modelClassCap: settings.modelClassCap } : {}),
 			...(additionalModels.length > 0 ? { additionalModels } : {}),
+			// §5.I#4: the speed-vs-capability dial survives normalization; "capability" is the implicit default,
+			// so only a non-default dial is persisted (keeps configs minimal).
+			...(settings.speedVsCapability && settings.speedVsCapability !== "capability"
+				? { speedVsCapability: settings.speedVsCapability }
+				: {}),
 		};
 	}
 	return normalized;

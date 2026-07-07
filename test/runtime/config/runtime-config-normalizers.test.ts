@@ -179,6 +179,17 @@ describe("normalizeModelRoles", () => {
 		expect(out.coder?.additionalModels).toEqual([{ providerId: "p2", modelId: "m2" }]);
 	});
 
+	it("§5.I#4: keeps a non-default speedVsCapability dial and drops the implicit 'capability' default", () => {
+		const out = normalizeModelRoles({
+			fast: { providerId: "p", modelId: "m", speedVsCapability: "speed" },
+			plain: { providerId: "p", modelId: "m", speedVsCapability: "capability" },
+			invalid: { providerId: "p", modelId: "m", speedVsCapability: "warp" },
+		});
+		expect(out.fast?.speedVsCapability).toBe("speed");
+		expect(out.plain?.speedVsCapability).toBeUndefined(); // default not persisted
+		expect(out.invalid).toBeUndefined(); // schema-invalid role entry skipped entirely
+	});
+
 	it("normalizeModelRolesOverride collapses an empty/absent map to null", () => {
 		expect(normalizeModelRolesOverride(null)).toBeNull();
 		expect(normalizeModelRolesOverride(undefined)).toBeNull();
