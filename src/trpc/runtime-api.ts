@@ -46,6 +46,7 @@ import { isTruthyEnv } from "../core/env-flag";
 import { buildFitnessTableView } from "../core/fitness-table-view";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-json";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { stripAddressingHandle } from "../core/message-target-resolver";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
@@ -454,7 +455,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		getGlobalSetupPlan: async () => {
 			const globalConfig = await loadGlobalRuntimeConfig();
-			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? "http://localhost:1234/v1";
+			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
 			return await handleGetGlobalSetupPlan({
 				getHardware: () => ({ totalRamMb: Math.round(totalmem() / (1024 * 1024)), cpuCount: cpus().length }),
 				getLoadedModelIds: () => fetchLoadedModelIdsCached(providerEndpoint),
@@ -467,7 +468,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		},
 		getProjectSetupPlan: async (workspaceScope) => {
 			const scopedConfig = await deps.loadScopedRuntimeConfig(workspaceScope);
-			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? "http://localhost:1234/v1";
+			const providerEndpoint = nkleinProviderService.getLocalChatBaseUrl() ?? DEFAULT_LOCAL_MODEL_BASE_URL;
 			return await handleGetProjectSetupPlan({
 				readPackageJson: async () => {
 					try {

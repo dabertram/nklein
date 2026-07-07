@@ -27,8 +27,8 @@ describe("resolveAdvisorOpenAiBaseUrl", () => {
 	});
 
 	it("falls back per provider when no base url is configured", () => {
-		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ providerId: "lmstudio" }))).toBe("http://localhost:1234/v1");
-		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ providerId: "lm-studio" }))).toBe("http://localhost:1234/v1");
+		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ providerId: "lmstudio" }))).toBe("http://127.0.0.1:1234/v1");
+		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ providerId: "lm-studio" }))).toBe("http://127.0.0.1:1234/v1");
 		expect(resolveAdvisorOpenAiBaseUrl(launchConfig({ providerId: "ollama" }))).toBe("http://localhost:11434/v1");
 	});
 

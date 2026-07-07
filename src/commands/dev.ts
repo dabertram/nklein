@@ -25,6 +25,7 @@ import { fetchLmsLinkDevices } from "../core/lms-link-status";
 import { createDefaultLmsRunner, fetchLmsPsModels, LOCAL_MACHINE_ID } from "../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { parseLmStudioRequestStats, renderLmStudioRequestStats } from "../core/lmstudio-request-stats";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import {
 	dominantFailureMode,
 	learnedQualityEffectiveBudget,
@@ -781,7 +782,7 @@ async function runDevFleetAdviceCommand(options: { json?: boolean; endpoint?: st
 	// §5.AB gap 5 / §5.AL: advise what to ADD to the loaded fleet (family diversity + reasoning depth) so reviews and
 	// escalations get an uncorrelated, deep second opinion. Reads the loaded descriptors (real keys → lineage/catalog);
 	// best-effort — an unreachable endpoint yields the "no agentic model" advice, never a throw.
-	const base = options.endpoint?.trim() || "http://localhost:1234/v1";
+	const base = options.endpoint?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
 	const descriptors = await fetchLoadedModelDescriptors(base).catch(() => []);
 	const suggestions = adviseModelFleet(descriptors);
 	if (options.json) {
