@@ -3,6 +3,7 @@ import { deliveryPolicyForTier } from "../../../src/core/agent-rulesets";
 import { decideDeliveryAction } from "../../../src/core/delivery-decision";
 import {
 	deriveDeliveryGateEvidence,
+	regressionDeltaFromAcceptanceRuns,
 	regressionDeltaFromClassification,
 	shouldHoldEmptyPatchResult,
 } from "../../../src/core/delivery-evidence";
@@ -151,5 +152,44 @@ describe("regressionDeltaFromClassification (§5.L delivery gate input)", () => 
 		});
 		expect(moreOpen.action).toBe("open_pr");
 		expect(moreOpen.selfMerge).toBe(false);
+	});
+});
+
+describe("regressionDeltaFromAcceptanceRuns (§5.L measured command-level delta)", () => {
+	const ran = (passed: boolean) => ({ present: true, passed });
+
+	it("delivered green ⇒ 0 (no regression at command granularity — un-deadens the more_open tier)", () => {
+		expect(regressionDeltaFromAcceptanceRuns(ran(true), null)).toBe(0);
+		expect(regressionDeltaFromAcceptanceRuns(ran(true), ran(false))).toBe(0);
+	});
+
+	it("delivered failed + baseline failed ⇒ 0 (the #39 pre-existing-breakage waiver case)", () => {
+		expect(regressionDeltaFromAcceptanceRuns(ran(false), ran(false))).toBe(0);
+	});
+
+	it("delivered failed + baseline green ⇒ -1 (a measured regression vs base; blocks merge)", () => {
+		expect(regressionDeltaFromAcceptanceRuns(ran(false), ran(true))).toBe(-1);
+	});
+
+	it("unmeasured stays null: no delivered run, or a failure with no baseline sample", () => {
+		expect(regressionDeltaFromAcceptanceRuns(null, ran(true))).toBeNull();
+		expect(regressionDeltaFromAcceptanceRuns({ present: false, passed: null }, ran(true))).toBeNull();
+		expect(regressionDeltaFromAcceptanceRuns(ran(false), null)).toBeNull();
+		expect(regressionDeltaFromAcceptanceRuns(ran(false), { present: false, passed: null })).toBeNull();
+	});
+
+	it("feeds the gate: a measured 0 lets the more_open tier auto-merge where null could not", () => {
+		const gates = (regressionDelta: number | null) => ({
+			reviewApproved: true,
+			testsPassed: true,
+			regressionDelta,
+			hasProtectedPathChanges: false,
+		});
+		const moreOpen = deliveryPolicyForTier("more_open");
+		expect(decideDeliveryAction(moreOpen, gates(null)).action).not.toBe("merge"); // unknown delta blocks
+		expect(
+			decideDeliveryAction(moreOpen, gates(regressionDeltaFromAcceptanceRuns({ present: true, passed: true }, null)))
+				.action,
+		).toBe("merge");
 	});
 });

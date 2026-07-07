@@ -66,6 +66,40 @@ export function regressionDeltaFromClassification(
 	return classification.counts.newlyFixed - classification.counts.newFailures;
 }
 
+/** The minimal acceptance-run shape the command-level delta reads (mirrors `AcceptanceResultLike`). */
+export interface AcceptanceRunLike {
+	present?: boolean | null;
+	passed?: boolean | null;
+}
+
+/**
+ * A MEASURED command-level regression delta from the acceptance runs the finalize seam already collects — the
+ * delivered-tree run and the (conditionally sampled) base-tree run:
+ *   - delivered ran + PASSED ⇒ `0`: the card's objective check is green, no regression at command granularity.
+ *   - delivered FAILED + baseline FAILED ⇒ `0`: pre-existing breakage (the #39 waiver case), not a regression.
+ *   - delivered FAILED + baseline PASSED ⇒ `-1`: a real measured regression vs base (blocks merge).
+ *   - anything unmeasured (no delivered run; delivered failed with no baseline sample) ⇒ `null` (unknown).
+ * This closes the "regressionDelta is always null" gap that made the `more_open` delivery tier unable to EVER
+ * auto-merge (it disallows self-merge on an unknown delta). Coarser than the per-test
+ * {@link regressionDeltaFromClassification} — command granularity — but honest: it only reports what was run.
+ */
+export function regressionDeltaFromAcceptanceRuns(
+	delivered: AcceptanceRunLike | null | undefined,
+	baseline: AcceptanceRunLike | null | undefined,
+): number | null {
+	if (delivered?.present !== true) {
+		return null;
+	}
+	if (delivered.passed === true) {
+		return 0;
+	}
+	// Delivered ran and failed — only a sampled baseline can attribute it.
+	if (baseline?.present !== true) {
+		return null;
+	}
+	return baseline.passed === true ? -1 : 0;
+}
+
 /**
  * Should an `empty_patch` (no file changes) result be HELD in Review instead of auto-completing? A no-op result may
  * only complete — and release its dependents — on an explicit reviewer sign-off; an unreviewed empty patch is a red

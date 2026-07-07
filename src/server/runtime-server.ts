@@ -23,7 +23,11 @@ import type {
 } from "../core/api-contract";
 import { readPausedTasks } from "../core/card-pause";
 import { decideDeliveryAction, shouldRedriveApprovedButAcceptanceFailed } from "../core/delivery-decision";
-import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/delivery-evidence";
+import {
+	deriveDeliveryGateEvidence,
+	regressionDeltaFromAcceptanceRuns,
+	shouldHoldEmptyPatchResult,
+} from "../core/delivery-evidence";
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
@@ -910,6 +914,9 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// traps the card (blocked out-of-scope writes → 3 strikes → abandoned, seen in four runs).
 					// WAIVE tests for this delivery: the reviewer's judgment alone gates (run19's base-red lesson
 					// completed). A failure that is NOT present at baseline stays the worker's to fix.
+					// Hoisted so the delivery gate below can derive a MEASURED command-level regression delta from the
+					// same base-tree sample (null = never sampled ⇒ the delta honestly stays unknown).
+					let acceptanceBaseline: Awaited<ReturnType<typeof service.verifyTaskAcceptanceInSandbox>> | null = null;
 					if (deliveryCard && acceptancePresentAndFailed(acceptance)) {
 						const baseline = await (async () => {
 							try {
@@ -924,6 +931,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								return null;
 							}
 						})();
+						acceptanceBaseline = baseline;
 						if (acceptancePresentAndFailed(baseline)) {
 							recordSelfObservation({
 								signal: "custom",
@@ -1038,7 +1046,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							{
 								reviewApproved: evidence.reviewApproved,
 								testsPassed: evidence.testsPassed,
-								regressionDelta: null,
+								// §5.L measured regression delta (command granularity, from runs already collected):
+								// delivered-green ⇒ 0; failed-but-pre-existing (the #39 waiver) ⇒ 0; failed-vs-green-base
+								// ⇒ -1; unmeasured ⇒ null. Un-deadens the more_open tier (null could never auto-merge).
+								regressionDelta: regressionDeltaFromAcceptanceRuns(acceptance, acceptanceBaseline),
 								hasProtectedPathChanges: changedFiles.some(isTrustedAutoMergeProtectedPath),
 							},
 						);
