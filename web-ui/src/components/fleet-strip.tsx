@@ -79,17 +79,31 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 					</span>
 				) : null}
 			</span>
-			<span
-				className={cn(
-					"min-w-0 truncate",
-					row.state === "running" ? "text-text-secondary" : "italic text-text-tertiary",
-				)}
-				title={row.drivingCardTitle ?? undefined}
-			>
-				{row.state === "running" ? (row.drivingCardTitle ?? row.drivingTaskId ?? "running") : "idle"}
-				{row.isSpec ? (
-					<span className="ml-1.5 rounded border border-dashed border-accent-2/50 px-1 text-[9px] text-accent-2">
-						A/B spec
+			<span className="min-w-0">
+				<span
+					className={cn(
+						"block truncate",
+						row.state === "running" ? "text-text-secondary" : "italic text-text-tertiary",
+					)}
+					title={row.drivingCardTitle ?? undefined}
+				>
+					{row.state === "running" ? (row.drivingCardTitle ?? row.drivingTaskId ?? "running") : "idle"}
+					{row.isSpec ? (
+						<span className="ml-1.5 rounded border border-dashed border-accent-2/50 px-1 text-[9px] text-accent-2">
+							A/B spec
+						</span>
+					) : null}
+				</span>
+				{/* §5.AB swarm legibility: the driver's LIVE step ("watch the swarm's hands") — violet = the
+				    swarm's own doing (two-accent semantics). Latest step only; the Watch panel holds the log. */}
+				{row.state === "running" && row.activityText ? (
+					<span
+						data-testid="fleet-row-activity"
+						className="block truncate text-[10px] leading-4 text-accent-2/90"
+						title={row.activityText}
+					>
+						↳ {row.activityToolName ? `${row.activityToolName} · ` : ""}
+						{row.activityText}
 					</span>
 				) : null}
 			</span>

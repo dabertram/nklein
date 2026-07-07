@@ -5767,7 +5767,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] Capture `reasoning_content` + `<think>` in agent streaming path (§5.O parse-and-recover mirroring chat path). *(SHIPPED: reasoning-channel-split.ts, e2e-verified 2026-06-27)*
   - [x] Wire reasoning events into `nklein-event-adapter` → `contentType:"reasoning"` → `ReasoningMessageBlock`. *(SHIPPED: assistant-reasoning-delta wired, ReasoningMessageBlock)*
   - [ ] Live-verify on reasoning models (deepseek-r1, qwen3-thinking, phi-4-reasoning) via LM Studio.
-  - [ ] Build board-level multi-agent activity summary: live reason/tool snippet per running card (no per-card open needed).
+  - [x] Build board-level multi-agent activity summary: live reason/tool snippet per running card (no per-card open needed). *(DONE 2026-07-07 Fable: the FLEET STRIP now carries each running model's LIVE activity snippet (violet `fleet-row-activity` line: tool · latest step, from `latestHookActivity`) — the board-level "watch the swarm's hands" rollup on the existing signature surface instead of a new competing panel. Tool/status snippets only by design; raw reasoning stays card-level (the Watch panel) — a glance surface must stay calm. Unit-tested composer + render.)*
   - **ROOT CAUSE LOCATED (deeper trace, 2026-06-27):** the agent's model calls go through the **vendored `ai`-package SDK**
         (`vendor/nklein-sdk/llms/`, compiled *dist only*), whose openai-compatible provider wires **zero reasoning
         extraction** — `grep` finds no `extractReasoning` / `reasoning_content` / `<think>` in the vendored llms; it composes

@@ -3556,3 +3556,11 @@ Box un-ticked with a PARTIAL note; the §5.I sibling annotated the same. Lesson 
 "wired/DONE" claim WITHOUT naming the implementing symbol deserve spot-verification before dependent work builds on
 them — the ticks citing concrete modules (fitness-table-store, reasoning-channel-split, cache-health, …) all named
 their evidence and are trustworthy.
+
+### 2026-07-07 (Fable) - fable-list item 4 (the LAST substantial one): fleet-strip live swarm-activity rollup
+L5763 "board-level multi-agent activity summary" SHIPPED on the existing signature surface: each RUNNING fleet row now
+carries a violet live-activity line (`↳ tool · latest step`, from the driver's `latestHookActivity` — the same stream
+the card Watch panel accumulates; the strip shows only the LATEST step because a glance surface must stay calm). Design
+choices recorded on the tick: extend the fleet strip rather than build a competing panel; tool/status snippets only —
+raw reasoning stays card-level. Composer fields (`activityText`/`activityToolName`, trimmed-or-null) + render line both
+unit-tested (fleet-strip-model + fleet-strip suites). Web gate green: tsc + biome + 956 web tests.

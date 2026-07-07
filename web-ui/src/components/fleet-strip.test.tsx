@@ -38,6 +38,8 @@ describe("FleetStrip", () => {
 						state: "running",
 						tokensPerSecond: 41,
 						warmKind: null,
+						activityText: null,
+						activityToolName: null,
 					},
 					{
 						modelId: "ornith9",
@@ -50,6 +52,8 @@ describe("FleetStrip", () => {
 						state: "idle",
 						tokensPerSecond: null,
 						warmKind: null,
+						activityText: null,
+						activityToolName: null,
 					},
 				],
 			},
@@ -67,6 +71,8 @@ describe("FleetStrip", () => {
 						state: "running",
 						tokensPerSecond: 55,
 						warmKind: null,
+						activityText: null,
+						activityToolName: null,
 					},
 				],
 			},
@@ -113,6 +119,8 @@ describe("FleetStrip", () => {
 						state: "running",
 						tokensPerSecond: 33,
 						warmKind: null,
+						activityText: null,
+						activityToolName: null,
 					},
 				],
 			},
@@ -132,5 +140,36 @@ describe("FleetStrip", () => {
 		});
 		expect(container.querySelector('[data-testid="fleet-strip-empty"]')).not.toBeNull();
 		expect(container.textContent ?? "").toContain("No models loaded.");
+	});
+
+	it("shows the driver's live activity snippet on running rows (violet, latest step only)", async () => {
+		const groups: FleetGroup[] = [
+			{
+				endpointLabel: "local",
+				rows: [
+					{
+						modelId: "qwen3-8b",
+						servedId: "coder8",
+						lineage: "qwen",
+						role: "worker",
+						drivingTaskId: "t1",
+						drivingCardTitle: "Search bar",
+						isSpec: false,
+						state: "running",
+						tokensPerSecond: 30,
+						warmKind: null,
+						activityText: "Editing src/recipes.ts",
+						activityToolName: "edit_file",
+					},
+				],
+			},
+		];
+		await act(async () => {
+			root.render(<FleetStrip groups={groups} />);
+		});
+		const snippet = container.querySelector('[data-testid="fleet-row-activity"]');
+		expect(snippet).not.toBeNull();
+		expect(snippet?.textContent).toContain("edit_file");
+		expect(snippet?.textContent).toContain("Editing src/recipes.ts");
 	});
 });

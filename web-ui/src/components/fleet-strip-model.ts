@@ -68,6 +68,10 @@ export interface FleetRow {
 	tokensPerSecond: number | null;
 	/** §5.AQ warmth: the shell kind this model last assembled ("worker"/"review"/…), when fresh; null otherwise. */
 	warmKind: string | null;
+	/** §5.AB board-level swarm legibility: the driving session's LIVE activity snippet ("watch the swarm's hands"). */
+	activityText: string | null;
+	/** The tool the driving session is currently using (when the activity is a tool call), else null. */
+	activityToolName: string | null;
 }
 
 export interface FleetGroup {
@@ -193,6 +197,10 @@ export function composeFleetRows(input: ComposeFleetRowsInput): FleetGroup[] {
 			state: driver ? "running" : "idle",
 			tokensPerSecond: tokensPerSecondFor(entry),
 			warmKind,
+			// The live snippet comes straight from the driver's latest hook activity — the same stream the card-level
+			// Watch panel accumulates; here only the LATEST step shows (the strip is a glance surface, not a log).
+			activityText: driver?.latestHookActivity?.activityText?.trim() || null,
+			activityToolName: driver?.latestHookActivity?.toolName ?? null,
 		};
 		// Machine name (LM-Link feed) beats the endpoint label — real multi-machine grouping.
 		const machineName = input.machineByModelId?.[entry.key] ?? input.machineByModelId?.[entry.modelId];

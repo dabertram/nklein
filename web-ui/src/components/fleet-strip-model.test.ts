@@ -261,6 +261,41 @@ describe("composeFleetRows", () => {
 		expect(compose(nowMs - 11 * 60_000)[0]?.rows[0]?.warmKind).toBeNull();
 	});
 
+	it("§5.AB swarm legibility: the driver's latest hook activity populates the row's live snippet", () => {
+		const groups = composeFleetRows({
+			registryModels: [makeEntry({ modelId: "qwen3-8b", key: "coder8" })],
+			runningSessions: [
+				makeSession({
+					taskId: "t1",
+					modelId: "qwen3-8b",
+					role: "worker",
+					latestHookActivity: {
+						activityText: "  Editing src/recipes.ts  ",
+						toolName: "edit_file",
+						toolInputSummary: null,
+						finalMessage: null,
+						hookEventName: null,
+						notificationType: null,
+						source: null,
+					},
+				}),
+			],
+			cardTitleByTaskId: new Map([["t1", "Search bar"]]),
+		});
+		const row = groups[0]?.rows[0];
+		expect(row?.activityText).toBe("Editing src/recipes.ts"); // trimmed
+		expect(row?.activityToolName).toBe("edit_file");
+
+		// Idle rows and drivers without activity stay null (blank text normalizes to null, not "").
+		const idle = composeFleetRows({
+			registryModels: [makeEntry({ modelId: "qwen3-8b", key: "coder8" })],
+			runningSessions: [],
+			cardTitleByTaskId: new Map(),
+		});
+		expect(idle[0]?.rows[0]?.activityText).toBeNull();
+		expect(idle[0]?.rows[0]?.activityToolName).toBeNull();
+	});
+
 	it("ignores non-running sessions and models with a blank modelId when matching drivers", () => {
 		const registryModels: RuntimeNKleinModelRegistryEntry[] = [
 			makeEntry({
