@@ -20,6 +20,7 @@
 
 import type { FocusChainSummary } from "./focus-chain";
 import type { OperatorTaskSignals } from "./operator-task-state";
+import { isTerminalFailureSessionState } from "./session-state-predicates";
 
 /** Per-session chattiness (default `concise`). Higher = more of the low-priority tiers surface. */
 export type BoardChatVerbosity = "silent" | "concise" | "normal" | "verbose";
@@ -107,7 +108,7 @@ function isDone(s: OperatorTaskSignals): boolean {
 
 /** True when the session ended negatively (failed or interrupted). */
 function isFailed(s: OperatorTaskSignals): boolean {
-	return s.sessionState === "failed" || s.sessionState === "interrupted";
+	return isTerminalFailureSessionState(s.sessionState);
 }
 
 /** A signal is "newly true" when next has it and prev did not (or prev is the first observation). */

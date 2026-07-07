@@ -13,3 +13,14 @@ import type { RuntimeTaskSessionState } from "./task-session-api-contract";
 export function isBusySessionState(state: RuntimeTaskSessionState | null | undefined): boolean {
 	return state === "running" || state === "queued";
 }
+
+/**
+ * True when a session ended in an UNSUCCESSFUL terminal state: it errored (`failed`) or was aborted / torn down
+ * (`interrupted`) — as opposed to still-active, awaiting review, or cleanly completed. The grouping the recovery /
+ * feedback / finalize paths mean by "the run did not finish successfully".
+ */
+export function isTerminalFailureSessionState(
+	state: RuntimeTaskSessionState | null | undefined,
+): state is "failed" | "interrupted" {
+	return state === "failed" || state === "interrupted";
+}

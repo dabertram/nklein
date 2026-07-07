@@ -1,7 +1,7 @@
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
 import { toErrorMessage } from "../core/error-message";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { isBusySessionState } from "../core/session-state-predicates";
+import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { isEnteringAwaitingReview } from "../core/task-session-guards";
 import { recordTaskRunSummary } from "../state/task-run-summary-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -111,8 +111,7 @@ export function createSandboxReviewFinalizer(deps: SandboxReviewFinalizerDeps): 
 		}
 		// The store records TERMINAL states only; capture always completes around the awaiting_review/failed/
 		// interrupted transition, so a non-terminal snapshot (a benign race) maps to awaiting_review.
-		const terminalState =
-			summary.state === "failed" || summary.state === "interrupted" ? summary.state : ("awaiting_review" as const);
+		const terminalState = isTerminalFailureSessionState(summary.state) ? summary.state : ("awaiting_review" as const);
 		void recordTaskRunSummary(
 			{
 				taskId,

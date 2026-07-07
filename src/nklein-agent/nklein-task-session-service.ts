@@ -3,6 +3,8 @@ import {
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
 	type ModelStatsTrackingLevel,
 } from "../core/model-stats-tracking-level";
+import { isTerminalFailureSessionState } from "../core/session-state-predicates";
+
 import { readAgentResultText, readSdkSessionEvent } from "./nklein-sdk-event-readers";
 
 // Task-oriented facade for native NKlein sessions.
@@ -2598,7 +2600,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// finalizeSandboxReview is idempotent-guarded, captures the patch to the result branch, and disposes the
 		// workspace — exactly the salvage+cleanup pair a dead session owes.
 		if (
-			(state === "interrupted" || state === "failed") &&
+			isTerminalFailureSessionState(state) &&
 			this.sandboxState.hasSandbox(taskId) &&
 			!this.sandboxState.getResultBranch(taskId)
 		) {

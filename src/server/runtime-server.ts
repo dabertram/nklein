@@ -38,7 +38,7 @@ import {
 	getKanbanRuntimeTls,
 	isKanbanRemoteHost,
 } from "../core/runtime-endpoint";
-import { isBusySessionState } from "../core/session-state-predicates";
+import { isBusySessionState, isTerminalFailureSessionState } from "../core/session-state-predicates";
 import { resolveSpeculativeDeliveryTarget } from "../core/speculative-delivery-target";
 import { decideSpeculativeMirror } from "../core/speculative-mirror";
 import { reconcileOrphanedInProgressCards } from "../core/startup-orphan-reconcile";
@@ -1439,7 +1439,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				if (summary.state !== "queued" && summary.state !== "running") {
 					drainQueuedTaskStarts(scope, { force: true });
 				}
-				if (summary.state === "interrupted" || summary.state === "failed") {
+				if (isTerminalFailureSessionState(summary.state)) {
 					// A dying card fires no completion — retry the waiting cards it can no longer unblock (run16),
 					// and give the dead card ITSELF one fresh attempt when it left no reviewable work (#24).
 					retryWaitingCardsAfterTerminal(scope, trackedService, summary.taskId);
