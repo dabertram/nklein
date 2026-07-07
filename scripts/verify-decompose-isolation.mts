@@ -39,6 +39,25 @@ function log(line: string): void {
 	process.stdout.write(`${line}\n`);
 }
 
+// Resilience: the vendored SDK can surface a STRAY `session_stop` rejection from a session that is stopped mid-run
+// (the deliberate `stopTaskSession` teardown below). The long-lived server installs a guard for exactly this
+// (src/server/runtime-process-guards.ts) — this harness drives sessions directly, so without the same tolerance the
+// stray rejection crashes the process before the isolation result prints. Swallow ONLY that known-benign abort; any
+// other unhandled rejection still fails the harness loudly (fail-fast preserved for real bugs).
+process.on("unhandledRejection", (reason) => {
+	const err = reason as { name?: string; reason?: string; message?: string } | undefined;
+	const isBenignSessionStop =
+		err?.reason === "session_stop" ||
+		err?.name === "AgentRuntimeAbortError" ||
+		String(err?.message ?? reason).includes("session_stop");
+	if (isBenignSessionStop) {
+		log(`(tolerated stray session_stop rejection during teardown: ${err?.message ?? String(reason)})`);
+		return;
+	}
+	log(`FATAL unhandled rejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
+	process.exit(2);
+});
+
 async function dockerSandboxContainers(): Promise<string[]> {
 	try {
 		const { stdout } = await execFileAsync("docker", [
