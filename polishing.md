@@ -814,8 +814,14 @@
 >       SECURITY.md (local-only threat model), issue templates. Screenshots/gif of the board+chat once §5.AX lands.
 >       **★ LICENSE + NOTICE sub-part DONE (verified 2026-07-07): `LICENSE` = Apache-2.0, `NOTICE` credits the upstream
 >       Cline Kanban fork under Apache §4 — both committed + tracked (see commits `9d418bfa` NOTICE, `80b15f4d`/`86ebb8a1`
->       attribution). The vendored-SDK license-compat + attribution concern is thus satisfied. STILL OPEN in this item:
->       README, CONTRIBUTING, SECURITY.md, issue templates, screenshots — box stays unchecked until those land.**
+>       attribution). The vendored-SDK license-compat + attribution concern is thus satisfied.
+>       **★ DOCS 2026-07-07: README.md + CONTRIBUTING.md already existed and are release-quality (reviewed); the missing
+>       SECURITY.md was CREATED** — a grounded local-only threat model with EVERY claim verified against code (local-models
+>       default · mandatory fail-closed Docker isolation · fail-closed egress gate `blocked_by_egress` · confirm-gate +
+>       audit for mutating tools · secret redaction · 127.0.0.1 loopback bind · review-gated result branches) + private
+>       vuln reporting via GitHub advisories (the same channel CONTRIBUTING points to). STILL OPEN in this item: issue
+>       templates + screenshots (screenshots are §5.AX/Fable visual territory) — box stays unchecked until those land, but
+>       the prose release docs are DONE.**
 > - [ ] **Content audit:** todo.md/done.md/docs/dev/* are full of internal working notes, machine names, and user
 >       context — decide what ships (curated docs/) vs what stays private (working notes); CHANGELOG grooming to a
 >       public voice; strip dev-test fixtures that reference private infra; make sure the model-capability catalog and
