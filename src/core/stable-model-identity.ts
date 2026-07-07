@@ -31,6 +31,58 @@ export function resolveStableModelKey(
 }
 
 /**
+ * A persisted `runtimeId → stable modelKey` map (David 2026-07-07 decision): the missing piece that lets a COLD model
+ * (a config/role candidate not currently loaded, so absent from the live descriptors) still resolve to its stable key.
+ * !Klein LEARNS this map whenever a model IS loaded (from its descriptor) and persists it, so the keyspace is uniformly
+ * stable even at write sites that see no live descriptor — closing the mixed-keyspace hazard that a live-only resolver
+ * leaves. Just a plain string→string record; the store layer owns load/save.
+ */
+export type RuntimeIdToModelKeyMap = Readonly<Record<string, string>>;
+
+/**
+ * Learn/refresh the persisted map from the currently-loaded descriptors: each loaded `runtimeId` records its stable
+ * `modelKey` (last-seen wins — a runtime id's stable key is whatever it most recently resolved to). Entries for ids NOT
+ * currently loaded are RETAINED — that is the whole point: a renamed/cold model still resolves from what we learned when
+ * it was last loaded. Pure; blank ids/keys are skipped.
+ */
+export function learnRuntimeIdModelKeyMap(
+	existing: RuntimeIdToModelKeyMap,
+	descriptors: readonly { runtimeId: string; modelKey: string }[],
+): RuntimeIdToModelKeyMap {
+	const out: Record<string, string> = { ...existing };
+	for (const descriptor of descriptors) {
+		const runtimeId = descriptor.runtimeId.trim();
+		const modelKey = descriptor.modelKey.trim();
+		if (runtimeId && modelKey) {
+			out[runtimeId] = modelKey;
+		}
+	}
+	return out;
+}
+
+/**
+ * Resolve a runtime id → its stable key, preferring the LIVE descriptor (authoritative), then the PERSISTED map (so a
+ * cold model still resolves), then the runtime id itself (a cloud/unknown id is treated as already-stable). Never empty.
+ * This is the uniform-keyspace resolver the §5.BG flip keys writes by.
+ */
+export function resolveStableModelKeyWithMap(
+	runtimeModelId: string,
+	liveDescriptorsByRuntimeId: ReadonlyMap<string, StableModelKeySource>,
+	persistedMap: RuntimeIdToModelKeyMap,
+): string {
+	const id = runtimeModelId.trim();
+	const live = liveDescriptorsByRuntimeId.get(runtimeModelId)?.modelKey?.trim();
+	if (live && live.length > 0) {
+		return live;
+	}
+	const persisted = persistedMap[id]?.trim();
+	if (persisted && persisted.length > 0) {
+		return persisted;
+	}
+	return id;
+}
+
+/**
  * Best-effort re-key of a telemetry table (rows keyed by the id stamped when the row was written — a runtime id for
  * legacy rows) to stable model keys. `resolveStableKey` maps a stored key → its stable key (returns the SAME string
  * when it can't be improved — e.g. no matching descriptor, so the row decays under its original key). Two stored keys

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	learnRuntimeIdModelKeyMap,
 	rekeyTableToStableModelKeys,
 	resolveStableModelKey,
+	resolveStableModelKeyWithMap,
 	type StableModelKeySource,
 } from "../../../src/core/stable-model-identity";
 
@@ -24,6 +26,48 @@ describe("resolveStableModelKey", () => {
 
 	it("falls back to the runtime id when the descriptor's key is blank (never returns empty)", () => {
 		expect(resolveStableModelKey("blank-key", descriptors)).toBe("blank-key");
+	});
+});
+
+describe("learnRuntimeIdModelKeyMap", () => {
+	it("learns each loaded runtime id's stable key and RETAINS ids not currently loaded (cold models still resolve)", () => {
+		const existing = { "old-cold-id": "phi-4-reasoning-plus" };
+		const map = learnRuntimeIdModelKeyMap(existing, [
+			{ runtimeId: "coder-gpu", modelKey: "qwen2.5-coder-14b" },
+			{ runtimeId: "qwen3-8b-m5max", modelKey: "qwen3-8b" },
+		]);
+		expect(map).toEqual({
+			"old-cold-id": "phi-4-reasoning-plus", // retained though not in this load
+			"coder-gpu": "qwen2.5-coder-14b",
+			"qwen3-8b-m5max": "qwen3-8b",
+		});
+	});
+
+	it("last-seen wins (a runtime id re-pointed to a different model updates) and blanks are skipped", () => {
+		const map = learnRuntimeIdModelKeyMap({ "coder-gpu": "qwen2.5-coder-14b" }, [
+			{ runtimeId: "coder-gpu", modelKey: "qwen3-coder-next" }, // re-pointed
+			{ runtimeId: "  ", modelKey: "x" }, // blank id skipped
+			{ runtimeId: "y", modelKey: "  " }, // blank key skipped
+		]);
+		expect(map).toEqual({ "coder-gpu": "qwen3-coder-next" });
+	});
+});
+
+describe("resolveStableModelKeyWithMap", () => {
+	const live = new Map<string, StableModelKeySource>([["coder-gpu", { modelKey: "qwen2.5-coder-14b" }]]);
+	const persisted = { "cold-instance": "phi-4-reasoning-plus", "coder-gpu": "stale-should-lose" };
+
+	it("prefers the LIVE descriptor over the persisted map", () => {
+		expect(resolveStableModelKeyWithMap("coder-gpu", live, persisted)).toBe("qwen2.5-coder-14b");
+	});
+
+	it("falls back to the PERSISTED map for a COLD model (not currently loaded) — the whole point", () => {
+		expect(resolveStableModelKeyWithMap("cold-instance", live, persisted)).toBe("phi-4-reasoning-plus");
+	});
+
+	it("falls back to the runtime id itself when neither live nor persisted knows it (cloud/unknown)", () => {
+		expect(resolveStableModelKeyWithMap("openai/gpt-5", live, persisted)).toBe("openai/gpt-5");
+		expect(resolveStableModelKeyWithMap("  spaced  ", live, {})).toBe("spaced");
 	});
 });
 
