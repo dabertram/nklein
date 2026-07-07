@@ -156,7 +156,7 @@ export function ConcurrencyEditor({ perProvider, perModel, perEndpoint, onChange
 			<ConcurrencyMapEditor
 				title="Per machine (pool)"
 				keyLabel="machine"
-				keyPlaceholder="endpoint, e.g. http://m4mini.local:1234/v1"
+				keyPlaceholder="endpoint, e.g. http://localhost:1234/v1"
 				value={perEndpoint}
 				disabled={disabled}
 				onChange={(next) => onChange({ perProvider, perModel, perEndpoint: next })}
