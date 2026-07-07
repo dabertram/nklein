@@ -2119,3 +2119,11 @@ panel-of-judges end-to-end, flag-gated behind `NKLEIN_REVIEW_PANEL` (default OFF
 panel = DONE (flag-gated); §5.BG (d) = low-priority self-healing. **Live §5.Z roster re-verify owed** before flipping
 either flag on. Remaining panel follow-ups (v1 simplifications): expose `blocking` via the submit_review TOOL so the
 VETO activates (next), parallel judges (cache/stream), multi-machine judges, configurable size.
+
+**UPDATE — panel VETO now live [30cd9786]:** exposed the `blocking` flag on the submit_review tool (schema + type +
+result); it flows end-to-end (tool → NKleinReviewResult → runReviewPanel → mapReviewSubmissionToPanelVerdict → HIGH
+finding vetoes even a passing majority). So the panel now honors David decision #2 FULLY: majority + security veto.
+Panel is feature-complete + flag-gated (NKLEIN_REVIEW_PANEL). Remaining panel refinements (all follow-ups, not blockers):
+parallel judges (cache/stream trade-off), multi-machine judge endpoints, configurable size. **All 4 of David's items now
+addressed:** §5.BG (c) flip DONE (flag-gated); hardware hard-block already existed; §5.BG (d) low-priority self-healing;
+panel DONE (flag-gated). Both flags await a live §5.Z roster re-verify before default-on.
