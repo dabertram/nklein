@@ -1144,3 +1144,18 @@ unloaded. All clean — NO deterministic !Klein failure:
 tool-loop, the §5.O delivery recovery, and the §5.A isolation guarantees generalize across model FAMILIES with distinct
 tool-call formats — no family-specific parse gap surfaced. The verify→harden loop is now running autonomously via the
 granted model-load skill; it keeps confirming robustness (and would catch a deterministic gap to harden, as §5.O did).
+
+## 2026-07-07 (Opus) — §5.Z breadth #3: gpt-oss-20b (OpenAI HARMONY format) — 4 flows clean, 3rd family
+Third distinct family/format this session (after qwen3.5/ornith and mistral/devstral): loaded `gpt-oss-20b-mlx` — the
+OpenAI harmony tool-call format, the most different from qwen so far, highest chance of a novel parse gap. Loaded alongside
+qwopus3.5, verified, unloaded. All clean — no deterministic !Klein failure:
+- ✅ egress-e2e (harmony web_search tool call → 8 SearXNG results → grounded answer)
+- ✅ chat-agent-tools (§5.M read_file through gated+audited executor → answered → persisted)
+- ◑→✅ single-card: run 1 PARTIAL (no deliverable), run 2 PASS (wrote `write_file(hello.txt)` at the CORRECT root path,
+  content matches). Same synthesis VARIANCE as chat-command-exec — NOT a deterministic gap or path error; the model
+  delivers correctly when it completes the loop.
+- ✅ decompose-isolation (decompose_project called, zero host-path leaks, clean teardown)
+- matrix row: gpt-oss-20b-mlx → egress ✅ · chat-tools ✅ · single-card ✅(variance) · decompose-isolation ✅.
+**Cross-family scorecard (3 fresh models / 3 families this session):** qwen3.5 (ornith), mistral (devstral), gpt-oss
+harmony — ALL 4/4 clean on the fast flows. !Klein's tool-loop, §5.O delivery recovery, and §5.A isolation generalize
+across all three tool-call formats; the only non-passes are model-synthesis variance, never a !Klein parse/format gap.

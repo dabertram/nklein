@@ -3400,3 +3400,11 @@ occasionally genuinely more cohesive than splitting). Made it smart (`207bb4f5`,
 - Tests updated for the new behavior (allow over-soft/block-at-backstop; two-tier nudge; resolveHardWriteBackstopLines).
 Combined with the prior small-files-target commit, !Klein now pushes hard for small files on user projects but no longer
 fails on a legitimately-larger cohesive file — the smart balance David asked for.
+
+### 2026-07-07 (Opus) - §5.Z model-load loop, model #3: gpt-oss-20b (harmony format) — clean, 3 families now
+Loaded/verified/unloaded gpt-oss-20b-mlx (OpenAI harmony tool-call format — most different from qwen). 4 flows clean
+(egress, chat-tools, decompose-isolation; single-card PARTIAL→PASS on retry = synthesis variance, not a gap). Three fresh
+families verified this session (qwen3.5/ornith, mistral/devstral, gpt-oss/harmony), all 4/4 — !Klein's tool-loop + §5.O
+delivery + §5.A isolation generalize across every tool-call format tried; no deterministic !Klein gap has surfaced beyond
+the already-fixed §5.O path-nesting. Loop continues; a reasoning model (magistral / phi-4-reasoning-plus) is the next
+distinct behavior to probe (heavy reasoning blocks can interfere with tool emission — the matrix flagged phi-4-reasoning).
