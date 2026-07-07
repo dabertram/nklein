@@ -1,4 +1,4 @@
-import { readFile, realpath, rm } from "node:fs/promises";
+import { realpath, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
 	type RuntimeBoardData,
@@ -15,7 +15,6 @@ import { isPathInsideTaskWorktreesHome } from "../workspace/task-worktree-path";
 import { parsePersistedStateFile } from "./persisted-state-file";
 import { exportLocalBoardToPortableCrdt, importPortableBoard, resolveMachineReplicaId } from "./portable-board-store";
 import { createEmptyBoard, normalizeRuntimeBoardData } from "./runtime-board-normalization";
-import { formatSchemaIssues } from "./schema-issue-formatting";
 import { detectGitRepositoryInfo, detectGitRootAsync } from "./workspace-git-detection";
 import { createWorkspaceIdCollisionSuffix, toWorkspaceIdBase } from "./workspace-id-generation";
 import {
@@ -36,7 +35,6 @@ import {
 	getWorkspaceSessionsPath,
 	getWorkspacesRootLockRequest,
 	getWorkspacesRootPath,
-	INDEX_FILENAME,
 	META_FILENAME,
 	SESSIONS_FILENAME,
 	WORKSPACE_IDENTITY_FILENAME,
@@ -54,14 +52,12 @@ export {
 
 import {
 	INDEX_VERSION,
-	internalWorkspaceStateSaveRequestSchema,
 	type RuntimeWorkspaceIndexEntry,
 	WORKSPACE_ID_COLLISION_SUFFIX_LENGTH,
 	type WorkspaceIndexEntry,
 	type WorkspaceIndexFile,
 	type WorkspaceLocalIdentity,
 	type WorkspaceStateMeta,
-	workspaceIndexFileSchema,
 	workspaceLocalIdentitySchema,
 	workspaceSessionsSchema,
 	workspaceStateMetaSchema,
@@ -121,54 +117,7 @@ function recordWorkspaceResolutionDecision(input: {
 	});
 }
 
-function createEmptyWorkspaceIndex(): WorkspaceIndexFile {
-	return {
-		version: INDEX_VERSION,
-		entries: {},
-		repoPathToId: {},
-	};
-}
-
-function isNodeErrorWithCode(error: unknown, code: string): boolean {
-	return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === code;
-}
-
-async function readJsonFile(path: string): Promise<unknown | null> {
-	try {
-		const raw = await readFile(path, "utf8");
-		try {
-			return JSON.parse(raw) as unknown;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			throw new Error(`Malformed JSON in ${path}. ${message}`);
-		}
-	} catch (error) {
-		if (isNodeErrorWithCode(error, "ENOENT")) {
-			return null;
-		}
-		const message = error instanceof Error ? error.message : String(error);
-		throw new Error(`Could not read JSON file at ${path}. ${message}`);
-	}
-}
-
-function parseWorkspaceIndex(rawIndex: unknown | null): WorkspaceIndexFile {
-	const indexPath = getWorkspaceIndexPath();
-	return parsePersistedStateFile(
-		indexPath,
-		INDEX_FILENAME,
-		rawIndex,
-		workspaceIndexFileSchema,
-		createEmptyWorkspaceIndex(),
-	);
-}
-
-function parseWorkspaceStateSavePayload(payload: InternalWorkspaceStateSaveRequest): InternalWorkspaceStateSaveRequest {
-	const parsed = internalWorkspaceStateSaveRequestSchema.safeParse(payload);
-	if (!parsed.success) {
-		throw new Error(`Invalid workspace state save payload. ${formatSchemaIssues(parsed.error)}`);
-	}
-	return parsed.data;
-}
+import { parseWorkspaceIndex, parseWorkspaceStateSavePayload, readJsonFile } from "./workspace-state-io";
 
 async function readWorkspaceBoard(workspaceId: string): Promise<RuntimeBoardData> {
 	const boardPath = getWorkspaceBoardPath(workspaceId);
