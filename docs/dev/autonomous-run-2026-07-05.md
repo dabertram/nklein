@@ -2084,3 +2084,14 @@ roster re-verify (panel orchestration, §5.BG (c) flip, hardware hard-block need
 carry design/merge-semantics decisions best made deliberately (panel verdict-shape, §5.BG (d) per-table merge). Building
 more unwired pure cores would be the scaffolding David asked to avoid. Next move = a focused, live-verified session on
 ONE item; recommend §5.BG (c)+(d) first (foundation fresh + tested), then the panel orchestration.
+
+### 2026-07-07 (Opus) · §5.BG (c) FLIP LANDED — flag-gated (David: "you can do all of these") [f7fbcb7d]
+The distributed candidate+ledger+residency stable-key flip (reverted once) done SAFELY behind `NKLEIN_STABLE_ROUTING_KEY`
+(default OFF ⇒ byte-identical, 8015 fast tests green unchanged). Design that made it safe: `resolveStableRoutingModelId`
+(shared persisted map) applied UNIFORMLY at all three evidence sites ⇒ aligned by construction (map hit → all stable,
+miss → all runtime; no mismatch/double-start). The revert's root cause (selected candidate keyed before the map was
+learned) is fixed by re-keying the WHOLE guardCandidates map in ONE pass AFTER the descriptor loop + BEFORE
+residency/ledger. Alignment + rename-heal (two aliases → ONE key) pinned in the store test; builder guard still pins the
+flag-OFF default. **Owed before David flips it on: a live §5.Z roster re-verify.**
+Remaining of the 4: hardware hard-block (next) · panel orchestration · §5.BG (d) [LOW priority — the flag-gated flip
+SELF-HEALS as stable rows accumulate; (d) only heals legacy rows faster, and needs registry-key parsing + merge].
