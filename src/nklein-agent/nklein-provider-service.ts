@@ -20,32 +20,19 @@ import type {
 	RuntimeNKleinReasoningEffort,
 } from "../core/api-contract";
 import { toErrorMessage as formatErrorMessage } from "../core/error-message";
-import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
-import { fetchLiteLlmBaseUrlModels, fetchLmStudioBaseUrlModels } from "./nklein-baseurl-model-discovery";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
-import { selectLiveContextWindowRefreshes } from "./nklein-context-window-refresh";
 import {
 	type AddCustomNKleinProviderInput,
 	createCustomProviderManager,
 	type UpdateCustomNKleinProviderInput,
 } from "./nklein-custom-provider-manager";
 import { computeKanbanEnabled, parseNKleinRemoteConfigValue } from "./nklein-kanban-access-policy";
-import { appendMissingModels } from "./nklein-litellm-model-list";
 import { assertLocalProviderAllowed, isLocalProvider } from "./nklein-local-only-policy";
 import { resolveManagedProviderLaunchApiKey } from "./nklein-managed-provider-credentials";
 import { createModelDiscoveryApi } from "./nklein-model-discovery-api";
-import { getDefaultNKleinModelRegistry } from "./nklein-model-registry";
 import { normalizeEpochMs, resolveVisibleApiKey } from "./nklein-provider-credential-helpers";
-import { buildDiscoveredModelSourceUrls } from "./nklein-provider-discovery-urls";
 import { isLiveOnlyProviderId, isManagedOauthProviderId } from "./nklein-provider-id-classification";
-import {
-	extractDiscoveredModelsFromPayload,
-	mergeProviderModelsWithContextWindowFallback,
-	mergeProviderModelsWithModelRegistry,
-	normalizeContextWindow,
-	sortDiscoveredProviderModels,
-	toRuntimeProviderModel,
-} from "./nklein-provider-model-parsing";
+import { discoverModelsFromEndpoint, loadProviderModelsWithMeasuredWindows } from "./nklein-provider-model-discovery";
 import { createRuntimeOauthCallbacks, refreshManagedOauthSettings } from "./nklein-provider-oauth";
 import { readKanbanSelectedProviderId, writeKanbanSelectedProviderId } from "./nklein-provider-selection-store";
 import { createProviderSettingsWriter, type SaveProviderSettingsInput } from "./nklein-provider-settings-save";
@@ -54,6 +41,11 @@ import { ensureWorkosPrefix, toProviderApiKey } from "./nklein-provider-workos-t
 
 // Re-exported for API compatibility — the custom-provider input types now live with their manager (§5.U).
 export type { AddCustomNKleinProviderInput, UpdateCustomNKleinProviderInput } from "./nklein-custom-provider-manager";
+// Re-exported for API compatibility — the model-discovery cluster now lives in its own module (§5.U).
+export {
+	clearProviderModelDiscoveryCache,
+	loadProviderModelsWithFallback,
+} from "./nklein-provider-model-discovery";
 
 import {
 	completeNKleinDeviceAuth as completeSdkDeviceAuth,
@@ -77,7 +69,6 @@ import {
 } from "./sdk-provider-boundary";
 
 const DEFAULT_NKLEIN_API_BASE_URL = "https://api.nklein.bot";
-const DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS = 30 * 1000;
 
 function isLocalProviderSettings(settings: Pick<SdkProviderSettings, "provider" | "baseUrl"> | null): boolean {
 	if (!settings) {
@@ -97,164 +88,6 @@ export interface ResolvedNKleinLaunchConfig {
 
 function toErrorMessage(error: unknown): string {
 	return formatErrorMessage(error, "An unexpected error occurred.");
-}
-
-async function discoverModelsFromEndpoint(input: {
-	baseUrl: string;
-	apiKey?: string | null;
-	modelsSourceUrl?: string | null;
-	timeoutMs?: number | null;
-}): Promise<RuntimeNKleinEndpointModelDiscoveryResponse> {
-	const sourceUrls = buildDiscoveredModelSourceUrls({
-		baseUrl: input.baseUrl,
-		modelsSourceUrl: input.modelsSourceUrl,
-	});
-	if (sourceUrls.length === 0) {
-		throw new Error("Could not derive a model-discovery URL from the provided endpoint.");
-	}
-	const timeoutMs =
-		typeof input.timeoutMs === "number" && input.timeoutMs > 0
-			? Math.trunc(input.timeoutMs)
-			: DEFAULT_GENERIC_MODEL_LIST_TIMEOUT_MS;
-	const headers: Record<string, string> = {};
-	if (input.apiKey?.trim()) {
-		headers.Authorization = `Bearer ${input.apiKey.trim()}`;
-	}
-	for (const sourceUrl of sourceUrls) {
-		try {
-			const response = await globalThis.fetch(sourceUrl, {
-				method: "GET",
-				headers,
-				signal: AbortSignal.timeout(timeoutMs),
-			});
-			if (!response.ok) {
-				continue;
-			}
-			const payload = (await response.json()) as unknown;
-			const models = sortDiscoveredProviderModels(
-				extractDiscoveredModelsFromPayload(payload, sourceUrl).map((model) => toRuntimeProviderModel(model)),
-			);
-			if (models.length > 0) {
-				return {
-					modelSourceUrl: sourceUrl,
-					models,
-				};
-			}
-		} catch {
-			// Try the next candidate URL.
-		}
-	}
-	throw new Error(
-		`Could not discover models from ${input.modelsSourceUrl?.trim() || input.baseUrl.trim()}. Ensure the local endpoint is reachable and exposes a compatible /models route.`,
-	);
-}
-/**
- * Roster discovery is throttled by a short TTL cache so the live `/models` (LM Studio `/api/v0/models`) catalog endpoint
- * isn't hammered — the roster only needs to be ~fresh (30 s default; `NKLEIN_MODEL_DISCOVERY_CACHE_TTL_MS` overrides, `0`
- * disables). Keyed by provider + base URL so distinct endpoints don't collide. The explicit "discover endpoint" flow
- * (`discoverEndpointModels`, user-triggered) does NOT go through here, so it stays fresh.
- */
-const providerModelDiscoveryCache = new Map<string, { at: number; models: RuntimeNKleinProviderModel[] }>();
-
-/** Clear the roster-discovery TTL cache (tests + an explicit "refresh now" path). */
-export function clearProviderModelDiscoveryCache(): void {
-	providerModelDiscoveryCache.clear();
-}
-
-async function loadProviderModelsWithFallbackForSettings(
-	providerId: string,
-	settingsOverride?: SdkProviderSettings | null,
-): Promise<RuntimeNKleinProviderModel[]> {
-	const normalizedProviderId = providerId.trim().toLowerCase();
-	if (!normalizedProviderId) {
-		return [];
-	}
-
-	const settings = settingsOverride ?? getSdkProviderSettings(normalizedProviderId);
-	const ttlMs = modelDiscoveryCacheTtlMs();
-	const cacheKey = `${normalizedProviderId}::${settings?.baseUrl ?? ""}`;
-	const now = Date.now();
-	if (ttlMs > 0) {
-		const cached = providerModelDiscoveryCache.get(cacheKey);
-		if (cached && now - cached.at < ttlMs) {
-			return cached.models;
-		}
-	}
-
-	const providerModels = await listSdkProviderModels(normalizedProviderId).catch(() => []);
-	let resolved: RuntimeNKleinProviderModel[];
-	if (normalizedProviderId === "litellm") {
-		const liteLlmModels = await fetchLiteLlmBaseUrlModels(settings);
-		const mergedModels = mergeProviderModelsWithContextWindowFallback(providerModels, liteLlmModels);
-		resolved = appendMissingModels(mergedModels, liteLlmModels);
-	} else if (normalizedProviderId === "lmstudio") {
-		const lmStudioModels = await fetchLmStudioBaseUrlModels(settings);
-		resolved = mergeProviderModelsWithContextWindowFallback(lmStudioModels, providerModels);
-	} else {
-		resolved = providerModels;
-	}
-	if (ttlMs > 0) {
-		providerModelDiscoveryCache.set(cacheKey, { at: now, models: resolved });
-	}
-	return resolved;
-}
-
-export async function loadProviderModelsWithFallback(providerId: string): Promise<RuntimeNKleinProviderModel[]> {
-	return await loadProviderModelsWithFallbackForSettings(providerId);
-}
-
-async function loadProviderModelsWithMeasuredWindows(
-	providerId: string,
-	settingsOverride?: SdkProviderSettings | null,
-): Promise<RuntimeNKleinProviderModel[]> {
-	const providerModels = await loadProviderModelsWithFallbackForSettings(providerId, settingsOverride);
-	try {
-		const snapshot = await getDefaultNKleinModelRegistry().getSnapshot();
-		const registryEntries = Object.values(snapshot.models);
-		const mergedModels = mergeProviderModelsWithModelRegistry(providerId, providerModels, registryEntries);
-		if (isLiveOnlyProviderId(providerId)) {
-			// Keep the registry's context window in step with the LIVE loaded window: a local model is often loaded at a
-			// context length smaller than its max, and a stale/max value left in the registry would otherwise drive the
-			// context budget (overflow risk). Fire-and-forget; only fires for entries whose loaded window actually changed.
-			for (const refresh of selectLiveContextWindowRefreshes({
-				providerId,
-				discoveredModels: providerModels,
-				registryEntries,
-			})) {
-				void getDefaultNKleinModelRegistry()
-					.recordContextWindow({
-						providerId: refresh.providerId,
-						modelId: refresh.modelId,
-						endpoint: refresh.endpoint,
-						advertisedContextWindow: refresh.contextWindow,
-					})
-					.catch(() => undefined);
-			}
-			return mergedModels;
-		}
-		const modelIds = new Set(mergedModels.map((model) => model.id));
-		const normalizedProviderId = providerId.trim().toLowerCase();
-		const registryOnlyModels = registryEntries.flatMap((entry) => {
-			if (entry.providerId.trim().toLowerCase() !== normalizedProviderId || modelIds.has(entry.modelId)) {
-				return [];
-			}
-			const contextWindow = normalizeContextWindow(entry.contextWindow.effective);
-			if (contextWindow === null) {
-				return [];
-			}
-			modelIds.add(entry.modelId);
-			return [
-				{
-					id: entry.modelId,
-					name: entry.modelId,
-					contextWindow,
-				},
-			];
-		});
-		return [...mergedModels, ...registryOnlyModels];
-	} catch {
-		return providerModels;
-	}
 }
 
 function getSelectedProviderSettings(): SdkProviderSettings | null {
