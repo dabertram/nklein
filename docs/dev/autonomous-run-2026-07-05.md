@@ -2688,3 +2688,15 @@ understanding: fresh-root makes A.2 (path scrub) narrow -- the docs/dev working-
 /Users/david/ won't be in a fresh root, so the scrub targets only shipping docs (README, curated docs/). NEXT (per the
 plan): finish A.2 (scan README + docs/ maintained refs for personal paths), then Phase B (§5.Z full sweep -> §5.BG
 re-key -> swarm-recovery), then Phase C (fresh-root branch + surface the LICENSE/NOTICE decision).
+
+### 2026-07-07 (Opus) - Phase B.4: §5.Z egress full-sweep increment (+2 new families, ceilings noted)
+Started Phase B (David greenlit all gated tracks, "order as you suggest"). B.4 = §5.Z full-roster sweep. Egress live at
+:18888; 3 models resident (122B-a10b, 14B-coder, 9B-mtp -- all already egress-verified). JIT-loaded NEW models on top +
+ran verify-egress-model-e2e.mts: glm-4.7-flash ✅ 3/3 (NEW GLM family), gemma-4-e4b ✅ 3/3 (NEW e4b variant). magistral
+-small-2509 + qwq-32b 💥 = JIT resource CEILING ("insufficient system resources" -- the resident 122B blocks co-loading
+a 24-32B; recorded as a load-constraint data point, did NOT force-unload the operator's model per the don't-overload
+directive). phi-4-mini-instruct = id-form mismatch (quant-suffixed ids), skipped. Egress now proven across the qwen/
+gemma/phi/mistral/nemotron/gpt-oss/GLM families + MoE + MTP, 8B->122B. Matrix updated. NEXT: continue Phase B -- B.5
+§5.BG routing re-key (I'll build the READ-side integration tests FIRST given the double-start hazard), then B.6
+swarm-recovery. Broader §5.Z flows (decompose/single-card/chat-tools across the roster) are heavier + need the server,
+so a periodic obligation rather than a one-tick item.

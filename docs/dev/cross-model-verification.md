@@ -766,6 +766,26 @@ Anthropic URL. Confirms MTP decoding doesn't disrupt the tool-call → egress �
 coverage this pass: qwen3-8b ✅ · gemma-4-e2b ✅ · qwopus3.5-9b-coder-mtp ✅ (NEW) — the three non-giant resident models
 (qwen2.5-coder-14b + the 122B MoE already ✅ in the 2026-07-06 rows; not force-reloaded).
 
+### 2026-07-07 · §5.Z egress FULL-sweep increment (Opus, David-greenlit) — +2 new models, roster ceiling noted
+Growing the egress matrix past the SMOKE tier (David 2026-07-07 greenlit the full sweep). Resident set at run time:
+qwen3.5-122b-a10b (MoE) · qwen2.5-coder-14b · qwopus3.5-9b-coder-mtp (all already ✅ in prior rows). JIT-loaded NEW
+models on top and ran `verify-egress-model-e2e.mts`:
+  - **`zai-org/glm-4.7-flash` ✅ 3/3 (NEW FAMILY — GLM)** — web_search tool call → 8 live SearXNG results → grounded
+    on anthropic.com/claude/opus. (Minor: a `<|user|>` chat-template token leaked into the answer tail — a model
+    template quirk, NOT an egress/tool bug; all 3 asserts passed.)
+  - **`google/gemma-4-e4b` ✅ 3/3 (NEW — the e4b variant vs the previously-swept e2b)** — clean tool-call → egress →
+    grounded answer.
+  - **`mistralai/magistral-small-2509` 💥 · `qwen/qwq-32b` 💥 — JIT resource CEILING, not egress bugs:** LM Studio
+    returned HTTP 400 "Model loading was stopped due to insufficient system resources" — the resident 122B-a10b leaves
+    no room to co-load a 24B/32B. Recorded as a load-constraint data point (per the methodology); did NOT force-unload
+    the operator's resident model.
+  - `microsoft/phi-4-mini-instruct` — skipped: "Invalid model identifier" (the real ids are quant-suffixed,
+    `phi-4-mini-instruct@4bit/@8bit`); an id-form mismatch, not a model/egress failure.
+Egress now proven across 8B→122B and the qwen / gemma / phi / mistral / nemotron / gpt-oss / GLM families + MoE + MTP
+decoding. Remaining roster coverage is bounded by the resident 122B's memory footprint (bigger un-swept models can't
+co-load without unloading it). Broader FLOWS (decompose / single-card / chat-tools across the roster) remain the heavier
+periodic obligation.
+
 ### 2026-07-06 · §5.Z §5.AC temporal-awareness ("knows today") — HARNESS BUG FIXED + cross-model sweep
 **Harness bug found + fixed:** `verify-temporal-awareness-live.mts` was failing its own assertions on EVERY model —
 root cause: the §5.AC "knows today" block is OFF BY DEFAULT (`knowsTodayEnabled ?? isTruthyEnv(NKLEIN_KNOWS_TODAY)`),
