@@ -302,7 +302,9 @@ function createRuntimeOauthCallbacks(providerId: ManagedNKleinOauthProviderId) {
 	};
 }
 
-function authSettingsEqual(left: SdkProviderSettings["auth"], right: SdkProviderSettings["auth"]): boolean {
+// Exported for unit tests: this is the OAuth-token-change gate — its correctness decides whether refreshed
+// credentials get persisted, so a dropped field would silently keep stale tokens. Pure; tested directly.
+export function authSettingsEqual(left: SdkProviderSettings["auth"], right: SdkProviderSettings["auth"]): boolean {
 	return (
 		(left?.accessToken ?? null) === (right?.accessToken ?? null) &&
 		(left?.refreshToken ?? null) === (right?.refreshToken ?? null) &&
