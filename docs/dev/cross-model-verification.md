@@ -992,3 +992,26 @@ loudly on anything else) — `54b00ab4`. Re-ran:
   verify harnesses that lacked the guard — proactively fixed: restart-resume-isolation [4 stops], strict-isolation,
   autopromote-recovery, reasoning-display all now carry the targeted guard, so a future model's timing can't crash the
   sweep mid-flow. (verify-full-system + verify-task-completion already had their own guards.)
+
+## 2026-07-07 (Opus) — §5.Z single-card delivery on `qwopus3.5-9b-coder-mtp` → PARTIAL (model path trait, NOT a bug)
+Ran `verify-task-completion.mts` (small card → terminal + deliverable). Result: **PARTIAL ◑** — reached awaiting_review
+with the CORRECT content, but hello.txt was not at the deliverable root. Triaged properly (methodology: reason about ALL
+details, don't accept "the agent declared done without producing it"):
+- Activity trace: agent called `write_file(workspaces/verify-completion-1/hello.txt)` then `read_files(/workspaces/
+  verify-completion-1/hello.txt)` then declared "Done! Created …hello.txt with the exact text `Hello from the sandbox.`".
+- The NEW branch-tree diagnostic (added this session, `01294dea`) resolved the apparent contradiction: the result branch
+  DID contain the file, at **`workspaces/verify-completion-1/hello.txt`** (nested) — not root. So the delivery captured
+  exactly what the model wrote; the model wrote it in the WRONG place.
+- **Mechanism (confirmed, not guessed):** the sandbox cwd is `/workspaces/verify-completion-1`. The model used the
+  ABSOLUTE sandbox path minus the leading slash (`workspaces/verify-completion-1/hello.txt`) as its "workspace-relative"
+  path, so the container resolved it to `/workspaces/verify-completion-1/workspaces/verify-completion-1/hello.txt`. A
+  relative-vs-cwd path error — a **model trait, NOT a !Klein delivery bug** (delivery is proven on 8 other models).
+- matrix row: qwopus3.5-9b-coder-mtp → single-card=◑ (path-nesting; content correct). So this model is ✅ egress /
+  ✅ chat-tools / ✅ decompose-isolation / ◑ single-card-delivery (path trait).
+- **§5.O/§5.AB HARDENING CANDIDATE (recorded for a focused turn / David's steer — not rushed):** weak models emitting the
+  redundant `workspaces/<taskId>/…` prefix is a recognizable, unambiguous failure (no real project has an ephemeral-taskId
+  subdir). Two candidate recoveries, each with a tradeoff: (a) in the sandbox write/edit path resolution, detect + strip a
+  leading `workspaces/<taskId>/` that duplicates the cwd (safe because taskId-scoped, but lives in the hard-tier
+  agent-sandbox code); (b) clarify in the system prompt / repo-map rail that the cwd IS the workspace root so `hello.txt`
+  is the correct form (lower code risk, but a prompt change needs cross-model re-validation to avoid regressing others).
+  Decision on which belongs to David / a dedicated §5.O turn.
