@@ -268,10 +268,13 @@ export async function runSecondOpinionReviewForTask(
 		const baseUrl = workerSummary?.endpoint?.trim() || "http://127.0.0.1:1234/v1";
 		const descriptors = await fetchLoadedModelDescriptors(baseUrl).catch(() => []);
 		const workerRealId = resolveWorkerRealId(descriptors, workerModelId);
+		// Panel size: David's default is 3 (decision #2); tunable via NKLEIN_REVIEW_PANEL_SIZE, clamped to [2, 5] (a panel
+		// needs ≥2 to have a second opinion; capped so a large loaded fleet can't spawn an endpoint-overloading panel).
+		const panelSize = Math.min(5, Math.max(2, Number.parseInt(process.env.NKLEIN_REVIEW_PANEL_SIZE ?? "3", 10) || 3));
 		panelJudges = selectReviewerPanel({
 			candidates: buildReviewerCandidates(descriptors, workerModelId, workerRealId),
 			workerLineage: resolveLineage(workerRealId),
-			size: 3,
+			size: panelSize,
 		}).map((candidate) => ({
 			judgeModelKey: candidate.modelId,
 			reviewer: { providerId: reviewerProviderId, modelId: candidate.modelKey },
