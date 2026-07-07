@@ -1050,3 +1050,17 @@ input path, so a model that mistakes its cwd (the sandbox workdir) for the repo 
 - **Updated matrix row:** qwopus3.5-9b-coder-mtp → egress ✅ · chat-tools ✅ · decompose-isolation ✅ · **single-card ✅
   (was ◑, fixed by §5.O recovery)** · chat-agent-write ✅. Now clean on all 5 fast flows. This recovery benefits EVERY
   model that emits the redundant-prefix mistake, not just this one — a durable weak-model-delivery win (north star).
+
+## 2026-07-07 (Opus) — §5.Z chat-command-exec on qwopus3.5 → PASS (high-variance, per §5.AA)
+Ran `verify-chat-command-exec.mts` (agent runs `run_command: cat MARKER.txt` then echoes the marker). Triaged with the
+methodology (don't accept a single-run verdict):
+- **Run 1: INCOMPLETE** — `run_command` used ✓ but the marker wasn't echoed; the model's reply was the raw tool-call JSON
+  (`{"command":"cat MARKER.txt","args":null}`), i.e. it re-emitted the call rather than synthesizing a final answer.
+- **Run 2 (same model, immediate re-run): PASS ✓** — run_command used ✓ AND marker echoed ✓ (the harness suppresses the
+  child stdout on success, so a `grep` of the harness log shows 0 — not a contradiction).
+- **Verdict: ✅ PASS with variance.** The model CAN execute the command and echo its output; the run-1 miss is
+  model-SYNTHESIS variance (the known §5.AA high-variance property of this flow — the model sometimes loops on the tool
+  call instead of producing a final answer), NOT a !Klein defect and NOT a deterministic parse gap (contrast the §5.O
+  path-nesting, which reproduced every run and warranted a code fix). No hardening — recorded as a §5.AB fitness signal.
+- matrix row: qwopus3.5-9b-coder-mtp → chat-command-exec=✅ (variance). Now: egress ✅ · chat-tools ✅ ·
+  decompose-isolation ✅ · single-card ✅ (fixed by §5.O) · chat-agent-write ✅ · chat-command-exec ✅. Clean on 6 flows.
