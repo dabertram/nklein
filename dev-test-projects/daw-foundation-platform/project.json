@@ -4,6 +4,8 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"tier": "Audio & DAW",
+	"tags": ["audio", "daw", "platform"],
 	"fixtureTemplate": "daw-foundation",
 	"complexity": 100,
 	"specificationPath": "scripts/dev-fixtures/daw-foundation-spec.md",

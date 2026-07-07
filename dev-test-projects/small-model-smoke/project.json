@@ -4,6 +4,8 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"tier": "Smoke",
+	"tags": ["smoke", "small-model"],
 	"complexity": 35,
 	"filesLikelyTouched": [
 		"src/habit-score.ts",

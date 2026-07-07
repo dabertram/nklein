@@ -4,6 +4,8 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"tier": "Audio & DAW",
+	"tags": ["audio", "vst", "synth"],
 	"fixtureTemplate": "audio-vst-synth",
 	"complexity": 75,
 	"filesLikelyTouched": [

@@ -4,6 +4,8 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"tier": "Swarm shapes",
+	"tags": ["swarm", "habit-tracker", "deep-chain"],
 	"complexity": 70,
 	"filesLikelyTouched": [
 		"src/pipeline",

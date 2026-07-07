@@ -649,7 +649,13 @@
 > (task-session-service collaborators, `createRuntimeServer` closure) are a multi-commit DI-threading undertaking best
 > started with a fresh context budget.
 
-### 5.DT — Unify the dev-test-project presentation (the "2 styles / 2 groups" David flagged) *(2026-07-07, David autonomy screenshot; ROOT-CAUSED — ready to execute)*
+### 5.DT — Unify the dev-test-project presentation (the "2 styles / 2 groups" David flagged) — ✅ DONE 2026-07-07
+> **DONE:** added `tier` + `tags` to all 9 legacy scenarios' `project.json` (6 `habit-*` → "Swarm shapes"; `small-model-smoke`
+> → "Smoke"; `audio-vst-psytrance`+`daw-foundation-platform` → "Audio & DAW"), kept legacy `complexity`. Verified via a live
+> registry load: **0 of 45 entries now lack a tier** → the picker's anonymous "Other" bucket is EMPTY; all projects present
+> uniformly as named tier groups with tag-chips. Registry/preset/api unit tests (22) + the legacy/enhanced contract test (4)
+> stay green (the byte-for-byte + both-filters-non-empty assertions survive). Data-only, no UI code change. Original
+> investigation ↓ kept for context.
 > **David:** "dev-test-projects are presented in 2 different styles … unify that so all appear similar and no confusion
 > arises why selecting any looks different for 2 groups." **ROOT CAUSE (evidence-backed 2026-07-07):** the registry has
 > TWO groups with DIVERGENT `project.json` schemas — (a) the **30 numbered difficulty-ladder projects** (`NN_name`) carry

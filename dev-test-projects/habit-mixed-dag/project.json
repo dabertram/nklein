@@ -4,6 +4,8 @@
 	"acceptanceCommand": "npm test",
 	"agentId": "nklein",
 	"startInPlanMode": true,
+	"tier": "Swarm shapes",
+	"tags": ["swarm", "habit-tracker", "mixed-dag"],
 	"complexity": 72,
 	"filesLikelyTouched": [
 		"src/habit-score.ts",
