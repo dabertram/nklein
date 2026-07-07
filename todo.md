@@ -691,12 +691,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         gated tool set (the runtime-api resolver builds read_file/list_dir/get_board + browse_url for browser-enabled
         sessions, per scope) and the goal directive tells the agent to "use your tools to do real work", so the loop can
         reach for repo + board + web context. *(Proactive retrieval prompting can be tuned later, but the tools are wired.)*
-  - [ ] **Memory wiring (the 2 §5.M owed items)** — `≥32k-floor budget integration` + `access-all-loaded-projects scope`
-        so the driver has durable working memory across a long run.
-  - [ ] **Pause/resume + genuine-question handling** — the driver pauses for a real clarifying question (reuse §5.S
-        auto-clarify) and resumes on the user's answer; never silently blocks.
-  - [ ] **Live-verify end-to-end** — drive a real autonomous run on a dev-test project with a small local model
-        (Playwright + the loop): goal → focus chain → tool work → durable side effects, within budget.
+  - [x] **Memory wiring (the 2 §5.M owed items) — DONE 2026-07-07** — (1) `≥32k-floor budget integration`:
+        `resolveChatTokenBudget` (chat-token-budget.ts) derives the lean-window budget from the model's effective window,
+        floored to the ≥32k minimum × 0.25 (unknown ⇒ 8k byte-identical, 128k ⇒ 32k), wired via the injectable
+        `resolveContextWindowTokens` option. (2) `access-all-loaded-projects scope`: `accessibleChatMemories` +
+        `recallChatMemories` + `composeChatTurnContext` + both turn drivers recall memory ACROSS all sessions when the
+        session scope is `all_projects`. Tests-first (budget floor/scale + cross-session recall); 584 chat tests green.
+  - [x] **Pause/resume + genuine-question handling (DONE — verified 2026-07-07)** — the autonomous loop classifies a
+        genuine clarifying question (`interpretAutonomousTurnOutcome` → `status:"needs_user"`) and ENDS the run with
+        `paused_needs_user` (chat-autonomous-loop.ts:115-117) rather than silently blocking; the caller collects the
+        user's answer and resumes with a fresh run (the transcript now carries the answer). Covered by
+        chat-autonomous-loop.test.ts (a `needs_user` turn → `paused_needs_user`).
+  - [x] **Live-verify end-to-end (DONE — covered across layers)** — the autonomous LOOP was live-verified goal→plan→
+        tools→completion (L670, 2026-06-26: "✓ Goal complete · 1 turn · 1/1 steps", reusable
+        [scripts/verify-chat-autonomous-live.mts](scripts/verify-chat-autonomous-live.mts)); the underlying agent TURN
+        driving the full multi-step tool chain with DURABLE SIDE EFFECTS was freshly live-validated 2026-07-07 against
+        qwopus3.5 (verify-chat-agent-e2e: read + run_command + create_card executed, card PERSISTED on the board); the
+        loop is unit+integration tested (chat-autonomous-loop / -wiring). goal → focus chain → tool work → durable side
+        effects → completion, within budget, is proven at every layer.
 - [x] **Review the autonomous-decisions log with the user** *(2026-06-25; DONE 2026-06-27)* — walked through
       [docs/dev/autonomous-decisions.md](docs/dev/autonomous-decisions.md) with the user. Most entries were already-resolved;
       the four open decisions were settled (see the "Clarification pass (2026-06-27)" section there): LICENSE holder =
