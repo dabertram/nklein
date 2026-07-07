@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { type AutoReviewCardRecord, decideAutoReviewCardAction } from "../../../src/server/auto-review-card-decision";
+import {
+	type AutoReviewCardRecord,
+	decideAutoReviewCardAction,
+	isAutoReviewCommitCard,
+	selectHeadlessAutoReviewReconcileCandidates,
+} from "../../../src/server/auto-review-card-decision";
 
 const record = (columnId: string, card: AutoReviewCardRecord["card"]): AutoReviewCardRecord => ({ columnId, card });
 const autoCommit = { autoReviewEnabled: true, autoReviewMode: "commit" };
@@ -51,5 +56,44 @@ describe("decideAutoReviewCardAction", () => {
 		expect(
 			decideAutoReviewCardAction(record("in_progress", { autoReviewEnabled: true, autoReviewMode: "ask" })),
 		).toEqual({ shouldAutoComplete: false, moveToReview: true });
+	});
+});
+
+describe("isAutoReviewCommitCard", () => {
+	it("is true only when auto-review is enabled and the mode is (or defaults to) commit", () => {
+		expect(isAutoReviewCommitCard({ autoReviewEnabled: true, autoReviewMode: "commit" })).toBe(true);
+		expect(isAutoReviewCommitCard({ autoReviewEnabled: true })).toBe(true); // mode defaults to commit
+	});
+
+	it("is false when disabled or in a non-commit mode", () => {
+		expect(isAutoReviewCommitCard({ autoReviewEnabled: false })).toBe(false);
+		expect(isAutoReviewCommitCard({ autoReviewEnabled: true, autoReviewMode: "ask" })).toBe(false);
+		expect(isAutoReviewCommitCard({})).toBe(false);
+	});
+});
+
+describe("selectHeadlessAutoReviewReconcileCandidates", () => {
+	const card = (id: string, extra: Record<string, unknown> = {}) => ({ id, ...autoCommit, ...extra });
+	const board = {
+		columns: [
+			{ id: "planning", cards: [card("p1")] },
+			{ id: "in_progress", cards: [card("ip1"), card("ip2", { autoReviewEnabled: false })] },
+			{ id: "review", cards: [card("r1"), card("r2", { autoReviewMode: "ask" })] },
+			{ id: "completed", cards: [card("c1")] },
+			{ id: "trash", cards: [card("t1")] },
+		],
+	};
+
+	it("selects only in-progress/review cards that opt into auto-commit", () => {
+		const ids = selectHeadlessAutoReviewReconcileCandidates(board).map((c) => c.id);
+		expect(ids).toEqual(["ip1", "r1"]);
+	});
+
+	it("returns nothing when no lane has an auto-commit card", () => {
+		expect(
+			selectHeadlessAutoReviewReconcileCandidates({
+				columns: [{ id: "review", cards: [card("x", { autoReviewEnabled: false })] }],
+			}),
+		).toHaveLength(0);
 	});
 });

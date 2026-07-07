@@ -6,13 +6,40 @@
  * apart from the workspace-state mutation it drives.
  */
 
+/** The card flags that decide auto-review eligibility (a subset of the board card). */
+export interface AutoReviewCommitCardFields {
+	autoReviewEnabled?: boolean | null;
+	autoReviewMode?: string | null;
+}
+
 export interface AutoReviewCardRecord {
 	columnId: string;
-	card: {
+	card: AutoReviewCommitCardFields & {
 		startInPlanMode?: boolean | null;
-		autoReviewEnabled?: boolean | null;
-		autoReviewMode?: string | null;
 	};
+}
+
+/**
+ * True iff a card opts into headless auto-completion: auto-review enabled AND in `commit` mode (the default when unset).
+ * The single source of truth for "auto-completable", shared by {@link decideAutoReviewCardAction} (the per-card
+ * finalize classification) and {@link selectHeadlessAutoReviewReconcileCandidates} (the boot/reconcile sweep).
+ */
+export function isAutoReviewCommitCard(card: AutoReviewCommitCardFields): boolean {
+	return card.autoReviewEnabled === true && (card.autoReviewMode ?? "commit") === "commit";
+}
+
+/**
+ * Select the cards a captured-auto-review reconcile pass should re-finalize: those in the in-progress or review lanes
+ * that opt into auto-commit ({@link isAutoReviewCommitCard}). Pure board query — the caller checks each candidate's
+ * result branch and drives the actual finalize. Generic over the card type so it stays decoupled from the board schema.
+ */
+export function selectHeadlessAutoReviewReconcileCandidates<C extends AutoReviewCommitCardFields>(board: {
+	columns: ReadonlyArray<{ id: string; cards: ReadonlyArray<C> }>;
+}): C[] {
+	return board.columns
+		.filter((column) => column.id === "in_progress" || column.id === "review")
+		.flatMap((column) => [...column.cards])
+		.filter((card) => isAutoReviewCommitCard(card));
 }
 
 export interface AutoReviewCardAction {
@@ -39,8 +66,7 @@ export function decideAutoReviewCardAction(record: AutoReviewCardRecord | undefi
 	if (record.card.startInPlanMode) {
 		return SKIP;
 	}
-	const shouldAutoComplete =
-		record.card.autoReviewEnabled === true && (record.card.autoReviewMode ?? "commit") === "commit";
+	const shouldAutoComplete = isAutoReviewCommitCard(record.card);
 	if (record.columnId === "review") {
 		return { shouldAutoComplete, moveToReview: false };
 	}

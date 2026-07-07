@@ -108,7 +108,7 @@ import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-
 import { acceptancePresentAndFailed } from "./acceptance-waiver-decision";
 import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
-import { decideAutoReviewCardAction } from "./auto-review-card-decision";
+import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates } from "./auto-review-card-decision";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
@@ -1221,10 +1221,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	): void => {
 		void (async () => {
 			const state = await loadWorkspaceState(scope.workspacePath);
-			const candidates = state.board.columns
-				.filter((column) => column.id === "in_progress" || column.id === "review")
-				.flatMap((column) => column.cards)
-				.filter((card) => card.autoReviewEnabled === true && (card.autoReviewMode ?? "commit") === "commit");
+			const candidates = selectHeadlessAutoReviewReconcileCandidates(state.board);
 			for (const card of candidates) {
 				const resultCommit = await resolveTaskResultBranchCommit({
 					repoPath: scope.workspacePath,
