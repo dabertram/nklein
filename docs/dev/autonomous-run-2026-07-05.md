@@ -3016,3 +3016,16 @@ nklein-session-launch-config.ts (81 lines), re-exported the 2 externally-used sy
 session-runtime 1215→1148. Behavior-preserving: tsc 0, biome clean (incl. a follow-up removing 2 now-unused imports),
 session-runtime suite 36/36, full gate 8125. Commits 1a6f5217 + 0767ed04. NEXT: continue §5.U (more next-tier cohesive
 clusters) — the big-3 orchestration-method decomposition remains the delicate careful tier.
+
+### 2026-07-07 (Opus) - §5.U full pass, increments 2-3: dev.ts command-group extractions
+commands/dev.ts (1270, the largest file after the big-3) is a clean §5.U vein — self-contained CLI command handlers.
+Extracted two cohesive groups, each structural-only (diff-verified: no logic lines changed), tsc 0 + biome + full gate:
+  - **dev cleanup-report group** → commands/dev-cleanup-commands.ts (08104d9a): dev.ts 1270→1178. (Caught + fixed a
+    wrong import-source assumption via tsc — DevTestCleanupCandidate/discoverDevTestCleanupEntries come from
+    nklein-dev-test-runner, not core/dev-test-cleanup.)
+  - **two-phase tool commands** (tool-menu + tool-pick, §5.O/§5.AA) → commands/dev-two-phase-tool-commands.ts (3e39581f):
+    dev.ts 1178→1079. Cleanest yet — 3 focused imports, no shared client.
+dev.ts is now 1079 (down 191, ~15%); remaining clean groups: the telemetry/analysis commands (ledger/verdict/rail/
+roster/swarm/advice/escalation, ~10 fns) + the dev-test-run commands (share createDevRuntimeClient). NEXT: continue the
+dev.ts vein, then session-runtime + other next-tier. Pattern proven: move a cohesive group, wire imports back, biome
+--unsafe cleans the now-unused imports, tsc+diff confirm structural-only.
