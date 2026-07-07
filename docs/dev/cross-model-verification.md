@@ -1083,3 +1083,21 @@ fast flows: egress · chat-tools · decompose-isolation · single-card · chat-a
   autopromote-recovery · restart-resume-isolation. One deterministic failure found across all of them (the §5.O
   path-nesting) → fixed. Remaining flows (reasoning-display, chat-browse, the 25-min multi-card) are lower-priority; the
   high-value next §5.Z step is BREADTH — OTHER roster models, which requires loading them (David's call per no-auto-load).
+
+## 2026-07-07 (Opus) — §5.Z chat-browse on qwopus3.5 → ◑ 2/2 + a specific §5.O/§5.AA hardening HYPOTHESIS
+`verify-chat-browse.mts` (agent uses browse_url on a local page, must echo the page's <h1> marker). **◑ INCOMPLETE on
+BOTH runs** (unlike chat-command-exec, which passed on retry — so this is consistent, not pure variance). Triaged:
+- Agent USED browse_url: YES ✓ each run, but the page marker (`BROWSE-MARKER-4242-XYZ`) NEVER appears anywhere in the
+  output — it did not flow back into the model's context/reply.
+- Both runs, the model emitted its call as **content-JSON** (a ```json block `{"name":"browse_url","arguments":{...}}`)
+  rather than a structured tool_call, then its turn ENDED with that block (no tool result, no synthesis turn).
+- **HYPOTHESIS (specific, UNCONFIRMED — needs an agent-loop investigation, deliberately not rushed):** a tool call that
+  !Klein *parse-recovers from content-JSON* (§5.O) may not trigger the follow-up loop iteration that a structured
+  `tool_calls` response does — so the tool's result isn't fed back and the model never synthesizes a final answer. This
+  ALSO explains chat-command-exec's variance (pass when the model emitted a structured call, INCOMPLETE when content-JSON).
+- **Discriminator vs. the §5.O path-nesting (which WAS fixed):** that one had a clean, verified mechanism + a
+  well-scoped fix location. This needs first CONFIRMING whether parse-recovered content-JSON calls loop back (compare the
+  chat loop's handling of structured tool_calls vs. content-parsed calls) before any fix — a focused investigation turn.
+- matrix row: qwopus3.5-9b-coder-mtp → chat-browse=◑ (content-JSON tool call; marker never returned). Model emits
+  content-JSON tool calls (a weak-model trait); whether !Klein should loop-and-synthesize after a parse-recovered call is
+  the open §5.O/§5.AA question. NOT recorded as a confirmed bug — a characterized lead for a dedicated investigation.
