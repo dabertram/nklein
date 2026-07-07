@@ -77,6 +77,16 @@ const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: stri
 	{ value: "host_access", label: "⚠️ Host" },
 ];
 
+// §5.M execution-mode surfacing: the SCOPE is the control that decides the execution mode (the pinned
+// `chatScopeToExecutionMode` design) — so the UI shows the DERIVED consequence of the selected scope instead
+// of offering a second, competing selector. Copy mirrors the backend gate semantics exactly.
+const SCOPE_MODE_CAPTIONS: Record<RuntimeChatSessionScope, string> = {
+	chat_only: "Read-only: the agent can look things up but cannot run commands or write files.",
+	project_sandboxed: "Acts on THIS project: commands and writes run on the host, each confirm-gated and logged.",
+	all_projects: "Acts across ALL projects: commands and writes run on the host, each confirm-gated and logged.",
+	host_access: "Full host access: the most powerful mode — every action is still confirm-gated and logged.",
+};
+
 /** Scopes where the agent can run commands (not read-only). The risk toggle is only relevant here. */
 const CAN_ACT_SCOPES = new Set<RuntimeChatSessionScope>(["project_sandboxed", "all_projects", "host_access"]);
 
@@ -346,6 +356,9 @@ function SessionHeader({
 						}}
 					/>
 				</div>
+				<p data-testid="chat-scope-mode-caption" className="m-0 text-[11px] leading-4 text-text-tertiary">
+					{SCOPE_MODE_CAPTIONS[session.scope]}
+				</p>
 				{showRiskToggle ? (
 					<div className="flex items-center gap-1.5 flex-wrap min-w-0">
 						<button

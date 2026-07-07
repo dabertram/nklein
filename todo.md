@@ -2141,8 +2141,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         session list (create/select/delete), editable session header (title/role/scope/goal), transcript with
         user/assistant/system bubbles, composer, and **token streaming** over SSE. Live-verified (Playwright).
   - **still owed** *(3 distinct UI pieces — counted as the children)*:
-    - [ ] an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today)
-    - [ ] **memory-scope toggles**
+    - [x] an **execution-mode selector** (the modes + gate exist; the UI only sets scope/role today) *(DONE 2026-07-07 Fable — as a DERIVED-MODE CAPTION, not a second selector: per the pinned §5.M design the SCOPE is the control (`chatScopeToExecutionMode`), so the sidebar now shows the selected scope's execution-mode consequence live (`chat-scope-mode-caption`, copy mirrors the gate semantics exactly). Live-verified across all 4 scopes via Playwright.)*
+    - [ ] **memory-scope toggles** *(BLOCKED on the §5.M memory wiring (summarizer/embedder/extractor/persistence — opus-code L2097-2111 in the 2026-07-07 audit): toggles without a working memory store would be dishonest UI. Build after the Opus memory pass.)*
     - [>] **Signal pairing/status** *(blocked: ships with the Signal bridge, which is `[?]`/LATER — see "Private messenger bridge")*
   - [x] **Chat → resizeable RIGHT sidebar; modal + Chat button dropped (2026-06-24)** — the §5.M chat is now a
         persistent right sidebar ([chat-sidebar.tsx](web-ui/src/components/chat/chat-sidebar.tsx), renamed from

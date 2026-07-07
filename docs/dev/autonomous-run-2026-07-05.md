@@ -3538,3 +3538,12 @@ hovering a section now says what lives inside it before clicking through. Field-
 nav id has an entry (tsc gates it). With this + the 2026-07-04 model-registry-row entries, the §5.L "remaining tail"
 parent box is fully closed. Web gate green: tsc + biome + 953/953. Fable-list progress: paused-chip ✓ · settings-nav
 tooltips ✓ · next: execution-mode selector + memory-scope toggles (needs a backend-surface check first).
+
+### 2026-07-07 (Fable) - fable-list item 3: execution-mode surfaced as a derived caption (live-verified)
+The audit's "execution-mode selector" box resolved WITHOUT a second selector: per the pinned §5.M design the scope IS
+the control (`chatScopeToExecutionMode` derives the mode), so a competing mode dropdown would fight the permission
+model. Shipped instead: a derived-mode caption under the role/scope row (`chat-scope-mode-caption`) whose copy mirrors
+the gate semantics exactly (chat_only read-only · project/all confirm-gated host actions · host_access most powerful,
+still gated+logged). LIVE-VERIFIED via Playwright against the sandbox runtime: all 4 scopes render the right caption
+and update on switch (screenshot shot-scope-caption.png). The sibling "memory-scope toggles" box is annotated BLOCKED
+on the §5.M memory wiring (opus-code) — toggles before the store works would be dishonest UI. Web gate green: 953/953.
