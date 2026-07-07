@@ -2457,3 +2457,17 @@ test it WITHOUT touching the state machine. Candidates remain in finalizeHeadles
 patch/delivery-gate decisions), retryWaitingCardsAfterTerminal (the redrive-eligibility gate), and task-session-service
 methods (verdict/outcome classifications). One pure decision per tick.** This is genuine flagship progress that does NOT
 need David's seam approval (only the entangled state-machine RESTRUCTURING does).
+
+### 2026-07-07 (Opus) - §5.U pure-decision lift #2 this arc: #39 acceptance base-red waiver (§5.V-weighted)
+Continued the reopened big-monolith pattern. This one is §5.V-weighted: the #39 "scope-vs-acceptance trap" base-red
+waiver in finalizeHeadlessAutoReviewTask -- hard-won CRITICAL merge-gating logic (runs 32/35/36/38, run19's base-red
+lesson) with ZERO unit coverage. Extracted acceptancePresentAndFailed (a TYPE GUARD: a run that ran AND failed, reused
+at both the base-sample gate and the baseline check) + shouldWaiveAcceptanceAsPreexisting (delivered+base both fail ->
+waive) to acceptance-waiver-decision.ts. Byte-identical conditions; +5 tests pinning the waive rule. IMPORTANT DETAIL:
+the first (plain-boolean) extraction broke TS null-narrowing that the inline checks provided (acceptance/baseline
+accessed after) -> tsc caught it -> fixed with the type-guard form. Verified behavior-preserving on CRITICAL merge
+logic: integration still 1-fail/41-pass (only the known stale test). Line count ~flat (this one is coverage-value, not
+reduction). REMAINING pure-decision candidates in the big two: the redrive-lane-eligibility gate + the review-outcome
+skips-delivery classification (both small) in runtime-server; the §5.AW primary-fallback-on-speculative-fail decision
+(line ~944, meatier); task-session-service verdict/outcome classifications (state-coupled, harder). The pattern keeps
+yielding safe, test-gated increments into the flagship's named monoliths without seam approval.
