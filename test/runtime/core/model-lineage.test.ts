@@ -8,6 +8,7 @@ describe("resolveLineage", () => {
 		expect(resolveLineage("mlx-qwopus3.5-27b-v3")).toBe("qwen");
 		expect(resolveLineage("qwen3.5-9b-mlx")).toBe("qwen");
 		expect(resolveLineage("ornith-1.0-9b")).toBe("qwen"); // qwen3.5 arch (DECIDED: one qwen lineage)
+		expect(resolveLineage("mia-ailab/qwable-3.6-35b")).toBe("qwen"); // Qwen3.6 Fable distill — base-Qwen, not "unknown"
 		expect(resolveLineage("nvidia/nemotron-3-nano-4b")).toBe("nemotron");
 		expect(resolveLineage("phi-4-reasoning-plus")).toBe("phi");
 		expect(resolveLineage("gemma-4-12b-it-qat")).toBe("gemma");
@@ -30,6 +31,11 @@ describe("modelsShareLineage / isLineageDiverse", () => {
 	it("flags the live monoculture regression: two qwen3_x variants share a lineage", () => {
 		expect(modelsShareLineage("qwopus3.6-27b-v2-mlx", "qwopus3.5-4b-coder-mtp")).toBe(true);
 		expect(isLineageDiverse("qwopus3.6-27b-v2-mlx", "qwopus3.5-4b-coder-mtp")).toBe(false);
+	});
+
+	it("closes the name-diverse-but-base-Qwen trap: qwable author + qwen reviewer is NOT diverse (David 2026-07-07)", () => {
+		expect(modelsShareLineage("mia-ailab/qwable-3.6-35b", "qwen3.6-27b")).toBe(true);
+		expect(isLineageDiverse("mia-ailab/qwable-3.6-35b", "qwen3.6-27b")).toBe(false);
 	});
 
 	it("architect=reviewer same model shares (the gpt-oss monoculture)", () => {

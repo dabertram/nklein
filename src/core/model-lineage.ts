@@ -8,8 +8,10 @@ import { normalizeModelId } from "./model-identity.js";
  * quality does NOT benefit from forced diversity — Self-MoA).
  *
  * Deliberately COARSER than the capability catalog's per-entry `family` slug (phi-4-mini vs phi-4-reasoning are
- * different slugs, ONE lineage). DECIDED 2026-07-02: all qwen3_x variants (qwen / qwopus / qwq / ornith) are ONE
- * `qwen` lineage — a qwen-only fleet can therefore never be decision-diverse, and that is surfaced, not hidden.
+ * different slugs, ONE lineage). DECIDED 2026-07-02: all qwen3_x variants (qwen / qwopus / qwable / qwq / ornith) are
+ * ONE `qwen` lineage — a qwen-only fleet can therefore never be decision-diverse, and that is surfaced, not hidden.
+ * (`qwable` = a Qwen3.6 Fable-trace distill, `qwopus` = a Qwen Opus distill: name-diverse but base-Qwen — the exact
+ * monoculture trap a display-label diversity check would miss; David 2026-07-07.)
  * R1-style distills count as `deepseek` (the reasoning training dominates the blind-spot profile, not the base arch).
  *
  * NOTE: match against the REAL model id/key (the loaded-model descriptor's key), not a per-machine alias — a custom
@@ -31,7 +33,7 @@ const LINEAGE_MATCHERS: readonly { lineage: Exclude<ModelLineage, "unknown">; ma
 	{ lineage: "deepseek", match: /deepseek|r1[-_]?distill/ },
 	{ lineage: "gpt-oss", match: /gpt[-_]?oss/ },
 	{ lineage: "nemotron", match: /nemotron/ },
-	{ lineage: "qwen", match: /qwen|qwopus|qwq|ornith/ },
+	{ lineage: "qwen", match: /qwen|qwopus|qwable|qwq|ornith/ },
 	{ lineage: "phi", match: /phi[-_]?[0-9]/ },
 	{ lineage: "gemma", match: /gemma/ },
 	{ lineage: "mistral", match: /mistral|mixtral|magistral|devstral/ },
