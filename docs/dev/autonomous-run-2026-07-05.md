@@ -2808,7 +2808,8 @@ rescue the decompose stall that interrupted last tick's default-off coder-14b ru
 methodological finding, not an efficacy verdict:
   - default-off (last tick): decompose_project EMITTED, 360 activities, interrupted.
   - plan-mode run 1 (nudger armed): decompose_project NOT emitted, 4 activities, interrupted (early stall).
-  - plan-mode run 2: FAILED — coder-14b was auto-unloaded (LM Studio TTL) between runs; the harness won't load models.
+  - plan-mode run 2: FAILED — coder-14b VANISHED from residency between runs (cause UNDETERMINED; "TTL" was an unverified
+    guess — see the 2026-07-07 root-cause investigation below + todo.md §4A); the harness won't load models.
 A 90× activity split (360 vs 4) on the SAME model/harness ⇒ the decompose flow is HIGH-VARIANCE run-to-run, so a single
 run can't separate a plan-mode effect from noise. **Conclusions:** (a) nudger efficacy needs a CONTROLLED MULTI-RUN
 protocol (≥5 runs/arm) — a dedicated experiment, heavier than a grind tick, FLAGGED for David/a focused session; (b) the
@@ -2832,3 +2833,23 @@ the reasoning/GLM families? `verify-chat-agent-write.mts`:
     proven on qwq + 6 prior models). §5.AB note: glm-flash unreliable turn-termination on mutating-tool flows.
 Both models unloaded after; baseline restored. Net: the mutating-tool security seam is proven across an even wider model
 span; every write-flow non-pass to date is a model termination/synthesis trait, never a gap in the gate.
+
+### 2026-07-07 (Opus) - USER METHODOLOGY CORRECTION + model-residency root-cause investigation
+The user pushed back on my casual claim (prior ticks) that models "auto-unloaded (LM Studio TTL)" — he had NOT set
+load-related TTLs, expects STABLE loading, and noted a vanish could indicate a CRASHED model. He directed: don't accept
+the quickest simplest explanation as truth; question + search deeply for root causes. **He was right — my "TTL" was an
+unverified guess dressed as fact** (I'd even seen coder-14b with a BLANK TTL in `lms ps`).
+- **Codified the rule (§4A, new subsection "The quickest simplest explanation is NOT the truth"):** a plausible cause is
+  a HYPOTHESIS not a conclusion; distinguish verified-vs-guessed in what you WRITE; chase evidence to ground truth; when
+  the cause is genuinely unknowable, SAY SO + add instrumentation rather than invent a tidy answer. Tied it to the two
+  existing kindred rules (READ THE LM STUDIO LOGS FIRST; a surfaced test failure is NEVER waived) — same discipline.
+- **Investigated the vanish (deep, honest — no logs to read):** `~/.lmstudio/settings.json` has
+  `justInTimeModelLoading:true` + `jitModelTTL.ttlSeconds:3600` (JIT models auto-unload after 1h idle) BUT
+  `fileLoggingMode:"off"` (⇒ NO event logs exist — this defeats the "read the logs" rule). coder-14b was on the m4mini
+  REMOTE node (logs not inspectable from Local). No LM Studio crash reports in Local's DiagnosticReports (but a remote
+  crash wouldn't show there). **Honest conclusion: root cause UNDETERMINED among ≥3 hypotheses (JIT 1h-TTL / crash /
+  remote memory eviction) — non-diagnosable post-hoc with logging off + a remote node.** Recorded the full finding +
+  the fix path (turn file-logging ON; raise/disable jitModelTTL or explicit-load for stability; a `lms ps` state monitor
+  to catch the next drop) in §4A ("MODEL RESIDENCY IS NOT GUARANTEED STABLE"). Corrected the two prior run-log/matrix
+  lines that stated "TTL" as fact. **OWED to David (his call — his LM Studio config): enable file logging + decide the
+  stability config, so the next vanish is actually diagnosable (crash vs TTL vs eviction).**

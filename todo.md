@@ -306,6 +306,28 @@ source repo went private — so if it vanishes the buildable source still lives 
 - **Radix** directly for headless behavior (`@radix-ui/react-{popover,dropdown-menu,checkbox,switch,collapsible,select}`), styled with Tailwind + `data-[state=checked]:` etc.
 - **Dark theme always.** Surfaces `bg-surface-0` (app) → `-1` (raised) → `-2` (cards/inputs) → `-3` (hover) → `-4` (pressed). Do NOT use Blueprint, Tailwind light-mode defaults, or any `dark:` prefix.
 
+### The quickest simplest explanation is NOT the truth — search deeply for root cause (non-negotiable, user 2026-07-07)
+> **Never accept your first, quickest, most convenient explanation as the answer. A plausible-sounding cause is a
+> HYPOTHESIS, not a conclusion — question it, look for disconfirming evidence, and dig for the ACTUAL root cause before
+> you record it, act on it, or ship a fix on it.** The failure mode this bans: pattern-matching a symptom to a tidy
+> label ("it's a TTL", "it's a 6-min prefill", "it's flaky/environmental/pre-existing") and moving on as if the label
+> were verified fact. That is how wrong understanding calcifies into wrong fixes.
+> - **Distinguish "verified" from "guessed" in what you WRITE.** If you haven't confirmed it with evidence, say
+>   "hypothesis" / "unverified" / "plausible but unconfirmed" — never state a guess in the declarative voice of fact.
+>   (Recorded miss 2026-07-07: I wrote a model vanished due to "TTL expiry" — but `lms ps` had shown that model with a
+>   BLANK TTL, and its actual settings/logs didn't support the claim. It was a convenient guess dressed as fact.)
+> - **Chase the evidence to ground truth**, even across systems: config files, actual logs, OS crash reports, live probes
+>   (`lms ps`, `lms log stream`), the source. Follow it until it either CONFIRMS or REFUTES the hypothesis. Multiple
+>   competing hypotheses? Enumerate them and find the observation that discriminates.
+> - **When the true cause is genuinely UNKNOWABLE with current evidence, SAY SO — and add the instrumentation to catch
+>   it next time.** "I can't determine this because X (remote node / logging was off / event already passed); here's the
+>   monitoring that would answer it" is a correct, honest deliverable. Inventing a clean answer to avoid "I don't know"
+>   is the exact sin this rule bans.
+> - This is the general principle; its specific instances already in §4A — "READ THE LM STUDIO DEV LOGS FIRST" (don't
+>   theorize a model's behavior from harness symptoms) and "A surfaced test failure is NEVER waived" (don't rationalize a
+>   red away) — are the same discipline applied to two recurring traps. (Prior instance the user caught 2026-06-30:
+>   rationalizing a decompose stall as "a ~6-min/40k-token prefill" and shipping a fix on that guess.)
+
 ### A surfaced test failure is NEVER waived (non-negotiable, user 2026-06-29)
 > **No test failure that has surfaced may be dismissed, hand-waved, or rationalized as "unrelated / environmental / pre-existing / not my change."** The moment a failure appears — in any suite, fast or integration, on any machine — it is a debt that MUST be discharged:
 > - **Fix it right away** if doing so doesn't derail genuinely-relevant ongoing work; **then** continue.
@@ -359,6 +381,27 @@ source repo went private — so if it vanishes the buildable source still lives 
   `buildLmsLoadArgs`/`buildLmsUnloadArgs`; the effectful `lms` runner is the ONLY place a load happens and MUST consult
   the guard. Reason for the old rule (freeze risk) is now handled by the guard + the 1-at-a-time/size limits. `/v1/models`
   = available (downloaded), `/api/v0/models` = resident.
+- **MODEL RESIDENCY IS NOT GUARANTEED STABLE + we are currently BLIND to why a model vanishes (investigation 2026-07-07,
+  user flagged; supersedes my earlier casual "auto-unloaded (TTL)" claim, which was an UNVERIFIED guess).** Observed: a
+  model resident + serving many requests (`qwen/qwen2.5-coder-14b` on the **m4mini** fleet node) DISAPPEARED between two
+  harness runs; a 2nd model (`gemma-4-e4b` on Local) was gone too, leaving only the legion5pro model. Config found in
+  `~/.lmstudio/settings.json`: **`justInTimeModelLoading: true` + `jitModelTTL.ttlSeconds: 3600`** — so a JIT-loaded model
+  (auto-loaded when a request hits an unloaded model) auto-unloads after **1h idle** (this is the `7m/1h` seen on gemma in
+  `lms ps`). BUT an EXPLICITLY `lms load`-ed model (no `--ttl`) gets no TTL (shown BLANK in `lms ps`), and coder-14b showed
+  blank — so whether it had the 1h JIT TTL, was explicitly loaded, or was on a remote node whose TTL simply isn't
+  displayed to Local's `lms ps`, is **UNVERIFIED**. **Crucially, root cause of a given vanish is currently
+  NON-DIAGNOSABLE post-hoc, because:** (1) **`fileLoggingMode: "off"`** in settings.json ⇒ no LM Studio event logs exist to
+  read (this DEFEATS the "READ THE LM STUDIO DEV LOGS FIRST" rule — the logs must be turned ON first); (2) the model was
+  on a **remote fleet node** (m4mini) whose logs/crash-reports aren't inspectable from Local; (3) the event already passed.
+  So the honest status is **UNDETERMINED among ≥3 live hypotheses — JIT 1h-TTL expiry · a model/runtime CRASH (user's
+  concern; models are expected to load STABLE) · memory eviction on the remote node** — none confirmable without
+  instrumentation. **ACTIONS to make this diagnosable + stable (owed, mostly the user's LM Studio config):** (a) turn
+  `fileLoggingMode` ON (succinct) so the NEXT vanish is captured; (b) if stable residency is the goal, raise/disable
+  `jitModelTTL` or always `lms load` explicitly (no `--ttl`); (c) a lightweight `lms ps` state-change monitor (poll +
+  diff + timestamp) would catch WHEN a model drops and correlate it to load/idle/crash; (d) §5.Z harnesses already
+  `assertModelLoaded` (refuse-to-load) so a vanish becomes a hard, visible failure — good, but pre-load explicitly for
+  long multi-run experiments. Until (a)-(c) exist, do NOT assert a specific cause for a model vanishing — say "undetermined
+  (logging was off / remote node)" per the root-cause rule above.
 - **Model-size tier roadmap (user 2026-06-29) — robustness-first, smallest-up.** (1) smallest models — harden !Klein
   against them FIRST (current focus); (2) mid **≤40B** — speed + quality/perf; (3) **≤80B**; (4) **≤130B** — fun, only
   while the M5 Max/128 GB runs them without heavy stalling/swapping; **>130B** — out of scope (swapping) unless the user

@@ -933,7 +933,9 @@ stall that interrupted the default-off coder-14b run above. Result: **inconclusi
 HIGH-VARIANCE run-to-run**, which is itself the finding:
 - default-OFF (prior entry): `decompose_project` EMITTED, **360** agent activities, interrupted.
 - plan-mode RUN 1 (nudger armed): `decompose_project` NOT emitted, **4** activities, interrupted — a very EARLY stall.
-- plan-mode RUN 2: could not complete — qwen2.5-coder-14b had been AUTO-UNLOADED (LM Studio TTL) between runs, and the
+- plan-mode RUN 2: could not complete — qwen2.5-coder-14b had VANISHED from residency between runs (cause UNDETERMINED —
+  I originally wrote "LM Studio TTL" but that was an unverified guess; see todo.md §4A "MODEL RESIDENCY IS NOT GUARANTEED
+  STABLE" for the 2026-07-07 investigation: JIT-TTL vs crash vs eviction, non-diagnosable with logging off + a remote node), and the
   harness refuses to load models (user directive). Not retried — see the methodological call below.
 **A 90× activity-count split (360 vs 4) on the SAME model + harness** means a single run cannot separate a plan-mode
 effect from ordinary run-to-run variance. So: (a) **no nudger-efficacy conclusion** from single runs — measuring it
