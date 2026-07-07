@@ -2330,3 +2330,17 @@ dominated by ONE big construct (the InMemory...Service class / the createRuntime
 David-gated entangled seam -- so the question for next tick is whether they have MODULE-LEVEL cohesive clusters
 (functions OUTSIDE the class/factory, coupling = imports) like provider-service did. If yes, same clean pattern; if
 they're pure class/factory, the seam is genuinely all that's left there.
+
+### 2026-07-07 (Opus) - §5.U 3rd module lift generalizes the pattern: git-detection out of workspace-state
+Answered last tick's question: the two BIG named monoliths (task-session-service 2830, runtime-server 2260) are
+SINGLE-CONSTRUCT (just the class / just the factory) -- only 1 tiny module-level helper between them -- so they have NO
+module-level clusters; their bulk is the David-gated entangled seam. So I applied the cohesive-module pattern to the
+next-largest file overall (the grind's "NO large monolith files" is general): workspace-state.ts (1046). Extracted its
+git-repository-detection cluster (runGitCaptureAsync + detectGitRoot/CurrentBranch/Branches/DefaultBranch +
+detectGitRepositoryInfo + execFileAsync const) to workspace-git-detection.ts -- a single cohesive responsibility,
+coupling = imports only. workspace-state 1046 -> 951; 34 tests green incl. the integration test that drives real git
+detection end-to-end = behavior preserved. Removed 3 orphaned imports. THREE module lifts now landed (OAuth + discovery
++ git-detection). **NEXT CANDIDATE (teed up):** workspace-state's PATH-helper cluster (~14 pure path-resolution fns,
+lines ~222-305: getRuntimeHomePath / getWorkspace*Path / getWorkspaceLocal*Path + the lock-request helpers) -> a
+workspace-state-paths.ts sibling. Larger fn count but each trivial (join/homedir), very low risk; several are exported
+(re-export for API compat). The pattern: mine cohesive module-level clusters from the largest files, one per commit.
