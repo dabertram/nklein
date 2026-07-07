@@ -2516,3 +2516,18 @@ only in-progress+review auto-commit cards, excludes other lanes + non-commit). t
 re-verified 41/pass-1-known-stale. ARC TALLY: FIVE pure-decision lifts across both big named monoliths, each safe +
 test-gated + verified behavior-preserving. This one also REDUCED duplication (the auto-completable rule had drifted
 into two inline copies) -- a bonus over pure line-shaving.
+
+### 2026-07-07 (Opus) - §5.U lift #6: consolidate the synthetic-task-id (::) convention (5-file DRY win)
+Biggest DRY find of the arc. The "derived session" convention -- a task id with a `::` suffix (::spec mirror, plus
+::review/::plan-critique/::acceptance) marks a SYNTHETIC session, not a primary work card -- was re-encoded as a raw
+taskId.includes("::") / endsWith("::spec") magic string, EACH with its own explanatory comment, in 5 files: runtime-
+server (x5 sites: spec filter, preemption, worker-session counting x2, slice-to-primary), board-chat-feedback-wiring,
+task-fitness-recording, nklein-retrieval-tools-gate, nklein-plan-critique-runner. Centralized into
+core/synthetic-task-id.ts (isDerivedTaskSessionId / isSpeculativeMirrorTaskId / primaryTaskIdOfSpeculativeMirror). All
+9 sites now use the named predicates -- byte-identical. Found while lifting the speculative-preemption logic in
+getScopedNKleinTaskSessionService; the retrieval-gate's own doc comment confirmed the `::` convention spans multiple
+derived kinds (so the general includes-"::" predicate is the right consolidation). +7 tests. test:fast 8118 green;
+integration 41/pass-1-known-stale; the retrieval-gate's existing suite still green (behavior preserved). ARC TALLY:
+SIX lifts -- and the last two (auto-completable predicate, now the :: convention) each REMOVED real duplication that
+had drifted into multiple inline copies, not just shaved lines. The pure-decision/convention-consolidation pattern on
+the big monoliths keeps surfacing latent DRY debt worth paying down.
