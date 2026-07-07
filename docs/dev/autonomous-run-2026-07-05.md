@@ -3118,3 +3118,19 @@ LESSON codified: the "clean vein worked out" verdict is per-directory; sweeping 
 next likely trpc/ + state/) can still surface cohesive imports-only clusters that don't need the hard coordinator splits.
 NEXT: survey trpc/runtime-api (1033) + start-task-session (945) for the same; the big-3 (task-session-service 2830 =
 115-method coordinator, runtime-server 2262 = single 2095-line closure) remain the DI/responsibility-split tier.
+
+### 2026-07-07 (Opus) - §5.V coverage: two genuinely-uncovered core modules (§5.U veins thinning)
+Surveyed the remaining large tier for the next §5.U seam: runtime-api (1033) is a 830-line factory closure (3 module-
+scope fns), agent-sandbox (1071) a 828-line class whose top-of-file interfaces are its own internal data structures,
+start-task-session (945) one 800-line DI-threaded model-routing handler (not a self-contained sub-block). All are the
+coordinator/closure/DI tier — no clean state-local lift without a careful multi-turn split. So pivoted to the co-equal
+§5.V track and closed two real coverage gaps (found by cross-referencing src modules against actual test imports, then
+VERIFYING — the filename heuristic mis-flagged two already-covered modules, caught before writing dupes):
+  - **repo-map cache-invalidation predicate** (`750987a8`): nklein-context-focus-extension.ts had 0 direct tests.
+    Pinned doesNKleinToolInvalidateRepoMap — every repo-mutating tool invalidates, reads/discovery don't, names are
+    trim+lowercased, and a FAILED mutation doesn't invalidate — + a drift guard on REPO_MAP_INVALIDATING_TOOL_NAMES. 5 tests.
+  - **endpoint model-discovery probe** (`de084729`): nklein-provider-model-discovery.ts had 0 direct tests. Covered
+    discoverModelsFromEndpoint with a mocked fetch — first-responsive-candidate roster, trimmed bearer auth, all-fail /
+    fetch-reject / empty-roster-skip error paths. 5 tests.
+test:fast 8131→8141, all green. NEXT: more §5.V gaps (nklein-code-search 277L/0-cov is a candidate; provider-model-
+discovery's cache/fallback still uncovered) interleaved with any careful §5.U big-file split when a fresh full turn allows.
