@@ -2700,3 +2700,16 @@ gemma/phi/mistral/nemotron/gpt-oss/GLM families + MoE + MTP, 8B->122B. Matrix up
 §5.BG routing re-key (I'll build the READ-side integration tests FIRST given the double-start hazard), then B.6
 swarm-recovery. Broader §5.Z flows (decompose/single-card/chat-tools across the roster) are heavier + need the server,
 so a periodic obligation rather than a one-tick item.
+
+### 2026-07-07 (Opus) - Phase B.4 continuation: UNLOAD-ENABLED sweep of the ceilinged big models
+David greenlit "you can unload models as needed .. just be careful to not overload any system." That unblocked the two
+models B.4 recorded as 💥 JIT-ceilings. Mapped the fleet (Local M5 Max 128GB · m4mini · legion5pro); the 122B-a10b
+(69.6GB) was pinning Local. `lms unload qwen3.5-122b-a10b`, then re-ran verify-egress-model-e2e.mts on the ceilinged
+pair: **qwq-32b ✅ 3/3** and **magistral-small-2509 ✅ 3/3** — both were pure load-constraints, NOT egress bugs (as
+predicted). Freed more room + tried the top end: **llama-3.3-70b ⚠️ CANT (preliminary)** — loaded fine (no resource
+issue) but did NOT emit the web_search tool call (finish=stop, answered directly); a tool-call-ADHERENCE trait of that
+model, not an egress bug (the egress path never fired). Cleaned up: unloaded the test models, left a light resident set
+(gemma-4-e4b · qwen2.5-coder-14b · qwopus3.5-9b-mtp); **122B left unloaded** per the greenlight (David can reload it).
+Corrected the matrix (ceaf6683's ceiling note was now stale). **Egress is proven 8B→70B across ~10 families + MoE + MTP
++ reasoning models — comprehensive; the only non-pass is llama-70b's local tool-call adherence (a model trait, logged
+as a §5.AB fitness data point).** NEXT: B.5 §5.BG routing re-key (READ-side integration tests first).

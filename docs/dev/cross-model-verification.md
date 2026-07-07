@@ -782,9 +782,20 @@ models on top and ran `verify-egress-model-e2e.mts`:
   - `microsoft/phi-4-mini-instruct` — skipped: "Invalid model identifier" (the real ids are quant-suffixed,
     `phi-4-mini-instruct@4bit/@8bit`); an id-form mismatch, not a model/egress failure.
 Egress now proven across 8B→122B and the qwen / gemma / phi / mistral / nemotron / gpt-oss / GLM families + MoE + MTP
-decoding. Remaining roster coverage is bounded by the resident 122B's memory footprint (bigger un-swept models can't
-co-load without unloading it). Broader FLOWS (decompose / single-card / chat-tools across the roster) remain the heavier
-periodic obligation.
+decoding. **★ UNLOAD-ENABLED CONTINUATION (same day, David greenlit "unload as needed, don't overload any system"):**
+the 3-machine fleet (Local M5 Max 128GB · m4mini · legion5pro) had the 122B (69.6GB) pinning Local; unloaded it via
+`lms unload` and swept the previously-ceilinged bigger models:
+  - **`qwen/qwq-32b` ✅ 3/3 (NEW — 32B reasoning)** and **`mistralai/magistral-small-2509` ✅ 3/3 (NEW — 24B Mistral
+    reasoning)** — both now fit + pass the full tool-call → egress → grounded-answer path.
+  - **`meta/llama-3.3-70b` ⚠️ CANT (preliminary):** loaded fine (70B, no resource issue) but did NOT emit the
+    `web_search` tool call — `finish=stop`, it answered directly. A tool-call-ADHERENCE trait of this model on this
+    build, NOT an egress/!Klein bug (the egress path never got invoked). Preliminary per the methodology (single miss;
+    a firm ⚠️ needs repeat-runs + the §5.AA ladder). Worth a §5.AB fitness data point: llama-3.3-70b's local tool-call
+    reliability is weak for the one-shot web_search prompt.
+  Cleaned up afterward (unloaded the test models); left a light resident set (gemma-4-e4b · qwen2.5-coder-14b · qwopus
+  3.5-9b-mtp); 122B left unloaded per the greenlight. **Egress is now proven 8B→70B across ~10 model families + MoE +
+  MTP + reasoning models — comprehensive.** The only non-pass is llama-70b's tool-call adherence (a model trait).
+  Broader FLOWS (decompose / single-card / chat-tools across the roster) remain the heavier periodic obligation.
 
 ### 2026-07-06 · §5.Z §5.AC temporal-awareness ("knows today") — HARNESS BUG FIXED + cross-model sweep
 **Harness bug found + fixed:** `verify-temporal-awareness-live.mts` was failing its own assertions on EVERY model —
