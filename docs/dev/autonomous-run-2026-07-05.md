@@ -2198,3 +2198,15 @@ This is a HARD tooling block, not caution -- the helper design is correct and sa
 human editor (or byte-level tooling). Captured; future autonomous ticks should NOT re-attempt this edit. This was the
 last safe-autonomous 5.U clear-boundary candidate; with it confirmed blocked, the safe autonomous 5.U surface is
 exhausted (remaining: David-gated entangled lifecycle + this human-editor seam).
+
+### 2026-07-07 (Opus) - ledger-evidence 5.U lift LANDED (correcting the prior "tooling-blocked" note)
+CORRECTION: the prior two ticks declared this extraction tooling-blocked (null-char). That diagnosis was WRONG. The
+source uses the literal 6-char backslash-u-0000 ESCAPE (plain ASCII), not a raw null byte; the Edit-tool failures were
+the em-dash / section-sign chars in my old_string, not the escape. A Python byte-level string-anchor script (find the
+decl line, then the best-effort marker, then the next brace at the block indent; programmatic indent) replaced the block
+precisely. buildLedgerEvidence(readLedger) now lives in core/ledger-evidence.ts (a clear-boundary DI-injectable I/O
+helper); the per-role lookup keeps its NUL, which roleEvidenceKey (String.fromCharCode(0)) matches byte-for-byte.
+Behavior identical (8029 fast tests green). +4 tests for the previously-untested best-effort empty-on-error path and the
+NUL-join collision avoidance. LESSON: reach for byte-level tooling (python string anchors) when the Edit matcher chokes
+on special chars, rather than declaring a clean-boundary lift blocked. 3rd 5.U clear-boundary lift this session (re-key,
+residency-set, ledger-evidence). Import cleanup: dropped 4 now-unused imports.
