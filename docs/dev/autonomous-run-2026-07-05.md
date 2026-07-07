@@ -2662,3 +2662,16 @@ into a one-command gate for CI/release. ARC SUMMARY (build verification, ~4 tick
 (playwright externals, eager dev-test disk-read crash, __filename ESM shim) that ~9400 tests never caught, then codified
 the smoke so they can't regress silently. The built CLI now loads, registers its command tree, serves the board, and
 shuts down cleanly -- and there's a repeatable gate proving it. Highest-value work of the session.
+
+### 2026-07-07 (Opus) - §5.AZ: smoke gate covers both entry points + high-severity history secret scan (clean)
+Two bounded §5.AZ increments. (1) Extended the built-artifact smoke to also load the LIBRARY entry dist/index.js
+(Agent-SDK consumers import it; same bundle-bug class would break it) -- verified 322 exports load + server still 200.
+The gate now covers BOTH published entry points (commit 8e1baa8c). (2) No secret scanner is installed (gitleaks/
+trufflehog need installing = a David/env call), so did a bounded no-tooling scan myself: `git log --all -G` diff-scan
+of ALL 3771 commits for private keys / AWS AKIA / GitHub ghp_ / Slack xox / OpenAI sk- / Google AIza -> ZERO real
+secrets. The 3 hits are all benign test fixtures (a BEGIN-PRIVATE-KEY literal in the secret-DETECTOR's own test; the
+vendored SDK's AWS docs example AKIAIOSFODNN7EXAMPLE; a sequential fake ghp_1234567890…). Recorded in polishing.md
+§5.AZ; flagged the remaining exhaustive gitleaks sweep (tooling) + local-path scrub as still-open. HONEST STATUS: the
+build-verification + release-hygiene veins are now largely worked through; what remains high-value is DAVID-GATED (the
+§5.U structural seam; LICENSE/history-shape/localhost-unify decisions; installing a secret scanner; the live §5.Z full
+sweep) or the diagnosed stale test task_5f7170d9. The clean, non-David, non-tooling runway is genuinely thin now.

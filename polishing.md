@@ -757,6 +757,13 @@
 >       history vs fresh-root release branch); merge or retire `feat/kanban-reliability-context-upgrade`; prune stale
 >       branches; verify no secrets/tokens/local paths/personal data anywhere in history (use a scanner, not eyeballs —
 >       e.g. gitleaks/trufflehog run over FULL history; the fleet logs + sweep rows quote local paths → scrub or exclude).
+>       **★ HIGH-SEVERITY SECRET SCAN DONE (2026-07-07, Opus, partial — no scanner installed):** `git log --all -G`
+>       diff-scan of ALL 3771 commits for private keys / AWS `AKIA…` / GitHub `ghp_` / Slack `xox…` / OpenAI `sk-…` /
+>       Google `AIza…` → **zero real secrets**. The 3 pattern hits are all benign test fixtures: a `-----BEGIN … PRIVATE
+>       KEY-----` LITERAL in agent-write-guard.test.ts (testing the secret-DETECTOR, no key material); the vendored
+>       SDK's `AKIAIOSFODNN7EXAMPLE` (AWS's own docs example); a sequential fake `ghp_1234567890…` in a token-redaction
+>       test. STILL OPEN: gitleaks/trufflehog needs installing for the exhaustive sweep (broader entropy + more token
+>       classes), and the local-path/personal-data scrub (the fleet logs + docs working-notes quote `/Users/david/…`).
 > - [ ] **Repo hygiene:** LICENSE decision (vendored Cline SDK license compatibility + attribution!), NOTICE/credits,
 >       README (what !Klein is, the local-only/Docker-isolation posture, hardware expectations, quickstart), CONTRIBUTING,
 >       SECURITY.md (local-only threat model), issue templates. Screenshots/gif of the board+chat once §5.AX lands.
