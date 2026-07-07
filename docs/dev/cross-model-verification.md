@@ -1176,3 +1176,14 @@ the §5.O delivery recovery, and the §5.A isolation guarantees all generalize. 
 VARIANCE (single-card / command-exec / browse occasionally not echoing/delivering, passing on retry) — never a
 deterministic !Klein parse/format/delivery gap. The verify→harden loop's one deterministic finding (§5.O path-nesting)
 remains the sole code fix it produced; everything since is robustness confirmation.
+
+## 2026-07-07 (Opus) — §5.Z the DAVID-REQUESTED 35B MoE ornith eval → 4/4 clean (+ MLX-8bit load-failure finding)
+goal.md flags David is "particularly curious about the 35B MoE ornith evals (ornith-1.0-35b-mlx@8bit)". Ran it.
+- **★ FINDING for David:** `ornith-1.0-35b-mlx@8bit` (the exact build named) FAILS to load — LM Studio MLX backend throws
+  `ValueError: Unsupported model type: qwen3_5_moe_vision` (the MLX build is a vision-MoE variant the runtime rejects).
+  The **GGUF `ornith-1.0-35b@q8_0`** (arch qwen35moe, 36.9 GB) loads fine and is what I evaluated. Recommendation: use the
+  GGUF quant for ornith-35b evals until the MLX vision-MoE arch is supported (or pick the non-vision MLX build if one exists).
+- ✅ egress-e2e · ✅ chat-agent-tools (§5.M) · ✅ single-card delivery (hello.txt content matches, first-try) ·
+  ✅ decompose-isolation (decompose_project called, zero host-path leaks, clean teardown).
+- matrix row: ornith-1.0-35b@q8_0 → egress ✅ · chat-tools ✅ · single-card ✅ · decompose-isolation ✅. The larger 35B MoE
+  is as clean as the 9B on all flows — no size/MoE-specific gap. 5 fresh models this session, all 4/4.

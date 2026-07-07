@@ -3417,3 +3417,11 @@ distinct behavior classes, ALL 4/4 clean. !Klein generalizes across every tool-c
 new deterministic gap beyond the already-fixed §5.O path-nesting (non-passes are all model-synthesis variance). The loop
 has now covered the meaningful format/behavior space for the small/mid tier — further models would be incremental
 confirmation. Larger frontier probes (gpt-oss-120b, nemotron-super-120B, deepseek-v4) remain if David wants ceiling data.
+
+### 2026-07-07 (Opus) - §5.Z: David-requested 35B MoE ornith eval → 4/4 clean; MLX-8bit build won't load
+Ran the eval David flagged curiosity about (goal.md: the 35B MoE ornith). **The exact build he named,
+`ornith-1.0-35b-mlx@8bit`, FAILS to load** — LM Studio MLX backend: `Unsupported model type: qwen3_5_moe_vision` (vision-MoE
+variant unsupported). Fell back to GGUF `ornith-1.0-35b@q8_0` (loads fine) → 4/4 clean (egress, chat-tools, single-card
+delivered, decompose-isolation). Unloaded, state restored. Recommendation surfaced to David: use the GGUF quant for
+ornith-35b evals. Session total: 5 fresh models via the load skill (ornith-9b, devstral, gpt-oss, magistral, ornith-35b),
+all 4/4 — the 35B MoE is as clean as the small models; no size/MoE/format-specific !Klein gap anywhere.
