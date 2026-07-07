@@ -208,6 +208,46 @@ describe("decompose_project malformed-call recovery", () => {
 			title: "Real Title",
 		});
 	});
+
+	it("leaves a non-object / slug-less input untouched at the recovery layer", () => {
+		// Non-object inputs (assertUsable catches them later) and objects with no slug to derive from pass straight
+		// through — recovery only ever ADDS a title, it must never fabricate or drop other data.
+		expect(recoverMissingDecomposeProjectTitle(null)).toBe(null);
+		expect(recoverMissingDecomposeProjectTitle("nope")).toBe("nope");
+		expect(recoverMissingDecomposeProjectTitle({ spec: "x" })).toEqual({ spec: "x" });
+		expect(recoverMissingDecomposeProjectTitle({ slug: "   " })).toEqual({ slug: "   " }); // blank slug → no title added
+	});
+});
+
+/**
+ * Plan-QUALITY guardrails in normalizeDecomposeProjectToolInput (distinct from malformed-call recovery): the input
+ * parses cleanly but the resulting plan is too thin to be useful. These fire AFTER schema validation on structurally
+ * valid input, so they are exercised directly against the pure normalizer.
+ */
+describe("decompose_project plan-quality guardrails", () => {
+	it("rejects a structurally valid call whose task array is EMPTY", () => {
+		// assertUsable accepts an empty array (it only checks array-or-string); the empty-plan gate is here.
+		expect(() => normalizeDecomposeProjectToolInput(basePayload({ tasks: [] }))).toThrow(/at least one task/i);
+	});
+
+	it("enforces minimumTaskCount: rejects when the plan has fewer leaves than demanded", () => {
+		// VALID_TASKS yields 2 leaves; demanding 5 must be rejected with the count named.
+		expect(() => normalizeDecomposeProjectToolInput(basePayload({ minimumTaskCount: 5 }))).toThrow(
+			/at least 5 task leaves; received 2/,
+		);
+	});
+
+	it("accepts when the leaf count meets minimumTaskCount exactly (boundary)", () => {
+		const normalized = normalizeDecomposeProjectToolInput(basePayload({ minimumTaskCount: 2 }));
+		expect(normalized.tasks).toHaveLength(2);
+		expect(normalized.minimumTaskCount).toBe(2);
+	});
+
+	it("trims a blank defaultAcceptanceCommand down to null (not an empty command string)", () => {
+		expect(
+			normalizeDecomposeProjectToolInput(basePayload({ defaultAcceptanceCommand: "   " })).defaultAcceptanceCommand,
+		).toBe(null);
+	});
 });
 
 /**
