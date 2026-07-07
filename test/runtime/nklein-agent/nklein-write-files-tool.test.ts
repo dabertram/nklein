@@ -103,19 +103,31 @@ describe("createWriteFilesTool", () => {
 		);
 	});
 
-	it("blocks files above the configured line limit before writing", async () => {
+	it("ALLOWS a file over the soft target but under the hard backstop, with a split nudge", async () => {
 		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
 		tempDirs.push(workspacePath);
+		// soft target 2 → hard backstop 8 (4×). A 3-line file is over the soft target but well under the backstop:
+		// allowed (the soft target is a push-against point, not a hard wall), and it gets the over-target nudge.
 		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 2 });
+		const result = (await tool.execute(
+			{ files: [{ path: "over-soft.md", content: "one\ntwo\nthree" }] },
+			TOOL_CONTEXT,
+		)) as {
+			written: unknown[];
+			instruction: string;
+		};
+		expect(result.written).toHaveLength(1);
+		expect(result.instruction).toContain("OVER the 2-line soft target");
+	});
 
-		await expect(
-			tool.execute(
-				{
-					files: [{ path: "too-large.md", content: "one\ntwo\nthree" }],
-				},
-				TOOL_CONTEXT,
-			),
-		).rejects.toThrow("2-line file limit");
+	it("blocks a file above the hard backstop (soft target × 4) before writing", async () => {
+		const workspacePath = await mkdtemp(join(tmpdir(), TEMP_PREFIX));
+		tempDirs.push(workspacePath);
+		const tool = createWriteFilesTool({ workspacePath, maxFileLines: 2 }); // hard backstop = 8
+		const nineLines = Array.from({ length: 9 }, (_, index) => `line${index}`).join("\n");
+		await expect(tool.execute({ files: [{ path: "runaway.md", content: nineLines }] }, TOOL_CONTEXT)).rejects.toThrow(
+			"hard backstop",
+		);
 	});
 
 	it("blocks obvious secrets before writing any batch entries", async () => {

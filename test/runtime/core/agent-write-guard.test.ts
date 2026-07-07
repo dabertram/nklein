@@ -7,25 +7,37 @@ import {
 	findPotentialSecretInText,
 	findProtectedTestPath,
 	formatProtectedTestBlockReason,
+	HARD_WRITE_BACKSTOP_MULTIPLIER,
 	LARGE_FILE_WRITE_NUDGE_RATIO,
 	normalizeMaxAgentWritableFileLines,
+	resolveHardWriteBackstopLines,
 } from "../../../src/core/agent-write-guard";
 
 describe("buildLargeFileWriteNudge (§5.U file-size discipline — proactive split nudge)", () => {
-	const cap = 1000; // default cap; soft threshold = 600 at 0.6×
+	const soft = 1000; // default soft target; approaching threshold = 600 at 0.6×
 
-	it("returns null when every written file is comfortably under the soft threshold", () => {
-		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 120 }], cap)).toBeNull();
-		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 599 }], cap)).toBeNull();
-		expect(buildLargeFileWriteNudge([], cap)).toBeNull();
+	it("returns null when every written file is comfortably under the approaching threshold", () => {
+		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 120 }], soft)).toBeNull();
+		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 599 }], soft)).toBeNull();
+		expect(buildLargeFileWriteNudge([], soft)).toBeNull();
 	});
 
-	it("nudges when a written file reaches the soft threshold, naming the file + line count", () => {
-		const nudge = buildLargeFileWriteNudge([{ path: "src/big.ts", lines: 640 }], cap);
+	it("gently nudges a file approaching the soft target (>= 0.6×, still under it)", () => {
+		const nudge = buildLargeFileWriteNudge([{ path: "src/big.ts", lines: 640 }], soft);
 		expect(nudge).not.toBeNull();
 		expect(nudge).toContain("src/big.ts (640 lines)");
-		expect(nudge).toContain(`>= 600 of the ${cap}-line cap`);
+		expect(nudge).toContain(`>= 600 of the ${soft}-line soft target`);
+		expect(nudge).toContain("getting large");
 		expect(nudge).toContain("split a cohesive piece");
+		expect(nudge).not.toContain("OVER");
+	});
+
+	it("gives a STRONG (but allowed) message when a file is OVER the soft target", () => {
+		const nudge = buildLargeFileWriteNudge([{ path: "src/huge.ts", lines: 1500 }], soft);
+		expect(nudge).toContain("src/huge.ts (1500 lines)");
+		expect(nudge).toContain(`OVER the ${soft}-line soft target`);
+		expect(nudge).toContain("allowed");
+		expect(nudge).toContain("strongly preferred");
 	});
 
 	it("lists only the large files, largest first, and pluralizes correctly", () => {
@@ -35,25 +47,44 @@ describe("buildLargeFileWriteNudge (§5.U file-size discipline — proactive spl
 				{ path: "big1.ts", lines: 610 },
 				{ path: "big2.ts", lines: 800 },
 			],
-			cap,
+			soft,
 		);
 		expect(nudge).toContain("big2.ts (800 lines), big1.ts (610 lines)"); // sorted desc, small.ts excluded
 		expect(nudge).not.toContain("small.ts");
 		expect(nudge).toContain("are getting large");
 	});
 
-	it("scales the threshold with the configured cap and normalizes a bad cap to the default", () => {
-		// cap 100 → threshold 60
+	it("scales the threshold with the configured soft target and normalizes a bad value to the default", () => {
+		// soft 100 → approaching 60
 		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 59 }], 100)).toBeNull();
-		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 60 }], 100)).toContain(">= 60 of the 100-line cap");
-		// invalid cap → normalizes to DEFAULT (1000), threshold 600
+		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 60 }], 100)).toContain(
+			">= 60 of the 100-line soft target",
+		);
+		// invalid soft target → normalizes to DEFAULT (1000), approaching 600
 		expect(buildLargeFileWriteNudge([{ path: "a.ts", lines: 640 }], 0)).toContain(
-			`of the ${DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES}-line cap`,
+			`of the ${DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES}-line soft target`,
 		);
 	});
 
 	it("uses the documented ratio", () => {
 		expect(LARGE_FILE_WRITE_NUDGE_RATIO).toBe(0.6);
+	});
+});
+
+describe("resolveHardWriteBackstopLines (soft target × the backstop multiplier)", () => {
+	it("is the soft target times the multiplier", () => {
+		expect(HARD_WRITE_BACKSTOP_MULTIPLIER).toBe(4);
+		expect(resolveHardWriteBackstopLines(1000)).toBe(4000);
+		expect(resolveHardWriteBackstopLines(250)).toBe(1000);
+	});
+
+	it("normalizes a bad soft target to the default before scaling", () => {
+		expect(resolveHardWriteBackstopLines(0)).toBe(
+			DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES * HARD_WRITE_BACKSTOP_MULTIPLIER,
+		);
+		expect(resolveHardWriteBackstopLines("nope")).toBe(
+			DEFAULT_MAX_AGENT_WRITABLE_FILE_LINES * HARD_WRITE_BACKSTOP_MULTIPLIER,
+		);
 	});
 });
 

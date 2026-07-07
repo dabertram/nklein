@@ -149,8 +149,12 @@ precision rules always apply — research/decide does NOT mean rush or pattern-m
   spot, NOT by bloating every prompt: (a) the agent efficiency-rules prompt carries one proactive "keep files small,
   split early" line; (b) the second-opinion reviewer is told to be critical about file size/structure (proportionately —
   a brief pointed note, not a size audit); (c) a **dynamic detector** — `buildLargeFileWriteNudge` (core/agent-write-guard.ts)
-  appends a split nudge to a `write_file`/`write_files` result ONLY when a just-written file crosses ~60% of the hard
-  line cap, so ordinary small writes pay zero extra tokens. The existing hard write cap stays as the backstop. (Note:
+  appends a split nudge to a `write_file`/`write_files` result ONLY when a just-written file is getting large
+  (gentle at ~60% of the soft target, STRONG once over it), so ordinary small writes pay zero extra tokens.
+  **The line limit is now SMART, not a wall (David, 2026-07-07):** `maxAgentWritableFileLines` (default 1000) is a SOFT
+  target the agent is pushed to stay under, but a write over it is ALLOWED (with the strong nudge) when one larger file
+  is genuinely more cohesive than splitting; only a much higher HARD backstop (soft × 4 = 4000) still blocks — to catch
+  runaway/accidental huge writes, which are almost never intended. (Note:
   file-size reduction of !Klein's OWN codebase is separately REJECTED-FOR-NOW below 5000 lines — see polishing.md §5.U;
   this target is about the code !Klein PRODUCES, which matters more, especially once !Klein self-hosts on small models.)
 

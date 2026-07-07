@@ -15,31 +15,52 @@ export function countTextLines(text: string): number {
 }
 
 /**
- * Soft "getting large" threshold as a fraction of the hard write cap. The hard cap only BLOCKS; this fires a
- * proactive split nudge well before it so the agent decomposes a growing file EARLY (the file-size discipline
- * David set as a standing !Klein target). At 0.6× the default 1000-line cap that's 600 lines — high enough not to
- * nag ordinary files, low enough to catch a file that is genuinely becoming a monolith.
+ * `maxAgentWritableFileLines` is a SOFT target (the push-against point), NOT a hard wall — a write may exceed it when a
+ * single larger file is genuinely more cohesive than splitting (that legitimately happens; still avoid it when
+ * reasonable). The write tool only hard-BLOCKS at a much larger backstop = soft × this multiplier, to catch runaway or
+ * accidental huge writes (a model dumping tens of thousands of lines is almost never intended). At 4× the default
+ * 1000-line soft target the hard backstop is 4000 lines.
+ */
+export const HARD_WRITE_BACKSTOP_MULTIPLIER = 4;
+
+/** The hard block ceiling (soft target × the backstop multiplier). Below it, over-target writes are allowed + nudged. */
+export function resolveHardWriteBackstopLines(softTargetLines: unknown): number {
+	return normalizeMaxAgentWritableFileLines(softTargetLines) * HARD_WRITE_BACKSTOP_MULTIPLIER;
+}
+
+/**
+ * Soft "getting large" nudge threshold as a fraction of the soft target. Fires a proactive split nudge well before the
+ * soft target so the agent decomposes a growing file EARLY (the file-size discipline David set as a standing !Klein
+ * target). At 0.6× the default 1000-line soft target that's 600 lines — high enough not to nag ordinary files.
  */
 export const LARGE_FILE_WRITE_NUDGE_RATIO = 0.6;
 
 /**
- * Build a proactive "keep files small — split this early" nudge to append to a successful write result, but ONLY
- * when a just-written file crosses the soft threshold. Returns null otherwise, so ordinary small writes pay zero
- * extra tokens (the sweet spot: the detector extends the prompt only when it actually matters). Pure.
+ * Build a "keep files small — split this" nudge to append to a successful write, but ONLY when a just-written file is
+ * getting large. Two tiers: files past the soft target get a STRONG (but allowed) over-target message; files merely
+ * approaching it (>= 0.6× soft target) get a gentle early-split nudge. Returns null when every file is comfortably
+ * small, so ordinary writes pay zero extra tokens (the sweet spot: extend the prompt only when it matters). Pure.
  */
 export function buildLargeFileWriteNudge(
 	written: ReadonlyArray<{ path: string; lines: number }>,
 	maxFileLines: number,
 ): string | null {
-	const cap = normalizeMaxAgentWritableFileLines(maxFileLines);
-	const threshold = Math.max(1, Math.round(cap * LARGE_FILE_WRITE_NUDGE_RATIO));
-	const large = written.filter((file) => file.lines >= threshold).sort((a, b) => b.lines - a.lines);
+	const soft = normalizeMaxAgentWritableFileLines(maxFileLines);
+	const approaching = Math.max(1, Math.round(soft * LARGE_FILE_WRITE_NUDGE_RATIO));
+	const large = written.filter((file) => file.lines >= approaching).sort((a, b) => b.lines - a.lines);
 	if (large.length === 0) {
 		return null;
 	}
 	const list = large.map((file) => `${file.path} (${file.lines} lines)`).join(", ");
+	const plural = large.length === 1 ? "is" : "are";
+	if (large.some((file) => file.lines > soft)) {
+		return (
+			`${list} ${plural} OVER the ${soft}-line soft target (allowed, but push back on it). ` +
+			"Splitting into cohesive modules is strongly preferred — keep a single file this large only when it is genuinely more cohesive than the split (e.g. one generated artifact or data table). Otherwise pull a class, helper group, or type block out into its own module now."
+		);
+	}
 	return (
-		`Keep files small: ${list} ${large.length === 1 ? "is" : "are"} getting large (>= ${threshold} of the ${cap}-line cap). ` +
+		`Keep files small: ${list} ${plural} getting large (>= ${approaching} of the ${soft}-line soft target). ` +
 		"Before it grows further, split a cohesive piece (a class, a related helper group, a config or type block) into its own module so no file becomes a large monolith."
 	);
 }

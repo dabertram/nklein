@@ -4,7 +4,9 @@ import {
 	findPotentialSecretInText,
 	findProtectedTestPath,
 	formatProtectedTestBlockReason,
+	HARD_WRITE_BACKSTOP_MULTIPLIER,
 	normalizeMaxAgentWritableFileLines,
+	resolveHardWriteBackstopLines,
 } from "../core/agent-write-guard";
 import { lockedFileSystem } from "../fs/locked-file-system";
 import { repairJsonStringValue } from "./nklein-tool-argument-repair";
@@ -137,9 +139,14 @@ function createWriteTool(options: {
 					);
 				}
 				const lineCount = countTextLines(request.content);
-				if (lineCount > maxFileLines) {
+				// maxFileLines is a SOFT target (push-against), not a hard wall: a write over it is ALLOWED (and gets a
+				// strong split nudge below) so the agent can keep a genuinely-more-cohesive larger file. Only a much
+				// larger backstop (soft × HARD_WRITE_BACKSTOP_MULTIPLIER) hard-blocks — that catches runaway/accidental
+				// huge writes, which are almost never intended.
+				const hardBackstopLines = resolveHardWriteBackstopLines(maxFileLines);
+				if (lineCount > hardBackstopLines) {
 					throw new Error(
-						`Blocked ${options.name}: writing ${lineCount} lines to ${request.path} exceeds the ${maxFileLines}-line file limit. Split content across multiple files or raise the global setting intentionally.`,
+						`Blocked ${options.name}: writing ${lineCount} lines to ${request.path} exceeds the ${hardBackstopLines}-line hard backstop (${HARD_WRITE_BACKSTOP_MULTIPLIER}× the ${maxFileLines}-line soft target). A file this large is almost always unintended — split it across files. If a single file this large is truly required, raise the maxAgentWritableFileLines setting.`,
 					);
 				}
 				const secretFinding = findPotentialSecretInText(request.content);
