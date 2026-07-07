@@ -3041,3 +3041,20 @@ nit on the re-export placement.
 function-heavy files (verify no local refs → copy-imports → prune → tsc/diff) proven; class-heavy files (agent-sandbox,
 the big-3 coordinators) remain the harder careful tier. NEXT: continue next-tier (runtime-api factory helpers, workspace-
 state clusters) then reassess the big-3.
+
+### 2026-07-07 (Opus) - §5.U: clean vein confirmed worked-out; remaining careful-tier SCOPED (no forced nibble)
+Surveyed the remaining large files for the next clean extraction and confirmed — with evidence — that the clean
+FUNCTION-HEAVY vein is worked out (dev.ts under 800, projects-api helpers, session-runtime launch-config all done). The
+remaining large files are ALL the tightly-integrated careful-effort tier, each verified this turn:
+  - runtime-server (2262): ONE 2095-line closure, 0 module-scope helpers → DI-threading split only.
+  - task-session-service (2830): 27-collaborator coordinator → responsibility-split only.
+  - workspace-state (884): INDEX_VERSION→schemas→parse→read chain + a value-circular on the local readJsonFile; clean
+    peel = the persistence-primitives LAYER first (bottom-up), then the read-cluster. Strong 17-file net makes it safe,
+    but it is a multi-symbol/two-range focused move.
+  - agent-sandbox (1071): 42-method class; the tail helpers couple to local error classes (AgentSandboxUnavailableError,
+    DOCKER_UNAVAILABLE_MARKERS) → circular risk. Method-split tier.
+Applied the discipline: did NOT force a marginal 20-line nibble (low value) NOR a risky big move at turn-tail. Instead
+converted the analysis into a precise polishing.md §5.U scoping so a FOCUSED careful pass (mine, fresh-context, or
+David-steered) executes without re-surveying. This turn's deliverable = that scoping + the honest 'clean vein worked
+out' conclusion. NEXT: a focused workspace-state persistence-layer peel (strong net, bottom-up) is the best-value safe
+careful-tier target; the big-3 coordinator/closure splits remain David's-steer / deliberate-fresh-context.

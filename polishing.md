@@ -632,6 +632,28 @@
 > the caveat below says NOT to chase. So "worked out" is now evidence-backed: no clean high-value autonomous seam remains;
 > further shrinkage needs the coordinator responsibility-split — a David's-steer / fresh-context multi-commit undertaking,
 > not a bounded autonomous commit.
+> **★ NEXT-TIER SWEEP DONE + REMAINING SCOPED (2026-07-07, Opus — the clean function-heavy vein is worked out):**
+> extracted the clean cohesive clusters from the FUNCTION-heavy next-tier files this session (behavior-preserving,
+> structural-only, full gate): **commands/dev.ts 1270→731** (dev-cleanup-commands, dev-two-phase-tool-commands,
+> dev-telemetry-commands — under the "large" bar) · **nklein-session-runtime 1215→1148** (nklein-session-launch-config) ·
+> **trpc/projects-api 1001→901** (projects-api-helpers). The reusable pattern for such files: verify the block references
+> ZERO module-local symbols → copy the file's imports to the sibling → `biome --write --unsafe` prunes to what the block
+> uses → tsc+diff confirm structural-only. **What REMAINS is the CAREFUL-EFFORT tier (needs a focused pass / David's steer,
+> not a turn-tail nibble) — scoped so it doesn't need re-surveying:**
+> - **`server/runtime-server.ts` (2262):** ONE 2095-line `createRuntimeServer` closure, ZERO module-scope helpers — every
+>   cluster (plan-integration-gate, the ~436-line finalizeHeadlessAutoReviewTask, ~24 inner closures) captures dense shared
+>   state. Needs the DI-threading collaborator split.
+> - **`nklein-task-session-service.ts` (2830):** the coordinator (above) — collaborator responsibility-split only.
+> - **`state/workspace-state.ts` (884, STRONG 17-file net):** tightly-integrated via a `INDEX_VERSION → zod schemas
+>   (workspaceIndexFileSchema/…) → parse* → read*` chain + interfaces used throughout. A clean peel is the "persistence
+>   primitives" LAYER (the consts + 5 schemas + 4 interfaces + createEmptyWorkspaceIndex/parseWorkspaceIndex/
+>   parseWorkspaceStateSavePayload/isNodeErrorWithCode/readJsonFile → a sibling), which then unblocks the read*-cluster
+>   extraction (currently blocked by a value-circular on the local `readJsonFile`). Do the LAYER first (bottom-up), gated
+>   by the strong net. Multi-symbol + two ranges → a focused careful move, not a turn-tail one.
+> - **`nklein-agent-sandbox.ts` (1071):** a 42-method class + 5 tail helpers (buildAgentSandboxWorkdir/resolveNKleinAgentPerceivedCwd/
+>   toSandboxUnavailableError/assertSandboxExecOk) — the tail helpers are a small clean peel; the class body is method-split tier.
+> - **`nklein-session-runtime` remainder / `trpc/runtime-api` (1033):** big orchestration methods / a 1-factory file with 2-3
+>   small helpers — modest remaining.
 > **CAVEAT on candidates:** verify state is genuinely SEPARABLE first. `timeout scheduling` is NOT clean —
 > `clearTaskTimeouts` coordinates the residency watcher + `activeToolTaskIds` (cross-concern), and `handleTaskTimeout`
 > orchestrates abort+fail; leave it (or needs David's boundary steer). `sandbox-review finalization` similarly touches
