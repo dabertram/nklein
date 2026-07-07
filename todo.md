@@ -4933,8 +4933,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >    Principle: when the ONLY cost is prefill and the KV cache mitigates it, PREFER re-using already-warm models; spend a
 >    cold prefill on a fresh diverse model only when the uncorrelated-judgment value clears that cost. This is exactly the
 >    `applyWarmthPreference` margin contract (warmth authoritative-but-margin-bounded, within what diversity allows) —
->    EXTEND it to the N-model panel (not just the single reviewer). Ties my noted follow-up: make warmth
->    capability-margin-bounded so a warm-but-shallow model can't displace a deep judge. Reuse `cache-warmth.ts` +
+>    EXTEND it to the N-model panel (not just the single reviewer). **SINGLE-reviewer case RESOLVED 2026-07-07:** the
+>    depth fix (reviewer-fit scores, not flat 50) ACTIVATED `applyWarmthPreference`'s pre-existing 10-pt margin — a
+>    warm-but-shallow model can no longer displace a deep judge (60-pt gap > 10-pt margin); regression-tested. The panel
+>    work just needs the SAME margin applied across N models. Reuse `cache-warmth.ts` +
 >    per-endpoint warmth score (§5.AQ) + `card.streamId` (§5.AU). Measure: if the delta is prefill-time only (KV covers the
 >    rest), lean cache-reuse; if a cold model changes the VERDICT quality materially, pay the prefill. Best trade-off, not dogma.
 > 3. **Depth in JUDGE selection** *(NEW — reviewer path; PRECISE LOCUS found 2026-07-07)*: reviewer candidates are

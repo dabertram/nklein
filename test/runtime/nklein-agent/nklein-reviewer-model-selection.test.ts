@@ -8,6 +8,7 @@ vi.mock("../../../src/core/lmstudio-loaded-model-descriptors", () => ({
 }));
 vi.mock("../../../src/telemetry/self-observation-sink", () => ({ recordSelfObservation: vi.fn() }));
 
+import { buildPromptShellKey } from "../../../src/core/cache-warmth";
 import { pickDiverseReviewerModel } from "../../../src/nklein-agent/nklein-reviewer-model-selection";
 
 const workerLaunch = { providerId: "lmstudio", modelId: "worker-m", baseUrl: "http://127.0.0.1:1234/v1" } as never;
@@ -31,5 +32,34 @@ describe("pickDiverseReviewerModel", () => {
 	it("swallows a descriptor-fetch failure and returns null (best-effort, never throws)", async () => {
 		mocks.fetchLoadedModelDescriptors.mockRejectedValueOnce(new Error("lmstudio down"));
 		await expect(pickDiverseReviewerModel(workerLaunch, "t1", "review", deps)).resolves.toBeNull();
+	});
+
+	it("a WARM shallow diverse model does NOT displace a COLD deep diverse judge (warmth capability-margin-bounded)", async () => {
+		// Worker is qwen; two diverse candidates: a DEEP reasoning judge (cold) and a SHALLOW chat model (warm).
+		mocks.fetchLoadedModelDescriptors.mockResolvedValueOnce([
+			{ runtimeId: "phi-rt", modelKey: "phi-4-reasoning-plus", isEmbedding: false }, // reasoning → high reviewer-fit, COLD
+			{ runtimeId: "gemma-rt", modelKey: "gemma-3-12b-it", isEmbedding: false }, // chat → low reviewer-fit, WARM
+		]);
+		const qwenWorker = {
+			providerId: "lmstudio",
+			modelId: "qwen3.6-27b",
+			baseUrl: "http://127.0.0.1:1234/v1",
+		} as never;
+		// Make the shallow gemma HOT for the review shell (its ledger is keyed by the candidate's servable id = runtimeId).
+		const warmDeps = {
+			lastShellKeyByModel: new Map([
+				[
+					"gemma-rt",
+					{
+						shellKey: buildPromptShellKey({ sessionKind: "review", workspacePath: "", modelId: "gemma-rt" }),
+						at: Date.now(),
+					},
+				],
+			]),
+		};
+		const pick = await pickDiverseReviewerModel(qwenWorker, "t2", "review", warmDeps);
+		// Depth wins: the 60-pt reviewer-fit gap exceeds the 10-pt warmth margin, so warmth can't promote the shallow model.
+		// (Under the old flat score:50, the margin was inert and the warm shallow model would have been picked.)
+		expect(pick?.modelId).toBe("phi-rt");
 	});
 });

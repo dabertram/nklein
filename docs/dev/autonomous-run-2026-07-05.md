@@ -1985,3 +1985,12 @@ catalog reviewer-class fit + returns best-first, so the deepest lineage-diverse 
 (catalog lookup, not the runtime registry — that path was the false-start cost). Follow-up noted in-commit: warmth
 batching should become capability-margin-bounded. Remaining model-advisory gaps (external catalog / parallel panel /
 hardware-tier config / escalation diversity / suggestion surface) are each larger features — checkpointing with David.
+
+**UPDATE 2 (same day) — cache trade-off (David):** The warmth "follow-up" I'd noted turned out ALREADY RESOLVED by the
+depth fix. `applyWarmthPreference` always margin-bounded on score (10 pts), but flat score:50 made it inert (0 ≤ 10 →
+warmth always won). With real reviewer-fit scores, a warm-but-shallow diverse model can no longer displace a cold deep
+judge (60-pt gap > 10-pt margin) — added a `pickDiverseReviewerModel` regression test proving it. So single-reviewer
+selection now takes the correct cache trade-off: reuse a warm model to save prefill WITHIN margin, but never at the cost
+of a materially deeper judge. Integrated David's two new asks into todos: (1) llmfit GitHub catalog auto-update (§5.AL,
+opt-out, notify-default); (2) panel cache×stream trade-off (§5.AB gap 2 — prefer warm/cached + stream-coherent models,
+spend a cold prefill on a fresh diverse model only when its uncorrelated-judgment value clears the cost).
