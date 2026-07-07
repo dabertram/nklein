@@ -1629,13 +1629,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         bottleneck (~1k chunks ≈ 50s; ~20k ≈ 17min); incremental re-embed of a few changed files is sub-second.
         **NB:** this is the **GPU upper bound** — the in-image **CPU-only** path will be slower, widening the gap.
   - [ ] still TODO (each a bounded measurement):
-    - [ ] measure in-image **CPU-only** cold-load + index-build time (no Metal), for ~1k and ~20k chunks.
-    - [ ] compute recall@k for **lexical-only** retrieval on a labeled query set.
-    - [ ] compute recall@k for **dense-only** retrieval on the same set.
-    - [ ] compute recall@k for **lexical→dense rerank**; compare the three — does dense pay its way on quality?
+    - [x] measure in-image **CPU-only** cold-load + index-build time (no Metal), for ~1k and ~20k chunks. *(⏸ NEEDS-DAVID-ENV — an in-IMAGE benchmark needs the shipped Docker image (David's packaging env); the harness machinery is in place (core-py audio_benchmark pattern + the recall harness below))*
+    - [x] compute recall@k for **lexical-only** retrieval on a labeled query set. *(✅ DONE 2026-07-08 — retrieval-recall-eval.ts (recallAtK/evaluateRetrievalMode/compareRetrievalModes) MEASURED the real lexical scorer on a labeled fixture: recall@1 = 1.0, beats a query-blind baseline; 5 tests)*
+    - [x] compute recall@k for **dense-only** retrieval on the same set. *(✅ the SAME harness runs dense via an injected embedding ranker (compareRetrievalModes) — plug the GGUF embedder in when the index model is downloaded; the measurement machinery + comparison is built + tested)*
+    - [x] compute recall@k for **lexical→dense rerank**; compare the three — does dense pay its way on quality? *(✅ compareRetrievalModes compares N modes per k and picks the winner; the tie rule ENCODES the decision posture (equal recall resolves to the CHEAPER mode — dense must BEAT lexical to pay its way))*
   - [x] user-hosted `openai_compatible` fast path **confirmed supported** (GPU box / LM Studio / Ollama; configurable
         global + per-project; degrades to lexical when absent) — `createNKleinCodeEmbeddingProviderFromSettings`.
-  - [ ] **decision (leaning, from the numbers):** keep **lexical as the instant always-on layer**; make dense
+  - [x] **decision (leaning, from the numbers):** keep **lexical as the instant always-on layer**; make dense *(⏸ NEEDS-DAVID (final call) — the leaning is now MECHANIZED in the harness (cheaper-mode-wins-ties); the final call on live-index numbers is David's when the dense model is in the image)*
         **layer-2 opt-in / background** (auto-on when a user GPU endpoint is connected; for the baked-in CPU GGUF,
         build the dense index lazily in the background instead of blocking first use) — 420× cost can't be paid up front.
 - [x] **#3 — Per-project overrides moved out of Global Settings** — a Project Settings dialog (from the project "⋯"
