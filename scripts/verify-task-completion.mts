@@ -184,6 +184,7 @@ async function main(): Promise<void> {
 	// to know for designing the review→merge→deliver e2e.
 	let resultBranch = "";
 	let deliveredHello: string | null = null;
+	let branchTree: string[] = [];
 	try {
 		const { stdout } = await execFileAsync("git", [
 			"-C",
@@ -201,6 +202,14 @@ async function main(): Promise<void> {
 			deliveredHello = await execFileAsync("git", ["-C", project, "show", `${resultBranch}:hello.txt`])
 				.then(({ stdout: content }) => content)
 				.catch(() => null);
+			if (deliveredHello === null) {
+				// Triage aid: hello.txt is not at the branch root. Dump what the branch DOES contain so a "no
+				// deliverable" is immediately classifiable — a model that wrote to a wrong/nested path (the file
+				// shows up under some other path) vs. a genuine capture gap (branch empty of the file entirely).
+				branchTree = await execFileAsync("git", ["-C", project, "ls-tree", "-r", "--name-only", resultBranch])
+					.then(({ stdout: tree }) => tree.split("\n").map((line) => line.trim()).filter(Boolean))
+					.catch(() => []);
+			}
 		}
 	} catch {
 		/* no nklein/tasks branch in the project repo */
@@ -218,6 +227,9 @@ async function main(): Promise<void> {
 		log(`Start error: ${obs.error}`);
 	}
 	log(`Result branch in project repo: ${resultBranch || "none found (captured in sandbox; applied by the runtime)"}`);
+	if (branchTree.length > 0) {
+		log(`Result branch contents (hello.txt not at root): ${branchTree.slice(0, 20).join(", ")}`);
+	}
 	log(
 		`Delivered hello.txt: ${
 			deliveredHello === null
@@ -256,7 +268,7 @@ async function main(): Promise<void> {
 		obs.terminal && delivered
 			? "PASS ✓ a small local model ran the card to a terminal state AND delivered the correct result (hello.txt)."
 			: obs.terminal
-				? "PARTIAL ◑ — reached awaiting_review/completed but did NOT deliver hello.txt (no result branch). The agent declared done without producing the deliverable — inspect the run; do not count as a real pass."
+				? "PARTIAL ◑ — reached awaiting_review/completed but did NOT deliver hello.txt at the workspace root. If a result branch exists but the file landed elsewhere (see 'Result branch contents' above) it is usually a model relative-vs-cwd path error, not a capture gap; if no branch, the agent likely declared done without writing the file — inspect the run; do not count as a real pass."
 				: obs.stalled
 					? `STALLED — no model activity for ${Math.round(stallMs / 1000)}s (a hung/unresponsive model call); aborted early. The model produced no sustained output (check it actually serves under the agent's tool-calling prompt).`
 					: "INCOMPLETE — the card did not reach awaiting_review/completed within the timeout (see activities).",
