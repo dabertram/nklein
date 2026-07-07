@@ -2392,3 +2392,20 @@ remain David-gated (entangled seam). Remaining clean mid-file candidates: cli.ts
 pathIsDirectory/hasGitRepository -- fs/git glue, modest); update.ts auto-update-detection cluster (detectAutoUpdate
 Installation + looksLikeTransientCachePath + isAutoUpdateDisabled -- pure-ish, testable, likely the next-best combined
 target). Continuing one clean cluster per tick.
+
+### 2026-07-07 (Opus) - §5.U 7th lift: CLI path/git checks (+tests); cli-*.ts decomposition complete
+Diligence first: assessed TWO teed-up candidates and REJECTED both. (1) update.ts auto-update-detection cluster --
+already comprehensively tested (32-test auto-update.test.ts) AND its UpdateInstallationInfo/UpdatePackageManager types
+are shared with the rest of the file (extraction would need a shared-type move, same coupling that sank the workspace
+persistence cluster). (2) sdk-provider model transforms -- SDK-derived local input types, would drag SDK plumbing.
+Neither a clean lift. Did the last clean cli.ts cluster instead: the fs/git path predicates (assertPathIsDirectory +
+pathIsDirectory + hasGitRepository) -> cli-path-checks.ts. cli.ts 698 -> 671. +3 tests over real temp dirs + a git
+init. **cli.ts: 812 -> 671 across 3 lifts (port, shutdown-indicator, path-checks) -- the cli-*.ts helper decomposition
+is now COMPLETE (cli.ts is command-wiring + the root-command orchestration, no more clean extractable clusters).**
+**ARC: 7 lifts -- provider-service 933->684, workspace-state 1046->884, cli.ts 812->671.** HONEST FORWARD-LOOK: the
+clean, non-David mid-file §5.U vein is now nearly DRY. Two ticks running I've had to reject sub-ideal candidates
+(coupled shared-types / already-tested / SDK-plumbing) and the surviving clean clusters are shrinking (this one: 3
+small predicates). The remaining HIGH-VALUE §5.U is the two big NAMED monoliths (task-session-service 2830,
+runtime-server 2260) = the David-gated entangled seam. Next tick I'll either find a genuine remaining clean cluster or,
+if the search keeps yielding only coupled/tested/tiny candidates, shift primary effort to the §5.Z/§5.AZ verification
+tracks and flag that the clean §5.U frontier is done pending David's seam decision.
