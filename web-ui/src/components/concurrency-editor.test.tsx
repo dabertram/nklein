@@ -85,15 +85,15 @@ describe("ConcurrencyEditor", () => {
 				<ConcurrencyEditor
 					perProvider={{}}
 					perModel={{}}
-					perEndpoint={{ "http://m4mini.local:1234/v1": 2 }}
+					perEndpoint={{ "http://localhost:1234/v1": 2 }}
 					onChange={onChange}
 				/>,
 			),
 		);
 		expect(container.textContent).toContain("Per machine (pool)");
-		expect(container.textContent).toContain("http://m4mini.local:1234/v1");
+		expect(container.textContent).toContain("http://localhost:1234/v1");
 		const input = container.querySelector<HTMLInputElement>(
-			'[aria-label="http://m4mini.local:1234/v1 concurrency cap"]',
+			'[aria-label="http://localhost:1234/v1 concurrency cap"]',
 		);
 		if (input) {
 			act(() => setInputValue(input, "4"));
@@ -101,7 +101,7 @@ describe("ConcurrencyEditor", () => {
 		expect(onChange).toHaveBeenCalledWith({
 			perProvider: {},
 			perModel: {},
-			perEndpoint: { "http://m4mini.local:1234/v1": 4 },
+			perEndpoint: { "http://localhost:1234/v1": 4 },
 		});
 	});
 });

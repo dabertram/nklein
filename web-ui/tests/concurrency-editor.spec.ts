@@ -16,7 +16,7 @@ test.describe("concurrency editor (per-machine pool)", () => {
 		await openSettings(page);
 
 		// Add a per-machine (endpoint) concurrency cap.
-		await page.getByLabel("New machine key").fill("http://m4mini.local:1234/v1");
+		await page.getByLabel("New machine key").fill("http://localhost:1234/v1");
 		await page.getByLabel("New machine cap").fill("2");
 		await page.getByRole("button", { name: "Add machine cap" }).click();
 
