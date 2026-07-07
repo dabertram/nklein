@@ -81,3 +81,19 @@ export function decideDeliveryAction(policy: AgentDeliveryPolicy, gates: Deliver
 	}
 	return { action: "commit", selfMerge: false, reason: "Delivery tier auto-commits to the task branch." };
 }
+
+/**
+ * #28 re-drive gate (todo §5.U — lifted from `finalizeHeadlessAutoReviewTask` in runtime-server.ts). When a held card's
+ * reviewer APPROVED the work but the fresh acceptance check FAILED, the worker never learns why the card is stuck — so
+ * re-drive it ONCE with the failing output (mirrors the W4.2a empty-patch re-drive); a repeat failure leaves the hold
+ * for the operator. Pure: the caller separately guards that an acceptance run exists (its output feeds the re-drive
+ * prompt) and owns the attempt counter + the actual re-drive. `maxRedrives` defaults to 1 (re-drive at most once).
+ */
+export function shouldRedriveApprovedButAcceptanceFailed(input: {
+	reviewApproved: boolean;
+	testsPassed: boolean;
+	priorRedriveAttempts: number;
+	maxRedrives?: number;
+}): boolean {
+	return input.reviewApproved && !input.testsPassed && input.priorRedriveAttempts < (input.maxRedrives ?? 1);
+}

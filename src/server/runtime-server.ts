@@ -23,7 +23,7 @@ import type {
 	RuntimeWorkspaceStateResponse,
 } from "../core/api-contract";
 import { readPausedTasks } from "../core/card-pause";
-import { decideDeliveryAction } from "../core/delivery-decision";
+import { decideDeliveryAction, shouldRedriveApprovedButAcceptanceFailed } from "../core/delivery-decision";
 import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/delivery-evidence";
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
@@ -1040,32 +1040,37 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							// #28: the reviewer APPROVED but the fresh acceptance failed ⇒ the worker never learns why the
 							// card is stuck. Re-drive ONCE with the acceptance failure (mirrors the W4.2a empty-patch
 							// re-drive); a repeat failure leaves the hold for the operator as before.
-							if (evidence.reviewApproved && !evidence.testsPassed && acceptance) {
-								const acceptanceRedrives = acceptanceFailureRedriveAttemptsByTaskKey.get(inFlightKey) ?? 0;
-								if (acceptanceRedrives < 1) {
-									acceptanceFailureRedriveAttemptsByTaskKey.set(inFlightKey, acceptanceRedrives + 1);
-									deps.warn(
-										`Approved-but-acceptance-failed card ${taskId}: re-driving the worker once with the failing acceptance output.`,
-									);
-									await mutateWorkspaceState(scope.workspacePath, (latestState) => {
-										const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
-										return { board: movement.board, save: movement.moved, value: null };
+							const acceptanceRedrives = acceptanceFailureRedriveAttemptsByTaskKey.get(inFlightKey) ?? 0;
+							if (
+								acceptance &&
+								shouldRedriveApprovedButAcceptanceFailed({
+									reviewApproved: evidence.reviewApproved,
+									testsPassed: evidence.testsPassed,
+									priorRedriveAttempts: acceptanceRedrives,
+								})
+							) {
+								acceptanceFailureRedriveAttemptsByTaskKey.set(inFlightKey, acceptanceRedrives + 1);
+								deps.warn(
+									`Approved-but-acceptance-failed card ${taskId}: re-driving the worker once with the failing acceptance output.`,
+								);
+								await mutateWorkspaceState(scope.workspacePath, (latestState) => {
+									const movement = moveTaskToColumn(latestState.board, taskId, "in_progress");
+									return { board: movement.board, save: movement.moved, value: null };
+								});
+								const failureHead = (acceptance.output ?? "").slice(0, 700);
+								await service
+									.sendTaskSessionInput(
+										taskId,
+										`The reviewer APPROVED your work, but the acceptance check still FAILS — the card cannot merge until it passes. Command: ${acceptance.command ?? "(unknown)"} (exit ${acceptance.exitCode ?? "?"}).\nFailing output (head):\n${failureHead}\n\nFix the failure and finish with the acceptance check passing. Stay within the card's declared file scope.`,
+										"act",
+									)
+									.catch((error) => {
+										const message = error instanceof Error ? error.message : String(error);
+										deps.warn(
+											`Acceptance-failure re-drive of ${taskId} failed (${message}); leaving held in Review.`,
+										);
 									});
-									const failureHead = (acceptance.output ?? "").slice(0, 700);
-									await service
-										.sendTaskSessionInput(
-											taskId,
-											`The reviewer APPROVED your work, but the acceptance check still FAILS — the card cannot merge until it passes. Command: ${acceptance.command ?? "(unknown)"} (exit ${acceptance.exitCode ?? "?"}).\nFailing output (head):\n${failureHead}\n\nFix the failure and finish with the acceptance check passing. Stay within the card's declared file scope.`,
-											"act",
-										)
-										.catch((error) => {
-											const message = error instanceof Error ? error.message : String(error);
-											deps.warn(
-												`Acceptance-failure re-drive of ${taskId} failed (${message}); leaving held in Review.`,
-											);
-										});
-									return;
-								}
+								return;
 							}
 							deps.warn(
 								`Delivery held for ${taskId} (delivery tier → ${deliveryDecision.action}): ${deliveryDecision.reason} Left in Review.`,

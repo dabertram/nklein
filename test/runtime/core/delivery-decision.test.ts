@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { deliveryPolicyForTier } from "../../../src/core/agent-rulesets";
-import { type DeliveryGateInputs, decideDeliveryAction } from "../../../src/core/delivery-decision";
+import {
+	type DeliveryGateInputs,
+	decideDeliveryAction,
+	shouldRedriveApprovedButAcceptanceFailed,
+} from "../../../src/core/delivery-decision";
 
 const GREEN: DeliveryGateInputs = {
 	reviewApproved: true,
@@ -55,5 +59,51 @@ describe("decideDeliveryAction", () => {
 		expect(
 			decideDeliveryAction(deliveryPolicyForTier("fully_open"), { ...GREEN, hasProtectedPathChanges: true }),
 		).toMatchObject({ action: "open_pr" });
+	});
+});
+
+describe("shouldRedriveApprovedButAcceptanceFailed (#28)", () => {
+	it("re-drives once when the reviewer approved but acceptance failed and no re-drive was spent", () => {
+		expect(
+			shouldRedriveApprovedButAcceptanceFailed({
+				reviewApproved: true,
+				testsPassed: false,
+				priorRedriveAttempts: 0,
+			}),
+		).toBe(true);
+	});
+
+	it("does NOT re-drive once the single attempt is spent (leaves the hold for the operator)", () => {
+		expect(
+			shouldRedriveApprovedButAcceptanceFailed({
+				reviewApproved: true,
+				testsPassed: false,
+				priorRedriveAttempts: 1,
+			}),
+		).toBe(false);
+	});
+
+	it("does NOT re-drive when the reviewer did not approve, or when tests actually passed", () => {
+		expect(
+			shouldRedriveApprovedButAcceptanceFailed({
+				reviewApproved: false,
+				testsPassed: false,
+				priorRedriveAttempts: 0,
+			}),
+		).toBe(false);
+		expect(
+			shouldRedriveApprovedButAcceptanceFailed({ reviewApproved: true, testsPassed: true, priorRedriveAttempts: 0 }),
+		).toBe(false);
+	});
+
+	it("honors a custom maxRedrives budget", () => {
+		expect(
+			shouldRedriveApprovedButAcceptanceFailed({
+				reviewApproved: true,
+				testsPassed: false,
+				priorRedriveAttempts: 1,
+				maxRedrives: 2,
+			}),
+		).toBe(true);
 	});
 });
