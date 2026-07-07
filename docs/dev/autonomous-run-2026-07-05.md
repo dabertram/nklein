@@ -3177,3 +3177,20 @@ coordinator/closure tier (dispatchResolvedTaskInput = 115 `this.` refs over 674 
 NEXT §5.Z for this model (heavier, fresh-turn): decompose-isolation (Docker + ~180s) and single-card delivery.
 STATUS: Opus-domain easy work is narrowing — §5.U big-3 gated on David's DI-seam steer; §5.V clean pure-logic veins
 covered; §5.AZ prose/templates done. §5.Z (live cross-model verification) is now the main open Opus-drivable frontier.
+
+### 2026-07-07 (Opus) - §5.Z decompose-isolation + a real harness robustness bug ROOT-CAUSED & fixed
+Continuing the §5.Z sweep on the resident `qwopus3.5-9b-coder-mtp` (Docker UP, egress up). Ran verify-decompose-isolation
+— it CRASHED with an uncaught `AgentRuntimeAbortError: session_stop`. Applied the methodology (don't accept "the model
+failed"): grepped the abort reason → found `cli.ts` + `runtime-process-guards.ts` ALREADY handle this exact stray
+vendored-SDK rejection (the guard's own comment even says it was "observed crashing the verify-decompose harness"). Root
+cause = the harness drives sessions directly without the production process guard, so the benign stop-abort crashes it —
+NOT a product bug. Fixes (all harness-only, validated by running each to a fast early-exit since scripts/ is outside
+tsc/biome):
+  - `54b00ab4` — targeted guard on verify-decompose-isolation (tolerate only session_stop, fail loud otherwise). Re-run →
+    **decompose-isolation PASS** for qwopus3.5 (decompose_project called, 0 host-path leaks in 124 activities, no host
+    worktree, clean teardown). The model is now ✅ on all 3 fast flows (egress §5.AC, chat-tools §5.M, decompose §5.A).
+  - `071e061e` — proactively applied the same guard to the 4 OTHER session-driving harnesses that shared the vulnerability
+    (restart-resume-isolation, strict-isolation, autopromote-recovery, reasoning-display) so a future model's timing can't
+    crash the sweep mid-flow.
+This is the §5.Z frontier paying off twice: a new fully-verified model column AND a latent harness crash removed from the
+whole cross-model sweep. NEXT §5.Z: single-card delivery on qwopus3.5; the not-yet-loaded roster models when loaded.

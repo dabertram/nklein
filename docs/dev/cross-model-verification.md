@@ -988,6 +988,7 @@ loudly on anything else) — `54b00ab4`. Re-ran:
   **zero host-path leaks** in 124 captured agent activities · no host worktree · clean container teardown.
 - matrix rows: qwopus3.5-9b-coder-mtp → egress-e2e=✅ · chat-agent-tools=✅ · decompose-isolation=✅. A capable 9B coder
   model, clean on all three fast high-value flows (§5.AC egress, §5.M read-tool loop, §5.A decompose isolation).
-- **Harness hardening:** the same stray-session_stop crash risk exists in the other session-driving verify harnesses that
-  lack the guard (restart-resume-isolation [4 stops], strict-isolation, autopromote-recovery, reasoning-display) — noted
-  for a proactive guard pass so a future model's timing can't crash the sweep mid-flow.
+- **Harness hardening (DONE `071e061e`):** the same stray-session_stop crash risk existed in the other session-driving
+  verify harnesses that lacked the guard — proactively fixed: restart-resume-isolation [4 stops], strict-isolation,
+  autopromote-recovery, reasoning-display all now carry the targeted guard, so a future model's timing can't crash the
+  sweep mid-flow. (verify-full-system + verify-task-completion already had their own guards.)
