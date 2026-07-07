@@ -3164,3 +3164,16 @@ discovery's cache/fallback still uncovered) interleaved with any careful §5.U b
 - **Honest status:** §5.U flagship (>2000 monoliths) remains blocked on David's DI-seam steer; clean §5.V pure-logic
   veins are mostly worked (context-focus, discovery-probe, code-search-ranking, discovery-cache now covered). Remaining
   actionable-without-David work is narrowing to: deeper §5.V on mock-heavy modules, and §5.Z live-model verification.
+
+### 2026-07-07 (Opus) - §5.Z engaged: new-model cross-verification (egress + chat-tools both PASS)
+With the easy §5.U/§5.V veins worked through, engaged the un-worked §5.Z frontier. The live stack was up (SearXNG egress
+HTTP 200 at :18888; LM Studio :1234 with `qwopus3.5-9b-coder-mtp` loaded — a model NOT yet in the matrix). Ran two fast
+self-contained harnesses pinned to it (`dec25b66`):
+  - `verify-egress-model-e2e` (§5.AC): web_search tool call → 8 real SearXNG results → grounded answer. ✅ clean first run.
+  - `verify-chat-agent-tools` (§5.M): read_file through the gated+audited executor → answered from file → user+assistant
+    persisted. ✅ 1 tool step, no iteration-limit hit.
+Both recorded in docs/dev/cross-model-verification.md. First re-confirmed the §5.U big-3 are irreducibly the
+coordinator/closure tier (dispatchResolvedTaskInput = 115 `this.` refs over 674 lines, no pure sub-block) — David-gated.
+NEXT §5.Z for this model (heavier, fresh-turn): decompose-isolation (Docker + ~180s) and single-card delivery.
+STATUS: Opus-domain easy work is narrowing — §5.U big-3 gated on David's DI-seam steer; §5.V clean pure-logic veins
+covered; §5.AZ prose/templates done. §5.Z (live cross-model verification) is now the main open Opus-drivable frontier.
