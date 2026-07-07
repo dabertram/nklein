@@ -1,12 +1,12 @@
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { stat } from "node:fs/promises";
-import { createServer as createNetServer } from "node:net";
 import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import ora, { type Ora } from "ora";
 import packageJson from "../package.json" with { type: "json" };
 import { parseCliPortValue, shouldAutoOpenBrowserTabForInvocation } from "./cli-invocation-parsing";
+import { findAvailableRuntimePort, isAddressInUseError } from "./cli-runtime-port";
 import { registerChatCommand } from "./commands/chat";
 import { registerDevCommand } from "./commands/dev";
 import { registerTaskCommand } from "./commands/task";
@@ -22,7 +22,6 @@ import {
 	buildKanbanRuntimeUrl,
 	clearKanbanRuntimeTls,
 	DEFAULT_KANBAN_RUNTIME_PORT,
-	getKanbanRuntimeHost,
 	getKanbanRuntimeOrigin,
 	getKanbanRuntimePort,
 	getRuntimeFetch,
@@ -153,29 +152,6 @@ function createShutdownIndicator(stream: NodeJS.WriteStream = process.stderr): S
 	};
 }
 
-async function isPortAvailable(port: number): Promise<boolean> {
-	return await new Promise<boolean>((resolve) => {
-		const probe = createNetServer();
-		probe.once("error", () => {
-			resolve(false);
-		});
-		probe.listen(port, getKanbanRuntimeHost(), () => {
-			probe.close(() => {
-				resolve(true);
-			});
-		});
-	});
-}
-
-async function findAvailableRuntimePort(startPort: number): Promise<number> {
-	for (let candidate = startPort; candidate <= 65535; candidate += 1) {
-		if (await isPortAvailable(candidate)) {
-			return candidate;
-		}
-	}
-	throw new Error("No available runtime port found.");
-}
-
 async function applyRuntimePortOption(portOption: CliOptions["port"]): Promise<number | null> {
 	if (!portOption) {
 		return null;
@@ -232,15 +208,6 @@ function hasGitRepository(path: string): boolean {
 		env: createGitProcessEnv(),
 	});
 	return result.status === 0 && result.stdout.trim() === "true";
-}
-
-function isAddressInUseError(error: unknown): error is NodeJS.ErrnoException {
-	return (
-		typeof error === "object" &&
-		error !== null &&
-		"code" in error &&
-		(error as NodeJS.ErrnoException).code === "EADDRINUSE"
-	);
 }
 
 async function canReachKanbanServer(workspaceId: string | null): Promise<boolean> {
