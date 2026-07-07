@@ -3101,3 +3101,20 @@ near-duplicate `onRun`(preset) handler; the registry picker is now the single al
 default-collapsed for compactness, search force-expands). Server/CLI `{preset}` API path untouched (still used by
 `nklein dev`). Replaced 5 preset-button tests with a registry-by-id launch test + a stays-gone guard. web
 typecheck/lint/suite (952) + test:fast (8125) green. David's "unify the 2 styles" is now resolved on BOTH axes.
+### 2026-07-07 (Opus) - §5.U increments 9-10: runtime-config decomposed (a FRESH clean vein) — out of the large tier
+Last session's "clean vein worked out" conclusion was scoped to the nklein-agent/state files it surveyed; config/ was
+NOT among them. `config/runtime-config.ts` (935) turned out to be a fresh clean vein with an EXCELLENT test net (30+
+config test files, all in test:fast). Two behavior-preserving, imports-only extractions, each test-gated:
+  - **path-resolution cluster** → `runtime-config-paths.ts` (`ddb8fce1`): the home/project dir constants, the global +
+    per-project config.json path getters, cross-platform path normalization, config-path resolution, and lock-request
+    derivation. Pure path math (no state/I/O). Two interleaved agent-pick helpers stayed put; the file imports the five
+    path fns back + re-exports the two public getters. 935→871.
+  - **file-persistence I/O cluster** → `runtime-config-file-io.ts` (`02daf8ca`): readRuntimeConfigFile (ENOENT→null,
+    corrupt-JSON backup) + the atomic-under-lock global/project writers (project writer normalizes every override field,
+    deletes an emptied config). Copy-imports-then-prune resolved the ~15-import surface cleanly; tsc confirmed no type was
+    runtime-config-local. 871→707.
+**runtime-config 935→707 — now OUT of the >900 large tier.** Config suite 214/214 + test:fast 8131 green on both.
+LESSON codified: the "clean vein worked out" verdict is per-directory; sweeping an un-surveyed directory (config/, and
+next likely trpc/ + state/) can still surface cohesive imports-only clusters that don't need the hard coordinator splits.
+NEXT: survey trpc/runtime-api (1033) + start-task-session (945) for the same; the big-3 (task-session-service 2830 =
+115-method coordinator, runtime-server 2262 = single 2095-line closure) remain the DI/responsibility-split tier.
