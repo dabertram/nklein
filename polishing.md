@@ -783,6 +783,16 @@
 >       §5.U refactoring arc end-to-end (provider-service / workspace-state / cli.ts). NOTE the coverage gap this exposed:
 >       `test:fast` (the pre-commit gate) runs only test/runtime + test/utilities, so contract/integration/protected/
 >       web-ui regressions land silently until a full run — a CI job that runs ALL suites is the real release gate.
+>       **★★ BUILT-ARTIFACT SMOKE — 3 P0 RELEASE BLOCKERS FOUND + FIXED (2026-07-07, Opus).** The ENTIRE test surface
+>       (~9400 tests) runs SOURCE, never the production BUNDLE — so three bundle-only P0s sat undetected. Running the
+>       actual build + built binary found + fixed all three: (1) `scripts/build.mjs` failed — `playwright` (browse_url
+>       tool) not in esbuild externals → externalized playwright/playwright-core/chromium-bidi/fsevents (commit
+>       f1b5562b). (2) `node dist/cli.js --version` CRASHED — nklein-dev-test-project.ts read fixtures at module-init →
+>       lazy-loaded the scenarios (6c2a0461). (3) the built SERVER (primary use) crashed on start with `__filename is
+>       not defined` — a bundled CJS dep uses the CJS globals absent in ESM → shimmed `__filename`/`__dirname` in the
+>       build banner (7c027105). VERIFIED end-to-end: built server starts in an isolated temp HOME, `GET /` + `projects
+>       .list` → HTTP 200, clean shutdown. **RELEASE-GATE PROCEDURE (add to CI): `npm run build && (start dist/cli.js on
+>       a free port, curl /, kill)` — a built-artifact smoke that no unit/integration test replaces.**
 > - [ ] **★ Gate the VENDORED SDK suite (finding 2026-07-03).** Repo `test:fast`/`vitest` EXCLUDE `vendor/**`, so the
 >       forked SDK's own tests never run in CI — and our fork edits silently rot them. Live proof: `cd
 >       vendor/cline-sdk/packages/core && npx vitest run` had **5 pre-existing failures** — 1 read_files schema test

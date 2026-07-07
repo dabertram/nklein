@@ -2634,3 +2634,18 @@ startup crash 6c2a0461): the release artifact both BUILDS and RUNS. The two-tick
 actual build, which no test covers) found + fixed two genuine P0 release blockers that ~9400 tests never caught --
 by far the highest-value work of the session. LESSON reinforced: a periodic `node scripts/build.mjs && node dist/cli.js
 --version` smoke belongs in the release gate.
+
+### 2026-07-07 (Opus) - §5.AZ: THIRD release blocker fixed — built server now starts (__filename ESM shim)
+Kept exercising the built binary (the build-verification vein found 2 P0s already). --version + --help load fine, but
+starting the actual board SERVER (the primary use case) crashed: "Failed to start !Klein: __filename is not defined".
+A bundled CJS dep references __filename/__dirname (CJS globals absent in ESM output); build.mjs's banner shimmed
+`require` but not these. Crash is on the server-start path -> no source/test/--version ever hits it, only the built
+binary. FIX: reconstruct __filename/__dirname from import.meta.url in the cjsShimBanner. VERIFIED END-TO-END: rebuilt,
+started the built server in an isolated temp HOME on a free port -> "!Klein running at ...", GET / -> HTTP 200,
+projects.list -> HTTP 200, clean shutdown (the shutdown-indicator I lifted earlier works in the bundle too). commit
+7c027105. **THREE P0 RELEASE BLOCKERS in two ticks, all from actually building + running the artifact** (build externals
+f1b5562b; startup crash 6c2a0461; server-start __filename 7c027105) -- the built CLI now loads, registers its command
+tree, AND serves the board end-to-end. The ~9400-test surface caught NONE of them (they all run source, not the
+bundle). Recorded a RELEASE-GATE PROCEDURE in polishing.md §5.AZ: `npm run build && start-built-server-and-curl` as a
+built-artifact smoke. This build-verification detour has been the single highest-value work of the session by a wide
+margin -- three release-blocking bugs that would have shipped a completely non-functional binary.
