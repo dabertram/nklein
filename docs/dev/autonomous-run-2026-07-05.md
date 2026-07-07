@@ -3294,3 +3294,19 @@ collaborator-split: **types-only extraction**. A big file's interface/type decla
   rush. runtime-server (3 decls) / runtime-api (1) have tiny type footprints; agent-sandbox's 13 decls are mostly
   class-INTERNAL data structures (ContainerState/TaskPlacement/QueueEntry) — its ~30 lines of PUBLIC types are the only
   clean subset. NEXT §5.U: the session-runtime public-contract extraction (careful, one contiguous block at a time).
+
+### 2026-07-07 (Opus) - §5.U types-vein: 2 more files reduced (session-runtime + projects-api out of the >900 tier)
+Continued the types-only extraction vein (safe, tsc-gated, re-export keeps importers unchanged):
+- **`6bfe642d` session-runtime**: extracted its public type contract (launch-overrides, the SDK host boundary, the
+  ~70-line StartNKleinSessionRuntimeRequest + Result + Snapshot, the NKleinSessionRuntime interface + create-options) →
+  nklein-session-runtime-types.ts. **1023 → 869** (out of the >900 tier). The re-export means the nklein-task-tool-approval
+  sibling's type-only back-import needed no repoint. (One tsc iteration: the 2 internal types needed `export` for the
+  back-import — cascaded inference errors that cleared once fixed.)
+- **`11051ac4` projects-api**: extracted the dependency contract (CreateProjectsApiDependencies + DisposeWorkspaceOptions)
+  → projects-api-types.ts. **903 → 851** (out of the >900 tier).
+**Types-vein scorecard (3 files across 2 turns):** task-session-service 2830→2581, session-runtime 1023→869 (out),
+projects-api 903→851 (out). The vein has now reduced what it MEANINGFULLY can — measured every remaining large file's type
+footprint: runtime-api's deps interface (38 L) leaves it >900; agent-sandbox's 13 decls are mostly class-INTERNAL data
+structures (moving them is churn, not cohesion); task-session-service (2581) + runtime-server (2262) are bulk-impl. So the
+remaining >900 files (task-session-service, runtime-server, agent-sandbox, runtime-api, start-task-session 945) now need
+the COLLABORATOR / DI-split — the hard tier flagged for David's steer. The safe, mechanical §5.U wins are banked.
