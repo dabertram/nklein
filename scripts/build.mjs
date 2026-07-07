@@ -25,12 +25,19 @@ const define = {
 };
 
 /**
- * Bundled CJS dependencies call require() on Node built-ins (process, fs, etc.).
- * ESM output needs a real require() function for those calls to work.
+ * Bundled CJS dependencies reference CommonJS globals that do NOT exist in ESM output:
+ * - `require()` on Node built-ins (process, fs, …) — needs a real require() function.
+ * - `__filename` / `__dirname` — module-path globals some deps use at runtime (e.g. to resolve a sibling asset). Without
+ *   these, the server-start path throws `__filename is not defined` (a bundle-only crash the source + test suite never
+ *   hit — only the built binary does). Reconstruct them from `import.meta.url`, the ESM equivalent.
  */
 const cjsShimBanner = [
 	'import { createRequire as __kanban_createRequire } from "node:module";',
+	'import { fileURLToPath as __kanban_fileURLToPath } from "node:url";',
+	'import { dirname as __kanban_dirname } from "node:path";',
 	"const require = __kanban_createRequire(import.meta.url);",
+	"const __filename = __kanban_fileURLToPath(import.meta.url);",
+	"const __dirname = __kanban_dirname(__filename);",
 ].join("\n");
 
 /** Shared esbuild options for both entry points. */
