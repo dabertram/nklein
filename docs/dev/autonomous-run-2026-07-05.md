@@ -2471,3 +2471,19 @@ reduction). REMAINING pure-decision candidates in the big two: the redrive-lane-
 skips-delivery classification (both small) in runtime-server; the §5.AW primary-fallback-on-speculative-fail decision
 (line ~944, meatier); task-session-service verdict/outcome classifications (state-coupled, harder). The pattern keeps
 yielding safe, test-gated increments into the flagship's named monoliths without seam approval.
+
+### 2026-07-07 (Opus) - §5.U pure-decision lift #3 this arc: #28 approved-but-acceptance-failed re-drive gate
+Third runtime-server finalizeHeadlessAutoReviewTask decision lifted (combined 5.U+5.V). The #28 rule -- reviewer
+APPROVED but the fresh acceptance FAILED => re-drive the worker ONCE with the failing output before holding for the
+operator -- was inline nested conditions with no unit coverage. Lifted shouldRedriveApprovedButAcceptanceFailed to
+core/delivery-decision.ts (cohesive with the existing decideDeliveryAction). Flattened the two nested ifs into one
+guarded call; the inline "acceptance &&" is retained (it provides both the has-acceptance semantics AND the TS
+null-narrowing the body needs for acceptance.output/command/exitCode). Behavior-identical (all four conditions still
+required); removed the redundant block braces the flatten left (polishing). +4 tests (re-drive once; budget-exhausted
+hold; not-approved/tests-passed no-op; custom maxRedrives). CRITICAL merge-gating logic -> re-verified integration
+stays 41/41-pass (only the known stale test fails). ARC TALLY: three pure-decision lifts from the named monoliths in
+three ticks (auto-review-card classification, #39 base-red waiver, #28 re-drive gate), each safe + test-gated, no seam
+approval. (Also learned: no backticks in `git commit -m` -- shell command-substitution mangled one message phrase;
+use a heredoc/file for messages containing code.) The delivery-gate section of finalize is now well-decomposed
+(decideDeliveryAction, deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult, the waiver + #28 gates all extracted);
+next candidates: the acceptancePresentAndPassed companion predicate (small, §5.AW site) or a fresh method elsewhere.
