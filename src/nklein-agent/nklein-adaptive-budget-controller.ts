@@ -2,7 +2,7 @@ import { buildModelBehaviorProfilesFromLedger } from "../core/agent-ledger-proje
 import type { RuntimeTaskImage, RuntimeTaskSessionMode, RuntimeTaskSessionSummary } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
-import { learnedQualityEffectiveBudget } from "../core/model-behavior-profile";
+import { learnedQualityEffectiveBudget, learnedRetryBudget } from "../core/model-behavior-profile";
 import { raisedTokenBudget } from "../core/retry-policy";
 import { readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { readSelfObservationEvents, recordSelfObservation } from "../telemetry/self-observation-sink";
@@ -41,6 +41,8 @@ export interface AdaptiveBudgetController {
  */
 export function createAdaptiveBudgetController(deps: AdaptiveBudgetControllerDeps): AdaptiveBudgetController {
 	const qualityBudgetByModelId = new Map<string, number>();
+	/** §5.AA learned per-model RETRY budget (from the same ledger fold) — the adaptive cap the retry engine parks on. */
+	const retryBudgetByModelId = new Map<string, number>();
 	let qualityBudgetRefreshInFlight = false;
 	/** W1.1b adaptive-retry state: attempts + last budget per task (bounded by MAX_ADAPTIVE_RETRY_ATTEMPTS). */
 	const adaptiveRetryStateByTaskId = new Map<string, { attempt: number; lastBudget: number }>();
@@ -62,6 +64,9 @@ export function createAdaptiveBudgetController(deps: AdaptiveBudgetControllerDep
 					if (budget !== null) {
 						qualityBudgetByModelId.set(profile.modelId, budget);
 					}
+					// §5.AA: the learned retry budget (typical retries + unreliability margin, clamped 1..6) — the adaptive
+					// cap the retry engine parks on, replacing the hard constant-2. Empty map ⇒ default ⇒ prior behavior.
+					retryBudgetByModelId.set(profile.modelId, learnedRetryBudget(profile));
 				}
 			} catch {
 				// Best-effort — an unreadable ledger leaves the advertised-window behavior unchanged.
@@ -75,6 +80,9 @@ export function createAdaptiveBudgetController(deps: AdaptiveBudgetControllerDep
 		const providerId = summary.providerId ?? null;
 		const modelId = summary.modelId ?? null;
 		const state = adaptiveRetryStateByTaskId.get(taskId) ?? { attempt: 0, lastBudget: 1024 };
+		// §5.AA engine adoption: the continue-vs-park decision is the retry engine's, capped by this model's LEARNED
+		// retry budget (from the ledger fold) rather than a hard constant. Unknown model ⇒ default ⇒ prior behavior.
+		const retryBudget = modelId ? retryBudgetByModelId.get(modelId) : undefined;
 		if (
 			!shouldAttemptAdaptiveBudgetRetry({
 				adaptiveRetryEnabled: isTruthyEnv(process.env.NKLEIN_ADAPTIVE_RETRY),
@@ -83,6 +91,7 @@ export function createAdaptiveBudgetController(deps: AdaptiveBudgetControllerDep
 				modelId,
 				isHomeAgentSession: isHomeAgentSessionId(taskId),
 				attempt: state.attempt,
+				...(retryBudget !== undefined ? { retryBudget } : {}),
 			})
 		) {
 			return;

@@ -30,10 +30,24 @@ describe("shouldAttemptAdaptiveBudgetRetry (§5.U extraction)", () => {
 		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, isHomeAgentSession: true })).toBe(false);
 	});
 
-	it("is ineligible once the attempt budget is exhausted", () => {
+	it("is ineligible once the attempt budget is exhausted (default constant cap, engine-driven)", () => {
 		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: ADAPTIVE_RETRY_MAX_ATTEMPTS - 1 })).toBe(true);
 		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: ADAPTIVE_RETRY_MAX_ATTEMPTS })).toBe(false);
 		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: 1, maxAttempts: 1 })).toBe(false);
+	});
+
+	it("uses the LEARNED per-model retry budget as the cap when supplied (§5.AA engine adoption)", () => {
+		// A flakier model earns a higher learned budget ⇒ more retries before the engine parks it.
+		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: 3, retryBudget: 4 })).toBe(true);
+		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: 4, retryBudget: 4 })).toBe(false);
+		// A reliable model with a budget of 1 parks after its first attempt (fewer wasted re-runs than the old cap of 2).
+		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: 0, retryBudget: 1 })).toBe(true);
+		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: 1, retryBudget: 1 })).toBe(false);
+	});
+
+	it("prefers retryBudget over the legacy maxAttempts alias", () => {
+		// retryBudget 4 wins over maxAttempts 1 ⇒ still eligible at attempt 2.
+		expect(shouldAttemptAdaptiveBudgetRetry({ ...base, attempt: 2, retryBudget: 4, maxAttempts: 1 })).toBe(true);
 	});
 });
 

@@ -5,12 +5,20 @@
  * budget-retry policy is independently testable apart from the IO.
  */
 
-/** The most adaptive budget-retries !Klein will attempt for a single card before leaving it in Review. */
+import { decideNextRetryStrategy } from "../core/retry-policy";
+
+/** The DEFAULT adaptive budget-retry cap when no learned per-model budget is supplied (§5.AA `learnedRetryBudget`). */
 export const ADAPTIVE_RETRY_MAX_ATTEMPTS = 2;
 
 /**
  * Whether an adaptive budget retry is even eligible: the feature is on, the card is awaiting review, a concrete
- * provider+model is known, it's not the home-agent session, and we haven't exhausted the attempt budget.
+ * provider+model is known, it's not the home-agent session, and the §5.AA retry engine has not PARKED the task.
+ *
+ * §5.AA engine adoption (2026-07-07): the continue-vs-park decision now flows through `decideNextRetryStrategy` instead
+ * of a hard `attempt < 2` cap. A stalled no-output turn is an `aborted` outcome; the engine returns a non-park rung
+ * (`raise_token_budget`, the rung this controller fires) while the retry budget has room, and `park` once it's spent.
+ * `retryBudget` is the LEARNED per-model budget (from the ledger); absent, it defaults to {@link ADAPTIVE_RETRY_MAX_ATTEMPTS}
+ * so the decision is byte-identical to the previous constant cap.
  */
 export function shouldAttemptAdaptiveBudgetRetry(input: {
 	adaptiveRetryEnabled: boolean;
@@ -19,6 +27,9 @@ export function shouldAttemptAdaptiveBudgetRetry(input: {
 	modelId: string | null;
 	isHomeAgentSession: boolean;
 	attempt: number;
+	/** The learned per-model retry budget (clamped ≥1). Falls back to {@link ADAPTIVE_RETRY_MAX_ATTEMPTS} when unknown. */
+	retryBudget?: number;
+	/** @deprecated legacy alias for {@link retryBudget}; kept so existing callers stay byte-identical. */
 	maxAttempts?: number;
 }): boolean {
 	if (!input.adaptiveRetryEnabled || input.summaryState !== "awaiting_review") {
@@ -27,7 +38,17 @@ export function shouldAttemptAdaptiveBudgetRetry(input: {
 	if (!input.providerId || !input.modelId || input.isHomeAgentSession) {
 		return false;
 	}
-	return input.attempt < (input.maxAttempts ?? ADAPTIVE_RETRY_MAX_ATTEMPTS);
+	const budget = input.retryBudget ?? input.maxAttempts ?? ADAPTIVE_RETRY_MAX_ATTEMPTS;
+	// The engine parks once `attemptsSoFar >= budget`; a non-park rung means "keep going". With an empty tried-set and
+	// an `aborted` outcome this is exactly `attempt < budget` — so the default preserves the old constant-cap behavior.
+	return (
+		decideNextRetryStrategy({
+			lastOutcome: "aborted",
+			attemptsSoFar: input.attempt,
+			retryBudget: budget,
+			triedStrategies: [],
+		}).strategy !== "park"
+	);
 }
 
 /**
