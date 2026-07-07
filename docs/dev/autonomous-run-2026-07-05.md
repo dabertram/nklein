@@ -2144,3 +2144,20 @@ last-used) + machine budget, keeps it if it fits, else evicts the COLDEST NOT-in
 Live §5.Z verification requires the runtime running with models loaded + behavior observed — not performable from the
 code sandbox. So the frontier is now live-verification-gated, not code-gated. Low-value code-only leftovers: §5.BG (d)
 re-key (fiddly composite-key merge), panel PARALLEL judges (risks endpoint overload — needs endpoint-grouping).
+
+### 2026-07-07 (Opus) · §5.V/§5.Z code-verification pass on this session's flag-gated features (productive)
+A careful review/coverage sweep of THIS session's new code found + closed real gaps (the frontier wasn't fully
+exhausted — the flag-gated features had untested wiring):
+- **CHANGELOG** [7594b64b]: added user-facing entries for the shipped default-on features (catalog overlay, dev
+  fleet-advice, depth-aware reviewer, escalation steering) — §5.AZ release prep. (flag-gated features left out until live-verify.)
+- **Panel sequential-correctness note** [e09eac5d]: the reviewer session id is fixed per task with a shared workspace
+  ("two concurrent rounds destroy each other"); pinned that sequential judges are a CORRECTNESS requirement, and a future
+  PARALLEL refinement MUST give each judge a unique session id — preventing a latent bug.
+- **Panel wiring now integration-testable + tested** [8a0f2cb3]: the panel-assembly path was gated behind !(VITEST||test)
+  so it could NEVER be tested. Made the descriptor fetch injectable (pin-probe pattern); added a test that assembles 3
+  diverse judges from injected descriptors, runs one session per judge, and delivers on the 2/3 majority.
+- **§5.BG re-key extracted + tested** [0b191844]: the flip's inline guardCandidates re-key loop (untested, only the
+  alignment property was covered) → `nklein-stable-routing-candidates.ts`, a clear-boundary §5.U lift + 5 tests (re-key,
+  unmapped-untouched, alias-collapse, shallow-clone, identity no-op). Shrinks the start handler; de-risks the flip.
+The flag-gated features (`NKLEIN_REVIEW_PANEL`, `NKLEIN_STABLE_ROUTING_KEY`) now have unit/integration coverage of their
+wiring, not just their cores — so a live §5.Z flip has a much smaller unverified surface. Coverage vein now largely closed.
