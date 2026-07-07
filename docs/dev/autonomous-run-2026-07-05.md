@@ -2286,3 +2286,15 @@ egress matrix. Ran the egress e2e on it (no new load -> no overload risk) -> 3/3
 SearXNG 8 results -> grounded answer). Notable: it's a multi-token-prediction (MTP) model, and MTP decoding does NOT
 disrupt the tool-call/egress path. Recorded as a new matrix data point. Resident egress coverage now: qwen3-8b,
 gemma-4-e2b, qwopus3.5-9b-coder-mtp (NEW) this pass + qwen2.5-coder-14b/122B-MoE from the 2026-07-06 rows.
+
+### 2026-07-07 (Opus) - §5.AZ release audit: personal-hostname leak found + fixed, src confirmed clean
+Fresh track (prime directive 'no hostnames in src' + §5.AZ content audit). Audited src/** + web-ui/src/** +
+web-ui/tests/** for personal machine names / emails / private LAN IPs / .local hosts / secret literals. GENUINE
+FINDING: the Per-machine concurrency-editor endpoint placeholder hardcoded 'http://m4mini.local:1234/v1' -- David's
+machine, USER-FACING (every public user would see it). Fixed -> neutral 'http://localhost:1234/v1' (matching the
+existing nklein-setup-section placeholder), plus the 5 m4mini references in its unit test + Playwright spec fixtures.
+Also neutralized a 'coder-gpu' runtime-id in a lean-sysprompt run-note comment. Everything else CLEAN: no private
+IPs, no sk-/ghp_/AWS/PEM secrets, no other .local hosts. Left intact (correct): m5max/coder-gpu in model-lineage/
+online-lookup/stable-identity comments (teaching examples of the anti-pattern), eval-prompt-corpus mail.local
+(synthetic exfil test data). Commits ec4f3499 + 49533195; web typecheck + unit tests + full pre-commit gate green.
+Recorded the src/test-code pass as DONE under polishing.md §5.AZ content-audit (docs/history curation still open).

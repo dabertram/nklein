@@ -764,6 +764,14 @@
 >       context — decide what ships (curated docs/) vs what stays private (working notes); CHANGELOG grooming to a
 >       public voice; strip dev-test fixtures that reference private infra; make sure the model-capability catalog and
 >       integrations registry read as neutral docs.
+>       **★ SRC/TEST-CODE hostname+secret pass DONE (2026-07-07, Opus):** audited `src/**` + `web-ui/src/**` +
+>       `web-ui/tests/**` for personal machine names, emails, private LAN IPs, `.local` hosts, and token/secret
+>       literals. One genuine user-facing leak found + fixed: the Per-machine concurrency editor placeholder hardcoded
+>       `m4mini.local` (→ neutral `localhost`), plus its 5 test-fixture references (commits `ec4f3499`, `49533195`).
+>       Clean otherwise: no private IPs, no `sk-`/`ghp_`/AWS/PEM secret literals, no other `.local` hosts. Left intact
+>       (correct): the `m5max`/`coder-gpu` mentions in model-lineage/online-lookup/stable-identity comments are teaching
+>       examples of the anti-pattern, and `eval-prompt-corpus`'s `mail.local` is synthetic exfil test data. **Still
+>       open:** the docs/todo/done working-notes curation + the FULL-git-HISTORY scanner sweep (gitleaks/trufflehog).
 > - [ ] **Release engineering:** version scheme, `npm run build` + sandbox image build reproducible on a clean machine,
 >       install/run docs verified on a fresh user profile, smoke-test checklist (the deterministic harness suite is the
 >       release gate: v1 HOLD + v2 PASS + v3 bounce must be green).
