@@ -587,12 +587,35 @@ export const MODEL_CAPABILITY_CATALOG: readonly ModelCapabilityEntry[] = [
 ];
 
 /**
- * Look up the curated capability entry for a model id (served id or lms key, e.g. `phi-4-mini-instruct@8bit`,
- * `google/gemma-4-e2b`, `qwen/qwen3-8b`). Matches family patterns case-insensitively; returns the FIRST hit
- * (catalog is ordered specific→general) or `null` when the family is unknown to the catalog.
+ * The user-editable overlay (§5.AL, David 2026-07-07 decision #1), registered from `model-catalog-overlay.json` at
+ * startup and consulted BEFORE the shipped catalog — so a user (or a future llmfit-catalog pull) can add a new model
+ * or override a shipped verdict WITHOUT a code change or rebuild. Empty until {@link registerModelCatalogOverlay}.
+ */
+let modelCatalogOverlay: readonly ModelCapabilityEntry[] = [];
+
+/** Register the loaded overlay entries (see `model-catalog-overlay.ts`). Overlay entries win over the shipped catalog. */
+export function registerModelCatalogOverlay(entries: readonly ModelCapabilityEntry[]): void {
+	modelCatalogOverlay = entries;
+}
+
+/** Clear the registered overlay (fall back to the shipped catalog only) — used by tests and on reload. */
+export function clearModelCatalogOverlay(): void {
+	modelCatalogOverlay = [];
+}
+
+/**
+ * Look up the capability entry for a model id (served id or lms key, e.g. `phi-4-mini-instruct@8bit`,
+ * `google/gemma-4-e2b`, `qwen/qwen3-8b`). The USER OVERLAY is consulted first (so a user entry overrides a shipped
+ * one), then the shipped catalog. Matches family patterns case-insensitively; returns the FIRST hit (each list is
+ * ordered specific→general) or `null` when the family is unknown to both.
  */
 export function lookupModelCapability(modelId: string): ModelCapabilityEntry | null {
 	const id = normalizeModelId(modelId).toLowerCase();
+	for (const entry of modelCatalogOverlay) {
+		if (entry.match.test(id)) {
+			return entry;
+		}
+	}
 	for (const entry of MODEL_CAPABILITY_CATALOG) {
 		if (entry.match.test(id)) {
 			return entry;

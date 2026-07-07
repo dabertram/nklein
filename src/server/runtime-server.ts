@@ -28,6 +28,8 @@ import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { registerModelCatalogOverlay } from "../core/model-capability-catalog";
+import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { decideOpportunisticIdleWork, findReviewCandidateTaskIds } from "../core/opportunistic-idle-work";
 import {
 	buildKanbanRuntimeUrl,
@@ -157,6 +159,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	// §5.Y #8: compute remote-mode confinement roots once at startup.
 	const isRemoteMode = isKanbanRemoteHost();
 	const globalConfig = await loadGlobalRuntimeConfig();
+	// §5.AL / decision #1 (2026-07-07): load the user-editable model-catalog overlay so `lookupModelCapability` is
+	// data-driven — a user can add or override a model's verdict without a rebuild. Best-effort: a missing file is the
+	// normal case; malformed entries are skipped with a logged reason and never block startup.
+	const catalogOverlay = await loadModelCatalogOverlay(defaultModelCatalogOverlayPath(homedir()));
+	registerModelCatalogOverlay(catalogOverlay.entries);
+	for (const overlayError of catalogOverlay.errors) {
+		deps.warn(overlayError);
+	}
 	const allowedBrowseRoots = resolveRemoteBrowseRoots({
 		configuredWorkspaceBaseDir: globalConfig.workspaceBaseDir,
 	});

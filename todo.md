@@ -7794,11 +7794,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       TOOL_WEAK / TOOL_UNSUITABLE / UNKNOWN`. **Gate wired** into `loadModelExclusive` (refuses a `reject` BEFORE any
       unload/spawn — a known-bad model never costs the resident good model; `warn`/`unknown` proceed with the caveat on
       the result) + a `model-lab check <id>` subcommand (the CLI seed of the "check model" button; exit 0/1/2). 23 tests.
-- [ ] **EXTERNAL editable catalog overlay (David 2026-07-07, decision #1 — "data-driven, no hardcoded names in src/").**
-      The shipped `MODEL_CAPABILITY_CATALOG` is TS today; add a FILE-based overlay (JSON/YAML with a type-safe Zod schema)
-      loaded from the runtime home + merged OVER the shipped defaults (user entries win; new fine-tunes added without a
-      rebuild). Reuse the `ProvisionalCatalogEntry` shape from `model-online-lookup.ts`. Document the format seeded with
-      the web-verified mid-2026 entries (see scratchpad `model-advisory-design.md`). See §5.AB "MODEL-ADVISORY EXCELLENCE".
+- [x] **EXTERNAL editable catalog overlay (David 2026-07-07, decision #1 — "data-driven, no hardcoded names in src/").**
+      DONE: `model-catalog-overlay.ts` loads a JSON overlay (`~/.nklein/nklein/model-catalog-overlay.json`, Zod-validated,
+      `match` string → case-insensitive RegExp, tolerant per-entry skip) that `lookupModelCapability` consults BEFORE the
+      shipped catalog (`registerModelCatalogOverlay`; overlay entries win). Wired at server startup (runtime-server, best-
+      effort). Format documented in `docs/model-catalog-overlay.md` seeded with web-verified mid-2026 entries. 8 tests.
+      So a user adds/overrides a model without a rebuild. REMAINING (next leaves): the llmfit GitHub auto-update (below)
+      feeds THIS overlay; a settings/UI editor + confirm-to-overlay from the online-lookup core are the suggestion-surface tie-in.
 - [ ] **Auto-check llmfit's GitHub catalog for updates (David 2026-07-07 — "we had looked at llmfit for this purpose").**
       llmfit (MIT, https://github.com/AlexsJones/llmfit — already scoped in §5.AB's llmfit item) ships a model DB/catalog
       updated as new models land. Make llmfit's remote catalog a first-class SOURCE feeding the external overlay (above):
