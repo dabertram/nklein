@@ -2852,4 +2852,15 @@ unverified guess dressed as fact** (I'd even seen coder-14b with a BLANK TTL in 
   the fix path (turn file-logging ON; raise/disable jitModelTTL or explicit-load for stability; a `lms ps` state monitor
   to catch the next drop) in §4A ("MODEL RESIDENCY IS NOT GUARANTEED STABLE"). Corrected the two prior run-log/matrix
   lines that stated "TTL" as fact. **OWED to David (his call — his LM Studio config): enable file logging + decide the
-  stability config, so the next vanish is actually diagnosable (crash vs TTL vs eviction).**
+  stability config, so the next vanish is actually diagnosable (crash vs TTL vs eviction).** [RESOLVED same tick via
+  AskUserQuestion: David chose "stabilize loading" + "I'll handle the config" — recorded in §4A.]
+
+### 2026-07-07 (Opus) - §5.AZ release-gate re-verification: full build + smoke PASS
+Ran the FULL release gate (no test:fast covers the production bundle; this session's catalog data/logic split changed
+the import graph, so worth re-verifying). `npm run build` (clean → cline-sdk build → web vite build → esbuild bundle →
+agent-sandbox Docker image → sentry skipped no-token) completed clean, then `npm run smoke:build`
+(verify-built-artifact.mts): **✓ dist/index.js loads (322 exports) · built CLI starts · GET / → 200 · projects.list →
+200 · clean shutdown.** The release artifact is healthy after all accumulated branch changes. Only 2 esbuild warnings,
+both traced (verify-don't-assume) to `vendor/cline-sdk/packages/llms/dist/index.js` — a genuine upstream bug
+(`!e instanceof Array` always parses false) in the VENDORED engine's dist, zero first-party `!x instanceof` in src, so
+benign for us + not first-party-actionable (an upstream Cline-SDK fix if ever). Release-readiness re-confirmed.

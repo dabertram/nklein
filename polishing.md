@@ -807,7 +807,11 @@
 >       not defined` — a bundled CJS dep uses the CJS globals absent in ESM → shimmed `__filename`/`__dirname` in the
 >       build banner (7c027105). VERIFIED end-to-end: built server starts in an isolated temp HOME, `GET /` + `projects
 >       .list` → HTTP 200, clean shutdown. **RELEASE-GATE PROCEDURE (add to CI): `npm run build && (start dist/cli.js on
->       a free port, curl /, kill)` — a built-artifact smoke that no unit/integration test replaces.**
+>       a free port, curl /, kill)` — a built-artifact smoke that no unit/integration test replaces.** **RE-CONFIRMED
+>       GREEN 2026-07-07** (`npm run build` + `npm run smoke:build`): dist/index.js loads 322 exports · built CLI starts
+>       · `GET /` + `projects.list` → 200 · clean shutdown. Only 2 esbuild warnings, both in the VENDORED cline-sdk llms
+>       dist (`!e instanceof Array` upstream bug), zero first-party — release artifact healthy after the catalog split +
+>       all accumulated branch changes.
 > - [ ] **★ Gate the VENDORED SDK suite (finding 2026-07-03).** Repo `test:fast`/`vitest` EXCLUDE `vendor/**`, so the
 >       forked SDK's own tests never run in CI — and our fork edits silently rot them. Live proof: `cd
 >       vendor/cline-sdk/packages/core && npx vitest run` had **5 pre-existing failures** — 1 read_files schema test
