@@ -2487,3 +2487,18 @@ approval. (Also learned: no backticks in `git commit -m` -- shell command-substi
 use a heredoc/file for messages containing code.) The delivery-gate section of finalize is now well-decomposed
 (decideDeliveryAction, deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult, the waiver + #28 gates all extracted);
 next candidates: the acceptancePresentAndPassed companion predicate (small, §5.AW site) or a fresh method elsewhere.
+
+### 2026-07-07 (Opus) - §5.U pure-decision lift #4: credit-limit edge-detector from the LARGEST monolith
+Extended the pure-decision pattern to task-session-service (2830, the biggest named monolith) -- previously I'd only
+lifted from runtime-server. handleTaskEvent's inline credit-limit ABORT trigger was an edge-transition detector (fire
+only when latest hook activity JUST became a credit_limit notification, not on repeat -- keying the EDGE not the LEVEL
+is what stops re-aborting an already-limited session every event). Lifted didCreditLimitJustTrigger to
+core/task-session-guards.ts alongside its siblings (isEnteringAwaitingReview, shouldCaptureReviewCheckpoint). Behavior-
+identical: the original's `previousSummary?.` optional-chain was a no-op (cloneSummary returns non-null, matching
+shouldCaptureReviewCheckpoint's non-null param one line below). +3 tests pinning the edge semantics (fires on transition
+incl. from no-activity; does NOT re-fire while it persists; does NOT fire when current != credit_limit). test:fast
+8109 green; integration re-verified 41/pass-1-known-stale. (Used a heredoc `git commit -F -` this time -- no backtick
+mangling.) ARC TALLY: FOUR pure-decision lifts across BOTH big named monoliths -- auto-review classification, #39
+base-red waiver, #28 re-drive gate (runtime-server) + credit-limit edge (task-session-service) -- each safe, test-gated,
+verified behavior-preserving, no seam approval. The pattern generalizes across the entangled files; both big monoliths
+have more inline pure decisions minable one-per-tick.
