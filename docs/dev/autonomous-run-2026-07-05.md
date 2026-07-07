@@ -2059,3 +2059,28 @@ for each is purely the HOT-PATH orchestration/flip:
   verdicts → `combinePanelVerdicts`, default-on. Changes live review behavior → focused pass + §5.Z re-verify.
 - §5.BG (c) coordinated key flip + (d) re-key-on-load (subtle per-table merge semantics).
 - Hardware hard-block: selector rejects over-headroom (needs live resident-size state).
+
+### 2026-07-07 (Opus) · Panel orchestration SCOPED — it's a review-lifecycle redesign, not a tick increment
+Traced `second-opinion-review-runner.ts` + `runNKleinSecondOpinionReview`. The live review is a SINGLE-reviewer flow
+woven through deliver/bounce/escalate/park, §5.AW speculative arbitration, acceptance, and the W4.2 escalation ladder.
+Converting to the decided 3-judge majority+veto panel needs, together (each hot-path):
+1. **Verdict-shape mapping** — a review produces a `RuntimeCardReview` (deliver/bounce/park + feedback), NOT the
+   structured `{pass, findings:[{severity,category}]}` `combinePanelVerdicts` consumes. Need to map each judge's review →
+   a pass + severity-classified findings (parse/structure the feedback). This is a real design step, not a wire.
+2. **N-session orchestration** — spawn N base-family-diverse judges (extend `pickDiverseReviewerModel` 1→N), run their
+   review sessions cache/stream-aware (prefer warm/coherent; cold prefill on a fresh diverse judge only when its value
+   clears it), collect verdicts.
+3. **Decision integration** — map the combiner's merge/block (+ vetoedBy) back onto the existing deliver/bounce/park +
+   escalation-ladder transitions without breaking speculative arbitration or the one-escalation guard.
+The pure decision core (`combinePanelVerdicts`) is ready; the above is a deliberate, design-led, hot-path effort with a
+§5.Z live re-verify. Recorded as the panel's real scope so a focused session can execute it.
+
+### 2026-07-07 (Opus) · Safe unsupervised surface EXHAUSTED — stopping plainly (grind stop condition)
+After shipping the full model-advisory arc + §5.BG (a)+(b) + the panel decision core, nothing further is safely
+completable in an autonomous tick: §5.U structural refactor is STOPPED per David ("monoliths acceptable as-is"); §5.V
+coverage is saturated (all new code tested); §5.Z needs specific models loaded LIVE; §5.AZ is done; §5.AX is Fable-only.
+The remaining model-advisory items are all HOT-PATH changes to live routing/review that either (a) need a live §5.Z
+roster re-verify (panel orchestration, §5.BG (c) flip, hardware hard-block need live model/resident-size state), or (b)
+carry design/merge-semantics decisions best made deliberately (panel verdict-shape, §5.BG (d) per-table merge). Building
+more unwired pure cores would be the scaffolding David asked to avoid. Next move = a focused, live-verified session on
+ONE item; recommend §5.BG (c)+(d) first (foundation fresh + tested), then the panel orchestration.
