@@ -1118,6 +1118,17 @@ export function BoardCard({
 									<Bot size={12} className="shrink-0" />
 									<span className="truncate">{roleBadge.label}</span>
 								</span>
+								{/* §5.A paused-card UX: a clear paused-state chip (the resume button alone was easy to miss). */}
+								{isPausedSession ? (
+									<span
+										title="Paused — press the resume button to re-queue this task"
+										data-testid="card-paused-badge"
+										className="inline-flex items-center gap-1 rounded-md border border-status-orange/30 bg-status-orange/10 px-1.5 py-0.5 text-xs text-status-orange"
+									>
+										<Pause size={12} className="shrink-0" />
+										<span>Paused</span>
+									</span>
+								) : null}
 								{taskAgentSettingsLabel ? (
 									<span
 										className={cn(

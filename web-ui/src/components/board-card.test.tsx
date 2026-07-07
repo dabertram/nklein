@@ -429,6 +429,34 @@ describe("BoardCard", () => {
 		expect(container.querySelector('button[aria-label="Pause task"]')).toBeNull();
 	});
 
+	it("shows a clear Paused chip for paused task sessions (and not for running ones)", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running", { paused: true })}
+				/>,
+			);
+		});
+		const badge = container.querySelector('[data-testid="card-paused-badge"]');
+		expect(badge).not.toBeNull();
+		expect(badge?.textContent).toContain("Paused");
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running")}
+				/>,
+			);
+		});
+		expect(container.querySelector('[data-testid="card-paused-badge"]')).toBeNull();
+	});
+
 	it("shows inline see more and less controls for long descriptions", async () => {
 		const description =
 			"Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau final hidden segment";
