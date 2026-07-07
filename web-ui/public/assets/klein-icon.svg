@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- §5.AX !Klein app icon — the CONSTELLATION-K swarm mark on the klein dark tile.
+       Large-optics master (128/512 render sizes; the manifest PNGs rasterize from this).
+       Geometry = nklein-mark.tsx (nodes (20,14)(20,58)(50,14)(50,58) r5.5, hub (20,36) r7, edges stroke 4)
+       scaled 6× and centered. CYAN workers = the tool, VIOLET hub = the swarm's own intelligence.
+       Deliberately flat + attribute-only styling (no CSS color functions / gradients / opacity — colors pre-blended against the tile) so every rasterizer
+       (ImageMagick MSVG included) renders it identically to the browser. -->
+  <rect width="512" height="512" rx="115" fill="#10151C"/>
+  <rect x="6" y="6" width="500" height="500" rx="110" fill="none" stroke="#222D38" stroke-width="2"/>
+  <g transform="translate(46 40) scale(6)">
+    <circle cx="20" cy="36" r="15" fill="#24233C"/>
+    <line x1="20" y1="14" x2="20" y2="36" stroke="#257074" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="20" y2="58" stroke="#257074" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="50" y2="14" stroke="#257074" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="50" y2="58" stroke="#257074" stroke-width="4" stroke-linecap="round"/>
+    
+    <circle cx="20" cy="14" r="5.5" fill="#3FE0E0"/>
+    <circle cx="20" cy="58" r="5.5" fill="#3FE0E0"/>
+    <circle cx="50" cy="14" r="5.5" fill="#3FE0E0"/>
+    <circle cx="50" cy="58" r="5.5" fill="#3FE0E0"/>
+    <circle cx="20" cy="36" r="7" fill="#9D7BFF"/>
+  </g>
+</svg>

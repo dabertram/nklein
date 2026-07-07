@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72">
+  <!-- §5.AX !Klein favicon — SMALL-OPTICS variant of the constellation-K (16/32 px render sizes).
+       Same node layout as nklein-mark.tsx but optically retuned for tiny rendering: heavier edges (6),
+       brighter edge opacity, larger nodes (workers 7, hub 9), full-bleed dark tile, no halo (muds at 16px).
+       Flat + attribute-only styling for rasterizer portability. -->
+  <rect width="72" height="72" rx="16" fill="#0F1319"/>
+  <g transform="translate(1 0)">
+    <line x1="20" y1="14" x2="20" y2="36" stroke="#2C8E90" stroke-width="6" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="20" y2="58" stroke="#2C8E90" stroke-width="6" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="50" y2="14" stroke="#2C8E90" stroke-width="6" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="50" y2="58" stroke="#2C8E90" stroke-width="6" stroke-linecap="round"/>
+    
+    <circle cx="20" cy="14" r="7" fill="#3FE0E0"/>
+    <circle cx="20" cy="58" r="7" fill="#3FE0E0"/>
+    <circle cx="50" cy="14" r="7" fill="#3FE0E0"/>
+    <circle cx="50" cy="58" r="7" fill="#3FE0E0"/>
+    <circle cx="20" cy="36" r="9" fill="#9D7BFF"/>
+  </g>
+</svg>

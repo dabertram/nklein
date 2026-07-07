@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- §5.AX !Klein app icon — LIGHT variant (for light-background contexts: docs, stores, light-theme hosts).
+       Same constellation-K geometry as klein-icon.svg; accents darkened for contrast on the light tile
+       (cyan #0FA8A8 / violet #7C5CFF keep the two-accent semantics: cyan = tool, violet = AI hub).
+       Flat + attribute-only styling for rasterizer portability. -->
+  <rect width="512" height="512" rx="115" fill="#F3F7FA"/>
+  <rect x="6" y="6" width="500" height="500" rx="110" fill="none" stroke="#C9D4E0" stroke-width="2"/>
+  <g transform="translate(46 40) scale(6)">
+    <circle cx="20" cy="36" r="15" fill="#E5E4FB"/>
+    <line x1="20" y1="14" x2="20" y2="36" stroke="#81D0D1" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="20" y2="58" stroke="#81D0D1" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="50" y2="14" stroke="#81D0D1" stroke-width="4" stroke-linecap="round"/>
+    <line x1="20" y1="36" x2="50" y2="58" stroke="#81D0D1" stroke-width="4" stroke-linecap="round"/>
+    
+    <circle cx="20" cy="14" r="5.5" fill="#0FA8A8"/>
+    <circle cx="20" cy="58" r="5.5" fill="#0FA8A8"/>
+    <circle cx="50" cy="14" r="5.5" fill="#0FA8A8"/>
+    <circle cx="50" cy="58" r="5.5" fill="#0FA8A8"/>
+    <circle cx="20" cy="36" r="7" fill="#7C5CFF"/>
+  </g>
+</svg>

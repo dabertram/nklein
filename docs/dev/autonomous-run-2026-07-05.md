@@ -3470,3 +3470,19 @@ short-circuit · exact `nklein-dev-test` sentinel · foreign/missing/unparseable
 (dirs-only, sorted, ignores files; missing dir → []), and `updateMigratedArtifactMetadata` (rebinds workspace fields + stamps
 updatedAt while preserving others · keeps an already-set sourceTaskId · no-op on missing/non-record metadata, writes nothing).
 Locks down the self-improvement/dev-test guard + the evidence-bundle sha validation regex. Green: tsc + biome + test:fast.
+
+### 2026-07-07 (Fable) - §5.AX icon/favicon asset set SHIPPED: constellation-K replaces the last Cline-robot surfaces
+Session switched to FABLE for the §5.AX visual track (David directive). The app was klein-branded everywhere EXCEPT its
+own icons: index.html still shipped the Cline robot-head data-URI favicon and icon-192/512/notification.png were the old
+robot tiles. Shipped the owed asset set, geometry ported 1:1 from the approved `nklein-mark.tsx` constellation-K:
+`klein-favicon.svg` (SMALL-OPTICS — edges 6, workers r7, hub r9, full-bleed dark tile; tuned so the K stays legible at
+16/32px), `klein-icon.svg` (LARGE-OPTICS master for 128/512 — klein dark tile #10151C, violet hub halo, cyan workers +
+violet hub), `klein-icon-light.svg` (light-context variant, accents contrast-darkened to #0FA8A8/#7C5CFF). PNGs
+(icon-192/512/notification) regenerated to match — NOTE the hard-won lesson: ImageMagick's internal MSVG parser renders
+SVG strokes inconsistently (dropped rgba() colors, then hairlined solid strokes), so the PNGs are drawn DIRECTLY via
+MVG primitives from the same coordinates instead of rasterizing the SVG; the SVG masters themselves are plain-attribute,
+pre-blended-color SVG (no gradients/opacity/CSS funcs) and browser-render perfectly (verified in Chrome at
+16/32/64/128/256 via the dev-server preview + an injected proof grid — K legible at every size). index.html: favicon →
+klein-favicon.svg, + apple-touch-icon, theme-color → #0F1319; manifest background/theme → klein palette. Also added
+.claude/launch.json (web-ui dev server on 127.0.0.1:4173) for browser-verified UI work. Web gate GREEN: web-ui tsc +
+biome (407 files) + vitest 952/952. §5.AX remaining: the component polish pass + §5.AZ screenshots (now unblocked).
