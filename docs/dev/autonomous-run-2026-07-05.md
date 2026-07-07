@@ -2103,3 +2103,19 @@ over-headroom" decision is essentially LIVE (via detected total RAM). The only r
 user-declared per-machine budgets (`resolveEffectiveBudgets`) are wired only into `dev rosters`, not the live guard —
 threading `min(detectedRam, userBudget)` into `decideModelLoad` at its two call sites would honor a user cap below
 physical RAM. Bounded config-wire; deprioritized (the safety hard-block already exists). Updated §5.AB gap 6.
+
+### 2026-07-07 (Opus) · PANEL ORCHESTRATION COMPLETE — flag-gated (all 4 of David's items now addressed)
+David: "you can do all of these ... load models as-needed ... don't stop while actionable." Built the parallel
+panel-of-judges end-to-end, flag-gated behind `NKLEIN_REVIEW_PANEL` (default OFF ⇒ single reviewer, byte-identical;
+8029 fast tests green unchanged). Five increments:
+- `selectReviewerPanel` [43c43319] — pick N base-family-diverse judges, depth-first, fill-to-size (5 tests).
+- `combinePanelVerdicts` [5613d117] — majority + security veto (10 tests).
+- `mapReviewSubmissionToPanelVerdict` + optional `blocking` on the submission [74a25cbd] — bridge the review contract
+  to the combiner (3 tests).
+- `runReviewPanel` [38617236] — collapse N judges' sessions into ONE effective submission (6 tests).
+- Runner wiring [e66291e4] — assemble judges + run the panel in the runReviewSession dep; orchestrator UNCHANGED, the
+  combined submission drives the existing deliver/bounce lifecycle.
+**Of David's 4:** §5.BG (c) flip = DONE (flag-gated); hardware hard-block = already existed (`decideModelLoad` wired);
+panel = DONE (flag-gated); §5.BG (d) = low-priority self-healing. **Live §5.Z roster re-verify owed** before flipping
+either flag on. Remaining panel follow-ups (v1 simplifications): expose `blocking` via the submit_review TOOL so the
+VETO activates (next), parallel judges (cache/stream), multi-machine judges, configurable size.
