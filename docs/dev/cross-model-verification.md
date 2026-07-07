@@ -976,3 +976,18 @@ A model resident this session but NOT yet in the matrix — added two fast high-
   (`hunter2-fjord-lantern`) → user+assistant both persisted (the W3.1 persist-before-loop invariant). No iteration-limit hit.
 - matrix rows: qwopus3.5-9b-coder-mtp → egress-e2e=✅ · chat-agent-tools=✅. A capable 9B coder model, clean on both the
   egress tool-loop and the read-tool loop. Baseline model left loaded (was already the resident selection).
+
+## 2026-07-07 (Opus) — §5.Z decompose-isolation on `qwopus3.5-9b-coder-mtp` + harness robustness fix
+Ran `verify-decompose-isolation.mts` (§5.A host-path isolation during a real Docker-sandboxed decompose) against the
+resident model. FIRST run crashed with an UNCAUGHT `AgentRuntimeAbortError: session_stop` before the result printed —
+root-caused (not a product bug): the vendored SDK surfaces a stray `session_stop` rejection when a driven session is
+stopped mid-run; the long-lived server guards against exactly this (runtime-process-guards.ts) but this harness drove
+sessions directly without the guard. Added a targeted process guard (tolerate only the benign session_stop abort, fail
+loudly on anything else) — `54b00ab4`. Re-ran:
+- ✅ **decompose-isolation [qwopus3.5-9b-coder-mtp] — PASS.** decompose_project called · sandbox container observed ·
+  **zero host-path leaks** in 124 captured agent activities · no host worktree · clean container teardown.
+- matrix rows: qwopus3.5-9b-coder-mtp → egress-e2e=✅ · chat-agent-tools=✅ · decompose-isolation=✅. A capable 9B coder
+  model, clean on all three fast high-value flows (§5.AC egress, §5.M read-tool loop, §5.A decompose isolation).
+- **Harness hardening:** the same stray-session_stop crash risk exists in the other session-driving verify harnesses that
+  lack the guard (restart-resume-isolation [4 stops], strict-isolation, autopromote-recovery, reasoning-display) — noted
+  for a proactive guard pass so a future model's timing can't crash the sweep mid-flow.
