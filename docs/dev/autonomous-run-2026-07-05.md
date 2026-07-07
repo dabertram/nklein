@@ -2236,3 +2236,18 @@ both gate too-thin plans AFTER schema validation, both regressions would pass si
 (non-object/slug-less/blank-slug pass through untouched) + blank-command->null trim. 4 tests, green. HONEST STATE:
 the safe, David-independent 5.U runway is now genuinely thin -- remaining monolith bulk is the entangled lifecycle
 that needs seam approval. Continuing to mine 5.V coverage of pure branches is the productive, non-risky track.
+
+### 2026-07-07 (Opus) - 5.V coverage sweep: 3 real gaps closed (~15 tests), tracks surveyed
+Productive coverage tick after confirming the safe 5.U runway is thin. Closed three GENUINE coverage gaps (not
+marginal churn): (1) decompose_project plan-quality guardrails -- the empty-task-array rejection + minimumTaskCount
+leaf floor (both gate too-thin plans AFTER schema validation, silent-pass regressions) + recovery-layer edge cases;
+(2) the repo-map-invalidation predicate's defensive trim+case-fold normalization (a dropped normalize lets a
+' WRITE_FILE ' variant leave the repo map stale -> agent navigates an outdated codebase map); (3) project-health.ts
+was FULLY untested -- exported + covered its two detection-critical pure helpers (parseTaskWorktreeTaskId path
+classification incl. the ../-escape/is-home/parent reject branches; readPendingPlanArtifactInfo artifact-metadata
+parsing). All behavior-preserving (only additive `export`s), every increment green through the full pre-commit gate.
+TRACK SURVEY (honest): 5.U safe clean-boundary lifts drained -> rest is the David-gated entangled lifecycle seam
+(+ swarm-recovery, a deliberate multi-package vendored change, scope-flagged); 5.V now comprehensively covered
+(probed 5+ modules, most already thorough; remaining fully-untested ones are I/O-heavy needing fixture scaffolding
+or declarative api-contracts, low ROI); 5.Z needs LIVE cross-model runs; 5.AZ done or maturity/David-gated; 5.BG
+DECISION OWED (David). The high-value David-independent coverage is now largely landed.
