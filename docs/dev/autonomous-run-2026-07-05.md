@@ -2943,3 +2943,23 @@ there is no clean, high-value, autonomous-safe increment left to make right now.
 clause, stopping rather than manufacturing marginal work. The levers that unblock real work are David's: residency
 stabilizing (resumes §5.Z model runs), or steering a gated item (§5.BG default-flip · the 2 integration reds · vendored
 swarm-recovery · fresh-root release branch · decompose nudger-efficacy multi-run).
+
+### 2026-07-07 (Opus) - AUTONOMY RAISED + queue started: 2 test fixes + dev-test-project "2 styles" root-caused
+David clarified all open decisions + sent a screenshot RAISING my autonomy: research + decide autonomously, escalate
+ONLY genuine contradictions, drain the ENTIRE backlog, sweep + research generously, use browser/model-load/dev-test-
+projects to challenge+harden !Klein. Recorded as the durable operating contract in goal.md ("AUTONOMY LEVEL RAISED",
+commit 61c35b10) — supersedes the "say so plainly and stop" posture.
+Then worked the green-lit queue:
+  - **Stale integration test FIXED** (47b18949) — reconcile-don't-destroy alignment, 8/8 green; clears 1 of 2 integration
+    reds. NOT a test-weakening (aligned a lagging test to shipped design).
+  - **De-flaked** runtime-id-model-key-map-store persist test (08da9609) — the pre-commit gate (never-waive rule) caught
+    it failing under parallel load (5ms sleep raced a debounced async write); vi.waitFor, no prod change.
+  - **Dev-test-project "2 styles" ROOT-CAUSED** (David's named concern) + executable fix recorded as polishing §5.DT.
+    Evidence: the registry has 2 divergent-schema groups — 30 numbered ladder projects (tier "N/20" + tags) vs 9 legacy
+    preset scenarios (habit-*/smoke/audio) with legacy `complexity` but NO tier/tags; the web-ui picker groups by tier
+    and dumps no-tier entries into an anonymous "Other" bucket (+ no tag-chips). Fix = data-only: add coherent tier
+    ("Swarm shapes" / "Smoke" / "Audio & DAW") + tags to the 9 legacy project.json, keep legacy complexity; then update
+    any shape-asserting tests (several test files reference these ids) + web gate. Deferred the multi-file EXECUTION to
+    the next loop fire (fresh context — a careful 9-file + test + web-gate change shouldn't be rushed at the tail of a
+    long turn; all decisions are made, so this is sequencing, not stopping-at-a-decision).
+NEXT (loop rearmed): execute §5.DT, then §5.BG flip, bounce-test investigation, release docs, §5.U full pass — draining.

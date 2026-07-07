@@ -649,6 +649,26 @@
 > (task-session-service collaborators, `createRuntimeServer` closure) are a multi-commit DI-threading undertaking best
 > started with a fresh context budget.
 
+### 5.DT — Unify the dev-test-project presentation (the "2 styles / 2 groups" David flagged) *(2026-07-07, David autonomy screenshot; ROOT-CAUSED — ready to execute)*
+> **David:** "dev-test-projects are presented in 2 different styles … unify that so all appear similar and no confusion
+> arises why selecting any looks different for 2 groups." **ROOT CAUSE (evidence-backed 2026-07-07):** the registry has
+> TWO groups with DIVERGENT `project.json` schemas — (a) the **30 numbered difficulty-ladder projects** (`NN_name`) carry
+> `tier: "N/20"` + `tags`; (b) the **9 legacy preset scenarios** (`habit-*` DAG-shapes, `small-model-smoke`, `audio-vst-
+> psytrance`, `daw-foundation-platform`) carry the LEGACY `complexity` (0-100) but NO `tier` and NO `tags`. The web-ui
+> picker (`dev-test-registry-picker.tsx:41-46`) **groups by `tier`, and no-tier entries fall into an anonymous "Other"
+> bucket**; it also renders `tags` as chips per card (line ~140). ⇒ the 9 legacy scenarios all dump into "Other" with no
+> tag-chips = the visibly-different 2nd group. The canonical schema (`dev-test-project-registry.ts:42-52`) already says
+> `tier` is current and `complexity` is legacy — so the fix DIRECTION is settled.
+> **EXECUTABLE FIX (data-only, Opus-domain — NOT a Fable visual change):** add a coherent `tier` + `tags` to each of the
+> 9 legacy scenarios' `project.json` so they group as proper named tiers (out of "Other") and show chips like the
+> numbered ones; KEEP `complexity` (byte-fidelity per the schema note). Decided labels: the 6 `habit-*` → tier
+> **"Swarm shapes"** (+ tags: swarm, habit-tracker, + the shape); `small-model-smoke` → tier **"Smoke"** (+ tags: smoke,
+> small-model); `audio-vst-psytrance` + `daw-foundation-platform` → tier **"Audio & DAW"** (+ audio/vst/daw tags).
+> **BEFORE editing:** grep for any test asserting these scenarios' exact `project.json` shape (byte-fidelity / snapshot)
+> and update or confirm it tolerates the added optional fields; then `test:fast` + the registry tests + a web gate
+> (picker groups uniformly, no "Other" oddball). tsc/biome green. Verify the picker sort (`:53` numeric-first-then-Other)
+> still reads sensibly with the new named tiers.
+
 ### 5.AO — DEFERRED: extensive model-attribute A/B hardening sessions *(2026-06-29, user — PARKED until "first proven workflow paths" land)*
 > **User steer (2026-06-29):** do **extensive A/B testing across ALL available model attributes / characteristics** at a
 > LATER point. **For now we keep punching through !Klein's basic core implementation** to reach confidence in the **"first
