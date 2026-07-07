@@ -3149,3 +3149,18 @@ discovery's cache/fallback still uncovered) interleaved with any careful §5.U b
 - **§5.V gap note:** most remaining src/core `*-api-contract` 0-cov hits are zod SCHEMAS (declarative, imported as types —
   low value to unit-test); projects-api-helpers is mostly git/fs I/O. The clean pure-logic §5.V veins are also thinning;
   next candidates need fs/git/time mocking (provider-discovery cache/fallback TTL) — higher setup, do when a turn allows.
+
+### 2026-07-07 (Opus) - §5.V provider-cache coverage + §5.AZ issue templates (release prep)
+- **provider model-discovery TTL cache covered** (`799d1de7`): loadProviderModelsWithFallback caches roster lookups by
+  provider+baseUrl — subtle, untested. 5 tests pin the invariants (hit within TTL → no refetch; refetch after TTL;
+  TTL=0 disables; explicit clear refetches; distinct providers key separately) using fake timers + importOriginal-based
+  overrides of just listSdkProviderModels/getSdkProviderSettings/modelDiscoveryCacheTtlMs. test:fast 8150→8155.
+- **§5.AZ issue templates DONE** (`c1dfd373`): `.github/` was empty; added bug_report.yml + feature_request.yml issue
+  FORMS + config.yml. The bug form is grounded in what makes a !Klein bug reproducible (model, Docker version+memory —
+  per the bounce-test VM-memory finding — egress posture, redaction confirmations); config points security reports to
+  the private advisory URL matching SECURITY.md. Deliberately did NOT author CI workflows (ci/test/publish.yml) — those
+  define the pipeline (Docker/integration nuances, secrets) and are David's to own. §5.AZ now has only screenshots
+  (Fable/§5.AX visual) open; all prose docs + templates are done.
+- **Honest status:** §5.U flagship (>2000 monoliths) remains blocked on David's DI-seam steer; clean §5.V pure-logic
+  veins are mostly worked (context-focus, discovery-probe, code-search-ranking, discovery-cache now covered). Remaining
+  actionable-without-David work is narrowing to: deeper §5.V on mock-heavy modules, and §5.Z live-model verification.

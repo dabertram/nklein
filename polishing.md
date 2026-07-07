@@ -852,9 +852,14 @@
 >       SECURITY.md was CREATED** — a grounded local-only threat model with EVERY claim verified against code (local-models
 >       default · mandatory fail-closed Docker isolation · fail-closed egress gate `blocked_by_egress` · confirm-gate +
 >       audit for mutating tools · secret redaction · 127.0.0.1 loopback bind · review-gated result branches) + private
->       vuln reporting via GitHub advisories (the same channel CONTRIBUTING points to). STILL OPEN in this item: issue
->       templates + screenshots (screenshots are §5.AX/Fable visual territory) — box stays unchecked until those land, but
->       the prose release docs are DONE.**
+>       vuln reporting via GitHub advisories (the same channel CONTRIBUTING points to).
+>       **★ ISSUE TEMPLATES DONE (2026-07-07, `c1dfd373`):** `.github/ISSUE_TEMPLATE/` with two GitHub issue FORMS +
+>       config — bug_report.yml (grounded in the fields that actually make a !Klein bug reproducible: model provider/model,
+>       Docker version + allocated memory, egress posture, OS/Node/version, + redaction/no-secrets confirmations),
+>       feature_request.yml (problem/proposal/alternatives, framed on the local-first model-agnostic north star), and
+>       config.yml (blank issues off; a private security-advisory contact link matching SECURITY.md). All validate as YAML.
+>       STILL OPEN in this item: only screenshots (§5.AX/Fable visual territory) — box stays unchecked until those land,
+>       but ALL prose docs + templates are now DONE.**
 > - [ ] **Content audit:** todo.md/done.md/docs/dev/* are full of internal working notes, machine names, and user
 >       context — decide what ships (curated docs/) vs what stays private (working notes); CHANGELOG grooming to a
 >       public voice; strip dev-test fixtures that reference private infra; make sure the model-capability catalog and
