@@ -2210,3 +2210,15 @@ Behavior identical (8029 fast tests green). +4 tests for the previously-untested
 NUL-join collision avoidance. LESSON: reach for byte-level tooling (python string anchors) when the Edit matcher chokes
 on special chars, rather than declaring a clean-boundary lift blocked. 3rd 5.U clear-boundary lift this session (re-key,
 residency-set, ledger-evidence). Import cleanup: dropped 4 now-unused imports.
+
+### 2026-07-07 (Opus) - capability-blend 5.U lift LANDED (4th clean-boundary extraction this session)
+Continuing the one-clean-cluster-per-tick cadence with byte-level tooling. Extracted the routing capability-blending
+cluster (runtimeVerdictMultiplier + blendedCapabilityForKey + the verdict memo + the role-outranks-global rule) to
+core/capability-blend.ts as createCapabilityBlender(evidence) -> the two blend functions. Behavior identical (full suite
+green). It now keys role evidence via the shared roleEvidenceKey (same helper buildLedgerEvidence uses) so the write/read
+keys can't drift -- the last NUL literal left the handler. +5 tests covering the previously-untested blend logic
+(no-evidence passthrough, global blend, role-outranks-global, thin-role fallback, no-penalty verdict). start-task-session
+is now      944 lines (was ~1008 before this run of extractions). FOUR 5.U clear-boundary lifts landed this session:
+re-key, residency-set, ledger-evidence, capability-blend -- all behavior-preserving + test-gated, ~19 new unit tests.
+The self-contained clusters around the entangled lifecycle are extractable one per tick; the primary lifecycle state
+machines (startTaskSession phases / handleTaskEvent dispatch) remain the David-gated seam.
