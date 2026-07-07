@@ -39,9 +39,19 @@ excluded below).
 ## The OPUS-territory list (after the Fable pass — switch models)
 
 Highest-leverage first (repeat finding: **pure cores exist + tested, wiring is the gap**):
-1. **Retry-policy engine adoption** (§5.AA): `decideNextRetryStrategy` exists + tested, NEVER CALLED — chat
-   still uses the hand-ordered ladder. Wire it (L4841/L4882/L4884), thread rung outcomes to the ledger
-   (L4621/L4885/L5043), then the endpoint-iteration ladder (L4595-4600).
+1. **Retry-policy engine adoption** (§5.AA): ⚠️ **RECLASSIFIED to FLEET-TIME-GATED (2026-07-07 Opus, after
+   characterization).** The full engine stack (`decideNextRetryStrategy` → `planNextAttempt` →
+   `runAdaptiveAttemptLoop`) is built + tested but has ZERO real callers — the audit finding is accurate. BUT it is
+   NOT a safe deterministic wire: the chat seam (`chat-local-llm-adapter`) already runs an equivalent, **live-tuned**
+   inline ladder (raise_token_budget → reduced_tool_set → narrated-recovery → prompt_variant → constrained_schema,
+   with 2026-07-05 bug fixes), and that live order **diverges** from the engine's declared
+   `RELEVANT_STRATEGIES_BY_OUTCOME` (e.g. `no_tool_call`: live does reduced→prompt_variant→constrained; engine
+   declares reduced→constrained→alternate→prompt_variant→cross_model). Routing rung choice through the engine would
+   therefore **change** small-model reliability behavior — the project's core value — so it needs a cross-model live
+   validation session (the 9-model roster), NOT a blind Opus rewrite. The `raise_token_budget` sub-item is already
+   DONE (heads the aborted ladder + applied at the chat seam; the stale "owed wiring" note in retry-policy.ts was
+   corrected). **Owner: a fleet-time session** — align the engine ladder to the live-validated order first, then wire
+   + re-validate per rung.
 2. **Escalation hot-path** (§5.AB): `decideEscalationAction` core done; wire runtime signals + model-switch +
    ledger events (L5806-5808).
 3. **Test-driven mode splice** (§5.AI L7550): `test-driven-delivery.ts` core done, 0 callers; seam identified

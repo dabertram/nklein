@@ -3589,3 +3589,17 @@ verdict penalty from the same evidence (self-observation failures + ledger run d
 biome + the projections suite 26/26. Method note: spot-verifying "core exists, wire it" audit items against the CODE
 first keeps catching stale verdicts (this one + the earlier pin/prefer/weight one) — the wiring was already done, the
 gap was elsewhere. Next: the retry-policy engine (#1) — the big one; will characterize before touching.
+
+### 2026-07-07 (Opus) - opus queue #1 (retry-engine adoption): CHARACTERIZED → reclassified fleet-time-gated
+Characterized before touching (as flagged). The engine stack (decideNextRetryStrategy → planNextAttempt →
+runAdaptiveAttemptLoop) is built + fully tested but has ZERO real callers — audit finding accurate. The reason it's
+unwired is decisive: the chat seam (chat-local-llm-adapter) already runs an equivalent LIVE-TUNED inline ladder
+(raise_token_budget → reduced_tool_set → narrated-recovery → prompt_variant → constrained_schema, w/ 2026-07-05 fixes),
+and its rung ORDER DIVERGES from the engine's declared RELEVANT_STRATEGIES_BY_OUTCOME (no_tool_call: live =
+reduced→prompt_variant→constrained vs engine = reduced→constrained→alternate→prompt_variant→cross_model). Routing rung
+choice through the engine therefore CHANGES small-model reliability — the project's core value — so it's a cross-model
+live-validation job, NOT a blind Opus rewrite. Reclassified in the audit doc to fleet-time-gated with the exact
+sequencing (align engine ladder to the live order first, then wire + re-validate per rung). SAFE deliverable this turn:
+corrected the STALE "owed wiring" note in retry-policy.ts (the raise_token_budget rung is already in the aborted ladder
+AND applied at the chat seam — done, not owed). Method holds: characterize live-tuned code before rewiring it. Moving
+to a genuinely-deterministic opus item next.

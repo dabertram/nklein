@@ -171,8 +171,11 @@ export function planNextAttempt(input: {
  * root-cause fix for the models where thinking-control can't help — every `ALWAYS_REASONING_EXCLUDE` reasoner (qwen3.5,
  * phi-4-mini, R1 distills) ignores `/no_think`, so a bigger budget is their ONLY recovery.
  *
- * Pure. The owed wiring: add a `raise_token_budget` rung to the `aborted` ladder and have the model-call seam apply THIS
- * to the retry's `maxTokens`.
+ * Pure. WIRED (2026-07-07 verify): `raise_token_budget` already heads the `aborted` ladder in
+ * `RELEVANT_STRATEGIES_BY_OUTCOME`, and the chat model-call seam already applies this to the truncation-retry
+ * `maxTokens` (see `raisedTokenBudget` usage in chat-local-llm-adapter). The remaining engine-adoption gap is that the
+ * chat seam runs its own live-tuned INLINE ladder rather than routing rung choice through `decideNextRetryStrategy` —
+ * a behavior-changing rewire that needs cross-model live validation (see docs/dev/backlog-audit-2026-07-07.md §retry).
  */
 export function raisedTokenBudget(input: { current: number; attempt: number; ceiling?: number }): number {
 	const base = Math.max(1, Math.trunc(input.current));
