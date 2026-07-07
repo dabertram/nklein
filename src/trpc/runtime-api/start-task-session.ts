@@ -9,6 +9,7 @@ import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
 import { derivePoolCaps, derivePoolKeyForCandidate } from "../../core/model-pool-key";
@@ -225,7 +226,7 @@ export async function handleStartTaskSession(
 						// Use the configured provider endpoint (not a hardcoded localhost) so the fallback also works for a
 						// LAN/remote LM Studio; default to the local endpoint when the provider carries no explicit baseUrl.
 						baseUrl:
-							deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? "http://127.0.0.1:1234/v1",
+							deps.nkleinProviderService.getProviderSettingsSummary().baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL,
 					});
 			if (!fallback) {
 				throw primaryError;
@@ -250,7 +251,7 @@ export async function handleStartTaskSession(
 		// load. Fetch the loaded set ONCE (test-runner-skipped — no live endpoint to query) and reuse it for both the
 		// primary guard (error) and the role-pool filter (skip). Lenient: block only a positively-non-resident model.
 		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
-		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? "http://127.0.0.1:1234/v1";
+		const residencyBaseUrl = nkleinLaunchConfig.baseUrl ?? DEFAULT_LOCAL_MODEL_BASE_URL;
 		const loadedModelIds =
 			residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)
 				? await fetchLoadedModelIdsCached(residencyBaseUrl)

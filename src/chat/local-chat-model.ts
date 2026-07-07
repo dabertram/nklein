@@ -1,4 +1,5 @@
 import { fetchLoadedModelIds, shouldBlockUnloadedModel } from "../core/lmstudio-loaded-models";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../core/model-capability-catalog";
 import { modelDiscoveryCacheTtlMs } from "../core/model-discovery-throttle";
 import { LocalLlmClient } from "../nklein-agent/nklein-local-llm-client";
@@ -11,7 +12,8 @@ import { type ChatModelDeps, createChatModelDeps } from "./chat-local-llm-adapte
  * non-embedding model. `LocalLlmClient` itself fails closed against cloud (invariant #1) in its constructor.
  */
 
-export const DEFAULT_LOCAL_CHAT_BASE_URL = "http://127.0.0.1:1234/v1";
+/** @deprecated prefer {@link DEFAULT_LOCAL_MODEL_BASE_URL}; kept as a chat-context alias to the shared default. */
+export const DEFAULT_LOCAL_CHAT_BASE_URL = DEFAULT_LOCAL_MODEL_BASE_URL;
 export const DEFAULT_LOCAL_CHAT_PROVIDER_ID = "lmstudio";
 
 /**

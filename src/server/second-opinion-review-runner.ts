@@ -14,6 +14,7 @@ import type { RuntimeBoardCard, RuntimeBoardData, RuntimeCardReview } from "../c
 import { isTruthyEnv } from "../core/env-flag";
 import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
 import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
 import { planReviewPanel } from "../core/review-panel-plan";
@@ -231,7 +232,7 @@ export async function runSecondOpinionReviewForTask(
 			input.fetchLoadedModelIds ??
 			(residencyCheckEnabled
 				? // Default local LM Studio endpoint — the same fallback the service's diverse-pick uses.
-					() => fetchLoadedModelIdsCached("http://127.0.0.1:1234/v1")
+					() => fetchLoadedModelIdsCached(DEFAULT_LOCAL_MODEL_BASE_URL)
 				: null);
 		const loadedIds = probeLoadedModelIds ? await probeLoadedModelIds().catch(() => [] as string[]) : [];
 		if (loadedIds.length > 0) {
@@ -277,7 +278,7 @@ export async function runSecondOpinionReviewForTask(
 			input.fetchLoadedModelDescriptors ?? (residencyCheckEnabled ? fetchLoadedModelDescriptors : null);
 		if (fetchDescriptors) {
 			const reviewerProviderId = reviewer?.providerId ?? workerSummary?.providerId ?? "lmstudio";
-			const baseUrl = workerSummary?.endpoint?.trim() || "http://127.0.0.1:1234/v1";
+			const baseUrl = workerSummary?.endpoint?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
 			const descriptors = await fetchDescriptors(baseUrl).catch(() => []);
 			const workerRealId = resolveWorkerRealId(descriptors, workerModelId);
 			// Panel size: David's default is 3 (decision #2); tunable via NKLEIN_REVIEW_PANEL_SIZE, clamped to [2, 5] (a panel

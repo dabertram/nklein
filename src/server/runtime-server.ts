@@ -27,6 +27,7 @@ import { deriveDeliveryGateEvidence, shouldHoldEmptyPatchResult } from "../core/
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { decideOpportunisticIdleWork, findReviewCandidateTaskIds } from "../core/opportunistic-idle-work";
@@ -1605,7 +1606,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 							}
 							const baseUrl =
 								runningWorkerSessions.find((session) => session.endpoint)?.endpoint ??
-								"http://127.0.0.1:1234/v1";
+								DEFAULT_LOCAL_MODEL_BASE_URL;
 							// Descriptor-derived facts (idle set, lineage keys) are only valid for sessions on the SAME
 							// endpoint they were fetched from — drop workers on other endpoints this tick.
 							const endpointConsistentWorkers = runningWorkerSessions.filter(
