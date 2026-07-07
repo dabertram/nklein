@@ -2298,3 +2298,19 @@ IPs, no sk-/ghp_/AWS/PEM secrets, no other .local hosts. Left intact (correct): 
 online-lookup/stable-identity comments (teaching examples of the anti-pattern), eval-prompt-corpus mail.local
 (synthetic exfil test data). Commits ec4f3499 + 49533195; web typecheck + unit tests + full pre-commit gate green.
 Recorded the src/test-code pass as DONE under polishing.md §5.AZ content-audit (docs/history curation still open).
+
+### 2026-07-07 (Opus) - §5.U PATTERN UNLOCKED: cohesive MODULE-level cluster lift (OAuth) — corrects "drained"
+Important correction to my prior several-tick conclusion that §5.U's safe runway was drained. I'd been framing the
+options as only (a) pure-function extraction [drained] or (b) entangled class-internals [David-gated seam], and missed
+the middle: a MODULE-LEVEL cohesive cluster whose entire coupling surface is IMPORTS (no module state shared with the
+rest of the file, no factory closure) moves cleanly to a sibling file — a real behavior-preserving line-count
+reduction, which is exactly the flagship goal ("NO large monolith files"). Landed the first one: the managed-OAuth
+cluster (createRuntimeOauthCallbacks + authSettingsEqual + refreshManagedOauthSettings) -> new nklein-provider-oauth.ts.
+provider-service 933 -> 851. Service imports them back, calls at the same 7 sites; existing suite + auth test green (24)
+= behavior preserved. tsc caught an over-eager unused-import removal (normalizeEpochMs still used elsewhere) -> restored
+= the safety net working. **NEXT §5.U candidate (teed up):** the model-DISCOVERY cluster in provider-service
+(providerModelDiscoveryCache Map + discoverModelsFromEndpoint + loadProviderModelsWithFallback[ForSettings] +
+loadProviderModelsWithMeasuredWindows + clearProviderModelDiscoveryCache, ~140 lines, lines 102-261) -> a
+nklein-provider-model-discovery.ts sibling. Larger (more imports to thread + it owns the cache Map as module state),
+so a careful dedicated lift next tick. The monoliths likely have several more such module-level clusters; this is the
+repeatable §5.U pattern going forward, one bounded cluster per commit.
