@@ -17,11 +17,13 @@ export interface ProjectHealthByWorkspaceIdInput {
 
 export type ProjectHealthIssuesByWorkspaceId = Map<string, RuntimeProjectHealthIssue[]>;
 
-function normalizePathForComparison(path: string): string {
+// Exported for unit tests: these three are pure helpers whose branch logic gates health-issue detection
+// (path→taskId classification and pending-artifact metadata parsing). Kept module-cohesive; tested directly.
+export function normalizePathForComparison(path: string): string {
 	return path.replaceAll("\\", "/").replace(/\/+$/g, "");
 }
 
-function parseTaskWorktreeTaskId(repoPath: string, worktreesHomePath: string): string | null {
+export function parseTaskWorktreeTaskId(repoPath: string, worktreesHomePath: string): string | null {
 	const relativePath = relative(worktreesHomePath, repoPath).replaceAll("\\", "/");
 	if (!relativePath || relativePath.startsWith("../") || relativePath === "..") {
 		return null;
@@ -44,7 +46,7 @@ interface PendingPlanArtifactInfo {
 	sourceTaskId: string | null;
 }
 
-function readPendingPlanArtifactInfo(value: unknown): PendingPlanArtifactInfo | null {
+export function readPendingPlanArtifactInfo(value: unknown): PendingPlanArtifactInfo | null {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) {
 		return null;
 	}
