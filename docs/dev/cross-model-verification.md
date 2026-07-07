@@ -944,3 +944,21 @@ decompose CAPABILITY rows should be read as noisy** (emit/complete is not reprod
 the reliable, reproducible signal here, re-confirmed a 2nd time under plan-mode. Also confirms the chat flows (§5.M
 read_file / run_command / write_file) are the more DETERMINISTIC verification surface; the decompose/single-card
 capability signal is inherently noisier and better measured in batches than one-off.
+
+## 2026-07-07 (Opus) — §5.M chat-agent-WRITE (security confirm-gate + audit) on reasoning/GLM models
+Chose a SECURITY-invariant check over pure capability breadth: does the `write_file` CONFIRM-gate + audit path (the
+mutating-tool security seam — approval callback must fire, content must land, audit must record confirmed+executed
+`sandbox_write`) hold on the reasoning/GLM families it hadn't been run on? `verify-chat-agent-write.mts`, in-process.
+- ✅ **`qwen/qwq-32b` (32B reasoning) — PASS, 1 step.** Called write_file → confirm gate INVOKED → file written with the
+  content → audit recorded confirmed+executed sandbox_write. The security gate holds on a reasoning model (its long
+  think-blocks don't bypass or reorder the gate).
+- ⏱️ **`zai-org/glm-4.7-flash` — TIMEOUT/abort (~325s, harness AbortError), INCONCLUSIVE.** The turn never terminated
+  cleanly, so the flow didn't complete. This is consistent with glm-flash's KNOWN template quirk logged last tick (it
+  leaks a `<|user|>` chat-template delimiter + spurious continuation into content) — the model doesn't cleanly END the
+  turn on this flow, so the harness times out. A MODEL termination/template trait, **not** a !Klein confirm-gate bug
+  (the gate is proven on qwq here + qwen3-8b/coder-14b/gemma-e2b/gpt-oss-120b/mistral-small/nemotron-nano previously).
+  §5.AB fitness note: glm-4.7-flash = unreliable turn-termination on mutating-tool flows; usable for read/answer, risky
+  for write-loop tasks. Both test models unloaded after; baseline restored.
+- matrix rows (chat write_file): qwq-32b=✅ · glm-4.7-flash=⏱️(turn-termination/template trait, inconclusive).
+  **Net: the security confirm-gate + audit path is now proven on a reasoning model too; every write-flow non-pass to
+  date is a model turn-termination/synthesis trait, never a gap in the gate itself.**

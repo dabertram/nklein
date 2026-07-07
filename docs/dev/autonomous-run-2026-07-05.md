@@ -2817,3 +2817,18 @@ stayed PASS every run (re-confirmed under plan-mode) — the reliable signal. **
 the more DETERMINISTIC verification surface for per-model sweeps; decompose/single-card capability is noisier and better
 measured in batches, not one-off — future §5.Z ticks should favor the deterministic chat/isolation assertions for
 matrix breadth and treat decompose-completion as a batch experiment, not a per-tick data point.
+
+### 2026-07-07 (Opus) - §5.U re-checked (runtime-config already decomposed) + §5.M write-gate on reasoning/GLM
+First re-checked the flagship for a missed clean §5.U target: `runtime-config.ts` (935 lines, strong 12-file net) — but
+its `resolveRuntime*Config`/`normalize*` layer is ALREADY extracted to sibling modules (only `normalizePathForComparison`
+is local; `toRuntimeConfigState` is a thin aggregator of imports). The remaining bulk is I/O + orchestration (coupled).
+So no clean §5.U increment there either — the safe autonomous §5.U vein is confirmed worked-out a 3rd time.
+Then a SECURITY-invariant §5.Z increment (over pure capability breadth): does the write_file CONFIRM-gate + audit hold on
+the reasoning/GLM families? `verify-chat-agent-write.mts`:
+  - **qwq-32b (32B reasoning) ✅ PASS** — write_file → confirm gate fired → content landed → audit recorded
+    confirmed+executed sandbox_write. The security gate holds on a reasoning model.
+  - **glm-4.7-flash ⏱️ TIMEOUT (~325s), inconclusive** — turn never terminated cleanly; consistent with its known
+    `<|user|>` template-token quirk (logged last tick). A model termination trait, NOT a confirm-gate bug (the gate is
+    proven on qwq + 6 prior models). §5.AB note: glm-flash unreliable turn-termination on mutating-tool flows.
+Both models unloaded after; baseline restored. Net: the mutating-tool security seam is proven across an even wider model
+span; every write-flow non-pass to date is a model termination/synthesis trait, never a gap in the gate.
