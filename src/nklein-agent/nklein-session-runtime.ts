@@ -6,7 +6,6 @@ import {
 	recordSessionFocusChain,
 } from "./nklein-context-focus-extension";
 import { KANBAN_SESSION_METADATA_KEY, toPersistedLaunchConfig } from "./nklein-session-launch-config";
-import { asRecord } from "./nklein-value-guards";
 
 export { doesNKleinToolInvalidateRepoMap } from "./nklein-context-focus-extension";
 export {
@@ -67,7 +66,6 @@ import { buildReadFilesRequestFingerprint, buildReadFilesTargetKeys } from "./nk
 import { createNKleinRetrievalTools } from "./nklein-retrieval-tools";
 import { createNKleinReviewTool, type NKleinReviewSubmittedHandler } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
-import { readOptionalNumber, readOptionalReasoningEffort, readOptionalString } from "./nklein-session-record-readers";
 import { resolveContextWindowTokens, resolveSdkApiTimeoutMs, toSdkUserImages } from "./nklein-session-sdk-inputs";
 import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
