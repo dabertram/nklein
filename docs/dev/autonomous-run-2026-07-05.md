@@ -2251,3 +2251,17 @@ TRACK SURVEY (honest): 5.U safe clean-boundary lifts drained -> rest is the Davi
 (probed 5+ modules, most already thorough; remaining fully-untested ones are I/O-heavy needing fixture scaffolding
 or declarative api-contracts, low ROI); 5.Z needs LIVE cross-model runs; 5.AZ done or maturity/David-gated; 5.BG
 DECISION OWED (David). The high-value David-independent coverage is now largely landed.
+
+### 2026-07-07 (Opus) - verification-hygiene pass + auth-gate coverage
+Fresh-angle tick (avoided re-litigating the drained 5.U seam). (1) Test-integrity scan: NO `.only` anywhere,
+TODO/FIXME/HACK clean in src (one intentional deferred-feature note in workspace-state.ts:666), only two deliberate
+skips (Docker-gated integration + one stale comment). Found + fixed a STALE coverage claim: chat-contract.test.ts's
+header advertised streamMessage as 'the one it.todo (needs an SSE/WS subscription test client)' -- but Suite 5C
+ALREADY fully drives chat.streamMessage over a real tRPC SSE subscription (token deltas + terminal done +
+persistence). The comment wrongly flagged a critical streaming path as untested; corrected. (2) 5.V: covered
+authSettingsEqual (provider-service) -- the OAuth-token-change gate that decides whether refreshed credentials get
+persisted. Untested, yet a dropped-field bug would miss a genuine refresh (stale creds -> silent auth failures) or
+force redundant writes. Exported (additive, pure) + 5 tests incl. a per-field loop proving any of the four
+credential fields breaks equality. Both green through the full gate. Pattern holds: remaining monolith bulk is the
+David-gated entangled seam; value now comes from targeted coverage of security/correctness-critical pure helpers +
+verification hygiene, not more forced extraction.
