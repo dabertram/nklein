@@ -3310,3 +3310,19 @@ footprint: runtime-api's deps interface (38 L) leaves it >900; agent-sandbox's 1
 structures (moving them is churn, not cohesion); task-session-service (2581) + runtime-server (2262) are bulk-impl. So the
 remaining >900 files (task-session-service, runtime-server, agent-sandbox, runtime-api, start-task-session 945) now need
 the COLLABORATOR / DI-split — the hard tier flagged for David's steer. The safe, mechanical §5.U wins are banked.
+
+### 2026-07-07 (Opus) - §5.U types-vein completed (4th file) + collaborator-split confirmed as the remaining lever
+- **`437fde76` runtime-api**: extracted CreateRuntimeApiDependencies → runtime-api-types.ts (parallel to projects-api),
+  completing the tRPC-api-layer types-pass. **1033 → 998.** (Doesn't cross 900, but a cohesive-module decomposition per
+  the directive's actual goal — modularity, not just my line heuristic.)
+- **Collaborator-split confirmed as the ONLY remaining §5.U lever (investigated, not assumed):** task-session-service's
+  easy collaborators are ALREADY extracted (the timeout sub-system is `createTimeoutController` + `TaskPendingTimeoutStore`;
+  the tool-approval wrapper was lifted earlier) — the remaining 2581 lines are irreducible coordination + the 674-line
+  dispatchResolvedTaskInput (115 `this.` refs). runtime-server's 2262-line closure is dense interdependent state
+  (scopeByWorkspaceId, durableRunWiring, the drain/merge/finalization serialization) — extracting a cluster means threading
+  that shared state as deps, exactly the DI-work flagged for David's steer.
+**§5.U types-vein FINAL scorecard (4 files):** task-session-service 2830→2581 · session-runtime 1023→869 (out of tier) ·
+projects-api 903→851 (out) · runtime-api 1033→998. All behavior-preserving (types erase), tsc+test-gated, re-export keeps
+importers unchanged. The safe/mechanical §5.U decomposition is now COMPLETE; the remaining >900 files need the
+collaborator/DI-split (task-session-service coordination-core, runtime-server closure-state-threading) — David's steer on
+the seams. Every other track (§5.V clean coverage, §5.Z loaded-model, §5.AZ prose/templates) is done for the current state.
