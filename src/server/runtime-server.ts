@@ -105,6 +105,7 @@ import {
 	resolveTaskResultBranchCommit,
 } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
+import { acceptancePresentAndFailed } from "./acceptance-waiver-decision";
 import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { decideAutoReviewCardAction } from "./auto-review-card-decision";
@@ -903,7 +904,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					// traps the card (blocked out-of-scope writes → 3 strikes → abandoned, seen in four runs).
 					// WAIVE tests for this delivery: the reviewer's judgment alone gates (run19's base-red lesson
 					// completed). A failure that is NOT present at baseline stays the worker's to fix.
-					if (deliveryCard && acceptance?.present === true && acceptance.passed === false) {
+					if (deliveryCard && acceptancePresentAndFailed(acceptance)) {
 						const baseline = await (async () => {
 							try {
 								return await service.verifyTaskAcceptanceInSandbox({
@@ -917,7 +918,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								return null;
 							}
 						})();
-						if (baseline?.present === true && baseline.passed === false) {
+						if (acceptancePresentAndFailed(baseline)) {
 							recordSelfObservation({
 								signal: "custom",
 								severity: "warning",
