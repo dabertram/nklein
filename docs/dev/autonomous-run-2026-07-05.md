@@ -2880,3 +2880,17 @@ level below the first TTL miss.** Corrected the §4A MODEL RESIDENCY note + adde
 Meta: two corrections in two ticks on the same event — the pattern I'm drilling out is reaching for the nearest
 plausible explanation instead of the precisely-scoped one; the fix is to state exactly what I inspected and refuse to
 generalize past it.
+
+### 2026-07-07 (Opus) - applied the precision rule to MY OWN premise (vendored-test "gap" was redundant)
+Went to verify a supposed CI blind spot: `39c16050` (§5.BD tool-name aliasing, 2026-07-03) touched vendored
+`llms/src/tool-name-alias.ts` + `ai-sdk.ts`, and the repo suites exclude `vendor/**`. Ran the vendored llms tests →
+GREEN (tool-name-alias 5/5; broader llms 332 offline tests, excluding provider-live/vcr which need creds/cassettes).
+BUT — applying the same "verify the premise" discipline — the premise was IMPRECISE: the `test:vendor` pre-commit
+fork-drift guard (`731e7b61`) shipped 2026-07-06 and its ship-time confirmation run verified all 1814 vendored tests
+green — and 2026-07-06 POST-DATES 39c16050 (2026-07-03), with NO vendored source changed since. So 39c16050's llms
+change was ALREADY covered by that 2026-07-06 run; my re-run was **redundant**, not the novel gap-close I first framed it
+as. Honest value = nil new signal (it re-confirmed already-green, already-covered code). **Durable takeaway (so a future
+tick doesn't repeat it): the vendored suites are green + guard-gated since 2026-07-06 and last changed 2026-07-03 — don't
+speculatively re-run them; the `.husky` guard already runs `test:vendor` whenever `vendor/**` is staged.** The precision
+lesson generalizes past config-scoping: verify your PREMISE with the same rigor as your conclusion — "is this actually an
+open gap?" deserved the date-check BEFORE the test run, not after.
