@@ -1635,7 +1635,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] task-difficulty estimate (objective text, expected file/context footprint, acceptance shape, bounce history) *(2026-07-04: pure `estimateTaskDifficulty` in [task-difficulty-estimate.ts](src/core/task-difficulty-estimate.ts) → score+tier+reasons; bounces escalate; 6 tests)*
   - [ ] per-model metrics from MCSR (§6.4) — extend if missing, don't duplicate
   - [ ] one-to-many role→model config + free-vs-busy assignment in the swarm executor (§6.5)
-  - [ ] user override (pin / preference order / speed-vs-capability weight) per role
+  - [ ] user override (pin / preference order / speed-vs-capability weight) per role *(PARTIAL 2026-07-07: pin shipped as `modelRolesOverride`; preference order + weight need config-schema/resolver extension first — opus-code)*
   - [x] **inspectable selection reasoning (why this model for this task) — DONE (2026-06-29).** Pure
         [model-selection-reason.ts](src/core/model-selection-reason.ts) `explainModelSelection` projects a routing
         decision into a per-candidate explanation (registry vs §5.AF ledger-blended `effectiveCapability`, feasible /
@@ -5884,7 +5884,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       model and feeding its guidance back) — and the upstream hot-path that *drives* the ladder (`decideEscalationAction`).
 - [ ] **Settings UI (fitness + role assignment controls), decomposed:**
   - [ ] Design + implement fitness table browser (per-model × role display + filter/sort).
-  - [x] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs. *(SHIPPED: modelRolesOverride per-project + speed-quality dial)*
+  - [ ] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs. *(PARTIAL — audit-verdict CORRECTED 2026-07-07 Fable: the PIN half is real (`modelRolesOverride` per-project role→model override, settings dialog + resolver), but NO preference-order or speed-vs-quality weight field exists anywhere in src/config or the resolver — the audit agent's "dial DONE" claim did not survive spot-verification. Remaining = config-schema + resolver extension (opus-code) before any dial UI.)*
   - [ ] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
   - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table.
   - [ ] Live-test the settings flow end-to-end (launch eval, observe results, adjust policy).

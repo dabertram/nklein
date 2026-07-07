@@ -3547,3 +3547,12 @@ the gate semantics exactly (chat_only read-only · project/all confirm-gated hos
 still gated+logged). LIVE-VERIFIED via Playwright against the sandbox runtime: all 4 scopes render the right caption
 and update on switch (screenshot shot-scope-caption.png). The sibling "memory-scope toggles" box is annotated BLOCKED
 on the §5.M memory wiring (opus-code) — toggles before the store works would be dishonest UI. Web gate green: 953/953.
+
+### 2026-07-07 (Fable) - audit-verdict CORRECTION: L5887 "pin/prefer/weight dial" un-ticked (spot-verify caught it)
+Spot-verifying the fable list against code caught ONE bad audit verdict: the §5.AB agent claimed the "speed-vs-quality
+dial DONE" for the pin/prefer/weight override box. Reality: `modelRolesOverride` (per-project role→model PIN) is real
+(settings dialog + resolver), but NO preference-order or weight field exists anywhere (src/config grep + resolver read).
+Box un-ticked with a PARTIAL note; the §5.I sibling annotated the same. Lesson recorded: audit verdicts citing a
+"wired/DONE" claim WITHOUT naming the implementing symbol deserve spot-verification before dependent work builds on
+them — the ticks citing concrete modules (fitness-table-store, reasoning-channel-split, cache-health, …) all named
+their evidence and are trustworthy.
