@@ -3408,3 +3408,12 @@ families verified this session (qwen3.5/ornith, mistral/devstral, gpt-oss/harmon
 delivery + §5.A isolation generalize across every tool-call format tried; no deterministic !Klein gap has surfaced beyond
 the already-fixed §5.O path-nesting. Loop continues; a reasoning model (magistral / phi-4-reasoning-plus) is the next
 distinct behavior to probe (heavy reasoning blocks can interfere with tool emission — the matrix flagged phi-4-reasoning).
+
+### 2026-07-07 (Opus) - §5.Z model-load loop, model #4: magistral (reasoning) clean — 4 families/behaviors verified
+magistral-small-2509 (Mistral REASONING) loaded/verified/unloaded → 4/4 clean; reasoning blocks did NOT starve tool
+emission (contrast the matrix-flagged phi-4-reasoning-plus). This session's cross-model sweep via the granted load skill:
+ornith (qwen3.5) · devstral (mistral-coding) · gpt-oss-20b (harmony) · magistral (mistral-reasoning) — 4 fresh models, 4
+distinct behavior classes, ALL 4/4 clean. !Klein generalizes across every tool-call format tried + a reasoning model; no
+new deterministic gap beyond the already-fixed §5.O path-nesting (non-passes are all model-synthesis variance). The loop
+has now covered the meaningful format/behavior space for the small/mid tier — further models would be incremental
+confirmation. Larger frontier probes (gpt-oss-120b, nemotron-super-120B, deepseek-v4) remain if David wants ceiling data.

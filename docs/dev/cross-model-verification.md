@@ -1159,3 +1159,20 @@ qwopus3.5, verified, unloaded. All clean — no deterministic !Klein failure:
 **Cross-family scorecard (3 fresh models / 3 families this session):** qwen3.5 (ornith), mistral (devstral), gpt-oss
 harmony — ALL 4/4 clean on the fast flows. !Klein's tool-loop, §5.O delivery recovery, and §5.A isolation generalize
 across all three tool-call formats; the only non-passes are model-synthesis variance, never a !Klein parse/format gap.
+
+## 2026-07-07 (Opus) — §5.Z breadth #4: magistral-small (Mistral REASONING) — 4/4 clean, reasoning ≠ tool interference
+Probed the one behavior class left: a REASONING model (heavy think-blocks can starve tool emission — the matrix flagged
+phi-4-reasoning-plus for exactly that runaway). Loaded `mistralai/magistral-small-2509` (24B reasoning), verified, unloaded.
+All clean — reasoning did NOT interfere with tool emission or delivery:
+- ✅ egress-e2e (emitted web_search after reasoning → 8 SearXNG results → grounded answer)
+- ✅ chat-agent-tools (§5.M read_file through the gated+audited executor → answered → persisted)
+- ✅ single-card delivery (wrote + delivered hello.txt, content matches — first-try, no variance)
+- ✅ decompose-isolation (decompose_project called, zero host-path leaks, clean teardown)
+- matrix row: mistralai/magistral-small-2509 → egress ✅ · chat-tools ✅ · single-card ✅ · decompose-isolation ✅.
+**SESSION CROSS-MODEL SCORECARD (4 fresh models, 4 distinct behavior classes, all via the granted load skill):**
+ornith (qwen3.5) · devstral (mistral-coding) · gpt-oss-20b (OpenAI harmony) · magistral (mistral-REASONING) — every one
+4/4 clean on the fast flows. Across qwen / mistral / harmony tool-call formats AND a reasoning model, !Klein's tool-loop,
+the §5.O delivery recovery, and the §5.A isolation guarantees all generalize. The ONLY non-passes seen were model-synthesis
+VARIANCE (single-card / command-exec / browse occasionally not echoing/delivering, passing on retry) — never a
+deterministic !Klein parse/format/delivery gap. The verify→harden loop's one deterministic finding (§5.O path-nesting)
+remains the sole code fix it produced; everything since is robustness confirmation.
