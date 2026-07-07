@@ -3253,7 +3253,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > remaining §5.V piece:** a FULL-RUNTIME multi-card pipeline e2e (decompose → dependency-ordered/parallel runs → review →
 > merge → deliver) — needs the full server + board/lane orchestration (not the stripped in-memory harness), so it is a
 > focused arc best started on a fresh context.
-- [ ] **★ FIX the one stale integration test — `runtime-state-stream` "moves stale completed review cards to trash on
+- [x] **DONE 2026-07-07 (David green-lit the autonomy queue): FIXED the stale integration test — `runtime-state-stream`** —
+      inverted the card-LOCATION assertions to reconcile-don't-destroy (card STAYS in review, is NOT trashed) + kept the
+      session `interrupted` assertions (they already passed) + renamed the test + added a design comment. Verified: the
+      file runs 8/8 green. Product behavior untouched — this aligned a lagging test to the intentional shipped design,
+      NOT the forbidden "weaken a test to pass a refactor." One of the two integration reds cleared.
+- [x] **(diagnosis kept for context) FIX the one stale integration test — `runtime-state-stream` "moves stale completed review cards to trash on
       shutdown"** *(surfaced 2026-07-07 Opus full-suite verification; David 2026-07-07: "do it HERE in a controlled way,
       when + how it fits — NOT in parallel").* It is **DETERMINISTIC + PRE-EXISTING** (fails 3× in isolation on a quiet
       machine; also fails at commit `e2fc333e` deep in the branch → not this session's refactoring, not environmental). It

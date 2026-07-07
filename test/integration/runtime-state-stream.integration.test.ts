@@ -444,7 +444,7 @@ describe.sequential("runtime state stream integration", () => {
 		}
 	}, 30_000);
 
-	it("moves stale completed review cards to trash on shutdown", async () => {
+	it("keeps a stale review card in review on shutdown (reconcile-don't-destroy) and marks its session interrupted", async () => {
 		const { path: tempHome, cleanup: cleanupHome } = createTempDir("kanban-home-stale-exit-review-");
 		const { path: projectPath, cleanup: cleanupProject } = createTempDir("kanban-project-stale-exit-review-");
 
@@ -524,8 +524,11 @@ describe.sequential("runtime state stream integration", () => {
 
 			const reviewCards = finalState.payload.board.columns.find((column) => column.id === "review")?.cards ?? [];
 			const trashCards = finalState.payload.board.columns.find((column) => column.id === "trash")?.cards ?? [];
-			expect(reviewCards.some((card) => card.id === taskId)).toBe(false);
-			expect(trashCards.some((card) => card.id === taskId)).toBe(true);
+			// RECONCILE-DON'T-DESTROY (shutdown-coordinator.ts:61-88, W2.2 audit): a restart must NOT destroy work.
+			// A card already in REVIEW stays put (parkInterruptedTasksForShutdown only moves in_progress → review), and
+			// is NEVER trashed; its session is marked interrupted so the stale review is visible + resumable.
+			expect(reviewCards.some((card) => card.id === taskId)).toBe(true);
+			expect(trashCards.some((card) => card.id === taskId)).toBe(false);
 			expect(finalState.payload.sessions[taskId]?.state).toBe("interrupted");
 			expect(finalState.payload.sessions[taskId]?.reviewReason).toBe("interrupted");
 		} finally {
