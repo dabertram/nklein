@@ -2531,3 +2531,18 @@ integration 41/pass-1-known-stale; the retrieval-gate's existing suite still gre
 SIX lifts -- and the last two (auto-completable predicate, now the :: convention) each REMOVED real duplication that
 had drifted into multiple inline copies, not just shaved lines. The pure-decision/convention-consolidation pattern on
 the big monoliths keeps surfacing latent DRY debt worth paying down.
+
+### 2026-07-07 (Opus) - §5.U lift #7: consolidate isBusySessionState (2nd consecutive state/convention DRY)
+The "session actively occupies a slot" grouping (state === "running" || state === "queued") was inline across 5 sites
+in 4 files -- runtime-api (2 filters), runtime-server (a Set + .has), park-controller (negated), sandbox-review-
+finalizer (negated). Centralized into core/session-state-predicates.ts as isBusySessionState (the concurrency/preemption/
+park "busy" grouping; deliberately EXCLUDES awaiting_review + idle, distinct concepts left untouched). Byte-identical;
+param accepts nullish state (returns false) to match the pre-consolidation checks (sandbox-review-finalizer's
+stateAfterCapture is optional -- tsc caught it). Dropped the orphaned busyStates Set. +3 tests. test:fast 8121 green;
+park-controller + sandbox-review-finalizer suites still green; integration 41/pass-1-known-stale. ARC TALLY: SEVEN
+lifts; the last THREE (auto-completable predicate, :: convention, busy-state) were all DRY consolidations. CLEAR
+PATTERN: mining the monoliths for pure decisions keeps surfacing latent DRY debt -- a rule/convention/state-check
+copied 2-9x -- which I'm paying down into documented, tested single-sources-of-truth. This is arguably HIGHER value
+than the earlier line-shaving lifts (it removes drift risk: N inline copies that could diverge -> one). More such
+groupings likely remain (terminal states interrupted||failed at 2 sites; the +awaiting_review / +idle busy variants;
+the real-worker-session filter). One per tick.
