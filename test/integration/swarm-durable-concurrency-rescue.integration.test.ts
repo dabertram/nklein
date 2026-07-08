@@ -15,7 +15,7 @@
  * second card strands in `planning` until the lease reclaim (far past this test's deadline) and the poll fails; with
  * the fix the 7s deferred-retry timer + terminal-completion sweep start it within seconds of the first card merging.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -37,8 +37,8 @@ describe.sequential("durable scheduler concurrency-defer rescue (C3 §5.AF)", ()
 
 	beforeAll(async () => {
 		mock = await startMockLlm({ modelId: "mock-durable-model" });
-		cwd = mkdtempSync(join(tmpdir(), "nklein-durresc-cwd-"));
-		homeDir = mkdtempSync(join(tmpdir(), "nklein-durresc-home-"));
+		cwd = realpathSync(mkdtempSync(join(tmpdir(), "nklein-durresc-cwd-")));
+		homeDir = realpathSync(mkdtempSync(join(tmpdir(), "nklein-durresc-home-")));
 		initGitRepository(cwd);
 		server = await startTsBackend({
 			cwd,

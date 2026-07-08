@@ -12,7 +12,7 @@
  *
  * Requires Docker (like the other integration suites); skipped implicitly by running only in test/integration.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -31,8 +31,8 @@ describe.sequential("deterministic swarm harness (W2.1)", () => {
 
 	beforeAll(async () => {
 		mock = await startMockLlm({ modelId: "mock-swarm-model" });
-		cwd = mkdtempSync(join(tmpdir(), "nklein-detswarm-cwd-"));
-		homeDir = mkdtempSync(join(tmpdir(), "nklein-detswarm-home-"));
+		cwd = realpathSync(mkdtempSync(join(tmpdir(), "nklein-detswarm-cwd-")));
+		homeDir = realpathSync(mkdtempSync(join(tmpdir(), "nklein-detswarm-home-")));
 		initGitRepository(cwd);
 		const serverLogLines: string[] = [];
 		server = await startTsBackend({

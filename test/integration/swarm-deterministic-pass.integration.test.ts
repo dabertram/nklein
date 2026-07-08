@@ -8,7 +8,7 @@
  * interleave nondeterministically, so replies are routed by what each request carries — the decompose tool, the
  * submit_review tool, or a worker prompt that hasn't written yet.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -30,8 +30,8 @@ describe.sequential("deterministic swarm harness — the PASS path (W2.1 v2)", (
 
 	beforeAll(async () => {
 		mock = await startMockLlm({ modelId: "mock-pass-model" });
-		cwd = mkdtempSync(join(tmpdir(), "nklein-detpass-cwd-"));
-		homeDir = mkdtempSync(join(tmpdir(), "nklein-detpass-home-"));
+		cwd = realpathSync(mkdtempSync(join(tmpdir(), "nklein-detpass-cwd-")));
+		homeDir = realpathSync(mkdtempSync(join(tmpdir(), "nklein-detpass-home-")));
 		initGitRepository(cwd);
 		server = await startTsBackend({
 			cwd,
