@@ -270,7 +270,12 @@ export async function handleStartTaskSession(
 			return {
 				ok: false,
 				summary: null,
+				errorCode: "model_not_loaded",
 				error: `Model "${nkleinLaunchConfig.modelId}" is not loaded in LM Studio. !Klein does not load models — load it in LM Studio first (loaded: ${loadedModelIds.join(", ") || "none"}).`,
+				modelNotLoaded: {
+					requestedModelId: nkleinLaunchConfig.modelId,
+					loadedModelIds,
+				},
 			};
 		}
 		// §5.AL capability gate: a task session is an agentic, tool-using run, so REFUSE a catalog-`reject` primary model

@@ -40,7 +40,12 @@ interface StartTaskSessionResult {
 		| "endpoint_busy"
 		| "swarm_stopped"
 		| "concurrency_limit"
-		| "agent_sandbox_unavailable";
+		| "agent_sandbox_unavailable"
+		| "model_not_loaded";
+	modelNotLoaded?: {
+		requestedModelId: string;
+		loadedModelIds: string[];
+	};
 	retryAfterMs?: number | null;
 	/** §5.AB "why this model for this task" — the operator-readable selection explanation, when the backend provided one. */
 	selectionReason?: string;
@@ -163,6 +168,7 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 						ok: false,
 						message: payload.error ?? "Task session start failed.",
 						errorCode: payload.errorCode,
+						modelNotLoaded: payload.modelNotLoaded,
 						retryAfterMs: payload.retryAfterMs,
 						selectionReason: payload.selectionReason,
 					};

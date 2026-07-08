@@ -47,6 +47,9 @@ interface PendingProgrammaticStartMoveCompletion {
 	timeoutId: number;
 }
 
+type StartTaskSessionResult = Awaited<ReturnType<UseTaskSessionsResult["startTaskSession"]>>;
+type ModelNotLoadedDetails = NonNullable<StartTaskSessionResult["modelNotLoaded"]>;
+
 function getTaskActiveColumnId(task: Pick<BoardCard, "startInPlanMode">): BoardColumnId {
 	return task.startInPlanMode ? "planning" : "in_progress";
 }
@@ -82,19 +85,41 @@ function shouldKickoffOnMoveIntoProgress(input: {
 	return input.fromColumnId === "planning" && input.card.startInPlanMode === false && !input.hasExistingSession;
 }
 
-function getStartBlockedKind(
-	errorCode: Awaited<ReturnType<UseTaskSessionsResult["startTaskSession"]>>["errorCode"],
-): TaskBlockedKind | null {
+function getStartBlockedKind(errorCode: StartTaskSessionResult["errorCode"]): TaskBlockedKind | null {
 	if (errorCode === "needs_decomposition") {
 		return "needs_decomposition";
 	}
-	if (errorCode === "cloud_provider_disabled") {
+	if (errorCode === "cloud_provider_disabled" || errorCode === "model_not_loaded") {
 		return "local_model_required";
 	}
 	if (errorCode === "agent_sandbox_unavailable") {
 		return "agent_sandbox_unavailable";
 	}
 	return null;
+}
+
+function formatModelNotLoadedBlockReason(
+	modelNotLoaded: ModelNotLoadedDetails,
+	fallbackMessage: string | undefined,
+): string {
+	const requestedModelId = modelNotLoaded.requestedModelId.trim();
+	const opening = requestedModelId
+		? `Model "${requestedModelId}" is not loaded in LM Studio.`
+		: (fallbackMessage?.trim() ?? "The requested model is not loaded in LM Studio.");
+	const loadedModelIds = [...new Set(modelNotLoaded.loadedModelIds.map((id) => id.trim()).filter(Boolean))];
+	const loadedModels =
+		loadedModelIds.length > 0
+			? `Loaded models:\n${loadedModelIds.map((id) => `- ${id}`).join("\n")}`
+			: "Loaded models: none";
+	return `${opening}\n\n${loadedModels}\n\nLoad the requested model in LM Studio, or choose one of the loaded models in the card's model settings.`;
+}
+
+function buildStartBlockedReason(started: StartTaskSessionResult): string {
+	if (started.errorCode === "model_not_loaded" && started.modelNotLoaded) {
+		return formatModelNotLoadedBlockReason(started.modelNotLoaded, started.message);
+	}
+	const baseReason = started.message ?? "This task needs to be decomposed before it can start.";
+	return started.selectionReason ? `${baseReason}\n\n${started.selectionReason}` : baseReason;
 }
 
 function isStartableSourceColumnId(columnId: BoardColumnId): boolean {
@@ -413,8 +438,7 @@ export function useBoardInteractions({
 				if (blockedKind) {
 					// §5.AB: when a task is blocked on routing, append the "why this model" explanation so the operator sees
 					// the basis (difficulty/context vs each candidate's capability) rather than a bare "needs decomposition".
-					const baseReason = started.message ?? "This task needs to be decomposed before it can start.";
-					const reason = started.selectionReason ? `${baseReason}\n\n${started.selectionReason}` : baseReason;
+					const reason = buildStartBlockedReason(started);
 					setBoard((currentBoard) => {
 						const marked = updateTaskBlockedState(currentBoard, taskId, {
 							kind: blockedKind,

@@ -1923,9 +1923,11 @@ describe("createRuntimeApi startTaskSession", () => {
 			expect(response.error).toContain('Model "claude-sonnet-4-6" is not loaded in LM Studio');
 			expect(response.error).toContain("!Klein does not load models");
 			expect(response.error).toContain("loaded: some-other-loaded-model");
-			// This return intentionally carries NO errorCode today; assert its absence so a future tidy-up that
-			// bolts one on is caught and reviewed.
-			expect(response).not.toHaveProperty("errorCode");
+			expect(response.errorCode).toBe("model_not_loaded");
+			expect(response.modelNotLoaded).toEqual({
+				requestedModelId: "claude-sonnet-4-6",
+				loadedModelIds: ["some-other-loaded-model"],
+			});
 			expect(nkleinTaskSessionService.startTaskSession).not.toHaveBeenCalled();
 		} finally {
 			globalThis.fetch = originalFetch;

@@ -116,7 +116,14 @@ export const runtimeTaskSessionStartResponseSchema = z.object({
 			"swarm_stopped",
 			"agent_sandbox_unavailable",
 			"concurrency_limit",
+			"model_not_loaded",
 		])
+		.optional(),
+	modelNotLoaded: z
+		.object({
+			requestedModelId: z.string(),
+			loadedModelIds: z.array(z.string()),
+		})
 		.optional(),
 	retryAfterMs: z.number().int().nonnegative().nullable().optional(),
 	queued: z.boolean().optional(),

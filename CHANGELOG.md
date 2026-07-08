@@ -29,6 +29,10 @@
   (`llmfit-core/data/hf_models.json` via GitHub Contents API), unit tests inject fetch/no network, and the cache now feeds
   a non-authoritative catalog supplement for unknown models. The shipped empirical tool-use catalog still wins over
   llmfit's coarse `tool_use` metadata.
+- **Starting a card with an unloaded local model now tells you what is actually loaded** (todo §5.AB). The runtime returns a
+  structured `model_not_loaded` block with the requested model and LM Studio's loaded model set, and the board stores it as
+  a local-model-required card block. The card UI preserves the loaded-model list so you can load the requested model in LM
+  Studio or switch the task to one of the resident models without !Klein silently loading anything.
 - **The model telemetry panel now shows fleet suggestions from the loaded LM Studio set** (todo §5.AL). The existing
   fleet-advice core is now part of the runtime model-registry response and appears in Settings → model telemetry and the
   task chat telemetry drawer. When the loaded LM Studio fleet is a base-family monoculture, lacks a strong

@@ -1216,7 +1216,7 @@ export function BoardCard({
 								<div className="mt-2 flex items-start gap-1.5 rounded-md border border-status-orange/40 bg-status-orange/10 px-2 py-1.5 text-[11px] leading-snug text-status-orange">
 									<AlertTriangle size={12} className="mt-0.5 shrink-0" />
 									<div className="min-w-0 flex-1">
-										<p className="m-0 min-w-0">{blockedReason}</p>
+										<p className="m-0 min-w-0 whitespace-pre-line">{blockedReason}</p>
 										{columnId === "backlog" && onDecompose ? (
 											<div className="mt-1">
 												<Button

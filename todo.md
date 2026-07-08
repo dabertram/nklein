@@ -5878,7 +5878,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       to drive the §5.AB eval matrix + q4/q8/size A/Bs across the catalog. Each newly-resident model becomes a §5.Z matrix
       column / run-log entry; a model that still can't pass a tier (after repeat-runs + the full §5.AA ladder — **never
       judge prematurely**) is a recorded `⚠️` capability-floor.
-- [~] **!Klein RUNTIME must not SILENTLY-auto-load at task-start — selection/resolution restricted to the LOADED set.**
+- [x] **!Klein RUNTIME must not SILENTLY-auto-load at task-start — selection/resolution restricted to the LOADED set.**
       *(Still correct under the 2026-06-29 greenlight: deliberate agent-driven loads happen OUT-OF-BAND via
       `loadModelExclusive` ahead of a run; the task-start/chat/selection paths must still never silently auto-load — they
       pick among the resident set.)* Harness side done (`assertModelLoaded`). **PRIMARY-MODEL ENFORCEMENT DONE (2026-06-28, `8715fda6`):**
@@ -5897,8 +5897,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       wedges chat), matching the task-start guard. 3 tests. **NOTE on (a):** at the runtime task-start path the
       `selectRoleModel` candidate pool is ALREADY pre-filtered to loaded (primary guarded + non-resident pool members
       skipped), so auto-select already picks among loaded only there; the pure `selectRoleModel` core stays loaded-agnostic
-      by design (its caller owns residency). **STILL OWED (smaller):** (b) a web-ui "model not loaded" affordance (surface
-      the error + the loaded set, one-click).
+      by design (its caller owns residency). **WEB AFFORDANCE DONE (2026-07-08):** `startTaskSession` now returns
+      `errorCode:"model_not_loaded"` plus `modelNotLoaded:{requestedModelId,loadedModelIds}`; the web facade preserves it,
+      the board maps it to the existing `local_model_required` blocked state, and card/detail surfaces show the missing
+      model plus the loaded LM Studio set with preserved line breaks. No one-click model load is added by design — loading
+      remains an explicit LM Studio/user action; the existing task model-settings path is where the operator chooses one of
+      the already-loaded models.
 - [~] **Capability-ceiling → user-facing model advice (2026-06-28, user).** The §5.AB fitness store's per-(model × role ×
       difficulty × context) cells — especially the `⚠️` ceilings — are valuable **guidance for !Klein users**: "for this
       kind of work at this complexity, these models suffice; these don't; this size/quant is the floor." **PURE PROJECTION

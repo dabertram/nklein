@@ -571,6 +571,71 @@ describe("useBoardInteractions", () => {
 		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toEqual([]);
 	});
 
+	it("marks unloaded local models with the loaded LM Studio model set", async () => {
+		setupDefaultBoardInteractionMocks();
+		let latestSnapshot: HookSnapshot | null = null;
+		let currentBoard = createBoard();
+		const setBoard = vi.fn<Dispatch<SetStateAction<BoardData>>>((nextBoard) => {
+			currentBoard = typeof nextBoard === "function" ? nextBoard(currentBoard) : nextBoard;
+		});
+		const startTaskSession = vi.fn(async () => ({
+			ok: false as const,
+			message:
+				'Model "configured-but-unloaded" is not loaded in LM Studio. !Klein does not load models - load it in LM Studio first.',
+			errorCode: "model_not_loaded" as const,
+			modelNotLoaded: {
+				requestedModelId: "configured-but-unloaded",
+				loadedModelIds: ["qwen3-coder", "gpt-oss-120b"],
+			},
+		}));
+
+		await act(async () => {
+			root.render(
+				<HookHarness
+					board={currentBoard}
+					setBoard={setBoard}
+					startTaskSession={startTaskSession}
+					onSnapshot={(snapshot) => {
+						latestSnapshot = snapshot;
+					}}
+				/>,
+			);
+		});
+
+		if (!latestSnapshot) {
+			throw new Error("Expected a hook snapshot.");
+		}
+		await act(async () => {
+			await Promise.resolve();
+		});
+		setBoard.mockClear();
+
+		await act(async () => {
+			latestSnapshot!.handleStartTask("task-1");
+			await Promise.resolve();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		const backlogTask = currentBoard.columns.find((column) => column.id === "backlog")?.cards[0];
+		expect(backlogTask?.blockedKind).toBe("local_model_required");
+		expect(backlogTask?.blockedReason).toBe(
+			[
+				'Model "configured-but-unloaded" is not loaded in LM Studio.',
+				"",
+				"Loaded models:",
+				"- qwen3-coder",
+				"- gpt-oss-120b",
+				"",
+				"Load the requested model in LM Studio, or choose one of the loaded models in the card's model settings.",
+			].join("\n"),
+		);
+		expect(notifyErrorMock).toHaveBeenCalledWith(
+			'Model "configured-but-unloaded" is not loaded in LM Studio. !Klein does not load models - load it in LM Studio first.',
+		);
+		expect(currentBoard.columns.find((column) => column.id === "in_progress")?.cards).toEqual([]);
+	});
+
 	it("marks tasks as blocked when Docker agent isolation is unavailable", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 		let currentBoard = createBoard();
