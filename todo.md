@@ -8506,10 +8506,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
             by each model's runtime verdict (TOOL_UNSUITABLE ×0.1, TOOL_WEAK ×0.5, else unchanged) and re-sorts — so
             accumulated evidence steers selection away from a model that stalls in practice. Generic + decoupled (ID
             alignment is the caller's concern, sidestepping the bare-vs-composite-id question), non-mutating; 4 tests.
-      - [ ] **Remaining (live WIRING):** call `penalizeFitnessByRuntimeVerdict` in the §5.AB selection path — build the
+      - [~] **Remaining (live WIRING):** call `penalizeFitnessByRuntimeVerdict` in the §5.AB selection path — build the
             `verdictByModelId` map (assess each candidate's runtime verdict, aligning the candidate's id space to the
             self-observation `modelId`) and apply it to the ledger-fitness ranking; the §5.AG model-selector badge; and a
             one-button "confirm provisional entry → catalog" flow for `runtime_fills_unknown`.
+            *(✅ CORE WIRING DONE (W2.6b, verified-live 2026-07-08): the selection path (start-task-session.ts ~L463)
+            reads the self-observation events per start and folds the runtime verdict into every candidate's blended
+            capability via `createCapabilityBlender` (TOOL_UNSUITABLE ×0.1 / TOOL_WEAK ×0.5) — the penalty steers
+            selection, no longer display-only. REMAINING (UX-only, needs-David-call): the §5.AG selector BADGE surfacing
+            the penalty + the one-button confirm-provisional→catalog flow.)*
 - [ ] **Keep extending the catalog (standing), decomposed:**
   - [ ] After every model sweep / live run: fold capability findings into MODEL_CAPABILITY_CATALOG.
   - [ ] For each finding: flip verdict, append note, cite source, set `basis: "empirical"`/`"both"`.
