@@ -19,6 +19,8 @@ export * from "./nklein-ops-api-contract.js";
 export * from "./nklein-provider-api-contract.js";
 // NKlein provider-mutation + auth domain (capability, add/update provider, oauth-login, device-auth, settings-save) (§5.X #2).
 export * from "./nklein-provider-mutations-api-contract.js";
+// Runtime guardrail profile helpers shared with Settings UI.
+export * from "./parallel-swarm-guardrails.js";
 // NKlein plan-artifacts contract domain (artifact summary/list/apply/reject, record-plan-gap, expand-plan-task) (§5.X #2).
 export * from "./plan-artifacts-api-contract.js";
 export type { PlanGapKind } from "./plan-gap-kind.js";

@@ -5731,8 +5731,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         setups and any explicit guardrail edit keep the configured values. [src/server/runtime-server.ts] applies this
         resolver at task-session-service creation and hot update, so multi-model swarms get long-wait rails without
         silently changing single-model runs or overwriting user tuning. Focused tests cover bounds, distinct model
-        counting, activation, single-model no-op, and custom-guardrail preservation. Still owed: surface "quality over
-        latency" in the swarm settings UI + live ≥3-agent verification below.
+        counting, activation, single-model no-op, and custom-guardrail preservation. ✅ **SETTINGS POSTURE SURFACE DONE
+        (2026-07-08):** [web-ui/src/components/swarm-guardrails-settings-panel.tsx] now shows a Latency posture tile
+        driven by the same `shouldUseParallelSwarmGuardrails` resolver exported through `@runtime-contract`, so Settings
+        reflects "Quality over latency" for default guardrails + distinct role models, "Manual guardrails" for user edits,
+        and "Single-model default" otherwise. Focused UI tests cover all three states. Still owed: live ≥3-agent
+        verification below.
   - [ ] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
         endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*

@@ -2643,6 +2643,7 @@ export function RuntimeSettingsDialog({
 								sandboxPool={sandboxPoolSummary}
 								lostHeartbeatPolicy={lostHeartbeatPolicy}
 								decompositionAutoApplyEnabled={decompositionAutoApplyEnabled}
+								modelRoles={modelRolesOverride ?? modelRoles}
 							/>
 						</div>
 

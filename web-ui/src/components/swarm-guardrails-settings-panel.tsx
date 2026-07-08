@@ -7,8 +7,10 @@
 import {
 	areRuntimeSwarmGuardrailsEqual,
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+	PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS,
 	RUNTIME_SWARM_GUARDRAIL_BOUNDS,
 	RUNTIME_SWARM_MAX_CARD_STARTS_PER_BATCH,
+	shouldUseParallelSwarmGuardrails,
 } from "@runtime-contract";
 import { ShieldCheck } from "lucide-react";
 
@@ -19,7 +21,7 @@ import {
 	swarmGuardrailsToInputs,
 	WALL_TIME_BOUNDS_HOURS,
 } from "@/components/runtime-settings-swarm-guardrails";
-import type { RuntimeLostHeartbeatPolicy } from "@/runtime/types";
+import type { RuntimeLostHeartbeatPolicy, RuntimeModelRoles } from "@/runtime/types";
 
 const swarmGuardrailTurnsId = "runtime-settings-guardrail-turns";
 const swarmGuardrailWallTimeId = "runtime-settings-guardrail-wall-time";
@@ -50,6 +52,7 @@ interface SwarmGuardrailsSettingsPanelProps {
 	sandboxPool: { effectiveParallelism: number; poolCapacityLabel: string; memoryGbLabel: string };
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
+	modelRoles: RuntimeModelRoles;
 }
 
 export function SwarmGuardrailsSettingsPanel({
@@ -61,7 +64,28 @@ export function SwarmGuardrailsSettingsPanel({
 	sandboxPool,
 	lostHeartbeatPolicy,
 	decompositionAutoApplyEnabled,
+	modelRoles,
 }: SwarmGuardrailsSettingsPanelProps) {
+	const configuredGuardrails = inputsToSwarmGuardrails(value);
+	const parallelProfileActive = shouldUseParallelSwarmGuardrails({
+		configuredGuardrails,
+		effectiveModelRoles: modelRoles,
+	});
+	const guardrailsCustomized = !areRuntimeSwarmGuardrailsEqual(configuredGuardrails, DEFAULT_RUNTIME_SWARM_GUARDRAILS);
+	const latencyPosture = parallelProfileActive
+		? {
+				value: "Quality over latency",
+				detail: `Parallel profile active: ${PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS.maxAutonomousTurnsPerTask} turns, ${Math.round(PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS.maxAutonomousWallTimeMs / 3_600_000)}h wall time.`,
+			}
+		: guardrailsCustomized
+			? {
+					value: "Manual guardrails",
+					detail: "Saved guardrail values override the automatic parallel profile.",
+				}
+			: {
+					value: "Single-model default",
+					detail: "Add distinct role models to use the long-wait parallel profile.",
+				};
 	return (
 		<div className="rounded-md border border-border bg-surface-1 p-3">
 			<div className="mb-2 flex items-center justify-between gap-2">
@@ -98,6 +122,11 @@ export function SwarmGuardrailsSettingsPanel({
 						{sandboxMaxContainers.trim() || "1"} containers, {sandboxPool.poolCapacityLabel},{" "}
 						{sandboxPool.memoryGbLabel} each.
 					</div>
+				</div>
+				<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
+					<div className="text-[11px] text-text-tertiary">Latency posture</div>
+					<div className="text-[13px] font-medium text-text-primary">{latencyPosture.value}</div>
+					<div className="mt-1 text-[11px] text-text-secondary">{latencyPosture.detail}</div>
 				</div>
 				<div className="rounded-md border border-border bg-surface-2 px-2 py-1.5">
 					<div className="text-[11px] text-text-tertiary">Lost heartbeat</div>
