@@ -8956,9 +8956,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       *(◐ 2026-07-08 — first user-facing LOCAL surface shipped: `getNKleinModelRegistry` now includes
       `fleetSuggestions` computed from LM Studio's loaded native `/api/v1/models` descriptors via `adviseModelFleet`,
       and the Settings model-telemetry panel + task-chat telemetry drawer render those monoculture/no-reasoner/no-agentic
-      suggestions. This is read-only, local-only, bounded, and disabled under unit tests. REMAINING: the user-triggered
-      llmfit/GitHub catalog pull/merge/update UX from the item above, plus hardware-tier/card-mix/swarm-roster fetch
-      recommendations.)*
+      suggestions. This is read-only, local-only, bounded, and disabled under unit tests. ◐ **CATALOG-BACKED FETCH
+      SUGGESTIONS CORE DONE (2026-07-08):** [src/core/model-fleet-advisor.ts] now accepts an injected recommendation
+      catalog and appends concrete "fetch/check" candidate families to the existing advice, filtering out rejected,
+      weak, unsuitable, and already-present-lineage entries while allowing cached `llmfit:` UNKNOWN rows as check-only
+      suggestions (ordinary unverified non-llmfit rows still stay out). [src/core/model-capability-catalog.ts] exposes a
+      read-only recommendation snapshot (user overlay + shipped catalog + cached llmfit GitHub supplement), and
+      [src/trpc/runtime-api/model-registry.ts] passes it into the registry advice path without any passive GitHub egress.
+      Focused tests cover injected candidates + the runtime handler pass-through. Remaining: declared hardware-tier +
+      card-mix/swarm-roster fetch recommendations.)*
 - [x] **Live-use gate: `nklein chat` (2026-06-29).** `decideChatModelGate` (pure, in [local-chat-model.ts](src/chat/local-chat-model.ts))
       refuses a catalog-`reject` model for the TOOL-using chat agent (`--workspace`) up front — override
       `NKLEIN_ALLOW_UNSUITABLE_MODEL=1` — and only WARNS on the plain-completion path (a reasoning/chat model is fine

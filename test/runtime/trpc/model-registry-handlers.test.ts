@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeNKleinProviderSettings } from "../../../src/core/api-contract";
+import type { ModelCapabilityEntry } from "../../../src/core/model-capability-catalog";
 import {
 	buildNKleinModelRegistryKey,
 	createNKleinModelRegistryEntry,
@@ -16,6 +17,16 @@ const launch = (o: Record<string, unknown>) => o as unknown as ResolvedNKleinLau
 const settings = (o: Record<string, unknown>) => o as unknown as RuntimeNKleinProviderSettings;
 const config = (roles: Record<string, { providerId?: string; modelId?: string }>) =>
 	({ effectiveModelRoles: roles }) as unknown as RuntimeConfigState;
+const catalogEntry = (family: string): ModelCapabilityEntry => ({
+	family,
+	match: new RegExp(family),
+	toolUse: "TOOL_NATIVE",
+	kind: "agentic",
+	note: "test entry",
+	sources: ["test"],
+	basis: "empirical",
+	verified: true,
+});
 
 describe("addConfiguredLocalModelRegistryEntries", () => {
 	it("adds a local launchConfig model as a registry entry", () => {
@@ -114,10 +125,14 @@ describe("buildRuntimeModelFleetSuggestions", () => {
 				baseUrl: "http://127.0.0.1:1234/v1",
 			}),
 			fetchLoadedModelDescriptors,
+			recommendationCatalog: [catalogEntry("devstral-small-2507")],
 		});
 
 		expect(fetchLoadedModelDescriptors).toHaveBeenCalledWith("http://127.0.0.1:1234/v1");
 		expect(suggestions.map((suggestion) => suggestion.kind)).toContain("add_diverse_family");
+		expect(suggestions.find((suggestion) => suggestion.kind === "add_diverse_family")?.detail).toContain(
+			"devstral-small-2507",
+		);
 	});
 
 	it("does not probe providers without LM Studio native model metadata", async () => {

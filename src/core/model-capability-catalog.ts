@@ -172,6 +172,15 @@ export function clearModelCatalogLlmfitSupplement(): void {
 }
 
 /**
+ * Snapshot the recommendation catalog used by read-only advice surfaces. This intentionally includes the user overlay
+ * and the post-empirical llmfit supplement so fetched public metadata can suggest what to try next without changing the
+ * authoritative lookup order or doing any network work at read time.
+ */
+export function getModelCapabilityRecommendationCatalog(): readonly ModelCapabilityEntry[] {
+	return [...modelCatalogOverlay, ...MODEL_CAPABILITY_CATALOG, ...modelCatalogLlmfitSupplement];
+}
+
+/**
  * Look up the capability entry for a model id (served id or lms key, e.g. `phi-4-mini-instruct@8bit`,
  * `google/gemma-4-e2b`, `qwen/qwen3-8b`). The USER OVERLAY is consulted first (so a user entry overrides a shipped
  * one), then the shipped empirical catalog, then the non-authoritative llmfit supplement. Matches family patterns

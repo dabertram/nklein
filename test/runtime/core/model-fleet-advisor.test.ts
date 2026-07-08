@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LoadedModelDescriptor } from "../../../src/core/lmstudio-loaded-model-descriptors";
+import type { ModelCapabilityEntry, ModelKind, ToolUseVerdict } from "../../../src/core/model-capability-catalog";
 import { adviseModelFleet } from "../../../src/core/model-fleet-advisor";
 
 const desc = (modelKey: string, isEmbedding = false): LoadedModelDescriptor => ({
@@ -9,6 +10,21 @@ const desc = (modelKey: string, isEmbedding = false): LoadedModelDescriptor => (
 });
 
 const kinds = (descriptors: LoadedModelDescriptor[]) => adviseModelFleet(descriptors).map((s) => s.kind);
+
+const catalogEntry = (
+	family: string,
+	overrides: Partial<Pick<ModelCapabilityEntry, "kind" | "toolUse" | "verified" | "severityOverride">> = {},
+): ModelCapabilityEntry => ({
+	family,
+	match: new RegExp(family.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+	toolUse: (overrides.toolUse ?? "TOOL_CAPABLE") as ToolUseVerdict,
+	kind: (overrides.kind ?? "agentic") as ModelKind,
+	note: "test entry",
+	sources: ["test"],
+	basis: "empirical",
+	verified: overrides.verified ?? true,
+	severityOverride: overrides.severityOverride,
+});
 
 describe("adviseModelFleet", () => {
 	it("warns when no agentic model is loaded (empty or embeddings only)", () => {
@@ -41,5 +57,47 @@ describe("adviseModelFleet", () => {
 		const result = kinds([desc("qwen2.5-coder-14b"), desc("gemma-3-12b-it")]);
 		expect(result).toContain("add_reasoning_model");
 		expect(result).not.toContain("add_diverse_family");
+	});
+
+	it("adds catalog-backed concrete fetch candidates without requiring network access", () => {
+		const result = adviseModelFleet([desc("qwen/qwen3-coder")], {
+			recommendationCatalog: [
+				catalogEntry("devstral-small-2507", { kind: "agentic", toolUse: "TOOL_NATIVE" }),
+				catalogEntry("mistral-unverified", { kind: "agentic", verified: false }),
+				catalogEntry("qwen-already-present", { kind: "agentic", toolUse: "TOOL_NATIVE" }),
+				catalogEntry("nemotron-rejected", { kind: "agentic", severityOverride: "reject" }),
+			],
+		});
+
+		const diverse = result.find((suggestion) => suggestion.kind === "add_diverse_family");
+		expect(diverse?.detail).toContain("Catalog-backed candidates to fetch/check: devstral-small-2507");
+		expect(diverse?.detail).not.toContain("mistral-unverified");
+		expect(diverse?.detail).not.toContain("qwen-already-present");
+		expect(diverse?.detail).not.toContain("nemotron-rejected");
+	});
+
+	it("allows llmfit unknown rows as check-only candidates and strips the source prefix", () => {
+		const result = adviseModelFleet([desc("qwen/qwen3-coder")], {
+			recommendationCatalog: [
+				catalogEntry("llmfit:mistral-small-3.2", { kind: "agentic", toolUse: "UNKNOWN", verified: false }),
+			],
+		});
+
+		const diverse = result.find((suggestion) => suggestion.kind === "add_diverse_family");
+		expect(diverse?.detail).toContain("Catalog-backed candidates to fetch/check: mistral-small-3.2");
+		expect(diverse?.detail).not.toContain("llmfit:");
+	});
+
+	it("adds catalog-backed reasoner candidates for shallow diverse fleets", () => {
+		const result = adviseModelFleet([desc("qwen2.5-coder-14b"), desc("gemma-3-12b-it")], {
+			recommendationCatalog: [
+				catalogEntry("deepseek-r1-agentic", { kind: "reasoning", toolUse: "TOOL_CAPABLE" }),
+				catalogEntry("gemma-chat", { kind: "chat", toolUse: "TOOL_CAPABLE" }),
+			],
+		});
+
+		const reasoning = result.find((suggestion) => suggestion.kind === "add_reasoning_model");
+		expect(reasoning?.detail).toContain("Catalog-backed candidates to fetch/check: deepseek-r1-agentic");
+		expect(reasoning?.detail).not.toContain("gemma-chat");
 	});
 });

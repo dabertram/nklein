@@ -19,6 +19,10 @@ import {
 	type LoadedModelDescriptor,
 } from "../../core/lmstudio-loaded-model-descriptors";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
+import {
+	getModelCapabilityRecommendationCatalog,
+	type ModelCapabilityEntry,
+} from "../../core/model-capability-catalog";
 import { adviseModelFleet } from "../../core/model-fleet-advisor";
 import { assertNKleinContextWindowPolicy } from "../../nklein-agent/nklein-context-window-policy";
 import { isLocalProvider } from "../../nklein-agent/nklein-local-only-policy";
@@ -113,6 +117,7 @@ export async function buildRuntimeModelFleetSuggestions(input: {
 	launchConfig: ResolvedNKleinLaunchConfig | null;
 	providerSettings: RuntimeNKleinProviderSettings | null;
 	fetchLoadedModelDescriptors?: ((baseUrl: string) => Promise<readonly LoadedModelDescriptor[]>) | null;
+	recommendationCatalog?: readonly ModelCapabilityEntry[];
 }): Promise<RuntimeModelFleetSuggestion[]> {
 	const baseUrl = resolveLmStudioFleetAdviceBaseUrl(input);
 	if (!baseUrl || !input.fetchLoadedModelDescriptors) {
@@ -121,7 +126,7 @@ export async function buildRuntimeModelFleetSuggestions(input: {
 	const descriptors = await input
 		.fetchLoadedModelDescriptors(baseUrl)
 		.catch(() => [] as readonly LoadedModelDescriptor[]);
-	return adviseModelFleet(descriptors);
+	return adviseModelFleet(descriptors, { recommendationCatalog: input.recommendationCatalog });
 }
 
 export async function handleGetNKleinModelRegistry(
@@ -149,6 +154,7 @@ export async function handleGetNKleinModelRegistry(
 		launchConfig,
 		providerSettings,
 		fetchLoadedModelDescriptors: deps.fetchLoadedModelDescriptors,
+		recommendationCatalog: getModelCapabilityRecommendationCatalog(),
 	});
 	return {
 		schemaVersion: snapshot.schemaVersion,
