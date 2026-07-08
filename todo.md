@@ -5859,8 +5859,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ANDs llmfit's per-quant/MoE fit with the RAM-headroom guard — headroom stays the HARD freeze-gate (deny is final);
         when it allows, llmfit can still refuse a Marginal/Too-Tight/unknown fit; no llmfit data ⇒ headroom stands. 4
         tests. **Owed:** the live call (fetch the llmfit model per pool, pass it here) at the effectful load path.
-  - [ ] feed tok/s + score into the §5.AB fitness store + the pool-routing `predictedWallTimeMs`/`capabilityTier`.
-  - [ ] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
+  - [~] feed tok/s + score into the §5.AB fitness store + the pool-routing `predictedWallTimeMs`/`capabilityTier`.
+        **PURE PRIOR DONE (2026-07-08):** [llmfit-fitness-bridge.ts](src/core/llmfit-fitness-bridge.ts) `llmfitRoutingPrior(model)`
+        → `{capabilityPrior (score 0–100 clamped, the cold-start baseline), speedTier (fast≥40/medium≥15/slow tok/s),
+        estimatedTps}`; `llmfitPredictedWallTimeMs` (tok/s→wall-time) already lived in llmfit-adapter.ts. 11 tests (shared
+        with the cross-ref leaf). Owed: the live call writes the prior into the §5.AB fitness store + passes tps to pool routing.
+  - [~] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
+        **DONE (2026-07-08):** `crossReferenceLlmfitWithCatalog(model, lookup=lookupModelCapability)` combines llmfit fit/speed
+        + our EMPIRICAL verdict and classifies the tool-use signals: `agree`/`conflict`/`catalog-only`/`llmfit-only`/`no-data`.
+        Load-bearing case = `conflict` (llmfit's HF scrape optimistically tags a chat/reasoner `tool_use` but we measured
+        TOOL_WEAK/UNSUITABLE) → `authoritativeToolUse` resolves in the CATALOG's favour so routing never loads an un-agentic
+        model on llmfit's say-so. Injected lookup (pure). Owed: consume the xref at the live load-planning/routing seam.
   - [ ] **EGRESS-GATED (prime directive #1):** the model-DB refresh (`make update-models` hits the HF API) + the
         Community-Leaderboard/localmaxxing.com features are OUTBOUND network — opt-in/default-off + allow-listed, like the
         §5.AC online-research tools; the offline embedded DB is fine local-only. Also a "update llmfit version" action.
