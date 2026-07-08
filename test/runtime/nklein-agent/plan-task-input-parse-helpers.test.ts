@@ -4,6 +4,7 @@ import {
 	assertUsableDecomposeProjectInput,
 	decomposeProjectFieldIsUsable,
 	formatCompactSchemaIssues,
+	recoverMissingTaskPrompts,
 	slugifyTaskId,
 } from "../../../src/nklein-agent/decomposition/plan-task-input-parse";
 
@@ -105,5 +106,29 @@ describe("formatCompactSchemaIssues", () => {
 		if (!result.success) {
 			expect(formatCompactSchemaIssues(result.error)).toMatch(/^\(root\):/);
 		}
+	});
+});
+
+describe("recoverMissingTaskPrompts (live-found 2026-07-08: a retry emitted tasks without prompt)", () => {
+	it("derives a missing task prompt from description, then details, then title", () => {
+		const recovered = recoverMissingTaskPrompts({
+			tasks: [
+				{ id: "t1", title: "Storage", description: "Build the storage layer." },
+				{ id: "t2", title: "UI", details: "Add the habit list UI." },
+				{ id: "t3", title: "Weekly summary view" },
+			],
+		}) as { tasks: Array<Record<string, unknown>> };
+		expect(recovered.tasks[0]?.prompt).toBe("Build the storage layer.");
+		expect(recovered.tasks[1]?.prompt).toBe("Add the habit list UI.");
+		expect(recovered.tasks[2]?.prompt).toBe("Weekly summary view");
+	});
+
+	it("never overwrites a usable prompt and leaves non-recoverable/non-object input untouched", () => {
+		const withPrompt = { tasks: [{ id: "t1", title: "X", prompt: "Do X.", description: "ignored" }] };
+		expect((recoverMissingTaskPrompts(withPrompt) as typeof withPrompt).tasks[0]?.prompt).toBe("Do X.");
+		const bare = { tasks: [{ id: "t1" }] };
+		expect((recoverMissingTaskPrompts(bare) as typeof bare).tasks[0]).toEqual({ id: "t1" });
+		expect(recoverMissingTaskPrompts(null)).toBeNull();
+		expect(recoverMissingTaskPrompts({ tasks: "nope" })).toEqual({ tasks: "nope" });
 	});
 });

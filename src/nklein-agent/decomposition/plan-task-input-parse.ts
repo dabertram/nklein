@@ -89,6 +89,41 @@ export function recoverMissingDecomposeProjectTitle(input: unknown): unknown {
 	return { ...record, title: slug };
 }
 
+/**
+ * Parse-and-recover for tasks missing a `prompt` (live-found 2026-07-08: qwopus3.5's decompose RETRY restructured its
+ * JSON and dropped every task's `prompt`, putting the work text under `description` — the schema bounce then failed
+ * the whole decompose). Derive the prompt from the task's own words: `description` → `details` → `title`. A task with
+ * none of those stays untouched, so validation still bounces genuinely-empty tasks.
+ */
+export function recoverMissingTaskPrompts(input: unknown): unknown {
+	if (typeof input !== "object" || input === null) {
+		return input;
+	}
+	const record = input as Record<string, unknown>;
+	if (!Array.isArray(record.tasks)) {
+		return input;
+	}
+	let changed = false;
+	const tasks = record.tasks.map((task) => {
+		if (typeof task !== "object" || task === null) {
+			return task;
+		}
+		const entry = task as Record<string, unknown>;
+		if (decomposeProjectFieldIsUsable(entry.prompt)) {
+			return task;
+		}
+		for (const key of ["description", "details", "title"] as const) {
+			const value = entry[key];
+			if (typeof value === "string" && value.trim().length > 0) {
+				changed = true;
+				return { ...entry, prompt: value.trim() };
+			}
+		}
+		return task;
+	});
+	return changed ? { ...record, tasks } : input;
+}
+
 export function formatCompactSchemaIssues(error: z.ZodError, limit = 3): string {
 	const issues = error.issues
 		.slice(0, limit)
@@ -100,7 +135,9 @@ export function formatCompactSchemaIssues(error: z.ZodError, limit = 3): string 
 
 export function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
 	assertUsableDecomposeProjectInput(input);
-	const result = decomposeProjectToolInputSchema.safeParse(recoverMissingDecomposeProjectTitle(input));
+	const result = decomposeProjectToolInputSchema.safeParse(
+		recoverMissingTaskPrompts(recoverMissingDecomposeProjectTitle(input)),
+	);
 	if (!result.success) {
 		throw new Error(
 			`decompose_project input failed validation — ${formatCompactSchemaIssues(result.error)}. ` +
