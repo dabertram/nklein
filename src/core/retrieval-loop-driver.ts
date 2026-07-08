@@ -42,6 +42,8 @@ export interface RetrievalEvidence {
 	text: string;
 	sourceType?: SourceKind;
 	publishedAt?: Date | string | number | null;
+	/** §5.L taint-scanner findings on the fetched content (rule codes); absent/empty = no findings. */
+	promptInjectionRiskFlags?: string[];
 }
 
 /** The injected, CALLER-GATED effects (prime directive #1: egress + model live ONLY here, opt-in). */

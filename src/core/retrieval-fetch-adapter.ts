@@ -11,6 +11,7 @@
  */
 
 import type { RetrievalEvidence, RetrievalHit } from "./retrieval-loop-driver";
+import { scanContentInjectionRisk } from "./skill-injection-prescreen";
 
 /** The page-fetch capability this adapter needs — structurally the browse_url tool's `BrowserDeps.fetchPage`. */
 export type PageFetcher = (url: string) => Promise<{ url: string; title: string; text: string }>;
@@ -28,12 +29,16 @@ export function browserFetchAdapter(fetchPage: PageFetcher): (hit: RetrievalHit)
 		const page = await fetchPage(hit.url);
 		const title = page.title?.trim() ?? "";
 		const text = title.length > 0 ? `${title}\n\n${page.text}` : page.text;
+		// §5.L taint scan: fetched web content is untrusted — stamp any injection-risk findings onto the evidence so
+		// downstream consumers (synthesis, the capability broker) can weigh or refuse it. Empty = no findings.
+		const promptInjectionRiskFlags = scanContentInjectionRisk(text);
 		return {
 			id: hit.id,
 			url: page.url && page.url.length > 0 ? page.url : hit.url,
 			text,
 			...(hit.sourceType !== undefined ? { sourceType: hit.sourceType } : {}),
 			...(hit.publishedAt !== undefined ? { publishedAt: hit.publishedAt } : {}),
+			...(promptInjectionRiskFlags.length > 0 ? { promptInjectionRiskFlags } : {}),
 		};
 	};
 }

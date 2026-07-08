@@ -407,6 +407,22 @@ function verdictFor(findings: readonly InjectionFinding[]): SkillScreenVerdict {
  * @param body     The skill's markdown body text, INJECTED as a string (the parser already split it from frontmatter).
  * @param options  Optional tuning — the §5.L allowed-tool baseline for over-reach, size + blob thresholds.
  */
+/**
+ * Content-only injection scan for UNTRUSTED FETCHED TEXT (web pages, MCP payloads) — the §5.L taint scanner whose
+ * findings land on `RetrievedEvidence.promptInjectionRiskFlags`. Reuses the SAME text rules as the skill prescreen
+ * (imperative-override phrases, egress lures, hidden unicode, homoglyph mixing, opaque blobs) but skips the
+ * manifest/capability checks that only make sense for skills. Returns flag strings (rule ids), empty = no findings.
+ */
+export function scanContentInjectionRisk(text: string, options: { minBlobChars?: number } = {}): string[] {
+	const findings: InjectionFinding[] = [];
+	const body = typeof text === "string" ? text : "";
+	scanTextRules(body, findings);
+	scanHiddenUnicode(body, findings);
+	scanHomoglyphMixing(body, findings);
+	scanOpaqueBlob(body, options.minBlobChars ?? DEFAULT_MIN_BLOB_CHARS, findings);
+	return findings.map((finding) => finding.code);
+}
+
 export function prescreenSkillInjection(
 	manifest: ParsedSkillManifest,
 	body: string,
