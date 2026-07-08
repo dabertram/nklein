@@ -10240,8 +10240,18 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       `summarizeTrayActivity`, 6 tests) + thin Electron [tray.ts] `createAppTray` (template → real Tray/Menu, injected
       handlers, icon-click→open, update()/destroy()) + wired into main.ts on app-ready (Open focus/spawn + Quit LIVE; torn
       down on will-quit). REMAINING for (1): wire `toggle-pause` to the runtime pause command + the live activity feed
-      (runtime running-card count → `tray.update()`) — both need the runtime-state channel. Sub-features (2) LAN webserver,
-      (4) auto-resume still open — all on the Electron shell per the packaging decision.)*
+      (runtime running-card count → `tray.update()`) — both need the runtime-state channel. **RUNTIME-STATE CHANNEL DESIGN
+      (traced 2026-07-08, blueprint for next build):** pause/resume already exist as WORKSPACE-SCOPED tRPC procedures
+      `requestSwarmStop`/`clearSwarmStop` (runtime-api.ts:494/498), driven by a swarm-stop SIGNAL FILE
+      (`getSwarmStopSignalPath` in core/swarm-guardrails.ts; runtime reads it → `setBoardPaused`). Served over tRPC-HTTP
+      (createHTTPHandler, runtime-server.ts:2044). GAPS: (a) NO activity/board-counts query is exposed over the API — add
+      one (project-task-counts.ts has the logic); (b) `packages/desktop` cannot import `src/core` (package boundary), so
+      the tray must reach the runtime over HTTP, NOT via a direct signal-file write (that would duplicate the contract +
+      drift). BUILD PLAN: a desktop-side runtime-control HTTP client (injected fetch, unit-testable like
+      local-endpoint-clients.ts) calling `requestSwarmStop`/`clearSwarmStop` + a new `getActivity` query; the tray's
+      `togglePause` + periodic `tray.update(summarizeTrayActivity(count))` consume it; also unblocks auto-resume (4). This
+      is a multi-part cross-process subsystem, scoped here for a clean fresh start. Sub-features (2) LAN webserver, (4)
+      auto-resume still open — all on the Electron shell per the packaging decision.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
 ## 11. LATER — deferred to last (user 2026-07-08)
