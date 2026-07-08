@@ -124,6 +124,10 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Clear stale models",
 		description: "Remove model-registry rows whose endpoint no longer serves them, keeping the telemetry current.",
 	},
+	"model-registry.check-catalog-update": {
+		name: "Check catalog",
+		description: "Check the public llmfit model catalog for a newer revision.",
+	},
 	"model-registry.save-context-window": {
 		name: "Save context window",
 		description: "Pin a manual context-window size for this model, overriding the endpoint-advertised value.",

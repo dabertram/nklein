@@ -15,6 +15,7 @@ import { KleinCorePyHealthLine } from "@/components/klein-core-py-health-line";
 import { Button } from "@/components/ui/button";
 import { findNKleinProviderModel, formatNKleinModelContextWindowLabel } from "@/runtime/nklein-context-window-policy";
 import {
+	checkLlmfitCatalogUpdate,
 	fetchNKleinModelRegistry,
 	openFileOnHost,
 	pruneNKleinModelRegistry,
@@ -25,6 +26,7 @@ import {
 	writeNKleinDogfoodBacklog,
 } from "@/runtime/runtime-config-query";
 import type {
+	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeModelFleetSuggestion,
 	RuntimeNKleinDogfoodBacklogResponse,
 	RuntimeNKleinModelRegistryEntry,
@@ -149,6 +151,7 @@ export function NKleinModelContextWindowSettingsPanel({
 	const [isLoading, setIsLoading] = useState(false);
 	const [registryEntries, setRegistryEntries] = useState<RuntimeNKleinModelRegistryEntry[]>([]);
 	const [fleetSuggestions, setFleetSuggestions] = useState<RuntimeModelFleetSuggestion[]>([]);
+	const [catalogUpdateCheck, setCatalogUpdateCheck] = useState<RuntimeLlmfitCatalogUpdateCheckResponse | null>(null);
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const visibleRegistryEntries = useMemo(
 		() => filterRegistryEntriesToLoadedModels(registryEntries, selectedProviderId, selectedProviderModels),
@@ -244,6 +247,20 @@ export function NKleinModelContextWindowSettingsPanel({
 		});
 	}, [disabled, refreshRegistry, workspaceId]);
 
+	const checkCatalogUpdate = useCallback(async () => {
+		if (disabled) {
+			return;
+		}
+		const response = await checkLlmfitCatalogUpdate(workspaceId);
+		setCatalogUpdateCheck(response);
+		if (response.action === "suggest_update") {
+			showAppToast({
+				intent: "none",
+				message: `llmfit catalog update available (${response.remoteModelCount ?? "unknown"} models).`,
+			});
+		}
+	}, [disabled, workspaceId]);
+
 	return (
 		<div className="mt-4 border-t border-border pt-4">
 			<div className="flex items-center justify-between gap-3">
@@ -282,6 +299,7 @@ export function NKleinModelContextWindowSettingsPanel({
 			<NKleinModelRegistryPanel
 				entries={visibleRegistryEntries}
 				fleetSuggestions={fleetSuggestions}
+				catalogUpdateCheck={catalogUpdateCheck}
 				selectedProviderId={selectedProviderId}
 				selectedModelId={selectedModelId}
 				nowMs={nowMs}
@@ -290,6 +308,7 @@ export function NKleinModelContextWindowSettingsPanel({
 				onMaxConcurrentRequestsSave={disabled ? undefined : saveMaxConcurrentRequests}
 				onRemoveEntry={disabled ? undefined : removeEntry}
 				onPruneStale={disabled ? undefined : pruneStale}
+				onCheckCatalogUpdate={disabled ? undefined : checkCatalogUpdate}
 			/>
 			<KleinCorePyHealthLine workspaceId={workspaceId} />
 		</div>

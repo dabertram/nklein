@@ -36,6 +36,7 @@ import type {
 	RuntimeGitSyncResponse,
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeMergeHistoryResponse,
 	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
@@ -333,6 +334,9 @@ export interface RuntimeTrpcContext {
 			input: RuntimeNKleinEndpointModelDiscoveryRequest,
 		) => Promise<RuntimeNKleinEndpointModelDiscoveryResponse>;
 		getNKleinModelRegistry: (scope: RuntimeTrpcWorkspaceScope | null) => Promise<RuntimeNKleinModelRegistryResponse>;
+		checkLlmfitCatalogUpdate: (
+			scope: RuntimeTrpcWorkspaceScope | null,
+		) => Promise<RuntimeLlmfitCatalogUpdateCheckResponse>;
 		removeNKleinModelRegistryEntry: (
 			scope: RuntimeTrpcWorkspaceScope | null,
 			input: RuntimeNKleinModelRegistryRemoveRequest,

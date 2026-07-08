@@ -205,6 +205,21 @@ export const runtimeNKleinModelRegistryResponseSchema = z.object({
 });
 export type RuntimeNKleinModelRegistryResponse = z.infer<typeof runtimeNKleinModelRegistryResponseSchema>;
 
+export const runtimeLlmfitCatalogUpdateCheckResponseSchema = z.object({
+	mode: z.enum(["off", "notify", "auto"]),
+	action: z.enum(["noop", "up_to_date", "suggest_update", "pull_update"]),
+	reason: z.string(),
+	sourceUrl: z.string(),
+	downloadUrl: z.string().nullable(),
+	localRevision: z.string().nullable(),
+	remoteRevision: z.string().nullable(),
+	remoteModelCount: z.number().int().nonnegative().nullable(),
+	remoteSizeBytes: z.number().int().nonnegative().nullable(),
+	checkedAt: z.number().int().nonnegative(),
+	error: z.string().optional(),
+});
+export type RuntimeLlmfitCatalogUpdateCheckResponse = z.infer<typeof runtimeLlmfitCatalogUpdateCheckResponseSchema>;
+
 export const runtimeNKleinModelContextWindowOverrideRequestSchema = z.object({
 	providerId: z.string().min(1),
 	modelId: z.string().min(1),

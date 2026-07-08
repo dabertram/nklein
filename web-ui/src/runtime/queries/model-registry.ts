@@ -1,6 +1,7 @@
 // Browser-side query helpers: the NKlein model registry (per-model context-window / concurrency overrides + prune).
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
+	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeNKleinModelContextWindowOverrideResponse,
 	RuntimeNKleinModelMaxConcurrentRequestsResponse,
 	RuntimeNKleinModelRegistryPruneResponse,
@@ -13,6 +14,13 @@ export async function fetchNKleinModelRegistry(
 ): Promise<RuntimeNKleinModelRegistryResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getNKleinModelRegistry.query();
+}
+
+export async function checkLlmfitCatalogUpdate(
+	workspaceId: string | null,
+): Promise<RuntimeLlmfitCatalogUpdateCheckResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.checkLlmfitCatalogUpdate.mutate();
 }
 
 export async function saveNKleinModelContextWindowOverride(

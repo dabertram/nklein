@@ -5898,7 +5898,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       A local Rust CLI/REST that does exactly the dimensions we hand-rolled crudely: (a) **fit** — does a model at a
       given quant+context fit a machine's VRAM/RAM (per-quant, MoE-offload-aware, dynamic Q8→Q2 quant walk); (b) **speed**
       — predicted tok/s; (c) **ranking** — quality/speed/fit/context → 0–100; plus a **206-model HF database**
-      (`data/hf_models.json`, refreshable via `make update-models`/`scrape_hf_models.py`) and **LM Studio provider
+      (currently `llmfit-core/data/hf_models.json`; older notes may say `data/hf_models.json`; refreshable via
+      `make update-models`/`scrape_hf_models.py`) and **LM Studio provider
       detection**. JSON output (`llmfit recommend --json`, `llmfit plan "<model>" --context N`, `llmfit fit`), also
       `llmfit serve` (REST). **This COMPLEMENTS (doesn't replace) the §5.AL catalog:** llmfit = fit/speed/hardware;
       §5.AL = our unique **tool-use / agentic suitability** verdicts (llmfit has none). Combine: llmfit narrows to what
@@ -8865,8 +8866,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       *(◐ 2026-07-08 — the pure DECISION CORE shipped: `src/core/catalog-update-decision.ts` `decideCatalogUpdate`
       ({mode off/notify/auto × local/remote revision} → noop / up_to_date / suggest_update / pull_update) — opt-in by
       construction (off skips; notify never pulls; only auto pulls; default NOTIFY per the box), revision-scheme-agnostic
-      (opaque token). 5 tests. REMAINING: the user-initiated GitHub fetch (invariant #1 opt-in egress), the overlay
-      MERGE of pulled llmfit rows, and the setting + "update models" UX — all ride this decider.)*
+      (opaque token). 5 tests. This decider is the base used by the user-triggered fetch/check slice below.)*
+      *(◐ 2026-07-08 — USER-INITIATED FETCH/CHECK shipped: `src/core/llmfit-catalog-update.ts` fetches the current
+      upstream GitHub Contents metadata for `llmfit-core/data/hf_models.json`, follows `download_url` only to count rows,
+      compares the remote blob SHA/ETag/hash to the local cache revision via the decider, and returns a no-throw status.
+      Runtime tRPC exposes `checkLlmfitCatalogUpdate`; Settings → model telemetry has an explicit **Check catalog** button
+      that reports update availability + row count. No passive polling/background egress; Vitest defaults to unavailable
+      instead of live network. REMAINING: persist/pull a local llmfit cache, merge pulled fit/speed/hardware rows into the
+      overlay without overriding our empirical tool-use verdict, and add the persisted off/notify/auto setting + final
+      "update models" UX.)*
 - [~] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
       hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
       single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup
@@ -8875,7 +8883,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `fleetSuggestions` computed from LM Studio's loaded native `/api/v1/models` descriptors via `adviseModelFleet`,
       and the Settings model-telemetry panel + task-chat telemetry drawer render those monoculture/no-reasoner/no-agentic
       suggestions. This is read-only, local-only, bounded, and disabled under unit tests. REMAINING: the user-triggered
-      llmfit/GitHub catalog check/merge UX from the item above, plus hardware-tier/card-mix/swarm-roster fetch
+      llmfit/GitHub catalog pull/merge/update UX from the item above, plus hardware-tier/card-mix/swarm-roster fetch
       recommendations.)*
 - [x] **Live-use gate: `nklein chat` (2026-06-29).** `decideChatModelGate` (pure, in [local-chat-model.ts](src/chat/local-chat-model.ts))
       refuses a catalog-`reject` model for the TOOL-using chat agent (`--workspace`) up front — override

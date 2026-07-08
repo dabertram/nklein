@@ -118,6 +118,7 @@ const fetchNKleinProviderModelsMock = vi.hoisted(() => vi.fn());
 const discoverNKleinEndpointModelsMock = vi.hoisted(() => vi.fn());
 const fetchNKleinCodeIntelligenceStatusMock = vi.hoisted(() => vi.fn());
 const fetchNKleinModelRegistryMock = vi.hoisted(() => vi.fn());
+const checkLlmfitCatalogUpdateMock = vi.hoisted(() => vi.fn());
 const saveNKleinModelContextWindowOverrideMock = vi.hoisted(() => vi.fn());
 const removeNKleinModelRegistryEntryMock = vi.hoisted(() => vi.fn());
 const pruneNKleinModelRegistryMock = vi.hoisted(() => vi.fn());
@@ -241,6 +242,7 @@ vi.mock("@/runtime/use-runtime-config", () => ({
 
 vi.mock("@/runtime/runtime-config-query", () => ({
 	buildNKleinAdvisorRequest: buildNKleinAdvisorRequestMock,
+	checkLlmfitCatalogUpdate: checkLlmfitCatalogUpdateMock,
 	discoverNKleinEndpointModels: discoverNKleinEndpointModelsMock,
 	fetchKleinCorePyHealth: vi.fn(async () => ({
 		enabled: false,
@@ -572,6 +574,20 @@ describe("RuntimeSettingsDialog", () => {
 					updatedAt: 120_000,
 				},
 			],
+			fleetSuggestions: [],
+		});
+		checkLlmfitCatalogUpdateMock.mockReset();
+		checkLlmfitCatalogUpdateMock.mockResolvedValue({
+			mode: "notify",
+			action: "up_to_date",
+			reason: "Local catalog is current.",
+			sourceUrl: "https://api.github.com/repos/AlexsJones/llmfit/contents/llmfit-core/data/hf_models.json?ref=main",
+			downloadUrl: "https://raw.test/hf_models.json",
+			localRevision: "sha",
+			remoteRevision: "sha",
+			remoteModelCount: 1,
+			remoteSizeBytes: 10,
+			checkedAt: 100,
 		});
 		saveNKleinModelContextWindowOverrideMock.mockReset();
 		saveNKleinModelContextWindowOverrideMock.mockResolvedValue({

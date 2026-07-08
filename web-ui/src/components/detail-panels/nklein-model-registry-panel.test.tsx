@@ -4,6 +4,7 @@ import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+	formatLlmfitCatalogUpdateCheckSummary,
 	formatNKleinModelRegistryPanelSummary,
 	NKleinModelRegistryPanel,
 } from "@/components/detail-panels/nklein-model-registry-panel";
@@ -98,6 +99,24 @@ describe("NKleinModelRegistryPanel", () => {
 		);
 	});
 
+	it("summarizes llmfit catalog update checks", () => {
+		expect(
+			formatLlmfitCatalogUpdateCheckSummary({
+				mode: "notify",
+				action: "suggest_update",
+				reason: "A newer catalog is available.",
+				sourceUrl:
+					"https://api.github.com/repos/AlexsJones/llmfit/contents/llmfit-core/data/hf_models.json?ref=main",
+				downloadUrl: "https://raw.test/hf_models.json",
+				localRevision: null,
+				remoteRevision: "b290cb7ca31f3b4d59ecf94af6e640282915a3c7",
+				remoteModelCount: 5843,
+				remoteSizeBytes: 4996476,
+				checkedAt: 100,
+			}),
+		).toBe("Update available: 5,843 models at b290cb7ca31f.");
+	});
+
 	it("renders every observed model and pins the selected model first", async () => {
 		await act(async () => {
 			renderPanel(
@@ -164,6 +183,52 @@ describe("NKleinModelRegistryPanel", () => {
 		expect(text).toContain("Decision layer is a single-family monoculture");
 		expect(text).toContain("Add a model from a different base family");
 		expect(text.indexOf("Fleet suggestions")).toBeLessThan(text.indexOf("ollama/qwen"));
+	});
+
+	it("runs an explicit llmfit catalog update check and renders the status", async () => {
+		const onCheckCatalogUpdate = vi.fn().mockResolvedValue(undefined);
+		await act(async () => {
+			renderPanel(
+				root,
+				<NKleinModelRegistryPanel
+					entries={[createModelRegistryEntry()]}
+					catalogUpdateCheck={{
+						mode: "notify",
+						action: "suggest_update",
+						reason: "A catalog is available.",
+						sourceUrl:
+							"https://api.github.com/repos/AlexsJones/llmfit/contents/llmfit-core/data/hf_models.json?ref=main",
+						downloadUrl: "https://raw.test/hf_models.json",
+						localRevision: null,
+						remoteRevision: "b290cb7ca31f3b4d59ecf94af6e640282915a3c7",
+						remoteModelCount: 5843,
+						remoteSizeBytes: 4996476,
+						checkedAt: 100,
+					}}
+					selectedProviderId="ollama"
+					selectedModelId="qwen"
+					nowMs={180_000}
+					onCheckCatalogUpdate={onCheckCatalogUpdate}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const text = container.textContent ?? "";
+		expect(text).toContain("Check catalog");
+		expect(text).toContain("llmfit catalog");
+		expect(text).toContain("Update available: 5,843 models at b290cb7ca31f.");
+
+		const checkButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Check catalog"),
+		);
+		expect(checkButton).toBeInstanceOf(HTMLButtonElement);
+		await act(async () => {
+			checkButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(onCheckCatalogUpdate).toHaveBeenCalledTimes(1);
 	});
 
 	it("shows unmeasured models and prompts for missing context windows", async () => {

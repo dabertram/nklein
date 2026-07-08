@@ -1,4 +1,14 @@
-import { Activity, AlertTriangle, Gauge, Lightbulb, RotateCcw, Save, Server, Trash2 } from "lucide-react";
+import {
+	Activity,
+	AlertTriangle,
+	CloudDownload,
+	Gauge,
+	Lightbulb,
+	RotateCcw,
+	Save,
+	Server,
+	Trash2,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +20,7 @@ import {
 	NKLEIN_MIN_CONTEXT_WINDOW_TOKENS,
 } from "@/runtime/nklein-context-window-policy";
 import type {
+	RuntimeLlmfitCatalogUpdateCheckResponse,
 	RuntimeModelFleetSuggestion,
 	RuntimeNKleinModelRegistryEntry,
 	RuntimeNKleinProviderModel,
@@ -132,6 +143,32 @@ function formatEndpoint(entry: RuntimeNKleinModelRegistryEntry): string {
 	return entry.constraints.sharedEndpointId ?? entry.endpoint ?? "dedicated";
 }
 
+function formatRevision(revision: string | null): string {
+	return revision ? revision.slice(0, 12) : "unknown";
+}
+
+function formatModelCount(count: number | null): string {
+	return count === null ? "unknown models" : `${count.toLocaleString()} models`;
+}
+
+export function formatLlmfitCatalogUpdateCheckSummary(check: RuntimeLlmfitCatalogUpdateCheckResponse): string {
+	if (check.error) {
+		return `Catalog check failed: ${check.error}`;
+	}
+	const modelCount = formatModelCount(check.remoteModelCount);
+	const revision = formatRevision(check.remoteRevision ?? check.localRevision);
+	if (check.action === "suggest_update") {
+		return `Update available: ${modelCount} at ${revision}.`;
+	}
+	if (check.action === "up_to_date") {
+		return `Catalog current: ${modelCount} at ${revision}.`;
+	}
+	if (check.action === "pull_update") {
+		return `Auto-pull requested: ${modelCount} at ${revision}.`;
+	}
+	return check.reason;
+}
+
 function hasContextWindow(entry: RuntimeNKleinModelRegistryEntry): boolean {
 	return entry.contextWindow.effective !== null;
 }
@@ -153,6 +190,7 @@ export function formatNKleinModelRegistryPanelSummary(entry: RuntimeNKleinModelR
 interface NKleinModelRegistryPanelProps {
 	entries: readonly RuntimeNKleinModelRegistryEntry[];
 	fleetSuggestions?: readonly RuntimeModelFleetSuggestion[];
+	catalogUpdateCheck?: RuntimeLlmfitCatalogUpdateCheckResponse | null;
 	selectedProviderId: string;
 	selectedModelId: string;
 	nowMs: number;
@@ -167,11 +205,13 @@ interface NKleinModelRegistryPanelProps {
 	) => Promise<void> | void;
 	onRemoveEntry?: (entry: RuntimeNKleinModelRegistryEntry) => Promise<void> | void;
 	onPruneStale?: () => Promise<void> | void;
+	onCheckCatalogUpdate?: () => Promise<void> | void;
 }
 
 export function NKleinModelRegistryPanel({
 	entries,
 	fleetSuggestions = [],
+	catalogUpdateCheck = null,
 	selectedProviderId,
 	selectedModelId,
 	nowMs,
@@ -180,6 +220,7 @@ export function NKleinModelRegistryPanel({
 	onMaxConcurrentRequestsSave,
 	onRemoveEntry,
 	onPruneStale,
+	onCheckCatalogUpdate,
 }: NKleinModelRegistryPanelProps) {
 	const selectedEntry = findNKleinModelRegistryEntry(entries, selectedProviderId, selectedModelId);
 	const visibleEntries = useMemo(
@@ -192,10 +233,12 @@ export function NKleinModelRegistryPanel({
 	const [savingConcurrencyKey, setSavingConcurrencyKey] = useState<string | null>(null);
 	const [removingKey, setRemovingKey] = useState<string | null>(null);
 	const [isPruning, setIsPruning] = useState(false);
+	const [isCheckingCatalog, setIsCheckingCatalog] = useState(false);
 	const [saveErrorByKey, setSaveErrorByKey] = useState<Record<string, string>>({});
 	const [concurrencyErrorByKey, setConcurrencyErrorByKey] = useState<Record<string, string>>({});
 	const [removeErrorByKey, setRemoveErrorByKey] = useState<Record<string, string>>({});
 	const [pruneError, setPruneError] = useState("");
+	const [catalogCheckError, setCatalogCheckError] = useState("");
 
 	const saveOverride = async (entry: RuntimeNKleinModelRegistryEntry, contextWindow: number | null) => {
 		if (!onContextWindowOverrideSave) {
@@ -273,34 +316,84 @@ export function NKleinModelRegistryPanel({
 		}
 	};
 
+	const checkCatalogUpdate = async () => {
+		if (!onCheckCatalogUpdate) {
+			return;
+		}
+		setIsCheckingCatalog(true);
+		setCatalogCheckError("");
+		try {
+			await onCheckCatalogUpdate();
+		} catch (error) {
+			setCatalogCheckError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setIsCheckingCatalog(false);
+		}
+	};
+
 	return (
 		<section className="mt-2 rounded-lg border border-border bg-surface-1 px-3 py-2" aria-label="Model telemetry">
 			<div className="mb-2 flex items-center gap-2 text-xs font-medium text-text-primary">
 				<Activity size={14} className="text-status-green" />
 				<span>Past telemetry</span>
-				{onPruneStale ? (
-					<ElementTooltip id="model-registry.prune-stale">
-						<Button
-							size="sm"
-							variant="ghost"
-							icon={<Trash2 size={14} />}
-							disabled={isPruning || isLoading}
-							onClick={() => {
-								void pruneStale();
-							}}
-							className="ml-auto"
-						>
-							{isPruning ? "Clearing..." : "Clear stale models"}
-						</Button>
-					</ElementTooltip>
-				) : null}
-				{isLoading ? (
-					<span className={cn(!onPruneStale && "ml-auto", "text-[11px] font-normal text-text-tertiary")}>
-						Refreshing
-					</span>
-				) : null}
+				<div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+					{onCheckCatalogUpdate ? (
+						<ElementTooltip id="model-registry.check-catalog-update">
+							<Button
+								size="sm"
+								variant="ghost"
+								icon={<CloudDownload size={14} />}
+								disabled={isCheckingCatalog || isLoading}
+								onClick={() => {
+									void checkCatalogUpdate();
+								}}
+							>
+								{isCheckingCatalog ? "Checking..." : "Check catalog"}
+							</Button>
+						</ElementTooltip>
+					) : null}
+					{onPruneStale ? (
+						<ElementTooltip id="model-registry.prune-stale">
+							<Button
+								size="sm"
+								variant="ghost"
+								icon={<Trash2 size={14} />}
+								disabled={isPruning || isLoading}
+								onClick={() => {
+									void pruneStale();
+								}}
+							>
+								{isPruning ? "Clearing..." : "Clear stale models"}
+							</Button>
+						</ElementTooltip>
+					) : null}
+					{isLoading ? <span className="text-[11px] font-normal text-text-tertiary">Refreshing</span> : null}
+				</div>
 			</div>
 			{pruneError ? <div className="mb-2 text-[11px] text-status-red">{pruneError}</div> : null}
+			{catalogCheckError || catalogUpdateCheck ? (
+				<div
+					className={cn(
+						"mb-2 rounded-md border px-2 py-2 text-[11px]",
+						catalogCheckError || catalogUpdateCheck?.error
+							? "border-status-red/40 bg-status-red/10 text-status-red"
+							: catalogUpdateCheck?.action === "suggest_update"
+								? "border-status-orange/40 bg-status-orange/10 text-text-primary"
+								: "border-border bg-surface-2 text-text-secondary",
+					)}
+					role="status"
+					aria-label="llmfit catalog update status"
+				>
+					<div className="mb-1 flex items-center gap-1.5 font-medium text-text-primary">
+						<CloudDownload size={13} className="text-accent" />
+						<span>llmfit catalog</span>
+					</div>
+					<div className="leading-5">
+						{catalogCheckError ||
+							(catalogUpdateCheck ? formatLlmfitCatalogUpdateCheckSummary(catalogUpdateCheck) : "")}
+					</div>
+				</div>
+			) : null}
 			{fleetSuggestions.length > 0 ? (
 				<div className="mb-2 border-b border-border/70 pb-2">
 					<div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-text-primary">

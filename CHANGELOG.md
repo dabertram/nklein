@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Settings can now check llmfit's public model catalog on demand** (todo §5.AB/§5.AL). The model telemetry panel has an
+  explicit "Check catalog" action that fetches llmfit's current GitHub catalog metadata only when clicked, compares the
+  remote blob revision to the local cache revision, and reports update availability plus row count. The default source is
+  the current upstream path (`llmfit-core/data/hf_models.json` via GitHub Contents API), unit tests inject fetch/no
+  network, and nothing pulls or merges silently yet.
 - **The model telemetry panel now shows fleet suggestions from the loaded LM Studio set** (todo §5.AL). The existing
   fleet-advice core is now part of the runtime model-registry response and appears in Settings → model telemetry and the
   task chat telemetry drawer. When the loaded LM Studio fleet is a base-family monoculture, lacks a strong
