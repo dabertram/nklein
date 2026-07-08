@@ -5929,8 +5929,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         no new store invented. VERIFIED writing real `FitnessRow`s to `fitness-table.json` (keyed model::role::difficulty,
         sampleCount/successCount/meanWallTimeMs) in an isolated temp HOME. Opt-in because `verify-all-models.mts` runs
         harnesses under an isolated temp HOME (persisting there would be throwaway). So the FULL §5.AB pipeline is now live:
-        corpus → model → extract → score → fold → PERSIST to the shared store → routing consumes it. Only remaining: the
-        `implement` family (needs sandbox code-execution to produce {passed,total}).
+        corpus → model → extract → score → fold → PERSIST to the shared store. **DATAFLOW FINDING (2026-07-08, traced):**
+        the persisted `FitnessRow`s (fitness-table.json) are read by the UI fitness-browser + terminal telemetry, but the
+        LIVE selection path (start-task-session.ts) routes off the **agent-attempt-ledger + catalog** (createCapabilityBlender
+        / buildLedgerEvidence / assessModelSuitability) — there is NO `FitnessRow`→`ModelFitnessRecord` bridge. So the eval's
+        QUANTITATIVE fitness reaches the display, not the routing decision; its QUALITATIVE findings DO reach selection because
+        they were folded into the §5.AL catalog notes (which assessModelSuitability reads). Bridging quant-eval → live routing
+        is a DESIGN DECISION (how to weight synthetic eval vs live ledger outcomes — over-weighting synthetic runs would be
+        wrong), NOT owed wiring — flagged here so it's a deliberate choice, not an oversight. Only family remaining: the
+        `implement` family (needs sandbox code-execution to produce {passed,total}; its pure `extractImplementCode` half is done).
         **PARSE-ADAPTER DONE + LIVE-VALIDATED (2026-07-08):** the sweep gets a model's RAW text; the missing bridge to the
         deterministic scorers was a raw-text→`EvalAnswer` extractor. [eval-answer-extraction.ts](src/core/eval-answer-extraction.ts)
         — `extractDecomposeGraph`/`extractDecomposeEvalAnswer` (self-contained lenient JSON extractor: direct parse → ```json
