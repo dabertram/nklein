@@ -8346,9 +8346,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         pass/fail evidence string) via appendAgentLedgerEvent, best-effort — the projections see WHY a card
         merged/held/bounced.)*
 - [ ] **Trouble-awareness — escalate before grinding, decomposed:**
-  - [ ] Generalize the stuck/at-risk guards we've proven necessary (fixture-flip, read/tool loops, host-path confusion).
-  - [ ] Define first-class stuck/at-risk signal the worker + runtime both watch.
-  - [ ] When signal fires: drive §5.AB escalation path (finish automatic ladder, then escalate to user with options).
+  - [~] Generalize the stuck/at-risk guards we've proven necessary (fixture-flip, read/tool loops, host-path confusion).
+        *(◐ the guards ARE generalized as pure cores: `agent-stuckness.ts` (classifyAgentStuckness: capability-limit vs
+        transient over the outcome stream), `attempt-progress-tracker.ts` (assessAttemptProgress + consecutiveNoProgress
+        + hadProgressAcrossAttempts — the read/tool-loop / no-diff class), `run-attention-signals.ts` (assessRunLiveness
+        active/idle/stalled/silent + budget pressure), `detectResponseLoop` (the fixture-flip/echo class). REMAINING:
+        the single first-class UNIFIED signal the leaf below asks for — these are separate cores today.)*
+  - [ ] Define first-class stuck/at-risk signal the worker + runtime both watch. *(the composition point: a single
+        `assessTaskTrouble(signals)` that ORs the four cores above into one {trouble, kind, reason} — a small pure
+        core landable now; its live wiring rides the same onSummary seam the §5.AG escalation planner uses.)*
+  - [x] When signal fires: drive §5.AB escalation path (finish automatic ladder, then escalate to user with options).
+        *(✅ this IS the §5.AG Layer-1 escalation shipped 2026-07-08: planTerminalRedriveEscalation drives the automatic
+        model-switch ladder on hard-stuck, then escalate_to_user when every loaded model is tried — wired live at the
+        dead-card redrive with the switch persisted + a ledger transition event.)*
   - [ ] Ties §5.AA detection, §5.AB escalation, §5.AG surface.
 
 ### 5.AL — Model-capability catalog + suitability gate + online capability lookup *(2026-06-29, user — ACTIVE)*
