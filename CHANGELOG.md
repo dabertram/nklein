@@ -2,13 +2,20 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Chat-only sessions can now write only through explicitly approved Docker-mounted paths** (todo §5.M). The isolated
+  chat sandbox now accepts a per-session `sandboxWritablePaths` allowlist, normalizes it to workspace-confined
+  directories, starts a separate chat Docker pool for each approved mount signature, and offers `write_file` only when
+  the call path is inside one of those read-write bind mounts. The §5.M confirmation gate checks the same predicate
+  before execution, and the tool still re-checks inside the sandbox before writing both the sandbox clone and the
+  approved host mount. A live Docker integration test proves an approved `src/` mount writes `src/generated.txt` while
+  an unapproved `README.md` write is refused.
 - **Read-only chat scopes now get real Docker-backed workspace reads, never host-backed impostors** (todo §5.M). The
   `chat_only` / `klein_self` execution mode is documented as isolated read-only, but the resolver could still offer
   host-backed `read_file` / `list_dir` tools under the `sandbox_read` action label. It now only offers those tools in
   isolated mode through an explicit Docker sandbox provider; when the sandbox is unavailable it fails closed with no
   workspace filesystem tools. The runtime uses a separate `chat` sandbox pool namespace with network disabled, confines
   symlink-realpaths inside the workspace, and the path is covered by a live Docker integration test. Host-capable project
-  scopes keep their existing behavior; opt-in writable mounts are still the next enforcement slice.
+  scopes keep their existing behavior.
 - **The repair-kernel localization backing now uses the real sandboxed code graph MCP** (todo §5.B). !Klein can now create a disposable codebase-memory `LocalizationProvider` from the runtime service: it registers the baked `codebase-memory-mcp` server over the same `docker exec -i` MCP path used for sandbox tools, cold-indexes the task repo, scopes `search_graph` to the discovered project, and cleans up the MCP manager on failure or dispose. The index lifecycle is deliberately cold per provider/card-run for correctness; persisted warm indexes can be added later as a performance optimization.
 - **The sandboxed code graph MCP is now verified against its real response shape** (todo §5.B/§5.AR). The `codebase-memory-mcp` integration already ran inside the Docker sandbox; the verification harness now goes further by indexing a tiny repo under `--network none`, calling the real MCP `search_graph` tool, and passing its SDK response envelope through !Klein's localization adapter. That adapter now accepts both direct JSON and standard MCP `content[].text` responses, including the live `file_path` field, so the repair-kernel localization backing has a real schema guard instead of only fake-test assumptions.
 - **You can teach !Klein about a new model without waiting for a release** (todo §5.AL). The model-capability catalog — which tells !Klein whether a loaded model can actually drive tools, reason well, or should be gated out of agentic work — is now data-driven. Drop a `model-catalog-overlay.json` in your runtime home and its entries are consulted *before* the built-in catalog, so you can add a brand-new fine-tune or override a shipped verdict without a code change or rebuild. Entries are validated leniently (one malformed row is skipped with a logged reason, never blanking the whole file), and the format is documented in `docs/model-catalog-overlay.md`. The local-model landscape moves faster than releases; this keeps !Klein's judgments current between them.

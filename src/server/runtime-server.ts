@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
@@ -7,6 +8,9 @@ import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import {
 	createAgentSandboxChatWorkspaceProvider,
 	createSandboxWorkspaceReadTools,
+	createSandboxWorkspaceWriteTools,
+	resolveSandboxWritablePathMounts,
+	type SandboxWritablePathMount,
 } from "../chat/chat-sandbox-workspace-tools";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
@@ -282,7 +286,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		await deps.ensureTerminalManagerForWorkspace(scope.workspaceId, scope.workspacePath);
 	const nkleinTaskSessionServiceByWorkspaceId = new Map<string, NKleinTaskSessionService>();
 	const chatSandboxManagerByWorkspaceKey = new Map<string, AgentSandboxManager>();
-	const chatSandboxWorkspaceKey = (workspacePath: string): string => {
+	const chatSandboxWorkspaceKeyBase = (workspacePath: string): string => {
 		const activeWorkspaceId = deps.workspaceRegistry.getActiveWorkspaceId();
 		const activeWorkspacePath = deps.workspaceRegistry.getActiveWorkspacePath();
 		if (activeWorkspaceId && activeWorkspacePath === workspacePath) {
@@ -290,8 +294,26 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		}
 		return `path:${hashWorkspacePathForLedger(workspacePath)}`;
 	};
-	const getChatSandboxManager = async (workspacePath: string): Promise<AgentSandboxManager> => {
-		const key = chatSandboxWorkspaceKey(workspacePath);
+	const chatSandboxWorkspaceKey = (
+		workspacePath: string,
+		writableMounts: readonly SandboxWritablePathMount[] = [],
+	): string => {
+		const base = chatSandboxWorkspaceKeyBase(workspacePath);
+		if (writableMounts.length === 0) {
+			return base;
+		}
+		const signature = writableMounts
+			.map((mount) => `${mount.relativePath}\t${mount.hostPath}\t${mount.containerPath}`)
+			.sort()
+			.join("\n");
+		const mountHash = createHash("sha256").update(signature).digest("hex").slice(0, 16);
+		return `${base}:w=${mountHash}`;
+	};
+	const getChatSandboxManager = async (
+		workspacePath: string,
+		writableMounts: readonly SandboxWritablePathMount[] = [],
+	): Promise<AgentSandboxManager> => {
+		const key = chatSandboxWorkspaceKey(workspacePath, writableMounts);
 		const runtimeConfig = await loadRuntimeConfig(workspacePath);
 		const poolConfig = buildChatAgentSandboxPoolConfig(runtimeConfig);
 		let manager = chatSandboxManagerByWorkspaceKey.get(key);
@@ -300,6 +322,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				poolConfig,
 				// Chat read tools need no network; keep the enforcement sandbox stricter than general task runs.
 				networkPolicy: "none",
+				writableMounts,
 			});
 			chatSandboxManagerByWorkspaceKey.set(key, manager);
 			return manager;
@@ -307,13 +330,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		await manager.updatePoolConfig(poolConfig);
 		return manager;
 	};
-	const stopChatSandboxManagerByKey = async (key: string): Promise<void> => {
-		const manager = chatSandboxManagerByWorkspaceKey.get(key);
-		if (!manager) {
-			return;
+	const stopChatSandboxManagersByPrefix = async (prefix: string): Promise<void> => {
+		const entries = [...chatSandboxManagerByWorkspaceKey.entries()].filter(
+			([key]) => key === prefix || key.startsWith(`${prefix}:`),
+		);
+		for (const [key] of entries) {
+			chatSandboxManagerByWorkspaceKey.delete(key);
 		}
-		chatSandboxManagerByWorkspaceKey.delete(key);
-		await manager.stopNow().catch(() => null);
+		await Promise.all(entries.map(([, manager]) => manager.stopNow().catch(() => null)));
 	};
 	const stopAllChatSandboxManagers = async (): Promise<void> => {
 		const managers = [...chatSandboxManagerByWorkspaceKey.values()];
@@ -1956,7 +1980,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		return service;
 	};
 	const disposeNKleinTaskSessionServiceAsync = async (workspaceId: string): Promise<void> => {
-		await stopChatSandboxManagerByKey(`workspace:${workspaceId}`);
+		await stopChatSandboxManagersByPrefix(`workspace:${workspaceId}`);
 		const service = nkleinTaskSessionServiceByWorkspaceId.get(workspaceId);
 		if (!service) {
 			return;
@@ -2048,6 +2072,28 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				deps.warn(`Chat sandbox read tools unavailable: ${message}`);
+				return null;
+			}
+		},
+		getSandboxWorkspaceWriteTools: async (session, workspacePath) => {
+			if (agentSandboxStatus.state !== "ready") {
+				return null;
+			}
+			const writableMounts = resolveSandboxWritablePathMounts(workspacePath, session.sandboxWritablePaths);
+			if (writableMounts.length === 0) {
+				return null;
+			}
+			try {
+				const manager = await getChatSandboxManager(workspacePath, writableMounts);
+				return createSandboxWorkspaceWriteTools({
+					session,
+					workspacePath,
+					provider: createAgentSandboxChatWorkspaceProvider(manager),
+					writableMounts,
+				});
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				deps.warn(`Chat sandbox write tools unavailable: ${message}`);
 				return null;
 			}
 		},

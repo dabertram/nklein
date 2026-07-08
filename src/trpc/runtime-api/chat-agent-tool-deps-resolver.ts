@@ -15,6 +15,7 @@ import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../../chat/chat-focus-chain";
 import { recordChatHostAction } from "../../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../../chat/chat-local-llm-adapter";
+import { isSandboxWritePathApproved, resolveSandboxWritablePathMounts } from "../../chat/chat-sandbox-workspace-tools";
 import { chatScopeCanAct, chatScopeToExecutionMode } from "../../chat/chat-scope-capability";
 import type { ChatAgentToolDeps } from "../../chat/chat-service";
 import type { ChatSession } from "../../chat/chat-session-store";
@@ -64,6 +65,11 @@ export function buildChatAgentToolDepsResolver(input: {
 	 * tools for `isolated_readonly` instead of mislabeled host reads.
 	 */
 	getSandboxWorkspaceReadTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
+	/**
+	 * §5.M opt-in writable mounts: isolated scopes may receive a Docker-backed `write_file` only when the session has
+	 * explicitly approved workspace-relative writable paths. Absent ⇒ fail closed (no write tools).
+	 */
+	getSandboxWorkspaceWriteTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
 }): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
 	return async (session, extra) => {
 		// §6.11-A klein_self: the read-only SELF-awareness scope roots the session in the !Klein SOURCE repo itself
@@ -96,6 +102,14 @@ export function buildChatAgentToolDepsResolver(input: {
 			mode === "isolated_readonly"
 				? ((await input.getSandboxWorkspaceReadTools?.(session, workspacePath)) ?? { tools: [], definitions: [] })
 				: createWorkspaceReadTools(workspacePath);
+		const sandboxWritableMounts =
+			mode === "isolated_readonly"
+				? resolveSandboxWritablePathMounts(workspacePath, session.sandboxWritablePaths)
+				: [];
+		const writes =
+			mode === "isolated_readonly" && sandboxWritableMounts.length > 0
+				? ((await input.getSandboxWorkspaceWriteTools?.(session, workspacePath)) ?? { tools: [], definitions: [] })
+				: { tools: [], definitions: [] };
 		const board = createBoardReadTools(workspacePath);
 		const focus = createFocusChainTools(session.id);
 		const mutations = canAct ? createBoardMutationTools(workspacePath) : { tools: [], definitions: [] };
@@ -139,6 +153,7 @@ export function buildChatAgentToolDepsResolver(input: {
 				: { tools: [], definitions: [] };
 		const tools = [
 			...read.tools,
+			...writes.tools,
 			...board.tools,
 			...focus.tools,
 			...mutations.tools,
@@ -152,6 +167,7 @@ export function buildChatAgentToolDepsResolver(input: {
 		];
 		const definitions = [
 			...read.definitions,
+			...writes.definitions,
 			...board.definitions,
 			...focus.definitions,
 			...mutations.definitions,
@@ -184,6 +200,10 @@ export function buildChatAgentToolDepsResolver(input: {
 					command: call.arguments.command,
 					riskAcknowledged: session.riskAcknowledged,
 					browserEnabled: session.browserEnabled,
+					sandboxWriteApproved:
+						call.name === "write_file"
+							? isSandboxWritePathApproved(call.arguments.path, sandboxWritableMounts)
+							: false,
 				}),
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });

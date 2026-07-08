@@ -22,7 +22,7 @@ vi.mock("../../../src/telemetry/model-behavior-profile-store", () => ({
 	persistModelBehaviorOutcome: vi.fn(async () => undefined),
 }));
 
-function makeSession(scope: ChatSession["scope"]): ChatSession {
+function makeSession(scope: ChatSession["scope"], sandboxWritablePaths: readonly string[] = []): ChatSession {
 	return {
 		schemaVersion: 1,
 		id: `session-${scope}`,
@@ -32,6 +32,7 @@ function makeSession(scope: ChatSession["scope"]): ChatSession {
 		goal: null,
 		riskAcknowledged: false,
 		browserEnabled: false,
+		sandboxWritablePaths,
 		feedbackMuted: false,
 		ownedWorkspaceId: null,
 		focus: null,
@@ -50,6 +51,7 @@ function call(name: string, args: Record<string, unknown> = {}): ChatToolCall {
 function makeResolver(input: {
 	workspacePath: string;
 	getSandboxWorkspaceReadTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
+	getSandboxWorkspaceWriteTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
 }) {
 	return buildChatAgentToolDepsResolver({
 		getActiveWorkspacePath: () => input.workspacePath,
@@ -57,6 +59,9 @@ function makeResolver(input: {
 		isRemoteMode: false,
 		...(input.getSandboxWorkspaceReadTools
 			? { getSandboxWorkspaceReadTools: input.getSandboxWorkspaceReadTools }
+			: {}),
+		...(input.getSandboxWorkspaceWriteTools
+			? { getSandboxWorkspaceWriteTools: input.getSandboxWorkspaceWriteTools }
 			: {}),
 	});
 }
@@ -106,6 +111,69 @@ describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", (
 
 		expect(provider).toHaveBeenCalledWith(session, tmpDir);
 		expect(result?.content).toBe("sandbox README");
+	});
+
+	it("uses the injected sandbox write-tool provider for approved chat_only writable paths", async () => {
+		const sandboxWriteTools: ChatToolSet = {
+			tools: [
+				{
+					name: "write_file",
+					actionKind: "sandbox_write",
+					run: async () => "sandbox write",
+				},
+			],
+			definitions: [],
+		};
+		const provider = vi.fn(async () => sandboxWriteTools);
+		const resolver = makeResolver({
+			workspacePath: workspaceWithReadme(),
+			getSandboxWorkspaceWriteTools: provider,
+		});
+		const session = makeSession("chat_only", ["src"]);
+		const deps = await resolver(session);
+
+		const result = await deps?.executeTool(call("write_file", { path: "src/app.ts", content: "hello" }));
+
+		expect(provider).toHaveBeenCalledWith(session, tmpDir);
+		expect(result?.content).toBe("sandbox write");
+	});
+
+	it("refuses sandbox writes outside the approved path before the write tool runs", async () => {
+		const run = vi.fn(async () => "should not run");
+		const sandboxWriteTools: ChatToolSet = {
+			tools: [
+				{
+					name: "write_file",
+					actionKind: "sandbox_write",
+					run,
+				},
+			],
+			definitions: [],
+		};
+		const resolver = makeResolver({
+			workspacePath: workspaceWithReadme(),
+			getSandboxWorkspaceWriteTools: vi.fn(async () => sandboxWriteTools),
+		});
+		const deps = await resolver(makeSession("chat_only", ["src"]));
+
+		const result = await deps?.executeTool(call("write_file", { path: "README.md", content: "hello" }));
+
+		expect(result?.content).toContain("Not run (awaiting confirmation)");
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it("does not offer sandbox write tools when the session has no approved writable paths", async () => {
+		const provider = vi.fn(async (): Promise<ChatToolSet> => ({ tools: [], definitions: [] }));
+		const resolver = makeResolver({
+			workspacePath: workspaceWithReadme(),
+			getSandboxWorkspaceWriteTools: provider,
+		});
+		const deps = await resolver(makeSession("chat_only"));
+
+		const result = await deps?.executeTool(call("write_file", { path: "src/app.ts", content: "hello" }));
+
+		expect(provider).not.toHaveBeenCalled();
+		expect(result?.content).toBe("Unknown tool: write_file");
 	});
 
 	it("keeps the existing host-backed workspace reads for host-capable project scopes", async () => {

@@ -125,6 +125,7 @@ function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 		goal: session.goal,
 		riskAcknowledged: session.riskAcknowledged,
 		browserEnabled: session.browserEnabled,
+		sandboxWritablePaths: [...session.sandboxWritablePaths],
 		feedbackMuted: session.feedbackMuted,
 		focus: session.focus,
 		ownedWorkspaceId: session.ownedWorkspaceId,
@@ -316,6 +317,9 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.goal !== undefined ? { goal: input.goal } : {}),
 					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 					...(input.browserEnabled !== undefined ? { browserEnabled: input.browserEnabled } : {}),
+					...(input.sandboxWritablePaths !== undefined
+						? { sandboxWritablePaths: input.sandboxWritablePaths }
+						: {}),
 					...(input.feedbackMuted !== undefined ? { feedbackMuted: input.feedbackMuted } : {}),
 					...(input.ownedWorkspaceId !== undefined ? { ownedWorkspaceId: input.ownedWorkspaceId } : {}),
 					...(input.selectedSkillIds !== undefined ? { selectedSkillIds: input.selectedSkillIds } : {}),
@@ -334,6 +338,9 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 					...(input.goal !== undefined ? { goal: input.goal } : {}),
 					...(input.riskAcknowledged !== undefined ? { riskAcknowledged: input.riskAcknowledged } : {}),
 					...(input.browserEnabled !== undefined ? { browserEnabled: input.browserEnabled } : {}),
+					...(input.sandboxWritablePaths !== undefined
+						? { sandboxWritablePaths: input.sandboxWritablePaths }
+						: {}),
 					...(input.feedbackMuted !== undefined ? { feedbackMuted: input.feedbackMuted } : {}),
 					...(input.clearFocus ? { focus: null } : {}),
 					...(input.selectedSkillIds !== undefined ? { selectedSkillIds: input.selectedSkillIds } : {}),

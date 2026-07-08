@@ -1,4 +1,7 @@
 import type { execFile } from "node:child_process";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { createHomeAgentSessionId } from "../../../src/core/home-agent-session";
 import {
@@ -552,6 +555,25 @@ describe("AgentSandboxManager", () => {
 		expect(cloneCallIndex).toBeGreaterThan(mkdirTaskCallIndex);
 	});
 
+	it("passes static writable mounts into docker run as read-write binds", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "nklein-static-writable-mount-"));
+		const hostPath = join(tempRoot, "approved");
+		const { execFile: execFileStub, calls } = createExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			writableMounts: [{ hostPath, containerPath: "/nklein/user-writable/approved" }],
+		});
+		try {
+			await manager.acquireSlot({ taskId: "task-1", projectRepoPath: "/repo" });
+			const run = calls.find((args) => args[0] === "run") ?? [];
+			expect(run).toContain(`type=bind,src=${hostPath},dst=/nklein/user-writable/approved`);
+			expect(run.some((arg) => arg.includes("/nklein/user-writable/approved,readonly"))).toBe(false);
+		} finally {
+			rmSync(tempRoot, { recursive: true, force: true });
+		}
+	});
+
 	it("reports workspace cleanup failures without leaking the pool slot", async () => {
 		const { execFile: execFileStub, calls } = createExecFileStub({
 			failExecCommand: ["rm", "-rf", "/workspaces/task-1"],
@@ -586,9 +608,6 @@ describe("AgentSandboxManager", () => {
 	});
 
 	it("derives one canonical project key for every spelling of the same directory (run19)", async () => {
-		const { mkdtempSync, realpathSync, rmSync } = await import("node:fs");
-		const { tmpdir } = await import("node:os");
-		const { join } = await import("node:path");
 		// macOS tmpdir is itself a symlink (/var/folders -> /private/var/folders) — the exact run19 pair.
 		const viaSymlink = mkdtempSync(join(tmpdir(), "nklein-key-"));
 		try {

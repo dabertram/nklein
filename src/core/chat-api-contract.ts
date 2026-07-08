@@ -43,6 +43,9 @@ export const runtimeChatSessionSchema = z.object({
 	// Default false — `browse_url` is not offered until then. Browsing is a host action, so it still only runs in
 	// a host-capable scope (denied in chat-only).
 	browserEnabled: z.boolean().default(false),
+	// §5.M: workspace-relative directories the user has explicitly approved for Docker-mounted sandbox writes.
+	// Empty by default: isolated chat sessions remain read-only until the user opts in.
+	sandboxWritablePaths: z.array(z.string()).default([]),
 	// §5.AT: the user muted board→chat feedback for this (owning) chat — the bridge suppresses every tier. Additive
 	// default false so older clients/records are unaffected.
 	feedbackMuted: z.boolean().default(false),
@@ -82,6 +85,7 @@ export const runtimeChatCreateSessionRequestSchema = z.object({
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),
 	browserEnabled: z.boolean().optional(),
+	sandboxWritablePaths: z.array(z.string()).optional(),
 	feedbackMuted: z.boolean().optional(),
 	// §5.AT/§5.AU: bind the new chat to a workspace it owns (one-chat-per-project).
 	ownedWorkspaceId: z.string().nullable().optional(),
@@ -98,6 +102,7 @@ export const runtimeChatUpdateSessionRequestSchema = z.object({
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),
 	browserEnabled: z.boolean().optional(),
+	sandboxWritablePaths: z.array(z.string()).optional(),
 	/** §5.AT: mute/unmute board→chat feedback for this owning chat (the bridge then suppresses every tier). */
 	feedbackMuted: z.boolean().optional(),
 	/** §5.AU: clear the sticky addressing focus (the "talking to X" chip's ✕). Clients never SET focus over the

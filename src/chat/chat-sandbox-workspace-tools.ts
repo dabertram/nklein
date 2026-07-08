@@ -1,5 +1,12 @@
-import { isAbsolute, normalize } from "node:path/posix";
-import type { AgentSandboxExecResult } from "../nklein-agent/nklein-agent-sandbox";
+import { createHash } from "node:crypto";
+import {
+	relative as hostRelative,
+	resolve as hostResolve,
+	sep as hostSep,
+	isAbsolute as isHostAbsolute,
+} from "node:path";
+import { dirname, isAbsolute, normalize, relative as posixRelative } from "node:path/posix";
+import type { AgentSandboxExecResult, AgentSandboxWritableMount } from "../nklein-agent/nklein-agent-sandbox";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatSession } from "./chat-session-store";
@@ -7,6 +14,7 @@ import type { ChatTool } from "./chat-tool-executor";
 
 const DEFAULT_MAX_BYTES = 64 * 1024;
 const SANDBOX_TOOL_TIMEOUT_MS = 10_000;
+const USER_WRITABLE_MOUNT_ROOT = "/nklein/user-writable";
 
 export interface ChatSandboxWorkspace {
 	exec: (argv: readonly string[], options?: { timeoutMs?: number }) => Promise<AgentSandboxExecResult>;
@@ -29,9 +37,67 @@ export interface AgentSandboxChatWorkspaceManager {
 	disposeWorkspace: (taskId: string) => Promise<void>;
 }
 
+export interface SandboxWritablePathMount extends AgentSandboxWritableMount {
+	/** Workspace-relative directory approved by the user; "." means the workspace root. */
+	relativePath: string;
+}
+
 function sandboxTaskIdForChatSession(sessionId: string): string {
 	const normalized = sessionId.replace(/[^a-zA-Z0-9_.-]+/gu, "-").replace(/^-+|-+$/gu, "");
 	return `chat-${normalized || "session"}`;
+}
+
+function mountNameForRelativePath(relativePath: string): string {
+	if (relativePath === ".") {
+		return "root";
+	}
+	return createHash("sha256").update(relativePath).digest("hex").slice(0, 16);
+}
+
+function canonicalWorkspaceRelativeDir(value: string): string {
+	const withoutTrailingSlash = value.replace(/\/+$/gu, "");
+	return withoutTrailingSlash === "" || withoutTrailingSlash === "." ? "." : withoutTrailingSlash;
+}
+
+function normalizeApprovedWritablePath(workspacePath: string, value: string): string | null {
+	const raw = value.trim();
+	if (!raw) {
+		return null;
+	}
+	if (isHostAbsolute(raw)) {
+		const root = hostResolve(workspacePath);
+		const target = hostResolve(raw);
+		const relative = hostRelative(root, target);
+		if (relative === ".." || relative.startsWith(`..${hostSep}`) || isHostAbsolute(relative)) {
+			return null;
+		}
+		const normalized = normalize(relative.replaceAll(hostSep, "/"));
+		return canonicalWorkspaceRelativeDir(normalized);
+	}
+	const normalized = normalize(raw.replaceAll("\\", "/"));
+	if (isAbsolute(normalized) || normalized === ".." || normalized.startsWith("../")) {
+		return null;
+	}
+	return canonicalWorkspaceRelativeDir(normalized);
+}
+
+export function resolveSandboxWritablePathMounts(
+	workspacePath: string,
+	approvedPaths: readonly string[],
+): SandboxWritablePathMount[] {
+	const byRelativePath = new Map<string, SandboxWritablePathMount>();
+	for (const path of approvedPaths) {
+		const relativePath = normalizeApprovedWritablePath(workspacePath, path);
+		if (!relativePath || byRelativePath.has(relativePath)) {
+			continue;
+		}
+		byRelativePath.set(relativePath, {
+			relativePath,
+			hostPath: relativePath === "." ? hostResolve(workspacePath) : hostResolve(workspacePath, relativePath),
+			containerPath: `${USER_WRITABLE_MOUNT_ROOT}/${mountNameForRelativePath(relativePath)}`,
+		});
+	}
+	return [...byRelativePath.values()].sort((left, right) => left.relativePath.localeCompare(right.relativePath));
 }
 
 export function createAgentSandboxChatWorkspaceProvider(
@@ -115,6 +181,33 @@ async function assertRealPathInsideWorkspace(
 	return { ok: true };
 }
 
+async function assertWritablePathInsideWorkspace(
+	workspace: ChatSandboxWorkspace,
+	relativePath: string,
+	displayPath: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+	const root = await execCapture(workspace, ["pwd", "-P"]);
+	if (root.exitCode !== 0) {
+		return { ok: false, message: "Could not resolve the sandbox workspace root." };
+	}
+	const realRoot = firstLine(root.stdout);
+	let candidate = relativePath;
+	for (;;) {
+		const real = await execCapture(workspace, ["realpath", "--", candidate]);
+		if (real.exitCode === 0) {
+			if (!isInside(realRoot, firstLine(real.stdout))) {
+				return { ok: false, message: `${displayPath} escapes the workspace.` };
+			}
+			return { ok: true };
+		}
+		const parent = dirname(candidate);
+		if (parent === candidate) {
+			return { ok: false, message: `Could not write ${displayPath} (path not writable).` };
+		}
+		candidate = parent === "" ? "." : parent;
+	}
+}
+
 async function withSandbox<T>(
 	provider: ChatSandboxWorkspaceProvider,
 	session: ChatSession,
@@ -157,6 +250,52 @@ function parseFindEntries(stdout: string, displayPath: string): string {
 		.filter((entry): entry is string => entry !== null)
 		.sort((left, right) => left.localeCompare(right));
 	return entries.length > 0 ? entries.join("\n") : `${displayPath} is empty.`;
+}
+
+function isPathWithinApprovedMount(path: string, mount: SandboxWritablePathMount): boolean {
+	return mount.relativePath === "." || path === mount.relativePath || path.startsWith(`${mount.relativePath}/`);
+}
+
+function findWritableMountForPath(
+	path: string,
+	mounts: readonly SandboxWritablePathMount[],
+): SandboxWritablePathMount | null {
+	return (
+		[...mounts]
+			.filter((mount) => isPathWithinApprovedMount(path, mount))
+			.sort((left, right) => right.relativePath.length - left.relativePath.length)[0] ?? null
+	);
+}
+
+export function isSandboxWritePathApproved(path: unknown, mounts: readonly SandboxWritablePathMount[]): boolean {
+	const resolved = resolveRelativePath(path, { kind: "file" });
+	return resolved.ok && resolved.path !== "." && findWritableMountForPath(resolved.path, mounts) !== null;
+}
+
+function toMountedWritePath(path: string, mount: SandboxWritablePathMount): string {
+	if (mount.relativePath === ".") {
+		return path === "." ? mount.containerPath : `${mount.containerPath}/${path}`;
+	}
+	const suffix = posixRelative(mount.relativePath, path);
+	return suffix ? `${mount.containerPath}/${suffix}` : mount.containerPath;
+}
+
+async function writeUtf8File(workspace: ChatSandboxWorkspace, path: string, content: string): Promise<boolean> {
+	const parent = dirname(path);
+	const mkdir = await execCapture(workspace, ["mkdir", "-p", "--", parent === "" ? "." : parent]);
+	if (mkdir.exitCode !== 0) {
+		return false;
+	}
+	const encoded = Buffer.from(content, "utf8").toString("base64");
+	const written = await execCapture(workspace, [
+		"sh",
+		"-c",
+		'printf "%s" "$2" | base64 -d > "$1"',
+		"nklein-write-file",
+		path,
+		encoded,
+	]);
+	return written.exitCode === 0;
 }
 
 export function createSandboxWorkspaceReadTools(input: {
@@ -260,6 +399,71 @@ export function createSandboxWorkspaceReadTools(input: {
 						description: "Workspace-relative directory path; defaults to the workspace root.",
 					},
 				},
+			},
+		},
+	];
+
+	return { tools, definitions };
+}
+
+export function createSandboxWorkspaceWriteTools(input: {
+	session: ChatSession;
+	workspacePath: string;
+	provider: ChatSandboxWorkspaceProvider;
+	writableMounts: readonly SandboxWritablePathMount[];
+}): ChatToolSet {
+	const tools: ChatTool[] = [
+		{
+			name: "write_file",
+			actionKind: "sandbox_write",
+			run: async (args) => {
+				const resolved = resolveRelativePath(args.path, { kind: "file" });
+				if (!resolved.ok) {
+					return resolved.message;
+				}
+				if (resolved.path === ".") {
+					return "Provide a file path, not the workspace root.";
+				}
+				if (typeof args.content !== "string") {
+					return "Provide `content` (the text to write) as a string.";
+				}
+				const content = args.content;
+				const mount = findWritableMountForPath(resolved.path, input.writableMounts);
+				if (!mount) {
+					return `${resolved.displayPath} is not under an approved writable path.`;
+				}
+				return await withSandbox(input.provider, input.session, input.workspacePath, async (workspace) => {
+					const real = await assertWritablePathInsideWorkspace(workspace, resolved.path, resolved.displayPath);
+					if (!real.ok) {
+						return real.message;
+					}
+					const mountedPath = toMountedWritePath(resolved.path, mount);
+					const wroteWorkspace = await writeUtf8File(workspace, resolved.path, content);
+					if (!wroteWorkspace) {
+						return `Could not write ${resolved.displayPath} (path not writable).`;
+					}
+					const wroteHostMount = await writeUtf8File(workspace, mountedPath, content);
+					if (!wroteHostMount) {
+						return `Could not write ${resolved.displayPath} (approved mount not writable).`;
+					}
+					return `Wrote ${Buffer.byteLength(content, "utf8")} bytes to ${resolved.displayPath}.`;
+				});
+			},
+		},
+	];
+
+	const definitions: LocalLlmToolDefinition[] = [
+		{
+			name: "write_file",
+			description:
+				"Create or overwrite a UTF-8 text file under an approved writable path in the sandbox workspace. This is a write action and requires confirmation.",
+			parameters: {
+				type: "object",
+				properties: {
+					path: { type: "string", description: "Workspace-relative file path to write, e.g. 'src/app.ts'." },
+					content: { type: "string", description: "The full file content to write." },
+				},
+				required: ["path", "content"],
 			},
 		},
 	];

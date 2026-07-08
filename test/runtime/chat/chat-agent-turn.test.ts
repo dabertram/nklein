@@ -15,6 +15,7 @@ function session(): ChatSession {
 		goal: null,
 		riskAcknowledged: false,
 		browserEnabled: false,
+		sandboxWritablePaths: [],
 		feedbackMuted: false,
 		ownedWorkspaceId: null,
 		focus: null,

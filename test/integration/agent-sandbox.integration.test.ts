@@ -1,11 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ToolExecutors } from "@cline/sdk";
 import { describe, expect, it, vi } from "vitest";
 import {
 	createAgentSandboxChatWorkspaceProvider,
 	createSandboxWorkspaceReadTools,
+	createSandboxWorkspaceWriteTools,
+	resolveSandboxWritablePathMounts,
 } from "../../src/chat/chat-sandbox-workspace-tools";
 import type { ChatSession } from "../../src/chat/chat-session-store";
 import {
@@ -94,6 +96,7 @@ function createChatSession(id: string): ChatSession {
 		goal: null,
 		riskAcknowledged: false,
 		browserEnabled: false,
+		sandboxWritablePaths: [],
 		feedbackMuted: false,
 		ownedWorkspaceId: null,
 		focus: null,
@@ -370,6 +373,48 @@ if (dockerGate.ready) {
 
 					const absolute = await chatTool(toolSet.tools, "read_file").run({ path: "/etc/passwd" });
 					expect(absolute).toContain("workspace-relative");
+				} finally {
+					await manager.stopNow();
+					cleanup();
+				}
+			});
+		}, 60_000);
+
+		it("writes chat workspace files only through approved Docker writable mounts", async () => {
+			await withTemporaryHome(async () => {
+				const { path: sandboxRoot, cleanup } = createTempDir("kanban-chat-sandbox-write-");
+				const repoPath = createCommittedRepo(sandboxRoot);
+				const writableMounts = resolveSandboxWritablePathMounts(repoPath, ["src"]);
+				const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+				const manager = new AgentSandboxManager({
+					image: dockerGate.image,
+					poolConfig: {
+						maxContainers: 1,
+						agentsPerContainer: 1,
+						idleTimeoutMs: 100,
+						namespace: `chatwrite-${suffix}`,
+					},
+					networkPolicy: "none",
+					writableMounts,
+				});
+				try {
+					const toolSet = createSandboxWorkspaceWriteTools({
+						session: { ...createChatSession(`docker-write-${suffix}`), sandboxWritablePaths: ["src"] },
+						workspacePath: repoPath,
+						provider: createAgentSandboxChatWorkspaceProvider(manager),
+						writableMounts,
+					});
+					const writeFile = chatTool(toolSet.tools, "write_file");
+
+					const denied = await writeFile.run({ path: "README.md", content: "changed\n" });
+					expect(denied).toContain("not under an approved writable path");
+
+					const content = "hello from approved chat mount\n";
+					const written = await writeFile.run({ path: "src/generated.txt", content });
+
+					expect(written).toContain("Wrote");
+					expect(readFileSync(join(repoPath, "src", "generated.txt"), "utf8")).toBe(content);
+					expect(readFileSync(join(repoPath, "README.md"), "utf8")).toBe("hello\n");
 				} finally {
 					await manager.stopNow();
 					cleanup();

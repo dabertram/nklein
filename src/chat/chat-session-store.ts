@@ -69,6 +69,8 @@ export interface ChatSession {
 	riskAcknowledged: boolean;
 	/** §5.M G6: the user enabled the headless-browser/internet tool for this session (orthogonal). Default false. */
 	browserEnabled: boolean;
+	/** §5.M: workspace-relative directories the user approved for Docker-mounted sandbox writes. Default empty. */
+	sandboxWritablePaths: readonly string[];
 	/** §5.AT: the user muted board→chat feedback for this (owning) chat — the bridge suppresses every tier. Default false. */
 	feedbackMuted: boolean;
 	/** §5.AU: the ONE workspace this chat owns (v1 is 1 chat ↔ 1 workspace) — routes board→chat feedback here; null when unset. */
@@ -108,6 +110,7 @@ const chatSessionPersistedSchema = z.object({
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),
 	browserEnabled: z.boolean().optional(),
+	sandboxWritablePaths: z.array(z.string()).optional(),
 	feedbackMuted: z.boolean().optional(),
 	ownedWorkspaceId: z.string().nullable().optional(),
 	focus: z
@@ -158,6 +161,17 @@ function normalizeRole(value: unknown): ChatSessionRole {
 	return CHAT_SESSION_ROLES.includes(value as ChatSessionRole)
 		? (value as ChatSessionRole)
 		: DEFAULT_CHAT_SESSION_ROLE;
+}
+
+function normalizeSandboxWritablePaths(paths: readonly string[] | undefined): string[] {
+	const normalized = new Set<string>();
+	for (const path of paths ?? []) {
+		const trimmed = path.trim();
+		if (trimmed) {
+			normalized.add(trimmed);
+		}
+	}
+	return [...normalized];
 }
 
 // Serialize check-then-act sequences (read the current session set, decide, then append) per rootDir. The append-only
@@ -214,6 +228,8 @@ function replayChatSessions(events: readonly ChatSessionEvent[]): ChatSession[] 
 				riskAcknowledged: event.session.riskAcknowledged === true,
 				// Back-compat for sessions persisted before `browserEnabled` existed (default: disabled).
 				browserEnabled: event.session.browserEnabled === true,
+				// Back-compat for sessions persisted before approved sandbox write paths existed → no writes.
+				sandboxWritablePaths: normalizeSandboxWritablePaths(event.session.sandboxWritablePaths),
 				// Back-compat for sessions persisted before `feedbackMuted` existed (default: not muted).
 				feedbackMuted: event.session.feedbackMuted === true,
 				// §5.AU back-compat: addressing state absent on old records → unset / empty.
@@ -247,6 +263,7 @@ export async function createChatSession(
 		goal?: string | null;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		sandboxWritablePaths?: readonly string[];
 		feedbackMuted?: boolean;
 		/** §5.AU: the workspace this chat owns (v1 = 1 chat ↔ 1 workspace). */
 		ownedWorkspaceId?: string | null;
@@ -265,6 +282,7 @@ export async function createChatSession(
 		goal: input.goal?.trim() || null,
 		riskAcknowledged: input.riskAcknowledged ?? false,
 		browserEnabled: input.browserEnabled ?? false,
+		sandboxWritablePaths: normalizeSandboxWritablePaths(input.sandboxWritablePaths),
 		feedbackMuted: input.feedbackMuted ?? false,
 		ownedWorkspaceId: input.ownedWorkspaceId ?? null,
 		focus: null,
@@ -322,6 +340,7 @@ export async function updateChatSession(
 		goal?: string | null;
 		riskAcknowledged?: boolean;
 		browserEnabled?: boolean;
+		sandboxWritablePaths?: readonly string[];
 		feedbackMuted?: boolean;
 		/** §5.AU: set (or `null` = clear) the session's addressing focus — e.g. after an explicit @card handle. */
 		focus?: ChatSessionFocus | null;
@@ -355,6 +374,9 @@ export async function updateChatSession(
 			...(patch.goal !== undefined ? { goal: patch.goal?.trim() || null } : {}),
 			...(patch.riskAcknowledged !== undefined ? { riskAcknowledged: patch.riskAcknowledged } : {}),
 			...(patch.browserEnabled !== undefined ? { browserEnabled: patch.browserEnabled } : {}),
+			...(patch.sandboxWritablePaths !== undefined
+				? { sandboxWritablePaths: normalizeSandboxWritablePaths(patch.sandboxWritablePaths) }
+				: {}),
 			...(patch.feedbackMuted !== undefined ? { feedbackMuted: patch.feedbackMuted } : {}),
 			...(patch.focus !== undefined ? { focus: patch.focus } : {}),
 			...(patch.selectedSkillIds !== undefined ? { selectedSkillIds: patch.selectedSkillIds } : {}),

@@ -35,9 +35,15 @@ describe("resolveChatToolConfirmation — §5.M run_command + browse_url gate", 
 		}
 	});
 
+	it("auto-confirms write_file only after the runtime approves the sandbox write path", () => {
+		expect(resolveChatToolConfirmation({ name: "write_file", sandboxWriteApproved: true })).toBe(true);
+		expect(resolveChatToolConfirmation({ name: "write_file", sandboxWriteApproved: false })).toBe(false);
+		expect(resolveChatToolConfirmation({ name: "write_file" })).toBe(false);
+	});
+
 	it("denies any other tool by default", () => {
-		expect(resolveChatToolConfirmation({ name: "write_file", riskAcknowledged: true, browserEnabled: true })).toBe(
-			false,
-		);
+		expect(
+			resolveChatToolConfirmation({ name: "delete_everything", riskAcknowledged: true, browserEnabled: true }),
+		).toBe(false);
 	});
 });

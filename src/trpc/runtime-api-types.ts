@@ -31,6 +31,11 @@ export interface CreateRuntimeApiDependencies {
 	 * fail closed and receive no workspace filesystem tools rather than falling back to host reads.
 	 */
 	getSandboxWorkspaceReadTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
+	/**
+	 * Docker-backed write tools for isolated chat scopes. Optional + fail-closed: only supplied when the session has
+	 * explicit approved writable bind paths, and the confirmation gate still validates each call path before execution.
+	 */
+	getSandboxWorkspaceWriteTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
 	resolveInteractiveShellCommand: () => { binary: string; args: string[] };
 	runCommand: (command: string, cwd: string) => Promise<RuntimeCommandRunResponse>;
 	broadcastNKleinMcpAuthStatusesUpdated?: (

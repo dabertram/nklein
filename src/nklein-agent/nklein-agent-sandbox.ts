@@ -20,6 +20,7 @@ import {
 	AGENT_SANDBOX_WORKSPACES_DIR,
 	type AgentSandboxPoolConfig,
 	type AgentSandboxProjectMount,
+	type AgentSandboxWritableMount,
 	buildAgentSandboxDockerRunArgs,
 	createAgentSandboxContainerName,
 	createAgentSandboxProjectKey,
@@ -103,6 +104,8 @@ export interface AgentSandboxManagerOptions {
 	 * uniform, so the global preset governs egress for every container.
 	 */
 	networkPolicy?: SandboxNetworkPolicy;
+	/** Extra read-write host bind mounts for explicitly approved sandbox-visible stores/paths. Empty by default. */
+	writableMounts?: readonly AgentSandboxWritableMount[];
 	execFile?: typeof execFile;
 	setTimeout?: typeof setTimeout;
 	clearTimeout?: typeof clearTimeout;
@@ -263,6 +266,7 @@ export class AgentSandboxManager {
 	private readonly execFileImpl: typeof execFile;
 	private readonly setTimeoutImpl: typeof setTimeout;
 	private readonly clearTimeoutImpl: typeof clearTimeout;
+	private readonly staticWritableMounts: readonly AgentSandboxWritableMount[];
 	private readonly containers = new Map<number, ContainerState>();
 	private readonly placements = new Map<string, TaskPlacement>();
 	private readonly projectMountsByKey = new Map<string, AgentSandboxProjectMount>();
@@ -285,6 +289,7 @@ export class AgentSandboxManager {
 		this.execFileImpl = options.execFile ?? execFile;
 		this.setTimeoutImpl = options.setTimeout ?? setTimeout;
 		this.clearTimeoutImpl = options.clearTimeout ?? clearTimeout;
+		this.staticWritableMounts = [...(options.writableMounts ?? [])];
 	}
 
 	async updatePoolConfig(config: Partial<AgentSandboxPoolConfig>): Promise<void> {
@@ -765,6 +770,14 @@ export class AgentSandboxManager {
 						containerPath: mount.containerPath,
 					});
 				}
+			}
+		}
+		for (const mount of this.staticWritableMounts) {
+			if (!writableMountsByDst.has(mount.containerPath)) {
+				writableMountsByDst.set(mount.containerPath, {
+					hostPath: mount.hostPath,
+					containerPath: mount.containerPath,
+				});
 			}
 		}
 		const writableMounts = [...writableMountsByDst.values()];

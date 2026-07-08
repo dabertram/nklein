@@ -196,6 +196,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				getLocalChatBaseUrl: () => nkleinProviderService.getLocalChatBaseUrl(),
 				isRemoteMode: deps.isRemoteMode ?? false,
 				getSandboxWorkspaceReadTools: deps.getSandboxWorkspaceReadTools,
+				getSandboxWorkspaceWriteTools: deps.getSandboxWorkspaceWriteTools,
 				// §5.L: read the capability-broker opt-in per-turn (a config flip takes effect on the next turn).
 				getCapabilityBrokerEnabled: async () => (await loadGlobalRuntimeConfig()).capabilityBrokerEnabled,
 				// decision-2: the chat web_search egress config, read per-turn (off by default: egress off / no backend).

@@ -97,6 +97,22 @@ describe("chat-session-store", () => {
 		expect(off?.browserEnabled).toBe(false);
 	});
 
+	it("defaults sandboxWritablePaths to empty and normalizes updates", async () => {
+		const created = await createChatSession(
+			{ title: "Writable", sandboxWritablePaths: [" src ", "src", ""] },
+			{ rootDir, now },
+		);
+		expect(created.sandboxWritablePaths).toEqual(["src"]);
+
+		const updated = await updateChatSession(
+			created.id,
+			{ sandboxWritablePaths: ["docs", " docs ", "src/generated"] },
+			{ rootDir, now },
+		);
+		expect(updated?.sandboxWritablePaths).toEqual(["docs", "src/generated"]);
+		expect((await getChatSession(created.id, { rootDir }))?.sandboxWritablePaths).toEqual(["docs", "src/generated"]);
+	});
+
 	it("§5.AU: defaults the addressing state (ownedWorkspaceId/focus/outstandingAsks) + round-trips ownership", async () => {
 		const created = await createChatSession({ title: "Board chat" }, { rootDir, now });
 		expect(created.ownedWorkspaceId).toBeNull();
@@ -129,7 +145,13 @@ describe("chat-session-store", () => {
 		await appendFile(join(rootDir, "sessions.jsonl"), `${JSON.stringify(legacy)}\n`, "utf8");
 
 		const loaded = await getChatSession("legacy", { rootDir });
-		expect(loaded).toMatchObject({ id: "legacy", ownedWorkspaceId: null, focus: null, outstandingAsks: [] });
+		expect(loaded).toMatchObject({
+			id: "legacy",
+			sandboxWritablePaths: [],
+			ownedWorkspaceId: null,
+			focus: null,
+			outstandingAsks: [],
+		});
 	});
 
 	it("honors an explicit scope + role", async () => {

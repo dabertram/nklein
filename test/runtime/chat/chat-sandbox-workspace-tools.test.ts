@@ -6,6 +6,9 @@ import {
 	type ChatSandboxWorkspaceProvider,
 	createAgentSandboxChatWorkspaceProvider,
 	createSandboxWorkspaceReadTools,
+	createSandboxWorkspaceWriteTools,
+	isSandboxWritePathApproved,
+	resolveSandboxWritablePathMounts,
 } from "../../../src/chat/chat-sandbox-workspace-tools";
 import type { ChatSession } from "../../../src/chat/chat-session-store";
 import type { AgentSandboxExecResult } from "../../../src/nklein-agent/nklein-agent-sandbox";
@@ -23,6 +26,7 @@ function makeSession(id = "session-1"): ChatSession {
 		goal: null,
 		riskAcknowledged: false,
 		browserEnabled: false,
+		sandboxWritablePaths: [],
 		feedbackMuted: false,
 		ownedWorkspaceId: null,
 		focus: null,
@@ -78,6 +82,15 @@ function makeTools(provider: ChatSandboxWorkspaceProvider, maxBytes?: number) {
 		workspacePath: WORKSPACE_PATH,
 		provider,
 		...(maxBytes !== undefined ? { maxBytes } : {}),
+	});
+}
+
+function makeWriteTools(provider: ChatSandboxWorkspaceProvider, writablePaths: readonly string[]) {
+	return createSandboxWorkspaceWriteTools({
+		session: makeSession(),
+		workspacePath: WORKSPACE_PATH,
+		provider,
+		writableMounts: resolveSandboxWritablePathMounts(WORKSPACE_PATH, writablePaths),
 	});
 }
 
@@ -225,6 +238,109 @@ describe("createSandboxWorkspaceReadTools", () => {
 
 		expect(out).toBe("Sandbox workspace is unavailable.");
 		expect(out).not.toContain(WORKSPACE_PATH);
+	});
+});
+
+describe("sandbox writable path mounts", () => {
+	it("normalizes approved workspace-relative directories and rejects escapes", () => {
+		const mounts = resolveSandboxWritablePathMounts(WORKSPACE_PATH, [
+			"src",
+			"./src/",
+			"../secret",
+			`${WORKSPACE_PATH}/docs`,
+			"/outside",
+			".",
+		]);
+
+		expect(mounts.map((mount) => mount.relativePath).sort()).toEqual([".", "docs", "src"]);
+		expect(mounts.find((mount) => mount.relativePath === "src")?.hostPath).toBe(`${WORKSPACE_PATH}/src`);
+		expect(mounts.every((mount) => mount.containerPath.startsWith("/nklein/user-writable/"))).toBe(true);
+	});
+
+	it("checks candidate write paths against the normalized mount list", () => {
+		const mounts = resolveSandboxWritablePathMounts(WORKSPACE_PATH, ["src"]);
+
+		expect(isSandboxWritePathApproved("src/app.ts", mounts)).toBe(true);
+		expect(isSandboxWritePathApproved("README.md", mounts)).toBe(false);
+		expect(isSandboxWritePathApproved("../secret.txt", mounts)).toBe(false);
+		expect(isSandboxWritePathApproved(".", mounts)).toBe(false);
+	});
+});
+
+describe("createSandboxWorkspaceWriteTools", () => {
+	it("exposes write_file as a sandbox_write tool with a matching definition", () => {
+		const { tools, definitions } = makeWriteTools(makeProvider(null), ["src"]);
+		expect(tools.map((candidate) => candidate.name)).toEqual(["write_file"]);
+		expect(tools[0]?.actionKind).toBe("sandbox_write");
+		expect(definitions.map((definition) => definition.name)).toEqual(["write_file"]);
+	});
+
+	it("refuses writes outside the approved writable paths without preparing a sandbox", async () => {
+		const provider = makeProvider(null);
+		const { tools } = makeWriteTools(provider, ["src"]);
+
+		const out = await tool(tools, "write_file").run({ path: "README.md", content: "hello" });
+
+		expect(out).toContain("not under an approved writable path");
+		expect(provider.prepare).not.toHaveBeenCalled();
+	});
+
+	it("requires string content", async () => {
+		const provider = makeProvider(null);
+		const { tools } = makeWriteTools(provider, ["src"]);
+
+		const out = await tool(tools, "write_file").run({ path: "src/app.ts" });
+
+		expect(out).toContain("Provide `content`");
+		expect(provider.prepare).not.toHaveBeenCalled();
+	});
+
+	it("writes approved paths through the sandbox clone and the approved writable mount", async () => {
+		const mount = resolveSandboxWritablePathMounts(WORKSPACE_PATH, ["src"])[0];
+		if (!mount) {
+			throw new Error("expected writable mount");
+		}
+		const mountedPath = `${mount.containerPath}/app.ts`;
+		const encoded = Buffer.from("hello", "utf8").toString("base64");
+		const prepared = makeWorkspace({
+			[commandKey(["pwd", "-P"])]: result(`${ROOT}\n`),
+			[commandKey(["realpath", "--", "src/app.ts"])]: result("", 1, "missing"),
+			[commandKey(["realpath", "--", "src"])]: result(`${ROOT}/src\n`),
+			[commandKey(["mkdir", "-p", "--", "src"])]: result(""),
+			[commandKey(["sh", "-c", 'printf "%s" "$2" | base64 -d > "$1"', "nklein-write-file", "src/app.ts", encoded])]:
+				result(""),
+			[commandKey(["mkdir", "-p", "--", mount.containerPath])]: result(""),
+			[commandKey(["sh", "-c", 'printf "%s" "$2" | base64 -d > "$1"', "nklein-write-file", mountedPath, encoded])]:
+				result(""),
+		});
+		const { tools } = makeWriteTools(makeProvider(prepared.workspace), ["src"]);
+
+		const out = await tool(tools, "write_file").run({ path: "src/app.ts", content: "hello" });
+
+		expect(out).toBe("Wrote 5 bytes to src/app.ts.");
+		expect(prepared.calls).toContainEqual(["realpath", "--", "src"]);
+		expect(prepared.calls).toContainEqual(["mkdir", "-p", "--", "src"]);
+		expect(prepared.calls).toContainEqual(["mkdir", "-p", "--", mount.containerPath]);
+		expect(prepared.dispose).toHaveBeenCalledTimes(1);
+	});
+
+	it("rejects symlink escapes before writing either target", async () => {
+		const mount = resolveSandboxWritablePathMounts(WORKSPACE_PATH, ["link"])[0];
+		if (!mount) {
+			throw new Error("expected writable mount");
+		}
+		const prepared = makeWorkspace({
+			[commandKey(["pwd", "-P"])]: result(`${ROOT}\n`),
+			[commandKey(["realpath", "--", "link/file.txt"])]: result("", 1, "missing"),
+			[commandKey(["realpath", "--", "link"])]: result("/outside/link\n"),
+		});
+		const { tools } = makeWriteTools(makeProvider(prepared.workspace), ["link"]);
+
+		const out = await tool(tools, "write_file").run({ path: "link/file.txt", content: "hello" });
+
+		expect(out).toContain("escapes the workspace");
+		expect(prepared.calls.some((call) => call[0] === "mkdir")).toBe(false);
+		expect(prepared.dispose).toHaveBeenCalledTimes(1);
 	});
 });
 
