@@ -23,6 +23,13 @@
  * confirming the empty-content was mechanical. deepseek-r1-8b still landed 0/3 (its reasoning_content is pure
  * chain-of-thought that never emits the final JSON even at 2500 tokens — a genuine over-reasoning weakness for the direct
  * structured-decompose role, distinct from the mechanical channel issue; it needs the §5.AA reason-then-act / larger budget).
+ *
+ * CONVERGENCE (re-verified 2026-07-08): routing r1 through the §5.AN prescription for reasoning models —
+ * `native_tool_call` (`tool_choice:"required"` with the decomposition as a tool), per `selectStructuredOutputStrategy` —
+ * RECOVERED it from 0/3 → 2/3 AND faster (~5–6s vs ~24s), because the tool_calls channel forces the structured answer and
+ * short-circuits the reasoning ramble that never emits JSON in prose. So the sweep should select the per-model structured
+ * mechanism (this extractor then parses the tool-call arguments the same way): coder/instruct → content-channel JSON,
+ * reasoning → native tool_call. The §5.AB eval and the §5.AN structured-output strategy are the same subsystem seen twice.
  */
 
 import type { EvalAnswer } from "./eval-prompt-corpus.js";
