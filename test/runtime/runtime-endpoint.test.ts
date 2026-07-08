@@ -6,13 +6,17 @@ import {
 	buildKanbanRuntimeWsUrl,
 	clearKanbanRuntimeTls,
 	DEFAULT_KANBAN_RUNTIME_PORT,
+	getKanbanRuntimeAdvertisedHost,
 	getKanbanRuntimeHost,
 	getKanbanRuntimePort,
+	getKanbanRuntimePublicHost,
 	getRuntimeFetch,
 	isKanbanRuntimeHttps,
+	normalizeRuntimePublicHost,
 	parseRuntimePort,
 	setKanbanRuntimeHost,
 	setKanbanRuntimePort,
+	setKanbanRuntimePublicHost,
 	setKanbanRuntimeTls,
 } from "../../src/core/runtime-endpoint";
 
@@ -21,6 +25,7 @@ const originalRuntimeHost = getKanbanRuntimeHost();
 const originalEnvPort = process.env.NKLEIN_RUNTIME_PORT;
 const originalLegacyEnvPort = process.env.KANBAN_RUNTIME_PORT;
 const originalEnvHost = process.env.NKLEIN_RUNTIME_HOST;
+const originalEnvPublicHost = process.env.NKLEIN_RUNTIME_PUBLIC_HOST;
 const originalLegacyEnvHost = process.env.KANBAN_RUNTIME_HOST;
 const originalEnvHttps = process.env.NKLEIN_RUNTIME_HTTPS;
 const originalLegacyEnvHttps = process.env.KANBAN_RUNTIME_HTTPS;
@@ -30,6 +35,7 @@ const originalLegacyEnvTlsCa = process.env.KANBAN_RUNTIME_TLS_CA;
 afterEach(() => {
 	setKanbanRuntimePort(originalRuntimePort);
 	setKanbanRuntimeHost(originalRuntimeHost);
+	setKanbanRuntimePublicHost(originalEnvPublicHost ?? null);
 	clearKanbanRuntimeTls();
 	resetLegacyEnvWarningsForTests();
 	if (originalEnvPort === undefined) {
@@ -46,6 +52,11 @@ afterEach(() => {
 		delete process.env.NKLEIN_RUNTIME_HOST;
 	} else {
 		process.env.NKLEIN_RUNTIME_HOST = originalEnvHost;
+	}
+	if (originalEnvPublicHost === undefined) {
+		delete process.env.NKLEIN_RUNTIME_PUBLIC_HOST;
+	} else {
+		process.env.NKLEIN_RUNTIME_PUBLIC_HOST = originalEnvPublicHost;
 	}
 	if (originalLegacyEnvHost === undefined) {
 		delete process.env.KANBAN_RUNTIME_HOST;
@@ -100,6 +111,27 @@ describe("runtime-endpoint", () => {
 		expect(process.env.NKLEIN_RUNTIME_HOST).toBe("100.64.0.1");
 		expect(buildKanbanRuntimeUrl("/api/trpc")).toBe("http://100.64.0.1:4567/api/trpc");
 		expect(buildKanbanRuntimeWsUrl("api/terminal/ws")).toBe("ws://100.64.0.1:4567/api/terminal/ws");
+	});
+
+	it("uses an advertised public host for browser-facing origins without changing the bind host", () => {
+		setKanbanRuntimeHost("0.0.0.0");
+		setKanbanRuntimePublicHost("http://192.168.1.25:3484/project");
+		setKanbanRuntimePort(4567);
+		expect(getKanbanRuntimeHost()).toBe("0.0.0.0");
+		expect(getKanbanRuntimePublicHost()).toBe("192.168.1.25");
+		expect(getKanbanRuntimeAdvertisedHost()).toBe("192.168.1.25");
+		expect(process.env.NKLEIN_RUNTIME_PUBLIC_HOST).toBe("192.168.1.25");
+		expect(buildKanbanRuntimeUrl("/api/trpc")).toBe("http://192.168.1.25:4567/api/trpc");
+		expect(buildKanbanRuntimeWsUrl("api/terminal/ws")).toBe("ws://192.168.1.25:4567/api/terminal/ws");
+	});
+
+	it("normalizes optional public hosts and clears the env when removed", () => {
+		expect(normalizeRuntimePublicHost(" https://klein.lan:9443/path ")).toBe("klein.lan");
+		setKanbanRuntimePublicHost("klein.lan");
+		expect(getKanbanRuntimeAdvertisedHost()).toBe("klein.lan");
+		setKanbanRuntimePublicHost(null);
+		expect(getKanbanRuntimePublicHost()).toBeNull();
+		expect(process.env.NKLEIN_RUNTIME_PUBLIC_HOST).toBeUndefined();
 	});
 
 	it("defaults host to 127.0.0.1", () => {

@@ -6,6 +6,7 @@ import { getInternalToken } from "../security/passcode-manager";
 export const DEFAULT_KANBAN_RUNTIME_HOST = "127.0.0.1";
 export const DEFAULT_KANBAN_RUNTIME_PORT = 3484;
 const NKLEIN_RUNTIME_HOST_ENV = "NKLEIN_RUNTIME_HOST";
+const NKLEIN_RUNTIME_PUBLIC_HOST_ENV = "NKLEIN_RUNTIME_PUBLIC_HOST";
 const LEGACY_KANBAN_RUNTIME_HOST_ENV = "KANBAN_RUNTIME_HOST";
 const NKLEIN_RUNTIME_PORT_ENV = "NKLEIN_RUNTIME_PORT";
 const LEGACY_KANBAN_RUNTIME_PORT_ENV = "KANBAN_RUNTIME_PORT";
@@ -20,6 +21,21 @@ let runtimeHost: string =
 		legacyName: LEGACY_KANBAN_RUNTIME_HOST_ENV,
 	}) || DEFAULT_KANBAN_RUNTIME_HOST;
 
+let runtimePublicHost: string | null = normalizeRuntimePublicHost(process.env[NKLEIN_RUNTIME_PUBLIC_HOST_ENV]);
+
+export function normalizeRuntimePublicHost(host: string | null | undefined): string | null {
+	const trimmed = host?.trim();
+	if (!trimmed) {
+		return null;
+	}
+	try {
+		const parsed = new URL(trimmed.includes("://") ? trimmed : `http://${trimmed}`);
+		return parsed.hostname || null;
+	} catch {
+		return trimmed;
+	}
+}
+
 export function getKanbanRuntimeHost(): string {
 	return runtimeHost;
 }
@@ -27,6 +43,23 @@ export function getKanbanRuntimeHost(): string {
 export function setKanbanRuntimeHost(host: string): void {
 	runtimeHost = host;
 	process.env[NKLEIN_RUNTIME_HOST_ENV] = host;
+}
+
+export function getKanbanRuntimePublicHost(): string | null {
+	return runtimePublicHost;
+}
+
+export function getKanbanRuntimeAdvertisedHost(): string {
+	return runtimePublicHost ?? runtimeHost;
+}
+
+export function setKanbanRuntimePublicHost(host: string | null): void {
+	runtimePublicHost = normalizeRuntimePublicHost(host);
+	if (runtimePublicHost) {
+		process.env[NKLEIN_RUNTIME_PUBLIC_HOST_ENV] = runtimePublicHost;
+	} else {
+		delete process.env[NKLEIN_RUNTIME_PUBLIC_HOST_ENV];
+	}
 }
 
 export function parseRuntimePort(rawPort: string | undefined): number {
@@ -141,12 +174,12 @@ export function isKanbanRemoteHost(): boolean {
 
 export function getKanbanRuntimeOrigin(): string {
 	const scheme = isKanbanRuntimeHttps() ? "https" : "http";
-	return `${scheme}://${getKanbanRuntimeHost()}:${getKanbanRuntimePort()}`;
+	return `${scheme}://${getKanbanRuntimeAdvertisedHost()}:${getKanbanRuntimePort()}`;
 }
 
 export function getKanbanRuntimeWsOrigin(): string {
 	const scheme = isKanbanRuntimeHttps() ? "wss" : "ws";
-	return `${scheme}://${getKanbanRuntimeHost()}:${getKanbanRuntimePort()}`;
+	return `${scheme}://${getKanbanRuntimeAdvertisedHost()}:${getKanbanRuntimePort()}`;
 }
 
 export function buildKanbanRuntimeUrl(pathname: string): string {

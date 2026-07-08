@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Duplex } from "node:stream";
 import {
+	getKanbanRuntimeAdvertisedHost,
 	getKanbanRuntimeHost,
 	getKanbanRuntimeOrigin,
 	getKanbanRuntimePort,
@@ -63,13 +64,16 @@ export function evaluateHost(input: HostGateInput): HostDecision {
 export function getAllowedHostHeaders(): ReadonlySet<string> {
 	const port = getKanbanRuntimePort();
 	const boundHost = getKanbanRuntimeHost().toLowerCase();
+	const advertisedHost = getKanbanRuntimeAdvertisedHost().toLowerCase();
 	const allowed = new Set<string>();
 	const addHostPort = (host: string) => {
-		allowed.add(`${host}:${port}`);
+		const normalized = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+		allowed.add(`${normalized}:${port}`);
 	};
 
 	if (isKanbanRemoteHost()) {
 		addHostPort(boundHost);
+		addHostPort(advertisedHost);
 		return allowed;
 	}
 

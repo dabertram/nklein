@@ -1,7 +1,24 @@
-import { describe, expect, it } from "vitest";
-import { getKanbanRuntimePort, isKanbanRemoteHost } from "../../../src/core/runtime-endpoint";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+	getKanbanRuntimeHost,
+	getKanbanRuntimePort,
+	isKanbanRemoteHost,
+	setKanbanRuntimeHost,
+	setKanbanRuntimePort,
+	setKanbanRuntimePublicHost,
+} from "../../../src/core/runtime-endpoint";
 import { normalizeRequestPath } from "../../../src/server/assets";
-import { getAllowedHostHeaders } from "../../../src/server/middleware";
+import { evaluateHost, getAllowedHostHeaders } from "../../../src/server/middleware";
+
+const originalRuntimeHost = getKanbanRuntimeHost();
+const originalRuntimePort = getKanbanRuntimePort();
+const originalPublicHost = process.env.NKLEIN_RUNTIME_PUBLIC_HOST;
+
+afterEach(() => {
+	setKanbanRuntimeHost(originalRuntimeHost);
+	setKanbanRuntimePort(originalRuntimePort);
+	setKanbanRuntimePublicHost(originalPublicHost ?? null);
+});
 
 describe("normalizeRequestPath (§5.V coverage)", () => {
 	it("maps the root to /index.html", () => {
@@ -37,5 +54,19 @@ describe("getAllowedHostHeaders (§5.V coverage)", () => {
 		const allowed = getAllowedHostHeaders();
 		expect(allowed.has(`localhost:${port}`)).toBe(true);
 		expect(allowed.has(`127.0.0.1:${port}`)).toBe(true);
+	});
+
+	it("allows the advertised LAN host for wildcard binds without accepting arbitrary host headers", () => {
+		setKanbanRuntimeHost("0.0.0.0");
+		setKanbanRuntimePublicHost("192.168.1.25");
+		setKanbanRuntimePort(4567);
+		const allowed = getAllowedHostHeaders();
+		expect(allowed.has("0.0.0.0:4567")).toBe(true);
+		expect(allowed.has("192.168.1.25:4567")).toBe(true);
+		expect(evaluateHost({ hostHeader: "192.168.1.25:4567", allowedHosts: allowed })).toEqual({ kind: "allow" });
+		expect(evaluateHost({ hostHeader: "evil.example:4567", allowedHosts: allowed })).toEqual({
+			kind: "reject",
+			host: "evil.example:4567",
+		});
 	});
 });

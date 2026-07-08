@@ -6,6 +6,12 @@ import { defineConfig, type Plugin, type ResolvedConfig, transformWithEsbuild } 
 
 const rootPkg = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf-8")) as { version: string };
 const XTERM_CHUNK_NAME = "xterm-vendor";
+const WEB_UI_HOST = process.env.NKLEIN_WEB_UI_HOST || process.env.KANBAN_WEB_UI_HOST || "127.0.0.1";
+const RUNTIME_PROXY_HOST = process.env.NKLEIN_RUNTIME_PROXY_HOST || "127.0.0.1";
+const RUNTIME_PROXY_AUTHORITY =
+	RUNTIME_PROXY_HOST.includes(":") && !RUNTIME_PROXY_HOST.startsWith("[")
+		? `[${RUNTIME_PROXY_HOST}]`
+		: RUNTIME_PROXY_HOST;
 
 function isXtermModule(id: string): boolean {
 	return id.includes("/node_modules/@xterm/") || id.includes("\\node_modules\\@xterm\\");
@@ -96,13 +102,13 @@ export default defineConfig({
 		},
 	},
 	server: {
-		host: "127.0.0.1",
-		port: Number(process.env.KANBAN_WEB_UI_PORT || "4173"),
+		host: WEB_UI_HOST,
+		port: Number(process.env.NKLEIN_WEB_UI_PORT || process.env.KANBAN_WEB_UI_PORT || "4173"),
 		strictPort: true,
 		hmr: false,
 		proxy: {
 			"/api": {
-				target: `http://127.0.0.1:${process.env.NKLEIN_RUNTIME_PORT || process.env.KANBAN_RUNTIME_PORT || "3484"}`,
+				target: `http://${RUNTIME_PROXY_AUTHORITY}:${process.env.NKLEIN_RUNTIME_PORT || process.env.KANBAN_RUNTIME_PORT || "3484"}`,
 				changeOrigin: true,
 				ws: true,
 			},

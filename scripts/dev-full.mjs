@@ -7,6 +7,7 @@ import { createServer, connect } from "node:net";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { networkInterfaces } from "node:os";
 
 const isWindows = process.platform === "win32";
 
@@ -49,6 +50,41 @@ const requestedRuntimeArgs = requestedDevFullArgs.filter((arg) => arg !== withSh
 const devInstanceIsolated = /^(1|true|yes|on)$/i.test(process.env.NKLEIN_DEV_ISOLATED ?? "");
 const baseRuntimePort = Number.parseInt(process.env.NKLEIN_DEV_RUNTIME_PORT ?? "", 10) || 3484;
 const baseWebUiPort = Number.parseInt(process.env.NKLEIN_DEV_WEB_UI_PORT ?? "", 10) || 4173;
+const requestedLanHost = process.env.NKLEIN_LAN_HOST?.trim() || "";
+const runtimeBindHost =
+	process.env.NKLEIN_RUNTIME_HOST?.trim() || process.env.KANBAN_RUNTIME_HOST?.trim() || requestedLanHost || "127.0.0.1";
+const webUiBindHost =
+	process.env.NKLEIN_WEB_UI_HOST?.trim() || process.env.KANBAN_WEB_UI_HOST?.trim() || requestedLanHost || "127.0.0.1";
+
+function isWildcardHost(host) {
+	return host === "0.0.0.0" || host === "::" || host === "[::]";
+}
+
+function firstLanAddress() {
+	for (const entries of Object.values(networkInterfaces())) {
+		for (const entry of entries ?? []) {
+			if (entry.family === "IPv4" && !entry.internal) {
+				return entry.address;
+			}
+		}
+	}
+	return null;
+}
+
+function authority(host, port) {
+	const normalizedHost = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+	return `${normalizedHost}:${port}`;
+}
+
+const detectedLanHost = firstLanAddress();
+const runtimePublicHost =
+	process.env.NKLEIN_RUNTIME_PUBLIC_HOST?.trim() ||
+	(isWildcardHost(runtimeBindHost) ? detectedLanHost || "127.0.0.1" : runtimeBindHost);
+const runtimeConnectHost = isWildcardHost(runtimeBindHost) ? "127.0.0.1" : runtimeBindHost;
+const webUiConnectHost = isWildcardHost(webUiBindHost) ? "127.0.0.1" : webUiBindHost;
+const webUiPublicHost =
+	process.env.NKLEIN_WEB_UI_PUBLIC_HOST?.trim() ||
+	(isWildcardHost(webUiBindHost) ? detectedLanHost || webUiConnectHost : webUiBindHost);
 
 function parseProcessList(output) {
 	return output
@@ -147,16 +183,16 @@ async function stopStaleDevProcesses() {
 	}
 }
 
-function findPort(start, reserved = new Set()) {
+function findPort(start, reserved = new Set(), host = "127.0.0.1") {
 	if (reserved.has(start)) {
-		return findPort(start + 1, reserved);
+		return findPort(start + 1, reserved, host);
 	}
 	return new Promise((resolve) => {
 		const srv = createServer();
-		srv.listen(start, "127.0.0.1", () => {
+		srv.listen(start, host, () => {
 			srv.close(() => resolve(start));
 		});
-		srv.on("error", () => resolve(findPort(start + 1, reserved)));
+		srv.on("error", () => resolve(findPort(start + 1, reserved, host)));
 	});
 }
 
@@ -164,7 +200,7 @@ function waitForPort(port, timeout = 15000) {
 	const start = Date.now();
 	return new Promise((resolve, reject) => {
 		function attempt() {
-			const sock = connect(port, "127.0.0.1");
+			const sock = connect(port, runtimeConnectHost);
 			sock.on("connect", () => {
 				sock.destroy();
 				resolve();
@@ -184,8 +220,8 @@ function waitForPort(port, timeout = 15000) {
 async function waitForPreferredDevPortsToSettle(timeoutMs = 5000) {
 	const deadline = Date.now() + timeoutMs;
 	while (Date.now() < deadline) {
-		const runtimePortAvailable = await findPort(baseRuntimePort);
-		const webUiPortAvailable = await findPort(baseWebUiPort);
+		const runtimePortAvailable = await findPort(baseRuntimePort, new Set(), runtimeBindHost);
+		const webUiPortAvailable = await findPort(baseWebUiPort, new Set(), webUiBindHost);
 		if (runtimePortAvailable === baseRuntimePort && webUiPortAvailable === baseWebUiPort) {
 			return;
 		}
@@ -195,7 +231,7 @@ async function waitForPreferredDevPortsToSettle(timeoutMs = 5000) {
 
 async function canReachExistingDevServer(timeoutMs = 3000) {
 	try {
-		const response = await fetch(`http://127.0.0.1:${baseWebUiPort}/api/trpc/projects.list`, {
+		const response = await fetch(`http://${authority(webUiConnectHost, baseWebUiPort)}/api/trpc/projects.list`, {
 			signal: AbortSignal.timeout(timeoutMs),
 		});
 		if (!response.ok) {
@@ -208,7 +244,7 @@ async function canReachExistingDevServer(timeoutMs = 3000) {
 
 	return await new Promise((resolve) => {
 		let settled = false;
-		const socket = new WebSocket(`ws://127.0.0.1:${baseWebUiPort}/api/runtime/ws`);
+		const socket = new WebSocket(`ws://${authority(webUiConnectHost, baseWebUiPort)}/api/runtime/ws`);
 		const timeout = setTimeout(() => {
 			if (settled) {
 				return;
@@ -234,7 +270,7 @@ async function canReachExistingDevServer(timeoutMs = 3000) {
 
 // An ISOLATED test instance must never reach/adopt or kill the main instance — skip all three shared-stack guards.
 if (!devInstanceIsolated && (await canReachExistingDevServer())) {
-	const url = `http://127.0.0.1:${baseWebUiPort}`;
+	const url = `http://${authority(webUiConnectHost, baseWebUiPort)}`;
 	console.log(`nKlein dev server already running at ${url}`);
 	await open(url);
 	process.exit(0);
@@ -245,14 +281,17 @@ if (!devInstanceIsolated) {
 	await waitForPreferredDevPortsToSettle();
 }
 
-const runtimePort = await findPort(baseRuntimePort);
-const webUiPort = await findPort(baseWebUiPort, new Set([runtimePort]));
+const runtimePort = await findPort(baseRuntimePort, new Set(), runtimeBindHost);
+const webUiPort = await findPort(baseWebUiPort, new Set([runtimePort]), webUiBindHost);
 const hasExplicitSkipCleanupArg = requestedRuntimeArgs.some((arg) => arg === "--skip-shutdown-cleanup");
 const shouldDefaultSkipShutdownCleanup = !requestedDevFullArgs.includes(withShutdownCleanupFlag);
 const runtimeCliArgs = [
 	"--port",
 	String(runtimePort),
 	"--no-open",
+	"--host",
+	runtimeBindHost,
+	...(runtimePublicHost && runtimePublicHost !== runtimeBindHost ? ["--public-host", runtimePublicHost] : []),
 	...(shouldDefaultSkipShutdownCleanup && !hasExplicitSkipCleanupArg ? ["--skip-shutdown-cleanup"] : []),
 	...requestedRuntimeArgs,
 ];
@@ -261,13 +300,23 @@ if (devInstanceIsolated) {
 	console.log(`\n  🧪 ISOLATED TEST instance — data dir: ${process.env.HOME}/.nklein (separate from your main board)`);
 }
 console.log(`\n  Runtime port: ${runtimePort}`);
-console.log(`  Web UI:       http://127.0.0.1:${webUiPort}\n`);
+console.log(`  Web UI:       http://${authority(webUiConnectHost, webUiPort)}`);
+if (webUiPublicHost !== webUiConnectHost) {
+	console.log(`  LAN Web UI:   http://${authority(webUiPublicHost, webUiPort)}`);
+}
+console.log("");
 
 const env = {
 	NODE_ENV: "development",
 	...process.env,
+	NKLEIN_RUNTIME_PORT: String(runtimePort),
 	KANBAN_RUNTIME_PORT: String(runtimePort),
+	NKLEIN_WEB_UI_PORT: String(webUiPort),
 	KANBAN_WEB_UI_PORT: String(webUiPort),
+	NKLEIN_RUNTIME_HOST: runtimeBindHost,
+	NKLEIN_RUNTIME_PUBLIC_HOST: runtimePublicHost,
+	NKLEIN_RUNTIME_PROXY_HOST: runtimeConnectHost,
+	NKLEIN_WEB_UI_HOST: webUiBindHost,
 };
 
 const tsxBin = isWindows ? "node_modules/.bin/tsx.cmd" : "node_modules/.bin/tsx";
@@ -390,5 +439,5 @@ vite.on("exit", () => {
 
 // Auto-open browser after a short delay for Vite to start
 openBrowserTimeoutId = setTimeout(() => {
-	open(`http://127.0.0.1:${webUiPort}`);
+	open(`http://${authority(webUiConnectHost, webUiPort)}`);
 }, 2000);

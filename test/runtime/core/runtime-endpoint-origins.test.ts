@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	getKanbanRuntimeAdvertisedHost,
 	getKanbanRuntimeHost,
 	getKanbanRuntimeOrigin,
 	getKanbanRuntimePort,
@@ -13,7 +14,14 @@ import {
 describe("getKanbanRuntimeOrigin (§5.V coverage)", () => {
 	it("is <http|https>://<host>:<port> matching the tls setting", () => {
 		const scheme = isKanbanRuntimeHttps() ? "https" : "http";
-		expect(getKanbanRuntimeOrigin()).toBe(`${scheme}://${getKanbanRuntimeHost()}:${getKanbanRuntimePort()}`);
+		expect(getKanbanRuntimeOrigin()).toBe(
+			`${scheme}://${getKanbanRuntimeAdvertisedHost()}:${getKanbanRuntimePort()}`,
+		);
+	});
+
+	it("keeps the bind host available separately from the advertised origin host", () => {
+		expect(typeof getKanbanRuntimeHost()).toBe("string");
+		expect(typeof getKanbanRuntimeAdvertisedHost()).toBe("string");
 	});
 });
 

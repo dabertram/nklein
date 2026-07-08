@@ -28,6 +28,7 @@ import {
 	isKanbanRemoteHost,
 	setKanbanRuntimeHost,
 	setKanbanRuntimePort,
+	setKanbanRuntimePublicHost,
 	setKanbanRuntimeTls,
 } from "./core/runtime-endpoint";
 import { buildWorkspaceScopeHeaders } from "./core/workspace-scope";
@@ -45,6 +46,7 @@ interface CliOptions {
 	noOpen: boolean;
 	skipShutdownCleanup: boolean;
 	host: string | null;
+	publicHost: string | null;
 	port: { mode: "fixed"; value: number } | { mode: "auto" } | null;
 	https: boolean;
 	cert: string | null;
@@ -58,6 +60,7 @@ const KANBAN_VERSION = typeof packageJson.version === "string" ? packageJson.ver
 
 interface RootCommandOptions {
 	host?: string;
+	publicHost?: string;
 	port?: { mode: "fixed"; value: number } | { mode: "auto" };
 	open?: boolean;
 	skipShutdownCleanup?: boolean;
@@ -416,6 +419,10 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 		setKanbanRuntimeHost(options.host);
 		console.log(`Binding to host ${options.host}.`);
 	}
+	if (options.publicHost) {
+		setKanbanRuntimePublicHost(options.publicHost);
+		console.log(`Advertising runtime host ${options.publicHost}.`);
+	}
 
 	const [{ openInBrowser }, { autoUpdateOnStartup, runPendingAutoUpdateOnShutdown }] = await Promise.all([
 		import("./server/browser.js"),
@@ -584,6 +591,7 @@ function createProgram(invocationArgs: string[]): Command {
 		.description("!Klein local orchestration board for coding agents.")
 		.version(KANBAN_VERSION, "-v, --version", "Output the version number")
 		.option("--host <ip>", "Host IP to bind the server to (default: 127.0.0.1).")
+		.option("--public-host <host>", "Host/IP users should browse to when binding a wildcard or LAN interface.")
 		.option("--port <number|auto>", "Runtime port (1-65535) or auto.", parseCliPortValue)
 		.option("--no-open", "Do not open browser automatically.")
 		.option("--skip-shutdown-cleanup", "Do not move sessions to done or delete task workspaces on shutdown.")
@@ -634,6 +642,7 @@ function createProgram(invocationArgs: string[]): Command {
 		await runMainCommand(
 			{
 				host: options.host ?? null,
+				publicHost: options.publicHost ?? null,
 				port: options.port ?? null,
 				noOpen: options.open === false,
 				skipShutdownCleanup: options.skipShutdownCleanup === true,
