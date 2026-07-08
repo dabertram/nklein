@@ -155,6 +155,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
+	testDrivenModeEnabled?: boolean;
 	secondOpinionReviewEnabled?: boolean;
 	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled?: boolean;
@@ -286,6 +287,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 	);
 	const hardTaskRoutingMode: "wait_for_best" | "attempt_with_available" =
 		config.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available";
+	const testDrivenModeEnabled = config.testDrivenModeEnabled === true;
 	const secondOpinionReviewEnabled = normalizeBoolean(
 		config.secondOpinionReviewEnabled,
 		DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -535,6 +537,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 		DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	);
 	assignChangedConfigField(payload, existing, "hardTaskRoutingMode", hardTaskRoutingMode, "attempt_with_available");
+	assignChangedConfigField(payload, existing, "testDrivenModeEnabled", testDrivenModeEnabled, false);
 	assignChangedConfigField(
 		payload,
 		existing,

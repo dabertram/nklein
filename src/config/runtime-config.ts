@@ -202,6 +202,7 @@ function toRuntimeConfigState({
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
 		hardTaskRoutingMode:
 			globalConfig?.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
+		testDrivenModeEnabled: globalConfig?.testDrivenModeEnabled === true,
 		...resolveRuntimeReviewConfig(globalConfig),
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
 		...resolveRuntimeSuitabilityConfig(globalConfig, projectConfig),
@@ -304,6 +305,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		lostHeartbeatPolicy: current.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
 		hardTaskRoutingMode: current.hardTaskRoutingMode,
+		testDrivenModeEnabled: current.testDrivenModeEnabled,
 		secondOpinionReviewEnabled: current.secondOpinionReviewEnabled,
 		reviewMaxRounds: current.reviewMaxRounds,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
@@ -386,6 +388,7 @@ export async function saveRuntimeConfig(
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
 		hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
+		testDrivenModeEnabled?: boolean;
 		secondOpinionReviewEnabled?: boolean;
 		reviewMaxRounds?: number;
 		readyForReviewNotificationsEnabled: boolean;
@@ -474,6 +477,7 @@ export async function saveRuntimeConfig(
 			),
 			hardTaskRoutingMode:
 				config.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
+			testDrivenModeEnabled: config.testDrivenModeEnabled === true,
 			secondOpinionReviewEnabled: normalizeBoolean(
 				config.secondOpinionReviewEnabled,
 				DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -570,6 +574,7 @@ export async function saveRuntimeConfig(
 			),
 			hardTaskRoutingMode:
 				config.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
+			testDrivenModeEnabled: config.testDrivenModeEnabled === true,
 			secondOpinionReviewEnabled: normalizeBoolean(
 				config.secondOpinionReviewEnabled,
 				DEFAULT_SECOND_OPINION_REVIEW_ENABLED,

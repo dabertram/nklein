@@ -105,6 +105,8 @@ export interface RuntimeConfigStateFromValuesInput {
 	/** §5.AB hard-task routing when the best qualified model is busy (default attempt_with_available). Optional
 	 *  on INPUT (fixtures/legacy states omit it); the factory normalizes to attempt_with_available. */
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
+	/** §5.V test-driven delivery gate (default false until live-validated; then default ON per the design). */
+	testDrivenModeEnabled?: boolean;
 	secondOpinionReviewEnabled: boolean;
 	reviewMaxRounds: number;
 	readyForReviewNotificationsEnabled: boolean;
@@ -184,6 +186,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 		),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
 		hardTaskRoutingMode: input.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
+		testDrivenModeEnabled: input.testDrivenModeEnabled === true,
 		...resolveRuntimeReviewConfig({
 			decompositionAutoApplyEnabled: input.decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled: input.secondOpinionReviewEnabled,

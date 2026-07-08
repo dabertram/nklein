@@ -80,6 +80,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("lostHeartbeatPolicy"),
 	runtimeConfigChangeField("decompositionAutoApplyEnabled"),
 	runtimeConfigChangeField("hardTaskRoutingMode"),
+	runtimeConfigChangeField("testDrivenModeEnabled"),
 	runtimeConfigChangeField("secondOpinionReviewEnabled"),
 	runtimeConfigChangeField("reviewMaxRounds"),
 	runtimeConfigChangeField("readyForReviewNotificationsEnabled"),

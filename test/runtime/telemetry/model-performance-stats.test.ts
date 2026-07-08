@@ -61,6 +61,7 @@ function createRuntimeConfig(): RuntimeConfigState {
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
 		hardTaskRoutingMode: "attempt_with_available",
+		testDrivenModeEnabled: false,
 		secondOpinionReviewEnabled: true,
 		reviewMaxRounds: 20,
 		readyForReviewNotificationsEnabled: true,

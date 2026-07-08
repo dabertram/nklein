@@ -368,7 +368,8 @@ export async function runSecondOpinionReviewForTask(
 	// coming back testless trips the identical-feedback PARK guard instead of bouncing forever. The changed-file
 	// list is parsed from the same result-branch diff the reviewer sees (`+++ b/<path>` headers).
 	let preReviewVerdict: ReviewSubmissionInput | null = null;
-	if (isTruthyEnv(process.env.NKLEIN_TEST_DRIVEN_MODE)) {
+	// Slice 2: the persisted config field ORs with the env flag (either enables; default OFF until live-validated).
+	if (isTruthyEnv(process.env.NKLEIN_TEST_DRIVEN_MODE) || config.testDrivenModeEnabled) {
 		const gateDiff = await getDiff({
 			repoPath: input.workspacePath,
 			taskId: input.taskId,

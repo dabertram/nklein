@@ -178,6 +178,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 		hardTaskRoutingMode: keepNormalizedValue(updates.hardTaskRoutingMode, current.hardTaskRoutingMode, (value) =>
 			value === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 		),
+		testDrivenModeEnabled: keepNormalizedValue(
+			updates.testDrivenModeEnabled,
+			current.testDrivenModeEnabled,
+			(value) => value === true,
+		),
 		secondOpinionReviewEnabled: keepNormalizedValue(
 			updates.secondOpinionReviewEnabled,
 			current.secondOpinionReviewEnabled,

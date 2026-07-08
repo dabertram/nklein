@@ -69,6 +69,7 @@ export interface RuntimeConfigState {
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
 	hardTaskRoutingMode: "wait_for_best" | "attempt_with_available";
+	testDrivenModeEnabled: boolean;
 	secondOpinionReviewEnabled: boolean;
 	reviewMaxRounds: number;
 	readyForReviewNotificationsEnabled: boolean;
@@ -141,6 +142,7 @@ export interface RuntimeConfigUpdateInput {
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
+	testDrivenModeEnabled?: boolean;
 	secondOpinionReviewEnabled?: boolean;
 	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled?: boolean;
@@ -202,6 +204,7 @@ export interface RuntimeGlobalConfigFileShape {
 	lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled?: boolean;
 	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
+	testDrivenModeEnabled?: boolean;
 	secondOpinionReviewEnabled?: boolean;
 	reviewMaxRounds?: number;
 	readyForReviewNotificationsEnabled?: boolean;

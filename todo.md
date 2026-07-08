@@ -7906,6 +7906,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         the reviewer — a no-op is its own red flag). Core short-circuit test + 237 server/agent tests green.
         REMAINING: slice 2 — the real config field (global default-ON + per-project override, the ~10-site pattern) +
         Settings UI; and the live bounce-vs-deliver validation pair (sweep-phase).)*
+        *(◐ SLICE 2 SHIPPED same day: `testDrivenModeEnabled` through the full config stack (contract response+save,
+        factory, types, file payload, load/save×2/merge, change detection, response builder, all fixtures) + a
+        Settings → Tasks toggle (full form wiring; settings e2e 7/7; web 961 green); the runner consumes flag OR
+        config. Ships default OFF deliberately — the box's own caution demands the live bounce-vs-deliver validation
+        BEFORE flipping the design-intent default-ON; that flip + the per-project override rider are the last bits,
+        both sweep-phase.)*
   - [x] **Re-verify `read_large_file` — CONFIRMED satisfied, closed as superseded (2026-06-28).** Verified the live impl
         ([nklein-large-file-workflow.ts](src/nklein-agent/nklein-large-file-workflow.ts)) is the simplified §5.O protocol:
         the model only *triggers* the workflow with a `path` then advances with `cursor: "next"` (or an empty/`continue`/

@@ -155,6 +155,7 @@ export function buildRuntimeConfigResponse(
 		lostHeartbeatPolicy: runtimeConfig.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: runtimeConfig.decompositionAutoApplyEnabled,
 		hardTaskRoutingMode: runtimeConfig.hardTaskRoutingMode,
+		testDrivenModeEnabled: runtimeConfig.testDrivenModeEnabled,
 		secondOpinionReviewEnabled: runtimeConfig.secondOpinionReviewEnabled,
 		reviewMaxRounds: runtimeConfig.reviewMaxRounds,
 		codeEmbeddingDefaults: runtimeConfig.codeEmbeddingDefaults,
