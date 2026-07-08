@@ -7458,8 +7458,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         are NEVER proposed for unload (blocked over evicted), busy models untouchable, headroom-gated loads (unknown
         sizes demand an 8GB floor), largest-non-resident-idle evicted first one step at a time. 3 tests. REMAINING: the
         effectful sweep runner (lms load/unload + free-memory reading) — the extended-goal sweep phase's first build.)*
-  - [ ] Add VRAM/RAM/disk headroom checks before sweep start.
-  - [ ] Implement background-vs-interactive priority (interactive tasks preempt idle sweeps).
+  - [x] Add VRAM/RAM/disk headroom checks before sweep start. *(✅ 2026-07-08 —
+        [sweep-resource-governance.ts](src/core/sweep-resource-governance.ts) `decideSweepStartHeadroom({freeRamGb,
+        requiredRamGb, freeDiskGb, requiredDiskGb, freeVramGb?, requiredVramGb?})` → {ok, blockers:[ram|vram|disk],
+        reason}; the VRAM gate is skipped when either VRAM figure is absent (unified-memory / CPU models have no
+        separate VRAM budget); reports every short resource together. Pure over injected samples; the effectful runner
+        reads the live figures. 5 tests.)*
+  - [x] Implement background-vs-interactive priority (interactive tasks preempt idle sweeps). *(✅ 2026-07-08 —
+        same module `decideSweepPriority({interactiveTaskActive, sweepRunning})` → may_start_sweep | continue_sweep |
+        preempt_sweep | hold_sweep: interactive work ALWAYS wins — a running sweep YIELDS (`preempt_sweep`) the moment
+        an interactive task appears, a new sweep is HELD while interactive work is in flight, and may start only on an
+        otherwise-idle machine. Pure; 4 tests. Owed WIRING: sample free RAM/VRAM/disk + interactive-in-flight at the
+        sweep runner and act on the verdicts.)*
   - [~] Wire endpoint-saturation backpressure into the durable scheduler (already per-endpoint serialize).
         **ADMISSION / BACKPRESSURE DECISION CORE DONE (2026-07-01):** [src/core/durable-scheduler-backpressure.ts](src/core/durable-scheduler-backpressure.ts)
         `decideDurableSchedulerBackpressure(input)` fills the gap where the scheduler leases against saturable ENDPOINTS
