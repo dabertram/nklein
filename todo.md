@@ -8766,12 +8766,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       NO Anthropic-dialect forcing path is warranted; the built-then-removed `nklein-anthropic-tool-force.ts` was dropped.
       **The forcing lever stays the constrained-decoding rung** (`response_format json_schema`, live-verified to force even a
       non-tool prompt), already wired. (Lesson logged: verify a "forcing" claim with a prompt the model would NOT call on anyway.)
-- [ ] **Native `/api/v1/chat` structured events, decomposed:**
+- [ ] **Native `/api/v1/chat` structured events, decomposed:** *(endpoint-iteration adapter class — the §5.AA
+      endpoint-iteration box (L4658) tracks the same native-client build; both are the LM Studio native-API surface,
+      a networked build gated on that adapter, not a bounded pure slice.)*
   - [ ] Implement fallback endpoint for tool-call + reasoning SSE events (more structured than OpenAI path).
   - [ ] Use stateful sessions (avoid resending history) for efficiency + long-context leverage.
   - [ ] Wire MCP integration (ties §5.AC/§5.M tool expansion).
 - [ ] **REST model management via /api/v1/models endpoints, decomposed:**
-  - [ ] Implement in-process alternative to `lms` CLI shell-outs (still guarded by `decideModelLoad`).
+  - [ ] Implement in-process alternative to `lms` CLI shell-outs (still guarded by `decideModelLoad`). *(the guard
+        core exists: `src/core/model-load-policy.ts` `decideModelLoadAction` (2026-07-08 — residents sacred, headroom-
+        gated, largest-idle-evicted-first). This leaf is the in-process LM Studio REST client replacing the `lms`
+        shell-outs — a fetch-layer build gated on the API-management design; the policy governor is ready to wrap it.)*
   - [ ] Wire `/api/v1/models/{load,unload,download}` endpoints.
   - [ ] Re-verify exact load-params (context length, gpu, ttl) shape.
 - [ ] **Reasoning control as a first-class §5.AA lever, decomposed:**
