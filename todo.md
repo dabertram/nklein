@@ -6523,7 +6523,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         egress lures, hidden unicode, homoglyphs, opaque blobs — content-only, no manifest checks) and WIRED into
         `browserFetchAdapter`: every fetched page is scanned and findings land on
         `evidence.promptInjectionRiskFlags` (absent when clean). 2 tests (flagged override text · benign text clean).)*
-  - [ ] Record attempts / pruned distractors / citations / signal (helped-or-hurt) into the §5.AF ledger.
+  - [x] Record attempts / pruned distractors / citations / signal (helped-or-hurt) into the §5.AF ledger. *(✅
+        2026-07-08 — extended the §5.AF ledger (agent-attempt-ledger.ts) with a `retrieval` event variant
+        (`kind:"retrieval"` — attemptId · query · hitsConsidered · distractorsPruned · citations · signal
+        helped|hurt|neutral|unknown) added to the discriminated union + `buildRetrievalEvent` builder (clamps
+        distractorsPruned to [0, hitsConsidered], dedups citations first-seen). tsc confirms NO existing consumer's
+        kind-switch breaks (projections filter by kind, so the new variant is safely ignored). Value-add:
+        [retrieval-ledger-projection.ts](src/core/retrieval-ledger-projection.ts) `summarizeRetrievalUsefulness` — a
+        PURE read answering "is retrieval earning its keep?": helped/hurt/neutral/unknown counts, `helpfulRate` over
+        VERDICTS (unknown excluded), mean distractor-prune ratio, total + distinct cited sources. 6 tests + the 26
+        existing ledger-projection tests still green; full gate + tsc + biome clean. Owed WIRING: emit a retrieval event
+        from the §5.AC retrieval loop at the search→synthesize seam.)*
         *(gated on the retrieval loop's agent-path wiring — the `onOutcome` seam (shipped 2026-07-08) is the hook the
         ledger writer plugs into; helped-or-hurt additionally needs the task outcome to correlate, i.e. the live seam.)*
 

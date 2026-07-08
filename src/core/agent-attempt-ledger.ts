@@ -155,16 +155,44 @@ const schedulerEventSchema = z.object({
 	detail: z.string().nullable(),
 });
 
+/** Whether a retrieval turn HELPED the attempt's outcome, HURT it (a distractor misled), was NEUTRAL, or is UNKNOWN. */
+export const retrievalSignalSchema = z.enum(["helped", "hurt", "neutral", "unknown"]);
+export type RetrievalSignal = z.infer<typeof retrievalSignalSchema>;
+
+/**
+ * kind="retrieval" — a §5.AC retrieval turn: the query run, how many hits were considered vs pruned as distractors,
+ * the citations kept, and whether it HELPED the attempt (the §5.AF "record attempts / pruned distractors / citations /
+ * signal" evidence). Ledgered so the retrieval loop's usefulness is a query over the same substrate as attempts.
+ */
+const retrievalEventSchema = z.object({
+	...ledgerEnvelopeShape,
+	kind: z.literal("retrieval"),
+	/** The attempt this retrieval served (null when it ran outside a scored attempt). */
+	attemptId: z.string().nullable(),
+	/** The search query that was run. */
+	query: z.string(),
+	/** Total hits the loop considered before pruning. */
+	hitsConsidered: z.number(),
+	/** How many hits were pruned as irrelevant distractors (≤ hitsConsidered). */
+	distractorsPruned: z.number(),
+	/** The source ids / urls actually cited in the synthesized answer. */
+	citations: z.array(z.string()),
+	/** Whether the retrieval helped, hurt, or was neutral for the outcome (the helped-or-hurt learning signal). */
+	signal: retrievalSignalSchema,
+});
+
 /** The full ledger event — a discriminated union on `kind` (extensible: add an event-kind schema to the union). */
 export const agentLedgerEventSchema = z.discriminatedUnion("kind", [
 	attemptEventSchema,
 	transitionEventSchema,
 	schedulerEventSchema,
+	retrievalEventSchema,
 ]);
 export type AgentLedgerEvent = z.infer<typeof agentLedgerEventSchema>;
 export type AgentAttemptEvent = z.infer<typeof attemptEventSchema>;
 export type AgentTransitionEvent = z.infer<typeof transitionEventSchema>;
 export type AgentSchedulerEvent = z.infer<typeof schedulerEventSchema>;
+export type AgentRetrievalEvent = z.infer<typeof retrievalEventSchema>;
 
 /** Shared envelope inputs (the builder fills `schemaVersion`/`eventId`/`recordedAt` if not given). */
 interface LedgerEnvelopeInput {
@@ -291,6 +319,36 @@ export function buildSchedulerEvent(input: BuildSchedulerEventInput): AgentSched
 		workerId: input.workerId ?? null,
 		idempotencyKey: input.idempotencyKey ?? null,
 		detail: input.detail ?? null,
+	};
+}
+
+export interface BuildRetrievalEventInput extends LedgerEnvelopeInput {
+	query: string;
+	attemptId?: string | null;
+	hitsConsidered?: number;
+	distractorsPruned?: number;
+	citations?: readonly string[];
+	signal?: RetrievalSignal;
+}
+
+/**
+ * Build a validated §5.AC `retrieval` event. Counts default to 0 and `signal` to `unknown`; `distractorsPruned` is
+ * clamped to `[0, hitsConsidered]` (you cannot prune more distractors than hits considered) and citations de-duplicated
+ * in first-seen order (a citation list is a set of sources, not a bag).
+ */
+export function buildRetrievalEvent(input: BuildRetrievalEventInput): AgentRetrievalEvent {
+	const hitsConsidered = Math.max(0, Math.trunc(input.hitsConsidered ?? 0));
+	const distractorsPruned = Math.max(0, Math.min(hitsConsidered, Math.trunc(input.distractorsPruned ?? 0)));
+	const citations = [...new Set((input.citations ?? []).map((c) => c.trim()).filter((c) => c.length > 0))];
+	return {
+		...buildEnvelope(input),
+		kind: "retrieval",
+		attemptId: input.attemptId ?? null,
+		query: input.query,
+		hitsConsidered,
+		distractorsPruned,
+		citations,
+		signal: input.signal ?? "unknown",
 	};
 }
 
