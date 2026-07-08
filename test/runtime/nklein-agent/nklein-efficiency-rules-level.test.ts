@@ -32,4 +32,16 @@ describe("buildKanbanEfficiencyRules level gating (W2.4a — the small-model pro
 			buildKanbanEfficiencyRules({ ...base, level: "lean" }),
 		);
 	});
+
+	it("warns that read_files line numbers are one-based and never 0 — at EVERY level", () => {
+		// Sweep run 1 (2026-07-08) root cause: a worker emitted `start_line: 0`; the SDK schema is
+		// `.positive()` (>=1), so it rejected the call with a bare "Invalid input" and the weak model burned
+		// its whole turn budget flailing on read_files retries, never editing. The guidance must be present
+		// regardless of level (the failure is not large-file specific).
+		for (const level of ["full", "lean", "minimal"] as const) {
+			const rules = buildKanbanEfficiencyRules({ ...base, level });
+			expect(rules).toContain("ONE-BASED");
+			expect(rules).toContain("never pass `0`");
+		}
+	});
 });

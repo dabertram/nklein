@@ -66,6 +66,7 @@ export function buildKanbanEfficiencyRules(options: {
 		"Keep files small and single-responsibility: decompose a growing file into cohesive modules EARLY — pull out a class, a related group of helpers, a config block, or a type set into its own file as soon as the file starts doing several jobs. Never let one file become a large monolith; prefer many small focused files over few large ones.",
 		"Every `write_file` and `write_files` request must include the destination path and the complete UTF-8 file content in the same tool-call JSON. Never call a write tool with only a path or as a placeholder before the content is ready.",
 		"For ordinary code, small files, and focused excerpts, use `read_files` normally. Do not turn focused code inspection into a large-file workflow.",
+		"`read_files` line numbers are ONE-BASED: `start_line` and `end_line` must be integers of 1 or greater. To read from the start of a file, OMIT them or pass `null` — never pass `0` (a `0` line number is rejected as invalid input and wastes a turn). Read a whole small file by passing just the path with no line range.",
 		`Use \`read_large_file\` only when the file must be read completely and the whole file would not fit in the available context/read budget. A file being merely long by bytes or lines is not enough; if \`get_file_size\` recommends \`read_files\`, use \`read_files\` for the whole file or for focused excerpts instead.`,
 		...(lean
 			? [
