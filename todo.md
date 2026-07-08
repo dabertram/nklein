@@ -5137,7 +5137,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       next-attempt context at the model-call seam (rides the broader controller wiring).
       **(c)** **auto split/decompose** is a retry rung (local repair first; global re-decompose only when local repair
       can't restore coherence). Strengthens §5.AF/§5.AB, not a new track.
-  - [ ] Supply real `assessCompletion` from task acceptance spec (vs. model self-report)
+  - [x] Supply real `assessCompletion` from task acceptance spec (vs. model self-report) *(✅ 2026-07-08 —
+        `src/chat/chat-acceptance-completion.ts`: `extractAcceptanceCommand` (the card's `Acceptance check:` line,
+        same convention the plan-integration gate reads) + `buildAcceptanceCompletionGate` (complete ONLY when a
+        `run_command` step ran that command and it exited 0 — evidence from executed steps, never self-report);
+        composed with the named-tools gate in chat-agent-turn. 3 pure tests + a turn-level test proving a premature
+        prose "done" is nudged until the acceptance run is green.)*
   - [ ] Drive full phase ladder: per-phase context + tool subset + budget assignment
   - [ ] Record each transition on §5.AF ledger (`transition` event kind)
   - [ ] Wire retry-note into live next-attempt context at model-call seam

@@ -289,3 +289,42 @@ describe("runChatAgentConversation", () => {
 		expect(output).toEqual(["  (used: read_file)\n", "It documents the project.\n"]);
 	});
 });
+
+describe("acceptance evidence-gate (§5.AA: Acceptance check line supplies the real completion oracle)", () => {
+	it("rejects a premature prose 'done' until the acceptance command has run green", async () => {
+		const turns: ChatAgentModelResponse[] = [
+			// Model claims done without ever running the acceptance check → the gate must nudge onward.
+			{ text: "All done, everything works!", toolCalls: [] },
+			// Nudged: it actually runs the check…
+			{ text: "", toolCalls: [{ id: "c1", name: "run_command", arguments: { command: "npm test" } }] },
+			// …then the final answer is accepted (gate satisfied by the green run).
+			{ text: "Tests pass — task complete.", toolCalls: [] },
+		];
+		let turn = 0;
+		const result = await runChatAgentTurn(
+			{
+				session: session(),
+				userMessage: "Implement the widget.\nAcceptance check: npm test",
+				tokenBudget: 1000,
+			},
+			{
+				readTranscript: async () => [],
+				readMemories: async () => [],
+				appendMessage: async (_sessionId, input) => ({
+					schemaVersion: 1,
+					id: "m1",
+					role: input.role,
+					content: input.content,
+					createdAt: 0,
+				}),
+				summarize: async () => "",
+				estimateTokens: (text) => text.length,
+				model: async () => turns[turn++] ?? { text: "", toolCalls: [] },
+				executeTool: async (call) => ({ callId: call.id, content: "Command exited with code 0.\nstdout:\nok" }),
+				appendToolExchange: appendChatToolExchange,
+			},
+		);
+		expect(result.steps.map((step) => step.toolCall.name)).toEqual(["run_command"]);
+		expect(result.assistantMessage.content).toBe("Tests pass — task complete.");
+	});
+});

@@ -3,6 +3,7 @@ import { type FocusChain, formatFocusChainForPrompt } from "../core/focus-chain"
 import { decideFocusChainNudge } from "../core/focus-chain-nudge";
 import { selectToolsForAttempt } from "../nklein-agent/nklein-attempt-simplification";
 import { stripNarratedToolCallMarkup } from "../nklein-agent/nklein-narrated-tool-call";
+import { buildAcceptanceCompletionGate, extractAcceptanceCommand } from "./chat-acceptance-completion";
 import {
 	type ChatAgentModelResponse,
 	type ChatAgentStep,
@@ -165,12 +166,24 @@ export async function runChatAgentTurn(
 				).matchedNames
 			: [];
 	const requiredTools = namedTools.length >= 2 ? namedTools : [];
-	const assessCompletion =
+	// §5.AA acceptance flavor: an instruction carrying the card convention `Acceptance check: <command>` supplies a
+	// REAL completion oracle — the turn is done only when that command actually RAN and exited 0 (evidence from the
+	// executed steps, never the model's self-report). Composes with the named-tools gate when both apply.
+	const acceptanceCommand = extractAcceptanceCommand(input.userMessage);
+	const acceptanceGate = acceptanceCommand ? buildAcceptanceCompletionGate(acceptanceCommand) : null;
+	const namedToolsGate =
 		requiredTools.length > 0
 			? (steps: readonly ChatAgentStep[]): boolean => {
 					const used = new Set(steps.map((step) => step.toolCall.name));
 					return requiredTools.every((tool) => used.has(tool));
 				}
+			: null;
+	const completionGates = [namedToolsGate, acceptanceGate].filter(
+		(gate): gate is (steps: readonly ChatAgentStep[]) => boolean => gate !== null,
+	);
+	const assessCompletion =
+		completionGates.length > 0
+			? (steps: readonly ChatAgentStep[]): boolean => completionGates.every((gate) => gate(steps))
 			: undefined;
 	// W3.1: persist the user message BEFORE the loop (not paired with the assistant at the end) so per-tool
 	// transcript rows appended DURING the loop (the service's executeTool wrapper) land between user and reply —
