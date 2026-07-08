@@ -25,7 +25,9 @@ export interface RuntimeControlRequestOptions {
 }
 
 export interface DesktopRuntimeControlClient {
+	listProjects(options?: RuntimeControlRequestOptions): Promise<DesktopRuntimeProjectsResponse>;
 	getTrayState(workspaceId: string, options?: RuntimeControlRequestOptions): Promise<TrayState>;
+	resumeProject(workspaceId: string, options?: RuntimeControlRequestOptions): Promise<DesktopRuntimeProjectResumeResult>;
 	togglePause(workspaceId: string, options?: RuntimeControlRequestOptions): Promise<TrayState>;
 }
 
@@ -37,11 +39,28 @@ export interface CreateDesktopRuntimeControlClientOptions {
 type TrpcProcedureType = "query" | "mutation";
 
 interface TrpcCallOptions {
-	workspaceId: string;
+	workspaceId?: string | null;
 	procedure: string;
 	type: TrpcProcedureType;
 	input?: unknown;
 	signal?: AbortSignal;
+}
+
+export interface DesktopRuntimeProjectSummary {
+	id: string;
+	autoResumeEnabled?: boolean;
+	lastActiveAt?: number;
+}
+
+export interface DesktopRuntimeProjectsResponse {
+	projects: DesktopRuntimeProjectSummary[];
+}
+
+export interface DesktopRuntimeProjectResumeResult {
+	workspaceId: string;
+	resumedTaskIds: string[];
+	skippedTaskIds: string[];
+	errors: string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -123,6 +142,37 @@ export function countInProgressCards(workspaceState: unknown): number {
 	return column.cards.length;
 }
 
+export function listAutoResumeTaskIds(workspaceState: unknown): string[] {
+	if (!isRecord(workspaceState)) {
+		return [];
+	}
+	const board = workspaceState.board;
+	if (!isRecord(board) || !Array.isArray(board.columns)) {
+		return [];
+	}
+	const column = board.columns.find(
+		(candidate) => isRecord(candidate) && candidate.id === "in_progress",
+	);
+	if (!isRecord(column) || !Array.isArray(column.cards)) {
+		return [];
+	}
+	const taskIds: string[] = [];
+	for (const card of column.cards) {
+		if (!isRecord(card) || typeof card.id !== "string" || !card.id.trim()) {
+			continue;
+		}
+		if (card.blockedKind !== undefined) {
+			continue;
+		}
+		const review = card.review;
+		if (isRecord(review) && (review.status === "parked" || review.status === "changes_requested")) {
+			continue;
+		}
+		taskIds.push(card.id);
+	}
+	return taskIds;
+}
+
 export function isSwarmStopPaused(response: unknown): boolean {
 	if (!isRecord(response)) {
 		return false;
@@ -180,9 +230,10 @@ export function createDesktopRuntimeControlClient(
 
 	async function callTrpc<T>(call: TrpcCallOptions): Promise<T> {
 		const url = buildTrpcProcedureUrl(options.baseUrl, call.procedure);
-		const headers: Record<string, string> = {
-			[WORKSPACE_ID_HEADER]: call.workspaceId,
-		};
+		const headers: Record<string, string> = {};
+		if (call.workspaceId) {
+			headers[WORKSPACE_ID_HEADER] = call.workspaceId;
+		}
 		let body: string | undefined;
 		if (call.type === "query") {
 			if (call.input !== undefined) {
@@ -207,6 +258,29 @@ export function createDesktopRuntimeControlClient(
 		return payload as T;
 	}
 
+	async function listProjects(requestOptions?: RuntimeControlRequestOptions): Promise<DesktopRuntimeProjectsResponse> {
+		const response = await callTrpc<unknown>({
+			procedure: "projects.list",
+			type: "query",
+			signal: requestOptions?.signal,
+		});
+		if (!isRecord(response) || !Array.isArray(response.projects)) {
+			return { projects: [] };
+		}
+		return {
+			projects: response.projects
+				.filter((project): project is Record<string, unknown> => isRecord(project))
+				.map((project) => ({
+					id: typeof project.id === "string" ? project.id : "",
+					autoResumeEnabled: project.autoResumeEnabled === true,
+					...(typeof project.lastActiveAt === "number" && Number.isFinite(project.lastActiveAt)
+						? { lastActiveAt: project.lastActiveAt }
+						: {}),
+				}))
+				.filter((project) => project.id.trim()),
+		};
+	}
+
 	async function getPauseState(workspaceId: string, requestOptions?: RuntimeControlRequestOptions): Promise<boolean> {
 		const response = await callTrpc<unknown>({
 			workspaceId,
@@ -228,6 +302,54 @@ export function createDesktopRuntimeControlClient(
 			signal: requestOptions?.signal,
 		});
 		return countInProgressCards(workspaceState);
+	}
+
+	async function resumeProject(
+		workspaceId: string,
+		requestOptions?: RuntimeControlRequestOptions,
+	): Promise<DesktopRuntimeProjectResumeResult> {
+		const errors: string[] = [];
+		const skippedTaskIds: string[] = [];
+		const resumedTaskIds: string[] = [];
+		const clearResponse = await callTrpc<unknown>({
+			workspaceId,
+			procedure: "runtime.clearSwarmStop",
+			type: "mutation",
+			signal: requestOptions?.signal,
+		});
+		assertSwarmStopOk(clearResponse);
+		const workspaceState = await callTrpc<unknown>({
+			workspaceId,
+			procedure: "workspace.getState",
+			type: "query",
+			signal: requestOptions?.signal,
+		});
+		for (const taskId of listAutoResumeTaskIds(workspaceState)) {
+			const response = await callTrpc<unknown>({
+				workspaceId,
+				procedure: "runtime.resumeTask",
+				type: "mutation",
+				input: { taskId },
+				signal: requestOptions?.signal,
+			}).catch((error: unknown) => {
+				errors.push(error instanceof Error ? error.message : String(error));
+				return null;
+			});
+			if (!isRecord(response) || response.ok === false) {
+				skippedTaskIds.push(taskId);
+				if (isRecord(response) && typeof response.error === "string" && response.error.trim()) {
+					errors.push(response.error);
+				}
+				continue;
+			}
+			resumedTaskIds.push(taskId);
+		}
+		return {
+			workspaceId,
+			resumedTaskIds,
+			skippedTaskIds,
+			errors,
+		};
 	}
 
 	async function getTrayState(workspaceId: string, requestOptions?: RuntimeControlRequestOptions): Promise<TrayState> {
@@ -262,7 +384,9 @@ export function createDesktopRuntimeControlClient(
 	}
 
 	return {
+		listProjects,
 		getTrayState,
+		resumeProject,
 		togglePause,
 	};
 }

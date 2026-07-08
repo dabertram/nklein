@@ -10394,7 +10394,15 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       [packages/desktop/src/auto-resume.ts] `selectAutoResumeProjects(candidates, maxConcurrent=1)` — pure policy (flagged
       only · most-recently-active first · capped, start-with-1 default), 7 tests, desktop typecheck clean. REMAINING for (4):
       the config field (per-project auto-resume flag) + the effectful boot hook that resumes each selected project via the
-      runtime-state channel. ◐ **LAN WEBSERVER (2) — finding (2026-07-08):** the UI is ALREADY served over HTTP; it's just
+      runtime-state channel. ✅ **AUTO-RESUME (4) WIRING DONE (2026-07-08):** per-project `autoResumeEnabled` is persisted
+      in the workspace index, exposed on `RuntimeProjectSummary`, mutable through `projects.setAutoResume`, and surfaced as
+      a Project Settings › Desktop "Resume on boot" switch. The Electron shell runs a conservative startup hook after the
+      runtime connects, gated by the OS autostart setting: it lists projects, selects at most one flagged project via the
+      existing pure policy, clears workspace pause, reads `workspace.getState`, and sequentially calls existing
+      `runtime.resumeTask` for safe `in_progress` cards (skips explicit blockers / parked / changes-requested). No new
+      runtime endpoint and no desktop-side `src/core` import. Focused coverage: project API persistence tests + desktop
+      runtime-control/runner tests. Remaining for (4): packaged autostart smoke on macOS/Windows/Linux and a future
+      last-activity producer if we want true recency ordering instead of project-list order. ◐ **LAN WEBSERVER (2) — finding (2026-07-08):** the UI is ALREADY served over HTTP; it's just
       bound to 127.0.0.1 everywhere (web-ui/vite.config.ts server.host, scripts/dev-full.mjs `srv.listen(…,"127.0.0.1")`,
       runtime `getKanbanRuntimeHost`). So "serve over a webserver for LAN" is primarily a HOST-BIND change to `0.0.0.0`
       behind an OPT-IN flag (default localhost-only for safety — invariant #1) + surfacing the LAN URL; NOT a new server.

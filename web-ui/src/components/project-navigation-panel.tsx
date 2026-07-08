@@ -709,6 +709,7 @@ export function ProjectNavigationPanel({
 				}}
 				workspaceId={settingsProject?.id ?? null}
 				projectName={settingsProject?.name ?? null}
+				autoResumeEnabled={settingsProject?.autoResumeEnabled === true}
 			/>
 		</aside>
 	);

@@ -174,6 +174,19 @@ export const runtimeProjectRemoveResponseSchema = z.object({
 });
 export type RuntimeProjectRemoveResponse = z.infer<typeof runtimeProjectRemoveResponseSchema>;
 
+export const runtimeProjectAutoResumeRequestSchema = z.object({
+	projectId: z.string().min(1),
+	enabled: z.boolean(),
+});
+export type RuntimeProjectAutoResumeRequest = z.infer<typeof runtimeProjectAutoResumeRequestSchema>;
+
+export const runtimeProjectAutoResumeResponseSchema = z.object({
+	ok: z.boolean(),
+	project: runtimeProjectSummarySchema.nullable(),
+	error: z.string().optional(),
+});
+export type RuntimeProjectAutoResumeResponse = z.infer<typeof runtimeProjectAutoResumeResponseSchema>;
+
 export const runtimeProjectArtifactMigrationRequestSchema = z.object({
 	projectId: z.string().min(1),
 });

@@ -78,6 +78,7 @@ export interface RuntimeWorkspaceContext {
 	gitRepositoryCreatedByKanban?: boolean;
 	displayName?: string | null;
 	selfProjectConfirmed?: boolean;
+	autoResumeEnabled?: boolean;
 }
 
 export interface LoadWorkspaceContextOptions {
@@ -518,6 +519,7 @@ export async function loadWorkspaceContext(
 			gitRepositoryCreatedByKanban: existingEntry.gitRepositoryCreatedByKanban === true,
 			displayName: existingEntry.displayName?.trim() || null,
 			selfProjectConfirmed: existingEntry.selfProjectConfirmed === true,
+			autoResumeEnabled: existingEntry.autoResumeEnabled === true,
 		};
 	}
 
@@ -562,6 +564,7 @@ export async function loadWorkspaceContext(
 			gitRepositoryCreatedByKanban: ensured.entry.gitRepositoryCreatedByKanban === true,
 			displayName: ensured.entry.displayName?.trim() || null,
 			selfProjectConfirmed: ensured.entry.selfProjectConfirmed === true,
+			autoResumeEnabled: ensured.entry.autoResumeEnabled === true,
 		};
 	});
 }
@@ -603,8 +606,41 @@ export async function listWorkspaceIndexEntries(): Promise<RuntimeWorkspaceIndex
 			gitRepositoryCreatedByKanban: entry.gitRepositoryCreatedByKanban === true,
 			displayName: entry.displayName?.trim() || null,
 			selfProjectConfirmed: entry.selfProjectConfirmed === true,
+			autoResumeEnabled: entry.autoResumeEnabled === true,
 		}))
 		.sort((left, right) => left.repoPath.localeCompare(right.repoPath));
+}
+
+export async function setWorkspaceAutoResumeEnabled(
+	workspaceId: string,
+	enabled: boolean,
+): Promise<RuntimeWorkspaceIndexEntry | null> {
+	return await lockedFileSystem.withLock(getWorkspaceIndexLockRequest(), async () => {
+		const index = await readWorkspaceIndex();
+		const entry = index.entries[workspaceId];
+		if (!entry) {
+			return null;
+		}
+		const updatedEntry: WorkspaceIndexEntry = {
+			...entry,
+			...(enabled ? { autoResumeEnabled: true } : { autoResumeEnabled: undefined }),
+		};
+		await writeWorkspaceIndex({
+			...index,
+			entries: {
+				...index.entries,
+				[workspaceId]: updatedEntry,
+			},
+		});
+		return {
+			workspaceId: updatedEntry.workspaceId,
+			repoPath: updatedEntry.repoPath,
+			gitRepositoryCreatedByKanban: updatedEntry.gitRepositoryCreatedByKanban === true,
+			displayName: updatedEntry.displayName?.trim() || null,
+			selfProjectConfirmed: updatedEntry.selfProjectConfirmed === true,
+			autoResumeEnabled: updatedEntry.autoResumeEnabled === true,
+		};
+	});
 }
 
 export async function removeWorkspaceIndexEntry(workspaceId: string): Promise<boolean> {

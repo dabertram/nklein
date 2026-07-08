@@ -13,6 +13,8 @@ import {
 	runtimeProjectAddResponseSchema,
 	runtimeProjectArtifactMigrationRequestSchema,
 	runtimeProjectArtifactMigrationResponseSchema,
+	runtimeProjectAutoResumeRequestSchema,
+	runtimeProjectAutoResumeResponseSchema,
 	runtimeProjectDirectoryPickerResponseSchema,
 	runtimeProjectRemoveRequestSchema,
 	runtimeProjectRemoveResponseSchema,
@@ -56,6 +58,12 @@ export function buildProjectsRouter(t: RuntimeTrpcBuilder) {
 			.output(runtimeProjectRemoveResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.projectsApi.removeProject(ctx.requestedWorkspaceId, input);
+			}),
+		setAutoResume: t.procedure
+			.input(runtimeProjectAutoResumeRequestSchema)
+			.output(runtimeProjectAutoResumeResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.projectsApi.setAutoResume(ctx.requestedWorkspaceId, input);
 			}),
 		migrateAccidentalProjectArtifacts: t.procedure
 			.input(runtimeProjectArtifactMigrationRequestSchema)

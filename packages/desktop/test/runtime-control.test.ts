@@ -5,6 +5,7 @@ import {
 	countInProgressCards,
 	createDesktopRuntimeControlClient,
 	isSwarmStopPaused,
+	listAutoResumeTaskIds,
 	resolveTrayWorkspaceId,
 	type RuntimeControlFetch,
 } from "../src/runtime-control.js";
@@ -36,6 +37,30 @@ describe("countInProgressCards", () => {
 		expect(countInProgressCards(workspaceState(3))).toBe(3);
 		expect(countInProgressCards({ board: { columns: [{ id: "backlog", cards: [{}] }] } })).toBe(0);
 		expect(countInProgressCards(null)).toBe(0);
+	});
+});
+
+describe("listAutoResumeTaskIds", () => {
+	it("selects only unblocked in-progress cards", () => {
+		expect(
+			listAutoResumeTaskIds({
+				board: {
+					columns: [
+						{ id: "backlog", cards: [{ id: "backlog" }] },
+						{
+							id: "in_progress",
+							cards: [
+								{ id: "ready" },
+								{ id: "blocked", blockedKind: "local_model_required" },
+								{ id: "parked", review: { status: "parked" } },
+								{ id: "changes", review: { status: "changes_requested" } },
+								{ id: "signed-off", review: { status: "approved" } },
+							],
+						},
+					],
+				},
+			}),
+		).toEqual(["ready", "signed-off"]);
 	});
 });
 
@@ -94,6 +119,31 @@ describe("resolveTrayWorkspaceId", () => {
 });
 
 describe("createDesktopRuntimeControlClient", () => {
+	it("lists projects without a workspace header", async () => {
+		const fetchImpl = vi.fn<RuntimeControlFetch>(async (url, init) => {
+			expect(new URL(url).pathname).toBe("/api/trpc/projects.list");
+			expect(init.headers[WORKSPACE_ID_HEADER]).toBeUndefined();
+			return trpcJson({
+				projects: [
+					{ id: "ws-1", autoResumeEnabled: true },
+					{ id: "ws-2", autoResumeEnabled: false, lastActiveAt: 123 },
+					{ id: "", autoResumeEnabled: true },
+				],
+			});
+		});
+		const client = createDesktopRuntimeControlClient({
+			baseUrl: "http://127.0.0.1:3484",
+			fetch: fetchImpl,
+		});
+
+		await expect(client.listProjects()).resolves.toEqual({
+			projects: [
+				{ id: "ws-1", autoResumeEnabled: true },
+				{ id: "ws-2", autoResumeEnabled: false, lastActiveAt: 123 },
+			],
+		});
+	});
+
 	it("reads tray state through existing workspace/runtime tRPC procedures", async () => {
 		const fetchImpl = vi.fn<RuntimeControlFetch>(async (url, init) => {
 			const procedure = new URL(url).pathname.split("/").at(-1);
@@ -186,6 +236,50 @@ describe("createDesktopRuntimeControlClient", () => {
 			"/api/trpc/runtime.getSwarmStop",
 			"/api/trpc/runtime.clearSwarmStop",
 			"/api/trpc/workspace.getState",
+		]);
+	});
+
+	it("clears workspace pause and resumes safe in-progress tasks for a project", async () => {
+		const fetchImpl = vi.fn<RuntimeControlFetch>(async (url, init) => {
+			const procedure = new URL(url).pathname.split("/").at(-1);
+			expect(init.headers[WORKSPACE_ID_HEADER]).toBe("ws-1");
+			if (procedure === "runtime.clearSwarmStop") {
+				return trpcJson({ ok: true, signal: null });
+			}
+			if (procedure === "workspace.getState") {
+				return trpcJson({
+					board: {
+						columns: [
+							{
+								id: "in_progress",
+								cards: [{ id: "task-a" }, { id: "blocked", blockedKind: "local_model_required" }],
+							},
+						],
+					},
+				});
+			}
+			if (procedure === "runtime.resumeTask") {
+				expect(init.method).toBe("POST");
+				expect(JSON.parse(init.body ?? "{}")).toEqual({ taskId: "task-a" });
+				return trpcJson({ ok: true, summary: { taskId: "task-a" }, pausedTaskIds: [] });
+			}
+			throw new Error(`unexpected procedure ${procedure}`);
+		});
+		const client = createDesktopRuntimeControlClient({
+			baseUrl: "http://127.0.0.1:3484",
+			fetch: fetchImpl,
+		});
+
+		await expect(client.resumeProject("ws-1")).resolves.toEqual({
+			workspaceId: "ws-1",
+			resumedTaskIds: ["task-a"],
+			skippedTaskIds: [],
+			errors: [],
+		});
+		expect(fetchImpl.mock.calls.map(([url]) => new URL(url).pathname)).toEqual([
+			"/api/trpc/runtime.clearSwarmStop",
+			"/api/trpc/workspace.getState",
+			"/api/trpc/runtime.resumeTask",
 		]);
 	});
 

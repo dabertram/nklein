@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import { AppMenu } from "./app-menu.js";
+import { runDesktopAutoResume } from "./auto-resume-runner.js";
 import type { AutostartPlatform } from "./autostart-config.js";
 import { isAutostartEnabled, setAutostartEnabled } from "./autostart-effects.js";
 import { relayOAuthCallback } from "./oauth-relay.js";
@@ -309,6 +310,43 @@ async function toggleTrayPause(): Promise<void> {
 	}
 }
 
+async function runAutoResumeAfterStartup(): Promise<void> {
+	let autostartEnabled = false;
+	try {
+		autostartEnabled = isAutostartEnabled(app, autostartContext());
+	} catch (error) {
+		console.debug(
+			"[desktop] auto-resume skipped; autostart state unavailable:",
+			error instanceof Error ? error.message : error,
+		);
+	}
+	if (!autostartEnabled) {
+		return;
+	}
+	const runtimeUrl = orchestrator.getUrl();
+	if (!runtimeUrl) {
+		return;
+	}
+	const client = createDesktopRuntimeControlClient({
+		baseUrl: runtimeUrl,
+		fetch: (url, init) => globalThis.fetch(url, init),
+	});
+	try {
+		const result = await runDesktopAutoResume({ client, maxConcurrentProjects: 1 });
+		if (result.selectedProjectIds.length > 0) {
+			console.log(
+				`[desktop] auto-resume processed ${result.selectedProjectIds.length} project(s): ${result.selectedProjectIds.join(", ")}`,
+			);
+		}
+		for (const error of result.errors) {
+			console.warn(`[desktop] auto-resume failed for ${error.workspaceId}: ${error.error}`);
+		}
+		void refreshTrayState();
+	} catch (error) {
+		console.warn("[desktop] auto-resume failed:", error instanceof Error ? error.message : error);
+	}
+}
+
 ipcMain.on("restart-runtime", () => {
 	if (activeRestart) {
 		console.log("[desktop] Restart already in progress — ignoring duplicate request.");
@@ -423,6 +461,7 @@ function wireAppLifecycle(): void {
 
 		try {
 			await orchestrator.connect();
+			void runAutoResumeAfterStartup();
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error);
 			console.error(`[desktop] Failed to start runtime: ${msg}`);

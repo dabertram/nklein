@@ -139,6 +139,7 @@ function toProjectSummary(project: {
 	activeSessions?: ActiveAgentSessionCounts;
 	gitRepositoryCreatedByKanban: boolean;
 	displayName?: string | null;
+	autoResumeEnabled?: boolean;
 	healthIssues?: RuntimeProjectHealthIssue[];
 }): RuntimeProjectSummary {
 	const normalized = project.repoPath.replaceAll("\\", "/").replace(/\/+$/g, "");
@@ -151,6 +152,7 @@ function toProjectSummary(project: {
 		taskCounts: project.taskCounts,
 		runningSessionCount: project.activeSessions?.running ?? 0,
 		queuedSessionCount: project.activeSessions?.queued ?? 0,
+		autoResumeEnabled: project.autoResumeEnabled === true,
 		gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 		healthIssues: project.healthIssues ?? [],
 	};
@@ -359,6 +361,7 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 					activeSessions: summarizeProjectActiveSessions(project.workspaceId),
 					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
 					displayName: project.displayName,
+					autoResumeEnabled: project.autoResumeEnabled,
 					healthIssues: healthIssuesByWorkspaceId.get(project.workspaceId) ?? [],
 				});
 			}),

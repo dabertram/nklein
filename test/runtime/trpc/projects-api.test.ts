@@ -395,6 +395,70 @@ describe("project add", () => {
 	});
 });
 
+describe("project auto-resume setting", () => {
+	it("persists and clears the per-project auto-resume flag", async () => {
+		const cleanupCwd = createTestCwd();
+		try {
+			await withTemporaryHome(async () => {
+				const projectPath = join(cleanupCwd, "resume-project");
+				mkdirSync(projectPath, { recursive: true });
+				initGitRepository(projectPath);
+				commitAll(projectPath, "Initial project");
+				const context = await loadWorkspaceContext(projectPath);
+				const deps = createDefaultDeps(cleanupCwd);
+				deps.createProjectSummary = vi.fn((project) => ({
+					id: project.workspaceId,
+					path: project.repoPath,
+					name: basename(project.repoPath),
+					taskCounts: project.taskCounts,
+					runningSessionCount: 0,
+					queuedSessionCount: 0,
+					autoResumeEnabled: project.autoResumeEnabled === true,
+					gitRepositoryCreatedByKanban: project.gitRepositoryCreatedByKanban,
+					healthIssues: project.healthIssues ?? [],
+				}));
+				const api = createProjectsApi(deps);
+
+				const enabled = await api.setAutoResume(null, { projectId: context.workspaceId, enabled: true });
+
+				expect(enabled.ok).toBe(true);
+				expect(enabled.project?.autoResumeEnabled).toBe(true);
+				const enabledEntry = (await listWorkspaceIndexEntries()).find(
+					(entry) => entry.workspaceId === context.workspaceId,
+				);
+				expect(enabledEntry?.autoResumeEnabled).toBe(true);
+				expect(deps.broadcastRuntimeProjectsUpdated).toHaveBeenCalled();
+
+				const disabled = await api.setAutoResume(null, { projectId: context.workspaceId, enabled: false });
+
+				expect(disabled.ok).toBe(true);
+				expect(disabled.project?.autoResumeEnabled).toBe(false);
+				const disabledEntry = (await listWorkspaceIndexEntries()).find(
+					(entry) => entry.workspaceId === context.workspaceId,
+				);
+				expect(disabledEntry?.autoResumeEnabled).toBe(false);
+			});
+		} finally {
+			rmSync(cleanupCwd, { recursive: true, force: true });
+		}
+	});
+
+	it("returns a clean error for an unknown project id", async () => {
+		await withTemporaryHome(async () => {
+			const deps = createDefaultDeps(createTestCwd());
+			const api = createProjectsApi(deps);
+
+			const result = await api.setAutoResume(null, { projectId: "missing", enabled: true });
+
+			expect(result).toEqual({
+				ok: false,
+				project: null,
+				error: "Unknown project ID: missing",
+			});
+		});
+	});
+});
+
 describe("self-improvement project creation", () => {
 	const previousNodeEnv = process.env.NODE_ENV;
 

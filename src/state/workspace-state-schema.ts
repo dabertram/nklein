@@ -26,6 +26,7 @@ export interface WorkspaceIndexEntry {
 	gitRepositoryCreatedByKanban?: boolean;
 	displayName?: string;
 	selfProjectConfirmed?: boolean;
+	autoResumeEnabled?: boolean;
 }
 
 export interface RuntimeWorkspaceIndexEntry {
@@ -34,6 +35,7 @@ export interface RuntimeWorkspaceIndexEntry {
 	gitRepositoryCreatedByKanban: boolean;
 	displayName: string | null;
 	selfProjectConfirmed: boolean;
+	autoResumeEnabled: boolean;
 }
 
 export interface WorkspaceIndexFile {
@@ -72,6 +74,7 @@ export const workspaceIndexEntrySchema = z.object({
 	gitRepositoryCreatedByKanban: z.boolean().optional(),
 	displayName: z.string().optional(),
 	selfProjectConfirmed: z.boolean().optional(),
+	autoResumeEnabled: z.boolean().optional(),
 });
 
 export const workspaceIndexFileSchema = z

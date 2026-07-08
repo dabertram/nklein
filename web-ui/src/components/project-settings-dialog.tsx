@@ -1,5 +1,5 @@
 import * as RadixSwitch from "@radix-ui/react-switch";
-import { Database, FolderCog, ShieldCheck } from "lucide-react";
+import { Database, FolderCog, Power, ShieldCheck } from "lucide-react";
 import { type ReactElement, useEffect, useState } from "react";
 import {
 	buildCodeEmbeddingSettings,
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogFooter, DialogHeader } from "@/components/ui/dialog";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
+import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type { RuntimeCodeEmbeddingSettings, RuntimeModelGateAction, RuntimeSkillDynamicsLevel } from "@/runtime/types";
 import { useRuntimeConfig } from "@/runtime/use-runtime-config";
 
@@ -20,6 +21,7 @@ export interface ProjectSettingsDialogProps {
 	onOpenChange: (open: boolean) => void;
 	workspaceId: string | null;
 	projectName?: string | null;
+	autoResumeEnabled?: boolean;
 }
 
 /**
@@ -32,8 +34,11 @@ export function ProjectSettingsDialog({
 	onOpenChange,
 	workspaceId,
 	projectName,
+	autoResumeEnabled,
 }: ProjectSettingsDialogProps): ReactElement {
 	const { config, isSaving, save } = useRuntimeConfig(open, workspaceId, null);
+	const [resumeOnBoot, setResumeOnBoot] = useState(autoResumeEnabled === true);
+	const [isSavingProjectSetting, setIsSavingProjectSetting] = useState(false);
 	const [overrideEnabled, setOverrideEnabled] = useState(false);
 	const [provider, setProvider] = useState<RuntimeCodeEmbeddingSettings["provider"]>("local_lexical");
 	const [model, setModel] = useState(LOCAL_CODE_EMBEDDING_MODEL);
@@ -46,6 +51,10 @@ export function ProjectSettingsDialog({
 	const [skillDynamicsOverrideEnabled, setSkillDynamicsOverrideEnabled] = useState(false);
 	const [skillDynamicsLevel, setSkillDynamicsLevel] = useState<RuntimeSkillDynamicsLevel>("fully_dynamic");
 	const [saveError, setSaveError] = useState<string | null>(null);
+
+	useEffect(() => {
+		setResumeOnBoot(autoResumeEnabled === true);
+	}, [autoResumeEnabled, open]);
 
 	// Load the per-project override into local state whenever the config (re)loads.
 	useEffect(() => {
@@ -74,7 +83,7 @@ export function ProjectSettingsDialog({
 
 	const defaults = config?.codeEmbeddingDefaults ?? null;
 	const effective = overrideEnabled ? buildCodeEmbeddingSettings(provider, model, baseUrl) : defaults;
-	const controlsDisabled = isSaving || !workspaceId;
+	const controlsDisabled = isSaving || isSavingProjectSetting || !workspaceId;
 
 	const handleSave = async (): Promise<void> => {
 		setSaveError(null);
@@ -91,6 +100,29 @@ export function ProjectSettingsDialog({
 			setSaveError("Could not save project settings. Check runtime logs and try again.");
 			return;
 		}
+		if (workspaceId && resumeOnBoot !== (autoResumeEnabled === true)) {
+			setIsSavingProjectSetting(true);
+			try {
+				const trpcClient = getRuntimeTrpcClient(workspaceId);
+				const response = await trpcClient.projects.setAutoResume.mutate({
+					projectId: workspaceId,
+					enabled: resumeOnBoot,
+				});
+				if (!response.ok) {
+					setSaveError(response.error ?? "Could not save project settings. Check runtime logs and try again.");
+					return;
+				}
+			} catch (error) {
+				setSaveError(
+					error instanceof Error
+						? error.message
+						: "Could not save project settings. Check runtime logs and try again.",
+				);
+				return;
+			} finally {
+				setIsSavingProjectSetting(false);
+			}
+		}
 		onOpenChange(false);
 	};
 
@@ -103,6 +135,30 @@ export function ProjectSettingsDialog({
 			<DialogBody>
 				{workspaceId ? (
 					<div className="flex flex-col gap-4">
+						<div>
+							<div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-text-primary">
+								<Power size={14} />
+								Desktop
+							</div>
+							<div className="rounded-md border border-border bg-surface-1 p-3">
+								<div className="flex items-center justify-between gap-3">
+									<div className="min-w-0">
+										<div className="text-[13px] text-text-primary">Resume on boot</div>
+										<p className="m-0 mt-1 text-[12px] text-text-secondary">
+											When the desktop app starts at login, resume eligible work for this project.
+										</p>
+									</div>
+									<RadixSwitch.Root
+										checked={resumeOnBoot}
+										disabled={controlsDisabled}
+										onCheckedChange={setResumeOnBoot}
+										className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+								</div>
+							</div>
+						</div>
 						<div>
 							<div className="mb-1 flex items-center gap-2 text-[13px] font-semibold text-text-primary">
 								<Database size={14} />
@@ -265,7 +321,7 @@ export function ProjectSettingsDialog({
 					Cancel
 				</Button>
 				<Button variant="primary" onClick={() => void handleSave()} disabled={controlsDisabled}>
-					{isSaving ? (
+					{isSaving || isSavingProjectSetting ? (
 						<>
 							<Spinner size={14} />
 							Saving...

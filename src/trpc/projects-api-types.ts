@@ -26,6 +26,7 @@ export interface CreateProjectsApiDependencies {
 		taskCounts: RuntimeProjectTaskCounts;
 		gitRepositoryCreatedByKanban: boolean;
 		displayName?: string | null;
+		autoResumeEnabled?: boolean;
 		healthIssues?: RuntimeProjectHealthIssue[];
 	}) => RuntimeProjectSummary;
 	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void> | void;

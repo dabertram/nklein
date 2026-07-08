@@ -9,12 +9,14 @@ import type {
 	RuntimeDevTestProjectResponse,
 	RuntimeProjectAddResponse,
 	RuntimeProjectArtifactMigrationResponse,
+	RuntimeProjectAutoResumeResponse,
 	RuntimeSelfImprovementProjectRequest,
 	RuntimeSelfImprovementProjectResponse,
 } from "../core/api-contract";
 import {
 	parseProjectAddRequest,
 	parseProjectArtifactMigrationRequest,
+	parseProjectAutoResumeRequest,
 	parseProjectRemoveRequest,
 	parseSelfImprovementProjectRequest,
 } from "../core/api-validation";
@@ -35,6 +37,7 @@ import {
 	removeWorkspaceStateFiles,
 	resolveWorkspacePath,
 	saveWorkspaceState,
+	setWorkspaceAutoResumeEnabled,
 } from "../state/workspace-state";
 import { createEvidenceBundle } from "../telemetry/evidence-bundle";
 import { cloneGitRepository } from "../workspace/git-clone";
@@ -252,6 +255,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 						taskCounts,
 						gitRepositoryCreatedByKanban: context.gitRepositoryCreatedByKanban === true,
 						displayName: context.displayName,
+						autoResumeEnabled: context.autoResumeEnabled === true,
 					}),
 				} satisfies RuntimeProjectAddResponse;
 			} catch (error) {
@@ -497,6 +501,7 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					taskCounts,
 					gitRepositoryCreatedByKanban: context.gitRepositoryCreatedByKanban === true,
 					displayName: context.displayName,
+					autoResumeEnabled: context.autoResumeEnabled === true,
 				});
 				void deps.broadcastRuntimeProjectsUpdated(context.workspaceId);
 				return {
@@ -718,6 +723,40 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 				const message = error instanceof Error ? error.message : String(error);
 				return {
 					ok: false,
+					error: message,
+				};
+			}
+		},
+		setAutoResume: async (preferredWorkspaceId, input): Promise<RuntimeProjectAutoResumeResponse> => {
+			try {
+				const body = parseProjectAutoResumeRequest(input);
+				const updated = await setWorkspaceAutoResumeEnabled(body.projectId, body.enabled);
+				if (!updated) {
+					return {
+						ok: false,
+						project: null,
+						error: `Unknown project ID: ${body.projectId}`,
+					};
+				}
+				const taskCounts = await deps.summarizeProjectTaskCounts(updated.workspaceId, updated.repoPath);
+				const project = deps.createProjectSummary({
+					workspaceId: updated.workspaceId,
+					repoPath: updated.repoPath,
+					taskCounts,
+					gitRepositoryCreatedByKanban: updated.gitRepositoryCreatedByKanban,
+					displayName: updated.displayName,
+					autoResumeEnabled: updated.autoResumeEnabled,
+				});
+				await deps.broadcastRuntimeProjectsUpdated(preferredWorkspaceId ?? deps.getActiveWorkspaceId());
+				return {
+					ok: true,
+					project,
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return {
+					ok: false,
+					project: null,
 					error: message,
 				};
 			}

@@ -74,6 +74,8 @@ export const runtimeProjectSummarySchema = z.object({
 	runningSessionCount: z.number().int().nonnegative().default(0),
 	/** Live agents queued for sandbox/model capacity (surfaces the per-model concurrency bottleneck without switching). */
 	queuedSessionCount: z.number().int().nonnegative().default(0),
+	/** User opt-in: when the desktop app starts on boot, resume eligible work for this project. */
+	autoResumeEnabled: z.boolean().optional(),
 	gitRepositoryCreatedByKanban: z.boolean().optional(),
 	healthIssues: z.array(runtimeProjectHealthIssueSchema).optional(),
 });

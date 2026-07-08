@@ -96,6 +96,8 @@ import type {
 	RuntimeProjectAddResponse,
 	RuntimeProjectArtifactMigrationRequest,
 	RuntimeProjectArtifactMigrationResponse,
+	RuntimeProjectAutoResumeRequest,
+	RuntimeProjectAutoResumeResponse,
 	RuntimeProjectDirectoryPickerResponse,
 	RuntimeProjectRemoveRequest,
 	RuntimeProjectRemoveResponse,
@@ -502,6 +504,10 @@ export interface RuntimeTrpcContext {
 			preferredWorkspaceId: string | null,
 			input: RuntimeProjectRemoveRequest,
 		) => Promise<RuntimeProjectRemoveResponse>;
+		setAutoResume: (
+			preferredWorkspaceId: string | null,
+			input: RuntimeProjectAutoResumeRequest,
+		) => Promise<RuntimeProjectAutoResumeResponse>;
 		migrateAccidentalProjectArtifacts: (
 			preferredWorkspaceId: string | null,
 			input: RuntimeProjectArtifactMigrationRequest,

@@ -23,6 +23,7 @@ import {
 	type RuntimeNKleinUpdateProviderRequest,
 	type RuntimeProjectAddRequest,
 	type RuntimeProjectArtifactMigrationRequest,
+	type RuntimeProjectAutoResumeRequest,
 	type RuntimeProjectRemoveRequest,
 	type RuntimeProtectedTestApprovalGrantRequest,
 	type RuntimeSelfImprovementProjectRequest,
@@ -66,6 +67,7 @@ import {
 	runtimeNKleinUpdateProviderRequestSchema,
 	runtimeProjectAddRequestSchema,
 	runtimeProjectArtifactMigrationRequestSchema,
+	runtimeProjectAutoResumeRequestSchema,
 	runtimeProjectRemoveRequestSchema,
 	runtimeProtectedTestApprovalGrantRequestSchema,
 	runtimeSelfImprovementProjectRequestSchema,
@@ -226,6 +228,18 @@ export function parseProjectRemoveRequest(value: unknown): RuntimeProjectRemoveR
 	return {
 		projectId,
 		deleteGitRepository: parsed.deleteGitRepository,
+	};
+}
+
+export function parseProjectAutoResumeRequest(value: unknown): RuntimeProjectAutoResumeRequest {
+	const parsed = parseWithSchema(runtimeProjectAutoResumeRequestSchema, value);
+	const projectId = parsed.projectId.trim();
+	if (!projectId) {
+		throw new Error("Project ID cannot be empty.");
+	}
+	return {
+		projectId,
+		enabled: parsed.enabled,
 	};
 }
 
