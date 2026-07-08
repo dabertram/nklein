@@ -5067,8 +5067,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       stall the swarm; a capable model rarely stalls). Observability-before-mechanism — don't build a rung for a
       rarely-hit case. The §5.AL gate + capable-model behaviour + this observability are the current swarm robustness story.
   - **still owed (WIRING), decomposed:**
-    - [ ] measure real `model_stalled` frequency for SUITABLE models first (observability-before-mechanism gate).
-    - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
+    - [x] measure real `model_stalled` frequency for SUITABLE models first (observability-before-mechanism gate).
+          *(MEASURED 2026-07-08 via `npx tsx src/cli.ts dev model-verdict --json`: catalog-suitable models with enough
+          runtime samples showed 0 stalls — `qwopus3.6-27b-v2-mlx` 0/7, `qwopus3.5-9b-coder-mtp` 0/5,
+          `qwen2.5-coder-7b-instruct` 0/3. No SUITABLE model currently justifies a proactive swarm recovery rung.)*
+    - [-] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
+          *(condition false as of the 2026-07-08 suitable-model telemetry above; keep deferred until future telemetry shows
+          real `model_stalled` events on SUITABLE models.)*
     - [~] **RUNAWAY-generation detector (the complement of `model_stalled`: a stall emits NOTHING; a runaway emits
           DEGENERATE output forever).** Live-found sweep run 9 (2026-07-08): a 9B worker sat on ONE generation 15+ min
           under `agentTimeoutMode: unlimited` — no wall-clock backstop, froze the card + (turns serialize) the board.
@@ -5133,16 +5138,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       complexity ceiling, and the §5.AD quality-knee bounds), with the derived signals the attempt loop reads:
       `learnedRetryBudget` (more retries for a flakier model, clamped), `learnedQualityEffectiveBudget` (§5.AD, never below
       the ≥32k floor), `preferredToolCallFormat`, `dominantFailureMode`. Pure (never mutates input) + 13 unit tests; tsc +
-      biome green. **Still owed (wiring):** the thin JSON persistence layer in the runtime home (like MCSR) + read/update
-      hooks from the attempt loop (choose the best first approach + skip known-failing ones, no circles) + Settings
-      model-telemetry surface. Built core-first to avoid a speculative persisted schema ahead of its consumers.
+      biome green. **Still owed (wiring):** read hooks from the attempt loop (choose the best first approach + skip
+      known-failing ones, no circles). Built core-first to avoid a speculative persisted schema ahead of its consumers.
   - [x] Build thin JSON persistence layer in runtime home (like MCSR) **DONE 2026-07-05:** event-sourced append-JSONL store `src/telemetry/model-behavior-profile-store.ts` (`persistModelBehaviorOutcome` / `readModelBehaviorProfile` / `readAllModelBehaviorProfiles`) — mirrors model-performance-stats (concurrency-safe append-only, folded oldest-first via the pure `recordModelBehaviorOutcome`); 6 tests. Read/update hooks into the live attempt loop remain (separate wiring).
   - [~] Add read hooks in attempt loop (choose best first, skip known-failing, no circles) *(◐ 2026-07-08: first
         read hook live — the chat resolver reads the profile and seeds `preferredPromptVariantFamily`, so the variation
         rung tries the model's learned-responsive phrasing FIRST. Remaining: preferredToolCallFormat / dominantFailureMode
         read hooks to skip known-failing rungs.)*
   - [x] Add update hooks after each outcome (record to persisted profile) **DONE 2026-07-05 (coarse):** the task-outcome seam (runtime-server) now folds each terminal outcome into the model's ModelBehaviorProfile via `persistModelBehaviorOutcome` (success/other_failure → successRate + retry-budget signal; append-only, concurrency-safe, best-effort). Rich per-ATTEMPT failure-mode capture (no_tool_call/narrated/timeout during the recovery ladder) still rides the loop-level read/update wiring — a follow-up.
-  - [ ] Expose model-telemetry surface in Settings UI
+  - [x] Expose model-telemetry surface in Settings UI *(DONE before 2026-07-08 audit: runtime tRPC exposes
+        `getModelBehaviorProfiles` via `runtimeModelBehaviorProfilesResponseSchema`; Settings' `Model Performance`
+        dialog fetches it with the other telemetry tables and renders the "Learned model behavior (§5.AA
+        recovery-ladder telemetry)" table (`data-testid="model-behavior-profiles"`). Focused verification green:
+        `npx vitest run test/runtime/core/model-behavior-profiles-contract.test.ts test/runtime/model-behavior-profile-store.test.ts`
+        and `npm --prefix web-ui run test -- src/components/model-performance-stats-dialog.test.tsx`.)*
   - [ ] Test with real multi-model runs (verify learning across sessions)
 - [~] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure
       (no-call/narrated/loop/timeout/malformed) and selects the next ladder strategy (different endpoint / fewer tools /
@@ -5364,7 +5373,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         seam and appends a `transition` event on every task-session STATE CHANGE (queued→running→review→…; same-state
         re-emissions skipped; per-workspace map, bounded; append best-effort). The controller phase-ladder transitions
         ride the same appendEvent when the ladder goes live. 2 tests.)*
-  - [ ] Wire retry-note into live next-attempt context at model-call seam
+  - [x] Wire retry-note into live next-attempt context at model-call seam *(✅ 2026-07-08 — task start/restart now
+        reconstructs the workflow-scoped `buildAttemptRetryNoteFromLedger(events, {workflowId: taskId})` note and injects
+        it as a task-volatile system-prompt fragment (`attempt-retry-note`) before the session-env suffix. Empty or
+        unreadable ledgers are byte-identical/no-note; tests seed a prior failed attempt and prove the next SDK start
+        prompt carries the "do NOT repeat" note while unrelated workflow attempts are excluded. Focused verification:
+        `npx vitest run test/runtime/nklein-agent/nklein-session-system-prompt.test.ts test/runtime/nklein-agent/nklein-task-session-service.test.ts`.)*
   - [ ] Verify full phase flow works end-to-end (intake→plan→validate→localize→execute→…→done)
   - [ ] Test with small models (ensures they can't own global transitions)
 

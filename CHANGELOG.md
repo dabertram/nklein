@@ -12,6 +12,14 @@
   `long-memory-eval` core fixture injects multi-session project facts, scores recall@k plus abstention on missing
   evidence, and exposes `decideMemoryScopeBroadening` so `accessAllOptIn` can only be allowed after a passing benchmark.
   Runtime wiring is still held until this benchmark is validated against real model-backed recall.
+- **Settings now exposes the learned per-model behavior profile** (todo §5.AA). The existing Model Performance dialog
+  includes a "Learned model behavior" table backed by `runtime.getModelBehaviorProfiles`, showing samples, success rate,
+  average retries, dominant failure mode, preferred tool-call format, responsive prompt phrasing, complexity ceiling, and
+  context quality-knee data from the local `ModelBehaviorProfile` store.
+- **Task retries now carry durable "do not repeat" memory into the next attempt** (todo §5.AF/§5.AA). When a task is
+  started or rebuilt after prior failed attempts, !Klein reconstructs the workflow's failure-capsule note from the local
+  Agent Attempt Ledger and injects it into the system prompt, scoped to that task only. Empty or unreadable ledgers remain
+  no-op, so fresh starts keep the same prompt bytes.
 - **Settings can now check and cache llmfit's public model catalog on demand** (todo §5.AB/§5.AL). The model telemetry
   panel has explicit "Check catalog" and "Update catalog" actions. Check fetches llmfit's current GitHub catalog metadata
   only when clicked, compares the remote blob revision to the local cache revision, and reports update availability plus

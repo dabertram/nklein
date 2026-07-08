@@ -26,6 +26,8 @@ export interface AssembleSessionSystemPromptInput {
 	temporalBlock: string;
 	/** The home-agent sidebar append (per-session-kind, task-tier) — folded in here instead of raw concat. */
 	homeAgentAppend?: string | null;
+	/** §5.AF/§5.AA durable retry memory reconstructed from prior failed attempt events for this task. */
+	attemptRetryNote?: string | null;
 	/** The `<session>` cwd+date trailer extracted from the SDK base — see the fragment ordering note below. */
 	sessionEnv?: string | null;
 	/**

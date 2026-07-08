@@ -1,3 +1,4 @@
+import { readdirSync } from "node:fs";
 import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
 import {
 	applyModelStatsTrackingLevel,
@@ -18,6 +19,7 @@ import {
 	DEFAULT_RETRIEVAL_EGRESS_ENABLED,
 	DEFAULT_RETRIEVAL_SEARCH_BACKEND_URL,
 } from "../config/runtime-config-retrieval-resolver";
+import { buildAttemptRetryNoteFromLedger } from "../core/agent-ledger-projections";
 import type { McpAccess, SandboxNetworkPolicy } from "../core/agent-rulesets";
 import type {
 	RuntimeNKleinTeamProgressEvent,
@@ -38,7 +40,7 @@ import type { PromptFragment } from "../core/prompt-fragment-assembly";
 import { didCreditLimitJustTrigger, shouldCaptureReviewCheckpoint } from "../core/task-session-guards";
 import { decideTemporalContextInjection } from "../core/temporal-context-injection";
 import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt";
-import { appendAgentLedgerEvent } from "../state/agent-attempt-ledger-store";
+import { appendAgentLedgerEvent, readAllAgentLedger } from "../state/agent-attempt-ledger-store";
 import { resolveStableRoutingModelId } from "../state/runtime-id-model-key-map-store";
 import { recordTaskRunSummary, type TaskRunTerminalState } from "../state/task-run-summary-store";
 import { recordSelfObservation, type SelfObservationEventInput } from "../telemetry/self-observation-sink";
@@ -685,6 +687,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		sessionEnv: string | null;
 		efficiencyRules: string;
 		planningPrompt?: string | null;
+		attemptRetryNote?: string | null;
 		skillFragments?: readonly PromptFragment[];
 	}): AssembleSessionSystemPromptInput {
 		return {
@@ -699,6 +702,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			homeAgentAppend: resolveHomeAgentAppendSystemPrompt(args.taskId),
 			sessionEnv: args.sessionEnv,
 			planningPrompt: args.planningPrompt ?? null,
+			attemptRetryNote: args.attemptRetryNote ?? null,
 			efficiencyRules: args.efficiencyRules,
 			temporalBlock: decideTemporalContextInjection({
 				enabled: this.knowsTodayEnabled || isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY),
@@ -707,6 +711,21 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			}).block,
 			skillFragments: args.skillFragments ?? [],
 		};
+	}
+
+	private async buildAttemptRetryNote(taskId: string): Promise<string | null> {
+		if (this.diagnosticStoreRoot) {
+			try {
+				if (!readdirSync(this.diagnosticStoreRoot).some((file) => file.endsWith(".jsonl"))) {
+					return null;
+				}
+			} catch {
+				return null;
+			}
+		}
+		const events = await readAllAgentLedger({ rootDir: this.diagnosticStoreRoot }).catch(() => []);
+		const note = buildAttemptRetryNoteFromLedger(events, { workflowId: taskId }).trim();
+		return note.length > 0 ? note : null;
 	}
 
 	private async startRuntimeTaskSessionFromLaunchConfig(
@@ -759,6 +778,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 		// (the byte-stable, volatility-ordered fragment assembly lives in the pure `buildSessionSystemPrompt`). This
 		// restart seam also builds the SYNTHETIC sessions (`::review`/`::plan-critique`/`::merge` — kind derived from
 		// the task-id suffix) and bakes the lean/full efficiency-rules level; it carries no planning/skill fragments.
+		const attemptRetryNote = await this.buildAttemptRetryNote(input.taskId);
 		const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 			this.buildSessionSystemPromptInput({
 				taskId: input.taskId,
@@ -768,6 +788,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				basePrompt: customSystemPrompt ?? sdkPromptParts?.staticText ?? "",
 				baseIsStaticShell: !customSystemPrompt,
 				sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
+				attemptRetryNote,
 				efficiencyRules: buildKanbanEfficiencyRules({
 					contextScope: input.contextScope ?? "smart",
 					contextWindow: requestContextWindow,
@@ -1320,6 +1341,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					// §5.AE honor the user's skill-dynamics level so the fragment resolution matches the affinity-tag one.
 					...(request.skillDynamicsLevel ? { dynamicsLevel: request.skillDynamicsLevel } : {}),
 				});
+				const attemptRetryNote = await this.buildAttemptRetryNote(request.taskId);
 				const systemPrompt = this.promptWarmthLedger.assembleAndRecord(
 					this.buildSessionSystemPromptInput({
 						taskId: request.taskId,
@@ -1330,6 +1352,7 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 						baseIsStaticShell: !customSystemPrompt,
 						sessionEnv: sdkPromptParts?.sessionEnvText ?? null,
 						planningPrompt: planningSystemPrompt,
+						attemptRetryNote,
 						efficiencyRules: buildKanbanEfficiencyRules({
 							contextScope: request.contextScope ?? "smart",
 							contextWindow: requestContextWindow,

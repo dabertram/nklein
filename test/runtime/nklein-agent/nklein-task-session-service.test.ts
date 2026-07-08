@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ToolApprovalRequest, ToolApprovalResult } from "@cline/sdk";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { buildAttemptEvent } from "../../../src/core/agent-attempt-ledger";
 import {
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	type RuntimeTaskImage,
@@ -32,6 +33,7 @@ import {
 } from "../../../src/nklein-agent/nklein-task-session-service";
 import { createNKleinWatcherRegistry } from "../../../src/nklein-agent/nklein-watcher-registry";
 import type { NKleinSdkPersistedMessage } from "../../../src/nklein-agent/sdk-runtime-boundary";
+import { appendAgentLedgerEvent } from "../../../src/state/agent-attempt-ledger-store";
 
 const originalArgv = [...process.argv];
 const originalExecArgv = [...process.execArgv];
@@ -1401,6 +1403,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				prompt: "Investigate startup",
 				streamTimeoutMs: 1_000,
 			});
+			await waitForTaskSessionId(runtime, "task-1");
 
 			await vi.advanceTimersByTimeAsync(1_001);
 
@@ -1424,9 +1427,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				prompt: "Investigate startup",
 				conversationTimeoutMs: 1_000,
 			});
-			await vi.advanceTimersByTimeAsync(0);
-			const sessionId = runtime.getTaskSessionId("task-1");
-			expect(sessionId).toBeTruthy();
+			const sessionId = await waitForTaskSessionId(runtime, "task-1");
 
 			runtime.emitAgentEvent(sessionId ?? "session-1", {
 				type: "done",
@@ -1452,9 +1453,7 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				prompt: "Investigate startup",
 				toolTimeoutMs: 1_000,
 			});
-			await vi.advanceTimersByTimeAsync(0);
-			const sessionId = runtime.getTaskSessionId("task-1");
-			expect(sessionId).toBeTruthy();
+			const sessionId = await waitForTaskSessionId(runtime, "task-1");
 
 			runtime.emitAgentEvent(sessionId ?? "session-1", {
 				type: "content_start",
@@ -1967,6 +1966,51 @@ describe("InMemoryNKleinTaskSessionService", () => {
 				systemPrompt: expect.stringContaining("You are NKlein, an AI coding agent."),
 			}),
 		);
+	});
+
+	it("injects prior failed attempt retry notes into the next task start prompt", async () => {
+		await appendAgentLedgerEvent(
+			buildAttemptEvent({
+				workflowId: "task-1",
+				taskId: "task-1",
+				workspacePathHash: "workspace",
+				role: "worker",
+				attemptId: "task-1:a1",
+				modelId: "lmstudio:qwen3-8b:local",
+				outcome: "no_tool_call",
+				simplificationLevel: 1,
+				recordedAt: 1,
+			}),
+			{ rootDir: diagnosticStoreRoot },
+		);
+		await appendAgentLedgerEvent(
+			buildAttemptEvent({
+				workflowId: "other-task",
+				taskId: "other-task",
+				workspacePathHash: "workspace",
+				role: "worker",
+				attemptId: "other:a1",
+				modelId: "lmstudio:qwen3-8b:local",
+				outcome: "loop",
+				recordedAt: 2,
+			}),
+			{ rootDir: diagnosticStoreRoot },
+		);
+
+		const { service, runtime } = createTrackedService();
+		await service.startTaskSession({
+			taskId: "task-1",
+			cwd: "/tmp/worktree",
+			prompt: "Investigate startup",
+		});
+		await vi.waitFor(() => expect(runtime.startTaskSessionMock).toHaveBeenCalledTimes(1));
+
+		const startRequest = runtime.startTaskSessionMock.mock.calls[0]?.[0];
+		expect(startRequest?.systemPrompt).toContain("Already attempted this task");
+		expect(startRequest?.systemPrompt).toContain("do NOT repeat");
+		expect(startRequest?.systemPrompt).toContain("reduced_tool_set");
+		expect(startRequest?.systemPrompt).toContain("no_tool_call");
+		expect(startRequest?.systemPrompt).not.toContain("loop");
 	});
 
 	it("forwards task images into the NKlein runtime start request", async () => {

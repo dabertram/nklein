@@ -50,6 +50,17 @@ describe("buildSessionSystemPrompt (§5.AQ / §5.U extraction)", () => {
 		expect(text.indexOf("REPO-MAP")).toBeLessThan(text.indexOf("TODAY"));
 	});
 
+	it("includes the prior-attempt retry note as task context before the session-env suffix", () => {
+		const text = buildSessionSystemPrompt({
+			...base,
+			attemptRetryNote: "Already attempted this task (do NOT repeat these).",
+		}).text;
+
+		expect(text).toContain("Already attempted this task");
+		expect(text.indexOf("Already attempted this task")).toBeGreaterThan(text.indexOf("HOME"));
+		expect(text.indexOf("Already attempted this task")).toBeLessThan(text.indexOf("ENV"));
+	});
+
 	it("a non-static base is task-volatility (custom prompts embed per-task content, not byte-stable)", () => {
 		const staticText = buildSessionSystemPrompt(base).text;
 		const customText = buildSessionSystemPrompt({ ...base, baseIsStaticShell: false }).text;
@@ -88,16 +99,16 @@ describe("buildSessionSystemPrompt — absent ≡ null ≡ empty (the dedup byte
 		expect(buildSessionSystemPrompt({ ...common, skillFragments: [] }).text).toBe(absent);
 	});
 
-	it("homeAgentAppend / sessionEnv: absent ≡ null", () => {
+	it("homeAgentAppend / attemptRetryNote / sessionEnv: absent ≡ null", () => {
 		const bare: SessionSystemPromptInput = {
 			basePrompt: "BASE",
 			baseIsStaticShell: true,
 			efficiencyRules: "RULES",
 			temporalBlock: "TODAY",
 		};
-		expect(buildSessionSystemPrompt({ ...bare, homeAgentAppend: null, sessionEnv: null }).text).toBe(
-			buildSessionSystemPrompt(bare).text,
-		);
+		expect(
+			buildSessionSystemPrompt({ ...bare, homeAgentAppend: null, attemptRetryNote: null, sessionEnv: null }).text,
+		).toBe(buildSessionSystemPrompt(bare).text);
 	});
 
 	it("the two call-site shapes converge: restart-shape ≡ primary-shape with its extras nulled", () => {

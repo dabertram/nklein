@@ -13,6 +13,8 @@ export interface SessionSystemPromptInput {
 	temporalBlock: string;
 	/** The home-agent sidebar append (per-session-kind, task-tier). */
 	homeAgentAppend?: string | null;
+	/** §5.AF/§5.AA durable retry memory reconstructed from prior failed attempt events for this task. */
+	attemptRetryNote?: string | null;
 	/** The `<session>` cwd+date trailer extracted from the SDK base — the true suffix (goes LAST). */
 	sessionEnv?: string | null;
 	/** §5.AE skill-driven fragments; deduped against the fixed keys below, then re-sorted by volatility. */
@@ -40,6 +42,7 @@ export function buildSessionSystemPrompt(input: SessionSystemPromptInput): Assem
 		{ key: "temporal-context", volatility: "daily", text: input.temporalBlock },
 		{ key: "planning-workflow", volatility: "task", text: input.planningPrompt ?? "" },
 		{ key: "home-agent-append", volatility: "task", text: input.homeAgentAppend ?? "" },
+		{ key: "attempt-retry-note", volatility: "task", text: input.attemptRetryNote ?? "" },
 		{ key: "session-env", volatility: "task", text: input.sessionEnv ?? "" },
 	];
 	const fixedKeys = new Set(baseFragments.map((fragment) => fragment.key));
