@@ -21,11 +21,7 @@ import type {
 } from "../core/api-contract";
 import { normalizeRuntimeSwarmGuardrails } from "../core/api-contract";
 import type { ConcurrencyConfig, ConcurrencyOverride } from "../core/concurrency-config";
-import {
-	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
-	type ModelStatsTrackingLevel,
-	normalizeModelStatsTrackingLevel,
-} from "../core/model-stats-tracking-level";
+import { type ModelStatsTrackingLevel, normalizeModelStatsTrackingLevel } from "../core/model-stats-tracking-level";
 import { deriveAgentIdFields } from "./runtime-config-agent-id-resolver";
 import { deriveConcurrencyFields } from "./runtime-config-concurrency-resolver";
 import {
