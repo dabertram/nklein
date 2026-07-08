@@ -2,6 +2,7 @@
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
 	RuntimeLlmfitCatalogUpdateCheckResponse,
+	RuntimeLlmfitCatalogUpdatePullResponse,
 	RuntimeNKleinModelContextWindowOverrideResponse,
 	RuntimeNKleinModelMaxConcurrentRequestsResponse,
 	RuntimeNKleinModelRegistryPruneResponse,
@@ -21,6 +22,13 @@ export async function checkLlmfitCatalogUpdate(
 ): Promise<RuntimeLlmfitCatalogUpdateCheckResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.checkLlmfitCatalogUpdate.mutate();
+}
+
+export async function pullLlmfitCatalogUpdate(
+	workspaceId: string | null,
+): Promise<RuntimeLlmfitCatalogUpdatePullResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.pullLlmfitCatalogUpdate.mutate();
 }
 
 export async function saveNKleinModelContextWindowOverride(

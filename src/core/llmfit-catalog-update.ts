@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { type CatalogUpdateAction, type CatalogUpdateMode, decideCatalogUpdate } from "./catalog-update-decision";
 
@@ -27,6 +27,10 @@ export interface RemoteLlmfitCatalogMetadata {
 	fetchedAt: number;
 }
 
+export interface RemoteLlmfitCatalogSnapshot extends RemoteLlmfitCatalogMetadata {
+	models: unknown[];
+}
+
 export interface LlmfitCatalogUpdateCheck {
 	mode: CatalogUpdateMode;
 	action: CatalogUpdateAction["action"];
@@ -39,6 +43,11 @@ export interface LlmfitCatalogUpdateCheck {
 	remoteSizeBytes: number | null;
 	checkedAt: number;
 	error?: string;
+}
+
+export interface LlmfitCatalogPullResult extends LlmfitCatalogUpdateCheck {
+	cachePath: string | null;
+	written: boolean;
 }
 
 export interface FetchLlmfitCatalogMetadataInput {
@@ -167,6 +176,14 @@ export async function loadLocalLlmfitCatalogRevision(path: string): Promise<stri
 export async function fetchRemoteLlmfitCatalogMetadata(
 	input: FetchLlmfitCatalogMetadataInput = {},
 ): Promise<RemoteLlmfitCatalogMetadata> {
+	const snapshot = await fetchRemoteLlmfitCatalogSnapshot(input);
+	const { models: _models, ...metadata } = snapshot;
+	return metadata;
+}
+
+export async function fetchRemoteLlmfitCatalogSnapshot(
+	input: FetchLlmfitCatalogMetadataInput = {},
+): Promise<RemoteLlmfitCatalogSnapshot> {
 	const sourceUrl = input.sourceUrl?.trim() || DEFAULT_LLMFIT_CATALOG_METADATA_URL;
 	const fetchImpl = input.fetchImpl ?? fetch;
 	const timeoutMs = input.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
@@ -190,6 +207,7 @@ export async function fetchRemoteLlmfitCatalogMetadata(
 			sourceUrl,
 			downloadUrl,
 			revision: githubRevision,
+			models: rows,
 			modelCount: rows.length,
 			sizeBytes: declaredSizeBytes ?? catalogResponse.sizeBytes,
 			fetchedAt,
@@ -201,9 +219,51 @@ export async function fetchRemoteLlmfitCatalogMetadata(
 		sourceUrl,
 		downloadUrl,
 		revision: githubRevision ?? metadataResponse.etag ?? contentHash(metadataResponse.text),
+		models: rows,
 		modelCount: rows.length,
 		sizeBytes: declaredSizeBytes ?? metadataResponse.sizeBytes,
 		fetchedAt,
+	};
+}
+
+export async function writeLlmfitCatalogCache(
+	path: string,
+	snapshot: RemoteLlmfitCatalogSnapshot,
+): Promise<LlmfitCatalogPullResult> {
+	await mkdir(dirname(path), { recursive: true });
+	await writeFile(
+		path,
+		`${JSON.stringify(
+			{
+				version: 1,
+				metadata: {
+					sourceUrl: snapshot.sourceUrl,
+					downloadUrl: snapshot.downloadUrl,
+					revision: snapshot.revision,
+					fetchedAt: snapshot.fetchedAt,
+					modelCount: snapshot.modelCount,
+					sizeBytes: snapshot.sizeBytes,
+				},
+				models: snapshot.models,
+			},
+			null,
+			2,
+		)}\n`,
+		"utf8",
+	);
+	return {
+		mode: "notify",
+		action: "up_to_date",
+		reason: `Local llmfit catalog cache updated to ${snapshot.revision}.`,
+		sourceUrl: snapshot.sourceUrl,
+		downloadUrl: snapshot.downloadUrl,
+		localRevision: snapshot.revision,
+		remoteRevision: snapshot.revision,
+		remoteModelCount: snapshot.modelCount,
+		remoteSizeBytes: snapshot.sizeBytes,
+		checkedAt: snapshot.fetchedAt,
+		cachePath: path,
+		written: true,
 	};
 }
 
@@ -271,6 +331,76 @@ export async function checkLlmfitCatalogUpdate(
 			remoteModelCount: null,
 			remoteSizeBytes: null,
 			checkedAt,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+export async function pullLlmfitCatalogCache(
+	input: CheckLlmfitCatalogUpdateInput = {},
+): Promise<LlmfitCatalogPullResult> {
+	const mode = input.mode ?? "notify";
+	const sourceUrl = input.sourceUrl?.trim() || DEFAULT_LLMFIT_CATALOG_METADATA_URL;
+	const checkedAt = input.now?.() ?? Date.now();
+	const cachePath = input.localCatalogPath ?? (input.homePath ? defaultLlmfitCatalogCachePath(input.homePath) : null);
+
+	if (mode === "off") {
+		const decision = decideCatalogUpdate({ mode, localRevision: null, remoteRevision: null });
+		return {
+			mode,
+			action: decision.action,
+			reason: decision.reason,
+			sourceUrl,
+			downloadUrl: null,
+			localRevision: null,
+			remoteRevision: null,
+			remoteModelCount: null,
+			remoteSizeBytes: null,
+			checkedAt,
+			cachePath,
+			written: false,
+		};
+	}
+	if (!cachePath) {
+		return {
+			mode,
+			action: "noop",
+			reason: "No local llmfit catalog cache path is available.",
+			sourceUrl,
+			downloadUrl: null,
+			localRevision: null,
+			remoteRevision: null,
+			remoteModelCount: null,
+			remoteSizeBytes: null,
+			checkedAt,
+			cachePath: null,
+			written: false,
+			error: "No local llmfit catalog cache path is available.",
+		};
+	}
+
+	try {
+		const snapshot = await fetchRemoteLlmfitCatalogSnapshot({
+			sourceUrl,
+			fetchImpl: input.fetchImpl,
+			now: () => checkedAt,
+			timeoutMs: input.timeoutMs,
+		});
+		return await writeLlmfitCatalogCache(cachePath, snapshot);
+	} catch (error) {
+		return {
+			mode,
+			action: "noop",
+			reason: "No remote catalog revision available (fetch skipped or failed).",
+			sourceUrl,
+			downloadUrl: null,
+			localRevision: null,
+			remoteRevision: null,
+			remoteModelCount: null,
+			remoteSizeBytes: null,
+			checkedAt,
+			cachePath,
+			written: false,
 			error: error instanceof Error ? error.message : String(error),
 		};
 	}

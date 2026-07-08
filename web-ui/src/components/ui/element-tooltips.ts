@@ -128,6 +128,10 @@ export const ELEMENT_TOOLTIPS = {
 		name: "Check catalog",
 		description: "Check the public llmfit model catalog for a newer revision.",
 	},
+	"model-registry.pull-catalog-update": {
+		name: "Update catalog",
+		description: "Download the current public llmfit model catalog into the local cache.",
+	},
 	"model-registry.save-context-window": {
 		name: "Save context window",
 		description: "Pin a manual context-window size for this model, overriding the endpoint-advertised value.",

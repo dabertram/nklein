@@ -8872,9 +8872,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       compares the remote blob SHA/ETag/hash to the local cache revision via the decider, and returns a no-throw status.
       Runtime tRPC exposes `checkLlmfitCatalogUpdate`; Settings → model telemetry has an explicit **Check catalog** button
       that reports update availability + row count. No passive polling/background egress; Vitest defaults to unavailable
-      instead of live network. REMAINING: persist/pull a local llmfit cache, merge pulled fit/speed/hardware rows into the
-      overlay without overriding our empirical tool-use verdict, and add the persisted off/notify/auto setting + final
-      "update models" UX.)*
+      instead of live network. The pull/cache slice below builds on this.)*
+      *(◐ 2026-07-08 — USER-INITIATED PULL/CACHE shipped: `pullLlmfitCatalogCache` writes
+      `~/.nklein/nklein/llmfit-catalog-cache.json` with `{metadata, models}` after the same explicit GitHub fetch; the
+      Settings status block now shows **Update catalog** when a check reports `suggest_update`, and the pull updates the
+      local revision so future checks can report current. Still no background egress; Vitest keeps live pulls unavailable
+      unless injected. REMAINING: merge cached llmfit fit/speed/hardware rows into the overlay/composed catalog without
+      replacing our empirical tool-use verdict, and add the persisted off/notify/auto setting.)*
 - [~] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
       hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
       single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup

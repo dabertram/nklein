@@ -1,5 +1,13 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { checkLlmfitCatalogUpdate, fetchRemoteLlmfitCatalogMetadata } from "../../../src/core/llmfit-catalog-update";
+import {
+	checkLlmfitCatalogUpdate,
+	fetchRemoteLlmfitCatalogMetadata,
+	loadLocalLlmfitCatalogRevision,
+	pullLlmfitCatalogCache,
+} from "../../../src/core/llmfit-catalog-update";
 
 describe("llmfit catalog update check", () => {
 	it("uses GitHub Contents metadata as the revision and fetches the raw catalog only to count rows", async () => {
@@ -86,5 +94,50 @@ describe("llmfit catalog update check", () => {
 		expect(result.action).toBe("noop");
 		expect(result.remoteRevision).toBeNull();
 		expect(result.error).toContain("HTTP 502");
+	});
+
+	it("pulls the remote catalog into a local cache file whose revision can be checked later", async () => {
+		const root = await mkdtemp(join(tmpdir(), "nklein-llmfit-catalog-"));
+		try {
+			const cachePath = join(root, "llmfit-catalog-cache.json");
+			const fetchImpl = vi.fn(async (url: string) => {
+				if (url.includes("api.github.com")) {
+					return new Response(
+						JSON.stringify({
+							sha: "sha-cache",
+							size: 321,
+							download_url: "https://raw.test/llmfit/hf_models.json",
+						}),
+						{ status: 200 },
+					);
+				}
+				return new Response(JSON.stringify([{ name: "model-a" }, { name: "model-b" }]), { status: 200 });
+			}) as unknown as typeof fetch;
+
+			const result = await pullLlmfitCatalogCache({
+				localCatalogPath: cachePath,
+				fetchImpl,
+				now: () => 789,
+			});
+
+			expect(result).toMatchObject({
+				action: "up_to_date",
+				written: true,
+				cachePath,
+				localRevision: "sha-cache",
+				remoteRevision: "sha-cache",
+				remoteModelCount: 2,
+			});
+			expect(await loadLocalLlmfitCatalogRevision(cachePath)).toBe("sha-cache");
+			const cache = JSON.parse(await readFile(cachePath, "utf8"));
+			expect(cache.metadata).toMatchObject({
+				revision: "sha-cache",
+				modelCount: 2,
+				fetchedAt: 789,
+			});
+			expect(cache.models).toHaveLength(2);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 });

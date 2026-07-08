@@ -220,6 +220,12 @@ export const runtimeLlmfitCatalogUpdateCheckResponseSchema = z.object({
 });
 export type RuntimeLlmfitCatalogUpdateCheckResponse = z.infer<typeof runtimeLlmfitCatalogUpdateCheckResponseSchema>;
 
+export const runtimeLlmfitCatalogUpdatePullResponseSchema = runtimeLlmfitCatalogUpdateCheckResponseSchema.extend({
+	cachePath: z.string().nullable(),
+	written: z.boolean(),
+});
+export type RuntimeLlmfitCatalogUpdatePullResponse = z.infer<typeof runtimeLlmfitCatalogUpdatePullResponseSchema>;
+
 export const runtimeNKleinModelContextWindowOverrideRequestSchema = z.object({
 	providerId: z.string().min(1),
 	modelId: z.string().min(1),

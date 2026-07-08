@@ -88,7 +88,9 @@ import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completio
 import { handleMergeTaskWorktrees } from "./runtime-api/merge-task-worktrees.js";
 import {
 	defaultLlmfitCatalogUpdateChecker,
+	defaultLlmfitCatalogUpdatePuller,
 	handleCheckLlmfitCatalogUpdate,
+	handlePullLlmfitCatalogUpdate,
 } from "./runtime-api/model-catalog-update.js";
 import {
 	defaultModelFleetSuggestionDescriptorFetcher,
@@ -642,6 +644,11 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 		checkLlmfitCatalogUpdate: async (_workspaceScope) => {
 			return await handleCheckLlmfitCatalogUpdate({
 				checkCatalogUpdate: defaultLlmfitCatalogUpdateChecker,
+			});
+		},
+		pullLlmfitCatalogUpdate: async (_workspaceScope) => {
+			return await handlePullLlmfitCatalogUpdate({
+				pullCatalogUpdate: defaultLlmfitCatalogUpdatePuller,
 			});
 		},
 		removeNKleinModelRegistryEntry: async (_workspaceScope, input) => {

@@ -19,6 +19,7 @@ import {
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeLlmfitCatalogUpdateCheckResponseSchema,
+	runtimeLlmfitCatalogUpdatePullResponseSchema,
 	runtimeMergeHistoryResponseSchema,
 	runtimeModelBehaviorProfilesResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
@@ -367,6 +368,11 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.output(runtimeLlmfitCatalogUpdateCheckResponseSchema)
 			.mutation(async ({ ctx }) => {
 				return await ctx.runtimeApi.checkLlmfitCatalogUpdate(ctx.workspaceScope);
+			}),
+		pullLlmfitCatalogUpdate: t.procedure
+			.output(runtimeLlmfitCatalogUpdatePullResponseSchema)
+			.mutation(async ({ ctx }) => {
+				return await ctx.runtimeApi.pullLlmfitCatalogUpdate(ctx.workspaceScope);
 			}),
 		removeNKleinModelRegistryEntry: t.procedure
 			.input(runtimeNKleinModelRegistryRemoveRequestSchema)

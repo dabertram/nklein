@@ -19,6 +19,7 @@ import {
 	fetchNKleinModelRegistry,
 	openFileOnHost,
 	pruneNKleinModelRegistry,
+	pullLlmfitCatalogUpdate,
 	removeNKleinModelRegistryEntry,
 	runNKleinSmokeEval,
 	saveNKleinModelContextWindowOverride,
@@ -261,6 +262,20 @@ export function NKleinModelContextWindowSettingsPanel({
 		}
 	}, [disabled, workspaceId]);
 
+	const pullCatalogUpdate = useCallback(async () => {
+		if (disabled) {
+			return;
+		}
+		const response = await pullLlmfitCatalogUpdate(workspaceId);
+		setCatalogUpdateCheck(response);
+		if (response.written) {
+			showAppToast({
+				intent: "success",
+				message: `llmfit catalog cached (${response.remoteModelCount ?? "unknown"} models).`,
+			});
+		}
+	}, [disabled, workspaceId]);
+
 	return (
 		<div className="mt-4 border-t border-border pt-4">
 			<div className="flex items-center justify-between gap-3">
@@ -309,6 +324,7 @@ export function NKleinModelContextWindowSettingsPanel({
 				onRemoveEntry={disabled ? undefined : removeEntry}
 				onPruneStale={disabled ? undefined : pruneStale}
 				onCheckCatalogUpdate={disabled ? undefined : checkCatalogUpdate}
+				onPullCatalogUpdate={disabled ? undefined : pullCatalogUpdate}
 			/>
 			<KleinCorePyHealthLine workspaceId={workspaceId} />
 		</div>

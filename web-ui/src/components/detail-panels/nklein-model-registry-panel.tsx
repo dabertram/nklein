@@ -206,6 +206,7 @@ interface NKleinModelRegistryPanelProps {
 	onRemoveEntry?: (entry: RuntimeNKleinModelRegistryEntry) => Promise<void> | void;
 	onPruneStale?: () => Promise<void> | void;
 	onCheckCatalogUpdate?: () => Promise<void> | void;
+	onPullCatalogUpdate?: () => Promise<void> | void;
 }
 
 export function NKleinModelRegistryPanel({
@@ -221,6 +222,7 @@ export function NKleinModelRegistryPanel({
 	onRemoveEntry,
 	onPruneStale,
 	onCheckCatalogUpdate,
+	onPullCatalogUpdate,
 }: NKleinModelRegistryPanelProps) {
 	const selectedEntry = findNKleinModelRegistryEntry(entries, selectedProviderId, selectedModelId);
 	const visibleEntries = useMemo(
@@ -234,6 +236,7 @@ export function NKleinModelRegistryPanel({
 	const [removingKey, setRemovingKey] = useState<string | null>(null);
 	const [isPruning, setIsPruning] = useState(false);
 	const [isCheckingCatalog, setIsCheckingCatalog] = useState(false);
+	const [isPullingCatalog, setIsPullingCatalog] = useState(false);
 	const [saveErrorByKey, setSaveErrorByKey] = useState<Record<string, string>>({});
 	const [concurrencyErrorByKey, setConcurrencyErrorByKey] = useState<Record<string, string>>({});
 	const [removeErrorByKey, setRemoveErrorByKey] = useState<Record<string, string>>({});
@@ -331,6 +334,21 @@ export function NKleinModelRegistryPanel({
 		}
 	};
 
+	const pullCatalogUpdate = async () => {
+		if (!onPullCatalogUpdate) {
+			return;
+		}
+		setIsPullingCatalog(true);
+		setCatalogCheckError("");
+		try {
+			await onPullCatalogUpdate();
+		} catch (error) {
+			setCatalogCheckError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setIsPullingCatalog(false);
+		}
+	};
+
 	return (
 		<section className="mt-2 rounded-lg border border-border bg-surface-1 px-3 py-2" aria-label="Model telemetry">
 			<div className="mb-2 flex items-center gap-2 text-xs font-medium text-text-primary">
@@ -387,6 +405,22 @@ export function NKleinModelRegistryPanel({
 					<div className="mb-1 flex items-center gap-1.5 font-medium text-text-primary">
 						<CloudDownload size={13} className="text-accent" />
 						<span>llmfit catalog</span>
+						{onPullCatalogUpdate && catalogUpdateCheck?.action === "suggest_update" ? (
+							<ElementTooltip id="model-registry.pull-catalog-update">
+								<Button
+									size="sm"
+									variant="ghost"
+									icon={<CloudDownload size={14} />}
+									disabled={isPullingCatalog}
+									onClick={() => {
+										void pullCatalogUpdate();
+									}}
+									className="ml-auto"
+								>
+									{isPullingCatalog ? "Updating..." : "Update catalog"}
+								</Button>
+							</ElementTooltip>
+						) : null}
 					</div>
 					<div className="leading-5">
 						{catalogCheckError ||

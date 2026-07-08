@@ -187,6 +187,7 @@ describe("NKleinModelRegistryPanel", () => {
 
 	it("runs an explicit llmfit catalog update check and renders the status", async () => {
 		const onCheckCatalogUpdate = vi.fn().mockResolvedValue(undefined);
+		const onPullCatalogUpdate = vi.fn().mockResolvedValue(undefined);
 		await act(async () => {
 			renderPanel(
 				root,
@@ -209,6 +210,7 @@ describe("NKleinModelRegistryPanel", () => {
 					selectedModelId="qwen"
 					nowMs={180_000}
 					onCheckCatalogUpdate={onCheckCatalogUpdate}
+					onPullCatalogUpdate={onPullCatalogUpdate}
 				/>,
 			);
 			await Promise.resolve();
@@ -216,6 +218,7 @@ describe("NKleinModelRegistryPanel", () => {
 
 		const text = container.textContent ?? "";
 		expect(text).toContain("Check catalog");
+		expect(text).toContain("Update catalog");
 		expect(text).toContain("llmfit catalog");
 		expect(text).toContain("Update available: 5,843 models at b290cb7ca31f.");
 
@@ -229,6 +232,17 @@ describe("NKleinModelRegistryPanel", () => {
 		});
 
 		expect(onCheckCatalogUpdate).toHaveBeenCalledTimes(1);
+
+		const updateButton = Array.from(container.querySelectorAll("button")).find((button) =>
+			button.textContent?.includes("Update catalog"),
+		);
+		expect(updateButton).toBeInstanceOf(HTMLButtonElement);
+		await act(async () => {
+			updateButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(onPullCatalogUpdate).toHaveBeenCalledTimes(1);
 	});
 
 	it("shows unmeasured models and prompts for missing context windows", async () => {
