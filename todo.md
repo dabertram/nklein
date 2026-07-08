@@ -10424,7 +10424,15 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       secure/reproduce, and poor UX. Needed backlog: release manifest/channels, code signing/notarization + Windows/Linux
       signing policy, updater UI/tray states, migration framework/backup/rollback, release-asset integrity verification,
       and eventually CI packaging for macOS/Windows/Linux. Existing-project migration must be part of update acceptance,
-      not an afterthought.)*
+      not an afterthought. ◐ **DESKTOP UPDATE PLAN CORE DONE (2026-07-08):** [packages/desktop/src/update-plan.ts]
+      defines the release-manifest decision boundary for the future packaged updater: current/latest version compare,
+      stable/beta/nightly channel gate, platform+arch asset selection (mac dmg/zip, Windows exe/msi, Linux AppImage/deb/rpm),
+      default trust policy (sha256 everywhere; signed+notarized mac; signed Windows; checksum-only Linux until a signing
+      policy is chosen), and explicit project-migration metadata (`required`, backup, rollback, notes) carried into the
+      returned update plan. 8 desktop tests cover package inference, channel mismatch, missing arch, trust failures, Linux
+      policy, and migration propagation. Remaining: effectful GitHub/electron-builder feed fetch, download+checksum verify,
+      installer handoff, desktop tray/UI states, runtime-side project migration runner with backup/rollback records, and
+      signed/notarized release assets.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
 ## 11. LATER — deferred to last (user 2026-07-08)
