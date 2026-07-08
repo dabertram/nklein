@@ -7023,10 +7023,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
             - [~] append `thinkingDirective` to chat adapter + swarm path *(◐ CHAT DONE — chat-local-llm-adapter
                   appends apiRequest.thinkingDirective to the last user message (~L317); SWARM path rides the
                   session-runtime seam)*
-            - [ ] set `response_format` when `preferStructuredOutput` *(blocked-by-§5.AN-caveat: json_schema forcing
-                  returns EMPTY content on the resident REASONING tier (live-probed 2026-07-01) — wiring the profile
-                  lever onto the primary call would regress every reasoning model; needs the reasoning-safe structured
-                  path first)*
+            - [~] set `response_format` when `preferStructuredOutput`. **BLOCKER RESOLVED (2026-07-08):** the §5.AN
+                  caveat was "json_schema forcing dead-ends to empty content on reasoning models, so wiring it globally
+                  regresses them — needs the reasoning-safe structured path first." That path now exists AND is resolved
+                  at the request level: `resolveApiProfileRequest` ([skill-api-profile-request.ts](src/core/skill-api-profile-request.ts))
+                  now consults `selectStructuredOutputStrategy(modelId)` and carries a `structuredOutputStrategy`
+                  (`json_schema_grammar` for a non-reasoning coder/instruct; `native_tool_call` for a reasoning model —
+                  NOT json_schema; `prose_extract` fallback) + a correct note, instead of the previous hardcoded
+                  "response_format json_schema" that was wrong for reasoning models. So the lever is now reasoning-SAFE to
+                  apply. +3 tests (10 total). Owed (effectful): at the call seam, when `structuredOutputStrategy` is
+                  `json_schema_grammar` build the `response_format` (buildJsonSchemaResponseFormat), when `native_tool_call`
+                  dispatch the constrained tool rung. (LM Studio live-confirms json_schema works on the coder-14b — see
+                  the §5.O grammar box + [[lmstudio-ignores-gbnf-grammar]].)
             - [~] fire constrained force-call rung PROACTIVELY on no-tool-call *(◐ the rung ALREADY fires on every
                   no-tool-call turn within the recovery ladder (reactive-in-turn = effectively proactive for the turn);
                   what remains is honoring a profile's forceToolCall lever on the FIRST attempt — deliberately deferred

@@ -10,12 +10,20 @@
 
 import { getThinkingControl } from "./model-thinking-control.js";
 import type { SkillApiProfile } from "./skill-registry.js";
+import { type StructuredOutputStrategy, selectStructuredOutputStrategy } from "./structured-output-strategy.js";
 
 export interface ResolvedApiProfileRequest {
 	/** A reasoning soft-switch directive to append to the prompt (e.g. `/no_think` or `/think`), or null if none applies. */
 	thinkingDirective: string | null;
-	/** Prefer constrained structured output (`response_format json_schema`) for this turn's result. */
+	/** Prefer constrained structured output for this turn's result. See {@link structuredOutputStrategy} for the mechanism. */
 	preferStructuredOutput: boolean;
+	/**
+	 * The reasoning-SAFE structured-output mechanism for THIS model when {@link preferStructuredOutput} — resolved via
+	 * {@link selectStructuredOutputStrategy}. `null` when structured output is not preferred. This is what closes the §5.AN
+	 * caveat: json_schema forcing dead-ends to empty content on reasoning models, so a reasoning model resolves to
+	 * `native_tool_call` here (NOT `json_schema_grammar`), and the seam can apply the lever without regressing it.
+	 */
+	structuredOutputStrategy: StructuredOutputStrategy | null;
 	/** Proactively force a tool call (the §5.AA constrained rung) when the model won't call on its own. */
 	forceToolCall: boolean;
 	/** Sampling temperature override, or null when the profile doesn't opine. */
@@ -39,6 +47,7 @@ export function resolveApiProfileRequest(
 	const resolved: ResolvedApiProfileRequest = {
 		thinkingDirective: null,
 		preferStructuredOutput: profile?.structuredOutput === true,
+		structuredOutputStrategy: null,
 		forceToolCall: profile?.forceToolCall === true,
 		temperature: typeof profile?.temperature === "number" ? profile.temperature : null,
 		notes,
@@ -57,7 +66,17 @@ export function resolveApiProfileRequest(
 		}
 	}
 	if (resolved.preferStructuredOutput) {
-		notes.push("structured output preferred (response_format json_schema)");
+		// Resolve the reasoning-SAFE mechanism: json_schema dead-ends on reasoning models, so consult the strategy rather
+		// than blindly claiming response_format:json_schema (the §5.AN caveat that previously blocked wiring this lever).
+		const decision = selectStructuredOutputStrategy(modelId);
+		resolved.structuredOutputStrategy = decision.strategy;
+		const mechanism =
+			decision.strategy === "json_schema_grammar"
+				? "response_format json_schema"
+				: decision.strategy === "native_tool_call"
+					? "native tool_call (tool_choice:required)"
+					: "prose extraction";
+		notes.push(`structured output preferred → ${mechanism} (${decision.reason})`);
 	}
 	if (resolved.forceToolCall) {
 		notes.push("force-tool-call rung enabled");

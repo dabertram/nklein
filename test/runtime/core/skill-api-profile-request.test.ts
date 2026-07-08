@@ -6,6 +6,7 @@ describe("resolveApiProfileRequest", () => {
 		const r = resolveApiProfileRequest(undefined, "qwen/qwen3-8b");
 		expect(r.thinkingDirective).toBeNull();
 		expect(r.preferStructuredOutput).toBe(false);
+		expect(r.structuredOutputStrategy).toBeNull();
 		expect(r.forceToolCall).toBe(false);
 		expect(r.temperature).toBeNull();
 		expect(r.notes).toEqual([]);
@@ -47,5 +48,27 @@ describe("resolveApiProfileRequest", () => {
 		expect(r.preferStructuredOutput).toBe(true);
 		expect(r.forceToolCall).toBe(true);
 		expect(r.temperature).toBe(0.2);
+	});
+
+	it("structured output on a NON-reasoning coder resolves to json_schema_grammar (safe)", () => {
+		const r = resolveApiProfileRequest({ structuredOutput: true }, "qwen/qwen2.5-coder-14b");
+		expect(r.preferStructuredOutput).toBe(true);
+		expect(r.structuredOutputStrategy).toBe("json_schema_grammar");
+		expect(r.notes.join(" ")).toMatch(/response_format json_schema/);
+	});
+
+	it("structured output on a REASONING model resolves to native_tool_call, NOT json_schema (the §5.AN caveat fix)", () => {
+		// A reasoning model would dead-end to empty content under json_schema; the resolved mechanism must avoid that.
+		const r = resolveApiProfileRequest({ structuredOutput: true }, "deepseek-r1-0528-qwen3-8b");
+		expect(r.preferStructuredOutput).toBe(true);
+		expect(r.structuredOutputStrategy).toBe("native_tool_call");
+		expect(r.notes.join(" ")).toMatch(/native tool_call/);
+		expect(r.notes.join(" ")).not.toMatch(/response_format json_schema/);
+	});
+
+	it("structured output NOT preferred leaves the strategy null", () => {
+		const r = resolveApiProfileRequest({ structuredOutput: false }, "qwen/qwen2.5-coder-14b");
+		expect(r.preferStructuredOutput).toBe(false);
+		expect(r.structuredOutputStrategy).toBeNull();
 	});
 });
