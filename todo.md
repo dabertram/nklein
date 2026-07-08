@@ -7309,11 +7309,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         + global cap; map `admit`→lease, `defer`→leave `ready`, `shed`→a `cancelled`/surfaced outcome) at the live-integration pass.
   - [ ] Test multi-model lab scenario to prevent OOM/thrash/deadlock.
 - [ ] **Self-improvement quarantine (M4 safety), decomposed:**
-  - [ ] Set up protected-tests gate (#1.5): auto-patches require full suite + new test coverage.
-  - [ ] Add replay-eval pass: proposed patch runs deterministic replay tests before approval.
-  - [ ] Implement security review workflow (§5.Y posture): human review + automated taint/capability checks.
-  - [ ] Wire gate into agent-write-guard (blocks merge until all gates pass).
-  - [ ] Document approval policy + escalation path for edge cases.
+  - [~] Set up protected-tests gate (#1.5): auto-patches require full suite + new test coverage.
+        *(◐ the GATE CORE is live: work-package-merge-readiness blocks any pack that touches protected-test paths
+        without explicit human approval (prime directive #5), requires every reported gate `pass`, and blocks
+        zero-evidence completion claims; delivery-decision additionally blocks protected-path diffs from auto-merge.
+        REMAINING: the "new test coverage required" criterion (a coverage-delta gate) + pointing these gates at the
+        M4 auto-patch pipeline — which does not exist yet (gated-on-M4).)*
+  - [ ] Add replay-eval pass: proposed patch runs deterministic replay tests before approval. *(gated-on-M4 +
+        the replay capture-seam design (see the Replay/simulation cluster) — both prerequisites are explicit now.)*
+  - [~] Implement security review workflow (§5.Y posture): human review + automated taint/capability checks.
+        *(◐ the PIECES are live — §5.Y hardening COMPLETE (12/12), §5.L taint scanner + capability broker gate live,
+        human review = the review flow + protected-test approval. REMAINING: composing them into the M4 patch-approval
+        workflow — gated-on-M4.)*
+  - [~] Wire gate into agent-write-guard (blocks merge until all gates pass). *(◐ for TASK deliveries this IS live —
+        evaluateTrustedAutoMerge/decideDeliveryAction blocks merge on failing gates/protected paths/regressions per
+        tier. The M4-specific write guard rides the M4 pipeline — gated-on-M4.)*
+  - [ ] Document approval policy + escalation path for edge cases. *(rides the M4 pipeline design — documenting a
+        policy for a not-yet-built pipeline would be speculation; the existing tier semantics are documented inline
+        in delivery-decision.ts.)*
 - *(cross-links)* §5.AA/§5.AB (read the ledger) · §6.4 MCSR (its observations become a ledger projection) · §5.Z (the
       matrix becomes a ledger query) · §5.V (replay makes live-only flows testable) · §5.L + chat-execution-mode (unified
       by the tool manifest) · §6.5 + §5.T (scheduler seeds) · §5.Y (quarantine security gates).
