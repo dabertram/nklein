@@ -1,3 +1,4 @@
+import { restrictToolPoliciesForPlanning } from "../core/decompose-tool-policy";
 import {
 	applyModelStatsTrackingLevel,
 	DEFAULT_MODEL_STATS_TRACKING_LEVEL,
@@ -860,7 +861,11 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 					maxAgentWritableFileLines: launchConfig.maxAgentWritableFileLines ?? null,
 					filesLikelyTouched: launchConfig.filesLikelyTouched ?? null,
 				}),
-				toolPolicies: runtimeSetup.toolPolicies,
+				// A decompose/plan seed only PLANS (calls decompose_project) — strip execution + write tools so a weak
+				// model can't rabbit-hole on run_commands/edits instead of decomposing (sweep run 7, §5.B).
+				toolPolicies: this.explicitDecompositionTaskIds.has(input.taskId)
+					? restrictToolPoliciesForPlanning(runtimeSetup.toolPolicies)
+					: runtimeSetup.toolPolicies,
 				onDecompositionApplied: this.onDecompositionApplied,
 				requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(input.taskId, hostWorkspaceRoot),
 				onCardPromoted: isHomeAgentSessionId(input.taskId) ? undefined : this.onCardPromoted,
@@ -1427,7 +1432,10 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 								basicMemoryExecEnv: sandboxWorkspace.manager.getBasicMemoryExecEnv?.(request.taskId),
 							}
 						: {}),
-					toolPolicies: runtimeSetup.toolPolicies,
+					// Decompose/plan seed: read-only + decompose_project only (strip execution/write) — §5.B, sweep run 7.
+					toolPolicies: this.explicitDecompositionTaskIds.has(request.taskId)
+						? restrictToolPoliciesForPlanning(runtimeSetup.toolPolicies)
+						: runtimeSetup.toolPolicies,
 					onDecompositionApplied: this.onDecompositionApplied,
 					requestPlanCritique: this.planCritiqueRunner.buildRequestHandler(request.taskId, request.cwd),
 					onCardPromoted: isHomeAgentSessionId(request.taskId) ? undefined : this.onCardPromoted,
