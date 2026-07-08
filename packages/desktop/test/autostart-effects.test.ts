@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createAutostartEffects, setAutostartEnabled } from "../src/autostart-effects.js";
+import { createAutostartEffects, isAutostartEnabled, setAutostartEnabled } from "../src/autostart-effects.js";
 
 describe("createAutostartEffects (real fs + injected login-item)", () => {
 	let home: string;
@@ -59,6 +59,32 @@ describe("setAutostartEnabled (resolve → apply, end-to-end)", () => {
 			expect(existsSync(path)).toBe(true);
 			await setAutostartEnabled(app, { ...base, enabled: false });
 			expect(existsSync(path)).toBe(false);
+		} finally {
+			await rm(home, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("isAutostartEnabled (reads OS state — no separate store)", () => {
+	it("macOS/Windows → reflects Electron's login-item flag", () => {
+		const on = { setLoginItemSettings: () => {}, getLoginItemSettings: () => ({ openAtLogin: true }) };
+		const off = { setLoginItemSettings: () => {}, getLoginItemSettings: () => ({ openAtLogin: false }) };
+		expect(isAutostartEnabled(on, { platform: "darwin", appName: "!Klein" })).toBe(true);
+		expect(isAutostartEnabled(off, { platform: "win32", appName: "!Klein" })).toBe(false);
+	});
+
+	it("macOS with no getLoginItemSettings → false (safe default)", () => {
+		expect(isAutostartEnabled({ setLoginItemSettings: () => {} }, { platform: "darwin", appName: "!Klein" })).toBe(false);
+	});
+
+	it("Linux → reflects the presence of the .desktop file", async () => {
+		const home = await mkdtemp(join(tmpdir(), "nklein-autostart-read-"));
+		try {
+			const app = { setLoginItemSettings: () => {} };
+			const req = { platform: "linux" as const, appName: "!Klein", homeDir: home };
+			expect(isAutostartEnabled(app, req)).toBe(false);
+			await setAutostartEnabled(app, { ...req, enabled: true, execPath: "/opt/nklein/nklein" });
+			expect(isAutostartEnabled(app, req)).toBe(true);
 		} finally {
 			await rm(home, { recursive: true, force: true });
 		}

@@ -5,10 +5,12 @@
  * layer is exercised against a temp dir.
  */
 
+import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
 	type AutostartEffects,
+	type AutostartPlatform,
 	type AutostartRequest,
 	applyAutostartPlan,
 	resolveAutostartPlan,
@@ -17,6 +19,7 @@ import {
 /** The subset of Electron's `app` this needs (injected so tests don't need a real Electron runtime). */
 export interface LoginItemApp {
 	setLoginItemSettings(settings: { openAtLogin: boolean }): void;
+	getLoginItemSettings?(): { openAtLogin: boolean };
 }
 
 /** Build the real {@link AutostartEffects}: Electron login-item (mac/win) + node fs (Linux `.desktop`). */
@@ -39,4 +42,20 @@ export function createAutostartEffects(app: LoginItemApp): AutostartEffects {
  */
 export async function setAutostartEnabled(app: LoginItemApp, request: AutostartRequest): Promise<void> {
 	await applyAutostartPlan(resolveAutostartPlan(request), createAutostartEffects(app));
+}
+
+/**
+ * Read the CURRENT autostart state from the OS itself (no separate settings store needed): the Electron login-item flag
+ * on macOS/Windows, or the presence of the XDG `.desktop` file on Linux. `enabled: false` in the request is fine — only
+ * `platform`/`appName`/`homeDir` matter for resolving where to look.
+ */
+export function isAutostartEnabled(
+	app: LoginItemApp,
+	request: { platform: AutostartPlatform; appName: string; homeDir?: string },
+): boolean {
+	if (request.platform === "linux") {
+		const plan = resolveAutostartPlan({ ...request, enabled: true, execPath: "" });
+		return plan.kind === "xdg-autostart" && existsSync(plan.path);
+	}
+	return app.getLoginItemSettings?.().openAtLogin ?? false;
 }
