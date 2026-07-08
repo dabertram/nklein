@@ -16,6 +16,7 @@ import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../../chat/chat-focus-chain";
 import { recordChatHostAction } from "../../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../../chat/chat-local-llm-adapter";
+import { buildChatPhaseToolPlan } from "../../chat/chat-phase-tool-plan";
 import { isSandboxWritePathApproved, resolveSandboxWritablePathMounts } from "../../chat/chat-sandbox-workspace-tools";
 import { chatScopeCanAct, chatScopeToExecutionMode } from "../../chat/chat-scope-capability";
 import type { ChatAgentToolDeps } from "../../chat/chat-service";
@@ -32,6 +33,7 @@ import {
 } from "../../chat/local-chat-model";
 import { resolveSelectedSkillsApiProfile } from "../../core/chat-session-skill-profile";
 import { preferredPromptVariantFamily } from "../../core/model-behavior-profile";
+import type { RunPhase } from "../../core/run-state-machine";
 import { LocalLlmClient } from "../../nklein-agent/nklein-local-llm-client";
 import { createSearxngWebSearchClient } from "../../server/web-search-searxng";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../../state/card-mailbox-store";
@@ -71,6 +73,11 @@ export function buildChatAgentToolDepsResolver(input: {
 	 * explicitly approved workspace-relative writable paths. Absent ⇒ fail closed (no write tools).
 	 */
 	getSandboxWorkspaceWriteTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
+	/**
+	 * Optional finite-state-controller hook: when present, the resolver narrows the offered tool schemas/executor to the
+	 * phase's admitted mutation level and threads the phase's inner-loop budget into the turn. Absent ⇒ legacy full tool set.
+	 */
+	resolveRunPhase?: (session: ChatSession) => RunPhase | null;
 }): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
 	return async (session, extra) => {
 		// §6.11-A klein_self: the read-only SELF-awareness scope roots the session in the !Klein SOURCE repo itself
@@ -178,6 +185,10 @@ export function buildChatAgentToolDepsResolver(input: {
 			...webSearch.definitions,
 			...(extra?.definitions ?? []),
 		];
+		const runPhase = input.resolveRunPhase?.(session) ?? null;
+		const phasePlan = runPhase ? buildChatPhaseToolPlan({ phase: runPhase, tools, definitions }) : null;
+		const activeTools = phasePlan?.tools ?? tools;
+		const activeDefinitions = phasePlan?.definitions ?? definitions;
 
 		const capabilityBrokerEnabled = (await input.getCapabilityBrokerEnabled?.()) ?? false;
 		const executeTool = createGatedChatToolExecutor({
@@ -186,11 +197,11 @@ export function buildChatAgentToolDepsResolver(input: {
 			// §5.L: opt-in capability broker — when on, a protected-sink tool call made after untrusted content entered the
 			// turn is refused fail-closed (prompt-injection defense). Default off ⇒ byte-identical (the executor skips it).
 			capabilityBrokerEnabled,
-			tools,
+			tools: activeTools,
 			// §5.AA: thread the tools' JSON-Schema definitions so the executor can coerce a weak model's malformed
 			// arguments (e.g. a stringified number) against the matching schema before dispatch — and refuse a
 			// genuinely-broken call instead of feeding it raw. A tool without a strict schema degrades to pass-through.
-			definitions,
+			definitions: activeDefinitions,
 			// §5.M G3b safe/unsafe risk model: run_command is a confirm-gated host_command in can-act modes. A command
 			// the allowlist classifier rules SAFE (build/test/inspection) auto-approves; an UNSAFE one runs only when
 			// the user has acknowledged the risk for this session (`riskAcknowledged`, the general-ack toggle) —
@@ -221,7 +232,7 @@ export function buildChatAgentToolDepsResolver(input: {
 		// winning mode) and persist each rung firing's winning family back to the behavior store — a variant
 		// recovery IS a success-after-retries attempt, so it also feeds the EWMA reliability signal.
 		const behaviorProfile = modelId ? await readModelBehaviorProfile(modelId).catch(() => null) : null;
-		const toolModel = createChatAgentModel(client, definitions, {
+		const toolModel = createChatAgentModel(client, activeDefinitions, {
 			modelId,
 			apiProfile: skillApiProfile,
 			preferredPromptVariantFamily: behaviorProfile ? preferredPromptVariantFamily(behaviorProfile) : null,
@@ -255,6 +266,8 @@ export function buildChatAgentToolDepsResolver(input: {
 			executeTool,
 			appendToolExchange: appendChatToolExchange,
 			readFocusChain: (sessionId: string) => readChatFocusChain(sessionId),
+			offeredToolNames: activeDefinitions.map((definition) => definition.name),
+			...(phasePlan ? { maxIterations: phasePlan.maxIterations } : {}),
 		};
 	};
 }

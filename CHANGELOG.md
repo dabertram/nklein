@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The outer-loop phase controller now has a live tool-selection seam** (todo §5.AA). A new chat phase tool plan maps the
+  current `RunPhase` through each tool's capability manifest, narrows both executable tools and model-visible schemas, and
+  applies the phase's inner-loop tool budget. The runtime resolver exposes this behind an optional phase hook, so normal chat
+  remains unchanged until a controller supplies a phase; offered tool names now also reach the existing evidence gate that
+  prevents premature "done" replies on explicit multi-tool instructions.
 - **Fleet verification now proves the configured role models actually ran** (todo §5.AB). The complex fleet-swarm verifier
   records runtime and ledger model usage and fails unless the configured architect and worker models are observed, so a run
   cannot pass by silently routing worker cards to the default model. Cold configured models now seed their fallback registry

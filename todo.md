@@ -5348,11 +5348,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       POLICY DONE (2026-06-28):** `runPhasePolicy(phase)` + `isToolAllowedInPhase(phase, mutationLevel)`
       ([run-state-machine.ts](src/core/run-state-machine.ts)) give each phase its tool-subset ceiling (composing the
       §5.AF tool-capability manifest's mutation levels — localize read-only, execute_step sandbox_write, plan/merge
-      control_plane) + an inner-loop call budget; +3 tests. **Still owed (wiring):** supply a real `assessCompletion` from a task's
-      acceptance spec; drive the full phase ladder (per-phase context + tool subset + budget); record each transition on
-      the §5.AF ledger (the `transition` event kind already exists). **An explicit run state machine** — the controller, per state: selects the
-      state-specific context + tool subset, sets that
-      state's **max-tool-calls + max-wall-time budget**, decides **retry / split / refine-spec / replan / park / escalate
+      control_plane) + an inner-loop call budget; +3 tests. **PHASE TOOL-SELECTION SEAM WIRED (2026-07-09):**
+      [src/chat/chat-phase-tool-plan.ts](src/chat/chat-phase-tool-plan.ts) now projects chat tools through the §5.AF
+      manifest into a per-`RunPhase` executable tool subset, matching model-visible schemas, offered tool names, and
+      `runPhasePolicy(...).maxToolCalls`; terminal zero-budget phases offer no tools. The runtime chat tool-deps resolver
+      has an optional `resolveRunPhase(session)` hook that applies the plan without changing legacy full-tool chat when no
+      phase owner is supplied, and `ChatAgentToolDeps` now threads `offeredToolNames` into the existing named-tools evidence
+      gate plus phase `maxIterations` into the turn loop. **Still owed (wiring):** supply a phase owner that drives the full
+      ladder and phase-specific context; record controller-phase transitions on the §5.AF ledger (the `transition` event
+      kind already exists). **An explicit run state machine** — the controller, per state: selects the state-specific context
+      + tool subset, sets that state's **max-tool-calls + max-wall-time budget**, decides **retry / split / refine-spec / replan / park / escalate
       FROM EVIDENCE** (not model self-report), **records every transition in the §5.AF ledger**, and **forbids skipping to
       repo mutation before localization/refinement** when that phase is required. ReAct stays a **bounded inner loop
       inside a single state**, never the global driver. **(b)** The retry ladder (above) is already a **typed strategy
@@ -5377,7 +5382,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `run_command` step ran that command and it exited 0 — evidence from executed steps, never self-report);
         composed with the named-tools gate in chat-agent-turn. 3 pure tests + a turn-level test proving a premature
         prose "done" is nudged until the acceptance run is green.)*
-  - [ ] Drive full phase ladder: per-phase context + tool subset + budget assignment
+  - [~] Drive full phase ladder: per-phase context + tool subset + budget assignment *(2026-07-09: first live seam done —
+        optional `resolveRunPhase` narrows chat tool executors/schemas and applies the phase tool-call budget; still needs
+        the actual controller/phase owner and phase-specific context injection.)*
   - [x] Record each transition on §5.AF ledger (`transition` event kind) *(✅ 2026-07-08 — LIVE writer wired:
         `createSessionTransitionRecorder` (nklein-runtime-terminal-telemetry) hooks the runtime-server's onSummary
         seam and appends a `transition` event on every task-session STATE CHANGE (queued→running→review→…; same-state

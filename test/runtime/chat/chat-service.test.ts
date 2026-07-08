@@ -177,6 +177,80 @@ describe("createChatService", () => {
 		expect(toolRow?.content).toContain("# Project");
 	});
 
+	it("threads offered tool names into the named-tools evidence gate", async () => {
+		const executed: string[] = [];
+		let turn = 0;
+		const turns: ChatAgentModelResponse[] = [
+			{ text: "Done.", toolCalls: [] },
+			{
+				text: "",
+				toolCalls: [
+					{ id: "c1", name: "read_file", arguments: { path: "README.md" } },
+					{ id: "c2", name: "write_file", arguments: { path: "src/app.ts", content: "ok" } },
+				],
+			},
+			{ text: "Now done.", toolCalls: [] },
+		];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async () => turns[turn++] ?? { text: "fallback", toolCalls: [] },
+				executeTool: async (call) => {
+					executed.push(call.name);
+					return { callId: call.id, content: `${call.name} output` };
+				},
+				appendToolExchange: (messages, _response, results) => [
+					...messages,
+					...results.map((result) => ({ role: "system" as const, content: result.content })),
+				],
+				offeredToolNames: ["read_file", "write_file"],
+			}),
+		});
+		const session = await service.createSession({ title: "Gate", scope: "chat_only" });
+
+		const result = await service.sendMessage({
+			sessionId: session.id,
+			message: "Use read_file and write_file, then answer.",
+		});
+
+		expect(executed).toEqual(["read_file", "write_file"]);
+		expect(result?.assistantMessage.content).toBe("Now done.");
+	});
+
+	it("uses the agent tool deps maxIterations as the turn's inner-loop cap", async () => {
+		const allowToolsSeen: boolean[] = [];
+		const executed: string[] = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async (_messages, allowTools) => {
+					allowToolsSeen.push(allowTools);
+					return allowTools
+						? { text: "", toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "README.md" } }] }
+						: { text: "Forced final.", toolCalls: [] };
+				},
+				executeTool: async (call) => {
+					executed.push(call.name);
+					return { callId: call.id, content: "tool output" };
+				},
+				appendToolExchange: (messages, _response, results) => [
+					...messages,
+					...results.map((result) => ({ role: "system" as const, content: result.content })),
+				],
+				maxIterations: 1,
+			}),
+		});
+		const session = await service.createSession({ title: "Budget", scope: "chat_only" });
+
+		const result = await service.sendMessage({ sessionId: session.id, message: "Inspect once." });
+
+		expect(executed).toEqual(["read_file"]);
+		expect(allowToolsSeen).toEqual([true, false]);
+		expect(result?.assistantMessage.content).toBe("Forced final.");
+	});
+
 	it("accepts a steering message during an active tool-using turn and folds it into the next model call", async () => {
 		let releaseTool!: () => void;
 		const toolGate = new Promise<void>((resolve) => {

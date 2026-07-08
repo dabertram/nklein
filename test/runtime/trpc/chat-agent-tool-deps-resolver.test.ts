@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatToolCall } from "../../../src/chat/chat-agent-loop";
 import type { ChatToolSet } from "../../../src/chat/chat-board-tools";
 import { recordChatEgressAttempt } from "../../../src/chat/chat-egress-attempt-audit-store";
+import type { ChatActionKind } from "../../../src/chat/chat-execution-mode";
 import type { ChatSession } from "../../../src/chat/chat-session-store";
+import { type RunPhase, runPhasePolicy } from "../../../src/core/run-state-machine";
 import { buildChatAgentToolDepsResolver } from "../../../src/trpc/runtime-api/chat-agent-tool-deps-resolver";
 
 vi.mock("../../../src/chat/local-chat-model", () => ({
@@ -57,6 +59,7 @@ function makeResolver(input: {
 	workspacePath: string;
 	getSandboxWorkspaceReadTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
 	getSandboxWorkspaceWriteTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
+	resolveRunPhase?: (session: ChatSession) => RunPhase | null;
 }) {
 	return buildChatAgentToolDepsResolver({
 		getActiveWorkspacePath: () => input.workspacePath,
@@ -68,7 +71,25 @@ function makeResolver(input: {
 		...(input.getSandboxWorkspaceWriteTools
 			? { getSandboxWorkspaceWriteTools: input.getSandboxWorkspaceWriteTools }
 			: {}),
+		...(input.resolveRunPhase ? { resolveRunPhase: input.resolveRunPhase } : {}),
 	});
+}
+
+function toolSet(
+	entries: readonly { name: string; actionKind: ChatActionKind; run?: () => Promise<string> }[],
+): ChatToolSet {
+	return {
+		tools: entries.map((entry) => ({
+			name: entry.name,
+			actionKind: entry.actionKind,
+			run: entry.run ?? (async () => `${entry.name} ran`),
+		})),
+		definitions: entries.map((entry) => ({
+			name: entry.name,
+			description: `${entry.name} test tool`,
+			parameters: { type: "object", properties: {} },
+		})),
+	};
 }
 
 describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", () => {
@@ -212,5 +233,52 @@ describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", (
 				target: "https://example.com/docs",
 			}),
 		);
+	});
+
+	it("threads run-phase tool subsets, offered names, and phase budget through the resolver", async () => {
+		const readTools = toolSet([{ name: "read_file", actionKind: "sandbox_read" }]);
+		const writeTools = toolSet([{ name: "write_file", actionKind: "sandbox_write" }]);
+		const extraTools = toolSet([
+			{ name: "create_phase_card", actionKind: "control_plane" },
+			{ name: "host_phase_shell", actionKind: "host_command" },
+		]);
+		const session = makeSession("chat_only", ["src"]);
+		const resolver = makeResolver({
+			workspacePath: workspaceWithReadme(),
+			getSandboxWorkspaceReadTools: vi.fn(async () => readTools),
+			getSandboxWorkspaceWriteTools: vi.fn(async () => writeTools),
+			resolveRunPhase: () => "execute_step",
+		});
+
+		const deps = await resolver(session, extraTools);
+
+		expect(deps?.offeredToolNames).toEqual([
+			"read_file",
+			"write_file",
+			"get_board",
+			"get_board_status",
+			"get_streams",
+			"update_focus_chain",
+		]);
+		expect(deps?.maxIterations).toBe(runPhasePolicy("execute_step").maxToolCalls);
+		expect((await deps?.executeTool(call("read_file")))?.content).toBe("read_file ran");
+		expect((await deps?.executeTool(call("write_file", { path: "src/app.ts" })))?.content).toBe("write_file ran");
+		expect((await deps?.executeTool(call("create_phase_card")))?.content).toBe("Unknown tool: create_phase_card");
+		expect((await deps?.executeTool(call("host_phase_shell")))?.content).toBe("Unknown tool: host_phase_shell");
+	});
+
+	it("returns no offered tools for terminal run phases", async () => {
+		const readTools = toolSet([{ name: "read_file", actionKind: "sandbox_read" }]);
+		const resolver = makeResolver({
+			workspacePath: workspaceWithReadme(),
+			getSandboxWorkspaceReadTools: vi.fn(async () => readTools),
+			resolveRunPhase: () => "done",
+		});
+
+		const deps = await resolver(makeSession("chat_only"));
+
+		expect(deps?.offeredToolNames).toEqual([]);
+		expect(deps?.maxIterations).toBe(0);
+		expect((await deps?.executeTool(call("read_file")))?.content).toBe("Unknown tool: read_file");
 	});
 });

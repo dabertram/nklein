@@ -51,8 +51,11 @@ import { decideChatModelGate } from "./local-chat-model";
  */
 export type ChatAgentToolDeps = Pick<
 	ChatAgentTurnDeps,
-	"model" | "executeTool" | "appendToolExchange" | "readFocusChain"
->;
+	"model" | "executeTool" | "appendToolExchange" | "readFocusChain" | "offeredToolNames"
+> & {
+	/** Optional controller-owned cap for this resolved tool set, e.g. a run-phase inner-loop budget. */
+	maxIterations?: number;
+};
 
 export interface ChatServiceOptions {
 	/** Base directory for all chat stores; each store lives in its own subdir. Omit for the real runtime home. */
@@ -552,6 +555,9 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								userMessage: input.message,
 								tokenBudget,
 								memoryLimit,
+								...(typeof agentToolDeps.maxIterations === "number"
+									? { maxIterations: agentToolDeps.maxIterations }
+									: {}),
 								...(onToken ? { onToken } : {}),
 								...(targetNote ? { targetNote } : {}),
 							},
@@ -717,8 +723,18 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 						resolveAgentToolDeps ? resolveAgentToolDeps(session, extra) : Promise.resolve(null),
 					runAgentTurn: async ({ userMessage, maxIterations }, agentToolDeps) => {
 						const turnStartedAt = Date.now();
+						const turnMaxIterations =
+							typeof maxIterations === "number" && typeof agentToolDeps.maxIterations === "number"
+								? Math.min(maxIterations, agentToolDeps.maxIterations)
+								: (maxIterations ?? agentToolDeps.maxIterations);
 						const turn = await runChatAgentTurn(
-							{ session, userMessage, tokenBudget, memoryLimit, ...(maxIterations ? { maxIterations } : {}) },
+							{
+								session,
+								userMessage,
+								tokenBudget,
+								memoryLimit,
+								...(typeof turnMaxIterations === "number" ? { maxIterations: turnMaxIterations } : {}),
+							},
 							{
 								...storeDeps,
 								summarize: modelDeps.summarize,
