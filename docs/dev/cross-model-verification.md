@@ -1233,3 +1233,14 @@ Studio — use GGUF for ornith-35b; the §5.AA synthesis-variance nudge is a pos
 - ✅ **PASS** · `qwen/qwen2.5-coder-14b` · 189s · result: mean=0.778 over 6 cells (bar 0.6)
 - ✅ **PASS** · `qwopus3.5-9b-coder-mtp` · 246s · result: mean=0.917 over 6 cells (bar 0.6)
   - matrix row: deepseek-r1-0528-qwen3-8b=✅ phi-4-mini-reasoning=✅ phi-4-mini-instruct@8bit=✅ phi-4-reasoning-plus=✅ mistral-small-3.2=✅ qwen3-8b=✅ qwen2.5-coder-14b=✅ qwopus3.5-9b-coder-mtp=✅
+
+### 2026-07-08 14:18:50 · verify-chat-agent-e2e
+- ◑ **PARTIAL** · `deepseek/deepseek-r1-0528-qwen3-8b` · 177s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+- ❌ **FAIL** · `microsoft/phi-4-mini-reasoning` · 2s · INCOMPLETE — see above.
+- ✅ **PASS** · `phi-4-mini-instruct@8bit` · 8s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+- ❌ **FAIL** · `microsoft/phi-4-reasoning-plus` · 2s · INCOMPLETE — see above.
+- ◑ **PARTIAL** · `mistralai/mistral-small-3.2` · 21s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+- ✅ **PASS** · `qwen/qwen3-8b` · 37s · PASS ✓ the full tool-using chat agent composed read + command + card + focus chain at runtime.
+- ◑ **PARTIAL** · `qwen/qwen2.5-coder-14b` · 64s · PARTIAL ◑ the full tool chain executed + the card persisted, but the reply didn't echo the marker (weak synthesis).
+- ❌ **FAIL** · `qwopus3.5-9b-coder-mtp` · 8s · INCOMPLETE — see above.
+  - matrix row: deepseek-r1-0528-qwen3-8b=◑ phi-4-mini-reasoning=❌ phi-4-mini-instruct@8bit=✅ phi-4-reasoning-plus=❌ mistral-small-3.2=◑ qwen3-8b=✅ qwen2.5-coder-14b=◑ qwopus3.5-9b-coder-mtp=❌

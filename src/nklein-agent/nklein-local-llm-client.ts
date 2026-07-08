@@ -1,4 +1,5 @@
 import { buildJsonSchemaResponseFormat } from "../core/lmstudio-response-format";
+import { mergeSystemMessagesFirst } from "../core/normalize-system-first";
 import { reasoningAndAnswerText } from "../core/reasoning-channel-split";
 import { withTransientRetry } from "../core/transient-error";
 import { assertLocalProviderAllowed } from "./nklein-local-only-policy";
@@ -153,7 +154,10 @@ export class LocalLlmClient {
 		const sampling = request.sampling ?? {};
 		const body: Record<string, unknown> = {
 			model: this.config.modelId,
-			messages: request.messages,
+			// Consolidate all system content into ONE leading system message (§5.AA recover-in-!Klein): some models ship a
+			// strict Jinja template that 400s when a system message isn't first (live-found: qwopus3.5-9b-coder-mtp's
+			// `raise_exception('System message must be at the beginning')`). No-op for the already-system-first common case.
+			messages: mergeSystemMessagesFirst(request.messages),
 			stream: false,
 		};
 		if (sampling.temperature !== undefined) body.temperature = sampling.temperature;
