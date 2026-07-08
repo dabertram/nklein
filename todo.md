@@ -4956,14 +4956,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       model-call seam (chat + swarm) via `runAdaptiveAttemptLoop`, feed `retryBudget` from the §5.AA `ModelBehaviorProfile`
       (a ledger projection), and record each rung's outcome back to the §5.AF ledger so the ladder learns.
   - [x] Land `ModelBehaviorProfile` persistence first (supplies real `retryBudget`) *(SHIPPED: model-behavior-profile-store.ts (6 tests))*
-  - [ ] Adopt retry-policy engine on chat path (engine-ordered ladder: reduced→constrained→variant)
-  - [ ] Re-verify 9-model roster (proven phi-4/coder flips must hold, 7 passing models must not regress)
-  - [ ] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt)
+  - [~] Adopt retry-policy engine on chat path (engine-ordered ladder: reduced→constrained→variant) *(◐ 2026-07-07,
+        356ad927 + live-validated 17777d35: the engine (decideNextRetryStrategy) now drives the TASK-level
+        continue-vs-park decision, capped by the LEARNED per-model budget (learnedRetryBudget, clamped 1..6) —
+        byte-identical on an empty ledger. The remaining piece — swapping the hand-ordered in-turn chat ladder to the
+        engine's rung ORDER — is ⏱ FLEET-GATED on the 9-model re-verify (the proven phi-4/coder flips ride the current
+        order).)*
+  - [ ] Re-verify 9-model roster (proven phi-4/coder flips must hold, 7 passing models must not regress) ⏱ FLEET-RUN
+  - [ ] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt) *(gated-on-vendored-wrapModel —
+        same §4A multi-package engine change as the recovery ladder; beforeModel alone cannot re-invoke a terminal turn)*
   - [x] Record each rung outcome on §5.AF ledger (enables learning) *(✅ 2026-07-08 — chat/autonomous attempt events
         now carry `promptStrategy` (the fired rung: reduced-set recoveries land as the winning call; variant/constrained/
         native-required stamped explicitly); variant WINS additionally persist to the ModelBehaviorProfile as
         success-after-retries outcomes with the winning family.)*
-  - [ ] Decide between 3 collision points: rung order, budget gating, reduction multi-level loop
+  - [x] Decide between 3 collision points: rung order, budget gating, reduction multi-level loop *(✅ decided
+        2026-07-07: (b) budget gating resolved — learned budget with 1..6 clamp + empty-ledger default 2 removes the
+        cold-start park; (a) rung order stays the LIVE-PROVEN chat order until the fleet re-verify approves the table
+        order; (c) multi-level reduction stays inside the one reduced_tool_set rung executor.)*
   - [~] **Adaptive strategy-effectiveness learning — make the ladder ADAPT, not just fire the static table (PURE CORE
         DONE 2026-07-01).** [src/core/strategy-effectiveness-ledger.ts](src/core/strategy-effectiveness-ledger.ts) closes
         the "so the ladder learns" gap the two DONE cores left open: `retry-policy.ts` picks the next rung from a STATIC
