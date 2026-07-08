@@ -15,6 +15,7 @@ import type {
 	LocalLlmSamplingOptions,
 	LocalLlmToolDefinition,
 } from "../../../src/nklein-agent/nklein-local-llm-client";
+import { buildPromptVariant } from "../../../src/nklein-agent/nklein-prompt-variation";
 
 function fakeClient(reply: string): {
 	client: ChatCompletionClient;
@@ -672,6 +673,57 @@ describe("createChatAgentModel + appendChatToolExchange", () => {
 		expect(rephrasedPrompt).toContain(original);
 		// The natural-path recovery means the forced-schema last resort never had to fire.
 		expect(constrainedCalled).toBe(false);
+	});
+
+	it("§5.AA prompt-variation rung: tries the LEARNED preferred family first and reports the winner", async () => {
+		const original = 'Use create_card to make a card titled "X".';
+		const variantPrompts: string[] = [];
+		const outcomes: Array<{ winningFamily: string | null }> = [];
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async (request) => {
+				const lastUser = [...request.messages].reverse().find((m) => m.role === "user")?.content ?? "";
+				if (lastUser === original) {
+					return { content: "I'm not sure.", toolCalls: [], finishReason: "stop", raw: {} };
+				}
+				variantPrompts.push(lastUser);
+				// The FIRST variant asked lands the call — with a preferred family it must be example_led's phrasing.
+				return {
+					content: "",
+					toolCalls: [{ id: "c1", name: "create_card", arguments: { title: "X" } }],
+					finishReason: "tool_calls",
+					raw: {},
+				};
+			},
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, {
+			preferredPromptVariantFamily: "example_led",
+			onPromptVariantOutcome: (outcome) => {
+				outcomes.push(outcome);
+			},
+		});
+		await model([{ role: "user", content: original }], true);
+		// Exactly one variant ask (the learned family hit first try), and it was the example-led phrasing.
+		expect(variantPrompts).toHaveLength(1);
+		expect(variantPrompts[0]).toBe(
+			buildPromptVariant("example_led", { instruction: original, toolName: "create_card" }),
+		);
+		expect(outcomes).toEqual([{ winningFamily: "example_led" }]);
+	});
+
+	it("§5.AA prompt-variation rung: reports a null winner when the whole ladder comes up empty", async () => {
+		const original = 'Use create_card to make a card titled "X".';
+		const outcomes: Array<{ winningFamily: string | null }> = [];
+		const client: ChatAgentCompletionClient = {
+			completeWithTools: async () => ({ content: "nope", toolCalls: [], finishReason: "stop", raw: {} }),
+			complete: undefined,
+		};
+		const model = createChatAgentModel(client, SIX_TOOLS, {
+			onPromptVariantOutcome: (outcome) => {
+				outcomes.push(outcome);
+			},
+		});
+		await model([{ role: "user", content: original }], true);
+		expect(outcomes).toEqual([{ winningFamily: null }]);
 	});
 
 	it("§5.AA prompt-variation rung: does NOT fire when the instruction names no tool (no wasted re-phrasing)", async () => {

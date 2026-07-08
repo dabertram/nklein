@@ -29,10 +29,12 @@ import {
 	discoverLoadedModelId,
 } from "../../chat/local-chat-model";
 import { resolveSelectedSkillsApiProfile } from "../../core/chat-session-skill-profile";
+import { preferredPromptVariantFamily } from "../../core/model-behavior-profile";
 import { LocalLlmClient } from "../../nklein-agent/nklein-local-llm-client";
 import { createSearxngWebSearchClient } from "../../server/web-search-searxng";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../../state/card-mailbox-store";
 import { loadWorkspaceState } from "../../state/workspace-state";
+import { persistModelBehaviorOutcome, readModelBehaviorProfile } from "../../telemetry/model-behavior-profile-store";
 
 export function buildChatAgentToolDepsResolver(input: {
 	getActiveWorkspacePath: () => string | null;
@@ -175,7 +177,24 @@ export function buildChatAgentToolDepsResolver(input: {
 		// §5.AE: fold the user-selected skills' merged apiProfile into the model call (David decision 2026-07-04 —
 		// chat-session skills are user-selected). Empty selection ⇒ `{}` ⇒ byte-identical current behavior.
 		const skillApiProfile = resolveSelectedSkillsApiProfile(session.selectedSkillIds);
-		const toolModel = createChatAgentModel(client, definitions, { modelId, apiProfile: skillApiProfile });
+		// §5.AA prompt-variation learning: seed the rung with the model's known-responsive family (its profile's
+		// winning mode) and persist each rung firing's winning family back to the behavior store — a variant
+		// recovery IS a success-after-retries attempt, so it also feeds the EWMA reliability signal.
+		const behaviorProfile = modelId ? await readModelBehaviorProfile(modelId).catch(() => null) : null;
+		const toolModel = createChatAgentModel(client, definitions, {
+			modelId,
+			apiProfile: skillApiProfile,
+			preferredPromptVariantFamily: behaviorProfile ? preferredPromptVariantFamily(behaviorProfile) : null,
+			onPromptVariantOutcome: ({ winningFamily }) => {
+				if (modelId && winningFamily) {
+					void persistModelBehaviorOutcome(modelId, {
+						kind: "success",
+						retries: 1,
+						promptVariantFamily: winningFamily,
+					}).catch(() => undefined);
+				}
+			},
+		});
 		// Streaming final-answer dep: the tools-disabled final reply streams via the plain SSE completion (no tools);
 		// tool-discovery turns use the non-streaming tools-aware completion so the model can still request tools.
 		const streamComplete = createChatModelDeps(client).complete;

@@ -5,6 +5,7 @@ import {
 	learnedQualityEffectiveBudget,
 	learnedRetryBudget,
 	type ModelAttemptOutcome,
+	preferredPromptVariantFamily,
 	preferredToolCallFormat,
 	recordModelBehaviorOutcome,
 } from "../../../src/core/model-behavior-profile";
@@ -111,5 +112,33 @@ describe("learnedQualityEffectiveBudget", () => {
 	it("falls back to the best-observed good context when no degradation is known", () => {
 		const profile = fold([{ kind: "success", contextTokens: 48_000, qualityOk: true }]);
 		expect(learnedQualityEffectiveBudget(profile)).toBe(48_000);
+	});
+});
+
+describe("prompt-variant family learning (§5.AA prompt-variation persistence)", () => {
+	it("counts the winning family on success and exposes the mode as the preferred family", () => {
+		let profile = emptyModelBehaviorProfile("lmstudio:m:v1");
+		profile = recordModelBehaviorOutcome(profile, { kind: "success", promptVariantFamily: "example_led" });
+		profile = recordModelBehaviorOutcome(profile, { kind: "success", promptVariantFamily: "imperative" });
+		profile = recordModelBehaviorOutcome(profile, { kind: "success", promptVariantFamily: "example_led" });
+		expect(profile.promptVariantFamilyCounts).toEqual({ example_led: 2, imperative: 1 });
+		expect(preferredPromptVariantFamily(profile)).toBe("example_led");
+	});
+
+	it("ignores the family on a FAILED attempt (only a family that WON is worth learning)", () => {
+		let profile = emptyModelBehaviorProfile("lmstudio:m:v1");
+		profile = recordModelBehaviorOutcome(profile, { kind: "no_tool_call", promptVariantFamily: "imperative" });
+		expect(profile.promptVariantFamilyCounts).toEqual({});
+		expect(preferredPromptVariantFamily(profile)).toBeNull();
+	});
+
+	it("tolerates a legacy profile persisted WITHOUT the counts field", () => {
+		const legacy = { ...emptyModelBehaviorProfile("lmstudio:m:v1") } as Record<string, unknown>;
+		delete legacy.promptVariantFamilyCounts;
+		const folded = recordModelBehaviorOutcome(legacy as never, {
+			kind: "success",
+			promptVariantFamily: "imperative",
+		});
+		expect(folded.promptVariantFamilyCounts).toEqual({ imperative: 1 });
 	});
 });

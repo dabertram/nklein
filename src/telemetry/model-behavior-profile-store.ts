@@ -37,6 +37,7 @@ const persistedBehaviorOutcomeSchema = z.object({
 		qualityOk: z.boolean().optional(),
 		toolCallFormat: z.string().optional(),
 		toolCount: z.number().finite().optional(),
+		promptVariantFamily: z.string().optional(),
 	}),
 });
 type PersistedBehaviorOutcome = z.infer<typeof persistedBehaviorOutcomeSchema>;

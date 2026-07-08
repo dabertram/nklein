@@ -52,6 +52,9 @@ export interface ModelAttemptOutcome {
 	toolCallFormat?: string;
 	/** How many tools were offered this attempt — anchors the §5.AA complexity ceiling. */
 	toolCount?: number;
+	/** The prompt-variant FAMILY whose re-phrasing produced the winning call (§5.AA prompt-variation rung) —
+	 *  counted only on success, so the profile learns which phrasing each model responds to. */
+	promptVariantFamily?: string;
 }
 
 export interface ModelBehaviorProfile {
@@ -66,6 +69,8 @@ export interface ModelBehaviorProfile {
 	failureModes: Record<ModelOutcomeKind, number>;
 	/** Counts of each tool-call format seen on SUCCESS — the mode is the model's preferred format. */
 	toolCallFormatCounts: Record<string, number>;
+	/** Counts of each prompt-variant family that WON a recovery (§5.AA) — the mode is tried first next time. */
+	promptVariantFamilyCounts: Record<string, number>;
 	/** Largest tool count the model has cleared with a success (its complexity ceiling). */
 	complexityCeiling: number | null;
 	/** Largest context (tokens) at which quality still cleared the bar. */
@@ -105,6 +110,7 @@ export function emptyModelBehaviorProfile(modelId: string, now = 0): ModelBehavi
 		avgRetries: 0,
 		failureModes: emptyFailureModes(),
 		toolCallFormatCounts: {},
+		promptVariantFamilyCounts: {},
 		complexityCeiling: null,
 		qualityEffectiveContextTokens: null,
 		qualityDegradedAtTokens: null,
@@ -145,6 +151,13 @@ export function recordModelBehaviorOutcome(
 		toolCallFormatCounts[outcome.toolCallFormat] = (toolCallFormatCounts[outcome.toolCallFormat] ?? 0) + 1;
 	}
 
+	// Tolerate legacy persisted profiles from before the field existed (fold-on-read replays them verbatim).
+	const promptVariantFamilyCounts = { ...(profile.promptVariantFamilyCounts ?? {}) };
+	if (success && outcome.promptVariantFamily) {
+		promptVariantFamilyCounts[outcome.promptVariantFamily] =
+			(promptVariantFamilyCounts[outcome.promptVariantFamily] ?? 0) + 1;
+	}
+
 	// Complexity ceiling: the largest offered tool count the model has SUCCEEDED with.
 	let complexityCeiling = profile.complexityCeiling;
 	if (success && isPositiveInt(outcome.toolCount)) {
@@ -172,6 +185,7 @@ export function recordModelBehaviorOutcome(
 		avgRetries: ewma(profile.avgRetries, retries, alpha, isFirst),
 		failureModes,
 		toolCallFormatCounts,
+		promptVariantFamilyCounts,
 		complexityCeiling,
 		qualityEffectiveContextTokens,
 		qualityDegradedAtTokens,
@@ -186,6 +200,19 @@ export function preferredToolCallFormat(profile: ModelBehaviorProfile): string |
 	for (const [format, count] of Object.entries(profile.toolCallFormatCounts)) {
 		if (count > bestCount) {
 			best = format;
+			bestCount = count;
+		}
+	}
+	return best;
+}
+
+/** The prompt-variant family that has WON the most recoveries for this model, or null when none observed yet. */
+export function preferredPromptVariantFamily(profile: ModelBehaviorProfile): string | null {
+	let best: string | null = null;
+	let bestCount = 0;
+	for (const [family, count] of Object.entries(profile.promptVariantFamilyCounts ?? {})) {
+		if (count > bestCount) {
+			best = family;
 			bestCount = count;
 		}
 	}

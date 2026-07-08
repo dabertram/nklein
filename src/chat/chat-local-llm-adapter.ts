@@ -16,7 +16,11 @@ import type {
 	LocalLlmToolCompletion,
 	LocalLlmToolDefinition,
 } from "../nklein-agent/nklein-local-llm-client";
-import { buildPromptVariant, PROMPT_VARIANT_LADDER } from "../nklein-agent/nklein-prompt-variation";
+import {
+	buildPromptVariant,
+	PROMPT_VARIANT_LADDER,
+	type PromptVariantFamily,
+} from "../nklein-agent/nklein-prompt-variation";
 import { detectResponseLoop } from "../nklein-agent/nklein-response-loop-detection";
 import type { ChatAgentModelResponse, ChatToolResult } from "./chat-agent-loop";
 import type { ChatMessage } from "./chat-transcript-store";
@@ -280,7 +284,17 @@ export interface ChatAgentCompletionClient {
 export function createChatAgentModel(
 	client: ChatAgentCompletionClient,
 	toolDefinitions: readonly LocalLlmToolDefinition[],
-	options: { sampling?: LocalLlmSamplingOptions; modelId?: string; apiProfile?: SkillApiProfile } = {},
+	options: {
+		sampling?: LocalLlmSamplingOptions;
+		modelId?: string;
+		apiProfile?: SkillApiProfile;
+		/** §5.AA learned phrasing: the model's known-responsive variant family (from its ModelBehaviorProfile) is
+		 *  tried FIRST on the prompt-variation rung; the remaining ladder follows in its usual order. */
+		preferredPromptVariantFamily?: string | null;
+		/** §5.AA persistence hook: fired ONCE per prompt-variation-rung firing with the winning family (null when the
+		 *  whole ladder came up empty) — the live wiring appends it to the model-behavior store. */
+		onPromptVariantOutcome?: (outcome: { winningFamily: PromptVariantFamily | null }) => void;
+	} = {},
 ): (
 	messages: readonly ChatPromptMessage[],
 	allowTools: boolean,
@@ -415,7 +429,14 @@ export function createChatAgentModel(
 			const anchored = selectToolsForAttempt(offered, instruction, 1);
 			if (anchored.matchedNames.length > 0) {
 				const toolName = anchored.matchedNames[0];
-				for (const family of PROMPT_VARIANT_LADDER) {
+				// §5.AA learned phrasing: try the model's known-responsive family FIRST (its profile's winning mode),
+				// then the rest of the ladder in its usual order — a learned hit saves the whole ladder walk.
+				const preferred = PROMPT_VARIANT_LADDER.find((family) => family === options.preferredPromptVariantFamily);
+				const ladder = preferred
+					? [preferred, ...PROMPT_VARIANT_LADDER.filter((family) => family !== preferred)]
+					: PROMPT_VARIANT_LADDER;
+				let winningFamily: PromptVariantFamily | null = null;
+				for (const family of ladder) {
 					const variantText = buildPromptVariant(family, { instruction, toolName });
 					const variantWire = replaceLastUserText(wire, variantText);
 					const variantResponse = await client.completeWithTools(
@@ -424,9 +445,11 @@ export function createChatAgentModel(
 					);
 					if (variantResponse.toolCalls.length > 0) {
 						response = variantResponse;
+						winningFamily = family;
 						break;
 					}
 				}
+				options.onPromptVariantOutcome?.({ winningFamily });
 			}
 		}
 		// §5.AA constrained-decoding rung — the LAST resort after tool-set reduction AND the client's narrated-recovery
