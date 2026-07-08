@@ -3747,3 +3747,14 @@ a "wait" decision defers via the existing runtime-task-start-queue instead of st
 button (trigger eval harness), L5999(b) resource-cost tracking, L6262 web_search leaves, §10. After todo.md:
 the EXTENDED GOAL (see GOAL EXTENSION above) — other md files top-down, then multi-model dev-test sweeps with
 deep output-quality review.
+
+### 2026-07-08 (Opus 4.8 segment #2) — retrieval/§5.AC cluster live-hardened
+SHIPPED: wait_for_best CONSUMPTION (hard-task defer via queued protocol) · online-retrieval LIVE PASS
+(verify-online-retrieval.mts: SearXNG → SSRF-guarded Playwright → cited synthesis on qwopus3.5) with THREE
+live-found bugs fixed: (1) rejecting search crashed the loop (now degrades to zero-hit), (2) URL evidence ids
+never echoed byte-exact by small models → short-alias citations (e1,e2 + map-back), (3) unverified claims silently
+equal-weighted → flagged at render; PLUS freshness-stamped source lines live-confirmed
+("[1] endoflife.date/nodejs (published 2026-07-02; current)"). Gotchas: PLAYWRIGHT_BROWSERS_PATH needed under the
+isolated verify-HOME; reasoning model needs ≥4096 maxTokens for synthesis JSON. Tests 8301 backend / 961 web / 61
+e2e. 256 open boxes. NEXT: L6318 retrieval-telemetry recording, freshness-into-roles cluster (L6324+),
+RetrievedEvidence loop-driver leaf statuses, then onward top-down; extended-goal phases after todo.md.
