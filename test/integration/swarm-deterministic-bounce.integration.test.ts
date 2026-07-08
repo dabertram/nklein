@@ -11,7 +11,7 @@
  *   3. the bounce re-drives the worker — the restored workspace must accept write #2,
  *   4. second capture → review APPROVES → fresh acceptance passes → merge → completed.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -32,8 +32,14 @@ describe.sequential("deterministic swarm harness — bounce → re-work → appr
 
 	beforeAll(async () => {
 		mock = await startMockLlm({ modelId: "mock-bounce-model" });
-		cwd = mkdtempSync(join(tmpdir(), "nklein-detbounce-cwd-"));
-		homeDir = mkdtempSync(join(tmpdir(), "nklein-detbounce-home-"));
+		// realpathSync CANONICALIZES the macOS TMPDIR symlink (/var/… → /private/var/…). Without it the harness
+		// hands the runtime the /var spelling while the runtime canonicalizes internally elsewhere, so the sandbox
+		// project key diverged between worker-start and the ::acceptance re-check — the acceptance session's
+		// container never carried the project mount, the placement was torn down, and exec threw "No Docker sandbox
+		// workspace is prepared" (the det-bounce 1-in-2 flake; the SAME run19 project-key/mount-mismatch CLASS the
+		// runtime fixed for its own paths but the TEST still triggered by feeding the raw spelling).
+		cwd = realpathSync(mkdtempSync(join(tmpdir(), "nklein-detbounce-cwd-")));
+		homeDir = realpathSync(mkdtempSync(join(tmpdir(), "nklein-detbounce-home-")));
 		initGitRepository(cwd);
 		server = await startTsBackend({
 			cwd,
