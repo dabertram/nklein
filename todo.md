@@ -2219,10 +2219,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       memory" a **namespaced scope**, not a shared boolean; add memory **governance** (provenance, scopes, deletion,
       contradiction-replacement, recency/frequency/importance, reversible history) + **"why recalled"** surfacing.
       Gate broadening memory scope on an internal LongMemEval-style task (§5.V).
-  - [ ] **Four memory layers** (one leaf each): define the **working** layer (active state + current step) ·
+  - [x] **Four memory layers** (one leaf each): define the **working** layer (active state + current step) ·
         project the **episodic** layer over the §5.AF event/attempt ledger · build the **semantic** layer (extract
         facts/preferences/project-constraints from episodes) · project the **procedural** layer over the §5.AE
-        `ProceduralSkillBank`.
+        skill set. *(✅ 2026-07-08 — [memory-layers.ts](src/core/memory-layers.ts): all four built COHESIVELY as pure
+        PROJECTIONS over the existing substrate (no new persisted store) into one uniform `MemoryRecord` (layer · id ·
+        text · recordedAt · **salience** 0-1 · provenance) the §5.AD turn-budget bands consume. **working** =
+        `projectWorkingMemory(snapshot)` (active goal + current step, top salience); **episodic** =
+        `projectEpisodicMemory(ledgerEvents, {limit})` (recent attempts newest-first, recency-decay salience + a small
+        failure bump); **semantic** = `projectSemanticMemory` REUSES `buildModelFitnessFromLedger` (facts never fork
+        from the §5.AB fitness projection), salience by sample count; **procedural** = `projectProceduralMemory(skillIds?)`
+        over `SKILL_REGISTRY`. `buildMemoryLayers` assembles all four + a stable salience-ranked flat `all` view. Pure +
+        total + deterministic (timestamps/snapshot injected); composes ledger+skill types by import only. 12 tests; full
+        gate green. Owed WIRING: feed `buildMemoryLayers().all` into the allocator's memory bands at the context-build
+        seam.)*
   - [x] **Turn-budget allocator** (pure core): apportion the context window across the bands (system/invariants · *(2026-07-05: `allocateTurnBudget` in turn-budget-allocator.ts — fixed bands reserved first, flexible filled by priority, dropped when min unmet, over-budget/under-floor flags; 7 tests)*
         objective/focus-chain · current message · recent transcript · overflow summary · semantic · episodic ·
         procedural · tool defs), respecting the ≥32k floor; unit-test the allocation. (Ties §5.AD smart-zone.)
