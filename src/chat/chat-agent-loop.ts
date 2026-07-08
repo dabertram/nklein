@@ -44,6 +44,9 @@ export interface ChatAgentModelResponse {
 	toolCalls: ChatToolCall[];
 	/** §5.M: total tokens this model call consumed (`usage.total_tokens`), or null when the endpoint didn't report it. */
 	totalTokens?: number | null;
+	/** §5.AF: the §5.AA recovery rung that produced this response (e.g. `prompt_variant:example_led`,
+	 *  `constrained_schema`, `native_tool_choice_required`), or null/absent when the plain path answered. */
+	promptStrategy?: string | null;
 }
 
 export interface ChatAgentStep {
@@ -95,6 +98,8 @@ export interface ChatAgentLoopResult {
 	hitIterationLimit: boolean;
 	/** §5.M: total tokens the whole turn consumed (summed across every model call in the loop). */
 	totalTokens: number;
+	/** §5.AF: the §5.AA recovery rungs that fired across the turn's model calls, in order (deduped). */
+	promptStrategies: string[];
 }
 
 export async function runChatAgentLoop(
@@ -116,9 +121,13 @@ export async function runChatAgentLoop(
 	// §5.M: sum the usage of EVERY model call this turn (discovery + force + final streamed answer) so the caller can
 	// persist a running per-session token total. Wraps deps.complete so no call site can forget to count.
 	let totalTokens = 0;
+	const promptStrategies: string[] = [];
 	const callModel: ChatAgentLoopDeps["complete"] = async (...args) => {
 		const response = await deps.complete(...args);
 		totalTokens += response.totalTokens ?? 0;
+		if (response.promptStrategy && !promptStrategies.includes(response.promptStrategy)) {
+			promptStrategies.push(response.promptStrategy);
+		}
 		return response;
 	};
 
@@ -171,9 +180,9 @@ export async function runChatAgentLoop(
 			// offer tools and stream); without one we return the text we already have (no extra model call).
 			if (onToken) {
 				const streamed = await callModel(messages, false, onToken);
-				return { finalText: streamed.text, steps, hitIterationLimit: false, totalTokens };
+				return { finalText: streamed.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
 			}
-			return { finalText: response.text, steps, hitIterationLimit: false, totalTokens };
+			return { finalText: response.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
 		}
 		const executedNew = await applyResponse(response);
 		if (executedNew === 0) {
@@ -196,11 +205,11 @@ export async function runChatAgentLoop(
 			}
 			// The model is stuck (all repeats) and the run is complete / out of runway — force a final (streamed) answer.
 			const finalResponse = await callModel(messages, false, onToken);
-			return { finalText: finalResponse.text, steps, hitIterationLimit: false, totalTokens };
+			return { finalText: finalResponse.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
 		}
 	}
 
 	// Out of tool iterations — force one final (streamed) answer turn with tools disabled so it must conclude.
 	const finalResponse = await callModel(messages, false, onToken);
-	return { finalText: finalResponse.text, steps, hitIterationLimit: true, totalTokens };
+	return { finalText: finalResponse.text, steps, hitIterationLimit: true, totalTokens, promptStrategies };
 }

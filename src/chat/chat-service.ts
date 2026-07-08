@@ -79,6 +79,8 @@ export interface ChatServiceOptions {
 		hitIterationLimit: boolean;
 		/** `chat` for an interactive send, `autonomous` for a §5.0.1 run turn (the §5.Z flow). */
 		flow: "chat" | "autonomous";
+		/** §5.AF: the deepest §5.AA recovery rung that fired this turn (last one the loop saw), or null. */
+		promptStrategy?: string | null;
 		startedAt: number;
 		endedAt: number;
 	}) => void;
@@ -506,6 +508,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							modelId: modelDeps.modelId,
 							toolNames: agentResult.steps.map((step) => step.toolCall.name),
 							hitIterationLimit: agentResult.hitIterationLimit,
+							promptStrategy: agentResult.promptStrategies.at(-1) ?? null,
 							flow: "chat",
 							startedAt: turnStartedAt,
 							endedAt: Date.now(),
@@ -591,6 +594,7 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 								modelId: modelDeps.modelId,
 								toolNames: turn.steps.map((step) => step.toolCall.name),
 								hitIterationLimit: turn.hitIterationLimit,
+								promptStrategy: turn.promptStrategies.at(-1) ?? null,
 								flow: "autonomous",
 								startedAt: turnStartedAt,
 								endedAt: Date.now(),

@@ -77,6 +77,8 @@ export interface ChatAgentTurnResult {
 	hitIterationLimit: boolean;
 	/** §5.M: total tokens this turn consumed (summed across the loop's model calls). */
 	totalTokens: number;
+	/** §5.AF: the §5.AA recovery rungs that fired across the turn's model calls, in order (deduped). */
+	promptStrategies: string[];
 }
 
 /** Neutral user-facing reply when the model produced only (empty-after-strip) narrated markup and ran no tools. */
@@ -207,6 +209,7 @@ export async function runChatAgentTurn(
 		steps: loop.steps,
 		context,
 		hitIterationLimit: loop.hitIterationLimit,
+		promptStrategies: loop.promptStrategies,
 		totalTokens: loop.totalTokens,
 	};
 }

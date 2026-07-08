@@ -24,6 +24,9 @@ export interface ChatAttemptInput {
 	hitIterationLimit: boolean;
 	/** The §5.Z flow this turn ran under (`chat` for an interactive send, `autonomous` for a §5.0.1 run). Default `chat`. */
 	flow?: string;
+	/** §5.AF: the deepest §5.AA recovery rung that fired this turn (`prompt_variant:<family>` / `constrained_schema` /
+	 *  `native_tool_choice_required`), or null when the plain path answered. */
+	promptStrategy?: string | null;
 	startedAt: number | null;
 	endedAt: number;
 }
@@ -49,6 +52,7 @@ export function buildChatAttemptEvent(input: ChatAttemptInput): AgentAttemptEven
 			endpoint: input.endpoint ?? "",
 		}),
 		endpoint: input.endpoint,
+		promptStrategy: input.promptStrategy ?? null,
 		startedAt: input.startedAt,
 		completedAt: input.endedAt,
 		outcome,

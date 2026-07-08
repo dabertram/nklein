@@ -318,6 +318,8 @@ export function createChatAgentModel(
 			wire = replaceLastUserText(wire, `${lastUserText(messages)}\n\n${apiRequest.thinkingDirective}`);
 		}
 		const offered = allowTools ? toolDefinitions : [];
+		// §5.AF: which §5.AA recovery rung produced the returned response (stamped on it for the ledger writer).
+		let appliedPromptStrategy: string | null = null;
 		let response = await client.completeWithTools({ messages: wire, sampling }, offered);
 		// §5.AA truncation rung (the CHEAPEST first recovery): a reasoning model can burn its whole token budget on
 		// reasoning_content and hit `finish:"length"` BEFORE emitting the tool call (live-confirmed: qwen3-8b spent 200
@@ -446,6 +448,7 @@ export function createChatAgentModel(
 					if (variantResponse.toolCalls.length > 0) {
 						response = variantResponse;
 						winningFamily = family;
+						appliedPromptStrategy = `prompt_variant:${family}`;
 						break;
 					}
 				}
@@ -536,7 +539,11 @@ export function createChatAgentModel(
 					});
 					if (forced.toolCalls.length > 0) {
 						const call = forced.toolCalls[0];
-						return { text: "", toolCalls: [{ id: call.id, name: call.name, arguments: call.arguments }] };
+						return {
+							text: "",
+							toolCalls: [{ id: call.id, name: call.name, arguments: call.arguments }],
+							promptStrategy: "native_tool_choice_required",
+						};
 					}
 				}
 				const constrained = await client.complete({
@@ -558,6 +565,7 @@ export function createChatAgentModel(
 						toolCalls: [
 							{ id: `constrained-${Date.now().toString(36)}`, name: parsed.name, arguments: parsed.arguments },
 						],
+						promptStrategy: "constrained_schema",
 					};
 				}
 			}
@@ -566,6 +574,7 @@ export function createChatAgentModel(
 			text: cleanModelReply(response.content),
 			toolCalls: response.toolCalls.map((call) => ({ id: call.id, name: call.name, arguments: call.arguments })),
 			totalTokens: response.totalTokens ?? null,
+			promptStrategy: appliedPromptStrategy,
 		};
 	};
 }

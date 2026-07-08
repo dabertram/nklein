@@ -334,6 +334,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						toolCalls: input.toolNames.map((name) => ({ name, fingerprint: null, outcome: null })),
 						hitIterationLimit: input.hitIterationLimit,
 						flow: input.flow,
+						promptStrategy: input.promptStrategy ?? null,
 						startedAt: input.startedAt,
 						endedAt: input.endedAt,
 					});
