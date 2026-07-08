@@ -6294,7 +6294,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       require. Pure + deterministic. 28 unit tests (fixed Wed-2026-06-24 anchor); tsc + biome green. **Still owed (WIRING):**
       call `rankByFreshnessAuthority` in the retrieval loop's post-fetch ordering (feed each hit's `publishedAt` + URL +
       the rerank `score` as `relevance`) so the synthesis/citation step consumes best-grounded-first evidence.
-- [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
+- [x] **`web_search` tool (first-class, egress-gated), decomposed:** *(✅ all 4 leaves done as of 2026-07-08 —
+      contract + SearXNG impl + egress gating (live-verified) + fetch-after-search integration test.)*
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
         *(✅ COMPLETE 2026-07-08 — the "owed IMPL" note was stale: the SSRF-guarded SearXNG client
         (web-search-searxng.ts) IS the egress-gated network impl and normalizes through this contract
@@ -6317,10 +6318,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] Add source citation with freshness-judgment (reuse §5.AC `judgeRetrievedFreshness`). *(2026-07-05: cited-source-freshness.ts — stampSourceFreshness annotates each cited source with judgeRetrievedFreshness's verdict/age/guidance + hasStaleCitedSource caveat signal; 4 tests)*
   - [ ] Record retrieval attempts, results, and citations into knowledge/tool-usage telemetry (§6.7, §5.B signal).
 - [ ] **Make the knowledge-retrieval TESTS cover ONLINE too, decomposed:**
-  - [ ] Add deterministic unit test: mocked `web_search` + `browse_url` calls; verify query, result handling, citation.
+  - [x] Add deterministic unit test: mocked `web_search` + `browse_url` calls; verify query, result handling, citation.
+        *(✅ 2026-07-08 — covered by two deterministic suites: `web-search-browse-integration.test.ts` (mocked search +
+        browse: query passes through, URL from results feeds browse_url, page content returns) and the existing
+        `retrieval-loop-driver.test.ts` cited-synthesis case (injected model → rendered cited answer with [n] markers +
+        sources list — the citation half).)*
   - [ ] Build live `verify-online-retrieval.mts` harness: real online search → fetch → synthesis on a test task.
   - [ ] Verify freshness-judgment is applied + cited sources carry dates in the output.
-  - [ ] Test fallback when search returns no results or network is unavailable.
+  - [x] Test fallback when search returns no results or network is unavailable. *(✅ 2026-07-08 — no-results was
+        already covered (zero-hit advance + dead-end-primary regression); the NETWORK-DOWN case FOUND A REAL BUG:
+        `runRetrievalLoop`'s `deps.search` call was unguarded, so a rejecting backend (SearXNG down / egress cut / 5xx)
+        crashed the whole loop and the agent turn driving it. Fixed root-cause (a rejecting search degrades to a
+        zero-hit query — the loop's existing graceful path) + 2 regression tests (full outage → budget_exhausted with
+        empty evidence; primary-only outage → sufficiency via the alternate). 21/21.)*
 - [ ] **Wire temporal + freshness into researcher/architect roles, decomposed:**
   - [ ] Add freshness-check gate into decompose/research-pass logic: if `judgeRetrievedFreshness` signals stale, trigger online retrieval.
   - [ ] Thread the authoritative "now" (from §5.AC temporal context) into freshness judgment on every search.

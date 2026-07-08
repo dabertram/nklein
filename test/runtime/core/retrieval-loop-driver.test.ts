@@ -277,4 +277,31 @@ describe("runRetrievalLoop", () => {
 		expect(fetchCalls.filter((id) => id === "x")).toHaveLength(1); // fetched once, not twice
 		expect(fetchCalls).toContain("y"); // the distinct hit is NOT starved by the duplicate
 	});
+
+	it("a THROWING search (network unavailable) degrades to a zero-hit query — never crashes the loop", async () => {
+		// Live-found class (todo online-fallback leaf): the search dep itself rejecting (SearXNG down, egress cut)
+		// must degrade exactly like an empty result set — the loop advances/stops on budget with whatever it has.
+		const { deps, fetchCalls } = makeDeps({
+			search: async () => {
+				throw new Error("connect ECONNREFUSED 127.0.0.1:18888");
+			},
+		});
+		const result = await runRetrievalLoop("what is X", deps, { minSources: 1 });
+		expect(result.stoppedBecause).toBe("budget_exhausted");
+		expect(result.evidence).toEqual([]);
+		expect(fetchCalls).toEqual([]);
+	});
+
+	it("a search that throws only for the PRIMARY query still reaches sufficiency via the alternate", async () => {
+		const { deps } = makeDeps({
+			search: async (query) => {
+				if (query.includes("detail Y")) {
+					return [hit("c"), hit("d")];
+				}
+				throw new Error("backend 502");
+			},
+		});
+		const result = await runRetrievalLoop("what is X", deps, { knowledgeDebt: ["detail Y"], minSources: 2 });
+		expect(result.stoppedBecause).toBe("sufficient");
+	});
 });

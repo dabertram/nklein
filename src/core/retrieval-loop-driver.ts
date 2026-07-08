@@ -193,7 +193,11 @@ export async function runRetrievalLoop(
 		}
 		if (action === "search") {
 			const query = queries[queryIndex] ?? queryPlan.primaryQuery;
-			const hits = await deps.search(query, options.signal);
+			// A REJECTING search (backend down, egress cut, 5xx) degrades to a zero-hit query — the loop already
+			// advances past empty queries gracefully; a network failure must never crash the turn driving the loop.
+			const hits = await deps
+				.search(query, options.signal)
+				.catch(() => [] as Awaited<ReturnType<typeof deps.search>>);
 			const ranked = rankByFreshnessAuthority(hits.map(toRankable), new Date(deps.now()), rankOptions);
 			// Record each hit's freshness verdict by id — do NOT flip the gate here. A fresh hit only satisfies the
 			// freshness gate once it is actually FETCHED into `evidence` (below); flipping from `ranked` let a fresh hit
