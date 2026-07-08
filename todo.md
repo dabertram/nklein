@@ -6637,7 +6637,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         scores + counters injected as numbers); 30 unit tests; tsc + biome green. **Still owed:** the effectful loop that
         composes the gate + this stop policy + the §5.AA prompt-variation / §5.K reviewer / `majorityVote` seams into one
         explicit, running loop at the model-call site (behind a live §5.Z re-verify).
-  - [ ] Test: verify weak model on hard task gets cross-model carry; robust model on easy task skips loop.
+  - [x] Test: verify weak model on hard task gets cross-model carry; robust model on easy task skips loop.
+        *(✅ already covered by the gate suite (enforced-reasoning-gate.test.ts): "does NOT enforce … for a RELIABLE
+        model with no fresh failure (robust model)" + "prefers cross_model_carry whenever a stronger peer is available"
+        (incl. the flaky-model case) — both routing halves deterministic. The leaf was stale.)*
 - [ ] **Learn "needs enforced reasoning?" + kind (per model), decomposed:**
   - [ ] Track native-reasoning quality in `ModelBehaviorProfile`: measure how often model reasons correctly alone.
   - [ ] Record whether enforced reasoning helps (A/B: outcome with vs. without reasoning loop).
@@ -6743,10 +6746,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
             (e.g. `code_editing`) is filled, an explicit skill intensity (a reviewer's `high`) is only ever RAISED, never
             lowered. Pure, non-mutating; +3 tests.
       - [ ] **Remaining (call-seam WIRING, decomposed):**
-            - [ ] append `thinkingDirective` to chat adapter + swarm path
+            - [~] append `thinkingDirective` to chat adapter + swarm path *(◐ CHAT DONE — chat-local-llm-adapter
+                  appends apiRequest.thinkingDirective to the last user message (~L317); SWARM path rides the
+                  session-runtime seam)*
             - [ ] set `response_format` when `preferStructuredOutput`
-            - [ ] fire constrained force-call rung PROACTIVELY on no-tool-call
-            - [ ] pass `temperature` from profile to model call
+            - [~] fire constrained force-call rung PROACTIVELY on no-tool-call *(◐ the rung ALREADY fires on every
+                  no-tool-call turn within the recovery ladder (reactive-in-turn = effectively proactive for the turn);
+                  what remains is honoring a profile's forceToolCall lever on the FIRST attempt — deliberately deferred
+                  per the adapter note pending a §5.Z regression check)*
+            - [x] pass `temperature` from profile to model call *(✅ CHAT — apiRequest.temperature overrides sampling
+                  in createChatAgentModel (~L314); the swarm path's sampling comes from the SDK config, tracked with the
+                  thinkingDirective swarm leaf)*
             - [ ] re-verify across §5.Z roster (no regression)
       The §5.AN sweep surfaced a toolbox of per-request API levers (reasoning control `/no_think`↔`/think` + effort,
       structured-output `response_format json_schema`, the constrained force-a-call rung, endpoint dialect, sampling temp,
