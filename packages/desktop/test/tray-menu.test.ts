@@ -3,6 +3,7 @@ import {
 	buildTrayMenuTemplate,
 	buildTrayTooltip,
 	summarizeTrayActivity,
+	summarizeTrayUpdateStatus,
 	type TrayState,
 } from "../src/tray-menu.js";
 
@@ -33,6 +34,30 @@ describe("buildTrayMenuTemplate", () => {
 			if (item.label === "3 cards running") expect(item.enabled).toBe(false);
 		}
 	});
+
+	it("adds clickable update rows only when the update needs user action", () => {
+		const available = buildTrayMenuTemplate({
+			...running,
+			updateStatus: { kind: "available", latestVersion: "0.2.0" },
+		});
+		expect(available[1]).toEqual({
+			type: "normal",
+			label: "Update available: 0.2.0",
+			command: "show-update",
+			enabled: true,
+		});
+
+		const downloading = buildTrayMenuTemplate({
+			...running,
+			updateStatus: { kind: "downloading", latestVersion: "0.2.0" },
+		});
+		expect(downloading[1]).toEqual({
+			type: "normal",
+			label: "Downloading update: 0.2.0",
+			command: undefined,
+			enabled: false,
+		});
+	});
 });
 
 describe("buildTrayTooltip", () => {
@@ -50,5 +75,17 @@ describe("summarizeTrayActivity", () => {
 		expect(summarizeTrayActivity(1)).toBe("1 card running");
 		expect(summarizeTrayActivity(5)).toBe("5 cards running");
 		expect(summarizeTrayActivity(3.9)).toBe("3 cards running"); // truncated
+	});
+});
+
+describe("summarizeTrayUpdateStatus", () => {
+	it("renders compact updater state labels", () => {
+		expect(summarizeTrayUpdateStatus(undefined)).toBeNull();
+		expect(summarizeTrayUpdateStatus({ kind: "idle" })).toBeNull();
+		expect(summarizeTrayUpdateStatus({ kind: "checking" })).toBe("Checking for updates...");
+		expect(summarizeTrayUpdateStatus({ kind: "ready_to_install", latestVersion: "0.2.0" })).toBe(
+			"Install update: 0.2.0",
+		);
+		expect(summarizeTrayUpdateStatus({ kind: "error", message: "network" })).toBe("Update failed: network");
 	});
 });

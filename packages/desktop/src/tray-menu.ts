@@ -6,7 +6,15 @@
  */
 
 /** The actions a tray item can trigger; the effectful layer binds each to a handler. */
-export type TrayCommand = "open" | "toggle-pause" | "quit";
+export type TrayCommand = "open" | "toggle-pause" | "show-update" | "quit";
+
+export type TrayUpdateStatus =
+	| { kind: "idle" }
+	| { kind: "checking" }
+	| { kind: "available"; latestVersion: string }
+	| { kind: "downloading"; latestVersion: string }
+	| { kind: "ready_to_install"; latestVersion: string }
+	| { kind: "error"; message: string };
 
 /** The live state the tray reflects. */
 export interface TrayState {
@@ -14,6 +22,8 @@ export interface TrayState {
 	paused: boolean;
 	/** A short human activity line, e.g. "3 cards running" / "Idle". */
 	activitySummary: string;
+	/** Optional desktop updater state. Omitted/idle keeps the tray byte-equivalent. */
+	updateStatus?: TrayUpdateStatus;
 }
 
 /** One entry in the tray context menu. A `separator` carries no label/command. */
@@ -27,14 +37,43 @@ export interface TrayMenuItem {
 
 const SEPARATOR: TrayMenuItem = { type: "separator" };
 
+export function summarizeTrayUpdateStatus(status: TrayUpdateStatus | undefined): string | null {
+	if (!status || status.kind === "idle") {
+		return null;
+	}
+	if (status.kind === "checking") {
+		return "Checking for updates...";
+	}
+	if (status.kind === "available") {
+		return `Update available: ${status.latestVersion}`;
+	}
+	if (status.kind === "downloading") {
+		return `Downloading update: ${status.latestVersion}`;
+	}
+	if (status.kind === "ready_to_install") {
+		return `Install update: ${status.latestVersion}`;
+	}
+	return `Update failed: ${status.message}`;
+}
+
 /**
  * Build the tray context-menu template from the live state (pure). Shape:
  *   • activity readout (disabled info line) ─── • Open !Klein ─── • Pause/Resume work ─── • Quit
  * The Pause/Resume item's label flips with `state.paused`.
  */
 export function buildTrayMenuTemplate(state: TrayState): TrayMenuItem[] {
-	return [
-		{ type: "normal", label: state.activitySummary, enabled: false },
+	const updateLabel = summarizeTrayUpdateStatus(state.updateStatus);
+	const updateNeedsAction = state.updateStatus?.kind === "available" || state.updateStatus?.kind === "ready_to_install";
+	const items: TrayMenuItem[] = [{ type: "normal", label: state.activitySummary, enabled: false }];
+	if (updateLabel) {
+		items.push({
+			type: "normal",
+			label: updateLabel,
+			command: updateNeedsAction ? "show-update" : undefined,
+			enabled: updateNeedsAction,
+		});
+	}
+	items.push(
 		SEPARATOR,
 		{ type: "normal", label: "Open !Klein", command: "open", enabled: true },
 		{
@@ -45,7 +84,8 @@ export function buildTrayMenuTemplate(state: TrayState): TrayMenuItem[] {
 		},
 		SEPARATOR,
 		{ type: "normal", label: "Quit !Klein", command: "quit", enabled: true },
-	];
+	);
+	return items;
 }
 
 /** Build the tray hover tooltip from the live state (pure). */

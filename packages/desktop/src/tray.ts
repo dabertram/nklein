@@ -13,6 +13,8 @@ export interface TrayHandlers {
 	open: () => void;
 	/** Toggle autonomous work paused/running. */
 	togglePause: () => void;
+	/** Show update details. Defaults to opening the app if omitted. */
+	showUpdate?: () => void;
 	/** Quit the app. */
 	quit: () => void;
 }
@@ -43,6 +45,7 @@ export function createAppTray(iconPath: string, handlers: TrayHandlers, initialS
 	const dispatch = (command: TrayCommand): void => {
 		if (command === "open") handlers.open();
 		else if (command === "toggle-pause") handlers.togglePause();
+		else if (command === "show-update") (handlers.showUpdate ?? handlers.open)();
 		else handlers.quit();
 	};
 

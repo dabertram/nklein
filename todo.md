@@ -10458,8 +10458,13 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       update migration, it copies the runtime home to an update backup root before migration, writes a
       `migration-backup.json` record with schema/version/source/backup/rollback/notes metadata, and returns typed
       `not_required`/`backup_created`/`backup_failed` statuses. 4 tests cover record construction, skip cases, recursive
-      runtime-home backup + record write, and copy failure. Remaining now: actual migration transforms + rollback command,
-      desktop tray/UI update states, real signed/notarized release assets, and packaged smoke.)*
+      runtime-home backup + record write, and copy failure. ◐ **DESKTOP TRAY UPDATE STATES CORE DONE (2026-07-08):**
+      [packages/desktop/src/tray-menu.ts] now carries typed updater states (`idle`, `checking`, `available`,
+      `downloading`, `ready_to_install`, `error`) and renders compact tray rows; only `available` and `ready_to_install`
+      are clickable (`show-update`), while passive states stay disabled readouts. [packages/desktop/src/tray.ts] wires the
+      new command with an `open` fallback so existing tray handlers stay compatible. Focused desktop tests cover clickable
+      vs passive updater rows and compact labels. Remaining now: actual migration transforms + rollback command, in-app
+      update details/action UI, real signed/notarized release assets, and packaged smoke.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
 ## 11. LATER — deferred to last (user 2026-07-08)
