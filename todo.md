@@ -8331,10 +8331,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         decompose-card conflict view / auto-apply `split_scope`+`rescope_over_broad` to re-run the fan-out as parallel-safe.
   - [ ] Ties §5.B decomposition + §5.N focus chains.
 - [ ] **Path-owned acceptance gates per card, decomposed:**
-  - [ ] Define executable checks that prove card delivery (build/test/typecheck/acceptance).
-  - [ ] Wire trusted runtime to run gates on result branch before §5.K review.
-  - [ ] Make failing gate a structured outcome (worker or escalation acts on it, not silent pass).
-  - [ ] Record gate events in the §5.AF ledger.
+  - [x] Define executable checks that prove card delivery (build/test/typecheck/acceptance). *(✅ live: the card's
+        acceptance COMMAND runs in-sandbox on the result branch, the delivery gate derives the full evidence set
+        (review sign-off · tests · protected paths · measured regression delta), and the §5.V test-driven gate adds
+        the touched-a-test check — all executable, all fail-closed.)*
+  - [x] Wire trusted runtime to run gates on result branch before §5.K review. *(✅ live: the review runner runs
+        verifyTaskAcceptanceInSandbox on the RESULT BRANCH before the reviewer session and feeds it the fail-closed
+        acceptance summary (W1.5); the delivery gate re-verifies at merge time.)*
+  - [x] Make failing gate a structured outcome (worker or escalation acts on it, not silent pass). *(✅ live: a
+        reviewer-approved-but-acceptance-failing card is RE-DRIVEN with the failing command/exit/output head; tier
+        decisions hold/open_pr/bounce structurally; the #39 baseline waiver distinguishes pre-existing breakage.)*
+  - [x] Record gate events in the §5.AF ledger. *(✅ 2026-07-08 — every delivery-gate verdict now appends a
+        `transition` event (review → delivery_<action>, reason + controllerDecision carrying the per-gate
+        pass/fail evidence string) via appendAgentLedgerEvent, best-effort — the projections see WHY a card
+        merged/held/bounced.)*
 - [ ] **Trouble-awareness — escalate before grinding, decomposed:**
   - [ ] Generalize the stuck/at-risk guards we've proven necessary (fixture-flip, read/tool loops, host-path confusion).
   - [ ] Define first-class stuck/at-risk signal the worker + runtime both watch.

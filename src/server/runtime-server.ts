@@ -1121,6 +1121,20 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 								hasProtectedPathChanges: changedFiles.some(isTrustedAutoMergeProtectedPath),
 							},
 						);
+						// §5.AF gate event: the delivery-gate verdict + its evidence, appended as a `transition` record so
+						// the ledger projections (escalation report, learning) see WHY a card merged/held/bounced —
+						// structured, never only a warn-log line. Best-effort (observational).
+						void appendAgentLedgerEvent(
+							buildTransitionEvent({
+								workflowId: taskId,
+								taskId,
+								workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+								from: "review",
+								to: `delivery_${deliveryDecision.action}`,
+								reason: deliveryDecision.reason || null,
+								controllerDecision: `gates:review=${evidence.reviewApproved ? "pass" : "fail"},tests=${evidence.testsPassed ? "pass" : "fail"},protected=${changedFiles.some(isTrustedAutoMergeProtectedPath) ? "touched" : "clear"}`,
+							}),
+						).catch(() => {});
 						if (deliveryDecision.action !== "merge") {
 							// #28: the reviewer APPROVED but the fresh acceptance failed ⇒ the worker never learns why the
 							// card is stuck. Re-drive ONCE with the acceptance failure (mirrors the W4.2a empty-patch
