@@ -6,6 +6,8 @@ import { AppMenu } from "./app-menu.js";
 import type { AutostartPlatform } from "./autostart-config.js";
 import { isAutostartEnabled, setAutostartEnabled } from "./autostart-effects.js";
 import { relayOAuthCallback } from "./oauth-relay.js";
+import { type AppTray, createAppTray } from "./tray.js";
+import { summarizeTrayActivity } from "./tray-menu.js";
 import {
 	extractProtocolUrlFromArgv,
 	parseProtocolUrl,
@@ -203,6 +205,7 @@ ipcMain.handle("set-autostart", async (_event, enabled: unknown) => {
 // would surface the same failure twice — once per IPC — and pop the error
 // dialog twice. The early-return here keeps the user-facing UX coherent.
 let activeRestart: Promise<void> | null = null;
+let appTray: AppTray | null = null;
 
 ipcMain.on("restart-runtime", () => {
 	if (activeRestart) {
@@ -270,6 +273,37 @@ function wireAppLifecycle(): void {
 		}
 
 		menu.rebuild();
+
+		// §13.1 tray/menu-bar applet: activity readout + Open / Pause / Quit. The pure menu model is tested; here we
+		// only bind the commands. `open` focuses an existing window or spawns one; `pause` is a hook for the runtime
+		// pause command (wired next); the live activity feed (update()) rides the runtime-state channel (also next).
+		try {
+			const trayIconPath = app.isPackaged
+				? path.join(process.resourcesPath, "icon.icns")
+				: path.join(import.meta.dirname, "..", "build", "icon.icns");
+			appTray = createAppTray(
+				trayIconPath,
+				{
+					open: () => {
+						const focused = registry.getFocused();
+						if (focused) {
+							if (focused.isMinimized()) focused.restore();
+							focused.focus();
+						} else {
+							windowFactory.create();
+						}
+					},
+					togglePause: () => {
+						console.log("[desktop] tray: toggle-pause requested (runtime pause wiring pending).");
+					},
+					quit: () => app.quit(),
+				},
+				{ paused: false, activitySummary: summarizeTrayActivity(0) },
+			);
+		} catch (error) {
+			console.warn("[desktop] tray init failed:", error instanceof Error ? error.message : error);
+		}
+
 		orchestrator.startAppNapPrevention();
 
 		// Register before the async connect() — otherwise a macOS Dock click
@@ -344,6 +378,8 @@ function wireAppLifecycle(): void {
 	// promises returned from its handlers. Treat this as best-effort cleanup
 	// — graceful shutdown already happened in `before-quit`.
 	app.on("will-quit", () => {
+		appTray?.destroy();
+		appTray = null;
 		void orchestrator.dispose();
 	});
 }
