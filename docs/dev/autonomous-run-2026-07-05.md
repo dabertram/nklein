@@ -3770,3 +3770,9 @@ per kind, drives self-bounce rounds (buildSelfBouncePrompt/parseSelfBounceVerdic
 (buildCrossModelBouncePrompt/parseCrossModelBounceReply via the §5.K reviewer-model resolution), or
 self-consistency (majorityVote) — opt-in flag, then live-verify on the resident 9B. After: remaining §5.AD leaves,
 §5.AN/§5.AQ regions, §10; then the extended-goal phases.
+ADDENDUM (segment #3, cont.): §5.AD enforced-reasoning is now LIVE end-to-end flag-gated — gate → loop driver →
+maybeEnforceReasoning (chat-calibrated threshold 0.3; profile auto-resolved from the behavior store) → chat-turn
+deps.enforceReasoning → chat-service wiring. Two wiring bugs root-caused (required bounceCount omission NaN'd the
+difficulty; live path passed no profile so the gate could never fire). Tests 8320 backend / 961 web / 61 e2e.
+NEXT: live-verify NKLEIN_ENFORCED_REASONING on the resident 9B (a hard test-backed chat ask on a struggling-profile
+model), then continue top-down (remaining §5.AD leaves → §5.AN/§5.AQ → §10 → extended-goal phases).
