@@ -2240,7 +2240,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] **Memory governance** (one leaf each): provenance tagging · scope enforcement · deletion · contradiction- *(2026-07-05: memory-governance.ts — scope enforcement, recency×frequency×importance weighting, reversible supersede (contradiction-replacement), soft deletion; provenance tagging already in basic-memory-provenance.ts; 8 tests)*
         replacement · recency/frequency/importance weighting · reversible history.
   - [x] **"Why recalled" surfacing** — show, per recalled memory, why it was selected. *(2026-07-05: `explainRecall` in basic-memory-provenance.ts surfaces relevance × trust(verdict) × freshness(age-decay) = effective score, with human labels; WeightedRecall now exposes the components; 3 tests)*
-  - [ ] gate broadening memory scope on passing an internal LongMemEval-style task (built under §5.V).
+  - [ ] gate broadening memory scope on passing an internal LongMemEval-style task (built under §5.V). *(⏱ EVAL+FLEET
+        2026-07-08: two-part — (1) AUTHOR an internal LongMemEval-style benchmark (multi-session recall over injected
+        history) under §5.V, and (2) a pure gate `broaden-scope-iff-benchmark-passed`. The gate is trivial once the
+        signal exists, but authoring it before the benchmark produces a `benchmarkPassed` signal is a gate with no
+        producer (dead code, like L2100). The benchmark itself must be VALIDATED against a model to confirm it
+        discriminates recall — pure authoring + fleet validation. The namespaced-scope substrate + isMemoryAccessAllowed
+        it would gate are already shipped (L2239); this is the promotion criterion on top.)*
 
 ### 5.N — Per-agent focus chains (self-directed task checklists) *(raised 2026-06-22)*
 > Every agent drafts an ordered checklist at task start + works through it — keeps small models on-task, makes
