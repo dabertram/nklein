@@ -8531,7 +8531,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
             capability via `createCapabilityBlender` (TOOL_UNSUITABLE ×0.1 / TOOL_WEAK ×0.5) — the penalty steers
             selection, no longer display-only. REMAINING (UX-only, needs-David-call): the §5.AG selector BADGE surfacing
             the penalty + the one-button confirm-provisional→catalog flow.)*
-- [ ] **Keep extending the catalog (standing), decomposed:**
+- [-] **Keep extending the catalog (standing), decomposed:** *(STANDING POLICY, not a one-shot box — folded in as
+      sweeps happen. Latest 2026-07-08: qwopus3.5-9b-coder-mtp session findings added to the qwopus3.5-coder catalog
+      note (decompose + reasoning capture + online-retrieval synthesis + enforced-reasoning full-quality bounce). The
+      three sub-items below are the RECURRING per-sweep ritual, not closable leaves.)*
   - [ ] After every model sweep / live run: fold capability findings into MODEL_CAPABILITY_CATALOG.
   - [ ] For each finding: flip verdict, append note, cite source, set `basis: "empirical"`/`"both"`.
   - [ ] Verify `verified: false` rows (gemma-4 E2B/E4B) against live sweeps and promote/demote them.
