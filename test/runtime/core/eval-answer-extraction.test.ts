@@ -3,6 +3,8 @@ import {
 	extractDecomposeEvalAnswer,
 	extractDecomposeGraph,
 	extractJsonFromModelText,
+	extractReviewCaught,
+	extractReviewEvalAnswer,
 } from "../../../src/core/eval-answer-extraction";
 import { scoreEvalAnswer } from "../../../src/core/eval-prompt-corpus";
 
@@ -84,5 +86,80 @@ describe("extractDecomposeGraph", () => {
 			const prompt = { id: "p", role: "architect", family: "decompose", difficulty: "easy", prompt: "x" } as never;
 			expect(scoreEvalAnswer(prompt, answer)).toBe(0);
 		}
+	});
+});
+
+describe("extractReviewCaught (free-text review → canonical defect ids)", () => {
+	it("credits an off-by-one finding phrased naturally", () => {
+		expect(extractReviewCaught("The loop reads one past the end of the array.", ["off-by-one"])).toEqual([
+			"off-by-one",
+		]);
+		expect(extractReviewCaught("`i <= rows.length` is an off-by-one error.", ["off-by-one"])).toEqual(["off-by-one"]);
+	});
+
+	it("credits null-deref and unhandled-rejection from a two-defect review", () => {
+		const review =
+			"1. `user.profile.email` can be null — profile may be null, so this dereferences null. " +
+			"2. The fetch() promise is never awaited, so a network error is an unhandled rejection.";
+		expect(new Set(extractReviewCaught(review, ["null-deref", "unhandled-rejection"]))).toEqual(
+			new Set(["null-deref", "unhandled-rejection"]),
+		);
+	});
+
+	it("credits the security trio (toctou race, resource leak, sql injection)", () => {
+		const review =
+			"There is a check-then-act race condition between exists and insert. The file handle is never closed (a " +
+			"resource leak). And `name` is concatenated straight into the query — a classic SQL injection.";
+		expect(new Set(extractReviewCaught(review, ["toctou-race", "resource-leak", "sql-injection"]))).toEqual(
+			new Set(["toctou-race", "resource-leak", "sql-injection"]),
+		);
+	});
+
+	it("only credits a defect the review actually surfaced (partial recall)", () => {
+		const review = "The only issue I see is the SQL injection via string concatenation.";
+		expect(extractReviewCaught(review, ["toctou-race", "resource-leak", "sql-injection"])).toEqual(["sql-injection"]);
+	});
+
+	it("returns [] for empty/blank review text", () => {
+		expect(extractReviewCaught("", ["off-by-one"])).toEqual([]);
+		expect(extractReviewCaught("   ", ["off-by-one"])).toEqual([]);
+	});
+
+	it("falls back to token matching for an unknown defect id", () => {
+		expect(extractReviewCaught("This is a double free of the buffer.", ["double-free"])).toEqual(["double-free"]);
+		expect(extractReviewCaught("Looks fine to me.", ["double-free"])).toEqual([]);
+	});
+
+	it("end-to-end: a full review scores 1.0 recall via scoreEvalAnswer", () => {
+		const answer = extractReviewEvalAnswer("The loop bound `<=` is off by one, reading one past the end.", [
+			"off-by-one",
+		]);
+		const prompt = {
+			id: "review-off-by-one",
+			role: "reviewer",
+			family: "review",
+			difficulty: "easy",
+			prompt: "x",
+			code: "…",
+			seededDefects: ["off-by-one"],
+		} as never;
+		expect(scoreEvalAnswer(prompt, answer)).toBe(1);
+	});
+
+	it("end-to-end: catching 1 of 2 seeded defects scores 0.5", () => {
+		const answer = extractReviewEvalAnswer("Only the null dereference stands out to me.", [
+			"null-deref",
+			"unhandled-rejection",
+		]);
+		const prompt = {
+			id: "r",
+			role: "reviewer",
+			family: "review",
+			difficulty: "medium",
+			prompt: "x",
+			code: "…",
+			seededDefects: ["null-deref", "unhandled-rejection"],
+		} as never;
+		expect(scoreEvalAnswer(prompt, answer)).toBe(0.5);
 	});
 });

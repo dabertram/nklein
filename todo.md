@@ -5918,9 +5918,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         dropping edges to unknown dep ids). 12 tests. **LIVE-PROVEN end-to-end against the resident qwen2.5-coder-14b:** 3
         architect/decompose cells → the model produced valid decompositions, the extractor parsed them (6 nodes, 5–6 edges),
         and `scoreEvalAnswer` graded all 3 = **SCORE 1** (valid DAGs, ~16–18s each) — real fitness data, and the extractor
-        confirmed against genuine (not synthetic) model output. Owed: the sweep-loop integration into verify-all-models.mts
-        (call extractor+scorer per cell, record to the §5.AB fitness store) + the `implement` (needs code EXECUTION in a
-        sandbox) and `review` (needs per-defect ALIAS data to map free-text findings → canonical ids) family extractors.
+        confirmed against genuine (not synthetic) model output. **REVIEW FAMILY ALSO DONE + LIVE-VALIDATED (2026-07-08):**
+        `extractReviewCaught`/`extractReviewEvalAnswer` map a free-text review onto the corpus's canonical seeded-defect ids
+        via authored per-defect matchers (the 6 corpus defects: off-by-one/null-deref/unhandled-rejection/toctou-race/
+        resource-leak/sql-injection) + a token-derived fallback for future ids; only a prompt's OWN seeded defects are
+        tested (matches the recall scorer, keeps false-positives low). +8 tests (20 total). LIVE on coder-14b reviewing the
+        3 seeded snippets: RECALL 1.0 / 0.0 / 0.67 — and INSPECTED to confirm the misses are GENUINE model misses (didn't
+        flag the subtle null-deref or the TOCTOU race, gave generic "error handling") not matcher gaps: the extractor is
+        appropriately STRICT (credits clear findings, doesn't over-credit vague gestures). Owed: the sweep-loop integration
+        into verify-all-models.mts (per-model structured mechanism via selectStructuredOutputStrategy + record to the §5.AB
+        fitness store) + the `implement` family (needs code EXECUTION in a sandbox).
   - [~] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
         **PURE STABILITY-JUDGMENT CORE DONE (2026-07-01):** [src/core/model-eval-stability.ts](src/core/model-eval-stability.ts)
         — the missing "are the N repeats SETTLED or still FLAKY?" judgment on top of the aggregator. The repeated-run LOOP

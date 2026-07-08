@@ -198,3 +198,61 @@ export function extractDecomposeEvalAnswer(raw: string): EvalAnswer | null {
 	const graph = extractDecomposeGraph(raw);
 	return graph === null ? null : { family: "decompose", graph };
 }
+
+// ── Review family: map a model's free-text review onto canonical seeded-defect ids ────────────────────────────────────
+
+/**
+ * Per-defect matchers for the canonical defect ids seeded in the review corpus. A reviewer emits FREE TEXT ("the loop
+ * reads one past the end…"), not the canonical id, so the harness maps findings onto ids (see `eval-prompt-corpus.ts`).
+ * Each pattern is authored from the defect's real-world phrasings so a genuine finding is credited regardless of wording,
+ * while an on-topic review of the SEEDED snippet keeps false positives low (we only ever test the defects a prompt
+ * actually seeded — an un-seeded defect can't be "caught"). Add an entry when the corpus adds a new defect id; an id with
+ * no explicit matcher falls back to a token-derived pattern (see {@link defectMatcher}).
+ */
+const DEFECT_MATCHERS: Readonly<Record<string, RegExp>> = {
+	"off-by-one":
+		/off[\s-]?by[\s-]?one|out[\s-]of[\s-]bounds|one past the|past the (end|array|last)|<=\s*[\w.]+\.length/i,
+	"null-deref":
+		/(null|undefined)[\s\w]{0,30}(deref|dereferenc|\.\w)|(deref|access)[\s\w]{0,20}(null|undefined)|can be (null|undefined)|possibly (null|undefined)|may be null/i,
+	"unhandled-rejection":
+		/unhandled[\s-]?(rejection|promise|error)|never awaited|not awaited|missing await|un-?awaited|floating promise|promise[\s\w]{0,20}not (awaited|handled)/i,
+	"toctou-race":
+		/toctou|time[\s-]of[\s-]check|race condition|\brace\b|check[\s-]?then[\s-]?act|concurrent[\s\w]{0,20}(create|check|request)/i,
+	"resource-leak":
+		/resource leak|(file|handle|descriptor|fd|connection)[\s\w]{0,20}(leak|never closed|not closed|unclosed)|never closed|memory leak|\bleak(ed|s|ing)?\b/i,
+	"sql-injection":
+		/sql[\s-]?injection|\binjection\b|interpolat[\s\w]{0,20}(sql|query|string)|unsanitiz|un-?parameteriz|concatenat[\s\w]{0,15}(sql|query)|string[\s\w]{0,15}(sql|query)/i,
+};
+
+/** A loose token-derived fallback matcher for a defect id with no explicit entry: require all hyphen-split tokens present. */
+function defectMatcher(defectId: string): (text: string) => boolean {
+	const explicit = DEFECT_MATCHERS[defectId];
+	if (explicit) {
+		return (text) => explicit.test(text);
+	}
+	const tokens = defectId
+		.split(/[-_\s]+/)
+		.map((t) => t.trim().toLowerCase())
+		.filter((t) => t.length > 0);
+	return (text) => {
+		const lower = text.toLowerCase();
+		return tokens.length > 0 && tokens.every((tok) => lower.includes(tok));
+	};
+}
+
+/**
+ * Map a model's free-text review onto the subset of `seededDefects` it surfaced (pure). Only the prompt's OWN seeded
+ * defects are tested (an un-seeded defect cannot be "caught"), which both matches the scorer's recall semantics and keeps
+ * false positives low. Returns the caught canonical ids, ready for `scoreDefectCatchingReview` via {@link scoreEvalAnswer}.
+ */
+export function extractReviewCaught(reviewText: string, seededDefects: readonly string[]): string[] {
+	if (typeof reviewText !== "string" || reviewText.trim().length === 0) {
+		return [];
+	}
+	return seededDefects.filter((defectId) => defectMatcher(defectId)(reviewText));
+}
+
+/** Convenience: extract a review {@link EvalAnswer} ready for `scoreEvalAnswer` against a review prompt's seededDefects. */
+export function extractReviewEvalAnswer(reviewText: string, seededDefects: readonly string[]): EvalAnswer {
+	return { family: "review", caught: extractReviewCaught(reviewText, seededDefects) };
+}
