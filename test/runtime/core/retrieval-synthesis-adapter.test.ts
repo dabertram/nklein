@@ -95,9 +95,14 @@ describe("citedSynthesisAdapter (§5.AC)", () => {
 		expect(await synth({ task: "q", evidence })).toBe("Just a prose answer, no JSON.");
 	});
 
-	it("a claim whose citations don't resolve renders ungrounded (no markers, no sources block)", async () => {
+	it("a claim whose citations don't resolve renders ungrounded — flagged unverified, no markers/sources", async () => {
+		// Contract updated 2026-07-08 (citation-verification wiring): an ungrounded claim still renders (fail-soft)
+		// but is now explicitly FLAGGED instead of silently passing as an equal-weight answer line.
 		const synth = citedSynthesisAdapter(async () => '[{"claim":"Floating","cite":["ghost"]}]');
-		expect(await synth({ task: "q", evidence })).toBe("Floating");
+		const answer = await synth({ task: "q", evidence });
+		expect(answer).toContain("Floating");
+		expect(answer).toContain("Unverified (no supporting source): Floating");
+		expect(answer).not.toContain("Sources:");
 	});
 
 	it("returns an empty answer when there is no evidence to synthesize (never calls the model)", async () => {
@@ -108,5 +113,20 @@ describe("citedSynthesisAdapter (§5.AC)", () => {
 		});
 		expect(await synth({ task: "q", evidence: [] })).toBe("");
 		expect(called).toBe(false);
+	});
+
+	it("marks claims with NO supporting evidence as unverified in the rendered answer (§5.AC citation verification)", async () => {
+		const raw = JSON.stringify([
+			{ claim: "A is true", cite: ["a"] },
+			{ claim: "B is a hallucination", cite: [] },
+		]);
+		const synthesize = citedSynthesisAdapter(async () => raw);
+		const answer = await synthesize({
+			task: "what about A and B?",
+			evidence: [{ id: "a", text: "A is documented", url: "https://e.example/a" }],
+		});
+		expect(answer).toContain("A is true [1]");
+		// The unsupported claim still renders (fail-soft) but the answer flags it — never silently equal-weighted.
+		expect(answer).toContain("Unverified (no supporting source): B is a hallucination");
 	});
 });

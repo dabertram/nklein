@@ -141,16 +141,23 @@ export function parseSynthesisClaims(raw: string, knownIds: ReadonlySet<string>)
 	return claims;
 }
 
-/** Render the cited answer plus a numbered sources list (only cited-and-resolved sources appear). */
+/** Render the cited answer plus a numbered sources list (only cited-and-resolved sources appear), flagging any
+ *  claim that has NO supporting evidence — an unverified claim still renders (fail-soft) but is never presented
+ *  with the same weight as a cited one (§5.AC citation verification at the render seam). */
 function renderCitedAnswer(
 	answer: string,
 	sources: readonly { marker: number; url?: string; evidenceId: string }[],
+	uncitedClaims: readonly string[] = [],
 ): string {
+	const caveat =
+		uncitedClaims.length > 0
+			? `\n\n${uncitedClaims.map((claim) => `Unverified (no supporting source): ${claim}`).join("\n")}`
+			: "";
 	if (sources.length === 0) {
-		return answer;
+		return `${answer}${caveat}`;
 	}
 	const list = sources.map((source) => `[${source.marker}] ${source.url ?? source.evidenceId}`).join("\n");
-	return `${answer}\n\nSources:\n${list}`;
+	return `${answer}${caveat}\n\nSources:\n${list}`;
 }
 
 /**
@@ -181,6 +188,6 @@ export function citedSynthesisAdapter(
 			...(item.url !== undefined ? { url: item.url } : {}),
 		}));
 		const cited = assembleCitedAnswer({ claims, evidence: refs });
-		return renderCitedAnswer(cited.answer, cited.sources);
+		return renderCitedAnswer(cited.answer, cited.sources, cited.uncitedClaims);
 	};
 }
