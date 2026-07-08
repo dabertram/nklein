@@ -10264,7 +10264,12 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       [packages/desktop/src/auto-resume.ts] `selectAutoResumeProjects(candidates, maxConcurrent=1)` — pure policy (flagged
       only · most-recently-active first · capped, start-with-1 default), 7 tests, desktop typecheck clean. REMAINING for (4):
       the config field (per-project auto-resume flag) + the effectful boot hook that resumes each selected project via the
-      runtime-state channel. Sub-feature (2) LAN webserver still open — all on the Electron shell per the packaging decision.)*
+      runtime-state channel. ◐ **LAN WEBSERVER (2) — finding (2026-07-08):** the UI is ALREADY served over HTTP; it's just
+      bound to 127.0.0.1 everywhere (web-ui/vite.config.ts server.host, scripts/dev-full.mjs `srv.listen(…,"127.0.0.1")`,
+      runtime `getKanbanRuntimeHost`). So "serve over a webserver for LAN" is primarily a HOST-BIND change to `0.0.0.0`
+      behind an OPT-IN flag (default localhost-only for safety — invariant #1) + surfacing the LAN URL; NOT a new server.
+      Add e.g. `NKLEIN_LAN_HOST=0.0.0.0` (or a Setting) threaded into those listen hosts; consider a bind-warning + optional
+      auth for the external-network case. All on the Electron shell per the packaging decision.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
 ## 11. LATER — deferred to last (user 2026-07-08)
