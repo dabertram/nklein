@@ -10230,10 +10230,13 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       (resolve→apply) + `isAutostartEnabled(app, request)` — reads CURRENT state from the OS itself (login-item flag on
       mac/win, `.desktop` presence on Linux), so NO separate settings store is needed. 8 tests incl. real-temp-dir Linux
       enable→disable→read round-trips. **Packaging DECIDED (user 2026-07-08: EXTEND the existing Electron shell, not
-      Tauri).** So autostart (3) is LOGIC-COMPLETE (planner + adapter + set + read + entry point, 17 tests). REMAINING for
-      (3) is only Electron/UI GLUE: an `ipcMain` set/get-autostart handler in main.ts (execPath via `app.getPath("exe")`,
-      name via `app.getName()`) + preload exposure + a web-ui Settings "start on boot" toggle. Sub-features (1) tray applet,
-      (2) LAN webserver, (4) auto-resume still open — all now on the Electron shell per the packaging decision.)*
+      Tauri).** ✅ **AUTOSTART (3) COMPLETE END-TO-END (2026-07-08):** planner + adapter (17 logic tests) + `ipcMain`
+      get/set-autostart handlers in main.ts (identity from `app.getName()`/`getPath("exe")`/`getPath("home")`, errors
+      caught) + preload `window.desktop.getAutostart/setAutostart` + a desktop-only Settings › General "Start on boot"
+      RadixSwitch toggle (reads live OS state on open, immediate set on change w/ optimistic revert; hidden in a plain
+      browser). web-ui + desktop tsc + biome clean; app loads no-console-errors. Full visual check needs the packaged
+      Electron app (browser hides it by design). Sub-features (1) tray applet, (2) LAN webserver, (4) auto-resume still
+      open — all on the Electron shell per the packaging decision.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
 ## 11. LATER — deferred to last (user 2026-07-08)
