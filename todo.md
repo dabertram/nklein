@@ -5918,8 +5918,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         every live lesson: per-model mechanism via `selectStructuredOutputStrategy` (reasoning → native tool_call, coder →
         content JSON), reads `content || reasoning_content`, PASS/PARTIAL/FAIL exit codes (mean vs bar). SMOKE-RUN on
         qwen2.5-coder-14b: 6 cells → 3× decompose 1.0, review 1.0/0.0/0.667, **mean 0.778, exit 0 (PASS)**. Effectful glue
-        over the unit-tested cores (corpus/extractors/scorers/strategy). Remaining (separate concerns, not this wiring): the
-        `implement` family (sandbox code-exec) + persisting cell results into the §5.AB fitness store.
+        over the unit-tested cores (corpus/extractors/scorers/strategy). **EVAL→FITNESS FOLD DONE (2026-07-08):**
+        [eval-fitness-fold.ts](src/core/eval-fitness-fold.ts) `foldEvalOutcomeIntoFitness`/`foldEvalOutcomes` — pure online
+        update of a §5.AB `ModelFitnessRecord` from eval cells (running-mean quality/reliability/latency; maxDifficultyCleared
+        ratchets up only on a pass; no retry signal folded — the eval runs no ladder). 9 tests. The harness now folds each
+        run into a per-role fitness record + prints it (SMOKE: coder-14b → fitness[architect] quality 1.000/reliability
+        1.000, fitness[reviewer] quality 0.556/reliability 0.667). So the full pipeline is live: corpus → model → extract →
+        score → fold → routable fitness. Remaining (separate concerns): the `implement` family (sandbox code-exec) +
+        PERSISTING the folded records to a shared on-disk fitness store (the fold + in-harness accumulation are done; only
+        the store-file read/merge/write last-mile remains).
         **PARSE-ADAPTER DONE + LIVE-VALIDATED (2026-07-08):** the sweep gets a model's RAW text; the missing bridge to the
         deterministic scorers was a raw-text→`EvalAnswer` extractor. [eval-answer-extraction.ts](src/core/eval-answer-extraction.ts)
         — `extractDecomposeGraph`/`extractDecomposeEvalAnswer` (self-contained lenient JSON extractor: direct parse → ```json

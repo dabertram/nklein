@@ -25,7 +25,12 @@ import {
 	scoreEvalAnswer,
 } from "../src/core/eval-prompt-corpus.js";
 import { extractDecomposeEvalAnswer, extractReviewEvalAnswer } from "../src/core/eval-answer-extraction.js";
+import { type EvalCellOutcome, foldEvalOutcomes } from "../src/core/eval-fitness-fold.js";
+import type { ModelFitnessRecord } from "../src/core/model-fitness.js";
 import { selectStructuredOutputStrategy } from "../src/core/structured-output-strategy.js";
+
+/** Map the corpus difficulty tier to a 0..1 number for the fitness fold. */
+const DIFFICULTY_NUM: Readonly<Record<string, number>> = { easy: 0.33, medium: 0.66, hard: 1 };
 
 const MODEL = process.env.NKLEIN_VERIFY_MODEL ?? "";
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL ?? "http://localhost:1234";
@@ -143,6 +148,7 @@ async function scoreReview(prompt: ReviewEvalPrompt): Promise<number | null> {
 async function main(): Promise<void> {
 	console.log(`eval-harness: model=${MODEL} strategy=${selectStructuredOutputStrategy(MODEL).strategy} bar=${PASS_BAR}`);
 	const scores: number[] = [];
+	const outcomesByRole = new Map<string, EvalCellOutcome[]>();
 	for (const prompt of EVAL_PROMPT_CORPUS) {
 		if (prompt.family === "implement") {
 			continue; // needs sandbox execution — out of scope for this content-only harness
@@ -155,11 +161,29 @@ async function main(): Promise<void> {
 			continue;
 		}
 		scores.push(score);
+		const outcome: EvalCellOutcome = {
+			modelId: MODEL,
+			role: prompt.role,
+			difficulty: DIFFICULTY_NUM[prompt.difficulty] ?? 0.66,
+			score,
+			latencyMs: ms,
+			passed: score >= PASS_BAR,
+		};
+		const list = outcomesByRole.get(prompt.role) ?? [];
+		list.push(outcome);
+		outcomesByRole.set(prompt.role, list);
 		console.log(`  [${prompt.family}/${prompt.difficulty}] ${prompt.id} ms=${ms} → ${score.toFixed(3)}`);
 	}
 	if (scores.length === 0) {
 		console.log("result: FAIL (no scorable cells)");
 		process.exit(1);
+	}
+	// Fold the cells into a per-role §5.AB fitness record (the eval→fitness pipeline; a sweep persists these to the store).
+	for (const [role, outcomes] of outcomesByRole) {
+		const rec = foldEvalOutcomes(null, outcomes) as ModelFitnessRecord;
+		console.log(
+			`  fitness[${role}]: quality=${rec.qualityScore.toFixed(3)} reliability=${rec.reliability.toFixed(3)} maxDiff=${rec.maxDifficultyCleared.toFixed(2)} avgMs=${Math.round(rec.avgLatencyMs)} n=${rec.samples}`,
+		);
 	}
 	const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
 	console.log(`result: mean=${mean.toFixed(3)} over ${scores.length} cells (bar ${PASS_BAR})`);
