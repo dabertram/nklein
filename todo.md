@@ -6526,7 +6526,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         swallowed — telemetry never affects the loop; 2 tests). REMAINING: the live agent-path wiring that drives the
         loop at all (the loop currently runs only in the verify harness) plugs
         `recordKnowledgeToolUsageObservation` into this hook when it lands.)*
-- [ ] **Make the knowledge-retrieval TESTS cover ONLINE too, decomposed:**
+- [x] **Make the knowledge-retrieval TESTS cover ONLINE too, decomposed:** *(all four children [x] — deterministic
+      mocked-call unit test, the live `verify-online-retrieval.mts` real-online harness, freshness-judgment + dated
+      cited sources, and the no-results/network-unavailable fallback. Crossed off 2026-07-08.)*
   - [x] Add deterministic unit test: mocked `web_search` + `browse_url` calls; verify query, result handling, citation.
         *(✅ 2026-07-08 — covered by two deterministic suites: `web-search-browse-integration.test.ts` (mocked search +
         browse: query passes through, URL from results feeds browse_url, page content returns) and the existing
@@ -6551,7 +6553,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         crashed the whole loop and the agent turn driving it. Fixed root-cause (a rejecting search degrades to a
         zero-hit query — the loop's existing graceful path) + 2 regression tests (full outage → budget_exhausted with
         empty evidence; primary-only outage → sufficiency via the alternate). 21/21.)*
-- [ ] **Wire temporal + freshness into researcher/architect roles, decomposed:**
+- [~] **Wire temporal + freshness into researcher/architect roles, decomposed:** *(cores done — the freshness-check
+      gate + the authoritative-"now" threading + the "is this current?" surfacing are [~]/[x]; the only fully-open child
+      is a live-decompose regression test (stale triggers search / fresh skips), which needs a real decompose run.
+      Reclassified [ ]→[~] 2026-07-08.)*
   - [~] Add freshness-check gate into decompose/research-pass logic: if `judgeRetrievedFreshness` signals stale, trigger online retrieval.
         *(◐ 2026-07-08 — the PURE GATE shipped: `src/core/research-freshness-gate.ts` `decideResearchFreshnessGate`
         composes classifyTopicVolatility (thresholds per topic volatility) + judgeRetrievedFreshness over the local
@@ -6573,7 +6578,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - *(cross-links)* §5.L (web/egress tiers + browser tool), §5.M G6 (`browse_url`), §5.B (knowledge-expansion loop +
       `knowledgeDebt` + the decomposition knowledge signal), §6.7 (codebase-intelligence / knowledge telemetry), §5.AA/§5.AB
       (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).
-- [ ] **First-class `RetrievedEvidence` objects + citation verification, decomposed:**
+- [~] **First-class `RetrievedEvidence` objects + citation verification, decomposed:** *(all PURE CORES shipped — the
+      RetrievedEvidence zod schema [x], the retrieval-loop state machine + sufficiency deciders, citation verification
+      (`verifyCitations`), the recency conflict tie-break (`resolveConflictByRecency`) [x], the per-claim corroboration
+      gate (`resolveCorroborationRequirement`, 32 tests) [x], and prompt-injection risk flags [x]. Owed is the effectful
+      loop DRIVER + wiring the corroboration/verification gates into the cited-synthesis path. Reclassified [ ]→[~]
+      2026-07-08.)*
   - [x] Define `RetrievedEvidence` zod schema: url/fileRef, title, sourceType, author/publisher?, dates, contentHash, trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags. **(2026-06-29, parallel batch)** `src/core/retrieved-evidence.ts` — `retrievedEvidenceSchema` + inferred `RetrievedEvidence` (web/MCP `untrusted` by default). 11 tests.
   - [~] Build adaptive retrieval loop: knowledge-debt/task → query plan → local vs online → retrieve → relevance/sufficiency/freshness judgment → cite or search again. **(2026-06-29, batch #5)** PURE substrate done: `retrieval-loop-state.ts` (`nextRetrievalAction` strict-precedence state machine) + `retrieval-sufficiency.ts` (`assessRetrievalSufficiency`: covered-subQs ∧ source-floor ∧ fresh). 26 tests. Owed: the effectful driver that runs the loop against the live tools using these pure deciders.
         *(✅ COMPLETE 2026-07-08 — the "owed driver" shipped and is LIVE-PROVEN: `runRetrievalLoop`
