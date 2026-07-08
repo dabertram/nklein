@@ -7026,8 +7026,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the graded-quality/difficulty a richer writer + the §5.AB eval harness supply (today quality is the coarse
       success-rate proxy).
 - [ ] **Replay / simulation mode (ties §5.V), decomposed:**
-  - [ ] Capture + index ledger attempt model outputs as deterministic test fixtures.
-  - [ ] Implement replay orchestrator: substitute fixtures for live model calls, run workflow.
+  - [ ] Capture + index ledger attempt model outputs as deterministic test fixtures. *(gated-on-capture-seam design
+        2026-07-08: attempt events carry tool names + FINGERPRINTS but not raw model outputs (deliberate — the ledger
+        is telemetry, not a transcript store), so fixtures cannot be projected from today's records; capturing full
+        outputs is a storage/privacy design decision (opt-in dev-mode recording seam) that should be made deliberately,
+        not slipped in.)*
+  - [ ] Implement replay orchestrator: substitute fixtures for live model calls, run workflow. *(rides the capture
+        seam above — nothing to substitute until fixtures exist. NOTE the e2e runtime-mock's pushFrame streaming layer
+        already covers the UI half of deterministic replay.)*
   - [~] Add per-tool idempotency keys + durable result hashes/refs. **ATTEMPT/DISPATCH IDEMPOTENCY-KEY DERIVATION DONE
         (2026-07-01):** [src/core/attempt-idempotency-key.ts](src/core/attempt-idempotency-key.ts) fills the gap where the
         `scheduler` ledger event's `idempotencyKey` field (`AgentSchedulerEvent`/`BuildSchedulerEventInput`) existed but
@@ -7272,7 +7278,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Implement the unified gate: wire all 3 call sites (chat, delivery, NKlein) to `decideManifestAccess`.
   - [ ] Verify that all 18 (mode × action) test cases still pass + all existing rulesets are preserved.
 - [ ] **Resource governance (operational, NOT perf-benchmarking), decomposed:**
-  - [ ] Design + implement model load/unload policy (safe headroom, resident budget guards).
+  - [~] Design + implement model load/unload policy (safe headroom, resident budget guards).
+        *(◐ 2026-07-08 — the POLICY CORE shipped: `src/core/model-load-policy.ts` `decideModelLoadAction` — residents
+        are NEVER proposed for unload (blocked over evicted), busy models untouchable, headroom-gated loads (unknown
+        sizes demand an 8GB floor), largest-non-resident-idle evicted first one step at a time. 3 tests. REMAINING: the
+        effectful sweep runner (lms load/unload + free-memory reading) — the extended-goal sweep phase's first build.)*
   - [ ] Add VRAM/RAM/disk headroom checks before sweep start.
   - [ ] Implement background-vs-interactive priority (interactive tasks preempt idle sweeps).
   - [~] Wire endpoint-saturation backpressure into the durable scheduler (already per-endpoint serialize).
