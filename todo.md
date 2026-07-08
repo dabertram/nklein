@@ -8188,6 +8188,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         pass"): the acceptance-evidence collection RACES sandbox disposal. Port infra is fine (contract helpers use
         getAvailablePort). NEXT focused pass: order the acceptance re-check BEFORE disposeWorkspace on the delivery
         path (or re-provision for the re-check), then loop the suite ≥5× green.)*
+        *(⚠ INVESTIGATED 2026-07-08 (two hypotheses, both FALSIFIED, both genuine latent fixes kept): (1) queue-drain
+        stale-hand-back could release a same-task retry's placement — hardened (real correctness fix, agent suite 2083
+        green) but a 3× loop still failed → not the mechanism. (2) harness fed the raw macOS /var TMPDIR spelling —
+        realpathSync'd the mkdtemp dirs (+ the 3 sibling swarm harnesses prophylactically); a 3× loop failed 2/2 WITH
+        the fix → the runtime already canonicalizes its own project keys (run19) so the harness spelling doesn't drive
+        it. The flake is now NEAR-RELIABLE on this host (not the historical 1-in-2). NEXT (dedicated INSTRUMENTED pass,
+        not blind guesses): add NKLEIN sandbox debug logging on placement register/release keyed on `::acceptance`, run
+        ONCE, pin the disposer between prepareWorkspace-success and first-exec — the worker ending `interrupted`
+        in-window is the prime untested suspect (its teardown may cascade). The SHIPPED runtime is safe-failing
+        (fail-closed HOLD, never an unverified merge), so this is a test-harness reliability item, not a
+        product-correctness bug.)*
 
 > **Structure-refactor ladder (ordered by fan-out ROI; each independently shippable + test-backed; folds into §5.U's
 > no-monolith goal — do them in the normal incremental loop, not as a pause-the-world front-load):**
