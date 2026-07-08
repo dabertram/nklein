@@ -6348,10 +6348,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         zero-hit query — the loop's existing graceful path) + 2 regression tests (full outage → budget_exhausted with
         empty evidence; primary-only outage → sufficiency via the alternate). 21/21.)*
 - [ ] **Wire temporal + freshness into researcher/architect roles, decomposed:**
-  - [ ] Add freshness-check gate into decompose/research-pass logic: if `judgeRetrievedFreshness` signals stale, trigger online retrieval.
-  - [ ] Thread the authoritative "now" (from §5.AC temporal context) into freshness judgment on every search.
-  - [ ] Expose "is this current?" reasoning in agent output (surface the freshness verdict to the user).
-  - [ ] Test on a decompose task: verify stale knowledge triggers search, fresh knowledge skips it.
+  - [~] Add freshness-check gate into decompose/research-pass logic: if `judgeRetrievedFreshness` signals stale, trigger online retrieval.
+        *(◐ 2026-07-08 — the PURE GATE shipped: `src/core/research-freshness-gate.ts` `decideResearchFreshnessGate`
+        composes classifyTopicVolatility (thresholds per topic volatility) + judgeRetrievedFreshness over the local
+        knowledge's date and routes retrieve_online vs use_local (no-egress ⇒ always use_local — never demands the
+        network; undated knowledge retrieves only on realtime/fast topics). 4 tests. Classifier improved en route:
+        algorithm/data-structure now cue STABLE (evergreen CS fundamentals; most-volatile-wins keeps fast cues
+        dominant). REMAINING: the decompose/research-pass call site — rides the retrieval loop's agent-path wiring.)*
+  - [x] Thread the authoritative "now" (from §5.AC temporal context) into freshness judgment on every search.
+        *(✅ 2026-07-08 verified-by-construction: every freshness core takes an INJECTED clock — judgeRetrievedFreshness(…, now),
+        rankByFreshnessAuthority(…, new Date(deps.now())), stampSourceFreshness(…, now), the new gate's input.now, and
+        runRetrievalLoop's deps.now — there is no Date.now() inside any §5.AC decision core (prime-directive pattern),
+        so whatever "now" the temporal-context seam supplies flows into every judgment uniformly.)*
+  - [~] Expose "is this current?" reasoning in agent output (surface the freshness verdict to the user). *(◐ 2026-07-08 —
+        two surfaced rails exist: the gate's `reason` sentence (verdict + volatility + ttl, ready for the research-pass
+        output) and the LIVE cited-answer render ("(published <date>; <verdict>)" per source + the stale caveat).
+        REMAINING: the decompose research-pass surface itself (same agent-path wiring gate as above).)*
+  - [ ] Test on a decompose task: verify stale knowledge triggers search, fresh knowledge skips it. *(gated on the
+        research-pass wiring above; the routing rule itself is unit-proven — stale→retrieve, fresh/evergreen→skip.)*
 - *(cross-links)* §5.L (web/egress tiers + browser tool), §5.M G6 (`browse_url`), §5.B (knowledge-expansion loop +
       `knowledgeDebt` + the decomposition knowledge signal), §6.7 (codebase-intelligence / knowledge telemetry), §5.AA/§5.AB
       (a temporally-grounded model that can retrieve fresh knowledge is more capable — feeds the fitness picture).

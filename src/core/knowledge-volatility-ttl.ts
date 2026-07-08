@@ -118,7 +118,9 @@ const DEFAULT_CUES: readonly VolatilityCue[] = [
 		signal: "historical",
 	},
 	{
-		pattern: /\b(?:definition|means|theorem|proof|formula|equation|constant)\b/i,
+		// "algorithm/data structure" added 2026-07-08: evergreen CS fundamentals (quicksort, B-trees) are settled
+		// knowledge; most-volatile-wins precedence means any fast-moving cue in the same text still outranks this.
+		pattern: /\b(?:definition|means|theorem|proof|formula|equation|constant|algorithm|data structure)\b/i,
 		cls: "stable",
 		signal: "definition/math",
 	},
