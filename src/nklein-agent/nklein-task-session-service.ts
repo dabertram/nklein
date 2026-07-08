@@ -67,6 +67,7 @@ import type { NKleinDecompositionAppliedHandler } from "./nklein-decomposition-t
 import { applyNKleinSessionEvent } from "./nklein-event-adapter";
 import { computeNKleinFailureBackoff } from "./nklein-failure-backoff";
 import { createFocusChainStore } from "./nklein-focus-chain-store";
+import { extractFocusChainTouchDeltaFromSdkEvent } from "./nklein-focus-chain-touch-delta";
 import { buildKanbanEfficiencyRules } from "./nklein-kanban-efficiency-rules";
 import {
 	type NKleinTaskLaunchConfigOverrides,
@@ -2550,6 +2551,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 			);
 		}
 		const previousSummary = cloneSummary(entry.summary);
+		const focusChainTouchDelta = extractFocusChainTouchDeltaFromSdkEvent(taskId, event, {
+			lookupToolInput: (toolCallId) => entry.toolInputByToolCallId.get(toolCallId),
+		});
 		let latestSummary: RuntimeTaskSessionSummary | null = null;
 		applyNKleinSessionEvent({
 			event,
@@ -2565,6 +2569,9 @@ export class InMemoryNKleinTaskSessionService implements NKleinTaskSessionServic
 				this.emitMessage(taskIdFromEvent, message);
 			},
 		});
+		if ((focusChainTouchDelta.files?.length ?? 0) > 0 || (focusChainTouchDelta.cardIds?.length ?? 0) > 0) {
+			this.focusChainStore.applyTouches(taskId, focusChainTouchDelta);
+		}
 		const shouldAbortForCreditLimit = didCreditLimitJustTrigger(previousSummary, entry.summary);
 		if (this.sandboxReviewFinalizer.shouldFinalizeSandboxReview(previousSummary, latestSummary)) {
 			this.sandboxReviewFinalizer.finalizeSandboxReview(taskId);

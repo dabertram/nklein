@@ -2368,9 +2368,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           never guessed onto an arbitrary one; deduped, trimmed, capped at `MAX_FOCUS_CHAIN_STEP_TOUCHES` (50);
           composes with timing (applied last, `...step` spread preserves startedAt/completedAt). 8 tests
           (in_progress-only attribution · carry+union across re-emit · finished-step-keeps-but-adds-none · no-active
-          drops delta · trim/dedupe/cap · timing composition · no-op); tsc + biome green. Owed (WIRING): the
-          session-service forwarder passes the turn's touched files/cards (from the tool-call/diff stream) as the
-          delta, same seam as the timing forwarder.)*
+          drops delta · trim/dedupe/cap · timing composition · no-op); tsc + biome green. **WIRING DONE 2026-07-08:**
+          the session-service forwarder now derives a conservative touch delta from successful SDK tool results before
+          the adapter clears stored tool inputs, then applies it to the active focus-chain step. Covered sources:
+          explicit path-bearing read/write/edit/patch/size tools, `decompose_project` card IDs, and successful
+          `begin_implementation` promotion. It normalizes sandbox workdir paths to repo-relative paths and rejects
+          host-absolute / parent-traversal paths. Focused typecheck + store/extractor/session-service tests green.)*
 - [x] **Reference & parity** *(DONE 2026-06-24)* — the board focus-chain now matches Cline/Claude-Code/Cursor
       ergonomics: a visible live checklist with ✓/▸/○/– markers + an N/total progress count (visible work-through),
       re-anchored into context after compaction, reviewer-checked, **and now user-editable** (toggle/add/delete from
