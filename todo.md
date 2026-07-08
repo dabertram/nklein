@@ -5011,6 +5011,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - **still owed (WIRING), decomposed:**
     - [ ] measure real `model_stalled` frequency for SUITABLE models first (observability-before-mechanism gate).
     - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
+    - [~] **RUNAWAY-generation detector (the complement of `model_stalled`: a stall emits NOTHING; a runaway emits
+          DEGENERATE output forever).** Live-found sweep run 9 (2026-07-08): a 9B worker sat on ONE generation 15+ min
+          under `agentTimeoutMode: unlimited` — no wall-clock backstop, froze the card + (turns serialize) the board.
+          Root insight: a runaway ≠ slow-but-legitimate work (a long correct turn keeps producing NEW structure; a
+          runaway repeats/degenerates), so it is detectable from the text alone, independent of wall-clock — bounce-able
+          into the retry ladder even while `unlimited` correctly lets a genuinely long turn finish. **PURE CORE DONE:**
+          [runaway-generation-detector.ts](src/core/runaway-generation-detector.ts) — `detectRunawayGeneration(text, opts)`
+          flags (1) a looping cyclic tail (`findPeriodicTailCycle`: smallest-period repeat, span+repeat thresholds so a
+          coincidental short repeat doesn't trip) and (2) a length ceiling (unbounded wall of non-repetitive text);
+          returns `{runaway, reason, detail}` and stays silent below a min-length + on long-non-repetitive output. 10
+          tests. **Owed (WIRING):** sample the in-flight stream + abort→retry-ladder on a runaway verdict at the vendored
+          model-call seam (shared with the other §5.AA rungs); and a ledger `transition` event on the bounce.
     - [x] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
           *(✅ 2026-07-08 — the adapter stamps each response with the rung that produced it (`constrained_schema` /
           `native_tool_choice_required` / `prompt_variant:<family>`); the loop collects per turn; chat + autonomous
