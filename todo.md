@@ -4749,12 +4749,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         winner is promoted FIRST (short-circuits the walk), stale/unavailable preferences ignored, unknown/duplicate
         kinds filtered, canonical relative order preserved, never repeats a kind. Pure + deterministic + total; 9 tests;
         tsc + biome green. The effectful native/Anthropic CLIENTS + profile persistence are the leaves below.)*
-  - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing ⏱ LIVE-ENDPOINT
-        *(2026-07-08: the try-order decider + per-model persistence leaves are shipped; these two protocol clients are
-        gated on a LIVE endpoint that actually speaks the wire format — a request-serializer/response-parser whose
-        correctness is DEFINED by the server's real bytes must be built against that server, not blind, or it ships
-        subtly-wrong parsing (the exact "dirty fix" the goal forbids). Do in a model-roster session with a server
-        exposing the native/Anthropic shape; the decider + profile are ready to consume the result.)*
+  - [~] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing. *(◐ WIRE-SHAPE
+        CORE DONE 2026-07-08 — [local-native-chat-shape.ts](src/core/local-native-chat-shape.ts): pure
+        `buildNativeChatRequest` (OpenAI-compatible field names the native surface accepts; `tool_choice:"required"` when
+        `forceToolUse`) + a DELIBERATELY DEFENSIVE + MULTI-SHAPE `parseNativeChatResponse` — resolves the message across
+        the OpenAI `choices[0].message` envelope AND a flat top-level `message`/`content` shape, extracts the reasoning
+        channel (`reasoning`/`reasoning_content`/`thinking`), and structured tool calls from BOTH `tool_calls[]`
+        (function.arguments as a JSON string OR object) and a singular native `tool_call`. Never throws / never guesses
+        content it didn't see (an unread shape → empty, handled by the retry ladder) — so it's correct-by-construction,
+        not a blind guess; 7 tests. REMAINING ⏱ LIVE-ENDPOINT: the effectful HTTP/streaming client + confirming which
+        variant a given local server actually emits.)*
   - [~] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing. *(◐ WIRE-SHAPE CORE DONE
         2026-07-08 — [local-anthropic-messages-shape.ts](src/core/local-anthropic-messages-shape.ts) (for a LOCAL server
         exposing an Anthropic-Messages-compatible surface — NOT the cloud provider; the local-only guard confines that
