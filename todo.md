@@ -5910,7 +5910,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         schema+self-score); tsc + biome green. Running these variants through a model is the sibling harness item (5761,
         LIVE-ENDPOINT).)*
 - [ ] **Evaluation harness (run a model through the matrix → fitness), decomposed:**
-  - [~] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
+  - [x] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
+        **HARNESS BUILT + SMOKE-VALIDATED (2026-07-08):** [scripts/eval-harness.mts](scripts/eval-harness.mts) runs the
+        corpus (decompose + review families) through ONE model and scores each cell — reads `NKLEIN_VERIFY_MODEL`/
+        `NKLEIN_VERIFY_BASE_URL` so `verify-all-models.mts` drives it across the roster BY CONVENTION (that orchestrator
+        spawns `scripts/${harness}.mts`), i.e. `npx tsx scripts/verify-all-models.mts eval-harness <models>`. It bakes in
+        every live lesson: per-model mechanism via `selectStructuredOutputStrategy` (reasoning → native tool_call, coder →
+        content JSON), reads `content || reasoning_content`, PASS/PARTIAL/FAIL exit codes (mean vs bar). SMOKE-RUN on
+        qwen2.5-coder-14b: 6 cells → 3× decompose 1.0, review 1.0/0.0/0.667, **mean 0.778, exit 0 (PASS)**. Effectful glue
+        over the unit-tested cores (corpus/extractors/scorers/strategy). Remaining (separate concerns, not this wiring): the
+        `implement` family (sandbox code-exec) + persisting cell results into the §5.AB fitness store.
         **PARSE-ADAPTER DONE + LIVE-VALIDATED (2026-07-08):** the sweep gets a model's RAW text; the missing bridge to the
         deterministic scorers was a raw-text→`EvalAnswer` extractor. [eval-answer-extraction.ts](src/core/eval-answer-extraction.ts)
         — `extractDecomposeGraph`/`extractDecomposeEvalAnswer` (self-contained lenient JSON extractor: direct parse → ```json
