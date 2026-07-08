@@ -62,3 +62,32 @@ describe("deriveOpenQuestionDefaults (decompose parse-and-recover, real-evidence
 		expect(result[2]).toEqual(assumed);
 	});
 });
+
+describe("assumed-default recovery (live-found 2026-07-08: qwopus3.5 decompose bounced on a missing assumption)", () => {
+	it("auto-supplies the assumption for an assumed-default question from its recommended option", () => {
+		const [resolved] = deriveOpenQuestionDefaults([
+			question({
+				status: "assumed-default",
+				options: [
+					{ id: "idb", label: "IndexedDB persistence", description: null, recommended: true },
+					{ id: "ls", label: "localStorage", description: null, recommended: false },
+				],
+			}),
+		]);
+		expect(resolved?.status).toBe("assumed-default");
+		expect(resolved?.assumption).toContain("IndexedDB persistence");
+	});
+
+	it("derives a conventional-default assumption from the question text when it has no options", () => {
+		// assumed-default = the model COMMITTED to assuming; bouncing it for the missing text just burns turns
+		// (live: the decompose call failed validation and the session ended before a successful retry).
+		const [resolved] = deriveOpenQuestionDefaults([question({ status: "assumed-default", options: [] })]);
+		expect(resolved?.status).toBe("assumed-default");
+		expect(resolved?.assumption).toContain("Will the audio core use Web Audio or native bindings?");
+	});
+
+	it("never overwrites an assumed-default question's existing assumption", () => {
+		const existing = question({ status: "assumed-default", assumption: "Assume Web Audio" });
+		expect(deriveOpenQuestionDefaults([existing])[0]).toEqual(existing);
+	});
+});

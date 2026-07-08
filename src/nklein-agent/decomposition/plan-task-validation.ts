@@ -60,22 +60,35 @@ export function validateTaskSizingContract(task: NKleinPlanTask): void {
  * `recommended` option (else the first option) instead of bouncing the model with "add an `assumption`". Weak
  * local models frequently cannot comply with that directive and just re-send the identical decompose call,
  * looping until the repeated-tool-call guard pauses the task. The question stays **open** (so the §5.S clarify
- * loop / the user can still resolve it) but now carries a default, so the plan proceeds. Questions with no
- * options to choose from are left untouched — there is nothing safe to assume, so validation still guides.
+ * loop / the user can still resolve it) but now carries a default, so the plan proceeds. An OPEN question with no
+ * options is left untouched — there is nothing safe to assume, so validation still guides. An `assumed-default`
+ * question missing its assumption is ALSO recovered (live-found 2026-07-08: qwopus3.5's decompose call bounced on
+ * exactly this and the session ended before a successful retry): the model already COMMITTED to assuming and only
+ * omitted the text, so derive it from the options — or, with none, from the question itself.
  */
 export function deriveOpenQuestionDefaults(questions: readonly NKleinPlanQuestion[]): NKleinPlanQuestion[] {
 	return questions.map((question) => {
-		if (question.status !== "open" || question.assumption?.trim() || question.answer?.trim()) {
+		if (
+			(question.status !== "open" && question.status !== "assumed-default") ||
+			question.assumption?.trim() ||
+			question.answer?.trim()
+		) {
 			return question;
 		}
 		const chosen = question.options.find((option) => option.recommended) ?? question.options[0];
-		if (!chosen) {
-			return question;
+		if (chosen) {
+			return {
+				...question,
+				assumption: `Proceeding with "${chosen.label}" as the default${chosen.recommended ? " (recommended option)" : ""}; revisit during clarification.`,
+			};
 		}
-		return {
-			...question,
-			assumption: `Proceeding with "${chosen.label}" as the default${chosen.recommended ? " (recommended option)" : ""}; revisit during clarification.`,
-		};
+		if (question.status === "assumed-default") {
+			return {
+				...question,
+				assumption: `Assuming the conventional default for: "${question.question}"; revisit during clarification.`,
+			};
+		}
+		return question;
 	});
 }
 
