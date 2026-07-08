@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	applyFocusChainStepTiming,
+	applyFocusChainStepTouches,
 	formatFocusChainForPrompt,
 	MAX_FOCUS_CHAIN_STEP_TEXT,
+	MAX_FOCUS_CHAIN_STEP_TOUCHES,
 	MAX_FOCUS_CHAIN_STEPS,
 	normalizeFocusChain,
 	summarizeFocusChain,
@@ -148,5 +150,94 @@ describe("applyFocusChainStepTiming", () => {
 		const chain = applyFocusChainStepTiming(null, { steps: [{ text: "A", status: "pending" }], updatedAt: 1 }, 100);
 		expect(chain.steps[0]?.startedAt).toBeUndefined();
 		expect(chain.steps[0]?.completedAt).toBeUndefined();
+	});
+});
+
+describe("applyFocusChainStepTouches", () => {
+	it("attributes new touches to the in_progress step only", () => {
+		const chain = applyFocusChainStepTouches(
+			null,
+			{
+				steps: [
+					{ text: "A", status: "done" },
+					{ text: "B", status: "in_progress" },
+					{ text: "C", status: "pending" },
+				],
+				updatedAt: 10,
+			},
+			{ files: ["src/b.ts"], cardIds: ["card-2"] },
+		);
+		expect(chain.steps[0]?.touchedFiles).toBeUndefined();
+		expect(chain.steps[1]?.touchedFiles).toEqual(["src/b.ts"]);
+		expect(chain.steps[1]?.touchedCardIds).toEqual(["card-2"]);
+		expect(chain.steps[2]?.touchedFiles).toBeUndefined();
+	});
+
+	it("carries accumulations across re-emissions (matched by text) and unions new touches", () => {
+		const first = applyFocusChainStepTouches(
+			null,
+			{ steps: [{ text: "A", status: "in_progress" }], updatedAt: 1 },
+			{ files: ["src/a.ts"] },
+		);
+		// Reordered/edited re-emit keeps A's prior file, and a new touch while still active is unioned.
+		const second = applyFocusChainStepTouches(
+			first,
+			{ steps: [{ text: "A", status: "in_progress" }], updatedAt: 2 },
+			{ files: ["src/a2.ts", "src/a.ts"] },
+		);
+		expect(second.steps[0]?.touchedFiles).toEqual(["src/a.ts", "src/a2.ts"]);
+	});
+
+	it("keeps a finished step's accumulated touches but adds none once it is no longer in_progress", () => {
+		const active = applyFocusChainStepTouches(
+			null,
+			{ steps: [{ text: "A", status: "in_progress" }], updatedAt: 1 },
+			{ files: ["src/a.ts"] },
+		);
+		const done = applyFocusChainStepTouches(
+			active,
+			{ steps: [{ text: "A", status: "done" }], updatedAt: 2 },
+			{ files: ["src/late.ts"] },
+		);
+		// The step is no longer in_progress, so late.ts is NOT attributed, but the earlier accumulation survives.
+		expect(done.steps[0]?.touchedFiles).toEqual(["src/a.ts"]);
+	});
+
+	it("drops the delta when no step is in_progress (never guessed onto an arbitrary step)", () => {
+		const chain = applyFocusChainStepTouches(
+			null,
+			{ steps: [{ text: "A", status: "pending" }], updatedAt: 1 },
+			{ files: ["src/x.ts"] },
+		);
+		expect(chain.steps[0]?.touchedFiles).toBeUndefined();
+	});
+
+	it("trims, drops empties, dedupes, and caps touch lists", () => {
+		const many = Array.from({ length: MAX_FOCUS_CHAIN_STEP_TOUCHES + 10 }, (_, i) => `src/f${i}.ts`);
+		const chain = applyFocusChainStepTouches(
+			null,
+			{ steps: [{ text: "A", status: "in_progress" }], updatedAt: 1 },
+			{ files: ["  src/dup.ts  ", "src/dup.ts", "", "   ", ...many] },
+		);
+		const files = chain.steps[0]?.touchedFiles ?? [];
+		expect(files[0]).toBe("src/dup.ts"); // trimmed
+		expect(files).toHaveLength(MAX_FOCUS_CHAIN_STEP_TOUCHES); // capped, dedup'd, empties dropped
+	});
+
+	it("composes with timing (applied last, preserves startedAt/completedAt)", () => {
+		const timed = applyFocusChainStepTiming(
+			null,
+			{ steps: [{ text: "A", status: "in_progress" }], updatedAt: 1 },
+			100,
+		);
+		const touched = applyFocusChainStepTouches(null, timed, { files: ["src/a.ts"] });
+		expect(touched.steps[0]?.startedAt).toBe(100);
+		expect(touched.steps[0]?.touchedFiles).toEqual(["src/a.ts"]);
+	});
+
+	it("is a no-op with no delta and no prior touches", () => {
+		const chain = applyFocusChainStepTouches(null, { steps: [{ text: "A", status: "in_progress" }], updatedAt: 1 });
+		expect(chain.steps[0]?.touchedFiles).toBeUndefined();
+		expect(chain.steps[0]?.touchedCardIds).toBeUndefined();
 	});
 });

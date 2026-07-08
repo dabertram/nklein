@@ -103,6 +103,10 @@ export const runtimeFocusChainStepSchema = z.object({
 	// so the UI/telemetry can show how long each step took. Optional/absent for pre-timing chains.
 	startedAt: z.number().optional(),
 	completedAt: z.number().optional(),
+	// Files/cards a step touched while active (todo §5.N) — stamped by !Klein, accumulated + deduped. Optional/absent
+	// for chains from before touch-linking (and for steps that touched nothing).
+	touchedFiles: z.array(z.string()).optional(),
+	touchedCardIds: z.array(z.string()).optional(),
 });
 export type RuntimeFocusChainStep = z.infer<typeof runtimeFocusChainStepSchema>;
 

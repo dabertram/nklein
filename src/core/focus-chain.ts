@@ -18,6 +18,11 @@ export interface FocusChainStep {
 	startedAt?: number;
 	/** When the step first finished (done/skipped). Cleared if the step is later re-opened. */
 	completedAt?: number;
+	/** Repo-relative file paths touched WHILE this step was active (todo §5.N). Stamped by !Klein — the agent never
+	 *  emits these — so the UI/telemetry can link a step to what it actually changed. Accumulated + deduped. */
+	touchedFiles?: string[];
+	/** Card ids this step touched (spawned/linked/depended on) while active — same accumulation as `touchedFiles`. */
+	touchedCardIds?: string[];
 }
 
 export interface FocusChain {
@@ -102,6 +107,64 @@ export function applyFocusChainStepTiming(
 			status: step.status,
 			...(startedAt !== undefined ? { startedAt } : {}),
 			...(completedAt !== undefined ? { completedAt } : {}),
+		};
+	});
+	return { steps, updatedAt: next.updatedAt };
+}
+
+/** Cap on how many distinct files/cards a single step links (small-model safety — bounds persisted growth). */
+export const MAX_FOCUS_CHAIN_STEP_TOUCHES = 50;
+
+/** New file/card touches observed since the last re-emit, to attribute to the currently-active step(s). */
+export interface FocusChainStepTouchDelta {
+	files?: readonly string[];
+	cardIds?: readonly string[];
+}
+
+/** Trim, drop empties, dedupe (first-seen order), and cap a touch list. */
+function normalizeTouchList(
+	existing: readonly string[] | undefined,
+	incoming: readonly string[] | undefined,
+): string[] {
+	const seen = new Set<string>();
+	const result: string[] = [];
+	for (const value of [...(existing ?? []), ...(incoming ?? [])]) {
+		const trimmed = typeof value === "string" ? value.trim() : "";
+		if (!trimmed || seen.has(trimmed) || result.length >= MAX_FOCUS_CHAIN_STEP_TOUCHES) {
+			continue;
+		}
+		seen.add(trimmed);
+		result.push(trimmed);
+	}
+	return result;
+}
+
+/**
+ * Attribute file/card touches to the focus-chain step that was active when they happened (todo §5.N: "link a step to
+ * the files/cards it touched"). Like {@link applyFocusChainStepTiming}, this carries prior accumulations across the
+ * agent's wholesale re-emissions — matched by step text so a reorder/edit keeps them — and folds the NEW `delta`
+ * touches into every step that is `in_progress` in `next` (the steps the agent has declared it is actively working).
+ * When no step is in_progress the delta is dropped: a touch only links to a step the agent said was active, never
+ * guessed onto an arbitrary one. Deduped + capped; pure (no I/O, no clock).
+ */
+export function applyFocusChainStepTouches(
+	previous: FocusChain | null | undefined,
+	next: FocusChain,
+	delta: FocusChainStepTouchDelta = {},
+): FocusChain {
+	const priorByText = new Map<string, { touchedFiles?: string[]; touchedCardIds?: string[] }>();
+	for (const step of previous?.steps ?? []) {
+		priorByText.set(step.text, { touchedFiles: step.touchedFiles, touchedCardIds: step.touchedCardIds });
+	}
+	const steps = next.steps.map((step): FocusChainStep => {
+		const prior = priorByText.get(step.text);
+		const isActive = step.status === "in_progress";
+		const touchedFiles = normalizeTouchList(prior?.touchedFiles, isActive ? delta.files : undefined);
+		const touchedCardIds = normalizeTouchList(prior?.touchedCardIds, isActive ? delta.cardIds : undefined);
+		return {
+			...step,
+			...(touchedFiles.length > 0 ? { touchedFiles } : {}),
+			...(touchedCardIds.length > 0 ? { touchedCardIds } : {}),
 		};
 	});
 	return { steps, updatedAt: next.updatedAt };

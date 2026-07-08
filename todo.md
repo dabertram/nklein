@@ -2264,7 +2264,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] **reorder steps (2026-06-24)** — per-step ▲/▼ move buttons (hover-revealed, disabled at the ends) reorder
           the chain in place and persist via the same save flow. (Used accessible up/down controls rather than a
           drag library — simpler, keyboard/focus-friendly, no new dep.)
-  - [~] per-step timing/telemetry; carry the chain into the run summary; link a step to the files/cards it touched
+  - [x] per-step timing/telemetry; carry the chain into the run summary; link a step to the files/cards it touched
     - [x] **carry the chain into the run summary (2026-06-24)** — the session service tracks each task's latest
           focus chain (`focusChainByTaskId`) and stamps a `FocusChainSummary` (total/done/in-progress/pending/
           skipped/complete) onto the terminal `TaskRunSummaryRecord`; absent when no chain was drafted. Unit-tested
@@ -2276,7 +2276,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           Wired into both session-service focus-chain forwarders (using the stored previous chain). The card's
           FocusChainPanel shows a compact per-step duration ("12s"/"3m"/"1h 4m") on completed steps. Core unit-tested
           (stamp/carry-forward/reorder/re-open/pending); web + fast (1366) green.
-    - [ ] link a step to the files/cards it touched
+    - [x] **link a step to the files/cards it touched (2026-07-08)** — optional `touchedFiles`/`touchedCardIds` on
+          `FocusChainStep` (core + `runtimeFocusChainStepSchema` contract; additive-optional so the CRDT round-trips
+          them via the generic field-copy, exactly like the timing fields) + the pure `applyFocusChainStepTouches(
+          previous, next, delta)` mirroring `applyFocusChainStepTiming`: it carries prior accumulations across the
+          agent's wholesale re-emissions (matched by step text, so a reorder/edit keeps them) and folds the NEW touch
+          delta into the step(s) `in_progress` in `next` — a touch links ONLY to a step the agent declared active,
+          never guessed onto an arbitrary one; deduped, trimmed, capped at `MAX_FOCUS_CHAIN_STEP_TOUCHES` (50);
+          composes with timing (applied last, `...step` spread preserves startedAt/completedAt). 8 tests
+          (in_progress-only attribution · carry+union across re-emit · finished-step-keeps-but-adds-none · no-active
+          drops delta · trim/dedupe/cap · timing composition · no-op); tsc + biome green. Owed (WIRING): the
+          session-service forwarder passes the turn's touched files/cards (from the tool-call/diff stream) as the
+          delta, same seam as the timing forwarder.)*
 - [x] **Reference & parity** *(DONE 2026-06-24)* — the board focus-chain now matches Cline/Claude-Code/Cursor
       ergonomics: a visible live checklist with ✓/▸/○/– markers + an N/total progress count (visible work-through),
       re-anchored into context after compaction, reviewer-checked, **and now user-editable** (toggle/add/delete from
