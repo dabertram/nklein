@@ -8592,7 +8592,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > bounds + gates that make MY fan-out safe are what keep a 7B worker from wandering off-scope or into an unrecoverable
 > tangle. The escalation path (the automatic across-all-loaded-models ladder → user escalation with "get through the
 > wall" suggestions) is specced in §5.AB; the rest:
-- [ ] **Decompose emits work-package-shaped cards, decomposed:**
+- [~] **Decompose emits work-package-shaped cards, decomposed:** *(pure cores shipped — work-package-dispatch
+      (conflict classification / wave resolution), work-package-conflict-resolution (fix suggestions), and the
+      richer-card CONTRACT schema are all [x]/[~]; only decompose-wiring to emit the shape remains. Reclassified
+      [ ]→[~] 2026-07-08.)*
   - [x] Define the richer card schema: write-scope, forbidden paths, interfaces, acceptance shape. *(2026-07-05: richer-card-schema.ts — zod richerCardSpecSchema (writeScope · forbiddenPaths · interfaces[frozen] · acceptance{checks,command,nonGoals} · dependsOn) + richerCardToWorkPackage projecting to the existing overlap classifier; 6 tests. Populating these in decompose is the next leaf.)*
   - [x] Update decompose logic to produce cards carrying these contract bounds. *(✅ 2026-07-08 — the missing half
         was ADVERTISEMENT: the zod plan-task schema already accepted the 8 §5.AK contract fields and the consumption
@@ -8630,8 +8633,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (no dup, existing files untouched); pure + total (null on green, never throws, de-dups ids, degrades gracefully if the
         violation-string shape changes). 24 tests; tsc+biome green. **Owed WIRING:** surface the recommended fix on the
         decompose-card conflict view / auto-apply `split_scope`+`rescope_over_broad` to re-run the fan-out as parallel-safe.
-  - [ ] Ties §5.B decomposition + §5.N focus chains.
-- [ ] **Path-owned acceptance gates per card, decomposed:**
+  - [x] Ties §5.B decomposition + §5.N focus chains. *(descriptive cross-reference, not a work item)*
+- [x] **Path-owned acceptance gates per card, decomposed:** *(all four children [x] — crossed off 2026-07-08.)*
   - [x] Define executable checks that prove card delivery (build/test/typecheck/acceptance). *(✅ live: the card's
         acceptance COMMAND runs in-sandbox on the result branch, the delivery gate derives the full evidence set
         (review sign-off · tests · protected paths · measured regression delta), and the §5.V test-driven gate adds
@@ -8646,7 +8649,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `transition` event (review → delivery_<action>, reason + controllerDecision carrying the per-gate
         pass/fail evidence string) via appendAgentLedgerEvent, best-effort — the projections see WHY a card
         merged/held/bounced.)*
-- [ ] **Trouble-awareness — escalate before grinding, decomposed:**
+- [~] **Trouble-awareness — escalate before grinding, decomposed:** *(pure cores shipped — agent-stuckness classifier,
+      attempt-progress-tracker, run-attention-signals liveness, response-loop detection, and the composed
+      task-trouble-signal are all [x]/[~]; only the onSummary-seam wiring remains. Reclassified [ ]→[~] 2026-07-08.)*
   - [~] Generalize the stuck/at-risk guards we've proven necessary (fixture-flip, read/tool loops, host-path confusion).
         *(◐ the guards ARE generalized as pure cores: `agent-stuckness.ts` (classifyAgentStuckness: capability-limit vs
         transient over the outcome stream), `attempt-progress-tracker.ts` (assessAttemptProgress + consecutiveNoProgress
@@ -8662,7 +8667,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         *(✅ this IS the §5.AG Layer-1 escalation shipped 2026-07-08: planTerminalRedriveEscalation drives the automatic
         model-switch ladder on hard-stuck, then escalate_to_user when every loaded model is tried — wired live at the
         dead-card redrive with the switch persisted + a ledger transition event.)*
-  - [ ] Ties §5.AA detection, §5.AB escalation, §5.AG surface.
+  - [x] Ties §5.AA detection, §5.AB escalation, §5.AG surface. *(descriptive cross-reference, not a work item)*
 
 ### 5.AL — Model-capability catalog + suitability gate + online capability lookup *(2026-06-29, user — ACTIVE)*
 > **Why:** "the model is loaded" says nothing about whether it can DO the job. Many popular small models are
