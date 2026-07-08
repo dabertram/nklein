@@ -160,6 +160,16 @@ function toRuntimePlanArtifactSummary(summary: NKleinPlanArtifactSummary): NKlei
 	return summary;
 }
 
+async function resolveLlmfitCatalogUpdateMode(
+	workspaceScope: RuntimeTrpcContext["workspaceScope"] | null,
+	deps: CreateRuntimeApiDependencies,
+): Promise<RuntimeConfigState["llmfitCatalogUpdateMode"]> {
+	if (workspaceScope) {
+		return (await deps.loadScopedRuntimeConfig(workspaceScope)).llmfitCatalogUpdateMode;
+	}
+	return (deps.getActiveRuntimeConfig?.() ?? (await loadGlobalRuntimeConfig())).llmfitCatalogUpdateMode;
+}
+
 /**
  * Build the chat service's `resolveAgentToolDeps` (todo §5.M G3a): for a session, when there IS an active workspace,
  * return the READ-ONLY tool-using agent deps — `read_file`/`list_dir` (`createWorkspaceReadTools`) + `get_board`
@@ -641,13 +651,18 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				fetchLoadedModelDescriptors: defaultModelFleetSuggestionDescriptorFetcher,
 			});
 		},
-		checkLlmfitCatalogUpdate: async (_workspaceScope) => {
+		checkLlmfitCatalogUpdate: async (workspaceScope) => {
+			const mode = await resolveLlmfitCatalogUpdateMode(workspaceScope, deps);
 			return await handleCheckLlmfitCatalogUpdate({
+				mode,
 				checkCatalogUpdate: defaultLlmfitCatalogUpdateChecker,
+				pullCatalogUpdate: defaultLlmfitCatalogUpdatePuller,
 			});
 		},
-		pullLlmfitCatalogUpdate: async (_workspaceScope) => {
+		pullLlmfitCatalogUpdate: async (workspaceScope) => {
+			const mode = await resolveLlmfitCatalogUpdateMode(workspaceScope, deps);
 			return await handlePullLlmfitCatalogUpdate({
+				mode,
 				pullCatalogUpdate: defaultLlmfitCatalogUpdatePuller,
 			});
 		},

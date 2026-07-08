@@ -84,6 +84,7 @@ import type {
 	RuntimeAgentId,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeConfigResponse,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelGateAction,
 	RuntimeModelRoles,
@@ -275,6 +276,7 @@ export function RuntimeSettingsDialog({
 	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a SearXNG backend URL.
 	const [retrievalEgressEnabled, setRetrievalEgressEnabled] = useState(false);
 	const [retrievalSearchBackendUrl, setRetrievalSearchBackendUrl] = useState("");
+	const [llmfitCatalogUpdateMode, setLlmfitCatalogUpdateMode] = useState<RuntimeLlmfitCatalogUpdateMode>("notify");
 	// §5.AR curated sandbox-MCP servers (ON by default) + §5.M capability broker (prompt-injection taint gate).
 	const [sandboxMcpServersEnabled, setSandboxMcpServersEnabled] = useState(true);
 	const [capabilityBrokerEnabled, setCapabilityBrokerEnabled] = useState(false);
@@ -516,6 +518,7 @@ export function RuntimeSettingsDialog({
 	const initialKnowsTodayEnabled = config?.knowsTodayEnabled ?? false;
 	const initialRetrievalEgressEnabled = config?.retrievalEgressEnabled ?? false;
 	const initialRetrievalSearchBackendUrl = config?.retrievalSearchBackendUrl ?? "";
+	const initialLlmfitCatalogUpdateMode: RuntimeLlmfitCatalogUpdateMode = config?.llmfitCatalogUpdateMode ?? "notify";
 	const initialSandboxMcpServersEnabled = config?.sandboxMcpServersEnabled ?? true;
 	const initialCapabilityBrokerEnabled = config?.capabilityBrokerEnabled ?? false;
 	const initialReadyForReviewNotificationsEnabled = config?.readyForReviewNotificationsEnabled ?? true;
@@ -814,6 +817,9 @@ export function RuntimeSettingsDialog({
 		if (retrievalSearchBackendUrl.trim() !== initialRetrievalSearchBackendUrl.trim()) {
 			return true;
 		}
+		if (llmfitCatalogUpdateMode !== initialLlmfitCatalogUpdateMode) {
+			return true;
+		}
 		if (sandboxMcpServersEnabled !== initialSandboxMcpServersEnabled) {
 			return true;
 		}
@@ -959,6 +965,9 @@ export function RuntimeSettingsDialog({
 		initialReadyForReviewNotificationsEnabled,
 		initialReplayCardsEnabled,
 		initialKnowsTodayEnabled,
+		initialRetrievalEgressEnabled,
+		initialRetrievalSearchBackendUrl,
+		initialLlmfitCatalogUpdateMode,
 		initialSelectedAgentId,
 		initialShortcuts,
 		initialMaxConcurrentTasksOverride,
@@ -992,6 +1001,9 @@ export function RuntimeSettingsDialog({
 		readyForReviewNotificationsEnabled,
 		replayCardsEnabled,
 		knowsTodayEnabled,
+		retrievalEgressEnabled,
+		retrievalSearchBackendUrl,
+		llmfitCatalogUpdateMode,
 		selectedAgentId,
 		shortcuts,
 		streamTimeoutMs,
@@ -1037,6 +1049,7 @@ export function RuntimeSettingsDialog({
 		setKnowsTodayEnabled(config?.knowsTodayEnabled ?? false);
 		setRetrievalEgressEnabled(config?.retrievalEgressEnabled ?? false);
 		setRetrievalSearchBackendUrl(config?.retrievalSearchBackendUrl ?? "");
+		setLlmfitCatalogUpdateMode(config?.llmfitCatalogUpdateMode ?? "notify");
 		setSandboxMcpServersEnabled(config?.sandboxMcpServersEnabled ?? true);
 		setCapabilityBrokerEnabled(config?.capabilityBrokerEnabled ?? false);
 		setReadyForReviewNotificationsEnabled(config?.readyForReviewNotificationsEnabled ?? true);
@@ -1117,6 +1130,7 @@ export function RuntimeSettingsDialog({
 		config?.knowsTodayEnabled,
 		config?.retrievalEgressEnabled,
 		config?.retrievalSearchBackendUrl,
+		config?.llmfitCatalogUpdateMode,
 		config?.sandboxMcpServersEnabled,
 		config?.capabilityBrokerEnabled,
 		config?.maxAgentWritableFileLines,
@@ -1579,6 +1593,7 @@ export function RuntimeSettingsDialog({
 			knowsTodayEnabled,
 			retrievalEgressEnabled,
 			retrievalSearchBackendUrl: retrievalSearchBackendUrl.trim() || null,
+			llmfitCatalogUpdateMode,
 			sandboxMcpServersEnabled,
 			capabilityBrokerEnabled,
 			codeEmbeddingDefaults: draftCodeEmbeddingDefaults,
@@ -2686,6 +2701,8 @@ export function RuntimeSettingsDialog({
 										selectedProviderId={nkleinSettings.providerId}
 										selectedModelId={nkleinSettings.modelId}
 										selectedProviderModels={nkleinSettings.providerModels}
+										llmfitCatalogUpdateMode={llmfitCatalogUpdateMode}
+										onLlmfitCatalogUpdateModeChange={setLlmfitCatalogUpdateMode}
 										onRefreshProviderModels={handleRefreshNKleinProviderModels}
 										onError={setSaveError}
 									/>

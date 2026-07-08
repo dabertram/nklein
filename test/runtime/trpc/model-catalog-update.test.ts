@@ -45,6 +45,69 @@ describe("handleCheckLlmfitCatalogUpdate", () => {
 		expect(result.remoteModelCount).toBe(2);
 	});
 
+	it("does not call the live checker when catalog updates are off", async () => {
+		const checkCatalogUpdate = vi.fn();
+
+		const result = await handleCheckLlmfitCatalogUpdate({
+			mode: "off",
+			checkCatalogUpdate,
+			now: () => 150,
+		});
+
+		expect(checkCatalogUpdate).not.toHaveBeenCalled();
+		expect(result).toMatchObject({
+			mode: "off",
+			action: "noop",
+			reason: "Catalog update checks are off.",
+			checkedAt: 150,
+		});
+	});
+
+	it("auto mode pulls the catalog when the check reports an update", async () => {
+		const checkCatalogUpdate = vi.fn(async () => ({
+			mode: "auto" as const,
+			action: "pull_update" as const,
+			reason: "A newer catalog is available.",
+			sourceUrl: DEFAULT_LLMFIT_CATALOG_METADATA_URL,
+			downloadUrl: "https://raw.test/hf_models.json",
+			localRevision: "sha-old",
+			remoteRevision: "sha-new",
+			remoteModelCount: 4,
+			remoteSizeBytes: 40,
+			checkedAt: 250,
+		}));
+		const pullCatalogUpdate = vi.fn(async () => ({
+			mode: "auto" as const,
+			action: "up_to_date" as const,
+			reason: "Local cache updated.",
+			sourceUrl: DEFAULT_LLMFIT_CATALOG_METADATA_URL,
+			downloadUrl: "https://raw.test/hf_models.json",
+			localRevision: "sha-new",
+			remoteRevision: "sha-new",
+			remoteModelCount: 4,
+			remoteSizeBytes: 40,
+			checkedAt: 251,
+			cachePath: "/tmp/nklein-home/.nklein/nklein/llmfit-catalog-cache.json",
+			written: true,
+		}));
+
+		const result = await handleCheckLlmfitCatalogUpdate({
+			mode: "auto",
+			checkCatalogUpdate,
+			pullCatalogUpdate,
+			homePath: "/tmp/nklein-home",
+		});
+
+		expect(checkCatalogUpdate).toHaveBeenCalledWith({ mode: "auto", homePath: "/tmp/nklein-home" });
+		expect(pullCatalogUpdate).toHaveBeenCalledWith({ mode: "auto", homePath: "/tmp/nklein-home" });
+		expect(result).toMatchObject({
+			mode: "auto",
+			action: "up_to_date",
+			written: true,
+			remoteRevision: "sha-new",
+		});
+	});
+
 	it("returns an unavailable pull status when the runtime disables live pulls", async () => {
 		const result = await handlePullLlmfitCatalogUpdate({
 			pullCatalogUpdate: null,
@@ -85,5 +148,24 @@ describe("handleCheckLlmfitCatalogUpdate", () => {
 		expect(pullCatalogUpdate).toHaveBeenCalledWith({ mode: "notify", homePath: "/tmp/nklein-home" });
 		expect(result.written).toBe(true);
 		expect(result.remoteModelCount).toBe(3);
+	});
+
+	it("does not call the live puller when catalog updates are off", async () => {
+		const pullCatalogUpdate = vi.fn();
+
+		const result = await handlePullLlmfitCatalogUpdate({
+			mode: "off",
+			pullCatalogUpdate,
+			now: () => 450,
+		});
+
+		expect(pullCatalogUpdate).not.toHaveBeenCalled();
+		expect(result).toMatchObject({
+			mode: "off",
+			action: "noop",
+			written: false,
+			cachePath: null,
+			checkedAt: 450,
+		});
 	});
 });

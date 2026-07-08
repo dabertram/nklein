@@ -9,6 +9,7 @@ import {
 	runtimeAgentTimeoutProfileSchema,
 	runtimeCodeEmbeddingSettingsSchema,
 	runtimeFileOverlapParallelismSchema,
+	runtimeLlmfitCatalogUpdateModeSchema,
 	runtimeLostHeartbeatPolicySchema,
 	runtimeModelRolesSchema,
 	runtimeModelSuitabilityPolicySchema,
@@ -102,6 +103,7 @@ export const runtimeConfigResponseSchema = z.object({
 	// §5.AC egress-gated online retrieval — optional for backward compatibility with older runtimes/config files.
 	retrievalEgressEnabled: z.boolean().optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),
+	llmfitCatalogUpdateMode: runtimeLlmfitCatalogUpdateModeSchema.optional(),
 	// §5.AW opportunistic speculative best-of-N — optional for backward compatibility with older runtimes/config files.
 	speculativeBestOfNEnabled: z.boolean().optional(),
 	speculativeMaxConcurrentSpecs: z.number().int().positive().optional(),
@@ -146,6 +148,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	capabilityBrokerEnabled: z.boolean().optional(),
 	retrievalEgressEnabled: z.boolean().optional(),
 	retrievalSearchBackendUrl: z.string().nullable().optional(),
+	llmfitCatalogUpdateMode: runtimeLlmfitCatalogUpdateModeSchema.optional(),
 	speculativeBestOfNEnabled: z.boolean().optional(),
 	speculativeMaxConcurrentSpecs: z.number().int().positive().optional(),
 	speculativeMaxSpecsPerRun: z.number().int().positive().optional(),

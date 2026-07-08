@@ -181,6 +181,7 @@ export function buildRuntimeConfigResponse(
 		capabilityBrokerEnabled: runtimeConfig.capabilityBrokerEnabled,
 		retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
 		retrievalSearchBackendUrl: runtimeConfig.retrievalSearchBackendUrl,
+		llmfitCatalogUpdateMode: runtimeConfig.llmfitCatalogUpdateMode,
 		speculativeBestOfNEnabled: runtimeConfig.speculativeBestOfNEnabled,
 		speculativeMaxConcurrentSpecs: runtimeConfig.speculativeMaxConcurrentSpecs,
 		speculativeMaxSpecsPerRun: runtimeConfig.speculativeMaxSpecsPerRun,

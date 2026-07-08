@@ -3,6 +3,7 @@ import type {
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 } from "../core/api-contract";
 import { DEFAULT_MAX_REVIEW_ROUNDS } from "../core/review-loop";
@@ -34,6 +35,8 @@ export const DEFAULT_AGENT_TIMEOUT_MODE: RuntimeAgentTimeoutMode = "normal";
 export const DEFAULT_AGENT_TIMEOUT_PROFILE: RuntimeAgentTimeoutProfile = "local";
 export const DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED = true;
 export const DEFAULT_LOST_HEARTBEAT_POLICY: RuntimeLostHeartbeatPolicy = "park";
+/** §5.AB llmfit catalog updates default to explicit checks + suggestions, never background pulls. */
+export const DEFAULT_LLMFIT_CATALOG_UPDATE_MODE: RuntimeLlmfitCatalogUpdateMode = "notify";
 export const DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED = true;
 export const DEFAULT_SECOND_OPINION_REVIEW_ENABLED = true;
 export const DEFAULT_REVIEW_MAX_ROUNDS = DEFAULT_MAX_REVIEW_ROUNDS;

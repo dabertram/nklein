@@ -239,6 +239,20 @@ describe.sequential("Suite 16 — global config save→get round-trip + on-disk"
 		expect(after.reviewMaxRounds).toBe(7);
 	});
 
+	it("saving llmfitCatalogUpdateMode=auto persists on read-back and on disk", async () => {
+		const cfg = await getConfig(server.baseUrl);
+		const globalConfigPath = cfg.globalConfigPath as string;
+
+		const saveRes = await saveConfig(server.baseUrl, { llmfitCatalogUpdateMode: "auto" });
+		expect(saveRes.status).toBe(200);
+		expect(saveRes.payload.llmfitCatalogUpdateMode).toBe("auto");
+
+		const after = await getConfig(server.baseUrl);
+		expect(after.llmfitCatalogUpdateMode).toBe("auto");
+		const raw = JSON.parse(readFileSync(globalConfigPath, "utf8")) as Record<string, unknown>;
+		expect(raw.llmfitCatalogUpdateMode).toBe("auto");
+	});
+
 	it("saving swarmGuardrails updates the nested object on read-back", async () => {
 		const before = await getConfig(server.baseUrl);
 		const beforeGuardrails = before.swarmGuardrails as Record<string, unknown>;
@@ -487,6 +501,13 @@ describe.sequential("Suite 16 — invalid config input rejected", () => {
 	it("saveConfig with an invalid selectedAgentId is rejected with 400", async () => {
 		const res = await saveConfig(server.baseUrl, {
 			selectedAgentId: "definitely_not_a_valid_agent_id_xyz",
+		});
+		expect(res.status).toBe(400);
+	});
+
+	it("saveConfig with an invalid llmfitCatalogUpdateMode is rejected with 400", async () => {
+		const res = await saveConfig(server.baseUrl, {
+			llmfitCatalogUpdateMode: "invalid_mode_xyz",
 		});
 		expect(res.status).toBe(400);
 	});

@@ -196,6 +196,10 @@ export const DEFAULT_RUNTIME_SKILL_DYNAMICS_LEVEL: RuntimeSkillDynamicsLevel = "
 // parallel (backed by the Phase B merge agent). Global default + per-project override (the §5.W pattern).
 export const runtimeFileOverlapParallelismSchema = z.enum(["serialize", "allow"]);
 export type RuntimeFileOverlapParallelism = z.infer<typeof runtimeFileOverlapParallelismSchema>;
+// §5.AB llmfit catalog update policy. The runtime never performs surprise background egress here: `notify` checks and
+// suggests on explicit user action, `auto` may pull on explicit user action / future opt-in schedule, and `off` skips.
+export const runtimeLlmfitCatalogUpdateModeSchema = z.enum(["off", "notify", "auto"]);
+export type RuntimeLlmfitCatalogUpdateMode = z.infer<typeof runtimeLlmfitCatalogUpdateModeSchema>;
 export const runtimeTaskNKleinContextScopeSchema = z.enum(["full", "smart", "minimal", "custom"]);
 export type RuntimeTaskNKleinContextScope = z.infer<typeof runtimeTaskNKleinContextScopeSchema>;
 export const runtimeTaskNKleinTimeoutModeSchema = z.preprocess(

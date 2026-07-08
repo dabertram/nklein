@@ -8877,8 +8877,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `~/.nklein/nklein/llmfit-catalog-cache.json` with `{metadata, models}` after the same explicit GitHub fetch; the
       Settings status block now shows **Update catalog** when a check reports `suggest_update`, and the pull updates the
       local revision so future checks can report current. Still no background egress; Vitest keeps live pulls unavailable
-      unless injected. REMAINING: merge cached llmfit fit/speed/hardware rows into the overlay/composed catalog without
-      replacing our empirical tool-use verdict, and add the persisted off/notify/auto setting.)*
+      unless injected.)*
+      *(◐ 2026-07-08 — PERSISTED UPDATE MODE shipped: runtime config now carries `llmfitCatalogUpdateMode`
+      (`off`/`notify`/`auto`, default `notify`) through the save/get contract and Settings model telemetry panel. The
+      runtime route reads the saved scoped/global mode before any GitHub work: `off` short-circuits, `notify` checks +
+      suggests, and `auto` pulls the local cache only after an explicit user check action. Contract/unit/UI tests cover
+      persistence and the handler policy. REMAINING: merge cached llmfit fit/speed/hardware rows into the
+      overlay/composed catalog without replacing our empirical tool-use verdict.)*
 - [~] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
       hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
       single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup

@@ -12,6 +12,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -29,6 +30,7 @@ import {
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
+	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
 } from "./runtime-config-defaults";
@@ -36,6 +38,7 @@ import { deriveEmbeddingFields } from "./runtime-config-embedding-resolver";
 import { deriveModelRolesFields } from "./runtime-config-model-roles-resolver";
 import {
 	normalizeBoolean,
+	normalizeLlmfitCatalogUpdateMode,
 	normalizeLostHeartbeatPolicy,
 	normalizePromptTemplateWithLegacyDefault,
 	normalizeShortcuts,
@@ -75,6 +78,7 @@ export interface RuntimeConfigStateFromValuesInput {
 	modelStatsTrackingLevel: ModelStatsTrackingLevel;
 	retrievalEgressEnabled: boolean;
 	retrievalSearchBackendUrl: string | null;
+	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled: boolean;
 	speculativeMaxConcurrentSpecs: number;
 	speculativeMaxSpecsPerRun: number;
@@ -171,6 +175,9 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			retrievalEgressEnabled: input.retrievalEgressEnabled,
 			retrievalSearchBackendUrl: input.retrievalSearchBackendUrl,
 		}),
+		llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(
+			input.llmfitCatalogUpdateMode ?? DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
+		),
 		...resolveRuntimeSpeculativeConfig({
 			speculativeBestOfNEnabled: input.speculativeBestOfNEnabled,
 			speculativeMaxConcurrentSpecs: input.speculativeMaxConcurrentSpecs,

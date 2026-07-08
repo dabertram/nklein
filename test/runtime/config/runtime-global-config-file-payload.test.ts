@@ -3,6 +3,7 @@ import {
 	DEFAULT_AGENT_ID,
 	DEFAULT_CAPABILITY_BROKER_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
+	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
 	DEFAULT_MAX_CONCURRENT_TASKS,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 } from "../../../src/config/runtime-config-defaults";
@@ -40,6 +41,20 @@ describe("buildRuntimeGlobalConfigFilePayload", () => {
 			null,
 		);
 		expect(atDefault).not.toHaveProperty("capabilityBrokerEnabled");
+	});
+
+	it("persists llmfit catalog update mode only when it differs from the notify default", () => {
+		const atDefault = buildRuntimeGlobalConfigFilePayload(
+			{ llmfitCatalogUpdateMode: DEFAULT_LLMFIT_CATALOG_UPDATE_MODE },
+			null,
+		);
+		expect(atDefault).not.toHaveProperty("llmfitCatalogUpdateMode");
+
+		const nonDefault = buildRuntimeGlobalConfigFilePayload({ llmfitCatalogUpdateMode: "auto" }, null);
+		expect(nonDefault.llmfitCatalogUpdateMode).toBe("auto");
+
+		const invalid = buildRuntimeGlobalConfigFilePayload({ llmfitCatalogUpdateMode: "surprise" as "notify" }, null);
+		expect(invalid).not.toHaveProperty("llmfitCatalogUpdateMode");
 	});
 
 	it("preserves an existing key even when its value equals the default (round-trips on resave)", () => {

@@ -13,6 +13,7 @@ import type {
 	RuntimeAgentTimeoutMode,
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -25,6 +26,7 @@ import {
 	DEFAULT_RUNTIME_MODEL_SUITABILITY_POLICY,
 	DEFAULT_RUNTIME_SKILL_DYNAMICS_LEVEL,
 	runtimeCodeEmbeddingSettingsSchema,
+	runtimeLlmfitCatalogUpdateModeSchema,
 	runtimeModelSuitabilityPolicySchema,
 	runtimeRoleModelSettingsSchema,
 	runtimeSkillDynamicsLevelSchema,
@@ -37,6 +39,7 @@ import {
 	DEFAULT_AGENT_TIMEOUT_PROFILE,
 	DEFAULT_CODE_EMBEDDING_SETTINGS,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
+	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
 	DEFAULT_LOCAL_AGENT_TIMEOUT_MS,
 	DEFAULT_LOCAL_CONVERSATION_TIMEOUT_MS,
 	DEFAULT_LOCAL_REQUEST_TIMEOUT_MS,
@@ -282,6 +285,11 @@ export function normalizeBoolean(value: unknown, fallback: boolean): boolean {
 		return value;
 	}
 	return fallback;
+}
+
+export function normalizeLlmfitCatalogUpdateMode(value: unknown): RuntimeLlmfitCatalogUpdateMode {
+	const parsed = runtimeLlmfitCatalogUpdateModeSchema.safeParse(value);
+	return parsed.success ? parsed.data : DEFAULT_LLMFIT_CATALOG_UPDATE_MODE;
 }
 
 export function normalizeMaxConcurrentTasks(value: unknown): number {

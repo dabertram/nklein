@@ -13,6 +13,7 @@ import {
 } from "@/components/detail-panels/nklein-model-registry-panel";
 import { KleinCorePyHealthLine } from "@/components/klein-core-py-health-line";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
 import { findNKleinProviderModel, formatNKleinModelContextWindowLabel } from "@/runtime/nklein-context-window-policy";
 import {
 	checkLlmfitCatalogUpdate,
@@ -28,6 +29,7 @@ import {
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeLlmfitCatalogUpdateCheckResponse,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeModelFleetSuggestion,
 	RuntimeNKleinDogfoodBacklogResponse,
 	RuntimeNKleinModelRegistryEntry,
@@ -137,6 +139,8 @@ export function NKleinModelContextWindowSettingsPanel({
 	selectedProviderId,
 	selectedModelId,
 	selectedProviderModels,
+	llmfitCatalogUpdateMode,
+	onLlmfitCatalogUpdateModeChange,
 	onRefreshProviderModels,
 	onError,
 }: {
@@ -146,6 +150,8 @@ export function NKleinModelContextWindowSettingsPanel({
 	selectedProviderId: string;
 	selectedModelId: string;
 	selectedProviderModels: RuntimeNKleinProviderModel[];
+	llmfitCatalogUpdateMode: RuntimeLlmfitCatalogUpdateMode;
+	onLlmfitCatalogUpdateModeChange: (mode: RuntimeLlmfitCatalogUpdateMode) => void;
 	onRefreshProviderModels: () => Promise<void>;
 	onError: (message: string | null) => void;
 }): React.ReactElement {
@@ -298,6 +304,27 @@ export function NKleinModelContextWindowSettingsPanel({
 							Selected model is not currently loaded in LM Studio.
 						</p>
 					)}
+					<div className="mt-3 flex flex-wrap items-center gap-2">
+						<label
+							htmlFor="runtime-settings-llmfit-catalog-update-mode"
+							className="text-[12px] text-text-secondary"
+						>
+							llmfit catalog updates
+						</label>
+						<NativeSelect
+							id="runtime-settings-llmfit-catalog-update-mode"
+							value={llmfitCatalogUpdateMode}
+							disabled={disabled}
+							onChange={(event) =>
+								onLlmfitCatalogUpdateModeChange(event.currentTarget.value as RuntimeLlmfitCatalogUpdateMode)
+							}
+							className="h-8 w-[150px] text-[12px]"
+						>
+							<option value="off">Off</option>
+							<option value="notify">Notify</option>
+							<option value="auto">Auto cache</option>
+						</NativeSelect>
+					</div>
 				</div>
 				<Button
 					size="sm"
@@ -315,6 +342,7 @@ export function NKleinModelContextWindowSettingsPanel({
 				entries={visibleRegistryEntries}
 				fleetSuggestions={fleetSuggestions}
 				catalogUpdateCheck={catalogUpdateCheck}
+				catalogUpdateMode={llmfitCatalogUpdateMode}
 				selectedProviderId={selectedProviderId}
 				selectedModelId={selectedModelId}
 				nowMs={nowMs}

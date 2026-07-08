@@ -207,6 +207,7 @@ interface NKleinModelRegistryPanelProps {
 	onPruneStale?: () => Promise<void> | void;
 	onCheckCatalogUpdate?: () => Promise<void> | void;
 	onPullCatalogUpdate?: () => Promise<void> | void;
+	catalogUpdateMode?: RuntimeLlmfitCatalogUpdateCheckResponse["mode"];
 }
 
 export function NKleinModelRegistryPanel({
@@ -223,6 +224,7 @@ export function NKleinModelRegistryPanel({
 	onPruneStale,
 	onCheckCatalogUpdate,
 	onPullCatalogUpdate,
+	catalogUpdateMode = "notify",
 }: NKleinModelRegistryPanelProps) {
 	const selectedEntry = findNKleinModelRegistryEntry(entries, selectedProviderId, selectedModelId);
 	const visibleEntries = useMemo(
@@ -361,7 +363,7 @@ export function NKleinModelRegistryPanel({
 								size="sm"
 								variant="ghost"
 								icon={<CloudDownload size={14} />}
-								disabled={isCheckingCatalog || isLoading}
+								disabled={catalogUpdateMode === "off" || isCheckingCatalog || isLoading}
 								onClick={() => {
 									void checkCatalogUpdate();
 								}}

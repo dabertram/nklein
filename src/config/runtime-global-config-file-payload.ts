@@ -14,6 +14,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -54,6 +55,7 @@ import {
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
+	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
 	DEFAULT_LOST_HEARTBEAT_POLICY,
 	DEFAULT_MAX_CONCURRENT_TASKS,
 	DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
@@ -75,6 +77,7 @@ import {
 	normalizeAgentTimeoutProfile,
 	normalizeBoolean,
 	normalizeCodeEmbeddingSettings,
+	normalizeLlmfitCatalogUpdateMode,
 	normalizeLostHeartbeatPolicy,
 	normalizeMaxConcurrentTasks,
 	normalizeModelRoles,
@@ -133,6 +136,7 @@ export interface RuntimeGlobalConfigFileWriteInput {
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
+	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled?: boolean;
 	speculativeMaxConcurrentSpecs?: number;
 	speculativeMaxSpecsPerRun?: number;
@@ -193,6 +197,7 @@ export function buildRuntimeGlobalConfigFilePayload(
 	const capabilityBrokerEnabled = normalizeBoolean(config.capabilityBrokerEnabled, DEFAULT_CAPABILITY_BROKER_ENABLED);
 	const modelStatsTrackingLevel = normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel);
 	const retrievalEgressEnabled = normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled);
+	const llmfitCatalogUpdateMode = normalizeLlmfitCatalogUpdateMode(config.llmfitCatalogUpdateMode);
 	const speculativeBestOfNEnabled = normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled);
 	const speculativeMaxConcurrentSpecs = normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs);
 	const speculativeMaxSpecsPerRun = normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun);
@@ -410,6 +415,13 @@ export function buildRuntimeGlobalConfigFilePayload(
 		"retrievalEgressEnabled",
 		retrievalEgressEnabled,
 		DEFAULT_RETRIEVAL_EGRESS_ENABLED,
+	);
+	assignChangedConfigField(
+		payload,
+		existing,
+		"llmfitCatalogUpdateMode",
+		llmfitCatalogUpdateMode,
+		DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
 	);
 	if (retrievalSearchBackendUrl !== undefined) {
 		if (retrievalSearchBackendUrl) {

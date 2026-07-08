@@ -33,6 +33,7 @@ import {
 	normalizeAgentRulesets,
 	normalizeBoolean,
 	normalizeCodeEmbeddingSettings,
+	normalizeLlmfitCatalogUpdateMode,
 	normalizeLostHeartbeatPolicy,
 	normalizeMaxConcurrentTasks,
 	normalizeModelRoles,
@@ -100,6 +101,11 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			updates.retrievalSearchBackendUrl,
 			current.retrievalSearchBackendUrl,
 			normalizeRetrievalSearchBackendUrl,
+		),
+		llmfitCatalogUpdateMode: keepNormalizedValue(
+			updates.llmfitCatalogUpdateMode,
+			current.llmfitCatalogUpdateMode,
+			normalizeLlmfitCatalogUpdateMode,
 		),
 		speculativeBestOfNEnabled: keepNormalizedValue(
 			updates.speculativeBestOfNEnabled,

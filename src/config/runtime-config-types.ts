@@ -9,6 +9,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -40,6 +41,8 @@ export interface RuntimeConfigState {
 	retrievalEgressEnabled: boolean;
 	/** §5.AC SearXNG-compatible search endpoint base URL — trimmed; empty → null (null = no search backend configured). */
 	retrievalSearchBackendUrl: string | null;
+	/** §5.AB user-controlled llmfit GitHub catalog update mode. */
+	llmfitCatalogUpdateMode: RuntimeLlmfitCatalogUpdateMode;
 	/** §5.AW opportunistic speculative best-of-N — ON BY DEFAULT (user 2026-07-02); only a literal `false` disables (opposite polarity of the retrieval fail-closed gate: the user opted in by default, disabling is the explicit act). */
 	speculativeBestOfNEnabled: boolean;
 	/** §5.AW ceiling on concurrently running speculative candidates — positive integer, clamped to 4. */
@@ -120,6 +123,7 @@ export interface RuntimeConfigUpdateInput {
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
+	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled?: boolean;
 	speculativeMaxConcurrentSpecs?: number;
 	speculativeMaxSpecsPerRun?: number;
@@ -182,6 +186,7 @@ export interface RuntimeGlobalConfigFileShape {
 	modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 	retrievalEgressEnabled?: boolean;
 	retrievalSearchBackendUrl?: string | null;
+	llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 	speculativeBestOfNEnabled?: boolean;
 	speculativeMaxConcurrentSpecs?: number;
 	speculativeMaxSpecsPerRun?: number;

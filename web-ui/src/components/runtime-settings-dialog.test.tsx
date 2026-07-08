@@ -349,6 +349,7 @@ const savedNKleinOauthConfig = {
 	reviewMaxRounds: 20,
 	readyForReviewNotificationsEnabled: false,
 	replayCardsEnabled: false,
+	llmfitCatalogUpdateMode: "notify",
 	maxConcurrentTasks: 3,
 	maxConcurrentTasksOverride: null,
 	effectiveMaxConcurrentTasks: 3,
@@ -855,6 +856,36 @@ describe("RuntimeSettingsDialog", () => {
 		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				modelSuitabilityPolicyDefaults: { onUnsuitable: "warn", onUnknown: "warn" },
+			}),
+		);
+		expect(handleOpenChange).toHaveBeenCalledWith(false);
+	});
+
+	it("edits and saves the llmfit catalog update mode (§5.AB)", async () => {
+		const handleOpenChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<RuntimeSettingsDialog
+					open={true}
+					workspaceId={"workspace-1"}
+					initialConfig={savedNKleinOauthConfig}
+					onOpenChange={handleOpenChange}
+				/>,
+			);
+		});
+
+		const modeSelect = document.getElementById("runtime-settings-llmfit-catalog-update-mode") as HTMLSelectElement;
+		expect(modeSelect).toBeInstanceOf(HTMLSelectElement);
+		await act(async () => {
+			setSelectValue(modeSelect, "auto");
+		});
+		await act(async () => {
+			findButtonByText(document.body, "Save")?.click();
+		});
+
+		expect(saveRuntimeConfigMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				llmfitCatalogUpdateMode: "auto",
 			}),
 		);
 		expect(handleOpenChange).toHaveBeenCalledWith(false);

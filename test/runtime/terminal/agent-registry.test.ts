@@ -33,6 +33,7 @@ function createRuntimeConfigState(overrides: Partial<RuntimeConfigState> = {}): 
 		modelStatsTrackingLevel: "full",
 		retrievalEgressEnabled: false,
 		retrievalSearchBackendUrl: null,
+		llmfitCatalogUpdateMode: "notify",
 		speculativeBestOfNEnabled: true,
 		speculativeMaxConcurrentSpecs: 1,
 		speculativeMaxSpecsPerRun: 3,

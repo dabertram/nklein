@@ -58,6 +58,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("modelStatsTrackingLevel"),
 	runtimeConfigChangeField("retrievalEgressEnabled"),
 	runtimeConfigChangeField("retrievalSearchBackendUrl"),
+	runtimeConfigChangeField("llmfitCatalogUpdateMode"),
 	runtimeConfigChangeField("speculativeBestOfNEnabled"),
 	runtimeConfigChangeField("speculativeMaxConcurrentSpecs"),
 	runtimeConfigChangeField("speculativeMaxSpecsPerRun"),

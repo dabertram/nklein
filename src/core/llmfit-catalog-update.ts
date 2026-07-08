@@ -386,7 +386,7 @@ export async function pullLlmfitCatalogCache(
 			now: () => checkedAt,
 			timeoutMs: input.timeoutMs,
 		});
-		return await writeLlmfitCatalogCache(cachePath, snapshot);
+		return { ...(await writeLlmfitCatalogCache(cachePath, snapshot)), mode };
 	} catch (error) {
 		return {
 			mode,

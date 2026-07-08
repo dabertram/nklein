@@ -11,6 +11,7 @@ import type {
 	RuntimeAgentTimeoutProfile,
 	RuntimeCodeEmbeddingSettings,
 	RuntimeFileOverlapParallelism,
+	RuntimeLlmfitCatalogUpdateMode,
 	RuntimeLostHeartbeatPolicy,
 	RuntimeModelRoles,
 	RuntimeModelSuitabilityPolicy,
@@ -57,6 +58,7 @@ import {
 	DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 	DEFAULT_DEVELOPER_MODE_ENABLED,
 	DEFAULT_KNOWS_TODAY_ENABLED,
+	DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
 	DEFAULT_REPLAY_CARDS_ENABLED,
 	DEFAULT_REVIEW_MAX_ROUNDS,
 	DEFAULT_SANDBOX_MCP_SERVERS_ENABLED,
@@ -77,6 +79,7 @@ import {
 	normalizeBoolean,
 	normalizeCodeEmbeddingOverride,
 	normalizeDeveloperModeEnabled,
+	normalizeLlmfitCatalogUpdateMode,
 	normalizeLostHeartbeatPolicy,
 	normalizeMaxConcurrentTasks,
 	normalizeMaxConcurrentTasksOverride,
@@ -197,6 +200,7 @@ function toRuntimeConfigState({
 		...resolveRuntimeConcurrencyConfig(globalConfig, projectConfig),
 		...resolveRuntimeSandboxConfig(globalConfig),
 		...resolveRuntimeRetrievalConfig(globalConfig),
+		llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(globalConfig?.llmfitCatalogUpdateMode),
 		...resolveRuntimeSpeculativeConfig(globalConfig),
 		...resolveRuntimeFileOverlapConfig(globalConfig, projectConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
@@ -279,6 +283,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		modelStatsTrackingLevel: current.modelStatsTrackingLevel,
 		retrievalEgressEnabled: current.retrievalEgressEnabled,
 		retrievalSearchBackendUrl: current.retrievalSearchBackendUrl,
+		llmfitCatalogUpdateMode: current.llmfitCatalogUpdateMode,
 		speculativeBestOfNEnabled: current.speculativeBestOfNEnabled,
 		speculativeMaxConcurrentSpecs: current.speculativeMaxConcurrentSpecs,
 		speculativeMaxSpecsPerRun: current.speculativeMaxSpecsPerRun,
@@ -366,6 +371,7 @@ export async function saveRuntimeConfig(
 		modelStatsTrackingLevel?: ModelStatsTrackingLevel;
 		retrievalEgressEnabled?: boolean;
 		retrievalSearchBackendUrl?: string | null;
+		llmfitCatalogUpdateMode?: RuntimeLlmfitCatalogUpdateMode;
 		speculativeBestOfNEnabled?: boolean;
 		speculativeMaxConcurrentSpecs?: number;
 		speculativeMaxSpecsPerRun?: number;
@@ -432,6 +438,7 @@ export async function saveRuntimeConfig(
 			modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
+			llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(config.llmfitCatalogUpdateMode),
 			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
 			speculativeMaxConcurrentSpecs: normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs),
 			speculativeMaxSpecsPerRun: normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun),
@@ -524,6 +531,9 @@ export async function saveRuntimeConfig(
 			modelStatsTrackingLevel: normalizeModelStatsTrackingLevel(config.modelStatsTrackingLevel),
 			retrievalEgressEnabled: normalizeRetrievalEgressEnabled(config.retrievalEgressEnabled),
 			retrievalSearchBackendUrl: normalizeRetrievalSearchBackendUrl(config.retrievalSearchBackendUrl),
+			llmfitCatalogUpdateMode: normalizeLlmfitCatalogUpdateMode(
+				config.llmfitCatalogUpdateMode ?? DEFAULT_LLMFIT_CATALOG_UPDATE_MODE,
+			),
 			speculativeBestOfNEnabled: normalizeSpeculativeBestOfNEnabled(config.speculativeBestOfNEnabled),
 			speculativeMaxConcurrentSpecs: normalizeSpeculativeMaxConcurrentSpecs(config.speculativeMaxConcurrentSpecs),
 			speculativeMaxSpecsPerRun: normalizeSpeculativeMaxSpecsPerRun(config.speculativeMaxSpecsPerRun),

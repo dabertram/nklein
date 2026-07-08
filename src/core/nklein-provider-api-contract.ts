@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
 	runtimeCodeEmbeddingSettingsSchema,
+	runtimeLlmfitCatalogUpdateModeSchema,
 	runtimeNKleinReasoningEffortSchema,
 } from "./runtime-config-api-contract.js";
 
@@ -206,7 +207,7 @@ export const runtimeNKleinModelRegistryResponseSchema = z.object({
 export type RuntimeNKleinModelRegistryResponse = z.infer<typeof runtimeNKleinModelRegistryResponseSchema>;
 
 export const runtimeLlmfitCatalogUpdateCheckResponseSchema = z.object({
-	mode: z.enum(["off", "notify", "auto"]),
+	mode: runtimeLlmfitCatalogUpdateModeSchema,
 	action: z.enum(["noop", "up_to_date", "suggest_update", "pull_update"]),
 	reason: z.string(),
 	sourceUrl: z.string(),
