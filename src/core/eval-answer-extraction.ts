@@ -4,11 +4,13 @@
  *
  * The corpus (`eval-prompt-corpus.ts`) defines prompts + answer keys, and `scoreEvalAnswer(prompt, answer)` grades a
  * STRUCTURED answer. But a live sweep (verify-all-models) gets a model's freeform text, not a structured answer — so it
- * needs to PARSE that text into the answer shape first. This module owns that parse for the `decompose` family (the
- * architect eval), which is fully text-derivable: a decomposition is a JSON object of tasks/steps with dependency edges,
- * and `scoreValidDag` grades the resulting graph's structural validity (acyclic + edges reference real nodes). No code
- * execution is needed (unlike `implement`, which must run tests) and no fuzzy alias mapping (unlike `review`, which maps
- * free-text findings onto canonical defect ids — that needs per-defect alias data the corpus doesn't yet carry).
+ * needs to PARSE that text into the answer shape first. This module owns that parse for two of the three families:
+ *   - `decompose` (architect): a JSON object of tasks/steps with dependency edges → a `{nodes, edges}` graph that
+ *     `scoreValidDag` grades for structural validity. Fully text-derivable, no execution.
+ *   - `review` (reviewer): a free-text review → the subset of the prompt's canonical seeded-defect ids it surfaced, via
+ *     authored per-defect matchers (see `extractReviewCaught`), which `scoreDefectCatchingReview` grades for recall.
+ * The `implement` family is NOT here: its answer is `{passed, total}`, which requires EXECUTING the model's code against
+ * acceptance tests in a sandbox — an effectful step that belongs in the sweep harness, not this pure parser.
  *
  * Pure + dependency-free (core must not import the nklein-agent JSON repairer), so it carries a small self-contained
  * lenient JSON extractor: try a direct parse, strip a ```json code fence, else lift the first balanced {...}/[...] span
