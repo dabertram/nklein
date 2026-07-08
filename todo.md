@@ -8178,7 +8178,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Create `playwright.smoke.config.ts` with `reuseExistingServer:false` + `--strictPort` on stable module constant port.
         *(deprioritized 2026-07-08: the single config's suite is green 61/61 in ~16s with server reuse; a second config
         adds CI surface without a current driver — revisit if suite-vs-suite port contention actually appears.)*
-  - [~] Fix `test:protected` + `test:integration` alias/port flakiness as foundational infra.
+  - [x] Fix `test:protected` + `test:integration` alias/port flakiness as foundational infra.
+        *(✅ ROOT-CAUSED & FIXED 2026-07-08 (9b80d20f) — the instrumented pass below cracked it. The det-bounce flake
+        was a genuine RACE (not spelling/queue/port): SEVERAL acceptance verifications for ONE base task overlap in the
+        finalize flow — the pre-review reviewer-summary acceptance (second-opinion-review-runner) AND the #39 base-tree
+        waiver re-check both `prepareWorkspace(<taskId>::acceptance)` then dispose it in `finally`. Sharing ONE
+        `::acceptance` session key, run B's finally-dispose tore down run A's LIVE placement, so A's exec threw "No
+        Docker sandbox workspace is prepared". The NKLEIN_SANDBOX_DEBUG trace showed `disposeWorkspace(gamma::acceptance)`
+        firing from BOTH call sites against a single placement. FIX: `runNKleinAcceptanceGateInSandbox` strips any
+        incoming `::acceptance[-n]` suffix and stamps a FRESH monotonic discriminator (`<base>::acceptance-<seq>`) per
+        invocation → no two concurrent acceptance runs ever share the `placements` key. Still contains `::acceptance`,
+        so every `.includes("::acceptance")` synthetic-session guard still matches. Unit-pinned: two overlapping runs
+        get DISTINCT sessions; a re-entrant suffixed id is stripped+re-stamped. Full 8342-test gate green. The shipped
+        runtime was always safe-failing (fail-closed HOLD) — this closes the test-reliability gap at its true root.)*
         *(◐ DIAGNOSED 2026-07-08 — the flakiness is REAL and now has a captured mechanism, and it is NOT alias/port:
         two consecutive full runs → protected 123/123 twice, integration 42/42 then 41/42. The flake is
         swarm-deterministic-bounce: after the round-2 re-work DELIVERED, the acceptance RE-CHECK ran after the task's
