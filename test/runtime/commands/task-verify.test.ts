@@ -107,6 +107,7 @@ function createRuntimeConfigState(modelRoles: RuntimeConfigState["modelRoles"] =
 		sandboxIdleTimeoutMinutes: 10,
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
+		hardTaskRoutingMode: "attempt_with_available",
 		secondOpinionReviewEnabled: true,
 		reviewMaxRounds: 20,
 		readyForReviewNotificationsEnabled: true,

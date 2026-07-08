@@ -71,6 +71,9 @@ export const runtimeConfigResponseSchema = z.object({
 	sandboxIdleTimeoutMinutes: z.number().int().positive(),
 	lostHeartbeatPolicy: runtimeLostHeartbeatPolicySchema,
 	decompositionAutoApplyEnabled: z.boolean(),
+	/** §5.AB routing policy for HARD tasks when the best qualified model is busy: wait for it, or attempt with the
+	 *  best available now. Default attempt_with_available (today's behavior). */
+	hardTaskRoutingMode: z.enum(["wait_for_best", "attempt_with_available"]),
 	secondOpinionReviewEnabled: z.boolean(),
 	reviewMaxRounds: z.number().int().positive(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema,
@@ -163,6 +166,7 @@ export const runtimeConfigSaveRequestSchema = z.object({
 	sandboxIdleTimeoutMinutes: z.number().int().positive().optional(),
 	lostHeartbeatPolicy: runtimeLostHeartbeatPolicySchema.optional(),
 	decompositionAutoApplyEnabled: z.boolean().optional(),
+	hardTaskRoutingMode: z.enum(["wait_for_best", "attempt_with_available"]).optional(),
 	secondOpinionReviewEnabled: z.boolean().optional(),
 	reviewMaxRounds: z.number().int().positive().optional(),
 	codeEmbeddingDefaults: runtimeCodeEmbeddingSettingsSchema.optional(),

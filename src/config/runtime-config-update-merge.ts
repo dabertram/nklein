@@ -175,6 +175,9 @@ export function mergeGlobalRuntimeConfigFields(updates: RuntimeConfigUpdateInput
 			current.decompositionAutoApplyEnabled,
 			(value) => normalizeBoolean(value, DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED),
 		),
+		hardTaskRoutingMode: keepNormalizedValue(updates.hardTaskRoutingMode, current.hardTaskRoutingMode, (value) =>
+			value === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
+		),
 		secondOpinionReviewEnabled: keepNormalizedValue(
 			updates.secondOpinionReviewEnabled,
 			current.secondOpinionReviewEnabled,

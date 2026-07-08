@@ -50,6 +50,7 @@ function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["sel
 		},
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
+		hardTaskRoutingMode: "attempt_with_available",
 		secondOpinionReviewEnabled: true,
 		reviewMaxRounds: 20,
 		codeEmbeddingDefaults: {

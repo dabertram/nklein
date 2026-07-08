@@ -6007,7 +6007,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         success rate / learned retry budget / tok-s speed / below-bar status, a role filter, and fitness-vs-samples
         sort. Web gate 961 green.)*
   - [x] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs. *(PARTIAL — audit-verdict CORRECTED 2026-07-07 Fable: the PIN half is real (`modelRolesOverride` per-project role→model override, settings dialog + resolver), but NO preference-order or speed-vs-quality weight field exists anywhere in src/config or the resolver — the audit agent's "dial DONE" claim did not survive spot-verification. Remaining = config-schema + resolver extension (opus-code) before any dial UI.)* *(✅ COMPLETE 2026-07-08 — see §5.I#4: speedVsCapability dial shipped (schema + normalizer + applySpeedCapabilityDial + router preferred-key wiring); pin + preference order were already live)*
-  - [ ] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
+  - [~] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
+        *(◐ 2026-07-08 — the CONFIG + UI shipped end-to-end: `hardTaskRoutingMode`
+        ("wait_for_best" | "attempt_with_available", default attempt_with_available = today's behavior) threaded
+        through the full config stack (contract response+save, state factory, types, file payload, load/save/merge,
+        change detection, response builder) and a labeled selector in Settings → Tasks next to the decomposition
+        toggle (fingerprint + dirty-check + save payload + config sync all wired; settings e2e 7/7 green). REMAINING:
+        the routing path CONSUMING the mode — a "wait" decision defers via the task-start queue, which needs the
+        endpoint-occupancy signal (leaf (b) resource-cost tracking) to know the best model is busy.)*
   - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table.
   - [ ] Live-test the settings flow end-to-end (launch eval, observe results, adjust policy).
 - [-] **LATER / OUT OF SCOPE — cloud fallback rung (idea-collection only, per the user).** When !Klein has matured to

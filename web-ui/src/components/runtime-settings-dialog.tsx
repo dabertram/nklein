@@ -252,6 +252,9 @@ export function RuntimeSettingsDialog({
 	const [sandboxIdleTimeoutMinutes, setSandboxIdleTimeoutMinutes] = useState("10");
 	const [lostHeartbeatPolicy, setLostHeartbeatPolicy] = useState<RuntimeLostHeartbeatPolicy>("park");
 	const [decompositionAutoApplyEnabled, setDecompositionAutoApplyEnabled] = useState(true);
+	const [hardTaskRoutingMode, setHardTaskRoutingMode] = useState<"wait_for_best" | "attempt_with_available">(
+		"attempt_with_available",
+	);
 	const [secondOpinionReviewEnabled, setSecondOpinionReviewEnabled] = useState(true);
 	const [reviewMaxRounds, setReviewMaxRounds] = useState(20);
 	const [speculativeBestOfNEnabled, setSpeculativeBestOfNEnabled] = useState(true);
@@ -458,6 +461,7 @@ export function RuntimeSettingsDialog({
 	const initialSandboxIdleTimeoutMinutes = String(config?.sandboxIdleTimeoutMinutes ?? 10);
 	const initialLostHeartbeatPolicy = config?.lostHeartbeatPolicy ?? "park";
 	const initialDecompositionAutoApplyEnabled = config?.decompositionAutoApplyEnabled ?? true;
+	const initialHardTaskRoutingMode = config?.hardTaskRoutingMode ?? "attempt_with_available";
 	const initialSecondOpinionReviewEnabled = config?.secondOpinionReviewEnabled ?? true;
 	const initialReviewMaxRounds = config?.reviewMaxRounds ?? 20;
 	const initialSpeculativeBestOfNEnabled = config?.speculativeBestOfNEnabled ?? true;
@@ -568,6 +572,7 @@ export function RuntimeSettingsDialog({
 				`sandboxIdleTimeoutMinutes=${sandboxIdleTimeoutMinutes}`,
 				`lostHeartbeatPolicy=${lostHeartbeatPolicy}`,
 				`decompositionAutoApply=${decompositionAutoApplyEnabled}`,
+				`hardTaskRoutingMode=${hardTaskRoutingMode}`,
 				`secondOpinionReview=${secondOpinionReviewEnabled}`,
 				`speculativeBestOfN=${speculativeBestOfNEnabled}`,
 				`readyForReviewNotifications=${readyForReviewNotificationsEnabled}`,
@@ -583,6 +588,7 @@ export function RuntimeSettingsDialog({
 			nkleinSettings.modelId,
 			nkleinSettings.providerId,
 			decompositionAutoApplyEnabled,
+			hardTaskRoutingMode,
 			secondOpinionReviewEnabled,
 			reviewMaxRounds,
 			speculativeBestOfNEnabled,
@@ -724,6 +730,9 @@ export function RuntimeSettingsDialog({
 		if (decompositionAutoApplyEnabled !== initialDecompositionAutoApplyEnabled) {
 			return true;
 		}
+		if (hardTaskRoutingMode !== initialHardTaskRoutingMode) {
+			return true;
+		}
 		if (secondOpinionReviewEnabled !== initialSecondOpinionReviewEnabled) {
 			return true;
 		}
@@ -849,6 +858,7 @@ export function RuntimeSettingsDialog({
 		conversationTimeoutMs,
 		config,
 		decompositionAutoApplyEnabled,
+		hardTaskRoutingMode,
 		secondOpinionReviewEnabled,
 		reviewMaxRounds,
 		speculativeBestOfNEnabled,
@@ -965,6 +975,7 @@ export function RuntimeSettingsDialog({
 		setSandboxIdleTimeoutMinutes(String(config?.sandboxIdleTimeoutMinutes ?? 10));
 		setLostHeartbeatPolicy(config?.lostHeartbeatPolicy ?? "park");
 		setDecompositionAutoApplyEnabled(config?.decompositionAutoApplyEnabled ?? true);
+		setHardTaskRoutingMode(config?.hardTaskRoutingMode ?? "attempt_with_available");
 		setSecondOpinionReviewEnabled(config?.secondOpinionReviewEnabled ?? true);
 		setReviewMaxRounds(config?.reviewMaxRounds ?? 20);
 		setSpeculativeBestOfNEnabled(config?.speculativeBestOfNEnabled ?? true);
@@ -1043,6 +1054,7 @@ export function RuntimeSettingsDialog({
 		config?.concurrencyDefaults,
 		config?.concurrencyOverride,
 		config?.decompositionAutoApplyEnabled,
+		config?.hardTaskRoutingMode,
 		config?.secondOpinionReviewEnabled,
 		config?.reviewMaxRounds,
 		config?.speculativeBestOfNEnabled,
@@ -1503,6 +1515,7 @@ export function RuntimeSettingsDialog({
 			sandboxIdleTimeoutMinutes: parsedSandboxIdleTimeoutMinutes,
 			lostHeartbeatPolicy,
 			decompositionAutoApplyEnabled,
+			hardTaskRoutingMode,
 			secondOpinionReviewEnabled,
 			reviewMaxRounds,
 			speculativeBestOfNEnabled,
@@ -2134,6 +2147,36 @@ export function RuntimeSettingsDialog({
 									</div>
 									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
 										When disabled, valid task graphs stay pending on the source card for manual review.
+									</p>
+								</div>
+								<div style={{ gridColumn: "1 / span 2" }}>
+									<label
+										className="flex items-center gap-2 text-[13px] text-text-primary"
+										htmlFor="runtime-settings-hard-task-routing-mode"
+									>
+										Hard-task routing when the best model is busy
+										<select
+											id="runtime-settings-hard-task-routing-mode"
+											value={hardTaskRoutingMode}
+											disabled={controlsDisabled}
+											onChange={(event) =>
+												setHardTaskRoutingMode(
+													event.target.value === "wait_for_best"
+														? "wait_for_best"
+														: "attempt_with_available",
+												)
+											}
+											className="rounded border border-border bg-surface-0 px-2 py-1 text-[13px] text-text-primary disabled:opacity-40"
+										>
+											<option value="attempt_with_available">
+												Attempt with the best available model now
+											</option>
+											<option value="wait_for_best">Wait for the best qualified model</option>
+										</select>
+									</label>
+									<p className="text-text-tertiary text-[11px] mt-1 mb-0">
+										§5.AB routing policy for hard cards: wait for the top qualified model to free up, or start
+										immediately on the best model available.
 									</p>
 								</div>
 								<div style={{ gridColumn: "1 / span 2" }}>

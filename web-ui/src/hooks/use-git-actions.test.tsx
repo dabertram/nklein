@@ -112,6 +112,7 @@ function createRuntimeConfig(selectedAgentId: RuntimeConfigResponse["selectedAge
 		},
 		lostHeartbeatPolicy: "park",
 		decompositionAutoApplyEnabled: true,
+		hardTaskRoutingMode: "attempt_with_available",
 		secondOpinionReviewEnabled: true,
 		reviewMaxRounds: 20,
 		codeEmbeddingDefaults: {

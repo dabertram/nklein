@@ -200,6 +200,8 @@ function toRuntimeConfigState({
 		...resolveRuntimeSpeculativeConfig(globalConfig),
 		...resolveRuntimeFileOverlapConfig(globalConfig, projectConfig),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(globalConfig?.lostHeartbeatPolicy),
+		hardTaskRoutingMode:
+			globalConfig?.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 		...resolveRuntimeReviewConfig(globalConfig),
 		...resolveRuntimeEmbeddingConfig(globalConfig, projectConfig),
 		...resolveRuntimeSuitabilityConfig(globalConfig, projectConfig),
@@ -301,6 +303,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		sandboxIdleTimeoutMinutes: current.sandboxIdleTimeoutMinutes,
 		lostHeartbeatPolicy: current.lostHeartbeatPolicy,
 		decompositionAutoApplyEnabled: current.decompositionAutoApplyEnabled,
+		hardTaskRoutingMode: current.hardTaskRoutingMode,
 		secondOpinionReviewEnabled: current.secondOpinionReviewEnabled,
 		reviewMaxRounds: current.reviewMaxRounds,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
@@ -382,6 +385,7 @@ export async function saveRuntimeConfig(
 		sandboxIdleTimeoutMinutes?: number;
 		lostHeartbeatPolicy?: RuntimeLostHeartbeatPolicy;
 		decompositionAutoApplyEnabled?: boolean;
+		hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
 		secondOpinionReviewEnabled?: boolean;
 		reviewMaxRounds?: number;
 		readyForReviewNotificationsEnabled: boolean;
@@ -468,6 +472,8 @@ export async function saveRuntimeConfig(
 				config.decompositionAutoApplyEnabled,
 				DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 			),
+			hardTaskRoutingMode:
+				config.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 			secondOpinionReviewEnabled: normalizeBoolean(
 				config.secondOpinionReviewEnabled,
 				DEFAULT_SECOND_OPINION_REVIEW_ENABLED,
@@ -562,6 +568,8 @@ export async function saveRuntimeConfig(
 				config.decompositionAutoApplyEnabled,
 				DEFAULT_DECOMPOSITION_AUTO_APPLY_ENABLED,
 			),
+			hardTaskRoutingMode:
+				config.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 			secondOpinionReviewEnabled: normalizeBoolean(
 				config.secondOpinionReviewEnabled,
 				DEFAULT_SECOND_OPINION_REVIEW_ENABLED,

@@ -79,6 +79,7 @@ export const RUNTIME_GLOBAL_CONFIG_CHANGE_FIELDS: readonly RuntimeConfigChangeFi
 	runtimeConfigChangeField("sandboxIdleTimeoutMinutes"),
 	runtimeConfigChangeField("lostHeartbeatPolicy"),
 	runtimeConfigChangeField("decompositionAutoApplyEnabled"),
+	runtimeConfigChangeField("hardTaskRoutingMode"),
 	runtimeConfigChangeField("secondOpinionReviewEnabled"),
 	runtimeConfigChangeField("reviewMaxRounds"),
 	runtimeConfigChangeField("readyForReviewNotificationsEnabled"),

@@ -102,6 +102,9 @@ export interface RuntimeConfigStateFromValuesInput {
 	sandboxIdleTimeoutMinutes: number;
 	lostHeartbeatPolicy: RuntimeLostHeartbeatPolicy;
 	decompositionAutoApplyEnabled: boolean;
+	/** §5.AB hard-task routing when the best qualified model is busy (default attempt_with_available). Optional
+	 *  on INPUT (fixtures/legacy states omit it); the factory normalizes to attempt_with_available. */
+	hardTaskRoutingMode?: "wait_for_best" | "attempt_with_available";
 	secondOpinionReviewEnabled: boolean;
 	reviewMaxRounds: number;
 	readyForReviewNotificationsEnabled: boolean;
@@ -180,6 +183,7 @@ export function createRuntimeConfigStateFromValues(input: RuntimeConfigStateFrom
 			{ projectSetupWizardCompletedAt: input.projectSetupWizardCompletedAt },
 		),
 		lostHeartbeatPolicy: normalizeLostHeartbeatPolicy(input.lostHeartbeatPolicy),
+		hardTaskRoutingMode: input.hardTaskRoutingMode === "wait_for_best" ? "wait_for_best" : "attempt_with_available",
 		...resolveRuntimeReviewConfig({
 			decompositionAutoApplyEnabled: input.decompositionAutoApplyEnabled,
 			secondOpinionReviewEnabled: input.secondOpinionReviewEnabled,
