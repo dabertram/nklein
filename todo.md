@@ -1297,7 +1297,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       rollbackOrRepairHints / downstreamInvalidationRules` so a card is executable node-locally, and add controller repair
       semantics (retry-node / refine-spec / split-node / add-dependency / invalidate-downstream / re-review /
       global-re-decompose-only-as-last-resort).
-  - [ ] **Localization provider (read-only, cannot edit):**
+  - [~] **Localization provider (read-only, cannot edit):** *(all CODE built + tested — the `LocalizationProvider` port,
+        the MCP-backed adapter (fake-tested), the N-candidate patch generator, the validator, and spectrum fault
+        localization are all done/[x]/[~] below; the SOLE remaining owed step is vetting the third-party
+        `codebase-memory-mcp` binary inside the egress-sealed Docker sandbox + supply-chain review before wiring it as
+        the live backing — a David-env/Docker-integration step, not a code leaf. Reclassified [ ]→[~] 2026-07-08.)*
     - [x] define a `LocalizationProvider` port + result type (file/symbol/line spans), wired as the kernel's `localize` dep.
           **DONE (2026-07-01):** [src/core/localization-provider.ts](src/core/localization-provider.ts) — `LocalizationHit`
           (file · optional symbol · 1-based line span · score · reason), `LocalizationQuery`, the read-only `LocalizationProvider`
@@ -1715,8 +1719,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         General settings section; the dialog already tracked `agentRulesets` state + threaded it through the save
         path (`updateRuntimeConfig`/`updateGlobalRuntimeConfig`). Component-tested (render + change + add/clear
         override) + dialog suite (35) green; live Playwright Settings render clean.
-- [ ] **PROVENANCE/TAINT + a real EGRESS broker — assume prompt injection SUCCEEDS, protect the sinks (2026-06-27,
-      small-LLM research pass).** Once online
+- [~] **PROVENANCE/TAINT + a real EGRESS broker — assume prompt injection SUCCEEDS, protect the sinks (2026-06-27,
+      small-LLM research pass).** *(all PURE CORES + the chat-path wiring shipped — taint-labels · capability-broker ·
+      capability-escalation · egress-policy-decision · the secret_like content scanner (2026-07-08) · task-agent action
+      audit to §5.AF · manifest/§5.Y integration are all [x]/[~] below, and the chat model↔tool broker is wired live
+      + adversarially verified. Owed (all effect-side): the SWARM tool-seam broker (gated-on-vendored-wrapModel),
+      research/MCP admit-point labels (need retrieval/MCP live), and a distinct egress-READ manifest so benign
+      multi-page browsing doesn't self-block. Reclassified [ ]→[~] 2026-07-08.)*
+      Once online
       retrieval (§5.AC), the browser (§5.M G6), and MCP are live, model-facing content is untrusted. Add a **capability
       broker** between the model and every tool that decides `allow | deny | one-time-confirm | require-fresh-trusted-plan`
       from `{ effective ruleset, role, source provenance, tool trust, current taint labels, requested action, target
@@ -2206,10 +2216,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         Surfaced + editable in the chat UI's session header (2026-06-24); over the bridge LATER with the bridge.
 - [x] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling, decomposed: *(◐ PARTIAL — HALF-SHIPPED: steering a running TASK agent exists (§5.AU send_to_card relays into the live turn; the mailbox holds it otherwise; sendTaskSessionInput re-drives). Mid-turn steering of an in-flight CHAT turn (fold-in without cancel) remains open — turns are serialized per session by design (the 2026-07-05 transcript-interleave fix), so a fold-in needs a deliberate injection seam)*
   - [ ] backend: accept a mid-turn `steer` message and fold it into the active turn (reuse the runtime's
-        `"queue" | "steer"` delivery mode) without cancelling.
-  - [ ] UI: a composer affordance to send a steering message during an in-flight turn.
+        `"queue" | "steer"` delivery mode) without cancelling. *(⏱ RUNTIME-SEAM + LIVE-STREAM 2026-07-08: chat turns
+        are SERIALIZED per session by design (the transcript-interleave fix), so folding a steer INTO an in-flight
+        streaming turn needs a new server-side injection seam on the `chat.streamMessage` loop + a `chat.steerTurn`
+        mutation — a runtime turn-loop change whose correctness (does the steer actually land mid-generation without
+        corrupting the stream?) can only be validated against a LIVE streaming model turn, not a deterministic mock.
+        Build in a live-model session so the injection is real-validated, not a blind untestable seam. The task-agent
+        steer path (§5.AU send_to_card) already exists as the reference.)*
+  - [ ] UI: a composer affordance to send a steering message during an in-flight turn. *(gated on the backend seam
+        above — an affordance that posts to a nonexistent steer endpoint is dishonest UI, per the L2100 pattern.)*
   - [>] bridge: surface steering over the messenger bridge (LATER, with the bridge).
-- [ ] **LAYERED memory as one projection over the §5.AF substrate (2026-06-27, small-LLM research pass).**
+- [~] **LAYERED memory as one projection over the §5.AF substrate (2026-06-27, small-LLM research pass).** *(nearly
+      complete — the Four memory layers (memory-layers.ts, 2026-07-08), the turn-budget allocator, the namespaced
+      memory scope, memory governance (provenance/scopes/deletion/contradiction-replacement/recency-frequency-importance/
+      reversible history), and "why recalled" surfacing are all [x] below; the SOLE remaining sub-leaf is gating a scope
+      BROADENING on an internal LongMemEval-style benchmark (⏱ EVAL+FLEET — needs the benchmark authored + model-validated
+      to discriminate). Reclassified [ ]→[~] 2026-07-08.)*
       The chat memory core is a good start; the long-horizon
       story is four layers: **working** (active state + current step), **episodic** (the immutable §5.AF event/attempt
       ledger), **semantic** (facts/preferences/project constraints extracted from episodes), **procedural** (the §5.AE
