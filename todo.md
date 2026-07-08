@@ -7874,13 +7874,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         exists in a fresh dschinn run is what the sweep-phase live repro confirms.)*
   - [x] Add focused regression test once root-caused. *(✅ 2 regression tests pinning the REAL namespaced volume
         names + foreign-name rejection.)*
-- [ ] **Rework the dev-test-start layout — unify the two start paths (handoff 2026-06-28).** There are currently **two
+- [x] **Rework the dev-test-start layout — unify the two start paths (handoff 2026-06-28).** There are currently **two
       distinct dev-test start paths** (the UI `DevTestRegistryPicker` → `projects.createDevTestProject` + the CLI/script
       `createDevTestProject` + `startTaskSession`, plus the §5.B start-lane machinery). Unify them onto **one** start path
       so a dev-test run starts identically everywhere (no drift between UI, CLI, and the rail/harness). Audit
       [nklein-dev-test-project.ts](src/nklein-agent/nklein-dev-test-project.ts) + the create/start call sites; extract the
       shared start into one helper both surfaces call. Keep strict Docker isolation (#2) and the §5.B Planning/Refinement
       entry-lane invariant intact.
+      *(✅ verified-unified 2026-07-08 (audit): the handoff-era drift no longer exists — EVERY script path
+      (verify-full-system · multi-card-pipeline · fleet-swarm · dev-test-rail(+daemon) · sweep-capture) now calls the
+      tRPC `projects.createDevTestProject` over a BOOTED runtime (the one provisioning path: scaffold →
+      workspace-context → createDevTestBoard → evidence bundle), and the sole non-tRPC surface — the CLI `dev`
+      command — scaffolds only the DIRECTORY then drives the SAME runtime client for seed+start (its §5.AI fix
+      explicitly "mirrors the UI": addTaskToColumn → workspace.saveState → startTaskSession). All starts funnel
+      through startTaskSession ⇒ Docker isolation + the §5.B entry-lane invariant hold on every surface. No shared
+      helper extraction needed — the runtime IS the shared helper.)*
   - [~] **Full test-driven mode — default ON, global + per-project (handoff 2026-06-28).** Add a "test-driven" execution
         mode where the agent must produce/keep tests green as part of delivery (write-or-update tests for the change, run
         them, only reach review when green). **Default ON**, with a **global** toggle and a **per-project override** (wire
