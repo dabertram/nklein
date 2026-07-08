@@ -4,10 +4,26 @@ import {
 	decideModelLoad,
 	parseModelSizeBytes,
 	refineLoadDecisionWithLlmfit,
+	resolveRamBudgetBytesFromEnv,
 	sumResidentBytes,
 } from "../../../src/core/model-load-headroom";
 
 const GiB = 1024 ** 3;
+
+describe("resolveRamBudgetBytesFromEnv", () => {
+	it("parses NKLEIN_MAX_RAM_BUDGET_GB (GB) into bytes", () => {
+		expect(resolveRamBudgetBytesFromEnv({ NKLEIN_MAX_RAM_BUDGET_GB: "100" })).toBe(100 * GiB);
+		expect(resolveRamBudgetBytesFromEnv({ NKLEIN_MAX_RAM_BUDGET_GB: " 64.5 " })).toBe(Math.round(64.5 * GiB));
+	});
+
+	it("returns undefined (no cap) when unset, blank, or non-positive/invalid — fail-open", () => {
+		expect(resolveRamBudgetBytesFromEnv({})).toBeUndefined();
+		expect(resolveRamBudgetBytesFromEnv({ NKLEIN_MAX_RAM_BUDGET_GB: "" })).toBeUndefined();
+		expect(resolveRamBudgetBytesFromEnv({ NKLEIN_MAX_RAM_BUDGET_GB: "0" })).toBeUndefined();
+		expect(resolveRamBudgetBytesFromEnv({ NKLEIN_MAX_RAM_BUDGET_GB: "-8" })).toBeUndefined();
+		expect(resolveRamBudgetBytesFromEnv({ NKLEIN_MAX_RAM_BUDGET_GB: "lots" })).toBeUndefined();
+	});
+});
 
 describe("parseModelSizeBytes", () => {
 	it("parses human sizes (GB/MB, with or without a space)", () => {
@@ -65,6 +81,40 @@ describe("decideModelLoad", () => {
 		const base = { candidateSizeBytes: 10 * GiB, residentSizeBytes: 60 * GiB, totalRamBytes };
 		expect(decideModelLoad({ ...base, reserveFraction: 0.5 }).allow).toBe(false);
 		expect(decideModelLoad({ ...base, reserveFraction: 0.25 }).allow).toBe(true);
+	});
+
+	it("a user budget BELOW physical RAM caps the plan (refuses a load the full RAM would allow)", () => {
+		// 50 resident + 6 candidate = 56 → 72 free of 128 (allowed). But with a 60 GiB user cap: 4 free of 60,
+		// below the 25% reserve (15) → refuse. The user's "use ≤60 of my 128" is honored.
+		const base = { candidateSizeBytes: 6 * GiB, residentSizeBytes: 50 * GiB, totalRamBytes };
+		expect(decideModelLoad(base).allow).toBe(true);
+		const capped = decideModelLoad({ ...base, userBudgetBytes: 60 * GiB });
+		expect(capped.allow).toBe(false);
+		expect(capped.reason).toMatch(/budget cap/i);
+	});
+
+	it("a user budget ABOVE physical RAM is a no-op (detected RAM stands)", () => {
+		const base = { candidateSizeBytes: 6 * GiB, residentSizeBytes: 50 * GiB, totalRamBytes };
+		expect(decideModelLoad({ ...base, userBudgetBytes: 256 * GiB }).allow).toBe(true);
+		// Same verdict as no budget.
+		expect(decideModelLoad({ ...base, userBudgetBytes: 256 * GiB })).toEqual(decideModelLoad(base));
+	});
+
+	it("a zero/negative user budget is ignored (treated as no cap)", () => {
+		const base = { candidateSizeBytes: 6 * GiB, residentSizeBytes: 50 * GiB, totalRamBytes };
+		expect(decideModelLoad({ ...base, userBudgetBytes: 0 })).toEqual(decideModelLoad(base));
+		expect(decideModelLoad({ ...base, userBudgetBytes: -5 })).toEqual(decideModelLoad(base));
+	});
+
+	it("a user budget still ALLOWS a load that fits within the cap", () => {
+		// 20 resident + 6 candidate = 26 → 34 free of 64-cap, above the 16 reserve → allow.
+		const d = decideModelLoad({
+			candidateSizeBytes: 6 * GiB,
+			residentSizeBytes: 20 * GiB,
+			totalRamBytes,
+			userBudgetBytes: 64 * GiB,
+		});
+		expect(d.allow).toBe(true);
 	});
 });
 

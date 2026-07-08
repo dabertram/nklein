@@ -5402,14 +5402,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 >    online-lookup core `model-online-lookup.ts` + `llmfit-roster`/`swarm-roster` presets are internal/unwired). Add an
 >    advisory: given the loaded set + declared hardware tiers + the card mix, suggest what to fetch to strengthen the fleet
 >    (esp. "your decision layer is a Qwen monoculture — add a Mistral/Gemma/Z.ai-family judge"). Ties gap 1 + the online lookup.
-> 6. **Hardware-tier placement — CORE ALREADY EXISTS + WIRED (finding 2026-07-07).** `decideModelLoad`
->    (model-load-headroom.ts) is a pure headroom hard-block ALREADY wired into the LOAD paths (`lms-model-runner:157`,
->    `lms-model-control:128`): it REFUSES a model that can't prove RAM headroom (freeAfter ≥ reserve). So David's decided
->    "hard-block over-headroom" is essentially LIVE via DETECTED total RAM. **REMAINING refinement only:** the
->    USER-DECLARED per-machine budgets (`resolveEffectiveBudgets`, swarm-roster-config) are wired ONLY into `dev rosters`
->    today — not into the live guard. To honor a user cap BELOW physical RAM (e.g. "use ≤100GB of my 128"), thread the
->    per-machine budget into `decideModelLoad`'s `totalRamBytes` as `min(detectedRam, userBudget)` at the two call sites
->    (needs the machine id → budget lookup + config threading). Bounded config-wire; the hard-block itself is done.
+> 6. **Hardware-tier placement — CORE + USER-BUDGET CAP NOW WIRED (2026-07-08).** `decideModelLoad`
+>    (model-load-headroom.ts) is a pure headroom hard-block wired into the LOAD paths (`lms-model-runner`,
+>    `lms-model-control`): it REFUSES a model that can't prove RAM headroom (freeAfter ≥ reserve). **DONE this pass:** the
+>    guard now takes an optional `userBudgetBytes` and plans against `min(detectedRam, userBudget)` — so a user cap BELOW
+>    physical RAM ("use ≤100 GB of my 128") is honored (refuses a load the full RAM would allow; the deny reason names the
+>    budget cap). lms-model-control threads it via `LoadHeadroomInput`; lms-model-runner threads `input.userBudgetBytes`
+>    AND defaults to a power-user env cap `NKLEIN_MAX_RAM_BUDGET_GB` (`resolveRamBudgetBytesFromEnv`) so it works TODAY. 6
+>    new tests (cap-below-RAM refuses / above-RAM no-op / zero-neg ignored / fits-within-cap allows / env parse + fail-open).
+>    **REMAINING refinement only:** a Settings UI field for the cap + threading the per-machine roster budget
+>    (`resolveEffectiveBudgets`, swarm-roster-config) into the runner's `userBudgetBytes` for the multi-machine case
+>    (needs the machine-id → budget lookup). The mechanism + the single-machine env cap are LIVE; only the UX/roster-source remains.
 >
 > **Sequence (David: "work through rather soon", then resume the loop):** gap 3 (depth-vs-speed, most bounded) → gap 4
 > (escalation diversity) → gap 1 (external catalog overlay) → gap 6 (hardware config) → gap 2 (parallel panel, largest) →

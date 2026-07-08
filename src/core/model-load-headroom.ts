@@ -39,6 +39,23 @@ export function sumResidentBytes(sizes: readonly string[]): number {
 	return sizes.reduce((total, size) => total + (parseModelSizeBytes(size) ?? 0), 0);
 }
 
+/**
+ * Resolve a user-declared RAM budget (bytes) from the environment — `NKLEIN_MAX_RAM_BUDGET_GB` (a power-user cap usable
+ * TODAY, ahead of a Settings field). Pure over the injected env. Returns `undefined` when unset/invalid (⇒ no cap, detected
+ * RAM stands). Accepts a plain number (GB); a non-positive or non-finite value is ignored (fail-open: never a false cap).
+ */
+export function resolveRamBudgetBytesFromEnv(env: NodeJS.ProcessEnv = process.env): number | undefined {
+	const raw = env.NKLEIN_MAX_RAM_BUDGET_GB;
+	if (raw === undefined || raw.trim().length === 0) {
+		return undefined;
+	}
+	const gb = Number.parseFloat(raw.trim());
+	if (!Number.isFinite(gb) || gb <= 0) {
+		return undefined;
+	}
+	return Math.round(gb * 1024 ** 3);
+}
+
 export interface LoadHeadroomInput {
 	/** Size of the model we want to load, in bytes. */
 	candidateSizeBytes: number;
@@ -46,6 +63,12 @@ export interface LoadHeadroomInput {
 	residentSizeBytes: number;
 	/** Total host RAM in bytes (for a unified-memory Mac, the shared RAM/VRAM pool). */
 	totalRamBytes: number;
+	/**
+	 * Optional USER-DECLARED budget cap in bytes — the most RAM the user allows !Klein to plan against on this machine
+	 * (e.g. "use ≤100 GB of my 128"). When set (>0), the guard plans against `min(totalRamBytes, userBudgetBytes)`, so it
+	 * refuses a load that would exceed the user's cap even though physical RAM could hold it. Omitted ⇒ detected RAM stands.
+	 */
+	userBudgetBytes?: number;
 	/** Fraction of total RAM to keep free for the OS + headroom (default 0.25 — the freeze-avoidance buffer). */
 	reserveFraction?: number;
 	/** Optional hard cap on total resident model bytes (defense beyond the reserve). */
@@ -65,11 +88,17 @@ const gib = (bytes: number): string => `${(bytes / GiB).toFixed(1)} GiB`;
  */
 export function decideModelLoad(input: LoadHeadroomInput): LoadHeadroomDecision {
 	const reserveFraction = input.reserveFraction ?? 0.25;
+	// Honor a user-declared budget below physical RAM: plan against the SMALLER of detected RAM and the user's cap.
+	const capped = input.userBudgetBytes !== undefined && input.userBudgetBytes > 0;
+	const effectiveTotalRamBytes = capped
+		? Math.min(input.totalRamBytes, input.userBudgetBytes as number)
+		: input.totalRamBytes;
+	const budgetIsBinding = capped && (input.userBudgetBytes as number) < input.totalRamBytes;
 	const projectedResidentBytes = input.residentSizeBytes + input.candidateSizeBytes;
-	const freeBytesAfter = input.totalRamBytes - projectedResidentBytes;
-	const reserveBytes = input.totalRamBytes * reserveFraction;
+	const freeBytesAfter = effectiveTotalRamBytes - projectedResidentBytes;
+	const reserveBytes = effectiveTotalRamBytes * reserveFraction;
 
-	if (!(input.totalRamBytes > 0) || !(input.candidateSizeBytes > 0)) {
+	if (!(effectiveTotalRamBytes > 0) || !(input.candidateSizeBytes > 0)) {
 		return {
 			allow: false,
 			projectedResidentBytes,
@@ -78,11 +107,12 @@ export function decideModelLoad(input: LoadHeadroomInput): LoadHeadroomDecision 
 		};
 	}
 	if (freeBytesAfter < reserveBytes) {
+		const capNote = budgetIsBinding ? ` within your ${gib(effectiveTotalRamBytes)} budget cap` : "";
 		return {
 			allow: false,
 			projectedResidentBytes,
 			freeBytesAfter,
-			reason: `Load would leave only ${gib(freeBytesAfter)} free, below the ${Math.round(
+			reason: `Load would leave only ${gib(freeBytesAfter)} free${capNote}, below the ${Math.round(
 				reserveFraction * 100,
 			)}% reserve (${gib(reserveBytes)}) — unload something first or pick a smaller quant (freeze risk).`,
 		};

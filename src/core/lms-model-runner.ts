@@ -23,7 +23,7 @@ import {
 	type ModelSuitabilityPolicy,
 	type ModelSuitabilityVerdict,
 } from "./model-capability-catalog";
-import { decideModelLoad } from "./model-load-headroom";
+import { decideModelLoad, resolveRamBudgetBytesFromEnv } from "./model-load-headroom";
 
 /** Injected `lms` CLI runner — `run(["load", id, …])` → its stdout + exit code. */
 export type LmsRunner = (args: readonly string[]) => Promise<{ stdout: string; exitCode: number }>;
@@ -49,6 +49,12 @@ export interface LoadExclusiveInput {
 	modelId: string;
 	/** Host RAM in bytes (e.g. `os.totalmem()`). */
 	totalRamBytes: number;
+	/**
+	 * OPTIONAL user-declared RAM budget cap in bytes (§5.AB — "use ≤100 GB of my 128"). When set, the headroom guard plans
+	 * against `min(totalRamBytes, userBudgetBytes)`. Omit ⇒ detected RAM stands. Resolve from config/env via
+	 * {@link resolveRamBudgetBytesFromEnv} at the caller.
+	 */
+	userBudgetBytes?: number;
 	/** Context window to load with (default 40000; floored to ≥32k + capped to capability by the planner). */
 	contextLength?: number;
 	/** The model's max context capability (caps `contextLength`). */
@@ -158,6 +164,8 @@ export async function loadModelExclusive(run: LmsRunner, input: LoadExclusiveInp
 		candidateSizeBytes: input.candidateSizeBytes ?? DEFAULT_CANDIDATE_SIZE_BYTES,
 		residentSizeBytes: keptResidentBytes,
 		totalRamBytes: input.totalRamBytes,
+		// Explicit budget wins; otherwise honor a power-user env cap (NKLEIN_MAX_RAM_BUDGET_GB) so "use ≤N GB" works today.
+		userBudgetBytes: input.userBudgetBytes ?? resolveRamBudgetBytesFromEnv(),
 		reserveFraction: input.reserveFraction,
 	});
 	if (!decision.allow) {
