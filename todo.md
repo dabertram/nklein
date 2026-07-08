@@ -5984,9 +5984,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         model on llmfit's say-so. Injected lookup (pure). **Partial live consumer DONE 2026-07-08:** the cached GitHub DB
         now registers as a post-empirical catalog supplement for UNKNOWNs only (same "llmfit never overrides empirical"
         rule). Owed: consume the xref at the live load-planning/routing seam.
-  - [ ] **EGRESS-GATED (prime directive #1):** the model-DB refresh (`make update-models` hits the HF API) + the
-        Community-Leaderboard/localmaxxing.com features are OUTBOUND network — opt-in/default-off + allow-listed, like the
-        §5.AC online-research tools; the offline embedded DB is fine local-only. Also a "update llmfit version" action.
+  - [~] **EGRESS-GATED (prime directive #1):** the explicit GitHub catalog check/pull/cache path is **DONE**
+        (user-triggered, default `notify`, cache registered as a post-empirical supplement; see the 2026-07-08 notes
+        above). **Remaining under this leaf is narrower:** refreshing llmfit's upstream model DB itself (`make
+        update-models` hits the HF API), Community-Leaderboard/localmaxxing.com features, and an explicit "update llmfit
+        version" action. Those are OUTBOUND network/tool-update actions — opt-in/default-off + allow-listed, like the
+        §5.AC online-research tools; the cached/offline DB path is fine local-only.
   - [x] decide invocation mode: CLI shell-out (default, matches the `lms` pattern) vs `llmfit serve` REST (only if a
         long-lived query surface is worth a second local process). *(DECIDED 2026-07-08 by implementation: default stays
         ephemeral CLI shell-out via `createLlmfitRunner`/`uvx llmfit`, matching the existing guarded `lms` pattern. REST
