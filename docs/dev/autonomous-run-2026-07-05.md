@@ -3715,3 +3715,13 @@ ADDENDUM (same day, later): also shipped — acceptance-spec completion oracle (
 §5.AF transition events (createSessionTransitionRecorder on the server onSummary seam). Tests 8289 backend.
 REMAINING §5.AA/§5.AF leaves are fleet-gated (9-model sweeps), vendored-gated (wrapModel), or program-scale (full
 phase ladder e2e, parallel-swarm runs = David-env). NEXT: scan §5.AN/§5.AQ open boxes (~L5800+), then §10 manual todos.
+RESUME POINT (2026-07-08, cont.): NEXT REAL WORK UNIT = §5.AG Layer-1 stubborn-failure escalation wiring (~L5917):
+`decideEscalationAction` (src/core/agent-stuckness.ts) is built+tested but has NO live consumer. Wire the runtime
+hot-path: feed live ledger signals (readAgentLedger projections) + tried/available models into it at the stuck-task
+seam — candidate sites: runtime-server onSummary (isTerminalFailureSessionState branch, next to
+retryWaitingCardsAfterTerminal) and the adaptive-budget controller. Then: model-switch on hard-stuck (best untried
+LOADED model — never load models), record escalation as a ledger event (buildTransitionEvent with
+controllerDecision, writer seam now exists via createSessionTransitionRecorder's appendEvent pattern), live-validate.
+CAUTION: behavior-changing on the live task loop — tests-first, flag-gate if in doubt. After that: L5986 settings
+fitness/role controls (partially shipped — fitness browser exists), L5999 resource-aware routing leaves, L6262
+web_search leaves, then §10 manual todos. 268 open boxes.
