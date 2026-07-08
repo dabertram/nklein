@@ -3710,3 +3710,8 @@ In Progress via AUTO-PROMOTE; en route found+fixed 2 real decompose bounces (ass
 missing task prompts). CLASSIFIED: settings-polish NEEDS-DAVID-UX-CALL; roadmap umbrella audited (#2/#3/#13 landed);
 retry-engine leaves reconciled (task-level engine live, ladder-order fleet-gated). Tests 8283 backend + 961 web +
 61 e2e. NEXT: §5.AN/§5.AQ regions, remaining §5.AA leaves are fleet/vendored-gated, then §10 manual todos.
+ADDENDUM (same day, later): also shipped — acceptance-spec completion oracle (chat-acceptance-completion.ts; the
+'Acceptance check:' line gates the turn's done on a green run_command, composed with the named-tools gate) and LIVE
+§5.AF transition events (createSessionTransitionRecorder on the server onSummary seam). Tests 8289 backend.
+REMAINING §5.AA/§5.AF leaves are fleet-gated (9-model sweeps), vendored-gated (wrapModel), or program-scale (full
+phase ladder e2e, parallel-swarm runs = David-env). NEXT: scan §5.AN/§5.AQ open boxes (~L5800+), then §10 manual todos.
