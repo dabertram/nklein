@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Task/swarm tool outputs now carry provenance taint before later actions** (todo §5.L). The SDK session runtime now
+  wraps both autonomous task `extraTools` and sandbox tool executors with the same capability-broker gate used by chat.
+  Repo reads/searches are labeled `repo_instruction`, web retrieval is labeled `web`, bundled MCP tool outputs are
+  labeled `mcp`, and all three are scanned for secret-shaped text so `secret_like` propagates into the session taint
+  window. Sandbox command output remains unlabeled to avoid treating trusted build/test logs as instructions.
 - **Fetched chat web content now gets scanned for secret-shaped text before it can influence later actions** (todo §5.L).
   The chat tool executor now supports content-derived taint labels in addition to static source labels, and both
   `browse_url` and `web_search` scan their rendered output with the shared secret-pattern catalog. A fetched page or

@@ -53,6 +53,7 @@ import { createNKleinReviewTool } from "./nklein-review-tool";
 import { createKanbanNKleinLogger } from "./nklein-runtime-logger";
 import { resolveContextWindowTokens, resolveSdkApiTimeoutMs, toSdkUserImages } from "./nklein-session-sdk-inputs";
 import { buildSessionIdPrefix, createSessionId } from "./nklein-session-state";
+import { createSwarmToolBrokerState, wrapSwarmAgentTools, wrapSwarmToolExecutors } from "./nklein-swarm-tool-broker";
 import { resolveNKleinTeamDelegationPolicy } from "./nklein-team-delegation";
 import { createWebResearchTool } from "./nklein-web-research-tool";
 import { createWriteFilesTool, createWriteFileTool } from "./nklein-write-files-tool";
@@ -268,7 +269,7 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 		// session kind gets, in a fixed order) and every CONDITIONALLY-ATTACHED tool appended at the TAIL. Serialized
 		// tool schemas are part of the prompt bytes local endpoints prefix-cache, so a worker-vs-reviewer (etc.)
 		// toolset must diverge only at the end — never interleave a conditional tool between the stable ones.
-		const extraTools = [
+		const rawExtraTools: AgentTool[] = [
 			// ---- STABLE SHELL (attached for every session on this path, fixed relative order) ----
 			// Decomposition / board / plan tools are TRUSTED CONTROL-PLANE: they mutate only !Klein-owned
 			// state (`~/.nklein/nklein` plan artifacts + the board via mutateWorkspaceState), never the user's
@@ -326,6 +327,10 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					]
 				: []),
 		];
+		const mcpToolNames = new Set((mcpToolBundle?.tools ?? []).map((tool) => tool.name));
+		const swarmToolBrokerState = createSwarmToolBrokerState();
+		const extraTools = wrapSwarmAgentTools(rawExtraTools, swarmToolBrokerState, { mcpToolNames });
+		const toolExecutors = wrapSwarmToolExecutors(request.toolExecutors, swarmToolBrokerState, { mcpToolNames });
 
 		const sessionHost = await this.ensureSessionHost();
 		const userImages = toSdkUserImages(request.images);
@@ -458,11 +463,11 @@ export class InMemoryNKleinSessionRuntime implements NKleinSessionRuntime {
 					}),
 					extraTools,
 				},
-				...(requestToolApproval || request.toolExecutors
+				...(requestToolApproval || toolExecutors
 					? {
 							capabilities: {
 								...(requestToolApproval ? { requestToolApproval } : {}),
-								...(request.toolExecutors ? { toolExecutors: request.toolExecutors } : {}),
+								...(toolExecutors ? { toolExecutors } : {}),
 							},
 						}
 					: {}),
