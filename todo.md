@@ -6574,7 +6574,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       **Still owed (WIRING — behind a live §5.Z re-verify):** feed live `usedTokens` + the per-zone occupancy from the
       board/chat prompt-assembly seam, route `compact` into `planCompaction`, and act on `expand` (widen retrieval / re-anchor).
 - [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first), decomposed:**
-  - [ ] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
+  - [~] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
+        *(◐ 2026-07-08 — the PROMPT SUBSTRATE shipped: `src/core/cross-model-bounce.ts` — buildCrossModelBouncePrompt
+        (repair-the-deliverable framing: FINDINGS + full REPAIRED sections, drafting-model identity surfaced) +
+        parseCrossModelBounceReply (missing REPAIRED ⇒ keep the original draft — never lose work). 2 tests. REMAINING:
+        the effectful loop at the §5.K reviewer seam driven by the gate's `cross_model_carry` kind — same call-site
+        wiring as the self-bounce sibling.)*
   - [~] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
         *(◐ 2026-07-08 — the PROMPT SUBSTRATE shipped: `src/core/self-bounce-personas.ts` — a fixed 3-persona rotation
         (skeptical reviewer · test verifier · requirements auditor), each a genuinely different failure-mode lens over
