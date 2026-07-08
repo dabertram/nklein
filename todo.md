@@ -5915,7 +5915,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         agents is doing/thinking (live reasoning/tool snippet per running card), so you don't have to open each card. THAT
         is worth building. (Live end-to-end repro on the user's instance still owed to rule out (c).)
 - [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (Layer 1), decomposed:**
-  - [ ] Wire the runtime hot-path that feeds live ledger signals + tried/available models into `decideEscalationAction`.
+  - [~] Wire the runtime hot-path that feeds live ledger signals + tried/available models into `decideEscalationAction`.
+        *(◐ 2026-07-08: the pure GLUE shipped — `src/core/terminal-redrive-escalation.ts`
+        `planTerminalRedriveEscalation({events, taskId, availableModelIds})` composes buildStucknessSignalsFromLedger +
+        the escalation report's modelsTried + decideEscalationAction, with key-format leniency (ledger
+        `provider:model:endpoint` keys vs plain loaded ids compare on the model component). 4 tests. REMAINING wiring:
+        call it at the #24 dead-card redrive branch (runtime-server retryWaitingCardsAfterTerminal — `readAgentLedger`
+        scoped by workspacePathHash is already imported there); the missing piece is the server's access to the LOADED
+        model list + provider base URL (the chat path's getLocalChatBaseUrl lives in runtime-api, not the server) —
+        thread it as a dep, then on retry_other_model persist the switch onto the card's `nkleinSettings.modelId` via
+        mutateWorkspaceState + record a `transition` event (controllerDecision: layer1_model_switch) before the
+        redrive. NEVER load models — fetchLoadedModelIdsCached only.)*
   - [ ] Implement model-switching logic: on hard-stuck, pick best untried loaded model, auto-select + retry (Layer 1 automatic).
   - [ ] Record escalation as a ledger event (ties §5.AA, §5.AF, §5.AG).
   - [x] Build the escalation action dispatcher (continue loop vs escalate). *(SHIPPED: dispatcher logic in decideEscalationAction)*
