@@ -5,12 +5,17 @@
  *
  * GROUNDING — TWO live probes (127.0.0.1:1234, 2026-07-01; full detail in §4A / §5.AN):
  *
- *  (1) json_schema DEAD-ENDS on reasoning models. On qwen3.5-9b AND the capable qwopus3.6-27b,
- *      `response_format:{type:"json_schema",strict:true}` returns `finish_reason:stop` with EMPTY `content` at max_tokens
- *      200/800/2000 alike — the grammar constrains the CONTENT channel and conflicts with the reasoning channel (~16–20
- *      reasoning tokens land in `reasoning_content`, no JSON in `content`). It reproduces on the 27B ⇒ reasoning FAMILY,
- *      not size. On NON-reasoning models (qwen2.5-coder-14b, phi-4-mini-instruct) json_schema WORKS and is the STRONGER
- *      (grammar-GUARANTEED) path for a pure JSON blob.
+ *  (1) json_schema DEAD-ENDS on the qwen3.5/qwopus reasoning families (NOT all reasoning models — see the r1 nuance).
+ *      On qwen3.5-9b AND the capable qwopus3.6-27b, `response_format:{type:"json_schema",strict:true}` returns
+ *      `finish_reason:stop` with EMPTY `content` at max_tokens 200/800/2000 alike — the grammar constrains the CONTENT
+ *      channel and conflicts with the reasoning channel (~16–20 reasoning tokens land in `reasoning_content`, no JSON in
+ *      `content`). It reproduces on the 27B ⇒ a reasoning-FAMILY trait, not size. On NON-reasoning models
+ *      (qwen2.5-coder-14b, phi-4-mini-instruct) json_schema WORKS and is the STRONGER (grammar-GUARANTEED) path.
+ *      NUANCE (re-probed 2026-07-08 on deepseek-r1-0528-qwen3-8b): this reasoning model does NOT dead-end — json_schema
+ *      returned content (`{"city":":paris"}`, valid-ish but with a stray-char artifact). So the dead-end is family-specific
+ *      (qwen3.5/qwopus), not universal to reasoning. We STILL route every reasoning model to native_tool_call below,
+ *      because (a) it is the universally-safe choice (some reasoning families DO dead-end, silently) and (b) even where
+ *      json_schema "works" on a reasoner it can emit artifacts, whereas native tool_call was clean (`{"city":"Paris"}`).
  *
  *  (2) native TOOL-CALLING WORKS on those SAME reasoning models. A request with `tools` + `tool_choice:"required"` (also
  *      `"auto"`) returns `finish_reason:tool_calls` with a VALID, schema-valid tool_call (e.g. `{"city":"Paris"}`) after
@@ -113,7 +118,7 @@ export function selectStructuredOutputStrategy(
 		return {
 			strategy: "native_tool_call",
 			reason:
-				"reasoning model — response_format:json_schema dead-ends to empty content (grammar vs reasoning channel, live-probed 2026-07-01); native tool_call (tool_choice:required) works: fast + schema-valid args in the separate tool_calls channel",
+				"reasoning model — native tool_call (tool_choice:required) is the universally-safe structured path: some reasoning families (qwen3.5/qwopus) dead-end response_format:json_schema to EMPTY content, others (deepseek-r1) emit content with artifacts; the separate tool_calls channel avoids both (live-verified clean on qwen3.5-9b/qwopus3.6-27b/deepseek-r1-8b)",
 			confident: true,
 		};
 	}
