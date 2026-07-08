@@ -6826,8 +6826,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the default has no role; deferred. **Still owed:** the resolver/prompt-assembly consumer reading
       `effectiveSkillDynamicsLevel` (now UNBLOCKED — see the model-loading authorization in §4A).
 - [ ] **Wire the composed fragments into the board + chat prompt assembly, decomposed:**
-  - [ ] replace hard-coded always-on blocks with resolved skill fragments (board + chat)
-  - [ ] thread fragments through §5.AD arrangement (zone ordering)
+  - [ ] replace hard-coded always-on blocks with resolved skill fragments (board + chat) ⏱ §5.Z-VERIFY-COUPLED
+        *(every prompt byte shifts small-model behavior — the cluster's own note gates this behind a live roster
+        re-verify; the JIT budget core + resolver are ready)*
+  - [ ] thread fragments through §5.AD arrangement (zone ordering) ⏱ §5.Z-VERIFY-COUPLED *(same gate as above)*
   - [~] thread fragments through §6.2 capping (never overflow) — **PURE CORE DONE (2026-07-01):**
         [src/core/jit-fragment-budget.ts](src/core/jit-fragment-budget.ts) `selectFragmentsWithinBudget(candidates, budgetTokens)`
         → `{ kept, dropped, usedTokens, overBudget, reason }`: the missing JIT seam between `fragmentsForSkills` (the union,
@@ -6838,10 +6840,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         output. 13 unit tests; tsc + biome green. **Still owed (WIRING, behind a live §5.Z re-verify):** feed it real
         per-fragment token estimates + importance (from `skillRelevance`) at the board + chat assembly seam and hand the
         `kept` set to §5.AD.
-  - [ ] re-verify across §5.Z roster (no regression, weak models get leaner prompts)
-- [ ] **Skill-variation as a stuck-task escalation rung (ties §5.AA/§5.AB).** When a task stubbornly fails, the resolver
+  - [ ] re-verify across §5.Z roster (no regression, weak models get leaner prompts) ⏱ FLEET-RUN
+- [~] **Skill-variation as a stuck-task escalation rung (ties §5.AA/§5.AB).** When a task stubbornly fails, the resolver
       tries a different skill set / preamble / fragment mix (e.g. add a `reasoning` or `retriever` skill) as one rung of the
       §5.AA ladder, learned into the §5.AA profile (which skill mixes work for which model/task).
+      *(◐ 2026-07-08 — the PURE RUNG DECIDER shipped: `src/core/skill-variation-rung.ts` `nextSkillVariation` walks a
+      fixed escalation order (add_planning → add_web_retrieval → minimal_core — deliberation, then knowledge, then
+      prompt-bloat relief), order-insensitive no-repeat over tried mixes, never proposes an unregistered skill, null
+      when exhausted (ladder moves on). 2 tests. REMAINING: the ladder call-site (record tried mixes + outcomes into
+      the §5.AA profile) — rides the same §5.Z-verified assembly seam as the fragment wiring above.)*
 - *(cross-links)* §5.AD (arranges the fragments §5.AE produces) · §5.AB (model routing — coupled via the dynamics level) ·
       §5.AA (`ModelBehaviorProfile` — the shared learning substrate; skill-variation rung) · §5.AC (temporal + retriever
       role + online retrieval fragments) · §5.M (the role catalog this extends) · §5.L (a skill's tools still pass the
