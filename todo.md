@@ -4870,7 +4870,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - **still owed (WIRING), decomposed:**
     - [ ] measure real `model_stalled` frequency for SUITABLE models first (observability-before-mechanism gate).
     - [ ] only if stalls occur: build the PROACTIVE `beforeModel` swarm recovery rung (reactive-next-turn is invalid — a no-call turn ENDS the loop).
-    - [ ] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
+    - [x] record the constrained-rung outcome on the §5.AF ledger (feeds the finite-state controller).
+          *(✅ 2026-07-08 — the adapter stamps each response with the rung that produced it (`constrained_schema` /
+          `native_tool_choice_required` / `prompt_variant:<family>`); the loop collects per turn; chat + autonomous
+          ledger attempts now carry `promptStrategy`, so the §5.AF projections see WHICH lever rescued a turn.)*
     - [ ] re-verify the proven chat-path flips (coder-14b / phi-4-mini) still hold + no regression on the 7 passing models.
     - [x] **(challenge: C1, 2026-06-29) ROOT-CAUSED + FIXED the decompose stall-nudger detection gap.** Methodically,
           without over-claiming: (1) the first scouts ran WITHOUT `startInPlanMode` so the nudger wasn't even armed
@@ -4909,7 +4912,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       hooks from the attempt loop (choose the best first approach + skip known-failing ones, no circles) + Settings
       model-telemetry surface. Built core-first to avoid a speculative persisted schema ahead of its consumers.
   - [x] Build thin JSON persistence layer in runtime home (like MCSR) **DONE 2026-07-05:** event-sourced append-JSONL store `src/telemetry/model-behavior-profile-store.ts` (`persistModelBehaviorOutcome` / `readModelBehaviorProfile` / `readAllModelBehaviorProfiles`) — mirrors model-performance-stats (concurrency-safe append-only, folded oldest-first via the pure `recordModelBehaviorOutcome`); 6 tests. Read/update hooks into the live attempt loop remain (separate wiring).
-  - [ ] Add read hooks in attempt loop (choose best first, skip known-failing, no circles)
+  - [~] Add read hooks in attempt loop (choose best first, skip known-failing, no circles) *(◐ 2026-07-08: first
+        read hook live — the chat resolver reads the profile and seeds `preferredPromptVariantFamily`, so the variation
+        rung tries the model's learned-responsive phrasing FIRST. Remaining: preferredToolCallFormat / dominantFailureMode
+        read hooks to skip known-failing rungs.)*
   - [x] Add update hooks after each outcome (record to persisted profile) **DONE 2026-07-05 (coarse):** the task-outcome seam (runtime-server) now folds each terminal outcome into the model's ModelBehaviorProfile via `persistModelBehaviorOutcome` (success/other_failure → successRate + retry-budget signal; append-only, concurrency-safe, best-effort). Rich per-ATTEMPT failure-mode capture (no_tool_call/narrated/timeout during the recovery ladder) still rides the loop-level read/update wiring — a follow-up.
   - [ ] Expose model-telemetry surface in Settings UI
   - [ ] Test with real multi-model runs (verify learning across sessions)
@@ -4953,7 +4959,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Adopt retry-policy engine on chat path (engine-ordered ladder: reduced→constrained→variant)
   - [ ] Re-verify 9-model roster (proven phi-4/coder flips must hold, 7 passing models must not regress)
   - [ ] Wire into SWARM/SDK path seam (uses beforeModel nudge for next attempt)
-  - [ ] Record each rung outcome on §5.AF ledger (enables learning)
+  - [x] Record each rung outcome on §5.AF ledger (enables learning) *(✅ 2026-07-08 — chat/autonomous attempt events
+        now carry `promptStrategy` (the fired rung: reduced-set recoveries land as the winning call; variant/constrained/
+        native-required stamped explicitly); variant WINS additionally persist to the ModelBehaviorProfile as
+        success-after-retries outcomes with the winning family.)*
   - [ ] Decide between 3 collision points: rung order, budget gating, reduction multi-level loop
   - [~] **Adaptive strategy-effectiveness learning — make the ladder ADAPT, not just fire the static table (PURE CORE
         DONE 2026-07-01).** [src/core/strategy-effectiveness-ledger.ts](src/core/strategy-effectiveness-ledger.ts) closes
