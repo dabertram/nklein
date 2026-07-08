@@ -7031,10 +7031,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
                   (`json_schema_grammar` for a non-reasoning coder/instruct; `native_tool_call` for a reasoning model —
                   NOT json_schema; `prose_extract` fallback) + a correct note, instead of the previous hardcoded
                   "response_format json_schema" that was wrong for reasoning models. So the lever is now reasoning-SAFE to
-                  apply. +3 tests (10 total). Owed (effectful): at the call seam, when `structuredOutputStrategy` is
-                  `json_schema_grammar` build the `response_format` (buildJsonSchemaResponseFormat), when `native_tool_call`
-                  dispatch the constrained tool rung. (LM Studio live-confirms json_schema works on the coder-14b — see
-                  the §5.O grammar box + [[lmstudio-ignores-gbnf-grammar]].)
+                  apply. +3 tests. **ENVELOPE-PLAN BRIDGE also DONE (2026-07-08):**
+                  [structured-output-request-plan.ts](src/core/structured-output-request-plan.ts)
+                  `planStructuredOutputRequest({strategy, schema, schemaName})` turns the chosen strategy + schema into the
+                  concrete request envelope: `json_schema_grammar` → a built `response_format` (via buildJsonSchemaResponseFormat),
+                  `native_tool_call` → a boundary-clean INTENT (schemaName + targetSchema) the nklein-agent seam builds the
+                  tool from, `prose_extract`/`none` handled — WITH a robustness fallback (an unbuildable/illegal-name
+                  json_schema degrades to the native intent instead of emitting a silently-failing envelope). 6 tests. So
+                  the ONLY remaining effectful step is: call `planStructuredOutputRequest` at the chat/swarm seam and apply
+                  the `{kind}` (set `response_format`, or build+send the constrained tool). (LM Studio live-confirms
+                  json_schema works on the coder-14b — see the §5.O grammar box + [[lmstudio-ignores-gbnf-grammar]].)
             - [~] fire constrained force-call rung PROACTIVELY on no-tool-call *(◐ the rung ALREADY fires on every
                   no-tool-call turn within the recovery ladder (reactive-in-turn = effectively proactive for the turn);
                   what remains is honoring a profile's forceToolCall lever on the FIRST attempt — deliberately deferred
