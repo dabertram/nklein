@@ -4677,9 +4677,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         winner is promoted FIRST (short-circuits the walk), stale/unavailable preferences ignored, unknown/duplicate
         kinds filtered, canonical relative order preserved, never repeats a kind. Pure + deterministic + total; 9 tests;
         tsc + biome green. The effectful native/Anthropic CLIENTS + profile persistence are the leaves below.)*
-  - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing
-  - [ ] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing
-  - [ ] Wire endpoint-iteration into retry loop (record winning endpoint per model)
+  - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing ⏱ LIVE-ENDPOINT
+        *(2026-07-08: the try-order decider + per-model persistence leaves are shipped; these two protocol clients are
+        gated on a LIVE endpoint that actually speaks the wire format — a request-serializer/response-parser whose
+        correctness is DEFINED by the server's real bytes must be built against that server, not blind, or it ships
+        subtly-wrong parsing (the exact "dirty fix" the goal forbids). Do in a model-roster session with a server
+        exposing the native/Anthropic shape; the decider + profile are ready to consume the result.)*
+  - [ ] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing ⏱ LIVE-ENDPOINT
+  - [ ] Wire endpoint-iteration into retry loop (record winning endpoint per model) *(gated on the two clients above —
+        the seam records `winningEndpointKind` (persistence ready) and reads `preferredEndpointKind` as the first hop
+        (decider ready), so this is pure wiring once a second protocol client exists to iterate TO.)*
   - [x] Add to `ModelBehaviorProfile` for per-model persistence *(✅ 2026-07-08 — mirrors the prompt-variant-family
         pattern exactly: `winningEndpointKind?` on `ModelAttemptOutcome` (counted only on SUCCESS), `endpointKindCounts`
         on the profile (legacy-tolerant fold — a profile persisted before the field folds clean), and a
@@ -5749,7 +5756,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] Design + collect role-specific prompt templates (architect/decompose, worker/implement, reviewer) across difficulty tiers. *(2026-07-05: src/core/eval-prompt-corpus.ts — EVAL_PROMPT_CORPUS of 9 rows (architect/worker/reviewer × easy/medium/hard, aligned to the real estimateTaskDifficulty tiers, not the aspirational trivial–very-hard), each with a deterministic answer key: decompose→reference DAG, implement→acceptance tests, review→seeded-defect code+ids; zod discriminated-union schema + scoreEvalAnswer dispatcher over prompt-family-scorers + byRole/byDifficulty/byId selectors; 14 tests incl. every-row-self-scores-1. Wiring into verify-all-models.mts sweep is the sibling harness item (5679).)*
   - [x] Build deterministic scorers for each prompt family (valid DAG, passing code, defect-catching review). *(2026-07-05: prompt-family-scorers.ts — scoreValidDag (Kahn cycle-check + edge validity), scorePassingCode (pass fraction), scoreDefectCatchingReview (seeded-defect recall); 12 tests)*
   - [x] Set up versioning infrastructure so re-evals compare corpus versions. *(2026-07-05: EVAL_CORPUS_VERSION (manual bump on breaking scoring-semantics changes) + evalCorpusFingerprint() — a deterministic djb2-xor content hash `v<ver>-<hash8>` over the serialized rows that auto-detects ANY prompt/answer-key/row change, so persisted eval results record both + a re-eval knows if the corpus drifted. Pure, 4 tests. In src/core/eval-prompt-corpus.ts.)*
-  - [ ] Integrate size/context footprint variants (per the research findings on effective context budgets).
+  - [x] Integrate size/context footprint variants (per the research findings on effective context budgets). *(✅
+        2026-07-08 — [eval-context-footprint.ts](src/core/eval-context-footprint.ts): the §5.AD quality-knee PROBE.
+        `buildContextFootprintVariant(prompt, targetTokens)` pads a corpus row's instruction up to a target footprint
+        with DETERMINISTIC distractor filler in the standard needle-in-a-haystack layout (real instruction wrapped in a
+        `=== TASK ===` marker, half the filler before / half after), so the sweep can run the SAME task at growing
+        context sizes and watch where the score falls off. Invariant: ONLY `id` (`#ctx<n>` suffix) + `prompt` change —
+        role/family/difficulty + the ANSWER KEY (reference DAG / acceptance tests / seeded-defect code) are byte-identical,
+        so a variant still self-scores 1 and still validates against the corpus schema. `EVAL_CONTEXT_FOOTPRINTS`
+        (4k/8k/16k/32k) brackets the ≥32k floor so a knee BELOW the guaranteed window is visible; `contextFootprintVariantsFor`
+        yields base + one rung per LARGER tier (never pads down). Lightweight `chars/4` token estimate (matches the
+        chat-service default) keeps it pure + tokenizer-free; footprints are monotone + reproducible by construction. 11
+        tests (approx-target · needle-findable · answer-key-preserved · deterministic · never-down-pads · whole-corpus
+        schema+self-score); tsc + biome green. Running these variants through a model is the sibling harness item (5761,
+        LIVE-ENDPOINT).)*
 - [ ] **Evaluation harness (run a model through the matrix → fitness), decomposed:**
   - [ ] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
   - [~] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
