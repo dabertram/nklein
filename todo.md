@@ -6791,12 +6791,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         *(✅ already covered by the gate suite (enforced-reasoning-gate.test.ts): "does NOT enforce … for a RELIABLE
         model with no fresh failure (robust model)" + "prefers cross_model_carry whenever a stronger peer is available"
         (incl. the flaky-model case) — both routing halves deterministic. The leaf was stale.)*
-- [ ] **Learn "needs enforced reasoning?" + kind (per model), decomposed:**
-  - [ ] Track native-reasoning quality in `ModelBehaviorProfile`: measure how often model reasons correctly alone.
-  - [ ] Record whether enforced reasoning helps (A/B: outcome with vs. without reasoning loop).
-  - [ ] Learn which kind wins for this model: self-consistency vs. cross-model debate vs. stronger-model carry.
+- [~] **Learn "needs enforced reasoning?" + kind (per model), decomposed:** *(pure learning core DONE 2026-07-08 —
+      [enforced-reasoning-learning.ts](src/core/enforced-reasoning-learning.ts) covers all three learn-leaves + the
+      decider in one focused module; only the record-recording + selector WIRING is owed.)*
+  - [x] Track native-reasoning quality in `ModelBehaviorProfile`: measure how often model reasons correctly alone.
+        *(✅ `recordNativeReasoning`/`nativeReasoningQuality` — correct/samples over un-enforced attempts; null until sampled.)*
+  - [x] Record whether enforced reasoning helps (A/B: outcome with vs. without reasoning loop). *(✅ `recordEnforcedReasoning`
+        — per-kind helped/hurt tally, one A/B fold per enforced run.)*
+  - [x] Learn which kind wins for this model: self-consistency vs. cross-model debate vs. stronger-model carry. *(✅
+        `bestEnforcedReasoningKind` — highest strictly-positive net-help fraction, canonical-order tie-break.)*
   - [x] Compute learned rounds budget (when to stop iterating). *(2026-07-05: rounds-budget.ts — decideStopIterating (converged→cap→diminishing-returns) + learnRoundsBudget (leading rounds clearing the improvement floor, clamped [1,cap]); 8 tests)*
-  - [ ] Wire into §5.AB model selector: apply reasoning loop only where it helps; skip for robust models on easy tasks.
+  - [~] Wire into §5.AB model selector: apply reasoning loop only where it helps; skip for robust models on easy tasks.
+        *(✅ DECIDER DONE — `shouldApplyEnforcedReasoning(learning, {nativeQualityFloor, minNativeSamples})` skips the
+        tax for a model reliably right alone (native quality ≥ floor over enough samples), else applies the winning kind
+        when net-positive; 8 tests. Owed WIRING: record native/enforced outcomes at the §5.AD loop seam + consult the
+        decider in the §5.AB selection path.)*
 - [ ] **Re-verify across the §5.Z roster + matrix.** After each increment, sweep all loaded models: arrangement +
       learned budget + enforced reasoning should LIFT the weak/small models (esp. phi-4-mini/-plus on the harder flows)
       with NO regression for the models that already pass — the §5.Z matrix is the oracle.
