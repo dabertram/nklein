@@ -3745,12 +3745,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       This is the Phase-1 regression net. **Remaining e2e expansions (deferred to interleave with the model-sweep work,
       autonomous pre-decision 2026-06-28 — finalizing effort to build all the mock plumbing is high and the live model
       sweeps surface more):**
-  - [ ] **Project-navigation e2e + reproduce the switch stall.** Needs a **workspace-aware** mock (`workspace.getState`
-        returning a different `workspaceState` per requested workspaceId) so switching projects can assert project B's
-        board renders. Then drive a switch *while a card streams* (dynamic WS frames) to reproduce the empty/stalled board
-        (the §5.AI project-switch-stall item). **(2026-06-29) UNBLOCKED:** the harness now streams dynamic WS frames
-        (`installRuntimeMock(...).pushFrame` + builders) — the "extend it first" is done; this spec just needs a
-        workspace-aware `workspace.getState` mock + a project-switch driven mid-stream.
+  - [~] **Project-navigation e2e + reproduce the switch stall.** *(✅ SWITCH-RENDERS HALF DONE 2026-07-08 —
+        [project-navigation.spec.ts](web-ui/tests/project-navigation.spec.ts): a WORKSPACE-AWARE mock (the board comes
+        from `useRuntimeStateStream`, which opens a NEW WebSocket per project — `getRuntimeStreamUrl` puts the id in
+        `?workspaceId=`; the routeWebSocket handler reads `ws.url()` and serves Alpha vs Beta's snapshot, and the
+        catch-all keys `workspace.getState` on the `x-nklein-workspace-id` header). Two projects each with a DISTINCT
+        card; clicking Beta's project row switches the board to Beta's card and drops Alpha's. NON-FLAKY (3/3 back-to-back).
+        This pins the deterministic "switch renders the target project's board" invariant the §5.AI work needed.
+        REMAINING (harder): the mid-stream STALL repro — driving a switch WHILE a card streams to reproduce the
+        empty/stalled board — is a fragile timing bug-repro (may not deterministically reproduce in a mock); left as a
+        focused follow-on now that the workspace-aware harness exists.)*
   - [x] **Chat e2e** — open the chat sidebar, create a session, send a message (mocked chat tRPC), assert the transcript
         grows + the `AutonomousRunBar` renders/disables correctly. *(✅ 2026-07-08 —
         [chat-sidebar-send.spec.ts](web-ui/tests/chat-sidebar-send.spec.ts), 3 Playwright specs, model-free: opens the
