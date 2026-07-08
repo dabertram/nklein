@@ -5924,9 +5924,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ratchets up only on a pass; no retry signal folded — the eval runs no ladder). 9 tests. The harness now folds each
         run into a per-role fitness record + prints it (SMOKE: coder-14b → fitness[architect] quality 1.000/reliability
         1.000, fitness[reviewer] quality 0.556/reliability 0.667). So the full pipeline is live: corpus → model → extract →
-        score → fold → routable fitness. Remaining (separate concerns): the `implement` family (sandbox code-exec) +
-        PERSISTING the folded records to a shared on-disk fitness store (the fold + in-harness accumulation are done; only
-        the store-file read/merge/write last-mile remains).
+        score → fold → routable fitness. **PERSISTENCE DONE (2026-07-08):** the harness (opt-in `NKLEIN_EVAL_PERSIST=1`)
+        persists each cell into the EXISTING shared §5.AB store via `recordTaskFitnessOutcome` (fitness-table-store.ts) —
+        no new store invented. VERIFIED writing real `FitnessRow`s to `fitness-table.json` (keyed model::role::difficulty,
+        sampleCount/successCount/meanWallTimeMs) in an isolated temp HOME. Opt-in because `verify-all-models.mts` runs
+        harnesses under an isolated temp HOME (persisting there would be throwaway). So the FULL §5.AB pipeline is now live:
+        corpus → model → extract → score → fold → PERSIST to the shared store → routing consumes it. Only remaining: the
+        `implement` family (needs sandbox code-execution to produce {passed,total}).
         **PARSE-ADAPTER DONE + LIVE-VALIDATED (2026-07-08):** the sweep gets a model's RAW text; the missing bridge to the
         deterministic scorers was a raw-text→`EvalAnswer` extractor. [eval-answer-extraction.ts](src/core/eval-answer-extraction.ts)
         — `extractDecomposeGraph`/`extractDecomposeEvalAnswer` (self-contained lenient JSON extractor: direct parse → ```json

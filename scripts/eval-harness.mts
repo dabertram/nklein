@@ -26,11 +26,20 @@ import {
 } from "../src/core/eval-prompt-corpus.js";
 import { extractDecomposeEvalAnswer, extractReviewEvalAnswer } from "../src/core/eval-answer-extraction.js";
 import { type EvalCellOutcome, foldEvalOutcomes } from "../src/core/eval-fitness-fold.js";
+import type { FitnessDifficultyTier } from "../src/core/fitness-table-schema.js";
 import type { ModelFitnessRecord } from "../src/core/model-fitness.js";
 import { selectStructuredOutputStrategy } from "../src/core/structured-output-strategy.js";
+import { recordTaskFitnessOutcome } from "../src/telemetry/fitness-table-store.js";
 
 /** Map the corpus difficulty tier to a 0..1 number for the fitness fold. */
 const DIFFICULTY_NUM: Readonly<Record<string, number>> = { easy: 0.33, medium: 0.66, hard: 1 };
+/**
+ * Opt-in: persist each cell into the shared `fitness-table.json` (the §5.AB store `recordTaskFitnessOutcome` writes) so
+ * routing consumes measured eval fitness across runs. OFF by default because `verify-all-models.mts` runs harnesses under
+ * an ISOLATED temp HOME — persisting there would write to a throwaway store. Set NKLEIN_EVAL_PERSIST=1 for a standalone
+ * run against the real runtime home.
+ */
+const PERSIST = process.env.NKLEIN_EVAL_PERSIST === "1";
 
 const MODEL = process.env.NKLEIN_VERIFY_MODEL ?? "";
 const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL ?? "http://localhost:1234";
@@ -172,6 +181,14 @@ async function main(): Promise<void> {
 		const list = outcomesByRole.get(prompt.role) ?? [];
 		list.push(outcome);
 		outcomesByRole.set(prompt.role, list);
+		if (PERSIST) {
+			// Persist into the shared §5.AB fitness store (best-effort; never throws into the harness).
+			await recordTaskFitnessOutcome(
+				{ modelKey: MODEL, role: prompt.role, difficultyTier: prompt.difficulty as FitnessDifficultyTier },
+				{ success: outcome.passed, wallTimeMs: ms, failureMode: outcome.passed ? undefined : "eval_below_bar" },
+				{ now: Date.now() },
+			);
+		}
 		console.log(`  [${prompt.family}/${prompt.difficulty}] ${prompt.id} ms=${ms} → ${score.toFixed(3)}`);
 	}
 	if (scores.length === 0) {
