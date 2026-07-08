@@ -3687,3 +3687,13 @@ use-runtime-state-stream workspace-reset seam, Playwright regression. (2) L3688 
 card — trace the reasoning-delta event path (NOT latestHookActivity; grep the event adapter + runtime-state-hub),
 wire the card line, live-verify with the resident reasoning-capable qwopus3.5. Then L3736 (diagnostic oracles),
 L3845 (promote-half harness), and the §5.AA/§5.AB umbrellas.
+
+### 2026-07-08 (Fable, /goal grind cont.) — L3679 + L3688 both SHIPPED
+L3679 switch-stall root-caused + fixed (204f2c18): snapshot now carries its RESOLVED workspaceId; pinned
+decideSnapshotAdoption rule client-side. L3688 reasoning snippet SHIPPED (537eb742): no new backend seam needed —
+reasoning already reaches the client as role:"reasoning" task-chat messages; pure deriveReasoningSnippetByTask
+(web-ui/src/components/board-reasoning-snippets.ts) memoized at App, threaded via the mailbox-count pattern, card
+shows "Thinking: <snippet>". LIVE-VERIFIED vs resident qwopus3.5 (scripts/verify-card-reasoning-snippet.mts: 197
+distinct snippet updates during thinking; yielded to follow-up; exit 0). Web gate 961 green. NEXT: L3736 (upgrade
+verification to diagnostic oracles), L3845 (verify-decompose-promote-review.mts PROMOTE half), L4157 (workspace
+settings polish), L4350 (target-structure roadmap), then §5.AA/§5.AB umbrellas (~L4400-6000), §5.AN/§5.AQ, §10.
