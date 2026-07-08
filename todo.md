@@ -5966,8 +5966,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         bar (so `cleared` and the stability band agree on the threshold). Distinct from the aggregator (point-estimate
         `reliability`, no decisiveness/owed-runs), the coverage planner (fills GAPS, this settles the KNOWN-but-shaky), and
         §5.AI `flake-quarantine.ts` (a TEST's flakiness, not a MODEL's eval verdict). Pure/deterministic (no clock/IO/store).
-        18 tests; tsc + biome green. **Still owed (effectful):** the repeated-run loop that actually runs the model N× to
-        FEED these `ModelEvalRun`s, and wire `runsOwed` into the §5.AI idle rail's re-eval budget.
+        18 tests; tsc + biome green. **REPEATED-RUN LOOP NOW WIRED (2026-07-08):** `scripts/eval-harness.mts` runs each cell
+        `NKLEIN_EVAL_REPEATS`× (default 1), builds a `ModelEvalRun` per attempt (a no-answer run counts as a failed run so
+        stability SEES the flakiness), and — when repeats>1 — prints the `scoreModelEvalStability` verdict per cell
+        (`settled_pass|settled_fail|flaky|thin` + confidence/spread/runsOwed). So the effectful loop that FEEDS the pure
+        stability judge exists + is roster-drivable via `verify-all-models.mts eval-harness`. **Still owed:** wire `runsOwed`
+        into the §5.AI idle rail's re-eval budget (the rail spends idle time re-running the shaky cells the judge flags).
   - [~] Capture + compute quality score, speed (tok/s, TTFT), and retry-count metrics per model/role/difficulty.
         **PURE AGGREGATOR CORE DONE (2026-07-01):** [src/core/model-eval-aggregation.ts](src/core/model-eval-aggregation.ts)
         `aggregateModelEvalRuns` — folds the harness's graded, difficulty-tagged, REPEATED per-run results

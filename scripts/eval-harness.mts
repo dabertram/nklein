@@ -27,6 +27,8 @@ import {
 import { extractDecomposeEvalAnswer, extractReviewEvalAnswer } from "../src/core/eval-answer-extraction.js";
 import { type EvalCellOutcome, foldEvalOutcomes } from "../src/core/eval-fitness-fold.js";
 import type { FitnessDifficultyTier } from "../src/core/fitness-table-schema.js";
+import type { ModelEvalRun } from "../src/core/model-eval-aggregation.js";
+import { scoreModelEvalStability } from "../src/core/model-eval-stability.js";
 import type { ModelFitnessRecord } from "../src/core/model-fitness.js";
 import { selectStructuredOutputStrategy } from "../src/core/structured-output-strategy.js";
 import { recordTaskFitnessOutcome } from "../src/telemetry/fitness-table-store.js";
@@ -50,6 +52,8 @@ const RAW_BASE = (process.env.NKLEIN_VERIFY_BASE_URL ?? "http://127.0.0.1:1234/v
 const CHAT_URL = `${RAW_BASE.endsWith("/v1") ? RAW_BASE : `${RAW_BASE}/v1`}/chat/completions`;
 const MAX_TOKENS = Number(process.env.NKLEIN_EVAL_MAX_TOKENS ?? "2500");
 const PASS_BAR = Number(process.env.NKLEIN_EVAL_PASS_BAR ?? "0.6");
+/** Repeats per cell (todo 5914): >1 measures stochastic stability via `scoreModelEvalStability`. Default 1 (fast). */
+const REPEATS = Math.max(1, Math.trunc(Number(process.env.NKLEIN_EVAL_REPEATS ?? "1")) || 1);
 
 if (!MODEL) {
 	console.error("eval-harness: NKLEIN_VERIFY_MODEL is required");
@@ -160,45 +164,71 @@ async function scoreReview(prompt: ReviewEvalPrompt): Promise<number | null> {
 }
 
 async function main(): Promise<void> {
-	console.log(`eval-harness: model=${MODEL} strategy=${selectStructuredOutputStrategy(MODEL).strategy} bar=${PASS_BAR}`);
+	console.log(
+		`eval-harness: model=${MODEL} strategy=${selectStructuredOutputStrategy(MODEL).strategy} bar=${PASS_BAR} repeats=${REPEATS}`,
+	);
 	const scores: number[] = [];
 	const outcomesByRole = new Map<string, EvalCellOutcome[]>();
+	const runs: ModelEvalRun[] = []; // for the §5.AB stability judgment (todo 5914)
 	for (const prompt of EVAL_PROMPT_CORPUS) {
 		if (prompt.family === "implement") {
 			continue; // needs sandbox execution — out of scope for this content-only harness
 		}
-		const start = Date.now();
-		const score = prompt.family === "decompose" ? await scoreDecompose(prompt) : await scoreReview(prompt);
-		const ms = Date.now() - start;
-		if (score === null) {
-			console.log(`  [${prompt.family}/${prompt.difficulty}] ${prompt.id} ms=${ms} → NO ANSWER`);
-			continue;
+		for (let attempt = 1; attempt <= REPEATS; attempt++) {
+			const start = Date.now();
+			const score = prompt.family === "decompose" ? await scoreDecompose(prompt) : await scoreReview(prompt);
+			const ms = Date.now() - start;
+			const label = REPEATS > 1 ? `${prompt.id}#${attempt}` : prompt.id;
+			// A no-answer run still COUNTS (as a failed run) so stability sees the flakiness — not silently dropped.
+			const effectiveScore = score ?? 0;
+			const passed = score !== null && score >= PASS_BAR;
+			runs.push({
+				modelId: MODEL,
+				role: prompt.role,
+				difficulty: prompt.difficulty,
+				passed,
+				qualityScore: effectiveScore,
+				latencyMs: ms,
+				retries: 0, // the eval harness runs no §5.AA ladder
+			});
+			if (score === null) {
+				console.log(`  [${prompt.family}/${prompt.difficulty}] ${label} ms=${ms} → NO ANSWER`);
+				continue;
+			}
+			scores.push(score);
+			const outcome: EvalCellOutcome = {
+				modelId: MODEL,
+				role: prompt.role,
+				difficulty: DIFFICULTY_NUM[prompt.difficulty] ?? 0.66,
+				score,
+				latencyMs: ms,
+				passed,
+			};
+			const list = outcomesByRole.get(prompt.role) ?? [];
+			list.push(outcome);
+			outcomesByRole.set(prompt.role, list);
+			if (PERSIST) {
+				// Persist into the shared §5.AB fitness store (best-effort; never throws into the harness).
+				await recordTaskFitnessOutcome(
+					{ modelKey: MODEL, role: prompt.role, difficultyTier: prompt.difficulty as FitnessDifficultyTier },
+					{ success: passed, wallTimeMs: ms, failureMode: passed ? undefined : "eval_below_bar" },
+					{ now: Date.now() },
+				);
+			}
+			console.log(`  [${prompt.family}/${prompt.difficulty}] ${label} ms=${ms} → ${score.toFixed(3)}`);
 		}
-		scores.push(score);
-		const outcome: EvalCellOutcome = {
-			modelId: MODEL,
-			role: prompt.role,
-			difficulty: DIFFICULTY_NUM[prompt.difficulty] ?? 0.66,
-			score,
-			latencyMs: ms,
-			passed: score >= PASS_BAR,
-		};
-		const list = outcomesByRole.get(prompt.role) ?? [];
-		list.push(outcome);
-		outcomesByRole.set(prompt.role, list);
-		if (PERSIST) {
-			// Persist into the shared §5.AB fitness store (best-effort; never throws into the harness).
-			await recordTaskFitnessOutcome(
-				{ modelKey: MODEL, role: prompt.role, difficultyTier: prompt.difficulty as FitnessDifficultyTier },
-				{ success: outcome.passed, wallTimeMs: ms, failureMode: outcome.passed ? undefined : "eval_below_bar" },
-				{ now: Date.now() },
-			);
-		}
-		console.log(`  [${prompt.family}/${prompt.difficulty}] ${prompt.id} ms=${ms} → ${score.toFixed(3)}`);
 	}
 	if (scores.length === 0) {
 		console.log("result: FAIL (no scorable cells)");
 		process.exit(1);
+	}
+	// Stochastic-stability judgment across the repeats (todo 5914) — which cells are settled vs still flaky/thin.
+	if (REPEATS > 1) {
+		for (const cell of scoreModelEvalStability(runs)) {
+			console.log(
+				`  stability[${cell.role}/${cell.difficulty}]: ${cell.verdict} (confidence=${cell.confidence.toFixed(2)}, spread=${cell.qualitySpread.toFixed(2)}, owed=${cell.runsOwed})`,
+			);
+		}
 	}
 	// Fold the cells into a per-role §5.AB fitness record (the eval→fitness pipeline; a sweep persists these to the store).
 	for (const [role, outcomes] of outcomesByRole) {
