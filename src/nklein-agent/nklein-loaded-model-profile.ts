@@ -23,7 +23,8 @@ import type { LoadedModelRoutingProfile } from "./nklein-loaded-model-candidates
  * Map the §5.AL catalog's tool-use verdict to a 0–100 cold-start capability prior, so a freshly-LOADED model the ledger
  * has never observed is still ranked by what its model card implies (a tool-native coder/agentic model outranks a
  * tool-weak chat model) instead of the flat registry default. `UNKNOWN`/uncatalogued ⇒ null (no override, keep the
- * default). This is the FAST, always-available prior; llmfit's richer score can chain ahead of it later.
+ * default). This is the FAST, always-available prior; llmfit's richer score can enrich capable/unknown models, but
+ * empirical weak/unsuitable verdicts stay authoritative.
  */
 const CATALOG_VERDICT_PRIOR: Record<ToolUseVerdict, number | null> = {
 	TOOL_NATIVE: 80,
@@ -37,6 +38,24 @@ const CATALOG_VERDICT_PRIOR: Record<ToolUseVerdict, number | null> = {
 export function catalogCapabilityPrior(modelId: string): number | null {
 	const entry = lookupModelCapability(modelId);
 	return entry ? CATALOG_VERDICT_PRIOR[entry.toolUse] : null;
+}
+
+function resolveCapabilityPrior(
+	realName: string,
+	llmfitPrior: ((realName: string) => number | null) | undefined,
+): number | null {
+	const entry = lookupModelCapability(realName);
+	const catalogPrior = entry ? CATALOG_VERDICT_PRIOR[entry.toolUse] : null;
+	const llmfit = llmfitPrior?.(realName) ?? null;
+	if (llmfit === null) {
+		return catalogPrior;
+	}
+	// Empirical tool-use verdicts remain authoritative: llmfit's score may enrich capable/unknown models, but it must
+	// never promote a known weak/unsuitable tool user above the catalog's agentic prior.
+	if (entry?.toolUse === "TOOL_WEAK" || entry?.toolUse === "TOOL_UNSUITABLE") {
+		return catalogPrior;
+	}
+	return llmfit;
 }
 
 /** A coder model by name (matched on the REAL model key, e.g. `qwen2.5-coder`, `qwopus…-coder`, `devstral`). */
@@ -55,8 +74,8 @@ export function resolveLoadedModelProfile(
 	opts?: {
 		/**
 		 * §5.AB llmfit prior (opt-in, injected): llmfit's 0–100 fit score for the model's REAL name, or null. When it
-		 * yields a number it takes precedence over the §5.AL catalog verdict as the cold-start prior (a richer, measured
-		 * quality×speed×fit signal). Absent/null ⇒ the catalog verdict is used — today's behavior.
+		 * yields a number it can enrich known-capable or unknown models (a richer quality×speed×fit signal). Empirical
+		 * TOOL_WEAK/TOOL_UNSUITABLE catalog verdicts remain authoritative. Absent/null ⇒ the catalog verdict is used.
 		 */
 		llmfitPrior?: (realName: string) => number | null;
 	},
@@ -79,8 +98,9 @@ export function resolveLoadedModelProfile(
 	];
 	return {
 		isEmbedding: false,
-		// Prior resolver chain: llmfit fit score (opt-in) > §5.AL catalog verdict > (null ⇒ registry default downstream).
-		capabilityPrior: opts?.llmfitPrior?.(realName) ?? catalogCapabilityPrior(realName),
+		// Prior resolver chain: llmfit score (opt-in) can enrich capable/unknown models, but empirical weak/unsuitable
+		// catalog verdicts stay authoritative; null ⇒ registry default downstream.
+		capabilityPrior: resolveCapabilityPrior(realName, opts?.llmfitPrior),
 		affinityTags,
 	};
 }

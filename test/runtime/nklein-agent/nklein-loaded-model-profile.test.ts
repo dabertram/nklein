@@ -68,6 +68,15 @@ describe("resolveLoadedModelProfile", () => {
 				.capabilityPrior,
 		).toBe(44);
 	});
+
+	it("does not let llmfit promote an empirical TOOL_WEAK catalog family", () => {
+		const modelKey = "google/gemma-4-e4b";
+		const catalogPrior = catalogCapabilityPrior(modelKey);
+		expect(catalogPrior).toBe(28);
+		expect(resolveLoadedModelProfile(descriptor({ modelKey }), { llmfitPrior: () => 95 }).capabilityPrior).toBe(
+			catalogPrior,
+		);
+	});
 });
 
 describe("catalogCapabilityPrior", () => {

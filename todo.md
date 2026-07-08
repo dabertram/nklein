@@ -5991,7 +5991,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         TOOL_WEAK/UNSUITABLE) → `authoritativeToolUse` resolves in the CATALOG's favour so routing never loads an un-agentic
         model on llmfit's say-so. Injected lookup (pure). **Partial live consumer DONE 2026-07-08:** the cached GitHub DB
         now registers as a post-empirical catalog supplement for UNKNOWNs only (same "llmfit never overrides empirical"
-        rule). Owed: consume the xref at the live load-planning/routing seam.
+        rule). **LIVE PRIOR GUARD DONE 2026-07-08:** `resolveLoadedModelProfile` now lets llmfit enrich capable/unknown
+        models, but empirical `TOOL_WEAK`/`TOOL_UNSUITABLE` catalog verdicts keep their catalog prior, so a high llmfit
+        score cannot promote a known weak tool user. Owed: consume the full xref at the live load-planning seam.
   - [~] **EGRESS-GATED (prime directive #1):** the explicit GitHub catalog check/pull/cache path is **DONE**
         (user-triggered, default `notify`, cache registered as a post-empirical supplement; see the 2026-07-08 notes
         above). **Remaining under this leaf is narrower:** refreshing llmfit's upstream model DB itself (`make
