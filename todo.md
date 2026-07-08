@@ -7740,7 +7740,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > agent load its own implementation as a *project* and actually work on it — parked now, ideas collected so we don't
 > forget it. **Invariants:** LOCAL ONLY (#1), strict isolation (#2 — even self-reads go through the read-only tool
 > boundary; no host-path leaks), ≥32k floor (#3).
-- [ ] **A — Read-only self-awareness chat scope (ACTIVE).** A chat scope/mode whose workspace root is the **!Klein repo
+- [~] **A — Read-only self-awareness chat scope (ACTIVE).** *(scope/mode (read-only `klein_self`, read + get_board only)
+      [x] + live-verify against a small local model [x] are done; grounding (index !Klein's own source + planning corpus)
+      is [~]; only the §5.AE skill-bundle cross-link remains open. Reclassified [ ]→[~] 2026-07-08.)* A chat scope/mode whose workspace root is the **!Klein repo
       itself**, with **only read tools** (`read_file`/`list_dir`/`get_board` + the §6.7 repo-map/code-index over !Klein's
       own `src/`+`web-ui/`+`core-py/`) and the rich **planning corpus** as grounding: **[done.md](done.md)** (the
       shipped-feature catalog — exactly "what exists"), `todo.md` (what's left + why), `AGENTS.md` (tribal knowledge),
