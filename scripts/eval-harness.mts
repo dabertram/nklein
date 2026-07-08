@@ -108,10 +108,15 @@ async function scoreDecompose(prompt: EvalPrompt): Promise<number | null> {
 	];
 	// Reasoning models over-reason and never land JSON in prose → force the tool call (the live-validated §5.AN path).
 	if (strategy === "native_tool_call") {
-		const choice = await chat([{ role: "system", content: "Decompose via the tool." }, { role: "user", content: prompt.prompt }], {
-			tools: [DECOMPOSE_TOOL],
-			tool_choice: "required",
-		});
+		// Reasoning models burn a large reasoning preamble BEFORE emitting the tool call (live-found: r1-8b flaked
+		// decompose landings at 2500 tokens — hit finish=length mid-reasoning). Give the tool-call path more headroom.
+		const choice = await chat(
+			[
+				{ role: "system", content: "Decompose via the tool." },
+				{ role: "user", content: prompt.prompt },
+			],
+			{ tools: [DECOMPOSE_TOOL], tool_choice: "required", max_tokens: Math.max(MAX_TOKENS, 4000) },
+		);
 		const args = choice?.message?.tool_calls?.[0]?.function?.arguments ?? "";
 		const answer = extractDecomposeEvalAnswer(args);
 		return answer ? scoreEvalAnswer(prompt, answer) : null;
