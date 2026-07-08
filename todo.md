@@ -6749,7 +6749,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
             - [~] append `thinkingDirective` to chat adapter + swarm path *(◐ CHAT DONE — chat-local-llm-adapter
                   appends apiRequest.thinkingDirective to the last user message (~L317); SWARM path rides the
                   session-runtime seam)*
-            - [ ] set `response_format` when `preferStructuredOutput`
+            - [ ] set `response_format` when `preferStructuredOutput` *(blocked-by-§5.AN-caveat: json_schema forcing
+                  returns EMPTY content on the resident REASONING tier (live-probed 2026-07-01) — wiring the profile
+                  lever onto the primary call would regress every reasoning model; needs the reasoning-safe structured
+                  path first)*
             - [~] fire constrained force-call rung PROACTIVELY on no-tool-call *(◐ the rung ALREADY fires on every
                   no-tool-call turn within the recovery ladder (reactive-in-turn = effectively proactive for the turn);
                   what remains is honoring a profile's forceToolCall lever on the FIRST attempt — deliberately deferred
@@ -6785,9 +6788,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         §5.AD (context budget), §5.AN (the lever catalog), §5.AL (per-model capability gate). **Standing:** as the §5.AN
         per-family table + §5.Z sweeps learn which lever-config wins for which work, fold it into the skill `apiProfile`
         defaults (same discipline as extending the capability catalog).
-- [ ] **Extend the role catalog with `retriever`/`researcher`.** The §5.AC online-knowledge role the user flagged as
+- [x] **Extend the role catalog with `retriever`/`researcher`.** The §5.AC online-knowledge role the user flagged as
       missing — a default skill bundle that includes the `temporal` + `freshness_rail` + `online_retrieval` fragments + the
       `web_search`/`browse_url` tools (§5.AC/§5.M G6). Thread through the role enum (§5.M) + the resolver.
+      *(✅ verified-shipped 2026-07-08 (audit): skill-registry.ts carries the `web_retrieval` bundle with EXACTLY these
+      fragments + tools, defaultRoles ["retriever","researcher"], temporalSensitive + structured-output apiProfile; the
+      chat session role enum includes `researcher` (chat-session-store.ts) and the resolver matches role→bundle
+      case-normalized (~L203). Stale box — the work predated this audit.)*
 - [~] **Dynamics-level setting (BASIC control set — DEFAULT = fully dynamic).** A role-mode enum:
       `fully_dynamic` (DEFAULT — skills auto + may vary per turn, model auto via §5.AB) · `static_skills_auto_model`
       (fixed per-role skills, model auto) · `assigned_skills` (user-assigned skills) · `fully_static` (skills + model
