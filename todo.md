@@ -5144,7 +5144,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         composed with the named-tools gate in chat-agent-turn. 3 pure tests + a turn-level test proving a premature
         prose "done" is nudged until the acceptance run is green.)*
   - [ ] Drive full phase ladder: per-phase context + tool subset + budget assignment
-  - [ ] Record each transition on §5.AF ledger (`transition` event kind)
+  - [x] Record each transition on §5.AF ledger (`transition` event kind) *(✅ 2026-07-08 — LIVE writer wired:
+        `createSessionTransitionRecorder` (nklein-runtime-terminal-telemetry) hooks the runtime-server's onSummary
+        seam and appends a `transition` event on every task-session STATE CHANGE (queued→running→review→…; same-state
+        re-emissions skipped; per-workspace map, bounded; append best-effort). The controller phase-ladder transitions
+        ride the same appendEvent when the ladder goes live. 2 tests.)*
   - [ ] Wire retry-note into live next-attempt context at model-call seam
   - [ ] Verify full phase flow works end-to-end (intake→plan→validate→localize→execute→…→done)
   - [ ] Test with small models (ensures they can't own global transitions)

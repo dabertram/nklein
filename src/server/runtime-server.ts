@@ -122,7 +122,10 @@ import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
 import { handleHttpRequest, handleSocketUpgrade } from "./middleware";
 import { createPlanIntegrationGateRunner } from "./nklein-plan-integration-gate-runner";
-import { createRuntimeTerminalTelemetryRecorders } from "./nklein-runtime-terminal-telemetry";
+import {
+	createRuntimeTerminalTelemetryRecorders,
+	createSessionTransitionRecorder,
+} from "./nklein-runtime-terminal-telemetry";
 import { resolveReviewSandboxResult } from "./review-sandbox-result";
 import { getRemoteIp, readRequestBody } from "./runtime-server-http";
 import type { RuntimeStateHub } from "./runtime-state-hub";
@@ -787,6 +790,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		recordModelPerformance: recordNKleinModelPerformance,
 		recordKnowledgeToolUsage: recordNKleinKnowledgeToolUsage,
 	} = createRuntimeTerminalTelemetryRecorders({ warn: deps.warn });
+	// §5.AF: task-session state transitions → ledger `transition` events (the controller-visible state stream).
+	const recordNKleinSessionTransition = createSessionTransitionRecorder((event) => appendAgentLedgerEvent(event));
 	const planIntegrationGateRunner = createPlanIntegrationGateRunner({ warn: deps.warn });
 	const finalizeHeadlessAutoReviewTask = (
 		scope: RuntimeTrpcWorkspaceScope,
@@ -1445,6 +1450,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			const unsubscribeQueueDrain = service.onSummary((summary) => {
 				recordNKleinKnowledgeToolUsage(scope, summary);
 				recordNKleinModelPerformance(scope, summary);
+				recordNKleinSessionTransition(scope, summary);
 				if (isReviewableNKleinSummary(summary)) {
 					finalizeHeadlessAutoReviewTask(scope, trackedService, summary.taskId);
 				}

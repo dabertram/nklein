@@ -1,5 +1,7 @@
 import { loadRuntimeConfig } from "../config/runtime-config";
+import { type AgentTransitionEvent, buildTransitionEvent } from "../core/agent-attempt-ledger";
 import type { RuntimeTaskSessionSummary } from "../core/api-contract";
+import { hashWorkspacePathForLedger } from "../nklein-agent/nklein-ledger-attempt";
 import { deriveTaskFitnessRecord } from "../nklein-agent/task-fitness-recording";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { recordTaskFitnessOutcome } from "../telemetry/fitness-table-store";
@@ -91,4 +93,41 @@ export function createRuntimeTerminalTelemetryRecorders(
 	};
 
 	return { recordModelPerformance, recordKnowledgeToolUsage };
+}
+
+/**
+ * §5.AF: record task-session STATE transitions as ledger `transition` events — the controller-visible state stream
+ * (queued→running→awaiting_review→…) that the §5.AG escalation report + phase-ladder projections read. Created per
+ * workspace subscription (the returned recorder closes over its own last-state map, so parallel workspaces never
+ * cross-talk); appends best-effort (a ledger failure never touches the session loop). Only CHANGES are recorded —
+ * summaries re-emitted in the same state (heartbeats, activity updates) are skipped.
+ */
+export function createSessionTransitionRecorder(
+	appendEvent: (event: AgentTransitionEvent) => Promise<unknown>,
+): (scope: RuntimeTrpcWorkspaceScope, summary: RuntimeTaskSessionSummary) => void {
+	const lastStateByTaskId = new Map<string, string>();
+	return (scope, summary) => {
+		const previous = lastStateByTaskId.get(summary.taskId) ?? null;
+		if (previous === summary.state) {
+			return;
+		}
+		lastStateByTaskId.set(summary.taskId, summary.state);
+		if (lastStateByTaskId.size > 5000) {
+			// Bounded: drop the oldest tracked task (Map preserves insertion order) so a long-lived server can't grow it.
+			const oldest = lastStateByTaskId.keys().next().value;
+			if (oldest !== undefined) {
+				lastStateByTaskId.delete(oldest);
+			}
+		}
+		void appendEvent(
+			buildTransitionEvent({
+				workflowId: summary.taskId,
+				taskId: summary.taskId,
+				workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+				from: previous,
+				to: summary.state,
+				reason: summary.reviewReason ?? summary.warningMessage ?? null,
+			}),
+		).catch(() => {});
+	};
 }
