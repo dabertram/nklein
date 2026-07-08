@@ -10432,7 +10432,14 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       returned update plan. 8 desktop tests cover package inference, channel mismatch, missing arch, trust failures, Linux
       policy, and migration propagation. Remaining: effectful GitHub/electron-builder feed fetch, download+checksum verify,
       installer handoff, desktop tray/UI states, runtime-side project migration runner with backup/rollback records, and
-      signed/notarized release assets.)*
+      signed/notarized release assets. ◐ **GITHUB RELEASE FEED CORE DONE (2026-07-08):**
+      [packages/desktop/src/update-feed.ts] adds an injected-fetch GitHub release reader: stable uses `/releases/latest`,
+      beta/nightly use the release list, tagged checks use `/releases/tags/<tag>`, then a manifest asset
+      (`nklein-desktop-release.json` or `desktop-update.json`) is fetched and parsed into the release-plan schema above.
+      `checkDesktopUpdateFromGitHub` composes feed fetch + signed-asset planning without download/install side effects.
+      7 tests cover URL construction, manifest validation, latest stable fetch, beta selection, missing manifest, and
+      combined update planning. Remaining now: download+sha256 verification, installer handoff, desktop tray/UI states,
+      runtime-side project migration runner with backup/rollback records, and real signed/notarized release assets.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
 ## 11. LATER — deferred to last (user 2026-07-08)
