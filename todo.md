@@ -5915,21 +5915,24 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         agents is doing/thinking (live reasoning/tool snippet per running card), so you don't have to open each card. THAT
         is worth building. (Live end-to-end repro on the user's instance still owed to rule out (c).)
 - [ ] **Stubborn-failure escalation — the AUTOMATIC ladder (Layer 1), decomposed:**
-  - [~] Wire the runtime hot-path that feeds live ledger signals + tried/available models into `decideEscalationAction`.
-        *(◐ 2026-07-08: the pure GLUE shipped — `src/core/terminal-redrive-escalation.ts`
-        `planTerminalRedriveEscalation({events, taskId, availableModelIds})` composes buildStucknessSignalsFromLedger +
-        the escalation report's modelsTried + decideEscalationAction, with key-format leniency (ledger
-        `provider:model:endpoint` keys vs plain loaded ids compare on the model component). 4 tests. REMAINING wiring:
-        call it at the #24 dead-card redrive branch (runtime-server retryWaitingCardsAfterTerminal — `readAgentLedger`
-        scoped by workspacePathHash is already imported there); the missing piece is the server's access to the LOADED
-        model list + provider base URL (the chat path's getLocalChatBaseUrl lives in runtime-api, not the server) —
-        thread it as a dep, then on retry_other_model persist the switch onto the card's `nkleinSettings.modelId` via
-        mutateWorkspaceState + record a `transition` event (controllerDecision: layer1_model_switch) before the
-        redrive. NEVER load models — fetchLoadedModelIdsCached only.)*
-  - [ ] Implement model-switching logic: on hard-stuck, pick best untried loaded model, auto-select + retry (Layer 1 automatic).
-  - [ ] Record escalation as a ledger event (ties §5.AA, §5.AF, §5.AG).
+  - [x] Wire the runtime hot-path that feeds live ledger signals + tried/available models into `decideEscalationAction`.
+        *(✅ 2026-07-08 — pure glue `src/core/terminal-redrive-escalation.ts` (`planTerminalRedriveEscalation`:
+        buildStucknessSignalsFromLedger + report modelsTried + decideEscalationAction, key-format-lenient; 4 tests)
+        WIRED LIVE at the #24 dead-card redrive branch (runtime-server retryWaitingCardsAfterTerminal): reads the
+        workspace-scoped §5.AF ledger + the LOADED model list (fetchLoadedModelIdsCached on the dead session's own
+        endpoint — never loads), and applies the decision at the one-shot fresh restart. Best-effort: any failure falls
+        back to the pre-existing same-model redrive.)*
+  - [x] Implement model-switching logic: on hard-stuck, pick best untried loaded model, auto-select + retry (Layer 1 automatic).
+        *(✅ 2026-07-08 — on `retry_other_model` the redrive persists the switch onto the card's
+        `nkleinSettings.modelId` via mutateWorkspaceState (durable + visible on the card) BEFORE the fresh restart, so
+        the re-attempt runs on the best untried loaded model automatically; operator log line names the switch.)*
+  - [x] Record escalation as a ledger event (ties §5.AA, §5.AF, §5.AG). *(✅ 2026-07-08 — a non-continue decision
+        appends a `transition` event (hard_stuck→redrive, reason terminal_redrive, controllerDecision
+        `layer1_model_switch:<model>` or `escalate_to_user`) via appendAgentLedgerEvent, best-effort.)*
   - [x] Build the escalation action dispatcher (continue loop vs escalate). *(SHIPPED: dispatcher logic in decideEscalationAction)*
-  - [ ] Test with multiple models + failure scenarios to surface new approach variants.
+  - [ ] Test with multiple models + failure scenarios to surface new approach variants. ⏱ FLEET-RUN *(the planner
+        + switch + ledger record are unit-tested; the multi-model failure-scenario matrix rides the sweep phase of the
+        extended goal)*
 - [~] **Learned retry budget per model.** How many retries to ride out stochastic flakiness before declaring a *real*
       failure — a learned per-model metric (part of the profile). Only when the budget is exhausted across approaches ×
       models does the task become a genuine failure. **CORE DONE (already shipped):** `learnedRetryBudget(profile)`

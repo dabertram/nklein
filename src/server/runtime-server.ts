@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
+import { buildTransitionEvent } from "../core/agent-attempt-ledger";
 import {
 	capabilitiesForTier,
 	DEFAULT_AGENT_CAPABILITY_TIER,
@@ -31,6 +32,7 @@ import {
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
+import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
@@ -62,6 +64,7 @@ import {
 import { listStartableUnstartedTaskIds } from "../core/task-board-ready-sweep";
 import { findActiveTaskLikelyTouchedFileOverlap, getSharedLikelyTouchedPaths } from "../core/task-file-overlap";
 import { isReviewableNKleinSummary } from "../core/task-session-guards";
+import { planTerminalRedriveEscalation } from "../core/terminal-redrive-escalation";
 import { AgentSandboxManager, resolveAgentSandboxImageName } from "../nklein-agent/nklein-agent-sandbox";
 import { configureNKleinAiSdkWarnings } from "../nklein-agent/nklein-ai-sdk-warnings";
 import type { NKleinDecompositionAppliedEvent } from "../nklein-agent/nklein-decomposition-tool";
@@ -634,8 +637,68 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 						// only the NO-work dead card needs a fresh attempt here.
 						if (!resultCommit) {
 							terminalRedriveAttemptedTaskKeys.add(redriveKey);
+							// §5.AG Layer-1 automatic escalation at the one-shot redrive: if the §5.AF ledger shows this
+							// card HARD-STUCK on its current model, switch the fresh attempt to the best UNTRIED loaded
+							// model (never loads anything — /api/v0/models only). Best-effort: any failure here falls back
+							// to the plain same-model redrive, which is the pre-existing behavior.
+							let redriveNote = "";
+							try {
+								const events = await readAgentLedger({
+									workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+								});
+								const deadSummary = service.getSummary(terminalTaskId);
+								const escalationBaseUrl = deadSummary?.endpoint ?? DEFAULT_LOCAL_MODEL_BASE_URL;
+								const loadedIds = await fetchLoadedModelIdsCached(escalationBaseUrl).catch(() => []);
+								const action = planTerminalRedriveEscalation({
+									events,
+									taskId: terminalTaskId,
+									availableModelIds: loadedIds,
+								});
+								if (action.kind === "retry_other_model") {
+									await mutateWorkspaceState(scope.workspacePath, (latestState) => ({
+										board: {
+											...latestState.board,
+											columns: latestState.board.columns.map((column) => ({
+												...column,
+												cards: column.cards.map((card) =>
+													card.id === terminalTaskId
+														? {
+																...card,
+																nkleinSettings: {
+																	...(card.nkleinSettings ?? {}),
+																	modelId: action.modelId,
+																},
+																updatedAt: Date.now(),
+															}
+														: card,
+												),
+											})),
+										},
+										value: null,
+									}));
+									redriveNote = ` (Layer-1 escalation: hard-stuck on its model — switched to untried loaded model ${action.modelId})`;
+								}
+								if (action.kind !== "continue") {
+									void appendAgentLedgerEvent(
+										buildTransitionEvent({
+											workflowId: terminalTaskId,
+											taskId: terminalTaskId,
+											workspacePathHash: hashWorkspacePathForLedger(scope.workspacePath),
+											from: "hard_stuck",
+											to: "redrive",
+											reason: "terminal_redrive",
+											controllerDecision:
+												action.kind === "retry_other_model"
+													? `layer1_model_switch:${action.modelId}`
+													: "escalate_to_user",
+										}),
+									).catch(() => {});
+								}
+							} catch {
+								// fall through to the plain redrive.
+							}
 							deps.warn(
-								`Dead card ${terminalTaskId} left no captured work — attempting ONE fresh restart before leaving it for the operator.`,
+								`Dead card ${terminalTaskId} left no captured work — attempting ONE fresh restart before leaving it for the operator.${redriveNote}`,
 							);
 							redriveTaskIds.push(terminalTaskId);
 						}
