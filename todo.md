@@ -4755,7 +4755,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         correctness is DEFINED by the server's real bytes must be built against that server, not blind, or it ships
         subtly-wrong parsing (the exact "dirty fix" the goal forbids). Do in a model-roster session with a server
         exposing the native/Anthropic shape; the decider + profile are ready to consume the result.)*
-  - [ ] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing ⏱ LIVE-ENDPOINT
+  - [~] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing. *(◐ WIRE-SHAPE CORE DONE
+        2026-07-08 — [local-anthropic-messages-shape.ts](src/core/local-anthropic-messages-shape.ts) (for a LOCAL server
+        exposing an Anthropic-Messages-compatible surface — NOT the cloud provider; the local-only guard confines that
+        literal): pure `buildAnthropicMessagesRequest` (hoists system messages into the top-level `system` field, maps
+        tools to `{name, description?, input_schema}`, sets `tool_choice:{type:"any"}` when `forceToolUse` else
+        `{type:"auto"}`, threads temperature) + pure defensive `parseAnthropicMessagesResponse` (concatenates `text`
+        blocks, extracts `tool_use` blocks → {id,name,args}, reads `stop_reason`; never throws on off-spec JSON). Tested
+        against documented Messages content-block payloads — the wire format is a stable contract, so the shaping is
+        unit-provable now; 15 tests. REMAINING ⏱ LIVE-ENDPOINT: the effectful HTTP client (fetch + streaming) around
+        this shape + confirming a real local server matches the documented format.)*
   - [ ] Wire endpoint-iteration into retry loop (record winning endpoint per model) *(gated on the two clients above —
         the seam records `winningEndpointKind` (persistence ready) and reads `preferredEndpointKind` as the first hop
         (decider ready), so this is pure wiring once a second protocol client exists to iterate TO.)*
