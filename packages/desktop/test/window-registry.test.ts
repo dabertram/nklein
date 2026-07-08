@@ -5,15 +5,17 @@ vi.mock("electron", () => {
 		static instances: MockBrowserWindow[] = [];
 		static constructorOptions: unknown[] = [];
 		static nextId = 1;
+		static focusedWindow: MockBrowserWindow | null = null;
 
 		static getFocusedWindow(): MockBrowserWindow | null {
-			return null;
+			return MockBrowserWindow.focusedWindow;
 		}
 
 		static resetMock(): void {
 			MockBrowserWindow.instances = [];
 			MockBrowserWindow.constructorOptions = [];
 			MockBrowserWindow.nextId = 1;
+			MockBrowserWindow.focusedWindow = null;
 		}
 
 		static getLastConstructorOptions(): unknown {
@@ -151,7 +153,15 @@ vi.mock("electron", () => {
 			return false;
 		}
 		restore(): void {}
-		focus(): void {}
+		focus(): void {
+			this.simulateFocus();
+		}
+		simulateFocus(): void {
+			MockBrowserWindow.focusedWindow = this;
+			for (const handler of this._listeners.get("focus") ?? []) {
+				handler();
+			}
+		}
 		setTitle(): void {}
 	}
 
@@ -189,6 +199,7 @@ interface MockWindow {
 	_setCurrentUrl(url: string): void;
 	simulateWillNavigate(url: string): boolean;
 	simulateWindowOpen(url: string): { action: "allow" | "deny" } | null;
+	simulateFocus(): void;
 }
 
 const DEFAULT_OPTIONS = {
@@ -383,6 +394,17 @@ describe("WindowRegistry visibility helpers", () => {
 		expect(registry.countVisibleWindows()).toBe(3);
 		(win1 as unknown as MockWindow).hide();
 		expect(registry.countVisibleWindows()).toBe(2);
+	});
+
+	it("getFocusedEntry() returns the focused project metadata", () => {
+		const registry = new WindowRegistry();
+		const win1 = registry.createWindow({ ...DEFAULT_OPTIONS, projectId: "project-a" }) as unknown as MockWindow;
+		registry.createWindow({ ...DEFAULT_OPTIONS, projectId: "project-b" });
+
+		win1.simulateFocus();
+
+		expect(registry.getFocusedEntry()?.projectId).toBe("project-a");
+		expect(registry.getFocused()?.id).toBe((win1 as unknown as { id: number }).id);
 	});
 });
 

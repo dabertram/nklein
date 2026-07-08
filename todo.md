@@ -10361,8 +10361,15 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       [tray-menu.ts] (`buildTrayMenuTemplate`: activity·Open·Pause/Resume·Quit + `buildTrayTooltip` +
       `summarizeTrayActivity`, 6 tests) + thin Electron [tray.ts] `createAppTray` (template → real Tray/Menu, injected
       handlers, icon-click→open, update()/destroy()) + wired into main.ts on app-ready (Open focus/spawn + Quit LIVE; torn
-      down on will-quit). REMAINING for (1): wire `toggle-pause` to the runtime pause command + the live activity feed
-      (runtime running-card count → `tray.update()`) — both need the runtime-state channel. **RUNTIME-STATE CHANNEL DESIGN
+      down on will-quit). ✅ **TRAY PAUSE/ACTIVITY COMPLETE (2026-07-08):** [packages/desktop/src/runtime-control.ts]
+      adds a narrow desktop-side tRPC-HTTP bridge (injected `fetch`, no `src/core` import, no new runtime endpoint):
+      `runtime.getSwarmStop` + `runtime.requestSwarmStop`/`runtime.clearSwarmStop` for pause/resume and
+      `workspace.getState` for client-side `in_progress` card counts. [packages/desktop/src/main.ts] now scopes the tray
+      to the focused project window (with route fallback for root windows navigated to `/<projectId>`), polls activity every
+      10s without overlapping requests, updates `tray.update(...)`, and wires `togglePause` to the runtime pause command.
+      [packages/desktop/src/window-registry.ts] exposes `getFocusedEntry()` so the shell can read focused window metadata.
+      9 focused runtime-control tests + focused-entry coverage; desktop typecheck/tests green. Remaining for (1): packaged
+      app smoke on macOS/Windows/Linux tray surfaces. **RUNTIME-STATE CHANNEL DESIGN
       (traced 2026-07-08, blueprint for next build):** pause/resume already exist as WORKSPACE-SCOPED tRPC procedures
       `requestSwarmStop`/`clearSwarmStop` (runtime-api.ts:494/498), driven by a swarm-stop SIGNAL FILE
       (`getSwarmStopSignalPath` in core/swarm-guardrails.ts; runtime reads it → `setBoardPaused`). Served over tRPC-HTTP
@@ -10379,10 +10386,11 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       builds a workspace-state snapshot (`buildWorkspaceStateSnapshot` → `RuntimeWorkspaceStateResponse` incl. board.columns)
       that the web-ui already queries — so activity is CLIENT-SIDE: count the `in_progress` column's cards (trivial, no
       src/core import, no new endpoint — the earlier getBoardActivity step is ELIMINATED). Whole channel is desktop-side:
-      (1) a desktop runtime-control client (@trpc/client to `/api/trpc` + `x-nklein-workspace-id` header) calling the
-      EXISTING requestSwarmStop/clearSwarmStop + the workspace-state query; (2) tray `togglePause` +
-      `tray.update(summarizeTrayActivity(inProgressCount))`. Only real work: the desktop @trpc/client integration + tray
-      wiring. FULLY scoped for a clean fresh start. ◐ **AUTO-RESUME (4) DECISION CORE DONE (2026-07-08):**
+      (1) a desktop runtime-control client to `/api/trpc` + `x-nklein-workspace-id` header calling the EXISTING
+      requestSwarmStop/clearSwarmStop + the workspace-state query; (2) tray `togglePause` +
+      `tray.update(summarizeTrayActivity(inProgressCount))`. IMPLEMENTED with an unbatched tRPC-HTTP helper instead of
+      adding `@trpc/client` to the desktop package; that keeps the package boundary clean and mirrors the existing contract
+      helper's wire shape. ◐ **AUTO-RESUME (4) DECISION CORE DONE (2026-07-08):**
       [packages/desktop/src/auto-resume.ts] `selectAutoResumeProjects(candidates, maxConcurrent=1)` — pure policy (flagged
       only · most-recently-active first · capped, start-with-1 default), 7 tests, desktop typecheck clean. REMAINING for (4):
       the config field (per-project auto-resume flag) + the effectful boot hook that resumes each selected project via the

@@ -198,27 +198,32 @@ export class WindowRegistry {
 	}
 
 	/** Electron focus → our last focus → any live window. */
-	getFocused(): BrowserWindow | null {
+	getFocusedEntry(): WindowEntry | null {
 		const focused = BrowserWindow.getFocusedWindow();
 		if (focused && this.windows.has(focused.id)) {
-			return focused;
+			return this.windows.get(focused.id) ?? null;
 		}
 
 		if (this.lastFocusedId !== null) {
 			const entry = this.windows.get(this.lastFocusedId);
 			if (entry && !entry.window.isDestroyed()) {
-				return entry.window;
+				return entry;
 			}
 			this.lastFocusedId = null;
 		}
 
 		for (const entry of this.windows.values()) {
 			if (!entry.window.isDestroyed()) {
-				return entry.window;
+				return entry;
 			}
 		}
 
 		return null;
+	}
+
+	/** Electron focus → our last focus → any live window. */
+	getFocused(): BrowserWindow | null {
+		return this.getFocusedEntry()?.window ?? null;
 	}
 
 	saveAllStates(userDataPath: string): void {

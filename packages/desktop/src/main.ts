@@ -13,14 +13,20 @@ import {
 	parseProtocolUrl,
 	registerProtocol,
 } from "./protocol-handler.js";
+import {
+	createDesktopRuntimeControlClient,
+	resolveTrayWorkspaceId,
+} from "./runtime-control.js";
 import { RuntimeOrchestrator } from "./runtime-orchestrator.js";
 import { WindowFactory } from "./window-factory.js";
 import { WindowRegistry } from "./window-registry.js";
+import type { TrayState } from "./tray-menu.js";
 
 const BACKGROUND_COLOR = "#1F2428";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 3484;
 const HEALTH_TIMEOUT_MS = 3_000;
+const TRAY_ACTIVITY_POLL_MS = 10_000;
 
 const preloadPath = path.join(import.meta.dirname, "preload.js");
 const disconnectedHtmlPath = path.join(import.meta.dirname, "disconnected.html");
@@ -61,7 +67,10 @@ const windowFactory = new WindowFactory({
 	registry,
 	orchestrator,
 	isQuitting: () => isQuitting,
-	onMenuDirty: () => menu.rebuild(),
+	onMenuDirty: () => {
+		menu.rebuild();
+		void refreshTrayState();
+	},
 });
 
 const menu = new AppMenu({
@@ -92,6 +101,7 @@ orchestrator.on("url-changed", (url) => {
 		}
 	}
 	menu.rebuild();
+	void refreshTrayState();
 });
 orchestrator.on("crashed", () => windowFactory.showDisconnectedScreen());
 
@@ -206,6 +216,98 @@ ipcMain.handle("set-autostart", async (_event, enabled: unknown) => {
 // dialog twice. The early-return here keeps the user-facing UX coherent.
 let activeRestart: Promise<void> | null = null;
 let appTray: AppTray | null = null;
+let trayState: TrayState = { paused: false, activitySummary: summarizeTrayActivity(0) };
+let trayActivityTimer: ReturnType<typeof setInterval> | null = null;
+let activeTrayRefresh: Promise<void> | null = null;
+
+function updateTrayState(next: TrayState): void {
+	trayState = next;
+	appTray?.update(next);
+}
+
+function getFocusedTrayWorkspaceId(): string | null {
+	const entry = registry.getFocusedEntry();
+	if (!entry) {
+		return null;
+	}
+	return resolveTrayWorkspaceId({
+		entryProjectId: entry.projectId,
+		currentUrl: entry.window.webContents.getURL(),
+		runtimeUrl: orchestrator.getUrl(),
+	});
+}
+
+function refreshTrayState(): Promise<void> {
+	if (activeTrayRefresh) {
+		return activeTrayRefresh;
+	}
+	activeTrayRefresh = (async () => {
+		if (!appTray) {
+			return;
+		}
+		const runtimeUrl = orchestrator.getUrl();
+		const workspaceId = getFocusedTrayWorkspaceId();
+		if (!runtimeUrl || !workspaceId) {
+			updateTrayState({ paused: false, activitySummary: summarizeTrayActivity(0) });
+			return;
+		}
+		const client = createDesktopRuntimeControlClient({
+			baseUrl: runtimeUrl,
+			fetch: (url, init) => globalThis.fetch(url, init),
+		});
+		try {
+			updateTrayState(await client.getTrayState(workspaceId));
+		} catch (error) {
+			console.debug(
+				"[desktop] tray activity refresh failed:",
+				error instanceof Error ? error.message : error,
+			);
+		}
+	})().finally(() => {
+		activeTrayRefresh = null;
+	});
+	return activeTrayRefresh;
+}
+
+function startTrayActivityFeed(): void {
+	if (trayActivityTimer) {
+		return;
+	}
+	void refreshTrayState();
+	trayActivityTimer = setInterval(() => {
+		void refreshTrayState();
+	}, TRAY_ACTIVITY_POLL_MS);
+	trayActivityTimer.unref?.();
+}
+
+function stopTrayActivityFeed(): void {
+	if (!trayActivityTimer) {
+		return;
+	}
+	clearInterval(trayActivityTimer);
+	trayActivityTimer = null;
+}
+
+async function toggleTrayPause(): Promise<void> {
+	const runtimeUrl = orchestrator.getUrl();
+	const workspaceId = getFocusedTrayWorkspaceId();
+	if (!runtimeUrl || !workspaceId) {
+		console.warn("[desktop] tray pause requested with no focused project workspace.");
+		return;
+	}
+	const client = createDesktopRuntimeControlClient({
+		baseUrl: runtimeUrl,
+		fetch: (url, init) => globalThis.fetch(url, init),
+	});
+	try {
+		updateTrayState(await client.togglePause(workspaceId));
+	} catch (error) {
+		console.warn(
+			"[desktop] tray pause toggle failed:",
+			error instanceof Error ? error.message : error,
+		);
+	}
+}
 
 ipcMain.on("restart-runtime", () => {
 	if (activeRestart) {
@@ -294,12 +396,13 @@ function wireAppLifecycle(): void {
 						}
 					},
 					togglePause: () => {
-						console.log("[desktop] tray: toggle-pause requested (runtime pause wiring pending).");
+						void toggleTrayPause();
 					},
 					quit: () => app.quit(),
 				},
-				{ paused: false, activitySummary: summarizeTrayActivity(0) },
+				trayState,
 			);
+			startTrayActivityFeed();
 		} catch (error) {
 			console.warn("[desktop] tray init failed:", error instanceof Error ? error.message : error);
 		}
@@ -378,6 +481,7 @@ function wireAppLifecycle(): void {
 	// promises returned from its handlers. Treat this as best-effort cleanup
 	// — graceful shutdown already happened in `before-quit`.
 	app.on("will-quit", () => {
+		stopTrayActivityFeed();
 		appTray?.destroy();
 		appTray = null;
 		void orchestrator.dispose();
