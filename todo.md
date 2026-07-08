@@ -5910,7 +5910,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         schema+self-score); tsc + biome green. Running these variants through a model is the sibling harness item (5761,
         LIVE-ENDPOINT).)*
 - [ ] **Evaluation harness (run a model through the matrix → fitness), decomposed:**
-  - [ ] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
+  - [~] Wire the eval-prompt corpus into the existing `verify-all-models.mts` sweep machinery.
+        **PARSE-ADAPTER DONE + LIVE-VALIDATED (2026-07-08):** the sweep gets a model's RAW text; the missing bridge to the
+        deterministic scorers was a raw-text→`EvalAnswer` extractor. [eval-answer-extraction.ts](src/core/eval-answer-extraction.ts)
+        — `extractDecomposeGraph`/`extractDecomposeEvalAnswer` (self-contained lenient JSON extractor: direct parse → ```json
+        fence strip → first balanced {}/[] span, string-literal-aware; builds `{nodes,edges}` from tasks/steps + dependsOn,
+        dropping edges to unknown dep ids). 12 tests. **LIVE-PROVEN end-to-end against the resident qwen2.5-coder-14b:** 3
+        architect/decompose cells → the model produced valid decompositions, the extractor parsed them (6 nodes, 5–6 edges),
+        and `scoreEvalAnswer` graded all 3 = **SCORE 1** (valid DAGs, ~16–18s each) — real fitness data, and the extractor
+        confirmed against genuine (not synthetic) model output. Owed: the sweep-loop integration into verify-all-models.mts
+        (call extractor+scorer per cell, record to the §5.AB fitness store) + the `implement` (needs code EXECUTION in a
+        sandbox) and `review` (needs per-defect ALIAS data to map free-text findings → canonical ids) family extractors.
   - [~] Implement repeated-run loop (N× per cell) to measure stochastic stability across attempts.
         **PURE STABILITY-JUDGMENT CORE DONE (2026-07-01):** [src/core/model-eval-stability.ts](src/core/model-eval-stability.ts)
         — the missing "are the N repeats SETTLED or still FLAKY?" judgment on top of the aggregator. The repeated-run LOOP
