@@ -6323,8 +6323,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         browse: query passes through, URL from results feeds browse_url, page content returns) and the existing
         `retrieval-loop-driver.test.ts` cited-synthesis case (injected model → rendered cited answer with [n] markers +
         sources list — the citation half).)*
-  - [ ] Build live `verify-online-retrieval.mts` harness: real online search → fetch → synthesis on a test task.
-  - [ ] Verify freshness-judgment is applied + cited sources carry dates in the output.
+  - [x] Build live `verify-online-retrieval.mts` harness: real online search → fetch → synthesis on a test task.
+        *(✅ 2026-07-08 LIVE PASS — scripts/verify-online-retrieval.mts: real SearXNG search (localhost:18888,
+        deliberate egress opt-in) → SSRF-guarded Playwright fetch → cited synthesis on resident qwopus3.5 → "Node.js
+        24.11.0 is an LTS release. [1]" + Sources list; 3 evidence gathered, sufficiency reached. FOUND+FIXED a real
+        product bug en route: evidence ids are full URLs and a small model never echoes them byte-exact in `cite`, so
+        EVERY claim parsed as uncited — citedSynthesisAdapter now tags excerpts with short aliases (e1, e2, …) and
+        maps them back (accepts real ids too); +1 test. Gotcha recorded: the isolated verify-HOME hides the Playwright
+        browser cache — set PLAYWRIGHT_BROWSERS_PATH.)*
+  - [~] Verify freshness-judgment is applied + cited sources carry dates in the output. *(◐ 2026-07-08 — the live
+        harness verified publication dates ARE threaded (evidence carried publishedAt; ranking ran the freshness ×
+        authority axis) and sufficiency's freshness gate executed. The rendered Sources list shows URLs without dates —
+        date-stamping the rendered source lines rides the `stampSourceFreshness` wiring (its core + 4 tests exist).)*
   - [x] Test fallback when search returns no results or network is unavailable. *(✅ 2026-07-08 — no-results was
         already covered (zero-hit advance + dead-end-primary regression); the NETWORK-DOWN case FOUND A REAL BUG:
         `runRetrievalLoop`'s `deps.search` call was unguarded, so a rejecting backend (SearXNG down / egress cut / 5xx)

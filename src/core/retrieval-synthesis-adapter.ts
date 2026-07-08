@@ -172,14 +172,22 @@ export function citedSynthesisAdapter(
 		if (evidence.length === 0) {
 			return "";
 		}
+		// SHORT citation aliases (live-found 2026-07-08 vs qwopus3.5): web evidence ids are full URLs, and a small
+		// local model will not echo a long URL byte-exact in its `cite` array — every claim then parsed as uncited.
+		// Tag excerpts as e1, e2, … in the prompt and accept EITHER the alias or the real id back.
+		const idByAlias = new Map<string, string>(evidence.map((item, index) => [`e${index + 1}`, item.id]));
+		const aliasedEvidence = evidence.map((item, index) => ({ ...item, id: `e${index + 1}` }));
 		let raw: string;
 		try {
-			raw = await complete(buildSynthesisPrompt(task, evidence), signal);
+			raw = await complete(buildSynthesisPrompt(task, aliasedEvidence), signal);
 		} catch {
 			return ""; // fail-soft: no answer, the loop keeps its gathered evidence
 		}
-		const knownIds = new Set(evidence.map((item) => item.id));
-		const claims = parseSynthesisClaims(raw, knownIds);
+		const knownIds = new Set([...idByAlias.keys(), ...evidence.map((item) => item.id)]);
+		const claims = parseSynthesisClaims(raw, knownIds).map((claim) => ({
+			...claim,
+			citedEvidenceIds: claim.citedEvidenceIds.map((cited) => idByAlias.get(cited) ?? cited),
+		}));
 		if (claims.length === 0) {
 			return raw.trim(); // model ignored the JSON contract → an uncited answer beats none
 		}

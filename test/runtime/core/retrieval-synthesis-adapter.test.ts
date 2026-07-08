@@ -129,4 +129,23 @@ describe("citedSynthesisAdapter (§5.AC)", () => {
 		// The unsupported claim still renders (fail-soft) but the answer flags it — never silently equal-weighted.
 		expect(answer).toContain("Unverified (no supporting source): B is a hallucination");
 	});
+
+	it("accepts SHORT alias citations (e1/e2) and maps them back to the real evidence ids (weak-model URLs fix)", async () => {
+		const synth = citedSynthesisAdapter(async (prompt) => {
+			// The prompt must tag excerpts with the short aliases, not the raw URL ids.
+			expect(prompt).toContain("[e1]");
+			expect(prompt).toContain("[e2]");
+			return '[{"claim":"A is documented","cite":["e1"]}]';
+		});
+		const answer = await synth({
+			task: "what about A?",
+			evidence: [
+				{ id: "https://long.example/path/to/a", text: "A is documented", url: "https://long.example/path/to/a" },
+				{ id: "https://long.example/b", text: "B stuff", url: "https://long.example/b" },
+			],
+		});
+		expect(answer).toContain("A is documented [1]");
+		expect(answer).toContain("[1] https://long.example/path/to/a");
+		expect(answer).not.toContain("Unverified");
+	});
 });
