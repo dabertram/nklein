@@ -4841,7 +4841,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         adapter tries the learned family FIRST (saves the ladder walk); store schema extended. 5 new tests.)*
   - [ ] Test via phi/reasoning models (canonical ruminator cases) ⏱ FLEET-RUN *(phi models not currently loaded;
         needs a model-roster session)*
-  - [ ] Re-verify across 9-model roster with chat path (ensure no regression) ⏱ FLEET-RUN
+  - [~] Re-verify across 9-model roster with chat path (ensure no regression) **RAN (2026-07-08, 8-model chat-agent-e2e
+        fleet sweep, real 4-tool chain via `nklein chat`+Docker):** phi-4-mini-instruct + qwen3-8b PASS (full chain);
+        r1-8b/mistral-small/coder-14b PARTIAL (chain+persist, weak synth); phi-reasoning models FAIL (don't drive the chain).
+        SURFACED + FIXED a recover-in-!Klein bug: qwopus3.5-9b-coder-mtp FAILED with a template 400 ("System message must be
+        at the beginning") — !Klein sent system not-first; fixed via `mergeSystemMessagesFirst` (normalize-system-first.ts) at
+        the client seam, RE-VERIFIED qwopus now PASSES the full chain. Owed: re-run the full 9-model roster + the other §5.Z
+        harnesses to confirm no regression from the system-first change (expected safe — it's the OpenAI convention).
 - [~] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder. **PURE FORMAT CORE DONE
