@@ -3786,3 +3786,17 @@ fixed with real-name regression tests; host cleaned) · M4-quarantine + manifest
 against their live gate cores · skill-variation rung + model-load-policy governor cores. Tests 8329 backend / 961
 web / 61 e2e. 226 open boxes. The remaining set: fleet sweeps, vendored/M4 gates, David-decisions, sweep-phase live
 repros (dschinn fresh run = first target). Continue top-down + the extended-goal phases.
+
+### FOCUSED-PASS BRIEF: det-bounce acceptance race (diagnosed 2026-07-08, reproduced 1-in-2)
+FAILURE SIGNATURE: round-2 re-work DELIVERED → acceptance re-check threw "No Docker sandbox workspace is prepared
+for det-bounce-gamma::acceptance" (fail-closed) → tests-not-passed → open_pr HELD in Review → test expected
+completed. FORENSICS PRESERVED: HOME=/var/folders/_k/.../nklein-detbounce-home-TgaJSI, cwd .../nklein-detbounce-cwd-qqJ3cu.
+STATIC TRACE SO FAR: the gate PREPARES its own ::acceptance workspace (prepareWorkspace) and disposes in finally
+(nklein-acceptance-gate.ts ~L186-217); the thrown error is requirePlacement (placements MAP entry missing) — so the
+placement either never landed (prepareWorkspace queue/slot path returning without registering under pool pressure —
+ACCEPTANCE_SLOT_QUEUE_WAIT_MS) or was evicted between prepare and exec (releaseSlot callers: L575 dispose, L886
+queue-drain reject; the idle reaper checks occupancy>0 so it should be safe IF occupancy tracks synthetic ids —
+VERIFY ::acceptance ids join container occupancy). Note the worker session ended INTERRUPTED in the same window —
+check whether the worker's stop path cascades into the shared container's occupancy accounting. NEXT: reproduce
+with NKLEIN sandbox debug logging on placements/occupancy, pin the eviction site, fix ordering or occupancy
+accounting, then loop test/integration ≥5× green.
