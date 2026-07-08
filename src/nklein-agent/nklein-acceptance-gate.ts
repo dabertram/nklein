@@ -181,6 +181,15 @@ export async function runNKleinAcceptanceGate(
  */
 export const ACCEPTANCE_SESSION_TASK_SUFFIX = "::acceptance";
 
+// Per-invocation discriminator so CONCURRENT / overlapping acceptance verifications for the SAME base task never
+// share one `::acceptance` sandbox session. ROOT CAUSE (det-bounce flake, instrumented 2026-07-08): several
+// acceptance runs collide on one base task in the finalize flow — the pre-review reviewer-summary acceptance, the
+// #39 base-tree waiver re-check, the delivery-gate re-check — each `prepareWorkspace(<id>::acceptance)` then disposes
+// it in `finally`; when two overlap, run B's dispose tears down run A's live placement and A's exec throws "No
+// Docker sandbox workspace is prepared". run19 separated acceptance from the WORKER; this separates each acceptance
+// run from EVERY OTHER. Monotonic (not Date.now/random — deterministic across a process) and never reused.
+let acceptanceSessionSeq = 0;
+
 /** Bounded slot wait for this auxiliary seam: the pool may be busy with the very sessions awaiting this check. */
 const ACCEPTANCE_SLOT_QUEUE_WAIT_MS = 120_000;
 
@@ -191,9 +200,11 @@ export async function runNKleinAcceptanceGateInSandbox(
 		throw new Error("A task id is required to run the acceptance gate in the agent sandbox.");
 	}
 	const taskId = options.taskId;
-	const sandboxTaskId = taskId.endsWith(ACCEPTANCE_SESSION_TASK_SUFFIX)
-		? taskId
-		: `${taskId}${ACCEPTANCE_SESSION_TASK_SUFFIX}`;
+	// Strip any pre-existing `::acceptance[-n]` suffix from a re-entrant caller, then stamp a FRESH unique one so this
+	// invocation's sandbox session can never collide with a concurrent acceptance run on the same base task.
+	const baseTaskId = taskId.replace(/::acceptance(?:-\d+)?$/, "");
+	acceptanceSessionSeq += 1;
+	const sandboxTaskId = `${baseTaskId}${ACCEPTANCE_SESSION_TASK_SUFFIX}-${acceptanceSessionSeq}`;
 	await options.sandboxManager.assertAvailable();
 	const workspace = await options.sandboxManager.prepareWorkspace({
 		taskId: sandboxTaskId,

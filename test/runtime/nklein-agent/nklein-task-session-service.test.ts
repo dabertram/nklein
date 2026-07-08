@@ -1022,21 +1022,25 @@ describe("InMemoryNKleinTaskSessionService", () => {
 			output: "ok",
 		});
 		expect(sandboxManager.assertAvailableMock).toHaveBeenCalledTimes(1);
+		// Its OWN ::acceptance session with a bounded slot wait (run19: colliding with the worker's placement
+		// destroyed the live workspace; an unbounded wait froze the review seam). No result branch exists for this
+		// task, so the base ref is the fallback tree. Each acceptance run also gets a UNIQUE `-<n>` discriminator so
+		// two OVERLAPPING acceptance runs on one base task never share a session (det-bounce race fix).
+		const prepareCalls = sandboxManager.prepareWorkspaceMock.mock.calls as unknown as ReadonlyArray<
+			[{ taskId: string }]
+		>;
+		const acceptanceSession = prepareCalls[0]?.[0]?.taskId ?? "";
+		expect(acceptanceSession).toMatch(/^task-acceptance::acceptance-\d+$/);
 		expect(sandboxManager.prepareWorkspaceMock).toHaveBeenCalledWith({
-			// Its OWN ::acceptance session with a bounded slot wait (run19: colliding with the worker's placement
-			// destroyed the live workspace; an unbounded wait froze the review seam). No result branch exists for
-			// this task, so the base ref is the fallback tree.
-			taskId: "task-acceptance::acceptance",
+			taskId: acceptanceSession,
 			projectRepoPath: "/tmp/project",
 			baseRef: "main",
 			maxQueueWaitMs: 120_000,
 		});
-		expect(sandboxManager.execMock).toHaveBeenCalledWith(
-			"task-acceptance::acceptance",
-			["/bin/sh", "-c", "npm test"],
-			{ timeoutMs: 1234 },
-		);
-		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith("task-acceptance::acceptance");
+		expect(sandboxManager.execMock).toHaveBeenCalledWith(acceptanceSession, ["/bin/sh", "-c", "npm test"], {
+			timeoutMs: 1234,
+		});
+		expect(sandboxManager.disposeWorkspaceMock).toHaveBeenCalledWith(acceptanceSession);
 	});
 
 	it("disposes a sandbox workspace when SDK start fails", async () => {

@@ -127,11 +127,15 @@ describe("sandbox no-host-execution guard", () => {
 		});
 
 		const shellExecution = resolveShellExecution("npm test");
-		// The check runs in its OWN ::acceptance sandbox session — never the worker's placement (run19).
-		expect(exec).toHaveBeenCalledWith("task-1::acceptance", [shellExecution.binary, ...shellExecution.args], {
+		// The check runs in its OWN ::acceptance sandbox session — never the worker's placement (run19) — and each
+		// run gets a UNIQUE `-<n>` discriminator so overlapping acceptance runs never collide (det-bounce race fix).
+		const prepareCalls = prepareWorkspace.mock.calls as unknown as ReadonlyArray<[{ taskId: string }]>;
+		const acceptanceSession = prepareCalls[0]?.[0]?.taskId ?? "";
+		expect(acceptanceSession).toMatch(/^task-1::acceptance-\d+$/);
+		expect(exec).toHaveBeenCalledWith(acceptanceSession, [shellExecution.binary, ...shellExecution.args], {
 			timeoutMs: 300_000,
 		});
-		expect(disposeWorkspace).toHaveBeenCalledWith("task-1::acceptance");
+		expect(disposeWorkspace).toHaveBeenCalledWith(acceptanceSession);
 		expect(childProcessMocks.execFile).not.toHaveBeenCalled();
 		expect(fsPromisesMocks.appendFile).not.toHaveBeenCalled();
 		expect(fsPromisesMocks.mkdir).not.toHaveBeenCalled();

@@ -187,15 +187,21 @@ describe("nklein acceptance gate", () => {
 		});
 
 		await vi.waitFor(() => {
-			expect(prepareWorkspace).toHaveBeenCalledWith({
-				// The check's OWN synthetic sandbox session — colliding with the worker's taskId destroyed the live
-				// worker workspace (prepareWorkspace rm-rf's + re-clones the workdir keyed by taskId). Bounded slot
-				// wait: this auxiliary seam must fail closed instead of queueing forever behind a busy pool.
-				taskId: "task-1::acceptance",
-				projectRepoPath: "/repo",
-				baseRef: null,
-				maxQueueWaitMs: 120_000,
-			});
+			expect(prepareWorkspace).toHaveBeenCalledTimes(1);
+		});
+		// The check's OWN synthetic sandbox session — colliding with the worker's taskId destroyed the live worker
+		// workspace (prepareWorkspace rm-rf's + re-clones the workdir keyed by taskId). Each acceptance run also gets a
+		// UNIQUE `-<n>` discriminator so two OVERLAPPING acceptance runs on the same base task never share one session
+		// (det-bounce race: one run's finally-dispose tore down another's live placement). Bounded slot wait: this
+		// auxiliary seam must fail closed instead of queueing forever behind a busy pool.
+		const prepareCalls = prepareWorkspace.mock.calls as unknown as ReadonlyArray<[{ taskId: string }]>;
+		const preparedTaskId = prepareCalls[0]?.[0]?.taskId ?? "";
+		expect(preparedTaskId).toMatch(/^task-1::acceptance-\d+$/);
+		expect(prepareWorkspace).toHaveBeenCalledWith({
+			taskId: preparedTaskId,
+			projectRepoPath: "/repo",
+			baseRef: null,
+			maxQueueWaitMs: 120_000,
 		});
 		await Promise.resolve();
 
@@ -211,10 +217,69 @@ describe("nklein acceptance gate", () => {
 		});
 		const shellExecution = resolveShellExecution("npm test");
 		expect(assertAvailable).toHaveBeenCalledTimes(1);
-		expect(exec).toHaveBeenCalledWith("task-1::acceptance", [shellExecution.binary, ...shellExecution.args], {
+		expect(exec).toHaveBeenCalledWith(preparedTaskId, [shellExecution.binary, ...shellExecution.args], {
 			timeoutMs: 300_000,
 		});
-		expect(disposeWorkspace).toHaveBeenCalledWith("task-1::acceptance");
+		expect(disposeWorkspace).toHaveBeenCalledWith(preparedTaskId);
+	});
+
+	it("gives two concurrent acceptance runs on the same base task DISTINCT sandbox sessions", async () => {
+		// ROOT CAUSE of the det-bounce flake: the pre-review acceptance and the #39 re-check both prepared+disposed
+		// `<taskId>::acceptance`; when they overlapped, one's finally-dispose tore down the other's live placement and
+		// its exec threw "No Docker sandbox workspace is prepared". The unique `-<n>` discriminator keys them apart.
+		const preparedIds: string[] = [];
+		const makeManager = () =>
+			({
+				assertAvailable: vi.fn(async () => {}),
+				prepareWorkspace: vi.fn(async (options: { taskId: string }) => {
+					preparedIds.push(options.taskId);
+					return { workdir: `/sandbox/${options.taskId}`, uid: 70_001 };
+				}),
+				exec: vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" })),
+				disposeWorkspace: vi.fn(async () => {}),
+			}) as unknown as AgentSandboxManager;
+
+		const runOne = (manager: AgentSandboxManager) =>
+			runNKleinAcceptanceGateInSandbox({
+				taskId: "det-bounce-gamma",
+				projectRepoPath: "/repo",
+				taskPrompt: "Acceptance check: npm test",
+				sandboxManager: manager,
+			});
+
+		await Promise.all([runOne(makeManager()), runOne(makeManager())]);
+
+		expect(preparedIds).toHaveLength(2);
+		expect(preparedIds[0]).not.toBe(preparedIds[1]);
+		for (const id of preparedIds) {
+			expect(id).toMatch(/^det-bounce-gamma::acceptance-\d+$/);
+		}
+	});
+
+	it("stamps a fresh discriminator even when handed an already-suffixed acceptance task id", async () => {
+		// A re-entrant caller may pass `<taskId>::acceptance` (or `...-7`) back in; we must strip it and stamp a fresh
+		// unique one, never reuse the incoming suffix (which would reintroduce the collision it was meant to avoid).
+		const prepared: string[] = [];
+		const manager = {
+			assertAvailable: vi.fn(async () => {}),
+			prepareWorkspace: vi.fn(async (options: { taskId: string }) => {
+				prepared.push(options.taskId);
+				return { workdir: "/sandbox/x", uid: 70_001 };
+			}),
+			exec: vi.fn(async () => ({ exitCode: 0, stdout: "ok", stderr: "" })),
+			disposeWorkspace: vi.fn(async () => {}),
+		} as unknown as AgentSandboxManager;
+
+		await runNKleinAcceptanceGateInSandbox({
+			taskId: "task-9::acceptance-7",
+			projectRepoPath: "/repo",
+			taskPrompt: "Acceptance check: npm test",
+			sandboxManager: manager,
+		});
+
+		expect(prepared).toHaveLength(1);
+		expect(prepared[0]).toMatch(/^task-9::acceptance-\d+$/);
+		expect(prepared[0]).not.toBe("task-9::acceptance-7");
 	});
 
 	it("rejects sandbox acceptance without a bound task id", async () => {
