@@ -18,7 +18,11 @@
  * channel and returns an EMPTY `content` (observed: deepseek-r1-8b + qwopus3.5-9b-coder-mtp both returned empty `content`
  * on the architect/decompose cells, while qwen2.5-coder-14b returned a clean parseable decomposition in `content`). The
  * sweep MUST feed this extractor `content || reasoning_content` (and/or a larger token budget for reasoning models), else
- * it scores every reasoning model 0 for a purely mechanical channel reason, not a capability failure.
+ * it scores every reasoning model 0 for a purely mechanical channel reason, not a capability failure. RE-VERIFIED: reading
+ * `reasoning_content` at a 2500-token budget recovered qwopus3.5-9b-coder-mtp from 0/3 → 2/3 (richer 10–11-edge DAGs) —
+ * confirming the empty-content was mechanical. deepseek-r1-8b still landed 0/3 (its reasoning_content is pure
+ * chain-of-thought that never emits the final JSON even at 2500 tokens — a genuine over-reasoning weakness for the direct
+ * structured-decompose role, distinct from the mechanical channel issue; it needs the §5.AA reason-then-act / larger budget).
  */
 
 import type { EvalAnswer } from "./eval-prompt-corpus.js";
