@@ -13,6 +13,7 @@ import {
 } from "./chat-agent-loop";
 import type { ChatMemory } from "./chat-memory-store";
 import type { ChatSession } from "./chat-session-store";
+import type { ChatSteeringMessage } from "./chat-steering";
 import type { ChatMessage } from "./chat-transcript-store";
 import {
 	type ChatPromptMessage,
@@ -71,6 +72,10 @@ export interface ChatAgentTurnDeps {
 	 * agent to draft its plan first with `update_focus_chain`. Off ⇒ byte-identical to today.
 	 */
 	focusChainNudgeEnabled?: boolean;
+	/** Drain steering messages accepted during this active turn; folded into the next model-loop call. */
+	pollSteeringMessages?: () => Promise<ChatSteeringMessage[]>;
+	/** Close the active steering window before the final model call starts. */
+	closeSteering?: () => void;
 }
 
 export interface ChatAgentTurnResult {
@@ -198,6 +203,8 @@ export async function runChatAgentTurn(
 			messages,
 			...(typeof input.maxIterations === "number" ? { maxIterations: input.maxIterations } : {}),
 			...(input.onToken ? { onToken: input.onToken } : {}),
+			...(deps.pollSteeringMessages ? { pollSteeringMessages: deps.pollSteeringMessages } : {}),
+			...(deps.closeSteering ? { closeSteering: deps.closeSteering } : {}),
 		},
 		{
 			complete: deps.model,

@@ -1,4 +1,5 @@
 import { computeNKleinToolInputFingerprint } from "../nklein-agent/nklein-tool-call-fingerprint";
+import { appendChatSteeringMessages, type ChatSteeringMessage } from "./chat-steering";
 import type { ChatPromptMessage } from "./chat-turn-context";
 
 /**
@@ -109,6 +110,10 @@ export async function runChatAgentLoop(
 		/** When set, the FINAL (no-tool) answer is streamed token-by-token through this callback (hybrid streaming,
 		 *  todo §5.M G3a). Tool-discovery turns never stream — the model must still be free to request tools there. */
 		onToken?: (delta: string) => void;
+		/** Drain user steering updates accepted while this turn is running. Drained messages are folded into the next
+		 *  model call; the caller closes the active steering window before the final model call starts. */
+		pollSteeringMessages?: () => Promise<ChatSteeringMessage[]>;
+		closeSteering?: () => void;
 	},
 	deps: ChatAgentLoopDeps,
 ): Promise<ChatAgentLoopResult> {
@@ -129,6 +134,17 @@ export async function runChatAgentLoop(
 			promptStrategies.push(response.promptStrategy);
 		}
 		return response;
+	};
+	const applySteeringMessages = async (): Promise<number> => {
+		const steeringMessages = input.pollSteeringMessages ? await input.pollSteeringMessages() : [];
+		if (steeringMessages.length === 0) {
+			return 0;
+		}
+		messages = appendChatSteeringMessages(messages, steeringMessages);
+		return steeringMessages.length;
+	};
+	const closeSteering = (): void => {
+		input.closeSteering?.();
 	};
 
 	// Execute a model response's tool calls with the same-turn de-dup: run each genuinely-new call, replace an
@@ -164,6 +180,7 @@ export async function runChatAgentLoop(
 	for (let iteration = 0; iteration < maxIterations; iteration++) {
 		// Tool-discovery turn: never stream (the model must be free to request a tool instead of answering). Pass the
 		// already-executed tool names so the §5.AA constrained rung, if it has to FORCE a call, steers to an un-done step.
+		await applySteeringMessages();
 		const response = await callModel(messages, true, undefined, [...usedToolNames]);
 		if (response.toolCalls.length === 0) {
 			// §5.AA controller evidence-gate: if a completion assessor is supplied and the run is NOT yet complete by
@@ -178,9 +195,21 @@ export async function runChatAgentLoop(
 			// The model chose to answer rather than call a tool — this is the final reply. With an `onToken` we re-issue
 			// it as a streaming, tools-disabled call so the answer streams token-by-token (the discovery call can't both
 			// offer tools and stream); without one we return the text we already have (no extra model call).
+			const steeredBeforeFinal = await applySteeringMessages();
+			closeSteering();
 			if (onToken) {
 				const streamed = await callModel(messages, false, onToken);
 				return { finalText: streamed.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
+			}
+			if (steeredBeforeFinal > 0) {
+				const finalResponse = await callModel(messages, false);
+				return {
+					finalText: finalResponse.text,
+					steps,
+					hitIterationLimit: false,
+					totalTokens,
+					promptStrategies,
+				};
 			}
 			return { finalText: response.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
 		}
@@ -204,12 +233,16 @@ export async function runChatAgentLoop(
 				continue;
 			}
 			// The model is stuck (all repeats) and the run is complete / out of runway — force a final (streamed) answer.
+			await applySteeringMessages();
+			closeSteering();
 			const finalResponse = await callModel(messages, false, onToken);
 			return { finalText: finalResponse.text, steps, hitIterationLimit: false, totalTokens, promptStrategies };
 		}
 	}
 
 	// Out of tool iterations — force one final (streamed) answer turn with tools disabled so it must conclude.
+	await applySteeringMessages();
+	closeSteering();
 	const finalResponse = await callModel(messages, false, onToken);
 	return { finalText: finalResponse.text, steps, hitIterationLimit: true, totalTokens, promptStrategies };
 }

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Unified chat can now accept mid-turn steering without cancelling the active stream** (todo §5.M). The runtime exposes
+  `chat.steerTurn`, persists accepted steering text as a normal user transcript row, and injects it into the next
+  tool-loop/final streamed model call before closing the steering window. The sidebar composer now stays editable while a
+  turn is running and shows `Stop` plus `Steer`; accepted steers render optimistically until the transcript refetches. A
+  live LM Studio check (`scripts/verify-chat-steer.mts`) validated the full `chat.streamMessage` + `chat.steerTurn` path
+  with one already-loaded model, no sweep or model loading.
 - **Settings can now check and cache llmfit's public model catalog on demand** (todo §5.AB/§5.AL). The model telemetry
   panel has explicit "Check catalog" and "Update catalog" actions. Check fetches llmfit's current GitHub catalog metadata
   only when clicked, compares the remote blob revision to the local cache revision, and reports update availability plus

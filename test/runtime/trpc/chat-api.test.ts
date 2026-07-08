@@ -40,6 +40,8 @@ function makeContext(rootDir: string): RuntimeTrpcContext {
 				const result = await service.sendMessage(input, onToken);
 				return { userMessage: result?.userMessage ?? null, assistantMessage: result?.assistantMessage ?? null };
 			},
+			steerChatTurn: (input: { sessionId: string; message: string; delivery?: "queue" | "steer" }) =>
+				service.steerTurn(input),
 		},
 	} as unknown as RuntimeTrpcContext;
 }
@@ -123,6 +125,20 @@ describe("chat tRPC sub-router", () => {
 		const missing = await caller.chat.sendMessage({ sessionId: "nope", message: "hi" });
 		expect(missing.userMessage).toBeNull();
 		expect(missing.assistantMessage).toBeNull();
+	});
+
+	it("exposes steerTurn through the router and reports no active turn when idle", async () => {
+		const caller = runtimeAppRouter.createCaller(makeContext(rootDir));
+		const created = await caller.chat.createSession({ title: "Steer" });
+		const sessionId = created.session?.id ?? "";
+
+		const result = await caller.chat.steerTurn({ sessionId, message: "course correct", delivery: "steer" });
+		expect(result).toMatchObject({
+			ok: false,
+			delivery: "steer",
+			message: null,
+			error: "No active chat turn is accepting steering.",
+		});
 	});
 
 	it("streams token events then a terminal done over the streamMessage subscription", async () => {

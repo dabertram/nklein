@@ -149,6 +149,43 @@ describe("runChatAgentLoop", () => {
 		expect(tokens.length).toBeGreaterThanOrEqual(2);
 	});
 
+	it("folds steering updates into the final no-tool model call before streaming", async () => {
+		const seen: ChatPromptMessage[][] = [];
+		let polls = 0;
+		let closedBeforeFinal = false;
+		let closed = false;
+		const result = await runChatAgentLoop(
+			{
+				messages: start,
+				onToken: () => undefined,
+				pollSteeringMessages: async () => {
+					polls += 1;
+					return polls === 2 ? [{ id: "steer-1", content: "Answer in bullets.", createdAt: 1_000 }] : [];
+				},
+				closeSteering: () => {
+					closed = true;
+				},
+			},
+			{
+				complete: async (messages, allow) => {
+					seen.push([...messages]);
+					if (!allow) {
+						closedBeforeFinal = closed;
+					}
+					return { text: allow ? "premature direct answer" : "Steered answer.", toolCalls: [] };
+				},
+				executeTool: async () => {
+					throw new Error("should not execute tools");
+				},
+				appendToolExchange,
+			},
+		);
+		expect(result.finalText).toBe("Steered answer.");
+		expect(closedBeforeFinal).toBe(true);
+		expect(seen).toHaveLength(2);
+		expect(seen[1]?.map((message) => message.content).join("\n")).toContain("Answer in bullets.");
+	});
+
 	it("streams the forced final answer through onToken when it hits the iteration limit (§5.M G3a)", async () => {
 		const tokens: string[] = [];
 		const result = await runChatAgentLoop(

@@ -1058,6 +1058,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				...(result?.contextTruncated ? { contextTruncated: true } : {}),
 			};
 		},
+		steerChatTurn: (input) => chatService.steerTurn(input),
 		startAutonomousChatRun: (input) => autonomousChatRun.start(input),
 		getAutonomousChatRunStatus: (input) => autonomousChatRun.status(input),
 	};

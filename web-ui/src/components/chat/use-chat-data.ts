@@ -32,6 +32,8 @@ export interface UseChatDataResult {
 	sending: boolean;
 	/** The user message being sent, shown optimistically until the persisted transcript catches up. */
 	pendingUserText: string | null;
+	/** User steering updates accepted while the active turn is still running. */
+	pendingSteerTexts: string[];
 	/** The assistant reply as it streams in (token by token); null when not streaming. */
 	streamingText: string | null;
 	/** W3.1: names of the tools the agent is running RIGHT NOW (live activity chips while the turn streams). */
@@ -53,6 +55,7 @@ export interface UseChatDataResult {
 	updateSession: (input: RuntimeChatUpdateSessionRequest) => Promise<void>;
 	deleteSession: (id: string) => Promise<void>;
 	sendMessage: (message: string) => Promise<void>;
+	steerTurn: (message: string) => Promise<boolean>;
 	refetchSessions: () => Promise<unknown>;
 	/** The selected session's autonomous run (todo §5.0.1): null until one is started this mount. */
 	autonomousStatus: RuntimeChatAutonomousRunStatus | null;
@@ -65,6 +68,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 	const [sending, setSending] = useState(false);
 	const [pendingUserText, setPendingUserText] = useState<string | null>(null);
+	const [pendingSteerTexts, setPendingSteerTexts] = useState<string[]>([]);
 	const [streamingText, setStreamingText] = useState<string | null>(null);
 	const [activeToolNames, setActiveToolNames] = useState<string[]>([]);
 	const [contextTruncated, setContextTruncated] = useState(false);
@@ -199,6 +203,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			setSending(true);
 			setError(null);
 			setPendingUserText(trimmed);
+			setPendingSteerTexts([]);
 			setStreamingText("");
 			setCapabilityNotice(null);
 			setClarifyCandidates(null);
@@ -286,6 +291,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 			await sessionsQuery.refetch();
 			void focusChainQuery.refetch();
 			setPendingUserText(null);
+			setPendingSteerTexts([]);
 			setStreamingText(null);
 			setActiveToolNames([]);
 			setSending(false);
@@ -297,6 +303,33 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 	const stopTurn = useCallback(() => {
 		stopTurnRef.current?.();
 	}, []);
+
+	const steerTurn = useCallback(
+		async (message: string): Promise<boolean> => {
+			const trimmed = message.trim();
+			if (!trimmed || !selectedSessionId) {
+				return false;
+			}
+			setError(null);
+			try {
+				const result = await client.chat.steerTurn.mutate({
+					sessionId: selectedSessionId,
+					message: trimmed,
+					delivery: "steer",
+				});
+				if (!result.ok) {
+					setError(result.error ?? "The active turn is not accepting steering.");
+					return false;
+				}
+				setPendingSteerTexts((current) => [...current, result.message?.content ?? trimmed]);
+				return true;
+			} catch (caught) {
+				setError(caught instanceof Error ? caught.message : String(caught));
+				return false;
+			}
+		},
+		[client, selectedSessionId],
+	);
 
 	const startAutonomousRun = useCallback(
 		async (goal: string) => {
@@ -356,6 +389,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		transcriptLoading: transcriptQuery.isLoading,
 		sending,
 		pendingUserText,
+		pendingSteerTexts,
 		streamingText,
 		activeToolNames,
 		stopTurn,
@@ -369,6 +403,7 @@ export function useChatData(enabled: boolean): UseChatDataResult {
 		updateSession,
 		deleteSession,
 		sendMessage,
+		steerTurn,
 		refetchSessions: sessionsQuery.refetch,
 		autonomousStatus,
 		startAutonomousRun,

@@ -883,10 +883,20 @@ function ChatPanel({
 
 	const handleSubmit = (event: FormEvent): void => {
 		event.preventDefault();
-		if (chat.sending || !chat.selectedSessionId) {
+		if (!chat.selectedSessionId || draft.trim().length === 0) {
 			return;
 		}
 		const message = draft;
+		if (chat.sending) {
+			void chat.steerTurn(message).then((accepted) => {
+				if (!accepted) {
+					return;
+				}
+				setDraft("");
+				setMention(null);
+			});
+			return;
+		}
 		setDraft("");
 		setMention(null);
 		void chat.sendMessage(message);
@@ -1056,6 +1066,17 @@ function ChatPanel({
 										}}
 									/>
 								) : null}
+								{chat.pendingSteerTexts.map((text, index) => (
+									<MessageBubble
+										key={`pending-steer-${index}`}
+										message={{
+											id: `pending-steer-${index}`,
+											role: "user",
+											content: text,
+											createdAt: 0,
+										}}
+									/>
+								))}
 								{/* W3.1 live tool activity: what the agent is doing RIGHT NOW, while the turn runs. */}
 								{chat.activeToolNames.length > 0 ? (
 									<div className="flex flex-wrap items-center gap-1.5" data-testid="chat-active-tools">
@@ -1236,7 +1257,11 @@ function ChatPanel({
 									data-testid="chat-composer-input"
 									className="flex-1 min-w-0 resize-none rounded-md border border-border bg-surface-2 px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-focus min-h-[40px] max-h-32"
 									rows={1}
-									placeholder="Message the local model… (@ targets a card or stream)"
+									placeholder={
+										chat.sending
+											? "Steer the running turn…"
+											: "Message the local model… (@ targets a card or stream)"
+									}
 									value={draft}
 									onChange={(event) => {
 										setDraft(event.target.value);
@@ -1254,16 +1279,28 @@ function ChatPanel({
 								{chat.sending ? (
 									/* W3.2: stop/detach the in-flight turn — frees the composer; the reply still lands
 									   via the transcript poll when the server turn finishes. */
-									<Button
-										type="button"
-										variant="default"
-										size="md"
-										icon={<Square size={13} />}
-										data-testid="chat-stop-button"
-										onClick={chat.stopTurn}
-									>
-										Stop
-									</Button>
+									<>
+										<Button
+											type="button"
+											variant="default"
+											size="md"
+											icon={<Square size={13} />}
+											data-testid="chat-stop-button"
+											onClick={chat.stopTurn}
+										>
+											Stop
+										</Button>
+										<Button
+											type="submit"
+											variant="primary"
+											size="md"
+											icon={<Send size={14} />}
+											data-testid="chat-steer-button"
+											disabled={draft.trim().length === 0}
+										>
+											Steer
+										</Button>
+									</>
 								) : (
 									<Button
 										type="submit"

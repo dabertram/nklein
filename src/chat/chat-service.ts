@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type {
 	RuntimeChatClarifyCandidate,
@@ -28,6 +29,7 @@ import {
 	listChatSessions,
 	updateChatSession,
 } from "./chat-session-store";
+import type { ChatSteeringMessage, ChatTurnDeliveryMode } from "./chat-steering";
 import { resolveChatTokenBudget } from "./chat-token-budget";
 import type { ChatMessage } from "./chat-transcript-store";
 import { appendChatMessage, readChatTranscript } from "./chat-transcript-store";
@@ -116,6 +118,13 @@ export interface ChatSendResult {
 	contextTruncated?: boolean;
 }
 
+export interface ChatSteerTurnResult {
+	ok: boolean;
+	delivery: ChatTurnDeliveryMode;
+	message: RuntimeChatMessage | null;
+	error?: string;
+}
+
 function toRuntimeChatSession(session: ChatSession): RuntimeChatSession {
 	return {
 		id: session.id,
@@ -192,6 +201,13 @@ export interface ChatService {
 		/** W3.1 (server-side only): live tool start/end activity while the turn runs, for the composer's chips. */
 		onToolEvent?: (event: ChatToolActivityEvent) => void,
 	) => Promise<ChatSendResult | null>;
+	/** Add a user course-correction to the active turn. `steer` folds into the next model-loop call; `queue` is
+	 *  reserved for SDK parity and currently reports unavailable rather than silently starting a second turn. */
+	steerTurn: (input: {
+		sessionId: string;
+		message: string;
+		delivery?: ChatTurnDeliveryMode;
+	}) => Promise<ChatSteerTurnResult>;
 	/** Drive an autonomous run (todo §5.0.1): the agent works the goal turn-by-turn (plan via the focus chain, use the
 	 *  gated tools + the control tools) until the goal is done, it needs the user, or a budget/stall guard trips.
 	 *  Returns null when the session doesn't exist; throws when no model is configured. Each turn persists to the
@@ -216,6 +232,38 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 	};
 	const memoryOptions = { ...(rootDir ? { rootDir: join(rootDir, "memories") } : {}), ...(now ? { now } : {}) };
 	const estimateTokens = options.estimateTokens ?? ((text: string) => Math.ceil(text.length / 4));
+
+	interface ActiveChatTurn {
+		accept: (message: ChatSteeringMessage) => boolean;
+		poll: () => Promise<ChatSteeringMessage[]>;
+		close: () => void;
+		isOpen: () => boolean;
+	}
+
+	const activeChatTurns = new Map<string, ActiveChatTurn>();
+	function createActiveChatTurn(): ActiveChatTurn {
+		let open = true;
+		const pending: ChatSteeringMessage[] = [];
+		return {
+			accept: (message) => {
+				if (!open) {
+					return false;
+				}
+				pending.push(message);
+				return true;
+			},
+			poll: async () => {
+				if (pending.length === 0) {
+					return [];
+				}
+				return pending.splice(0, pending.length);
+			},
+			close: () => {
+				open = false;
+			},
+			isOpen: () => open,
+		};
+	}
 
 	/**
 	 * §5.M short→long memory WRITE: when a turn rolled its overflow into a `summary`, extract the durable facts from it
@@ -359,90 +407,123 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 		},
 		sendMessage: (input, onToken, onToolEvent) =>
 			serializeSessionTurn(input.sessionId, async () => {
-				if (!options.resolveModelDeps) {
-					throw new Error("This chat service is read-only: no model is configured for sending messages.");
-				}
-				const session = await getChatSession(input.sessionId, sessionOptions);
-				if (!session) {
-					return null;
-				}
-				const modelDeps = await options.resolveModelDeps();
-				const tokenBudget = input.tokenBudget ?? resolveChatTokenBudget(options.resolveContextWindowTokens?.());
-				const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
-				// §5.AC: resolve the "knows today" switch per turn (config || env, off by default) so a live config change
-				// applies immediately; undefined ⇒ the renderer's env fallback decides. Threaded into the turn deps below.
-				const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
-				const storeDeps = {
-					readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
-					readMemories: () => readChatMemories(memoryOptions),
-					appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
-						appendChatMessage(sessionId, message, transcriptOptions),
-					estimateTokens,
-					...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
-				};
-
-				// Tool-using path (todo §5.M G3a): when the session resolves agent tool deps, drive the tool-using agent
-				// loop instead of plain completion. `onToken` still streams the FINAL (no-tool) reply (hybrid streaming), so
-				// a turn that uses no tools keeps token-by-token streaming. `summarize` for the lean window comes from the
-				// plain model deps. Null ⇒ fall through to the plain `runChatTurn` path below (e.g. no active workspace).
-				const agentToolDeps = options.resolveAgentToolDeps ? await options.resolveAgentToolDeps(session) : null;
-				if (agentToolDeps) {
-					// §5.AL capability gate (web-ui/API chat path): the tool-using agent needs a tool-capable model, so refuse a
-					// catalog-`reject` model up front (e.g. a reasoning-only variant) rather than burning the turn on a model that
-					// can't drive tools. Override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1; warn/unknown proceed. Only when the model
-					// id is known (the live local resolver supplies it); a fake/test modelDeps without it is unaffected.
-					let capabilityNotice: string | null = null;
-					if (modelDeps.modelId) {
-						const policyBase = options.resolveModelGatePolicyBase
-							? await options.resolveModelGatePolicyBase()
-							: null;
-						const gate = decideChatModelGate(modelDeps.modelId, {
-							toolUsing: true,
-							allowOverride: process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL === "1",
-							...(policyBase ? { policyBase } : {}),
-						});
-						if (gate.action === "reject") {
-							throw new Error(gate.message);
-						}
-						if (gate.action === "warn") {
-							capabilityNotice = gate.message;
-						}
+				const activeTurn = createActiveChatTurn();
+				activeChatTurns.set(input.sessionId, activeTurn);
+				try {
+					if (!options.resolveModelDeps) {
+						throw new Error("This chat service is read-only: no model is configured for sending messages.");
 					}
-					// §5.AU rung-1+ wiring: resolve WHO the message addresses (explicit @handle → reply-bind → focus → goal)
-					// against the session's board index, lead the turn with the rendered note, and persist an explicit
-					// handle as the session's new focus. Goal turns add nothing (prompt stays byte-identical — §5.AQ).
-					let targetNote: string | null = null;
-					let targetLabel: string | null = null;
-					if (options.resolveMessageTargetIndex) {
-						const index = await options.resolveMessageTargetIndex(session);
-						if (index) {
-							const target = resolveMessageTarget({
-								text: input.message,
-								outstandingAsks: session.outstandingAsks,
-								focus: session.focus,
-								lastReferencedTaskId: session.focus?.kind === "card" ? session.focus.id : null,
-								index,
+					const session = await getChatSession(input.sessionId, sessionOptions);
+					if (!session) {
+						return null;
+					}
+					const modelDeps = await options.resolveModelDeps();
+					const tokenBudget = input.tokenBudget ?? resolveChatTokenBudget(options.resolveContextWindowTokens?.());
+					const memoryLimit = input.memoryLimit ?? DEFAULT_CHAT_MEMORY_LIMIT;
+					// §5.AC: resolve the "knows today" switch per turn (config || env, off by default) so a live config change
+					// applies immediately; undefined ⇒ the renderer's env fallback decides. Threaded into the turn deps below.
+					const knowsTodayEnabled = options.resolveKnowsTodayEnabled?.();
+					const storeDeps = {
+						readTranscript: (sessionId: string) => readChatTranscript(sessionId, transcriptOptions),
+						readMemories: () => readChatMemories(memoryOptions),
+						appendMessage: (sessionId: string, message: { role: ChatMessage["role"]; content: string }) =>
+							appendChatMessage(sessionId, message, transcriptOptions),
+						estimateTokens,
+						...(knowsTodayEnabled !== undefined ? { knowsTodayEnabled } : {}),
+					};
+
+					// Tool-using path (todo §5.M G3a): when the session resolves agent tool deps, drive the tool-using agent
+					// loop instead of plain completion. `onToken` still streams the FINAL (no-tool) reply (hybrid streaming), so
+					// a turn that uses no tools keeps token-by-token streaming. `summarize` for the lean window comes from the
+					// plain model deps. Null ⇒ fall through to the plain `runChatTurn` path below (e.g. no active workspace).
+					const agentToolDeps = options.resolveAgentToolDeps ? await options.resolveAgentToolDeps(session) : null;
+					if (agentToolDeps) {
+						// §5.AL capability gate (web-ui/API chat path): the tool-using agent needs a tool-capable model, so refuse a
+						// catalog-`reject` model up front (e.g. a reasoning-only variant) rather than burning the turn on a model that
+						// can't drive tools. Override with NKLEIN_ALLOW_UNSUITABLE_MODEL=1; warn/unknown proceed. Only when the model
+						// id is known (the live local resolver supplies it); a fake/test modelDeps without it is unaffected.
+						let capabilityNotice: string | null = null;
+						if (modelDeps.modelId) {
+							const policyBase = options.resolveModelGatePolicyBase
+								? await options.resolveModelGatePolicyBase()
+								: null;
+							const gate = decideChatModelGate(modelDeps.modelId, {
+								toolUsing: true,
+								allowOverride: process.env.NKLEIN_ALLOW_UNSUITABLE_MODEL === "1",
+								...(policyBase ? { policyBase } : {}),
 							});
-							targetNote = renderMessageTargetNote(target);
-							targetLabel = target.kind === "goal" ? null : (target.displayLabel ?? null);
-							if (
-								target.source === "explicit_handle" &&
-								target.id &&
-								(target.kind === "card" || target.kind === "stream")
-							) {
-								await updateChatSession(
-									session.id,
-									{ focus: { kind: target.kind, id: target.id, at: (options.now ?? Date.now)() } },
-									sessionOptions,
-								);
+							if (gate.action === "reject") {
+								throw new Error(gate.message);
 							}
-							// §5.AU item 9 — deterministic relay: a message addressed to a CARD (or an `answer` to a card's
-							// question) is RELAYED straight to that card + confirmed, NOT re-answered by a model turn. The
-							// runtime's relay decides the effect (deliver live / queue mailbox / suggest-unblock / answer from
-							// state) and returns the confirmation; null ⇒ fall through to the model turn (goal/stream/clarify).
-							if (options.relayAddressedMessage) {
-								const confirmation = await options.relayAddressedMessage(target, input.message);
-								if (confirmation !== null) {
+							if (gate.action === "warn") {
+								capabilityNotice = gate.message;
+							}
+						}
+						// §5.AU rung-1+ wiring: resolve WHO the message addresses (explicit @handle → reply-bind → focus → goal)
+						// against the session's board index, lead the turn with the rendered note, and persist an explicit
+						// handle as the session's new focus. Goal turns add nothing (prompt stays byte-identical — §5.AQ).
+						let targetNote: string | null = null;
+						let targetLabel: string | null = null;
+						if (options.resolveMessageTargetIndex) {
+							const index = await options.resolveMessageTargetIndex(session);
+							if (index) {
+								const target = resolveMessageTarget({
+									text: input.message,
+									outstandingAsks: session.outstandingAsks,
+									focus: session.focus,
+									lastReferencedTaskId: session.focus?.kind === "card" ? session.focus.id : null,
+									index,
+								});
+								targetNote = renderMessageTargetNote(target);
+								targetLabel = target.kind === "goal" ? null : (target.displayLabel ?? null);
+								if (
+									target.source === "explicit_handle" &&
+									target.id &&
+									(target.kind === "card" || target.kind === "stream")
+								) {
+									await updateChatSession(
+										session.id,
+										{ focus: { kind: target.kind, id: target.id, at: (options.now ?? Date.now)() } },
+										sessionOptions,
+									);
+								}
+								// §5.AU item 9 — deterministic relay: a message addressed to a CARD (or an `answer` to a card's
+								// question) is RELAYED straight to that card + confirmed, NOT re-answered by a model turn. The
+								// runtime's relay decides the effect (deliver live / queue mailbox / suggest-unblock / answer from
+								// state) and returns the confirmation; null ⇒ fall through to the model turn (goal/stream/clarify).
+								if (options.relayAddressedMessage) {
+									const confirmation = await options.relayAddressedMessage(target, input.message);
+									if (confirmation !== null) {
+										const userMsg = await appendChatMessage(
+											session.id,
+											{ role: "user", content: input.message },
+											transcriptOptions,
+										);
+										const assistantMsg = await appendChatMessage(
+											session.id,
+											{ role: "assistant", content: confirmation },
+											transcriptOptions,
+										);
+										return {
+											userMessage: toRuntimeChatMessage(userMsg),
+											assistantMessage: toRuntimeChatMessage(assistantMsg),
+											...(targetLabel ? { targetLabel } : {}),
+										};
+									}
+								}
+								// §5.AU item 9 — needs_clarify PICKER: addressing was ambiguous (>1 slug/ASK match). Surface the
+								// candidates for the composer's picker instead of guessing or spending a model turn: post a
+								// deterministic clarify prompt + return the candidates. The user picks one (inserts its @handle) and
+								// re-sends. No model turn.
+								if (target.kind === "needs_clarify" && target.candidates && target.candidates.length > 0) {
+									const clarifyCandidates: RuntimeChatClarifyCandidate[] = target.candidates.map(
+										(candidate) => ({
+											kind: candidate.kind,
+											id: candidate.id,
+											label: candidate.label,
+										}),
+									);
+									const options_ = clarifyCandidates.map((candidate) => `"${candidate.label}"`).join(", ");
 									const userMsg = await appendChatMessage(
 										session.id,
 										{ role: "user", content: input.message },
@@ -450,125 +531,162 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 									);
 									const assistantMsg = await appendChatMessage(
 										session.id,
-										{ role: "assistant", content: confirmation },
+										{
+											role: "assistant",
+											content: `Your message could address more than one target (${options_}). Which did you mean? Pick one below, or rephrase with an @handle.`,
+										},
 										transcriptOptions,
 									);
 									return {
 										userMessage: toRuntimeChatMessage(userMsg),
 										assistantMessage: toRuntimeChatMessage(assistantMsg),
-										...(targetLabel ? { targetLabel } : {}),
+										clarifyCandidates,
 									};
 								}
 							}
-							// §5.AU item 9 — needs_clarify PICKER: addressing was ambiguous (>1 slug/ASK match). Surface the
-							// candidates for the composer's picker instead of guessing or spending a model turn: post a
-							// deterministic clarify prompt + return the candidates. The user picks one (inserts its @handle) and
-							// re-sends. No model turn.
-							if (target.kind === "needs_clarify" && target.candidates && target.candidates.length > 0) {
-								const clarifyCandidates: RuntimeChatClarifyCandidate[] = target.candidates.map((candidate) => ({
-									kind: candidate.kind,
-									id: candidate.id,
-									label: candidate.label,
-								}));
-								const options_ = clarifyCandidates.map((candidate) => `"${candidate.label}"`).join(", ");
-								const userMsg = await appendChatMessage(
-									session.id,
-									{ role: "user", content: input.message },
-									transcriptOptions,
-								);
-								const assistantMsg = await appendChatMessage(
-									session.id,
-									{
-										role: "assistant",
-										content: `Your message could address more than one target (${options_}). Which did you mean? Pick one below, or rephrase with an @handle.`,
-									},
-									transcriptOptions,
-								);
-								return {
-									userMessage: toRuntimeChatMessage(userMsg),
-									assistantMessage: toRuntimeChatMessage(assistantMsg),
-									clarifyCandidates,
-								};
-							}
 						}
+						const turnStartedAt = Date.now();
+						const agentResult = await runChatAgentTurn(
+							{
+								session,
+								userMessage: input.message,
+								tokenBudget,
+								memoryLimit,
+								...(onToken ? { onToken } : {}),
+								...(targetNote ? { targetNote } : {}),
+							},
+							{
+								...storeDeps,
+								summarize: modelDeps.summarize,
+								...withToolTranscript(agentToolDeps, session.id, onToolEvent),
+								pollSteeringMessages: activeTurn.poll,
+								closeSteering: activeTurn.close,
+								// §5.AD opt-in enforced-reasoning bounce over the final draft (flag-gated inside; fail-soft).
+								enforceReasoning: ({ task, draft }) =>
+									maybeEnforceReasoning({
+										task,
+										draft,
+										...(modelDeps.modelId !== undefined ? { modelId: modelDeps.modelId } : {}),
+										complete: async ({ system, user }) =>
+											modelDeps.complete([
+												...(system ? [{ role: "system" as const, content: system }] : []),
+												{ role: "user" as const, content: user },
+											]),
+									}),
+							},
+						);
+						// §5.AF: best-effort append a `chat`-flow attempt event to the ledger (observational; never throws into
+						// the turn — the sink swallows its own errors). Only when the model id is known.
+						if (options.recordChatAttempt && modelDeps.modelId) {
+							options.recordChatAttempt({
+								sessionId: session.id,
+								modelId: modelDeps.modelId,
+								toolNames: agentResult.steps.map((step) => step.toolCall.name),
+								hitIterationLimit: agentResult.hitIterationLimit,
+								promptStrategy: agentResult.promptStrategies.at(-1) ?? null,
+								flow: "chat",
+								startedAt: turnStartedAt,
+								endedAt: Date.now(),
+							});
+						}
+						// §5.M: accumulate this turn's token usage onto the session's running total (best-effort display metric).
+						// `addTokensUsed` (not a precomputed `session.totalTokensUsed + …`) so concurrent turns on one session
+						// don't race on a stale locally-held total (bug-hunt 2026-07-05: last-writer-wins lost updates).
+						if (agentResult.totalTokens > 0) {
+							await updateChatSession(session.id, { addTokensUsed: agentResult.totalTokens }, sessionOptions);
+						}
+						// §5.M: consolidate this turn's rolled-up summary into durable long-term memory (best-effort, flag-gated).
+						await maybeConsolidateSessionMemories(session.id, agentResult.context.summary, modelDeps);
+						return {
+							userMessage: toRuntimeChatMessage(agentResult.userMessage),
+							assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
+							...(capabilityNotice ? { capabilityNotice } : {}),
+							...(targetLabel ? { targetLabel } : {}),
+							// W3.4 truncation indicator: the lean window rolled older messages into a summary this turn.
+							...(agentResult.context.summary !== null ? { contextTruncated: true } : {}),
+						};
 					}
-					const turnStartedAt = Date.now();
-					const agentResult = await runChatAgentTurn(
+
+					const result = await runChatTurn(
 						{
 							session,
 							userMessage: input.message,
 							tokenBudget,
 							memoryLimit,
 							...(onToken ? { onToken } : {}),
-							...(targetNote ? { targetNote } : {}),
 						},
 						{
 							...storeDeps,
-							summarize: modelDeps.summarize,
-							...withToolTranscript(agentToolDeps, session.id, onToolEvent),
-							// §5.AD opt-in enforced-reasoning bounce over the final draft (flag-gated inside; fail-soft).
-							enforceReasoning: ({ task, draft }) =>
-								maybeEnforceReasoning({
-									task,
-									draft,
-									...(modelDeps.modelId !== undefined ? { modelId: modelDeps.modelId } : {}),
-									complete: async ({ system, user }) =>
-										modelDeps.complete([
-											...(system ? [{ role: "system" as const, content: system }] : []),
-											{ role: "user" as const, content: user },
-										]),
-								}),
+							...modelDeps,
+							pollSteeringMessages: activeTurn.poll,
+							closeSteering: activeTurn.close,
 						},
 					);
-					// §5.AF: best-effort append a `chat`-flow attempt event to the ledger (observational; never throws into
-					// the turn — the sink swallows its own errors). Only when the model id is known.
-					if (options.recordChatAttempt && modelDeps.modelId) {
-						options.recordChatAttempt({
-							sessionId: session.id,
-							modelId: modelDeps.modelId,
-							toolNames: agentResult.steps.map((step) => step.toolCall.name),
-							hitIterationLimit: agentResult.hitIterationLimit,
-							promptStrategy: agentResult.promptStrategies.at(-1) ?? null,
-							flow: "chat",
-							startedAt: turnStartedAt,
-							endedAt: Date.now(),
-						});
-					}
-					// §5.M: accumulate this turn's token usage onto the session's running total (best-effort display metric).
-					// `addTokensUsed` (not a precomputed `session.totalTokensUsed + …`) so concurrent turns on one session
-					// don't race on a stale locally-held total (bug-hunt 2026-07-05: last-writer-wins lost updates).
-					if (agentResult.totalTokens > 0) {
-						await updateChatSession(session.id, { addTokensUsed: agentResult.totalTokens }, sessionOptions);
-					}
-					// §5.M: consolidate this turn's rolled-up summary into durable long-term memory (best-effort, flag-gated).
-					await maybeConsolidateSessionMemories(session.id, agentResult.context.summary, modelDeps);
+					// §5.M: same best-effort memory consolidation for the plain (non-tool) turn path.
+					await maybeConsolidateSessionMemories(session.id, result.context.summary, modelDeps);
 					return {
-						userMessage: toRuntimeChatMessage(agentResult.userMessage),
-						assistantMessage: toRuntimeChatMessage(agentResult.assistantMessage),
-						...(capabilityNotice ? { capabilityNotice } : {}),
-						...(targetLabel ? { targetLabel } : {}),
-						// W3.4 truncation indicator: the lean window rolled older messages into a summary this turn.
-						...(agentResult.context.summary !== null ? { contextTruncated: true } : {}),
+						userMessage: toRuntimeChatMessage(result.userMessage),
+						assistantMessage: toRuntimeChatMessage(result.assistantMessage),
 					};
+				} finally {
+					activeTurn.close();
+					if (activeChatTurns.get(input.sessionId) === activeTurn) {
+						activeChatTurns.delete(input.sessionId);
+					}
 				}
-
-				const result = await runChatTurn(
-					{
-						session,
-						userMessage: input.message,
-						tokenBudget,
-						memoryLimit,
-						...(onToken ? { onToken } : {}),
-					},
-					{ ...storeDeps, ...modelDeps },
-				);
-				// §5.M: same best-effort memory consolidation for the plain (non-tool) turn path.
-				await maybeConsolidateSessionMemories(session.id, result.context.summary, modelDeps);
-				return {
-					userMessage: toRuntimeChatMessage(result.userMessage),
-					assistantMessage: toRuntimeChatMessage(result.assistantMessage),
-				};
 			}),
+		steerTurn: async (input) => {
+			const delivery: ChatTurnDeliveryMode = input.delivery ?? "steer";
+			const normalized = input.message.trim();
+			if (normalized.length === 0) {
+				return { ok: false, delivery, message: null, error: "Steering message cannot be empty." };
+			}
+			if (delivery === "queue") {
+				return {
+					ok: false,
+					delivery,
+					message: null,
+					error: "Queued follow-up delivery is not implemented for unified chat turns yet.",
+				};
+			}
+			const activeTurn = activeChatTurns.get(input.sessionId);
+			if (!activeTurn?.isOpen()) {
+				return {
+					ok: false,
+					delivery,
+					message: null,
+					error: "No active chat turn is accepting steering.",
+				};
+			}
+			const session = await getChatSession(input.sessionId, sessionOptions);
+			if (!session) {
+				return { ok: false, delivery, message: null, error: "Chat session does not exist." };
+			}
+			const steeringMessage: ChatSteeringMessage = {
+				id: randomUUID(),
+				content: normalized,
+				createdAt: (now ?? Date.now)(),
+			};
+			if (!activeTurn.accept(steeringMessage)) {
+				return {
+					ok: false,
+					delivery,
+					message: null,
+					error: "The active chat turn is already producing its final reply.",
+				};
+			}
+			const persisted = await appendChatMessage(
+				input.sessionId,
+				{
+					id: steeringMessage.id,
+					role: "user",
+					content: steeringMessage.content,
+					createdAt: steeringMessage.createdAt,
+				},
+				transcriptOptions,
+			);
+			return { ok: true, delivery, message: toRuntimeChatMessage(persisted) };
+		},
 		runAutonomous: (input) =>
 			serializeSessionTurn(input.sessionId, async () => {
 				if (!options.resolveModelDeps) {

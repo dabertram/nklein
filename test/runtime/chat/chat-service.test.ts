@@ -177,6 +177,76 @@ describe("createChatService", () => {
 		expect(toolRow?.content).toContain("# Project");
 	});
 
+	it("accepts a steering message during an active tool-using turn and folds it into the next model call", async () => {
+		let releaseTool!: () => void;
+		const toolGate = new Promise<void>((resolve) => {
+			releaseTool = resolve;
+		});
+		let toolStarted!: () => void;
+		const toolStartedPromise = new Promise<void>((resolve) => {
+			toolStarted = resolve;
+		});
+		const seen: string[][] = [];
+		const service = createChatService({
+			rootDir,
+			resolveModelDeps: async () => ({ complete: async () => "unused", summarize: async () => "" }),
+			resolveAgentToolDeps: async () => ({
+				model: async (messages) => {
+					seen.push(messages.map((message) => `${message.role}:${message.content}`));
+					return seen.length === 1
+						? { text: "", toolCalls: [{ id: "c1", name: "read_file", arguments: { path: "README.md" } }] }
+						: { text: "Steered final answer.", toolCalls: [] };
+				},
+				executeTool: async (call) => {
+					toolStarted();
+					await toolGate;
+					return { callId: call.id, content: "tool output" };
+				},
+				appendToolExchange: (messages, _response, results) => [
+					...messages,
+					...results.map((result) => ({ role: "system" as const, content: result.content })),
+				],
+			}),
+		});
+		const session = await service.createSession({ title: "Steer", scope: "chat_only" });
+
+		const turn = service.sendMessage({ sessionId: session.id, message: "Inspect the file." });
+		await toolStartedPromise;
+		const steered = await service.steerTurn({
+			sessionId: session.id,
+			message: "Actually focus on the risks.",
+			delivery: "steer",
+		});
+		expect(steered.ok).toBe(true);
+		expect(steered.message?.content).toBe("Actually focus on the risks.");
+		releaseTool();
+
+		const result = await turn;
+		expect(result?.assistantMessage.content).toBe("Steered final answer.");
+		expect(seen).toHaveLength(2);
+		expect(seen[1]?.join("\n")).toContain("Actually focus on the risks.");
+		const transcript = await service.readTranscript(session.id);
+		expect(transcript.map((message) => `${message.role}:${message.content}`)).toEqual([
+			"user:Inspect the file.",
+			"user:Actually focus on the risks.",
+			'tool:Tool: read_file\nInput:\n{\n  "path": "README.md"\n}\nOutput:\ntool output',
+			"assistant:Steered final answer.",
+		]);
+	});
+
+	it("rejects steering when no active turn is accepting it", async () => {
+		const service = createChatService({ rootDir });
+		const session = await service.createSession({ title: "Idle" });
+
+		const result = await service.steerTurn({ sessionId: session.id, message: "change course" });
+		expect(result).toMatchObject({
+			ok: false,
+			delivery: "steer",
+			message: null,
+			error: "No active chat turn is accepting steering.",
+		});
+	});
+
 	it("§5.AU: resolves an @card handle — target note leads the turn, focus persists, targetLabel returns", async () => {
 		const seen: string[][] = [];
 		const service = createChatService({

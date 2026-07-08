@@ -18,6 +18,8 @@ import {
 	runtimeChatSessionsResponseSchema,
 	runtimeChatStartAutonomousRequestSchema,
 	runtimeChatStartAutonomousResponseSchema,
+	runtimeChatSteerTurnRequestSchema,
+	runtimeChatSteerTurnResponseSchema,
 	runtimeChatTranscriptRequestSchema,
 	runtimeChatTranscriptResponseSchema,
 	runtimeChatUpdateSessionRequestSchema,
@@ -75,6 +77,12 @@ export function buildChatRouter(t: RuntimeTrpcBuilder) {
 			.output(runtimeChatSendMessageResponseSchema)
 			.mutation(async ({ ctx, input }) => {
 				return await ctx.runtimeApi.sendChatMessage(input);
+			}),
+		steerTurn: t.procedure
+			.input(runtimeChatSteerTurnRequestSchema)
+			.output(runtimeChatSteerTurnResponseSchema)
+			.mutation(async ({ ctx, input }) => {
+				return await ctx.runtimeApi.steerChatTurn(input);
 			}),
 		startAutonomousRun: t.procedure
 			.input(runtimeChatStartAutonomousRequestSchema)

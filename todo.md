@@ -2248,17 +2248,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ([chat-turn-context.ts](src/chat/chat-turn-context.ts)) carries it into **every** turn's context so it stays
         in focus across turns. Unit-tested (goal create/update/clear/preserve + goal in the composed turn context).
         Surfaced + editable in the chat UI's session header (2026-06-24); over the bridge LATER with the bridge.
-- [x] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling, decomposed: *(◐ PARTIAL — HALF-SHIPPED: steering a running TASK agent exists (§5.AU send_to_card relays into the live turn; the mailbox holds it otherwise; sendTaskSessionInput re-drives). Mid-turn steering of an in-flight CHAT turn (fold-in without cancel) remains open — turns are serialized per session by design (the 2026-07-05 transcript-interleave fix), so a fold-in needs a deliberate injection seam)*
-  - [ ] backend: accept a mid-turn `steer` message and fold it into the active turn (reuse the runtime's
-        `"queue" | "steer"` delivery mode) without cancelling. *(⏱ RUNTIME-SEAM + LIVE-STREAM 2026-07-08: chat turns
-        are SERIALIZED per session by design (the transcript-interleave fix), so folding a steer INTO an in-flight
-        streaming turn needs a new server-side injection seam on the `chat.streamMessage` loop + a `chat.steerTurn`
-        mutation — a runtime turn-loop change whose correctness (does the steer actually land mid-generation without
-        corrupting the stream?) can only be validated against a LIVE streaming model turn, not a deterministic mock.
-        Build in a live-model session so the injection is real-validated, not a blind untestable seam. The task-agent
-        steer path (§5.AU send_to_card) already exists as the reference.)*
-  - [ ] UI: a composer affordance to send a steering message during an in-flight turn. *(gated on the backend seam
-        above — an affordance that posts to a nonexistent steer endpoint is dishonest UI, per the L2100 pattern.)*
+- [x] **Steering messages** — mid-turn course-corrections the agent folds in without cancelling, decomposed: *(shipped for
+      task agents + unified chat; messenger bridge remains LATER. 2026-07-08 chat slice adds a `chat.steerTurn` mutation,
+      persisted user steering rows, active-turn injection before the next model-loop/final streamed call, and explicit
+      steering-window close before the final call so late steers are not silently accepted.)*
+  - [x] backend: accept a mid-turn `steer` message and fold it into the active turn (reuse the runtime's
+        `"queue" | "steer"` delivery mode) without cancelling. *(shipped 2026-07-08: `chat.streamMessage` now has an
+        active-turn registry; `chat.steerTurn` persists the user steering message and drains it into the next
+        `runChatAgentLoop` model call. Deterministic tests cover the loop/service/router seam. Live-validated with one
+        already-loaded LM Studio model (`phi-4-mini-instruct@8bit`) via `scripts/verify-chat-steer.mts`: steer accepted,
+        persisted, injected into the streamed final prompt, and SSE token streaming stayed intact.)*
+  - [x] UI: a composer affordance to send a steering message during an in-flight turn. *(shipped 2026-07-08: the chat
+        sidebar keeps the draft editable while streaming and shows `Stop` + `Steer`; Enter/Steer posts to `chat.steerTurn`
+        and displays accepted steering rows optimistically until the transcript refetch catches up.)*
   - [>] bridge: surface steering over the messenger bridge (LATER, with the bridge).
 - [~] **LAYERED memory as one projection over the §5.AF substrate (2026-06-27, small-LLM research pass).** *(nearly
       complete — the Four memory layers (memory-layers.ts, 2026-07-08), the turn-budget allocator, the namespaced

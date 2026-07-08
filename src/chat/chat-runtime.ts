@@ -1,6 +1,7 @@
 import { isTruthyEnv } from "../core/env-flag";
 import type { ChatMemory } from "./chat-memory-store";
 import type { ChatSession } from "./chat-session-store";
+import { appendChatSteeringMessages, type ChatSteeringMessage } from "./chat-steering";
 import type { ChatMessage } from "./chat-transcript-store";
 import {
 	type ChatPromptMessage,
@@ -38,6 +39,10 @@ export interface ChatRuntimeDeps {
 	 * (off unless truthy); tests set it explicitly. Even when enabled, the block is still relevance-gated + end-placed.
 	 */
 	knowsTodayEnabled?: boolean;
+	/** Drain steering updates already accepted before the single plain model call starts. */
+	pollSteeringMessages?: () => Promise<ChatSteeringMessage[]>;
+	/** Plain turns have no between-tool-call seam, so close steering before the single model call starts. */
+	closeSteering?: () => void;
 }
 
 export interface ChatTurnResult {
@@ -81,7 +86,12 @@ export async function runChatTurn(
 	// decision core decides — an off or non-temporal turn leaves the prompt unchanged, so a plain chat pays nothing.
 	const knowsTodayEnabled = deps.knowsTodayEnabled ?? isTruthyEnv(process.env.NKLEIN_KNOWS_TODAY);
 	const now = (deps.now ?? (() => new Date()))();
-	const prompt = renderChatTurnPrompt(context, input.userMessage, { now, enabled: knowsTodayEnabled });
+	let prompt = renderChatTurnPrompt(context, input.userMessage, { now, enabled: knowsTodayEnabled });
+	const steeringMessages = deps.pollSteeringMessages ? await deps.pollSteeringMessages() : [];
+	if (steeringMessages.length > 0) {
+		prompt = appendChatSteeringMessages(prompt, steeringMessages);
+	}
+	deps.closeSteering?.();
 	const reply = await deps.complete(prompt, input.onToken);
 	const userMessage = await deps.appendMessage(input.session.id, { role: "user", content: input.userMessage });
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: reply });

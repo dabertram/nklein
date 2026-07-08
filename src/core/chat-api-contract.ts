@@ -200,6 +200,26 @@ export const runtimeChatSendMessageRequestSchema = z.object({
 });
 export type RuntimeChatSendMessageRequest = z.infer<typeof runtimeChatSendMessageRequestSchema>;
 
+export const runtimeChatTurnDeliverySchema = z.enum(["queue", "steer"]);
+export type RuntimeChatTurnDelivery = z.infer<typeof runtimeChatTurnDeliverySchema>;
+
+export const runtimeChatSteerTurnRequestSchema = z.object({
+	sessionId: z.string(),
+	message: z.string().min(1),
+	/** Mirrors the SDK delivery vocabulary: `steer` folds into an active turn, `queue` is reserved for follow-ups. */
+	delivery: runtimeChatTurnDeliverySchema.optional(),
+});
+export type RuntimeChatSteerTurnRequest = z.infer<typeof runtimeChatSteerTurnRequestSchema>;
+
+export const runtimeChatSteerTurnResponseSchema = z.object({
+	ok: z.boolean(),
+	delivery: runtimeChatTurnDeliverySchema,
+	/** The persisted user steering row when accepted; null when no active turn could receive it. */
+	message: runtimeChatMessageSchema.nullable(),
+	error: z.string().optional(),
+});
+export type RuntimeChatSteerTurnResponse = z.infer<typeof runtimeChatSteerTurnResponseSchema>;
+
 /** §5.AU item 9: a disambiguation candidate the composer offers when a message's target is ambiguous (needs_clarify). */
 export const runtimeChatClarifyCandidateSchema = z.object({
 	kind: z.enum(["card", "stream", "answer"]),

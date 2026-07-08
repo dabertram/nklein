@@ -165,6 +165,8 @@ import type {
 	RuntimeChatSession,
 	RuntimeChatStartAutonomousRequest,
 	RuntimeChatStartAutonomousResponse,
+	RuntimeChatSteerTurnRequest,
+	RuntimeChatSteerTurnResponse,
 	RuntimeChatUpdateSessionRequest,
 } from "../core/chat-api-contract.js";
 import { LEGACY_WORKSPACE_ID_HEADER, WORKSPACE_ID_HEADER } from "../core/workspace-scope";
@@ -430,6 +432,7 @@ export interface RuntimeTrpcContext {
 			/** W3.1 (server-side only): live tool start/end activity for the composer's chips. */
 			onToolEvent?: (event: { phase: "start" | "end"; toolName: string }) => void,
 		) => Promise<RuntimeChatSendMessageResponse>;
+		steerChatTurn: (input: RuntimeChatSteerTurnRequest) => Promise<RuntimeChatSteerTurnResponse>;
 		startAutonomousChatRun: (input: RuntimeChatStartAutonomousRequest) => Promise<RuntimeChatStartAutonomousResponse>;
 		getAutonomousChatRunStatus: (input: RuntimeChatAutonomousStatusRequest) => RuntimeChatAutonomousRunStatus;
 	};
