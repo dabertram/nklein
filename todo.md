@@ -6372,6 +6372,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - [ ] **First-class `RetrievedEvidence` objects + citation verification, decomposed:**
   - [x] Define `RetrievedEvidence` zod schema: url/fileRef, title, sourceType, author/publisher?, dates, contentHash, trustTier, freshnessVerdict, extractionSpans, citationIds, promptInjectionRiskFlags. **(2026-06-29, parallel batch)** `src/core/retrieved-evidence.ts` — `retrievedEvidenceSchema` + inferred `RetrievedEvidence` (web/MCP `untrusted` by default). 11 tests.
   - [~] Build adaptive retrieval loop: knowledge-debt/task → query plan → local vs online → retrieve → relevance/sufficiency/freshness judgment → cite or search again. **(2026-06-29, batch #5)** PURE substrate done: `retrieval-loop-state.ts` (`nextRetrievalAction` strict-precedence state machine) + `retrieval-sufficiency.ts` (`assessRetrievalSufficiency`: covered-subQs ∧ source-floor ∧ fresh). 26 tests. Owed: the effectful driver that runs the loop against the live tools using these pure deciders.
+        *(✅ COMPLETE 2026-07-08 — the "owed driver" shipped and is LIVE-PROVEN: `runRetrievalLoop`
+        (retrieval-loop-driver.ts, 22 tests) drives search→rank→fetch→sufficiency→synthesize over injected deps, and
+        verify-online-retrieval.mts ran it against the REAL tools (SearXNG + SSRF-guarded Playwright + resident model)
+        to a cited-answer PASS. Remaining agent-path offering is tracked on the telemetry/gate leaves.)*
   - [~] Implement citation verification: map material claims to evidence spans; mark unsupported claims; prefer newer release notes in conflicts. **(2026-06-29)** PURE CORE done: `verifyCitations({claims, evidence})` → `{supported, unsupported}` (a claim is supported only when every cited evidence id exists AND has ≥1 extraction span). Owed: the "prefer newer release notes in conflicts" tie-break + wiring into the retrieval loop.
         *(✅ COMPLETE 2026-07-08 — both owed halves resolved: the recency tie-break shipped separately as
         `resolveConflictByRecency` + `resolveClaimConflictsBatch` (citation-conflict-recency/-batch, future-clamp +
@@ -6449,9 +6453,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       §5.AD `context-reanchor.ts` end-anchor / a `context-smart-zone.ts` edge-promotion.
 - [ ] **End-of-context task re-anchor on long runs, decomposed:**
   - [x] Implement generic re-anchor helper: takes goal + current step + board-card context; formats for end-of-context placement. **(2026-06-29, parallel batch)** `src/core/context-reanchor.ts` — `buildContextReanchor` (`<reanchor>` block: GOAL→CARD→STEP→RECENT TOOLS, drops blanks) + `shouldReanchor` (cadence gate, never turn 0). 10 tests. Next leaf = the `beforeModel` integration.
-  - [ ] Integrate into `beforeModel` hook (reuse §5.N focus-chain seam) to inject re-anchor after large tool outputs.
-  - [ ] Test on a multi-turn task: verify goal + step are restated near context tail on 2nd+ model calls.
-  - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models).
+  - [x] Integrate into `beforeModel` hook (reuse §5.N focus-chain seam) to inject re-anchor after large tool outputs.
+        *(✅ verified-wired 2026-07-08 (audit): `task-reanchor-before-model.ts` (`decideTaskReanchorForRequest` — derives
+        the immutable goal from the FIRST user message, skips injected rails, cadence-gated) is consumed at the §5.N
+        focus-chain seam in `nklein-context-focus-extension.ts` (~L180) inside the live beforeModel path — opt-in via
+        NKLEIN_GOAL_REANCHOR (default OFF = byte-identical), every-N-turns cadence per session. The leaf was done but
+        never crossed.)*
+  - [x] Test on a multi-turn task: verify goal + step are restated near context tail on 2nd+ model calls.
+        *(✅ covered by the adapter suite (task-reanchor-before-model.test.ts, 8 tests): never fires on turn 0,
+        off-cadence turns are no-ops, the <reanchor> block carrying the immutable GOAL is APPENDED (context tail) at
+        the cadence turn, and lastReanchorTurn advances — the multi-turn restatement contract, deterministic.)*
+  - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models). ⏱ FLEET-RUN
+        *(the flag flip + drift measurement across the roster is model-time; rides the sweep phase)*
 - [ ] **Learned per-model "quality-effective" context budget — runtime consumption + UI wiring, decomposed:**
   - [~] **Quality-knee ESTIMATOR (the pure fit) — PURE CORE DONE (2026-07-01):**
         [src/core/context-budget-knee.ts](src/core/context-budget-knee.ts) `estimateQualityEffectiveBudget(observations,
@@ -6470,7 +6483,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         and feed the fitted `budgetTokens` into prompt-assembly compaction (the next leaf) + the model-telemetry panel.
   - [ ] Wire learned budget into prompt-assembly: compact/summarize down to `learnedQualityEffectiveBudget(profile)` instead of filling the window (behind §5.Z re-verify).
   - [ ] Add eval-sweep probes (§5.AB harness, RULER/NoLiMa-style) for models without prior outcome data.
-  - [ ] Surface learned budget + quality-knee in web Settings model-telemetry panel (CLI surface already done).
+  - [x] Surface learned budget + quality-knee in web Settings model-telemetry panel (CLI surface already done).
+        *(✅ 2026-07-08 — the "Learned model behavior" table (Model Performance stats dialog, getModelBehaviorProfiles)
+        shows the QUALITY KNEE per model ("ok ≤ N / degrades ≥ M" from qualityEffectiveContextTokens /
+        qualityDegradedAtTokens) plus Avg Retries; the learned RETRY BUDGET renders per fitness cell in the new
+        "Model fitness" table. Web gate 961 green.)*
   - [ ] Test: verify small-model output quality improves when compacting to learned budget instead of overflow threshold.
 - [ ] **Adaptive, model- & task-dependent OUTPUT / generation token budget (`max_tokens`) — the PROACTIVE complement to
       §5.AA's reactive truncation ladder** *(2026-07-01, user: "token limits can be highly model- AND task-dependent →
