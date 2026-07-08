@@ -27,6 +27,49 @@ export const decomposeProjectTaskJsonSchema = {
 			description:
 				"What this card still does not know about its domain and what a later card should verify. Use for domain-heavy work (e.g. DSP/audio, crypto, hardware) where assumptions are risky.",
 		},
+		// §5.AK work-package CONTRACT fields (all optional) — advertised here so the architect model can emit them;
+		// they flow through the zod plan-task schema onto the card and into the worker's "## Card contract" brief.
+		preconditions: {
+			type: "array",
+			items: { type: "string" },
+			description:
+				"What must already be true before this card starts (files/APIs that must exist, prior cards' outputs).",
+		},
+		inputs: {
+			type: "array",
+			items: { type: "string" },
+			description: "Concrete inputs this card consumes (paths, configs, artifacts).",
+		},
+		expectedOutputs: {
+			type: "array",
+			items: { type: "string" },
+			description: "Concrete artifacts this card must produce (paths, exported symbols, endpoints).",
+		},
+		acceptanceChecks: {
+			type: "array",
+			items: { type: "string" },
+			description: "Objective pass/fail checks beyond the acceptance command (behaviors to verify).",
+		},
+		nonGoals: {
+			type: "array",
+			items: { type: "string" },
+			description: "Explicitly OUT of scope for this card — what the worker must not touch or attempt.",
+		},
+		dependencyOutputsConsumed: {
+			type: "array",
+			items: { type: "string" },
+			description: "Which upstream cards' outputs this card consumes (by task id or artifact).",
+		},
+		rollbackOrRepairHints: {
+			type: "array",
+			items: { type: "string" },
+			description: "How to back out or repair if this card's change breaks something downstream.",
+		},
+		downstreamInvalidationRules: {
+			type: "array",
+			items: { type: "string" },
+			description: "What downstream work becomes invalid if this card's interface/outputs change.",
+		},
 	},
 	required: ["id", "title", "prompt"],
 	additionalProperties: false,

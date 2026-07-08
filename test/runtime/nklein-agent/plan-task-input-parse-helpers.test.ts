@@ -132,3 +132,24 @@ describe("recoverMissingTaskPrompts (live-found 2026-07-08: a retry emitted task
 		expect(recoverMissingTaskPrompts({ tasks: "nope" })).toEqual({ tasks: "nope" });
 	});
 });
+
+describe("§5.AK contract fields flow through the decompose input (schema advertisement + zod pass-through)", () => {
+	it("the tool-facing JSON schema advertises every contract field the zod plan-task schema accepts", async () => {
+		const { decomposeProjectTaskJsonSchema } = await import(
+			"../../../src/nklein-agent/decomposition/plan-task-schemas"
+		);
+		const advertised = Object.keys(decomposeProjectTaskJsonSchema.properties);
+		for (const field of [
+			"preconditions",
+			"inputs",
+			"expectedOutputs",
+			"acceptanceChecks",
+			"nonGoals",
+			"dependencyOutputsConsumed",
+			"rollbackOrRepairHints",
+			"downstreamInvalidationRules",
+		]) {
+			expect(advertised, `JSON schema must advertise ${field}`).toContain(field);
+		}
+	});
+});

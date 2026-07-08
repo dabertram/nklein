@@ -8293,7 +8293,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > wall" suggestions) is specced in §5.AB; the rest:
 - [ ] **Decompose emits work-package-shaped cards, decomposed:**
   - [x] Define the richer card schema: write-scope, forbidden paths, interfaces, acceptance shape. *(2026-07-05: richer-card-schema.ts — zod richerCardSpecSchema (writeScope · forbiddenPaths · interfaces[frozen] · acceptance{checks,command,nonGoals} · dependsOn) + richerCardToWorkPackage projecting to the existing overlap classifier; 6 tests. Populating these in decompose is the next leaf.)*
-  - [ ] Update decompose logic to produce cards carrying these contract bounds.
+  - [x] Update decompose logic to produce cards carrying these contract bounds. *(✅ 2026-07-08 — the missing half
+        was ADVERTISEMENT: the zod plan-task schema already accepted the 8 §5.AK contract fields and the consumption
+        (card-contract-brief → worker prompt) was live, but the tool-facing JSON schema (additionalProperties:false)
+        never LISTED them, so the architect model could not know to emit them. All 8 now advertised with directive
+        descriptions (preconditions/inputs/expectedOutputs/acceptanceChecks/nonGoals/dependencyOutputsConsumed/
+        rollbackOrRepairHints/downstreamInvalidationRules); +1 schema-advertisement drift test pinning JSON-schema ⊇
+        contract fields. Agent suite 2083 green.)*
   - [~] Verify small workers stay in-bounds by construction (overlap classification Green/Yellow/Red). **PURE CORE DONE
         (2026-07-01):** [`src/core/work-package-dispatch.ts`](src/core/work-package-dispatch.ts) — the §5.AK module-ownership
         map as machine logic over `WorkPackage {id, writeScope, forbiddenScope?, dependsOn?}`: `classifyPackagePairConflict`
