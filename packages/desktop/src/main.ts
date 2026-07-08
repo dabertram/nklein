@@ -3,6 +3,8 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
 import { AppMenu } from "./app-menu.js";
+import type { AutostartPlatform } from "./autostart-config.js";
+import { isAutostartEnabled, setAutostartEnabled } from "./autostart-effects.js";
 import { relayOAuthCallback } from "./oauth-relay.js";
 import {
 	extractProtocolUrlFromArgv,
@@ -163,6 +165,34 @@ function resolveCliShimPath(): string {
 ipcMain.on("open-project-window", (_event, projectId: string) => {
 	if (typeof projectId === "string" && projectId) {
 		windowFactory.create({ projectId });
+	}
+});
+
+// Autostart-on-boot (#13.3): the OS is the state store — no separate settings file. The pure planner + effectful adapter
+// live in autostart-{config,effects}.ts; here we just supply the live identity (name, exe path, home) from Electron.
+function autostartContext(): { platform: AutostartPlatform; appName: string; execPath: string; homeDir: string } {
+	return {
+		platform: process.platform as AutostartPlatform,
+		appName: app.getName(),
+		execPath: app.getPath("exe"),
+		homeDir: app.getPath("home"),
+	};
+}
+ipcMain.handle("get-autostart", () => {
+	try {
+		return isAutostartEnabled(app, autostartContext());
+	} catch (error) {
+		console.error("[desktop] get-autostart failed:", error);
+		return false;
+	}
+});
+ipcMain.handle("set-autostart", async (_event, enabled: unknown) => {
+	try {
+		await setAutostartEnabled(app, { ...autostartContext(), enabled: enabled === true });
+		return { ok: true };
+	} catch (error) {
+		console.error("[desktop] set-autostart failed:", error);
+		return { ok: false, error: error instanceof Error ? error.message : String(error) };
 	}
 });
 
