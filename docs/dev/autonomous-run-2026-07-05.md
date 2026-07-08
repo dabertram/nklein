@@ -3725,3 +3725,13 @@ controllerDecision, writer seam now exists via createSessionTransitionRecorder's
 CAUTION: behavior-changing on the live task loop — tests-first, flag-gate if in doubt. After that: L5986 settings
 fitness/role controls (partially shipped — fitness browser exists), L5999 resource-aware routing leaves, L6262
 web_search leaves, then §10 manual todos. 268 open boxes.
+
+### GOAL EXTENSION (David, 2026-07-08 — now on Opus 4.8, Fable later)
+The /goal is EXTENDED beyond todo.md: (1) after all todo.md boxes are done, check ALL other similar md files
+(polishing.md, done.md addenda, docs/dev handoffs, §10 manual notes) for further tasks and work them top-down;
+(2) when nothing is left, SWEEP with different models — unload/load as needed — through the dev-test-projects:
+fix all surfacing bugs, improve !Klein's robustness + efficiency, and ALWAYS check the quality of !Klein's
+generated output (watch agent activity directly AND deeply/thoroughly review generated code quality); reason
+about how !Klein can be improved, implement improvements right away, re-check, continue sweeping. The loop keeps
+running on this extended goal. NOTE: model load/unload is now explicitly granted for the sweep phase
+(restore-user-state etiquette still applies between sessions).
