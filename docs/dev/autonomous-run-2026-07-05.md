@@ -3697,3 +3697,16 @@ shows "Thinking: <snippet>". LIVE-VERIFIED vs resident qwopus3.5 (scripts/verify
 distinct snippet updates during thinking; yielded to follow-up; exit 0). Web gate 961 green. NEXT: L3736 (upgrade
 verification to diagnostic oracles), L3845 (verify-decompose-promote-review.mts PROMOTE half), L4157 (workspace
 settings polish), L4350 (target-structure roadmap), then §5.AA/§5.AB umbrellas (~L4400-6000), §5.AN/§5.AQ, §10.
+
+### 2026-07-08 (Fable, /goal grind cont. #2) — L3688→L3872 stretch
+SHIPPED: L3688 reasoning snippet (537eb742, live-verified 197 updates) · smoothness/perf e2e budgets + HEALED the
+42/61 zoom-stranded e2e suite → 61/61 green (322ba488; zoom Z3 pin in harness + 6 private init scripts + renamed
+settings-nav locator) · diagnostic-oracle cores (hidden splits + repeat-run reliability; qrels triple completed
+with precision@k+MRR) · §5.AA prompt-variation family LEARNING (profile counts + preferred-first ladder + chat
+persistence, 65a9d1e8) · §5.AF promptStrategy rung recording on chat/autonomous attempts · learned-behavior
+Settings telemetry surface (getModelBehaviorProfiles + stats-dialog table) · **PROMOTE half LIVE PASS** —
+verify-decompose-promote-review.mts chained harness vs qwopus3.5: decompose applied (7 cards) → root card →
+In Progress via AUTO-PROMOTE; en route found+fixed 2 real decompose bounces (assumed-default assumption 4cef6940,
+missing task prompts). CLASSIFIED: settings-polish NEEDS-DAVID-UX-CALL; roadmap umbrella audited (#2/#3/#13 landed);
+retry-engine leaves reconciled (task-level engine live, ladder-order fleet-gated). Tests 8283 backend + 961 web +
+61 e2e. NEXT: §5.AN/§5.AQ regions, remaining §5.AA leaves are fleet/vendored-gated, then §10 manual todos.

@@ -3869,7 +3869,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (the north-star small model) + Docker: sandbox container observed, `decompose_project` called, **no host worktree,
         no host-path leaks, clean teardown — PASS**. Confirms the live env + the §5.B planning-lane entry (decompose →
         cards land in planning) work with the canonical small model.
-  - [ ] **PROMOTE half** — extend into `verify-decompose-promote-review.mts`: after decompose, start a generated card →
+  - [x] **PROMOTE half** — extend into `verify-decompose-promote-review.mts`: after decompose, start a generated card →
         observe it refine + reach In Progress (via `begin_implementation` OR the Increment C auto-promote when the model
         skips it) → review. **Increment C code is now DONE** (auto-promote recovery, see §5.B above), so the lane advances
         even when a small model never calls the explicit tool — this live check is the deterministic confirmation.
@@ -3877,6 +3877,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         **microsoft/phi-4-mini-reasoning**, **deepseek-r1-0528-qwen3-8b-mlx** (+ the heavier qwen2.5-coder-14b / qwen3.6-27b
         when time permits). **deepseek may crash/unload mid-sweep** — if it disappears from `/v1/models`, record that it was
         dropped (we *want* it; crash-resilience is a later task) and continue the sweep with the rest, don't block.
+        *(✅ 2026-07-08: `scripts/verify-decompose-promote-review.mts` built (chained: live decompose → service board
+        apply via onDecompositionApplied → start root card → poll lane → review; NKLEIN_VERIFY_SWEEP=1 sweeps every
+        currently-loaded model, drop-resilient per the deepseek note). LIVE PASS vs resident qwopus3.5-9b-coder-mtp:
+        decompose applied (7 cards) → root card "Project scaffolding" started → **reached In Progress via the Increment C
+        AUTO-PROMOTE path** (begin_implementation never called — the deterministic confirmation the box wanted); review
+        stage exceeded the 300s budget (implementation runtime, not a lane defect). The harness FOUND+FIXED 2 real
+        decompose bounces en route (assumed-default assumption + missing task prompts — both parse-and-recover now).
+        2026-06-25's named roster (qwen3-8b/phi-4/deepseek-r1) is no longer loaded — full-roster sweep ⏱ FLEET-RUN;
+        today's loaded sweep recorded deepseek-v4-flash FAIL (never called the tool in budget) and qwen2.5-coder-14b
+        DROPPED mid-run, both per the box's record-and-continue protocol.)*
 - [x] **Suite 11 — Core-py contract parity (DONE 2026-06-25, 25 tests)** (`core-py/tests/test_contract_parity.py`) — Python FastAPI `TestClient` vs the exported JSON Schema the TS `KleinCoreClient` validates against (catches TS↔Python contract drift). Directly supports §5.H + §5.X. *(Runs via `uv run pytest core-py/tests/test_contract_parity.py` — 25 passed; not in the JS fast-gate, run with the core-py suite.)*
 - [x] **Suite 12 — CLI task subcommands (DONE 2026-06-25, 14 tests)** (`test/contract/cli-task-subcommands.test.ts`) —
       create/list/list --column/done/trash/delete (--task-id + --column) over the spawned CLI, swarm-stop/resume (pure
