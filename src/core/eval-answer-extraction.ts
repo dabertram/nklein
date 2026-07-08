@@ -13,6 +13,12 @@
  * Pure + dependency-free (core must not import the nklein-agent JSON repairer), so it carries a small self-contained
  * lenient JSON extractor: try a direct parse, strip a ```json code fence, else lift the first balanced {...}/[...] span
  * out of surrounding prose (weak models routinely wrap the JSON in commentary).
+ *
+ * HARNESS-CALLER REQUIREMENT (live-found 2026-07-08): a reasoning/mtp model emits its answer to the `reasoning_content`
+ * channel and returns an EMPTY `content` (observed: deepseek-r1-8b + qwopus3.5-9b-coder-mtp both returned empty `content`
+ * on the architect/decompose cells, while qwen2.5-coder-14b returned a clean parseable decomposition in `content`). The
+ * sweep MUST feed this extractor `content || reasoning_content` (and/or a larger token budget for reasoning models), else
+ * it scores every reasoning model 0 for a purely mechanical channel reason, not a capability failure.
  */
 
 import type { EvalAnswer } from "./eval-prompt-corpus.js";
