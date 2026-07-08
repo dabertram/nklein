@@ -5,6 +5,7 @@ import {
 	learnedQualityEffectiveBudget,
 	learnedRetryBudget,
 	type ModelAttemptOutcome,
+	preferredEndpointKind,
 	preferredPromptVariantFamily,
 	preferredToolCallFormat,
 	recordModelBehaviorOutcome,
@@ -140,5 +141,43 @@ describe("prompt-variant family learning (§5.AA prompt-variation persistence)",
 			promptVariantFamily: "imperative",
 		});
 		expect(folded.promptVariantFamilyCounts).toEqual({ imperative: 1 });
+	});
+});
+
+describe("endpoint-kind learning (§5.AB endpoint-iteration persistence)", () => {
+	it("counts the winning endpoint kind on success and exposes the mode as the preferred kind", () => {
+		let profile = emptyModelBehaviorProfile("lmstudio:m:v1");
+		profile = recordModelBehaviorOutcome(profile, { kind: "success", winningEndpointKind: "native_v1_chat" });
+		profile = recordModelBehaviorOutcome(profile, { kind: "success", winningEndpointKind: "openai" });
+		profile = recordModelBehaviorOutcome(profile, { kind: "success", winningEndpointKind: "native_v1_chat" });
+		expect(profile.endpointKindCounts).toEqual({ native_v1_chat: 2, openai: 1 });
+		expect(preferredEndpointKind(profile)).toBe("native_v1_chat");
+	});
+
+	it("ignores the endpoint kind on a FAILED attempt (only a protocol that WON is worth learning)", () => {
+		let profile = emptyModelBehaviorProfile("lmstudio:m:v1");
+		profile = recordModelBehaviorOutcome(profile, { kind: "timeout", winningEndpointKind: "anthropic_messages" });
+		expect(profile.endpointKindCounts).toEqual({});
+		expect(preferredEndpointKind(profile)).toBeNull();
+	});
+
+	it("never surfaces an unrecognized/garbage persisted kind as a preferred kind", () => {
+		const profile = {
+			...emptyModelBehaviorProfile("lmstudio:m:v1"),
+			endpointKindCounts: { bogus_protocol: 9, openai: 1 },
+		};
+		// The garbage count dominates numerically, but only canonical ladder kinds may be returned.
+		expect(preferredEndpointKind(profile)).toBe("openai");
+	});
+
+	it("tolerates a legacy profile persisted WITHOUT the endpointKindCounts field", () => {
+		const legacy = { ...emptyModelBehaviorProfile("lmstudio:m:v1") } as Record<string, unknown>;
+		delete legacy.endpointKindCounts;
+		const folded = recordModelBehaviorOutcome(legacy as never, {
+			kind: "success",
+			winningEndpointKind: "anthropic_messages",
+		});
+		expect(folded.endpointKindCounts).toEqual({ anthropic_messages: 1 });
+		expect(preferredEndpointKind(folded)).toBe("anthropic_messages");
 	});
 });

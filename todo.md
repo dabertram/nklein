@@ -4680,7 +4680,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing
   - [ ] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing
   - [ ] Wire endpoint-iteration into retry loop (record winning endpoint per model)
-  - [ ] Add to `ModelBehaviorProfile` for per-model persistence
+  - [x] Add to `ModelBehaviorProfile` for per-model persistence *(✅ 2026-07-08 — mirrors the prompt-variant-family
+        pattern exactly: `winningEndpointKind?` on `ModelAttemptOutcome` (counted only on SUCCESS), `endpointKindCounts`
+        on the profile (legacy-tolerant fold — a profile persisted before the field folds clean), and a
+        `preferredEndpointKind(profile)` selector NARROWED against `LOCAL_MODEL_ENDPOINT_LADDER` so a stale/garbage
+        persisted count can never surface a non-kind. The telemetry store's Zod outcome schema gained the optional
+        `winningEndpointKind` so it round-trips through the append-only log + fold-on-read. 4 new tests (count+mode ·
+        failed-attempt-ignored · garbage-kind-never-preferred · legacy-tolerant); tsc + biome green. Still owed: the
+        native/Anthropic CLIENTS + the retry-loop seam that records the winning kind + reads `preferredEndpointKind` as
+        the strategy's learned first hop.)*
   - [ ] Test across phi/deepseek models (canonical weak models)
 - [~] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
       explicit-format) when a model won't act; learn which template family each model responds to. ("Try different

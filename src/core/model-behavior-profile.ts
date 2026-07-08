@@ -14,6 +14,8 @@
  * MCSR measures how FAST/capable a model is; this profile learns how to GET THE MOST out of it.
  */
 
+import { LOCAL_MODEL_ENDPOINT_LADDER, type LocalModelEndpointKind } from "./local-model-endpoint-strategy";
+
 /** The classified outcome of one attempt to drive a model through a task/turn. */
 export type ModelOutcomeKind =
 	| "success"
@@ -55,6 +57,10 @@ export interface ModelAttemptOutcome {
 	/** The prompt-variant FAMILY whose re-phrasing produced the winning call (§5.AA prompt-variation rung) —
 	 *  counted only on success, so the profile learns which phrasing each model responds to. */
 	promptVariantFamily?: string;
+	/** The endpoint wire-protocol KIND that produced the winning call (§5.AB endpoint-iteration) — counted only on
+	 *  success, so the profile learns which protocol (openai / native_v1_chat / anthropic_messages) each model
+	 *  responds to, and the strategy tries it first next time. */
+	winningEndpointKind?: string;
 }
 
 export interface ModelBehaviorProfile {
@@ -71,6 +77,9 @@ export interface ModelBehaviorProfile {
 	toolCallFormatCounts: Record<string, number>;
 	/** Counts of each prompt-variant family that WON a recovery (§5.AA) — the mode is tried first next time. */
 	promptVariantFamilyCounts: Record<string, number>;
+	/** Counts of each endpoint wire-protocol kind that WON a call (§5.AB) — the mode is the model's preferred
+	 *  protocol, promoted to the front of the endpoint-iteration ladder next time. */
+	endpointKindCounts: Record<string, number>;
 	/** Largest tool count the model has cleared with a success (its complexity ceiling). */
 	complexityCeiling: number | null;
 	/** Largest context (tokens) at which quality still cleared the bar. */
@@ -111,6 +120,7 @@ export function emptyModelBehaviorProfile(modelId: string, now = 0): ModelBehavi
 		failureModes: emptyFailureModes(),
 		toolCallFormatCounts: {},
 		promptVariantFamilyCounts: {},
+		endpointKindCounts: {},
 		complexityCeiling: null,
 		qualityEffectiveContextTokens: null,
 		qualityDegradedAtTokens: null,
@@ -158,6 +168,12 @@ export function recordModelBehaviorOutcome(
 			(promptVariantFamilyCounts[outcome.promptVariantFamily] ?? 0) + 1;
 	}
 
+	// Endpoint wire-protocol winners (§5.AB) — legacy-tolerant like the sibling counts above.
+	const endpointKindCounts = { ...(profile.endpointKindCounts ?? {}) };
+	if (success && outcome.winningEndpointKind) {
+		endpointKindCounts[outcome.winningEndpointKind] = (endpointKindCounts[outcome.winningEndpointKind] ?? 0) + 1;
+	}
+
 	// Complexity ceiling: the largest offered tool count the model has SUCCEEDED with.
 	let complexityCeiling = profile.complexityCeiling;
 	if (success && isPositiveInt(outcome.toolCount)) {
@@ -186,6 +202,7 @@ export function recordModelBehaviorOutcome(
 		failureModes,
 		toolCallFormatCounts,
 		promptVariantFamilyCounts,
+		endpointKindCounts,
 		complexityCeiling,
 		qualityEffectiveContextTokens,
 		qualityDegradedAtTokens,
@@ -213,6 +230,23 @@ export function preferredPromptVariantFamily(profile: ModelBehaviorProfile): str
 	for (const [family, count] of Object.entries(profile.promptVariantFamilyCounts ?? {})) {
 		if (count > bestCount) {
 			best = family;
+			bestCount = count;
+		}
+	}
+	return best;
+}
+
+/**
+ * The endpoint wire-protocol kind that has WON the most calls for this model (§5.AB), or null when none observed yet /
+ * only unrecognized kinds are on record. Narrowed against the canonical ladder so a stale/garbage persisted count can
+ * never surface a non-kind — the endpoint-iteration strategy consumes this as its learned `preferredKind`.
+ */
+export function preferredEndpointKind(profile: ModelBehaviorProfile): LocalModelEndpointKind | null {
+	let best: LocalModelEndpointKind | null = null;
+	let bestCount = 0;
+	for (const [kind, count] of Object.entries(profile.endpointKindCounts ?? {})) {
+		if (count > bestCount && (LOCAL_MODEL_ENDPOINT_LADDER as readonly string[]).includes(kind)) {
+			best = kind as LocalModelEndpointKind;
 			bestCount = count;
 		}
 	}
