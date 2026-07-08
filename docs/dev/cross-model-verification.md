@@ -1214,3 +1214,11 @@ deterministic !Klein parse/format/delivery gap. The single deterministic finding
 (§5.O redundant-path-nesting) is already fixed + generalizes. The small→ceiling cross-model verification is DONE; further
 models would be pure confirmation. (Open follow-ups needing David/live: MLX qwen3_5_moe_vision arch unsupported in LM
 Studio — use GGUF for ornith-35b; the §5.AA synthesis-variance nudge is a possible future hardening, a design task.)
+
+### 2026-07-08 13:10:40 · eval-harness
+- ❌ **FAIL** · `qwen/qwen2.5-coder-14b` · 0s · result: FAIL (no scorable cells)
+  - matrix row: qwen2.5-coder-14b=❌
+
+### 2026-07-08 13:15:06 · eval-harness
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b` · 169s · result: mean=0.778 over 6 cells (bar 0.6)
+  - matrix row: qwen2.5-coder-14b=✅

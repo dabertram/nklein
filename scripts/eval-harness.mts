@@ -42,7 +42,12 @@ const DIFFICULTY_NUM: Readonly<Record<string, number>> = { easy: 0.33, medium: 0
 const PERSIST = process.env.NKLEIN_EVAL_PERSIST === "1";
 
 const MODEL = process.env.NKLEIN_VERIFY_MODEL ?? "";
-const BASE_URL = process.env.NKLEIN_VERIFY_BASE_URL ?? "http://localhost:1234";
+// Convention (matches verify-all-models.mts + the other harnesses): NKLEIN_VERIFY_BASE_URL is `/v1`-suffixed. Normalize
+// so we always end at exactly one `/v1` regardless of whether the caller included it — the endpoint is `<base>/chat/
+// completions`. (Bug caught 2026-07-08 by running THROUGH the orchestrator: it passes `http://127.0.0.1:1234/v1`, so
+// appending `/v1/chat/completions` produced a double `/v1` → 404 → "no scorable cells"; standalone hid it via a bare base.)
+const RAW_BASE = (process.env.NKLEIN_VERIFY_BASE_URL ?? "http://127.0.0.1:1234/v1").trim().replace(/\/+$/, "");
+const CHAT_URL = `${RAW_BASE.endsWith("/v1") ? RAW_BASE : `${RAW_BASE}/v1`}/chat/completions`;
 const MAX_TOKENS = Number(process.env.NKLEIN_EVAL_MAX_TOKENS ?? "2500");
 const PASS_BAR = Number(process.env.NKLEIN_EVAL_PASS_BAR ?? "0.6");
 
@@ -63,7 +68,7 @@ interface ChatChoice {
 
 async function chat(messages: ChatMessage[], extra: Record<string, unknown>): Promise<ChatChoice | null> {
 	try {
-		const res = await fetch(`${BASE_URL}/v1/chat/completions`, {
+		const res = await fetch(CHAT_URL, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ model: MODEL, messages, temperature: 0, max_tokens: MAX_TOKENS, ...extra }),
