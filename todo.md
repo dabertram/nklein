@@ -6805,7 +6805,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       window). Pure/deterministic, non-mutating, no tokenizer (counts injected as numbers); 20 unit tests; tsc + biome green.
       **Still owed (WIRING — behind a live §5.Z re-verify):** feed live `usedTokens` + the per-zone occupancy from the
       board/chat prompt-assembly seam, route `compact` into `planCompaction`, and act on `expand` (widen retrieval / re-anchor).
-- [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first), decomposed:**
+- [~] **Enforced reasoning loops (difficulty-gated, external-signal-first), decomposed:** *(all pure cores shipped —
+      cross-model bounce, self-bounce personas, self-consistency majority-vote, the difficulty gate, and round-limit +
+      stall/identical-loop detection composed into one explicit loop are all [~], with the weak-model-carry test [x].
+      Owed across them is the SWARM/SDK call-seam wiring (gated-on-vendored-wrapModel). Reclassified [ ]→[~] 2026-07-08.)*
   - [~] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
         *(◐ 2026-07-08 — the PROMPT SUBSTRATE shipped: `src/core/cross-model-bounce.ts` — buildCrossModelBouncePrompt
         (repair-the-deliverable framing: FINDINGS + full REPAIRED sections, drafting-model identity surfaced) +
