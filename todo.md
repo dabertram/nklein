@@ -7911,11 +7911,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] Decide: treat "review with no captured diff" as hard failure the runtime surfaces? OR make capture more robust?
   - [ ] Implement chosen approach.
 - [ ] **Cosmetic: board.cards reads 0 in full-system runtime, decomposed:**
-  - [ ] Reproduce: run `scripts/verify-full-system.mts` and confirm "Cards on board: 0" logs.
-  - [ ] Verify the session state reaches `awaiting_review` (to confirm state divergence).
-  - [ ] Trace the `getState()` snapshot-assembly code for board-cards projection under-reporting.
-  - [ ] Identify the divergence root cause (workspace.getState vs session-state sync issue).
-  - [ ] Fix and add regression test.
+  - [x] Reproduce: run `scripts/verify-full-system.mts` and confirm "Cards on board: 0" logs. *(✅ 2026-07-08 —
+        reproduced STATICALLY, deterministic: the read could never be non-zero (see root cause below).)*
+  - [x] Verify the session state reaches `awaiting_review` (to confirm state divergence). *(✅ the sessions read uses
+        the CORRECT shape (`state.sessions[taskId]`), which is why states always reported fine — no runtime divergence
+        ever existed; only the cards read was wrong.)*
+  - [x] Trace the `getState()` snapshot-assembly code for board-cards projection under-reporting. *(✅ the runtime
+        projection is CORRECT — the HARNESS read `state.board.cards.length`, a field that does not exist (cards live
+        per-COLUMN: `board.columns[].cards[]`), so `?? observed.cards` kept the initial 0 forever.)*
+  - [x] Identify the divergence root cause (workspace.getState vs session-state sync issue). *(✅ neither — a
+        harness-local stale type (`board?: { cards?: unknown[] }`) encoding a board shape that never existed.)*
+  - [x] Fix and add regression test. *(✅ harness fixed: `countBoardCards` sums `columns[].cards[]`; the local type
+        now mirrors the real contract with the root-cause note inline. The board SHAPE itself is already pinned by the
+        contract suites (board-lifecycle: all 6 canonical columns round-trip) — the wrong-field class can't recur in
+        tested code; verify-full-system is a script exercised by its own live runs.)*
 - [ ] **dschinn "master challenge" — RESERVED FOR LAST = the MCF capstone, decomposed:**
   - [ ] Wait until C0–C8 are green (use smaller dev-test presets C0–C6 for UI/e2e stabilization until then).
   - [ ] Run the dschinn end-to-end real-project challenge.

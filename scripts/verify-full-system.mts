@@ -81,8 +81,19 @@ interface SessionView {
 }
 
 interface WorkspaceStateView {
-	board?: { cards?: unknown[] };
+	// The REAL board shape: cards live per-COLUMN (there is no top-level cards array — reading `board.cards`
+	// was the root cause of the perpetual "Cards on board: 0" report; the runtime was never wrong).
+	board?: { columns?: { cards?: unknown[] }[] };
 	sessions?: Record<string, SessionView>;
+}
+
+/** Count every card across the board's columns (the board has no flat cards array). */
+function countBoardCards(state: WorkspaceStateView | null): number | null {
+	const columns = state?.board?.columns;
+	if (!Array.isArray(columns)) {
+		return null;
+	}
+	return columns.reduce((total, column) => total + (column.cards?.length ?? 0), 0);
 }
 
 function log(line = ""): void {
@@ -256,7 +267,7 @@ async function main(): Promise<void> {
 		while (Date.now() < deadline) {
 			await new Promise((settle) => setTimeout(settle, 5000));
 			const state = (await ws.workspace.getState.query().catch(() => null)) as WorkspaceStateView | null;
-			observed.cards = state?.board?.cards?.length ?? observed.cards;
+			observed.cards = countBoardCards(state) ?? observed.cards;
 			const session = state?.sessions?.[seedTaskId];
 			if (session?.state) {
 				observed.lastState = session.state;
