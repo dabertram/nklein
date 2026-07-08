@@ -37,6 +37,7 @@ import type {
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeMergeHistoryResponse,
+	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinAccountBalanceResponse,
 	RuntimeNKleinAccountOrganizationsResponse,
@@ -189,6 +190,8 @@ export interface RuntimeTrpcContext {
 		) => Promise<RuntimeModelPerformanceStatsResponse>;
 		/** §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + failing-LLM projection. */
 		getFitnessTable: () => Promise<RuntimeFitnessTableResponse>;
+		/** §5.AA learned model behavior: the per-model ModelBehaviorProfile fold, read-only for Settings telemetry. */
+		getModelBehaviorProfiles: () => Promise<RuntimeModelBehaviorProfilesResponse>;
 		/** §5.AX: per-model machine names + prompt-shell warmth for the board's fleet strip. */
 		getFleetStatus: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeFleetStatusResponse>;
 		/** W3.4 mailbox badge: pending mailbox-note counts for the given cards (non-zero entries only). */

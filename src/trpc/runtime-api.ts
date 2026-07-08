@@ -44,6 +44,11 @@ import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../core/lms-ps-j
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { stripAddressingHandle } from "../core/message-target-resolver";
+import {
+	dominantFailureMode,
+	preferredPromptVariantFamily,
+	preferredToolCallFormat,
+} from "../core/model-behavior-profile";
 import { summarizeWorkspaceBoardStreams } from "../core/operator-board-health";
 import { protectedTestApprovalStore } from "../core/protected-test-approval-store";
 import { isBusySessionState } from "../core/session-state-predicates";
@@ -69,6 +74,7 @@ import { appendCardMailboxNote, countPendingCardMailbox } from "../state/card-ma
 import { readMergeHistory } from "../state/merge-history-store";
 import { loadWorkspaceState } from "../state/workspace-state";
 import { readFitnessTable } from "../telemetry/fitness-table-store";
+import { readAllModelBehaviorProfiles } from "../telemetry/model-behavior-profile-store";
 import { recordSelfObservation } from "../telemetry/self-observation-sink";
 import { buildRuntimeConfigResponse } from "../terminal/agent-registry";
 import type { RuntimeTrpcContext } from "./app-router";
@@ -376,6 +382,32 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			}),
 		getModelPerformanceStats: async (workspaceScope) => {
 			return await handleGetModelPerformanceStats(workspaceScope);
+		},
+		// §5.AA learned model behavior: fold the append-only outcome log into per-model profiles + project the
+		// learned preferences (dominant failure mode / preferred format / responsive prompt family). Read-only;
+		// empty when the store is missing/unreadable (never throws into the UI).
+		getModelBehaviorProfiles: async () => {
+			const byModel = await readAllModelBehaviorProfiles().catch(
+				() => ({}) as Awaited<ReturnType<typeof readAllModelBehaviorProfiles>>,
+			);
+			const sorted = Object.values(byModel).sort((left, right) => left.modelId.localeCompare(right.modelId));
+			return {
+				generatedAt: Date.now(),
+				profiles: sorted.map((profile) => ({
+					modelId: profile.modelId,
+					samples: profile.samples,
+					successes: profile.successes,
+					successRate: profile.successRate,
+					avgRetries: profile.avgRetries,
+					dominantFailureMode: dominantFailureMode(profile),
+					preferredToolCallFormat: preferredToolCallFormat(profile),
+					preferredPromptVariantFamily: preferredPromptVariantFamily(profile),
+					complexityCeiling: profile.complexityCeiling,
+					qualityEffectiveContextTokens: profile.qualityEffectiveContextTokens,
+					qualityDegradedAtTokens: profile.qualityDegradedAtTokens,
+					updatedAt: profile.updatedAt,
+				})),
+			};
 		},
 		// §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + the failing-LLM
 		// projection. Read-only; empty when the store is missing/unreadable (never throws into the UI).

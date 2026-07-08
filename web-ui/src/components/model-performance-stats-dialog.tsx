@@ -3,12 +3,17 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { fetchKnowledgeToolUsageStats, fetchModelPerformanceStats } from "@/runtime/runtime-config-query";
+import {
+	fetchKnowledgeToolUsageStats,
+	fetchModelBehaviorProfiles,
+	fetchModelPerformanceStats,
+} from "@/runtime/runtime-config-query";
 import type {
 	RuntimeDecompositionKnowledgeUsageAggregate,
 	RuntimeKnowledgeToolUsageAggregate,
 	RuntimeKnowledgeToolUsageObservation,
 	RuntimeKnowledgeToolUsageStatsResponse,
+	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceAggregate,
 	RuntimeModelPerformanceObservation,
 	RuntimeModelPerformanceStatsResponse,
@@ -224,6 +229,7 @@ export function ModelPerformanceStatsDialog({
 }: ModelPerformanceStatsDialogProps): JSX.Element {
 	const [stats, setStats] = useState<RuntimeModelPerformanceStatsResponse | null>(null);
 	const [knowledgeStats, setKnowledgeStats] = useState<RuntimeKnowledgeToolUsageStatsResponse | null>(null);
+	const [behaviorProfiles, setBehaviorProfiles] = useState<RuntimeModelBehaviorProfilesResponse | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 
@@ -231,12 +237,14 @@ export function ModelPerformanceStatsDialog({
 		setLoading(true);
 		setError(null);
 		try {
-			const [nextModelStats, nextKnowledgeStats] = await Promise.all([
+			const [nextModelStats, nextKnowledgeStats, nextBehaviorProfiles] = await Promise.all([
 				fetchModelPerformanceStats(workspaceId),
 				fetchKnowledgeToolUsageStats(workspaceId),
+				fetchModelBehaviorProfiles(workspaceId),
 			]);
 			setStats(nextModelStats);
 			setKnowledgeStats(nextKnowledgeStats);
+			setBehaviorProfiles(nextBehaviorProfiles);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -371,6 +379,56 @@ export function ModelPerformanceStatsDialog({
 										colSpan={byModelHasTiming ? 8 : 7}
 									>
 										No model performance observations have been recorded yet.
+									</td>
+								</tr>
+							) : null}
+						</tbody>
+					</table>
+				</div>
+				<SectionTitle title="Learned model behavior (§5.AA recovery-ladder telemetry)" />
+				<div className="overflow-x-auto rounded-md border border-border" data-testid="model-behavior-profiles">
+					<table className="w-full min-w-[880px] border-collapse text-left text-[12px]">
+						<thead className="bg-surface-0 text-text-secondary">
+							<tr>
+								<TableHead>Model</TableHead>
+								<TableHead>Samples</TableHead>
+								<TableHead>Success</TableHead>
+								<TableHead>Avg Retries</TableHead>
+								<TableHead>Dominant Failure</TableHead>
+								<TableHead>Preferred Format</TableHead>
+								<TableHead>Responsive Phrasing</TableHead>
+								<TableHead>Complexity Ceiling</TableHead>
+								<TableHead>Quality Knee</TableHead>
+								<TableHead>Updated</TableHead>
+							</tr>
+						</thead>
+						<tbody>
+							{(behaviorProfiles?.profiles ?? []).map((profile) => (
+								<tr key={profile.modelId} className="border-t border-border bg-surface-2 text-text-primary">
+									<TableCell>{profile.modelId}</TableCell>
+									<TableCell>{formatNumber(profile.samples)}</TableCell>
+									<TableCell>{formatPercent(profile.successRate)}</TableCell>
+									<TableCell>{profile.avgRetries.toFixed(1)}</TableCell>
+									<TableCell>{profile.dominantFailureMode ?? "—"}</TableCell>
+									<TableCell>{profile.preferredToolCallFormat ?? "—"}</TableCell>
+									<TableCell>{profile.preferredPromptVariantFamily ?? "—"}</TableCell>
+									<TableCell>
+										{profile.complexityCeiling === null ? "—" : `${profile.complexityCeiling} tools`}
+									</TableCell>
+									<TableCell>
+										{profile.qualityEffectiveContextTokens === null &&
+										profile.qualityDegradedAtTokens === null
+											? "—"
+											: `ok ≤ ${formatNumber(profile.qualityEffectiveContextTokens)} / degrades ≥ ${formatNumber(profile.qualityDegradedAtTokens)}`}
+									</TableCell>
+									<TableCell>{formatTimestamp(profile.updatedAt)}</TableCell>
+								</tr>
+							))}
+							{(behaviorProfiles?.profiles ?? []).length === 0 ? (
+								<tr className="border-t border-border bg-surface-2">
+									<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={10}>
+										No learned behavior yet — profiles build up as the recovery ladder records attempt
+										outcomes.
 									</td>
 								</tr>
 							) : null}

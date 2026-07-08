@@ -229,3 +229,28 @@ export const runtimeKnowledgeToolUsageStatsResponseSchema = z.object({
 	decompositionKnowledgeAggregates: z.array(runtimeDecompositionKnowledgeAggregateSchema).default([]),
 });
 export type RuntimeKnowledgeToolUsageStatsResponse = z.infer<typeof runtimeKnowledgeToolUsageStatsResponseSchema>;
+
+/** §5.AA learned model behavior (the ModelBehaviorProfile fold), projected read-only for the Settings telemetry
+ *  surface: how reliable each model has proven, its dominant failure mode, and the learned preferences the recovery
+ *  ladder seeds from (tool-call format · prompt-variant family · complexity ceiling · the §5.AD quality knee). */
+export const runtimeModelBehaviorProfileViewSchema = z.object({
+	modelId: z.string(),
+	samples: z.number().int().nonnegative(),
+	successes: z.number().int().nonnegative(),
+	successRate: z.number(),
+	avgRetries: z.number(),
+	dominantFailureMode: z.string().nullable(),
+	preferredToolCallFormat: z.string().nullable(),
+	preferredPromptVariantFamily: z.string().nullable(),
+	complexityCeiling: z.number().nullable(),
+	qualityEffectiveContextTokens: z.number().nullable(),
+	qualityDegradedAtTokens: z.number().nullable(),
+	updatedAt: z.number(),
+});
+export type RuntimeModelBehaviorProfileView = z.infer<typeof runtimeModelBehaviorProfileViewSchema>;
+
+export const runtimeModelBehaviorProfilesResponseSchema = z.object({
+	generatedAt: z.number().int().nonnegative(),
+	profiles: z.array(runtimeModelBehaviorProfileViewSchema),
+});
+export type RuntimeModelBehaviorProfilesResponse = z.infer<typeof runtimeModelBehaviorProfilesResponseSchema>;

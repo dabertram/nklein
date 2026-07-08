@@ -11,6 +11,7 @@ import type {
 	RuntimeKleinCorePyHealthResponse,
 	RuntimeKnowledgeToolUsageStatsResponse,
 	RuntimeMergeHistoryResponse,
+	RuntimeModelBehaviorProfilesResponse,
 	RuntimeModelPerformanceStatsResponse,
 	RuntimeNKleinCodeIntelligenceStatusResponse,
 	RuntimeRunUpdateResponse,
@@ -36,6 +37,14 @@ export async function fetchModelPerformanceStats(
 ): Promise<RuntimeModelPerformanceStatsResponse> {
 	const trpcClient = getRuntimeTrpcClient(workspaceId);
 	return await trpcClient.runtime.getModelPerformanceStats.query();
+}
+
+/** §5.AA learned model behavior: the per-model ModelBehaviorProfile fold (Settings telemetry surface). */
+export async function fetchModelBehaviorProfiles(
+	workspaceId: string | null,
+): Promise<RuntimeModelBehaviorProfilesResponse> {
+	const trpcClient = getRuntimeTrpcClient(workspaceId);
+	return await trpcClient.runtime.getModelBehaviorProfiles.query();
 }
 
 /** §5.AL fitness browser: the global per-(model × role × difficulty) fitness cells + failing-LLM projection. */

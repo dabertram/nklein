@@ -19,6 +19,7 @@ import {
 	runtimeKleinCorePyHealthResponseSchema,
 	runtimeKnowledgeToolUsageStatsResponseSchema,
 	runtimeMergeHistoryResponseSchema,
+	runtimeModelBehaviorProfilesResponseSchema,
 	runtimeModelPerformanceStatsResponseSchema,
 	runtimeNKleinAccountBalanceResponseSchema,
 	runtimeNKleinAccountOrganizationsResponseSchema,
@@ -130,6 +131,10 @@ export function buildRuntimeRouter(t: RuntimeTrpcBuilder, workspaceProcedure: Ru
 			.query(async ({ ctx }) => {
 				return await ctx.runtimeApi.getModelPerformanceStats(ctx.workspaceScope);
 			}),
+		// §5.AA learned model behavior: per-model profile fold, read-only Settings telemetry (global store).
+		getModelBehaviorProfiles: t.procedure
+			.output(runtimeModelBehaviorProfilesResponseSchema)
+			.query(async ({ ctx }) => ctx.runtimeApi.getModelBehaviorProfiles()),
 		// §5.AL fitness browser: global fitness cells + failing-LLM projection (not workspace-scoped — the store is global).
 		getFitnessTable: t.procedure
 			.output(runtimeFitnessTableResponseSchema)
