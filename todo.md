@@ -9082,7 +9082,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         shell-outs — a fetch-layer build gated on the API-management design; the policy governor is ready to wrap it.)*
   - [ ] Wire `/api/v1/models/{load,unload,download}` endpoints.
   - [ ] Re-verify exact load-params (context length, gpu, ttl) shape.
-- [ ] **Reasoning control as a first-class §5.AA lever, decomposed:**
+- [~] **Reasoning control as a first-class §5.AA lever, decomposed:** *(disable-thinking-for-simple + keep-for-hard
+      [x], the truncation-recovery rung + the per-family model-thinking-control extension [~]; only the live per-family
+      verification (⏱ FLEET) remains. Reclassified [ ]→[~] 2026-07-08.)*
   - [x] Disable thinking for SIMPLE/execution turns (kill reasoning overhead + truncation risk + latency). *(2026-07-05: `decideReasoningControl` in reasoning-control.ts)*
   - [x] Keep reasoning for hard tasks. *(2026-07-05: same `decideReasoningControl` — hard tier keeps thinking; deliberative turns (planning/review/chat) keep it; simple/execution disable it; 4 tests)*
   - [~] Use as truncation-recovery rung (already done for chat, qwen3). **CROSS-DIALECT CLASSIFIER CORE DONE (2026-07-01):**
