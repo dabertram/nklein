@@ -7845,12 +7845,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the rail demonstrably uncovers dormant issues. **Still owed:** the *sustained, unattended* window on the always-on
       runner + a regular together-review of the accumulated `rail-*.json` harvest (depends on the durable runner above).
 - [ ] **BUG — Docker errors + broken evidence creation in the dschinn dev-workspace, decomposed:**
-  - [ ] Reproduce the Docker errors on the dschinn dev-workspace and capture exact error text.
-  - [ ] Reproduce the broken `collect evidence` creation and trace the `handleCollectTaskEvidence` path.
-  - [ ] Check hypothesis: image/tag mismatch (`nklein/agent-sandbox:0.0.1` present?).
+  - [ ] Reproduce the Docker errors on the dschinn dev-workspace and capture exact error text. ⏱ SWEEP-PHASE
+        *(needs a full live dev-test run of 36_dark_factory_dschinn_universal_agent — the extended-goal sweep's
+        natural first target; the fixture exists, the sandbox image is present.)*
+  - [~] Reproduce the broken `collect evidence` creation and trace the `handleCollectTaskEvidence` path. *(◐ TRACED
+        2026-07-08 — see the assembly-hypothesis note: the current path is catch-guarded end-to-end; live repro rides
+        the sweep run above.)*
+  - [x] Check hypothesis: image/tag mismatch (`nklein/agent-sandbox:0.0.1` present?). *(✅ REFUTED 2026-07-08:
+        `docker images` shows nklein/agent-sandbox:0.0.1 present (1.8GB); today's live sandbox runs (decompose/promote
+        harnesses) all created containers fine.)*
   - [ ] Check hypothesis: stale container/volume from a prior crashed run.
-  - [ ] Check hypothesis: host-path leakage into the sandbox (verify AGENTS.md constraint).
-  - [ ] Check hypothesis: evidence bundle assembly choking on missing artifacts from sandbox.
+  - [x] Check hypothesis: host-path leakage into the sandbox (verify AGENTS.md constraint). *(✅ REFUTED for the
+        current code: the §5.A isolation harnesses (verify-decompose-isolation + today's chained run) scan every
+        agent emission for host paths — NONE leaked; the evidence handler no longer creates host worktrees at all
+        (worktrees retired, §5.A).)*
+  - [~] Check hypothesis: evidence bundle assembly choking on missing artifacts from sandbox. *(◐ statically
+        REFUTED for the CURRENT handler: handleCollectTaskEvidence catch-guards both diff paths (result-branch diff
+        `.catch(() => null)` / workspace-changes `.catch(() => null)`) and renders whatever exists — no throw path on
+        missing artifacts remains. The reported breakage predates the §5.A worktree retirement + §5.BD rebound fixes
+        that REWROTE this path; live confirmation on a fresh dschinn run rides the sweep phase.)*
   - [ ] Fix root cause.
   - [ ] Add focused regression test once root-caused.
 - [ ] **Rework the dev-test-start layout — unify the two start paths (handoff 2026-06-28).** There are currently **two
