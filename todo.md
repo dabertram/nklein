@@ -4749,8 +4749,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         winner is promoted FIRST (short-circuits the walk), stale/unavailable preferences ignored, unknown/duplicate
         kinds filtered, canonical relative order preserved, never repeats a kind. Pure + deterministic + total; 9 tests;
         tsc + biome green. The effectful native/Anthropic CLIENTS + profile persistence are the leaves below.)*
-  - [~] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing. *(◐ WIRE-SHAPE
-        CORE DONE 2026-07-08 — [local-native-chat-shape.ts](src/core/local-native-chat-shape.ts): pure
+  - [x] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing. *(✅ 2026-07-08 —
+        the CLIENT is built + unit-tested: [local-endpoint-clients.ts](src/core/local-endpoint-clients.ts)
+        `callLocalNativeChat({url, ...request, fetchImpl?})` local-only-guards the URL (refuses non-local, never reaches
+        it), POSTs the built request via an INJECTED fetch (default global; mocked in tests → no live server needed),
+        bounded transient retry, and parses the response — 5 client tests (posts the right body incl. tool_choice · parses
+        reasoning + tool calls · refuses non-local · surfaces the HTTP status). Built on the pure shape core below.
+        Wire-shape core: [local-native-chat-shape.ts](src/core/local-native-chat-shape.ts): pure
         `buildNativeChatRequest` (OpenAI-compatible field names the native surface accepts; `tool_choice:"required"` when
         `forceToolUse`) + a DELIBERATELY DEFENSIVE + MULTI-SHAPE `parseNativeChatResponse` — resolves the message across
         the OpenAI `choices[0].message` envelope AND a flat top-level `message`/`content` shape, extracts the reasoning
@@ -4759,8 +4764,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         content it didn't see (an unread shape → empty, handled by the retry ladder) — so it's correct-by-construction,
         not a blind guess; 7 tests. REMAINING ⏱ LIVE-ENDPOINT: the effectful HTTP/streaming client + confirming which
         variant a given local server actually emits.)*
-  - [~] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing. *(◐ WIRE-SHAPE CORE DONE
-        2026-07-08 — [local-anthropic-messages-shape.ts](src/core/local-anthropic-messages-shape.ts) (for a LOCAL server
+  - [x] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing. *(✅ 2026-07-08 — the CLIENT
+        is built + unit-tested: [local-endpoint-clients.ts](src/core/local-endpoint-clients.ts)
+        `callLocalAnthropicMessages({url, ...request, fetchImpl?})` — local-only-guarded, INJECTED-fetch (mocked in tests),
+        transient-retried, parses the response; 5 client tests (posts `tool_choice:{type:"any"}` when forced · parses
+        tool_use · refuses non-local · surfaces status). Built on the pure shape core below.
+        Wire-shape core: [local-anthropic-messages-shape.ts](src/core/local-messages-api-shape.ts) (for a LOCAL server
         exposing an Anthropic-Messages-compatible surface — NOT the cloud provider; the local-only guard confines that
         literal): pure `buildAnthropicMessagesRequest` (hoists system messages into the top-level `system` field, maps
         tools to `{name, description?, input_schema}`, sets `tool_choice:{type:"any"}` when `forceToolUse` else
@@ -4769,9 +4778,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         against documented Messages content-block payloads — the wire format is a stable contract, so the shaping is
         unit-provable now; 15 tests. REMAINING ⏱ LIVE-ENDPOINT: the effectful HTTP client (fetch + streaming) around
         this shape + confirming a real local server matches the documented format.)*
-  - [ ] Wire endpoint-iteration into retry loop (record winning endpoint per model) *(gated on the two clients above —
-        the seam records `winningEndpointKind` (persistence ready) and reads `preferredEndpointKind` as the first hop
-        (decider ready), so this is pure wiring once a second protocol client exists to iterate TO.)*
+  - [~] Wire endpoint-iteration into retry loop (record winning endpoint per model). *(◐ ORCHESTRATOR DONE 2026-07-08 —
+        [endpoint-iteration-loop.ts](src/core/endpoint-iteration-loop.ts) `iterateEndpointStrategies({availableKinds?,
+        preferredKind?, attempt})` tries each endpoint kind in the strategy order (learned winner first) until one is
+        USABLE, records every attempt's verdict, and returns the `winningKind` — which the caller records via the shipped
+        `recordModelBehaviorOutcome({winningEndpointKind})` persistence (→ endpointKindCounts → the next call's
+        preferredKind). Defensive: a thrown attempt (dead/refused endpoint) is recorded not-usable and the ladder
+        continues. Pure over the injected `attempt` (which dispatches to callLocalAnthropicMessages/callLocalNativeChat
+        for the kind's URL); 4 tests. So the FULL mechanism — order → per-kind client → usable-check → record winner — is
+        built + unit-proven. REMAINING (live-seam WIRING): call `iterateEndpointStrategies` at the actual model-call seam
+        (nklein-local-llm-client / chat adapter) with the real per-kind URL dispatch, behind the existing retry ladder.)*
   - [x] Add to `ModelBehaviorProfile` for per-model persistence *(✅ 2026-07-08 — mirrors the prompt-variant-family
         pattern exactly: `winningEndpointKind?` on `ModelAttemptOutcome` (counted only on SUCCESS), `endpointKindCounts`
         on the profile (legacy-tolerant fold — a profile persisted before the field folds clean), and a

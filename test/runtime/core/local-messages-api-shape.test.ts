@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildAnthropicMessagesRequest,
 	parseAnthropicMessagesResponse,
-} from "../../../src/core/local-anthropic-messages-shape";
+} from "../../../src/core/local-messages-api-shape";
 
 describe("local Anthropic-messages wire shape (§5.AB endpoint kind)", () => {
 	describe("buildAnthropicMessagesRequest", () => {
