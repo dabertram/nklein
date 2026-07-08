@@ -9,6 +9,7 @@ import { decideManifestChatAccess, manifestForChatAction } from "../core/tool-ca
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolCall, ChatToolResult } from "./chat-agent-loop";
 import { buildAuditDetail } from "./chat-audit-detail";
+import type { ChatEgressAttemptAuditRecord, ChatEgressAttemptTargetKind } from "./chat-egress-attempt-audit-store";
 import type { ChatActionKind, ChatExecutionMode } from "./chat-execution-mode";
 
 /**
@@ -62,6 +63,8 @@ export interface GatedChatToolExecutorInput {
 	confirm?: (call: ChatToolCall, tool: ChatTool) => Promise<boolean>;
 	/** Sink for the audit log (the live wiring passes `recordChatHostAction`). */
 	recordAudit?: (record: ChatToolAuditRecord) => Promise<void>;
+	/** Sink for the dedicated network-attempt audit log; called for every `egress_read` tool decision. */
+	recordEgressAttempt?: (record: ChatEgressAttemptAuditRecord) => Promise<void>;
 	/**
 	 * §5.L capability broker (OPT-IN, default off ⇒ byte-identical). When true, BEFORE the execution-mode gate the
 	 * executor refuses a tool call whose manifest touches a PROTECTED influence sink (host write / egress / elevated
@@ -118,6 +121,7 @@ export function createGatedChatToolExecutor(
 		if (input.capabilityBrokerEnabled) {
 			const gate = decideCapabilityBrokerGate({ manifest, taintLabels: accumulatedTaint });
 			if (!gate.allow) {
+				const detail = buildAuditDetail(tool.name, args);
 				await input.recordAudit?.({
 					sessionId: input.sessionId,
 					mode: input.mode,
@@ -125,8 +129,9 @@ export function createGatedChatToolExecutor(
 					decision: "deny",
 					confirmed: false,
 					executed: false,
-					detail: buildAuditDetail(tool.name, args),
+					detail,
 				});
+				await recordEgressAttempt(input, tool, args, "deny", false, false, detail);
 				return { callId: call.id, content: `Denied by capability broker: ${gate.reason}` };
 			}
 		}
@@ -151,6 +156,7 @@ export function createGatedChatToolExecutor(
 			executed = true;
 		}
 
+		const detail = buildAuditDetail(tool.name, args);
 		await input.recordAudit?.({
 			sessionId: input.sessionId,
 			mode: input.mode,
@@ -158,8 +164,9 @@ export function createGatedChatToolExecutor(
 			decision: access.decision,
 			confirmed,
 			executed,
-			detail: buildAuditDetail(tool.name, args),
+			detail,
 		});
+		await recordEgressAttempt(input, tool, args, access.decision, confirmed, executed, detail);
 
 		// §5.L: fold this call's output taint into the running window (opt-in) so a LATER protected-sink call in the same
 		// turn is gated against it. Accumulate-only; a tool that ran with no taint label leaves the window unchanged.
@@ -169,4 +176,45 @@ export function createGatedChatToolExecutor(
 
 		return { callId: call.id, content };
 	};
+}
+
+function egressTargetForTool(
+	toolName: string,
+	args: Record<string, unknown>,
+): { targetKind: ChatEgressAttemptTargetKind; target: string | null } {
+	if (toolName === "browse_url") {
+		const url = typeof args.url === "string" ? args.url.trim() : "";
+		return url ? { targetKind: "url", target: url } : { targetKind: "unknown", target: null };
+	}
+	if (toolName === "web_search") {
+		const query = typeof args.query === "string" ? args.query.trim() : "";
+		return query ? { targetKind: "search_query", target: query } : { targetKind: "unknown", target: null };
+	}
+	return { targetKind: "unknown", target: null };
+}
+
+async function recordEgressAttempt(
+	input: GatedChatToolExecutorInput,
+	tool: ChatTool,
+	args: Record<string, unknown>,
+	decision: "allow" | "confirm" | "deny",
+	confirmed: boolean,
+	executed: boolean,
+	detail: string | null,
+): Promise<void> {
+	if (tool.actionKind !== "egress_read") {
+		return;
+	}
+	const target = egressTargetForTool(tool.name, args);
+	await input.recordEgressAttempt?.({
+		sessionId: input.sessionId,
+		mode: input.mode,
+		toolName: tool.name,
+		action: "egress_read",
+		decision,
+		confirmed,
+		executed,
+		...target,
+		detail,
+	});
 }

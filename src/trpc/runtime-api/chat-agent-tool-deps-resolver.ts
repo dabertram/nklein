@@ -11,6 +11,7 @@ import {
 } from "../../chat/chat-board-tools";
 import { createBrowserTools } from "../../chat/chat-browser-tool";
 import { createCommandRunTool } from "../../chat/chat-command-tool";
+import { recordChatEgressAttempt } from "../../chat/chat-egress-attempt-audit-store";
 import type { ChatExecutionMode } from "../../chat/chat-execution-mode";
 import { createFocusChainTools, readChatFocusChain } from "../../chat/chat-focus-chain";
 import { recordChatHostAction } from "../../chat/chat-host-action-audit-store";
@@ -207,6 +208,9 @@ export function buildChatAgentToolDepsResolver(input: {
 				}),
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });
+			},
+			recordEgressAttempt: async (record) => {
+				await recordChatEgressAttempt({ ...record });
 			},
 		});
 

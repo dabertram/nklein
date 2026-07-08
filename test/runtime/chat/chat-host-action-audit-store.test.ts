@@ -40,10 +40,12 @@ describe("chat-host-action-audit-store", () => {
 
 	it("defaults confirmed/executed to false and detail to null", async () => {
 		const entry = await recordChatHostAction(
-			{ sessionId: "s1", mode: "isolated_readonly", action: "host_write", decision: "deny" },
+			{ sessionId: "s1", mode: "isolated_readonly", action: "egress_read", decision: "deny" },
 			{ rootDir },
 		);
-		expect(entry).toMatchObject({ confirmed: false, executed: false, detail: null });
+		const readback = await readChatHostActionAudit({ rootDir });
+		expect(entry).toMatchObject({ action: "egress_read", confirmed: false, executed: false, detail: null });
+		expect(readback[0]).toMatchObject({ action: "egress_read", decision: "deny" });
 	});
 
 	it("reads back newest-first, filtered by session, with an optional limit", async () => {

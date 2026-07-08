@@ -144,6 +144,14 @@ export function buildAuditDetail(toolName: string, args: Record<string, unknown>
 			return capDetail(url);
 		}
 
+		case "web_search": {
+			const query = typeof args.query === "string" ? args.query.trim() : "";
+			if (!query) {
+				return toolName;
+			}
+			return capDetail(`web_search: ${query}`);
+		}
+
 		case "write_file":
 		case "edit_file":
 		case "read_file":

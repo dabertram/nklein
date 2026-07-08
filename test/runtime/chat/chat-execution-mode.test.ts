@@ -13,6 +13,7 @@ describe("chat-execution-mode", () => {
 	it("isolated_readonly: sandbox reads allowed, writes confirmed, no host access", () => {
 		expect(decision("isolated_readonly", "sandbox_read")).toBe("allow");
 		expect(decision("isolated_readonly", "sandbox_write")).toBe("confirm");
+		expect(decision("isolated_readonly", "egress_read")).toBe("deny");
 		expect(decision("isolated_readonly", "host_read")).toBe("deny");
 		expect(decision("isolated_readonly", "host_write")).toBe("deny");
 		expect(decision("isolated_readonly", "host_command")).toBe("deny");
@@ -21,6 +22,7 @@ describe("chat-execution-mode", () => {
 	it("sandbox_with_host_escape: sandbox free, every host action confirmed", () => {
 		expect(decision("sandbox_with_host_escape", "sandbox_read")).toBe("allow");
 		expect(decision("sandbox_with_host_escape", "sandbox_write")).toBe("allow");
+		expect(decision("sandbox_with_host_escape", "egress_read")).toBe("confirm");
 		expect(decision("sandbox_with_host_escape", "host_read")).toBe("confirm");
 		expect(decision("sandbox_with_host_escape", "host_write")).toBe("confirm");
 		expect(decision("sandbox_with_host_escape", "host_command")).toBe("confirm");
@@ -29,6 +31,7 @@ describe("chat-execution-mode", () => {
 	it("host: host reads allowed, but host mutations still require confirmation", () => {
 		expect(decision("host", "sandbox_read")).toBe("allow");
 		expect(decision("host", "sandbox_write")).toBe("allow");
+		expect(decision("host", "egress_read")).toBe("confirm");
 		expect(decision("host", "host_read")).toBe("allow");
 		expect(decision("host", "host_write")).toBe("confirm");
 		expect(decision("host", "host_command")).toBe("confirm");

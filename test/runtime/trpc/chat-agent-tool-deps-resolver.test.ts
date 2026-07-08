@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChatToolCall } from "../../../src/chat/chat-agent-loop";
 import type { ChatToolSet } from "../../../src/chat/chat-board-tools";
+import { recordChatEgressAttempt } from "../../../src/chat/chat-egress-attempt-audit-store";
 import type { ChatSession } from "../../../src/chat/chat-session-store";
 import { buildChatAgentToolDepsResolver } from "../../../src/trpc/runtime-api/chat-agent-tool-deps-resolver";
 
@@ -15,6 +16,10 @@ vi.mock("../../../src/chat/local-chat-model", () => ({
 
 vi.mock("../../../src/chat/chat-host-action-audit-store", () => ({
 	recordChatHostAction: vi.fn(async () => undefined),
+}));
+
+vi.mock("../../../src/chat/chat-egress-attempt-audit-store", () => ({
+	recordChatEgressAttempt: vi.fn(async () => undefined),
 }));
 
 vi.mock("../../../src/telemetry/model-behavior-profile-store", () => ({
@@ -70,6 +75,7 @@ describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", (
 	let tmpDir: string | null = null;
 
 	afterEach(() => {
+		vi.clearAllMocks();
 		if (tmpDir) {
 			rmSync(tmpDir, { recursive: true, force: true });
 			tmpDir = null;
@@ -183,5 +189,28 @@ describe("buildChatAgentToolDepsResolver — isolated read-only tool backing", (
 		const result = await deps?.executeTool(call("read_file", { path: "README.md" }));
 
 		expect(result?.content).toBe("# Host README");
+	});
+
+	it("wires egress_read tool decisions to the dedicated network-attempt audit sink", async () => {
+		const resolver = makeResolver({ workspacePath: workspaceWithReadme() });
+		const session = { ...makeSession("chat_only"), browserEnabled: true };
+		const deps = await resolver(session);
+
+		const result = await deps?.executeTool(call("browse_url", { url: "https://example.com/docs" }));
+
+		expect(result?.content).toContain("Denied");
+		expect(recordChatEgressAttempt).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: session.id,
+				mode: "isolated_readonly",
+				toolName: "browse_url",
+				action: "egress_read",
+				decision: "deny",
+				confirmed: false,
+				executed: false,
+				targetKind: "url",
+				target: "https://example.com/docs",
+			}),
+		);
 	});
 });

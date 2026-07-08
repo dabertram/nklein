@@ -19,6 +19,7 @@ const ACTIONS: ChatActionKind[] = [
 	"sandbox_read",
 	"sandbox_write",
 	"control_plane",
+	"egress_read",
 	"host_read",
 	"host_write",
 	"host_command",
@@ -153,8 +154,10 @@ describe("tool-capability-manifest — external-action (egress) gate, prime-dire
 	});
 
 	it("leaves non-egress manifests byte-identical (network gate only triggers on egress)", () => {
-		// Every authored manifest today is networkLevel:"none" — the egress branch must be inert for all of them.
 		for (const action of ACTIONS) {
+			if (action === "egress_read") {
+				continue;
+			}
 			const withEgress = decideManifestChatAccess(manifestForChatAction(action), "host");
 			expect(withEgress.reason).not.toContain("egress");
 		}
@@ -166,6 +169,7 @@ describe("auditDetailForManifest (§5.AF research addendum)", () => {
 		expect(auditDetailForManifest(manifestForChatAction("sandbox_read"))).toBe("none");
 		expect(auditDetailForManifest(manifestForChatAction("sandbox_write"))).toBe("summary");
 		expect(auditDetailForManifest(manifestForChatAction("control_plane"))).toBe("summary");
+		expect(auditDetailForManifest(manifestForChatAction("egress_read"))).toBe("full");
 		expect(auditDetailForManifest(manifestForChatAction("host_read"))).toBe("full"); // host scope
 		expect(auditDetailForManifest(manifestForChatAction("host_write"))).toBe("full");
 		expect(auditDetailForManifest(manifestForChatAction("host_command"))).toBe("full");

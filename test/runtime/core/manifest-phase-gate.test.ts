@@ -31,6 +31,7 @@ const ALL_ACTION_KINDS: readonly ChatActionKind[] = [
 	"sandbox_read",
 	"sandbox_write",
 	"control_plane",
+	"egress_read",
 	"host_read",
 	"host_write",
 	"host_command",

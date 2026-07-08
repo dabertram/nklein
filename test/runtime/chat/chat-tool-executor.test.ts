@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChatToolCall } from "../../../src/chat/chat-agent-loop";
+import type { ChatEgressAttemptAuditRecord } from "../../../src/chat/chat-egress-attempt-audit-store";
 import {
 	type ChatActionKind,
 	type ChatExecutionMode,
@@ -151,6 +152,110 @@ describe("createGatedChatToolExecutor", () => {
 		await exec(call("browse_url", { url: "https://example.com/docs" }));
 		expect(audit[0].detail).toBe("https://example.com/docs");
 		expect(audit[0].detail).not.toBe("browse_url");
+	});
+
+	it("audit detail: records the query for web_search, not just the tool name", async () => {
+		const audit: ChatToolAuditRecord[] = [];
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "sandbox_with_host_escape",
+			tools: [
+				{
+					name: "web_search",
+					actionKind: "egress_read",
+					run: async () => "ok",
+				},
+			],
+			confirm: async () => true,
+			recordAudit: async (record) => {
+				audit.push(record);
+			},
+		});
+		await exec(call("web_search", { query: "nklein docs" }));
+		expect(audit[0].detail).toBe("web_search: nklein docs");
+		expect(audit[0].detail).not.toBe("web_search");
+	});
+
+	it("records every egress_read decision to the dedicated network-attempt audit sink", async () => {
+		const egressAudit: ChatEgressAttemptAuditRecord[] = [];
+		const exec = createGatedChatToolExecutor({
+			sessionId: "s1",
+			mode: "isolated_readonly",
+			tools: [
+				{
+					name: "browse_url",
+					actionKind: "egress_read",
+					run: async () => "should not run",
+				},
+			],
+			recordEgressAttempt: async (record) => {
+				egressAudit.push(record);
+			},
+		});
+		const result = await exec(call("browse_url", { url: "https://example.com/docs" }));
+
+		expect(result.content).toContain("Denied");
+		expect(egressAudit).toEqual([
+			expect.objectContaining({
+				sessionId: "s1",
+				mode: "isolated_readonly",
+				toolName: "browse_url",
+				action: "egress_read",
+				decision: "deny",
+				confirmed: false,
+				executed: false,
+				targetKind: "url",
+				target: "https://example.com/docs",
+				detail: "https://example.com/docs",
+			}),
+		]);
+	});
+
+	it("records declined and approved egress confirmations with execution truth", async () => {
+		const egressAudit: ChatEgressAttemptAuditRecord[] = [];
+		let runs = 0;
+		const make = (confirm: boolean) =>
+			createGatedChatToolExecutor({
+				sessionId: "s1",
+				mode: "sandbox_with_host_escape",
+				tools: [
+					{
+						name: "web_search",
+						actionKind: "egress_read",
+						run: async () => {
+							runs++;
+							return "results";
+						},
+					},
+				],
+				confirm: async () => confirm,
+				recordEgressAttempt: async (record) => {
+					egressAudit.push(record);
+				},
+			});
+
+		await make(false)(call("web_search", { query: "first" }));
+		await make(true)(call("web_search", { query: "second" }));
+
+		expect(runs).toBe(1);
+		expect(egressAudit).toEqual([
+			expect.objectContaining({
+				toolName: "web_search",
+				decision: "confirm",
+				confirmed: false,
+				executed: false,
+				targetKind: "search_query",
+				target: "first",
+			}),
+			expect.objectContaining({
+				toolName: "web_search",
+				decision: "confirm",
+				confirmed: true,
+				executed: true,
+				targetKind: "search_query",
+				target: "second",
+			}),
+		]);
 	});
 
 	it("audit detail: records the workspace-relative path for write_file, not just the tool name", async () => {
@@ -335,6 +440,7 @@ describe("createGatedChatToolExecutor", () => {
 		"sandbox_read",
 		"sandbox_write",
 		"control_plane",
+		"egress_read",
 		"host_read",
 		"host_write",
 		"host_command",

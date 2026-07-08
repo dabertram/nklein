@@ -5,6 +5,7 @@ import { type ChatAgentTurnDeps, runChatAgentConversation, runChatAgentTurn } fr
 import { createBoardMutationTools, createBoardReadTools } from "../chat/chat-board-tools";
 import { createBrowserTools } from "../chat/chat-browser-tool";
 import { createCommandRunTool } from "../chat/chat-command-tool";
+import { recordChatEgressAttempt } from "../chat/chat-egress-attempt-audit-store";
 import { createFocusChainTools, readChatFocusChain } from "../chat/chat-focus-chain";
 import { recordChatHostAction } from "../chat/chat-host-action-audit-store";
 import { appendChatToolExchange, createChatAgentModel, createChatModelDeps } from "../chat/chat-local-llm-adapter";
@@ -205,6 +206,9 @@ export async function runChatSendCommand(options: ChatSendOptions = {}): Promise
 			...(confirm ? { confirm } : {}),
 			recordAudit: async (record) => {
 				await recordChatHostAction({ ...record });
+			},
+			recordEgressAttempt: async (record) => {
+				await recordChatEgressAttempt({ ...record });
 			},
 		});
 		const agentDeps: ChatAgentTurnDeps = {

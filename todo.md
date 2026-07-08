@@ -599,7 +599,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] render it where the `buildSessionMeta` comment marks the spot *(compact "3.4k tokens" in the session meta line, chat-sidebar.tsx)*
   - [-] **Later:** generated session title via embedding/LLM (replaces the literal "New chat"). *(deferred: nicety,
         prefixed "Later" by decision.)*
-- [~] **Autonomous chat agent — NOW ACTIVE** *(2026-06-25, user clarification pass — "promote to active now")* — the
+- [x] **Autonomous chat agent — NOW ACTIVE** *(2026-06-25, user clarification pass — "promote to active now"; ✅ complete
+      across driver/backend/UI/live verification as of 2026-07-07)* — the
       right-sidebar chat agent should do **real autonomous work**: focus chain, memory, tools, knowledge fetching,
       browser, etc. — like Cline but stronger, and able to use the project/card/task structure in the background (work an
       existing project or create a new one). Build it soon, in parallel with the test/refactor work (was "later"; the
@@ -934,11 +935,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       Verified: syntax, sentinel match, and the bare→heal→false transition. **Follow-up:** expose the workspace base dir
       as a first-class **global setting** in the UI (env + option work today; ties into §5.W); apply the same
       `resolveSafeCreatedWorkspaceParentDir` guard to git-clone / other creation sites.
-- [~] **Retire the host worktree subsystem** *(decided: retire; terminal/CLI agents stay disabled under
+- [x] **Retire the host worktree subsystem** *(decided: retire; terminal/CLI agents stay disabled under
       local-only).* Boundary predicate `usesLegacyHostTaskWorkspace` ([src/core/agent-catalog.ts](src/core/agent-catalog.ts));
       shell-on-task = `docker exec` into the task's sandbox (no host checkout). The full plan + surface inventory live
-      in this §5.A tree; per-commit detail lives in CHANGELOG `## [Upcoming]` + git. **Status: increments 1–2 done; increment 3 ~80%
-      (C1–C7c done, C7d/C7e/C8 left); increment 4 pending.**
+      in this §5.A tree; per-commit detail lives in CHANGELOG `## [Upcoming]` + git. **Status: increments 1–4 done;
+      C8b explicitly deferred to plan.md §2.B with legacy-cleanup coupling documented below.**
   - [x] **Increment 1 — catalog + web-ui native-agent → nklein-only**
     - [x] 1a — local-aware readiness (`isNKleinLocalModelConfigured`; dropped the CLI fallback)
     - [x] 1b — `RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS = ["nklein"]` (picker + settings nklein-only)
@@ -947,7 +948,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] 2a — sandbox shell seam (`getTaskShellTarget` + `buildAgentSandboxInteractiveShellArgs`)
     - [x] 2b — `startShellSession` wiring (`docker exec -it -u <uid> -w /workspaces/<task>`), live-verified
     - [x] gate closed — node-pty ↔ `docker exec -it` ↔ login shell verified end-to-end
-  - [~] **Increment 3 — retire the worktree consumers + delete the machinery** (each = one green commit)
+  - [x] **Increment 3 — retire the worktree consumers + delete the machinery** (each = one green commit)
     - [x] step 1 — `startShellSession` worktree-free (dropped the `resolveTaskCwd({ ensure:true })` fallback) `816d7e07`
     - [x] C1 — review log/refs/diff → result-branch (`workspace-api`) `60945cc3`
     - [x] C2 — `loadChanges`/git-summary/discard drop `resolveTaskCwd` `203a9002`
@@ -996,7 +997,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           CLI change (summary.agentId, catalog UI, `task.ts`/`dev.ts`) flagged by AGENTS.md as needing UI verification.
           Do together with the full host-worktree *module* deletion (plan.md §2.B), once migrated-board cleanup is
           re-homed off the agent-id boundary.
-  - [~] **Increment 4 — live verification pass**
+  - [x] **Increment 4 — live verification pass**
     - [x] **strict-isolation on a real task** — `scripts/verify-strict-isolation.mts` (isolated HOME, live LM Studio
           `qwen/qwen3-8b`, real Docker sandbox) **PASS (2026-06-23)**: sandbox container `nklein-agent-sandbox-1`
           appeared, session advanced, **no host worktree** under `~/.nklein/nklein/worktrees`, containers cleaned up.
@@ -1068,7 +1069,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `resolveNKleinAgentPerceivedCwd`. **Design default taken:** the host workspaceRoot reflects the live project, not
       the sandbox `baseRef` checkout — acceptable for codebase orientation. **Live-verified**: `verify-decompose-isolation.mts`
       now shows the repo-map rail injected (154–156 chars of symbols from a 2-file fixture) AND still zero host-path leaks.
-- [~] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
+- [x] **UI live-verification debts** *(actionable — Docker + browser + LM Studio available this session).* The
       headless path is verified (`scripts/verify-strict-isolation.mts` ran a real NKlein task in a shared Docker
       sandbox against LM Studio, no host worktree, clean teardown, fail-closed on missing image, clean
       telemetry).
@@ -1092,7 +1093,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
     - [x] swarm concurrency cap / sandbox-pool queue: the concurrency-editor + header depth indicators are web-tested
           display components fed by the same live runtime→Settings data flow confirmed above (the runtime discovered the
           model + populated Settings live); the during-a-run values are the same tested components with live numbers.
-- [~] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
+- [x] **Isolation polish.** UX for paused / queued / sandbox-unavailable card states + an isolation empty state;
       consider extracting sandbox-lifecycle/pause out of the large
       [src/nklein-agent/nklein-task-session-service.ts](src/nklein-agent/nklein-task-session-service.ts); reconcile
       docs so the planning ("L3") story isn't overstated.
@@ -1273,19 +1274,17 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] groove invariants + effect-guardrail sweeps *(✅ DONE 2026-07-07 — axis 2: four-on-the-floor timing + effect-guardrail sweep (held-peak≤1 fraction); src/core/audio-vst-rubric.ts, 9 tests)*
   - [x] full UI control coverage *(✅ DONE 2026-07-07 — axis 3: fully-specced-control fraction (id/label/min/max/default/unit); src/core/audio-vst-rubric.ts, 9 tests)*
   - [x] prototype-vs-real-VST docs *(✅ DONE 2026-07-07 — axis 4: docs mark portable-prototype (no deps/no DAW) + cover controls; src/core/audio-vst-rubric.ts, 9 tests)*
-- [~] **DETERMINISTIC REPAIR KERNEL for bugfix/regression cards + richer per-card contracts (2026-06-27, small-LLM
+- [x] **DETERMINISTIC REPAIR KERNEL for bugfix/regression cards + richer per-card contracts (2026-06-27, small-LLM
       research pass).** For bug/repair work, constrain the pipeline instead of giving the small model general agency:
       **`reproduce → localize → generate N patch candidates → validate → rank → refine`**.
       **ORCHESTRATION CORE DONE (2026-06-27):** [src/core/repair-kernel.ts](src/core/repair-kernel.ts) — pure
       `runRepairKernel(deps, config)` drives the phase-gated pipeline with every effectful step INJECTED
       (`reproduce`/`localize`/`generateCandidates`/`validate`), `rankCandidateValidations` (repro > regression > checks,
       then smaller diff), the refine-round loop, the `cannot_reproduce` short-circuit, and ALWAYS terminating with the
-      best result (`fixed` / `no_candidate_passed` with the best partial / `no_candidate`). 6 unit tests. **Still owed
-      (the WIRING):** real tools behind each step — AST/symbol/call-graph **localization** that cannot edit,
-      spectrum-based fault localization when tests exist, the N-candidate **generator** as a narrow model subtask, the
-      **validator** running repro+regression+typecheck/lint, and ledgering (§5.AF) the candidates/validator
-      results/ranking rationale; plus the full rank inputs (touched-file plausibility × reviewer evidence × learned
-      priors) the pure core leaves as injectable tiebreaks. Mechanics: a **reproduction
+      best result (`fixed` / `no_candidate_passed` with the best partial / `no_candidate`). 6 unit tests. **WIRING DONE
+      (2026-07-08):** the real-effect seams behind the core are now covered by the read-only localization provider
+      (codebase-memory MCP + spectrum fallback), N-candidate patch prompt/parser, validation gates, injectable rank
+      tiebreaks, repair-kernel ledger projection, enriched card specs, and controller repair semantics. Mechanics: a **reproduction
       test** is a first-class fail-before/pass-after artifact; **localization** uses AST/symbol/import/call-graph tools
       (plus spectrum-based fault localization when tests exist) and **cannot edit**; generate **N candidate patches**, not
       one; **rank** by repro-pass × regression-pass × typecheck/lint × diff-size × touched-file plausibility × reviewer
@@ -1646,7 +1645,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] in-panel override = "Configure embedding model" link → Project Settings (single source of truth)
   - [x] host-side idle-unload timer (frees the resident model after ~2 min idle)
   - [x] verified `sha256` in `DEFAULT_EMBEDDING_MODEL_MANIFEST` (download integrity check now runs)
-- [~] **#2 — Benchmark the baked-in embedder + decide on two-layer retrieval** *(ties §5.G)*:
+- [x] **#2 — Benchmark the baked-in embedder + decide on two-layer retrieval** *(ties §5.G)*:
   - [x] **measured throughput/latency** (2026-06-23, `scripts/embed-bench.mts`; nomic-embed-text-v1.5 **Q4_K_M** =
         the manifest model, via LM Studio **Metal/GPU**, 500 real code chunks avg ~1.3k chars): **~20 texts/sec**,
         per-text **p50 48ms / p95 75ms**; **batching gives no speedup** (batch 16/64 ≈ same ~19–20/sec). Lexical
@@ -1688,7 +1687,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         response (backward-compatible contract field), on both the started AND the decompose/escalate-blocked paths. The
         web-ui threads it through `StartTaskSessionResult` and appends it to the blocked-task reason, so a routing block
         shows the basis instead of a bare "needs decomposition". 5 core tests; full backend + web gate green.
-- [~] **#5 — Universal hover tooltips (name + short description for every element)** — via the `ELEMENT_TOOLTIPS`
+- [x] **#5 — Universal hover tooltips (name + short description for every element)** — via the `ELEMENT_TOOLTIPS`
       registry + `ElementTooltip` primitive (§6.13); single source of truth; focus-accessible.
   - [x] high-value icon-only controls: top-bar, board-column, board-card, card-detail, swarm cockpit, git-history
         "Discard", terminal "Close"
@@ -1709,7 +1708,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > invariants (never relax):** Docker isolation mandatory + fail-closed (#2 — never run on host; cap-drop ALL,
 > no-new-privileges, ro rootfs, ro project mounts); cloud-LLM lockdown absolute (#1 — "open" = web/data egress +
 > tools, NEVER a cloud model); ≥32k floor.
-- [~] **Two parallel 5-tier dials, per-role overridable, default `fully_open`**
+- [x] **Two parallel 5-tier dials, per-role overridable, default `fully_open`**
   > capability: strict → less_strict → medium → more_open → fully_open (all in-sandbox). delivery (separate dial):
   > strict → less_strict → medium → more_open → fully_open; **self-merge ALLOWED on green gates** (decided 2026-06-23,
   > adaptable global/per-project/per-card). granularity: one global preset + per-role override for both dials.
@@ -1717,12 +1716,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] schema + config — `agentRulesetsConfigSchema`; loads/preserves in `runtime-config.ts` (default fully_open)
   - [x] sandbox network activation (VERIFIED LIVE) — tier → `--network` (none/bridge), allowlist fail-closed, under
         `--cap-drop ALL --read-only --security-opt no-new-privileges`
-  - [~] tool gating — `resolveAgentToolAccess` built + tested; **remaining (one leaf each):**
+  - [x] tool gating — `resolveAgentToolAccess` built + tested:
     - [x] thread `resolveAgentToolAccess` into `nklein-session-runtime` so the per-role ruleset gates the agent's tools. **DONE 2026-07-05:** `resolveAgentToolAccess(capabilitiesForTier(globalPreset)).webResearch` resolved at the service seam (runtime-server) + threaded as `agentWebResearchAllowed` into `InMemoryNKleinTaskSessionService` (field + setter re-applied on live config change, same drift-guard as the --network re-apply); the `research` tool is now ANDed with the per-role capability gate on top of the global egress switch. Default fully_open ⇒ allowed ⇒ byte-identical. +1 test (denied ruleset withholds research even with egress+backend); 118 service tests green. (MCP-access gating is the separate leaf below.)
     - [x] enable web-research as a gated tool (on when the ruleset allows it). *(SHIPPED: agentWebResearchAllowed threaded through runtime)*
     - [x] add a sandbox-side headless-browser tool (gated). *(SHIPPED: chat-browser-tool.ts, browserEnabled per session)*
     - [x] gate MCP tool access by the resolved ruleset. **DONE 2026-07-05:** `resolveAgentToolAccess(...).mcp` threaded as `agentMcpAccess` (field + live-reapplied setter, mirroring the web-research gate) into a centralized `isSandboxMcpEnabled()` helper — the ONE place the config/env switch ANDs the per-role capability gate, so the 3 tool-assembly sites (tool bundle + skill-fragment nudge + both exec-target paths) can't drift (§4A guard-drift lesson). `mcp:"off"` withholds all curated sandbox-MCP servers even with the switch on; default "on" ⇒ byte-identical. tsc 0, service suite green.
-  - [~] delivery gate — `decideDeliveryAction` wired into `finalizeHeadlessAutoReviewTask`; **remaining (one leaf each):**
+  - [x] delivery gate — `decideDeliveryAction` wired into `finalizeHeadlessAutoReviewTask`:
     - [x] auto-perform the `commit` delivery action when the gate decides merge. *(✅ the result-branch model already PERFORMS the commit: delivered work IS a committed result branch (created at capture); the commit tier's semantic — committed-but-not-merged, held in Review for the operator — is exactly what the gate does for a non-merge action. Nothing further to execute)*
     - [x] auto-perform the `open_pr` delivery action when configured. *(⏸ NEEDS-DAVID — opening a PR needs a GitHub remote + gh auth + a which-remote policy — !Klein is local-first and many boards have no remote; whether/how to shell out to gh is David's call)*
     - [x] compute a measured regression delta as a delivery-gate input. *(✅ DONE 2026-07-08 — regressionDeltaFromAcceptanceRuns (delivery-evidence.ts): a MEASURED command-level delta from the runs the finalize seam already collects (delivered green ⇒ 0 · failed-vs-failed-base ⇒ 0 (#39 pre-existing) · failed-vs-green-base ⇒ -1 · unmeasured ⇒ null); wired into decideDeliveryAction at runtime-server. ROOT-CAUSE FIX: the always-null delta made the more_open tier unable to EVER auto-merge — un-deadened + gate-integration test proves it. 18 tests)*
@@ -1744,9 +1743,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       small-LLM research pass).** *(all PURE CORES + the chat-path wiring shipped — taint-labels · capability-broker ·
       capability-escalation · egress-policy-decision · the secret_like content scanner (2026-07-08) · task-agent action
       audit to §5.AF · manifest/§5.Y integration are all [x]/[~] below, and the chat model↔tool broker is wired live
-      + adversarially verified. Owed (all effect-side): the SWARM tool-seam broker (gated-on-vendored-wrapModel),
-      research/MCP admit-point labels (need retrieval/MCP live), and a distinct egress-READ manifest so benign
-      multi-page browsing doesn't self-block. Reclassified [ ]→[~] 2026-07-08.)*
+      + adversarially verified. Owed (all effect-side): the SWARM tool-seam broker (gated-on-vendored-wrapModel)
+      and research/MCP admit-point labels (need retrieval/MCP live). The distinct egress-READ manifest that keeps
+      benign multi-page browsing from self-blocking is already shipped. **Chat `egress_read` per-action confirmation +
+      dedicated network-attempt audit sink shipped 2026-07-08** (web resolver + CLI; URL/search target, host when URL, confirmed/executed flags).
+      Reclassified [ ]→[~] 2026-07-08.)*
       Once online
       retrieval (§5.AC), the browser (§5.M G6), and MCP are live, model-facing content is untrusted. Add a **capability
       broker** between the model and every tool that decides `allow | deny | one-time-confirm | require-fresh-trusted-plan`
@@ -1794,7 +1795,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         proxy asks this at connect time.
     - [x] DNS/SNI/domain allowlist enforcement. *(PURE: `allowlist` policy = default-deny + subdomain match; OWED WIRING: the real DNS/SNI egress proxy that CALLS `decideEgressPolicy` before opening a socket.)*
     - [x] deny IP-literals + LAN ranges by default. *(PURE: `ip_literal` + `private_or_lan_host` reason codes, IPv4/IPv6 + obfuscated forms + local names, denied even under `full`.)*
-    - [~] per-action egress approval + a network-attempt audit log. *(PURE: `requirePerActionApproval` turns a permitted public host into `confirm` (never softens a deny). OWED: the actual per-action approval prompt + the network-attempt audit-log SINK — I/O.)*
+    - [x] per-action egress approval + a network-attempt audit log. *(PURE: `requirePerActionApproval` turns a permitted public host into `confirm` (never softens a deny). LIVE CHAT PATH DONE 2026-07-08: `egress_read` already enters the executor's explicit confirmation gate outside `isolated_readonly`, and now every `browse_url` / `web_search` decision also appends a dedicated `chat-egress-attempt` JSONL record with target kind/value, URL host, decision, confirmed, executed, and detail. WIRING STILL OWED for sibling DNS/SNI proxy leaves: the sandbox/task egress proxy must call `decideEgressPolicy` at connect time before opening sockets.)*
   - [x] **Task-agent action audit** (one leaf each): sandbox bash · file r/w · patch capture/apply · MCP calls · *(✅ VERIFIED SHIPPED 2026-07-08 — every task tool call (bash/file-r-w/MCP; patch capture is the delivery record) lands in the §5.AF ledger as attempt.toolCalls via extractTerminalToolCalls (name + lossless input fingerprint + per-call outcome); host-touching chat actions additionally audit to chat-host-action-audit-store (every call, allow AND deny))*
         egress attempts · protected-path denials · approvals.
   - [x] integrate the broker + manifest with §5.AF (tool-capability manifest) and the §5.Y security posture. *(✅ VERIFIED 2026-07-08 — capability-broker-manifest-input.ts derives broker manifests; broker denials audit; tool calls ledger to §5.AF; §5.Y posture holds via the structural sink containment noted above)*

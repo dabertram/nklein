@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Chat web access now has its own network-attempt audit log** (todo §5.L). `browse_url` and `web_search` were already
+  `egress_read` actions, denied in isolated chat and confirmation-gated in host-capable scopes. Each decision now also
+  writes a dedicated `chat-audit/egress-attempts.jsonl` record with the tool, URL/search target, normalized URL host,
+  policy decision, confirmation flag, and whether the network action actually executed. The generic chat host-action
+  audit schema now accepts `egress_read` too, so egress decisions remain readable in both audit trails.
 - **Chat-only sessions can now write only through explicitly approved Docker-mounted paths** (todo §5.M). The isolated
   chat sandbox now accepts a per-session `sandboxWritablePaths` allowlist, normalizes it to workspace-confined
   directories, starts a separate chat Docker pool for each approved mount signature, and offers `write_file` only when
