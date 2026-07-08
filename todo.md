@@ -6681,7 +6681,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       importance as numbers); 27 unit tests; tsc + biome green. **Still owed (WIRING — behind a live §5.Z re-verify):**
       score the FINAL assembled order at the board/chat prompt-assembly seam and route high-`mismatch` fragments into the
       §5.AD `context-reanchor.ts` end-anchor / a `context-smart-zone.ts` edge-promotion.
-- [ ] **End-of-context task re-anchor on long runs, decomposed:**
+- [~] **End-of-context task re-anchor on long runs, decomposed:** *(3 of 4 children [x] — the `buildContextReanchor`
+      helper, the `beforeModel` integration (wired live, opt-in flag), and the multi-turn restated-near-tail test are
+      all done; only the fleet drift-measurement (⏱ FLEET-RUN) remains. Reclassified [ ]→[~] 2026-07-08.)*
   - [x] Implement generic re-anchor helper: takes goal + current step + board-card context; formats for end-of-context placement. **(2026-06-29, parallel batch)** `src/core/context-reanchor.ts` — `buildContextReanchor` (`<reanchor>` block: GOAL→CARD→STEP→RECENT TOOLS, drops blanks) + `shouldReanchor` (cadence gate, never turn 0). 10 tests. Next leaf = the `beforeModel` integration.
   - [x] Integrate into `beforeModel` hook (reuse §5.N focus-chain seam) to inject re-anchor after large tool outputs.
         *(✅ verified-wired 2026-07-08 (audit): `task-reanchor-before-model.ts` (`decideTaskReanchorForRequest` — derives
@@ -6695,7 +6697,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         the cadence turn, and lastReanchorTurn advances — the multi-turn restatement contract, deterministic.)*
   - [ ] Measure + verify small models don't drift from task mid-context (no regression on passing models). ⏱ FLEET-RUN
         *(the flag flip + drift measurement across the roster is model-time; rides the sweep phase)*
-- [ ] **Learned per-model "quality-effective" context budget — runtime consumption + UI wiring, decomposed:**
+- [~] **Learned per-model "quality-effective" context budget — runtime consumption + UI wiring, decomposed:** *(the
+      quality-knee ESTIMATOR pure core [~] + the web Settings surfacing [x] are done; the remaining children are the
+      prompt-assembly wiring (behind §5.Z re-verify) + eval-sweep probes + the small-model quality test, all fleet/live-
+      gated. Reclassified [ ]→[~] 2026-07-08.)*
   - [~] **Quality-knee ESTIMATOR (the pure fit) — PURE CORE DONE (2026-07-01):**
         [src/core/context-budget-knee.ts](src/core/context-budget-knee.ts) `estimateQualityEffectiveBudget(observations,
         options?)` → `{budgetTokens, peakTokens, peakQuality, basis, confident, levelCount}`. Fits the learned budget from
@@ -6719,7 +6724,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         qualityDegradedAtTokens) plus Avg Retries; the learned RETRY BUDGET renders per fitness cell in the new
         "Model fitness" table. Web gate 961 green.)*
   - [ ] Test: verify small-model output quality improves when compacting to learned budget instead of overflow threshold.
-- [ ] **Adaptive, model- & task-dependent OUTPUT / generation token budget (`max_tokens`) — the PROACTIVE complement to
+- [~] **[cores done — every sub-leaf is [x]/[~]: the online-research pass, the reasoning-profile answer-budget prior,
+      the per-model answer-budget learner, the context-occupancy pressure decider, and the distractor-pruning core are
+      all built + tested; only the live model-call-seam wiring + §5.Z re-verify remain. Reclassified [ ]→[~] 2026-07-08.]**
+      **Adaptive, model- & task-dependent OUTPUT / generation token budget (`max_tokens`) — the PROACTIVE complement to
       §5.AA's reactive truncation ladder** *(2026-07-01, user: "token limits can be highly model- AND task-dependent →
       let !Klein handle this with best-possible approaches, extensive online research included").* Today the chat path uses
       a FIXED `DEFAULT_SAMPLING.maxTokens = 1024` + a purely REACTIVE recovery (the §5.AA `raise_token_budget` rung →
