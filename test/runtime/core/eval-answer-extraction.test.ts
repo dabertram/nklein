@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	extractDecomposeEvalAnswer,
 	extractDecomposeGraph,
+	extractImplementCode,
 	extractJsonFromModelText,
 	extractReviewCaught,
 	extractReviewEvalAnswer,
@@ -161,5 +162,28 @@ describe("extractReviewCaught (free-text review → canonical defect ids)", () =
 			seededDefects: ["null-deref", "unhandled-rejection"],
 		} as never;
 		expect(scoreEvalAnswer(prompt, answer)).toBe(0.5);
+	});
+});
+
+describe("extractImplementCode (implement family — the pure parse half; sandbox runs it)", () => {
+	it("extracts a fenced ```js block out of surrounding prose", () => {
+		const raw = "Sure, here you go:\n```js\nfunction slugify(s){ return s.toLowerCase(); }\n```\nHope that helps!";
+		expect(extractImplementCode(raw)).toBe("function slugify(s){ return s.toLowerCase(); }");
+	});
+
+	it("handles bare ``` fences and typescript/tsx tags", () => {
+		expect(extractImplementCode("```\nconst x = 1\n```")).toBe("const x = 1");
+		expect(extractImplementCode("```typescript\nconst y: number = 2\n```")).toBe("const y: number = 2");
+	});
+
+	it("falls back to the whole reply when it plausibly IS code (no fence)", () => {
+		expect(extractImplementCode("export const add = (a, b) => a + b")).toBe("export const add = (a, b) => a + b");
+		expect(extractImplementCode("function f(){}")).toBe("function f(){}");
+	});
+
+	it("returns null for a prose non-answer or empty input", () => {
+		expect(extractImplementCode("Sorry, I can't help with that.")).toBeNull();
+		expect(extractImplementCode("")).toBeNull();
+		expect(extractImplementCode("   ")).toBeNull();
 	});
 });

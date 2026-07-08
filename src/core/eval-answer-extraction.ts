@@ -9,8 +9,9 @@
  *     `scoreValidDag` grades for structural validity. Fully text-derivable, no execution.
  *   - `review` (reviewer): a free-text review → the subset of the prompt's canonical seeded-defect ids it surfaced, via
  *     authored per-defect matchers (see `extractReviewCaught`), which `scoreDefectCatchingReview` grades for recall.
- * The `implement` family is NOT here: its answer is `{passed, total}`, which requires EXECUTING the model's code against
- * acceptance tests in a sandbox — an effectful step that belongs in the sweep harness, not this pure parser.
+ *   - `implement` (worker): only the CODE-extraction half (`extractImplementCode`) is here — turning the model's answer
+ *     into `{passed, total}` requires EXECUTING that code against the acceptance tests in the Docker agent-sandbox (prime
+ *     directive: never run model code on the host), which is the sweep harness's effectful job, not this pure parser's.
  *
  * Pure + dependency-free (core must not import the nklein-agent JSON repairer), so it carries a small self-contained
  * lenient JSON extractor: try a direct parse, strip a ```json code fence, else lift the first balanced {...}/[...] span
@@ -257,4 +258,30 @@ export function extractReviewCaught(reviewText: string, seededDefects: readonly 
 /** Convenience: extract a review {@link EvalAnswer} ready for `scoreEvalAnswer` against a review prompt's seededDefects. */
 export function extractReviewEvalAnswer(reviewText: string, seededDefects: readonly string[]): EvalAnswer {
 	return { family: "review", caught: extractReviewCaught(reviewText, seededDefects) };
+}
+
+// ── Implement family: extract the model's CODE (the sandbox executor then runs it against the acceptance tests) ────────
+
+/**
+ * Extract the implementation CODE from a model's `implement`-family response. Pure — this is the parse HALF of the
+ * implement eval; the effectful half (running `<code>; <assertion>` for each acceptance test to produce `{passed, total}`)
+ * MUST happen inside the Docker agent-sandbox per the prime directive (never execute model code on the host), so it is
+ * NOT here. Prefers a fenced ```js/```javascript/```ts/```typescript block (weak models wrap code in prose + fences);
+ * falls back to the whole text when it looks like code (has a `function`/`const`/`=>`/`class` token). Returns `null` when
+ * no code is recoverable — the sandbox executor then scores the cell 0/total.
+ */
+export function extractImplementCode(raw: string): string | null {
+	if (typeof raw !== "string" || raw.trim().length === 0) {
+		return null;
+	}
+	const fence = raw.match(/```(?:js|javascript|ts|typescript|jsx|tsx)?\s*\n?([\s\S]*?)```/i);
+	if (fence?.[1] && fence[1].trim().length > 0) {
+		return fence[1].trim();
+	}
+	const trimmed = raw.trim();
+	// No fence: accept the whole reply only when it plausibly IS code (avoids returning a "sorry, I can't…" prose reply).
+	if (/\b(function|const|let|var|class)\b|=>/.test(trimmed)) {
+		return trimmed;
+	}
+	return null;
 }
