@@ -6160,7 +6160,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         needs an lms-ps/OS sampling loop, rides the sweep phase.)*
   - [x] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models. *(SHIPPED: difficulty gate + free-first pool routing)*
   - [ ] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table.
-  - [ ] Add selective cross-model debate/review for low-confidence outputs (different model families, per §5.AD).
+  - [x] Add selective cross-model debate/review for low-confidence outputs (different model families, per §5.AD).
+        *(✅ ALREADY IMPLEMENTED by the §5.AW deliberation trigger — [deliberation-trigger.ts](src/core/deliberation-trigger.ts)
+        `shouldDeliberate({stakes, confidence, diverseCriticAvailable, budgetRemaining})`: fires a multi-agent debate
+        SELECTIVELY (only high-stakes × non-high-confidence — everything else is compute waste), gated on a
+        LINEAGE-DIVERSE capable critic (different model families — a same-family debate is correlated noise), degrading
+        to single-agent with a surfaced `diversityWaived` flag when only same-family critics are loaded, bounded by a
+        per-run count budget. That IS "selective cross-model debate for low-confidence outputs across different
+        families." 8 tests. This §5.AB box was a forward cross-reference to that §5.AW work.)*
   - [x] Log per-routing decision: predicted route, actual outcome, verifier outcome, uncertainty, resource state. *(✅
         2026-07-08 — [routing-decision-log.ts](src/core/routing-decision-log.ts): the `RoutingDecisionRecord` shape
         (taskId · routeType · predictedModelKey · difficulty · actualOutcome · verifierOutcome · uncertainty ·
