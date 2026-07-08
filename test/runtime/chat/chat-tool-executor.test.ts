@@ -624,6 +624,23 @@ describe("createGatedChatToolExecutor — §5.L capability broker (opt-in)", () 
 		expect(ran).toEqual(["browse", "browse"]); // the host command never ran
 	});
 
+	it("flag ON: content-derived secret_like taint is accumulated from a tool result", async () => {
+		const ran: string[] = [];
+		const dynamicSecretReader: ChatTool = {
+			name: "read_secretish",
+			actionKind: "sandbox_read",
+			taint: ["user_trusted"],
+			taintFromResult: () => ["secret_like"],
+			run: async () => "token = 'ghp_0123456789abcdefghijABCDEFGHIJ'",
+		};
+		const { exec } = make(true, [dynamicSecretReader, hostCommandTool], (name) => ran.push(name));
+		await exec(call("read_secretish"));
+		const host = await exec(call("run_host"));
+
+		expect(host.content).toContain("Denied by capability broker");
+		expect(ran).toEqual(["read_secretish"]);
+	});
+
 	it("flag ON: a NON-protected-sink tool after a tainted read is still allowed", async () => {
 		const ran: string[] = [];
 		const secondReader: ChatTool = { name: "read_again", actionKind: "sandbox_read", run: async () => "ok" };

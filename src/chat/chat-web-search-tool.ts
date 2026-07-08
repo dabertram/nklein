@@ -1,3 +1,4 @@
+import { labelsForSourceContent } from "../core/taint-content-scan";
 import type { WebSearchError, WebSearchResponse } from "../core/web-search-contract";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolSet } from "./chat-board-tools";
@@ -54,6 +55,7 @@ export function createWebSearchTools(options: WebSearchToolOptions): ChatToolSet
 			// searches / browses in one turn are not refused). Its output taints the turn (untrusted web content).
 			actionKind: "egress_read",
 			taint: ["web"],
+			taintFromResult: (content) => labelsForSourceContent("web", content),
 			run: async (args) => {
 				const query = typeof args.query === "string" ? args.query.trim() : "";
 				let outcome: WebSearchResponse | WebSearchError;

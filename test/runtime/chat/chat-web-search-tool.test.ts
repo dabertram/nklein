@@ -22,6 +22,22 @@ describe("createWebSearchTools", () => {
 		expect(tools[0]?.taint).toEqual(["web"]);
 	});
 
+	it("adds secret_like taint when rendered search output looks credential-shaped", async () => {
+		const secretish: WebSearchResponse = {
+			query: "leaked token",
+			results: [
+				{
+					title: "Paste",
+					url: "https://example.com/paste",
+					snippet: "api_key=AbCdEf0123456789AbCdEf0123456789",
+				},
+			],
+		};
+		const { tools } = createWebSearchTools({ search: async () => secretish });
+		const out = String(await tools[0]?.run({ query: "leaked token" }));
+		expect(tools[0]?.taintFromResult?.(out, { query: "leaked token" })).toEqual(["web", "secret_like"]);
+	});
+
 	it("renders a numbered title/url/snippet list with source+date meta", async () => {
 		const out = await run(async () => response);
 		expect(out).toContain('Web results for "qwen 3.6 release"');

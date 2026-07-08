@@ -30,10 +30,15 @@ export interface ChatTool {
 	/**
 	 * §5.L: the taint labels this tool's OUTPUT carries into the turn's context (e.g. `["web"]` for a page fetch,
 	 * `["mcp"]` for an MCP server result). Absent ⇒ the output is trusted (no external taint). Folded into the executor's
-	 * running taint window (opt-in) so a later protected-sink call in the same turn can be broker-gated. A static
-	 * source-kind label for now; content-derived labels (`secret_like`) are a later slice.
+	 * running taint window (opt-in) so a later protected-sink call in the same turn can be broker-gated.
 	 */
 	taint?: readonly TaintLabel[];
+	/**
+	 * Optional content-derived taint hook. Called after a tool executes, with the exact content that entered the model
+	 * transcript; its labels are UNIONED with {@link taint}, never used to remove static provenance. This is where web /
+	 * MCP / retrieval tools can layer `secret_like` onto their base source label.
+	 */
+	taintFromResult?: (content: string, args: Record<string, unknown>) => readonly TaintLabel[];
 }
 
 export interface ChatToolAuditRecord {
@@ -170,12 +175,29 @@ export function createGatedChatToolExecutor(
 
 		// §5.L: fold this call's output taint into the running window (opt-in) so a LATER protected-sink call in the same
 		// turn is gated against it. Accumulate-only; a tool that ran with no taint label leaves the window unchanged.
-		if (input.capabilityBrokerEnabled && executed && tool.taint && tool.taint.length > 0) {
-			accumulatedTaint = propagateTaint(accumulatedTaint, tool.taint);
+		const outputTaint = executed ? outputTaintForToolResult(tool, content, args) : [];
+		if (input.capabilityBrokerEnabled && outputTaint.length > 0) {
+			accumulatedTaint = propagateTaint(accumulatedTaint, outputTaint);
 		}
 
 		return { callId: call.id, content };
 	};
+}
+
+function outputTaintForToolResult(
+	tool: ChatTool,
+	content: string,
+	args: Record<string, unknown>,
+): readonly TaintLabel[] {
+	const staticTaint = tool.taint ?? [];
+	if (!tool.taintFromResult) {
+		return staticTaint;
+	}
+	try {
+		return propagateTaint(staticTaint, tool.taintFromResult(content, args));
+	} catch {
+		return staticTaint;
+	}
 }
 
 function egressTargetForTool(

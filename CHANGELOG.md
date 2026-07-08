@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Fetched chat web content now gets scanned for secret-shaped text before it can influence later actions** (todo §5.L).
+  The chat tool executor now supports content-derived taint labels in addition to static source labels, and both
+  `browse_url` and `web_search` scan their rendered output with the shared secret-pattern catalog. A fetched page or
+  search result that looks like it contains a credential now adds `secret_like` to the turn's taint window, so the
+  prompt-injection broker treats it as untrusted before any later host/protected sink.
 - **Chat web access now has its own network-attempt audit log** (todo §5.L). `browse_url` and `web_search` were already
   `egress_read` actions, denied in isolated chat and confirmation-gated in host-capable scopes. Each decision now also
   writes a dedicated `chat-audit/egress-attempts.jsonl` record with the tool, URL/search target, normalized URL host,

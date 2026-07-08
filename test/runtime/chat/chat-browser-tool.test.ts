@@ -110,6 +110,17 @@ describe("createBrowserTools — browse_url", () => {
 		expect(tools[0]?.taint).toEqual(["web"]);
 	});
 
+	it("§5.L: adds secret_like taint when the fetched page content looks credential-shaped", async () => {
+		const browser = fakeBrowser({
+			url: "https://example.com",
+			title: "Leak",
+			text: "token = 'ghp_0123456789abcdefghijABCDEFGHIJ'",
+		});
+		const tool = getBrowseTool(browser);
+		const out = await tool.run({ url: "https://example.com" });
+		expect(tool.taintFromResult?.(out, { url: "https://example.com" })).toEqual(["web", "secret_like"]);
+	});
+
 	it("returns the page title and text for a successful fetch", async () => {
 		const browser = fakeBrowser({ url: "https://example.com", title: "Example Domain", text: "Hello world." });
 		const out = await getBrowseTool(browser).run({ url: "https://example.com" });

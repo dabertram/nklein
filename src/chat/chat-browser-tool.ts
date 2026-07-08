@@ -2,6 +2,7 @@ import type { LookupAddress } from "node:dns";
 import { lookup as dnsLookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
 import { chromium } from "playwright";
+import { labelsForSourceContent } from "../core/taint-content-scan";
 import type { LocalLlmToolDefinition } from "../nklein-agent/nklein-local-llm-client";
 import type { ChatToolSet } from "./chat-board-tools";
 import type { ChatTool } from "./chat-tool-executor";
@@ -9,9 +10,9 @@ import type { ChatTool } from "./chat-tool-executor";
 /**
  * The `browse_url` tool for the chat agent (todo §5.M G6 — headless-browser capability). Navigates a URL with a
  * headless Playwright browser, extracts the rendered page's title and main text, and returns a compact, token-capped
- * summary the agent can reason about. This is a `host_command` action under the §5.M invariant: reaching the
- * internet is a host-level action, so the execution-mode gate **denies** it in the default `isolated_readonly` mode
- * and requires a **logged, explicit confirmation** in the host-capable modes — it is never run silently.
+ * summary the agent can reason about. This is an `egress_read` action under the §5.L invariant: reaching the
+ * internet is external egress, so the execution-mode gate **denies** it in the default `isolated_readonly` mode and
+ * requires a **logged, explicit confirmation** in the host-capable modes — it is never run silently.
  *
  * The browser implementation is injected via `BrowserDeps` so the tool is unit-testable without launching a real
  * browser. The default `BrowserDeps` drives `playwright/chromium` in headless mode.
@@ -319,6 +320,7 @@ export function createBrowserTools(options: BrowserToolOptions = {}): ChatToolSe
 			// §5.L: the fetched page is untrusted web content. When the capability broker is on, this taints the turn so a
 			// SUBSEQUENT protected-sink action (a host write/command) is refused — the fail-closed prompt-injection defense.
 			taint: ["web"],
+			taintFromResult: (content) => labelsForSourceContent("web", content),
 			run: async (args) => {
 				const validationError = validateUrl(args.url);
 				if (validationError !== null) {
@@ -359,7 +361,7 @@ export function createBrowserTools(options: BrowserToolOptions = {}): ChatToolSe
 		{
 			name: "browse_url",
 			description:
-				"Open a URL in a headless browser and return the page's title and readable text content. Use this to read documentation, look up information, or verify that a web page works as expected. Only http:// and https:// URLs are supported. This is a host action and requires confirmation.",
+				"Open a URL in a headless browser and return the page's title and readable text content. Use this to read documentation, look up information, or verify that a web page works as expected. Only http:// and https:// URLs are supported. This is an egress action and requires confirmation.",
 			parameters: {
 				type: "object",
 				properties: {
