@@ -5033,7 +5033,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           the model still won't emit is the constrained force-emit (`buildConstrainedToolCallSchema`) the justified rung.
 - [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
   - [x] Build phase (a) prompt: explicit "reason about which tool → explain decision" *(SHIPPED: nklein-prompt-variation.ts reason_then_act family)*
-  - [ ] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding
+  - [~] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding. *(◐ ORCHESTRATION TRANSFORM DONE
+        2026-07-08 — [reason-then-act.ts](src/core/reason-then-act.ts): the pure glue between the phases —
+        `extractDecidedTool(phaseAText, offeredToolNames)` infers which OFFERED tool phase (a)'s reasoning settled on
+        (last word-boundary mention wins — reasoning concludes with its choice; no substring false-positives like
+        write_file inside overwrite_files) + `buildReasonThenActPhaseB({instruction, phaseAReasoning, decidedToolName?})`
+        assembles phase (b)'s instruction (carries the reasoning forward + pins the decided tool so the constrained rung
+        emits exactly that call). 7 tests. REMAINING (runtime): drive the two model calls — phase (a) generate → phase
+        (b) constrained emit (`buildConstrainedToolCallSchema`) — at the model-call seam (needs the vendored afterModel/
+        re-invoke seam, shared with the other §5.AA rungs).)*
   - [ ] Wire into chat path + SWARM path seam (uses beforeModel nudge)
   - [ ] Test on phi-4-mini/phi-4-plus + deepseek-r1 (canonical ruminators)
   - [ ] Verify it can convert reasoning-only models into tool-calling models (phi flip goal)
