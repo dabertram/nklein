@@ -1,4 +1,6 @@
+import type { ChatToolSet } from "../chat/chat-board-tools";
 import type { ChatService } from "../chat/chat-service";
+import type { ChatSession } from "../chat/chat-session-store";
 import type { RuntimeConfigState } from "../config/runtime-config";
 import type {
 	RuntimeAgentSandboxStatus,
@@ -24,6 +26,11 @@ export interface CreateRuntimeApiDependencies {
 	getScopedTerminalManager: (scope: RuntimeTrpcWorkspaceScope) => Promise<TerminalSessionManager>;
 	getScopedNKleinTaskSessionService: (scope: RuntimeTrpcWorkspaceScope) => Promise<NKleinTaskSessionService>;
 	getLoadedScopedNKleinTaskSessionService?: (scope: RuntimeTrpcWorkspaceScope) => NKleinTaskSessionService | null;
+	/**
+	 * Docker-backed read tools for isolated chat scopes. Optional by design: if absent, isolated read-only sessions
+	 * fail closed and receive no workspace filesystem tools rather than falling back to host reads.
+	 */
+	getSandboxWorkspaceReadTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
 	resolveInteractiveShellCommand: () => { binary: string; args: string[] };
 	runCommand: (command: string, cwd: string) => Promise<RuntimeCommandRunResponse>;
 	broadcastNKleinMcpAuthStatusesUpdated?: (

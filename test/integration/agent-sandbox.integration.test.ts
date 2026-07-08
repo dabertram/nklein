@@ -3,7 +3,11 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ToolExecutors } from "@cline/sdk";
 import { describe, expect, it, vi } from "vitest";
-
+import {
+	createAgentSandboxChatWorkspaceProvider,
+	createSandboxWorkspaceReadTools,
+} from "../../src/chat/chat-sandbox-workspace-tools";
+import type { ChatSession } from "../../src/chat/chat-session-store";
 import {
 	AGENT_SANDBOX_CONTAINER_LABEL,
 	AGENT_SANDBOX_VOLUME_PREFIX,
@@ -78,6 +82,35 @@ function createCommittedRepo(sandboxRoot: string): string {
 	runGit(repoPath, ["add", "README.md"]);
 	runGit(repoPath, ["commit", "-m", "init"]);
 	return repoPath;
+}
+
+function createChatSession(id: string): ChatSession {
+	return {
+		schemaVersion: 1,
+		id,
+		title: "Docker chat read test",
+		scope: "chat_only",
+		role: "planner_architect",
+		goal: null,
+		riskAcknowledged: false,
+		browserEnabled: false,
+		feedbackMuted: false,
+		ownedWorkspaceId: null,
+		focus: null,
+		outstandingAsks: [],
+		selectedSkillIds: [],
+		totalTokensUsed: 0,
+		createdAt: 1,
+		updatedAt: 1,
+	};
+}
+
+function chatTool(tools: ReturnType<typeof createSandboxWorkspaceReadTools>["tools"], name: string) {
+	const found = tools.find((candidate) => candidate.name === name);
+	if (!found) {
+		throw new Error(`chat tool ${name} not found`);
+	}
+	return found;
 }
 
 function dockerOutput(args: string[]): string {
@@ -301,6 +334,47 @@ if (dockerGate.ready) {
 				await manager.stopNow();
 				cleanup();
 			}
+		}, 60_000);
+
+		it("backs chat workspace read tools with a Docker sandbox workspace", async () => {
+			await withTemporaryHome(async () => {
+				const { path: sandboxRoot, cleanup } = createTempDir("kanban-chat-sandbox-read-");
+				const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+				const manager = new AgentSandboxManager({
+					image: dockerGate.image,
+					poolConfig: {
+						maxContainers: 1,
+						agentsPerContainer: 1,
+						idleTimeoutMs: 100,
+						namespace: `chatread-${suffix}`,
+					},
+					networkPolicy: "none",
+				});
+				try {
+					const repoPath = createCommittedRepo(sandboxRoot);
+					const toolSet = createSandboxWorkspaceReadTools({
+						session: createChatSession(`docker-read-${suffix}`),
+						workspacePath: repoPath,
+						provider: createAgentSandboxChatWorkspaceProvider(manager),
+						maxBytes: 3,
+					});
+
+					const read = await chatTool(toolSet.tools, "read_file").run({ path: "README.md" });
+					expect(read).toContain("hel");
+					expect(read).toContain("truncated: README.md");
+					expect(read).not.toContain(repoPath);
+
+					const list = await chatTool(toolSet.tools, "list_dir").run({});
+					expect(list).toContain("README.md");
+					expect(list).not.toContain(repoPath);
+
+					const absolute = await chatTool(toolSet.tools, "read_file").run({ path: "/etc/passwd" });
+					expect(absolute).toContain("workspace-relative");
+				} finally {
+					await manager.stopNow();
+					cleanup();
+				}
+			});
 		}, 60_000);
 	});
 } else {

@@ -26,6 +26,18 @@ export function buildAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): 
 	};
 }
 
+/**
+ * Chat read sandboxes use the same sizing knobs as task sandboxes, but a distinct pool namespace so a read-only chat
+ * turn cannot collide with card-execution containers that use the default slot names.
+ */
+export function buildChatAgentSandboxPoolConfig(runtimeConfig: RuntimeConfigState): AgentSandboxPoolConfig {
+	const base = buildAgentSandboxPoolConfig(runtimeConfig);
+	return {
+		...base,
+		namespace: base.namespace ? `${base.namespace}-chat` : "chat",
+	};
+}
+
 /** The initial "checking" sandbox status, before docker/image availability has been probed. */
 export function createCheckingAgentSandboxStatus(): RuntimeAgentSandboxStatus {
 	return {

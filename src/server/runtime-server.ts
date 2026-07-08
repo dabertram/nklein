@@ -4,6 +4,10 @@ import { createServer as createHttpsServer } from "node:https";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
+import {
+	createAgentSandboxChatWorkspaceProvider,
+	createSandboxWorkspaceReadTools,
+} from "../chat/chat-sandbox-workspace-tools";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "../config/runtime-config";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { buildTransitionEvent } from "../core/agent-attempt-ledger";
@@ -119,7 +123,11 @@ import {
 } from "../workspace/task-result-branches";
 import { mergeTaskWorktreesInDependencyOrder } from "../workspace/task-worktree-auto-merge";
 import { acceptancePresentAndFailed } from "./acceptance-waiver-decision";
-import { buildAgentSandboxPoolConfig, createCheckingAgentSandboxStatus } from "./agent-sandbox-runtime-config";
+import {
+	buildAgentSandboxPoolConfig,
+	buildChatAgentSandboxPoolConfig,
+	createCheckingAgentSandboxStatus,
+} from "./agent-sandbox-runtime-config";
 import { getWebUiDir, normalizeRequestPath, readAsset } from "./assets";
 import { decideAutoReviewCardAction, selectHeadlessAutoReviewReconcileCandidates } from "./auto-review-card-decision";
 import { createDurableRunWiring, type DurableRunWiring } from "./durable-run-wiring";
@@ -273,6 +281,45 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	const getScopedTerminalManager = async (scope: RuntimeTrpcWorkspaceScope): Promise<TerminalSessionManager> =>
 		await deps.ensureTerminalManagerForWorkspace(scope.workspaceId, scope.workspacePath);
 	const nkleinTaskSessionServiceByWorkspaceId = new Map<string, NKleinTaskSessionService>();
+	const chatSandboxManagerByWorkspaceKey = new Map<string, AgentSandboxManager>();
+	const chatSandboxWorkspaceKey = (workspacePath: string): string => {
+		const activeWorkspaceId = deps.workspaceRegistry.getActiveWorkspaceId();
+		const activeWorkspacePath = deps.workspaceRegistry.getActiveWorkspacePath();
+		if (activeWorkspaceId && activeWorkspacePath === workspacePath) {
+			return `workspace:${activeWorkspaceId}`;
+		}
+		return `path:${hashWorkspacePathForLedger(workspacePath)}`;
+	};
+	const getChatSandboxManager = async (workspacePath: string): Promise<AgentSandboxManager> => {
+		const key = chatSandboxWorkspaceKey(workspacePath);
+		const runtimeConfig = await loadRuntimeConfig(workspacePath);
+		const poolConfig = buildChatAgentSandboxPoolConfig(runtimeConfig);
+		let manager = chatSandboxManagerByWorkspaceKey.get(key);
+		if (!manager) {
+			manager = new AgentSandboxManager({
+				poolConfig,
+				// Chat read tools need no network; keep the enforcement sandbox stricter than general task runs.
+				networkPolicy: "none",
+			});
+			chatSandboxManagerByWorkspaceKey.set(key, manager);
+			return manager;
+		}
+		await manager.updatePoolConfig(poolConfig);
+		return manager;
+	};
+	const stopChatSandboxManagerByKey = async (key: string): Promise<void> => {
+		const manager = chatSandboxManagerByWorkspaceKey.get(key);
+		if (!manager) {
+			return;
+		}
+		chatSandboxManagerByWorkspaceKey.delete(key);
+		await manager.stopNow().catch(() => null);
+	};
+	const stopAllChatSandboxManagers = async (): Promise<void> => {
+		const managers = [...chatSandboxManagerByWorkspaceKey.values()];
+		chatSandboxManagerByWorkspaceKey.clear();
+		await Promise.all(managers.map(async (manager) => manager.stopNow().catch(() => null)));
+	};
 	// C3 (§5.AF): the durable-run wiring drives starts for a workspace with an active run when NKLEIN_DURABLE_SCHEDULER is
 	// set (default OFF ⇒ inert / byte-identical). `scopeByWorkspaceId` lets the controller's `startCard` port re-enter the
 	// start path from a timer/summary callback that has no scope in closure. `durableRunWiring` is assigned once
@@ -1909,6 +1956,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		return service;
 	};
 	const disposeNKleinTaskSessionServiceAsync = async (workspaceId: string): Promise<void> => {
+		await stopChatSandboxManagerByKey(`workspace:${workspaceId}`);
 		const service = nkleinTaskSessionServiceByWorkspaceId.get(workspaceId);
 		if (!service) {
 			return;
@@ -1972,6 +2020,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				stopTerminalSessions: true,
 			});
 		}
+		await stopAllChatSandboxManagers();
 		deps.workspaceRegistry.clearActiveWorkspace();
 	};
 
@@ -1985,6 +2034,23 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		getScopedNKleinTaskSessionService,
 		getLoadedScopedNKleinTaskSessionService: (workspaceScope) =>
 			nkleinTaskSessionServiceByWorkspaceId.get(workspaceScope.workspaceId) ?? null,
+		getSandboxWorkspaceReadTools: async (session, workspacePath) => {
+			if (agentSandboxStatus.state !== "ready") {
+				return null;
+			}
+			try {
+				const manager = await getChatSandboxManager(workspacePath);
+				return createSandboxWorkspaceReadTools({
+					session,
+					workspacePath,
+					provider: createAgentSandboxChatWorkspaceProvider(manager),
+				});
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				deps.warn(`Chat sandbox read tools unavailable: ${message}`);
+				return null;
+			}
+		},
 		resolveInteractiveShellCommand: deps.resolveInteractiveShellCommand,
 		runCommand: deps.runCommand,
 		broadcastNKleinMcpAuthStatusesUpdated: deps.runtimeStateHub.broadcastNKleinMcpAuthStatusesUpdated,
@@ -2339,6 +2405,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				}),
 			);
 			nkleinTaskSessionServiceByWorkspaceId.clear();
+			await stopAllChatSandboxManagers();
 			await nkleinWatcherRegistry.close();
 			await deps.runtimeStateHub.close();
 			await terminalWebSocketBridge.close();

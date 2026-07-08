@@ -2145,13 +2145,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           to grow RO-workspace + opt-in-RW-mount support + a Docker-healthy host to verify; a pure path-authorization
           decider built BEFORE those mounts exist would be dead code by construction, like the §5.M modality gate at
           L2100. Lands with the sandbox-mount infra change, not as a standalone pure leaf.)* **PARTIAL 2026-07-08: the
-          resolver now fails closed for isolated read-only scopes — `chat_only`/`klein_self` no longer receive
-          host-backed `read_file`/`list_dir` tools unless an explicit sandbox read-tool provider is injected. Regression:
-          `test/runtime/trpc/chat-agent-tool-deps-resolver.test.ts`.**
+          resolver now fails closed for isolated read-only scopes, and the runtime injects Docker-backed
+          `read_file`/`list_dir` tools when the sandbox is healthy. `chat_only`/`klein_self` never receive host-backed
+          filesystem tools under the `sandbox_read` label; unavailable Docker means no workspace FS tools. Regressions:
+          `test/runtime/trpc/chat-agent-tool-deps-resolver.test.ts`,
+          `test/runtime/chat/chat-sandbox-workspace-tools.test.ts`, and
+          `test/integration/agent-sandbox.integration.test.ts`.**
       - [x] Fail-closed resolver seam: isolated read-only scopes cannot silently relabel host filesystem reads as
             `sandbox_read`; host-capable project scopes keep their existing toolset.
-      - [ ] Docker-backed chat workspace provider: inject real sandbox `read_file`/`list_dir` tools for isolated scopes,
-            then add opt-in user-mounted write-path support + live Docker verification.
+      - [~] Docker-backed chat workspace provider + opt-in write mounts:
+        - [x] Inject real Docker-backed sandbox `read_file`/`list_dir` tools for isolated scopes; use a chat-specific
+              sandbox pool namespace with network disabled; live-verified through the Docker-gated sandbox integration.
+        - [ ] Add opt-in user-mounted write-path support: agent-sandbox mount setup must support a read-only workspace
+              plus user-approved read-write bind paths, then expose `write_file` only through the §5.M confirmation gate.
     - [x] (b) the double-confirmed per-action host escape hatch UI + execution *(⏸ NEEDS-DAVID (UX design) — the shipped consent model is already FAIL-CLOSED (SAFE commands auto-approve via the allowlist classifier; UNSAFE require the explicit session 'Allow unsafe commands' toggle; browser tools require browserEnabled; else deny — every decision audited). A per-action double-confirm dialog is a finer-grained consent UX REDESIGN (how does a modal interrupt a streaming turn?) — David's call, no security gap today)*
     - [x] (c) the typed host-mode phrase + audit log *(⏸ NEEDS-DAVID (UX design) — same cluster: the audit log EXISTS (chat-host-action-audit-store records every allow AND deny); the typed-phrase ceremony is consent-UX design on top of the fail-closed baseline)*
 - [~] **Memory — human-like short/long-term** (reuse the in-process embedder)

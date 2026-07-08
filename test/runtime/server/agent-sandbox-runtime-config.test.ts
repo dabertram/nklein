@@ -4,6 +4,7 @@ import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import { resolveAgentSandboxImageName } from "../../../src/nklein-agent/nklein-agent-sandbox";
 import {
 	buildAgentSandboxPoolConfig,
+	buildChatAgentSandboxPoolConfig,
 	createCheckingAgentSandboxStatus,
 } from "../../../src/server/agent-sandbox-runtime-config";
 
@@ -36,6 +37,40 @@ describe("buildAgentSandboxPoolConfig", () => {
 	it("converts the idle timeout from minutes to milliseconds", () => {
 		expect(buildAgentSandboxPoolConfig(config({ sandboxIdleTimeoutMinutes: 0 })).idleTimeoutMs).toBe(0);
 		expect(buildAgentSandboxPoolConfig(config({ sandboxIdleTimeoutMinutes: 10 })).idleTimeoutMs).toBe(600_000);
+	});
+});
+
+describe("buildChatAgentSandboxPoolConfig", () => {
+	it("uses a chat-specific namespace so chat read sandboxes do not collide with task sandboxes", () => {
+		const previous = process.env.NKLEIN_SANDBOX_NAMESPACE;
+		delete process.env.NKLEIN_SANDBOX_NAMESPACE;
+		try {
+			expect(buildChatAgentSandboxPoolConfig(config({}))).toMatchObject({
+				maxContainers: 2,
+				agentsPerContainer: 3,
+				namespace: "chat",
+			});
+		} finally {
+			if (previous === undefined) {
+				delete process.env.NKLEIN_SANDBOX_NAMESPACE;
+			} else {
+				process.env.NKLEIN_SANDBOX_NAMESPACE = previous;
+			}
+		}
+	});
+
+	it("preserves a per-process namespace while separating the chat pool", () => {
+		const previous = process.env.NKLEIN_SANDBOX_NAMESPACE;
+		process.env.NKLEIN_SANDBOX_NAMESPACE = "worker-1";
+		try {
+			expect(buildChatAgentSandboxPoolConfig(config({})).namespace).toBe("worker-1-chat");
+		} finally {
+			if (previous === undefined) {
+				delete process.env.NKLEIN_SANDBOX_NAMESPACE;
+			} else {
+				process.env.NKLEIN_SANDBOX_NAMESPACE = previous;
+			}
+		}
 	});
 });
 
