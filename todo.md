@@ -6505,7 +6505,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `test/runtime/chat/web-search-browse-integration.test.ts`: a URL from web_search's rendered output feeds
         browse_url verbatim and the page content returns (deterministic fakes at both capability seams), plus both
         tools proven to share the egress_read/web-taint class so one §5.L gate governs the whole flow. 2 tests.)*
-- [ ] **Retrieval loop (query → search → fetch → extract → synthesize → CITE), decomposed:**
+- [~] **Retrieval loop (query → search → fetch → extract → synthesize → CITE), decomposed:** *(the loop is COMPLETE
+      end-to-end — query-plan [x], the loop driver (retrieval-loop-driver.ts) + rerank + freshness ranking + the cited-
+      synthesis adapter are all built and the synthesis was REAL-MODEL-VALIDATED against the loaded 27B (clean
+      {claim,cite[]} → cited answer with [n] markers), and citation-freshness [x]. The only sub-leaf still open is
+      recording retrieval attempts/citations into §6.7 telemetry [~] (and the §5.AF retrieval ledger event landed
+      2026-07-08). Reclassified [ ]→[~] 2026-07-08.)*
   *(REFERENCE 2026-06-29: `llmaker` (Apache-2.0, https://github.com/raiyanyahya/llmaker) runs the explicit
   `rewrite → retrieve → RERANK → generate` RAG DAG — borrow the **rerank** step (rank fetched hits by relevance before
   synthesis) and its **SearXNG self-hosted search** (validates the §5.AC `web_search` SearxNG backend choice). Do NOT
