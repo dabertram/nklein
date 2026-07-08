@@ -265,6 +265,11 @@ export function RuntimeSettingsDialog({
 		swarmGuardrailsToInputs(DEFAULT_RUNTIME_SWARM_GUARDRAILS),
 	);
 	const [developerModeEnabled, setDeveloperModeEnabled] = useState(false);
+	// Desktop-only "start on boot" — an IMMEDIATE OS action via the Electron bridge (NOT part of the config draft/save
+	// flow). `undefined` in a plain browser, so the whole toggle is hidden there.
+	const desktopBridge = typeof window !== "undefined" ? window.desktop : undefined;
+	const [autostartEnabled, setAutostartEnabled] = useState(false);
+	const [autostartBusy, setAutostartBusy] = useState(false);
 	const [replayCardsEnabled, setReplayCardsEnabled] = useState(false);
 	const [knowsTodayEnabled, setKnowsTodayEnabled] = useState(false);
 	// §5.AC online-retrieval egress (web_search) — OFF by default (fail closed); needs a SearXNG backend URL.
@@ -365,6 +370,7 @@ export function RuntimeSettingsDialog({
 		selectedPromptVariant === "commit" ? "Commit prompt template" : "PR prompt template";
 	const bypassPermissionsCheckboxId = "runtime-settings-bypass-permissions";
 	const developerModeCheckboxId = "runtime-settings-developer-mode";
+	const autostartCheckboxId = "runtime-settings-autostart";
 	const replayCardsCheckboxId = "runtime-settings-replay-cards";
 	const knowsTodayCheckboxId = "runtime-settings-knows-today";
 	const retrievalEgressCheckboxId = "runtime-settings-retrieval-egress";
@@ -436,6 +442,41 @@ export function RuntimeSettingsDialog({
 	useEffect(() => {
 		loadingModelRoleProviderIdsRef.current = loadingModelRoleProviderIds;
 	}, [loadingModelRoleProviderIds]);
+
+	// Read the live start-on-boot state from the desktop app each time the dialog opens (the OS is the store).
+	useEffect(() => {
+		if (!open || !desktopBridge) {
+			return;
+		}
+		let cancelled = false;
+		desktopBridge
+			.getAutostart()
+			.then((enabled) => {
+				if (!cancelled) setAutostartEnabled(enabled);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [open, desktopBridge]);
+
+	const handleAutostartChange = useCallback(
+		(next: boolean) => {
+			if (!desktopBridge) {
+				return;
+			}
+			setAutostartEnabled(next); // optimistic
+			setAutostartBusy(true);
+			desktopBridge
+				.setAutostart(next)
+				.then((result) => {
+					if (!result.ok) setAutostartEnabled((prev) => !prev); // revert on failure
+				})
+				.catch(() => setAutostartEnabled((prev) => !prev))
+				.finally(() => setAutostartBusy(false));
+		},
+		[desktopBridge],
+	);
 
 	const configuredAgentId = config?.selectedAgentId ?? null;
 	const fallbackAgentId = cloudProviderSupportEnabled ? (configuredAgentId ?? "nklein") : "nklein";
@@ -1666,6 +1707,34 @@ export function RuntimeSettingsDialog({
 								state.
 							</p>
 						</div>
+
+						{/* Desktop-only: start !Klein on boot. An IMMEDIATE OS action via the Electron bridge (hidden in a browser). */}
+						{desktopBridge ? (
+							<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+								<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-1">
+									Start on boot
+								</h6>
+								<label
+									htmlFor={autostartCheckboxId}
+									className="flex items-center gap-2 text-[13px] text-text-primary mt-2 cursor-pointer"
+								>
+									<RadixSwitch.Root
+										id={autostartCheckboxId}
+										checked={autostartEnabled}
+										disabled={autostartBusy}
+										onCheckedChange={handleAutostartChange}
+										className="relative h-5 w-9 shrink-0 cursor-pointer rounded-full bg-surface-4 data-[state=checked]:bg-accent disabled:opacity-40"
+									>
+										<RadixSwitch.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+									</RadixSwitch.Root>
+									<span>Launch !Klein automatically when you log in</span>
+								</label>
+								<p className="text-text-secondary text-[13px] ml-11 mt-0 mb-0">
+									Registers a login item (macOS/Windows) or an autostart entry (Linux). Takes effect on your
+									next login.
+								</p>
+							</div>
+						) : null}
 
 						{/* §5.BA guided-setup re-trigger (GLOBAL). The per-project wizard lives in the Project section below. */}
 						{onRunGlobalSetupWizard ? (
