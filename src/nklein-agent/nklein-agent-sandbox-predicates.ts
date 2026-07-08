@@ -22,7 +22,11 @@ export function escapeRegExp(value: string): string {
 
 /** True when the volume name is one of !Klein's per-task agent workspace volumes (`<prefix>-<digits>`). */
 export function isAgentSandboxWorkspaceVolumeName(volumeName: string): boolean {
-	return new RegExp(`^${escapeRegExp(AGENT_SANDBOX_VOLUME_PREFIX)}-\\d+$`).test(volumeName);
+	// Matches BOTH shapes `createAgentSandboxVolumeName` produces: `<prefix>-<slot>` (no namespace) AND
+	// `<prefix>-<namespace>-<slot>` (the live pool always namespaces). LIVE-FOUND 2026-07-08: the old digits-only
+	// pattern never matched a namespaced volume, so the orphan reaper silently reaped ZERO volumes and stale
+	// workspaces accumulated across runs (7 found) — the stale-state class behind the dschinn Docker errors.
+	return new RegExp(`^${escapeRegExp(AGENT_SANDBOX_VOLUME_PREFIX)}-(?:[A-Za-z0-9_.-]+-)?\\d+$`).test(volumeName);
 }
 
 /** Structural guard: the value looks like a docker exec result (has exitCode / stdout / stderr). */

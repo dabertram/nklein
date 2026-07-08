@@ -7854,7 +7854,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] Check hypothesis: image/tag mismatch (`nklein/agent-sandbox:0.0.1` present?). *(✅ REFUTED 2026-07-08:
         `docker images` shows nklein/agent-sandbox:0.0.1 present (1.8GB); today's live sandbox runs (decompose/promote
         harnesses) all created containers fine.)*
-  - [ ] Check hypothesis: stale container/volume from a prior crashed run.
+  - [x] Check hypothesis: stale container/volume from a prior crashed run. *(✅ CONFIRMED + ROOT-FIXED 2026-07-08:
+        `docker volume ls` showed 7 orphaned `nklein-agent-ws-*` workspace volumes with ZERO containers — because
+        `isAgentSandboxWorkspaceVolumeName` only matched the namespace-LESS `<prefix>-<digits>` shape while the live
+        pool always creates NAMESPACED `<prefix>-<ns>-<slot>` names, so the orphan reaper silently reaped nothing,
+        ever. Stale volumes re-keyed by a later run carry stale workspace state — the exact Docker-error class the
+        dschinn report describes. Predicate fixed (both shapes; foreign names still rejected) + 2 regression tests
+        with the REAL observed names; 2082 agent-suite tests green.)*
   - [x] Check hypothesis: host-path leakage into the sandbox (verify AGENTS.md constraint). *(✅ REFUTED for the
         current code: the §5.A isolation harnesses (verify-decompose-isolation + today's chained run) scan every
         agent emission for host paths — NONE leaked; the evidence handler no longer creates host worktrees at all
@@ -7864,8 +7870,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `.catch(() => null)` / workspace-changes `.catch(() => null)`) and renders whatever exists — no throw path on
         missing artifacts remains. The reported breakage predates the §5.A worktree retirement + §5.BD rebound fixes
         that REWROTE this path; live confirmation on a fresh dschinn run rides the sweep phase.)*
-  - [ ] Fix root cause.
-  - [ ] Add focused regression test once root-caused.
+  - [~] Fix root cause. *(◐ the reaper-predicate root cause is FIXED (above); whether a second, independent cause
+        exists in a fresh dschinn run is what the sweep-phase live repro confirms.)*
+  - [x] Add focused regression test once root-caused. *(✅ 2 regression tests pinning the REAL namespaced volume
+        names + foreign-name rejection.)*
 - [ ] **Rework the dev-test-start layout — unify the two start paths (handoff 2026-06-28).** There are currently **two
       distinct dev-test start paths** (the UI `DevTestRegistryPicker` → `projects.createDevTestProject` + the CLI/script
       `createDevTestProject` + `startTaskSession`, plus the §5.B start-lane machinery). Unify them onto **one** start path

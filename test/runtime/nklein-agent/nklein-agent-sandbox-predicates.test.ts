@@ -57,3 +57,19 @@ describe("isAgentSandboxExecResult (§5.U extraction)", () => {
 		expect(isAgentSandboxExecResult({ exitCode: 0, stdout: "" })).toBe(false);
 	});
 });
+
+describe("isAgentSandboxWorkspaceVolumeName — NAMESPACED pool volumes (live-found orphan-reaper gap)", () => {
+	it("matches the REAL namespaced volume shape the pool creates (createAgentSandboxVolumeName(slot, ns))", () => {
+		// Live `docker volume ls` names that the old digits-only predicate silently never matched — so the orphan
+		// reaper reaped ZERO volumes and stale workspaces accumulated (7 found on 2026-07-08).
+		expect(isAgentSandboxWorkspaceVolumeName("nklein-agent-ws-bmmp-1")).toBe(true);
+		expect(isAgentSandboxWorkspaceVolumeName("nklein-agent-ws-t74739577122c-1")).toBe(true);
+		expect(isAgentSandboxWorkspaceVolumeName("nklein-agent-ws-3")).toBe(true); // namespace-less shape still matches
+	});
+
+	it("still rejects foreign volumes", () => {
+		expect(isAgentSandboxWorkspaceVolumeName("someones-other-volume")).toBe(false);
+		expect(isAgentSandboxWorkspaceVolumeName("nklein-agent-ws-")).toBe(false);
+		expect(isAgentSandboxWorkspaceVolumeName("nklein-agent-ws-noslot")).toBe(false);
+	});
+});
