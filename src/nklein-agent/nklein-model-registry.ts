@@ -4,11 +4,7 @@ import { dirname, join } from "node:path";
 import { resolveNkleinRuntimeHomePath } from "../config/runtime-paths";
 import { normalizePositiveInteger, normalizePositiveNumber } from "../core/normalize-number";
 import { lockedFileSystem } from "../fs/locked-file-system";
-import {
-	createNKleinModelRegistryEntry,
-	normalizeSnapshot,
-	registryEntryObservationCount,
-} from "./nklein-model-registry-deserialize";
+import { createNKleinModelRegistryEntry, normalizeSnapshot } from "./nklein-model-registry-deserialize";
 import { buildNKleinModelRegistryKey } from "./nklein-model-registry-key";
 import { normalizeScore } from "./nklein-model-registry-normalizers";
 import { calculateEffectiveCapability, calculateEffectiveContextWindow, ewma } from "./nklein-model-registry-scoring";

@@ -14,9 +14,10 @@
  *
  *   INPUT  : { name_pattern: string; label?: string; file_pattern?: string; project?: string; limit?: number;
  *              offset?: number }
- *   RESULT : an array of nodes, either bare (`[…]`) or wrapped (`{ results: […] }` / `{ nodes: […] }`), each node
+ *   RESULT : an array of nodes, either bare (`[…]`), wrapped (`{ results: […] }` / `{ nodes: […] }`), or returned
+ *            through the standard MCP `content: [{ type: "text", text: "{...json...}" }]` envelope; each node
  *            (best-effort, any subset present):
- *              { name?: string; label?: string; qualified_name?: string; file?: string;
+ *              { name?: string; label?: string; qualified_name?: string; file?: string; file_path?: string;
  *                start_line?: number; end_line?: number; score?: number }
  *
  * Result field → {@link LocalizationHit}:
@@ -67,17 +68,21 @@ function asNonEmptyString(value: unknown): string | undefined {
 	return trimmed.length > 0 ? trimmed : undefined;
 }
 
-/**
- * Extract the node array from a `search_graph` result, tolerating the undocumented envelope: a bare array, or a wrapper
- * object under a `results` / `nodes` / `data` key. Anything else → `[]` (never throws).
- */
-function extractNodes(result: unknown): readonly unknown[] {
+function parseJsonObject(text: string): unknown {
+	try {
+		return JSON.parse(text) as unknown;
+	} catch {
+		return undefined;
+	}
+}
+
+function extractNodeArray(result: unknown): readonly unknown[] | undefined {
 	if (Array.isArray(result)) {
 		return result;
 	}
 	const record = asRecord(result);
 	if (record === undefined) {
-		return [];
+		return undefined;
 	}
 	for (const key of ["results", "nodes", "data", "hits"] as const) {
 		const candidate = record[key];
@@ -85,6 +90,45 @@ function extractNodes(result: unknown): readonly unknown[] {
 			return candidate;
 		}
 	}
+	return undefined;
+}
+
+/**
+ * Extract the node array from a `search_graph` result, tolerating the undocumented envelope: a bare array, a wrapper
+ * object under a `results` / `nodes` / `data` key, a structured-content wrapper, or the standard MCP text-content
+ * envelope returned by the real SDK client. Anything else → `[]` (never throws).
+ */
+function extractNodes(result: unknown): readonly unknown[] {
+	const direct = extractNodeArray(result);
+	if (direct !== undefined) {
+		return direct;
+	}
+
+	const record = asRecord(result);
+	if (record === undefined) {
+		return [];
+	}
+
+	const structured = extractNodeArray(record.structuredContent);
+	if (structured !== undefined) {
+		return structured;
+	}
+
+	const content = record.content;
+	if (Array.isArray(content)) {
+		for (const part of content) {
+			const text = asNonEmptyString(asRecord(part)?.text);
+			if (text === undefined) {
+				continue;
+			}
+			const parsed = parseJsonObject(text);
+			const parsedNodes = extractNodeArray(parsed);
+			if (parsedNodes !== undefined) {
+				return parsedNodes;
+			}
+		}
+	}
+
 	return [];
 }
 

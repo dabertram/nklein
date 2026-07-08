@@ -18,17 +18,21 @@
  */
 
 import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { resolveAgentSandboxImageName } from "../src/nklein-agent/nklein-agent-sandbox-docker";
 import { basicMemoryHardeningEnv } from "../src/core/basic-memory-scoping";
+import { createMcpLocalizationProvider } from "../src/core/mcp-localization-provider";
 import {
 	buildSandboxMcpDockerExecArgs,
 	filterEnabledSandboxServers,
 	listAvailableSandboxMcpServers,
 	selectSandboxMcpServersForModel,
 } from "../src/core/sandbox-mcp-catalog";
+import { resolveAgentSandboxImageName } from "../src/nklein-agent/nklein-agent-sandbox-docker";
 
 const exec = promisify(execFile);
 const CONTAINER = "nklein-verify-sandbox-mcp";
@@ -48,6 +52,108 @@ async function listToolsOverDockerExec(argv: readonly string[], env?: Record<str
 	const listed = (await client.listTools()).tools.map((t) => t.name);
 	await client.close();
 	return listed;
+}
+
+async function callToolOverDockerExec(
+	argv: readonly string[],
+	toolName: string,
+	toolArgs: Record<string, unknown>,
+	env?: Record<string, string>,
+): Promise<unknown> {
+	const args = buildSandboxMcpDockerExecArgs({ containerName: CONTAINER, uid: 0, workdir: "/workspaces" }, argv, env);
+	const transport = new StdioClientTransport({ command: "docker", args, stderr: "ignore" });
+	const client = new Client({ name: "klein-verify-sandbox-mcp", version: "0" }, { capabilities: {} });
+	await client.connect(transport);
+	try {
+		return await client.callTool({ name: toolName, arguments: toolArgs });
+	} finally {
+		await client.close();
+	}
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function parseJsonText(text: string): unknown {
+	try {
+		return JSON.parse(text) as unknown;
+	} catch {
+		return undefined;
+	}
+}
+
+function unwrapMcpJson(result: unknown): unknown {
+	const record = asRecord(result);
+	if (record === undefined) {
+		return result;
+	}
+	if (record.structuredContent !== undefined) {
+		return record.structuredContent;
+	}
+	const content = record.content;
+	if (Array.isArray(content)) {
+		for (const part of content) {
+			const text = asRecord(part)?.text;
+			if (typeof text !== "string" || text.trim().length === 0) {
+				continue;
+			}
+			const parsed = parseJsonText(text);
+			if (parsed !== undefined) {
+				return parsed;
+			}
+		}
+	}
+	return result;
+}
+
+function indexedProjectName(listProjectsResult: unknown, rootPath: string): string {
+	const payload = asRecord(unwrapMcpJson(listProjectsResult));
+	const projects = payload?.projects;
+	if (!Array.isArray(projects)) {
+		throw new Error("codebase-memory list_projects did not return a projects array");
+	}
+	for (const project of projects) {
+		const record = asRecord(project);
+		if (record?.root_path === rootPath && typeof record.name === "string" && record.name.trim().length > 0) {
+			return record.name;
+		}
+	}
+	throw new Error(`codebase-memory did not report indexed project for ${rootPath}`);
+}
+
+async function copyFixtureRepoIntoContainer(): Promise<string> {
+	const fixture = await mkdtemp(join(tmpdir(), "nklein-cbm-schema-"));
+	try {
+		await mkdir(join(fixture, "src"), { recursive: true });
+		await writeFile(
+			join(fixture, "src", "server.ts"),
+			[
+				"export function handleRequest(input: string): string {",
+				"\treturn input.trim().toUpperCase();",
+				"}",
+				"",
+			].join("\n"),
+		);
+		await writeFile(
+			join(fixture, "src", "app.ts"),
+			[
+				'import { handleRequest } from "./server";',
+				"export function run(): string {",
+				'\treturn handleRequest(" ok ");',
+				"}",
+				"",
+			].join("\n"),
+		);
+		await exec("docker", ["exec", CONTAINER, "rm", "-rf", "/workspaces/cbm-schema-probe"]);
+		await exec("docker", ["exec", CONTAINER, "mkdir", "-p", "/workspaces/cbm-schema-probe"]);
+		await exec("docker", ["cp", `${fixture}/.`, `${CONTAINER}:/workspaces/cbm-schema-probe`]);
+		return "/workspaces/cbm-schema-probe";
+	} finally {
+		await rm(fixture, { recursive: true, force: true });
+	}
 }
 
 async function main(): Promise<void> {
@@ -88,6 +194,25 @@ async function main(): Promise<void> {
 	if (!cbmTools.includes("search_graph")) {
 		throw new Error(`codebase-memory search_graph not found in [${cbmTools.join(", ")}]`);
 	}
+	const cbmRepoPath = await copyFixtureRepoIntoContainer();
+	await callToolOverDockerExec(["codebase-memory-mcp"], "index_repository", {
+		repo_path: cbmRepoPath,
+		mode: "fast",
+	});
+	const cbmProject = indexedProjectName(await callToolOverDockerExec(["codebase-memory-mcp"], "list_projects", {}), cbmRepoPath);
+	const cbmProvider = createMcpLocalizationProvider(
+		(toolName, args) => callToolOverDockerExec(["codebase-memory-mcp"], toolName, args),
+		{ project: cbmProject },
+	);
+	const cbmHits = await cbmProvider.localize({ query: ".*handleRequest.*", maxHits: 5 });
+	log(
+		`codebase-memory schema probe => [${cbmHits
+			.map((hit) => `${hit.file}${hit.symbol ? `:${hit.symbol}` : ""}`)
+			.join(", ")}]`,
+	);
+	if (!cbmHits.some((hit) => hit.file === "src/server.ts" && hit.symbol === "handleRequest")) {
+		throw new Error("codebase-memory search_graph schema probe did not localize handleRequest in src/server.ts");
+	}
 
 	const bmTools = await listToolsOverDockerExec(["basic-memory", "mcp"], {
 		...basicMemoryHardeningEnv(),
@@ -99,7 +224,9 @@ async function main(): Promise<void> {
 		throw new Error(`basic-memory write_note/search_notes not found in [${bmTools.join(", ")}]`);
 	}
 
-	log("PASS ✓ — all three curated sandbox MCP servers reachable over docker-exec, offline, fit/opt-in gated");
+	log(
+		"PASS ✓ — all three curated sandbox MCP servers reachable over docker-exec, offline, fit/opt-in gated; codebase-memory search_graph schema validated",
+	);
 }
 
 try {

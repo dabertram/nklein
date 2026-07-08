@@ -95,6 +95,53 @@ describe("createMcpLocalizationProvider — search_graph mapping", () => {
 			{ file: "src/a.ts", symbol: "boom", reason: "Function `boom` from search_graph" },
 		]);
 	});
+
+	it("tolerates the real MCP text-content envelope and file_path field", async () => {
+		const { call } = fakeCaller({
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify({
+						total: 1,
+						results: [
+							{
+								name: "handleRequest",
+								qualified_name: "workspaces-probe.src.server.handleRequest",
+								label: "Function",
+								file_path: "src/server.ts",
+							},
+						],
+						has_more: false,
+					}),
+				},
+			],
+		});
+		const provider = createMcpLocalizationProvider(call);
+
+		const hits = await provider.localize({ query: ".*handleRequest.*" });
+
+		expect(hits).toEqual<LocalizationHit[]>([
+			{
+				file: "src/server.ts",
+				symbol: "handleRequest",
+				reason: "Function `handleRequest` from search_graph",
+			},
+		]);
+	});
+
+	it("tolerates structuredContent wrappers", async () => {
+		const { call } = fakeCaller({
+			structuredContent: {
+				results: [{ name: "run", label: "Function", file_path: "src/app.ts" }],
+			},
+		});
+
+		const hits = await createMcpLocalizationProvider(call).localize({ query: "run" });
+
+		expect(hits).toEqual<LocalizationHit[]>([
+			{ file: "src/app.ts", symbol: "run", reason: "Function `run` from search_graph" },
+		]);
+	});
 });
 
 describe("createMcpLocalizationProvider — tool wiring / args", () => {

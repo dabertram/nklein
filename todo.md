@@ -1299,9 +1299,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       global-re-decompose-only-as-last-resort).
   - [~] **Localization provider (read-only, cannot edit):** *(all CODE built + tested — the `LocalizationProvider` port,
         the MCP-backed adapter (fake-tested), the N-candidate patch generator, the validator, and spectrum fault
-        localization are all done/[x]/[~] below; the SOLE remaining owed step is vetting the third-party
-        `codebase-memory-mcp` binary inside the egress-sealed Docker sandbox + supply-chain review before wiring it as
-        the live backing — a David-env/Docker-integration step, not a code leaf. Reclassified [ ]→[~] 2026-07-08.)*
+        localization are all done/[x]/[~] below; the third-party `codebase-memory-mcp` binary is now baked + vetted inside
+        the egress-sealed Docker sandbox, including live `search_graph` schema validation. Remaining: inject a real MCP
+        client into this port as the repair-kernel backing and decide the warm/persisted index lifecycle. Reclassified
+        [ ]→[~] 2026-07-08.)*
     - [x] define a `LocalizationProvider` port + result type (file/symbol/line spans), wired as the kernel's `localize` dep.
           **DONE (2026-07-01):** [src/core/localization-provider.ts](src/core/localization-provider.ts) — `LocalizationHit`
           (file · optional symbol · 1-based line span · score · reason), `LocalizationQuery`, the read-only `LocalizationProvider`
@@ -1310,7 +1311,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           `localizationProviderAsKernelLocalize(provider, query)` — adapts a rich provider to the kernel's existing
           `localize: () => Promise<readonly string[]>` (rank → flatten → de-dupe), so a backing drops in with NO kernel change.
           7 tests. Owed: the BACKING impl (evaluate `codebase-memory-mcp` FIRST, then MCP-backed or native-index provider).
-    - [~] **FIRST — before building ANY custom lookup below — evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)
+    - [x] **FIRST — before building ANY custom lookup below — evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)
           as the `localize` backing (and/or a token-frugal agent retrieval tool), per the §4A "prefer existing solutions"
           directive.** (DeusData, MIT, single static local binary, 100% local + no telemetry, 158 languages, persistent
           knowledge graph with call chains + LSP-grade type inference, ~10–120× fewer tokens — it ships exactly the
@@ -1327,9 +1328,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           `CALLS`), file/line spans (`get_code_snippet`), + `semantic_query`/BM25. **Gate (a) division of labor:** structural
           "who-calls / where-defined" → this; semantic "find by meaning" stays ours (embeddings/PageRank) — no duplication.
           Indexes via tree-sitter AST (also has 14 MCP tools incl. `index_repository`/`get_architecture`). Reported maturity
-          metrics (stars/tests/SLSA) are unverified. **STILL OWED before wiring:** gate (b)-remainder — run/vet the binary INSIDE
-          the strict-local Docker sandbox (egress-sealed) + supply-chain vetting; then wire as an MCP-backed `LocalizationProvider`
-          (the `localization-provider.ts` port maps 1:1 to its outputs). See [integrations.md](docs/dev/integrations.md) (now `planned`).
+          metrics (stars/tests/SLSA) are unverified. **DOCKER/SUPPLY-CHAIN VETTING DONE 2026-07-08:** the pinned
+          `codebase-memory-mcp@0.8.1` static binary is baked in [docker/agent-sandbox/Dockerfile](docker/agent-sandbox/Dockerfile),
+          asserted executable at image build, launched only via `docker exec -i` inside a `--network none` sandbox, and
+          `scripts/verify-sandbox-mcp.mts` now indexes a throwaway repo then validates the real MCP `search_graph`
+          envelope (`content[].text` JSON, `file_path`) through `createMcpLocalizationProvider`. Focused tests +
+          live Docker harness green. Remaining live backing work is tracked on the adapter line below.
     - [~] **MCP-backed `LocalizationProvider` adapter — BUILT + fake-tested (2026-07-01).**
           [src/core/mcp-localization-provider.ts](src/core/mcp-localization-provider.ts) — `createMcpLocalizationProvider(callMcpTool, options?)`
           returns a `LocalizationProvider` **pure over an INJECTED** `McpToolCaller` (`(toolName, args) => Promise<unknown>`):
@@ -1339,17 +1343,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           fileless node skipped, also tolerates `file_path`/`path`), `name`→`symbol` (falls back to last segment of
           `qualified_name`), `start_line`→`startLine`, `end_line`→`endLine` (only when ≥ startLine), `score`→`score` (finite
           only), `label`+`name`→a short `reason`. **Defensive by design** — the upstream README does NOT formally specify the
-          `search_graph` result *envelope*, so the adapter tolerates bare-array **and** `{results|nodes|data|hits:[…]}` wrappers,
-          drops non-numeric lines/scores, and swallows a tool/transport throw into `[]` (localization is best-effort by contract,
-          never breaks the kernel's `localize`). Also client-side caps at `maxHits` if the tool over-returns. **13 tests**
+          `search_graph` result *envelope*, so the adapter tolerates bare-array, `{results|nodes|data|hits:[…]}` wrappers,
+          `structuredContent`, and the real MCP SDK `content:[{type:"text",text:"{...}"}]` envelope; it also tolerates
+          the live `file_path` field, drops non-numeric lines/scores, and swallows a tool/transport throw into `[]`
+          (localization is best-effort by contract, never breaks the kernel's `localize`). Also client-side caps at
+          `maxHits` if the tool over-returns. **15 tests**
           ([test/runtime/core/mcp-localization-provider.test.ts](test/runtime/core/mcp-localization-provider.test.ts)) with a fake
           caller: canned `search_graph`→mapped hits (file/symbol/span/score), args wiring (`name_pattern`/`limit`/scoping),
           `qualified_name`→symbol, malformed/empty/junk→`[]` (no throw), and composition with
-          `localizationProviderAsKernelLocalize` (ranked de-duped refs). tsc + biome + vitest all green.
-          **STILL OWED:** wire a **real** MCP client into `callMcpTool` (via [nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts))
-          AFTER the binary is run/vetted inside the strict-local Docker sandbox (gate (b)-remainder above) — the adapter's
-          **real-schema correctness** (exact `search_graph`/`get_code_snippet` output shapes, which are undocumented) is
-          validated against the live tool THEN; the fake tests lock the mapping + defensiveness now.
+          `localizationProviderAsKernelLocalize` (ranked de-duped refs). **LIVE-SCHEMA VALIDATED 2026-07-08:** the
+          extended [scripts/verify-sandbox-mcp.mts](scripts/verify-sandbox-mcp.mts) runs the real MCP SDK client against
+          the offline Docker image, indexes a fixture repo, and localizes `handleRequest` to `src/server.ts`.
+          **STILL OWED:** wire a **real** MCP client into `callMcpTool` (via
+          [nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts)) as the repair-kernel's live
+          backing + resolve the index lifecycle (warm/persist vs per-card cold index).
     - [x] *(native fallback — DEPRIORITIZED: the eval did NOT reject codebase-memory-mcp, so this is the only-if-it-regresses path)* implement symbol/definition lookup over the existing code index (read-only). *(❌ DEPRIORITIZED / contingency-only — codebase-memory-mcp (adopted, MCP-backed LocalizationProvider adapter built+fake-tested) covers this; native fallback is the only-if-it-regresses path, not active work)*
     - [x] *(native fallback)* implement import/dependency-edge lookup for a touched file. *(❌ DEPRIORITIZED — same as above; codebase-memory-mcp covers dependency-edge lookup, native fallback is contingency-only)*
     - [x] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol). *(❌ DEPRIORITIZED — codebase-memory-mcp covers call-graph traversal; native fallback is contingency-only)*

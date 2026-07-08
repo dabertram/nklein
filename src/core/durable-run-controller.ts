@@ -173,7 +173,7 @@ export class DurableRunController {
 		// state also covers the subtle case a transient-retry already returned the job to `ready`: a late/duplicate
 		// `failed`/`interrupted` summary for the SAME task would otherwise be applied again — double-burning an attempt or
 		// PARKING a card that holds no lease and is mid-redispatch. Terminal (succeeded/failed) + unknown stay no-ops too.
-		if (!job || job.state !== "leased") {
+		if (job?.state !== "leased") {
 			return;
 		}
 		const effectiveOutcome = outcome === "failed" && isTransientNetworkError(error) ? "transient_retry" : outcome;

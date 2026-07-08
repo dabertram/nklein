@@ -20,7 +20,7 @@ describe("formatAcceptanceSummaryForReview (W1.5 — the reviewer sees acceptanc
 			command: "npm test",
 			passed: false,
 			exitCode: 1,
-			output: "x".repeat(2_000) + "\nassertion failed: expected 3 to be 4",
+			output: `${"x".repeat(2_000)}\nassertion failed: expected 3 to be 4`,
 		});
 		expect(summary).toContain("FAILED (exit 1)");
 		expect(summary).toContain("strong grounds to request changes");

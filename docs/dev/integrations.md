@@ -28,6 +28,11 @@ adopted · `planned` = decided, not started · `dropped` = evaluated + rejected 
 
 ## Notes
 
+- **2026-07-08 codebase-memory-mcp correction:** the sandbox binary/schema gate is now discharged. `codebase-memory-mcp@0.8.1`
+  is baked into `nklein/agent-sandbox`, runs via `docker exec -i` under `--network none`, and
+  `scripts/verify-sandbox-mcp.mts` now indexes a throwaway repo then validates the real MCP `search_graph` response
+  envelope through `createMcpLocalizationProvider` (`file_path` + MCP `content[].text` JSON). Remaining work is no longer
+  supply-chain/schema vetting; it is the live repair-kernel backing injection and the warm/persisted index lifecycle.
 - **Prime directive #1 (local-only):** an integration's *runtime* path must stay local; any OUTBOUND feature (llmfit's
   HF-DB refresh / leaderboard, an MCP server's network egress, online research §5.AC) is **egress-gated + opt-in**, never
   silently on. Record the posture in the table.
