@@ -2577,6 +2577,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         DEFINE+VALIDATE done: `src/core/action-plan-ir.ts` — `actionPlanSchema`/`actionPlanStepSchema` (zod: id·tool·args·dependsOn)
         + `validateActionPlan` (unique ids · no dangling deps · no cycles via DFS · non-empty). 6 tests. Owed: emit + execute the IR at the model seam.
   - [ ] **Grammar-constrained decoding for the IR** where the local runtime supports it (LM Studio / llama.cpp grammar).
+        *(⏱ LIVE-ENDPOINT 2026-07-08: the client already carries a `grammar` field (nklein-local-llm-client LocalLlmStructuredFormat)
+        and the IR schema is defined (action-plan-ir.ts) — but the deliverable is a GBNF grammar GENERATED from the IR
+        that the local runtime actually accepts + honors, and GBNF correctness (does the model emit only valid IR under
+        it?) can only be verified against a live llama.cpp/LM Studio grammar decode, not unit-tested blind. A response_format:
+        json_schema path (already supported via buildJsonSchemaResponseFormat) is the non-grammar fallback. Do in a
+        model-roster session with a grammar-capable endpoint.)*
   - [~] **Per-provider schema profiles** — smallest safe subset per provider (LM Studio · llama.cpp grammar ·
         OpenAI-compatible) with a JSON-repair fallback; select by the active provider. **(2026-06-29, batch #3)**
         TABLE done: `src/core/provider-schema-profile.ts` — `PROVIDER_SCHEMA_PROFILES` + `selectProviderSchemaProfile` (nested/enum/
