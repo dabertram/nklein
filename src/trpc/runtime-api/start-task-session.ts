@@ -4,6 +4,7 @@ import { applyWarmthPreference } from "../../core/cache-warmth";
 import { createCapabilityBlender } from "../../core/capability-blend";
 import { resolveSessionConcurrencyCaps } from "../../core/concurrency-config";
 import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
+import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
@@ -72,6 +73,9 @@ import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 import type { CreateRuntimeApiDependencies } from "../runtime-api.js";
 import { countActiveProjectTaskSessions, createConcurrencyLimitStartError } from "./task-concurrency-gate.js";
 import { resolveEffectiveTaskTimeoutSettings } from "./task-timeout-settings.js";
+
+// §5.AB wait_for_best: redrive cadence for a hard card parked waiting on its busy best model (15s).
+const HARD_TASK_WAIT_RETRY_MS = 15_000;
 
 /**
  * Handler for the start-task-session procedure, extracted from the oversized `runtime-api.ts`
@@ -569,6 +573,36 @@ export async function handleStartTaskSession(
 			!freeFirstSelection.busyFallback
 				? freeFirstSelection.modelKey
 				: null;
+		// §5.AB wait-vs-attempt: under `wait_for_best`, a HARD card whose qualified models are ALL busy WAITS for the
+		// best one to free up (via the same queued defer protocol as endpoint-busy) instead of starting on a busy or
+		// lesser model. Default mode (attempt_with_available) skips this entirely — byte-identical behavior.
+		const allQualifiedBusy = freeFirstSelection.type === "assign" && freeFirstSelection.busyFallback;
+		if (
+			shouldWaitForBestModel({
+				mode: scopedRuntimeConfig.hardTaskRoutingMode,
+				difficulty: taskDifficulty,
+				busyFallback: allQualifiedBusy,
+			})
+		) {
+			const waitReason =
+				"Hard task is waiting for its best qualified model to free up (hardTaskRoutingMode: wait_for_best).";
+			if (body.queueOnEndpointBusy) {
+				deps.taskStartQueue?.enqueue({
+					workspaceScope,
+					request: body,
+					delayMs: HARD_TASK_WAIT_RETRY_MS,
+					error: waitReason,
+				});
+			}
+			return {
+				ok: false,
+				summary: null,
+				error: `${waitReason} It will start automatically when the model is free, or switch hardTaskRoutingMode to attempt_with_available.`,
+				errorCode: "endpoint_busy",
+				retryAfterMs: HARD_TASK_WAIT_RETRY_MS,
+				queued: body.queueOnEndpointBusy ? true : undefined,
+			};
+		}
 		// §5.AB LM-Link per-MACHINE handling (opt-in via NKLEIN_PER_MACHINE_MAX_CONCURRENCY): resolved ONCE here and
 		// reused for BOTH the routing pool keys (below) and the admission gate (further down) — a SINGLE `lms ps`
 		// subprocess. When set, fetch each loaded model's owning machine so LM-Link machines sharing one endpoint are

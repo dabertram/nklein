@@ -6007,14 +6007,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         success rate / learned retry budget / tok-s speed / below-bar status, a role filter, and fitness-vs-samples
         sort. Web gate 961 green.)*
   - [x] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs. *(PARTIAL — audit-verdict CORRECTED 2026-07-07 Fable: the PIN half is real (`modelRolesOverride` per-project role→model override, settings dialog + resolver), but NO preference-order or speed-vs-quality weight field exists anywhere in src/config or the resolver — the audit agent's "dial DONE" claim did not survive spot-verification. Remaining = config-schema + resolver extension (opus-code) before any dial UI.)* *(✅ COMPLETE 2026-07-08 — see §5.I#4: speedVsCapability dial shipped (schema + normalizer + applySpeedCapabilityDial + router preferred-key wiring); pin + preference order were already live)*
-  - [~] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
-        *(◐ 2026-07-08 — the CONFIG + UI shipped end-to-end: `hardTaskRoutingMode`
-        ("wait_for_best" | "attempt_with_available", default attempt_with_available = today's behavior) threaded
-        through the full config stack (contract response+save, state factory, types, file payload, load/save/merge,
-        change detection, response builder) and a labeled selector in Settings → Tasks next to the decomposition
-        toggle (fingerprint + dirty-check + save payload + config sync all wired; settings e2e 7/7 green). REMAINING:
-        the routing path CONSUMING the mode — a "wait" decision defers via the task-start queue, which needs the
-        endpoint-occupancy signal (leaf (b) resource-cost tracking) to know the best model is busy.)*
+  - [x] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
+        *(✅ 2026-07-08 — FULL STACK: `hardTaskRoutingMode` config field (default attempt_with_available = byte-identical)
+        through contract/factory/types/file-payload/load-save-merge/change-detection/response; Settings → Tasks selector
+        (settings e2e 7/7); and the CONSUMPTION: `shouldWaitForBestModel` (src/core/hard-task-wait.ts, 2 tests — hard
+        ≥55 difficulty × wait_for_best × free-first `busyFallback`) gates the start path — a qualifying card defers via
+        the existing queued endpoint-busy protocol (15s redrive) until its best qualified model frees up. The occupancy
+        signal reuses free-first's own busyFallback (all qualified models busy), so no lms-ps dependency.)*
   - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table.
   - [ ] Live-test the settings flow end-to-end (launch eval, observe results, adjust policy).
 - [-] **LATER / OUT OF SCOPE — cloud fallback rung (idea-collection only, per the user).** When !Klein has matured to
@@ -6026,7 +6025,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       per-task "max local spend/time before offering cloud escalation" budget the user sets.
 - [ ] **Confidence- and RESOURCE-aware routing, decomposed:**
   - [x] (a) Build calibrated-confidence scorer from evidence (tool-call validity, test pass/fail, reviewer verdict, self-consistency) keyed by model × role × task-shape. *(2026-07-05: confidence-scorer.ts — combineConfidenceEvidence (weighted, renormalized over present signals) + applyCalibration (piecewise-linear per-key curve, identity when unlearned) + scoreCalibratedConfidence; 10 tests. The per-key curve is fit from observed-vs-predicted elsewhere.)*
-  - [ ] (b) Implement resource-cost tracking (wall+queue time, RAM/VRAM pressure, load time, endpoint occupancy).
+  - [~] (b) Implement resource-cost tracking (wall+queue time, RAM/VRAM pressure, load time, endpoint occupancy).
+        *(◐ 2026-07-08: ENDPOINT OCCUPANCY is now a consumed signal (free-first busyFallback + optional lms-ps
+        queue-aware busy set gate both free-first routing AND the new wait_for_best defer); wall-time EWMA + tok/s
+        already live on registry entries + speed rollups. REMAINING: RAM/VRAM pressure + model load-time tracking —
+        needs an lms-ps/OS sampling loop, rides the sweep phase.)*
   - [x] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models. *(SHIPPED: difficulty gate + free-first pool routing)*
   - [ ] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table.
   - [ ] Add selective cross-model debate/review for low-confidence outputs (different model families, per §5.AD).
