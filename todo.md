@@ -6391,6 +6391,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `browserFetchAdapter`: every fetched page is scanned and findings land on
         `evidence.promptInjectionRiskFlags` (absent when clean). 2 tests (flagged override text · benign text clean).)*
   - [ ] Record attempts / pruned distractors / citations / signal (helped-or-hurt) into the §5.AF ledger.
+        *(gated on the retrieval loop's agent-path wiring — the `onOutcome` seam (shipped 2026-07-08) is the hook the
+        ledger writer plugs into; helped-or-hurt additionally needs the task outcome to correlate, i.e. the live seam.)*
 
 ### 5.AD — Context as a capability lever: "smart-zone" arrangement, learned quality-effective budget, enforced reasoning loops *(2026-06-26, user — ACTIVE)*
 > **Vision (user, 2026-06-26):** **context SIZE is part of a model's capability + reasoning quality, in BOTH
@@ -6534,11 +6536,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] **Learn + converge** the per-`(model, task-class)` budget from observed completion+reasoning-token consumption *(2026-07-05: answer-budget-learn.ts — learnAnswerBudget (nearest-rank percentile × (1+margin), drops non-finite/neg, confidence gate) + blendAnswerBudget (EWMA convergence); 8 tests)*
         (e.g. a p90/p95 + margin, EWMA-updated) — the OUTPUT-budget sibling of §5.AD's input-context `context-budget-knee`.
         Keep the §5.AA reactive ladder as the SAFETY NET for the tail the proactive size under-shoots.
-  - [ ] **Wire + live-verify (§5.Z, resident tier):** thread the computed budget into the chat/agent + swarm model-call
+  - [~] **Wire + live-verify (§5.Z, resident tier):** thread the computed budget into the chat/agent + swarm model-call
         seams (replace the fixed 1024 where a model+task signal exists); prove on the 9B + 27B that first-attempt truncation
         drops (fewer recovery round-trips) with no quality loss. Opt-in / byte-identical default (prime-directive #1) until
         the live numbers justify default-on. NOTE the interaction: capturing per-turn `usage` (the §5.M "token count in
         session label" sub-items above) is the SAME data this learner needs — unify the usage-capture seam.
+        *(◐ status 2026-07-08: the CHAT seam's up-front sizing IS live opt-in — resolveChatTurnSampling
+        (NKLEIN_REASONING_BUDGET) sizes maxTokens via planReasoningOutputBudget for reasoning models when the caller
+        didn't pin one (byte-identical default). REMAINING: the full answerBudgetPrior (model × taskClass × outputMode)
+        needs a per-TURN task-class signal threaded to the sampling seam; the swarm seam + the 9B/27B truncation-rate
+        proof are ⏱ FLEET (27B not loaded; A/B truncation measurement is model-time).)*
 - [~] **Distractor-aware retrieval pruning (per-model sensitivity).** Rank + prune repo-map / code-index / online
       results harder for models with high learned distractor sensitivity (similar-but-irrelevant context measurably
       hurts). Ties §6.7 retrieval + §5.AC online retrieval; feeds the arrangement policy's MIDDLE band. **PURE CORE DONE
@@ -6568,7 +6575,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       board/chat prompt-assembly seam, route `compact` into `planCompaction`, and act on `expand` (widen retrieval / re-anchor).
 - [ ] **Enforced reasoning loops (difficulty-gated, external-signal-first), decomposed:**
   - [ ] Implement cross-model bounce: stronger loaded model critiques/repairs weaker model's draft (reuse §5.K reviewer seam).
-  - [ ] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
+  - [~] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
+        *(◐ 2026-07-08 — the PROMPT SUBSTRATE shipped: `src/core/self-bounce-personas.ts` — a fixed 3-persona rotation
+        (skeptical reviewer · test verifier · requirements auditor), each a genuinely different failure-mode lens over
+        the SAME draft (never generic doubt, per Huang et al.), `buildSelfBouncePrompt(round)` + `parseSelfBounceVerdict`
+        (fails toward revise). 2 tests. REMAINING: the effectful loop at the model-call seam driven by the
+        enforced-reasoning gate's `self_bounce_varied` kind — rides the gate's call-site wiring.)*
   - [~] Implement self-consistency: sample N paths, majority-vote (tie §5.AB reliability metric). **(2026-06-29, parallel batch)** PURE CORE done: `src/core/self-consistency.ts` — `majorityVote<T>(samples, keyFn?)` → `{winner, count, total, agreement}` (first-seen tie-break). 5 tests. Owed: sample N reasoning paths at the call site + feed `agreement` into the §5.AB reliability metric.
   - [~] Add difficulty gate: only apply reasoning loops when task difficulty is high + observed failure exists. **PURE
         CORE DONE (2026-07-01):** [src/core/enforced-reasoning-gate.ts](src/core/enforced-reasoning-gate.ts)
