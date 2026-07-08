@@ -875,27 +875,46 @@ export class AgentSandboxManager {
 				index += 1;
 				continue;
 			}
-			void this.tryAcquireSlot(queued.taskId, queued.projectRepoPath)
-				.then((placement) => {
-					if (!placement) {
-						return;
-					}
-					const queuedIndex = this.queue.indexOf(queued);
-					if (queuedIndex < 0) {
-						// The bounded wait already rejected this entry — hand the slot back instead of leaking it.
-						this.releaseSlot(queued.taskId);
-						return;
-					}
-					this.queue.splice(queuedIndex, 1);
-					queued.resolve(placement);
-				})
-				.catch((error) => {
+			void (async () => {
+				// LIVE-FOUND RACE (det-bounce, 2026-07-08): the bounded wait can reject+splice this entry DURING the
+				// acquisition below; the old stale-hand-back then called releaseSlot(taskId) — which releases whatever
+				// placement CURRENTLY sits under that id, clobbering a same-task RETRY's fresh placement (the
+				// ::acceptance re-entry) → its exec threw "No Docker sandbox workspace is prepared". Harden three ways:
+				// skip if already rejected; hand a same-id EXISTING placement to the waiter instead of acquiring a
+				// duplicate (assignContainer would overwrite it); identity-guard the stale hand-back.
+				if (this.queue.indexOf(queued) < 0) {
+					return; // rejected before we acquired anything — nothing to hand back.
+				}
+				const preExisting = this.placements.get(queued.taskId);
+				if (preExisting) {
 					const queuedIndex = this.queue.indexOf(queued);
 					if (queuedIndex >= 0) {
 						this.queue.splice(queuedIndex, 1);
-						queued.reject(error);
+						queued.resolve(preExisting);
 					}
-				});
+					return;
+				}
+				const placement = await this.tryAcquireSlot(queued.taskId, queued.projectRepoPath);
+				if (!placement) {
+					return;
+				}
+				const queuedIndex = this.queue.indexOf(queued);
+				if (queuedIndex < 0) {
+					// Rejected while we acquired — hand back ONLY the placement THIS drain created.
+					if (this.placements.get(queued.taskId) === placement) {
+						this.releaseSlot(queued.taskId);
+					}
+					return;
+				}
+				this.queue.splice(queuedIndex, 1);
+				queued.resolve(placement);
+			})().catch((error) => {
+				const queuedIndex = this.queue.indexOf(queued);
+				if (queuedIndex >= 0) {
+					this.queue.splice(queuedIndex, 1);
+					queued.reject(error);
+				}
+			});
 			index += 1;
 		}
 	}
