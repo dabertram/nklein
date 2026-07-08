@@ -5111,7 +5111,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           (not an isolation deadline), RETRIES transient body/headers timeouts (ties §5.AF durable scheduler), and gives
           the full nudge cycle time — THEN measure whether the broadened nudge recovers the driver; only if it fires but
           the model still won't emit is the constrained force-emit (`buildConstrainedToolCallSchema`) the justified rung.
-- [ ] **Reason-THEN-act rung for reasoning models**, decomposed:
+- [~] **Reason-THEN-act rung for reasoning models**, decomposed:
   - [x] Build phase (a) prompt: explicit "reason about which tool → explain decision" *(SHIPPED: nklein-prompt-variation.ts reason_then_act family)*
   - [~] Orchestrate two-phase turn: phase (a) → phase (b) constrained-decoding. *(◐ ORCHESTRATION TRANSFORM DONE
         2026-07-08 — [reason-then-act.ts](src/core/reason-then-act.ts): the pure glue between the phases —
@@ -5122,8 +5122,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         emits exactly that call). 7 tests. REMAINING (runtime): drive the two model calls — phase (a) generate → phase
         (b) constrained emit (`buildConstrainedToolCallSchema`) — at the model-call seam (needs the vendored afterModel/
         re-invoke seam, shared with the other §5.AA rungs).)*
-  - [ ] Wire into chat path + SWARM path seam (uses beforeModel nudge)
-  - [ ] Test on phi-4-mini/phi-4-plus + deepseek-r1 (canonical ruminators)
+  - [-] Wire into chat path + SWARM path seam (uses beforeModel nudge) *(gated-on-vendored-afterModel/re-invoke seam —
+        beforeModel alone cannot run phase (a), inspect its reasoning, then issue phase (b) in the same terminal turn.
+        Same shared model-call seam as the §5.AA swarm/retry rungs.)*
+  - [-] Test on phi-4-mini/phi-4-plus + deepseek-r1 (canonical ruminators) *(deferred with the model-sweep work; run after
+        the runtime seam exists so the test measures the actual two-phase rung, not the already-measured native tool-call
+        negative.)*
   - [~] Verify it can convert reasoning-only models into tool-calling models (phi flip goal) **MEASURED (2026-07-08,
         8-model FLEET eval sweep, native_tool_call path):** the phi-flip does NOT succeed for structured DECOMPOSE — under
         `tool_choice:required`, phi-4-mini-reasoning emitted NO tool call (decompose 0/3 NO ANSWER); deepseek-r1-8b + even
@@ -5131,7 +5135,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         models into structured-output emitters for a non-trivial schema (r1 flaky, phi-mini-reasoning fails). The reason-then-act
         rung (§5.O) may still help but the raw tool_choice:required lever is insufficient — an empirical NEGATIVE result, valuable.
         Owed: probe whether the §5.AA reason-then-act two-phase turn flips them where the single forced call didn't.
-  - [ ] Re-verify across 9-model roster (ensure no regression)
+  - [-] Re-verify across 9-model roster (ensure no regression) *(deferred per the 2026-07-08 "model sweeps can be deferred"
+        steer; keep this as one of the late verification passes.)*
 - [~] **`ModelBehaviorProfile` store (persisted, GLOBAL) + read/adapt/update.** **PURE LEARNING CORE DONE (2026-06-26):**
       [src/core/model-behavior-profile.ts](src/core/model-behavior-profile.ts) — `recordModelBehaviorOutcome(profile,
       outcome)` is the online update (EWMA success-rate + retries, per-kind failure counts, preferred tool-call format,
@@ -5152,7 +5157,8 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         recovery-ladder telemetry)" table (`data-testid="model-behavior-profiles"`). Focused verification green:
         `npx vitest run test/runtime/core/model-behavior-profiles-contract.test.ts test/runtime/model-behavior-profile-store.test.ts`
         and `npm --prefix web-ui run test -- src/components/model-performance-stats-dialog.test.tsx`.)*
-  - [ ] Test with real multi-model runs (verify learning across sessions)
+  - [-] Test with real multi-model runs (verify learning across sessions) *(deferred with model/fleet sweeps; the persisted
+        store + UI surface are implemented, but proving cross-session learning requires live multi-model runs.)*
 - [~] **Retry policy engine — tie it together.** A bounded, learned per-model retry loop that classifies each failure
       (no-call/narrated/loop/timeout/malformed) and selects the next ladder strategy (different endpoint / fewer tools /
       simpler prompt / prompt variant / constrained decoding / salvage), capped by the learned budget, always
@@ -5310,11 +5316,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       throws). 25 tests; tsc + biome green. **Owed (WIRING, out of pure-core scope):** call it at the narrated-recovery seam
       to record the winning dialect on the §5.AF ledger / `ModelBehaviorProfile`, and let the §5.AG surface + the ladder
       branch on `recoverable` (skip the recovery rung when `none`, prefer constrained-decoding when `hasStructuredMarker`).
-- [ ] **Re-verify across all 9 models after each increment**, decomposed:
-  - [ ] After tool-set reduction landed: run §5.Z sweep, verify phi-4 flip status
-  - [ ] After endpoint iteration lands: re-run §5.Z sweep, confirm no regression on 7 passing
-  - [ ] After each retry-rung increment: dedicated sweep focusing on improvement + regression
-  - [ ] Update cross-model-verification.md matrix with results
+- [-] **Re-verify across all 9 models after each increment**, decomposed: *(deferred per the 2026-07-08 steer to stop
+      sweeping for now and move model sweeps toward the end of the backlog.)*
+  - [-] After tool-set reduction landed: run §5.Z sweep, verify phi-4 flip status
+  - [-] After endpoint iteration lands: re-run §5.Z sweep, confirm no regression on 7 passing
+  - [-] After each retry-rung increment: dedicated sweep focusing on improvement + regression
+  - [-] Update cross-model-verification.md matrix with results
 - [~] **Finite-state CONTROLLER for the outer loop, not free-form ReAct (2026-06-27, small-LLM research pass).** Small
       models shouldn't own global process transitions — the harness should. **(a) PURE STATE-MACHINE CORE DONE
       (2026-06-28):** [src/core/run-state-machine.ts](src/core/run-state-machine.ts) — the typed `RunPhase` ladder
@@ -5908,13 +5915,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       cloud model for planning / specific flows. **Requires the deliberate reviewed cloud-enablement of #1** — record the
       design now (the selection seam already has a model-source abstraction; cloud is a new source + a higher escalation
       rung), build only when Phase A is done. Do NOT add cloud reachability before then.
-- [ ] **MCF Phase C — expert-guided flow seam (FUTURE).** A *small amount* of expert guidance at stuck points (a human,
+- [-] **MCF Phase C — expert-guided flow seam (FUTURE).** A *small amount* of expert guidance at stuck points (a human,
       or a frontier model like Claude advising the run) can lift !Klein's projects **beyond what even frontier cloud
       models reach unaided** (user, 2026-06-28). Design the guidance/escalation seam so such input drops in cleanly at a
       stuck-point: extend the §5.AG "what was tried / get through the wall" surface + the §5.AA Layer-2 escalation into a
       **guided-resume** flow (inject targeted guidance → re-run the stuck card/job with it). The long-horizon payoff of
-      the whole MCF; design-only until Phases A/B mature.
-- [ ] **★ Integrate `llmfit` for FIT + SPEED estimation + model DB (user 2026-06-29; MIT, https://github.com/AlexsJones/llmfit).**
+      the whole MCF; design-only until Phases A/B mature. *(Future/blocked until the local MCF phases mature; do not build
+      this before the local stack is genuinely exercised.)*
+- [~] **★ Integrate `llmfit` for FIT + SPEED estimation + model DB (user 2026-06-29; MIT, https://github.com/AlexsJones/llmfit).**
       A local Rust CLI/REST that does exactly the dimensions we hand-rolled crudely: (a) **fit** — does a model at a
       given quant+context fit a machine's VRAM/RAM (per-quant, MoE-offload-aware, dynamic Q8→Q2 quant walk); (b) **speed**
       — predicted tok/s; (c) **ranking** — quality/speed/fit/context → 0–100; plus a **206-model HF database**
@@ -5972,9 +5980,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [ ] **EGRESS-GATED (prime directive #1):** the model-DB refresh (`make update-models` hits the HF API) + the
         Community-Leaderboard/localmaxxing.com features are OUTBOUND network — opt-in/default-off + allow-listed, like the
         §5.AC online-research tools; the offline embedded DB is fine local-only. Also a "update llmfit version" action.
-  - [ ] decide invocation mode: CLI shell-out (default, matches the `lms` pattern) vs `llmfit serve` REST (only if a
-        long-lived query surface is worth a second local process).
-- [ ] **Eval-prompt corpus (per role × difficulty × size), decomposed:**
+  - [x] decide invocation mode: CLI shell-out (default, matches the `lms` pattern) vs `llmfit serve` REST (only if a
+        long-lived query surface is worth a second local process). *(DECIDED 2026-07-08 by implementation: default stays
+        ephemeral CLI shell-out via `createLlmfitRunner`/`uvx llmfit`, matching the existing guarded `lms` pattern. REST
+        `llmfit serve` remains a future optimization only if we need a long-lived local query surface.)*
+- [x] **Eval-prompt corpus (per role × difficulty × size), decomposed:**
   - [x] Design + collect role-specific prompt templates (architect/decompose, worker/implement, reviewer) across difficulty tiers. *(2026-07-05: src/core/eval-prompt-corpus.ts — EVAL_PROMPT_CORPUS of 9 rows (architect/worker/reviewer × easy/medium/hard, aligned to the real estimateTaskDifficulty tiers, not the aspirational trivial–very-hard), each with a deterministic answer key: decompose→reference DAG, implement→acceptance tests, review→seeded-defect code+ids; zod discriminated-union schema + scoreEvalAnswer dispatcher over prompt-family-scorers + byRole/byDifficulty/byId selectors; 14 tests incl. every-row-self-scores-1. Wiring into verify-all-models.mts sweep is the sibling harness item (5679).)*
   - [x] Build deterministic scorers for each prompt family (valid DAG, passing code, defect-catching review). *(2026-07-05: prompt-family-scorers.ts — scoreValidDag (Kahn cycle-check + edge validity), scorePassingCode (pass fraction), scoreDefectCatchingReview (seeded-defect recall); 12 tests)*
   - [x] Set up versioning infrastructure so re-evals compare corpus versions. *(2026-07-05: EVAL_CORPUS_VERSION (manual bump on breaking scoring-semantics changes) + evalCorpusFingerprint() — a deterministic djb2-xor content hash `v<ver>-<hash8>` over the serialized rows that auto-detects ANY prompt/answer-key/row change, so persisted eval results record both + a re-eval knows if the corpus drifted. Pure, 4 tests. In src/core/eval-prompt-corpus.ts.)*
