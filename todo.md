@@ -1398,9 +1398,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (role_override/global_config/autonomous_default); `summarizeTimeoutOutcomes` groups timeout runs by
       provider × model × source × role × scenario (role inferred at capture; scenario from `devtest-<scenario>-<ts>`).
       Unit-tested. ([src/state/task-run-summary-store.ts](src/state/task-run-summary-store.ts))
-- [~] **Real wiring for `runDevTestProject`** — side-effecting seams (`createDevTestStateReader`,
+- [x] **Real wiring for `runDevTestProject`** — side-effecting seams (`createDevTestStateReader`,
       `discoverDevTestCleanupEntries`) wired into `nklein dev test-project` + `dev cleanup-report`
-      ([src/commands/dev.ts](src/commands/dev.ts)).
+      ([src/commands/dev.ts](src/commands/dev.ts)). *(✅ COMPLETE 2026-07-08 — graph audit confirms
+      `executeDevTestPreset` uses `createDevTestStateReader` for live/persisted board reads + active-session slow-turn
+      guarding, and `runDevCleanupReportCommand` uses `discoverDevTestCleanupEntries` for marked workspace + sandbox-volume
+      cleanup reporting. Added command-level JSON coverage for `dev cleanup-report`
+      ([test/runtime/commands/dev-cleanup-commands.test.ts](test/runtime/commands/dev-cleanup-commands.test.ts)); the
+      live `dev test-project --json` command path was already verified below.)*
   - [x] **live-path verification (2026-06-24)** — ran against the live runtime (:4173) + Docker + LM Studio:
         `dev cleanup-report --json` correctly discovered + **sized** a real leftover dev-test workspace (468 KiB,
         one `dev_test_workspace` entry, retained 0 for the active run); `dev test-project --preset mid_task --json`
@@ -10286,6 +10291,17 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       behind an OPT-IN flag (default localhost-only for safety — invariant #1) + surfacing the LAN URL; NOT a new server.
       Add e.g. `NKLEIN_LAN_HOST=0.0.0.0` (or a Setting) threaded into those listen hosts; consider a bind-warning + optional
       auth for the external-network case. All on the Electron shell per the packaging decision.)*
+      *(2026-07-08 DEPLOYMENT / UPDATE STRATEGY DECISION — Docker-based deployment is OPTIONAL/LATER, not the primary
+      desktop path. The desktop app is the main distribution surface and needs first-class update detection + migration
+      handling. Preferred update path: signed/notarized platform packages published as GitHub Releases assets (or a later
+      generic update feed), consumed by the Electron app via an updater-compatible release feed. The app must show update
+      availability, download/install safely, and run existing-project migrations on the runtime side with backup/rollback
+      metadata. Source-build-from-GitHub-release-tags may be an explicit advanced/developer fallback for machines that have
+      Node/npm/git/toolchains and opt into it, but it is NOT the default end-user updater: it is slow, brittle, harder to
+      secure/reproduce, and poor UX. Needed backlog: release manifest/channels, code signing/notarization + Windows/Linux
+      signing policy, updater UI/tray states, migration framework/backup/rollback, release-asset integrity verification,
+      and eventually CI packaging for macOS/Windows/Linux. Existing-project migration must be part of update acceptance,
+      not an afterthought.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
 ## 11. LATER — deferred to last (user 2026-07-08)
