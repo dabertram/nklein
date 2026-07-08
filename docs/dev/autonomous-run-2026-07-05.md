@@ -3776,3 +3776,13 @@ deps.enforceReasoning → chat-service wiring. Two wiring bugs root-caused (requ
 difficulty; live path passed no profile so the gate could never fire). Tests 8320 backend / 961 web / 61 e2e.
 NEXT: live-verify NKLEIN_ENFORCED_REASONING on the resident 9B (a hard test-backed chat ask on a struggling-profile
 model), then continue top-down (remaining §5.AD leaves → §5.AN/§5.AQ → §10 → extended-goal phases).
+
+### 2026-07-08 (Opus 4.8 segment #4) — self-awareness live + two more live-found root causes
+SHIPPED: klein_self read-only self-awareness scope LIVE-PASSED on the 9B (cited AGENTS.md correctly, read-only held)
+· LEADING-CLOSE reasoning leak fixed (content starting mid-reasoning with a bare </think> leaked to the user —
+splitReasoningChannel now treats it as a boundary) · dschinn bug cluster ROOT-CAUSED: the orphan-volume reaper's
+predicate never matched the pool's NAMESPACED volume names → reaped zero volumes forever (7 orphans found; predicate
+fixed with real-name regression tests; host cleaned) · M4-quarantine + manifest-gate + replay clusters reconciled
+against their live gate cores · skill-variation rung + model-load-policy governor cores. Tests 8329 backend / 961
+web / 61 e2e. 226 open boxes. The remaining set: fleet sweeps, vendored/M4 gates, David-decisions, sweep-phase live
+repros (dschinn fresh run = first target). Continue top-down + the extended-goal phases.
