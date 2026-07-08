@@ -8166,10 +8166,28 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         message-rendering condition (vs. the terminal/agent-output view) is the remaining unknown. Next: DOM-inspect the
         card-detail agent region's structure to find where an assistant `task_chat_message` becomes visible text.
   - [x] Build shared hermetic e2e-mock helper: `buildMockRuntimeConfig()` + `buildBoardSnapshot()` (keep current with schema). **(2026-06-29) DONE** — both in `runtime-mock.ts`; `buildMockRuntimeConfig()` (complete `runtime.getConfig`, override-able) renders the Settings dialog → unlocked the concurrency-editor + agent-rulesets settings specs. Full e2e now **59** (13 new: start/pause/resume/trash/send/chat-stream + incremental-token-stream/board-stream×2/lane-reconcile/concurrency/rulesets/model-roles).
-  - [ ] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
-  - [ ] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens).
+  - [~] Create shared mock helper module and de-stale existing specs (`settings.spec.ts`, `chat-*.spec.ts`).
+        *(◐ the shared module exists (runtime-mock.ts: installRuntimeMock + builders + pushFrame streaming) and the
+        STALENESS was fixed 2026-07-08 (zoom-pin in the shared harness AND the 6 private-init specs + the renamed
+        settings-nav locator → suite 19→61/61 green). Remaining nicety: migrating the 6 private init scripts onto
+        installRuntimeMock — fold in when next touching each spec (lesson recorded in basic-memory).)*
+  - [x] Write mocked boot-smoke spec (board columns, no vite overlay, Settings opens). *(✅ covered across the
+        green suite: smoke.spec.ts boots the mocked board (columns render via gotoBoard's Backlog assertion) and
+        settings.spec.ts's "dialog opens and displays the Settings title" covers the Settings-opens half; a vite
+        error overlay would fail every gotoBoard. No separate spec needed.)*
   - [ ] Create `playwright.smoke.config.ts` with `reuseExistingServer:false` + `--strictPort` on stable module constant port.
-  - [ ] Fix `test:protected` + `test:integration` alias/port flakiness as foundational infra.
+        *(deprioritized 2026-07-08: the single config's suite is green 61/61 in ~16s with server reuse; a second config
+        adds CI surface without a current driver — revisit if suite-vs-suite port contention actually appears.)*
+  - [~] Fix `test:protected` + `test:integration` alias/port flakiness as foundational infra.
+        *(◐ DIAGNOSED 2026-07-08 — the flakiness is REAL and now has a captured mechanism, and it is NOT alias/port:
+        two consecutive full runs → protected 123/123 twice, integration 42/42 then 41/42. The flake is
+        swarm-deterministic-bounce: after the round-2 re-work DELIVERED, the acceptance RE-CHECK ran after the task's
+        sandbox workspace was already disposed ("No Docker sandbox workspace is prepared for det-bounce-gamma::acceptance")
+        → fail-closed "tests NOT passed" → delivery tier open_pr HELD the card in Review → the test's completed
+        expectation missed. Same family as the documented finalize-race note (runtime-server ~L730, "needs a focused
+        pass"): the acceptance-evidence collection RACES sandbox disposal. Port infra is fine (contract helpers use
+        getAvailablePort). NEXT focused pass: order the acceptance re-check BEFORE disposeWorkspace on the delivery
+        path (or re-provision for the re-check), then loop the suite ≥5× green.)*
 
 > **Structure-refactor ladder (ordered by fan-out ROI; each independently shippable + test-backed; folds into §5.U's
 > no-monolith goal — do them in the normal incremental loop, not as a pause-the-world front-load):**
