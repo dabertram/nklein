@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	countConfiguredSwarmRoleModels,
+	resolveRuntimeSwarmGuardrailsForModelRoles,
+	shouldUseParallelSwarmGuardrails,
+} from "../../../src/core/parallel-swarm-guardrails";
+import {
 	DEFAULT_RUNTIME_SWARM_GUARDRAILS,
 	normalizeRuntimeSwarmGuardrails,
 	PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS,
@@ -38,5 +43,67 @@ describe("PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS (§5.AB swarm profile — long
 		expect(PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS.maxRepeatedToolCallsPerTask).toBeLessThanOrEqual(
 			RUNTIME_SWARM_GUARDRAIL_BOUNDS.maxRepeatedToolCallsPerTask.max / 2,
 		);
+	});
+
+	it("counts distinct configured role models across primaries and role pools", () => {
+		expect(countConfiguredSwarmRoleModels({})).toBe(0);
+		expect(
+			countConfiguredSwarmRoleModels({
+				worker: {
+					providerId: "lmstudio",
+					modelId: "coder",
+					additionalModels: [{ providerId: "lmstudio", modelId: "coder" }],
+				},
+				architect: { providerId: "lmstudio", modelId: "reasoner" },
+			}),
+		).toBe(2);
+	});
+
+	it("applies the parallel profile only for multi-model role configs that still use default guardrails", () => {
+		const roles = {
+			worker: { providerId: "lmstudio", modelId: "coder" },
+			architect: { providerId: "lmstudio", modelId: "reasoner" },
+		};
+
+		expect(
+			shouldUseParallelSwarmGuardrails({
+				configuredGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+				effectiveModelRoles: roles,
+			}),
+		).toBe(true);
+		expect(
+			resolveRuntimeSwarmGuardrailsForModelRoles({
+				configuredGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+				effectiveModelRoles: roles,
+			}),
+		).toEqual(PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS);
+	});
+
+	it("does not override single-model setups or explicit user guardrail edits", () => {
+		const singleModelRoles = {
+			worker: { providerId: "lmstudio", modelId: "coder" },
+			architect: { providerId: "lmstudio", modelId: "coder" },
+		};
+		const customGuardrails = {
+			...DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+			maxAutonomousWallTimeMs: DEFAULT_RUNTIME_SWARM_GUARDRAILS.maxAutonomousWallTimeMs + 1_000,
+		};
+		const multiModelRoles = {
+			worker: { providerId: "lmstudio", modelId: "coder" },
+			architect: { providerId: "lmstudio", modelId: "reasoner" },
+		};
+
+		expect(
+			resolveRuntimeSwarmGuardrailsForModelRoles({
+				configuredGuardrails: DEFAULT_RUNTIME_SWARM_GUARDRAILS,
+				effectiveModelRoles: singleModelRoles,
+			}),
+		).toEqual(DEFAULT_RUNTIME_SWARM_GUARDRAILS);
+		expect(
+			resolveRuntimeSwarmGuardrailsForModelRoles({
+				configuredGuardrails: customGuardrails,
+				effectiveModelRoles: multiModelRoles,
+			}),
+		).toEqual(customGuardrails);
 	});
 });

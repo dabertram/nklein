@@ -47,6 +47,7 @@ import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { decideOpportunisticIdleWork, findReviewCandidateTaskIds } from "../core/opportunistic-idle-work";
+import { resolveRuntimeSwarmGuardrailsForModelRoles } from "../core/parallel-swarm-guardrails";
 import {
 	buildKanbanRuntimeUrl,
 	getKanbanRuntimeHost,
@@ -1493,6 +1494,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		scope: RuntimeTrpcWorkspaceScope,
 	): Promise<NKleinTaskSessionService> => {
 		const runtimeConfig = await loadRuntimeConfig(scope.workspacePath);
+		const effectiveSwarmGuardrails = resolveRuntimeSwarmGuardrailsForModelRoles({
+			configuredGuardrails: runtimeConfig.swarmGuardrails,
+			effectiveModelRoles: runtimeConfig.effectiveModelRoles,
+		});
 		const sandboxPoolConfig = buildAgentSandboxPoolConfig(runtimeConfig);
 		// The shared container pool's egress is governed by the GLOBAL capability ruleset preset (default
 		// fully_open -> full egress). Per-role network overrides would need policy-keyed pools (follow-up).
@@ -1508,7 +1513,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 		if (!service) {
 			service = createInMemoryNKleinTaskSessionService({
 				watcherRegistry: nkleinWatcherRegistry,
-				swarmGuardrails: runtimeConfig.swarmGuardrails,
+				swarmGuardrails: effectiveSwarmGuardrails,
 				knowsTodayEnabled: runtimeConfig.knowsTodayEnabled,
 				sandboxMcpServersEnabled: runtimeConfig.sandboxMcpServersEnabled,
 				retrievalEgressEnabled: runtimeConfig.retrievalEgressEnabled,
@@ -1969,7 +1974,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			// service kept its original (looser) egress after the operator tightened isolation — a fail-open
 			// Docker-isolation drift (prime directive #2). Every other config field below is already re-applied here.
 			await service.setSandboxNetworkPolicy(sandboxNetworkPolicy);
-			service.setSwarmGuardrails(runtimeConfig.swarmGuardrails);
+			service.setSwarmGuardrails(effectiveSwarmGuardrails);
 			service.setKnowsTodayEnabled(runtimeConfig.knowsTodayEnabled);
 			service.setSandboxMcpServersEnabled(runtimeConfig.sandboxMcpServersEnabled);
 			service.setRetrievalConfig(runtimeConfig.retrievalEgressEnabled, runtimeConfig.retrievalSearchBackendUrl);

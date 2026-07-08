@@ -5725,8 +5725,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (lenient on the slow-progress guards, since queueing not looping is the cost) while the LOOP guard stays
         protective (6 repeated-tool-calls); all within `RUNTIME_SWARM_GUARDRAIL_BOUNDS`, mirrors the
         `BACKGROUND_EVAL` profile pattern, does NOT touch the interactive single-model default. 3 tests; tsc+biome green.
-        **Still owed:** APPLY it on the multi-model swarm path (rides the wiring leaf above — never silently to
-        single-model use); surface "quality over latency" in the swarm settings UI.
+        ✅ **PROFILE APPLICATION DONE (2026-07-08):** [src/core/parallel-swarm-guardrails.ts] resolves the effective
+        guardrails for a workspace: when `effectiveModelRoles` names at least 2 distinct configured role/pool models and
+        the user still has the default guardrails, it applies `PARALLEL_SWARM_RUNTIME_SWARM_GUARDRAILS`; single-model
+        setups and any explicit guardrail edit keep the configured values. [src/server/runtime-server.ts] applies this
+        resolver at task-session-service creation and hot update, so multi-model swarms get long-wait rails without
+        silently changing single-model runs or overwriting user tuning. Focused tests cover bounds, distinct model
+        counting, activation, single-model no-op, and custom-guardrail preservation. Still owed: surface "quality over
+        latency" in the swarm settings UI + live ≥3-agent verification below.
   - [ ] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
         endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
