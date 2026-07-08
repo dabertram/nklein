@@ -62,8 +62,9 @@ describe("runRetrievalLoop", () => {
 			'[{"claim":"X is powered by A","cite":["a"]},{"claim":"X also uses B","cite":["b"]}]';
 		const { deps } = makeDeps({ synthesize: citedSynthesisAdapter(fakeModel) });
 		const result = await runRetrievalLoop("what is X", deps);
+		// Contract updated 2026-07-08: dated sources now carry their publication date + freshness verdict inline.
 		expect(result.answer).toBe(
-			"X is powered by A [1]\nX also uses B [2]\n\nSources:\n[1] https://example.com/a\n[2] https://example.com/b",
+			"X is powered by A [1]\nX also uses B [2]\n\nSources:\n[1] https://example.com/a (published 2026-07-01; current)\n[2] https://example.com/b (published 2026-07-01; current)",
 		);
 	});
 

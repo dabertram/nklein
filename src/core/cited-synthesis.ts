@@ -19,6 +19,8 @@ export interface SynthesisEvidenceRef {
 	id: string;
 	title?: string;
 	url?: string;
+	/** When the source was published (threaded onto the rendered sources list for the freshness stamp). */
+	publishedAt?: Date | string | number | null;
 }
 
 /** One entry in the rendered sources list. */
@@ -27,6 +29,7 @@ export interface CitedSource {
 	evidenceId: string;
 	title?: string;
 	url?: string;
+	publishedAt?: Date | string | number | null;
 }
 
 export interface CitedAnswer {
@@ -70,7 +73,7 @@ export function assembleCitedAnswer(input: {
 			if (marker === undefined) {
 				marker = sources.length + 1;
 				markerByEvidenceId.set(citedId, marker);
-				sources.push({ marker, evidenceId: ref.id, title: ref.title, url: ref.url });
+				sources.push({ marker, evidenceId: ref.id, title: ref.title, url: ref.url, publishedAt: ref.publishedAt });
 			}
 			if (!markers.includes(marker)) {
 				markers.push(marker);

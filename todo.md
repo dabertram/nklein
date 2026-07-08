@@ -6331,10 +6331,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         EVERY claim parsed as uncited — citedSynthesisAdapter now tags excerpts with short aliases (e1, e2, …) and
         maps them back (accepts real ids too); +1 test. Gotcha recorded: the isolated verify-HOME hides the Playwright
         browser cache — set PLAYWRIGHT_BROWSERS_PATH.)*
-  - [~] Verify freshness-judgment is applied + cited sources carry dates in the output. *(◐ 2026-07-08 — the live
-        harness verified publication dates ARE threaded (evidence carried publishedAt; ranking ran the freshness ×
-        authority axis) and sufficiency's freshness gate executed. The rendered Sources list shows URLs without dates —
-        date-stamping the rendered source lines rides the `stampSourceFreshness` wiring (its core + 4 tests exist).)*
+  - [x] Verify freshness-judgment is applied + cited sources carry dates in the output. *(✅ 2026-07-08 — the
+        render seam now stamps every dated source with `(published <date>; <verdict>)` via stampSourceFreshness
+        (clock injected) + a "some cited sources may be outdated" caveat when any is stale; publishedAt threaded
+        evidence→refs→sources. LIVE-CONFIRMED: "[1] https://endoflife.date/nodejs (published 2026-07-02; current)"
+        in the online harness's cited answer. 2 contract tests updated deliberately to the dated render.)*
   - [x] Test fallback when search returns no results or network is unavailable. *(✅ 2026-07-08 — no-results was
         already covered (zero-hit advance + dead-end-primary regression); the NETWORK-DOWN case FOUND A REAL BUG:
         `runRetrievalLoop`'s `deps.search` call was unguarded, so a rejecting backend (SearXNG down / egress cut / 5xx)

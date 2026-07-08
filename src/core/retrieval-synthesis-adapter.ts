@@ -10,6 +10,7 @@
  * prior evidence-only behaviour, never worse.
  */
 
+import { hasStaleCitedSource, stampSourceFreshness } from "./cited-source-freshness";
 import { assembleCitedAnswer, type SynthesisClaim, type SynthesisEvidenceRef } from "./cited-synthesis";
 import { extractRelevantSpans } from "./extraction-span";
 import type { RetrievalEvidence } from "./retrieval-loop-driver";
@@ -146,8 +147,14 @@ export function parseSynthesisClaims(raw: string, knownIds: ReadonlySet<string>)
  *  with the same weight as a cited one (§5.AC citation verification at the render seam). */
 function renderCitedAnswer(
 	answer: string,
-	sources: readonly { marker: number; url?: string; evidenceId: string }[],
+	sources: readonly {
+		marker: number;
+		url?: string;
+		evidenceId: string;
+		publishedAt?: Date | string | number | null;
+	}[],
 	uncitedClaims: readonly string[] = [],
+	now: () => number = () => Date.now(),
 ): string {
 	const caveat =
 		uncitedClaims.length > 0
@@ -156,8 +163,23 @@ function renderCitedAnswer(
 	if (sources.length === 0) {
 		return `${answer}${caveat}`;
 	}
-	const list = sources.map((source) => `[${source.marker}] ${source.url ?? source.evidenceId}`).join("\n");
-	return `${answer}${caveat}\n\nSources:\n${list}`;
+	// Freshness stamp (§5.AC): each source line carries its publication date + verdict; a stale source adds a caveat.
+	const stamped = stampSourceFreshness(
+		sources.map((source) => ({ ref: String(source.marker), url: source.url, publishedAt: source.publishedAt })),
+		new Date(now()),
+	);
+	const list = sources
+		.map((source, index) => {
+			const freshness = stamped[index]?.freshness;
+			const dateSuffix =
+				source.publishedAt && freshness && freshness.verdict !== "unknown"
+					? ` (published ${new Date(source.publishedAt).toISOString().slice(0, 10)}; ${freshness.verdict})`
+					: "";
+			return `[${source.marker}] ${source.url ?? source.evidenceId}${dateSuffix}`;
+		})
+		.join("\n");
+	const staleCaveat = hasStaleCitedSource(stamped) ? "\nNote: some cited sources may be outdated." : "";
+	return `${answer}${caveat}\n\nSources:\n${list}${staleCaveat}`;
 }
 
 /**
@@ -167,6 +189,7 @@ function renderCitedAnswer(
  */
 export function citedSynthesisAdapter(
 	complete: SynthesisComplete,
+	options?: { now?: () => number },
 ): (input: { task: string; evidence: readonly RetrievalEvidence[] }, signal?: AbortSignal) => Promise<string> {
 	return async ({ task, evidence }, signal) => {
 		if (evidence.length === 0) {
@@ -194,8 +217,9 @@ export function citedSynthesisAdapter(
 		const refs: SynthesisEvidenceRef[] = evidence.map((item) => ({
 			id: item.id,
 			...(item.url !== undefined ? { url: item.url } : {}),
+			...(item.publishedAt !== undefined ? { publishedAt: item.publishedAt } : {}),
 		}));
 		const cited = assembleCitedAnswer({ claims, evidence: refs });
-		return renderCitedAnswer(cited.answer, cited.sources, cited.uncitedClaims);
+		return renderCitedAnswer(cited.answer, cited.sources, cited.uncitedClaims, options?.now);
 	};
 }
