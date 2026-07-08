@@ -58,6 +58,12 @@ export function buildChatAgentToolDepsResolver(input: {
 	 * OFF by default. Absent ⇒ egress off / no backend ⇒ web_search is never offered.
 	 */
 	getRetrievalConfig?: () => Promise<{ egressEnabled: boolean; searchBackendUrl: string | null }>;
+	/**
+	 * §5.M execution-access modes: isolated read-only scopes must not get host-backed `read_file`/`list_dir` tools.
+	 * The runtime can inject a Docker-backed implementation here; when absent we fail closed and offer no workspace FS
+	 * tools for `isolated_readonly` instead of mislabeled host reads.
+	 */
+	getSandboxWorkspaceReadTools?: (session: ChatSession, workspacePath: string) => Promise<ChatToolSet | null>;
 }): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
 	return async (session, extra) => {
 		// §6.11-A klein_self: the read-only SELF-awareness scope roots the session in the !Klein SOURCE repo itself
@@ -86,7 +92,10 @@ export function buildChatAgentToolDepsResolver(input: {
 		// denies UNSAFE ones (until the general risk-acknowledgement toggle lands — todo §5.M G3b).
 		const mode: ChatExecutionMode = chatScopeToExecutionMode(session.scope);
 		const canAct = chatScopeCanAct(session.scope);
-		const read = createWorkspaceReadTools(workspacePath);
+		const read =
+			mode === "isolated_readonly"
+				? ((await input.getSandboxWorkspaceReadTools?.(session, workspacePath)) ?? { tools: [], definitions: [] })
+				: createWorkspaceReadTools(workspacePath);
 		const board = createBoardReadTools(workspacePath);
 		const focus = createFocusChainTools(session.id);
 		const mutations = canAct ? createBoardMutationTools(workspacePath) : { tools: [], definitions: [] };

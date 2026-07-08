@@ -2139,12 +2139,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         **mutations still confirmed**). Conservative by construction — a host write/command is *never* silently
         allowed in any mode (exhaustive matrix test asserts this). The runtime enforces + audit-logs the decision.
   - **still owed — runtime enforcement, per mode** *(3 buried deliverables — counted as the children)*:
-    - [ ] (a) read-only sandbox + opt-in user-mounted write paths *(⏸ SANDBOX-MOUNT-INFRA 2026-07-08: the mode POLICY
+    - [~] (a) read-only sandbox + opt-in user-mounted write paths *(⏸ SANDBOX-MOUNT-INFRA 2026-07-08: the mode POLICY
           is decided (decideChatActionAccess); this leaf is the Docker ENFORCEMENT — mount the workspace read-only + bind
           only the user's opted-in paths read-write, per mode. Needs the agent-sandbox mount setup (nklein-agent-sandbox)
           to grow RO-workspace + opt-in-RW-mount support + a Docker-healthy host to verify; a pure path-authorization
           decider built BEFORE those mounts exist would be dead code by construction, like the §5.M modality gate at
-          L2100. Lands with the sandbox-mount infra change, not as a standalone pure leaf.)*
+          L2100. Lands with the sandbox-mount infra change, not as a standalone pure leaf.)* **PARTIAL 2026-07-08: the
+          resolver now fails closed for isolated read-only scopes — `chat_only`/`klein_self` no longer receive
+          host-backed `read_file`/`list_dir` tools unless an explicit sandbox read-tool provider is injected. Regression:
+          `test/runtime/trpc/chat-agent-tool-deps-resolver.test.ts`.**
+      - [x] Fail-closed resolver seam: isolated read-only scopes cannot silently relabel host filesystem reads as
+            `sandbox_read`; host-capable project scopes keep their existing toolset.
+      - [ ] Docker-backed chat workspace provider: inject real sandbox `read_file`/`list_dir` tools for isolated scopes,
+            then add opt-in user-mounted write-path support + live Docker verification.
     - [x] (b) the double-confirmed per-action host escape hatch UI + execution *(⏸ NEEDS-DAVID (UX design) — the shipped consent model is already FAIL-CLOSED (SAFE commands auto-approve via the allowlist classifier; UNSAFE require the explicit session 'Allow unsafe commands' toggle; browser tools require browserEnabled; else deny — every decision audited). A per-action double-confirm dialog is a finer-grained consent UX REDESIGN (how does a modal interrupt a streaming turn?) — David's call, no security gap today)*
     - [x] (c) the typed host-mode phrase + audit log *(⏸ NEEDS-DAVID (UX design) — same cluster: the audit log EXISTS (chat-host-action-audit-store records every allow AND deny); the typed-phrase ceremony is consent-UX design on top of the fail-closed baseline)*
 - [~] **Memory — human-like short/long-term** (reuse the in-process embedder)
