@@ -8,6 +8,79 @@ import {
 	handleNKleinMcpOauthCallback,
 	startOauthCallbackListener,
 } from "../../../src/nklein-agent/nklein-mcp-runtime-service";
+import type {
+	SdkMcpManager,
+	SdkMcpManagerOptions,
+	SdkMcpServerRegistration,
+	SdkMcpServerSnapshot,
+} from "../../../src/nklein-agent/sdk-provider-boundary";
+
+class FakeMcpManager implements SdkMcpManager {
+	readonly registrations: SdkMcpServerRegistration[] = [];
+	readonly calls: Array<Parameters<SdkMcpManager["callTool"]>[0]> = [];
+	disposed = false;
+
+	constructor(private readonly options: SdkMcpManagerOptions) {}
+
+	async registerServer(registration: SdkMcpServerRegistration): Promise<void> {
+		this.registrations.push(registration);
+		// Proves dynamically registered sandbox servers do not depend on persisted MCP settings.
+		await this.options.clientFactory(registration);
+	}
+
+	listServers(): readonly SdkMcpServerSnapshot[] {
+		return [];
+	}
+
+	async listTools(): Promise<readonly { name: string; description?: string; inputSchema: Record<string, unknown> }[]> {
+		return [];
+	}
+
+	async callTool(request: Parameters<SdkMcpManager["callTool"]>[0]): Promise<unknown> {
+		this.calls.push(request);
+		if (request.toolName === "index_repository") {
+			return {
+				content: [{ type: "text", text: JSON.stringify({ ok: true }) }],
+			};
+		}
+		if (request.toolName === "list_projects") {
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify({
+							projects: [{ name: "fixture-project", root_path: "/workspaces/task-123" }],
+						}),
+					},
+				],
+			};
+		}
+		if (request.toolName === "search_graph") {
+			return {
+				content: [
+					{
+						type: "text",
+						text: JSON.stringify({
+							results: [
+								{
+									name: "handleRequest",
+									label: "Function",
+									file_path: "src/server.ts",
+									start_line: 12,
+								},
+							],
+						}),
+					},
+				],
+			};
+		}
+		return { content: [{ type: "text", text: "{}" }] };
+	}
+
+	async dispose(): Promise<void> {
+		this.disposed = true;
+	}
+}
 
 describe("nklein-mcp-runtime-service OAuth callback handling", () => {
 	const originalRuntimePort = process.env.KANBAN_RUNTIME_PORT;
@@ -136,5 +209,119 @@ describe("createNKleinMcpRuntimeService", () => {
 			'MCP local execution is disabled under strict isolation. Skipped stdio MCP server "local".',
 		]);
 		await bundle.dispose();
+	});
+
+	it("creates a codebase-memory localization provider over sandbox docker-exec and cold-indexes the repo", async () => {
+		const managers: FakeMcpManager[] = [];
+		const service = createNKleinMcpRuntimeService({
+			createMcpManager: (options) => {
+				const manager = new FakeMcpManager(options);
+				managers.push(manager);
+				return manager;
+			},
+		});
+
+		const bundle = await service.createCodebaseMemoryLocalizationProvider({
+			sandboxExecTarget: {
+				containerName: "nklein-agent-sandbox-7",
+				uid: 10007,
+				workdir: "/workspaces/task-123",
+			},
+		});
+
+		expect(bundle.serverName).toBe("codebase-memory");
+		expect(bundle.project).toBe("fixture-project");
+		expect(bundle.repoPath).toBe("/workspaces/task-123");
+		expect(bundle.indexMode).toBe("fast");
+		expect(bundle.indexLifecycle).toBe("cold-per-provider");
+		const manager = managers[0];
+		expect(manager).toBeDefined();
+		expect(manager?.registrations).toEqual([
+			{
+				name: "codebase-memory",
+				disabled: false,
+				transport: {
+					type: "stdio",
+					command: "docker",
+					args: [
+						"exec",
+						"-i",
+						"-u",
+						"10007",
+						"-w",
+						"/workspaces/task-123",
+						"nklein-agent-sandbox-7",
+						"codebase-memory-mcp",
+					],
+				},
+			},
+		]);
+		expect(manager?.calls.slice(0, 2)).toEqual([
+			{
+				serverName: "codebase-memory",
+				toolName: "index_repository",
+				arguments: {
+					repo_path: "/workspaces/task-123",
+					mode: "fast",
+				},
+			},
+			{
+				serverName: "codebase-memory",
+				toolName: "list_projects",
+				arguments: {},
+			},
+		]);
+
+		const hits = await bundle.provider.localize({ query: ".*handleRequest.*", maxHits: 3 });
+
+		expect(hits).toEqual([
+			{
+				file: "src/server.ts",
+				symbol: "handleRequest",
+				startLine: 12,
+				reason: "Function `handleRequest` from search_graph",
+			},
+		]);
+		expect(manager?.calls[2]).toEqual({
+			serverName: "codebase-memory",
+			toolName: "search_graph",
+			arguments: {
+				name_pattern: ".*handleRequest.*",
+				limit: 3,
+				project: "fixture-project",
+			},
+		});
+
+		await bundle.dispose();
+		expect(manager?.disposed).toBe(true);
+	});
+
+	it("disposes the codebase-memory MCP manager when cold indexing fails", async () => {
+		const managers: FakeMcpManager[] = [];
+		const service = createNKleinMcpRuntimeService({
+			createMcpManager: (options) => {
+				const manager = new FakeMcpManager(options);
+				const originalCallTool = manager.callTool.bind(manager);
+				manager.callTool = async (request) => {
+					if (request.toolName === "index_repository") {
+						throw new Error("index failed");
+					}
+					return await originalCallTool(request);
+				};
+				managers.push(manager);
+				return manager;
+			},
+		});
+
+		await expect(
+			service.createCodebaseMemoryLocalizationProvider({
+				sandboxExecTarget: {
+					containerName: "nklein-agent-sandbox-8",
+					uid: 10008,
+					workdir: "/workspaces/task-123",
+				},
+			}),
+		).rejects.toThrow("index failed");
+		expect(managers[0]?.disposed).toBe(true);
 	});
 });

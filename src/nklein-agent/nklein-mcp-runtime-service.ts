@@ -6,11 +6,15 @@ import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprot
 import type { RuntimeNKleinMcpServer } from "../core/api-contract";
 import { isTruthyEnv } from "../core/env-flag";
 import { toErrorMessage } from "../core/error-message";
+import type { LocalizationProvider } from "../core/localization-provider";
+import { createMcpLocalizationProvider } from "../core/mcp-localization-provider";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint";
 import {
 	buildSandboxMcpDockerExecArgs,
 	filterEnabledSandboxServers,
+	listAvailableSandboxMcpServers,
 	type SandboxExecTarget,
+	type SandboxMcpServerDef,
 	selectSandboxMcpServersForModel,
 } from "../core/sandbox-mcp-catalog";
 import {
@@ -38,6 +42,7 @@ import {
 	createSdkInMemoryMcpManager,
 	createSdkMcpTools,
 	type SdkMcpManager,
+	type SdkMcpManagerOptions,
 	type SdkMcpServerClient,
 	type SdkMcpServerRegistration,
 	type SdkMcpTool,
@@ -45,6 +50,8 @@ import {
 
 const DEFAULT_AUTH_TIMEOUT_MS = 3 * 60 * 1000;
 const COMPLETED_CALLBACK_RETENTION_MS = 5 * 60 * 1000;
+const CODEBASE_MEMORY_SERVER_ID = "codebase-memory";
+const DEFAULT_CODEBASE_MEMORY_INDEX_MODE = "fast";
 
 const CALLBACK_RESPONSE_HTML = {
 	success:
@@ -111,8 +118,33 @@ export interface NKleinMcpToolBundleOptions {
 	basicMemoryExecEnv?: Record<string, string>;
 }
 
+export type CodebaseMemoryLocalizationIndexMode = "fast" | "moderate" | "full";
+export type CodebaseMemoryLocalizationIndexLifecycle = "cold-per-provider";
+
+export interface NKleinCodebaseMemoryLocalizationProviderOptions {
+	/** The task sandbox that owns the repo and runs `codebase-memory-mcp` over `docker exec -i`. */
+	sandboxExecTarget: SandboxExecTarget;
+	/** Repo path inside the sandbox. Defaults to the sandbox workdir, matching the repair-card worktree lifecycle. */
+	repoPath?: string;
+	/** Defaults to `fast`; the repair kernel needs structural symbol/file lookup, not semantic similarity. */
+	indexMode?: CodebaseMemoryLocalizationIndexMode;
+}
+
+export interface NKleinCodebaseMemoryLocalizationProviderBundle {
+	provider: LocalizationProvider;
+	dispose: () => Promise<void>;
+	serverName: typeof CODEBASE_MEMORY_SERVER_ID;
+	project: string;
+	repoPath: string;
+	indexMode: CodebaseMemoryLocalizationIndexMode;
+	indexLifecycle: CodebaseMemoryLocalizationIndexLifecycle;
+}
+
 export interface NKleinMcpRuntimeService {
 	createToolBundle(options?: NKleinMcpToolBundleOptions): Promise<NKleinMcpToolBundle>;
+	createCodebaseMemoryLocalizationProvider(
+		options: NKleinCodebaseMemoryLocalizationProviderOptions,
+	): Promise<NKleinCodebaseMemoryLocalizationProviderBundle>;
 	getAuthStatuses(): Promise<NKleinMcpServerAuthStatus[]>;
 	authorizeServer(input: {
 		serverName: string;
@@ -128,6 +160,105 @@ export interface NKleinMcpOauthCallbackResponse {
 
 export interface CreateNKleinMcpRuntimeServiceOptions {
 	onAuthStatusesChanged?: (statuses: NKleinMcpServerAuthStatus[]) => void | Promise<void>;
+	createMcpManager?: (options: SdkMcpManagerOptions) => SdkMcpManager;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function parseJsonText(text: string): unknown {
+	try {
+		return JSON.parse(text) as unknown;
+	} catch {
+		return undefined;
+	}
+}
+
+function unwrapMcpJson(result: unknown): unknown {
+	const record = asRecord(result);
+	if (record === undefined) {
+		return result;
+	}
+	if (record.structuredContent !== undefined) {
+		return record.structuredContent;
+	}
+	const content = record.content;
+	if (Array.isArray(content)) {
+		for (const part of content) {
+			const text = asRecord(part)?.text;
+			if (typeof text !== "string" || text.trim().length === 0) {
+				continue;
+			}
+			const parsed = parseJsonText(text);
+			if (parsed !== undefined) {
+				return parsed;
+			}
+		}
+	}
+	return result;
+}
+
+function indexedProjectNameFromListProjects(listProjectsResult: unknown, repoPath: string): string {
+	const payload = asRecord(unwrapMcpJson(listProjectsResult));
+	const projects = payload?.projects;
+	if (!Array.isArray(projects)) {
+		throw new Error("codebase-memory list_projects did not return a projects array.");
+	}
+	for (const project of projects) {
+		const record = asRecord(project);
+		if (record?.root_path === repoPath && typeof record.name === "string" && record.name.trim().length > 0) {
+			return record.name.trim();
+		}
+	}
+	throw new Error(`codebase-memory did not report an indexed project for "${repoPath}".`);
+}
+
+function runtimeServerFromRegistration(registration: SdkMcpServerRegistration): RuntimeNKleinMcpServer {
+	if (registration.transport.type === "stdio") {
+		return {
+			name: registration.name,
+			disabled: registration.disabled === true,
+			type: "stdio",
+			command: registration.transport.command,
+			args: registration.transport.args,
+			cwd: registration.transport.cwd,
+			env: registration.transport.env,
+		};
+	}
+	return {
+		name: registration.name,
+		disabled: registration.disabled === true,
+		type: registration.transport.type,
+		url: registration.transport.url,
+		headers: registration.transport.headers,
+	};
+}
+
+function buildSandboxMcpRegistration(
+	server: SandboxMcpServerDef,
+	execTarget: SandboxExecTarget,
+	env?: Record<string, string>,
+): SdkMcpServerRegistration {
+	return {
+		name: server.id,
+		disabled: false,
+		transport: {
+			type: "stdio",
+			command: "docker",
+			args: buildSandboxMcpDockerExecArgs(execTarget, server.inContainerArgv, env),
+		},
+	};
+}
+
+function selectCodebaseMemorySandboxServer(): SandboxMcpServerDef {
+	const server = listAvailableSandboxMcpServers().find((candidate) => candidate.id === CODEBASE_MEMORY_SERVER_ID);
+	if (!server) {
+		throw new Error("codebase-memory MCP server is not available for repair localization.");
+	}
+	return server;
 }
 
 async function createOauthProviderContext(input: {
@@ -526,14 +657,17 @@ export function createNKleinMcpRuntimeService(
 ): NKleinMcpRuntimeService {
 	const settingsService = createNKleinMcpSettingsService();
 	const oauthSettingsPath = resolveMcpOauthSettingsPath();
+	const createManager = options.createMcpManager ?? createSdkInMemoryMcpManager;
 
 	const createMcpClient = (registration: SdkMcpServerRegistration): SdkMcpServerClient => {
 		const loaded = settingsService.loadSettings().servers.find((server) => server.name === registration.name);
-		if (!loaded) {
-			throw new Error(`Unknown MCP server "${registration.name}".`);
-		}
-		return new RuntimeMcpServerClient(loaded, oauthSettingsPath);
+		return new RuntimeMcpServerClient(loaded ?? runtimeServerFromRegistration(registration), oauthSettingsPath);
 	};
+
+	const createManagerForRuntime = (): SdkMcpManager =>
+		createManager({
+			clientFactory: createMcpClient,
+		});
 
 	const collectAuthStatuses = (): NKleinMcpServerAuthStatus[] => {
 		const loadedSettings = settingsService.loadSettings();
@@ -559,7 +693,7 @@ export function createNKleinMcpRuntimeService(
 	};
 
 	return {
-		async createToolBundle(options?: NKleinMcpToolBundleOptions): Promise<NKleinMcpToolBundle> {
+		async createToolBundle(bundleOptions?: NKleinMcpToolBundleOptions): Promise<NKleinMcpToolBundle> {
 			const loadedSettings = settingsService.loadSettings();
 			// §5.AR: curated MCP servers hosted INSIDE the task's sandbox, offered only to a fitting model. Empty unless the
 			// caller supplies BOTH the exec target and the model id (the opt-out gate lives in the caller). Default-OFF
@@ -570,8 +704,8 @@ export function createNKleinMcpRuntimeService(
 				enabledOptIns.add("basic-memory");
 			}
 			const curatedServers =
-				options?.sandboxExecTarget && options.modelId
-					? filterEnabledSandboxServers(selectSandboxMcpServersForModel(options.modelId), enabledOptIns)
+				bundleOptions?.sandboxExecTarget && bundleOptions.modelId
+					? filterEnabledSandboxServers(selectSandboxMcpServersForModel(bundleOptions.modelId), enabledOptIns)
 					: [];
 
 			if (loadedSettings.servers.length === 0 && curatedServers.length === 0) {
@@ -582,9 +716,7 @@ export function createNKleinMcpRuntimeService(
 				};
 			}
 
-			const manager: SdkMcpManager = createSdkInMemoryMcpManager({
-				clientFactory: createMcpClient,
-			});
+			const manager: SdkMcpManager = createManagerForRuntime();
 
 			const warnings: string[] = [];
 			for (const server of loadedSettings.servers) {
@@ -620,23 +752,17 @@ export function createNKleinMcpRuntimeService(
 			// §5.AR: register the fit-gated curated servers that run IN the task's sandbox via `docker exec -i …`. Unlike a
 			// user stdio server (host process → disabled under isolation), the server runs INSIDE the container and the host
 			// runs only the exec pipe, so invariant #2 holds; the binary ships in the image, so nothing is fetched at runtime.
-			const execTarget = options?.sandboxExecTarget;
+			const execTarget = bundleOptions?.sandboxExecTarget;
 			if (execTarget) {
 				for (const server of curatedServers) {
 					try {
-						await manager.registerServer({
-							name: server.id,
-							disabled: false,
-							transport: {
-								type: "stdio",
-								command: "docker",
-								args: buildSandboxMcpDockerExecArgs(
-									execTarget,
-									server.inContainerArgv,
-									server.id === "basic-memory" ? options?.basicMemoryExecEnv : undefined,
-								),
-							},
-						});
+						await manager.registerServer(
+							buildSandboxMcpRegistration(
+								server,
+								execTarget,
+								server.id === "basic-memory" ? bundleOptions.basicMemoryExecEnv : undefined,
+							),
+						);
 						const serverTools = await createSdkMcpTools({ serverName: server.id, provider: manager });
 						tools.push(...serverTools);
 					} catch (error) {
@@ -652,6 +778,59 @@ export function createNKleinMcpRuntimeService(
 					await manager.dispose();
 				},
 			};
+		},
+
+		async createCodebaseMemoryLocalizationProvider(
+			localizationOptions: NKleinCodebaseMemoryLocalizationProviderOptions,
+		): Promise<NKleinCodebaseMemoryLocalizationProviderBundle> {
+			const server = selectCodebaseMemorySandboxServer();
+			const manager = createManagerForRuntime();
+			const repoPath = localizationOptions.repoPath?.trim() || localizationOptions.sandboxExecTarget.workdir;
+			const indexMode = localizationOptions.indexMode ?? DEFAULT_CODEBASE_MEMORY_INDEX_MODE;
+
+			try {
+				await manager.registerServer(buildSandboxMcpRegistration(server, localizationOptions.sandboxExecTarget));
+				await manager.callTool({
+					serverName: CODEBASE_MEMORY_SERVER_ID,
+					toolName: "index_repository",
+					arguments: {
+						repo_path: repoPath,
+						mode: indexMode,
+					},
+				});
+				const project = indexedProjectNameFromListProjects(
+					await manager.callTool({
+						serverName: CODEBASE_MEMORY_SERVER_ID,
+						toolName: "list_projects",
+						arguments: {},
+					}),
+					repoPath,
+				);
+				const provider = createMcpLocalizationProvider(
+					(toolName, args) =>
+						manager.callTool({
+							serverName: CODEBASE_MEMORY_SERVER_ID,
+							toolName,
+							arguments: args,
+						}),
+					{ project },
+				);
+
+				return {
+					provider,
+					dispose: async () => {
+						await manager.dispose();
+					},
+					serverName: CODEBASE_MEMORY_SERVER_ID,
+					project,
+					repoPath,
+					indexMode,
+					indexLifecycle: "cold-per-provider",
+				};
+			} catch (error) {
+				await manager.dispose().catch(() => undefined);
+				throw error;
+			}
 		},
 
 		async getAuthStatuses(): Promise<NKleinMcpServerAuthStatus[]> {

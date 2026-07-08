@@ -1297,12 +1297,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       rollbackOrRepairHints / downstreamInvalidationRules` so a card is executable node-locally, and add controller repair
       semantics (retry-node / refine-spec / split-node / add-dependency / invalidate-downstream / re-review /
       global-re-decompose-only-as-last-resort).
-  - [~] **Localization provider (read-only, cannot edit):** *(all CODE built + tested — the `LocalizationProvider` port,
-        the MCP-backed adapter (fake-tested), the N-candidate patch generator, the validator, and spectrum fault
-        localization are all done/[x]/[~] below; the third-party `codebase-memory-mcp` binary is now baked + vetted inside
-        the egress-sealed Docker sandbox, including live `search_graph` schema validation. Remaining: inject a real MCP
-        client into this port as the repair-kernel backing and decide the warm/persisted index lifecycle. Reclassified
-        [ ]→[~] 2026-07-08.)*
+  - [x] **Localization provider (read-only, cannot edit):** *(✅ COMPLETE 2026-07-08 — the read-only localization slice is
+        built + tested: the `LocalizationProvider` port, the MCP-backed adapter, spectrum fault localization, and the
+        third-party `codebase-memory-mcp` backing. The binary is baked + vetted inside the egress-sealed Docker sandbox,
+        including live `search_graph` schema validation, and
+        [nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts) now exposes a disposable
+        `createCodebaseMemoryLocalizationProvider(...)` that registers the real sandbox MCP server over `docker exec -i`,
+        cold-indexes the task repo with `index_repository mode=fast`, scopes `search_graph` to the discovered project,
+        and returns the rich read-only `LocalizationProvider`. Index lifecycle is intentionally **cold-per-provider/card-run**
+        for correctness; warm/persisted indexes are a later performance optimization, not the correctness path. Reclassified
+        [~]→[x] 2026-07-08.)*
     - [x] define a `LocalizationProvider` port + result type (file/symbol/line spans), wired as the kernel's `localize` dep.
           **DONE (2026-07-01):** [src/core/localization-provider.ts](src/core/localization-provider.ts) — `LocalizationHit`
           (file · optional symbol · 1-based line span · score · reason), `LocalizationQuery`, the read-only `LocalizationProvider`
@@ -1310,7 +1314,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           `file[:symbol|:span]`), `rankLocalizationHits` (score desc, unscored last, stable), and
           `localizationProviderAsKernelLocalize(provider, query)` — adapts a rich provider to the kernel's existing
           `localize: () => Promise<readonly string[]>` (rank → flatten → de-dupe), so a backing drops in with NO kernel change.
-          7 tests. Owed: the BACKING impl (evaluate `codebase-memory-mcp` FIRST, then MCP-backed or native-index provider).
+          7 tests. Backing impl was evaluated/adopted below and is now the codebase-memory MCP provider.
     - [x] **FIRST — before building ANY custom lookup below — evaluate [`codebase-memory-mcp`](https://github.com/DeusData/codebase-memory-mcp)
           as the `localize` backing (and/or a token-frugal agent retrieval tool), per the §4A "prefer existing solutions"
           directive.** (DeusData, MIT, single static local binary, 100% local + no telemetry, 158 languages, persistent
@@ -1332,9 +1336,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           `codebase-memory-mcp@0.8.1` static binary is baked in [docker/agent-sandbox/Dockerfile](docker/agent-sandbox/Dockerfile),
           asserted executable at image build, launched only via `docker exec -i` inside a `--network none` sandbox, and
           `scripts/verify-sandbox-mcp.mts` now indexes a throwaway repo then validates the real MCP `search_graph`
-          envelope (`content[].text` JSON, `file_path`) through `createMcpLocalizationProvider`. Focused tests +
-          live Docker harness green. Remaining live backing work is tracked on the adapter line below.
-    - [~] **MCP-backed `LocalizationProvider` adapter — BUILT + fake-tested (2026-07-01).**
+          envelope (`content[].text` JSON, `file_path`) through `createMcpLocalizationProvider`; the runtime service now
+          cold-indexes the task repo and injects the real MCP client into the provider backing. Focused tests + live Docker
+          harness green.
+    - [x] **MCP-backed `LocalizationProvider` adapter — BUILT + live-wired (2026-07-08).**
           [src/core/mcp-localization-provider.ts](src/core/mcp-localization-provider.ts) — `createMcpLocalizationProvider(callMcpTool, options?)`
           returns a `LocalizationProvider` **pure over an INJECTED** `McpToolCaller` (`(toolName, args) => Promise<unknown>`):
           no client/binary/network in the module (only side effect = the injected call → runtime path stays local, #1).
@@ -1354,9 +1359,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           `localizationProviderAsKernelLocalize` (ranked de-duped refs). **LIVE-SCHEMA VALIDATED 2026-07-08:** the
           extended [scripts/verify-sandbox-mcp.mts](scripts/verify-sandbox-mcp.mts) runs the real MCP SDK client against
           the offline Docker image, indexes a fixture repo, and localizes `handleRequest` to `src/server.ts`.
-          **STILL OWED:** wire a **real** MCP client into `callMcpTool` (via
-          [nklein-mcp-runtime-service.ts](src/nklein-agent/nklein-mcp-runtime-service.ts)) as the repair-kernel's live
-          backing + resolve the index lifecycle (warm/persist vs per-card cold index).
+          **LIVE BACKING DONE 2026-07-08:** `createNKleinMcpRuntimeService().createCodebaseMemoryLocalizationProvider`
+          registers the sandbox `codebase-memory` server via the same runtime MCP manager path as agent tools, supports
+          dynamically registered sandbox servers in the client factory (not only persisted settings servers), runs
+          `index_repository` once per provider/card-run, resolves the codebase-memory project from `list_projects`, injects
+          `manager.callTool({serverName:"codebase-memory", toolName, arguments})` into the adapter, and disposes the MCP
+          manager on success/failure. Index lifecycle resolved as **cold-per-provider/card-run** now; warm/persisted indexes
+          stay a performance-only follow-up.
     - [x] *(native fallback — DEPRIORITIZED: the eval did NOT reject codebase-memory-mcp, so this is the only-if-it-regresses path)* implement symbol/definition lookup over the existing code index (read-only). *(❌ DEPRIORITIZED / contingency-only — codebase-memory-mcp (adopted, MCP-backed LocalizationProvider adapter built+fake-tested) covers this; native fallback is the only-if-it-regresses path, not active work)*
     - [x] *(native fallback)* implement import/dependency-edge lookup for a touched file. *(❌ DEPRIORITIZED — same as above; codebase-memory-mcp covers dependency-edge lookup, native fallback is contingency-only)*
     - [x] *(native fallback)* implement call-graph neighborhood traversal (callers/callees of a symbol). *(❌ DEPRIORITIZED — codebase-memory-mcp covers call-graph traversal; native fallback is contingency-only)*

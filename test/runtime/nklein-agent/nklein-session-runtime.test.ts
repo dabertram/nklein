@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import type { NKleinMcpRuntimeService } from "../../../src/nklein-agent/nklein-mcp-runtime-service";
 import {
 	createInMemoryNKleinSessionRuntime,
 	doesNKleinToolInvalidateRepoMap,
@@ -27,13 +28,25 @@ vi.mock("../../../src/telemetry/self-observation-sink.js", () => ({
 	recordSelfObservation: selfObservationMocks.recordSelfObservation,
 }));
 
-function createNoopMcpRuntimeService() {
+function createNoopMcpRuntimeService(): NKleinMcpRuntimeService {
 	return {
 		createToolBundle: vi.fn(async () => ({
 			tools: [],
 			warnings: [],
 			dispose: async () => {},
 		})),
+		createCodebaseMemoryLocalizationProvider: vi.fn(
+			async () =>
+				({
+					provider: { localize: async () => [] },
+					dispose: async () => {},
+					serverName: "codebase-memory",
+					project: "test-project",
+					repoPath: "/workspaces/test",
+					indexMode: "fast",
+					indexLifecycle: "cold-per-provider",
+				}) as const,
+		),
 		getAuthStatuses: vi.fn(async () => []),
 		authorizeServer: vi.fn(),
 	};
@@ -1024,6 +1037,7 @@ describe("InMemoryNKleinSessionRuntime", () => {
 		const runtime = createInMemoryNKleinSessionRuntime({
 			createSessionHost: async () => fakeHost,
 			createMcpRuntimeService: () => ({
+				...createNoopMcpRuntimeService(),
 				createToolBundle: vi.fn(async () => ({
 					tools: [
 						{
@@ -1039,8 +1053,6 @@ describe("InMemoryNKleinSessionRuntime", () => {
 					warnings: [],
 					dispose: async () => {},
 				})),
-				getAuthStatuses: vi.fn(async () => []),
-				authorizeServer: vi.fn(),
 			}),
 		});
 
