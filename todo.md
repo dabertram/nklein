@@ -7492,7 +7492,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         tsc + biome clean. **Still owed (effectful):** the actual §6.7 code-index of !Klein's `src/`+`web-ui/`+`core-py/`
         and the §5.AC retrieval that LOADS the corpus docs this router points at.
   - [ ] cross-link to §5.AE (a `klein_self` skill bundle: the self-knowledge fragments) + §5.AC (a "search the docs" retrieval over the planning corpus)
-  - [ ] live-verify (§5.Z): ask a small local model real questions about !Klein's features/bugs/ideas and check the answers cite real code/docs
+        *(rides the §5.Z-verified fragment-assembly seam — same gate as the §5.AE wiring cluster)*
+  - [x] live-verify (§5.Z): ask a small local model real questions about !Klein's features/bugs/ideas and check the answers cite real code/docs
+        *(✅ 2026-07-08 LIVE PASS on the resident 9B: a klein_self session asked "what does AGENTS.md say todo.md is?"
+        → read_file fired against the !Klein SOURCE repo, no mutating tool offered, and the answer correctly cited
+        "todo.md is the single source of truth …". The run also LIVE-FOUND a user-visible bug: content starting
+        mid-reasoning with only a CLOSING </think> leaked the thought tail + the bare tag to the user —
+        splitReasoningChannel now treats a leading close as a reasoning boundary (regression + contract tests
+        updated deliberately). 621 chat/core tests green.)*
 - [-] **B — LATER (collected, NOT needed now): the agent loads its own implementation as a project and works on it
       (self-development).** *(deferred by the user 2026-06-27: "we dont really need the feature as-of-now, we just put it
       on the table to not forget + to collect ideas.")* **Clearly PROTECTED** — explicit user confirmation, **workspace

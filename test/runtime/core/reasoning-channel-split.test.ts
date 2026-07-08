@@ -161,10 +161,12 @@ describe("splitReasoningChannel — string overload + degenerate inputs", () => 
 
 	it("never throws on odd input", () => {
 		expect(() => splitReasoningChannel({ content: "</think>orphan close" })).not.toThrow();
-		// An orphan CLOSE with no open is just text (no open marker was found).
+		// Contract updated 2026-07-08 (live-found leading-close leak): an orphan CLOSE is a reasoning BOUNDARY —
+		// the user must never see a bare </think>. Everything before it (here: nothing) is reasoning; the tag is
+		// consumed; the text after it is the answer.
 		const split = splitReasoningChannel({ content: "</think>orphan close" });
-		expect(split.answer).toBe("</think>orphan close");
-		expect(split.hadInlineReasoning).toBe(false);
+		expect(split.answer).toBe("orphan close");
+		expect(split.hadInlineReasoning).toBe(true);
 	});
 });
 
@@ -195,5 +197,18 @@ describe("reasoningAndAnswerText — narrated-recovery scan surface", () => {
 	it("omits an empty channel (no leading/trailing blank noise)", () => {
 		expect(reasoningAndAnswerText({ content: "just answer" })).toBe("just answer");
 		expect(reasoningAndAnswerText({ content: "", reasoning_content: "just reasoning" })).toBe("just reasoning");
+	});
+
+	it("LEADING-CLOSE recovery: content starting mid-reasoning with only a closing tag never leaks it (live-found)", () => {
+		// Live string class from the resident 9B: the open marker went to reasoning_content, the tail + close bled
+		// into content — the old code leaked BOTH the thought tail and the bare </think> to the user.
+		const split = splitReasoningChannel("I'll read `AGENTS.md` now.</think>\n\nLet me check the file for you.");
+		expect(split.answer).toBe("Let me check the file for you.");
+		expect(split.reasoning).toContain("I'll read `AGENTS.md` now.");
+		expect(split.hadInlineReasoning).toBe(true);
+		// A normal open…close block is untouched by the recovery (loop semantics preserved).
+		const normal = splitReasoningChannel("<think>plan</think>answer");
+		expect(normal.answer).toBe("answer");
+		expect(normal.reasoning).toBe("plan");
 	});
 });

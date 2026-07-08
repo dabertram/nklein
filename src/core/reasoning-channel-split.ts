@@ -100,6 +100,25 @@ function extractInlineReasoning(content: string): {
 	let hadInline = false;
 	let truncated = false;
 
+	// LEADING-CLOSE recovery (live-found 2026-07-08 on the resident 9B): when the endpoint splits the reasoning
+	// channel mid-block, `content` can START inside the reasoning and carry only the CLOSING marker
+	// ("…thought tail</think>real answer"). Everything up to (and including) a close marker that appears BEFORE any
+	// open marker is reasoning, not answer — without this the thought tail AND the bare tag leak to the user.
+	for (const marker of INLINE_MARKERS) {
+		const closeAt = lower.indexOf(marker.close.toLowerCase());
+		if (closeAt === -1) {
+			continue;
+		}
+		const openAt = lower.indexOf(marker.open.toLowerCase());
+		if (openAt !== -1 && openAt < closeAt) {
+			continue; // a normal open…close block — the loop below owns it.
+		}
+		fragments.push(content.slice(0, closeAt));
+		cursor = closeAt + marker.close.length;
+		hadInline = true;
+		break;
+	}
+
 	while (cursor < content.length) {
 		// Find the NEXT opening marker (any variant), whichever comes first.
 		let nextOpenAt = -1;
