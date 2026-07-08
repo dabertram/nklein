@@ -7537,7 +7537,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         pass with the 18-case matrix as the acceptance oracle, not as an incidental slice.)*
   - [ ] Verify that all 18 (mode × action) test cases still pass + all existing rulesets are preserved. *(the
         acceptance oracle OF the unified-gate pass above — rides it.)*
-- [ ] **Resource governance (operational, NOT perf-benchmarking), decomposed:**
+- [~] **Resource governance (operational, NOT perf-benchmarking), decomposed:** *(all decider cores shipped — the
+      model load/unload policy [~], the VRAM/RAM/disk headroom check [x] + background-vs-interactive preemption [x]
+      (both 2026-07-08), and the durable-scheduler backpressure admit/defer/shed core [~]; the only fully-open child is
+      the multi-model lab OOM/thrash/deadlock test (⏱ FLEET). Reclassified [ ]→[~] 2026-07-08.)*
   - [~] Design + implement model load/unload policy (safe headroom, resident budget guards).
         *(◐ 2026-07-08 — the POLICY CORE shipped: `src/core/model-load-policy.ts` `decideModelLoadAction` — residents
         are NEVER proposed for unload (blocked over evicted), busy models untouchable, headroom-gated loads (unknown
@@ -7578,7 +7581,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         it at the scheduler's lease step (admit-gate the ready-ordered candidates against the live per-endpoint pool snapshot
         + global cap; map `admit`→lease, `defer`→leave `ready`, `shed`→a `cancelled`/surfaced outcome) at the live-integration pass.
   - [ ] Test multi-model lab scenario to prevent OOM/thrash/deadlock.
-- [ ] **Self-improvement quarantine (M4 safety), decomposed:**
+- [~] **Self-improvement quarantine (M4 safety), decomposed:** *(◐ SAFETY KEYSTONE DONE 2026-07-08 —
+      [self-improvement-gate.ts](src/core/self-improvement-gate.ts) `decideSelfImprovementApproval(signals)`: the pure
+      FAIL-CLOSED unified gate that approves an auto-generated self-modifying patch ONLY when EVERY gate passes —
+      protected/full suite green ∧ NEW test coverage added ∧ replay-eval green ∧ automated §5.Y security check ∧ human
+      security review ∧ explicit human MERGE approval (M4 never self-merges unsupervised). Any failing OR not-run gate is
+      a blocker, all enumerated; distinguishes FAILED from NOT-RUN. 6 tests. This makes the "never auto-merge without
+      every gate" invariant unit-provable. The individual gate children (protected-tests, security review, write-guard
+      wiring) are [~] below; the effectful pipeline that RUNS the suites/scan + captures the human decision + the
+      deterministic replay-eval pass feed this decider. Reclassified [ ]→[~] 2026-07-08.)*
   - [~] Set up protected-tests gate (#1.5): auto-patches require full suite + new test coverage.
         *(◐ the GATE CORE is live: work-package-merge-readiness blocks any pack that touches protected-test paths
         without explicit human approval (prime directive #5), requires every reported gate `pass`, and blocks
