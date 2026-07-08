@@ -6014,8 +6014,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ≥55 difficulty × wait_for_best × free-first `busyFallback`) gates the start path — a qualifying card defers via
         the existing queued endpoint-busy protocol (15s redrive) until its best qualified model frees up. The occupancy
         signal reuses free-first's own busyFallback (all qualified models busy), so no lms-ps dependency.)*
-  - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table.
-  - [ ] Live-test the settings flow end-to-end (launch eval, observe results, adjust policy).
+  - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table. *(gated-on-eval-runtime
+        2026-07-08: the background-eval-runner CORE (leases/ticks/admission) exists but has NO server wiring — the button
+        needs the eval-harness runtime integration that actually drives eval sessions against loaded models (model-time =
+        sweep-phase work). The fitness TABLE + its browser are live, so results surface the moment the harness runs.)*
+  - [ ] Live-test the settings flow end-to-end (launch eval, observe results, adjust policy). ⏱ FLEET-RUN *(rides the
+        eval-runtime wiring above)*
 - [-] **LATER / OUT OF SCOPE — cloud fallback rung (idea-collection only, per the user).** When !Klein has matured to
       where the real limitation is genuinely model quality, AND the user has connected cloud models AND explicitly opted
       in to escalate to them, the FINAL rung (after all local models × approaches fail) could try a connected cloud model.
@@ -6292,9 +6296,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the rerank `score` as `relevance`) so the synthesis/citation step consumes best-grounded-first evidence.
 - [ ] **`web_search` tool (first-class, egress-gated), decomposed:**
   - [~] Design the search tool API contract (query → title / url / snippet / published-date results); define error handling. **(2026-06-29, batch #4)** CONTRACT done: `src/core/web-search-contract.ts` — `webSearchResultSchema`/`webSearchResponseSchema` (zod) + `normalizeWebSearchResults` (tolerant) + `validateQuery` + typed `WebSearchError`. 13 tests. Owed: the egress-gated network IMPL (§5.L).
+        *(✅ COMPLETE 2026-07-08 — the "owed IMPL" note was stale: the SSRF-guarded SearXNG client
+        (web-search-searxng.ts) IS the egress-gated network impl and normalizes through this contract
+        (`normalizeWebSearchResults`); egress gating live-verified in the 2026-07-07 §5.Z sweep. Whole leaf done.)*
   - [x] Implement user-configured backend resolution (SearxNG / permitted API / DuckDuckGo-HTML selection + endpoint validation). *(SHIPPED: `retrievalSearchBackendUrl` setting + SSRF-guarded SearXNG client; live at localhost:18888.)*
   - [x] Wire egress gating + allowlist enforcement through §5.L network tier (sandbox ONLY; fail-closed). *(SHIPPED + LIVE-VERIFIED: fail-closed `blocked_by_egress` default; egress-e2e flow validated across 7 models in the 2026-07-07 §5.Z sweep.)*
-  - [ ] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow.
+  - [x] Test `web_search` integration with existing `browse_url` tool for fetch-after-search flow. *(✅ 2026-07-08 —
+        `test/runtime/chat/web-search-browse-integration.test.ts`: a URL from web_search's rendered output feeds
+        browse_url verbatim and the page content returns (deterministic fakes at both capability seams), plus both
+        tools proven to share the egress_read/web-taint class so one §5.L gate governs the whole flow. 2 tests.)*
 - [ ] **Retrieval loop (query → search → fetch → extract → synthesize → CITE), decomposed:**
   *(REFERENCE 2026-06-29: `llmaker` (Apache-2.0, https://github.com/raiyanyahya/llmaker) runs the explicit
   `rewrite → retrieve → RERANK → generate` RAG DAG — borrow the **rerank** step (rank fetched hits by relevance before
