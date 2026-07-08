@@ -395,4 +395,72 @@ describe("routeNKleinTask", () => {
 		});
 		expect(decision).toMatchObject({ modelKey: "lmstudio:z-two-tags:default" });
 	});
+
+	describe("best-effort capability margin (§5.AB deadlock fix)", () => {
+		it("bridges the one-point cliff: a card just above the fleet's prior is assigned best-effort, not frozen", () => {
+			// The live deadlock: every model sits at the default prior 35, a card scores difficulty 36 → no strictly
+			// feasible model → previously `decompose` (frozen board, nothing can decompose it either).
+			const decision = routeNKleinTask({
+				difficulty: 36,
+				fitBudgetTokens: 8_000,
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:prior35:default", capability: 35, contextWindow: 32_000 }) },
+				],
+			});
+			expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:prior35:default" });
+			expect((decision as { reason: string }).reason).toContain("best-effort");
+		});
+
+		it("still decomposes a genuinely-too-hard card (capability gap beyond the margin)", () => {
+			const decision = routeNKleinTask({
+				difficulty: 70,
+				fitBudgetTokens: 8_000,
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:weak:default", capability: 45, contextWindow: 32_000 }) },
+				],
+			});
+			// 70 - 45 = 25 > margin (15) → not bridged.
+			expect(decision).toMatchObject({ type: "decompose" });
+		});
+
+		it("does NOT best-effort a model that cannot hold the context window (escalates instead)", () => {
+			const decision = routeNKleinTask({
+				difficulty: 36,
+				fitBudgetTokens: 40_000, // required window exceeds the only candidate's 8k window
+				promptTokens: 30_000,
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:tiny-ctx:default", capability: 35, contextWindow: 8_000 }) },
+				],
+			});
+			// No model fits the window → no best-effort candidate; and none is capable → escalate.
+			expect(decision).toMatchObject({ type: "escalate" });
+		});
+
+		it("picks the STRONGEST context-fitting model within the margin", () => {
+			const decision = routeNKleinTask({
+				difficulty: 40,
+				fitBudgetTokens: 8_000,
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:cap30:default", capability: 30, contextWindow: 32_000 }) },
+					{ entry: createEntry({ key: "lmstudio:cap34:default", capability: 34, contextWindow: 32_000 }) },
+				],
+			});
+			// Neither clears 40; both within margin (40-34=6, 40-30=10) → strongest (34) wins.
+			expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:cap34:default" });
+		});
+
+		it("honors a pinned model for best-effort when it qualifies (context-fit + within margin)", () => {
+			const decision = routeNKleinTask({
+				difficulty: 40,
+				fitBudgetTokens: 8_000,
+				preferredModelKey: "lmstudio:pinned:default",
+				candidates: [
+					{ entry: createEntry({ key: "lmstudio:pinned:default", capability: 32, contextWindow: 32_000 }) },
+					{ entry: createEntry({ key: "lmstudio:stronger:default", capability: 34, contextWindow: 32_000 }) },
+				],
+			});
+			// The pinned model (32) is within margin (40-32=8) and fits context → assigned even though 34 is stronger.
+			expect(decision).toMatchObject({ type: "assign", modelKey: "lmstudio:pinned:default" });
+		});
+	});
 });

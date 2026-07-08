@@ -198,6 +198,18 @@ function compareCandidates(left: ScoredCandidate, right: ScoredCandidate): numbe
 	return left.entry.key.localeCompare(right.entry.key);
 }
 
+/**
+ * Best-effort capability margin (§5.AB, sweep root-cause fix 2026-07-08). When NO model STRICTLY clears the card's
+ * difficulty but one fits the context window and is only this many points below the difficulty, the router assigns it
+ * best-effort instead of freezing the card. Rationale: on a COLD local fleet every model sits at the same default
+ * capability prior (35, no eval data yet), so a card scored one point higher (36) has no feasible model AND cannot be
+ * decomposed to an easier tier (decomposition itself needs a capable model) — a PERMANENT frozen board (live-reproduced
+ * in the dev-test sweep). A best-effort attempt on the strongest context-fitting model, validated by the downstream
+ * review/acceptance gate, is strictly better than a deadlock. The margin is deliberately SMALL so a genuinely-too-hard
+ * card (a large capability gap) still decomposes/escalates as before — this only bridges the marginal cliff.
+ */
+export const CAPABILITY_BEST_EFFORT_MARGIN = 15;
+
 export function routeNKleinTask(request: NKleinTaskRoutingRequest): NKleinTaskRoutingDecision {
 	const difficulty = normalizeScore(request.difficulty);
 	const fitBudgetTokens = normalizeTokenBudget(request.fitBudgetTokens);
@@ -239,6 +251,35 @@ export function routeNKleinTask(request: NKleinTaskRoutingRequest): NKleinTaskRo
 			role: selected.role ?? null,
 			reason: `Selected smallest sufficient model for difficulty ${difficulty} and fit budget ${fitBudgetTokens.toLocaleString()} tokens.`,
 		};
+	}
+
+	// Best-effort bridge (see CAPABILITY_BEST_EFFORT_MARGIN): no model strictly clears the difficulty, but if the
+	// strongest CONTEXT-FITTING model is only marginally below it, assign best-effort rather than freeze. Prefer the
+	// user's pinned model when it also qualifies (context-fit + within margin); else the strongest qualifying model.
+	const windowFitting = candidates
+		.filter((candidate) => candidate.contextWindow >= candidate.requiredContextWindow)
+		.sort((left, right) => right.capability - left.capability || compareCandidates(left, right));
+	const withinMargin = (candidate: ScoredCandidate): boolean =>
+		difficulty - candidate.capability <= CAPABILITY_BEST_EFFORT_MARGIN;
+	const preferredWindowFitting =
+		preferred && windowFitting.find((candidate) => candidate.entry.key === preferred.entry.key);
+	const bestEffort =
+		preferredWindowFitting && withinMargin(preferredWindowFitting) ? preferredWindowFitting : windowFitting[0];
+	if (bestEffort && withinMargin(bestEffort)) {
+		const reason =
+			`No model strictly clears difficulty ${difficulty}; ${bestEffort.entry.key} (capability ${bestEffort.capability}) ` +
+			`fits the context window and is within the best-effort margin (${CAPABILITY_BEST_EFFORT_MARGIN}) — assigning ` +
+			`best-effort rather than freezing the card (a frozen board is worse than an attempt the review gate validates).`;
+		if (preferred && preferred.entry.key !== bestEffort.entry.key) {
+			return {
+				type: "route_up",
+				modelKey: bestEffort.entry.key,
+				role: bestEffort.role ?? null,
+				fromModelKey: preferred.entry.key,
+				reason,
+			};
+		}
+		return { type: "assign", modelKey: bestEffort.entry.key, role: bestEffort.role ?? null, reason };
 	}
 
 	const hasCapableModel = candidates.some((candidate) => candidate.capability >= difficulty);

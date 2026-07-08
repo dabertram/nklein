@@ -6063,8 +6063,20 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ≥55 difficulty × wait_for_best × free-first `busyFallback`) gates the start path — a qualifying card defers via
         the existing queued endpoint-busy protocol (15s redrive) until its best qualified model frees up. The occupancy
         signal reuses free-first's own busyFallback (all qualified models busy), so no lms-ps dependency.)*
-  - [ ] **★ HIGH-PRIORITY BUG (sweep-found 2026-07-08) — flat capability prior 35 DEADLOCKS every medium+ card on a
-        cold local fleet.** LIVE-REPRODUCED in the dev-test sweep: decomposed implementation cards sit in `planning`
+  - [x] **★ HIGH-PRIORITY BUG (sweep-found 2026-07-08) — flat capability prior 35 DEADLOCKED every medium+ card on a
+        cold local fleet. FIXED (best-effort margin bridge).** The blocking deadlock is resolved:
+        `routeNKleinTask` now assigns the strongest CONTEXT-FITTING model best-effort when no model strictly clears the
+        difficulty but the gap is within `CAPABILITY_BEST_EFFORT_MARGIN` (15) — so a card scored one point above the
+        fleet's uniform prior (36 vs 35) runs on the best available model instead of freezing, while a genuinely-too-hard
+        card (gap > 15) still decomposes/escalates as before. Honors a pinned model when it qualifies; stays local-only
+        (scoreCandidates already filters cloud); never bridges a card that can't hold the context window (→ escalate). 5
+        new router tests (one-point-cliff bridged · large-gap still decomposes · no-window-fit escalates · strongest-fit
+        chosen · pinned honored) + 15 existing green; tsc + biome green. REMAINING ENHANCEMENT (not blocking): seed
+        `DEFAULT_CAPABILITY_PRIOR` from the §5.AL capability catalog / model size so KNOWN-good big models prior above
+        "medium" without needing the bridge — the catalog (model-capability-catalog.ts) carries verdict+kind+sizeGb but
+        no 0-100 score yet; a verdict→score mapping would let a 27B/9B TOOL_NATIVE model clear medium cards outright.
+        Full trace in the `capability-prior-deadlock` memory.
+        *(original finding kept for context:)* LIVE-REPRODUCED in the dev-test sweep: decomposed implementation cards sit in `planning`
         forever with `Task start blocked: this card needs decomposition. No connected model satisfies both difficulty 36
         and the candidate-specific context fit guard.` ROOT CAUSE (fully traced): `estimateTaskDifficulty` scores a
         test-backed single-file card at ~36/100 (medium — defensible), but EVERY model in the registry sits at the flat
