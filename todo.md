@@ -8797,8 +8797,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `deriveTruncationSignal(...).shouldRetryLarger` (byte-identical on /v1 — adapter regression suite green — and
         dialect-robust beyond it). **STILL OWED (WIRING):** feed the native `/api/v0` `stats.stop_reason` (parsed by
         `lmstudio-request-stats.ts`) through it so a `TruncatedContext` stop routes to compaction rather than a futile budget bump.
-  - [ ] Extend [model-thinking-control.ts](src/core/model-thinking-control.ts) with each family's verified switch.
-  - [ ] Verify live per family as loaded (DeepSeek-R1, qwq, qwen3.5/3.6, nemotron, gemma-4, phi-4-reasoning).
+  - [~] Extend [model-thinking-control.ts](src/core/model-thinking-control.ts) with each family's verified switch.
+        *(◐ the table is the SINGLE SOURCE OF TRUTH and is CONSERVATIVELY correct — only live-verified switches added
+        (Qwen3 /no_think works; phi-4-mini-reasoning verified NEGATIVE — ignores it — and documented as such). Extending
+        it is a STANDING per-sweep ritual: each new family's switch can only be added after a live probe, so this rides
+        the fleet phase, not a bounded slice.)*
+  - [ ] Verify live per family as loaded (DeepSeek-R1, qwq, qwen3.5/3.6, nemotron, gemma-4, phi-4-reasoning). ⏱ FLEET-RUN
+        *(each needs its model loaded + a reasoning-token probe with/without the candidate switch; the resident
+        qwopus3.5 line is already characterized. Rides the sweep phase.)*
 - [ ] **RUNTIME online research to get more out of a model, decomposed:**
   - [ ] When !Klein hits a model it can't get to deliver: deep-dive the web for that model's switches/format/tool-dialect/quirks.
   - [ ] Opt-in/default-off + egress-gated (prime directive #1); a "research this model" action + automatic attempt.
