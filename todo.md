@@ -8352,9 +8352,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         + hadProgressAcrossAttempts — the read/tool-loop / no-diff class), `run-attention-signals.ts` (assessRunLiveness
         active/idle/stalled/silent + budget pressure), `detectResponseLoop` (the fixture-flip/echo class). REMAINING:
         the single first-class UNIFIED signal the leaf below asks for — these are separate cores today.)*
-  - [ ] Define first-class stuck/at-risk signal the worker + runtime both watch. *(the composition point: a single
-        `assessTaskTrouble(signals)` that ORs the four cores above into one {trouble, kind, reason} — a small pure
-        core landable now; its live wiring rides the same onSummary seam the §5.AG escalation planner uses.)*
+  - [~] Define first-class stuck/at-risk signal the worker + runtime both watch. *(◐ SHIPPED the pure
+        composition core 2026-07-08: `src/core/task-trouble-signal.ts` `assessTaskTrouble(signals)` →
+        {trouble, kind, reason} composing stuckness × liveness × no-progress streak × uncleared-loop with a
+        precedence ladder (silent > hard_stuck > no_progress > none); 4 tests. REMAINING: the live wiring at
+        the onSummary seam feeding it real signals — rides the §5.AG escalation planner's call site.)*
   - [x] When signal fires: drive §5.AB escalation path (finish automatic ladder, then escalate to user with options).
         *(✅ this IS the §5.AG Layer-1 escalation shipped 2026-07-08: planTerminalRedriveEscalation drives the automatic
         model-switch ladder on hard-stuck, then escalate_to_user when every loaded model is tried — wired live at the
