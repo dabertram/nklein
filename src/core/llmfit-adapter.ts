@@ -68,6 +68,18 @@ function strArray(value: unknown): string[] {
 	return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
 }
 
+function capabilityIdsFrom(value: unknown): string[] {
+	return strArray(value)
+		.map((capability) =>
+			capability
+				.trim()
+				.toLowerCase()
+				.replace(/[^a-z0-9]+/g, "_")
+				.replace(/^_+|_+$/g, ""),
+		)
+		.filter((capability) => capability.length > 0);
+}
+
 function parseFitLevel(value: unknown): LlmfitFitLevel | null {
 	return typeof value === "string" && (FIT_LEVELS as readonly string[]).includes(value)
 		? (value as LlmfitFitLevel)
@@ -81,11 +93,12 @@ export function parseLlmfitModel(raw: unknown): LlmfitModel | null {
 	if (!r || !name) {
 		return null;
 	}
+	const capabilityIds = capabilityIdsFrom(r.capability_ids);
 	return {
 		name,
-		bestQuant: str(r.best_quant),
+		bestQuant: str(r.best_quant) ?? str(r.quantization),
 		fitLevel: parseFitLevel(r.fit_level),
-		memoryRequiredGb: num(r.memory_required_gb),
+		memoryRequiredGb: num(r.memory_required_gb) ?? num(r.recommended_ram_gb) ?? num(r.min_ram_gb),
 		memoryAvailableGb: num(r.memory_available_gb),
 		estimatedTps: num(r.estimated_tps),
 		isMoe: r.is_moe === true,
@@ -93,9 +106,9 @@ export function parseLlmfitModel(raw: unknown): LlmfitModel | null {
 		installed: r.installed === true,
 		contextLength: num(r.context_length),
 		effectiveContextLength: num(r.effective_context_length),
-		capabilityIds: strArray(r.capability_ids),
+		capabilityIds: capabilityIds.length ? capabilityIds : capabilityIdsFrom(r.capabilities),
 		score: num(r.score),
-		category: str(r.category),
+		category: str(r.category) ?? str(r.use_case),
 		license: str(r.license),
 	};
 }

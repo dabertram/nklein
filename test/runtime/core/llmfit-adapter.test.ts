@@ -70,6 +70,27 @@ describe("parseLlmfitRecommend", () => {
 		expect(parseLlmfitModel({ name: "m" })).toMatchObject({ name: "m", fitLevel: null, estimatedTps: null });
 		expect(parseLlmfitModel({})).toBeNull();
 	});
+
+	it("parses the GitHub hf_models.json row shape used by the explicit catalog cache", () => {
+		const model = parseLlmfitModel({
+			name: "Qwen/Qwen2.5-Coder-14B-Instruct",
+			quantization: "Q4_K_M",
+			recommended_ram_gb: 16,
+			min_ram_gb: 12,
+			context_length: 32768,
+			use_case: "Coding, software development",
+			capabilities: ["Tool Use", "Code"],
+		});
+
+		expect(model).toMatchObject({
+			name: "Qwen/Qwen2.5-Coder-14B-Instruct",
+			bestQuant: "Q4_K_M",
+			memoryRequiredGb: 16,
+			contextLength: 32768,
+			category: "Coding, software development",
+			capabilityIds: ["tool_use", "code"],
+		});
+	});
 });
 
 describe("parseLlmfitSystemReport", () => {

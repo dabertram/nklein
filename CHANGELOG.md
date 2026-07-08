@@ -26,8 +26,9 @@
   row count; update downloads that catalog into the local runtime cache. The same panel now has a persisted
   `off`/`notify`/`auto` update mode (default `notify`): `off` skips the GitHub fetch, `notify` suggests, and `auto`
   refreshes the cache after an explicit check action. The default source is the current upstream path
-  (`llmfit-core/data/hf_models.json` via GitHub Contents API), unit tests inject fetch/no network, and nothing merges
-  into the empirical tool-use overlay silently yet.
+  (`llmfit-core/data/hf_models.json` via GitHub Contents API), unit tests inject fetch/no network, and the cache now feeds
+  a non-authoritative catalog supplement for unknown models. The shipped empirical tool-use catalog still wins over
+  llmfit's coarse `tool_use` metadata.
 - **The model telemetry panel now shows fleet suggestions from the loaded LM Studio set** (todo §5.AL). The existing
   fleet-advice core is now part of the runtime model-registry response and appears in Settings → model telemetry and the
   task chat telemetry drawer. When the loaded LM Studio fleet is a base-family monoculture, lacks a strong

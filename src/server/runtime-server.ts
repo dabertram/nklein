@@ -39,10 +39,12 @@ import {
 } from "../core/delivery-evidence";
 import { isTruthyEnv } from "../core/env-flag";
 import { isHomeAgentSessionId } from "../core/home-agent-session";
+import { loadLlmfitCatalogSupplement } from "../core/llmfit-catalog-supplement";
+import { defaultLlmfitCatalogCachePath } from "../core/llmfit-catalog-update";
 import { fetchLoadedModelDescriptors } from "../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
-import { registerModelCatalogOverlay } from "../core/model-capability-catalog";
+import { registerModelCatalogLlmfitSupplement, registerModelCatalogOverlay } from "../core/model-capability-catalog";
 import { defaultModelCatalogOverlayPath, loadModelCatalogOverlay } from "../core/model-catalog-overlay";
 import { decideOpportunisticIdleWork, findReviewCandidateTaskIds } from "../core/opportunistic-idle-work";
 import {
@@ -200,6 +202,11 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	registerModelCatalogOverlay(catalogOverlay.entries);
 	for (const overlayError of catalogOverlay.errors) {
 		deps.warn(overlayError);
+	}
+	const llmfitSupplement = await loadLlmfitCatalogSupplement(defaultLlmfitCatalogCachePath(homedir()));
+	registerModelCatalogLlmfitSupplement(llmfitSupplement.entries);
+	for (const supplementError of llmfitSupplement.errors) {
+		deps.warn(supplementError);
 	}
 	// §5.BG (David 2026-07-07): load the persisted runtimeId→stable-modelKey map so a COLD model still resolves to its
 	// stable key (learned from live descriptors on the routing path). Best-effort — a missing/corrupt file re-learns.

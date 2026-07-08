@@ -140,10 +140,16 @@ export { MODEL_CAPABILITY_CATALOG };
 
 /**
  * The user-editable overlay (§5.AL, David 2026-07-07 decision #1), registered from `model-catalog-overlay.json` at
- * startup and consulted BEFORE the shipped catalog — so a user (or a future llmfit-catalog pull) can add a new model
- * or override a shipped verdict WITHOUT a code change or rebuild. Empty until {@link registerModelCatalogOverlay}.
+ * startup and consulted BEFORE the shipped catalog — so a user can add a new model or override a shipped verdict
+ * WITHOUT a code change or rebuild. Empty until {@link registerModelCatalogOverlay}.
  */
 let modelCatalogOverlay: readonly ModelCapabilityEntry[] = [];
+
+/**
+ * Non-authoritative llmfit GitHub catalog supplement (§5.AB/§5.AL). Consulted AFTER the shipped empirical catalog so
+ * llmfit can fill unknown model metadata, but can never replace a measured !Klein tool-use verdict.
+ */
+let modelCatalogLlmfitSupplement: readonly ModelCapabilityEntry[] = [];
 
 /** Register the loaded overlay entries (see `model-catalog-overlay.ts`). Overlay entries win over the shipped catalog. */
 export function registerModelCatalogOverlay(entries: readonly ModelCapabilityEntry[]): void {
@@ -155,11 +161,21 @@ export function clearModelCatalogOverlay(): void {
 	modelCatalogOverlay = [];
 }
 
+/** Register llmfit-derived catalog supplement entries. These are consulted only after the shipped catalog. */
+export function registerModelCatalogLlmfitSupplement(entries: readonly ModelCapabilityEntry[]): void {
+	modelCatalogLlmfitSupplement = entries;
+}
+
+/** Clear the llmfit-derived supplement (tests / cache reload fallback). */
+export function clearModelCatalogLlmfitSupplement(): void {
+	modelCatalogLlmfitSupplement = [];
+}
+
 /**
  * Look up the capability entry for a model id (served id or lms key, e.g. `phi-4-mini-instruct@8bit`,
  * `google/gemma-4-e2b`, `qwen/qwen3-8b`). The USER OVERLAY is consulted first (so a user entry overrides a shipped
- * one), then the shipped catalog. Matches family patterns case-insensitively; returns the FIRST hit (each list is
- * ordered specific→general) or `null` when the family is unknown to both.
+ * one), then the shipped empirical catalog, then the non-authoritative llmfit supplement. Matches family patterns
+ * case-insensitively; returns the FIRST hit (each list is ordered specific→general) or `null` when the family is unknown.
  */
 export function lookupModelCapability(modelId: string): ModelCapabilityEntry | null {
 	const id = normalizeModelId(modelId).toLowerCase();
@@ -169,6 +185,11 @@ export function lookupModelCapability(modelId: string): ModelCapabilityEntry | n
 		}
 	}
 	for (const entry of MODEL_CAPABILITY_CATALOG) {
+		if (entry.match.test(id)) {
+			return entry;
+		}
+	}
+	for (const entry of modelCatalogLlmfitSupplement) {
 		if (entry.match.test(id)) {
 			return entry;
 		}

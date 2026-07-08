@@ -90,16 +90,21 @@ describe("handleCheckLlmfitCatalogUpdate", () => {
 			cachePath: "/tmp/nklein-home/.nklein/nklein/llmfit-catalog-cache.json",
 			written: true,
 		}));
+		const registerCatalogSupplement = vi.fn(async () => {});
 
 		const result = await handleCheckLlmfitCatalogUpdate({
 			mode: "auto",
 			checkCatalogUpdate,
 			pullCatalogUpdate,
+			registerCatalogSupplement,
 			homePath: "/tmp/nklein-home",
 		});
 
 		expect(checkCatalogUpdate).toHaveBeenCalledWith({ mode: "auto", homePath: "/tmp/nklein-home" });
 		expect(pullCatalogUpdate).toHaveBeenCalledWith({ mode: "auto", homePath: "/tmp/nklein-home" });
+		expect(registerCatalogSupplement).toHaveBeenCalledWith(
+			"/tmp/nklein-home/.nklein/nklein/llmfit-catalog-cache.json",
+		);
 		expect(result).toMatchObject({
 			mode: "auto",
 			action: "up_to_date",
@@ -139,15 +144,47 @@ describe("handleCheckLlmfitCatalogUpdate", () => {
 			cachePath: "/tmp/nklein-home/.nklein/nklein/llmfit-catalog-cache.json",
 			written: true,
 		}));
+		const registerCatalogSupplement = vi.fn(async () => {});
 
 		const result = await handlePullLlmfitCatalogUpdate({
 			pullCatalogUpdate,
+			registerCatalogSupplement,
 			homePath: "/tmp/nklein-home",
 		});
 
 		expect(pullCatalogUpdate).toHaveBeenCalledWith({ mode: "notify", homePath: "/tmp/nklein-home" });
+		expect(registerCatalogSupplement).toHaveBeenCalledWith(
+			"/tmp/nklein-home/.nklein/nklein/llmfit-catalog-cache.json",
+		);
 		expect(result.written).toBe(true);
 		expect(result.remoteModelCount).toBe(3);
+	});
+
+	it("does not register a catalog supplement when the pull did not write a cache", async () => {
+		const pullCatalogUpdate = vi.fn(async () => ({
+			mode: "notify" as const,
+			action: "noop" as const,
+			reason: "No remote catalog revision available.",
+			sourceUrl: DEFAULT_LLMFIT_CATALOG_METADATA_URL,
+			downloadUrl: null,
+			localRevision: null,
+			remoteRevision: null,
+			remoteModelCount: null,
+			remoteSizeBytes: null,
+			checkedAt: 420,
+			cachePath: "/tmp/nklein-home/.nklein/nklein/llmfit-catalog-cache.json",
+			written: false,
+		}));
+		const registerCatalogSupplement = vi.fn(async () => {});
+
+		const result = await handlePullLlmfitCatalogUpdate({
+			pullCatalogUpdate,
+			registerCatalogSupplement,
+			homePath: "/tmp/nklein-home",
+		});
+
+		expect(result.written).toBe(false);
+		expect(registerCatalogSupplement).not.toHaveBeenCalled();
 	});
 
 	it("does not call the live puller when catalog updates are off", async () => {

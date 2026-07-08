@@ -5948,6 +5948,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `{stdout, exitCode}`, never throws). 4 tests. **decideModelLoad COMBINER DONE — see the next leaf.** **Still owed
         (the live seam + remaining feeds):** call llmfit (via the runner, per pool) at the load-planning seam + the
         `estimatedTps` → §5.AB fitness + pool-routing `predictedWallTimeMs`/`capabilityTier`, `installed` → resident detection.
+        *(2026-07-08 parser extension: `parseLlmfitModel` also accepts the current GitHub DB row shape
+        (`capabilities`, `use_case`, `quantization`, `recommended_ram_gb`/`min_ram_gb`) so the cached public catalog can
+        be consumed without invoking the CLI.)*
   - [~] feed llmfit's fit verdict into `decideModelLoad`. **COMBINER DONE (2026-06-29):**
         `refineLoadDecisionWithLlmfit(headroom, llmfitModel)` ([model-load-headroom.ts](src/core/model-load-headroom.ts))
         ANDs llmfit's per-quant/MoE fit with the RAM-headroom guard — headroom stays the HARD freeze-gate (deny is final);
@@ -5963,7 +5966,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         + our EMPIRICAL verdict and classifies the tool-use signals: `agree`/`conflict`/`catalog-only`/`llmfit-only`/`no-data`.
         Load-bearing case = `conflict` (llmfit's HF scrape optimistically tags a chat/reasoner `tool_use` but we measured
         TOOL_WEAK/UNSUITABLE) → `authoritativeToolUse` resolves in the CATALOG's favour so routing never loads an un-agentic
-        model on llmfit's say-so. Injected lookup (pure). Owed: consume the xref at the live load-planning/routing seam.
+        model on llmfit's say-so. Injected lookup (pure). **Partial live consumer DONE 2026-07-08:** the cached GitHub DB
+        now registers as a post-empirical catalog supplement for UNKNOWNs only (same "llmfit never overrides empirical"
+        rule). Owed: consume the xref at the live load-planning/routing seam.
   - [ ] **EGRESS-GATED (prime directive #1):** the model-DB refresh (`make update-models` hits the HF API) + the
         Community-Leaderboard/localmaxxing.com features are OUTBOUND network — opt-in/default-off + allow-listed, like the
         §5.AC online-research tools; the offline embedded DB is fine local-only. Also a "update llmfit version" action.
@@ -8871,8 +8876,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       `match` string → case-insensitive RegExp, tolerant per-entry skip) that `lookupModelCapability` consults BEFORE the
       shipped catalog (`registerModelCatalogOverlay`; overlay entries win). Wired at server startup (runtime-server, best-
       effort). Format documented in `docs/model-catalog-overlay.md` seeded with web-verified mid-2026 entries. 8 tests.
-      So a user adds/overrides a model without a rebuild. REMAINING (next leaves): the llmfit GitHub auto-update (below)
-      feeds THIS overlay; a settings/UI editor + confirm-to-overlay from the online-lookup core are the suggestion-surface tie-in.
+      So a user adds/overrides a model without a rebuild. The llmfit GitHub cache now feeds a separate NON-authoritative
+      catalog supplement (below) so public metadata can fill unknowns without overriding this user overlay or the shipped
+      empirical catalog. REMAINING (next leaves): a settings/UI editor + confirm-to-overlay from the online-lookup core are
+      the suggestion-surface tie-in.
 - [~] **Auto-check llmfit's GitHub catalog for updates (David 2026-07-07 — "we had looked at llmfit for this purpose").**
       llmfit (MIT, https://github.com/AlexsJones/llmfit — already scoped in §5.AB's llmfit item) ships a model DB/catalog
       updated as new models land. Make llmfit's remote catalog a first-class SOURCE feeding the external overlay (above):
@@ -8902,8 +8909,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (`off`/`notify`/`auto`, default `notify`) through the save/get contract and Settings model telemetry panel. The
       runtime route reads the saved scoped/global mode before any GitHub work: `off` short-circuits, `notify` checks +
       suggests, and `auto` pulls the local cache only after an explicit user check action. Contract/unit/UI tests cover
-      persistence and the handler policy. REMAINING: merge cached llmfit fit/speed/hardware rows into the
-      overlay/composed catalog without replacing our empirical tool-use verdict.)*
+      persistence and the handler policy.)*
+      *(✅ 2026-07-08 — CACHED-CATALOG MERGE shipped: `src/core/llmfit-catalog-supplement.ts` parses the cached GitHub
+      rows (including the current `hf_models.json` shape: `capabilities`, `use_case`, `quantization`, RAM/context hints)
+      into a non-authoritative `ModelCapabilityEntry` supplement. Lookup order is now user overlay → shipped empirical
+      catalog → llmfit supplement, so llmfit fills UNKNOWN public metadata but cannot replace a measured !Klein verdict;
+      every generated llmfit row keeps `toolUse: UNKNOWN` even when HF metadata claims `tool_use`. Runtime startup loads
+      `llmfit-catalog-cache.json`, and explicit/auto pull reloads the supplement immediately after a successful cache
+      write. Focused verification green: `npx vitest run test/runtime/core/llmfit-adapter.test.ts
+      test/runtime/core/llmfit-catalog-supplement.test.ts test/runtime/core/model-catalog-overlay.test.ts
+      test/runtime/trpc/model-catalog-update.test.ts`; `npm run typecheck`.)*
 - [~] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
       hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
       single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup

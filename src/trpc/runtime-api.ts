@@ -87,6 +87,7 @@ import { importGitHubIssueContext, importGitHubPrDiffContext } from "./runtime-a
 import { runLocalAdvisorCompletion } from "./runtime-api/local-advisor-completion.js";
 import { handleMergeTaskWorktrees } from "./runtime-api/merge-task-worktrees.js";
 import {
+	defaultLlmfitCatalogSupplementRegistrar,
 	defaultLlmfitCatalogUpdateChecker,
 	defaultLlmfitCatalogUpdatePuller,
 	handleCheckLlmfitCatalogUpdate,
@@ -657,6 +658,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 				mode,
 				checkCatalogUpdate: defaultLlmfitCatalogUpdateChecker,
 				pullCatalogUpdate: defaultLlmfitCatalogUpdatePuller,
+				registerCatalogSupplement: defaultLlmfitCatalogSupplementRegistrar,
 			});
 		},
 		pullLlmfitCatalogUpdate: async (workspaceScope) => {
@@ -664,6 +666,7 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 			return await handlePullLlmfitCatalogUpdate({
 				mode,
 				pullCatalogUpdate: defaultLlmfitCatalogUpdatePuller,
+				registerCatalogSupplement: defaultLlmfitCatalogSupplementRegistrar,
 			});
 		},
 		removeNKleinModelRegistryEntry: async (_workspaceScope, input) => {
