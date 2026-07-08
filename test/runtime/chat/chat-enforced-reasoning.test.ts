@@ -54,24 +54,27 @@ describe("maybeEnforceReasoning (§5.AD flag-gated chat hookup)", () => {
 		expect(called).toBe(0);
 	});
 
-	it("hard task × struggling model ⇒ the gate fires self_consistency and the majority sample wins", async () => {
-		// The gate's external-signal ladder picks self_consistency for a low-reliability profile with no stronger
-		// peer (the chat hookup never supplies one) — majority vote washes out a flaky model's variance.
-		let samples = 0;
+	it("hard task × struggling model ⇒ the chat hookup maps the gate's consistency pick to the BOUNCE loop", async () => {
+		// The gate picks self_consistency for a low-reliability profile with no stronger peer, but exact-match voting
+		// degenerates on free-form chat output (live-found on the resident 9B) — the hookup maps it to the persona
+		// bounce, whose critique→revise rounds work on any output shape.
+		const calls: string[] = [];
 		const out = await maybeEnforceReasoning({
 			task: HARD_TASK,
-			draft: "answer-A",
+			draft: "v1",
 			profile: strugglingProfile(),
 			modelId: "weak",
-			complete: async () => {
-				samples += 1;
-				return "answer-B";
+			complete: async ({ system, user }) => {
+				calls.push(system ? "critique" : "revise");
+				if (system) {
+					return user.includes("v2") ? "Fine.\nVERDICT: ok" : "1. Naive.\nVERDICT: revise";
+				}
+				return "v2";
 			},
 			enabled: true,
 		});
-		// draft(A) + two fresh samples(B, B) ⇒ majority B replaces the draft.
-		expect(samples).toBeGreaterThanOrEqual(2);
-		expect(out).toBe("answer-B");
+		expect(out).toBe("v2");
+		expect(calls[0]).toBe("critique");
 	});
 
 	it("a throwing completion never breaks the turn — the draft survives", async () => {

@@ -63,10 +63,17 @@ export async function maybeEnforceReasoning(input: MaybeEnforceReasoningInput): 
 		if (!decision.enforce) {
 			return input.draft;
 		}
+		// LIVE-FOUND (2026-07-08, resident 9B): exact-match majority voting degenerates on FREE-FORM chat output —
+		// two real samples never byte-match, so the naive draft survives as the first-seen "winner". Consistency
+		// voting suits short determinate answers; chat drafts are generative, so map the gate's self_consistency to
+		// the bounce kind here (the critique loop works on any output shape). The gate stays generic; the SURFACE
+		// knows its output shape.
+		const decisionForChat =
+			decision.kind === "self_consistency" ? { ...decision, kind: "self_bounce_varied" as const } : decision;
 		const result = await runEnforcedReasoningLoop({
 			task: input.task,
 			draft: input.draft,
-			decision,
+			decision: decisionForChat,
 			deps: { completeSelf: input.complete },
 			...(input.modelId !== undefined ? { draftModelId: input.modelId } : {}),
 		});

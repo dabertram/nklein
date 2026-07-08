@@ -6613,7 +6613,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (threshold 0.3 on the text+acceptance-only signal range), struggle signal auto-resolved from the model's
         behavior store, drives `runEnforcedReasoningLoop` over the turn's own completion; wired at the chat-turn
         final-answer seam (`deps.enforceReasoning`, fail-soft) + supplied by the chat service. 4 tests; chat suite
-        596 green. Live-verify on the resident 9B + the swarm seam ride fleet time.)*
+        596 green. LIVE-VERIFIED on the resident 9B same day: a naive median() one-liner draft on a hard test-backed
+        ask was bounced (skeptical-reviewer critique → revise) into a correct filtered/comparator-sorted implementation
+        — exit 0. En route live-found+fixed a design gap: exact-match majority voting degenerates on free-form chat
+        output (two real samples never byte-match, the naive draft survived the vote), so the chat hookup maps the
+        gate's self_consistency pick to the persona BOUNCE (the gate stays generic; the surface knows its output
+        shape). Only the swarm seam rides fleet time.)*
   - [~] Integrate round-limit + stall/identical-loop detection (reuse §5.K + §5.S + §5.AA seams); compose into one explicit loop.
         **PURE CORE DONE (2026-07-01):** [src/core/enforced-reasoning-round-stop.ts](src/core/enforced-reasoning-round-stop.ts)
         `decideReasoningRoundStop(input)` → `{continueLoop, verdict, roundsUsed, roundsRemaining, bestQuality,
