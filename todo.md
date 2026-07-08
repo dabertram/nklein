@@ -6161,7 +6161,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [x] (b) Wire global scheduler to reserve strong models for hard cards, drain easy cards through fast small models. *(SHIPPED: difficulty gate + free-first pool routing)*
   - [ ] (c) Implement BFCL-style per-model tool-usage probes; feed results into fitness table.
   - [ ] Add selective cross-model debate/review for low-confidence outputs (different model families, per §5.AD).
-  - [ ] Log per-routing decision: predicted route, actual outcome, verifier outcome, uncertainty, resource state.
+  - [x] Log per-routing decision: predicted route, actual outcome, verifier outcome, uncertainty, resource state. *(✅
+        2026-07-08 — [routing-decision-log.ts](src/core/routing-decision-log.ts): the `RoutingDecisionRecord` shape
+        (taskId · routeType · predictedModelKey · difficulty · actualOutcome · verifierOutcome · uncertainty ·
+        resourceState · recordedAt), a total normalizing `buildRoutingDecisionRecord` (clamps difficulty/uncertainty,
+        defaults verifier to `not_run`), and the value-add `summarizeRoutingCalibration` — a PURE calibration summary
+        over a batch: success/verifier-pass/escalation rates, route-type counts, mean uncertainty, and the headline
+        `uncertaintyFailureGap` (mean uncertainty on FAILED runs − on SUCCEEDED runs; POSITIVE = the router was rightly
+        more uncertain about the runs that failed). Complete + testable BEFORE any producer wires in (the summary is pure
+        over injected records). Composes `ModelOutcomeKind` by import only. 6 tests; tsc + biome + full gate green. Owed
+        WIRING: emit a record at the routing seam (routeNKleinTask caller) + persist for the calibration read.)*
 
 > **★ 2026-06-28 user emphasis — the user-triggerable capability sweep + fully-automatic assignment + ALWAYS-FRESH
 > grounded metrics (sharpens this section; do NOT re-litigate the §5.AB direction — this is the same crown, made
