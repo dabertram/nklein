@@ -133,10 +133,43 @@ export function formatCompactSchemaIssues(error: z.ZodError, limit = 3): string 
 	return remaining > 0 ? `${issues} (+${remaining} more)` : issues;
 }
 
+/**
+ * Parse-and-recover for a STRINGIFIED array/object field (live-found sweep run 8, 2026-07-08: qwopus3.5 emitted
+ * `tasks` as a JSON STRING `"[{...}]"` instead of an array — a classic weak-model nested-JSON stringification, so the
+ * schema saw a 2978-char string, not tasks, and the whole decompose bounced). JSON.parse a string-valued
+ * `tasks`/`questions`/`expansions` back into its structure BEFORE schema validation (and before the other recoveries,
+ * which early-return when `tasks` isn't an array). A non-string or unparseable value is left untouched — validation
+ * still guides. Pure.
+ */
+export function recoverStringifiedDecomposeArrays(input: unknown): unknown {
+	if (typeof input !== "object" || input === null) {
+		return input;
+	}
+	const record = input as Record<string, unknown>;
+	let changed = false;
+	const next: Record<string, unknown> = { ...record };
+	for (const key of ["tasks", "questions", "expansions"] as const) {
+		const value = record[key];
+		if (typeof value !== "string") {
+			continue;
+		}
+		const trimmed = value.trim();
+		if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+			try {
+				next[key] = JSON.parse(trimmed);
+				changed = true;
+			} catch {
+				// Unparseable — leave the string so schema validation surfaces a clear error.
+			}
+		}
+	}
+	return changed ? next : input;
+}
+
 export function normalizeDecomposeProjectToolInput(input: unknown): DecomposeProjectToolInput {
 	assertUsableDecomposeProjectInput(input);
 	const result = decomposeProjectToolInputSchema.safeParse(
-		recoverMissingTaskPrompts(recoverMissingDecomposeProjectTitle(input)),
+		recoverMissingTaskPrompts(recoverMissingDecomposeProjectTitle(recoverStringifiedDecomposeArrays(input))),
 	);
 	if (!result.success) {
 		throw new Error(

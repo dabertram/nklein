@@ -5,6 +5,7 @@ import {
 	decomposeProjectFieldIsUsable,
 	formatCompactSchemaIssues,
 	recoverMissingTaskPrompts,
+	recoverStringifiedDecomposeArrays,
 	slugifyTaskId,
 } from "../../../src/nklein-agent/decomposition/plan-task-input-parse";
 
@@ -151,5 +152,40 @@ describe("§5.AK contract fields flow through the decompose input (schema advert
 		]) {
 			expect(advertised, `JSON schema must advertise ${field}`).toContain(field);
 		}
+	});
+});
+
+describe("recoverStringifiedDecomposeArrays (live-found sweep run 8: tasks emitted as a JSON string)", () => {
+	it("JSON.parses a stringified tasks array back into a real array", () => {
+		const recovered = recoverStringifiedDecomposeArrays({
+			slug: "x",
+			tasks: '[{"id":"card-1","title":"Cap","prompt":"clamp"}]',
+		}) as { tasks: unknown };
+		expect(Array.isArray(recovered.tasks)).toBe(true);
+		expect(recovered.tasks).toEqual([{ id: "card-1", title: "Cap", prompt: "clamp" }]);
+	});
+
+	it("recovers stringified questions + expansions too", () => {
+		const recovered = recoverStringifiedDecomposeArrays({
+			questions: '[{"id":"q1","question":"?","status":"assumed-default"}]',
+			expansions: '{"card-1":["a"]}',
+		}) as { questions: unknown; expansions: unknown };
+		expect(Array.isArray(recovered.questions)).toBe(true);
+		expect(recovered.expansions).toEqual({ "card-1": ["a"] });
+	});
+
+	it("leaves a real array / object untouched (no-op)", () => {
+		const input = { tasks: [{ id: "a" }], questions: [] };
+		expect(recoverStringifiedDecomposeArrays(input)).toBe(input);
+	});
+
+	it("leaves an unparseable string untouched so schema validation can guide", () => {
+		const input = { tasks: "[not valid json" };
+		expect(recoverStringifiedDecomposeArrays(input)).toBe(input);
+	});
+
+	it("ignores a non-object input", () => {
+		expect(recoverStringifiedDecomposeArrays(null)).toBeNull();
+		expect(recoverStringifiedDecomposeArrays("nope")).toBe("nope");
 	});
 });
