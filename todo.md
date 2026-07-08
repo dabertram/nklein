@@ -8122,7 +8122,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       fixed); (3) the **parallel-LLM reality** (LM Studio serial-gated, much of the perception was the now-fixed hang). So
       the rail demonstrably uncovers dormant issues. **Still owed:** the *sustained, unattended* window on the always-on
       runner + a regular together-review of the accumulated `rail-*.json` harvest (depends on the durable runner above).
-- [ ] **BUG — Docker errors + broken evidence creation in the dschinn dev-workspace, decomposed:**
+- [~] **BUG — Docker errors + broken evidence creation in the dschinn dev-workspace, decomposed:** *(reproduced +
+      root-caused (the sandbox dead-container "No such container" recovery gap, from a 7.7GiB Docker VM under a heavy
+      fleet); the FIX (verify container liveness in ensureContainerStarted, restart on dead) is the one open child and
+      must be done on a Docker-HEALTHY host so the hot path is real-validated, not changed blind. Reclassified [ ]→[~]
+      2026-07-08.)*
   - [ ] Reproduce the Docker errors on the dschinn dev-workspace and capture exact error text. ⏱ SWEEP-PHASE
         *(needs a full live dev-test run of 36_dark_factory_dschinn_universal_agent — the extended-goal sweep's
         natural first target; the fixture exists, the sandbox image is present.)*
@@ -8204,7 +8208,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `auto`/`more` alias) — it never composes the opaque `read:`/`stitch:` cursors (those are still accepted for
         back-compat); each result reports index/total progress so iteration is "where am I", not cursor bookkeeping. The
         tool description matches. 14 unit tests green; nothing regressed. No remaining simplification the handoff intended.
-- [ ] **NEW genuine PARTIAL class (no result branch captured), decomposed:**
+- [~] **NEW genuine PARTIAL class (no result branch captured), decomposed:** *(diagnosis + classification children
+      [x]/[~]; the one open child is reproducing it via repeated `verify-full-system.mts` runs (⏱ needs the live
+      full-system harness + repeated runs to catch the intermittent no-branch capture). Reclassified [ ]→[~] 2026-07-08.)*
   - [ ] Reproduce via repeated `scripts/verify-full-system.mts` runs until intermittent triggers (~1 in 5). ⏱ SWEEP-PHASE
         *(repeated live runs = model-time; note the harness's card-count bug fixed 2026-07-08 removes one confounder
         from those repro logs)*
@@ -8222,7 +8228,9 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         into review. Both halves of the either/or landed.)*
   - [x] Implement chosen approach. *(✅ implemented across preserveFailedTaskPatch/classifyTaskPatchCaptureFailure,
         the #24 redrive, and the §5.BD watchdog rescue — see the decision note above.)*
-- [ ] **Cosmetic: board.cards reads 0 in full-system runtime, decomposed:**
+- [x] **Cosmetic: board.cards reads 0 in full-system runtime, decomposed:** *(all 5 children [x] — reproduced, traced
+      the getState snapshot projection, root-caused the workspace.getState vs session-state divergence, fixed + regression
+      test. Crossed off 2026-07-08.)*
   - [x] Reproduce: run `scripts/verify-full-system.mts` and confirm "Cards on board: 0" logs. *(✅ 2026-07-08 —
         reproduced STATICALLY, deterministic: the read could never be non-zero (see root cause below).)*
   - [x] Verify the session state reaches `awaiting_review` (to confirm state divergence). *(✅ the sessions read uses
