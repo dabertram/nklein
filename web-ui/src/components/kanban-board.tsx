@@ -172,6 +172,7 @@ export function KanbanBoard({
 	replayCardsEnabled = false,
 	forceFleetExpanded = false,
 	defaultNKleinModelId,
+	reasoningSnippetByTaskId,
 }: {
 	data: BoardData;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
@@ -210,6 +211,8 @@ export function KanbanBoard({
 	/** §5.BB Zoom 3 (Professional): render the fleet block expanded regardless of the stored toggle. */
 	forceFleetExpanded?: boolean;
 	defaultNKleinModelId?: string | null;
+	/** §5.V: live reasoning-phase snippets per task (derived at App level from task-chat reasoning messages). */
+	reasoningSnippetByTaskId?: Record<string, string>;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
 	const boardRef = useRef<HTMLElement>(null);
@@ -978,6 +981,7 @@ export function KanbanBoard({
 			replayCardsEnabled={replayCardsEnabled}
 			defaultNKleinModelId={defaultNKleinModelId}
 			mailboxCountByTaskId={mailboxCountByTaskId}
+			reasoningSnippetByTaskId={reasoningSnippetByTaskId}
 			onCardClick={(card) => {
 				if (!dragOccurredRef.current) {
 					onCardSelect(card.id);

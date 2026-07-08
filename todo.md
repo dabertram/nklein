@@ -3685,13 +3685,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         triggers a fresh `getState` load for the new workspace and isn't swallowed/raced by an in-flight batch from the
         old workspace). Add a Playwright regression on the mock harness (switch while a card streams → target board shows
         its cards within N ms).
-  - [ ] **Reasoning-phase activity snippet on the board card (handoff 2026-06-28):** show a live snippet of the agent's
+  - [x] **Reasoning-phase activity snippet on the board card (handoff 2026-06-28):** show a live snippet of the agent's
         *reasoning* phase on the card (like the tool/activity line). An earlier speculative attempt was **reverted** — it
         used the wrong event path. Reasoning flows a **different** path than `assistant-reasoning-delta`'s
         `latestHookActivity`; find the correct event seam (trace how reasoning deltas reach the runtime-state hub vs how
         tool/hook activity does — grep the NKlein event adapter + runtime-state-hub for the reasoning channel) before
         wiring the card UI. Verify live with a reasoning-capable local model (e.g. a deepseek-r1 / qwen3 thinking model)
         that the snippet actually updates during the thinking phase.
+        *(✅ 2026-07-08: seam traced — reasoning deltas flow `assistant-reasoning-delta` → nklein-event-adapter
+        `appendReasoningChunk` → `role:"reasoning"` task-chat messages → WS `task_chat_message` → client
+        `taskChatMessagesByTaskId`; NO new backend seam needed. Pure derivation
+        `web-ui/src/components/board-reasoning-snippets.ts` (snippet only while the reasoning message is the LATEST;
+        last non-empty line, 80-char cap) memoized at App level, threaded App→KanbanBoard→BoardColumn→BoardCard via the
+        mailbox-count pattern; status line shows "Thinking: <snippet>" instead of generic "Thinking...". 3 derivation
+        tests + card render test; web gate 961 green. LIVE-VERIFIED vs resident qwopus3.5-9b-coder-mtp via
+        `scripts/verify-card-reasoning-snippet.mts`: 197 distinct snippet updates during thinking, snippet yielded to
+        the follow-up message — exit 0.)*
 - [~] **e2e stabilization baseline (2026-06-28) — restored to green + 2 real bugs fixed.** Full web e2e suite is green
       (46 passed): fixed the `promptBlock` null-crash (+ regression), fixed the board-card title-collapse layout bug
       (un-redded all 11 `review-recovery` tests), and migrated the legacy `smoke.spec.ts` onto the runtime-mock harness.

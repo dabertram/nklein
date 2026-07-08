@@ -1304,4 +1304,34 @@ describe("BoardCard", () => {
 
 		expect(container.querySelector("[data-review-ladder]")).toBeNull();
 	});
+
+	it("shows the live reasoning snippet in the status line while running, generic Thinking... without one", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running")}
+					reasoningSnippet="Checking the failing acceptance test first."
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Thinking: Checking the failing acceptance test first.");
+
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard()}
+					index={0}
+					columnId="in_progress"
+					sessionSummary={createSummary("running")}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Thinking...");
+		expect(container.textContent).not.toContain("Thinking:");
+	});
 });

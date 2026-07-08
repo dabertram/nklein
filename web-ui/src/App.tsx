@@ -11,6 +11,7 @@ import { ActivityMapView } from "@/components/activity-map-view";
 import { AddProjectDialog } from "@/components/add-project-dialog";
 import { notifyError, showAppToast } from "@/components/app-toaster";
 import { BoardDagView } from "@/components/board-dag-view";
+import { deriveReasoningSnippetByTask } from "@/components/board-reasoning-snippets";
 import { CardDetailView } from "@/components/card-detail-view";
 import { ChatPrimaryPane, ChatSidebar } from "@/components/chat/chat-sidebar";
 import { ClearTrashDialog } from "@/components/clear-trash-dialog";
@@ -837,6 +838,12 @@ export default function App(): ReactElement {
 		workspacePath: activeWorkspacePath,
 	});
 	const selectedTaskChatMessages = selectTaskChatMessagesForTask(selectedCard?.card.id, taskChatMessagesByTaskId);
+	// §5.V: live reasoning-phase snippets for board cards — derived once here so the board re-renders on a tiny
+	// snippet map, never on the raw task-chat message firehose.
+	const reasoningSnippetByTaskId = useMemo(
+		() => deriveReasoningSnippetByTask(taskChatMessagesByTaskId),
+		[taskChatMessagesByTaskId],
+	);
 	const selectedTaskTeamProgress = selectedCard ? (nkleinTeamProgressByTaskId[selectedCard.card.id] ?? []) : [];
 	const latestSelectedTaskChatMessage = selectLatestTaskChatMessageForTask(
 		selectedCard?.card.id,
@@ -1203,6 +1210,7 @@ export default function App(): ReactElement {
 												forceFleetExpanded={zoom === 4}
 												data={board}
 												taskSessions={sessions}
+												reasoningSnippetByTaskId={reasoningSnippetByTaskId}
 												workspacePath={workspacePath}
 												currentProjectId={currentProjectId}
 												runtimeConfig={runtimeProjectConfig ?? null}

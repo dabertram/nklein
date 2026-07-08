@@ -51,11 +51,14 @@ export function BoardColumn({
 	replayCardsEnabled = false,
 	defaultNKleinModelId,
 	mailboxCountByTaskId,
+	reasoningSnippetByTaskId,
 }: {
 	column: BoardColumnModel;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
 	/** W3.4: pending §5.AU mailbox-note counts (taskId → n); absent/0 = no badge. */
 	mailboxCountByTaskId?: Record<string, number>;
+	/** §5.V: live reasoning-phase snippets (taskId → last thinking line); absent ⇒ generic "Thinking...". */
+	reasoningSnippetByTaskId?: Record<string, string>;
 	onCreateTask?: () => void;
 	onStartTask?: (taskId: string) => void;
 	onPauseTask?: (taskId: string) => void;
@@ -199,6 +202,7 @@ export function BoardColumn({
 											columnId={column.id}
 											sessionSummary={taskSessions[card.id]}
 											pendingMailboxCount={mailboxCountByTaskId?.[card.id] ?? 0}
+											reasoningSnippet={reasoningSnippetByTaskId?.[card.id] ?? null}
 											onStart={onStartTask}
 											onPauseTask={onPauseTask}
 											onResumeTask={onResumeTask}

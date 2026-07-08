@@ -430,7 +430,15 @@ function getPlainLanguageIssueText(summary: RuntimeTaskSessionSummary): string |
 	return null;
 }
 
-function getCardSessionActivity(summary: RuntimeTaskSessionSummary | undefined): CardSessionActivity | null {
+/** The thinking-phase status text: the live reasoning snippet when one is streaming, else the generic label. */
+function thinkingText(reasoningSnippet: string | null): string {
+	return reasoningSnippet ? `Thinking: ${reasoningSnippet}` : "Thinking...";
+}
+
+function getCardSessionActivity(
+	summary: RuntimeTaskSessionSummary | undefined,
+	reasoningSnippet: string | null = null,
+): CardSessionActivity | null {
 	if (!summary) {
 		return null;
 	}
@@ -489,7 +497,7 @@ function getCardSessionActivity(summary: RuntimeTaskSessionSummary | undefined):
 		} else if (text.startsWith("Failed ")) {
 			dotColor = SESSION_ACTIVITY_COLOR.error;
 		} else if (text === "Agent active" || text === "Working on task" || text.startsWith("Resumed")) {
-			return { dotColor: SESSION_ACTIVITY_COLOR.thinking, text: "Thinking..." };
+			return { dotColor: SESSION_ACTIVITY_COLOR.thinking, text: thinkingText(reasoningSnippet) };
 		}
 		return { dotColor, text };
 	}
@@ -504,7 +512,7 @@ function getCardSessionActivity(summary: RuntimeTaskSessionSummary | undefined):
 		return { dotColor: SESSION_ACTIVITY_COLOR.waiting, text: "Queued — waiting for sandbox capacity" };
 	}
 	if (summary.state === "running") {
-		return { dotColor: SESSION_ACTIVITY_COLOR.thinking, text: "Thinking..." };
+		return { dotColor: SESSION_ACTIVITY_COLOR.thinking, text: thinkingText(reasoningSnippet) };
 	}
 	return null;
 }
@@ -540,6 +548,7 @@ export function BoardCard({
 	workspacePath,
 	defaultNKleinModelId = null,
 	pendingMailboxCount = 0,
+	reasoningSnippet = null,
 }: {
 	card: BoardCardModel;
 	index: number;
@@ -547,6 +556,8 @@ export function BoardCard({
 	sessionSummary?: RuntimeTaskSessionSummary;
 	/** W3.4: pending §5.AU mailbox notes for this card (chat guidance waiting for its next start). 0 = no badge. */
 	pendingMailboxCount?: number;
+	/** §5.V: live reasoning-phase snippet (last thinking line) shown in the status line while the agent thinks. */
+	reasoningSnippet?: string | null;
 	selected?: boolean;
 	onClick?: () => void;
 	onStart?: (taskId: string) => void;
@@ -594,7 +605,10 @@ export function BoardCard({
 	const isPausedSession = sessionSummary?.paused === true || sessionSummary?.state === "paused";
 	const isCardInteractive = !isTrashCard;
 	const descriptionWidth = descriptionRect.width > 0 ? descriptionRect.width : descriptionWidthFallback;
-	const rawSessionActivity = useMemo(() => getCardSessionActivity(sessionSummary), [sessionSummary]);
+	const rawSessionActivity = useMemo(
+		() => getCardSessionActivity(sessionSummary, reasoningSnippet),
+		[sessionSummary, reasoningSnippet],
+	);
 	const sessionTelemetryLine = useMemo(() => buildSessionTelemetryLine(sessionSummary), [sessionSummary]);
 	const contextBudgetMiniStatus = useMemo(() => buildContextBudgetMiniStatus(sessionSummary), [sessionSummary]);
 	const lastSessionActivityRef = useRef<CardSessionActivity | null>(null);
