@@ -199,6 +199,7 @@ async function setupMocks(
 	// Pre-seed localStorage so the onboarding dialog is suppressed.
 	await page.addInitScript(() => {
 		window.localStorage.setItem("nklein.onboarding.dialog.shown", "true");
+		window.localStorage.setItem("nklein.ui-zoom-level.v2", "3"); // Z3 Expert: the kanban board (default Z1 has no columns)
 	});
 
 	// --- WebSocket: inject snapshot ---

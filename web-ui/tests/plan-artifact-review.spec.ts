@@ -176,6 +176,7 @@ async function setupMocks(
 	// nklein.onboarding.dialog.shown) is suppressed and doesn't block the board.
 	await page.addInitScript(() => {
 		window.localStorage.setItem("nklein.onboarding.dialog.shown", "true");
+		window.localStorage.setItem("nklein.ui-zoom-level.v2", "3"); // Z3 Expert: the kanban board (default Z1 has no columns)
 	});
 
 	// --- WebSocket: inject snapshot so the board loads without a real backend ---

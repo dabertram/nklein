@@ -132,9 +132,12 @@ export async function installRuntimeMock(page: Page, options: RuntimeMockOptions
 	const mutations = options.mutations ?? {};
 	const calls: Record<string, unknown[]> = {};
 
-	// Suppress the onboarding dialog so the board is reachable immediately.
+	// Suppress the onboarding dialog so the board is reachable immediately, and pin zoom to Z3 (Expert — the kanban
+	// board): the §5.BB five-level ladder defaults NEW users to Z1 Overview (activity map, no columns), which strands
+	// every gotoBoard()-based spec on the map.
 	await page.addInitScript(() => {
 		window.localStorage.setItem("nklein.onboarding.dialog.shown", "true");
+		window.localStorage.setItem("nklein.ui-zoom-level.v2", "3");
 	});
 
 	let currentWs: WebSocketRoute | null = null;

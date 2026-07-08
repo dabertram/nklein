@@ -3741,7 +3741,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `runtime.saveNKleinModelMaxConcurrentRequests` (set → `constraints.maxConcurrentRequests`, null → clears, non-local 400).
       Deferred (live UI/agent required): `runtime.saveNKleinProviderSettings` (OAuth/API-key, no observable config without live provider);
         isolation status/pool UI; project-settings menu wire-up.
-- [ ] **Smoothness/perf assertions** folded into the UI e2e (no jank on board render, task start, chat streaming).
+- [x] **Smoothness/perf assertions** folded into the UI e2e (no jank on board render, task start, chat streaming).
+      *(✅ 2026-07-08: `web-ui/tests/board-perf.spec.ts` — PerformanceObserver('longtask') budgets on the mock
+      harness: (1) busy-board initial render (40 cards, 5 columns): max single long task <1000ms, total blocking
+      <2500ms; (2) task start + 2s×10Hz reasoning/session frame burst against 40 sibling cards: same budgets, plus
+      asserts the streamed snippet actually reached the card ("Thinking: line 14" — frames applied, not dropped).
+      Budgets deliberately generous (CI variance) — they trip only on render-storm-class regressions, the exact class
+      the batched dispatch + App-level snippet memo prevent. BONUS root-cause repair while landing this: the §5.BB
+      Z0-Z4 zoom ladder (default Z1 Overview = activity map, no columns) had silently broken 42/61 e2e tests — every
+      gotoBoard()-based spec stranded on the map; pinned zoom Z3 in the shared harness + the 6 private init scripts,
+      fixed the renamed "!Klein Provider & Models" settings-nav locator → e2e suite 61/61 green.)*
 - [ ] **Upgrade verification from pass/fail GATES to DIAGNOSTIC ORACLES + reliability measurement (2026-06-27, small-LLM
       research pass).** Add to the dev-test fixtures (the §5.O/§5.AI rail exercises these): **hidden test splits**
       (`fail_to_pass` for the requested behavior + `pass_to_pass` for regressions, separate from the visible-acceptance
