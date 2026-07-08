@@ -6001,7 +6001,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       resumes the agent with the user's chosen input (incl. running the analysis request on the user-provided stronger
       model and feeding its guidance back) — and the upstream hot-path that *drives* the ladder (`decideEscalationAction`).
 - [ ] **Settings UI (fitness + role assignment controls), decomposed:**
-  - [ ] Design + implement fitness table browser (per-model × role display + filter/sort).
+  - [x] Design + implement fitness table browser (per-model × role display + filter/sort). *(✅ 2026-07-08 — the
+        Model Performance stats dialog now renders the §5.AB fitness table ("Model fitness" section over
+        `getFitnessTable`, which had NO UI consumer before): per-(model × role × difficulty) rows with samples /
+        success rate / learned retry budget / tok-s speed / below-bar status, a role filter, and fitness-vs-samples
+        sort. Web gate 961 green.)*
   - [x] Wire model pin/prefer/weight overrides (speed-vs-quality dial) → persistent user prefs. *(PARTIAL — audit-verdict CORRECTED 2026-07-07 Fable: the PIN half is real (`modelRolesOverride` per-project role→model override, settings dialog + resolver), but NO preference-order or speed-vs-quality weight field exists anywhere in src/config or the resolver — the audit agent's "dial DONE" claim did not survive spot-verification. Remaining = config-schema + resolver extension (opus-code) before any dial UI.)* *(✅ COMPLETE 2026-07-08 — see §5.I#4: speedVsCapability dial shipped (schema + normalizer + applySpeedCapabilityDial + router preferred-key wiring); pin + preference order were already live)*
   - [ ] Add wait-vs-attempt policy selector (hard task waits for better model vs attempted immediately).
   - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table.

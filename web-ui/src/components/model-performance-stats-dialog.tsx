@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogHeader } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
+	fetchFitnessTable,
 	fetchKnowledgeToolUsageStats,
 	fetchModelBehaviorProfiles,
 	fetchModelPerformanceStats,
 } from "@/runtime/runtime-config-query";
 import type {
 	RuntimeDecompositionKnowledgeUsageAggregate,
+	RuntimeFitnessTableResponse,
 	RuntimeKnowledgeToolUsageAggregate,
 	RuntimeKnowledgeToolUsageObservation,
 	RuntimeKnowledgeToolUsageStatsResponse,
@@ -230,6 +232,10 @@ export function ModelPerformanceStatsDialog({
 	const [stats, setStats] = useState<RuntimeModelPerformanceStatsResponse | null>(null);
 	const [knowledgeStats, setKnowledgeStats] = useState<RuntimeKnowledgeToolUsageStatsResponse | null>(null);
 	const [behaviorProfiles, setBehaviorProfiles] = useState<RuntimeModelBehaviorProfilesResponse | null>(null);
+	const [fitnessTable, setFitnessTable] = useState<RuntimeFitnessTableResponse | null>(null);
+	// §5.AB fitness browser controls: filter by role, sort by fitness (successRate desc) or samples.
+	const [fitnessRoleFilter, setFitnessRoleFilter] = useState<string>("all");
+	const [fitnessSort, setFitnessSort] = useState<"successRate" | "sampleCount">("successRate");
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
 
@@ -237,14 +243,16 @@ export function ModelPerformanceStatsDialog({
 		setLoading(true);
 		setError(null);
 		try {
-			const [nextModelStats, nextKnowledgeStats, nextBehaviorProfiles] = await Promise.all([
+			const [nextModelStats, nextKnowledgeStats, nextBehaviorProfiles, nextFitnessTable] = await Promise.all([
 				fetchModelPerformanceStats(workspaceId),
 				fetchKnowledgeToolUsageStats(workspaceId),
 				fetchModelBehaviorProfiles(workspaceId),
+				fetchFitnessTable(workspaceId),
 			]);
 			setStats(nextModelStats);
 			setKnowledgeStats(nextKnowledgeStats);
 			setBehaviorProfiles(nextBehaviorProfiles);
+			setFitnessTable(nextFitnessTable);
 		} catch (cause) {
 			setError(cause instanceof Error ? cause.message : String(cause));
 		} finally {
@@ -287,6 +295,20 @@ export function ModelPerformanceStatsDialog({
 				.slice(0, 24),
 		[knowledgeStats?.aggregates],
 	);
+	const fitnessRoles = useMemo(
+		() => [...new Set((fitnessTable?.rows ?? []).map((row) => row.role))].sort(),
+		[fitnessTable?.rows],
+	);
+	const fitnessRows = useMemo(() => {
+		const rows = (fitnessTable?.rows ?? []).filter(
+			(row) => fitnessRoleFilter === "all" || row.role === fitnessRoleFilter,
+		);
+		return [...rows].sort((left, right) =>
+			fitnessSort === "successRate"
+				? right.successRate - left.successRate || right.sampleCount - left.sampleCount
+				: right.sampleCount - left.sampleCount || right.successRate - left.successRate,
+		);
+	}, [fitnessTable?.rows, fitnessRoleFilter, fitnessSort]);
 	const recentKnowledgeObservations = knowledgeStats?.observations.slice(0, 20) ?? [];
 	const knowledgeTotals = summarizeKnowledgeToolObservations(knowledgeStats?.observations ?? []);
 	const topDecompositionKnowledgeAggregates = useMemo(
@@ -379,6 +401,83 @@ export function ModelPerformanceStatsDialog({
 										colSpan={byModelHasTiming ? 8 : 7}
 									>
 										No model performance observations have been recorded yet.
+									</td>
+								</tr>
+							) : null}
+						</tbody>
+					</table>
+				</div>
+				<SectionTitle title="Model fitness (§5.AB per-model × role × difficulty)" />
+				<div
+					className="mb-2 flex items-center gap-3 text-[12px] text-text-secondary"
+					data-testid="fitness-controls"
+				>
+					<label className="flex items-center gap-1.5">
+						Role
+						<select
+							className="rounded border border-border bg-surface-0 px-1.5 py-0.5 text-text-primary"
+							value={fitnessRoleFilter}
+							onChange={(event) => setFitnessRoleFilter(event.target.value)}
+						>
+							<option value="all">all</option>
+							{fitnessRoles.map((role) => (
+								<option key={role} value={role}>
+									{role}
+								</option>
+							))}
+						</select>
+					</label>
+					<label className="flex items-center gap-1.5">
+						Sort
+						<select
+							className="rounded border border-border bg-surface-0 px-1.5 py-0.5 text-text-primary"
+							value={fitnessSort}
+							onChange={(event) => setFitnessSort(event.target.value as "successRate" | "sampleCount")}
+						>
+							<option value="successRate">fitness (success rate)</option>
+							<option value="sampleCount">samples</option>
+						</select>
+					</label>
+				</div>
+				<div className="overflow-x-auto rounded-md border border-border" data-testid="fitness-table">
+					<table className="w-full min-w-[820px] border-collapse text-left text-[12px]">
+						<thead className="bg-surface-0 text-text-secondary">
+							<tr>
+								<TableHead>Model</TableHead>
+								<TableHead>Role</TableHead>
+								<TableHead>Difficulty</TableHead>
+								<TableHead>Samples</TableHead>
+								<TableHead>Success</TableHead>
+								<TableHead>Retry Budget</TableHead>
+								<TableHead>Speed</TableHead>
+								<TableHead>Status</TableHead>
+							</tr>
+						</thead>
+						<tbody>
+							{fitnessRows.map((row) => (
+								<tr
+									key={`${row.modelKey}|${row.role}|${row.difficultyTier}`}
+									className="border-t border-border bg-surface-2 text-text-primary"
+								>
+									<TableCell>{row.modelKey}</TableCell>
+									<TableCell>{row.role}</TableCell>
+									<TableCell>{row.difficultyTier}</TableCell>
+									<TableCell>{formatNumber(row.sampleCount)}</TableCell>
+									<TableCell>{formatPercent(row.successRate)}</TableCell>
+									<TableCell>{row.retryBudget}</TableCell>
+									<TableCell>
+										{row.tokensPerSec === null ? "—" : `${Math.round(row.tokensPerSec)} tok/s`}
+									</TableCell>
+									<TableCell>
+										{row.belowBar ? <span className="text-status-red">below bar</span> : "ok"}
+									</TableCell>
+								</tr>
+							))}
+							{fitnessRows.length === 0 ? (
+								<tr className="border-t border-border bg-surface-2">
+									<td className="px-3 py-5 text-center text-[13px] text-text-secondary" colSpan={8}>
+										No fitness cells recorded yet — cells fill as terminal task runs fold into the §5.AB
+										store.
 									</td>
 								</tr>
 							) : null}
