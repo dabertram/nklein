@@ -4806,7 +4806,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         failed-attempt-ignored · garbage-kind-never-preferred · legacy-tolerant); tsc + biome green. Still owed: the
         native/Anthropic CLIENTS + the retry-loop seam that records the winning kind + reads `preferredEndpointKind` as
         the strategy's learned first hop.)*
-  - [ ] Test across phi/deepseek models (canonical weak models)
+  - [x] Test across phi/deepseek models (canonical weak models) **DONE (2026-07-08, 8-model FLEET eval sweep):** ran
+        `verify-all-models.mts eval-harness` across a diverse roster incl. phi-4-mini-reasoning (0.667, decompose 0/3 —
+        PHI-FLIP FAILS), phi-4-mini-instruct (0.917/62s — efficiency winner), phi-4-reasoning-plus (0.875 but 334s), and
+        deepseek-r1-8b (0.750, decompose weak). Real per-model per-role fitness folded into the §5.AL catalog notes. Confirmed
+        live: reasoning models fail decompose (fewer scorable cells); coder/instruct dominate structured roles.
 - [~] **Prompt-variation retry.** Try different prompt PHRASINGS/templates (imperative vs descriptive, example-led,
       explicit-format) when a model won't act; learn which template family each model responds to. ("Try different
       prompts" — user.) **PURE TEMPLATE CORE DONE (2026-06-28):**
@@ -5065,7 +5069,13 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         re-invoke seam, shared with the other §5.AA rungs).)*
   - [ ] Wire into chat path + SWARM path seam (uses beforeModel nudge)
   - [ ] Test on phi-4-mini/phi-4-plus + deepseek-r1 (canonical ruminators)
-  - [ ] Verify it can convert reasoning-only models into tool-calling models (phi flip goal)
+  - [~] Verify it can convert reasoning-only models into tool-calling models (phi flip goal) **MEASURED (2026-07-08,
+        8-model FLEET eval sweep, native_tool_call path):** the phi-flip does NOT succeed for structured DECOMPOSE — under
+        `tool_choice:required`, phi-4-mini-reasoning emitted NO tool call (decompose 0/3 NO ANSWER); deepseek-r1-8b + even
+        phi-4-reasoning-plus land only partially (4/6 cells). So native tool_call does NOT reliably convert reasoning-only
+        models into structured-output emitters for a non-trivial schema (r1 flaky, phi-mini-reasoning fails). The reason-then-act
+        rung (§5.O) may still help but the raw tool_choice:required lever is insufficient — an empirical NEGATIVE result, valuable.
+        Owed: probe whether the §5.AA reason-then-act two-phase turn flips them where the single forced call didn't.
   - [ ] Re-verify across 9-model roster (ensure no regression)
 - [~] **`ModelBehaviorProfile` store (persisted, GLOBAL) + read/adapt/update.** **PURE LEARNING CORE DONE (2026-06-26):**
       [src/core/model-behavior-profile.ts](src/core/model-behavior-profile.ts) — `recordModelBehaviorOutcome(profile,

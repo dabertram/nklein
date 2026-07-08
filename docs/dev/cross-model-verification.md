@@ -1222,3 +1222,14 @@ Studio — use GGUF for ornith-35b; the §5.AA synthesis-variance nudge is a pos
 ### 2026-07-08 13:15:06 · eval-harness
 - ✅ **PASS** · `qwen/qwen2.5-coder-14b` · 169s · result: mean=0.778 over 6 cells (bar 0.6)
   - matrix row: qwen2.5-coder-14b=✅
+
+### 2026-07-08 14:06:42 · eval-harness
+- ✅ **PASS** · `deepseek/deepseek-r1-0528-qwen3-8b` · 132s · result: mean=0.750 over 4 cells (bar 0.6)
+- ✅ **PASS** · `microsoft/phi-4-mini-reasoning` · 102s · result: mean=0.667 over 3 cells (bar 0.6)
+- ✅ **PASS** · `phi-4-mini-instruct@8bit` · 62s · result: mean=0.917 over 6 cells (bar 0.6)
+- ✅ **PASS** · `microsoft/phi-4-reasoning-plus` · 334s · result: mean=0.875 over 4 cells (bar 0.6)
+- ✅ **PASS** · `mistralai/mistral-small-3.2` · 59s · result: mean=0.833 over 6 cells (bar 0.6)
+- ✅ **PASS** · `qwen/qwen3-8b` · 102s · result: mean=0.861 over 6 cells (bar 0.6)
+- ✅ **PASS** · `qwen/qwen2.5-coder-14b` · 189s · result: mean=0.778 over 6 cells (bar 0.6)
+- ✅ **PASS** · `qwopus3.5-9b-coder-mtp` · 246s · result: mean=0.917 over 6 cells (bar 0.6)
+  - matrix row: deepseek-r1-0528-qwen3-8b=✅ phi-4-mini-reasoning=✅ phi-4-mini-instruct@8bit=✅ phi-4-reasoning-plus=✅ mistral-small-3.2=✅ qwen3-8b=✅ qwen2.5-coder-14b=✅ qwopus3.5-9b-coder-mtp=✅
