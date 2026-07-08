@@ -6580,12 +6580,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         parseCrossModelBounceReply (missing REPAIRED ⇒ keep the original draft — never lose work). 2 tests. REMAINING:
         the effectful loop at the §5.K reviewer seam driven by the gate's `cross_model_carry` kind — same call-site
         wiring as the self-bounce sibling.)*
+        *(LOOP DRIVER shipped same day: `src/core/enforced-reasoning-loop.ts` `runEnforcedReasoningLoop` drives ALL
+        THREE kinds over injected completions (carry: REPAIRED replaces the draft, no-peer/throw keeps it; bounce:
+        critique→revise rounds, ok stops early; consistency: majority vote incl. the draft) — fail-soft, 4 tests.
+        Only the thin flag-gated adapter hookup (real model calls) remains.)*
   - [~] Implement self-bounce with varied system prompts (different personas, NOT "are you sure?") via §5.AA prompt-variation.
         *(◐ 2026-07-08 — the PROMPT SUBSTRATE shipped: `src/core/self-bounce-personas.ts` — a fixed 3-persona rotation
         (skeptical reviewer · test verifier · requirements auditor), each a genuinely different failure-mode lens over
         the SAME draft (never generic doubt, per Huang et al.), `buildSelfBouncePrompt(round)` + `parseSelfBounceVerdict`
         (fails toward revise). 2 tests. REMAINING: the effectful loop at the model-call seam driven by the
         enforced-reasoning gate's `self_bounce_varied` kind — rides the gate's call-site wiring.)*
+        *(LOOP DRIVER shipped same day — see the cross-model leaf note: runEnforcedReasoningLoop drives this kind's
+        critique→revise rounds with early-ok stop; 4 tests.)*
   - [~] Implement self-consistency: sample N paths, majority-vote (tie §5.AB reliability metric). **(2026-06-29, parallel batch)** PURE CORE done: `src/core/self-consistency.ts` — `majorityVote<T>(samples, keyFn?)` → `{winner, count, total, agreement}` (first-seen tie-break). 5 tests. Owed: sample N reasoning paths at the call site + feed `agreement` into the §5.AB reliability metric.
   - [~] Add difficulty gate: only apply reasoning loops when task difficulty is high + observed failure exists. **PURE
         CORE DONE (2026-07-01):** [src/core/enforced-reasoning-gate.ts](src/core/enforced-reasoning-gate.ts)
