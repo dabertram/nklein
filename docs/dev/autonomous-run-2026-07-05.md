@@ -3735,3 +3735,15 @@ generated output (watch agent activity directly AND deeply/thoroughly review gen
 about how !Klein can be improved, implement improvements right away, re-check, continue sweeping. The loop keeps
 running on this extended goal. NOTE: model load/unload is now explicitly granted for the sweep phase
 (restore-user-state etiquette still applies between sessions).
+
+RESUME POINT (2026-07-08, Opus 4.8 segment): §5.AG Layer-1 escalation is LIVE (planner + dead-card redrive wiring +
+model-switch persistence + transition records — 3 leaves crossed); fitness table browser SHIPPED (getFitnessTable
+now has its UI: role filter + fitness/samples sort in the stats dialog). NEXT REAL WORK UNIT = L5989
+wait-vs-attempt policy: the CORE exists (src/core/model-fitness.ts `mode: "wait_for_best"|"attempt_with_available"`,
+decision includes `{decision:"wait", waitForModelId}`) but has ZERO consumers and no config field. Build: (1) config
+field `hardTaskRoutingMode` (default attempt_with_available = today's behavior) in runtime-config schema +
+normalizer + save path; (2) Settings selector next to the speedVsCapability dial; (3) wire into the start path —
+a "wait" decision defers via the existing runtime-task-start-queue instead of starting. Then: L5990 re-evaluate
+button (trigger eval harness), L5999(b) resource-cost tracking, L6262 web_search leaves, §10. After todo.md:
+the EXTENDED GOAL (see GOAL EXTENSION above) — other md files top-down, then multi-model dev-test sweeps with
+deep output-quality review.
