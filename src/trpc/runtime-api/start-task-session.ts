@@ -28,6 +28,7 @@ import { resolveTaskTitle } from "../../core/task-title";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
 import { scheduleNKleinEndpointStart } from "../../nklein-agent/nklein-endpoint-scheduler";
+import { loadOptInLlmfitCapabilityPriorResolver } from "../../nklein-agent/nklein-llmfit-routing-prior";
 import type { LoadedModelRoutingProfile } from "../../nklein-agent/nklein-loaded-model-candidates";
 import { resolveLoadedModelProfile } from "../../nklein-agent/nklein-loaded-model-profile";
 import {
@@ -367,10 +368,13 @@ export async function handleStartTaskSession(
 		if (residencyCheckEnabled && isLocalProvider(nkleinLaunchConfig.providerId, nkleinLaunchConfig.baseUrl)) {
 			try {
 				const loadedDescriptors = await fetchLoadedModelDescriptors(residencyBaseUrl);
+				// §5.AB llmfit prior (opt-in via NKLEIN_LLMFIT_PRIOR): same cached resolver as decomposition routing.
+				// OFF by default, so task-start auto-discovery remains local-only unless the operator explicitly enables it.
+				const llmfitPrior = await loadOptInLlmfitCapabilityPriorResolver();
 				// §5.BG: learn each loaded runtime id's stable key into the persisted map so a COLD model still resolves.
 				learnSharedLoadedDescriptors(loadedDescriptors);
 				for (const descriptor of loadedDescriptors) {
-					const profile = resolveLoadedModelProfile(descriptor);
+					const profile = resolveLoadedModelProfile(descriptor, llmfitPrior ? { llmfitPrior } : undefined);
 					loadedModelProfilesByRuntimeId.set(descriptor.runtimeId, profile);
 					stableModelKeyByRuntimeId.set(descriptor.runtimeId, descriptor.modelKey);
 					if (profile.isEmbedding) {

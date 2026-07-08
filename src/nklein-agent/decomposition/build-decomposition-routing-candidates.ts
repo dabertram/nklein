@@ -1,29 +1,12 @@
 import type { RuntimeConfigState } from "../../config/runtime-config";
-import { isTruthyEnv } from "../../core/env-flag";
-import { type LlmfitModel, llmfitRecommend } from "../../core/llmfit-adapter";
-import { llmfitCapabilityPrior } from "../../core/llmfit-capability-prior";
-import { createLlmfitRunner } from "../../core/llmfit-runner";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
+import { loadOptInLlmfitCapabilityPriorResolver } from "../nklein-llmfit-routing-prior";
 import { buildLoadedModelRoutingCandidates } from "../nklein-loaded-model-candidates";
 import { resolveLoadedModelProfile } from "../nklein-loaded-model-profile";
 import { getDefaultNKleinModelRegistry } from "../nklein-model-registry";
 import { createNKleinProviderService } from "../nklein-provider-service";
 import type { NKleinTaskRoutingCandidate } from "../nklein-task-router";
 import { buildNKleinStartGuardCandidate } from "../nklein-task-start-guard";
-
-/** Process-level cache of llmfit's scored models (opt-in prior) — run once; llmfit's DB doesn't change per decompose. */
-let cachedLlmfitModels: readonly LlmfitModel[] | null = null;
-async function getLlmfitModelsCached(): Promise<readonly LlmfitModel[]> {
-	if (cachedLlmfitModels) {
-		return cachedLlmfitModels;
-	}
-	const result = await llmfitRecommend(createLlmfitRunner()).catch(() => ({
-		models: [] as LlmfitModel[],
-		system: null,
-	}));
-	cachedLlmfitModels = result.models;
-	return result.models;
-}
 
 /**
  * Build the runnable model "routing candidates" a decomposition can choose from: the default NKlein provider (when one
@@ -65,15 +48,9 @@ export async function buildDecompositionRoutingCandidates(
 			// stays the runtime alias (what's actually invoked). A profile is resolved once per loaded model up front.
 			const descriptors = await fetchLoadedModelDescriptors(launchConfig.baseUrl);
 			// §5.AB llmfit prior (opt-in via NKLEIN_LLMFIT_PRIOR): use llmfit's measured fit score as the cold-start prior
-			// AHEAD of the §5.AL catalog. Runs `uvx llmfit recommend` ONCE (cached) — OUTBOUND (HF DB) ⇒ egress-gated, OFF by
+			// AHEAD of the §5.AL catalog. Runs `uvx llmfit recommend` ONCE (cached) - OUTBOUND (HF DB) => egress-gated, OFF by
 			// default so the runtime path stays local. Falls back to the catalog for any model llmfit doesn't score.
-			let llmfitPrior: ((realName: string) => number | null) | undefined;
-			if (isTruthyEnv(process.env.NKLEIN_LLMFIT_PRIOR)) {
-				const llmfitModels = await getLlmfitModelsCached();
-				if (llmfitModels.length > 0) {
-					llmfitPrior = (realName) => llmfitCapabilityPrior(realName, llmfitModels)?.score ?? null;
-				}
-			}
+			const llmfitPrior = await loadOptInLlmfitCapabilityPriorResolver();
 			const profilesByRuntimeId = new Map(
 				descriptors.map((d) => [
 					d.runtimeId,

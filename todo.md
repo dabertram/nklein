@@ -5961,7 +5961,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         [llmfit-runner.ts](src/core/llmfit-runner.ts) `createLlmfitRunner` — the ONE effectful shell-out (default
         `uvx llmfit …` ephemeral, overridable to a resolved binary; injectable exec; a non-zero exit / spawn error →
         `{stdout, exitCode}`, never throws). 4 tests. **decideModelLoad COMBINER DONE — see the next leaf.** **Still owed
-        (the live seam + remaining feeds):** call llmfit (via the runner, per pool) at the load-planning seam + the
+        (the live seam + remaining feeds):** call llmfit (via the runner, per pool) at the load-planning seam + feed
         `estimatedTps` → §5.AB fitness + pool-routing `predictedWallTimeMs`/`capabilityTier`, `installed` → resident detection.
         *(2026-07-08 parser extension: `parseLlmfitModel` also accepts the current GitHub DB row shape
         (`capabilities`, `use_case`, `quantization`, `recommended_ram_gb`/`min_ram_gb`) so the cached public catalog can
@@ -5975,7 +5975,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         **PURE PRIOR DONE (2026-07-08):** [llmfit-fitness-bridge.ts](src/core/llmfit-fitness-bridge.ts) `llmfitRoutingPrior(model)`
         → `{capabilityPrior (score 0–100 clamped, the cold-start baseline), speedTier (fast≥40/medium≥15/slow tok/s),
         estimatedTps}`; `llmfitPredictedWallTimeMs` (tok/s→wall-time) already lived in llmfit-adapter.ts. 11 tests (shared
-        with the cross-ref leaf). Owed: the live call writes the prior into the §5.AB fitness store + passes tps to pool routing.
+        with the cross-ref leaf). **LIVE SCORE-PRIOR FEED DONE (2026-07-08):**
+        [nklein-llmfit-routing-prior.ts](src/nklein-agent/nklein-llmfit-routing-prior.ts) centralizes the env-gated
+        (`NKLEIN_LLMFIT_PRIOR`) cached `llmfit recommend` resolver and both decomposition routing +
+        task-start loaded-model auto-discovery now inject that prior into `resolveLoadedModelProfile`, so a cold loaded
+        model can route from llmfit's score before ledger evidence exists. Default remains OFF/local-only; shell-out
+        failures degrade to the catalog/default prior. Owed: write the prior into the §5.AB fitness store + pass tps to pool routing.
   - [~] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
         **DONE (2026-07-08):** `crossReferenceLlmfitWithCatalog(model, lookup=lookupModelCapability)` combines llmfit fit/speed
         + our EMPIRICAL verdict and classifies the tool-use signals: `agree`/`conflict`/`catalog-only`/`llmfit-only`/`no-data`.
