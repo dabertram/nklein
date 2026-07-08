@@ -3751,8 +3751,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (the §5.AI project-switch-stall item). **(2026-06-29) UNBLOCKED:** the harness now streams dynamic WS frames
         (`installRuntimeMock(...).pushFrame` + builders) — the "extend it first" is done; this spec just needs a
         workspace-aware `workspace.getState` mock + a project-switch driven mid-stream.
-  - [ ] **Chat e2e** — open the chat sidebar, create a session, send a message (mocked chat tRPC), assert the transcript
-        grows + the `AutonomousRunBar` renders/disables correctly. Needs chat-procedure mocking added to the harness.
+  - [x] **Chat e2e** — open the chat sidebar, create a session, send a message (mocked chat tRPC), assert the transcript
+        grows + the `AutonomousRunBar` renders/disables correctly. *(✅ 2026-07-08 —
+        [chat-sidebar-send.spec.ts](web-ui/tests/chat-sidebar-send.spec.ts), 3 Playwright specs, model-free: opens the
+        sidebar → selects a session → (1) AutonomousRunBar `chat-autonomous-goal`/`chat-autonomous-start` render + the
+        Auto button gates on a non-empty goal; (2) the composer `chat-send-button` gates on non-empty input; (3) sending
+        via `chat-send-button` GROWS the transcript (the user message appears). The `chat.streamMessage` SSE + a
+        `sent`-flag-driven `chat.getTranscript` mock make "grows" observable WITHOUT depending on tRPC's exact SSE
+        envelope (the send flow refetches the transcript unconditionally after the stream settles). Reuses the
+        chat-scope.spec route-intercept pattern; NON-FLAKY (3/3 green across 3 back-to-back runs). Distinct from
+        chat-send.spec.ts, which covers the board TASK agent chat (`runtime.sendTaskChatMessage`).)*
   - [~] **Board/card lifecycle UI** — start/pause/resume/move, lane reconciles (incl. the backlog→running fix), review,
         trash, drag rules — Playwright, deep. **(Build on the harness.)** **(2026-06-29) LANDED 9 specs (full e2e 46→55):**
         card-start (`runtime.startTaskSession`), card-pause (`runtime.pauseTask`), card-resume (`runtime.resumeTask`),
