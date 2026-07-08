@@ -305,4 +305,27 @@ describe("runRetrievalLoop", () => {
 		const result = await runRetrievalLoop("what is X", deps, { knowledgeDebt: ["detail Y"], minSources: 2 });
 		expect(result.stoppedBecause).toBe("sufficient");
 	});
+
+	it("fires onOutcome once with the loop summary and swallows a throwing recorder (§6.7 telemetry seam)", async () => {
+		const outcomes: Array<{ stoppedBecause: string; evidenceCount: number; citedAnswer: boolean }> = [];
+		const { deps } = makeDeps({});
+		const result = await runRetrievalLoop("what is X", deps, {
+			minSources: 1,
+			onOutcome: (outcome) => {
+				outcomes.push(outcome);
+			},
+		});
+		expect(outcomes).toHaveLength(1);
+		expect(outcomes[0]?.stoppedBecause).toBe(result.stoppedBecause);
+		expect(outcomes[0]?.evidenceCount).toBe(result.evidence.length);
+
+		// A throwing recorder never affects the loop's result.
+		const survived = await runRetrievalLoop("what is X", deps, {
+			minSources: 1,
+			onOutcome: () => {
+				throw new Error("telemetry sink down");
+			},
+		});
+		expect(survived.stoppedBecause).toBe("sufficient");
+	});
 });

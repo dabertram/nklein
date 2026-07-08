@@ -78,6 +78,17 @@ export interface RetrievalLoopOptions {
 	topicAwareFreshness?: boolean;
 	/** §5.B knowledge-debt items → alternate queries. */
 	knowledgeDebt?: readonly string[];
+	/** §6.7/§5.B telemetry seam: called ONCE with the loop's outcome summary just before it returns (best-effort —
+	 *  a throwing recorder is swallowed; recording must never affect the loop). The live wiring plugs the
+	 *  knowledge-tool-usage store into this. */
+	onOutcome?: (outcome: {
+		task: string;
+		stoppedBecause: "sufficient" | "budget_exhausted";
+		iterations: number;
+		evidenceCount: number;
+		datedEvidenceCount: number;
+		citedAnswer: boolean;
+	}) => void;
 	signal?: AbortSignal;
 }
 
@@ -282,5 +293,18 @@ export async function runRetrievalLoop(
 	const answer =
 		deps.synthesize && evidence.length > 0 ? await deps.synthesize({ task, evidence }, options.signal) : null;
 	const stoppedBecause: "sufficient" | "budget_exhausted" = state.sufficient ? "sufficient" : "budget_exhausted";
+	try {
+		options.onOutcome?.({
+			task,
+			stoppedBecause,
+			iterations: state.iteration,
+			evidenceCount: evidence.length,
+			datedEvidenceCount: evidence.filter((item) => item.publishedAt !== undefined && item.publishedAt !== null)
+				.length,
+			citedAnswer: answer !== null && /\[\d+\]/.test(answer),
+		});
+	} catch {
+		// telemetry is observational — never affects the loop's result.
+	}
 	return { queryPlan, actions, evidence, sufficiency, answer, stoppedBecause, iterations: state.iteration };
 }
