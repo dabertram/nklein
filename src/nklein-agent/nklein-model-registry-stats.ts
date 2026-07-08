@@ -45,15 +45,22 @@ export function createEmptySpeedStats(): NKleinModelRegistrySpeedStats {
 	};
 }
 
-/** A capability-stats block seeded with the default prior and no observations. */
-export function createEmptyCapabilityStats(): NKleinModelRegistryCapabilityStats {
+/**
+ * A capability-stats block seeded with `staticPrior` (defaults to {@link DEFAULT_CAPABILITY_PRIOR}) and no
+ * observations. The caller passes a catalog-DERIVED prior for a known model family (§5.AB — a TOOL_NATIVE big coder
+ * priors above the "medium" difficulty band so it clears those cards outright, instead of every model sitting at the
+ * flat 35 and deadlocking the cold fleet); an unknown family falls back to the flat default.
+ */
+export function createEmptyCapabilityStats(
+	staticPrior: number = DEFAULT_CAPABILITY_PRIOR,
+): NKleinModelRegistryCapabilityStats {
 	return {
 		samples: 0,
-		staticPrior: DEFAULT_CAPABILITY_PRIOR,
+		staticPrior,
 		evalScore: null,
 		externalScore: null,
 		observedPassRate: null,
-		effectiveScore: DEFAULT_CAPABILITY_PRIOR,
+		effectiveScore: staticPrior,
 		lastObservedAt: null,
 	};
 }

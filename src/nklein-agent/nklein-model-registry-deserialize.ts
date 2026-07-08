@@ -1,3 +1,4 @@
+import { deriveCapabilityPrior } from "../core/capability-prior-from-catalog";
 import { normalizeEndpoint, normalizeModelId, normalizeProviderId } from "../core/model-identity";
 import { normalizePositiveInteger } from "../core/normalize-number";
 import type {
@@ -73,7 +74,9 @@ export function createNKleinModelRegistryEntry(
 			effective: null,
 		},
 		speed: createEmptySpeedStats(),
-		capability: createEmptyCapabilityStats(),
+		// Seed the capability prior from the §5.AL catalog (TOOL_NATIVE big coder → above the medium band; unknown
+		// family → the flat default) so a freshly-seen model isn't stuck at 35 and deadlocked on medium cards.
+		capability: createEmptyCapabilityStats(deriveCapabilityPrior(modelId)),
 		constraints: {
 			sharedEndpointId: buildSharedLocalEndpointId({ providerId, modelId, endpoint }),
 			inputCostPerMillionTokens: null,

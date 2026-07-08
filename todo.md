@@ -6076,11 +6076,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         card (gap > 15) still decomposes/escalates as before. Honors a pinned model when it qualifies; stays local-only
         (scoreCandidates already filters cloud); never bridges a card that can't hold the context window (→ escalate). 5
         new router tests (one-point-cliff bridged · large-gap still decomposes · no-window-fit escalates · strongest-fit
-        chosen · pinned honored) + 15 existing green; tsc + biome green. REMAINING ENHANCEMENT (not blocking): seed
-        `DEFAULT_CAPABILITY_PRIOR` from the §5.AL capability catalog / model size so KNOWN-good big models prior above
-        "medium" without needing the bridge — the catalog (model-capability-catalog.ts) carries verdict+kind+sizeGb but
-        no 0-100 score yet; a verdict→score mapping would let a 27B/9B TOOL_NATIVE model clear medium cards outright.
-        Full trace in the `capability-prior-deadlock` memory.
+        chosen · pinned honored) + 15 existing green; tsc + biome green. REMAINING ENHANCEMENT — ✅ DONE (2026-07-08):
+        catalog-seeded priors shipped. [capability-prior-from-catalog.ts](src/core/capability-prior-from-catalog.ts):
+        `capabilityPriorForCatalogEntry` maps the §5.AL verdict (TOOL_NATIVE 55 · CAPABLE 45 · WEAK 30 · UNSUITABLE 15 ·
+        UNKNOWN→flat default) + a chaining nudge (native +5 … fails −10) + a modest capped size bonus (+1/6GB, ≤+8) into
+        a 0-100 prior, and `deriveCapabilityPrior(modelId)` looks it up (unknown family → flat default). Wired at the
+        registry entry-creation seam (`createNKleinModelRegistryEntry` → `createEmptyCapabilityStats(deriveCapabilityPrior(modelId))`),
+        so a freshly-seen TOOL_NATIVE 9B/27B coder priors ~55-61 and clears the medium band OUTRIGHT (no bridge needed);
+        the best-effort bridge still covers UNKNOWN/cold-persisted entries. 8 mapping tests; registry+router 86 green.
+        (Cold PERSISTED entries keep their persisted staticPrior — the bridge covers them; re-deriving unstudied
+        persisted priors on load is a safe follow-on.) Full trace in the `capability-prior-deadlock` memory.
         *(original finding kept for context:)* LIVE-REPRODUCED in the dev-test sweep: decomposed implementation cards sit in `planning`
         forever with `Task start blocked: this card needs decomposition. No connected model satisfies both difficulty 36
         and the candidate-specific context fit guard.` ROOT CAUSE (fully traced): `estimateTaskDifficulty` scores a
