@@ -4665,8 +4665,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       the recovered-call seam (chat client + swarm afterModel) — dispatch a `repairable` call's `repairedArguments`
       directly, drive a `reprompt` as a targeted single-field re-ask (cheaper than a full constrained re-force), and feed a
       `reject` into the `malformed` ladder + record the verdict on the §5.AF ledger / `ModelBehaviorProfile`.
-- [ ] **Endpoint-iteration adapter**, decomposed:
-  - [ ] Build `LocalModelEndpointStrategy` type + try-order (OpenAI → native `/api/v1/chat` → Anthropic)
+- [~] **Endpoint-iteration adapter**, decomposed:
+  - [x] Build `LocalModelEndpointStrategy` type + try-order (OpenAI → native `/api/v1/chat` → Anthropic) *(✅
+        2026-07-08 — [local-model-endpoint-strategy.ts](src/core/local-model-endpoint-strategy.ts): `LocalModelEndpointKind`
+        (`openai | native_v1_chat | anthropic_messages` — the local-only guard confines the bare vendor literal to
+        boundary files, so the kind names the Anthropic-*shaped* wire protocol, not the vendor), the canonical
+        `LOCAL_MODEL_ENDPOINT_LADDER` (OpenAI first = cheapest +
+        most widely implemented + what our client already speaks; native second = structured `tool_call.*`/`reasoning.*`
+        channels beat text-embedded calls on weak models; Anthropic last = `tool_choice:{type:"any"}` FORCING is the
+        strongest hammer), and pure `orderEndpointStrategies` / `nextEndpointStrategy` deciders — a learned per-model
+        winner is promoted FIRST (short-circuits the walk), stale/unavailable preferences ignored, unknown/duplicate
+        kinds filtered, canonical relative order preserved, never repeats a kind. Pure + deterministic + total; 9 tests;
+        tsc + biome green. The effectful native/Anthropic CLIENTS + profile persistence are the leaves below.)*
   - [ ] Implement native `/api/v1/chat` client with structured `tool_call.*` + `reasoning.*` parsing
   - [ ] Implement Anthropic `/v1/messages` client with `tool_choice:{type:"any"}` forcing
   - [ ] Wire endpoint-iteration into retry loop (record winning endpoint per model)
