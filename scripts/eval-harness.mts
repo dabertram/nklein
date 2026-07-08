@@ -106,10 +106,13 @@ async function scoreDecompose(prompt: EvalPrompt): Promise<number | null> {
 		{ role: "system", content: sys },
 		{ role: "user", content: prompt.prompt },
 	];
-	// Reasoning models over-reason and never land JSON in prose → force the tool call (the live-validated §5.AN path).
+	// Reasoning models over-reason and don't reliably land JSON in prose → prefer forcing the tool call (§5.AN).
 	if (strategy === "native_tool_call") {
-		// Reasoning models burn a large reasoning preamble BEFORE emitting the tool call (live-found: r1-8b flaked
-		// decompose landings at 2500 tokens — hit finish=length mid-reasoning). Give the tool-call path more headroom.
+		// Live-found (r1-8b, 2026-07-08): even under tool_choice:"required", r1 is UNRELIABLE at emitting the forced call
+		// for the non-trivial decompose schema — it often returns finish=stop with NO tool_call and the reasoning in
+		// reasoning_content (flaky: ~2/3 one run, 0/3 the next). So: try the tool-call args FIRST, then fall back to
+		// extracting the decomposition from content||reasoning_content. A larger budget gives room for both the reasoning
+		// preamble and the call. (This is NOT a token-limit issue — the fast no-call runs prove that — it's flaky emission.)
 		const choice = await chat(
 			[
 				{ role: "system", content: "Decompose via the tool." },
@@ -118,7 +121,7 @@ async function scoreDecompose(prompt: EvalPrompt): Promise<number | null> {
 			{ tools: [DECOMPOSE_TOOL], tool_choice: "required", max_tokens: Math.max(MAX_TOKENS, 4000) },
 		);
 		const args = choice?.message?.tool_calls?.[0]?.function?.arguments ?? "";
-		const answer = extractDecomposeEvalAnswer(args);
+		const answer = extractDecomposeEvalAnswer(args) ?? extractDecomposeEvalAnswer(readText(choice));
 		return answer ? scoreEvalAnswer(prompt, answer) : null;
 	}
 	const answer = extractDecomposeEvalAnswer(readText(await chat(messages, {})));
