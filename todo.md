@@ -5639,12 +5639,21 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         function — [src/core/role-model-swarm-pick.ts](src/core/role-model-swarm-pick.ts) `selectSwarmRoleModel`
         composes the CLASS gate (`rankModelsForRole` — drop wrong-class models, e.g. a tool-unsuitable worker) with the
         INSTANCE pick (`selectRoleModel` — free-first/difficulty/context within the eligible pool), preserves class-fit
-        tie-order, ignores a class-ineligible pin, and surfaces `no_fit` from either stage. 5 tests; tsc+biome green.
+        tie-order, ignores a class-ineligible pin, and surfaces `no_fit` from either stage. 6 tests; tsc+biome green.
         **SEAM SCOPED + STILL OWED (the live plumbing):** the live role→model resolution is in
         [start-task-session.ts](src/trpc/runtime-api/start-task-session.ts) (role-tagged `guardCandidates` from
         `effectiveModelRoles`, filtered to LOADED + context-policy + the §5.AE class cap, then `selectRoleModel`). Map
         those `guardCandidates` into `SwarmRoleModelCandidate`s and call `selectSwarmRoleModel` instead — behavior-changing
-        on the task-start path ⇒ needs a live §5.Z re-verify before landing; do as a focused slice.
+        on the task-start path ⇒ needs a live §5.Z re-verify before landing; do as a focused slice. ✅ **TASK-START
+        ROLE CLASS GATE WIRED (2026-07-08):** [src/trpc/runtime-api/start-task-session.ts] now maps live
+        `guardCandidates` into `selectSwarmRoleModel` with catalog class facts resolved from the stable publisher key
+        when available. The class-aware decision becomes the baseline preferred model for the downstream router, while
+        `routeNKleinTask` still enforces difficulty/context and later pool/warmth/dial preferences. Pins are honored only
+        when class/feasibility eligible; ignored pins are surfaced in `selectionReason`. Also fixed the pure selector
+        ([src/core/role-model-swarm-pick.ts]) to pass class-fit order into the instance picker as `preferenceOrder`, so
+        role class is a real soft preference instead of just an ineligibility filter. Focused tests cover pure class-order
+        preference and runtime worker selection (coder beats higher-scored reasoning-weak default). Remaining for this
+        near-term swarm item: apply the parallel-swarm guardrail profile and live ≥3-agent multi-card verification.
   - [~] per-TASK model selection (each card picks its own good-fit model) — the §5.AB fitness store + skill→model fit
         (ties §5.AE skills-on-workers); easy cards to fast/small, hard cards reserve the strong model.
         **DECOMPOSE PATH DONE + LIVE-VERIFIED (2026-07-01):** best-fit task↔model affinity in `routeNKleinTask` — opaque

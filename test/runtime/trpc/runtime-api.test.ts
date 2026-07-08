@@ -1484,6 +1484,78 @@ describe("createRuntimeApi startTaskSession", () => {
 		);
 	});
 
+	it("prefers a worker-class model over a higher-scored wrong-class default for act-mode starts", async () => {
+		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
+		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);
+		setSelectedProviderSettings({
+			provider: "anthropic",
+			model: "deepseek-r1-0528-qwen3-8b",
+			apiKey: "anthropic-api-key",
+		});
+		modelRegistryMocks.getSnapshot.mockResolvedValue({
+			schemaVersion: 1,
+			updatedAt: 1,
+			models: {
+				"anthropic:deepseek-r1-0528-qwen3-8b:default": createModelRegistryEntry({
+					key: "anthropic:deepseek-r1-0528-qwen3-8b:default",
+					providerId: "anthropic",
+					modelId: "deepseek-r1-0528-qwen3-8b",
+					contextWindow: 80_000,
+					capability: 95,
+				}),
+				"anthropic:qwen2.5-coder-14b:default": createModelRegistryEntry({
+					key: "anthropic:qwen2.5-coder-14b:default",
+					providerId: "anthropic",
+					modelId: "qwen2.5-coder-14b",
+					contextWindow: 80_000,
+					capability: 60,
+				}),
+			},
+		});
+
+		const nkleinTaskSessionService = createNKleinTaskSessionServiceMock();
+		nkleinTaskSessionService.startTaskSession.mockResolvedValue(createSummary({ agentId: "nklein", pid: null }));
+		const api = createTestRuntimeApi({
+			getActiveWorkspaceId: vi.fn(() => "workspace-1"),
+			loadScopedRuntimeConfig: vi.fn(async () => {
+				const runtimeConfigState = createRuntimeConfigState();
+				runtimeConfigState.selectedAgentId = "nklein";
+				runtimeConfigState.modelRoles = {
+					worker: {
+						providerId: "anthropic",
+						modelId: "qwen2.5-coder-14b",
+					},
+				};
+				runtimeConfigState.effectiveModelRoles = runtimeConfigState.modelRoles;
+				return runtimeConfigState;
+			}),
+			setActiveRuntimeConfig: vi.fn(),
+			getScopedTerminalManager: vi.fn(async () => ({}) as never),
+			getScopedNKleinTaskSessionService: vi.fn(async () => nkleinTaskSessionService as never),
+			resolveInteractiveShellCommand: vi.fn(),
+			runCommand: vi.fn(),
+		});
+
+		const response = await api.startTaskSession(
+			{ workspaceId: "workspace-1", workspacePath: "/tmp/repo" },
+			{
+				taskId: "task-1",
+				baseRef: "main",
+				prompt: "Implement a focused change.",
+			},
+		);
+
+		expect(response.ok).toBe(true);
+		expect(nkleinTaskSessionService.startTaskSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "anthropic",
+				modelId: "qwen2.5-coder-14b",
+			}),
+		);
+		expect(response.selectionReason).toContain("Role class gate (worker) selected");
+		expect(response.selectionReason).toContain("qwen2.5-coder-14b");
+	});
+
 	it("prefers the configured architect role model for plan-mode NKlein starts", async () => {
 		taskWorktreeMocks.resolveTaskCwd.mockResolvedValue("/tmp/existing-worktree");
 		agentRegistryMocks.resolveAgentCommand.mockReturnValue(null);

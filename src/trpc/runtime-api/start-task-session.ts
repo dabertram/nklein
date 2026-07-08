@@ -12,14 +12,19 @@ import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-p
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
-import { assessModelSuitability, resolveActiveModelSuitabilityPolicy } from "../../core/model-capability-catalog";
+import {
+	assessModelSuitability,
+	lookupModelCapability,
+	resolveActiveModelSuitabilityPolicy,
+} from "../../core/model-capability-catalog";
 import { classifyModelClass, isModelAllowedByClassCap } from "../../core/model-class-cap";
 import { derivePoolCaps, derivePoolKeyForCandidate } from "../../core/model-pool-key";
 import { computePoolFreeSlots } from "../../core/model-pool-routing";
 import { explainModelSelection, renderModelSelectionReason } from "../../core/model-selection-reason";
 import { selectSwarmRouteForTask } from "../../core/model-swarm-route";
 import { affinityTagsForSkills } from "../../core/model-task-affinity";
-import { selectRoleModel } from "../../core/role-model-selection";
+import type { ModelClassFacts } from "../../core/role-model-class";
+import { selectSwarmRoleModel } from "../../core/role-model-swarm-pick";
 import { resolveActiveSkills } from "../../core/skill-resolver";
 import { applySpeedCapabilityDial } from "../../core/speed-capability-dial";
 import { readSwarmStopSignal } from "../../core/swarm-guardrails";
@@ -480,7 +485,7 @@ export async function handleStartTaskSession(
 		// §5.AF live consumption: blend each candidate's registry capability with its LEDGER-observed success rate so
 		// routing follows real-run evidence. Best-effort — an unreadable/empty ledger (e.g. first run, or test) yields no
 		// rows, the blend returns the registry score unchanged, and routing behaves exactly as before. Read once here and
-		// reuse for both the swarm free-pick (`selectRoleModel`) and the main router (`routeNKleinTask`).
+		// reuse for both the swarm role class/instance pick (`selectSwarmRoleModel`) and the main router (`routeNKleinTask`).
 		// routing evidence (5.AF/5.AL): read the ledger ONCE and project it into the three evidence structures the
 		// router blends into capability (global rollup, per-role rollup, verdict-run denominator). Best-effort (empty
 		// on error). Extracted to ledger-evidence.ts (5.U DI-injectable I/O helper); the per-role lookup below keys by
@@ -577,17 +582,24 @@ export async function handleStartTaskSession(
 				isPinned: candidate.role === cardRole,
 			})),
 		});
-		const preferredCandidate =
-			roleAssignment.source === "pinned" && roleAssignment.pick
-				? (guardCandidates.get(roleAssignment.pick.modelKey) ?? selectedCandidate)
-				: selectedCandidate;
-		const freeFirstSelection = selectRoleModel({
+		const modelClassFactsForCandidate = (
+			candidate: NKleinStartGuardCandidate<ResolvedNKleinLaunchConfig>,
+		): ModelClassFacts | undefined => {
+			const catalogEntry = lookupModelCapability(
+				stableModelKeyByRuntimeId.get(candidate.entry.modelId) ?? candidate.entry.modelId,
+			);
+			return catalogEntry ? { kind: catalogEntry.kind, toolUse: catalogEntry.toolUse } : undefined;
+		};
+		const swarmRoleDecision = selectSwarmRoleModel({
+			role: cardRole,
 			candidates: [...guardCandidates.values()].map((candidate) => ({
 				modelKey: candidate.entry.key,
+				facts: modelClassFactsForCandidate(candidate),
 				capability: blendedCapabilityForKey(
 					candidate.entry.key,
 					candidate.entry.capability.effectiveScore,
 					candidate.role,
+					candidate.entry.modelId,
 				),
 				contextWindow: candidate.entry.contextWindow.effective ?? 0,
 				predictedWallTimeMs: predictedWallTimeForCandidate(candidate),
@@ -595,8 +607,13 @@ export async function handleStartTaskSession(
 			})),
 			difficulty: taskDifficulty,
 			requiredContextTokens,
+			pinnedModelKey: roleAssignment.source === "pinned" ? roleAssignment.pick?.modelKey : null,
 			weighting: "efficient",
 		});
+		const freeFirstSelection = swarmRoleDecision.selection;
+		const classSelectedCandidate =
+			freeFirstSelection.type === "assign" ? (guardCandidates.get(freeFirstSelection.modelKey) ?? null) : null;
+		const preferredCandidate = classSelectedCandidate ?? selectedCandidate;
 		const freeFirstModelKey =
 			runningModelKeys.has(preferredCandidate.entry.key) &&
 			freeFirstSelection.type === "assign" &&
@@ -824,6 +841,23 @@ export async function handleStartTaskSession(
 		// W2.5 observability: pin honored / pin waived is part of "why this model" — append the role-assignment
 		// reasons (empty for the plain unconfigured auto path, so the common selectionReason stays byte-identical).
 		const rolePinReasonSuffix = roleAssignment.reasons.length > 0 ? ` ${roleAssignment.reasons.join(" ")}` : "";
+		const classIgnoredPinnedModel =
+			roleAssignment.source === "pinned" &&
+			roleAssignment.pick &&
+			(freeFirstSelection.type !== "assign" || freeFirstSelection.modelKey !== roleAssignment.pick.modelKey)
+				? roleAssignment.pick.modelKey
+				: null;
+		const classGateChangedBaseline =
+			freeFirstSelection.type === "assign" && freeFirstSelection.modelKey !== selectedCandidate.entry.key;
+		const roleClassReasonSuffix =
+			classGateChangedBaseline || classIgnoredPinnedModel
+				? freeFirstSelection.type === "assign"
+					? ` Role class gate (${cardRole}) selected ${freeFirstSelection.modelKey}: ${freeFirstSelection.reason}`
+					: ` Role class gate (${cardRole}) found no fit: ${freeFirstSelection.reason}`
+				: "";
+		const roleClassPinSuffix = classIgnoredPinnedModel
+			? ` Pinned ${cardRole} model ${classIgnoredPinnedModel} was not used because it did not pass the role class/feasibility gate.`
+			: "";
 		// §5.AB "why this model" — explain the routing decision so the operator (and §5.AG surfaces) can see the basis.
 		const selectionReason =
 			renderModelSelectionReason(
@@ -858,7 +892,9 @@ export async function handleStartTaskSession(
 				}),
 			) +
 			warmthReasonSuffix +
-			rolePinReasonSuffix;
+			rolePinReasonSuffix +
+			roleClassReasonSuffix +
+			roleClassPinSuffix;
 		if (routingDecision.type === "decompose" || routingDecision.type === "escalate") {
 			return {
 				ok: false,

@@ -57,6 +57,29 @@ describe("selectSwarmRoleModel (class gate → instance pick)", () => {
 		expect(decision.selection.type).toBe("no_fit"); // …but fails the instance feasibility floor
 	});
 
+	it("uses class-fit order as a soft preference before the efficient instance weighting", () => {
+		const decision = selectSwarmRoleModel({
+			role: "worker",
+			difficulty: 30,
+			requiredContextTokens: 32768,
+			weighting: "efficient",
+			candidates: [
+				cand({
+					modelKey: "generic-instruct",
+					facts: { kind: "instruct", toolUse: "TOOL_CAPABLE" },
+					capability: 45,
+				}),
+				cand({ modelKey: "native-coder", facts: { kind: "code", toolUse: "TOOL_NATIVE" }, capability: 80 }),
+			],
+		});
+
+		expect(decision.classEligibleKeys[0]).toBe("native-coder");
+		expect(decision.selection.type).toBe("assign");
+		if (decision.selection.type === "assign") {
+			expect(decision.selection.modelKey).toBe("native-coder");
+		}
+	});
+
 	it("ignores a pin that is class-ineligible for the role (never pins a wrong-class model)", () => {
 		const decision = selectSwarmRoleModel({
 			role: "worker",

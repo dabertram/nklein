@@ -97,6 +97,7 @@ export function selectSwarmRoleModel(input: SelectSwarmRoleModelInput): SwarmRol
 		requiredContextTokens: input.requiredContextTokens,
 		// Honor a pin only when it is itself class-eligible for the role (never pin a wrong-class model).
 		pinnedModelKey: input.pinnedModelKey && eligibleKeySet.has(input.pinnedModelKey) ? input.pinnedModelKey : null,
+		preferenceOrder: eligibleKeys,
 		weighting: input.weighting,
 	});
 
