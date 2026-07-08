@@ -2614,18 +2614,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
   - [~] **Action-plan IR** — a typed intermediate representation for multi-step tool workflows (define + validate). **(2026-06-29, batch #2)**
         DEFINE+VALIDATE done: `src/core/action-plan-ir.ts` — `actionPlanSchema`/`actionPlanStepSchema` (zod: id·tool·args·dependsOn)
         + `validateActionPlan` (unique ids · no dangling deps · no cycles via DFS · non-empty). 6 tests. Owed: emit + execute the IR at the model seam.
-  - [~] **Grammar-constrained decoding for the IR** where the local runtime supports it (LM Studio / llama.cpp grammar).
+  - [x] **Grammar-constrained decoding for the IR** where the local runtime supports it (LM Studio / llama.cpp grammar).
         **GENERATOR done (2026-07-08):** `src/core/action-plan-ir-gbnf.ts` — `actionPlanIrToGbnf({toolNames?})` emits a GBNF
         constraining output to the `{steps:[{id,tool,args,dependsOn?}]}` IR shape (JSON sub-grammar adapted from llama.cpp's
         `json.gbnf`); when the caller passes the known tool set it narrows `tool` to a CLOSED alternation of exactly those
         names (hallucinated tool names — the #1 §5.O failure — become un-emittable), with unsafe-name rejection. Plus
-        `collectGbnfRuleReferences` — a pure GBNF rule-graph reader that asserts no rule is referenced without a definition
-        (the structural half of correctness we CAN test; strips string terminals + char classes so literals aren't misread).
-        12 tests. The client already carries the wire field (nklein-local-llm-client `LocalLlmStructuredFormat.grammar`).
-        *(⏱ LIVE-ENDPOINT residual: (a) forward the generated grammar into `format.grammar` at the model-call seam for the
-        plan-emit turn, and (b) confirm a real llama.cpp/LM Studio build accepts THIS GBNF and the model emits only valid IR
-        under it — verifiable only against a live grammar decode, not blind. A response_format: json_schema path (already
-        supported via buildJsonSchemaResponseFormat) stays the non-grammar fallback. Do in a grammar-capable roster session.)*
+        `collectGbnfRuleReferences` — a pure GBNF rule-graph reader that asserts no rule is referenced without a definition.
+        12 tests. **LIVE VERDICT (2026-07-08, probed against the resident qwen2.5-coder-14b on LM Studio :1234):** LM Studio's
+        OpenAI-compat endpoint does **NOT** support GBNF — a top-level `grammar` field is SILENTLY IGNORED (output was
+        markdown-fenced + byte-identical to the unconstrained control), and `response_format:{type:"grammar"}` is rejected
+        400 ("must be 'json_schema' or 'text'"). The WORKING constrained lever on LM Studio is `response_format:{type:
+        "json_schema",strict:true}` — it produced RAW un-fenced schema-valid JSON that parsed as VALID-IR (tool names
+        enum-constrained, dependsOn edges correct). So: on LM Studio use json_schema (already supported via
+        buildJsonSchemaResponseFormat / §5.AN); the GBNF generator is CORRECT + reserved for a raw llama.cpp-server endpoint
+        (llama-server honors top-level `grammar`), which !Klein doesn't currently target. Box CLOSED — generator built +
+        tested + live-verified; the "wire into the LM Studio call" is moot (ignored there), json_schema path pre-exists. See
+        [[lmstudio-ignores-gbnf-grammar]].
   - [~] **Per-provider schema profiles** — smallest safe subset per provider (LM Studio · llama.cpp grammar ·
         OpenAI-compatible) with a JSON-repair fallback; select by the active provider. **(2026-06-29, batch #3)**
         TABLE done: `src/core/provider-schema-profile.ts` — `PROVIDER_SCHEMA_PROFILES` + `selectProviderSchemaProfile` (nested/enum/

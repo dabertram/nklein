@@ -14,10 +14,16 @@
  * exactly those names. Constraining `tool` to known names is the highest-value lever for a weak model: hallucinated tool
  * names (the single most common §5.O failure) become literally un-emittable rather than caught after the fact.
  *
- * What is NOT here (the honest residual, why the todo box stays live-gated): whether a given llama.cpp / LM Studio build
- * accepts this exact GBNF and whether the model emits only valid IR *under* it can only be confirmed against a live
- * grammar decode — not unit-tested blind. `collectGbnfRuleReferences` gives the structural half of that assurance (no rule
- * is referenced without a definition), which we CAN test; the live half is owed to a grammar-capable model-roster session.
+ * `collectGbnfRuleReferences` gives the structural half of correctness (no rule is referenced without a definition), which
+ * we CAN unit-test.
+ *
+ * ENDPOINT APPLICABILITY (live-probed 2026-07-08 against qwen2.5-coder-14b on LM Studio :1234): **LM Studio's OpenAI-compat
+ * endpoint does NOT support GBNF** — a top-level `grammar` field is SILENTLY IGNORED (output was unconstrained), and
+ * `response_format:{type:"grammar"}` is rejected 400 ("must be 'json_schema' or 'text'"). The working constrained lever on
+ * LM Studio is `response_format:{type:"json_schema",strict:true}` (see lmstudio-response-format.ts / §5.AN). So this GBNF
+ * generator is reserved for a **raw llama.cpp-server** endpoint (`llama-server` honors top-level `grammar`) and MUST NOT be
+ * wired into the LM Studio call path — there it would be a silent no-op masquerading as a safeguard. !Klein currently
+ * targets LM Studio, so json_schema is the live path; keep this for a future llama.cpp-server deployment.
  */
 
 /**
