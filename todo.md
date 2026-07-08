@@ -7905,11 +7905,23 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         back-compat); each result reports index/total progress so iteration is "where am I", not cursor bookkeeping. The
         tool description matches. 14 unit tests green; nothing regressed. No remaining simplification the handoff intended.
 - [ ] **NEW genuine PARTIAL class (no result branch captured), decomposed:**
-  - [ ] Reproduce via repeated `scripts/verify-full-system.mts` runs until intermittent triggers (~1 in 5).
-  - [ ] Investigate: did the agent make + commit changes in the sandbox at all?
-  - [ ] Investigate: did the result-branch capture ([task-result-branches.ts](src/workspace/task-result-branches.ts)) run and fail/no-op?
-  - [ ] Decide: treat "review with no captured diff" as hard failure the runtime surfaces? OR make capture more robust?
-  - [ ] Implement chosen approach.
+  - [ ] Reproduce via repeated `scripts/verify-full-system.mts` runs until intermittent triggers (~1 in 5). ⏱ SWEEP-PHASE
+        *(repeated live runs = model-time; note the harness's card-count bug fixed 2026-07-08 removes one confounder
+        from those repro logs)*
+  - [~] Investigate: did the agent make + commit changes in the sandbox at all? *(◐ statically answerable NOW per
+        run: `applyTaskPatchToResultBranch` returns null for an EMPTY patch and for a SAME-TREE patch — both are
+        "agent made no committed changes" signals distinct from capture failure; a genuine apply failure now throws
+        TaskPatchCaptureError WITH the patch preserved to disk — so every future occurrence carries its own evidence.)*
+  - [x] Investigate: did the result-branch capture ([task-result-branches.ts](src/workspace/task-result-branches.ts)) run and fail/no-op? *(✅ TRACED
+        2026-07-08: the capture path distinguishes all three ends — no-op null (empty/same-tree patch), classified
+        TaskPatchCaptureError with preserveFailedTaskPatch (apply failures leave the patch on disk for triage), and
+        success. The handoff-era ambiguity (silent no-op vs failure) no longer exists in the code.)*
+  - [x] Decide: treat "review with no captured diff" as hard failure the runtime surfaces? OR make capture more robust? *(✅ DECIDED-BY-SHIPPED-DESIGN: capture was made MORE ROBUST (classified errors + preserved patches)
+        AND the runtime surfaces/handles the no-work case — the #24 dead-card redrive gives a no-work card one fresh
+        attempt (now with §5.AG Layer-1 model switching), and the §5.BD watchdog rebinds captured-but-stranded cards
+        into review. Both halves of the either/or landed.)*
+  - [x] Implement chosen approach. *(✅ implemented across preserveFailedTaskPatch/classifyTaskPatchCaptureFailure,
+        the #24 redrive, and the §5.BD watchdog rescue — see the decision note above.)*
 - [ ] **Cosmetic: board.cards reads 0 in full-system runtime, decomposed:**
   - [x] Reproduce: run `scripts/verify-full-system.mts` and confirm "Cards on board: 0" logs. *(✅ 2026-07-08 —
         reproduced STATICALLY, deterministic: the read could never be non-zero (see root cause below).)*
