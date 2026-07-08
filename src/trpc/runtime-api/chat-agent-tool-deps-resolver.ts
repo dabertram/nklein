@@ -35,6 +35,7 @@ import { createSearxngWebSearchClient } from "../../server/web-search-searxng";
 import { appendCardMailboxNote, countPendingCardMailbox } from "../../state/card-mailbox-store";
 import { loadWorkspaceState } from "../../state/workspace-state";
 import { persistModelBehaviorOutcome, readModelBehaviorProfile } from "../../telemetry/model-behavior-profile-store";
+import { resolveKleinSourceRepoPath } from "../projects-api-helpers";
 
 export function buildChatAgentToolDepsResolver(input: {
 	getActiveWorkspacePath: () => string | null;
@@ -59,7 +60,13 @@ export function buildChatAgentToolDepsResolver(input: {
 	getRetrievalConfig?: () => Promise<{ egressEnabled: boolean; searchBackendUrl: string | null }>;
 }): (session: ChatSession, extra?: ChatToolSet) => Promise<ChatAgentToolDeps | null> {
 	return async (session, extra) => {
-		const workspacePath = input.getActiveWorkspacePath();
+		// §6.11-A klein_self: the read-only SELF-awareness scope roots the session in the !Klein SOURCE repo itself
+		// (read + get_board only — chatScopeCanAct is false for it, so no mutating tool is ever offered). Falls back
+		// to null (plain chat) when the source path can't be resolved (e.g. a packaged install without the repo).
+		const workspacePath =
+			session.scope === "klein_self"
+				? await resolveKleinSourceRepoPath().catch(() => null)
+				: input.getActiveWorkspacePath();
 		if (!workspacePath) {
 			return null;
 		}

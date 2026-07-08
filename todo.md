@@ -7276,7 +7276,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         to consume off the same manifest the gate uses. 14 tests (incl. an audit-floor invariant: nothing mutating/off-workspace
         is ever `none`). Owed: `allowedRunStates` (state gating) · source/sink taint labels · replay mode.
   - [ ] Implement the unified gate: wire all 3 call sites (chat, delivery, NKlein) to `decideManifestAccess`.
-  - [ ] Verify that all 18 (mode × action) test cases still pass + all existing rulesets are preserved.
+        *(needs-dedicated-pass 2026-07-08: rewiring THREE live SECURITY seams to one gate is a load-bearing change —
+        the cluster's own scout note (delivery-subsumption REJECTED as a bounded slice) applies to this sibling too.
+        The vocabulary is proven (decideManifestChatAccess + the cross-mechanism test); do the wiring as one focused
+        pass with the 18-case matrix as the acceptance oracle, not as an incidental slice.)*
+  - [ ] Verify that all 18 (mode × action) test cases still pass + all existing rulesets are preserved. *(the
+        acceptance oracle OF the unified-gate pass above — rides it.)*
 - [ ] **Resource governance (operational, NOT perf-benchmarking), decomposed:**
   - [~] Design + implement model load/unload policy (safe headroom, resident budget guards).
         *(◐ 2026-07-08 — the POLICY CORE shipped: `src/core/model-load-policy.ts` `decideModelLoadAction` — residents
@@ -7467,7 +7472,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       this a known bug / how would idea Z fit" and get answers grounded in the *actual* code + decisions. Build on §5.M's
       scope machinery (a new `klein_self` scope, or registering the !Klein repo as a read-only project) + the existing
       execution-mode gate forced to `isolated_readonly` (no `write_file`/`run_command`/board-mutation — discussion only).
-  - [ ] scope/mode: a read-only `klein_self` chat scope → tools = read + `get_board` only; gate pinned read-only
+  - [x] scope/mode: a read-only `klein_self` chat scope → tools = read + `get_board` only; gate pinned read-only
+        *(✅ 2026-07-08 — SHIPPED: `klein_self` added to the scope enum (store + contract + zod), mapped to the
+        `isolated_readonly` floor with `chatScopeCanAct=false` (no mutating tool ever offered), and the tool-deps
+        resolver roots the session in the !Klein SOURCE repo via `resolveKleinSourceRepoPath` (null ⇒ plain-chat
+        degrade for packaged installs); UI scope select carries "!Klein self (read-only)" with a description.
+        Capability test added; chat suite + web suite green.)*
   - [~] grounding: index !Klein's own source (§6.7) + load the planning corpus (done.md/todo.md/AGENTS.md/CHANGELOG/.plan)
         as retrievable context; prefer done.md for "existing features" + todo.md for "planned/known".
         **ROUTING CORE DONE (2026-07-01): [klein-self-corpus-routing.ts](src/core/klein-self-corpus-routing.ts)** — pure

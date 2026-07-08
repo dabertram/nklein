@@ -16,6 +16,8 @@ export const runtimeChatSessionScopeSchema = z.enum([
 	// but nothing that mutates (no write_file/run_command/board-mutation). Additive 4th peer (todo §5.M G3a); the
 	// default scope stays `project_sandboxed` (set in the session store).
 	"chat_only",
+	// §6.11-A read-only self-awareness scope (workspace root = the !Klein repo; read + get_board only).
+	"klein_self",
 ]);
 export type RuntimeChatSessionScope = z.infer<typeof runtimeChatSessionScopeSchema>;
 

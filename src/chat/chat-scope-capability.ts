@@ -8,8 +8,8 @@ import type { ChatSessionScope } from "./chat-session-store";
  * host; the project scopes run sandboxed with a per-action host escape.
  */
 export function chatScopeToExecutionMode(scope: ChatSessionScope): ChatExecutionMode {
-	if (scope === "chat_only") {
-		return "isolated_readonly";
+	if (scope === "chat_only" || scope === "klein_self") {
+		return "isolated_readonly"; // klein_self: read-only SELF-awareness over the !Klein repo (§6.11-A).
 	}
 	if (scope === "host_access") {
 		return "host";
@@ -19,5 +19,5 @@ export function chatScopeToExecutionMode(scope: ChatSessionScope): ChatExecution
 
 /** Whether a scope may ACT (board mutations / run_command / browser) — every scope EXCEPT the read-only `chat_only` floor. */
 export function chatScopeCanAct(scope: ChatSessionScope): boolean {
-	return scope !== "chat_only";
+	return scope !== "chat_only" && scope !== "klein_self";
 }

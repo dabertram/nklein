@@ -17,7 +17,7 @@ import { parseValidatedJsonl } from "../state/jsonl-store";
 /** Where a chat session may reach — most-isolated by default (invariant #2: host access is opt-in + typed).
  *  `chat_only` is the read-only floor (todo §5.M G3a): the agent may read (read_file/list_dir/get_board) but use no
  *  mutating tool. Must stay aligned with `runtimeChatSessionScopeSchema` in core/chat-api-contract.ts. */
-export type ChatSessionScope = "project_sandboxed" | "all_projects" | "host_access" | "chat_only";
+export type ChatSessionScope = "project_sandboxed" | "all_projects" | "host_access" | "chat_only" | "klein_self";
 /** The agent persona a session runs as (mirrors the §5.M preset roles). */
 export type ChatSessionRole = "planner_architect" | "reviewer" | "debugger" | "researcher" | "system_operator";
 
@@ -26,6 +26,8 @@ export const CHAT_SESSION_SCOPES: readonly ChatSessionScope[] = [
 	"all_projects",
 	"host_access",
 	"chat_only",
+	// §6.11-A read-only SELF-awareness scope: the workspace root is the !Klein repo itself (read + get_board only).
+	"klein_self",
 ];
 export const CHAT_SESSION_ROLES: readonly ChatSessionRole[] = [
 	"planner_architect",
@@ -101,7 +103,7 @@ const chatSessionPersistedSchema = z.object({
 	schemaVersion: z.literal(1),
 	id: z.string(),
 	title: z.string(),
-	scope: z.enum(["project_sandboxed", "all_projects", "host_access", "chat_only"]),
+	scope: z.enum(["project_sandboxed", "all_projects", "host_access", "chat_only", "klein_self"]),
 	role: z.enum(["planner_architect", "reviewer", "debugger", "researcher", "system_operator"]),
 	goal: z.string().nullable().optional(),
 	riskAcknowledged: z.boolean().optional(),

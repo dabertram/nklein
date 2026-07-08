@@ -31,3 +31,10 @@ describe("chatScopeCanAct", () => {
 		}
 	});
 });
+
+describe("klein_self scope (§6.11-A read-only self-awareness)", () => {
+	it("maps to the read-only floor and can never act", () => {
+		expect(chatScopeToExecutionMode("klein_self")).toBe("isolated_readonly");
+		expect(chatScopeCanAct("klein_self")).toBe(false);
+	});
+});

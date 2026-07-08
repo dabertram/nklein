@@ -72,6 +72,7 @@ const ROLE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionRole; label: string
 // ideally a typed confirmation; for now it is shown unconditionally with the ⚠️.
 const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: string }> = [
 	{ value: "chat_only", label: "Chat only" },
+	{ value: "klein_self", label: "!Klein self (read-only)" },
 	{ value: "project_sandboxed", label: "Current (host)" },
 	{ value: "all_projects", label: "All (host)" },
 	{ value: "host_access", label: "⚠️ Host" },
@@ -82,6 +83,7 @@ const SCOPE_OPTIONS: ReadonlyArray<{ value: RuntimeChatSessionScope; label: stri
 // of offering a second, competing selector. Copy mirrors the backend gate semantics exactly.
 const SCOPE_MODE_CAPTIONS: Record<RuntimeChatSessionScope, string> = {
 	chat_only: "Read-only: the agent can look things up but cannot run commands or write files.",
+	klein_self: "Read-only over the !Klein source repo itself — ask about features, code, and the roadmap.",
 	project_sandboxed: "Acts on THIS project: commands and writes run on the host, each confirm-gated and logged.",
 	all_projects: "Acts across ALL projects: commands and writes run on the host, each confirm-gated and logged.",
 	host_access: "Full host access: the most powerful mode — every action is still confirm-gated and logged.",
