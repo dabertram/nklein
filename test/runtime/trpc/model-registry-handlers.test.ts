@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RuntimeConfigState } from "../../../src/config/runtime-config";
 import type { RuntimeNKleinProviderSettings } from "../../../src/core/api-contract";
 import {
@@ -6,7 +6,10 @@ import {
 	createNKleinModelRegistryEntry,
 } from "../../../src/nklein-agent/nklein-model-registry";
 import type { ResolvedNKleinLaunchConfig } from "../../../src/nklein-agent/nklein-provider-service";
-import { addConfiguredLocalModelRegistryEntries } from "../../../src/trpc/runtime-api/model-registry";
+import {
+	addConfiguredLocalModelRegistryEntries,
+	buildRuntimeModelFleetSuggestions,
+} from "../../../src/trpc/runtime-api/model-registry";
 
 const NOW = 1000;
 const launch = (o: Record<string, unknown>) => o as unknown as ResolvedNKleinLaunchConfig;
@@ -93,5 +96,46 @@ describe("addConfiguredLocalModelRegistryEntries", () => {
 				now: NOW,
 			}),
 		).toEqual({});
+	});
+});
+
+describe("buildRuntimeModelFleetSuggestions", () => {
+	it("uses loaded LM Studio descriptors to surface family-diversity advice", async () => {
+		const fetchLoadedModelDescriptors = vi.fn(async () => [
+			{ runtimeId: "qwen-worker", modelKey: "qwen/qwen3-coder", isEmbedding: false },
+			{ runtimeId: "qwen-judge", modelKey: "qwen/qwen3-30b-a3b", isEmbedding: false },
+		]);
+
+		const suggestions = await buildRuntimeModelFleetSuggestions({
+			launchConfig: null,
+			providerSettings: settings({
+				providerId: "lmstudio",
+				modelId: "qwen-worker",
+				baseUrl: "http://127.0.0.1:1234/v1",
+			}),
+			fetchLoadedModelDescriptors,
+		});
+
+		expect(fetchLoadedModelDescriptors).toHaveBeenCalledWith("http://127.0.0.1:1234/v1");
+		expect(suggestions.map((suggestion) => suggestion.kind)).toContain("add_diverse_family");
+	});
+
+	it("does not probe providers without LM Studio native model metadata", async () => {
+		const fetchLoadedModelDescriptors = vi.fn(async () => [
+			{ runtimeId: "qwen-worker", modelKey: "qwen/qwen3-coder", isEmbedding: false },
+		]);
+
+		const suggestions = await buildRuntimeModelFleetSuggestions({
+			launchConfig: null,
+			providerSettings: settings({
+				providerId: "ollama",
+				modelId: "qwen-worker",
+				baseUrl: "http://127.0.0.1:11434",
+			}),
+			fetchLoadedModelDescriptors,
+		});
+
+		expect(fetchLoadedModelDescriptors).not.toHaveBeenCalled();
+		expect(suggestions).toEqual([]);
 	});
 });

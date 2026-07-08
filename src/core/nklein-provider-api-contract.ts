@@ -189,10 +189,19 @@ export const runtimeNKleinModelRegistryEntrySchema = z.object({
 });
 export type RuntimeNKleinModelRegistryEntry = z.infer<typeof runtimeNKleinModelRegistryEntrySchema>;
 
+export const runtimeModelFleetSuggestionSchema = z.object({
+	kind: z.enum(["no_agentic_model", "add_diverse_family", "add_reasoning_model"]),
+	severity: z.enum(["info", "warn"]),
+	title: z.string(),
+	detail: z.string(),
+});
+export type RuntimeModelFleetSuggestion = z.infer<typeof runtimeModelFleetSuggestionSchema>;
+
 export const runtimeNKleinModelRegistryResponseSchema = z.object({
 	schemaVersion: z.number().int().positive(),
 	updatedAt: z.number().int().nonnegative(),
 	models: z.array(runtimeNKleinModelRegistryEntrySchema),
+	fleetSuggestions: z.array(runtimeModelFleetSuggestionSchema),
 });
 export type RuntimeNKleinModelRegistryResponse = z.infer<typeof runtimeNKleinModelRegistryResponseSchema>;
 

@@ -8867,10 +8867,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       construction (off skips; notify never pulls; only auto pulls; default NOTIFY per the box), revision-scheme-agnostic
       (opaque token). 5 tests. REMAINING: the user-initiated GitHub fetch (invariant #1 opt-in egress), the overlay
       MERGE of pulled llmfit rows, and the setting + "update models" UX — all ride this decider.)*
-- [ ] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
+- [~] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
       hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
       single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup
       core + surface `llmfit`/`swarm-roster` recommendations. Family = BASE lineage, not label (see §5.AB critical note).
+      *(◐ 2026-07-08 — first user-facing LOCAL surface shipped: `getNKleinModelRegistry` now includes
+      `fleetSuggestions` computed from LM Studio's loaded native `/api/v1/models` descriptors via `adviseModelFleet`,
+      and the Settings model-telemetry panel + task-chat telemetry drawer render those monoculture/no-reasoner/no-agentic
+      suggestions. This is read-only, local-only, bounded, and disabled under unit tests. REMAINING: the user-triggered
+      llmfit/GitHub catalog check/merge UX from the item above, plus hardware-tier/card-mix/swarm-roster fetch
+      recommendations.)*
 - [x] **Live-use gate: `nklein chat` (2026-06-29).** `decideChatModelGate` (pure, in [local-chat-model.ts](src/chat/local-chat-model.ts))
       refuses a catalog-`reject` model for the TOOL-using chat agent (`--workspace`) up front — override
       `NKLEIN_ALLOW_UNSUITABLE_MODEL=1` — and only WARNS on the plain-completion path (a reasoning/chat model is fine

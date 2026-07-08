@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import type { RuntimeConfigState } from "../../config/runtime-config";
 import type {
+	RuntimeModelFleetSuggestion,
 	RuntimeNKleinModelContextWindowOverrideResponse,
 	RuntimeNKleinModelMaxConcurrentRequestsResponse,
 	RuntimeNKleinModelRegistryPruneResponse,
@@ -13,6 +14,12 @@ import {
 	parseNKleinModelMaxConcurrentRequestsRequest,
 	parseNKleinModelRegistryRemoveRequest,
 } from "../../core/api-validation";
+import {
+	fetchLoadedModelDescriptors as fetchLoadedModelDescriptorsDefault,
+	type LoadedModelDescriptor,
+} from "../../core/lmstudio-loaded-model-descriptors";
+import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../../core/local-model-endpoint";
+import { adviseModelFleet } from "../../core/model-fleet-advisor";
 import { assertNKleinContextWindowPolicy } from "../../nklein-agent/nklein-context-window-policy";
 import { isLocalProvider } from "../../nklein-agent/nklein-local-only-policy";
 import {
@@ -22,6 +29,7 @@ import {
 	type NKleinModelRegistryEntry,
 	type NKleinModelRegistryKeyInput,
 } from "../../nklein-agent/nklein-model-registry";
+import { isLiveOnlyProviderId } from "../../nklein-agent/nklein-provider-id-classification";
 import type {
 	createNKleinProviderService,
 	ResolvedNKleinLaunchConfig,
@@ -39,6 +47,7 @@ import type { RuntimeTrpcWorkspaceScope } from "../app-router";
 export interface ModelRegistryDeps {
 	loadScopedRuntimeConfig: (scope: RuntimeTrpcWorkspaceScope) => Promise<RuntimeConfigState>;
 	nkleinProviderService: ReturnType<typeof createNKleinProviderService>;
+	fetchLoadedModelDescriptors?: ((baseUrl: string) => Promise<readonly LoadedModelDescriptor[]>) | null;
 }
 
 export function addConfiguredLocalModelRegistryEntries(input: {
@@ -85,6 +94,36 @@ export function addConfiguredLocalModelRegistryEntries(input: {
 	return nextModels;
 }
 
+function resolveLmStudioFleetAdviceBaseUrl(input: {
+	launchConfig: ResolvedNKleinLaunchConfig | null;
+	providerSettings: RuntimeNKleinProviderSettings | null;
+}): string | null {
+	const settingsProviderId = input.providerSettings?.providerId?.trim() ?? "";
+	if (settingsProviderId && isLiveOnlyProviderId(settingsProviderId)) {
+		return input.providerSettings?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+	}
+	const launchProviderId = input.launchConfig?.providerId?.trim() ?? "";
+	if (launchProviderId && isLiveOnlyProviderId(launchProviderId)) {
+		return input.launchConfig?.baseUrl?.trim() || DEFAULT_LOCAL_MODEL_BASE_URL;
+	}
+	return null;
+}
+
+export async function buildRuntimeModelFleetSuggestions(input: {
+	launchConfig: ResolvedNKleinLaunchConfig | null;
+	providerSettings: RuntimeNKleinProviderSettings | null;
+	fetchLoadedModelDescriptors?: ((baseUrl: string) => Promise<readonly LoadedModelDescriptor[]>) | null;
+}): Promise<RuntimeModelFleetSuggestion[]> {
+	const baseUrl = resolveLmStudioFleetAdviceBaseUrl(input);
+	if (!baseUrl || !input.fetchLoadedModelDescriptors) {
+		return [];
+	}
+	const descriptors = await input
+		.fetchLoadedModelDescriptors(baseUrl)
+		.catch(() => [] as readonly LoadedModelDescriptor[]);
+	return adviseModelFleet(descriptors);
+}
+
 export async function handleGetNKleinModelRegistry(
 	workspaceScope: RuntimeTrpcWorkspaceScope | null,
 	deps: ModelRegistryDeps,
@@ -106,6 +145,11 @@ export async function handleGetNKleinModelRegistry(
 		providerSettings,
 		now: Date.now(),
 	});
+	const fleetSuggestions = await buildRuntimeModelFleetSuggestions({
+		launchConfig,
+		providerSettings,
+		fetchLoadedModelDescriptors: deps.fetchLoadedModelDescriptors,
+	});
 	return {
 		schemaVersion: snapshot.schemaVersion,
 		updatedAt: snapshot.updatedAt,
@@ -115,8 +159,13 @@ export async function handleGetNKleinModelRegistry(
 				const updatedDelta = right.updatedAt - left.updatedAt;
 				return updatedDelta !== 0 ? updatedDelta : left.key.localeCompare(right.key);
 			}),
+		fleetSuggestions,
 	};
 }
+
+export const defaultModelFleetSuggestionDescriptorFetcher = process.env.VITEST
+	? null
+	: fetchLoadedModelDescriptorsDefault;
 
 export async function handleRemoveNKleinModelRegistryEntry(
 	input: unknown,

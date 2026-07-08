@@ -1,4 +1,4 @@
-import { Activity, Gauge, RotateCcw, Save, Server, Trash2 } from "lucide-react";
+import { Activity, AlertTriangle, Gauge, Lightbulb, RotateCcw, Save, Server, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,11 @@ import {
 	isLmStudioProviderId,
 	NKLEIN_MIN_CONTEXT_WINDOW_TOKENS,
 } from "@/runtime/nklein-context-window-policy";
-import type { RuntimeNKleinModelRegistryEntry, RuntimeNKleinProviderModel } from "@/runtime/types";
+import type {
+	RuntimeModelFleetSuggestion,
+	RuntimeNKleinModelRegistryEntry,
+	RuntimeNKleinProviderModel,
+} from "@/runtime/types";
 
 export function findNKleinModelRegistryEntry(
 	entries: readonly RuntimeNKleinModelRegistryEntry[],
@@ -148,6 +152,7 @@ export function formatNKleinModelRegistryPanelSummary(entry: RuntimeNKleinModelR
 
 interface NKleinModelRegistryPanelProps {
 	entries: readonly RuntimeNKleinModelRegistryEntry[];
+	fleetSuggestions?: readonly RuntimeModelFleetSuggestion[];
 	selectedProviderId: string;
 	selectedModelId: string;
 	nowMs: number;
@@ -166,6 +171,7 @@ interface NKleinModelRegistryPanelProps {
 
 export function NKleinModelRegistryPanel({
 	entries,
+	fleetSuggestions = [],
 	selectedProviderId,
 	selectedModelId,
 	nowMs,
@@ -295,6 +301,29 @@ export function NKleinModelRegistryPanel({
 				) : null}
 			</div>
 			{pruneError ? <div className="mb-2 text-[11px] text-status-red">{pruneError}</div> : null}
+			{fleetSuggestions.length > 0 ? (
+				<div className="mb-2 border-b border-border/70 pb-2">
+					<div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-text-primary">
+						<Lightbulb size={13} className="text-status-orange" />
+						<span>Fleet suggestions</span>
+					</div>
+					<div className="grid gap-1.5">
+						{fleetSuggestions.map((suggestion) => (
+							<div key={suggestion.kind} className="grid grid-cols-[14px_minmax(0,1fr)] gap-2 text-[11px]">
+								{suggestion.severity === "warn" ? (
+									<AlertTriangle size={13} className="mt-0.5 text-status-orange" />
+								) : (
+									<Lightbulb size={13} className="mt-0.5 text-accent" />
+								)}
+								<div className="min-w-0">
+									<div className="font-medium text-text-primary">{suggestion.title}</div>
+									<div className="mt-0.5 leading-5 text-text-secondary">{suggestion.detail}</div>
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+			) : null}
 			{visibleEntries.length === 0 ? (
 				<div className="text-xs text-text-secondary">No model observations recorded yet.</div>
 			) : (

@@ -2,6 +2,12 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **The model telemetry panel now shows fleet suggestions from the loaded LM Studio set** (todo §5.AL). The existing
+  fleet-advice core is now part of the runtime model-registry response and appears in Settings → model telemetry and the
+  task chat telemetry drawer. When the loaded LM Studio fleet is a base-family monoculture, lacks a strong
+  judge/architect reasoner, or has no agentic model loaded, the UI tells you what kind of model family to add. The probe
+  is local-only, read-only, bounded, and disabled in unit tests; the llmfit/GitHub catalog update remains a separate
+  user-triggered egress path.
 - **Task/swarm tool outputs now carry provenance taint before later actions** (todo §5.L). The SDK session runtime now
   wraps both autonomous task `extraTools` and sandbox tool executors with the same capability-broker gate used by chat.
   Repo reads/searches are labeled `repo_instruction`, web retrieval is labeled `web`, bundled MCP tool outputs are

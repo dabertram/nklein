@@ -137,6 +137,35 @@ describe("NKleinModelRegistryPanel", () => {
 		expect(text.indexOf("ollama/qwen")).toBeLessThan(text.indexOf("nklein/sonnet"));
 	});
 
+	it("renders fleet suggestions above model observations", async () => {
+		await act(async () => {
+			renderPanel(
+				root,
+				<NKleinModelRegistryPanel
+					entries={[createModelRegistryEntry()]}
+					fleetSuggestions={[
+						{
+							kind: "add_diverse_family",
+							severity: "warn",
+							title: "Decision layer is a single-family monoculture",
+							detail: "Add a model from a different base family for review diversity.",
+						},
+					]}
+					selectedProviderId="ollama"
+					selectedModelId="qwen"
+					nowMs={180_000}
+				/>,
+			);
+			await Promise.resolve();
+		});
+
+		const text = container.textContent ?? "";
+		expect(text).toContain("Fleet suggestions");
+		expect(text).toContain("Decision layer is a single-family monoculture");
+		expect(text).toContain("Add a model from a different base family");
+		expect(text.indexOf("Fleet suggestions")).toBeLessThan(text.indexOf("ollama/qwen"));
+	});
+
 	it("shows unmeasured models and prompts for missing context windows", async () => {
 		await act(async () => {
 			renderPanel(

@@ -25,6 +25,7 @@ import {
 	writeNKleinDogfoodBacklog,
 } from "@/runtime/runtime-config-query";
 import type {
+	RuntimeModelFleetSuggestion,
 	RuntimeNKleinDogfoodBacklogResponse,
 	RuntimeNKleinModelRegistryEntry,
 	RuntimeNKleinProviderModel,
@@ -147,6 +148,7 @@ export function NKleinModelContextWindowSettingsPanel({
 }): React.ReactElement {
 	const [isLoading, setIsLoading] = useState(false);
 	const [registryEntries, setRegistryEntries] = useState<RuntimeNKleinModelRegistryEntry[]>([]);
+	const [fleetSuggestions, setFleetSuggestions] = useState<RuntimeModelFleetSuggestion[]>([]);
 	const [nowMs, setNowMs] = useState(() => Date.now());
 	const visibleRegistryEntries = useMemo(
 		() => filterRegistryEntriesToLoadedModels(registryEntries, selectedProviderId, selectedProviderModels),
@@ -167,6 +169,7 @@ export function NKleinModelContextWindowSettingsPanel({
 			await onRefreshProviderModels();
 			const response = await fetchNKleinModelRegistry(workspaceId);
 			setRegistryEntries(response.models);
+			setFleetSuggestions(response.fleetSuggestions);
 			setNowMs(Date.now());
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
@@ -278,6 +281,7 @@ export function NKleinModelContextWindowSettingsPanel({
 			</div>
 			<NKleinModelRegistryPanel
 				entries={visibleRegistryEntries}
+				fleetSuggestions={fleetSuggestions}
 				selectedProviderId={selectedProviderId}
 				selectedModelId={selectedModelId}
 				nowMs={nowMs}

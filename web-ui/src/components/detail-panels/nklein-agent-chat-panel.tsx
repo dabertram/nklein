@@ -1308,6 +1308,7 @@ export const NKleinAgentChatPanel = React.forwardRef<NKleinAgentChatPanelHandle,
 							)}
 							<NKleinModelRegistryPanel
 								entries={visibleModelRegistryEntries}
+								fleetSuggestions={modelRegistryQuery.data?.fleetSuggestions ?? []}
 								selectedProviderId={nkleinSettings.providerId}
 								selectedModelId={nkleinSettings.modelId}
 								nowMs={nowMs}
