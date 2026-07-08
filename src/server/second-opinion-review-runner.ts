@@ -16,12 +16,13 @@ import { fetchLoadedModelDescriptors, type LoadedModelDescriptor } from "../core
 import { fetchLoadedModelIdsCached } from "../core/lmstudio-loaded-models";
 import { DEFAULT_LOCAL_MODEL_BASE_URL } from "../core/local-model-endpoint";
 import { modelsShareLineage, resolveLineage } from "../core/model-lineage";
-import type { ReviewBoardContext, ReviewRelatedCard } from "../core/review-orchestration";
+import type { ReviewBoardContext, ReviewRelatedCard, ReviewSubmissionInput } from "../core/review-orchestration";
 import { planReviewPanel } from "../core/review-panel-plan";
 import { resolveSwarmRoleModel } from "../core/swarm-role-selection";
 import { addTaskToColumn } from "../core/task-board-mutations";
 import { classifyTaskComplexity } from "../core/task-complexity";
 import type { RuntimeTaskAcceptanceResult } from "../core/task-lifecycle-api-contract";
+import { decideTestDrivenDelivery } from "../core/test-driven-delivery";
 import { type PanelJudge, runReviewPanel } from "../nklein-agent/nklein-review-panel-runner";
 import { buildReviewerCandidates, resolveWorkerRealId } from "../nklein-agent/nklein-reviewer-candidate-selection";
 import { selectReviewerPanel } from "../nklein-agent/nklein-reviewer-panel-selection";
@@ -361,10 +362,35 @@ export async function runSecondOpinionReviewForTask(
 				})()
 			: undefined;
 
+	// §5.V test-driven gate, slice 1 (OPT-IN via NKLEIN_TEST_DRIVEN_MODE; default OFF = byte-identical): a change
+	// that touched NO test file gets a deterministic pre-review `request_changes` riding the STANDARD transition
+	// machinery — the normal onBounce re-drives the worker with the "add a test" reason, and a card that keeps
+	// coming back testless trips the identical-feedback PARK guard instead of bouncing forever. The changed-file
+	// list is parsed from the same result-branch diff the reviewer sees (`+++ b/<path>` headers).
+	let preReviewVerdict: ReviewSubmissionInput | null = null;
+	if (isTruthyEnv(process.env.NKLEIN_TEST_DRIVEN_MODE)) {
+		const gateDiff = await getDiff({
+			repoPath: input.workspacePath,
+			taskId: input.taskId,
+			baseRef: card.baseRef,
+		}).catch(() => null);
+		const changedFilePaths = [...(gateDiff ?? "").matchAll(/^\+\+\+ b\/(.+)$/gm)].map((match) => match[1] ?? "");
+		const gate = decideTestDrivenDelivery({ enabled: true, changedFilePaths });
+		if (!gate.allowReview && changedFilePaths.length > 0) {
+			preReviewVerdict = {
+				verdict: "request_changes",
+				summary: "Test-driven delivery gate",
+				feedback: gate.reason,
+				insight: null,
+			};
+			input.warn?.(`Test-driven gate: bouncing ${input.taskId} — ${gate.reason}`);
+		}
+	}
 	return runNKleinSecondOpinionReview({
 		taskId: input.taskId,
 		columnId,
 		enabled: config.secondOpinionReviewEnabled,
+		...(preReviewVerdict ? { preReviewVerdict } : {}),
 		maxRounds: config.reviewMaxRounds,
 		isReviewerCard: input.taskId.includes(REVIEW_SESSION_TASK_SUFFIX),
 		acceptanceSummary: formatAcceptanceSummaryForReview(acceptance),

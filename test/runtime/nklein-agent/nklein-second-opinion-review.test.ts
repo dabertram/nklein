@@ -220,4 +220,23 @@ describe("runNKleinSecondOpinionReview", () => {
 		expect(sessionArg.round).toBe(2);
 		expect(sessionArg.seedPrompt).toContain("Add the missing guard");
 	});
+
+	it("§5.V preReviewVerdict: a deterministic pre-review request_changes bounces WITHOUT calling the reviewer model", async () => {
+		const deps = makeDeps({});
+		const outcome = await runNKleinSecondOpinionReview({
+			...base,
+			deps,
+			preReviewVerdict: {
+				verdict: "request_changes",
+				summary: "Test-driven delivery gate",
+				feedback: "Add or update a test that covers the change.",
+				insight: null,
+			},
+		});
+		expect(outcome.type).toBe("bounced");
+		expect(deps.runReviewSession).not.toHaveBeenCalled();
+		expect(deps.onBounce).toHaveBeenCalledTimes(1);
+		const bounce = deps.onBounce.mock.calls[0]?.[0] as { workerPrompt: string; review: { lastFeedback: string } };
+		expect(bounce.review.lastFeedback).toContain("Add or update a test");
+	});
 });

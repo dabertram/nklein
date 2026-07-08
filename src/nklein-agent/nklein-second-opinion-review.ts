@@ -71,6 +71,10 @@ export interface RunNKleinSecondOpinionReviewInput {
 	 * so the seed prompt is byte-identical to the un-lensed default.
 	 */
 	reviewLenses?: readonly ReviewLens[];
+	/** §5.V test-driven gate (or any deterministic PRE-review verdict): when set, the reviewer MODEL is skipped and
+	 *  this submission rides the standard transition machinery — so a synthetic `request_changes` bounces via the
+	 *  normal onBounce, and a REPEATED identical gate feedback trips the identical-loop PARK guard (never spins). */
+	preReviewVerdict?: ReviewSubmissionInput | null;
 	now?: () => number;
 	deps: {
 		/** Resolve the card (with its persisted review history) by id; null when gone. */
@@ -166,7 +170,8 @@ export async function runNKleinSecondOpinionReview(
 		// Opt-in: absent unless the runner (gated on NKLEIN_REVIEW_LENSES) supplied a non-empty panel.
 		...(input.reviewLenses && input.reviewLenses.length > 0 ? { lenses: input.reviewLenses } : {}),
 	});
-	const submission = await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round });
+	const submission =
+		input.preReviewVerdict ?? (await input.deps.runReviewSession({ taskId: input.taskId, seedPrompt, round }));
 	if (!submission) {
 		return { type: "skipped", reason: "no_verdict" };
 	}

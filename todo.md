@@ -7881,7 +7881,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       [nklein-dev-test-project.ts](src/nklein-agent/nklein-dev-test-project.ts) + the create/start call sites; extract the
       shared start into one helper both surfaces call. Keep strict Docker isolation (#2) and the §5.B Planning/Refinement
       entry-lane invariant intact.
-  - [ ] **Full test-driven mode — default ON, global + per-project (handoff 2026-06-28).** Add a "test-driven" execution
+  - [~] **Full test-driven mode — default ON, global + per-project (handoff 2026-06-28).** Add a "test-driven" execution
         mode where the agent must produce/keep tests green as part of delivery (write-or-update tests for the change, run
         them, only reach review when green). **Default ON**, with a **global** toggle and a **per-project override** (wire
         through `runtime.saveConfig` global + workspace-scope, same pattern as §5.W concurrency / Suite-16 settings
@@ -7898,6 +7898,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (global default + per-project override, the ~10-site `secondOpinionReviewEnabled` pattern) + Settings UI second.
         CONTROL-FLOW change in a critical file — do it deliberately with the bounce mechanism mirrored exactly, and
         validate with a live task whose change has no test (must bounce) vs one that adds a test (must deliver).
+        *(◐ SLICE 1 SHIPPED 2026-07-08 (NKLEIN_TEST_DRIVEN_MODE, default OFF = byte-identical): the review core gained
+        `preReviewVerdict` — a deterministic pre-review submission that SKIPS the reviewer model and rides the
+        STANDARD transition machinery (normal onBounce re-drive; repeated identical gate feedback trips the
+        identical-loop PARK guard — never spins); the runner computes changedFilePaths from the result-branch diff's
+        `+++ b/` headers and passes the `decideTestDrivenDelivery` block as that verdict (empty-diff cards are left to
+        the reviewer — a no-op is its own red flag). Core short-circuit test + 237 server/agent tests green.
+        REMAINING: slice 2 — the real config field (global default-ON + per-project override, the ~10-site pattern) +
+        Settings UI; and the live bounce-vs-deliver validation pair (sweep-phase).)*
   - [x] **Re-verify `read_large_file` — CONFIRMED satisfied, closed as superseded (2026-06-28).** Verified the live impl
         ([nklein-large-file-workflow.ts](src/nklein-agent/nklein-large-file-workflow.ts)) is the simplified §5.O protocol:
         the model only *triggers* the workflow with a `path` then advances with `cursor: "next"` (or an empty/`continue`/
