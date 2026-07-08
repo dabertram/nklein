@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { LlmfitModel } from "../../../src/core/llmfit-adapter";
 import {
 	createLlmfitCapabilityPriorResolver,
+	createLlmfitRoutingPriorResolver,
+	llmfitPriorPredictedWallTimeMs,
 	loadOptInLlmfitCapabilityPriorResolver,
 } from "../../../src/nklein-agent/nklein-llmfit-routing-prior";
 
@@ -36,6 +38,28 @@ describe("createLlmfitCapabilityPriorResolver", () => {
 		]);
 		expect(resolve?.("qwen2.5-coder-14b@q4_k_m")).toBe(100);
 		expect(resolve?.("totally-unknown")).toBeNull();
+	});
+});
+
+describe("createLlmfitRoutingPriorResolver", () => {
+	it("returns the matched score and tok/s routing prior for a loaded model", () => {
+		const resolve = createLlmfitRoutingPriorResolver([
+			model({ name: "Qwen/Qwen2.5-Coder-14B-Instruct", score: 90, estimatedTps: 50 }),
+		]);
+		expect(resolve?.("qwen2.5-coder-14b@q4_k_m")).toEqual({
+			capabilityPrior: 90,
+			speedTier: "fast",
+			estimatedTps: 50,
+		});
+	});
+});
+
+describe("llmfitPriorPredictedWallTimeMs", () => {
+	it("converts a routing prior's tok/s into predicted wall time", () => {
+		const prior = { capabilityPrior: 80, speedTier: "medium" as const, estimatedTps: 25 };
+		expect(llmfitPriorPredictedWallTimeMs(prior, 1_000)).toBe(40_000);
+		expect(llmfitPriorPredictedWallTimeMs({ ...prior, estimatedTps: null }, 1_000)).toBeNull();
+		expect(llmfitPriorPredictedWallTimeMs(prior, 0)).toBeNull();
 	});
 });
 

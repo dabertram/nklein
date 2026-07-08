@@ -20,6 +20,11 @@ export interface NKleinTaskRoutingCandidate {
 	 * BEFORE applying smallest-sufficient. Empty/absent ⇒ no affinity preference — pure smallest-sufficient as before.
 	 */
 	affinityTags?: readonly string[];
+	/**
+	 * Caller-supplied wall-time prior for this task, used only when the registry has no measured speed yet. This keeps
+	 * external priors (for example llmfit tok/s) out of the persisted registry until a real run records telemetry.
+	 */
+	predictedWallTimeMs?: number | null;
 }
 
 export interface NKleinTaskRoutingRequest {
@@ -109,7 +114,7 @@ function estimateWallTimeMs(
 	const decodeMs =
 		outputTokens && speed.decodeTokensPerSecondEwma ? (outputTokens / speed.decodeTokensPerSecondEwma) * 1000 : null;
 	if (prefillMs === null && decodeMs === null) {
-		return speed.wallTimeMsEwma;
+		return speed.wallTimeMsEwma ?? candidate.predictedWallTimeMs ?? null;
 	}
 	return (prefillMs ?? 0) + (decodeMs ?? 0) + (speed.ttftMsEwma ?? 0);
 }

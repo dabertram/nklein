@@ -80,6 +80,30 @@ describe("routeNKleinTask", () => {
 		});
 	});
 
+	it("uses a caller-supplied predicted wall time as the cold-speed tiebreaker", () => {
+		const decision = routeNKleinTask({
+			difficulty: 40,
+			fitBudgetTokens: 8_000,
+			candidates: [
+				{
+					entry: createEntry({ key: "lmstudio:slow-equal:default", capability: 50, contextWindow: 32_000 }),
+					role: "worker",
+					predictedWallTimeMs: 80_000,
+				},
+				{
+					entry: createEntry({ key: "lmstudio:fast-equal:default", capability: 50, contextWindow: 32_000 }),
+					role: "worker",
+					predictedWallTimeMs: 10_000,
+				},
+			],
+		});
+
+		expect(decision).toMatchObject({
+			type: "assign",
+			modelKey: "lmstudio:fast-equal:default",
+		});
+	});
+
 	it("keeps a feasible preferred local model instead of routing down to a smaller sufficient model", () => {
 		const decision = routeNKleinTask({
 			difficulty: 40,

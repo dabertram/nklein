@@ -7,6 +7,7 @@ import { isEnabledByDefaultEnv, isTruthyEnv } from "../../core/env-flag";
 import { shouldWaitForBestModel } from "../../core/hard-task-wait";
 import { isHomeAgentSessionId } from "../../core/home-agent-session";
 import { buildLedgerEvidence } from "../../core/ledger-evidence";
+import type { LlmfitRoutingPrior } from "../../core/llmfit-fitness-bridge";
 import { createDefaultLmsRunner, fetchLmsPsModelsCached } from "../../core/lms-ps-json";
 import { fetchLoadedModelDescriptors } from "../../core/lmstudio-loaded-model-descriptors";
 import { fetchLoadedModelIdsCached, shouldBlockUnloadedModel } from "../../core/lmstudio-loaded-models";
@@ -28,7 +29,10 @@ import { resolveTaskTitle } from "../../core/task-title";
 import { createNKleinCodeEmbeddingProviderFromSettings } from "../../nklein-agent/nklein-code-embeddings";
 import { isNKleinContextWindowPolicyError } from "../../nklein-agent/nklein-context-window-policy";
 import { scheduleNKleinEndpointStart } from "../../nklein-agent/nklein-endpoint-scheduler";
-import { loadOptInLlmfitCapabilityPriorResolver } from "../../nklein-agent/nklein-llmfit-routing-prior";
+import {
+	llmfitPriorPredictedWallTimeMs,
+	loadOptInLlmfitRoutingPriorResolver,
+} from "../../nklein-agent/nklein-llmfit-routing-prior";
 import type { LoadedModelRoutingProfile } from "../../nklein-agent/nklein-loaded-model-candidates";
 import { resolveLoadedModelProfile } from "../../nklein-agent/nklein-loaded-model-profile";
 import {
@@ -362,6 +366,7 @@ export async function handleStartTaskSession(
 		// Best-effort + local-only + no-load (descriptors ARE the already-loaded set); any failure degrades to the configured
 		// candidates. Skipped under the test runner (residency disabled ⇒ no live endpoint ⇒ empty), so tests are unchanged.
 		const loadedModelProfilesByRuntimeId = new Map<string, LoadedModelRoutingProfile>();
+		const llmfitRoutingPriorByRuntimeId = new Map<string, LlmfitRoutingPrior>();
 		// §5.BG: runtime id → STABLE publisher key for the loaded set, so the chosen model's telemetry keys off the
 		// stable key (not the renamable runtime id). Populated only when descriptors are fetched (local + residency on).
 		const stableModelKeyByRuntimeId = new Map<string, string>();
@@ -370,11 +375,18 @@ export async function handleStartTaskSession(
 				const loadedDescriptors = await fetchLoadedModelDescriptors(residencyBaseUrl);
 				// §5.AB llmfit prior (opt-in via NKLEIN_LLMFIT_PRIOR): same cached resolver as decomposition routing.
 				// OFF by default, so task-start auto-discovery remains local-only unless the operator explicitly enables it.
-				const llmfitPrior = await loadOptInLlmfitCapabilityPriorResolver();
+				const resolveLlmfitRoutingPrior = await loadOptInLlmfitRoutingPriorResolver();
 				// §5.BG: learn each loaded runtime id's stable key into the persisted map so a COLD model still resolves.
 				learnSharedLoadedDescriptors(loadedDescriptors);
 				for (const descriptor of loadedDescriptors) {
-					const profile = resolveLoadedModelProfile(descriptor, llmfitPrior ? { llmfitPrior } : undefined);
+					const routingPrior = resolveLlmfitRoutingPrior?.(descriptor.modelKey) ?? null;
+					if (routingPrior) {
+						llmfitRoutingPriorByRuntimeId.set(descriptor.runtimeId, routingPrior);
+					}
+					const profile = resolveLoadedModelProfile(
+						descriptor,
+						resolveLlmfitRoutingPrior ? { llmfitPrior: () => routingPrior?.capabilityPrior ?? null } : undefined,
+					);
 					loadedModelProfilesByRuntimeId.set(descriptor.runtimeId, profile);
 					stableModelKeyByRuntimeId.set(descriptor.runtimeId, descriptor.modelKey);
 					if (profile.isEmbedding) {
@@ -447,6 +459,15 @@ export async function handleStartTaskSession(
 			taskTitle: body.taskTitle,
 			images: body.images,
 		});
+		const routingOutputTokens = 1_000;
+		const llmfitWallTimeForModel = (modelId: string): number | null =>
+			llmfitPriorPredictedWallTimeMs(llmfitRoutingPriorByRuntimeId.get(modelId), routingOutputTokens);
+		const predictedWallTimeForCandidate = (candidate: NKleinStartGuardCandidate<ResolvedNKleinLaunchConfig>) =>
+			candidate.entry.speed.wallTimeMsEwma ?? llmfitWallTimeForModel(candidate.entry.modelId);
+		const tokensPerSecondForCandidate = (candidate: NKleinStartGuardCandidate<ResolvedNKleinLaunchConfig>) =>
+			candidate.entry.speed.decodeTokensPerSecondEwma ??
+			llmfitRoutingPriorByRuntimeId.get(candidate.entry.modelId)?.estimatedTps ??
+			null;
 		const largestContextWindow =
 			[...guardCandidates.values()]
 				.map((candidate) => candidate.entry.contextWindow.effective ?? 0)
@@ -569,7 +590,7 @@ export async function handleStartTaskSession(
 					candidate.role,
 				),
 				contextWindow: candidate.entry.contextWindow.effective ?? 0,
-				predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+				predictedWallTimeMs: predictedWallTimeForCandidate(candidate),
 				isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
 			})),
 			difficulty: taskDifficulty,
@@ -681,7 +702,7 @@ export async function handleStartTaskSession(
 										candidate.entry.modelId,
 									),
 									contextWindow: candidate.entry.contextWindow.effective ?? 0,
-									predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+									predictedWallTimeMs: predictedWallTimeForCandidate(candidate),
 									isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
 								},
 							]
@@ -756,11 +777,14 @@ export async function handleStartTaskSession(
 		// guards authoritative. Omitted dial ⇒ "capability" ⇒ no-op ⇒ byte-identical routing.
 		const dialPreference = applySpeedCapabilityDial({
 			ranked: [
-				...warmthRanked.map((candidate) => ({
-					modelKey: candidate.modelKey,
-					fitScore: candidate.score,
-					tokensPerSecond: guardCandidates.get(candidate.modelKey)?.entry.speed.decodeTokensPerSecondEwma ?? null,
-				})),
+				...warmthRanked.map((candidate) => {
+					const guardCandidate = guardCandidates.get(candidate.modelKey);
+					return {
+						modelKey: candidate.modelKey,
+						fitScore: candidate.score,
+						tokensPerSecond: guardCandidate ? tokensPerSecondForCandidate(guardCandidate) : null,
+					};
+				}),
 			],
 			dial: cardRoleSettings?.speedVsCapability,
 		});
@@ -769,7 +793,7 @@ export async function handleStartTaskSession(
 			difficulty: taskDifficulty,
 			fitBudgetTokens: requiredContextTokens,
 			promptTokens,
-			outputTokens: 1_000,
+			outputTokens: routingOutputTokens,
 			preferredModelKey: dialPreferredKey ?? warmthPreferredKey ?? baselinePreferredKey,
 			candidates: [...guardCandidates.values()].map((candidate) => {
 				const affinityTags = affinityTagsForCandidateModel(candidate.entry.modelId);
@@ -782,6 +806,7 @@ export async function handleStartTaskSession(
 						candidate.role,
 						candidate.entry.modelId,
 					),
+					predictedWallTimeMs: llmfitWallTimeForModel(candidate.entry.modelId),
 					...(affinityTags ? { affinityTags } : {}),
 				};
 			}),
@@ -826,7 +851,7 @@ export async function handleStartTaskSession(
 							ledgerSamples,
 							contextWindow: candidate.entry.contextWindow.effective ?? 0,
 							isFree: isModelFree(candidate.entry.key, candidate.entry.modelId),
-							predictedWallTimeMs: candidate.entry.speed.wallTimeMsEwma,
+							predictedWallTimeMs: predictedWallTimeForCandidate(candidate),
 							...(affinityTags ? { affinityTags } : {}),
 						};
 					}),

@@ -5962,7 +5962,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         `uvx llmfit …` ephemeral, overridable to a resolved binary; injectable exec; a non-zero exit / spawn error →
         `{stdout, exitCode}`, never throws). 4 tests. **decideModelLoad COMBINER DONE — see the next leaf.** **Still owed
         (the live seam + remaining feeds):** call llmfit (via the runner, per pool) at the load-planning seam + feed
-        `estimatedTps` → §5.AB fitness + pool-routing `predictedWallTimeMs`/`capabilityTier`, `installed` → resident detection.
+        `estimatedTps`/score into the persisted §5.AB fitness store/projections; `installed` → resident detection.
         *(2026-07-08 parser extension: `parseLlmfitModel` also accepts the current GitHub DB row shape
         (`capabilities`, `use_case`, `quantization`, `recommended_ram_gb`/`min_ram_gb`) so the cached public catalog can
         be consumed without invoking the CLI.)*
@@ -5980,7 +5980,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         (`NKLEIN_LLMFIT_PRIOR`) cached `llmfit recommend` resolver and both decomposition routing +
         task-start loaded-model auto-discovery now inject that prior into `resolveLoadedModelProfile`, so a cold loaded
         model can route from llmfit's score before ledger evidence exists. Default remains OFF/local-only; shell-out
-        failures degrade to the catalog/default prior. Owed: write the prior into the §5.AB fitness store + pass tps to pool routing.
+        failures degrade to the catalog/default prior. **LIVE TOK/S ROUTING FEED DONE (2026-07-08):** the same resolver
+        now carries `estimatedTps`; live task-start maps it into `predictedWallTimeMs` for free-first, per-pool swarm
+        routing, `routeNKleinTask`, selection explanations, and the speed-vs-capability dial when measured registry speed
+        is absent. Owed: write the prior/speed into the §5.AB fitness store.
   - [~] cross-reference llmfit's HF DB rows ↔ the §5.AL `MODEL_CAPABILITY_CATALOG` (llmfit fit/speed + our tool-use verdict).
         **DONE (2026-07-08):** `crossReferenceLlmfitWithCatalog(model, lookup=lookupModelCapability)` combines llmfit fit/speed
         + our EMPIRICAL verdict and classifies the tool-use signals: `agree`/`conflict`/`catalog-only`/`llmfit-only`/`no-data`.

@@ -1,9 +1,10 @@
 import { isTruthyEnv } from "../core/env-flag";
 import { type LlmfitModel, llmfitRecommend } from "../core/llmfit-adapter";
 import { findLlmfitMatch } from "../core/llmfit-capability-prior";
-import { llmfitRoutingPrior } from "../core/llmfit-fitness-bridge";
+import { type LlmfitRoutingPrior, llmfitRoutingPrior } from "../core/llmfit-fitness-bridge";
 import { createLlmfitRunner } from "../core/llmfit-runner";
 
+export type LlmfitRoutingPriorResolver = (realName: string) => LlmfitRoutingPrior | null;
 export type LlmfitCapabilityPriorResolver = (realName: string) => number | null;
 
 /** Process-level cache of llmfit's scored models (opt-in prior) - run once; llmfit's DB does not change per route. */
@@ -21,32 +22,60 @@ async function loadCachedLlmfitModels(): Promise<readonly LlmfitModel[]> {
 	return result.models;
 }
 
-export function createLlmfitCapabilityPriorResolver(
+export function createLlmfitRoutingPriorResolver(
 	models: readonly LlmfitModel[],
-): LlmfitCapabilityPriorResolver | undefined {
+): LlmfitRoutingPriorResolver | undefined {
 	if (models.length === 0) {
 		return undefined;
 	}
 	return (realName) => {
 		const match = findLlmfitMatch(realName, models);
-		return match ? llmfitRoutingPrior(match).capabilityPrior : null;
+		return match ? llmfitRoutingPrior(match) : null;
 	};
 }
 
+export function createLlmfitCapabilityPriorResolver(
+	models: readonly LlmfitModel[],
+): LlmfitCapabilityPriorResolver | undefined {
+	const resolveRoutingPrior = createLlmfitRoutingPriorResolver(models);
+	return resolveRoutingPrior ? (realName) => resolveRoutingPrior(realName)?.capabilityPrior ?? null : undefined;
+}
+
 /**
- * Opt-in only: when `NKLEIN_LLMFIT_PRIOR` is truthy, run/cache `llmfit recommend` and return a cold-start capability
- * prior resolver for loaded-model REAL names. Disabled by default, so normal task starts and decompositions remain local.
+ * Opt-in only: when `NKLEIN_LLMFIT_PRIOR` is truthy, run/cache `llmfit recommend` and return score/tok/s routing priors
+ * for loaded-model REAL names. Disabled by default, so normal task starts and decompositions remain local.
  */
+export async function loadOptInLlmfitRoutingPriorResolver(
+	opts: {
+		env?: Readonly<Record<string, string | undefined>>;
+		loadModels?: () => Promise<readonly LlmfitModel[]>;
+	} = {},
+): Promise<LlmfitRoutingPriorResolver | undefined> {
+	const env = opts.env ?? process.env;
+	if (!isTruthyEnv(env.NKLEIN_LLMFIT_PRIOR)) {
+		return undefined;
+	}
+	const models = await (opts.loadModels ?? loadCachedLlmfitModels)().catch(() => [] as LlmfitModel[]);
+	return createLlmfitRoutingPriorResolver(models);
+}
+
 export async function loadOptInLlmfitCapabilityPriorResolver(
 	opts: {
 		env?: Readonly<Record<string, string | undefined>>;
 		loadModels?: () => Promise<readonly LlmfitModel[]>;
 	} = {},
 ): Promise<LlmfitCapabilityPriorResolver | undefined> {
-	const env = opts.env ?? process.env;
-	if (!isTruthyEnv(env.NKLEIN_LLMFIT_PRIOR)) {
-		return undefined;
+	const resolveRoutingPrior = await loadOptInLlmfitRoutingPriorResolver(opts);
+	return resolveRoutingPrior ? (realName) => resolveRoutingPrior(realName)?.capabilityPrior ?? null : undefined;
+}
+
+export function llmfitPriorPredictedWallTimeMs(
+	prior: LlmfitRoutingPrior | null | undefined,
+	outputTokens: number,
+): number | null {
+	const tps = prior?.estimatedTps ?? null;
+	if (tps === null || tps <= 0 || !(outputTokens > 0)) {
+		return null;
 	}
-	const models = await (opts.loadModels ?? loadCachedLlmfitModels)().catch(() => [] as LlmfitModel[]);
-	return createLlmfitCapabilityPriorResolver(models);
+	return Math.round((outputTokens / tps) * 1000);
 }
