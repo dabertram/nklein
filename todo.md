@@ -4181,7 +4181,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
           the embedding discover/save tests anchor on the `Code intelligence embeddings` h6 and stay green) + build green.
     - [x] relabel "Git Prompts" → "Git" **(2026-07-01)** — `runtime-settings-dialog.tsx`: tab label + section header now
           "Git" (the stable `git-prompts` id / `data-settings-section` anchor kept, so navigation is unaffected). web-ui tsc clean.
-    - [ ] Workspace/Project settings polish
+    - [ ] Workspace/Project settings polish ⏸ NEEDS-DAVID-UX-CALL *(2026-07-08: the Project section is already
+          substantive — config-path link (click-to-open), §5.BA per-project guided-setup re-trigger, and the
+          per-project OverrideRow cluster (max concurrent tasks / agent / model roles). "Polish" here has no concrete
+          spec (the 2026-07-01 note: "needs a specific UX call, not a mechanical move"). Candidate calls when David
+          weighs in: (a) split Workspace vs Project into two nav entries, (b) surface the workspaceBaseDir picker
+          here, (c) show WHICH overrides are active as badges in the nav. Not blocking anything.)*
   - [x] **live-verified (2026-06-26, Playwright)** — booted `dev:full`, opened Settings (⌘⇧S), confirmed the **Agents**
         nav entry renders (Boxes icon) alongside a retained **General**, clicking Agents scrolls the moved content (Docker
         isolation + swarm guardrails + rulesets) into view, **zero console/page errors**. Reusable smoke at
@@ -4374,8 +4379,14 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 - *(cross-link note, not a work item)* **Cross-links:** §5.U (the analysis that feeds Phase 1), §5.V (the precondition
       oracle), §5.H (native-core / core-py — the Python beachhead already exists), §5.R (de-SDK boundary — a TS-side
       cleanup that also de-risks a port by shrinking the `@nkleinbot/*` coupling first).
-- [ ] **Target-structure roadmap (2026-06-26)** — the *target
-      shape* for this refactor (complements the anti-pattern audit's code-level findings). 13 recommendations: (1)
+- [~] **Target-structure roadmap (2026-06-26)** — the *target
+      shape* for this refactor (complements the anti-pattern audit's code-level findings). *(◐ status audit 2026-07-08:
+      this box IS the roadmap record; execution tracks the migration order. LANDED: #2 contract domains — api-contract.ts
+      is now a 138-line barrel over 20 `*-api-contract.ts` domain modules; #3 tRPC modularization — app-router composes
+      `runtime-api/` + `routers/` + `projects-api/` submodules; #13 CI boundary fixes (2026-06-26 note below). NOT
+      STARTED (each a §5.X execution step, do in the stated order): #1 npm-workspaces monorepo, #4 TaskExecutionBackend
+      ports, #6 web-ui feature slices, #7 shared board domain, #8 `src/persistence/`, #9 hub event-projection, #11
+      settings section registry, #12 shared test-harness package.)* 13 recommendations: (1)
       formalize the monorepo (npm workspaces; `apps/{web,desktop}` + `packages/{contracts,runtime,runtime-core,nklein-
       integration,web-runtime-client,test-harness}`); (2) split `api-contract.ts` into contract-domain modules behind one
       barrel (model = `chat-api-contract.ts`); (3) tRPC root = router composition, each domain router backed by an
@@ -4669,11 +4680,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (`nklein-session-runtime` afterModel — shared with the constrained rung's owed re-invoke seam); recording the rung +
       winning family on the §5.AF ledger; and learning each model's responsive family into the `ModelBehaviorProfile` so a
       known-responsive phrasing is tried first.
-  - [ ] Wire prompt-variation rung into SWARM/SDK path seam (afterModel hook)
-  - [ ] Record rung outcome + winning family on §5.AF ledger per attempt
-  - [ ] Add model's responsive family to `ModelBehaviorProfile` for persistence
-  - [ ] Test via phi/reasoning models (canonical ruminator cases)
-  - [ ] Re-verify across 9-model roster with chat path (ensure no regression)
+  - [ ] Wire prompt-variation rung into SWARM/SDK path seam (afterModel hook) *(gated-on-vendored-wrapModel — §4A
+        2026-07-06 scope finding: TURN-level re-invoke needs the multi-package `wrapModel` engine change; the
+        increment-1 recovery-ladder wrapper is built + ready)*
+  - [x] Record rung outcome + winning family per attempt *(✅ 2026-07-08, 65a9d1e8 — the chat adapter fires
+        `onPromptVariantOutcome({winningFamily})` once per rung firing; the live resolver persists a win to the
+        model-behavior store as a success-after-retries outcome (feeds EWMA reliability + the family counts). §5.AF
+        agent-attempt-ledger recording rides the swarm-path wiring above.)*
+  - [x] Add model's responsive family to `ModelBehaviorProfile` for persistence *(✅ 2026-07-08, 65a9d1e8 —
+        `promptVariantFamilyCounts` on the profile (legacy-tolerant fold) + `preferredPromptVariantFamily`; the
+        adapter tries the learned family FIRST (saves the ladder walk); store schema extended. 5 new tests.)*
+  - [ ] Test via phi/reasoning models (canonical ruminator cases) ⏱ FLEET-RUN *(phi models not currently loaded;
+        needs a model-roster session)*
+  - [ ] Re-verify across 9-model roster with chat path (ensure no regression) ⏱ FLEET-RUN
 - [~] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder. **PURE FORMAT CORE DONE
