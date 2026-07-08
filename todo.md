@@ -6063,6 +6063,25 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         ≥55 difficulty × wait_for_best × free-first `busyFallback`) gates the start path — a qualifying card defers via
         the existing queued endpoint-busy protocol (15s redrive) until its best qualified model frees up. The occupancy
         signal reuses free-first's own busyFallback (all qualified models busy), so no lms-ps dependency.)*
+  - [ ] **★ HIGH-PRIORITY BUG (sweep-found 2026-07-08) — flat capability prior 35 DEADLOCKS every medium+ card on a
+        cold local fleet.** LIVE-REPRODUCED in the dev-test sweep: decomposed implementation cards sit in `planning`
+        forever with `Task start blocked: this card needs decomposition. No connected model satisfies both difficulty 36
+        and the candidate-specific context fit guard.` ROOT CAUSE (fully traced): `estimateTaskDifficulty` scores a
+        test-backed single-file card at ~36/100 (medium — defensible), but EVERY model in the registry sits at the flat
+        `DEFAULT_CAPABILITY_PRIOR = 35` (nklein-model-registry-scoring.ts:11) because none has eval data yet (`samples:0`)
+        — a 4B, a 9B, and the 96GB deepseek ALL get 35. `routeNKleinTask` needs `capability ≥ difficulty`, so 35 < 36 for
+        ALL models → `feasible` empty → `decompose` verdict → start guard BLOCKS the card, but nothing can decompose it
+        either → permanent frozen board. It's a ONE-POINT cliff: any card scored ≥36 (any medium/hard) is unstartable
+        fleet-wide until eval data lifts a model above 35. This blocks the core local-first value prop on a fresh install.
+        FIX (needs a focused, fully-regression-tested change to core routing — NOT a rushed edit): **(1)** size/family-
+        differentiated priors so `DEFAULT_CAPABILITY_PRIOR` isn't flat (a 96GB/27B/9B priors above medium, a 4B below;
+        ties into the shipped base-lineage family signal) — needs model size at registry-stats entry creation; **(2)** a
+        best-effort LEAF fallback: when routing would decompose/escalate but the card is an atomic decomposition child and
+        a model fits the CONTEXT window, assign the most-capable context-fitting model best-effort (a frozen board is
+        strictly worse than a best-effort attempt the review/acceptance gate validates) — the caller must pass atomicity
+        so legitimate decomposition still fires. Recommend (1)+(2). Full trace + fix notes in the `capability-prior-deadlock`
+        memory. Sweep also fixed the read_files start_line:0 flail (f61ad6c4) and documented decompose no-dep-edges /
+        duplicates + the config worker-model-not-loaded slow-fallback (David-env).*
   - [ ] Implement "Re-evaluate connected models" button → trigger eval harness + refresh table. *(gated-on-eval-runtime
         2026-07-08: the background-eval-runner CORE (leases/ticks/admission) exists but has NO server wiring — the button
         needs the eval-harness runtime integration that actually drives eval sessions against loaded models (model-time =
