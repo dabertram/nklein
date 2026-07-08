@@ -8389,7 +8389,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       effort). Format documented in `docs/model-catalog-overlay.md` seeded with web-verified mid-2026 entries. 8 tests.
       So a user adds/overrides a model without a rebuild. REMAINING (next leaves): the llmfit GitHub auto-update (below)
       feeds THIS overlay; a settings/UI editor + confirm-to-overlay from the online-lookup core are the suggestion-surface tie-in.
-- [ ] **Auto-check llmfit's GitHub catalog for updates (David 2026-07-07 — "we had looked at llmfit for this purpose").**
+- [~] **Auto-check llmfit's GitHub catalog for updates (David 2026-07-07 — "we had looked at llmfit for this purpose").**
       llmfit (MIT, https://github.com/AlexsJones/llmfit — already scoped in §5.AB's llmfit item) ships a model DB/catalog
       updated as new models land. Make llmfit's remote catalog a first-class SOURCE feeding the external overlay (above):
       (1) **check GitHub for a newer catalog** at runtime OR on a user-triggered "update models" (compare local vs remote
@@ -8399,6 +8399,11 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       Local-only #1 holds: a user-initiated/opt-in fetch of a PUBLIC repo, never automatic background egress. This is the
       concrete realization of decision #1's "data-driven + EXTERNAL, updatable catalog" — the catalog stays fresh without
       a code change or rebuild.
+      *(◐ 2026-07-08 — the pure DECISION CORE shipped: `src/core/catalog-update-decision.ts` `decideCatalogUpdate`
+      ({mode off/notify/auto × local/remote revision} → noop / up_to_date / suggest_update / pull_update) — opt-in by
+      construction (off skips; notify never pulls; only auto pulls; default NOTIFY per the box), revision-scheme-agnostic
+      (opaque token). 5 tests. REMAINING: the user-initiated GitHub fetch (invariant #1 opt-in egress), the overlay
+      MERGE of pulled llmfit rows, and the setting + "update models" UX — all ride this decider.)*
 - [ ] **User-facing model SUGGESTIONS surface (David 2026-07-07, decision #1 + gap 5).** Given the loaded set + declared
       hardware tiers + card mix, suggest what to FETCH to strengthen the fleet — especially "your decision layer is a
       single-family monoculture; add a different-BASE-family judge (Mistral/Gemma/Z.ai)". Wire the unwired online-lookup
