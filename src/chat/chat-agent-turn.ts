@@ -35,6 +35,9 @@ export interface ChatAgentTurnDeps {
 	/** Load the session's focus chain (todo §5.M G4) so it's re-anchored into the turn; omit for no focus chain. */
 	readFocusChain?: (sessionId: string) => Promise<FocusChain | null>;
 	appendMessage: (sessionId: string, input: { role: ChatMessage["role"]; content: string }) => Promise<ChatMessage>;
+	/** §5.AD opt-in enforced-reasoning hookup: given the turn's task + final draft, return the (possibly bounced)
+	 *  final answer. Absent ⇒ the draft is used as-is (byte-identical). Must be fail-soft (never throw the turn). */
+	enforceReasoning?: (input: { task: string; draft: string }) => Promise<string>;
 	summarize: (overflow: readonly ChatMessage[]) => Promise<string>;
 	estimateTokens: (text: string) => number;
 	embed?: (text: string) => Promise<number[] | null>;
@@ -209,12 +212,16 @@ export async function runChatAgentTurn(
 	// When the whole reply was narrated tool-call markup, `cleaned` is empty. If tools actually ran, confirm
 	// them; otherwise fall back to a neutral note — NEVER `loop.finalText`, which is the raw markup this strip
 	// exists to keep away from the user (a weak model can emit only a malformed narrated call as its answer).
-	const finalText =
+	const draftText =
 		cleaned.length > 0
 			? cleaned
 			: loop.steps.length > 0
 				? `Done. (used: ${summarizeToolsUsed(loop.steps)})`
 				: NARRATION_ONLY_FALLBACK;
+	// §5.AD: the opt-in enforced-reasoning bounce over the final draft (absent dep / flag off ⇒ draftText as-is).
+	const finalText = deps.enforceReasoning
+		? await deps.enforceReasoning({ task: input.userMessage, draft: draftText }).catch(() => draftText)
+		: draftText;
 	const assistantMessage = await deps.appendMessage(input.session.id, { role: "assistant", content: finalText });
 	return {
 		userMessage,

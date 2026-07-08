@@ -6608,6 +6608,12 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         the model-call seam and, when it enforces, fire the chosen kind via the §5.K reviewer seam (`cross_model_carry`) /
         §5.AA prompt-variation (`self_bounce_varied`) / the `self-consistency.ts` `majorityVote` (`self_consistency`),
         composed with the round-limit + stall/no-progress detection (the next two leaves below).
+        *(✅ CALL-SITE WIRING LIVE 2026-07-08 (flag-gated NKLEIN_ENFORCED_REASONING, default OFF = byte-identical):
+        `src/chat/chat-enforced-reasoning.ts` `maybeEnforceReasoning` — chat-surface difficulty calibration
+        (threshold 0.3 on the text+acceptance-only signal range), struggle signal auto-resolved from the model's
+        behavior store, drives `runEnforcedReasoningLoop` over the turn's own completion; wired at the chat-turn
+        final-answer seam (`deps.enforceReasoning`, fail-soft) + supplied by the chat service. 4 tests; chat suite
+        596 green. Live-verify on the resident 9B + the swarm seam ride fleet time.)*
   - [~] Integrate round-limit + stall/identical-loop detection (reuse §5.K + §5.S + §5.AA seams); compose into one explicit loop.
         **PURE CORE DONE (2026-07-01):** [src/core/enforced-reasoning-round-stop.ts](src/core/enforced-reasoning-round-stop.ts)
         `decideReasoningRoundStop(input)` → `{continueLoop, verdict, roundsUsed, roundsRemaining, bestQuality,

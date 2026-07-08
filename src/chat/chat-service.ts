@@ -16,6 +16,7 @@ import { type ChatAgentTurnDeps, runChatAgentTurn } from "./chat-agent-turn";
 import type { AutonomousChatAgentBudget, AutonomousChatAgentResult } from "./chat-autonomous-loop";
 import { readAutonomousChatPlanProgress, runAutonomousChatSession } from "./chat-autonomous-wiring";
 import type { ChatToolSet } from "./chat-board-tools";
+import { maybeEnforceReasoning } from "./chat-enforced-reasoning";
 import type { ChatModelDeps } from "./chat-local-llm-adapter";
 import { appendChatMemory, readChatMemories, writeConsolidatedMemories } from "./chat-memory-store";
 import { runChatTurn } from "./chat-runtime";
@@ -498,6 +499,18 @@ export function createChatService(options: ChatServiceOptions = {}): ChatService
 							...storeDeps,
 							summarize: modelDeps.summarize,
 							...withToolTranscript(agentToolDeps, session.id, onToolEvent),
+							// §5.AD opt-in enforced-reasoning bounce over the final draft (flag-gated inside; fail-soft).
+							enforceReasoning: ({ task, draft }) =>
+								maybeEnforceReasoning({
+									task,
+									draft,
+									...(modelDeps.modelId !== undefined ? { modelId: modelDeps.modelId } : {}),
+									complete: async ({ system, user }) =>
+										modelDeps.complete([
+											...(system ? [{ role: "system" as const, content: system }] : []),
+											{ role: "user" as const, content: user },
+										]),
+								}),
 						},
 					);
 					// §5.AF: best-effort append a `chat`-flow attempt event to the ledger (observational; never throws into
