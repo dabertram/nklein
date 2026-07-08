@@ -8,6 +8,10 @@
   turn is running and shows `Stop` plus `Steer`; accepted steers render optimistically until the transcript refetches. A
   live LM Studio check (`scripts/verify-chat-steer.mts`) validated the full `chat.streamMessage` + `chat.steerTurn` path
   with one already-loaded model, no sweep or model loading.
+- **Memory scope broadening now has a concrete LongMemEval-style signal producer** (todo §5.M/§5.V). The new pure
+  `long-memory-eval` core fixture injects multi-session project facts, scores recall@k plus abstention on missing
+  evidence, and exposes `decideMemoryScopeBroadening` so `accessAllOptIn` can only be allowed after a passing benchmark.
+  Runtime wiring is still held until this benchmark is validated against real model-backed recall.
 - **Settings can now check and cache llmfit's public model catalog on demand** (todo §5.AB/§5.AL). The model telemetry
   panel has explicit "Check catalog" and "Update catalog" actions. Check fetches llmfit's current GitHub catalog metadata
   only when clicked, compares the remote blob revision to the local cache revision, and reports update availability plus
