@@ -7013,8 +7013,19 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       role + online retrieval fragments) · §5.M (the role catalog this extends) · §5.L (a skill's tools still pass the
       capability-ruleset gate) · §6.3 (the fragments feed the context-budget breakdown) · §5.W (the dynamics-level + model-
       class settings + their per-project overrides).
-- [ ] **Skills as VALIDATED PROCEDURAL MEMORY — a `ProceduralSkillBank`, not just prompt fragments (2026-06-27,
-      small-LLM research pass).** Distil skills from
+- [~] **Skills as VALIDATED PROCEDURAL MEMORY — a `ProceduralSkillBank`, not just prompt fragments (2026-06-27,
+      small-LLM research pass).** *(◐ SAFETY KEYSTONE DONE 2026-07-08 — [procedural-skill-lifecycle.ts](src/core/procedural-skill-lifecycle.ts)
+      `decideSkillLifecycleTransition(signals, thresholds?)`: the pure `candidate → quarantined → active → deprecated`
+      state machine that ENFORCES the safety rules — a candidate can NEVER jump to active (always enters quarantine
+      first, so no generated skill auto-activates); activation requires PASSED deterministic validation AND a
+      strictly-positive effectiveness delta vs the no-skill baseline AND a false-activation (negative-transfer) rate
+      under the ceiling; an active skill whose false-activation climbs or whose delta goes non-positive is DEPRECATED
+      immediately (negative-transfer watch); `deprecated` is terminal (a re-learned procedure re-enters as a fresh
+      candidate). 11 tests; full gate green. REMAINING (heavier, per-part): the full skill RECORD schema (the rich
+      `{id,version,sourceAttemptIds,validatedConsumerModels,representation,validationSuite,…}` fields), the ledger→
+      candidate DISTILLATION pass, running the validation suite, and measuring the delta — the effectful pipeline that
+      FEEDS this decider. This keystone makes the "never auto-activate / catch negative transfer" invariants unit-provable.)*
+      Distil skills from
       the §5.AF ledger's successful + failed-then-repaired attempts: `{ id, version, status: candidate|quarantined|active|
       deprecated, sourceAttemptIds, producerModel, validatedConsumerModels, roleScope, taskFingerprint, applicability,
       activation/terminationConditions, representation: lesson|workflow|script|patch_template|program_function,
