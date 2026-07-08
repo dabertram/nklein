@@ -4848,8 +4848,10 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         at the beginning") — !Klein sent system not-first; fixed via `mergeSystemMessagesFirst` (normalize-system-first.ts) at
         the client seam, RE-VERIFIED qwopus now PASSES the full chain. REGRESSION SPOT-CHECK: re-ran phi-4-mini-instruct
         (was PASS) 2× post-fix — PARTIAL then PASS, i.e. its documented synthesis-marker FLAKINESS (core chain fully executed
-        + card persisted BOTH runs) — NOT a regression from the system-first change. Owed (lower priority now): a full-roster
-        re-run to confirm the other models, but the spot-check + the no-op-when-already-system-first design make regression unlikely.
+        + card persisted BOTH runs) — NOT a regression from the system-first change. **FULL-ROSTER RE-RUN CONFIRMED (2026-07-08):**
+        re-ran all 8 post-fix — qwopus3.5-9b-coder FAIL→**PASS** ✓ (fix validated at scale); NO core regression (every model's
+        chain still executes + persists; the only deltas are synthesis-MARKER echo flakiness PASS↔PARTIAL on phi-instruct/
+        qwen3-8b, which is documented weak-synth variance, not a capability change). System-first fix confirmed net-positive + safe.
 - [~] **Constrained-decoding tool-call fallback.** When a model still won't emit a tool call, force it via
       `response_format: json_schema` / grammar (we already do constrained decoding in `generateStructured`) constrained
       to the tool-call shape — guarantees a parseable call. A last-resort rung on the ladder. **PURE FORMAT CORE DONE
@@ -10211,3 +10213,9 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       *(2026-07-07 integration note — BUILDS ON existing work, does NOT restart from zero: the Electron desktop shell + preload bridge + daemon/branding rebrand already shipped (done.md — "Electron hardening", the desktop-health/preload bridge [MED #10], the daemon rebrand). The NEW scope layered on top: (1) menu-bar/tray applet [macOS/Windows/Linux] showing basic activity + start/pause + open-UI; (2) serve the same UI over a webserver for LAN / (with external setup) external access; (3) autostart-on-boot config; (4) auto-resume-work-after-boot for the enabled project(s) — start with 1, generalize later. Cross-refs the §5.L delivery gate + Pause/Resume controls. Agent to propose the packaging approach [extend the existing Electron shell vs Tauri] for user decision.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
+## 11. LATER — deferred to last (user 2026-07-08)
+- [ ] **Full-catalog model sweep — DEFERRED to one of the LAST tasks (user 2026-07-08: "stop sweeping for now, work
+      through the backlog, put sweeping as one of the last tasks").** The eval-harness + chat-agent-e2e sweep
+      infrastructure is BUILT + validated on an 8-model roster (§5.AB). This item = running the FULL ~71-model local
+      catalog through both harnesses to produce a complete fitness matrix + fold verdicts into §5.AL. Do this LAST, after
+      the backlog is worked. (Roster load/unload control confirmed; Docker healthy for the implement family.)
