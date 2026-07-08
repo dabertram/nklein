@@ -3758,3 +3758,15 @@ equal-weighted → flagged at render; PLUS freshness-stamped source lines live-c
 isolated verify-HOME; reasoning model needs ≥4096 maxTokens for synthesis JSON. Tests 8301 backend / 961 web / 61
 e2e. 256 open boxes. NEXT: L6318 retrieval-telemetry recording, freshness-into-roles cluster (L6324+),
 RetrievedEvidence loop-driver leaf statuses, then onward top-down; extended-goal phases after todo.md.
+
+### 2026-07-08 (Opus 4.8 segment #3) — §5.AC/§5.AD substrate wave
+SHIPPED: research-freshness gate (+ evergreen-CS volatility cue) · temporal-now leaf verified-by-construction ·
+re-anchor cluster reconciled (beforeModel integration was live but uncrossed) · quality-knee UI + retrieval-driver
+leaves crossed · injection-risk flags WIRED into browserFetchAdapter (scanContentInjectionRisk exported from the
+§5.L prescreen) · self-bounce personas + cross-model bounce prompt substrates (the two enforced-reasoning kinds'
+WHAT; parse fail-soft). Tests 8312 backend. 245 open boxes. NEXT REAL WORK UNIT: the enforced-reasoning gate's
+CALL-SITE wiring — one effectful loop at the chat/agent model-call seam that fires decideEnforcedReasoning and,
+per kind, drives self-bounce rounds (buildSelfBouncePrompt/parseSelfBounceVerdict), cross-model carry
+(buildCrossModelBouncePrompt/parseCrossModelBounceReply via the §5.K reviewer-model resolution), or
+self-consistency (majorityVote) — opt-in flag, then live-verify on the resident 9B. After: remaining §5.AD leaves,
+§5.AN/§5.AQ regions, §10; then the extended-goal phases.
