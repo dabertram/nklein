@@ -10253,10 +10253,14 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
       **WIRE FORMAT (traced from web-ui/src/runtime/trpc-client.ts):** the runtime serves tRPC at `/api/trpc` (batch link);
       workspace scope is the header `x-nklein-workspace-id: <workspaceId>`. So the desktop client = `@trpc/client`
       httpBatchLink to `http://127.0.0.1:<runtimePort>/api/trpc` with that header (runtimePort from the orchestrator;
-      workspaceId from the focused window). Clean build order: (1) add a runtime `getBoardActivity` query (sum in_progress
-      via project-task-counts) to the router; (2) desktop runtime-control client (@trpc/client, injected fetch for tests)
-      calling requestSwarmStop/clearSwarmStop/getBoardActivity; (3) tray consumes it. This is a multi-part cross-process
-      subsystem, FULLY scoped here for a clean fresh start. Sub-features (2) LAN webserver, (4) auto-resume still open —
+      workspaceId from the focused window). **SIMPLIFIED build order (no runtime changes needed):** the runtime ALREADY
+      builds a workspace-state snapshot (`buildWorkspaceStateSnapshot` → `RuntimeWorkspaceStateResponse` incl. board.columns)
+      that the web-ui already queries — so activity is CLIENT-SIDE: count the `in_progress` column's cards (trivial, no
+      src/core import, no new endpoint — the earlier getBoardActivity step is ELIMINATED). Whole channel is desktop-side:
+      (1) a desktop runtime-control client (@trpc/client to `/api/trpc` + `x-nklein-workspace-id` header) calling the
+      EXISTING requestSwarmStop/clearSwarmStop + the workspace-state query; (2) tray `togglePause` +
+      `tray.update(summarizeTrayActivity(inProgressCount))`. Only real work: the desktop @trpc/client integration + tray
+      wiring. FULLY scoped for a clean fresh start. Sub-features (2) LAN webserver, (4) auto-resume still open —
       all on the Electron shell per the packaging decision.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
       *(2026-07-07 integration note — BUILDS ON the shipped chat feature: the W3 chat surfaces (shared chat renderer, focus-chain, talking-to chip, mailbox/needs-you inbox) + the board-chat tools are the natural backend. A Signal/WhatsApp bridge lets an external messenger DRIVE + OBSERVE that same chat (send a message → a chat turn; surface needs-you/questions → a messenger notification the user answers remotely). NOTE: no explicit checked-in todo section for the connector was found (2026-07-07 repo-wide search) — it traces to earlier design thinking, so the FIRST step is to recover/re-specify the intended scope (which messengers, auth model, self-hosted signal-cli vs a hosted bridge, LOCAL-ONLY implications of routing chat through a third-party messenger network — likely needs the cloud-lockdown lifted + explicit user opt-in) before implementing. Cross-refs the desktop-app remote-access todo above [same "reach !Klein from outside" theme].)*
