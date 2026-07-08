@@ -10207,8 +10207,15 @@ introduce *and* fix during this pre-version phase (they never shipped); fix them
 
 
 ## 10. manually added todos
-- [ ] replace the cli argument parsing in start.sh and start.bat with a proper arg parsing library (for example python argparse or similar). details to be propesed by agent and decided by user guidance
-      *(2026-07-07 integration note — STANDALONE: start.sh/start.bat currently hand-roll ~11 lines of `case`/`$1` parsing; agent to propose the approach — a small shell/python arg parser vs a tiny launcher script — for user decision before implementing. No existing task supersedes this.)*
+- [x] replace the cli argument parsing in start.sh and start.bat with a proper arg parsing library **DONE (2026-07-08,
+      user chose "Node launcher w/ util.parseArgs"):** new cross-platform `start.mjs` is the single entry point using Node's
+      built-in `util.parseArgs` (strict: unknown flags now hard-error with usage + exit 64, vs the old lenient `case`) —
+      one shared arg definition (`--force/-f`, `--test/-t`, `--help/-h`) for every OS. Faithfully replicates the prior
+      behavior: env preflight (node≥22/npm/git required, docker soft-warn — now on ALL OSes, was start.bat-only), stale dev-
+      instance detection on the dev ports (cross-platform lsof/netstat + `process.kill`), y/N prompt or `--force`, deps
+      install, and the isolated `--test` instance (offset ports 3584/4273 + own HOME/USERPROFILE). `start.sh`/`start.bat`
+      are now thin wrappers (node-presence guard → `exec node start.mjs "$@"`), ending the asymmetry (start.bat previously
+      parsed NO args). Live-verified: --help, -h, flags, and `--bogus`→exit 64 through both the wrapper and direct node.
 - [ ] make !Klein a full blown desktop app (macos first, but also windows and linux), with a desktop UI (can use existing UI by wrapping it into "a window") and also with serving the UI via a webserver, so that it can be accessed from LAN or if "external setup exists" also for external networks. !Klein shall also have a daemon running, with a menu bar icon on macos, windows and linux, that allows to see basic activity + start/pause controls and also allow to open the desktop UI. the user shall be able to configure !Klein so that it autostarts on boot, and even automatically start/resumes work on (for the beginning only 1, later potentially more) currently selected/enabled for auto-resume-work-after-boot project(s)
       *(2026-07-07 integration note — BUILDS ON existing work, does NOT restart from zero: the Electron desktop shell + preload bridge + daemon/branding rebrand already shipped (done.md — "Electron hardening", the desktop-health/preload bridge [MED #10], the daemon rebrand). The NEW scope layered on top: (1) menu-bar/tray applet [macOS/Windows/Linux] showing basic activity + start/pause + open-UI; (2) serve the same UI over a webserver for LAN / (with external setup) external access; (3) autostart-on-boot config; (4) auto-resume-work-after-boot for the enabled project(s) — start with 1, generalize later. Cross-refs the §5.L delivery gate + Pause/Resume controls. Agent to propose the packaging approach [extend the existing Electron shell vs Tauri] for user decision.)*
 - [ ] and we had the signal/whatsapp chat "bridge"/connector feature somewhere .. also this shall be finalized since it perfectly matches with the chat functionality we have come up with since the first thoughts and tasks done for those messenger integrations
