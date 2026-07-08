@@ -5737,8 +5737,18 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         reflects "Quality over latency" for default guardrails + distinct role models, "Manual guardrails" for user edits,
         and "Single-model default" otherwise. Focused UI tests cover all three states. Still owed: live ≥3-agent
         verification below.
-  - [ ] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
-        endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers.
+  - [~] verify the ≥3-agent parallel swarm end-to-end on a multi-card challenge (C4/C5): distinct models per role, no
+        endpoint deadlock/starvation (§5.W/§6.5), clean teardown, no leaked containers. **IN PROGRESS
+        (2026-07-09):** the `complex_dag` fleet verifier now fails closed unless the configured architect + worker
+        models are actually observed in runtime/ledger telemetry (`scripts/verify-fleet-swarm.mts`), so a run cannot
+        "pass" by silently using only the default/architect model. A live pre-restart run decomposed and exercised the
+        architect/reviewer path, but exposed a real gap: the cold configured worker (`qwen/qwen2.5-coder-14b` on
+        m4mini) was not selected before it had registry/ledger evidence. Fixed the cold configured-candidate seed to
+        compose the role prior with the catalog prior (`nklein-task-start-guard.ts`), with a focused regression test.
+        Local gates green: `npm run test -- nklein-task-start-guard.test.ts`, `npm run typecheck`, `npm run lint`,
+        `npm run test:fast`, `npm run test:protected`. **STILL OWED:** rerun the live verifier after the m4mini restart
+        and only after David explicitly says go; confirm the 14B worker is observed, all cards terminate, and teardown
+        leaves no containers.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
 - [ ] **★ NEAR-TERM (user 2026-06-29) — per-MACHINE concurrency pools (LM Studio linked machines).** LM Studio can
       LINK models hosted on OTHER machines into the local server, so the swarm's real parallelism lever is **multiple

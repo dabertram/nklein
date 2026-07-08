@@ -1,4 +1,5 @@
 import { RUNTIME_NKLEIN_DEFAULT_CONTEXT_WINDOW_TOKENS } from "../core/api-contract";
+import { deriveCapabilityPrior } from "../core/capability-prior-from-catalog";
 import { supportsThinkingControl } from "../core/model-thinking-control";
 import { buildKanbanContextSafetyBudgets, countKanbanTextTokens } from "./nklein-context-budgets";
 import { assertNKleinContextWindowPolicy } from "./nklein-context-window-policy";
@@ -156,6 +157,10 @@ function getRoleCapabilityPrior(role: string | null): number {
 	return 40;
 }
 
+function getFallbackCapabilityPrior(input: { modelId: string; role: string | null }): number {
+	return Math.max(getRoleCapabilityPrior(input.role), deriveCapabilityPrior(input.modelId));
+}
+
 function createFallbackRegistryEntry(input: {
 	providerId: string;
 	modelId: string;
@@ -234,7 +239,7 @@ export function buildNKleinStartGuardCandidate<TLaunchConfig extends NKleinStart
 			modelId,
 			endpoint,
 			contextWindow: input.launchConfig.contextWindow ?? null,
-			capability: getRoleCapabilityPrior(input.role),
+			capability: getFallbackCapabilityPrior({ modelId, role: input.role }),
 			now: Date.now(),
 		});
 	const contextWindow = assertNKleinContextWindowPolicy({

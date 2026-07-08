@@ -69,4 +69,19 @@ describe("buildNKleinStartGuardCandidate", () => {
 
 		expect(candidate.entry.contextWindow.effective).toBe(32_000);
 	});
+
+	it("seeds cold configured model candidates with the catalog prior", () => {
+		const candidate = buildNKleinStartGuardCandidate({
+			launchConfig: {
+				providerId: "lmstudio",
+				modelId: "qwen/qwen2.5-coder-14b",
+				contextWindow: 32_768,
+			},
+			role: "worker",
+			modelRegistry: EMPTY_REGISTRY,
+		});
+
+		expect(candidate.entry.capability.effectiveScore).toBeGreaterThan(45);
+		expect(candidate.entry.capability.staticPrior).toBe(candidate.entry.capability.effectiveScore);
+	});
 });

@@ -112,9 +112,10 @@ function findFiles(root: string, needle: string, out: string[] = [], depth = 0):
 }
 
 /** Read the agent-attempt ledger (per-card model + outcome), tallying model usage. Best-effort. */
-function reportLedger(homeDir: string): void {
+function reportLedger(homeDir: string): Set<string> {
 	const files = findFiles(homeDir, "agent-attempt-ledger").filter((f) => f.endsWith(".jsonl") || f.endsWith(".log"));
 	const byModel = new Map<string, { total: number; outcomes: Map<string, number> }>();
+	const seenModels = new Set<string>();
 	let rows = 0;
 	for (const file of files) {
 		let text: string;
@@ -129,6 +130,7 @@ function reportLedger(homeDir: string): void {
 				const ev = JSON.parse(line) as Record<string, unknown>;
 				const model = String(ev.modelId ?? ev.model ?? ev.modelKey ?? "?");
 				const outcome = String(ev.outcome ?? ev.result ?? ev.kind ?? ev.type ?? "?");
+				seenModels.add(model);
 				const rec = byModel.get(model) ?? { total: 0, outcomes: new Map() };
 				rec.total += 1;
 				rec.outcomes.set(outcome, (rec.outcomes.get(outcome) ?? 0) + 1);
@@ -147,6 +149,12 @@ function reportLedger(homeDir: string): void {
 	if (rows === 0) {
 		log("   (no ledger events found — model-per-card distribution unavailable)");
 	}
+	return seenModels;
+}
+
+function hasModelUsage(seenModels: ReadonlySet<string>, modelId: string): boolean {
+	const wanted = modelId.trim();
+	return wanted.length > 0 && [...seenModels].some((seen) => seen === wanted || seen.includes(wanted));
 }
 
 /** List task result branches (`nklein/tasks/*`) in the project workspace = the DELIVERABLES. */
@@ -189,6 +197,7 @@ async function main(): Promise<void> {
 	let server: BackendUnderTest | null = null;
 	let stream: Awaited<ReturnType<typeof connectRuntimeStream>> | null = null;
 	const latestActivityByTask = new Map<string, { state: string; activity: string }>();
+	const seenRuntimeModels = new Set<string>();
 	let lastProgressAt = Date.now();
 	let workspacePath: string | null = null;
 	// WATCH MODE (user directive 2026-07-02): the live-board link is READ-ONLY for browsers. The harness holds a
@@ -330,6 +339,9 @@ async function main(): Promise<void> {
 					if (!id) continue;
 					const act = session.latestHookActivity;
 					const newActivity = `${session.modelId ? `[${session.modelId}] ` : ""}${act?.toolName ?? act?.activityText ?? "—"}`;
+					if (session.modelId) {
+						seenRuntimeModels.add(session.modelId);
+					}
 					const newState = session.state ?? "?";
 					const prev = latestActivityByTask.get(id);
 					latestActivityByTask.set(id, { state: newState, activity: newActivity });
@@ -439,22 +451,31 @@ async function main(): Promise<void> {
 			log(`   ${id}  state=${info.state}  activity="${info.activity}"`);
 		}
 		log("");
-		reportLedger(homeDir);
+		const seenLedgerModels = reportLedger(homeDir);
+		const seenModels = new Set([...seenRuntimeModels, ...seenLedgerModels]);
 		log("");
 		if (workspacePath) reportDeliverables(workspacePath);
 
 		log("");
 		log("=== Fleet swarm result ===");
+		const architectSeen = hasModelUsage(seenModels, ARCHITECT);
+		const workerSeen = hasModelUsage(seenModels, WORKER);
+		const reviewerSeen = REVIEWER === "none" ? true : hasModelUsage(seenModels, REVIEWER);
+		const fleetUsageOk = architectSeen && workerSeen;
 		log(`Decomposed into multiple cards: ${decomposed ? "YES" : "NO"}`);
 		log(`All cards reached a terminal lane: ${allTerminal ? "YES" : "NO"}`);
+		log(`Configured architect model observed: ${architectSeen ? "YES" : "NO"} (${ARCHITECT})`);
+		log(`Configured worker model observed: ${workerSeen ? "YES" : "NO"} (${WORKER})`);
+		log(`Configured reviewer model observed: ${reviewerSeen ? "YES" : "NO"} (${REVIEWER})`);
+		log(`Fleet role usage gate: ${fleetUsageOk ? "PASS" : "FAIL"}`);
 		log(
 			`SWEEP-ROW | ${new Date().toISOString()} | fleet ${PRESET} | architect=${ARCHITECT} worker=${WORKER} | ` +
-				`decompose=${decomposed ? "YES" : "NO"} | result=${allTerminal ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
+				`decompose=${decomposed ? "YES" : "NO"} | fleetUsage=${fleetUsageOk ? "YES" : "NO"} | result=${allTerminal && fleetUsageOk ? "PASS ✓" : stalled ? "STALLED 🧱" : "INCOMPLETE ⏳"} | ` +
 				`power=${power.mode}×${power.multiplier}`,
 		);
 		log(`Workspace PRESERVED for inspection: ${workspacePath}`);
 		log(`Home (ledger) PRESERVED: ${homeDir}`);
-		process.exitCode = allTerminal ? 0 : 1;
+		process.exitCode = allTerminal && fleetUsageOk ? 0 : 1;
 	} finally {
 		await stream?.close().catch(() => null);
 		await server?.stop().catch(() => null);

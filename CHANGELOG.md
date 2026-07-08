@@ -2,6 +2,11 @@
 
 ## [Upcoming !Klein 0.0.1]
 
+- **Fleet verification now proves the configured role models actually ran** (todo §5.AB). The complex fleet-swarm verifier
+  records runtime and ledger model usage and fails unless the configured architect and worker models are observed, so a run
+  cannot pass by silently routing worker cards to the default model. Cold configured models now seed their fallback registry
+  entry with the catalog-derived capability prior, so an unloaded-from-ledger worker such as `qwen/qwen2.5-coder-14b` is
+  not treated as a generic weak worker before it has local outcome history.
 - **Unified chat can now accept mid-turn steering without cancelling the active stream** (todo §5.M). The runtime exposes
   `chat.steerTurn`, persists accepted steering text as a normal user transcript row, and injects it into the next
   tool-loop/final streamed model call before closing the steering window. The sidebar composer now stays editable while a
