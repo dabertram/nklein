@@ -3751,7 +3751,7 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       Z0-Z4 zoom ladder (default Z1 Overview = activity map, no columns) had silently broken 42/61 e2e tests — every
       gotoBoard()-based spec stranded on the map; pinned zoom Z3 in the shared harness + the 6 private init scripts,
       fixed the renamed "!Klein Provider & Models" settings-nav locator → e2e suite 61/61 green.)*
-- [ ] **Upgrade verification from pass/fail GATES to DIAGNOSTIC ORACLES + reliability measurement (2026-06-27, small-LLM
+- [~] **Upgrade verification from pass/fail GATES to DIAGNOSTIC ORACLES + reliability measurement (2026-06-27, small-LLM
       research pass).** Add to the dev-test fixtures (the §5.O/§5.AI rail exercises these): **hidden test splits**
       (`fail_to_pass` for the requested behavior + `pass_to_pass` for regressions, separate from the visible-acceptance
       developer-ergonomics split); **repeat-run reliability** (3–5 runs per selected small-model task → `pass_all` /
@@ -3765,6 +3765,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       invariants where practical; and **evidence-constrained reviewer verdicts** (the reviewer must report checks-run,
       artifacts-inspected, unresolved risks, and which hidden/protected/property checks passed). **Mutation /
       differential / metamorphic** checks gate self-improvement (§5.AF M4) + any backend-level milestone.
+      *(◐ PARTIAL 2026-07-08 — verdict CORES shipped, fixture families remain. SHIPPED: hidden splits + repeat-run
+      reliability → `src/core/diagnostic-oracles.ts` (evaluateHiddenSplits: 4-way diagnostic outcome + inconclusive
+      guard; summarizeRepeatRuns: pass_all/pass_any/pass-rate/flaky/terminal-failure-states) with 7 tests; code-
+      retrieval qrels TRIPLE complete → `retrieval-recall-eval.ts` now reports precision@k + MRR alongside recall@k
+      (was recall-only); repeat-run reliability for MODEL evals already existed (`model-eval-aggregation` pass-rate +
+      `model-eval-stability` settled/flaky/thin + owed-runs; `flake-quarantine` for tests). REMAINING (each needs
+      fixture authoring / live infra beyond a pure core): BFCL-style tool probes, failure injection in the Docker
+      rail, grounded citation scoring, WebArena-lite fixtures, long-memory evals, property-based dev-test invariants,
+      evidence-constrained reviewer verdicts, mutation/differential gating for §5.AF M4.)*
 
 > **Test-oracle design (2026-06-25, read-only design pass) — the concrete, parallelizable build plan.** Maps the
 > port-resilient seams (tRPC/HTTP contract = ~88 procedures in [app-router.ts](src/trpc/app-router.ts); CLI; on-disk

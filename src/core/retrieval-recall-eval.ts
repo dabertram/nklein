@@ -5,7 +5,8 @@
  * measurement math is deterministic + unit-testable, and the same harness runs against the live index later.
  *
  * recall@k = |relevant ∩ top-k| / |relevant| per query, averaged (macro) across the query set — the standard IR
- * definition; k defaults to the caller's cutoffs (e.g. [1, 5, 10]).
+ * definition; k defaults to the caller's cutoffs (e.g. [1, 5, 10]). Also reports the rest of the qrels triple
+ * (diagnostic-oracles slice): precision@k (|relevant ∩ top-k| / k) and MRR (mean 1/rank of the first relevant hit).
  */
 
 export interface LabeledRetrievalQuery {
@@ -22,11 +23,15 @@ export interface RecallAtK {
 	k: number;
 	/** Macro-averaged recall@k in [0,1] across the labeled queries. */
 	recall: number;
+	/** Macro-averaged precision@k in [0,1] across the labeled queries. */
+	precision: number;
 }
 
 export interface RetrievalModeReport {
 	mode: string;
 	recallAtK: RecallAtK[];
+	/** Mean reciprocal rank of the FIRST relevant hit across the labeled queries (rank-position quality). */
+	mrr: number;
 }
 
 export interface RecallComparisonReport {
@@ -55,24 +60,59 @@ export function recallAtK(rankedIds: readonly string[], relevantIds: readonly st
 	return hits / relevant.size;
 }
 
-/** Evaluate one retrieval mode over the labeled set at the given cutoffs (macro-averaged). */
+/** precision@k for one query: |relevant ∩ top-k| / k — how much of the retrieved window is signal. */
+export function precisionAtK(rankedIds: readonly string[], relevantIds: readonly string[], k: number): number {
+	if (relevantIds.length === 0 || k <= 0) {
+		return 0;
+	}
+	const relevant = new Set(relevantIds);
+	let hits = 0;
+	for (const id of rankedIds.slice(0, k)) {
+		if (relevant.has(id)) {
+			hits += 1;
+		}
+	}
+	return hits / k;
+}
+
+/** 1 / (1-based rank of the first relevant hit); 0 when no relevant document is ranked at all. */
+export function reciprocalRank(rankedIds: readonly string[], relevantIds: readonly string[]): number {
+	const relevant = new Set(relevantIds);
+	for (const [index, id] of rankedIds.entries()) {
+		if (relevant.has(id)) {
+			return 1 / (index + 1);
+		}
+	}
+	return 0;
+}
+
+/** Evaluate one retrieval mode over the labeled set at the given cutoffs (macro-averaged) + its MRR. */
 export function evaluateRetrievalMode(
 	mode: string,
 	ranker: RetrievalRanker,
 	queries: readonly LabeledRetrievalQuery[],
 	ks: readonly number[],
 ): RetrievalModeReport {
-	const totals = new Map<number, number>(ks.map((k) => [k, 0]));
+	const recallTotals = new Map<number, number>(ks.map((k) => [k, 0]));
+	const precisionTotals = new Map<number, number>(ks.map((k) => [k, 0]));
+	let rrTotal = 0;
 	for (const labeled of queries) {
 		const ranked = ranker(labeled.query);
+		rrTotal += reciprocalRank(ranked, labeled.relevantIds);
 		for (const k of ks) {
-			totals.set(k, (totals.get(k) ?? 0) + recallAtK(ranked, labeled.relevantIds, k));
+			recallTotals.set(k, (recallTotals.get(k) ?? 0) + recallAtK(ranked, labeled.relevantIds, k));
+			precisionTotals.set(k, (precisionTotals.get(k) ?? 0) + precisionAtK(ranked, labeled.relevantIds, k));
 		}
 	}
 	const count = Math.max(1, queries.length);
 	return {
 		mode,
-		recallAtK: ks.map((k) => ({ k, recall: (totals.get(k) ?? 0) / count })),
+		recallAtK: ks.map((k) => ({
+			k,
+			recall: (recallTotals.get(k) ?? 0) / count,
+			precision: (precisionTotals.get(k) ?? 0) / count,
+		})),
+		mrr: rrTotal / count,
 	};
 }
 
