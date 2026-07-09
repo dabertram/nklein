@@ -285,10 +285,44 @@ function reportDeliverables(workspacePath: string): void {
 			log("   Result branches (delivered work):");
 			for (const line of refs.split("\n")) {
 				log(`     ${line}`);
+				const branchName = line.split(/\s+/u)[0] ?? "";
+				if (!branchName) {
+					continue;
+				}
+				const changedFiles = execFileSync("git", ["show", "--name-only", "--format=", branchName], {
+					cwd: workspacePath,
+					encoding: "utf8",
+				})
+					.split("\n")
+					.map((entry) => entry.trim())
+					.filter(Boolean);
+				const treeFiles = execFileSync("git", ["ls-tree", "-r", "--name-only", branchName], {
+					cwd: workspacePath,
+					encoding: "utf8",
+				})
+					.split("\n")
+					.map((entry) => entry.trim())
+					.filter(Boolean);
+				log(
+					`       changed files: ${
+						changedFiles.length > 0 ? changedFiles.slice(0, 20).join(", ") : "(empty patch)"
+					}`,
+				);
+				log(
+					`       branch tree sample: ${
+						treeFiles.length > 0 ? treeFiles.slice(0, 20).join(", ") : "(empty tree)"
+					}`,
+				);
 			}
 		} else {
 			log("   NO result branches — no card captured a deliverable (nklein/tasks/* absent).");
 		}
+		const status = execFileSync("git", ["status", "--short"], { cwd: workspacePath, encoding: "utf8" }).trim();
+		log(
+			status
+				? `   Host checkout has uncommitted files:\n${status.split("\n").map((line) => `     ${line}`).join("\n")}`
+				: "   Host checkout is clean; captured work is on result branches until delivery merges it.",
+		);
 		const branches = execFileSync("git", ["branch", "-a"], { cwd: workspacePath, encoding: "utf8" }).trim();
 		log(`   All branches:\n${branches.split("\n").map((b) => `     ${b.trim()}`).join("\n")}`);
 	} catch (error) {
