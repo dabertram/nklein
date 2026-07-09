@@ -576,7 +576,10 @@ describe("BoardCard", () => {
 			);
 		});
 
-		expect(container.textContent).toContain("GPT-5.5 (Low)");
+		// Reasoning-only override: labeled against "Default model" — the global default's NAME is not repeated
+		// on the card face (the ◈ session badge is the actual-model source of truth).
+		expect(container.textContent).toContain("Default model (Low)");
+		expect(container.textContent).not.toContain("GPT-5.5");
 	});
 
 	it("shows a fallback indicator for reasoning-only overrides without a resolved default model", async () => {
@@ -597,7 +600,7 @@ describe("BoardCard", () => {
 		expect(container.textContent).toContain("Default model (Low)");
 	});
 
-	it("shows explicit default reasoning metadata for reasoning-only task overrides", async () => {
+	it("shows NO model chip for a bare/cleared settings object (the session badge is the model source)", async () => {
 		await act(async () => {
 			root.render(
 				<BoardCard
@@ -612,8 +615,22 @@ describe("BoardCard", () => {
 			);
 		});
 
-		expect(container.textContent).toContain("GPT-5.5 (Default)");
-		expect(container.textContent).not.toContain("GPT-5.5 (High)");
+		expect(container.textContent).not.toContain("GPT-5.5");
+		expect(container.textContent).not.toContain("Default model");
+	});
+
+	it("hides the agent chip when the card runs the workspace's default agent", async () => {
+		await act(async () => {
+			root.render(
+				<BoardCard
+					card={createCard({ agentId: "nklein", nkleinSettings: {} })}
+					index={0}
+					columnId="backlog"
+					defaultAgentId="nklein"
+				/>,
+			);
+		});
+		expect(container.textContent).not.toContain("!Klein");
 	});
 
 	it("does not mislabel provider-only overrides as the global default model", async () => {
@@ -1162,7 +1179,8 @@ describe("BoardCard", () => {
 		});
 
 		const badge = container.querySelector<HTMLSpanElement>("[data-model-badge]");
-		expect(badge?.textContent).toContain("qwen3-c…struct");
+		// The "-instruct" noise suffix is stripped instead of blindly middle-truncating into gibberish.
+		expect(badge?.textContent).toContain("qwen3-coder-30b-a3b");
 		expect(badge?.textContent).not.toContain("qwen3-coder-30b-a3b-instruct");
 		expect(badge?.getAttribute("title")).toContain("lmstudio-community/qwen3-coder-30b-a3b-instruct");
 	});

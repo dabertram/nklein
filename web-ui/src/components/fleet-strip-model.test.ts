@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	compactFleetActivityText,
 	composeFleetRows,
 	type FleetGroup,
 	resolveFleetLineage,
@@ -328,5 +329,17 @@ describe("composeFleetRows", () => {
 		const groups = composeFleetRows({ registryModels, runningSessions, cardTitleByTaskId: new Map() });
 		expect(groups[0]?.rows[0]?.state).toBe("idle");
 		expect(groups[0]?.rows[0]?.role).toBeNull();
+	});
+});
+
+describe("compactFleetActivityText", () => {
+	it("cuts at the first JSON payload and caps length (glance surface, tooltip keeps the full text)", () => {
+		const soup =
+			'Retrying after error: 1 tool call(s) failed: [list_files] {"error":"Sandbox tool kanbanExtraTool failed.\\n{\\"ok\\":false}"}';
+		expect(compactFleetActivityText(soup)).toBe("Retrying after error: 1 tool call(s) failed: [list_files]");
+		expect(compactFleetActivityText("Reading specification.md")).toBe("Reading specification.md");
+		expect(compactFleetActivityText(`${"x".repeat(120)}`)).toHaveLength(80);
+		// Pure-JSON activity falls back to a raw prefix instead of an empty line.
+		expect(compactFleetActivityText('{"ok":true}').length).toBeGreaterThan(0);
 	});
 });

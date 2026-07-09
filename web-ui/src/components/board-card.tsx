@@ -191,11 +191,22 @@ function buildCardRoleBadge(card: BoardCardModel, summary: RuntimeTaskSessionSum
 }
 
 /** §5.AX signature chrome: compact model badge target width (including the middle ellipsis). */
-const MODEL_BADGE_MAX_CHARS = 14;
+const MODEL_BADGE_MAX_CHARS = 20;
 
-/** Strip the provider prefix (`openai/gpt-5.5` → `gpt-5.5`) and middle-truncate for the compact badge. */
+/**
+ * Noise tokens that pad local model ids without identifying the model: quantization tags, packaging, and
+ * instruct-suffixes. Stripped (rightmost first) before truncation so the badge keeps the DISCRIMINATING part —
+ * the old 14-char middle-truncation rendered "mistralai/devstral-small-2-2512" as the gibberish "devstra…2-2512"
+ * (David 2026-07-09: "not sure which model they show").
+ */
+const MODEL_BADGE_NOISE_TOKEN = /-(?:q\d[\w-]*|gguf|mlx|instruct|it|chat|\d{4})$|@\d+bit$/i;
+
+/** Strip the provider prefix (`openai/gpt-5.5` → `gpt-5.5`) + noise suffixes, then middle-truncate as a last resort. */
 function shortenModelIdForBadge(modelId: string): string {
-	const shortId = modelId.split("/").pop()?.trim() || modelId.trim();
+	let shortId = modelId.split("/").pop()?.trim() || modelId.trim();
+	while (shortId.length > MODEL_BADGE_MAX_CHARS && MODEL_BADGE_NOISE_TOKEN.test(shortId)) {
+		shortId = shortId.replace(MODEL_BADGE_NOISE_TOKEN, "");
+	}
 	if (shortId.length <= MODEL_BADGE_MAX_CHARS) {
 		return shortId;
 	}
@@ -547,6 +558,7 @@ export function BoardCard({
 	onManageDependencies,
 	workspacePath,
 	defaultNKleinModelId = null,
+	defaultAgentId = null,
 	pendingMailboxCount = 0,
 	reasoningSnippet = null,
 }: {
@@ -587,6 +599,8 @@ export function BoardCard({
 	onManageDependencies?: (taskId: string) => void;
 	workspacePath?: string | null;
 	defaultNKleinModelId?: string | null;
+	/** The workspace's selected agent — the agent chip only shows when the card DIFFERS from it. */
+	defaultAgentId?: string | null;
 }): React.ReactElement {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -773,38 +787,45 @@ export function BoardCard({
 	const canCopyEvidence = !isTrashCard && Boolean(onCopyEvidence);
 	const cancelAutomaticActionLabel =
 		!isTrashCard && card.autoReviewEnabled ? getTaskAutoReviewCancelButtonLabel(card.autoReviewMode) : null;
+	// The agent chip marks a DIVERGENCE from the workspace's selected agent — repeating the default agent on
+	// every card said nothing (live-found 2026-07-09: every card wore "!Klein · <default model>" while the violet
+	// badge showed the same model again, so "which model is this?" had two truncated answers).
 	const agentOverrideLabel = useMemo(
-		() => (card.agentId ? (getRuntimeAgentCatalogEntry(card.agentId)?.label ?? card.agentId) : null),
-		[card.agentId],
+		() =>
+			card.agentId && card.agentId !== defaultAgentId
+				? (getRuntimeAgentCatalogEntry(card.agentId)?.label ?? card.agentId)
+				: null,
+		[card.agentId, defaultAgentId],
 	);
 	const modelOverrideLabel = useMemo(() => {
-		if (card.nkleinSettings === undefined) {
+		const settings = card.nkleinSettings;
+		if (settings === undefined) {
 			return null;
 		}
-		const explicitReasoningLabel = card.nkleinSettings.reasoningEffort
-			? formatNKleinReasoningEffortLabel(card.nkleinSettings.reasoningEffort)
-			: !card.nkleinSettings.providerId && !card.nkleinSettings.modelId
-				? "Default"
-				: null;
-		if (card.nkleinSettings.providerId && !card.nkleinSettings.modelId) {
-			const providerLabel = `Provider: ${card.nkleinSettings.providerId}`;
+		const explicitReasoningLabel = settings.reasoningEffort
+			? formatNKleinReasoningEffortLabel(settings.reasoningEffort)
+			: null;
+		if (settings.providerId && !settings.modelId) {
+			const providerLabel = `Provider: ${settings.providerId}`;
 			return explicitReasoningLabel ? `${providerLabel} (${explicitReasoningLabel})` : providerLabel;
 		}
-		const effectiveModelId = card.nkleinSettings.modelId ?? defaultNKleinModelId;
-		if (!effectiveModelId) {
+		if (!settings.modelId) {
+			// No explicit model override: the violet ◈ badge carries the card's ACTUAL model — repeating the
+			// global default's NAME here was pure duplication ("which model is this?" had two truncated answers).
+			// Only an explicit reasoning-effort override still earns a chip; a bare/cleared settings object shows
+			// nothing (the touched-vs-untouched nuance lives in the settings dialog, not on the card face).
 			return explicitReasoningLabel ? `Default model (${explicitReasoningLabel})` : null;
 		}
-		const modelName = resolveNKleinModelDisplayName(effectiveModelId);
+		const modelName = resolveNKleinModelDisplayName(settings.modelId);
 		if (explicitReasoningLabel) {
 			return `${modelName} (${explicitReasoningLabel})`;
 		}
-		const inheritedReasoningEffort = "";
 		return formatNKleinSelectedModelButtonText({
 			modelName,
-			reasoningEffort: inheritedReasoningEffort,
-			showReasoningEffort: Boolean(inheritedReasoningEffort),
+			reasoningEffort: "",
+			showReasoningEffort: false,
 		});
-	}, [card.nkleinSettings, defaultNKleinModelId]);
+	}, [card.nkleinSettings]);
 	const taskAgentSettingsLabel = useMemo(() => {
 		const parts = [agentOverrideLabel, modelOverrideLabel].filter((value): value is string => Boolean(value));
 		return parts.length > 0 ? parts.join(" · ") : null;

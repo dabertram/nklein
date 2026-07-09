@@ -50,6 +50,7 @@ export function BoardColumn({
 	workspacePath,
 	replayCardsEnabled = false,
 	defaultNKleinModelId,
+	defaultAgentId,
 	mailboxCountByTaskId,
 	reasoningSnippetByTaskId,
 }: {
@@ -95,6 +96,7 @@ export function BoardColumn({
 	workspacePath?: string | null;
 	replayCardsEnabled?: boolean;
 	defaultNKleinModelId?: string | null;
+	defaultAgentId?: string | null;
 }): React.ReactElement {
 	const canCreate = column.id === "backlog" && onCreateTask;
 	const canStartAllTasks = column.id === "backlog" && onStartAllTasks;
@@ -228,6 +230,7 @@ export function BoardColumn({
 											onManageDependencies={onManageDependencies}
 											workspacePath={workspacePath}
 											defaultNKleinModelId={defaultNKleinModelId}
+											defaultAgentId={defaultAgentId}
 											onSaveTitle={onSaveTitle}
 											onClick={() => {
 												if (column.id === "backlog") {

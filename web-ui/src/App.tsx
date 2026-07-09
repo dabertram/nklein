@@ -1249,6 +1249,7 @@ export default function App(): ReactElement {
 												}
 												onDragEnd={handleDragEnd}
 												defaultNKleinModelId={runtimeProjectConfig?.nkleinProviderSettings?.modelId ?? null}
+												defaultAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
 											/>
 										)}
 									</div>

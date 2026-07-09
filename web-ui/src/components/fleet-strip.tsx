@@ -8,7 +8,7 @@
 import { useState } from "react";
 
 import type { FleetGroup, FleetLineage, FleetRole, FleetRow } from "@/components/fleet-strip-model";
-import { isActiveFleetRow, summarizeIdleFleetRows } from "@/components/fleet-strip-model";
+import { compactFleetActivityText, isActiveFleetRow, summarizeIdleFleetRows } from "@/components/fleet-strip-model";
 import { cn } from "@/components/ui/cn";
 
 const ROLE_TAG_LABEL: Record<Exclude<FleetRole, null>, string> = {
@@ -106,7 +106,7 @@ function FleetRowView({ row }: { row: FleetRow }): React.ReactElement {
 						title={row.activityText}
 					>
 						↳ {row.activityToolName ? `${row.activityToolName} · ` : ""}
-						{row.activityText}
+						{compactFleetActivityText(row.activityText)}
 					</span>
 				) : null}
 			</span>

@@ -98,6 +98,24 @@ const WARMTH_FRESH_MS = 10 * 60 * 1000;
 /** A `::spec` (A/B speculative) session's taskId ends with this suffix. */
 const SPEC_SUFFIX = "::spec";
 
+/**
+ * Compact a live activity snippet for the glance strip: cut at the first JSON payload (tool errors embed multi-line
+ * `{"error":…}` bodies that read as soup in a one-line surface — live-observed 2026-07-10) and hard-cap the length.
+ * The row's tooltip keeps the full text.
+ */
+export function compactFleetActivityText(text: string): string {
+	const withoutPayload = text.split("{", 1)[0] ?? text;
+	const compact = withoutPayload
+		.replace(/\s+/g, " ")
+		.trim()
+		.replace(/[:,·]$/, "")
+		.trim();
+	if (compact.length === 0) {
+		return text.replace(/\s+/g, " ").trim().slice(0, 80);
+	}
+	return compact.length > 80 ? `${compact.slice(0, 79)}…` : compact;
+}
+
 function isSpecTaskId(taskId: string): boolean {
 	return taskId.endsWith(SPEC_SUFFIX);
 }
