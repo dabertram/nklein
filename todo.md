@@ -384,6 +384,13 @@ source repo went private — so if it vanishes the buildable source still lives 
 >   generous, hardware-aware active bounds; reserve fast aborts for verified idle/unloaded/stuck states, missing sessions,
 >   repeated no-progress loops, or explicit harness limits. When a low-spec model is slow but still active, record latency
 >   as capacity/fit evidence rather than prematurely calling the model unsuitable.
+> - **Slow processing should produce OBSERVATION-BASED context advice, not impatience or blanket shrinkage.** If repeated
+>   `PROCESSINGPROMPT`/slow-TTFT evidence shows that a model/host/context setting is wasting wall-clock, !Klein should
+>   eventually suggest a smaller loaded/request context limit or leaner prompt level for that host/model/task class. But
+>   the low-spec-hardware vision stays leading: advice must be based on measured prefill speed, TTFT, prompt tokens,
+>   cache-hit/miss, and task outcome; it must never drop below the 32k floor, never silently sacrifice needed project
+>   context, and should pair smaller windows with JIT retrieval, compaction, cache reuse, and task splitting so weak
+>   machines can still work through large codebases over time.
 > - **`lms ps`** — live per-model state: `PROCESSINGPROMPT` (prefilling — emits NO stream tokens, so this is what trips a
 >   stream-INACTIVITY timeout) vs `GENERATING` (emitting tokens) vs `IDLE`, plus loaded context window + parallelism. This
 >   alone distinguishes "prefilling slowly", "generating a long reasoning block", and "actually hung".
@@ -5948,6 +5955,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         result branches existed for 4 cards, but redecompose/review loops expanded the board to 19 cards and the harness
         aborted when a running Qwen redecompose session was idle while Devstral still had a generating worker session.
         Treat this as the next convergence/scheduler/review-loop problem, not as a model-role observation failure.
+        **CAP-CONSERVATIVE LIVE RERUN (2026-07-09, qwen3.6 architect + qwen3.5-9b m4mini worker + Gemma 12B reviewer):**
+        the harness now defaults `NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY=1` (raise only with measured capacity evidence),
+        matching `lms ps`/`nklein dev capacity` where every connected host reported `parallel:1`. Live evidence:
+        qwen3.6 decomposed the seed into a 12-card DAG; the pinned qwen3.5 m4mini worker produced real sandbox tool
+        activity (`read_files`, `edit_file`, `run_commands`) and captured a result branch; Gemma reviewed that branch while
+        qwen3.5 simultaneously worked the next card, proving cross-host worker+reviewer concurrency without overloading any
+        one LM Studio host; Docker stayed lean at one agent sandbox container. The run did not pass terminal completion:
+        Gemma bounced the first result, the redrive hit a sandbox restore failure (`getcwd() failed`, clone checkout failed),
+        then the card parked after a no-change review loop and spawned a redecompose card. Root cause fixed in
+        [nklein-agent-sandbox.ts](src/nklein-agent/nklein-agent-sandbox.ts): `prepareWorkspace` now clones from the stable
+        `/workspaces` parent instead of the destination cwd and serializes same-task `prepareWorkspace`/`disposeWorkspace`
+        with a lifecycle gate, so review-bounce redrives cannot remove `/workspaces/<task>` under an in-flight clone.
+        Regression coverage: [nklein-agent-sandbox.test.ts](test/runtime/nklein-agent/nklein-agent-sandbox.test.ts)
+        proves clone cwd + dispose/prepare serialization; [swarm-deterministic-bounce.integration.test.ts](test/integration/swarm-deterministic-bounce.integration.test.ts)
+        stayed green. Remaining convergence issue is now worker/review quality + all-card termination, not role observation
+        or host-cap safety.
         **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
         pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*
@@ -9899,6 +9922,15 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
 > experience is best-possible while still targeting best-quality prompts. AND: **!Klein itself must waste NO system
 > resources** — RAM, CPU, Disk, GPU, VRAM — deeply optimized for all.
 >
+> **New advisor feature (user, 2026-07-09):** !Klein should learn from observed slow processing and **suggest context-size
+> limits** per host/model/task class. This is an advisor, not a panic shrinker: if the ledger sees repeated slow prefill
+> (`promptTokens`, TTFT, prefill tok/s, loaded context length, cache-hit/miss, host concurrency, power mode, outcome), it
+> proposes a smaller loaded/request context cap or leaner sysprompt mode with an explanation like "this host is spending
+> most time prefilling 40k prompts; try 32k + aggressive JIT/compaction for easy worker cards." The recommendation must
+> preserve the ≥32k floor, remain user-overridable, and explicitly prefer throughput strategies that keep low-spec hardware
+> capable of large projects: chunking, dependency-linked cards, retrieval, compaction, stable-prefix caching, and assigning
+> hard/large-context work to stronger machines when available.
+>
 > **RESEARCH SYNTHESIS (2026-06-29, 4 opus passes — see [[context-economy-research]]). Three prompt-economy pillars that
 > all point the SAME way, plus the resource mandate:**
 > 1. **LEAN + JIT + MODULAR (quality).** "Smallest set of HIGH-SIGNAL tokens" (Anthropic). Minimal ≠ short — *no token
@@ -9958,6 +9990,16 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
       (§5.AD `learnedQualityEffectiveBudget`, §5.AB clamp) and (b) the task's needs (size/complexity/role/knowledge-debt).
       Pure `selectSysPromptLevel({availableContext, taskProfile, mode})` core. Leave headroom for the task — never let the
       sysprompt crowd out the actual task information.
+- [ ] **B2. Observation-based context-size advisor (slow-processing → suggested caps, low-spec-safe), decomposed.** Build
+      a read-only recommendation path that consumes §5.AF ledger/runtime observations (`promptTokens`, TTFT, prefill tok/s,
+      loaded context length, request context, cache verdict, host/model id, concurrency, power mode, outcome) and suggests
+      per-host/per-model/per-task-class context caps or sysprompt levels when repeated slow prefill dominates useful work.
+      The advisor must never auto-lower below 32k, must distinguish "large but necessary" from "bloated/wasteful" context,
+      must include the evidence behind each suggestion, and must pair every smaller-cap recommendation with the compensating
+      mechanisms that keep weak machines useful for complex codebases (JIT retrieval, compaction, stable-prefix caching,
+      smaller cards, and stronger-machine routing for genuinely large-context tasks). Suggested first slice: pure
+      `context-size-advisor.ts` over injected observations → `{recommendation, evidence, confidence, safetyNotes}` + tests;
+      later wire into `nklein dev capacity` / Settings as a non-blocking hint.
 - [~] **C. Intent modes (minimize | balance | max-task-info), decomposed:** *(pure core done — the `SysPromptMode` bias in `selectSysPromptLevel`; see A)* a knob that biases B — `minimize` picks the
       smallest level that still clears the task's capability bar; `balance` trades prompt depth vs task-info room; `max-task-info`
       drives the sysprompt to its leanest viable level to free the most window for task content/retrieval.

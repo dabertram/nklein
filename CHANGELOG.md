@@ -82,7 +82,11 @@
   poll reports a stall instead of waiting indefinitely while models are idle. Sandbox acceptance checks now remap stale
   leading `/workspaces/<old-task>` `cd` prefixes into the fresh acceptance sandbox, classify unrecoverable sandbox path
   setup failures separately, and stop auto-repair after the normal attempts plus one escalation attempt instead of
-  re-driving an idle card forever.
+  re-driving an idle card forever. Same-task review bounce re-drives now also serialize sandbox prepare/dispose
+  operations and clone from the stable `/workspaces` parent, so finalization cannot remove `/workspaces/<task>` under a
+  redrive clone and leave Docker reporting `getcwd()`/checkout failures. The live fleet verifier defaults its per-machine
+  LM Studio cap to `1` and exposes `NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY` for evidence-backed higher caps, matching
+  conservative host-cap recommendations on low-resource systems.
 - **Unified chat can now accept mid-turn steering without cancelling the active stream** (todo §5.M). The runtime exposes
   `chat.steerTurn`, persists accepted steering text as a normal user transcript row, and injects it into the next
   tool-loop/final streamed model call before closing the steering window. The sidebar composer now stays editable while a

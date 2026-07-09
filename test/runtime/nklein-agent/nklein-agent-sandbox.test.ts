@@ -229,6 +229,44 @@ function createExecGateStub(): {
 	};
 }
 
+function createDisposeBarrierExecFileStub(): {
+	execFile: typeof execFile;
+	calls: string[][];
+	holdDispose: () => void;
+	releaseDispose: () => void;
+	pendingDispose: () => number;
+} {
+	const calls: string[][] = [];
+	let hold = false;
+	const heldCbs: (() => void)[] = [];
+	const stub = vi.fn((file: string, args: readonly string[], _options: unknown, callback: unknown) => {
+		expect(file).toBe("docker");
+		calls.push([...args]);
+		const done = callback as (error: unknown, result?: { stdout: string; stderr: string }) => void;
+		const command = args[0] === "exec" ? args.slice(6) : [];
+		if (hold && command.join("\0") === ["rm", "-rf", "/workspaces/task-1"].join("\0")) {
+			heldCbs.push(() => done(null, { stdout: "", stderr: "" }));
+			return {} as ReturnType<typeof execFile>;
+		}
+		done(null, { stdout: args[0] === "run" ? "container-id\n" : "", stderr: "" });
+		return {} as ReturnType<typeof execFile>;
+	});
+	return {
+		execFile: stub as unknown as typeof execFile,
+		calls,
+		holdDispose: () => {
+			hold = true;
+		},
+		releaseDispose: () => {
+			hold = false;
+			while (heldCbs.length > 0) {
+				heldCbs.shift()?.();
+			}
+		},
+		pendingDispose: () => heldCbs.length,
+	};
+}
+
 describe("agent sandbox interactive shell (todo §5.A)", () => {
 	it("builds the interactive docker exec argv for a task shell", () => {
 		const args = buildAgentSandboxInteractiveShellArgs({
@@ -547,12 +585,66 @@ describe("AgentSandboxManager", () => {
 				`exec -u ${createAgentSandboxTaskUid("task-1")} -w /workspaces nklein-agent-sandbox-1 rm -rf /workspaces/task-1`,
 		);
 		const cloneCallIndex = calls.findIndex((args) => args.includes("clone"));
+		const cloneCall = calls[cloneCallIndex] ?? [];
 
 		expect(mkdirRootCallIndex).toBeGreaterThanOrEqual(0);
 		expect(chmodRootCallIndex).toBeGreaterThan(mkdirRootCallIndex);
 		expect(rmStaleCallIndex).toBeGreaterThan(chmodRootCallIndex);
 		expect(mkdirTaskCallIndex).toBeGreaterThan(rmStaleCallIndex);
 		expect(cloneCallIndex).toBeGreaterThan(mkdirTaskCallIndex);
+		expect(cloneCall).toEqual([
+			"exec",
+			"-u",
+			String(createAgentSandboxTaskUid("task-1")),
+			"-w",
+			"/workspaces",
+			"nklein-agent-sandbox-1",
+			"git",
+			"clone",
+			"--no-hardlinks",
+			`/repos/${createAgentSandboxProjectKey("/repo")}`,
+			"/workspaces/task-1",
+		]);
+	});
+
+	it("serializes same-task dispose and redrive prepare so clone cannot race a disappearing cwd", async () => {
+		const {
+			execFile: execFileStub,
+			calls,
+			holdDispose,
+			pendingDispose,
+			releaseDispose,
+		} = createDisposeBarrierExecFileStub();
+		const manager = new AgentSandboxManager({
+			image: "test-image",
+			execFile: execFileStub,
+			poolConfig: { maxContainers: 1, agentsPerContainer: 0, idleTimeoutMs: 0 },
+		});
+		const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+		await manager.prepareWorkspace({ taskId: "task-1", projectRepoPath: "/repo", baseRef: "HEAD" });
+		const callsBeforeDispose = calls.length;
+
+		holdDispose();
+		const disposePromise = manager.disposeWorkspace("task-1");
+		await vi.waitFor(() => {
+			expect(pendingDispose()).toBe(1);
+		});
+		const preparePromise = manager.prepareWorkspace({ taskId: "task-1", projectRepoPath: "/repo", baseRef: "HEAD" });
+		await tick();
+		await tick();
+
+		expect(calls.slice(callsBeforeDispose)).toHaveLength(1);
+		expect(calls.slice(callsBeforeDispose).some((args) => args.includes("clone"))).toBe(false);
+
+		releaseDispose();
+		await disposePromise;
+		await expect(preparePromise).resolves.toMatchObject({
+			workdir: "/workspaces/task-1",
+			uid: createAgentSandboxTaskUid("task-1"),
+		});
+		const postReleaseCalls = calls.slice(callsBeforeDispose + 1);
+		expect(postReleaseCalls.some((args) => args.includes("clone"))).toBe(true);
 	});
 
 	it("passes static writable mounts into docker run as read-write binds", async () => {

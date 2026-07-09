@@ -276,6 +276,7 @@ export class AgentSandboxManager {
 	private readonly basicMemoryEnabled = isTruthyEnv(process.env.NKLEIN_BASIC_MEMORY);
 	private readonly basicMemoryPlanByKey = new Map<string, BasicMemoryScopingPlan>();
 	private readonly queue: QueueEntry[] = [];
+	private readonly workspaceLifecycleTails = new Map<string, Promise<void>>();
 	// Spike guard (2026-07-04): the ONE shared container hosts every agent, and each `docker exec` tool command
 	// (npm/build/acceptance) can spike to ~1–2 GiB. `activeExecs` + `execWaiters` bound how many run AT ONCE
 	// (poolConfig.maxConcurrentExec) so simultaneous heavy commands can't OOM the container; excess FIFO-queue.
@@ -432,58 +433,68 @@ export class AgentSandboxManager {
 		/** Bounded slot wait for AUXILIARY preparations (review sessions, acceptance re-checks) — see acquireSlot. */
 		maxQueueWaitMs?: number;
 	}): Promise<{ workdir: string; uid: number }> {
-		const placement = await this.acquireSlot({
-			taskId: input.taskId,
-			projectRepoPath: input.projectRepoPath,
-			onQueued: input.onQueued,
-			...(input.maxQueueWaitMs !== undefined ? { maxQueueWaitMs: input.maxQueueWaitMs } : {}),
-		});
-		try {
-			const repoSource = `/repos/${placement.projectKey}`;
-			assertSandboxExecOk(
-				await this.execAsRoot(placement, ["mkdir", "-p", AGENT_SANDBOX_WORKSPACES_DIR]),
-				"create sandbox workspace root",
-			);
-			assertSandboxExecOk(
-				await this.execAsRoot(placement, ["chmod", "1777", AGENT_SANDBOX_WORKSPACES_DIR]),
-				"set sandbox workspace root permissions",
-			);
-			// Clear any STALE workspace left at this path before cloning. The sandbox workspaces dir is a host-level
-			// shared volume keyed by taskId, so a prior run that didn't dispose cleanly (an interrupted/aborted session,
-			// or a reused taskId across processes) leaves a non-empty `/workspaces/<taskId>` — and `git clone` then fails
-			// with "destination path already exists and is not an empty directory", blocking the start. Every caller of
-			// prepareWorkspace wants a FRESH clone (start / review-at-result / acceptance-at-result), and the clone always
-			// overwrites anyway, so removing a stale dir first only turns a hard failure into a clean fresh clone.
-			assertSandboxExecOk(
-				await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
-					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
-				}),
-				"clear any stale sandbox task workspace",
-			);
-			assertSandboxExecOk(
-				await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", placement.workdir], {
-					workdir: AGENT_SANDBOX_WORKSPACES_DIR,
-				}),
-				"create sandbox task workspace",
-			);
-			assertSandboxExecOk(
-				await this.execAsTaskUser(placement, ["git", "clone", "--no-hardlinks", repoSource, placement.workdir]),
-				"clone project into sandbox workspace",
-			);
-			if (input.baseRef?.trim()) {
+		return await this.withWorkspaceLifecycle(input.taskId, async () => {
+			const placement = await this.acquireSlot({
+				taskId: input.taskId,
+				projectRepoPath: input.projectRepoPath,
+				onQueued: input.onQueued,
+				...(input.maxQueueWaitMs !== undefined ? { maxQueueWaitMs: input.maxQueueWaitMs } : {}),
+			});
+			try {
+				const repoSource = `/repos/${placement.projectKey}`;
 				assertSandboxExecOk(
-					await this.execAsTaskUser(placement, ["git", "-C", placement.workdir, "checkout", input.baseRef.trim()]),
-					"check out sandbox task base ref",
+					await this.execAsRoot(placement, ["mkdir", "-p", AGENT_SANDBOX_WORKSPACES_DIR]),
+					"create sandbox workspace root",
 				);
+				assertSandboxExecOk(
+					await this.execAsRoot(placement, ["chmod", "1777", AGENT_SANDBOX_WORKSPACES_DIR]),
+					"set sandbox workspace root permissions",
+				);
+				// Clear any STALE workspace left at this path before cloning. The sandbox workspaces dir is a host-level
+				// shared volume keyed by taskId, so a prior run that didn't dispose cleanly (an interrupted/aborted session,
+				// or a reused taskId across processes) leaves a non-empty `/workspaces/<taskId>` — and `git clone` then fails
+				// with "destination path already exists and is not an empty directory", blocking the start. Every caller of
+				// prepareWorkspace wants a FRESH clone (start / review-at-result / acceptance-at-result), and the clone always
+				// overwrites anyway, so removing a stale dir first only turns a hard failure into a clean fresh clone.
+				assertSandboxExecOk(
+					await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
+						workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+					}),
+					"clear any stale sandbox task workspace",
+				);
+				assertSandboxExecOk(
+					await this.execAsTaskUser(placement, ["mkdir", "-m", "700", "-p", placement.workdir], {
+						workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+					}),
+					"create sandbox task workspace",
+				);
+				assertSandboxExecOk(
+					await this.execAsTaskUser(placement, ["git", "clone", "--no-hardlinks", repoSource, placement.workdir], {
+						workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+					}),
+					"clone project into sandbox workspace",
+				);
+				if (input.baseRef?.trim()) {
+					assertSandboxExecOk(
+						await this.execAsTaskUser(placement, [
+							"git",
+							"-C",
+							placement.workdir,
+							"checkout",
+							input.baseRef.trim(),
+						]),
+						"check out sandbox task base ref",
+					);
+				}
+				return {
+					workdir: placement.workdir,
+					uid: placement.uid,
+				};
+			} catch (error) {
+				await this.disposeWorkspaceUnlocked(input.taskId).catch(() => null);
+				throw error;
 			}
-			return {
-				workdir: placement.workdir,
-				uid: placement.uid,
-			};
-		} catch (error) {
-			await this.disposeWorkspace(input.taskId).catch(() => null);
-			throw error;
-		}
+		});
 	}
 
 	async exec(
@@ -563,22 +574,9 @@ export class AgentSandboxManager {
 	}
 
 	async disposeWorkspace(taskId: string): Promise<void> {
-		const placement = this.placements.get(taskId);
-		if (!placement) {
-			return;
-		}
-		// run19 ROOT CAUSE: the exec used to be awaited OUTSIDE this try — a throwing docker exec (timeout,
-		// dead container) skipped releaseSlot and LEAKED the slot, deadlocking the pool forever (every later
-		// acquisition queued indefinitely, silently: callers .catch(() => null)). The slot release must be
-		// unconditional: a leftover workdir is recoverable, a leaked slot freezes the whole run.
-		try {
-			const removal = await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
-				workdir: AGENT_SANDBOX_WORKSPACES_DIR,
-			});
-			assertSandboxExecOk(removal, "remove sandbox task workspace");
-		} finally {
-			this.releaseSlot(taskId);
-		}
+		await this.withWorkspaceLifecycle(taskId, async () => {
+			await this.disposeWorkspaceUnlocked(taskId);
+		});
 	}
 
 	async stopNow(): Promise<void> {
@@ -1012,6 +1010,46 @@ export class AgentSandboxManager {
 			} else {
 				this.activeExecs -= 1;
 			}
+		}
+	}
+
+	private async withWorkspaceLifecycle<T>(taskId: string, run: () => Promise<T>): Promise<T> {
+		// Review bounces can schedule a same-task redrive while finalization is still disposing the old workspace.
+		// Serialize the destructive prepare/dispose pair so neither removes `/workspaces/<task>` under the other's cwd.
+		const previous = this.workspaceLifecycleTails.get(taskId) ?? Promise.resolve();
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const tail = previous.catch(() => undefined).then(() => gate);
+		this.workspaceLifecycleTails.set(taskId, tail);
+		await previous.catch(() => undefined);
+		try {
+			return await run();
+		} finally {
+			release();
+			if (this.workspaceLifecycleTails.get(taskId) === tail) {
+				this.workspaceLifecycleTails.delete(taskId);
+			}
+		}
+	}
+
+	private async disposeWorkspaceUnlocked(taskId: string): Promise<void> {
+		const placement = this.placements.get(taskId);
+		if (!placement) {
+			return;
+		}
+		// run19 ROOT CAUSE: the exec used to be awaited OUTSIDE this try — a throwing docker exec (timeout,
+		// dead container) skipped releaseSlot and LEAKED the slot, deadlocking the pool forever (every later
+		// acquisition queued indefinitely, silently: callers .catch(() => null)). The slot release must be
+		// unconditional: a leftover workdir is recoverable, a leaked slot freezes the whole run.
+		try {
+			const removal = await this.execAsTaskUser(placement, ["rm", "-rf", placement.workdir], {
+				workdir: AGENT_SANDBOX_WORKSPACES_DIR,
+			});
+			assertSandboxExecOk(removal, "remove sandbox task workspace");
+		} finally {
+			this.releaseSlot(taskId);
 		}
 	}
 

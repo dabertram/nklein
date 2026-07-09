@@ -17,6 +17,7 @@
  *        NKLEIN_FLEET_REVIEWER (default qwen9-m4; auto|none|empty leaves reviewer unconfigured),
  *        NKLEIN_VERIFY_PRESET (default complex_dag), NKLEIN_VERIFY_TIMEOUT_MS (default 2_700_000 = 45 min),
  *        NKLEIN_FLEET_MAX_CONCURRENT (default 3), NKLEIN_VERIFY_BASE_URL (default http://127.0.0.1:1234/v1),
+ *        NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY (default 1; raise only with measured capacity evidence),
  *        NKLEIN_VERIFY_MODEL_IDLE_STALL_MS (default 90s), NKLEIN_VERIFY_MODEL_ACTIVE_STALL_MS (default 10min).
  */
 import { execFileSync } from "node:child_process";
@@ -58,6 +59,7 @@ const REVIEWER_AUTO = isAutoReviewerSetting(REVIEWER);
 const PRESET = process.env.NKLEIN_VERIFY_PRESET?.trim() || "complex_dag";
 const BASE_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_TIMEOUT_MS ?? "2700000");
 const MAX_CONCURRENT = Number(process.env.NKLEIN_FLEET_MAX_CONCURRENT ?? "3");
+const PER_MACHINE_MAX_CONCURRENCY = positiveIntegerEnv(process.env.NKLEIN_FLEET_PER_MACHINE_MAX_CONCURRENCY, 1);
 const RPC_REQUEST_TIMEOUT_MS = Number(process.env.NKLEIN_VERIFY_RPC_TIMEOUT_MS ?? "30000");
 
 const TERMINAL_COLUMN_IDS = new Set(["review", "completed", "done"]);
@@ -65,6 +67,13 @@ const ACTIVE_COLUMN_IDS = new Set(["backlog", "planning", "in_progress", "in-pro
 
 function log(line: string): void {
 	process.stdout.write(`${line}\n`);
+}
+
+function positiveIntegerEnv(value: string | undefined, fallback: number): number {
+	if (!value?.trim()) return fallback;
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+	return Math.floor(parsed);
 }
 
 interface BoardCard {
@@ -359,10 +368,11 @@ async function main(): Promise<void> {
 			cwd,
 			homeDir,
 			// Fleet-spread env: tell LM-Link machines (all on one :1234 endpoint) apart by machineId, and let free-first
-			// use real `lms ps` busy state so worker cards spread across machines instead of piling on one model.
+			// use real `lms ps` busy state so worker cards spread across machines instead of piling on one model. The default
+			// machine cap is deliberately conservative because `lms ps` reports parallel=1 on the current three-host fleet.
 			extraEnv: {
 				NODE_ENV: "development",
-				NKLEIN_PER_MACHINE_MAX_CONCURRENCY: "2",
+				NKLEIN_PER_MACHINE_MAX_CONCURRENCY: String(PER_MACHINE_MAX_CONCURRENCY),
 				NKLEIN_QUEUE_AWARE_FREE_FIRST: "1",
 				NKLEIN_WATCH_MODE_MUTATION_TOKEN: process.env.NKLEIN_WATCH_MODE_MUTATION_TOKEN,
 			},
@@ -379,7 +389,7 @@ async function main(): Promise<void> {
 		log(
 			`Server: ${server.baseUrl}\n` +
 				`  FLEET  architect=${ARCHITECT}  worker=${WORKER} (+pool ${WORKER_POOL.join(",") || "none"})  reviewer=${REVIEWER_AUTO ? "auto" : REVIEWER}\n` +
-				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
+				`  preset=${PRESET}  maxConcurrent=${MAX_CONCURRENT}  perMachineCap=${PER_MACHINE_MAX_CONCURRENCY}  timeout=${TIMEOUT_MS}ms (power=${power.mode}×${power.multiplier})  rpcTimeout=${RPC_REQUEST_TIMEOUT_MS}ms`,
 		);
 
 		// Global selected provider = the WORKER model (cascade cards with no per-card provider default to it; a fast coder).
