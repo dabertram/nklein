@@ -10,6 +10,8 @@ import type { LmsRunner } from "./lms-model-runner";
 export interface LmsLinkDevices {
 	/** This host's LM Link device name (the top-level `deviceName`), or null when unavailable. */
 	localMachineName: string | null;
+	/** This host's LM Link device id (the top-level `deviceIdentifier`), or null when unavailable. */
+	localDeviceIdentifier: string | null;
 	/** The current preferred LM Link device id for model resolution, or null when none/unavailable. */
 	preferredDeviceIdentifier: string | null;
 	/** Linked PEER device id (hex) → friendly device name. */
@@ -29,6 +31,7 @@ function asString(value: unknown): string | undefined {
 export function parseLmsLinkDevices(stdout: string): LmsLinkDevices {
 	const empty: LmsLinkDevices = {
 		localMachineName: null,
+		localDeviceIdentifier: null,
 		preferredDeviceIdentifier: null,
 		namesByDeviceId: new Map(),
 	};
@@ -41,7 +44,12 @@ export function parseLmsLinkDevices(stdout: string): LmsLinkDevices {
 	if (!payload || typeof payload !== "object") {
 		return empty;
 	}
-	const obj = payload as { deviceName?: unknown; preferredDeviceIdentifier?: unknown; peers?: unknown };
+	const obj = payload as {
+		deviceIdentifier?: unknown;
+		deviceName?: unknown;
+		preferredDeviceIdentifier?: unknown;
+		peers?: unknown;
+	};
 	const namesByDeviceId = new Map<string, string>();
 	for (const raw of Array.isArray(obj.peers) ? obj.peers : []) {
 		if (!raw || typeof raw !== "object") {
@@ -56,6 +64,7 @@ export function parseLmsLinkDevices(stdout: string): LmsLinkDevices {
 	}
 	return {
 		localMachineName: asString(obj.deviceName) ?? null,
+		localDeviceIdentifier: asString(obj.deviceIdentifier) ?? null,
 		preferredDeviceIdentifier: asString(obj.preferredDeviceIdentifier) ?? null,
 		namesByDeviceId,
 	};
@@ -67,6 +76,11 @@ export async function fetchLmsLinkDevices(run: LmsRunner): Promise<LmsLinkDevice
 		const { stdout } = await run(["link", "status", "--json"]);
 		return parseLmsLinkDevices(stdout);
 	} catch {
-		return { localMachineName: null, preferredDeviceIdentifier: null, namesByDeviceId: new Map() };
+		return {
+			localMachineName: null,
+			localDeviceIdentifier: null,
+			preferredDeviceIdentifier: null,
+			namesByDeviceId: new Map(),
+		};
 	}
 }

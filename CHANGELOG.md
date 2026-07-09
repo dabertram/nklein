@@ -30,7 +30,10 @@
   observed, instead of counting an unconfigured reviewer as observed by definition. Guarded `model-lab` loads can now target
   an LM Link machine by preferred-device id/name, scope unloads to that machine, restore the previous preferred device, and
   evaluate headroom against `NKLEIN_LOAD_TARGET_RAM_GB` so remote loads are planned against the remote box instead of the
-  local M5.
+  local M5. `model-lab roster-load <rosterId>` now resolves the user's swarm roster/budgets, maps roster machine ids/classes
+  to LM Link devices via `NKLEIN_ROSTER_MACHINE_MAP` when needed, preflights the whole roster, guarded-loads each primary
+  assignment on its target machine, restores the previous preferred device after each remote load, and verifies every model
+  is resident before reporting the roster ready.
 - **Model roles now separate auto-selection from explicit pins** (todo §5.AB). Role models default to auto-selection, so
   skill/task-difficulty routing can choose the best loaded model unless a role is explicitly marked `Pinned` in Settings.
   Explicit pins are honored when feasible; if another model looks better, !Klein surfaces a pinned-model recommendation

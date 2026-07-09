@@ -9,6 +9,7 @@
  *   model-lab ps                 — list resident models (read-only; safe anytime).
  *   model-lab check <id>         — print the §5.AL capability-catalog verdict for a model id (read-only; no load).
  *   model-lab load <id> [ctx]    — make <id> the sole resident LLM (unloads others, headroom-checked, ctx default 40000).
+ *   model-lab roster-load <id>   — load a swarm roster's primary assignments across LM Link machines.
  *   model-lab unload <id>        — unload one model.
  *
  * Usage: tsx scripts/model-lab.mts <subcommand> …
@@ -16,7 +17,8 @@
  *        NKLEIN_LOAD_GPU (max|off|auto|0..1 offload ratio — the small-VRAM linked-box lever), NKLEIN_LOAD_DEVICE
  *        (scope the one-at-a-time unload to a single LM Link device, e.g. legion5pro/m4mini), NKLEIN_LOAD_DEVICE_ID
  *        (optional LM Link device identifier; resolved from NKLEIN_LOAD_DEVICE when omitted), NKLEIN_LOAD_TARGET_RAM_GB
- *        (target machine RAM for remote headroom).
+ *        (target machine RAM for remote headroom), NKLEIN_ROSTER_MACHINE_MAP (JSON object mapping roster machine ids/classes
+ *        to LM Link device names/ids for roster-load, e.g. {"workstation":"Local","desktop":"m4mini"}).
  */
 
 import { spawn } from "node:child_process";
@@ -29,6 +31,9 @@ import {
 	resolveActiveModelSuitabilityPolicy,
 } from "../src/core/model-capability-catalog";
 import { type LmsRunner, listResidentModels, loadModelExclusive } from "../src/core/lms-model-runner";
+import { assessRosterFit, resolveSwarmRoster } from "../src/core/swarm-roster";
+import { parseRosterMachineMapEnv, resolveRosterLoadPlan } from "../src/core/swarm-roster-load-plan";
+import { loadUserSwarmConfig, resolveEffectiveBudgets, resolveEffectiveRosters } from "../src/core/swarm-roster-config";
 
 /** A real `lms` runner: spawns the CLI with HOME restored to the OS passwd home (so `lms` finds its auth key). */
 function createLmsRunner(): LmsRunner {
@@ -137,6 +142,97 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
+	if (subcommand === "roster-load") {
+		if (!arg) {
+			console.error("usage: model-lab roster-load <rosterId> [contextLength]");
+			process.exit(64);
+		}
+		const userConfig = await loadUserSwarmConfig();
+		const rosters = resolveEffectiveRosters(userConfig);
+		const budgets = resolveEffectiveBudgets(userConfig);
+		const roster = resolveSwarmRoster(arg, rosters);
+		if (!roster) {
+			console.error(`Unknown roster "${arg}". Available: ${rosters.map((r) => r.id).join(", ") || "(none)"}`);
+			process.exit(64);
+		}
+		const contextLength = ctxArg ? Number.parseInt(ctxArg, 10) : 40_000;
+		if (!Number.isFinite(contextLength) || contextLength <= 0) {
+			console.error(`Invalid context length: ${ctxArg}`);
+			process.exit(64);
+		}
+		const fit = assessRosterFit(roster, budgets);
+		if (!fit.fits) {
+			for (const machine of fit.machines.filter((m) => !m.fits)) {
+				console.error(
+					`Roster "${roster.id}" overcommits ${machine.machine}: ${machine.usedGb.toFixed(1)}/${machine.budgetGb} GB before reserve.`,
+				);
+			}
+			process.exit(1);
+		}
+		const mapParse = parseRosterMachineMapEnv(process.env.NKLEIN_ROSTER_MACHINE_MAP);
+		if (mapParse.issues.length > 0) {
+			for (const issue of mapParse.issues) {
+				console.error(issue);
+			}
+			process.exit(64);
+		}
+		const plan = resolveRosterLoadPlan({
+			roster,
+			budgetsGb: budgets,
+			linkDevices: await fetchLmsLinkDevices(run),
+			machineMap: mapParse.machineMap,
+		});
+		if (!plan.ok) {
+			for (const issue of plan.issues) {
+				console.error(issue);
+			}
+			console.error(
+				"For built-in example rosters, set NKLEIN_ROSTER_MACHINE_MAP to map workstation/desktop/laptop to LM Link device names or ids.",
+			);
+			process.exit(1);
+		}
+
+		for (const target of plan.targets) {
+			console.log(
+				`\n──────── roster ${roster.id} · ${target.machine} → ${target.targetDevice} · ${target.assignment.model} ────────`,
+			);
+			const result = await loadModelExclusive(run, {
+				modelId: target.assignment.model,
+				totalRamBytes: target.totalRamBytes,
+				candidateSizeBytes: target.candidateSizeBytes,
+				contextLength,
+				reserveFraction,
+				suitabilityPolicy: resolveActiveModelSuitabilityPolicy(),
+				gpu: parseGpuEnv(),
+				targetDevice: target.targetDevice,
+				targetDeviceIdentifier: target.targetDeviceIdentifier,
+			});
+			console.log(JSON.stringify(result, null, 2));
+			if (!result.loaded) {
+				console.error(`Roster load stopped at ${target.assignment.model}: ${result.reason}`);
+				process.exit(1);
+			}
+		}
+
+		const residents = await listResidentModels(run);
+		const missing = plan.targets.filter(
+			(target) =>
+				!residents.some(
+					(model) => model.identifier === target.assignment.model && model.device === target.targetDevice,
+				),
+		);
+		if (missing.length > 0) {
+			for (const target of missing) {
+				console.error(`Loaded model not observed resident on ${target.targetDevice}: ${target.assignment.model}`);
+			}
+			process.exit(1);
+		}
+		console.log("\n════════ ROSTER READY ════════");
+		for (const target of plan.targets) {
+			console.log(`  ${target.targetDevice.padEnd(12)} ${target.assignment.role.padEnd(9)} ${target.assignment.model}`);
+		}
+		return;
+	}
 	if (subcommand === "check") {
 		// model-lab check <id> — print the §5.AL capability-catalog verdict for a model id (the CLI seed of the
 		// "check model" feature). Read-only; no load. Exit 0 ok, 1 warn/unknown, 2 reject — so it's scriptable.
@@ -238,7 +334,9 @@ async function main(): Promise<void> {
 		}
 		return;
 	}
-	console.log("usage: tsx scripts/model-lab.mts ps | roster | check <id> | load <id> [ctx] | unload <id> | get <name>[@quant] | sweep <harness> <id1,id2,…>");
+	console.log(
+		"usage: tsx scripts/model-lab.mts ps | roster | roster-load <rosterId> [ctx] | check <id> | load <id> [ctx] | unload <id> | get <name>[@quant] | sweep <harness> <id1,id2,…>",
+	);
 }
 
 main().catch((error) => {
