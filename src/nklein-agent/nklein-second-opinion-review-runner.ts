@@ -10,7 +10,7 @@ import type {
 	RuntimeTaskSessionStartResult,
 	StartRuntimeTaskSessionFromLaunchConfigInput,
 } from "./nklein-runtime-session-input";
-import type { SecondarySessionHarness } from "./nklein-secondary-session-harness";
+import type { SecondarySessionHarness, SecondaryTurnOutcome } from "./nklein-secondary-session-harness";
 import { createSessionId } from "./nklein-session-state";
 
 /** Re-prompt the reviewer if it ended a turn without the structured `submit_review` call (small models often do). */
@@ -122,6 +122,7 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 		if (!providerId || !modelId) {
 			return null;
 		}
+		const selectionSource = input.reviewer ? "explicit_pin" : autoReviewer ? "auto_diverse" : "worker_fallback";
 		const launchConfig: NKleinTaskRestartLaunchConfig = {
 			...(workerLaunch ?? {}),
 			providerId,
@@ -129,6 +130,15 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			workspaceRoot: input.projectRepoPath,
 		};
 		const reviewTaskId = `${input.taskId}::review`;
+		const mergeTurnOutcome = (current: SecondaryTurnOutcome, next: SecondaryTurnOutcome): SecondaryTurnOutcome => {
+			if (current === "timeout" || next === "timeout") {
+				return "timeout";
+			}
+			if (current === "error" || next === "error") {
+				return "error";
+			}
+			return "settled";
+		};
 		return deps.getHarness().runBracketed(
 			{
 				primaryTaskId: input.taskId,
@@ -141,38 +151,72 @@ export function createSecondOpinionReviewRunner(deps: SecondOpinionReviewRunnerD
 			},
 			async ({ workspace, deadlineMs, runBoundedTurn }) => {
 				let verdict: NKleinReviewResult | null = null;
+				let turnOutcome: SecondaryTurnOutcome = "settled";
 				// First turn: seed prompt + the submit_review tool. startRuntimeSession awaits the turn, so the
 				// tool's verdict (if emitted) is captured by the time it settles.
-				await runBoundedTurn(
-					deps.startRuntimeSession({
-						taskId: reviewTaskId,
-						cwd: workspace.workdir,
-						workspaceRoot: input.projectRepoPath,
-						prompt: input.seedPrompt,
-						launchConfig,
-						contextScope: "minimal",
-						onReviewSubmitted: (result) => {
-							verdict = result;
-						},
-						// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
-						// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
-						toolExecutors: createAgentSandboxToolExecutors(sandboxManager, reviewTaskId, {
-							pauseController: deps.getPauseController(),
+				turnOutcome = mergeTurnOutcome(
+					turnOutcome,
+					await runBoundedTurn(
+						deps.startRuntimeSession({
+							taskId: reviewTaskId,
+							cwd: workspace.workdir,
+							workspaceRoot: input.projectRepoPath,
+							prompt: input.seedPrompt,
+							launchConfig,
+							contextScope: "minimal",
+							onReviewSubmitted: (result) => {
+								verdict = result;
+							},
+							// Route the reviewer's file/bash tools into its sandbox container (so the host cwd is never
+							// touched), exactly like a worker session — keeps strict isolation and lets the reviewer inspect.
+							toolExecutors: createAgentSandboxToolExecutors(sandboxManager, reviewTaskId, {
+								pauseController: deps.getPauseController(),
+							}),
+							extraTools: createAgentSandboxExtraTools(sandboxManager, reviewTaskId, {
+								sessionId: createSessionId(reviewTaskId),
+								contextWindow: launchConfig.contextWindow ?? undefined,
+								maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
+							}),
 						}),
-						extraTools: createAgentSandboxExtraTools(sandboxManager, reviewTaskId, {
-							sessionId: createSessionId(reviewTaskId),
-							contextWindow: launchConfig.contextWindow ?? undefined,
-							maxFileLines: launchConfig.maxAgentWritableFileLines ?? null,
-						}),
-					}),
+					),
 				);
 				// Re-prompt nudge: small models often end a turn without the structured call. Mirror the decomposition
 				// re-prompt — if there's still no verdict, tell the reviewer to call submit_review now, bounded by a
 				// small budget and the overall deadline.
 				for (let nudge = 0; verdict === null && nudge < deps.maxNudges && Date.now() < deadlineMs; nudge += 1) {
-					await runBoundedTurn(deps.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT));
+					turnOutcome = mergeTurnOutcome(
+						turnOutcome,
+						await runBoundedTurn(deps.sendTaskSessionInput(reviewTaskId, SECOND_OPINION_REVIEW_NUDGE_PROMPT)),
+					);
 				}
-				return verdict;
+				// Widen past TS's closure-assignment blind spot: `verdict` is written by the submit_review callback.
+				const submittedVerdict = verdict as NKleinReviewResult | null;
+				const observationOutcome =
+					turnOutcome === "settled" ? (submittedVerdict ? "verdict" : "no_verdict") : turnOutcome;
+				recordSelfObservation({
+					signal: "custom",
+					severity: observationOutcome === "verdict" ? "info" : "warning",
+					message:
+						`Second-opinion review session ${observationOutcome} for ${input.taskId} ` +
+						`on ${providerId}/${modelId}.`,
+					taskId: reviewTaskId,
+					providerId,
+					modelId,
+					workspacePath: input.projectRepoPath,
+					metadata: {
+						category: "second_opinion_review_session",
+						sessionKind: "review",
+						primaryTaskId: input.taskId,
+						syntheticTaskId: reviewTaskId,
+						providerId,
+						modelId,
+						selectionSource,
+						turnOutcome,
+						outcome: observationOutcome,
+						verdict: submittedVerdict?.verdict ?? null,
+					},
+				});
+				return submittedVerdict;
 			},
 		);
 	}

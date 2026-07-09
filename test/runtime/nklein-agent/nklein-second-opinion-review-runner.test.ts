@@ -34,6 +34,7 @@ function harness(over: { hang?: boolean } = {}) {
 				deadlineMs: 8_000,
 				runBoundedTurn: async (p: Promise<unknown>) => {
 					await p;
+					return "settled";
 				},
 			});
 		}),
@@ -83,6 +84,19 @@ describe("createSecondOpinionReviewRunner", () => {
 		});
 		expect(result).toEqual(APPROVE);
 		expect(d.startRuntimeSession).toHaveBeenCalledOnce();
+		expect(h.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "t1::review",
+				providerId: "lmstudio",
+				modelId: "critic-m",
+				metadata: expect.objectContaining({
+					category: "second_opinion_review_session",
+					outcome: "verdict",
+					selectionSource: "explicit_pin",
+					verdict: "approve",
+				}),
+			}),
+		);
 	});
 
 	it("single-flights concurrent rounds for the same task (second returns null, records the skip)", async () => {
@@ -105,5 +119,41 @@ describe("createSecondOpinionReviewRunner", () => {
 		expect(h.pickDiverseReviewerModel).toHaveBeenCalled();
 		const launchArg = (d.startRuntimeSession as ReturnType<typeof vi.fn>).mock.calls[0][0];
 		expect(launchArg.launchConfig.modelId).toBe("diverse-m");
+		expect(h.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "t1::review",
+				modelId: "diverse-m",
+				metadata: expect.objectContaining({
+					category: "second_opinion_review_session",
+					selectionSource: "auto_diverse",
+				}),
+			}),
+		);
+	});
+
+	it("records a settled reviewer turn even when the reviewer produces no verdict", async () => {
+		const d = deps({
+			startRuntimeSession: vi.fn(async () => ({ result: {} })),
+			sendTaskSessionInput: vi.fn(async () => {}),
+			maxNudges: 0,
+		});
+		const runner = createSecondOpinionReviewRunner(d);
+		await runner.runSecondOpinionReviewSession({
+			...input,
+			reviewer: { providerId: "lmstudio", modelId: "critic-m" },
+		});
+		expect(h.recordSelfObservation).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "t1::review",
+				modelId: "critic-m",
+				severity: "warning",
+				metadata: expect.objectContaining({
+					category: "second_opinion_review_session",
+					outcome: "no_verdict",
+					turnOutcome: "settled",
+					verdict: null,
+				}),
+			}),
+		);
 	});
 });

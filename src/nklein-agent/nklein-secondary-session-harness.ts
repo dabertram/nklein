@@ -15,6 +15,8 @@ export interface SecondarySessionHarnessDeps {
 }
 
 /** Passed to a runner's `drive` closure: the prepared sandbox workspace + a deadline-bounded turn runner. */
+export type SecondaryTurnOutcome = "settled" | "error" | "timeout";
+
 export interface SecondarySessionContext {
 	workspace: { workdir: string };
 	/** Absolute deadline (ms epoch) for the whole session — runners gate their nudge loops on `Date.now() < deadlineMs`. */
@@ -23,7 +25,7 @@ export interface SecondarySessionContext {
 	 * Await one turn, bounded by the remaining overall budget (an SDK turn can hang). Turn errors are recorded (not
 	 * thrown) so they fall through to whatever null/empty verdict the drive returns (the caller then fail-safe-delivers).
 	 */
-	runBoundedTurn(turn: Promise<unknown>): Promise<void>;
+	runBoundedTurn(turn: Promise<unknown>): Promise<SecondaryTurnOutcome>;
 }
 
 export interface SecondarySessionConfig {
@@ -96,19 +98,29 @@ export function createSecondarySessionHarness(deps: SecondarySessionHarnessDeps)
 				createdAt: Date.now(),
 			});
 		};
-		const runBoundedTurn = async (turn: Promise<unknown>): Promise<void> => {
+		const runBoundedTurn = async (turn: Promise<unknown>): Promise<SecondaryTurnOutcome> => {
 			const remainingMs = deadlineMs - Date.now();
 			if (remainingMs <= 0) {
-				return;
+				return "timeout";
 			}
 			let timer: ReturnType<typeof setTimeout> | undefined;
-			const timeout = new Promise<void>((resolve) => {
-				timer = setTimeout(resolve, remainingMs);
+			const timeout = new Promise<"timeout">((resolve) => {
+				timer = setTimeout(() => resolve("timeout"), remainingMs);
 			});
-			await Promise.race([turn.then(() => undefined, recordSessionError), timeout]);
+			const outcome = await Promise.race([
+				turn.then(
+					() => "settled" as const,
+					(error) => {
+						recordSessionError(error);
+						return "error" as const;
+					},
+				),
+				timeout,
+			]);
 			if (timer) {
 				clearTimeout(timer);
 			}
+			return outcome;
 		};
 		try {
 			return await drive({ workspace, deadlineMs, runBoundedTurn });

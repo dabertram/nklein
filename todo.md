@@ -5842,6 +5842,22 @@ escalation). This also gives `raisedTokenBudget` a LIVE production consumer (not
         regression mode; the verifier scans persisted prompt sessions, requires an actual synthetic review session on a
         non-worker model, and fails if auto reviewer work is absent. Also, `NKLEIN_FLEET_WORKER_POOL=""` now means an
         intentionally empty pool instead of falling back to the default pool.
+        **ROOT-CAUSE FOLLOW-UP (2026-07-09):** live mixed pin/auto rerun proved the auto reviewer was picked and Qwen
+        ran, but the verifier still saw zero `*::review*` prompt sessions because the secondary-session harness
+        intentionally calls `clearTaskSessions(<task>::review)` in `finally`, deleting those SDK records after bounded
+        review cleanup. Fixed the actual seam: settled second-opinion reviewer turns now emit durable
+        `second_opinion_review_session` telemetry with the concrete reviewer model, selection source, outcome
+        (`verdict`/`no_verdict`), and synthetic task id; the verifier consumes that telemetry plus any surviving SDK
+        session records. Reviewer proof is now role-specific for both pinned and auto reviewers instead of "model appeared
+        somewhere in the run."
+        **LIVE RERUN AFTER ROOT-CAUSE FIX (2026-07-09):** same mixed setup
+        (`architect=qwen/qwen3.6-35b-a3b`, pinned worker `mistralai/devstral-small-2-2512`, empty worker pool,
+        `reviewer=auto`, max concurrency 2) now PASSes the role-usage gate: architect YES, worker YES, auto reviewer YES,
+        with **17 durable `second_opinion_review_session` turns on Qwen** and zero surviving SDK `::review` sessions
+        (confirming the cleanup/evidence diagnosis). Overall fleet still STALLED before terminal completion:
+        result branches existed for 4 cards, but redecompose/review loops expanded the board to 19 cards and the harness
+        aborted when a running Qwen redecompose session was idle while Devstral still had a generating worker session.
+        Treat this as the next convergence/scheduler/review-loop problem, not as a model-role observation failure.
         **STILL OWED:** rerun the live verifier with stable/reloaded role models; require no silent fallback after a
         pinned-model crash, actual worker + reviewer observations, all cards terminating, and clean teardown.
   - [x] record per-role / per-task model choice + outcome on the §5.AF ledger (feeds fitness + the user-advice projection). *(SHIPPED: deriveTaskFitnessRecord at task-outcome seam)*

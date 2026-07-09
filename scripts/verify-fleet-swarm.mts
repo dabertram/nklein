@@ -27,6 +27,7 @@ import { join } from "node:path";
 import { createDefaultLmsRunner, fetchLmsPsModels, type LmsPsModel } from "../src/core/lms-ps-json";
 import {
 	evaluateFleetReviewerObservation,
+	extractFleetReviewSessionModelObservation,
 	hasModelUsage,
 	isAutoReviewerSetting,
 	isPromptReviewSessionId,
@@ -216,6 +217,56 @@ function reportPersistedPromptSessions(homeDir: string): PersistedPromptSessionR
 	}
 	if (rows === 0) {
 		log("   (no persisted prompt-session model records found)");
+	}
+	return { seenModels, reviewModels };
+}
+
+interface ReviewSessionTelemetryReport {
+	seenModels: Set<string>;
+	reviewModels: Set<string>;
+}
+
+function reportReviewSessionTelemetry(homeDir: string): ReviewSessionTelemetryReport {
+	const files = findFiles(homeDir, ".nklein/nklein/telemetry").filter((file) => file.endsWith(".jsonl"));
+	const seenModels = new Set<string>();
+	const reviewModels = new Set<string>();
+	const byModel = new Map<string, { total: number; outcomes: Map<string, number> }>();
+	let rows = 0;
+	for (const file of files) {
+		let text: string;
+		try {
+			text = readFileSync(file, "utf8");
+		} catch {
+			continue;
+		}
+		for (const line of text.split("\n")) {
+			if (!line.trim()) continue;
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(line);
+			} catch {
+				continue;
+			}
+			const observation = extractFleetReviewSessionModelObservation(parsed);
+			if (!observation) {
+				continue;
+			}
+			rows += 1;
+			seenModels.add(observation.modelId);
+			reviewModels.add(observation.modelId);
+			const rec = byModel.get(observation.modelId) ?? { total: 0, outcomes: new Map() };
+			rec.total += 1;
+			rec.outcomes.set(observation.outcome, (rec.outcomes.get(observation.outcome) ?? 0) + 1);
+			byModel.set(observation.modelId, rec);
+		}
+	}
+	log(`=== Durable review-session telemetry: ${rows} settled review turn(s) across ${byModel.size} model(s) ===`);
+	for (const [model, rec] of byModel) {
+		const outcomes = [...rec.outcomes.entries()].map(([outcome, count]) => `${outcome}:${count}`).join(" ");
+		log(`   ${model}  reviewTurns=${rec.total}  [${outcomes}]`);
+	}
+	if (rows === 0) {
+		log("   (no durable second-opinion review-session telemetry found)");
 	}
 	return { seenModels, reviewModels };
 }
@@ -573,7 +624,17 @@ async function main(): Promise<void> {
 		log("");
 		const seenLedgerModels = reportLedger(homeDir);
 		const persistedPromptSessions = reportPersistedPromptSessions(homeDir);
-		const seenModels = new Set([...seenRuntimeModels, ...seenLedgerModels, ...persistedPromptSessions.seenModels]);
+		const reviewSessionTelemetry = reportReviewSessionTelemetry(homeDir);
+		const reviewSessionModels = new Set([
+			...persistedPromptSessions.reviewModels,
+			...reviewSessionTelemetry.reviewModels,
+		]);
+		const seenModels = new Set([
+			...seenRuntimeModels,
+			...seenLedgerModels,
+			...persistedPromptSessions.seenModels,
+			...reviewSessionTelemetry.seenModels,
+		]);
 		log("");
 		if (workspacePath) reportDeliverables(workspacePath);
 
@@ -583,8 +644,7 @@ async function main(): Promise<void> {
 		const workerSeen = hasModelUsage(seenModels, WORKER);
 		const reviewerObservation = evaluateFleetReviewerObservation({
 			configuredReviewer: REVIEWER,
-			seenModels,
-			persistedReviewModels: persistedPromptSessions.reviewModels,
+			reviewSessionModels,
 			workerModel: WORKER,
 		});
 		const reviewerSeen = reviewerObservation.observed;

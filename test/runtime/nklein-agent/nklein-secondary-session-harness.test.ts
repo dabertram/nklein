@@ -90,9 +90,11 @@ describe("createSecondarySessionHarness.runBracketed", () => {
 	it("runBoundedTurn records (not throws) a failing turn, and awaits a resolving one", async () => {
 		const mgr = sandboxManager();
 		let sawResolve = false;
+		let failedOutcome: unknown = null;
+		let settledOutcome: unknown = null;
 		await createSecondarySessionHarness(deps(mgr)).runBracketed(config, async ({ runBoundedTurn }) => {
-			await runBoundedTurn(Promise.reject(new Error("turn boom"))); // recorded, not thrown
-			await runBoundedTurn(
+			failedOutcome = await runBoundedTurn(Promise.reject(new Error("turn boom"))); // recorded, not thrown
+			settledOutcome = await runBoundedTurn(
 				Promise.resolve().then(() => {
 					sawResolve = true;
 				}),
@@ -103,6 +105,8 @@ describe("createSecondarySessionHarness.runBracketed", () => {
 			expect.objectContaining({ message: expect.stringContaining("Review session failed: turn boom") }),
 		);
 		expect(sawResolve).toBe(true);
+		expect(failedOutcome).toBe("error");
+		expect(settledOutcome).toBe("settled");
 	});
 
 	it("falls back to the base ref when the result-branch commit does not resolve (primaryTaskId given)", async () => {
