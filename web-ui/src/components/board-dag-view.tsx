@@ -133,16 +133,19 @@ export function BoardDagView({
 					>
 						<title>Board dependency graph</title>
 						{graph.edges.map((edge) => {
-							const from = graph.positions.get(edge.fromTaskId);
-							const to = graph.positions.get(edge.toTaskId);
-							if (!from || !to) {
+							// EXECUTION-ORDER flow (David 2026-07-10): `from` depends on `to`, so the line runs
+							// blocker (to, left layer) → dependent (from, right layer) — with the arrow-dot at the
+							// dependent end ("what runs next"), matching the board's left→right time flow.
+							const blocker = graph.positions.get(edge.toTaskId);
+							const dependent = graph.positions.get(edge.fromTaskId);
+							if (!blocker || !dependent) {
 								return null;
 							}
 							const isCycle = graph.cycleEdgeIds.has(edge.id);
-							const x1 = from.x + NODE_W;
-							const y1 = from.y + NODE_H / 2;
-							const x2 = to.x;
-							const y2 = to.y + NODE_H / 2;
+							const x1 = blocker.x + NODE_W;
+							const y1 = blocker.y + NODE_H / 2;
+							const x2 = dependent.x;
+							const y2 = dependent.y + NODE_H / 2;
 							const midX = (x1 + x2) / 2;
 							return (
 								<g key={edge.id} data-testid={isCycle ? "dag-cycle-edge" : "dag-edge"}>

@@ -664,8 +664,11 @@ export function DependencyOverlay({
 
 		const candidates = Array.from(displayedDependencies.values())
 			.map(({ dependency, isTransient }) => {
-				const sourceAnchor = layout.anchors[dependency.fromTaskId];
-				const targetAnchor = layout.anchors[dependency.toTaskId];
+				// EXECUTION-ORDER rendering (David 2026-07-10): `from` DEPENDS ON `to`, so the edge STARTS at the
+				// BLOCKER (to) and ENDS — arrowhead — at the dependent (from): the arrow points at what runs next,
+				// matching the board's left→right time flow (it previously pointed at the dependency target).
+				const sourceAnchor = layout.anchors[dependency.toTaskId];
+				const targetAnchor = layout.anchors[dependency.fromTaskId];
 				if (!sourceAnchor || !targetAnchor) {
 					return null;
 				}
@@ -696,17 +699,19 @@ export function DependencyOverlay({
 
 		const laneOrderByTaskId = new Map<string, Array<{ dependencyId: string; oppositeCenterY: number }>>();
 		for (const candidate of candidates) {
+			// After the execution-order swap: sourceAnchor = the BLOCKER (toTaskId), targetAnchor = the dependent
+			// (fromTaskId) — each card's lane sorts by the OTHER card's center.
 			const sourceLanes = laneOrderByTaskId.get(candidate.dependency.fromTaskId) ?? [];
 			sourceLanes.push({
 				dependencyId: candidate.dependency.id,
-				oppositeCenterY: candidate.targetAnchor.centerY,
+				oppositeCenterY: candidate.sourceAnchor.centerY,
 			});
 			laneOrderByTaskId.set(candidate.dependency.fromTaskId, sourceLanes);
 
 			const targetLanes = laneOrderByTaskId.get(candidate.dependency.toTaskId) ?? [];
 			targetLanes.push({
 				dependencyId: candidate.dependency.id,
-				oppositeCenterY: candidate.sourceAnchor.centerY,
+				oppositeCenterY: candidate.targetAnchor.centerY,
 			});
 			laneOrderByTaskId.set(candidate.dependency.toTaskId, targetLanes);
 		}
@@ -716,10 +721,12 @@ export function DependencyOverlay({
 		}
 
 		return candidates.map((candidate) => {
-			const sourceLanes = laneOrderByTaskId.get(candidate.dependency.fromTaskId) ?? [
+			// sourceAnchor belongs to the BLOCKER (toTaskId), targetAnchor to the dependent (fromTaskId) — each
+			// end's lane offset comes from ITS OWN card's lane list.
+			const sourceLanes = laneOrderByTaskId.get(candidate.dependency.toTaskId) ?? [
 				{ dependencyId: candidate.dependency.id, oppositeCenterY: candidate.targetAnchor.centerY },
 			];
-			const targetLanes = laneOrderByTaskId.get(candidate.dependency.toTaskId) ?? [
+			const targetLanes = laneOrderByTaskId.get(candidate.dependency.fromTaskId) ?? [
 				{ dependencyId: candidate.dependency.id, oppositeCenterY: candidate.sourceAnchor.centerY },
 			];
 			const sourceLaneIndex = sourceLanes.findIndex((lane) => lane.dependencyId === candidate.dependency.id);

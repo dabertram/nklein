@@ -183,8 +183,10 @@ export function ActivityMapView({
 					</g>
 				))}
 				{map.edges.map((edge) => {
-					const from = positions.get(edge.fromCardId);
-					const to = positions.get(edge.toCardId);
+					// EXECUTION-ORDER flow (David 2026-07-10): `fromCardId` DEPENDS ON `toCardId`, so the arrow runs
+					// blocker → dependent — it points at what runs next (time flow), not at the dependency target.
+					const from = positions.get(edge.toCardId);
+					const to = positions.get(edge.fromCardId);
 					if (!from || !to) {
 						return null;
 					}

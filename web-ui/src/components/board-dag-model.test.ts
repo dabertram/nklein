@@ -78,14 +78,15 @@ describe("buildDagGraph", () => {
 		expect(graph.edges.map((e) => e.id)).toEqual(["a->b"]); // a->gone (trash) and x->a (unknown) dropped
 	});
 
-	it("lays roots at x=pad and pushes dependents rightward by depth", () => {
+	it("lays BLOCKERS left and dependents rightward by depth (execution order)", () => {
 		const columns = [column("backlog", ["a", "b"])];
+		// dep(a, b) = "a depends on b" (core semantics): b must land FIRST, so b is the left/root layer.
 		const graph = buildDagGraph(columns, [dep("a", "b")], noSessions);
 		const a = graph.positions.get("a");
 		const b = graph.positions.get("b");
 		expect(a).toBeDefined();
 		expect(b).toBeDefined();
-		expect((b?.x ?? 0) > (a?.x ?? 0)).toBe(true); // b (depth 1) is right of a (depth 0)
+		expect((a?.x ?? 0) > (b?.x ?? 0)).toBe(true); // a (dependent, depth 1) is right of b (blocker, depth 0)
 	});
 
 	it("marks node status from the live session (running / failed / blocked)", () => {

@@ -111,8 +111,10 @@ export function buildDagGraph(
 	const edges = dependencies.filter((edge) => idSet.has(edge.fromTaskId) && idSet.has(edge.toTaskId));
 	const dependsOn = new Map<string, string[]>();
 	for (const edge of edges) {
-		// `to` depends on `from` (from must land first) — depth flows along build order.
-		dependsOn.set(edge.toTaskId, [...(dependsOn.get(edge.toTaskId) ?? []), edge.fromTaskId]);
+		// Core semantics (task-board-ready-sweep.ts): `from` DEPENDS ON `to` — `to` must land first. Depth flows
+		// along build order, so BLOCKERS layer LEFT and dependents RIGHT (this was reversed — live-found by David
+		// 2026-07-10: the graph read against the board's left→right time flow).
+		dependsOn.set(edge.fromTaskId, [...(dependsOn.get(edge.fromTaskId) ?? []), edge.toTaskId]);
 	}
 	const depths = computeDepths(ids, dependsOn);
 	const cycleEdgeIds = findCycleEdgeIds(ids, edges);
