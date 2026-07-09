@@ -220,13 +220,11 @@ export async function runSecondOpinionReviewForTask(
 			? { providerId: reviewerRole.providerId, modelId: reviewerRole.modelId }
 			: null;
 	// W2.5 role auto-assignment: the configured reviewer is automatic by default. Only an explicit pinned reviewer is
-	// honored as a hard user choice when it is loaded — but a pin that is positively NOT in the loaded
-	// set is WAIVED to the service's lineage-diverse auto-pick (`pickDiverseReviewerModel` runs when reviewer is
-	// null) instead of launching an unloaded model (which would either fail the review turn or trigger a model
-	// load, violating the §5.AB no-load directive). Lenient exactly like `shouldBlockUnloadedModel`: an unknown/
-	// empty loaded set honors the pin, so an unreachable probe never wedges a review. The probe is skipped under
-	// the test runner unless injected (no live endpoint there), mirroring the task-start residency gate.
-	let reviewer = pinnedReviewer;
+	// honored as a hard user choice. If a positive loaded-set probe proves that pin is absent, block the review/delivery
+	// instead of waiving the pin to the service's lineage-diverse auto-pick. Lenient exactly like
+	// `shouldBlockUnloadedModel`: an unknown/empty loaded set honors the pin, so an unreachable probe never wedges a
+	// review. The probe is skipped under the test runner unless injected, mirroring the task-start residency gate.
+	const reviewer = pinnedReviewer;
 	if (pinnedReviewer) {
 		const residencyCheckEnabled = !(process.env.VITEST || process.env.NODE_ENV === "test");
 		const probeLoadedModelIds =
@@ -242,12 +240,13 @@ export async function runSecondOpinionReviewForTask(
 				pinned: pinnedReviewer,
 				candidates: loadedIds.map((id) => ({ modelKey: id, modelId: id, score: 0 })),
 			});
-			if (pinDecision.source === "auto") {
-				reviewer = null;
-				input.warn?.(
+			if (pinDecision.source === "unmatched_pin") {
+				const message =
 					`Configured reviewer ${pinnedReviewer.providerId}/${pinnedReviewer.modelId} for ${input.taskId} ` +
-						`is waived — a lineage-diverse loaded reviewer will be auto-picked instead. ${pinDecision.reasons.join(" ")}`,
-				);
+					`is pinned but not currently loaded/runnable. Load that model or switch the reviewer assignment back to Auto. ` +
+					pinDecision.reasons.join(" ");
+				input.warn?.(message);
+				return { type: "blocked", reason: "pinned_reviewer_unavailable", message };
 			}
 		}
 	}

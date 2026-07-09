@@ -891,7 +891,7 @@ export async function handleStartTaskSession(
 			warmthPreference.warmthReason
 				? ` Cache-warmth preference: ${warmthPreference.warmthReason}.`
 				: "";
-		// W2.5 observability: pin honored / pin waived is part of "why this model" — append the role-assignment
+		// W2.5 observability: pin honored / unmatched pin is part of "why this model" — append the role-assignment
 		// reasons (empty for the plain unconfigured auto path, so the common selectionReason stays byte-identical).
 		const rolePinReasonSuffix = roleAssignment.reasons.length > 0 ? ` ${roleAssignment.reasons.join(" ")}` : "";
 		const classIgnoredPinnedModel =

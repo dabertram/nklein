@@ -264,7 +264,7 @@ describe("runSecondOpinionReviewForTask", () => {
 		}
 	});
 
-	it("waives a configured reviewer that is NOT loaded to the service's diverse auto-pick (W2.5 pin-miss)", async () => {
+	it("blocks a configured reviewer pin that is positively NOT loaded", async () => {
 		const deps = makeDeps({
 			submission: { verdict: "approve", summary: "Good", feedback: null, insight: null },
 			reviewerPinned: true,
@@ -278,14 +278,18 @@ describe("runSecondOpinionReviewForTask", () => {
 			loadWorkspaceState: deps.loadWorkspaceState,
 			mutateWorkspaceState: deps.mutateWorkspaceState,
 			getTaskResultBranchDiff: deps.getTaskResultBranchDiff,
-			// The loaded set positively LACKS the configured "reviewer-model" ⇒ the pin is waived (never launch an
-			// unloaded model) and the service auto-picks (reviewer: null triggers pickDiverseReviewerModel).
+			// The loaded set positively LACKS the configured "reviewer-model" ⇒ explicit pin must block, not auto-pick.
 			fetchLoadedModelIds: async () => ["some-other-loaded-model"],
 			warn,
 		});
-		expect(outcome.type).toBe("delivered");
-		expect(deps.runSecondOpinionReviewSession).toHaveBeenCalledWith(expect.objectContaining({ reviewer: null }));
-		expect(warn).toHaveBeenCalledWith(expect.stringContaining("waived"));
+		expect(outcome).toEqual(
+			expect.objectContaining({
+				type: "blocked",
+				reason: "pinned_reviewer_unavailable",
+			}),
+		);
+		expect(deps.runSecondOpinionReviewSession).not.toHaveBeenCalled();
+		expect(warn).toHaveBeenCalledWith(expect.stringContaining("pinned but not currently loaded/runnable"));
 	});
 
 	it("honors a configured reviewer that IS loaded (valid-pin behavior unchanged)", async () => {

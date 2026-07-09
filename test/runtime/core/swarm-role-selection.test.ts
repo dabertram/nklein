@@ -47,22 +47,33 @@ describe("resolveSwarmRoleModel (W2.5 pin-vs-auto: explicit pin layered on auto)
 		expect(result.pick).toBe(primary);
 	});
 
-	it("waives an unavailable pin to AUTO with a surfaced reason — never a hard failure", () => {
+	it("reports an unavailable pin without selecting an automatic substitute", () => {
 		const result = resolveSwarmRoleModel({
 			role: "worker",
 			pinned: { providerId: "lmstudio", modelId: "not-loaded-model" },
 			candidates: [candidate("qwen3.5-9b", 80)],
 		});
-		expect(result.source).toBe("auto");
-		expect(result.pick?.modelId).toBe("qwen3.5-9b");
+		expect(result.source).toBe("unmatched_pin");
+		expect(result.pick).toBeNull();
 		expect(result.reasons.join(" ")).toContain("not loaded/runnable");
-		expect(result.reasons.join(" ")).toContain("pin waived");
+		expect(result.reasons.join(" ")).toContain("explicit pin unmatched");
 	});
 
-	it("returns a null pick with a reason when no candidate exists at all", () => {
+	it("reports an unmatched pin even when no candidate exists at all", () => {
 		const result = resolveSwarmRoleModel({
 			role: "reviewer",
 			pinned: { providerId: "lmstudio", modelId: "not-loaded-model" },
+			candidates: [],
+		});
+		expect(result.pick).toBeNull();
+		expect(result.source).toBe("unmatched_pin");
+		expect(result.reasons.join(" ")).toContain("explicit pin unmatched");
+	});
+
+	it("returns a null auto pick with a reason when an unpinned role has no candidates", () => {
+		const result = resolveSwarmRoleModel({
+			role: "reviewer",
+			pinned: null,
 			candidates: [],
 		});
 		expect(result.pick).toBeNull();

@@ -40,6 +40,7 @@ export interface SecondOpinionReviewCard {
 
 export type NKleinSecondOpinionReviewOutcome =
 	| { type: "skipped"; reason: "disabled" | "not_reviewable" | "card_not_found" | "no_verdict" }
+	| { type: "blocked"; reason: "pinned_reviewer_unavailable"; message: string }
 	/** §5.AW: `preferred` is set only when the review was an A/B arbitration (a speculative candidate existed). */
 	| { type: "delivered"; round: number; signOff: string; preferred?: "primary" | "speculative" | null }
 	| { type: "bounced"; round: number }

@@ -2,15 +2,14 @@
  * W2.5 role auto-assignment (todo §5.0.5, decided 2026-07-02: auto is the DEFAULT) — the PIN-vs-AUTO layer for a
  * swarm role's model. Callers pass `pinned` ONLY for an explicit user pin (for role config, that means
  * `modelSelectionMode:"pinned"`). Unpinned role models remain auto-selection candidates/pool members, not hard pins.
- * A pin that is not loaded/feasible is reported as an unmatched pin in the rationale. This pure core still returns the
- * auto pick so optional/legacy seams can decide locally, but runtime task starts must treat explicit user pins as
- * fail-closed unless the caller intentionally implements a different opt-in fallback.
+ * A pin that is not loaded/feasible is reported as an unmatched pin with no pick. Callers that want an emergency
+ * fallback must implement that as an explicit, separately named policy; the default contract never waives a user pin.
  *
  * Composition contract (the shipped W0.4/§5.AQ pattern, uniform across seams):
  *  1. **Pin first, absolutely.** A pin that matches a candidate (caller-tagged `isPinned` or identity match) WINS —
  *     the user chose it. Diversity is NOT applied over a pin, but a correlated pin is REPORTED (`diversityWaived`),
  *     never silently monocultural. A configured-but-unmatched pin is reported with a surfaced reason; callers decide
- *     whether that is a hard block (runtime task starts) or an optional fallback seam.
+ *     whether that is a hard block (runtime task starts/reviews) or a deliberately opted-in fallback seam.
  *  2. **Diversity second (DECISION roles only).** reviewer/critic/merge judge other models' work, so
  *     `applyDiversityPreference` re-ranks toward an uncorrelated lineage (margin-bounded HARD preference);
  *     generation roles (architect/worker) keep pure fit ranking (Self-MoA — forced diversity does not help
@@ -97,8 +96,8 @@ export interface ResolveSwarmRoleModelInput<T extends SwarmRoleSelectionCandidat
 export interface SwarmRoleModelPick<T extends SwarmRoleSelectionCandidate> {
 	/** The assigned candidate, or null when no candidate exists at all. */
 	pick: T | null;
-	/** "pinned" = the configured pin was matched and honored; "auto" = automatic selection (incl. waived pins). */
-	source: "pinned" | "auto";
+	/** "pinned" = matched and honored; "auto" = no explicit pin; "unmatched_pin" = explicit pin had no feasible pick. */
+	source: "pinned" | "auto" | "unmatched_pin";
 	/** True when the pick's lineage is known and outside the avoid set (vacuously true for generation roles). */
 	diversityAchieved: boolean;
 	/** Non-null when diversity was wanted but not achieved — the SURFACED waiver (ledger/operator), never silent. */
@@ -141,9 +140,9 @@ function isDiverseCandidate(candidate: SwarmRoleSelectionCandidate, avoid: Reado
 }
 
 /**
- * Pure: resolve a swarm role's model — configured pin honored when it matches a candidate, otherwise automatic
- * selection with decision-role diversity first and margin-bounded warmth after, all reasons surfaced. See the
- * module doc for the full contract.
+ * Pure: resolve a swarm role's model — configured pin honored when it matches a candidate, unmatched pin reported
+ * with no substitute, otherwise automatic selection with decision-role diversity first and margin-bounded warmth after.
+ * See the module doc for the full contract.
  */
 export function resolveSwarmRoleModel<T extends SwarmRoleSelectionCandidate>(
 	input: ResolveSwarmRoleModelInput<T>,
@@ -176,8 +175,16 @@ export function resolveSwarmRoleModel<T extends SwarmRoleSelectionCandidate>(
 		}
 		reasons.push(
 			`Pinned ${input.role} model ${describePin(pinned)} is not loaded/runnable — ` +
-				`falling back to automatic selection (pin waived, the start is not blocked).`,
+				`explicit pin unmatched; automatic selection is not allowed unless the caller opts into a fallback.`,
 		);
+		return {
+			pick: null,
+			source: "unmatched_pin",
+			diversityAchieved: false,
+			diversityWaived: null,
+			warmthReason: null,
+			reasons,
+		};
 	}
 
 	// 2. Automatic selection.

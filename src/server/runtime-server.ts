@@ -1029,7 +1029,8 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					if (
 						reviewOutcome.type === "bounced" ||
 						reviewOutcome.type === "parked" ||
-						reviewOutcome.type === "escalated"
+						reviewOutcome.type === "escalated" ||
+						reviewOutcome.type === "blocked"
 					) {
 						return;
 					}
